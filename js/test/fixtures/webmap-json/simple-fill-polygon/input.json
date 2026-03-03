@@ -1,0 +1,28 @@
+{
+  "operationalLayers": [
+    {
+      "id": "parcels",
+      "title": "Parcels",
+      "url": "https://services.example.com/rest/services/Parcels/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSFS",
+              "style": "esriSFSSolid",
+              "color": [76, 115, 0, 200],
+              "outline": {
+                "type": "esriSLS",
+                "style": "esriSLSSolid",
+                "color": [110, 110, 110, 255],
+                "width": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

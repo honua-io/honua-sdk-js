@@ -1,0 +1,23 @@
+{
+  "operationalLayers": [
+    {
+      "id": "roads",
+      "title": "Roads",
+      "url": "https://services.example.com/rest/services/Roads/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSLS",
+              "style": "esriSLSDash",
+              "color": [255, 0, 0, 255],
+              "width": 2
+            }
+          }
+        }
+      }
+    }
+  ]
+}

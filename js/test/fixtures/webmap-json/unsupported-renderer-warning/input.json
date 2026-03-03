@@ -1,0 +1,21 @@
+{
+  "operationalLayers": [
+    {
+      "id": "heatmap-layer",
+      "title": "Crime Heatmap",
+      "url": "https://services.example.com/arcgis/rest/services/Crime/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "visibility": true,
+      "opacity": 1,
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "heatmap",
+            "blurRadius": 10,
+            "maxPixelIntensity": 25
+          }
+        }
+      }
+    }
+  ]
+}

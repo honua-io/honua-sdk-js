@@ -1,0 +1,30 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "roads": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/rest/services/Roads/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "roads",
+        "type": "line",
+        "source": "roads",
+        "paint": {
+          "line-color": "rgb(255,0,0)",
+          "line-width": 2,
+          "line-dasharray": [6, 4]
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Roads"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {}
+}

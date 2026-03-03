@@ -1,0 +1,26 @@
+{
+  "operationalLayers": [
+    {
+      "id": "parks",
+      "title": "Parks",
+      "url": "https://services.example.com/rest/services/Parks/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSFS",
+              "style": "esriSFSSolid",
+              "color": [34, 139, 34, 255]
+            }
+          }
+        }
+      },
+      "popupInfo": {
+        "title": "{PARK_NAME}",
+        "description": "<b>{PARK_NAME}</b><br>Area: {AREA_ACRES} acres"
+      }
+    }
+  ]
+}

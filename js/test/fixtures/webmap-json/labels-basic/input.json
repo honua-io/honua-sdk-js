@@ -1,0 +1,38 @@
+{
+  "operationalLayers": [
+    {
+      "id": "cities",
+      "title": "Cities",
+      "url": "https://services.example.com/rest/services/Cities/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSMS",
+              "style": "esriSMSCircle",
+              "color": [0, 0, 255, 255],
+              "size": 8
+            }
+          },
+          "labelingInfo": [
+            {
+              "labelExpressionInfo": {
+                "expression": "$feature.NAME"
+              },
+              "symbol": {
+                "type": "esriTS",
+                "color": [0, 0, 0, 255],
+                "font": {
+                  "family": "Arial",
+                  "size": 11
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

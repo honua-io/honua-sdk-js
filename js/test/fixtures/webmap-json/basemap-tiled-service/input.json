@@ -1,0 +1,38 @@
+{
+  "baseMap": {
+    "title": "Topographic",
+    "baseMapLayers": [
+      {
+        "id": "topo-base",
+        "title": "World Topographic Map",
+        "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer",
+        "layerType": "ArcGISTiledMapServiceLayer",
+        "visibility": true,
+        "opacity": 1
+      }
+    ]
+  },
+  "operationalLayers": [
+    {
+      "id": "points",
+      "title": "Points",
+      "url": "https://services.example.com/arcgis/rest/services/Points/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "visibility": true,
+      "opacity": 1,
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSMS",
+              "style": "esriSMSCircle",
+              "color": [0, 0, 255, 255],
+              "size": 10
+            }
+          }
+        }
+      }
+    }
+  ]
+}

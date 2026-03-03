@@ -865,6 +865,49 @@ export type {
   HonuaServiceOptions,
 } from "./core/surfaces.js";
 
+export { parseWebMap } from "./webmap/index.js";
+export type { ParseWebMapOptions, ParseWebMapResult } from "./webmap/index.js";
+export {
+  createWarningCollector,
+  CONTRACT,
+  getContractSummary,
+  convertSymbol,
+  esriColorToCss,
+  convertRenderer,
+  convertPopupInfo,
+  convertLabelingInfo,
+  convertBasemap,
+  convertExtent,
+  convertInitialViewpoint,
+  convertOperationalLayer,
+} from "./webmap/index.js";
+export type {
+  WebMapWarning,
+  WarningCollector,
+  ContractEntry,
+  ContractSupport,
+  ContractSummary,
+  SymbolConversionResult,
+  RendererConversionResult,
+  HonuaPopupConfig,
+  HonuaPopupFieldInfo,
+  HonuaPopupMediaInfo,
+  BasemapConversionResult,
+  ExtentConversionResult,
+  LayerConversionResult,
+  WebMapJson,
+  WebMapOperationalLayer,
+  WebMapRenderer,
+  WebMapSymbol,
+  WebMapBaseMap,
+  WebMapPopupInfo,
+  WebMapExtent,
+  WebMapPoint,
+  WebMapViewpoint,
+  WebMapBookmark,
+  EsriColor,
+} from "./webmap/index.js";
+
 export { scanArcGisUsage, summarizeArcGisScan } from "./migration/scanner.js";
 export type { ArcGisImportHit, ArcGisScanReport } from "./migration/scanner.js";
 export { runEsriCompatCodemod } from "./migration/codemod.js";
@@ -907,6 +950,31 @@ export type {
   MigrationDemoReport,
   ParsedGeoservicesServiceUrl,
 } from "./migration/demo.js";
+export {
+  runContentScan,
+  runContentExport,
+  runContentImport,
+  runContentReconcile,
+} from "./migration/content.js";
+export type {
+  ContentPortalItemSummary,
+  ContentScanOptions,
+  ContentScanReport,
+  ExportedWebMap,
+  ExportedHostedLayerEntry,
+  ExportedHostedService,
+  ContentExportManifest,
+  ContentExportOptions,
+  ContentExportReport,
+  ImportedHostedLayerReport,
+  ImportedWebMapReport,
+  ContentImportOptions,
+  ContentImportReport,
+  ReconciledHostedLayerReport,
+  ReconciledWebMapReport,
+  ContentReconcileOptions,
+  ContentReconcileReport,
+} from "./migration/content.js";
 export { getJsParityMatrix, JS_PARITY_MATRIX, summarizeJsParityMatrix } from "./migration/parity-matrix.js";
 export type {
   JsParityCategory,

@@ -1,0 +1,55 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "streets-base": {
+        "type": "honua-map-service",
+        "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer"
+      },
+      "reference-labels": {
+        "type": "honua-map-service",
+        "url": "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer"
+      },
+      "transit-stops": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/Transit/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "streets-base-layer",
+        "type": "raster",
+        "source": "streets-base",
+        "layout": {},
+        "paint": {}
+      },
+      {
+        "id": "reference-labels-layer",
+        "type": "raster",
+        "source": "reference-labels",
+        "layout": {
+          "visibility": "none"
+        },
+        "paint": {
+          "raster-opacity": 0.6
+        }
+      },
+      {
+        "id": "transit-stops",
+        "type": "circle",
+        "source": "transit-stops",
+        "paint": {
+          "circle-color": "rgb(0,120,255)",
+          "circle-radius": 4.5
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Transit Stops"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {}
+}

@@ -1,0 +1,53 @@
+{
+  "operationalLayers": [
+    {
+      "id": "landuse",
+      "title": "Land Use",
+      "url": "https://services.example.com/rest/services/LandUse/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "uniqueValue",
+            "field1": "LANDUSE",
+            "defaultSymbol": {
+              "type": "esriSFS",
+              "style": "esriSFSSolid",
+              "color": [56, 168, 0, 255]
+            },
+            "defaultLabel": "Other",
+            "uniqueValueInfos": [
+              {
+                "value": "Residential",
+                "label": "Residential",
+                "symbol": {
+                  "type": "esriSFS",
+                  "style": "esriSFSSolid",
+                  "color": [255, 255, 190, 255]
+                }
+              },
+              {
+                "value": "Commercial",
+                "label": "Commercial",
+                "symbol": {
+                  "type": "esriSFS",
+                  "style": "esriSFSSolid",
+                  "color": [255, 127, 127, 255]
+                }
+              },
+              {
+                "value": "Industrial",
+                "label": "Industrial",
+                "symbol": {
+                  "type": "esriSFS",
+                  "style": "esriSFSSolid",
+                  "color": [168, 168, 0, 255]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

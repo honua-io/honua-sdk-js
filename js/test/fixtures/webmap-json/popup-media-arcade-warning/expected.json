@@ -1,0 +1,59 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "facilities": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/Facilities/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "facilities",
+        "type": "fill",
+        "source": "facilities",
+        "paint": {
+          "fill-color": "rgb(180,180,200)"
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Facilities"
+        }
+      }
+    ]
+  },
+  "warnings": [
+    {
+      "code": "unsupported-arcade-expression",
+      "path": "operationalLayers[0].popupInfo",
+      "message": "popupInfo.expressionInfos is not supported; Arcade expressions require manual intervention",
+      "context": {
+        "count": 1
+      }
+    }
+  ],
+  "bookmarks": [],
+  "popups": {
+    "facilities": {
+      "title": "{NAME}",
+      "description": "<b>{NAME}</b><br>Status: {STATUS}",
+      "fieldInfos": [
+        {
+          "fieldName": "NAME",
+          "label": "Facility",
+          "visible": true
+        }
+      ],
+      "mediaInfos": [
+        {
+          "type": "image",
+          "title": "Facility Photo",
+          "caption": "Latest upload",
+          "value": {
+            "sourceURL": "{PHOTO_URL}"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -3,6 +3,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { type CodemodMetricsByKind, type CodemodTarget, runEsriCompatCodemod } from "./codemod.js";
+import { parseWebMap } from "../webmap/parse.js";
+import type { WebMapJson } from "../webmap/types.js";
+import {
+  runContentExport,
+  runContentImport,
+  runContentReconcile,
+  runContentScan,
+  type ContentImportReport,
+} from "./content.js";
 import { MIGRATION_DEMO_PRIMARY_TARGET } from "./demo-targets.js";
 import { parseGeoservicesServiceUrl, runMigrationDemo } from "./demo.js";
 import { evaluateMigrationGates } from "./gating.js";
@@ -13,8 +22,18 @@ import { getJsRuntimeParityMatrix, summarizeJsRuntimeParity } from "./runtime-ma
 import { scanArcGisUsage, summarizeArcGisScan } from "./scanner.js";
 
 interface ParsedArgs {
-  command: "scan" | "codemod" | "reconcile" | "matrix" | "runtime-matrix" | "fixtures" | "demo";
+  command:
+    | "scan"
+    | "codemod"
+    | "reconcile"
+    | "matrix"
+    | "runtime-matrix"
+    | "fixtures"
+    | "demo"
+    | "content-webmap"
+    | "content";
   target: string;
+  contentAction?: "scan" | "export" | "import" | "reconcile";
   codemodTarget: CodemodTarget;
   write: boolean;
   annotateTodos: boolean;
@@ -43,6 +62,20 @@ interface ParsedArgs {
   timeoutSeconds?: number;
   skipImport: boolean;
   skipReconcile: boolean;
+  contentInputPath?: string;
+  contentOutputPath?: string;
+  contentSourceUrlPrefix?: string;
+  contentTargetUrlPrefix?: string;
+  contentIncludeBasemap: boolean;
+  contentPortalUrl?: string;
+  contentToken?: string;
+  contentSourceDir?: string;
+  contentOutputDir?: string;
+  contentImportReportPath?: string;
+  contentTablePrefix?: string;
+  contentIncludeFeatures: boolean;
+  contentIncludeWebMaps: boolean;
+  contentIncludeHostedLayers: boolean;
 }
 
 interface FixtureMetricSnapshot {
@@ -123,10 +156,17 @@ if (!parsed) {
 } else {
   if (parsed.command === "scan") {
     runScan(parsed.target, parsed.reportPath);
+  } else if (parsed.command === "content") {
+    void runContent(parsed).catch((error) => {
+      process.stderr.write(`contentError=${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 1;
+    });
   } else if (parsed.command === "matrix") {
     runMatrix(parsed.reportPath);
   } else if (parsed.command === "runtime-matrix") {
     runRuntimeMatrix(parsed.reportPath);
+  } else if (parsed.command === "content-webmap") {
+    runContentWebMap(parsed);
   } else if (parsed.command === "fixtures") {
     runFixtures(parsed);
   } else if (parsed.command === "demo") {
@@ -204,6 +244,284 @@ function runScan(target: string, reportPath?: string): void {
     process.stdout.write(`reportWritten=${reportPath}\n`);
   }
 }
+
+async function runContent(args: ParsedArgs): Promise<void> {
+  const action = args.contentAction;
+  if (!action) {
+    throw new Error("content action is required (scan|export|import|reconcile)");
+  }
+
+  if (action === "scan") {
+    const portalUrl = args.contentPortalUrl ?? args.target;
+    const report = await runContentScan({
+      portalUrl,
+      token: args.contentToken,
+    });
+    process.stdout.write(
+      [
+        "contentScan",
+        `portal=${report.portalUrl}`,
+        `webmaps=${report.webMaps.length}`,
+        `hostedFeatureServices=${report.hostedFeatureServices.length}`,
+      ].join(" "),
+    );
+    process.stdout.write("\n");
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    if (args.reportPath) {
+      const reportPath = path.resolve(args.reportPath);
+      fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+      fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+      process.stdout.write(`reportWritten=${reportPath}\n`);
+    }
+    return;
+  }
+
+  if (action === "export") {
+    const portalUrl = args.contentPortalUrl ?? args.target;
+    const outputDir = path.resolve(args.contentOutputDir ?? path.join(process.cwd(), "content-export"));
+    const report = await runContentExport({
+      portalUrl,
+      token: args.contentToken,
+      outputDir,
+      includeFeatures: args.contentIncludeFeatures,
+      includeWebMaps: args.contentIncludeWebMaps,
+      includeHostedLayers: args.contentIncludeHostedLayers,
+    });
+    process.stdout.write(
+      [
+        "contentExport",
+        `portal=${report.portalUrl}`,
+        `webmaps=${report.exportedWebMaps.length}`,
+        `hostedFeatureServices=${report.exportedHostedFeatureServices.length}`,
+        `manifest=${report.manifestPath}`,
+      ].join(" "),
+    );
+    process.stdout.write("\n");
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    if (args.reportPath) {
+      const reportPath = path.resolve(args.reportPath);
+      fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+      fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+      process.stdout.write(`reportWritten=${reportPath}\n`);
+    }
+    return;
+  }
+
+  if (action === "import") {
+    const sourceDir = path.resolve(args.contentSourceDir ?? args.target);
+    const targetBaseUrl = args.targetBaseUrl ?? args.adminBaseUrl;
+    if (!targetBaseUrl) {
+      throw new Error("content import requires --target <url> or --admin-base-url <url>");
+    }
+
+    const report = await runContentImport({
+      sourceDir,
+      outputDir: args.contentOutputDir,
+      targetBaseUrl,
+      adminApiKey: args.adminApiKey,
+      includeWebMaps: args.contentIncludeWebMaps,
+      includeHostedLayers: args.contentIncludeHostedLayers,
+      sourceUrlPrefix: args.contentSourceUrlPrefix,
+      targetUrlPrefix: args.contentTargetUrlPrefix,
+      tablePrefix: args.contentTablePrefix,
+      pollIntervalMs:
+        typeof args.pollIntervalMs === "number" ? Math.max(1, Math.trunc(args.pollIntervalMs)) : undefined,
+      timeoutMs:
+        typeof args.timeoutSeconds === "number" ? Math.max(1, Math.trunc(args.timeoutSeconds * 1_000)) : undefined,
+    });
+
+    writeContentImportOutput(report, args.reportPath);
+    return;
+  }
+
+  const sourceDir = path.resolve(args.contentSourceDir ?? args.target);
+  const report = runContentReconcile({
+    sourceDir,
+    importReportPath: args.contentImportReportPath,
+    outputPath: args.contentOutputDir,
+  });
+  process.stdout.write(
+    [
+      "contentReconcile",
+      `hostedLayersPassed=${report.summary.hostedLayersPassed}`,
+      `hostedLayersFailed=${report.summary.hostedLayersFailed}`,
+      `webMapsPassed=${report.summary.webMapsPassed}`,
+      `webMapsManual=${report.summary.webMapsManual}`,
+      `webMapsFailed=${report.summary.webMapsFailed}`,
+      `report=${report.reportPath}`,
+    ].join(" "),
+  );
+  process.stdout.write("\n");
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  if (args.reportPath) {
+    const reportPath = path.resolve(args.reportPath);
+    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+    fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    process.stdout.write(`reportWritten=${reportPath}\n`);
+  }
+}
+
+function writeContentImportOutput(report: ContentImportReport, reportPathOverride: string | undefined): void {
+  process.stdout.write(
+    [
+      "contentImport",
+      `hostedLayersCompleted=${report.summary.hostedLayersCompleted}`,
+      `hostedLayersFailed=${report.summary.hostedLayersFailed}`,
+      `webMapsConverted=${report.summary.webMapsConverted}`,
+      `webMapsFailed=${report.summary.webMapsFailed}`,
+      `webMapsManual=${report.summary.webMapsManualIntervention}`,
+      `report=${report.reportPath}`,
+    ].join(" "),
+  );
+  process.stdout.write("\n");
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+
+  if (reportPathOverride) {
+    const reportPath = path.resolve(reportPathOverride);
+    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+    fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    process.stdout.write(`reportWritten=${reportPath}\n`);
+  }
+}
+
+function runContentWebMap(args: ParsedArgs): void {
+  const inputPath = path.resolve(args.contentInputPath ?? args.target);
+  if (!fs.existsSync(inputPath)) {
+    throw new Error(`WebMap input file does not exist: ${inputPath}`);
+  }
+
+  const raw = fs.readFileSync(inputPath, "utf8");
+  const input = JSON.parse(raw) as WebMapJson;
+  const { webMap, rewrittenUrlCount } = rewriteWebMapUrls(
+    input,
+    args.contentSourceUrlPrefix,
+    args.contentTargetUrlPrefix,
+  );
+  const result = parseWebMap(webMap, { includeBasemap: args.contentIncludeBasemap });
+
+  const outputPath = path.resolve(
+    args.contentOutputPath ??
+      path.join(path.dirname(inputPath), `${path.basename(inputPath, path.extname(inputPath))}.honua.json`),
+  );
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+
+  const outputDocument = {
+    generatedAt: new Date().toISOString(),
+    inputPath,
+    rewrittenUrlCount,
+    includeBasemap: args.contentIncludeBasemap,
+    sourceUrlPrefix: args.contentSourceUrlPrefix,
+    targetUrlPrefix: args.contentTargetUrlPrefix,
+    result,
+  };
+  fs.writeFileSync(outputPath, `${JSON.stringify(outputDocument, null, 2)}\n`, "utf8");
+
+  const report = buildContentWebMapReport(inputPath, outputPath, rewrittenUrlCount, result);
+  process.stdout.write(
+    [
+      "contentWebMap",
+      `sources=${report.sourceCount}`,
+      `layers=${report.layerCount}`,
+      `warnings=${report.warningCount}`,
+      `rewrittenUrls=${report.rewrittenUrlCount}`,
+      `manualIntervention=${report.manualInterventionNeeded ? "yes" : "no"}`,
+    ].join(" "),
+  );
+  process.stdout.write("\n");
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  process.stdout.write(`outputWritten=${outputPath}\n`);
+
+  if (args.reportPath) {
+    const reportPath = path.resolve(args.reportPath);
+    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+    fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    process.stdout.write(`reportWritten=${reportPath}\n`);
+  }
+}
+
+function rewriteWebMapUrls(
+  input: WebMapJson,
+  sourcePrefix: string | undefined,
+  targetPrefix: string | undefined,
+): { webMap: WebMapJson; rewrittenUrlCount: number } {
+  const webMap = structuredClone(input);
+  if (!sourcePrefix || !targetPrefix) {
+    return { webMap, rewrittenUrlCount: 0 };
+  }
+
+  let rewrittenUrlCount = 0;
+  const rewrite = (url: unknown): string | undefined => {
+    if (typeof url !== "string") return undefined;
+    if (!url.startsWith(sourcePrefix)) return undefined;
+    return `${targetPrefix}${url.slice(sourcePrefix.length)}`;
+  };
+
+  for (const opLayer of webMap.operationalLayers ?? []) {
+    const nextUrl = rewrite(opLayer.url);
+    if (nextUrl) {
+      opLayer.url = nextUrl;
+      rewrittenUrlCount += 1;
+    }
+  }
+
+  for (const baseMapLayer of webMap.baseMap?.baseMapLayers ?? []) {
+    const nextUrl = rewrite(baseMapLayer.url);
+    if (nextUrl) {
+      baseMapLayer.url = nextUrl;
+      rewrittenUrlCount += 1;
+    }
+  }
+
+  return { webMap, rewrittenUrlCount };
+}
+
+function buildContentWebMapReport(
+  inputPath: string,
+  outputPath: string,
+  rewrittenUrlCount: number,
+  result: ReturnType<typeof parseWebMap>,
+): {
+  inputPath: string;
+  outputPath: string;
+  generatedAt: string;
+  sourceCount: number;
+  layerCount: number;
+  warningCount: number;
+  rewrittenUrlCount: number;
+  warningCodes: Record<string, number>;
+  manualInterventionNeeded: boolean;
+} {
+  const warningCodes: Record<string, number> = {};
+  for (const warning of result.warnings) {
+    warningCodes[warning.code] = (warningCodes[warning.code] ?? 0) + 1;
+  }
+
+  const manualInterventionNeeded = result.warnings.some((warning) =>
+    MANUAL_INTERVENTION_WARNING_CODES.has(warning.code),
+  );
+
+  return {
+    inputPath,
+    outputPath,
+    generatedAt: new Date().toISOString(),
+    sourceCount: Object.keys(result.style.sources).length,
+    layerCount: result.style.layers.length,
+    warningCount: result.warnings.length,
+    rewrittenUrlCount,
+    warningCodes,
+    manualInterventionNeeded,
+  };
+}
+
+const MANUAL_INTERVENTION_WARNING_CODES = new Set([
+  "unsupported-renderer",
+  "unsupported-layer-type",
+  "unsupported-feature-collection",
+  "unsupported-arcade-expression",
+  "unsupported-3d-property",
+  "complex-arcade",
+  "complex-label-expression",
+]);
 
 function runFixtures(args: ParsedArgs): void {
   const fixturesRoot = args.target;
@@ -722,18 +1040,33 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
       codemodTarget: "honua-compat",
       skipImport: false,
       skipReconcile: false,
+      contentIncludeBasemap: true,
+      contentIncludeFeatures: true,
+      contentIncludeWebMaps: true,
+      contentIncludeHostedLayers: true,
     };
   }
 
   const maybeCommand = argv[0];
-  const command: "scan" | "codemod" | "reconcile" | "matrix" | "runtime-matrix" | "fixtures" | "demo" =
+  const command:
+    | "scan"
+    | "codemod"
+    | "reconcile"
+    | "matrix"
+    | "runtime-matrix"
+    | "fixtures"
+    | "demo"
+    | "content-webmap"
+    | "content" =
     maybeCommand === "scan" ||
     maybeCommand === "codemod" ||
     maybeCommand === "reconcile" ||
     maybeCommand === "matrix" ||
     maybeCommand === "runtime-matrix" ||
     maybeCommand === "fixtures" ||
-    maybeCommand === "demo"
+    maybeCommand === "demo" ||
+    maybeCommand === "content-webmap" ||
+    maybeCommand === "content"
       ? maybeCommand
       : "scan";
   const positional = command === maybeCommand ? argv.slice(1) : argv.slice(0);
@@ -767,6 +1100,21 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
   let timeoutSeconds: number | undefined;
   let skipImport = false;
   let skipReconcile = false;
+  let contentInputPath: string | undefined;
+  let contentOutputPath: string | undefined;
+  let contentSourceUrlPrefix: string | undefined;
+  let contentTargetUrlPrefix: string | undefined;
+  let contentIncludeBasemap = true;
+  let contentAction: "scan" | "export" | "import" | "reconcile" | undefined;
+  let contentPortalUrl: string | undefined;
+  let contentToken: string | undefined;
+  let contentSourceDir: string | undefined;
+  let contentOutputDir: string | undefined;
+  let contentImportReportPath: string | undefined;
+  let contentTablePrefix: string | undefined;
+  let contentIncludeFeatures = true;
+  let contentIncludeWebMaps = true;
+  let contentIncludeHostedLayers = true;
 
   for (let i = 0; i < positional.length; i += 1) {
     const token = positional[i];
@@ -843,6 +1191,14 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
     }
     if (token === "--target") {
       const next = positional[i + 1];
+      if (!next) {
+        return undefined;
+      }
+      if (command === "content") {
+        targetBaseUrl = next;
+        i += 1;
+        continue;
+      }
       if (next !== "honua" && next !== "honua-compat" && next !== "esri-leaflet") {
         return undefined;
       }
@@ -889,7 +1245,11 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
       if (!next) {
         return undefined;
       }
-      outputDir = next;
+      if (command === "content") {
+        contentOutputDir = next;
+      } else {
+        outputDir = next;
+      }
       i += 1;
       continue;
     }
@@ -963,6 +1323,109 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
       skipReconcile = true;
       continue;
     }
+    if (token === "--input") {
+      const next = positional[i + 1];
+      if (!next) {
+        return undefined;
+      }
+      contentInputPath = next;
+      i += 1;
+      continue;
+    }
+    if (token === "--output") {
+      const next = positional[i + 1];
+      if (!next) {
+        return undefined;
+      }
+      if (command === "content-webmap") {
+        contentOutputPath = next;
+      } else if (command === "content") {
+        contentOutputDir = next;
+      } else {
+        return undefined;
+      }
+      i += 1;
+      continue;
+    }
+    if (token === "--portal") {
+      const next = positional[i + 1];
+      if (!next) {
+        return undefined;
+      }
+      contentPortalUrl = next;
+      i += 1;
+      continue;
+    }
+    if (token === "--token") {
+      const next = positional[i + 1];
+      if (!next) {
+        return undefined;
+      }
+      contentToken = next;
+      i += 1;
+      continue;
+    }
+    if (token === "--source" || token === "--source-dir") {
+      const next = positional[i + 1];
+      if (!next) {
+        return undefined;
+      }
+      contentSourceDir = next;
+      i += 1;
+      continue;
+    }
+    if (token === "--import-report") {
+      const next = positional[i + 1];
+      if (!next) {
+        return undefined;
+      }
+      contentImportReportPath = next;
+      i += 1;
+      continue;
+    }
+    if (token === "--table-prefix") {
+      const next = positional[i + 1];
+      if (!next) {
+        return undefined;
+      }
+      contentTablePrefix = next;
+      i += 1;
+      continue;
+    }
+    if (token === "--source-url-prefix") {
+      const next = positional[i + 1];
+      if (!next) {
+        return undefined;
+      }
+      contentSourceUrlPrefix = next;
+      i += 1;
+      continue;
+    }
+    if (token === "--target-url-prefix") {
+      const next = positional[i + 1];
+      if (!next) {
+        return undefined;
+      }
+      contentTargetUrlPrefix = next;
+      i += 1;
+      continue;
+    }
+    if (token === "--exclude-basemap") {
+      contentIncludeBasemap = false;
+      continue;
+    }
+    if (token === "--exclude-features") {
+      contentIncludeFeatures = false;
+      continue;
+    }
+    if (token === "--exclude-webmaps") {
+      contentIncludeWebMaps = false;
+      continue;
+    }
+    if (token === "--exclude-hosted-layers") {
+      contentIncludeHostedLayers = false;
+      continue;
+    }
     if (token === "--source-base-url") {
       const next = positional[i + 1];
       if (!next) {
@@ -1028,7 +1491,28 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
     if (token.startsWith("--")) {
       return undefined;
     }
+    if (command === "content") {
+      if (!contentAction) {
+        if (token === "scan" || token === "export" || token === "import" || token === "reconcile") {
+          contentAction = token;
+          continue;
+        }
+        return undefined;
+      }
+      if (!target) {
+        target = token;
+        continue;
+      }
+      return undefined;
+    }
     if (command === "reconcile") {
+      return undefined;
+    }
+    if (command === "content-webmap") {
+      if (!contentInputPath) {
+        contentInputPath = token;
+        continue;
+      }
       return undefined;
     }
     if (command === "demo") {
@@ -1045,11 +1529,39 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
     return undefined;
   }
 
+  if (command === "content-webmap" && !contentInputPath && !target) {
+    return undefined;
+  }
+
+  if (command === "content") {
+    if (!contentAction) {
+      return undefined;
+    }
+
+    if (contentAction === "scan" || contentAction === "export") {
+      contentPortalUrl = contentPortalUrl ?? target;
+      if (!contentPortalUrl) {
+        return undefined;
+      }
+      if (contentAction === "export") {
+        contentOutputDir = contentOutputDir ?? path.join(process.cwd(), "content-export");
+      }
+    } else {
+      contentSourceDir = contentSourceDir ?? target ?? process.cwd();
+      if (contentAction === "import") {
+        if (!targetBaseUrl && !adminBaseUrl) {
+          return undefined;
+        }
+      }
+    }
+  }
+
   return {
     command,
     target:
       target ??
       (command === "fixtures" || command === "demo" ? path.join(process.cwd(), "test", "fixtures") : process.cwd()),
+    contentAction,
     write,
     codemodTarget,
     annotateTodos,
@@ -1078,6 +1590,20 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
     timeoutSeconds,
     skipImport,
     skipReconcile,
+    contentInputPath,
+    contentOutputPath,
+    contentSourceUrlPrefix,
+    contentTargetUrlPrefix,
+    contentIncludeBasemap,
+    contentPortalUrl,
+    contentToken,
+    contentSourceDir,
+    contentOutputDir,
+    contentImportReportPath,
+    contentTablePrefix,
+    contentIncludeFeatures,
+    contentIncludeWebMaps,
+    contentIncludeHostedLayers,
   };
 }
 
@@ -1121,6 +1647,11 @@ function printUsage(): void {
       "  honua-migrate fixtures [<fixtures-root>] [--target <honua|honua-compat|esri-leaflet>] [--fixtures <name1,name2,...>] [--report <file>] [--fail-on-manual] [--fail-on-unhandled] [--fail-on-blocked] [--max-manual-ratio <0..1>] [--max-manual-intervention-ratio <0..1>]",
       "  honua-migrate reconcile --source-base-url <url> --source-service-id <id> --target-base-url <url> --target-service-id <id> --layer-id <n> [--sample-size <n>] [--report <file>]",
       "  honua-migrate demo [<fixture-name>] [--fixtures-root <dir>] [--output-dir <dir>] [--target <honua|honua-compat|esri-leaflet>] [--admin-base-url <url>] [--admin-api-key <key>] [--source-service-url <url>] [--layer-id <n>] [--table-name <name>] [--source-base-url <url>] [--source-service-id <id>] [--target-base-url <url>] [--target-service-id <id>] [--sample-size <n>] [--poll-interval-ms <n>] [--timeout-seconds <n>] [--skip-import] [--skip-reconcile] [--report <file>]",
+      "  honua-migrate content scan --portal <url> [--token <token>] [--report <file>]",
+      "  honua-migrate content export --portal <url> --output-dir <dir> [--token <token>] [--exclude-features] [--exclude-webmaps] [--exclude-hosted-layers] [--report <file>]",
+      "  honua-migrate content import --source <dir> --target <url> [--admin-api-key <key>] [--output-dir <dir>] [--table-prefix <prefix>] [--source-url-prefix <url>] [--target-url-prefix <url>] [--exclude-webmaps] [--exclude-hosted-layers] [--report <file>]",
+      "  honua-migrate content reconcile --source <dir> [--import-report <file>] [--output-dir <file>] [--report <file>]",
+      "  honua-migrate content-webmap --input <webmap.json> [--output <file>] [--source-url-prefix <url>] [--target-url-prefix <url>] [--exclude-basemap] [--report <file>]",
       "",
       "Examples:",
       "  node dist/src/migration/cli.js scan ./src",
@@ -1133,6 +1664,11 @@ function printUsage(): void {
       "  node dist/src/migration/cli.js codemod ./src --fail-on-manual --fail-on-unhandled --max-manual-ratio 0.2 --max-manual-intervention-ratio 0.3",
       "  node dist/src/migration/cli.js reconcile --source-base-url https://source.example --source-service-id parcels --target-base-url https://target.example --target-service-id parcels --layer-id 0 --sample-size 200 --report reconcile-report.json",
       "  node dist/src/migration/cli.js demo --admin-base-url http://localhost:5000 --source-service-url https://arcgis.example/rest/services/incidents/FeatureServer/0 --layer-id 0 --table-name incidents --source-base-url https://arcgis.example --source-service-id incidents --target-base-url http://localhost:5000 --target-service-id incidents --report demo-report.json",
+      "  node dist/src/migration/cli.js content scan --portal https://org.maps.arcgis.com --report ./content/scan.json",
+      "  node dist/src/migration/cli.js content export --portal https://org.maps.arcgis.com --output-dir ./export --report ./content/export.json",
+      "  node dist/src/migration/cli.js content import --source ./export --target https://honua.example.com --admin-api-key $HONUA_ADMIN_API_KEY --report ./content/import.json",
+      "  node dist/src/migration/cli.js content reconcile --source ./export --report ./content/reconcile.json",
+      "  node dist/src/migration/cli.js content-webmap --input ./export/map.json --output ./export/map.honua.json --source-url-prefix https://org.maps.arcgis.com --target-url-prefix https://honua.example.com --report ./export/map.report.json",
       "",
       "Target semantics:",
       "  honua: alias of honua-compat.",

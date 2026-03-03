@@ -1,0 +1,35 @@
+{
+  "ground": {
+    "surfaceColor": [255, 255, 255, 255]
+  },
+  "operationalLayers": [
+    {
+      "id": "scene-buildings",
+      "title": "Buildings Scene",
+      "layerType": "ArcGISSceneServiceLayer",
+      "url": "https://services.example.com/arcgis/rest/services/Buildings/SceneServer/layers/0",
+      "elevationInfo": {
+        "mode": "absolute-height"
+      }
+    },
+    {
+      "id": "roads",
+      "title": "Roads",
+      "url": "https://services.example.com/arcgis/rest/services/Roads/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSLS",
+              "style": "esriSLSSolid",
+              "color": [80, 80, 80, 255],
+              "width": 1.5
+            }
+          }
+        }
+      }
+    }
+  ]
+}

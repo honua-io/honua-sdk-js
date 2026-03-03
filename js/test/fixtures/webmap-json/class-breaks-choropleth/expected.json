@@ -1,0 +1,38 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "population": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/rest/services/Census/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "population",
+        "type": "fill",
+        "source": "population",
+        "paint": {
+          "fill-color": [
+            "step",
+            ["get", "POP_DENSITY"],
+            "rgb(255,255,255)",
+            0,
+            "rgb(255,255,178)",
+            100,
+            "rgb(253,141,60)",
+            500,
+            "rgb(189,0,38)"
+          ]
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Population Density"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {}
+}

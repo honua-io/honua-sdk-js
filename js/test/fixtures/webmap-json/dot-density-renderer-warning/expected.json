@@ -1,0 +1,24 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "dot-density-layer": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/Population/FeatureServer/0"
+      }
+    },
+    "layers": []
+  },
+  "warnings": [
+    {
+      "code": "unsupported-renderer",
+      "path": "operationalLayers[0].layerDefinition.drawingInfo.renderer",
+      "message": "Unsupported renderer type: dotDensity",
+      "context": {
+        "type": "dotDensity"
+      }
+    }
+  ],
+  "bookmarks": [],
+  "popups": {}
+}

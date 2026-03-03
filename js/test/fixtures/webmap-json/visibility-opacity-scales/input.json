@@ -1,0 +1,32 @@
+{
+  "operationalLayers": [
+    {
+      "id": "zones",
+      "title": "Zones",
+      "url": "https://services.example.com/arcgis/rest/services/Zones/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "visibility": false,
+      "opacity": 0.5,
+      "minScale": 100000,
+      "maxScale": 5000,
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSFS",
+              "style": "esriSFSSolid",
+              "color": [0, 0, 255, 255],
+              "outline": {
+                "type": "esriSLS",
+                "style": "esriSLSSolid",
+                "color": [0, 0, 0, 255],
+                "width": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

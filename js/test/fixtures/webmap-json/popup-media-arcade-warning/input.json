@@ -1,0 +1,49 @@
+{
+  "operationalLayers": [
+    {
+      "id": "facilities",
+      "title": "Facilities",
+      "url": "https://services.example.com/arcgis/rest/services/Facilities/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSFS",
+              "style": "esriSFSSolid",
+              "color": [180, 180, 200, 255]
+            }
+          }
+        }
+      },
+      "popupInfo": {
+        "title": "{NAME}",
+        "description": "<b>{NAME}</b><br>Status: {STATUS}",
+        "fieldInfos": [
+          {
+            "fieldName": "NAME",
+            "label": "Facility",
+            "visible": true
+          }
+        ],
+        "mediaInfos": [
+          {
+            "type": "image",
+            "title": "Facility Photo",
+            "caption": "Latest upload",
+            "value": {
+              "sourceURL": "{PHOTO_URL}"
+            }
+          }
+        ],
+        "expressionInfos": [
+          {
+            "name": "statusText",
+            "expression": "IIF($feature.STATUS == 1, 'Open', 'Closed')"
+          }
+        ]
+      }
+    }
+  ]
+}

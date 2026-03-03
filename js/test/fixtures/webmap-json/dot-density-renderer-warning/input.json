@@ -1,0 +1,19 @@
+{
+  "operationalLayers": [
+    {
+      "id": "dot-density-layer",
+      "title": "Population Dot Density",
+      "url": "https://services.example.com/arcgis/rest/services/Population/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "dotDensity",
+            "referenceScale": 577790,
+            "dotValue": 500
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "operationalLayers": [
+    {
+      "id": "active-projects",
+      "title": "Active Projects",
+      "url": "https://services.example.com/arcgis/rest/services/Projects/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "visibility": true,
+      "opacity": 1,
+      "layerDefinition": {
+        "definitionExpression": "STATUS = 'Active'",
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSMS",
+              "style": "esriSMSCircle",
+              "color": [0, 200, 0, 255],
+              "size": 12
+            }
+          }
+        }
+      }
+    }
+  ]
+}

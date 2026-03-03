@@ -1,0 +1,46 @@
+{
+  "operationalLayers": [
+    {
+      "id": "buildings",
+      "title": "Buildings",
+      "url": "https://services.example.com/rest/services/Buildings/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSFS",
+              "style": "esriSFSSolid",
+              "color": [200, 200, 200, 255]
+            }
+          }
+        }
+      },
+      "popupInfo": {
+        "title": "{NAME}",
+        "fieldInfos": [
+          {
+            "fieldName": "NAME",
+            "label": "Building Name",
+            "visible": true
+          },
+          {
+            "fieldName": "FLOORS",
+            "label": "Number of Floors",
+            "visible": true,
+            "format": {
+              "places": 0,
+              "digitSeparator": true
+            }
+          },
+          {
+            "fieldName": "INTERNAL_ID",
+            "label": "Internal ID",
+            "visible": false
+          }
+        ]
+      }
+    }
+  ]
+}

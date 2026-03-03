@@ -1,0 +1,54 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "buildings": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/rest/services/Buildings/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "buildings",
+        "type": "fill",
+        "source": "buildings",
+        "paint": {
+          "fill-color": "rgb(200,200,200)"
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Buildings"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {
+    "buildings": {
+      "title": "{NAME}",
+      "fieldInfos": [
+        {
+          "fieldName": "NAME",
+          "label": "Building Name",
+          "visible": true
+        },
+        {
+          "fieldName": "FLOORS",
+          "label": "Number of Floors",
+          "visible": true,
+          "format": {
+            "places": 0,
+            "digitSeparator": true
+          }
+        },
+        {
+          "fieldName": "INTERNAL_ID",
+          "label": "Internal ID",
+          "visible": false
+        }
+      ],
+      "mediaInfos": []
+    }
+  }
+}

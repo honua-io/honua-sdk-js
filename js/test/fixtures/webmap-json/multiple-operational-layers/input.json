@@ -1,0 +1,72 @@
+{
+  "operationalLayers": [
+    {
+      "id": "parcels",
+      "title": "Parcels",
+      "url": "https://services.example.com/arcgis/rest/services/Parcels/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "visibility": true,
+      "opacity": 1,
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSFS",
+              "style": "esriSFSSolid",
+              "color": [180, 215, 158, 255],
+              "outline": {
+                "type": "esriSLS",
+                "style": "esriSLSSolid",
+                "color": [110, 110, 110, 255],
+                "width": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "roads",
+      "title": "Roads",
+      "url": "https://services.example.com/arcgis/rest/services/Roads/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "visibility": true,
+      "opacity": 1,
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSLS",
+              "style": "esriSLSSolid",
+              "color": [100, 100, 100, 255],
+              "width": 2
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "markers",
+      "title": "Markers",
+      "url": "https://services.example.com/arcgis/rest/services/Markers/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "visibility": true,
+      "opacity": 1,
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSMS",
+              "style": "esriSMSCircle",
+              "color": [255, 0, 0, 255],
+              "size": 8
+            }
+          }
+        }
+      }
+    }
+  ]
+}

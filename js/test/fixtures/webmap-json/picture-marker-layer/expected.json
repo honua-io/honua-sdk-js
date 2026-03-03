@@ -1,0 +1,38 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "pois": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/rest/services/POI/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "pois",
+        "type": "symbol",
+        "source": "pois",
+        "paint": {},
+        "layout": {
+          "icon-image": "https://static.example.com/icons/poi.png",
+          "icon-size": 1
+        },
+        "metadata": {
+          "title": "Points of Interest"
+        }
+      }
+    ]
+  },
+  "warnings": [
+    {
+      "code": "sprite-required",
+      "path": "operationalLayers[0].layerDefinition.drawingInfo.renderer",
+      "message": "Picture marker symbol requires sprite setup for icon-image",
+      "context": {
+        "url": "https://static.example.com/icons/poi.png"
+      }
+    }
+  ],
+  "bookmarks": [],
+  "popups": {}
+}

@@ -1,0 +1,39 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "water-lines": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/Utilities/FeatureServer/1"
+      }
+    },
+    "layers": [
+      {
+        "id": "water-lines",
+        "type": "line",
+        "source": "water-lines",
+        "paint": {
+          "line-color": "rgb(0,90,220)",
+          "line-width": 2
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Water Lines"
+        }
+      }
+    ]
+  },
+  "warnings": [
+    {
+      "code": "unsupported-layer-type",
+      "path": "operationalLayers[0]",
+      "message": "Unsupported layer type: GroupLayer",
+      "context": {
+        "layerType": "GroupLayer",
+        "url": ""
+      }
+    }
+  ],
+  "bookmarks": [],
+  "popups": {}
+}

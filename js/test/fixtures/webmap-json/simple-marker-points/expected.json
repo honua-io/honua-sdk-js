@@ -1,0 +1,31 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "stations": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/rest/services/Weather/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "stations",
+        "type": "circle",
+        "source": "stations",
+        "paint": {
+          "circle-color": "rgb(0,112,255)",
+          "circle-radius": 5,
+          "circle-stroke-color": "rgb(0,0,0)",
+          "circle-stroke-width": 1
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Weather Stations"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {}
+}

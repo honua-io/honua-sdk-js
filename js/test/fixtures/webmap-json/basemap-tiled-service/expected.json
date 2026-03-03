@@ -1,0 +1,40 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "topo-base": {
+        "type": "honua-map-service",
+        "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer"
+      },
+      "points": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/Points/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "topo-base-layer",
+        "type": "raster",
+        "source": "topo-base",
+        "layout": {},
+        "paint": {}
+      },
+      {
+        "id": "points",
+        "type": "circle",
+        "source": "points",
+        "paint": {
+          "circle-color": "rgb(0,0,255)",
+          "circle-radius": 5
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Points"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {}
+}

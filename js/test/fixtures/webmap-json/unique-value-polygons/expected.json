@@ -1,0 +1,38 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "landuse": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/rest/services/LandUse/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "landuse",
+        "type": "fill",
+        "source": "landuse",
+        "paint": {
+          "fill-color": [
+            "match",
+            ["get", "LANDUSE"],
+            "Residential",
+            "rgb(255,255,190)",
+            "Commercial",
+            "rgb(255,127,127)",
+            "Industrial",
+            "rgb(168,168,0)",
+            "rgb(56,168,0)"
+          ]
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Land Use"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {}
+}

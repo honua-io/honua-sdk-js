@@ -24,6 +24,10 @@
     "./expr": {
       "types": "./dist/src/expr/index.d.ts",
       "default": "./dist/src/expr/index.js"
+    },
+    "./webmap": {
+      "types": "./dist/src/webmap/index.d.ts",
+      "default": "./dist/src/webmap/index.js"
     }
   },
   "scripts": {

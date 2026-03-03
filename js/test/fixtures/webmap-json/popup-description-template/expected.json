@@ -1,0 +1,35 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "parks": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/rest/services/Parks/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "parks",
+        "type": "fill",
+        "source": "parks",
+        "paint": {
+          "fill-color": "rgb(34,139,34)"
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Parks"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {
+    "parks": {
+      "title": "{PARK_NAME}",
+      "description": "<b>{PARK_NAME}</b><br>Area: {AREA_ACRES} acres",
+      "fieldInfos": [],
+      "mediaInfos": []
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "zones": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/rest/services/Zones/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "zones",
+        "type": "fill",
+        "source": "zones",
+        "paint": {
+          "fill-color": [
+            "match",
+            ["concat", ["get", "STATE"], ",", ["get", "ZONE"]],
+            "CA,Urban",
+            "rgb(255,0,0)",
+            "CA,Rural",
+            "rgb(0,255,0)",
+            "rgb(200,200,200)"
+          ]
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Zones"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {}
+}

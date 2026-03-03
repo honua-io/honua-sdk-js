@@ -1,0 +1,35 @@
+{
+  "operationalLayers": [
+    {
+      "id": "utilities-group",
+      "title": "Utilities Group",
+      "layerType": "GroupLayer",
+      "visibility": true,
+      "layers": [
+        {
+          "id": "water-sub",
+          "layerType": "ArcGISFeatureLayer"
+        }
+      ]
+    },
+    {
+      "id": "water-lines",
+      "title": "Water Lines",
+      "url": "https://services.example.com/arcgis/rest/services/Utilities/FeatureServer/1",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSLS",
+              "style": "esriSLSSolid",
+              "color": [0, 90, 220, 255],
+              "width": 2
+            }
+          }
+        }
+      }
+    }
+  ]
+}

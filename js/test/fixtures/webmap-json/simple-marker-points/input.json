@@ -1,0 +1,29 @@
+{
+  "operationalLayers": [
+    {
+      "id": "stations",
+      "title": "Weather Stations",
+      "url": "https://services.example.com/rest/services/Weather/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSMS",
+              "style": "esriSMSCircle",
+              "color": [0, 112, 255, 255],
+              "size": 10,
+              "outline": {
+                "type": "esriSLS",
+                "style": "esriSLSSolid",
+                "color": [0, 0, 0, 255],
+                "width": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "active-projects": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/Projects/FeatureServer/0",
+        "definitionExpression": "STATUS = 'Active'"
+      }
+    },
+    "layers": [
+      {
+        "id": "active-projects",
+        "type": "circle",
+        "source": "active-projects",
+        "paint": {
+          "circle-color": "rgb(0,200,0)",
+          "circle-radius": 6
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Active Projects"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {}
+}

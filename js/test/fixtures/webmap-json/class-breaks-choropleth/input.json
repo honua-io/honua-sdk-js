@@ -1,0 +1,56 @@
+{
+  "operationalLayers": [
+    {
+      "id": "population",
+      "title": "Population Density",
+      "url": "https://services.example.com/rest/services/Census/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "classBreaks",
+            "field": "POP_DENSITY",
+            "defaultSymbol": {
+              "type": "esriSFS",
+              "style": "esriSFSSolid",
+              "color": [255, 255, 255, 255]
+            },
+            "defaultLabel": "Other",
+            "classBreakInfos": [
+              {
+                "classMinValue": 0,
+                "classMaxValue": 100,
+                "symbol": {
+                  "type": "esriSFS",
+                  "style": "esriSFSSolid",
+                  "color": [255, 255, 178, 255]
+                },
+                "label": "0-100"
+              },
+              {
+                "classMinValue": 100,
+                "classMaxValue": 500,
+                "symbol": {
+                  "type": "esriSFS",
+                  "style": "esriSFSSolid",
+                  "color": [253, 141, 60, 255]
+                },
+                "label": "100-500"
+              },
+              {
+                "classMinValue": 500,
+                "classMaxValue": 2000,
+                "symbol": {
+                  "type": "esriSFS",
+                  "style": "esriSFSSolid",
+                  "color": [189, 0, 38, 255]
+                },
+                "label": "500-2000"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

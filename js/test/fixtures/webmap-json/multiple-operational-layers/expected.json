@@ -1,0 +1,63 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "parcels": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/Parcels/FeatureServer/0"
+      },
+      "roads": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/Roads/FeatureServer/0"
+      },
+      "markers": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/Markers/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "parcels",
+        "type": "fill",
+        "source": "parcels",
+        "paint": {
+          "fill-color": "rgb(180,215,158)",
+          "fill-outline-color": "rgb(110,110,110)"
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Parcels"
+        }
+      },
+      {
+        "id": "roads",
+        "type": "line",
+        "source": "roads",
+        "paint": {
+          "line-color": "rgb(100,100,100)",
+          "line-width": 2
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Roads"
+        }
+      },
+      {
+        "id": "markers",
+        "type": "circle",
+        "source": "markers",
+        "paint": {
+          "circle-color": "rgb(255,0,0)",
+          "circle-radius": 4
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Markers"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {}
+}

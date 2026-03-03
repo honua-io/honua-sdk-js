@@ -1,0 +1,46 @@
+{
+  "operationalLayers": [
+    {
+      "id": "zones",
+      "title": "Zones",
+      "url": "https://services.example.com/rest/services/Zones/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "uniqueValue",
+            "field1": "STATE",
+            "field2": "ZONE",
+            "fieldDelimiter": ",",
+            "defaultSymbol": {
+              "type": "esriSFS",
+              "style": "esriSFSSolid",
+              "color": [200, 200, 200, 255]
+            },
+            "defaultLabel": "Other",
+            "uniqueValueInfos": [
+              {
+                "value": "CA,Urban",
+                "label": "California Urban",
+                "symbol": {
+                  "type": "esriSFS",
+                  "style": "esriSFSSolid",
+                  "color": [255, 0, 0, 255]
+                }
+              },
+              {
+                "value": "CA,Rural",
+                "label": "California Rural",
+                "symbol": {
+                  "type": "esriSFS",
+                  "style": "esriSFSSolid",
+                  "color": [0, 255, 0, 255]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "baseMap": {
+    "title": "Streets + Labels",
+    "baseMapLayers": [
+      {
+        "id": "streets-base",
+        "title": "World Streets",
+        "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer",
+        "layerType": "ArcGISTiledMapServiceLayer",
+        "visibility": true,
+        "opacity": 1
+      },
+      {
+        "id": "reference-labels",
+        "title": "Reference Labels",
+        "url": "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer",
+        "layerType": "ArcGISTiledMapServiceLayer",
+        "visibility": false,
+        "opacity": 0.6
+      }
+    ]
+  },
+  "operationalLayers": [
+    {
+      "id": "transit-stops",
+      "title": "Transit Stops",
+      "url": "https://services.example.com/arcgis/rest/services/Transit/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSMS",
+              "style": "esriSMSCircle",
+              "color": [0, 120, 255, 255],
+              "size": 9
+            }
+          }
+        }
+      }
+    }
+  ]
+}

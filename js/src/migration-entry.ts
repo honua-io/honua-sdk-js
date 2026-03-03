@@ -41,6 +41,31 @@ export type {
   ParsedGeoservicesServiceUrl,
 } from "./migration/demo.js";
 export {
+  runContentScan,
+  runContentExport,
+  runContentImport,
+  runContentReconcile,
+} from "./migration/content.js";
+export type {
+  ContentPortalItemSummary,
+  ContentScanOptions,
+  ContentScanReport,
+  ExportedWebMap,
+  ExportedHostedLayerEntry,
+  ExportedHostedService,
+  ContentExportManifest,
+  ContentExportOptions,
+  ContentExportReport,
+  ImportedHostedLayerReport,
+  ImportedWebMapReport,
+  ContentImportOptions,
+  ContentImportReport,
+  ReconciledHostedLayerReport,
+  ReconciledWebMapReport,
+  ContentReconcileOptions,
+  ContentReconcileReport,
+} from "./migration/content.js";
+export {
   MIGRATION_DEMO_FALLBACK_TARGET,
   MIGRATION_DEMO_ISSUE_NUMBER,
   MIGRATION_DEMO_PRIMARY_TARGET,

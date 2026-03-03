@@ -34,7 +34,8 @@ This package currently provides:
 - migration report builder with explicit manual TODOs and rewrite metric,
 - JS parity matrix artifacts (`getJsParityMatrix` / `summarizeJsParityMatrix` and `getJsRuntimeParityMatrix` / `summarizeJsRuntimeParity`) for constructor-level and runtime-capability `native/compat/assisted/unsupported` tracking across Honua compat and esri-leaflet targets,
 - service reconciliation helper (`runLayerReconciliation`) for feature-count, geometry-validity, and attribute-key checks,
-- unit tests for request mapping and URL parsing.
+- unit tests for request mapping and URL parsing,
+- WebMap JSON conversion utilities (`parseWebMap`, renderer/symbol/popup converters) with a golden fixture suite and compatibility contract documented in [`docs/webmap-json-compatibility.md`](./docs/webmap-json-compatibility.md).
 
 ## Entrypoints
 
@@ -299,6 +300,21 @@ node dist/src/migration/cli.js codemod ./src --fail-on-manual --fail-on-unhandle
 
 # Compare source vs target service fidelity for one layer
 node dist/src/migration/cli.js reconcile --source-base-url https://source.example --source-service-id parcels --target-base-url https://target.example --target-service-id parcels --layer-id 0 --sample-size 200 --report reconcile-report.json
+
+# Content inventory scan from ArcGIS Online/Portal
+node dist/src/migration/cli.js content scan --portal https://org.maps.arcgis.com --report ./content/scan.json
+
+# Content export (WebMaps + hosted layers)
+node dist/src/migration/cli.js content export --portal https://org.maps.arcgis.com --output-dir ./export --report ./content/export.json
+
+# Content import into Honua admin endpoint
+node dist/src/migration/cli.js content import --source ./export --target https://honua.example.com --admin-api-key $HONUA_ADMIN_API_KEY --report ./content/import.json
+
+# Content reconcile using export + import reports
+node dist/src/migration/cli.js content reconcile --source ./export --report ./content/reconcile.json
+
+# Convert a WebMap JSON export into Honua style config and rewrite portal URLs
+node dist/src/migration/cli.js content-webmap --input ./export/webmap.json --output ./export/webmap.honua.json --source-url-prefix https://org.maps.arcgis.com --target-url-prefix https://honua.example.com --report ./export/webmap.report.json
 ```
 
 ## FeatureTable Demo Lane (#327)

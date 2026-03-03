@@ -1,0 +1,47 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "poi": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/POI/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "poi",
+        "type": "circle",
+        "source": "poi",
+        "paint": {
+          "circle-color": "rgb(255,60,0)",
+          "circle-radius": 5
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Points of Interest"
+        }
+      }
+    ],
+    "center": [
+      -122.499258,
+      45.676759
+    ],
+    "zoom": 7.92
+  },
+  "warnings": [],
+  "bookmarks": [
+    {
+      "name": "Downtown",
+      "extent": {
+        "xmin": -122.55,
+        "ymin": 37.72,
+        "xmax": -122.35,
+        "ymax": 37.85,
+        "spatialReference": {
+          "wkid": 4326
+        }
+      }
+    }
+  ],
+  "popups": {}
+}

@@ -1,0 +1,79 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "roads": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/arcgis/rest/services/Roads/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "roads",
+        "type": "line",
+        "source": "roads",
+        "paint": {
+          "line-color": "rgb(80,80,80)",
+          "line-width": 1.5
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Roads"
+        }
+      }
+    ]
+  },
+  "warnings": [
+    {
+      "code": "unknown-property",
+      "path": "",
+      "message": "Property 'ground' is not supported and will be ignored",
+      "context": {
+        "property": "ground"
+      }
+    },
+    {
+      "code": "unsupported-3d-property",
+      "path": "",
+      "message": "Top-level 3D property 'ground' is not supported",
+      "context": {
+        "property": "ground"
+      }
+    },
+    {
+      "code": "unknown-property",
+      "path": "operationalLayers[0]",
+      "message": "Property 'elevationInfo' is not supported and will be ignored",
+      "context": {
+        "property": "elevationInfo"
+      }
+    },
+    {
+      "code": "unsupported-3d-property",
+      "path": "operationalLayers[0]",
+      "message": "Layer type 'ArcGISSceneServiceLayer' is 3D and not supported",
+      "context": {
+        "layerType": "ArcGISSceneServiceLayer"
+      }
+    },
+    {
+      "code": "unsupported-3d-property",
+      "path": "operationalLayers[0]",
+      "message": "Layer property 'elevationInfo' is not supported",
+      "context": {
+        "property": "elevationInfo"
+      }
+    },
+    {
+      "code": "unsupported-layer-type",
+      "path": "operationalLayers[0]",
+      "message": "Unsupported layer type: ArcGISSceneServiceLayer",
+      "context": {
+        "layerType": "ArcGISSceneServiceLayer",
+        "url": "https://services.example.com/arcgis/rest/services/Buildings/SceneServer/layers/0"
+      }
+    }
+  ],
+  "bookmarks": [],
+  "popups": {}
+}

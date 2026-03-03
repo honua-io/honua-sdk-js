@@ -1,0 +1,23 @@
+{
+  "operationalLayers": [
+    {
+      "id": "pois",
+      "title": "Points of Interest",
+      "url": "https://services.example.com/rest/services/POI/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriPMS",
+              "url": "https://static.example.com/icons/poi.png",
+              "width": 24,
+              "height": 24
+            }
+          }
+        }
+      }
+    }
+  ]
+}

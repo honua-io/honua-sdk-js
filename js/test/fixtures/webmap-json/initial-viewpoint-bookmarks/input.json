@@ -1,0 +1,63 @@
+{
+  "version": "2.28",
+  "spatialReference": {
+    "wkid": 102100,
+    "latestWkid": 3857
+  },
+  "initialExtent": {
+    "xmin": -13884991,
+    "ymin": 5584790,
+    "xmax": -13358338,
+    "ymax": 5888095,
+    "spatialReference": {
+      "wkid": 102100,
+      "latestWkid": 3857
+    }
+  },
+  "initialViewpoint": {
+    "targetGeometry": {
+      "x": -13636555,
+      "y": 5728700,
+      "spatialReference": {
+        "wkid": 102100,
+        "latestWkid": 3857
+      }
+    },
+    "scale": 2311162
+  },
+  "bookmarks": [
+    {
+      "name": "Downtown",
+      "extent": {
+        "xmin": -122.55,
+        "ymin": 37.72,
+        "xmax": -122.35,
+        "ymax": 37.85,
+        "spatialReference": {
+          "wkid": 4326
+        }
+      }
+    }
+  ],
+  "operationalLayers": [
+    {
+      "id": "poi",
+      "title": "Points of Interest",
+      "url": "https://services.example.com/arcgis/rest/services/POI/FeatureServer/0",
+      "layerType": "ArcGISFeatureLayer",
+      "layerDefinition": {
+        "drawingInfo": {
+          "renderer": {
+            "type": "simple",
+            "symbol": {
+              "type": "esriSMS",
+              "style": "esriSMSCircle",
+              "color": [255, 60, 0, 255],
+              "size": 10
+            }
+          }
+        }
+      }
+    }
+  ]
+}

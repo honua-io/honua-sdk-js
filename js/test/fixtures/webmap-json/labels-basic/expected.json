@@ -1,0 +1,42 @@
+{
+  "style": {
+    "version": 8,
+    "sources": {
+      "cities": {
+        "type": "honua-feature-service",
+        "url": "https://services.example.com/rest/services/Cities/FeatureServer/0"
+      }
+    },
+    "layers": [
+      {
+        "id": "cities",
+        "type": "circle",
+        "source": "cities",
+        "paint": {
+          "circle-color": "rgb(0,0,255)",
+          "circle-radius": 4
+        },
+        "layout": {},
+        "metadata": {
+          "title": "Cities"
+        }
+      },
+      {
+        "id": "cities-label-0",
+        "type": "symbol",
+        "source": "cities",
+        "layout": {
+          "text-field": ["get", "NAME"],
+          "text-size": 11,
+          "text-font": ["Arial"]
+        },
+        "paint": {
+          "text-color": "rgb(0,0,0)"
+        }
+      }
+    ]
+  },
+  "warnings": [],
+  "bookmarks": [],
+  "popups": {}
+}

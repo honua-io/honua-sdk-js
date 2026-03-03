@@ -1,4 +1,46 @@
 export { HonuaClient } from "./core/client.js";
+export { parseWebMap } from "./webmap/index.js";
+export type { ParseWebMapOptions, ParseWebMapResult } from "./webmap/index.js";
+export {
+  createWarningCollector,
+  CONTRACT,
+  getContractSummary,
+  convertSymbol,
+  esriColorToCss,
+  convertRenderer,
+  convertPopupInfo,
+  convertLabelingInfo,
+  convertBasemap,
+  convertExtent,
+  convertInitialViewpoint,
+  convertOperationalLayer,
+} from "./webmap/index.js";
+export type {
+  WebMapWarning,
+  WarningCollector,
+  ContractEntry,
+  ContractSupport,
+  ContractSummary,
+  SymbolConversionResult,
+  RendererConversionResult,
+  HonuaPopupConfig,
+  HonuaPopupFieldInfo,
+  HonuaPopupMediaInfo,
+  BasemapConversionResult,
+  ExtentConversionResult,
+  LayerConversionResult,
+  WebMapJson,
+  WebMapOperationalLayer,
+  WebMapRenderer,
+  WebMapSymbol,
+  WebMapBaseMap,
+  WebMapPopupInfo,
+  WebMapExtent,
+  WebMapPoint,
+  WebMapViewpoint,
+  WebMapBookmark,
+  EsriColor,
+} from "./webmap/index.js";
 export {
   expr,
   Expr,
