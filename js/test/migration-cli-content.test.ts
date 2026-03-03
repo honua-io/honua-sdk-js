@@ -2,7 +2,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { execSync, spawnSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -22,34 +22,36 @@ function makeTempDir(): string {
   return dir;
 }
 
-function sleep(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
-function withCliLock<T>(work: () => T): T {
+async function withCliLock<T>(work: () => Promise<T> | T): Promise<T> {
   const lockDir = path.join(projectRoot(), ".tmp", "vitest-cli-lock");
   fs.mkdirSync(path.dirname(lockDir), { recursive: true });
   for (;;) {
     try {
-      fs.mkdirSync(lockDir);
+      await fs.promises.mkdir(lockDir);
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
         throw error;
       }
-      sleep(25);
+      await sleep(25);
     }
   }
 
   try {
-    return work();
+    return await work();
   } finally {
-    fs.rmSync(lockDir, { recursive: true, force: true });
+    await fs.promises.rm(lockDir, { recursive: true, force: true });
   }
 }
 
-function ensureBuiltCliArtifacts(): void {
-  withCliLock(() => {
+async function ensureBuiltCliArtifacts(): Promise<void> {
+  await withCliLock(() => {
     if (builtOnce) {
       return;
     }
@@ -186,10 +188,10 @@ afterAll(async () => {
 });
 
 describe("migration cli content", () => {
-  it("runs content scan", { timeout: 60_000 }, () => {
-    ensureBuiltCliArtifacts();
+  it("runs content scan", { timeout: 60_000 }, async () => {
+    await ensureBuiltCliArtifacts();
 
-    const result = runCli(["dist/src/migration/cli.js", "content", "scan", "--portal", portalUrl]);
+    const result = await runCli(["dist/src/migration/cli.js", "content", "scan", "--portal", portalUrl]);
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("contentScan");
@@ -197,11 +199,11 @@ describe("migration cli content", () => {
     expect(result.stdout).toContain("hostedFeatureServices=1");
   });
 
-  it("runs content export and writes manifest", { timeout: 60_000 }, () => {
-    ensureBuiltCliArtifacts();
+  it("runs content export and writes manifest", { timeout: 60_000 }, async () => {
+    await ensureBuiltCliArtifacts();
     const outputDir = path.join(makeTempDir(), "export");
 
-    const result = runCli([
+    const result = await runCli([
       "dist/src/migration/cli.js",
       "content",
       "export",
@@ -228,18 +230,32 @@ describe("migration cli content", () => {
   });
 });
 
-function runCli(args: readonly string[]): { status: number | null; stdout: string; stderr: string } {
-  return withCliLock(() => {
-    const result = spawnSync("node", args, {
+async function runCli(args: readonly string[]): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return withCliLock(async () => {
+    const child = spawn("node", args, {
       cwd: projectRoot(),
-      encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
 
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.on("data", (chunk: Buffer | string) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on("data", (chunk: Buffer | string) => {
+      stderr += chunk.toString();
+    });
+
+    const status = await new Promise<number | null>((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", (code) => resolve(code));
+    });
+
     return {
-      status: result.status,
-      stdout: result.stdout,
-      stderr: result.stderr,
+      status,
+      stdout,
+      stderr,
     };
   });
 }
