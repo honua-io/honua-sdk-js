@@ -334,25 +334,6 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
   public async *queryFeaturesStream(
     request: HonuaFeatureLayerQueryAllRequest = {},
   ): AsyncGenerator<HonuaTypedFeature<T>[], void, undefined> {
-    // Use server streaming RPC when gRPC-Web transport is active
-    if (this.client.isGrpcWeb) {
-      yield* this.client.queryFeaturesStream({
-        serviceId: this.serviceId,
-        layerId: this.layerId,
-        where: request.where,
-        outFields: request.outFields,
-        returnGeometry: request.returnGeometry,
-        orderByFields: request.orderByFields,
-        objectIds: request.objectIds,
-        geometry: request.geometry,
-        geometryType: request.geometryType,
-        spatialRel: request.spatialRel,
-        returnDistinctValues: request.returnDistinctValues,
-        resultRecordCount: request.resultRecordCount,
-      }) as AsyncGenerator<HonuaTypedFeature<T>[], void, undefined>;
-      return;
-    }
-
     const pageSize =
       typeof request.pageSize === "number" && Number.isFinite(request.pageSize)
         ? Math.max(1, Math.trunc(request.pageSize))
@@ -361,6 +342,27 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       typeof request.maxPages === "number" && Number.isFinite(request.maxPages)
         ? Math.max(1, Math.trunc(request.maxPages))
         : 100;
+
+    // Use server streaming RPC when gRPC-Web transport is active
+    if (this.client.isGrpcWeb) {
+      const { pageSize: _pageSize, maxPages: _maxPages, ...queryRequest } = request;
+      let pageCount = 0;
+      const stream = this.client.queryFeaturesStream({
+        serviceId: this.serviceId,
+        layerId: this.layerId,
+        ...queryRequest,
+        resultRecordCount: queryRequest.resultRecordCount ?? pageSize,
+      }) as AsyncGenerator<HonuaTypedFeature<T>[], void, undefined>;
+
+      for await (const page of stream) {
+        yield page;
+        pageCount += 1;
+        if (pageCount >= maxPages) {
+          break;
+        }
+      }
+      return;
+    }
 
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({

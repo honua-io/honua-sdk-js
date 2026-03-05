@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaClient, HonuaHttpError } from "../src/index.js";
+import { HonuaAbortError, HonuaClient, HonuaHttpError } from "../src/index.js";
 
 describe("HonuaClient", () => {
   it("queries features using GET params", async () => {
@@ -154,6 +154,27 @@ describe("HonuaClient", () => {
     expect(requestedBody).toContain("rollbackOnFailure=true");
     expect(requestedBody).toContain("adds=");
     expect(requestedBody).toContain("%22NAME%22");
+  });
+
+  it("serializes applyEdits deletes arrays as comma-separated IDs", async () => {
+    let requestedBody = "";
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async (_input, init) => {
+        requestedBody = String(init?.body ?? "");
+        return new Response(JSON.stringify({ deleteResults: [{ success: true }] }), { status: 200 });
+      },
+    });
+
+    await client.applyEdits({
+      serviceId: "default",
+      layerId: 1000,
+      deletes: [10, 11, 12],
+    });
+
+    const params = new URLSearchParams(requestedBody);
+    expect(params.get("deletes")).toBe("10,11,12");
   });
 
   it("queries related records endpoint with expected params", async () => {
@@ -473,6 +494,32 @@ describe("HonuaClient", () => {
     expect(requestedInit?.body).toBe("where=1%3D1");
   });
 
+  it("merges request helper query params with existing path params", async () => {
+    let requestedUrl: string | undefined;
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async (input) => {
+        requestedUrl = String(input);
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      },
+    });
+
+    await client.request({
+      path: "/rest/services/default/FeatureServer/0/query?existing=1&f=pjson#section",
+      query: {
+        existing: "2",
+        where: "1=1",
+      },
+      responseFormat: "json",
+    });
+
+    const url = new URL(requestedUrl ?? "https://example.test");
+    expect(url.searchParams.get("existing")).toBe("2");
+    expect(url.searchParams.get("f")).toBe("json");
+    expect(url.searchParams.get("where")).toBe("1=1");
+    expect(url.hash).toBe("#section");
+  });
+
   it("throws HonuaHttpError for non-2xx responses", async () => {
     const client = new HonuaClient({
       baseUrl: "https://example.test",
@@ -697,6 +744,64 @@ describe("HonuaClient", () => {
     await expect(client.listServices()).rejects.toMatchObject({
       name: "HonuaHttpError",
       statusCode: 400,
+    });
+    expect(attempts).toBe(1);
+  });
+
+  it("does not retry caller-canceled requests", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    let attempts = 0;
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      retry: {
+        maxRetries: 3,
+        baseDelayMs: 1,
+        maxDelayMs: 1,
+      },
+      fetchFn: async (_input, init) => {
+        attempts += 1;
+        init?.signal?.throwIfAborted();
+        return new Response(JSON.stringify({ services: [] }), { status: 200 });
+      },
+    });
+
+    await expect(
+      client.queryFeatures({
+        serviceId: "default",
+        layerId: 0,
+        signal: controller.signal,
+      }),
+    ).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(attempts).toBe(1);
+  });
+
+  it("does not retry non-idempotent POST requests by default", async () => {
+    let attempts = 0;
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      retry: {
+        maxRetries: 3,
+        baseDelayMs: 1,
+        maxDelayMs: 1,
+        retryStatuses: [503],
+      },
+      fetchFn: async () => {
+        attempts += 1;
+        return new Response(JSON.stringify({ error: { message: "service-unavailable" } }), { status: 503 });
+      },
+    });
+
+    await expect(
+      client.queryFeatures({
+        serviceId: "default",
+        layerId: 0,
+        method: "POST",
+      }),
+    ).rejects.toMatchObject({
+      name: "HonuaHttpError",
+      statusCode: 503,
     });
     expect(attempts).toBe(1);
   });

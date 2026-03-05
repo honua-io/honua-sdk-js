@@ -33,6 +33,8 @@ export interface EsriRequestInterceptorHandle {
   remove(): void;
 }
 
+const VALID_QUERY_METHODS: ReadonlySet<QueryMethod> = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+
 export function createEsriRequestInterceptors(
   interceptors: readonly EsriRequestInterceptorCompat[],
 ): HonuaRequestInterceptor[] {
@@ -160,8 +162,11 @@ function normalizeMethod(method: string | undefined, fallback: QueryMethod): Que
     return fallback;
   }
 
-  const upper = method.toUpperCase();
-  return upper === "POST" ? "POST" : "GET";
+  const upper = method.trim().toUpperCase();
+  if (VALID_QUERY_METHODS.has(upper as QueryMethod)) {
+    return upper as QueryMethod;
+  }
+  return fallback;
 }
 
 function createHonuaInterceptorFromEsri(interceptor: EsriRequestInterceptorCompat): HonuaRequestInterceptor {

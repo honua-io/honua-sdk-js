@@ -78,6 +78,19 @@ describe("OAuth/Identity compat", () => {
     expect(credential.userId).toBe("user-1");
   });
 
+  it("rejects expired credentials", async () => {
+    identityManager.registerToken({
+      server: "https://portal.example.test/sharing",
+      token: "expired-token",
+      expires: Date.now() - 1_000,
+    });
+
+    await expect(
+      identityManager.checkSignInStatus("https://portal.example.test/sharing/rest"),
+    ).rejects.toThrow("expired");
+    expect(identityManager.findCredential("https://portal.example.test/sharing/rest")).toBeUndefined();
+  });
+
   it("clears state on reset", () => {
     identityManager.registerOAuthInfos([{ appId: "app-1" }]);
     identityManager.registerToken({

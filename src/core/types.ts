@@ -426,19 +426,19 @@ export interface HonuaQueryResponse {
 
 /** Response from a count-only query (`returnCountOnly=true`). */
 export interface HonuaCountResponse {
-  count: number;
+  count: number | string;
 }
 
 /** Response from an IDs-only query (`returnIdsOnly=true`). */
 export interface HonuaObjectIdsResponse {
   objectIdFieldName: string;
-  objectIds: number[];
+  objectIds: Array<number | string>;
 }
 
 /** Response from an extent-only query (`returnExtentOnly=true`). */
 export interface HonuaExtentResponse {
   extent: HonuaExtent;
-  count?: number;
+  count?: number | string;
 }
 
 // ── Apply Edits Response ──────────────────────

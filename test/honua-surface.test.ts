@@ -752,6 +752,88 @@ describe("Honua native API surfaces", () => {
     ]);
   });
 
+  it("queryFeaturesStream on grpc-web preserves supported request options and maxPages", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      transport: "grpc-web",
+      fetchFn: async () => new Response("{}", { status: 200 }),
+    });
+
+    const seenRequests: unknown[] = [];
+    const signal = new AbortController().signal;
+
+    (client as unknown as {
+      queryFeaturesStream: (request: unknown) => AsyncGenerator<unknown[], void, undefined>;
+    }).queryFeaturesStream = (async function* (request: unknown) {
+      seenRequests.push(request);
+      yield [{ id: 1 }];
+      yield [{ id: 2 }];
+      yield [{ id: 3 }];
+    }) as (request: unknown) => AsyncGenerator<unknown[], void, undefined>;
+
+    const layer = client.featureLayer("transport", 4);
+    const pages: unknown[][] = [];
+    for await (const page of layer.queryFeaturesStream({
+      where: "status = 'open'",
+      outFields: ["OBJECTID", "STATUS"],
+      returnGeometry: false,
+      outSr: 4326,
+      method: "POST",
+      orderByFields: "OBJECTID DESC",
+      objectIds: [1, 2],
+      geometry: { x: -157.8, y: 21.3 },
+      geometryType: "esriGeometryPoint",
+      spatialRel: "esriSpatialRelIntersects",
+      distance: 10,
+      units: "meters",
+      nearestCount: 3,
+      returnDistance: true,
+      returnDistinctValues: true,
+      returnCentroid: true,
+      groupByFieldsForStatistics: "STATUS",
+      outStatistics: [{ statisticType: "count", onStatisticField: "OBJECTID", outStatisticFieldName: "cnt" }],
+      resultOffset: 4,
+      extraParams: { foo: "bar" },
+      signal,
+      pageSize: 2,
+      maxPages: 2,
+    })) {
+      pages.push(page);
+    }
+
+    expect(pages).toEqual([[{ id: 1 }], [{ id: 2 }]]);
+
+    const request = seenRequests[0] as Record<string, unknown>;
+    expect(request.serviceId).toBe("transport");
+    expect(request.layerId).toBe(4);
+    expect(request.where).toBe("status = 'open'");
+    expect(request.outFields).toEqual(["OBJECTID", "STATUS"]);
+    expect(request.returnGeometry).toBe(false);
+    expect(request.outSr).toBe(4326);
+    expect(request.method).toBe("POST");
+    expect(request.orderByFields).toBe("OBJECTID DESC");
+    expect(request.objectIds).toEqual([1, 2]);
+    expect(request.geometry).toEqual({ x: -157.8, y: 21.3 });
+    expect(request.geometryType).toBe("esriGeometryPoint");
+    expect(request.spatialRel).toBe("esriSpatialRelIntersects");
+    expect(request.distance).toBe(10);
+    expect(request.units).toBe("meters");
+    expect(request.nearestCount).toBe(3);
+    expect(request.returnDistance).toBe(true);
+    expect(request.returnDistinctValues).toBe(true);
+    expect(request.returnCentroid).toBe(true);
+    expect(request.groupByFieldsForStatistics).toBe("STATUS");
+    expect(request.outStatistics).toEqual([
+      { statisticType: "count", onStatisticField: "OBJECTID", outStatisticFieldName: "cnt" },
+    ]);
+    expect(request.resultOffset).toBe(4);
+    expect(request.resultRecordCount).toBe(2);
+    expect(request.extraParams).toEqual({ foo: "bar" });
+    expect(request.signal).toBe(signal);
+    expect(request.pageSize).toBeUndefined();
+    expect(request.maxPages).toBeUndefined();
+  });
+
   it("queryFeaturesStream stops on empty page", async () => {
     const client = new HonuaClient({
       baseUrl: "https://example.test",

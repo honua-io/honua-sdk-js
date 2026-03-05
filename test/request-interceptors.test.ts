@@ -364,4 +364,58 @@ describe("esri-style request bridge", () => {
 
     expect(matchedCount).toBe(1);
   });
+
+  it("preserves valid HTTP methods set by esri-style interceptors", async () => {
+    let requestedMethod: string | undefined;
+    const [bridge] = createEsriRequestInterceptors([
+      {
+        before: (params) => {
+          params.requestOptions.method = "patch";
+        },
+      },
+    ]);
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      interceptors: [bridge],
+      fetchFn: async (_input, init) => {
+        requestedMethod = String(init?.method ?? "");
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      },
+    });
+
+    await client.request({
+      path: "/rest/services/default/FeatureServer/0/query",
+      method: "GET",
+    });
+
+    expect(requestedMethod).toBe("PATCH");
+  });
+
+  it("falls back to the original method when interceptor method is invalid", async () => {
+    let requestedMethod: string | undefined;
+    const [bridge] = createEsriRequestInterceptors([
+      {
+        before: (params) => {
+          params.requestOptions.method = "invalid-method";
+        },
+      },
+    ]);
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      interceptors: [bridge],
+      fetchFn: async (_input, init) => {
+        requestedMethod = String(init?.method ?? "");
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      },
+    });
+
+    await client.request({
+      path: "/rest/services/default/FeatureServer/0/query",
+      method: "POST",
+    });
+
+    expect(requestedMethod).toBe("POST");
+  });
 });

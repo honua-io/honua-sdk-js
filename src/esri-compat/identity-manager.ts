@@ -55,27 +55,22 @@ class IdentityManagerCompatStore {
   }
 
   public findCredential(url: string): IdentityCredentialCompat | undefined {
-    const normalized = normalizeServerUrl(url);
-    if (!normalized) {
+    const match = this.findCredentialEntry(url);
+    if (!match || isCredentialExpired(match)) {
       return undefined;
     }
-
-    const match = this.credentialsInternal.find((credential) => {
-      const server = normalizeServerUrl(credential.server);
-      if (!server) {
-        return false;
-      }
-      return normalized === server || normalized.startsWith(`${server}/`);
-    });
-    return match ? { ...match } : undefined;
+    return { ...match };
   }
 
   public async checkSignInStatus(url: string): Promise<IdentityCredentialCompat> {
-    const credential = this.findCredential(url);
+    const credential = this.findCredentialEntry(url);
     if (!credential) {
       throw new Error("No registered credential for requested server.");
     }
-    return credential;
+    if (isCredentialExpired(credential)) {
+      throw new Error("Registered credential for requested server has expired.");
+    }
+    return { ...credential };
   }
 
   public async getCredential(url: string): Promise<IdentityCredentialCompat> {
@@ -90,6 +85,21 @@ class IdentityManagerCompatStore {
     this.oauthInfosInternal.length = 0;
     this.credentialsInternal.length = 0;
   }
+
+  private findCredentialEntry(url: string): IdentityCredentialCompat | undefined {
+    const normalized = normalizeServerUrl(url);
+    if (!normalized) {
+      return undefined;
+    }
+
+    return this.credentialsInternal.find((credential) => {
+      const server = normalizeServerUrl(credential.server);
+      if (!server) {
+        return false;
+      }
+      return normalized === server || normalized.startsWith(`${server}/`);
+    });
+  }
 }
 
 export const identityManager = new IdentityManagerCompatStore();
@@ -102,4 +112,12 @@ function normalizeServerUrl(value: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function isCredentialExpired(credential: IdentityCredentialCompat): boolean {
+  return (
+    typeof credential.expires === "number" &&
+    Number.isFinite(credential.expires) &&
+    credential.expires <= Date.now()
+  );
 }

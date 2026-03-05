@@ -255,6 +255,16 @@ describe("fromProtoQueryResponse", () => {
     expect(result.features).toBeUndefined();
   });
 
+  it("converts unsafe count-only response values to strings", () => {
+    const response = create(QueryFeaturesResponseSchema);
+    response.count = 9007199254740993n;
+
+    const result = fromProtoQueryResponse(response) as any;
+
+    expect(result.count).toBe("9007199254740993");
+    expect(result.features).toBeUndefined();
+  });
+
   it("converts zero-count count-only response", () => {
     const response = create(QueryFeaturesResponseSchema);
     response.count = 0n;
@@ -274,6 +284,17 @@ describe("fromProtoQueryResponse", () => {
 
     expect(result.objectIdFieldName).toBe("objectid");
     expect(result.objectIds).toEqual([1, 2, 3]);
+    expect(result.features).toBeUndefined();
+  });
+
+  it("converts unsafe ids-only response values to strings", () => {
+    const response = create(QueryFeaturesResponseSchema);
+    response.objectIdFieldName = "objectid";
+    response.objectIds = [1n, 9007199254740993n];
+
+    const result = fromProtoQueryResponse(response) as any;
+
+    expect(result.objectIds).toEqual([1, "9007199254740993"]);
     expect(result.features).toBeUndefined();
   });
 
@@ -345,6 +366,23 @@ describe("fromProtoQueryResponse", () => {
     expect(result.features[0].attributes.bigId).toBe(9007199254740991);
     expect(result.features[0].attributes.ratio).toBe(3.14);
     expect(result.features[0].attributes.score).toBe(2.5);
+  });
+
+  it("converts unsafe int64 attribute values to strings", () => {
+    const feature = create(FeatureSchema);
+    feature.id = 1n;
+
+    const int64Attr = create(AttributeValueSchema);
+    int64Attr.value = { case: "int64Value", value: 9007199254740993n };
+    feature.attributes["bigId"] = int64Attr;
+
+    const response = create(QueryFeaturesResponseSchema);
+    response.objectIdFieldName = "objectid";
+    response.features = [feature];
+
+    const result = fromProtoQueryResponse(response) as any;
+
+    expect(result.features[0].attributes.bigId).toBe("9007199254740993");
   });
 
   it("converts boolean and datetime attributes", () => {

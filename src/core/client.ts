@@ -97,6 +97,13 @@ function encodeFormValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function encodeDeletesValue(value: ApplyEditsRequest["deletes"]): string {
+  if (Array.isArray(value)) {
+    return value.join(",");
+  }
+  return String(value);
+}
+
 function normalizeBBox(bbox: ExportMapRequest["bbox"]): string {
   return Array.isArray(bbox) ? bbox.join(",") : bbox;
 }
@@ -142,6 +149,7 @@ interface NormalizedRetryOptions {
 }
 
 const DEFAULT_RETRY_STATUSES: ReadonlySet<number> = new Set([429, 502, 503, 504]);
+const DEFAULT_RETRY_METHODS: ReadonlySet<QueryMethod> = new Set(["GET", "PUT", "DELETE"]);
 
 export class HonuaClient {
   private readonly baseUrl: string;
@@ -277,7 +285,7 @@ export class HonuaClient {
     }
 
     const normalizedPath = normalizePath(request.path);
-    const pathWithQuery = params.size > 0 ? `${normalizedPath}?${params.toString()}` : normalizedPath;
+    const pathWithQuery = mergePathWithQueryParams(normalizedPath, params);
     return this.requestJson(
       method,
       pathWithQuery,
@@ -561,7 +569,7 @@ export class HonuaClient {
       params.set("updates", encodeFormValue(request.updates));
     }
     if (request.deletes !== undefined) {
-      params.set("deletes", encodeFormValue(request.deletes));
+      params.set("deletes", encodeDeletesValue(request.deletes));
     }
 
     return this.requestJson("POST", path, {
@@ -872,7 +880,7 @@ export class HonuaClient {
         const normalizedError = timeout.didTimeout
           ? new HonuaTimeoutError(this.timeoutMs ?? 0)
           : normalizeNetworkError(error);
-        if (this.shouldRetryRequest(attempt, undefined, normalizedError)) {
+        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
           await sleep(this.resolveRetryDelayMs(attempt));
           continue;
         }
@@ -890,7 +898,7 @@ export class HonuaClient {
       const body = await parseResponseBody(response.clone());
       if (!response.ok) {
         const httpError = this.toHttpError(response.status, body);
-        if (this.shouldRetryRequest(attempt, response.status, httpError)) {
+        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
           await sleep(this.resolveRetryDelayMs(attempt, response));
           continue;
         }
@@ -945,7 +953,7 @@ export class HonuaClient {
         const normalizedError = timeout.didTimeout
           ? new HonuaTimeoutError(this.timeoutMs ?? 0)
           : normalizeNetworkError(error);
-        if (this.shouldRetryRequest(attempt, undefined, normalizedError)) {
+        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
           await sleep(this.resolveRetryDelayMs(attempt));
           continue;
         }
@@ -963,7 +971,7 @@ export class HonuaClient {
       if (!response.ok) {
         const body = await parseResponseBody(response.clone());
         const httpError = this.toHttpError(response.status, body);
-        if (this.shouldRetryRequest(attempt, response.status, httpError)) {
+        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
           await sleep(this.resolveRetryDelayMs(attempt, response));
           continue;
         }
@@ -1033,8 +1041,21 @@ export class HonuaClient {
     }
   }
 
-  private shouldRetryRequest(attempt: number, statusCode: number | undefined, error: unknown): boolean {
+  private shouldRetryRequest(
+    method: QueryMethod,
+    attempt: number,
+    statusCode: number | undefined,
+    error: unknown,
+  ): boolean {
     if (!this.retryOptions || attempt >= this.retryOptions.maxRetries) {
+      return false;
+    }
+
+    if (!DEFAULT_RETRY_METHODS.has(method)) {
+      return false;
+    }
+
+    if (error instanceof HonuaAbortError) {
       return false;
     }
 
@@ -1042,7 +1063,7 @@ export class HonuaClient {
       return this.retryOptions.retryStatuses.has(statusCode);
     }
 
-    return error instanceof Error;
+    return error instanceof HonuaNetworkError || error instanceof HonuaTimeoutError;
   }
 
   private resolveRetryDelayMs(attempt: number, response?: Response): number {
@@ -1307,6 +1328,28 @@ function createOgcMetadataParams(request: OgcMetadataRequest): URLSearchParams {
     }
   }
   return params;
+}
+
+function mergePathWithQueryParams(path: string, additionalParams: URLSearchParams): string {
+  if (additionalParams.size === 0) {
+    return path;
+  }
+
+  const hashIndex = path.indexOf("#");
+  const hash = hashIndex >= 0 ? path.slice(hashIndex) : "";
+  const withoutHash = hashIndex >= 0 ? path.slice(0, hashIndex) : path;
+  const queryIndex = withoutHash.indexOf("?");
+  const basePath = queryIndex >= 0 ? withoutHash.slice(0, queryIndex) : withoutHash;
+  const existingQuery = queryIndex >= 0 ? withoutHash.slice(queryIndex + 1) : "";
+
+  const merged = new URLSearchParams(existingQuery);
+  for (const [key, value] of additionalParams.entries()) {
+    merged.set(key, value);
+  }
+
+  const nextQuery = merged.toString();
+  const withQuery = nextQuery.length > 0 ? `${basePath}?${nextQuery}` : basePath;
+  return `${withQuery}${hash}`;
 }
 
 function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesRequest | MapLayerQueryRequest): void {

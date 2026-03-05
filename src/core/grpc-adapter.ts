@@ -109,6 +109,9 @@ const STATISTIC_TYPE_MAP: Record<string, StatisticType> = {
   var: StatisticType.VAR,
 };
 
+const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
+const MIN_SAFE_INTEGER_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
+
 /**
  * Converts a SDK QueryFeaturesRequest into a proto QueryFeaturesRequest message.
  */
@@ -269,14 +272,14 @@ export function fromProtoQueryResponse(
     response.extent === undefined &&
     (response.count !== 0n || !hasFeatureMetadata)
   ) {
-    return { count: Number(response.count) };
+    return { count: toSafeNumberOrString(response.count) };
   }
 
   // IDs-only response
   if (response.objectIds.length > 0 && response.features.length === 0) {
     return {
       objectIdFieldName: response.objectIdFieldName,
-      objectIds: response.objectIds.map(Number),
+      objectIds: response.objectIds.map(toSafeNumberOrString),
     };
   }
 
@@ -291,7 +294,7 @@ export function fromProtoQueryResponse(
         ymax: ext.ymax,
         spatialReference: ext.spatialReference ? convertSpatialReference(ext.spatialReference) : undefined,
       },
-      ...(response.count !== 0n ? { count: Number(response.count) } : {}),
+      ...(response.count !== 0n ? { count: toSafeNumberOrString(response.count) } : {}),
     };
   }
 
@@ -714,7 +717,7 @@ function convertAttributeValue(attr: AttributeValue): unknown {
     case "int32Value":
       return attr.value.value;
     case "int64Value":
-      return Number(attr.value.value);
+      return toSafeNumberOrString(attr.value.value);
     case "doubleValue":
       return attr.value.value;
     case "floatValue":
@@ -722,7 +725,7 @@ function convertAttributeValue(attr: AttributeValue): unknown {
     case "boolValue":
       return attr.value.value;
     case "datetimeValue":
-      return Number(attr.value.value);
+      return toSafeNumberOrString(attr.value.value);
     case "bytesValue":
       return attr.value.value;
     case "nullValue":
@@ -730,6 +733,13 @@ function convertAttributeValue(attr: AttributeValue): unknown {
     default:
       return null;
   }
+}
+
+function toSafeNumberOrString(value: bigint): number | string {
+  if (value <= MAX_SAFE_INTEGER_BIGINT && value >= MIN_SAFE_INTEGER_BIGINT) {
+    return Number(value);
+  }
+  return value.toString();
 }
 
 function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Record<string, unknown> | null {
