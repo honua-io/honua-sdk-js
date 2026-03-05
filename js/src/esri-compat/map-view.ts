@@ -946,6 +946,19 @@ export class MapViewCompat {
     this.eventBus.emit("view.spatial-reference-changed", { spatialReference }, this);
   }
 
+  /** Returns all currently created layer views as a read-only collection. */
+  public get allLayerViews(): readonly MapViewLayerViewCompat[] {
+    return Array.from(this.layerViews.values());
+  }
+
+  /**
+   * Returns an existing layer view for the given layer, or undefined if
+   * whenLayerView has not yet been called for it.
+   */
+  public getLayerView(layer: unknown): MapViewLayerViewCompat | undefined {
+    return this.layerViews.get(layer);
+  }
+
   public async whenLayerView(layer: unknown): Promise<MapViewLayerViewCompat> {
     const existing = this.layerViews.get(layer);
     if (existing) {
@@ -954,6 +967,7 @@ export class MapViewCompat {
 
     const layerView = new MapViewLayerViewCompat(layer, this.eventBus);
     this.layerViews.set(layer, layerView);
+    this.notifyWatchers("allLayerViews", this.allLayerViews);
     this.eventBus.emit("view.layer-view-created", { layer, layerView }, this);
     this.eventBus.emit("feature-layer.layerview-create", { view: this, layerView }, this);
     this.emit("layerview-create", { layer, layerView });
@@ -1008,6 +1022,10 @@ export class MapViewCompat {
     propertyName: "spatialReference",
     listener: (value: MapViewSpatialReferenceLike | undefined) => void,
   ): MapViewHandle;
+  public watch(
+    propertyName: "allLayerViews",
+    listener: (value: readonly MapViewLayerViewCompat[]) => void,
+  ): MapViewHandle;
   public watch(propertyName: "popup.visible", listener: (value: boolean) => void): MapViewHandle;
   public watch(propertyName: "popup.viewModel.active", listener: (value: boolean) => void): MapViewHandle;
   public watch(propertyName: "popup.selectedFeatureIndex", listener: (value: number) => void): MapViewHandle;
@@ -1035,6 +1053,7 @@ export class MapViewCompat {
       layerView.destroy();
     }
     this.layerViews.clear();
+    this.notifyWatchers("allLayerViews", this.allLayerViews);
     this.closePopup();
     this.map = undefined;
     this.notifyWatchers("map", this.map);

@@ -1,7 +1,10 @@
 import { HonuaClient } from "../core/client.js";
 import type {
+  ApplyEditsRequest,
   ExportMapRequest,
+  HonuaApplyEditsResponse,
   HonuaExportMapResponse,
+  HonuaFeature,
   HonuaFieldInfo,
   HonuaFindResponse,
   HonuaIdentifyResponse,
@@ -63,6 +66,16 @@ export type MapImageSublayerQueryCountOptions = Omit<MapImageLayerQueryCountOpti
 export type MapImageSublayerQueryObjectIdsOptions = Omit<MapImageLayerQueryObjectIdsOptions, "layerId">;
 export type MapImageSublayerQueryExtentOptions = Omit<MapImageLayerQueryExtentOptions, "layerId">;
 export type MapImageSublayerQueryRelatedFeaturesOptions = Omit<MapImageLayerQueryRelatedFeaturesOptions, "layerId">;
+
+export interface MapImageLayerApplyEditsOptions {
+  layerId: number;
+  adds?: HonuaFeature[];
+  updates?: HonuaFeature[];
+  deletes?: number[] | string;
+  rollbackOnFailure?: boolean;
+}
+
+export type MapImageSublayerApplyEditsOptions = Omit<MapImageLayerApplyEditsOptions, "layerId">;
 export type MapImageLayerSublayerLookupId = number | string;
 
 export type MapImageLayerLoadStatusCompat = "not-loaded" | "loading" | "loaded" | "failed";
@@ -397,6 +410,23 @@ export class MapImageLayerCompat {
     return this.queryRelatedRecords(options);
   }
 
+  public async applyEdits(options: MapImageLayerApplyEditsOptions): Promise<HonuaApplyEditsResponse> {
+    const result = await this.client.applyEdits({
+      serviceId: this.serviceId,
+      layerId: options.layerId,
+      adds: options.adds,
+      updates: options.updates,
+      deletes: options.deletes,
+      rollbackOnFailure: options.rollbackOnFailure,
+    });
+    this.eventBus.emit(
+      "map-image-layer.edits",
+      { result, layerId: this.id, sublayerId: options.layerId },
+      this,
+    );
+    return result;
+  }
+
   public setVisibility(visible: boolean): void {
     this.visible = visible;
     this.notifyWatchers("visible", this.visible);
@@ -684,6 +714,13 @@ export class MapImageSublayerCompat {
     options: MapImageSublayerQueryRelatedFeaturesOptions,
   ): Promise<HonuaRelatedRecordsResponse> {
     return this.queryRelatedRecords(options);
+  }
+
+  public applyEdits(options: MapImageSublayerApplyEditsOptions = {}): Promise<HonuaApplyEditsResponse> {
+    return this.layer.applyEdits({
+      layerId: this.layerId,
+      ...options,
+    });
   }
 
   public get sublayers(): readonly MapImageSublayerCompat[] {

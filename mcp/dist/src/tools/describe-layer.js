@@ -2,7 +2,7 @@ import { z } from "zod";
 import { jsonText } from "../helpers.js";
 export const schema = z.object({
     serviceId: z.string().describe("The feature service ID"),
-    layerId: z.number().int().describe("The layer ID within the service"),
+    layerId: z.number().int().nonnegative().describe("The layer ID within the service"),
 });
 export async function execute(client, input) {
     const meta = await client.getLayerMetadata(input.serviceId, input.layerId);

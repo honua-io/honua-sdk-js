@@ -1,18 +1,22 @@
 import { z } from "zod";
-import { clampLimit, jsonText, mapSpatialRel } from "../helpers.js";
+import { GEOMETRY_TYPES, clampLimit, jsonText, mapSpatialRel, resolveGeometryType } from "../helpers.js";
 export const schema = z.object({
     serviceId: z.string().describe("The feature service ID"),
-    layerId: z.number().int().describe("The layer ID within the service"),
+    layerId: z.number().int().nonnegative().describe("The layer ID within the service"),
     where: z.string().optional().describe('SQL WHERE clause, e.g. "population > 50000"'),
     outFields: z.array(z.string()).optional().describe("Fields to return; defaults to all"),
     geometry: z.record(z.unknown()).optional().describe("Esri JSON geometry for spatial filter"),
+    geometryType: z
+        .enum(GEOMETRY_TYPES)
+        .optional()
+        .describe("Esri geometry type. If omitted, inferred from geometry when possible."),
     spatialRel: z
         .enum(["intersects", "contains", "within"])
         .optional()
         .describe("Spatial relationship (default: intersects)"),
     orderBy: z.string().optional().describe('Sort order, e.g. "name ASC"'),
-    limit: z.number().int().optional().describe("Max features to return (default 100, max 2000)"),
-    offset: z.number().int().optional().describe("Number of features to skip (for pagination)"),
+    limit: z.number().int().positive().optional().describe("Max features to return (default 100, max 2000)"),
+    offset: z.number().int().nonnegative().optional().describe("Number of features to skip (for pagination)"),
     returnGeometry: z.boolean().optional().default(false).describe("Include geometry in results (default: false)"),
 });
 export async function execute(client, input) {
@@ -22,6 +26,7 @@ export async function execute(client, input) {
         where: input.where,
         outFields: input.outFields ?? "*",
         geometry: input.geometry,
+        geometryType: resolveGeometryType(input.geometry, input.geometryType),
         spatialRel: mapSpatialRel(input.spatialRel),
         orderByFields: input.orderBy,
         resultRecordCount: clampLimit(input.limit),

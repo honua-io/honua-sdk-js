@@ -1,5 +1,5 @@
 import type { HonuaClient } from "@honua/sdk-js";
-import { encodeServiceId, mapWithConcurrency } from "../helpers.js";
+import { encodeServiceId, mapWithConcurrency, metadataErrorText } from "../helpers.js";
 
 export const uri = "honua://services";
 
@@ -9,33 +9,28 @@ export async function read(client: HonuaClient) {
   const response = await client.listServices();
   const featureServices = (response.services ?? []).filter((s) => s.type === "FeatureServer");
 
-  const catalog = await mapWithConcurrency(
-    featureServices,
-    METADATA_CONCURRENCY,
-    async (s) => {
-      try {
-        const meta = await client.getFeatureServiceMetadata(s.name);
-        return {
-          serviceId: s.name,
-          encodedServiceId: encodeServiceId(s.name),
-          type: s.type,
-          layers: meta.layers ?? [],
-          tables: meta.tables ?? [],
-          metadataError: null,
-        };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return {
-          serviceId: s.name,
-          encodedServiceId: encodeServiceId(s.name),
-          type: s.type,
-          layers: [],
-          tables: [],
-          metadataError: message,
-        };
-      }
-    },
-  );
+  const catalog = await mapWithConcurrency(featureServices, METADATA_CONCURRENCY, async (s) => {
+    try {
+      const meta = await client.getFeatureServiceMetadata(s.name);
+      return {
+        serviceId: s.name,
+        encodedServiceId: encodeServiceId(s.name),
+        type: s.type,
+        layers: meta.layers ?? [],
+        tables: meta.tables ?? [],
+        metadataError: null,
+      };
+    } catch {
+      return {
+        serviceId: s.name,
+        encodedServiceId: encodeServiceId(s.name),
+        type: s.type,
+        layers: [],
+        tables: [],
+        metadataError: metadataErrorText(),
+      };
+    }
+  });
 
   return {
     contents: [

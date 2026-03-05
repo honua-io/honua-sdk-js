@@ -1,15 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { execute, schema } from "../../src/tools/statistics.js";
-import { createMockClient, asClient } from "../test-helpers.js";
+import { asClient, createMockClient } from "../test-helpers.js";
 
 describe("honua_statistics", () => {
   it("builds outStatistics and returns grouped results", async () => {
     const mock = createMockClient({
       queryFeatures: vi.fn().mockResolvedValue({
-        features: [
-          { attributes: { STATE: "CA", avg_VALUE: 150 } },
-          { attributes: { STATE: "NY", avg_VALUE: 200 } },
-        ],
+        features: [{ attributes: { STATE: "CA", avg_VALUE: 150 } }, { attributes: { STATE: "NY", avg_VALUE: 200 } }],
       }),
     });
 
@@ -75,5 +72,53 @@ describe("honua_statistics", () => {
         groupByFieldsForStatistics: "COUNTY",
       }),
     );
+  });
+
+  it("defaults where to 1=1 when omitted", async () => {
+    const mock = createMockClient();
+    await execute(
+      asClient(mock),
+      schema.parse({
+        serviceId: "Parks",
+        layerId: 0,
+        statisticType: "count",
+        onField: "OBJECTID",
+      }),
+    );
+
+    expect(mock.queryFeatures).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: "1=1",
+      }),
+    );
+  });
+
+  it("returns empty statistics when query response has no features", async () => {
+    const mock = createMockClient({
+      queryFeatures: vi.fn().mockResolvedValue({}),
+    });
+    const result = await execute(
+      asClient(mock),
+      schema.parse({
+        serviceId: "Parks",
+        layerId: 0,
+        statisticType: "count",
+        onField: "OBJECTID",
+      }),
+    );
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed).toEqual({ statistics: [] });
+  });
+
+  it("rejects negative layerId", () => {
+    expect(() =>
+      schema.parse({
+        serviceId: "Parks",
+        layerId: -1,
+        statisticType: "sum",
+        onField: "AREA",
+      }),
+    ).toThrow();
   });
 });

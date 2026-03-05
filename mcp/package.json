@@ -7,7 +7,9 @@
     "honua-mcp": "./dist/src/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist coverage",
+    "build": "npm run clean --silent && tsc -p tsconfig.json",
+    "prepack": "npm run build --silent",
     "typecheck": "tsc --noEmit",
     "test": "npm run build --silent && vitest run --coverage",
     "test:unit": "vitest run",
@@ -20,11 +22,14 @@
     "check:fix": "biome check --write src/ test/"
   },
   "dependencies": {
-    "@honua/sdk-js": "file:../js",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "zod": "^3.24.0"
   },
+  "peerDependencies": {
+    "@honua/sdk-js": "^0.0.1-alpha.0"
+  },
   "devDependencies": {
+    "@honua/sdk-js": "file:../js",
     "@biomejs/biome": "1.9.4",
     "@types/node": "^24.3.1",
     "@vitest/coverage-v8": "^4.0.16",

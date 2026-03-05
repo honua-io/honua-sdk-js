@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { execute, schema } from "../../src/tools/list-services.js";
-import { createMockClient, asClient } from "../test-helpers.js";
+import { asClient, createMockClient } from "../test-helpers.js";
 
 describe("honua_list_services", () => {
   it("returns only FeatureServer services without details", async () => {
@@ -42,7 +42,7 @@ describe("honua_list_services", () => {
       serviceId: "Parks",
       description: null,
       layerCount: null,
-      metadataError: "Network error",
+      metadataError: "Failed to fetch service metadata.",
     });
   });
 });

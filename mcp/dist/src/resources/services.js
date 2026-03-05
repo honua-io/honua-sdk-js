@@ -1,4 +1,4 @@
-import { encodeServiceId, mapWithConcurrency } from "../helpers.js";
+import { encodeServiceId, mapWithConcurrency, metadataErrorText } from "../helpers.js";
 export const uri = "honua://services";
 const METADATA_CONCURRENCY = 8;
 export async function read(client) {
@@ -16,15 +16,14 @@ export async function read(client) {
                 metadataError: null,
             };
         }
-        catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+        catch {
             return {
                 serviceId: s.name,
                 encodedServiceId: encodeServiceId(s.name),
                 type: s.type,
                 layers: [],
                 tables: [],
-                metadataError: message,
+                metadataError: metadataErrorText(),
             };
         }
     });

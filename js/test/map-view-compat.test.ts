@@ -865,4 +865,68 @@ describe("MapViewCompat", () => {
     expect(received).toHaveLength(1);
     expect(received[0]).toMatchObject({ view });
   });
+
+  it("allLayerViews returns all created layer views and updates on creation", async () => {
+    const view = new MapViewCompat();
+
+    expect(view.allLayerViews).toEqual([]);
+
+    const layerA = { id: "layer-a" };
+    const layerB = { id: "layer-b" };
+
+    const allLayerViewsSnapshots: number[] = [];
+    view.watch("allLayerViews", (value) => {
+      allLayerViewsSnapshots.push(Array.isArray(value) ? value.length : -1);
+    });
+
+    const layerViewA = await view.whenLayerView(layerA);
+    expect(view.allLayerViews).toHaveLength(1);
+    expect(view.allLayerViews[0]).toBe(layerViewA);
+
+    const layerViewB = await view.whenLayerView(layerB);
+    expect(view.allLayerViews).toHaveLength(2);
+    expect(view.allLayerViews[1]).toBe(layerViewB);
+
+    expect(allLayerViewsSnapshots).toEqual([1, 2]);
+  });
+
+  it("getLayerView returns existing layer view or undefined", async () => {
+    const view = new MapViewCompat();
+    const layer = { id: "layer-1" };
+
+    expect(view.getLayerView(layer)).toBeUndefined();
+
+    const layerView = await view.whenLayerView(layer);
+    expect(view.getLayerView(layer)).toBe(layerView);
+  });
+
+  it("allLayerViews is cleared and watchers notified on destroy", async () => {
+    const view = new MapViewCompat();
+    const layerA = { id: "layer-a" };
+    const layerB = { id: "layer-b" };
+
+    await view.whenLayerView(layerA);
+    await view.whenLayerView(layerB);
+    expect(view.allLayerViews).toHaveLength(2);
+
+    const allLayerViewsSnapshots: number[] = [];
+    view.watch("allLayerViews", (value) => {
+      allLayerViewsSnapshots.push(Array.isArray(value) ? value.length : -1);
+    });
+
+    view.destroy();
+    expect(view.allLayerViews).toEqual([]);
+    expect(allLayerViewsSnapshots).toEqual([0]);
+  });
+
+  it("allLayerViews does not duplicate entries for the same layer", async () => {
+    const view = new MapViewCompat();
+    const layer = { id: "layer-1" };
+
+    const lv1 = await view.whenLayerView(layer);
+    const lv2 = await view.whenLayerView(layer);
+
+    expect(lv1).toBe(lv2);
+    expect(view.allLayerViews).toHaveLength(1);
+  });
 });

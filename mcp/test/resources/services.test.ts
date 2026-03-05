@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { read, uri } from "../../src/resources/services.js";
-import { createMockClient, asClient } from "../test-helpers.js";
+import { asClient, createMockClient } from "../test-helpers.js";
 
 describe("services resource", () => {
   it("has the correct URI", () => {
@@ -44,6 +44,6 @@ describe("services resource", () => {
 
     expect(parsed).toHaveLength(2);
     expect(parsed[0].layers).toEqual([]);
-    expect(parsed[0].metadataError).toBe("fail");
+    expect(parsed[0].metadataError).toBe("Failed to fetch service metadata.");
   });
 });

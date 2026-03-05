@@ -1,22 +1,25 @@
-import { z } from "zod";
 import type { HonuaClient } from "@honua/sdk-js";
+import { z } from "zod";
 export declare const schema: z.ZodObject<{
     serviceId: z.ZodString;
     layerId: z.ZodNumber;
     where: z.ZodOptional<z.ZodString>;
     geometry: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    geometryType: z.ZodOptional<z.ZodEnum<["esriGeometryPoint", "esriGeometryPolyline", "esriGeometryPolygon", "esriGeometryEnvelope", "esriGeometryMultipoint"]>>;
     spatialRel: z.ZodOptional<z.ZodEnum<["intersects", "contains", "within"]>>;
 }, "strip", z.ZodTypeAny, {
     serviceId: string;
     layerId: number;
     where?: string | undefined;
     geometry?: Record<string, unknown> | undefined;
+    geometryType?: "esriGeometryPoint" | "esriGeometryPolyline" | "esriGeometryPolygon" | "esriGeometryEnvelope" | "esriGeometryMultipoint" | undefined;
     spatialRel?: "intersects" | "contains" | "within" | undefined;
 }, {
     serviceId: string;
     layerId: number;
     where?: string | undefined;
     geometry?: Record<string, unknown> | undefined;
+    geometryType?: "esriGeometryPoint" | "esriGeometryPolyline" | "esriGeometryPolygon" | "esriGeometryEnvelope" | "esriGeometryMultipoint" | undefined;
     spatialRel?: "intersects" | "contains" | "within" | undefined;
 }>;
 export type Input = z.infer<typeof schema>;

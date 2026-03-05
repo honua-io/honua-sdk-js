@@ -15,6 +15,7 @@ import {
   type FieldDefinition as ProtoFieldDefinition,
   QueryFeaturesRequestSchema,
   type QueryFeaturesResponse,
+  DistanceUnit,
   SpatialFilterSchema,
   SpatialReferenceSchema,
   SpatialRelationship,
@@ -78,6 +79,26 @@ const ESRI_TO_PROTO_SPATIAL_REL_MAP: Record<string, SpatialRelationship> = {
   esriSpatialRelDisjoint: SpatialRelationship.DISJOINT,
 };
 
+const ESRI_TO_PROTO_DISTANCE_UNIT_MAP: Record<string, DistanceUnit> = {
+  esrisrunit_meter: DistanceUnit.METERS,
+  meter: DistanceUnit.METERS,
+  meters: DistanceUnit.METERS,
+  m: DistanceUnit.METERS,
+  esrisrunit_foot: DistanceUnit.FEET,
+  esrisrunit_usfoot: DistanceUnit.FEET,
+  foot: DistanceUnit.FEET,
+  feet: DistanceUnit.FEET,
+  ft: DistanceUnit.FEET,
+  esrisrunit_kilometer: DistanceUnit.KILOMETERS,
+  kilometer: DistanceUnit.KILOMETERS,
+  kilometers: DistanceUnit.KILOMETERS,
+  km: DistanceUnit.KILOMETERS,
+  esrisrunit_statutemile: DistanceUnit.MILES,
+  mile: DistanceUnit.MILES,
+  miles: DistanceUnit.MILES,
+  mi: DistanceUnit.MILES,
+};
+
 const STATISTIC_TYPE_MAP: Record<string, StatisticType> = {
   count: StatisticType.COUNT,
   sum: StatisticType.SUM,
@@ -97,6 +118,14 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
   msg.layerId = request.layerId;
   msg.where = request.where ?? "1=1";
   msg.returnGeometry = request.returnGeometry ?? true;
+
+  const outSpatialReference =
+    toProtoSpatialReference(request.outSr) ??
+    toProtoSpatialReference(request.extraParams?.outSR) ??
+    toProtoSpatialReference(request.extraParams?.outSr);
+  if (outSpatialReference) {
+    msg.outSr = outSpatialReference;
+  }
 
   if (request.outFields !== undefined) {
     const fields =
@@ -158,6 +187,34 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
     if (spatialReference) {
       filter.spatialReference = spatialReference;
     }
+
+    const distance = request.distance ?? parseExtraNumber(request.extraParams ?? {}, "distance");
+    if (distance !== undefined) {
+      filter.distance = distance;
+    }
+
+    const nearestCountRaw = request.nearestCount ?? parseExtraNumber(request.extraParams ?? {}, "nearestCount");
+    if (nearestCountRaw !== undefined) {
+      filter.nearestCount = Math.trunc(nearestCountRaw);
+    }
+
+    const returnDistance = request.returnDistance ?? parseExtraBoolean(request.extraParams ?? {}, "returnDistance");
+    if (returnDistance !== undefined) {
+      filter.returnDistance = returnDistance;
+    }
+
+    const unit =
+      request.units ??
+      parseExtraString(request.extraParams ?? {}, "units");
+    if (unit !== undefined) {
+      const mappedUnit = ESRI_TO_PROTO_DISTANCE_UNIT_MAP[unit.trim().toLowerCase()];
+      if (!mappedUnit) {
+        throw new Error(`Unsupported distance unit for gRPC transport: ${unit}`);
+      }
+
+      filter.distanceUnit = mappedUnit;
+    }
+
     msg.spatialFilter = filter;
   }
 
@@ -285,6 +342,18 @@ function parseExtraNumber(
   return Number.isFinite(n) ? n : undefined;
 }
 
+function parseExtraString(
+  params: Record<string, string | number | boolean>,
+  key: string,
+): string | undefined {
+  const value = params[key];
+  if (value === undefined || typeof value === "boolean") {
+    return undefined;
+  }
+
+  return String(value);
+}
+
 function toProtoStatistics(
   value: string | readonly Record<string, unknown>[],
 ): ReturnType<typeof create<typeof StatisticDefinitionSchema>>[] {
@@ -408,7 +477,44 @@ function parseGeometryValue(value: string | Record<string, unknown>): Record<str
 function toProtoSpatialReference(
   value: unknown,
 ): ReturnType<typeof create<typeof SpatialReferenceSchema>> | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const spatialReference = create(SpatialReferenceSchema);
+    spatialReference.wkid = value;
+    return spatialReference;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    const asNumber = Number(trimmed);
+    if (Number.isFinite(asNumber)) {
+      const spatialReference = create(SpatialReferenceSchema);
+      spatialReference.wkid = asNumber;
+      return spatialReference;
+    }
+
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        return toProtoSpatialReference(parsed);
+      } catch {
+        throw new Error("Invalid outSr JSON for gRPC transport.");
+      }
+    }
+
+    const spatialReference = create(SpatialReferenceSchema);
+    spatialReference.wkt = trimmed;
+    return spatialReference;
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) {
     return undefined;
   }
 
@@ -640,7 +746,12 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
       return {
         points: mp.points.map((p) => {
           const coords: number[] = [p.x, p.y];
-          if (p.z !== undefined) coords.push(p.z);
+          if (p.z !== undefined) {
+            coords.push(p.z);
+          } else if (p.m !== undefined) {
+            coords.push(Number.NaN);
+          }
+          if (p.m !== undefined) coords.push(p.m);
           return coords;
         }),
       };
@@ -651,7 +762,12 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
         paths: pl.paths.map((path) =>
           path.coords.map((c) => {
             const coords: number[] = [c.x, c.y];
-            if (c.z !== undefined) coords.push(c.z);
+            if (c.z !== undefined) {
+              coords.push(c.z);
+            } else if (c.m !== undefined) {
+              coords.push(Number.NaN);
+            }
+            if (c.m !== undefined) coords.push(c.m);
             return coords;
           }),
         ),
@@ -663,7 +779,12 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
         rings: pg.rings.map((ring) =>
           ring.coords.map((c) => {
             const coords: number[] = [c.x, c.y];
-            if (c.z !== undefined) coords.push(c.z);
+            if (c.z !== undefined) {
+              coords.push(c.z);
+            } else if (c.m !== undefined) {
+              coords.push(Number.NaN);
+            }
+            if (c.m !== undefined) coords.push(c.m);
             return coords;
           }),
         ),
@@ -677,7 +798,12 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
           rings.push(
             ring.coords.map((c) => {
               const coords: number[] = [c.x, c.y];
-              if (c.z !== undefined) coords.push(c.z);
+              if (c.z !== undefined) {
+                coords.push(c.z);
+              } else if (c.m !== undefined) {
+                coords.push(Number.NaN);
+              }
+              if (c.m !== undefined) coords.push(c.m);
               return coords;
             }),
           );

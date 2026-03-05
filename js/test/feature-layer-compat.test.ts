@@ -1061,4 +1061,105 @@ describe("FeatureLayerCompat", () => {
     layer.setVisibility(false);
     expect(watchValues).toHaveLength(0);
   });
+
+  it("supports ReadableStream as attachment data for addAttachment", async () => {
+    const requests: unknown[] = [];
+    const layer = new FeatureLayerCompat({
+      url: "https://example.test/rest/services/default/FeatureServer/0",
+      client: new (class {
+        public request(request: unknown): Promise<unknown> {
+          requests.push(request);
+          return Promise.resolve({ addAttachmentResult: { objectId: 1, success: true } });
+        }
+      })() as any,
+    });
+
+    const chunks = [new Uint8Array([72, 101, 108]), new Uint8Array([108, 111])];
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(chunk);
+        }
+        controller.close();
+      },
+    });
+
+    const result = await layer.addAttachment({
+      objectId: 42,
+      attachment: stream,
+      name: "hello.bin",
+      contentType: "application/octet-stream",
+    });
+
+    expect(result).toEqual({ addAttachmentResult: { objectId: 1, success: true } });
+    expect(requests).toHaveLength(1);
+    const captured = requests[0] as { body?: FormData };
+    expect(captured.body).toBeInstanceOf(FormData);
+    const blob = captured.body?.get("attachment") as File;
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.size).toBe(5);
+  });
+
+  it("skips size limit enforcement for ReadableStream attachments", async () => {
+    const requests: unknown[] = [];
+    const layer = new FeatureLayerCompat({
+      url: "https://example.test/rest/services/default/FeatureServer/0",
+      maxAttachmentBytes: 1,
+      client: new (class {
+        public request(request: unknown): Promise<unknown> {
+          requests.push(request);
+          return Promise.resolve({ addAttachmentResult: { objectId: 1, success: true } });
+        }
+      })() as any,
+    });
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3, 4, 5]));
+        controller.close();
+      },
+    });
+
+    const result = await layer.addAttachment({
+      objectId: 1,
+      attachment: stream,
+      name: "data.bin",
+    });
+
+    expect(result).toEqual({ addAttachmentResult: { objectId: 1, success: true } });
+    expect(requests).toHaveLength(1);
+  });
+
+  it("supports ReadableStream as attachment data for updateAttachment", async () => {
+    const requests: unknown[] = [];
+    const layer = new FeatureLayerCompat({
+      url: "https://example.test/rest/services/default/FeatureServer/0",
+      client: new (class {
+        public request(request: unknown): Promise<unknown> {
+          requests.push(request);
+          return Promise.resolve({ updateAttachmentResult: { objectId: 1, success: true } });
+        }
+      })() as any,
+    });
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([65, 66, 67]));
+        controller.close();
+      },
+    });
+
+    const result = await layer.updateAttachment({
+      objectId: 42,
+      attachmentId: 7,
+      attachment: stream,
+      name: "updated.bin",
+    });
+
+    expect(result).toEqual({ updateAttachmentResult: { objectId: 1, success: true } });
+    expect(requests).toHaveLength(1);
+    const captured = requests[0] as { body?: FormData };
+    expect(captured.body).toBeInstanceOf(FormData);
+    expect(captured.body?.get("attachmentId")).toBe("7");
+  });
 });

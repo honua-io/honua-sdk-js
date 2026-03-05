@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { execute, schema } from "../../src/tools/describe-layer.js";
-import { createMockClient, asClient } from "../test-helpers.js";
+import { asClient, createMockClient } from "../test-helpers.js";
 
 describe("honua_describe_layer", () => {
   it("returns formatted layer metadata", async () => {
@@ -25,5 +25,27 @@ describe("honua_describe_layer", () => {
     await execute(asClient(mock), schema.parse({ serviceId: "Census", layerId: 3 }));
 
     expect(mock.getLayerMetadata).toHaveBeenCalledWith("Census", 3);
+  });
+
+  it("normalizes nullable metadata fields", async () => {
+    const mock = createMockClient({
+      getLayerMetadata: vi.fn().mockResolvedValue({
+        id: 0,
+        name: "Minimal Layer",
+        fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }],
+      }),
+    });
+    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed.description).toBeNull();
+    expect(parsed.geometryType).toBeNull();
+    expect(parsed.extent).toBeNull();
+    expect(parsed.spatialReference).toBeNull();
+    expect(parsed.relationships).toEqual([]);
+  });
+
+  it("rejects negative layerId", () => {
+    expect(() => schema.parse({ serviceId: "Parks", layerId: -1 })).toThrow();
   });
 });

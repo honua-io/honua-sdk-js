@@ -14,6 +14,10 @@ This package exposes a focused MCP surface for discovery and query workflows on 
 - `HONUA_BASE_URL` (required): absolute Honua base URL, for example `https://honua.example.com`
 - `HONUA_TRANSPORT` (optional): `grpc-web` (default) or `rest`
 - `HONUA_API_KEY` (optional): admin/API key when your deployment requires it
+- `HONUA_TIMEOUT_MS` (optional): request timeout in milliseconds (default `30000`)
+- `HONUA_RETRY_MAX_RETRIES` (optional): retry attempts for transient failures (default `2`)
+
+When `HONUA_API_KEY` is configured, use `https://` for non-localhost servers.
 
 ## Run Locally
 
@@ -35,4 +39,4 @@ HONUA_BASE_URL="https://honua.example.com" HONUA_TRANSPORT="grpc-web" node dist/
 ## MCP Resources
 
 - `honua://services`
-- `honua://services/{encodedServiceId}/layers/{layerId}/schema`
+- `honua://services/{encodedServiceId}/layers/{layerId}`

@@ -1,9 +1,15 @@
-import { z } from "zod";
 import type { HonuaClient } from "@honua/sdk-js";
-import { jsonText, mapWithConcurrency } from "../helpers.js";
+import { z } from "zod";
+import { jsonText, mapWithConcurrency, metadataErrorText } from "../helpers.js";
 
 export const schema = z.object({
-  includeDetails: z.boolean().optional().default(false).describe("Fetch service metadata (description, layer count, spatial reference). Slower due to per-service requests."),
+  includeDetails: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "Fetch service metadata (description, layer count, spatial reference). Slower due to per-service requests.",
+    ),
 });
 
 export type Input = z.infer<typeof schema>;
@@ -18,33 +24,28 @@ export async function execute(client: HonuaClient, input: Input) {
     return jsonText(services.map((s) => ({ serviceId: s.name, type: s.type })));
   }
 
-  const detailed = await mapWithConcurrency(
-    services,
-    METADATA_CONCURRENCY,
-    async (s) => {
-      try {
-        const meta = await client.getFeatureServiceMetadata(s.name);
-        return {
-          serviceId: s.name,
-          type: s.type,
-          description: meta.serviceDescription ?? null,
-          layerCount: (meta.layers?.length ?? 0) + (meta.tables?.length ?? 0),
-          spatialReference: meta.spatialReference ?? null,
-          metadataError: null,
-        };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return {
-          serviceId: s.name,
-          type: s.type,
-          description: null,
-          layerCount: null,
-          spatialReference: null,
-          metadataError: message,
-        };
-      }
-    },
-  );
+  const detailed = await mapWithConcurrency(services, METADATA_CONCURRENCY, async (s) => {
+    try {
+      const meta = await client.getFeatureServiceMetadata(s.name);
+      return {
+        serviceId: s.name,
+        type: s.type,
+        description: meta.serviceDescription ?? null,
+        layerCount: (meta.layers?.length ?? 0) + (meta.tables?.length ?? 0),
+        spatialReference: meta.spatialReference ?? null,
+        metadataError: null,
+      };
+    } catch {
+      return {
+        serviceId: s.name,
+        type: s.type,
+        description: null,
+        layerCount: null,
+        spatialReference: null,
+        metadataError: metadataErrorText(),
+      };
+    }
+  });
 
   return jsonText(detailed);
 }

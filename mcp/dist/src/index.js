@@ -1,16 +1,68 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { HonuaClient } from "@honua/sdk-js";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { HonuaClient } from "@honua/sdk-js";
-import * as listServices from "./tools/list-services.js";
-import * as describeLayer from "./tools/describe-layer.js";
-import * as queryFeatures from "./tools/query-features.js";
-import * as countFeatures from "./tools/count-features.js";
-import * as getExtent from "./tools/get-extent.js";
-import * as statistics from "./tools/statistics.js";
-import * as servicesResource from "./resources/services.js";
 import * as layerSchemaResource from "./resources/layer-schema.js";
+import * as servicesResource from "./resources/services.js";
+import * as countFeatures from "./tools/count-features.js";
+import * as describeLayer from "./tools/describe-layer.js";
+import * as getExtent from "./tools/get-extent.js";
+import * as listServices from "./tools/list-services.js";
+import * as queryFeatures from "./tools/query-features.js";
+import * as statistics from "./tools/statistics.js";
+const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_SERVER_VERSION = "0.0.1-alpha.0";
+export const SERVER_VERSION = resolveServerVersion();
+function resolveServerVersion() {
+    try {
+        const packageJsonPath = new URL("../../package.json", import.meta.url);
+        const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+        if (typeof packageJson.version === "string" && packageJson.version.length > 0) {
+            return packageJson.version;
+        }
+    }
+    catch {
+        // Fall back to a static version if package metadata is unavailable.
+    }
+    return DEFAULT_SERVER_VERSION;
+}
+function parsePositiveInteger(env, name, defaultValue) {
+    const raw = env[name];
+    if (raw === undefined) {
+        return defaultValue;
+    }
+    const normalized = raw.trim();
+    if (!/^\d+$/.test(normalized)) {
+        throw new Error(`${name} must be a positive integer, received "${raw}"`);
+    }
+    const parsed = Number.parseInt(normalized, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) {
+        throw new Error(`${name} must be a positive integer, received "${raw}"`);
+    }
+    return parsed;
+}
+function parseNonNegativeInteger(env, name, defaultValue) {
+    const raw = env[name];
+    if (raw === undefined) {
+        return defaultValue;
+    }
+    const normalized = raw.trim();
+    if (!/^\d+$/.test(normalized)) {
+        throw new Error(`${name} must be a non-negative integer, received "${raw}"`);
+    }
+    const parsed = Number.parseInt(normalized, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error(`${name} must be a non-negative integer, received "${raw}"`);
+    }
+    return parsed;
+}
+function isLoopbackHost(hostname) {
+    const normalized = hostname.toLowerCase();
+    return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
+}
 export function resolveRuntimeOptions(env) {
     const baseUrl = env.HONUA_BASE_URL;
     if (!baseUrl) {
@@ -26,6 +78,10 @@ export function resolveRuntimeOptions(env) {
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
         throw new Error(`HONUA_BASE_URL must use http or https: ${baseUrl}`);
     }
+    const apiKey = env.HONUA_API_KEY;
+    if (apiKey && parsedUrl.protocol === "http:" && !isLoopbackHost(parsedUrl.hostname)) {
+        throw new Error("HONUA_API_KEY over non-local HTTP is not allowed. Use HTTPS, or use localhost for local development.");
+    }
     const rawTransportInput = env.HONUA_TRANSPORT ?? "grpc-web";
     const normalizedTransport = rawTransportInput.trim().toLowerCase();
     const transport = normalizedTransport === "grpc-web" || normalizedTransport === "grpc" || normalizedTransport === "grcp"
@@ -36,10 +92,14 @@ export function resolveRuntimeOptions(env) {
     if (!transport) {
         throw new Error(`HONUA_TRANSPORT must be "grpc-web" (aliases: "grpc", "grcp") or "rest", received "${rawTransportInput}"`);
     }
+    const timeoutMs = parsePositiveInteger(env, "HONUA_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
+    const retryMaxRetries = parseNonNegativeInteger(env, "HONUA_RETRY_MAX_RETRIES", DEFAULT_MAX_RETRIES);
     return {
-        baseUrl,
-        apiKey: env.HONUA_API_KEY,
+        baseUrl: parsedUrl.toString(),
+        apiKey,
         transport,
+        timeoutMs,
+        retryMaxRetries,
     };
 }
 export function createClientFromEnv(env = process.env) {
@@ -48,12 +108,14 @@ export function createClientFromEnv(env = process.env) {
         baseUrl: options.baseUrl,
         apiKey: options.apiKey,
         transport: options.transport,
+        timeoutMs: options.timeoutMs,
+        retry: options.retryMaxRetries > 0 ? { maxRetries: options.retryMaxRetries } : undefined,
     });
 }
 export function createServer(client) {
     const server = new McpServer({
         name: "honua",
-        version: "0.0.1-alpha.0",
+        version: SERVER_VERSION,
     });
     // ── Tools ──────────────────────────────────────────────────────
     server.tool("honua_list_services", "Discover all available feature services. Set includeDetails=true for descriptions, layer counts, and spatial references.", listServices.schema.shape, async (args) => listServices.execute(client, listServices.schema.parse(args)));

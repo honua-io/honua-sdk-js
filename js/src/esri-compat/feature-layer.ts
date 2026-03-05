@@ -103,7 +103,7 @@ export interface FeatureLayerDeleteAttachmentsOptions {
   extraParams?: Record<string, string | number | boolean>;
 }
 
-export type FeatureLayerAttachmentData = Blob | ArrayBuffer | ArrayBufferView | string;
+export type FeatureLayerAttachmentData = Blob | ArrayBuffer | ArrayBufferView | ReadableStream<Uint8Array> | string;
 
 export interface FeatureLayerAddAttachmentOptions {
   objectId: number;
@@ -655,31 +655,42 @@ export class FeatureLayerCompat {
 
   public addAttachment(options: FeatureLayerAddAttachmentOptions): Promise<HonuaAddAttachmentResponse> {
     enforceAttachmentSizeLimit(options.attachment, options.maxAttachmentBytes ?? this.maxAttachmentBytes);
-    const form = buildAttachmentFormData(options);
-    return this.client.request({
-      method: "POST",
-      path:
-        `/rest/services/${encodeURIComponent(this.serviceId)}` +
-        `/FeatureServer/${this.layerId}/${options.objectId}/addAttachment`,
-      responseFormat: options.responseFormat ?? "json",
-      query: options.extraParams,
-      body: form,
-    });
+    const formOrPromise = buildAttachmentFormData(options);
+    const sendForm = (form: FormData): Promise<HonuaAddAttachmentResponse> =>
+      this.client.request({
+        method: "POST",
+        path:
+          `/rest/services/${encodeURIComponent(this.serviceId)}` +
+          `/FeatureServer/${this.layerId}/${options.objectId}/addAttachment`,
+        responseFormat: options.responseFormat ?? "json",
+        query: options.extraParams,
+        body: form,
+      });
+    if (formOrPromise instanceof Promise) {
+      return formOrPromise.then(sendForm);
+    }
+    return sendForm(formOrPromise);
   }
 
   public updateAttachment(options: FeatureLayerUpdateAttachmentOptions): Promise<HonuaUpdateAttachmentResponse> {
     enforceAttachmentSizeLimit(options.attachment, options.maxAttachmentBytes ?? this.maxAttachmentBytes);
-    const form = buildAttachmentFormData(options);
-    form.set("attachmentId", String(options.attachmentId));
-    return this.client.request({
-      method: "POST",
-      path:
-        `/rest/services/${encodeURIComponent(this.serviceId)}` +
-        `/FeatureServer/${this.layerId}/${options.objectId}/updateAttachment`,
-      responseFormat: options.responseFormat ?? "json",
-      query: options.extraParams,
-      body: form,
-    });
+    const formOrPromise = buildAttachmentFormData(options);
+    const sendForm = (form: FormData): Promise<HonuaUpdateAttachmentResponse> => {
+      form.set("attachmentId", String(options.attachmentId));
+      return this.client.request({
+        method: "POST",
+        path:
+          `/rest/services/${encodeURIComponent(this.serviceId)}` +
+          `/FeatureServer/${this.layerId}/${options.objectId}/updateAttachment`,
+        responseFormat: options.responseFormat ?? "json",
+        query: options.extraParams,
+        body: form,
+      });
+    };
+    if (formOrPromise instanceof Promise) {
+      return formOrPromise.then(sendForm);
+    }
+    return sendForm(formOrPromise);
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {
@@ -757,16 +768,23 @@ function buildAttachmentFormData(options: {
   attachment: FeatureLayerAttachmentData;
   name?: string;
   contentType?: string;
-}): FormData {
-  const form = new FormData();
-  if (options.name) {
-    form.set("name", options.name);
-  }
-
-  const attachmentBlob = normalizeAttachmentData(options.attachment, options.contentType);
+}): FormData | Promise<FormData> {
   const attachmentName = resolveAttachmentName(options.attachment, options.name);
-  form.set("attachment", attachmentBlob, attachmentName);
-  return form;
+  const blobOrPromise = normalizeAttachmentData(options.attachment, options.contentType);
+
+  const buildForm = (blob: Blob): FormData => {
+    const form = new FormData();
+    if (options.name) {
+      form.set("name", options.name);
+    }
+    form.set("attachment", blob, attachmentName);
+    return form;
+  };
+
+  if (blobOrPromise instanceof Promise) {
+    return blobOrPromise.then(buildForm);
+  }
+  return buildForm(blobOrPromise);
 }
 
 function normalizeAttachmentSizeLimit(maxAttachmentBytes: number | undefined): number {
@@ -778,13 +796,13 @@ function normalizeAttachmentSizeLimit(maxAttachmentBytes: number | undefined): n
 
 function enforceAttachmentSizeLimit(attachment: FeatureLayerAttachmentData, maxAttachmentBytes: number): void {
   const sizeBytes = estimateAttachmentSizeBytes(attachment);
-  if (sizeBytes <= maxAttachmentBytes) {
+  if (sizeBytes === undefined || sizeBytes <= maxAttachmentBytes) {
     return;
   }
   throw new Error(`Attachment payload exceeds maxAttachmentBytes (${sizeBytes} > ${maxAttachmentBytes}).`);
 }
 
-function estimateAttachmentSizeBytes(attachment: FeatureLayerAttachmentData): number {
+function estimateAttachmentSizeBytes(attachment: FeatureLayerAttachmentData): number | undefined {
   if (attachment instanceof Blob) {
     return attachment.size;
   }
@@ -797,7 +815,11 @@ function estimateAttachmentSizeBytes(attachment: FeatureLayerAttachmentData): nu
     return attachment.byteLength;
   }
 
-  return attachment.byteLength;
+  if (isReadableStream(attachment)) {
+    return undefined;
+  }
+
+  return (attachment as ArrayBufferView).byteLength;
 }
 
 function resolveAttachmentName(attachment: FeatureLayerAttachmentData, explicitName?: string): string {
@@ -828,7 +850,7 @@ function buildTimeParam(
   return `${timeExtent.start.getTime()},${timeExtent.end.getTime()}`;
 }
 
-function normalizeAttachmentData(attachment: FeatureLayerAttachmentData, contentType?: string): Blob {
+function normalizeAttachmentData(attachment: FeatureLayerAttachmentData, contentType?: string): Blob | Promise<Blob> {
   if (attachment instanceof Blob) {
     return attachment;
   }
@@ -845,6 +867,10 @@ function normalizeAttachmentData(attachment: FeatureLayerAttachmentData, content
     });
   }
 
+  if (isReadableStream(attachment)) {
+    return collectStreamToBlob(attachment, contentType ?? "application/octet-stream");
+  }
+
   if (ArrayBuffer.isView(attachment)) {
     const source = new Uint8Array(attachment.buffer, attachment.byteOffset, attachment.byteLength);
     const copy = Uint8Array.from(source);
@@ -854,4 +880,32 @@ function normalizeAttachmentData(attachment: FeatureLayerAttachmentData, content
   }
 
   throw new Error("Unsupported attachment payload type.");
+}
+
+function isReadableStream(value: unknown): value is ReadableStream<Uint8Array> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "getReader" in value &&
+    typeof (value as Record<string, unknown>).getReader === "function"
+  );
+}
+
+async function collectStreamToBlob(stream: ReadableStream<Uint8Array>, contentType: string): Promise<Blob> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (value) {
+        chunks.push(value);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return new Blob(chunks, { type: contentType });
 }

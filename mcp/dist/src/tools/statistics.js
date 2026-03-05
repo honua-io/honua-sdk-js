@@ -2,10 +2,8 @@ import { z } from "zod";
 import { jsonText } from "../helpers.js";
 export const schema = z.object({
     serviceId: z.string().describe("The feature service ID"),
-    layerId: z.number().int().describe("The layer ID within the service"),
-    statisticType: z
-        .enum(["count", "sum", "avg", "min", "max", "stddev"])
-        .describe("The aggregate function to compute"),
+    layerId: z.number().int().nonnegative().describe("The layer ID within the service"),
+    statisticType: z.enum(["count", "sum", "avg", "min", "max", "stddev"]).describe("The aggregate function to compute"),
     onField: z.string().describe("The field to compute the statistic on"),
     groupBy: z.string().optional().describe("Field to group results by"),
     where: z.string().optional().describe("SQL WHERE clause to filter features"),

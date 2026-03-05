@@ -911,4 +911,135 @@ describe("MapImageLayerCompat", () => {
     layer.setVisibility(false);
     expect(watchValues).toHaveLength(0);
   });
+
+  it("supports applyEdits on the layer level for sublayer editing", async () => {
+    const editRequests: unknown[] = [];
+    const eventBus = new CompatEventBus();
+    const events: string[] = [];
+    eventBus.onAny((event) => {
+      events.push(event.type);
+    });
+
+    const layer = new MapImageLayerCompat({
+      url: "https://example.test/rest/services/default/MapServer",
+      sublayers: [{ id: 2, title: "Parcels" }],
+      eventBus,
+      client: new (class {
+        public getMapServiceMetadata(): Promise<unknown> {
+          return Promise.resolve({});
+        }
+
+        public applyEdits(request: unknown): Promise<unknown> {
+          editRequests.push(request);
+          return Promise.resolve({
+            addResults: [{ objectId: 100, success: true }],
+          });
+        }
+      })() as any,
+    });
+
+    const result = await layer.applyEdits({
+      layerId: 2,
+      adds: [{ attributes: { name: "New Parcel" } } as any],
+      rollbackOnFailure: true,
+    });
+
+    expect(result).toEqual({
+      addResults: [{ objectId: 100, success: true }],
+    });
+    expect(editRequests).toHaveLength(1);
+    expect(editRequests[0]).toMatchObject({
+      serviceId: "default",
+      layerId: 2,
+      adds: [{ attributes: { name: "New Parcel" } }],
+      rollbackOnFailure: true,
+    });
+    expect(events).toContain("map-image-layer.edits");
+  });
+
+  it("supports applyEdits on sublayer wrappers delegating to the parent layer", async () => {
+    const editRequests: unknown[] = [];
+    const layer = new MapImageLayerCompat({
+      url: "https://example.test/rest/services/default/MapServer",
+      sublayers: [{ id: 3, title: "Roads" }],
+      client: new (class {
+        public getMapServiceMetadata(): Promise<unknown> {
+          return Promise.resolve({});
+        }
+
+        public applyEdits(request: unknown): Promise<unknown> {
+          editRequests.push(request);
+          return Promise.resolve({
+            updateResults: [{ objectId: 55, success: true }],
+          });
+        }
+      })() as any,
+    });
+
+    const sublayer = layer.sublayer(3);
+    expect(sublayer).toBeDefined();
+    if (!sublayer) {
+      throw new Error("expected sublayer wrapper");
+    }
+
+    const result = await sublayer.applyEdits({
+      updates: [{ attributes: { OBJECTID: 55, status: "closed" } } as any],
+    });
+
+    expect(result).toEqual({
+      updateResults: [{ objectId: 55, success: true }],
+    });
+    expect(editRequests).toHaveLength(1);
+    expect(editRequests[0]).toMatchObject({
+      serviceId: "default",
+      layerId: 3,
+      updates: [{ attributes: { OBJECTID: 55, status: "closed" } }],
+    });
+  });
+
+  it("supports applyEdits with deletes on sublayer wrapper", async () => {
+    const editRequests: unknown[] = [];
+    const layer = new MapImageLayerCompat({
+      url: "https://example.test/rest/services/default/MapServer",
+      sublayers: [{ id: 5, title: "Points" }],
+      client: new (class {
+        public getMapServiceMetadata(): Promise<unknown> {
+          return Promise.resolve({});
+        }
+
+        public applyEdits(request: unknown): Promise<unknown> {
+          editRequests.push(request);
+          return Promise.resolve({
+            deleteResults: [
+              { objectId: 10, success: true },
+              { objectId: 11, success: true },
+            ],
+          });
+        }
+      })() as any,
+    });
+
+    const sublayer = layer.sublayer(5);
+    expect(sublayer).toBeDefined();
+    if (!sublayer) {
+      throw new Error("expected sublayer wrapper");
+    }
+
+    const result = await sublayer.applyEdits({
+      deletes: [10, 11],
+    });
+
+    expect(result).toEqual({
+      deleteResults: [
+        { objectId: 10, success: true },
+        { objectId: 11, success: true },
+      ],
+    });
+    expect(editRequests).toHaveLength(1);
+    expect(editRequests[0]).toMatchObject({
+      serviceId: "default",
+      layerId: 5,
+      deletes: [10, 11],
+    });
+  });
 });

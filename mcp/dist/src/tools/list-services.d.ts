@@ -1,5 +1,5 @@
-import { z } from "zod";
 import type { HonuaClient } from "@honua/sdk-js";
+import { z } from "zod";
 export declare const schema: z.ZodObject<{
     includeDetails: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
 }, "strip", z.ZodTypeAny, {

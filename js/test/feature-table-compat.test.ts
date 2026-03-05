@@ -335,4 +335,125 @@ describe("FeatureTableCompat", () => {
     table.setWhere("1=0");
     expect(watchValues).toHaveLength(0);
   });
+
+  it("sortRows sorts in ascending order by field name", async () => {
+    const layer = {
+      queryFeatures: async () => ({
+        features: [
+          { attributes: { OBJECTID: 1, name: "Charlie" }, geometry: null },
+          { attributes: { OBJECTID: 2, name: "Alpha" }, geometry: null },
+          { attributes: { OBJECTID: 3, name: "Bravo" }, geometry: null },
+        ],
+      }),
+    } as unknown as FeatureLayerCompat;
+
+    const table = new FeatureTableCompat({ layer });
+    await table.refresh();
+    expect(table.rows).toHaveLength(3);
+
+    const sorted = table.sortRows("name", "asc");
+    expect(sorted[0]?.attributes.name).toBe("Alpha");
+    expect(sorted[1]?.attributes.name).toBe("Bravo");
+    expect(sorted[2]?.attributes.name).toBe("Charlie");
+  });
+
+  it("sortRows sorts in descending order by numeric field", async () => {
+    const layer = {
+      queryFeatures: async () => ({
+        features: [
+          { attributes: { OBJECTID: 1, score: 50 }, geometry: null },
+          { attributes: { OBJECTID: 2, score: 90 }, geometry: null },
+          { attributes: { OBJECTID: 3, score: 20 }, geometry: null },
+        ],
+      }),
+    } as unknown as FeatureLayerCompat;
+
+    const table = new FeatureTableCompat({ layer });
+    await table.refresh();
+
+    const sorted = table.sortRows("score", "desc");
+    expect(sorted[0]?.attributes.score).toBe(90);
+    expect(sorted[1]?.attributes.score).toBe(50);
+    expect(sorted[2]?.attributes.score).toBe(20);
+  });
+
+  it("sortRows emits feature-table.sorted event", async () => {
+    const eventBus = new CompatEventBus();
+    const events: string[] = [];
+    eventBus.onAny((event) => {
+      events.push(event.type);
+    });
+
+    const layer = {
+      queryFeatures: async () => ({
+        features: [
+          { attributes: { OBJECTID: 1, name: "B" }, geometry: null },
+          { attributes: { OBJECTID: 2, name: "A" }, geometry: null },
+        ],
+      }),
+    } as unknown as FeatureLayerCompat;
+
+    const table = new FeatureTableCompat({ layer, eventBus });
+    await table.refresh();
+    table.sortRows("name");
+
+    expect(events).toContain("feature-table.sorted");
+  });
+
+  it("exportRows returns all attribute records", async () => {
+    const layer = {
+      queryFeatures: async () => ({
+        features: [
+          { attributes: { OBJECTID: 1, name: "Alpha", status: "active" }, geometry: { x: 0, y: 0 } },
+          { attributes: { OBJECTID: 2, name: "Bravo", status: "closed" }, geometry: { x: 1, y: 1 } },
+        ],
+      }),
+    } as unknown as FeatureLayerCompat;
+
+    const table = new FeatureTableCompat({ layer });
+    await table.refresh();
+
+    const exported = table.exportRows();
+    expect(exported).toHaveLength(2);
+    expect(exported[0]).toEqual({ OBJECTID: 1, name: "Alpha", status: "active" });
+    expect(exported[1]).toEqual({ OBJECTID: 2, name: "Bravo", status: "closed" });
+  });
+
+  it("exportRows filters to specified field names", async () => {
+    const layer = {
+      queryFeatures: async () => ({
+        features: [
+          { attributes: { OBJECTID: 1, name: "Alpha", status: "active", score: 100 }, geometry: null },
+        ],
+      }),
+    } as unknown as FeatureLayerCompat;
+
+    const table = new FeatureTableCompat({ layer });
+    await table.refresh();
+
+    const exported = table.exportRows(["name", "status"]);
+    expect(exported).toHaveLength(1);
+    expect(exported[0]).toEqual({ name: "Alpha", status: "active" });
+  });
+
+  it("findRowByObjectId returns matching row or undefined", async () => {
+    const layer = {
+      queryFeatures: async () => ({
+        features: [
+          { attributes: { OBJECTID: 10, name: "Alpha" }, geometry: null },
+          { attributes: { OBJECTID: 20, name: "Bravo" }, geometry: null },
+        ],
+      }),
+    } as unknown as FeatureLayerCompat;
+
+    const table = new FeatureTableCompat({ layer });
+    await table.refresh();
+
+    const row = table.findRowByObjectId(10);
+    expect(row).toBeDefined();
+    expect(row?.attributes.name).toBe("Alpha");
+
+    const missing = table.findRowByObjectId(999);
+    expect(missing).toBeUndefined();
+  });
 });

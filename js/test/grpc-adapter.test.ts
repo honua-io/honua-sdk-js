@@ -24,6 +24,7 @@ import {
   GeometryType,
   NullValue,
   SpatialRelationship,
+  DistanceUnit,
   StatisticType,
 } from "../src/gen/honua/v1/feature_service_pb.js";
 
@@ -157,6 +158,44 @@ describe("toProtoQueryRequest", () => {
     expect(result.spatialFilter?.spatialRelationship).toBe(SpatialRelationship.INTERSECTS);
     expect(result.spatialFilter?.spatialReference?.wkid).toBe(4326);
     expect(result.spatialFilter?.geometry?.shape.case).toBe("polygon");
+  });
+
+  it("maps outSr from request object", () => {
+    const result = toProtoQueryRequest({
+      serviceId: "test",
+      layerId: 0,
+      outSr: { wkid: 3857, latestWkid: 102100 },
+    });
+
+    expect(result.outSr?.wkid).toBe(3857);
+    expect(result.outSr?.latestWkid).toBe(102100);
+  });
+
+  it("maps outSr from extraParams fallback", () => {
+    const result = toProtoQueryRequest({
+      serviceId: "test",
+      layerId: 0,
+      extraParams: { outSR: 4326 },
+    });
+
+    expect(result.outSr?.wkid).toBe(4326);
+  });
+
+  it("maps spatial filter distance and unit options", () => {
+    const result = toProtoQueryRequest({
+      serviceId: "test",
+      layerId: 0,
+      geometry: { x: -157.85, y: 21.3 },
+      distance: 15.5,
+      units: "miles",
+      nearestCount: 12,
+      returnDistance: true,
+    });
+
+    expect(result.spatialFilter?.distance).toBe(15.5);
+    expect(result.spatialFilter?.distanceUnit).toBe(DistanceUnit.MILES);
+    expect(result.spatialFilter?.nearestCount).toBe(12);
+    expect(result.spatialFilter?.returnDistance).toBe(true);
   });
 });
 
@@ -510,6 +549,62 @@ describe("fromProtoQueryResponse", () => {
     const result = fromProtoQueryResponse(response) as any;
 
     expect(result.features[0].geometry).toEqual({ x: 10, y: 20, z: 100, m: 0.5 });
+  });
+
+  it("converts multipoint geometry with m and no z using 4-value coordinates", () => {
+    const feature = create(FeatureSchema);
+    feature.id = 1n;
+
+    const geometry = create(GeometrySchema);
+    const multiPoint = create(MultiPointGeometrySchema);
+    const p1 = create(PointGeometrySchema);
+    p1.x = 1;
+    p1.y = 2;
+    p1.m = 9;
+    multiPoint.points = [p1];
+    geometry.shape = { case: "multiPoint", value: multiPoint };
+    feature.geometry = geometry;
+
+    const response = create(QueryFeaturesResponseSchema);
+    response.objectIdFieldName = "objectid";
+    response.features = [feature];
+
+    const result = fromProtoQueryResponse(response) as any;
+    const coords = result.features[0].geometry.points[0] as number[];
+    expect(coords).toHaveLength(4);
+    expect(coords[0]).toBe(1);
+    expect(coords[1]).toBe(2);
+    expect(Number.isNaN(coords[2])).toBe(true);
+    expect(coords[3]).toBe(9);
+  });
+
+  it("converts polyline geometry with m and no z using 4-value coordinates", () => {
+    const feature = create(FeatureSchema);
+    feature.id = 1n;
+
+    const geometry = create(GeometrySchema);
+    const polyline = create(PolylineGeometrySchema);
+    const path = create(CoordinateSequenceSchema);
+    const c1 = create(CoordinateSchema);
+    c1.x = 0;
+    c1.y = 0;
+    c1.m = 3;
+    path.coords = [c1];
+    polyline.paths = [path];
+    geometry.shape = { case: "polyline", value: polyline };
+    feature.geometry = geometry;
+
+    const response = create(QueryFeaturesResponseSchema);
+    response.objectIdFieldName = "objectid";
+    response.features = [feature];
+
+    const result = fromProtoQueryResponse(response) as any;
+    const coords = result.features[0].geometry.paths[0][0] as number[];
+    expect(coords).toHaveLength(4);
+    expect(coords[0]).toBe(0);
+    expect(coords[1]).toBe(0);
+    expect(Number.isNaN(coords[2])).toBe(true);
+    expect(coords[3]).toBe(3);
   });
 });
 

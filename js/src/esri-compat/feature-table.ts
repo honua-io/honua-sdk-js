@@ -441,6 +441,58 @@ export class FeatureTableCompat {
     return this.rows.filter((row) => selectedIds.has(row.objectId));
   }
 
+  /**
+   * Sorts current rows by the given field name and direction.
+   * Returns a new sorted snapshot (does not re-fetch from the server).
+   */
+  public sortRows(
+    fieldName: string,
+    direction: "asc" | "desc" = "asc",
+  ): readonly FeatureTableRowCompat[] {
+    const sorted = [...this.rows].sort((a, b) => {
+      const aVal = a.attributes[fieldName];
+      const bVal = b.attributes[fieldName];
+      const comparison = compareAttributeValues(aVal, bVal);
+      return direction === "desc" ? -comparison : comparison;
+    });
+    (this as { rows: readonly FeatureTableRowCompat[] }).rows = sorted;
+    this.notifyWatchers("rows", this.rows);
+    this.eventBus.emit(
+      "feature-table.sorted",
+      { fieldName, direction, rowCount: this.rows.length },
+      this,
+    );
+    return this.rows;
+  }
+
+  /**
+   * Exports current rows as a JSON-serializable array of attribute records.
+   * Optionally accepts a list of field names to include.
+   */
+  public exportRows(
+    fieldNames?: readonly string[],
+  ): readonly Record<string, unknown>[] {
+    return this.rows.map((row) => {
+      if (!fieldNames || fieldNames.length === 0) {
+        return { ...row.attributes };
+      }
+      const filtered: Record<string, unknown> = {};
+      for (const field of fieldNames) {
+        if (field in row.attributes) {
+          filtered[field] = row.attributes[field];
+        }
+      }
+      return filtered;
+    });
+  }
+
+  /**
+   * Finds a row by its object ID, or undefined if not found.
+   */
+  public findRowByObjectId(objectId: number): FeatureTableRowCompat | undefined {
+    return this.rows.find((row) => row.objectId === objectId);
+  }
+
   public destroy(): void {
     this.watchListeners.clear();
     this.eventBus.emit("feature-table.destroyed", undefined, this);
@@ -567,4 +619,23 @@ function normalizeSpliceDeleteCount(deleteCount: number | undefined, start: numb
     return 0;
   }
   return Math.min(Math.max(Math.trunc(deleteCount), 0), Math.max(length - start, 0));
+}
+
+function compareAttributeValues(a: unknown, b: unknown): number {
+  if (a === b) {
+    return 0;
+  }
+  if (a === undefined || a === null) {
+    return -1;
+  }
+  if (b === undefined || b === null) {
+    return 1;
+  }
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+  if (typeof a === "string" && typeof b === "string") {
+    return a.localeCompare(b);
+  }
+  return String(a).localeCompare(String(b));
 }

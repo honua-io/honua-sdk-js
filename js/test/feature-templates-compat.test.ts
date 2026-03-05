@@ -104,4 +104,42 @@ describe("FeatureTemplatesCompat", () => {
     expect(templateCounts).toHaveLength(watchSnapshot.templateCounts);
     expect(selections).toHaveLength(watchSnapshot.selections);
   });
+
+  it("on() subscribes to namespaced events and handle.remove() stops delivery", () => {
+    const eventBus = new CompatEventBus();
+    const templates = new FeatureTemplatesCompat({ eventBus });
+
+    const received: unknown[] = [];
+    const handle = templates.on("selected", (event) => {
+      received.push(event);
+    });
+
+    templates.setTemplates([{ id: "a", name: "A" }]);
+    templates.selectTemplate("a");
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({ template: { id: "a", name: "A" } });
+
+    handle.remove();
+    templates.selectTemplate("a");
+    expect(received).toHaveLength(1);
+  });
+
+  it("on() fires for updated events when templates change", () => {
+    const eventBus = new CompatEventBus();
+    const templates = new FeatureTemplatesCompat({ eventBus });
+
+    const received: unknown[] = [];
+    templates.on("updated", (event) => {
+      received.push(event);
+    });
+
+    templates.setTemplates([
+      { id: "a", name: "A" },
+      { id: "b", name: "B" },
+    ]);
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({ count: 2 });
+  });
 });

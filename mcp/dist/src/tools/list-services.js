@@ -1,7 +1,11 @@
 import { z } from "zod";
-import { jsonText, mapWithConcurrency } from "../helpers.js";
+import { jsonText, mapWithConcurrency, metadataErrorText } from "../helpers.js";
 export const schema = z.object({
-    includeDetails: z.boolean().optional().default(false).describe("Fetch service metadata (description, layer count, spatial reference). Slower due to per-service requests."),
+    includeDetails: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Fetch service metadata (description, layer count, spatial reference). Slower due to per-service requests."),
 });
 const METADATA_CONCURRENCY = 8;
 export async function execute(client, input) {
@@ -22,15 +26,14 @@ export async function execute(client, input) {
                 metadataError: null,
             };
         }
-        catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+        catch {
             return {
                 serviceId: s.name,
                 type: s.type,
                 description: null,
                 layerCount: null,
                 spatialReference: null,
-                metadataError: message,
+                metadataError: metadataErrorText(),
             };
         }
     });

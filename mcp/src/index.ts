@@ -1,23 +1,89 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { HonuaClient } from "@honua/sdk-js";
 import type { HonuaTransport } from "@honua/sdk-js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import * as listServices from "./tools/list-services.js";
-import * as describeLayer from "./tools/describe-layer.js";
-import * as queryFeatures from "./tools/query-features.js";
-import * as countFeatures from "./tools/count-features.js";
-import * as getExtent from "./tools/get-extent.js";
-import * as statistics from "./tools/statistics.js";
-import * as servicesResource from "./resources/services.js";
 import * as layerSchemaResource from "./resources/layer-schema.js";
+import * as servicesResource from "./resources/services.js";
+import * as countFeatures from "./tools/count-features.js";
+import * as describeLayer from "./tools/describe-layer.js";
+import * as getExtent from "./tools/get-extent.js";
+import * as listServices from "./tools/list-services.js";
+import * as queryFeatures from "./tools/query-features.js";
+import * as statistics from "./tools/statistics.js";
 
 export interface RuntimeOptions {
   baseUrl: string;
   apiKey: string | undefined;
   transport: HonuaTransport;
+  timeoutMs: number;
+  retryMaxRetries: number;
+}
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_SERVER_VERSION = "0.0.1-alpha.0";
+
+export const SERVER_VERSION = resolveServerVersion();
+
+function resolveServerVersion(): string {
+  try {
+    const packageJsonPath = new URL("../../package.json", import.meta.url);
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { version?: unknown };
+    if (typeof packageJson.version === "string" && packageJson.version.length > 0) {
+      return packageJson.version;
+    }
+  } catch {
+    // Fall back to a static version if package metadata is unavailable.
+  }
+
+  return DEFAULT_SERVER_VERSION;
+}
+
+function parsePositiveInteger(env: NodeJS.ProcessEnv, name: string, defaultValue: number): number {
+  const raw = env[name];
+  if (raw === undefined) {
+    return defaultValue;
+  }
+
+  const normalized = raw.trim();
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`${name} must be a positive integer, received "${raw}"`);
+  }
+
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    throw new Error(`${name} must be a positive integer, received "${raw}"`);
+  }
+
+  return parsed;
+}
+
+function parseNonNegativeInteger(env: NodeJS.ProcessEnv, name: string, defaultValue: number): number {
+  const raw = env[name];
+  if (raw === undefined) {
+    return defaultValue;
+  }
+
+  const normalized = raw.trim();
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`${name} must be a non-negative integer, received "${raw}"`);
+  }
+
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${name} must be a non-negative integer, received "${raw}"`);
+  }
+
+  return parsed;
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
 }
 
 export function resolveRuntimeOptions(env: NodeJS.ProcessEnv): RuntimeOptions {
@@ -37,6 +103,13 @@ export function resolveRuntimeOptions(env: NodeJS.ProcessEnv): RuntimeOptions {
     throw new Error(`HONUA_BASE_URL must use http or https: ${baseUrl}`);
   }
 
+  const apiKey = env.HONUA_API_KEY;
+  if (apiKey && parsedUrl.protocol === "http:" && !isLoopbackHost(parsedUrl.hostname)) {
+    throw new Error(
+      "HONUA_API_KEY over non-local HTTP is not allowed. Use HTTPS, or use localhost for local development.",
+    );
+  }
+
   const rawTransportInput = env.HONUA_TRANSPORT ?? "grpc-web";
   const normalizedTransport = rawTransportInput.trim().toLowerCase();
   const transport: HonuaTransport | undefined =
@@ -51,10 +124,15 @@ export function resolveRuntimeOptions(env: NodeJS.ProcessEnv): RuntimeOptions {
     );
   }
 
+  const timeoutMs = parsePositiveInteger(env, "HONUA_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
+  const retryMaxRetries = parseNonNegativeInteger(env, "HONUA_RETRY_MAX_RETRIES", DEFAULT_MAX_RETRIES);
+
   return {
-    baseUrl,
-    apiKey: env.HONUA_API_KEY,
+    baseUrl: parsedUrl.toString(),
+    apiKey,
     transport,
+    timeoutMs,
+    retryMaxRetries,
   };
 }
 
@@ -64,13 +142,15 @@ export function createClientFromEnv(env: NodeJS.ProcessEnv = process.env): Honua
     baseUrl: options.baseUrl,
     apiKey: options.apiKey,
     transport: options.transport,
+    timeoutMs: options.timeoutMs,
+    retry: options.retryMaxRetries > 0 ? { maxRetries: options.retryMaxRetries } : undefined,
   });
 }
 
 export function createServer(client: HonuaClient) {
   const server = new McpServer({
     name: "honua",
-    version: "0.0.1-alpha.0",
+    version: SERVER_VERSION,
   });
 
   // ── Tools ──────────────────────────────────────────────────────

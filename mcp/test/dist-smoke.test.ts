@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { access, readFile } from "node:fs/promises";
+import { describe, expect, it } from "vitest";
 
 describe("distribution smoke", () => {
   it("loads built entrypoint exports", async () => {

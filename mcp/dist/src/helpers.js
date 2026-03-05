@@ -1,5 +1,13 @@
 const MAX_LIMIT = 2000;
 const DEFAULT_LIMIT = 100;
+const METADATA_ERROR_MESSAGE = "Failed to fetch service metadata.";
+export const GEOMETRY_TYPES = [
+    "esriGeometryPoint",
+    "esriGeometryPolyline",
+    "esriGeometryPolygon",
+    "esriGeometryEnvelope",
+    "esriGeometryMultipoint",
+];
 const SPATIAL_REL_MAP = {
     intersects: "esriSpatialRelIntersects",
     contains: "esriSpatialRelContains",
@@ -17,8 +25,35 @@ export function clampLimit(limit) {
     const n = limit ?? DEFAULT_LIMIT;
     return Math.min(Math.max(1, n), MAX_LIMIT);
 }
+export function resolveGeometryType(geometry, geometryType) {
+    if (geometryType) {
+        return geometryType;
+    }
+    if (!geometry) {
+        return undefined;
+    }
+    if ("xmin" in geometry && "xmax" in geometry && "ymin" in geometry && "ymax" in geometry) {
+        return "esriGeometryEnvelope";
+    }
+    if ("x" in geometry && "y" in geometry) {
+        return "esriGeometryPoint";
+    }
+    if (Array.isArray(geometry.rings)) {
+        return "esriGeometryPolygon";
+    }
+    if (Array.isArray(geometry.paths)) {
+        return "esriGeometryPolyline";
+    }
+    if (Array.isArray(geometry.points)) {
+        return "esriGeometryMultipoint";
+    }
+    return undefined;
+}
 export function jsonText(result) {
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+}
+export function metadataErrorText() {
+    return METADATA_ERROR_MESSAGE;
 }
 export function encodeServiceId(serviceId) {
     return encodeURIComponent(serviceId);

@@ -1,11 +1,12 @@
-import { z } from "zod";
 import type { HonuaClient } from "@honua/sdk-js";
+import { z } from "zod";
 export declare const schema: z.ZodObject<{
     serviceId: z.ZodString;
     layerId: z.ZodNumber;
     where: z.ZodOptional<z.ZodString>;
     outFields: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     geometry: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+    geometryType: z.ZodOptional<z.ZodEnum<["esriGeometryPoint", "esriGeometryPolyline", "esriGeometryPolygon", "esriGeometryEnvelope", "esriGeometryMultipoint"]>>;
     spatialRel: z.ZodOptional<z.ZodEnum<["intersects", "contains", "within"]>>;
     orderBy: z.ZodOptional<z.ZodString>;
     limit: z.ZodOptional<z.ZodNumber>;
@@ -16,9 +17,10 @@ export declare const schema: z.ZodObject<{
     layerId: number;
     returnGeometry: boolean;
     where?: string | undefined;
-    outFields?: string[] | undefined;
     geometry?: Record<string, unknown> | undefined;
+    geometryType?: "esriGeometryPoint" | "esriGeometryPolyline" | "esriGeometryPolygon" | "esriGeometryEnvelope" | "esriGeometryMultipoint" | undefined;
     spatialRel?: "intersects" | "contains" | "within" | undefined;
+    outFields?: string[] | undefined;
     orderBy?: string | undefined;
     limit?: number | undefined;
     offset?: number | undefined;
@@ -26,9 +28,10 @@ export declare const schema: z.ZodObject<{
     serviceId: string;
     layerId: number;
     where?: string | undefined;
-    outFields?: string[] | undefined;
     geometry?: Record<string, unknown> | undefined;
+    geometryType?: "esriGeometryPoint" | "esriGeometryPolyline" | "esriGeometryPolygon" | "esriGeometryEnvelope" | "esriGeometryMultipoint" | undefined;
     spatialRel?: "intersects" | "contains" | "within" | undefined;
+    outFields?: string[] | undefined;
     orderBy?: string | undefined;
     limit?: number | undefined;
     offset?: number | undefined;

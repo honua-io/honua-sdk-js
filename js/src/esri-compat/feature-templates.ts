@@ -103,6 +103,19 @@ export class FeatureTemplatesCompat {
     return this.selectedTemplate;
   }
 
+  public on(eventName: string, listener: (event: unknown) => void): FeatureTemplatesHandleCompat {
+    const namespacedEvent = `feature-templates.${eventName}`;
+    const subscription = this.eventBus.on(namespacedEvent, (event) => {
+      safeInvokeCompatListener(listener, event.payload);
+    });
+
+    return {
+      remove: () => {
+        subscription.remove();
+      },
+    };
+  }
+
   public destroy(): void {
     this.watchListeners.clear();
   }

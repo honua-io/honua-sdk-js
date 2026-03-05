@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { read, uriTemplate } from "../../src/resources/layer-schema.js";
-import { createMockClient, asClient } from "../test-helpers.js";
+import { asClient, createMockClient } from "../test-helpers.js";
 
 describe("layer-schema resource", () => {
   it("has the correct URI template", () => {
@@ -40,5 +40,23 @@ describe("layer-schema resource", () => {
   it("throws on invalid encoded serviceId", async () => {
     const mock = createMockClient();
     await expect(read(asClient(mock), "%E0%A4%A", "0")).rejects.toThrow("Invalid encoded serviceId");
+  });
+
+  it("normalizes nullable schema metadata", async () => {
+    const mock = createMockClient({
+      getLayerMetadata: vi.fn().mockResolvedValue({
+        id: 0,
+        name: "Minimal Layer",
+        fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }],
+      }),
+    });
+    const result = await read(asClient(mock), "Parks", "0");
+    const parsed = JSON.parse(result.contents[0].text);
+
+    expect(parsed.description).toBeNull();
+    expect(parsed.geometryType).toBeNull();
+    expect(parsed.extent).toBeNull();
+    expect(parsed.spatialReference).toBeNull();
+    expect(parsed.relationships).toEqual([]);
   });
 });
