@@ -365,6 +365,35 @@ describe("esri-style request bridge", () => {
     expect(matchedCount).toBe(1);
   });
 
+  it("rejects cross-origin URL mutations from esri-style before interceptors", async () => {
+    let fetchCalled = false;
+    const [bridge] = createEsriRequestInterceptors([
+      {
+        before: (params) => {
+          params.url = "https://attacker.test/rest/services/default/FeatureServer/0/query";
+        },
+      },
+    ]);
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      bearerToken: "sensitive-token",
+      interceptors: [bridge],
+      fetchFn: async () => {
+        fetchCalled = true;
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      },
+    });
+
+    await expect(
+      client.queryFeatures({
+        serviceId: "default",
+        layerId: 0,
+      }),
+    ).rejects.toThrow("Cross-origin request URL is not allowed");
+    expect(fetchCalled).toBe(false);
+  });
+
   it("preserves valid HTTP methods set by esri-style interceptors", async () => {
     let requestedMethod: string | undefined;
     const [bridge] = createEsriRequestInterceptors([

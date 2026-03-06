@@ -1100,7 +1100,7 @@ describe("FeatureLayerCompat", () => {
     expect(blob.size).toBe(5);
   });
 
-  it("skips size limit enforcement for ReadableStream attachments", async () => {
+  it("enforces size limit for ReadableStream attachments", async () => {
     const requests: unknown[] = [];
     const layer = new FeatureLayerCompat({
       url: "https://example.test/rest/services/default/FeatureServer/0",
@@ -1120,14 +1120,44 @@ describe("FeatureLayerCompat", () => {
       },
     });
 
-    const result = await layer.addAttachment({
-      objectId: 1,
-      attachment: stream,
-      name: "data.bin",
+    await expect(
+      layer.addAttachment({
+        objectId: 1,
+        attachment: stream,
+        name: "data.bin",
+      }),
+    ).rejects.toThrow("exceeds maxAttachmentBytes");
+    expect(requests).toHaveLength(0);
+  });
+
+  it("enforces size limit for ReadableStream update attachments", async () => {
+    const requests: unknown[] = [];
+    const layer = new FeatureLayerCompat({
+      url: "https://example.test/rest/services/default/FeatureServer/0",
+      maxAttachmentBytes: 2,
+      client: new (class {
+        public request(request: unknown): Promise<unknown> {
+          requests.push(request);
+          return Promise.resolve({ updateAttachmentResult: { objectId: 1, success: true } });
+        }
+      })() as any,
     });
 
-    expect(result).toEqual({ addAttachmentResult: { objectId: 1, success: true } });
-    expect(requests).toHaveLength(1);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+        controller.close();
+      },
+    });
+
+    await expect(
+      layer.updateAttachment({
+        objectId: 1,
+        attachmentId: 77,
+        attachment: stream,
+      }),
+    ).rejects.toThrow("exceeds maxAttachmentBytes");
+    expect(requests).toHaveLength(0);
   });
 
   it("supports ReadableStream as attachment data for updateAttachment", async () => {

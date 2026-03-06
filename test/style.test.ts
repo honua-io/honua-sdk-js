@@ -118,6 +118,22 @@ describe("URL parsing", () => {
         collectionId: undefined,
       });
     });
+
+    it("parses relative collection URLs", () => {
+      const result = parseOgcFeaturesUrl("/ogc/features/collections/admin-boundaries");
+      expect(result).toEqual({
+        baseUrl: "/ogc/features",
+        collectionId: "admin-boundaries",
+      });
+    });
+
+    it("parses relative collection URLs with query/hash suffixes", () => {
+      const result = parseOgcFeaturesUrl("/ogc/features/collections/admin-boundaries?limit=10#section");
+      expect(result).toEqual({
+        baseUrl: "/ogc/features",
+        collectionId: "admin-boundaries",
+      });
+    });
   });
 });
 

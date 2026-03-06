@@ -276,7 +276,7 @@ export function fromProtoQueryResponse(
   }
 
   // IDs-only response
-  if (response.objectIds.length > 0 && response.features.length === 0) {
+  if (isIdsOnlyResponse(response)) {
     return {
       objectIdFieldName: response.objectIdFieldName,
       objectIds: response.objectIds.map(toSafeNumberOrString),
@@ -307,6 +307,25 @@ export function fromProtoQueryResponse(
     features: response.features.map(convertFeature),
     exceededTransferLimit: response.exceededTransferLimit || undefined,
   };
+}
+
+function isIdsOnlyResponse(response: QueryFeaturesResponse): boolean {
+  if (response.features.length > 0 || response.extent !== undefined) {
+    return false;
+  }
+
+  if (response.objectIds.length > 0) {
+    return true;
+  }
+
+  return (
+    response.objectIdFieldName.length > 0 &&
+    response.fields.length === 0 &&
+    response.geometryType === GeometryType.UNSPECIFIED &&
+    response.spatialReference === undefined &&
+    response.count === 0n &&
+    !response.exceededTransferLimit
+  );
 }
 
 function parseExtraBoolean(

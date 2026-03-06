@@ -180,6 +180,8 @@ export type {
   LayerSnapshot,
   ResolvedMapSource,
 } from "./map/index.js";
+export { parseWebMap } from "./webmap/index.js";
+export type { ParseWebMapOptions, ParseWebMapResult } from "./webmap/index.js";
 export type {
   ApplyEditsRequest,
   ExportMapRequest,

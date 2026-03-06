@@ -654,8 +654,12 @@ export class FeatureLayerCompat {
   }
 
   public addAttachment(options: FeatureLayerAddAttachmentOptions): Promise<HonuaAddAttachmentResponse> {
-    enforceAttachmentSizeLimit(options.attachment, options.maxAttachmentBytes ?? this.maxAttachmentBytes);
-    const formOrPromise = buildAttachmentFormData(options);
+    const maxAttachmentBytes = options.maxAttachmentBytes ?? this.maxAttachmentBytes;
+    enforceAttachmentSizeLimit(options.attachment, maxAttachmentBytes);
+    const formOrPromise = buildAttachmentFormData({
+      ...options,
+      maxAttachmentBytes,
+    });
     const sendForm = (form: FormData): Promise<HonuaAddAttachmentResponse> =>
       this.client.request({
         method: "POST",
@@ -673,8 +677,12 @@ export class FeatureLayerCompat {
   }
 
   public updateAttachment(options: FeatureLayerUpdateAttachmentOptions): Promise<HonuaUpdateAttachmentResponse> {
-    enforceAttachmentSizeLimit(options.attachment, options.maxAttachmentBytes ?? this.maxAttachmentBytes);
-    const formOrPromise = buildAttachmentFormData(options);
+    const maxAttachmentBytes = options.maxAttachmentBytes ?? this.maxAttachmentBytes;
+    enforceAttachmentSizeLimit(options.attachment, maxAttachmentBytes);
+    const formOrPromise = buildAttachmentFormData({
+      ...options,
+      maxAttachmentBytes,
+    });
     const sendForm = (form: FormData): Promise<HonuaUpdateAttachmentResponse> => {
       form.set("attachmentId", String(options.attachmentId));
       return this.client.request({
@@ -768,9 +776,10 @@ function buildAttachmentFormData(options: {
   attachment: FeatureLayerAttachmentData;
   name?: string;
   contentType?: string;
+  maxAttachmentBytes: number;
 }): FormData | Promise<FormData> {
   const attachmentName = resolveAttachmentName(options.attachment, options.name);
-  const blobOrPromise = normalizeAttachmentData(options.attachment, options.contentType);
+  const blobOrPromise = normalizeAttachmentData(options.attachment, options.contentType, options.maxAttachmentBytes);
 
   const buildForm = (blob: Blob): FormData => {
     const form = new FormData();
@@ -850,7 +859,11 @@ function buildTimeParam(
   return `${timeExtent.start.getTime()},${timeExtent.end.getTime()}`;
 }
 
-function normalizeAttachmentData(attachment: FeatureLayerAttachmentData, contentType?: string): Blob | Promise<Blob> {
+function normalizeAttachmentData(
+  attachment: FeatureLayerAttachmentData,
+  contentType: string | undefined,
+  maxAttachmentBytes: number,
+): Blob | Promise<Blob> {
   if (attachment instanceof Blob) {
     return attachment;
   }
@@ -868,7 +881,7 @@ function normalizeAttachmentData(attachment: FeatureLayerAttachmentData, content
   }
 
   if (isReadableStream(attachment)) {
-    return collectStreamToBlob(attachment, contentType ?? "application/octet-stream");
+    return collectStreamToBlob(attachment, contentType ?? "application/octet-stream", maxAttachmentBytes);
   }
 
   if (ArrayBuffer.isView(attachment)) {
@@ -891,9 +904,14 @@ function isReadableStream(value: unknown): value is ReadableStream<Uint8Array> {
   );
 }
 
-async function collectStreamToBlob(stream: ReadableStream<Uint8Array>, contentType: string): Promise<Blob> {
+async function collectStreamToBlob(
+  stream: ReadableStream<Uint8Array>,
+  contentType: string,
+  maxAttachmentBytes: number,
+): Promise<Blob> {
   const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
+  const chunks: ArrayBuffer[] = [];
+  let totalBytes = 0;
   try {
     for (;;) {
       const { done, value } = await reader.read();
@@ -901,11 +919,26 @@ async function collectStreamToBlob(stream: ReadableStream<Uint8Array>, contentTy
         break;
       }
       if (value) {
-        chunks.push(value);
+        totalBytes += value.byteLength;
+        if (totalBytes > maxAttachmentBytes) {
+          try {
+            await reader.cancel();
+          } catch {
+            // Ignore cancel errors; size-limit failure is the primary error.
+          }
+          throw new Error(`Attachment payload exceeds maxAttachmentBytes (${totalBytes} > ${maxAttachmentBytes}).`);
+        }
+        chunks.push(copyToArrayBuffer(value));
       }
     }
   } finally {
     reader.releaseLock();
   }
   return new Blob(chunks, { type: contentType });
+}
+
+function copyToArrayBuffer(chunk: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(chunk.byteLength);
+  copy.set(chunk);
+  return copy.buffer;
 }

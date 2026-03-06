@@ -148,4 +148,16 @@ describe("SceneViewCompat", () => {
     expect(eventTypes).toContain("scene-view.camera-changed");
     expect(eventTypes).toContain("view.go-to");
   });
+
+  it("inherits map-view watch signatures like allLayerViews", async () => {
+    const scene = new SceneViewCompat();
+    const layerViewCounts: number[] = [];
+    scene.watch("allLayerViews", (layerViews) => {
+      layerViewCounts.push(layerViews.length);
+    });
+
+    await scene.whenLayerView({ id: "layer-1" });
+
+    expect(layerViewCounts).toEqual([1]);
+  });
 });

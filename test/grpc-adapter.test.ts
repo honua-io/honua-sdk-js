@@ -298,6 +298,19 @@ describe("fromProtoQueryResponse", () => {
     expect(result.features).toBeUndefined();
   });
 
+  it("converts empty ids-only response", () => {
+    const response = create(QueryFeaturesResponseSchema);
+    response.objectIdFieldName = "objectid";
+    response.objectIds = [];
+
+    const result = fromProtoQueryResponse(response) as any;
+
+    expect(result.objectIdFieldName).toBe("objectid");
+    expect(result.objectIds).toEqual([]);
+    expect(result.features).toBeUndefined();
+    expect(result.count).toBeUndefined();
+  });
+
   it("converts extent-only response", () => {
     const response = create(QueryFeaturesResponseSchema);
     const ext = create(ExtentSchema);

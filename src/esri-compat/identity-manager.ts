@@ -46,12 +46,25 @@ class IdentityManagerCompatStore {
       userId: token.userId,
     };
 
-    const existingIndex = this.credentialsInternal.findIndex((item) => item.server === next.server);
-    if (existingIndex >= 0) {
-      this.credentialsInternal[existingIndex] = next;
-      return;
+    const deduped: IdentityCredentialCompat[] = [];
+    let replaced = false;
+    for (const existing of this.credentialsInternal) {
+      if (isSameCredentialServer(existing.server, next.server)) {
+        if (!replaced) {
+          deduped.push(next);
+          replaced = true;
+        }
+        continue;
+      }
+      deduped.push(existing);
     }
-    this.credentialsInternal.push(next);
+
+    if (!replaced) {
+      deduped.push(next);
+    }
+
+    this.credentialsInternal.length = 0;
+    this.credentialsInternal.push(...deduped);
   }
 
   public findCredential(url: string): IdentityCredentialCompat | undefined {
@@ -92,13 +105,21 @@ class IdentityManagerCompatStore {
       return undefined;
     }
 
-    return this.credentialsInternal.find((credential) => {
+    for (let index = this.credentialsInternal.length - 1; index >= 0; index -= 1) {
+      const credential = this.credentialsInternal[index];
+      if (!credential) {
+        continue;
+      }
       const server = normalizeServerUrl(credential.server);
       if (!server) {
-        return false;
+        continue;
       }
-      return normalized === server || normalized.startsWith(`${server}/`);
-    });
+      if (normalized === server || normalized.startsWith(`${server}/`)) {
+        return credential;
+      }
+    }
+
+    return undefined;
   }
 }
 
@@ -120,4 +141,13 @@ function isCredentialExpired(credential: IdentityCredentialCompat): boolean {
     Number.isFinite(credential.expires) &&
     credential.expires <= Date.now()
   );
+}
+
+function isSameCredentialServer(left: string, right: string): boolean {
+  const leftNormalized = normalizeServerUrl(left);
+  const rightNormalized = normalizeServerUrl(right);
+  if (leftNormalized && rightNormalized) {
+    return leftNormalized === rightNormalized;
+  }
+  return left === right;
 }

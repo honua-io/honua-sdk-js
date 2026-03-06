@@ -42,7 +42,11 @@ export class SceneViewCompat extends MapViewCompat {
     return this;
   }
 
-  public async when(callback?: (view: SceneViewCompat) => void): Promise<SceneViewCompat> {
+  public when(callback?: (view: SceneViewCompat) => void): Promise<SceneViewCompat>;
+  public when(callback?: (view: MapViewCompat) => void): Promise<MapViewCompat>;
+  public async when(
+    callback?: ((view: SceneViewCompat) => void) | ((view: MapViewCompat) => void),
+  ): Promise<SceneViewCompat> {
     const view = await this.load();
     if (callback) {
       callback(view);
@@ -76,6 +80,10 @@ export class SceneViewCompat extends MapViewCompat {
   public watch(
     propertyName: "spatialReference",
     listener: (value: MapViewSpatialReferenceLike | undefined) => void,
+  ): SceneViewHandleCompat;
+  public watch(
+    propertyName: "allLayerViews",
+    listener: (value: readonly MapViewLayerViewCompat[]) => void,
   ): SceneViewHandleCompat;
   public watch(propertyName: "popup.visible", listener: (value: boolean) => void): SceneViewHandleCompat;
   public watch(propertyName: "popup.viewModel.active", listener: (value: boolean) => void): SceneViewHandleCompat;

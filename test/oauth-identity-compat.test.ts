@@ -78,6 +78,24 @@ describe("OAuth/Identity compat", () => {
     expect(credential.userId).toBe("user-1");
   });
 
+  it("replaces credentials when the server URL matches after normalization", async () => {
+    identityManager.registerToken({
+      server: "https://portal.example.test/sharing",
+      token: "token-old",
+    });
+    identityManager.registerToken({
+      server: "https://portal.example.test/sharing/",
+      token: "token-new",
+    });
+
+    const credential = await identityManager.checkSignInStatus(
+      "https://portal.example.test/sharing/rest",
+    );
+
+    expect(credential.token).toBe("token-new");
+    expect(identityManager.credentials).toHaveLength(1);
+  });
+
   it("rejects expired credentials", async () => {
     identityManager.registerToken({
       server: "https://portal.example.test/sharing",

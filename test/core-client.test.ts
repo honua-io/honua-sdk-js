@@ -1223,6 +1223,45 @@ describe("HonuaClient", () => {
     expect(result).toEqual({ features: [], fallback: true });
   });
 
+  it("preserves caller abort signal during JSON fallback after PBF decode failure", async () => {
+    let callCount = 0;
+    const controller = new AbortController();
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      preferBinary: true,
+      fetchFn: async (_input, init) => {
+        callCount += 1;
+        if (callCount === 1) {
+          controller.abort();
+          return new Response(new Uint8Array([0xff, 0xff, 0xff]), {
+            status: 200,
+            headers: { "Content-Type": "application/x-protobuf" },
+          });
+        }
+
+        if (init?.signal?.aborted) {
+          throw new DOMException("aborted", "AbortError");
+        }
+        return new Response(JSON.stringify({ features: [], fallback: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
+
+    await expect(
+      client.queryFeatures({
+        serviceId: "default",
+        layerId: 0,
+        method: "GET",
+        signal: controller.signal,
+      }),
+    ).rejects.toBeInstanceOf(HonuaAbortError);
+
+    expect(callCount).toBe(2);
+  });
+
   it("does not use PBF when preferBinary is false", async () => {
     let requestedUrl: string | undefined;
 

@@ -164,17 +164,69 @@ export interface ParsedOgcFeaturesUrl {
  * - `https://gis.example.com/ogc` (collectionId provided separately)
  */
 export function parseOgcFeaturesUrl(url: string): ParsedOgcFeaturesUrl {
-  const collectionsMatch = url.match(/^(https?:\/\/[^/]+(?:\/[^/]+)*?)\/collections\/([^/?#]+)/i);
+  const absoluteUrl = parseAbsoluteHttpUrl(url);
+  const path = absoluteUrl ? absoluteUrl.pathname : stripQueryAndHash(url);
+  const normalizedPath = trimTrailingSlashes(path);
+  const collectionsMatch = normalizedPath.match(/^(.*?)(?:\/collections\/([^/?#]+))(?:\/.*)?$/i);
   if (collectionsMatch) {
+    const basePath = normalizeCollectionBasePath(collectionsMatch[1] ?? "", normalizedPath);
     return {
-      baseUrl: collectionsMatch[1],
+      baseUrl: joinUrlParts(absoluteUrl?.origin, basePath),
       collectionId: collectionsMatch[2],
     };
   }
+
   return {
-    baseUrl: url.replace(/\/+$/, ""),
+    baseUrl: joinUrlParts(absoluteUrl?.origin, normalizedPath),
     collectionId: undefined,
   };
+}
+
+function parseAbsoluteHttpUrl(url: string): URL | undefined {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed;
+    }
+  } catch {
+    // Relative URLs are handled by string parsing below.
+  }
+  return undefined;
+}
+
+function stripQueryAndHash(url: string): string {
+  const hashIndex = url.indexOf("#");
+  const withoutHash = hashIndex >= 0 ? url.slice(0, hashIndex) : url;
+  const queryIndex = withoutHash.indexOf("?");
+  return queryIndex >= 0 ? withoutHash.slice(0, queryIndex) : withoutHash;
+}
+
+function trimTrailingSlashes(path: string): string {
+  if (path === "/") {
+    return "/";
+  }
+
+  return path.replace(/\/+$/, "");
+}
+
+function normalizeCollectionBasePath(basePath: string, fullPath: string): string {
+  const normalized = trimTrailingSlashes(basePath);
+  if (normalized.length > 0) {
+    return normalized;
+  }
+  return fullPath.startsWith("/") ? "/" : "";
+}
+
+function joinUrlParts(origin: string | undefined, path: string): string {
+  if (!origin) {
+    return path;
+  }
+
+  if (path.length === 0 || path === "/") {
+    return origin;
+  }
+
+  return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 // ── Style validation ─────────────────────────────────────────

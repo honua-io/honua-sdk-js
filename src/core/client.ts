@@ -62,9 +62,13 @@ function normalizePath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+function isAbsoluteHttpUrl(value: string): boolean {
+  return value.startsWith("http://") || value.startsWith("https://");
+}
+
 function resolveRequestUrl(baseUrl: string, path: string): string {
-  if (path.startsWith("http://") || path.startsWith("https://")) {
-    if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+  if (isAbsoluteHttpUrl(path)) {
+    if (!isAbsoluteHttpUrl(baseUrl)) {
       throw new Error("Absolute request URLs are not allowed when baseUrl is relative.");
     }
     const baseOrigin = new URL(baseUrl).origin;
@@ -75,6 +79,18 @@ function resolveRequestUrl(baseUrl: string, path: string): string {
     return requestUrl.toString();
   }
   return `${baseUrl}${path}`;
+}
+
+function normalizeInterceptorRequestUrl(baseUrl: string, url: string): string {
+  if (isAbsoluteHttpUrl(url)) {
+    return resolveRequestUrl(baseUrl, url);
+  }
+
+  if (!isAbsoluteHttpUrl(baseUrl)) {
+    return url;
+  }
+
+  return resolveRequestUrl(baseUrl, normalizePath(url));
 }
 
 function normalizeOutFields(outFields: string | string[] | undefined): string {
@@ -995,7 +1011,7 @@ export class HonuaClient {
           // PBF decode failed — fall back to JSON request
           params.set("f", "json");
           const jsonPath = `${path.replace(/\?.*$/, "")}?${params.toString()}`;
-          return this.requestJson("GET", jsonPath);
+          return this.requestJson("GET", jsonPath, undefined, callerSignal ?? request.init.signal ?? undefined);
         }
       }
 
@@ -1006,12 +1022,20 @@ export class HonuaClient {
 
   private async applyBeforeInterceptors(request: HonuaRequestContext): Promise<HonuaRequestContext> {
     let next = cloneRequestContext(request);
+    next = {
+      ...next,
+      url: normalizeInterceptorRequestUrl(this.baseUrl, next.url),
+    };
     for (const interceptor of this.interceptors) {
       const mutation = await interceptor.before?.(cloneRequestContext(next));
       if (!mutation) {
         continue;
       }
       next = applyRequestMutation(next, mutation);
+      next = {
+        ...next,
+        url: normalizeInterceptorRequestUrl(this.baseUrl, next.url),
+      };
     }
     return next;
   }
