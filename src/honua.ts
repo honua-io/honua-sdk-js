@@ -302,3 +302,13 @@ export type {
   HonuaOgcReplaceItemRequest,
   HonuaServiceOptions,
 } from "./core/surfaces.js";
+export { HonuaGeocodingClient } from "./geocoding/index.js";
+export type {
+  GeocodingClientOptions,
+  ForwardGeocodeOptions,
+  ReverseGeocodeOptions,
+  SuggestOptions,
+  GeocodeResult,
+  ReverseGeocodeResult,
+  GeocodeSuggestion,
+} from "./geocoding/index.js";

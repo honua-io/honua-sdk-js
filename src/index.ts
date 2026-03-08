@@ -871,6 +871,17 @@ export type {
   HonuaServiceOptions,
 } from "./core/surfaces.js";
 
+export { HonuaGeocodingClient } from "./geocoding/index.js";
+export type {
+  GeocodingClientOptions,
+  ForwardGeocodeOptions,
+  ReverseGeocodeOptions,
+  SuggestOptions,
+  GeocodeResult,
+  ReverseGeocodeResult,
+  GeocodeSuggestion,
+} from "./geocoding/index.js";
+
 export { scanArcGisUsage, summarizeArcGisScan } from "./migration/scanner.js";
 export type { ArcGisImportHit, ArcGisScanReport } from "./migration/scanner.js";
 export { runEsriCompatCodemod } from "./migration/codemod.js";
