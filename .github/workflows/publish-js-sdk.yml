@@ -40,6 +40,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Security audit (npm dependencies)
+        run: |
+          npm audit --omit=dev || {
+            echo "::warning::npm audit found vulnerabilities. Review before publishing."
+          }
+
       - name: Validate package
         run: |
           npm run typecheck
@@ -77,3 +83,9 @@ jobs:
           publish_package "./dist/packages/honua-sdk"
           publish_package "./dist/packages/honua-sdk-esri-compat"
           publish_package "./dist/packages/honua-migrate"
+
+      - name: Publish summary
+        if: ${{ env.DRY_RUN == 'true' }}
+        run: |
+          echo "Dry run complete. Split packages verified:"
+          ls -la ./dist/packages/
