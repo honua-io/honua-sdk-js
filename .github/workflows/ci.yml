@@ -13,9 +13,6 @@ jobs:
   js-sdk:
     name: JS SDK
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: js
     steps:
       - uses: actions/checkout@v4
 
@@ -24,7 +21,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: js/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -56,8 +53,8 @@ jobs:
 
       - name: Build JS SDK dependency
         run: |
-          npm ci --prefix ../js
-          npm run build --prefix ../js
+          npm ci --prefix ..
+          npm run build --prefix ..
 
       - name: Install dependencies
         run: npm ci
