@@ -1,4 +1,4 @@
-export { HonuaClient } from "./core/client.js";
+export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
 export { parseWebMap } from "./webmap/index.js";
 export type { ParseWebMapOptions, ParseWebMapResult } from "./webmap/index.js";
 export {
@@ -167,6 +167,8 @@ export type {
   HonuaAttachmentGroup,
   HonuaAttachmentInfo,
   HonuaAttachmentListResponse,
+  HonuaApiEnvelope,
+  HonuaCompatibilityRequest,
   HonuaClientOptions,
   HonuaCountResponse,
   HonuaEditResult,
@@ -209,6 +211,13 @@ export type {
   HonuaRequestMutation,
   HonuaRetryOptions,
   HonuaResponseContext,
+  HonuaServerCapabilitiesResponse,
+  HonuaServerCompatibility,
+  HonuaServerCompatibilityControlPlaneApi,
+  HonuaServerCompatibilityFeature,
+  HonuaServerCompatibilityFeatures,
+  HonuaServerCompatibilityMetadataSchema,
+  HonuaServerCompatibilityStatus,
   HonuaServiceMetadata,
   HonuaSpatialReference,
   HonuaTransport,

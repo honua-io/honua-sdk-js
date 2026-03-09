@@ -35,6 +35,18 @@ const client = new HonuaClient({
   baseUrl: "https://demo.honua.io",
 });
 
+const compatibility = await client.checkCompatibility();
+if (!compatibility.supported) {
+  throw new Error(
+    `Unsupported Honua server. Minimum supported version: ${HonuaClient.minimumSupportedServerVersion}. ` +
+      `Reasons: ${compatibility.reasons.join("; ")}`,
+  );
+}
+
+if (await client.supportsFeature("manifestApply")) {
+  console.log("Manifest workflows are available on this server.");
+}
+
 // Query the first 100 active features with geometry
 const result = await client.queryFeatures({
   serviceId: "natural-earth",
@@ -57,6 +69,11 @@ node index.mjs
 
 You should see feature objects with `attributes` and `geometry` properties
 logged to the console.
+
+The compatibility check uses `GET /api/v1/admin/capabilities` once, reports whether the
+server is inside the SDK baseline (`>= 1.0.0`, control-plane `v1`, release channel
+`preview` or newer), and lets you branch on coarse features without probing multiple
+endpoints.
 
 ## Step 3: Add MapLibre map (90 seconds)
 

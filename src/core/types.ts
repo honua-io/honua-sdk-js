@@ -236,6 +236,63 @@ export interface HonuaRetryOptions {
   retryStatuses?: readonly number[];
 }
 
+export interface HonuaCompatibilityRequest {
+  signal?: AbortSignal;
+  refresh?: boolean;
+}
+
+export interface HonuaServerCompatibilityControlPlaneApi {
+  major: number;
+  basePath: string;
+  deprecated: boolean;
+}
+
+export interface HonuaServerCompatibilityMetadataSchema {
+  version: string;
+  deprecated: boolean;
+}
+
+export interface HonuaServerCompatibilityFeatures {
+  metadataResources: boolean;
+  manifestExport: boolean;
+  manifestApply: boolean;
+  manifestDryRun: boolean;
+  manifestPrune: boolean;
+}
+
+export type HonuaServerCompatibilityFeature = keyof HonuaServerCompatibilityFeatures;
+
+export interface HonuaServerCompatibility {
+  serverVersion: string;
+  releaseChannel: string;
+  controlPlaneApi: HonuaServerCompatibilityControlPlaneApi;
+  metadataSchemas: HonuaServerCompatibilityMetadataSchema[];
+  features: HonuaServerCompatibilityFeatures;
+}
+
+export interface HonuaServerCapabilitiesResponse {
+  metadataApiVersions?: string[];
+  resourceKinds?: string[];
+  manifestSupported?: boolean;
+  manifestDryRunSupported?: boolean;
+  manifestPruneSupported?: boolean;
+  compatibility: HonuaServerCompatibility;
+}
+
+export interface HonuaApiEnvelope<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+  timestamp?: string;
+}
+
+export interface HonuaServerCompatibilityStatus {
+  supported: boolean;
+  minimumSupportedServerVersion: string;
+  compatibility?: HonuaServerCompatibility;
+  reasons: string[];
+}
+
 export type OgcResponseFormat = "json" | "html" | "geojson" | "gml" | "csv" | "schemajson" | "schema+json";
 
 export interface OgcMetadataRequest {

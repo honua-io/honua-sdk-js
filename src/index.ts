@@ -1,4 +1,4 @@
-export { HonuaClient } from "./core/client.js";
+export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
 export {
   HonuaHttpError,
   HonuaTimeoutError,
@@ -190,6 +190,8 @@ export type {
   HonuaAttachmentGroup,
   HonuaAttachmentInfo,
   HonuaAttachmentListResponse,
+  HonuaApiEnvelope,
+  HonuaCompatibilityRequest,
   HonuaClientOptions,
   HonuaCountResponse,
   HonuaEditResult,
@@ -232,6 +234,13 @@ export type {
   HonuaRequestMutation,
   HonuaRetryOptions,
   HonuaResponseContext,
+  HonuaServerCapabilitiesResponse,
+  HonuaServerCompatibility,
+  HonuaServerCompatibilityControlPlaneApi,
+  HonuaServerCompatibilityFeature,
+  HonuaServerCompatibilityFeatures,
+  HonuaServerCompatibilityMetadataSchema,
+  HonuaServerCompatibilityStatus,
   HonuaServiceMetadata,
   HonuaSpatialReference,
   HonuaTransport,
