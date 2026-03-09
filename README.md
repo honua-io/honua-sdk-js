@@ -50,7 +50,12 @@ The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export f
 ## Install
 
 ```bash
-cd sdk/js
+npm install @honua/sdk-js
+```
+
+## Local development
+
+```bash
 npm install
 ```
 
