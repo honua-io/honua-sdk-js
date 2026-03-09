@@ -42,10 +42,12 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.d.ts"), path.join(packageRoot, "index.d.ts"));
 
@@ -74,6 +76,10 @@ function createSdkPackage() {
       "./style": {
         types: "./style/index.d.ts",
         default: "./style/index.js",
+      },
+      "./webmap": {
+        types: "./webmap/index.d.ts",
+        default: "./webmap/index.js",
       },
     },
     dependencies: {
@@ -140,6 +146,7 @@ function createMigrationPackage() {
   fs.mkdirSync(packageRoot, { recursive: true });
 
   copyDirectory(path.join(DIST_SRC_ROOT, "migration"), path.join(packageRoot, "migration"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
   copyFile(path.join(DIST_SRC_ROOT, "migration-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "migration-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
   fs.chmodSync(path.join(packageRoot, "migration", "cli.js"), 0o755);
