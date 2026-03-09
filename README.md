@@ -10,9 +10,53 @@ npm install @honua/sdk-js
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({ baseUrl: "https://your-honua-server.com" });
+const compatibility = await client.checkCompatibility();
+
+if (!compatibility.supported) {
+  throw new Error(
+    `Unsupported Honua server. Minimum supported version: ${HonuaClient.minimumSupportedServerVersion}. ` +
+      `Reasons: ${compatibility.reasons.join("; ")}`,
+  );
+}
+
 const result = await client.queryFeatures({ serviceId: "parcels", layerId: 0 });
 console.log(result.features); // fully typed HonuaFeature[]
 ```
+
+## Server Compatibility Baseline
+
+Use the server compatibility contract before enabling admin/control-plane flows:
+
+```ts
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({ baseUrl: "https://your-honua-server.com" });
+
+const status = await client.checkCompatibility();
+if (!status.supported) {
+  throw new Error(
+    `Server ${status.compatibility?.serverVersion ?? "unknown"} is unsupported. ` +
+      `Minimum: ${HonuaClient.minimumSupportedServerVersion}. ` +
+      `Reasons: ${status.reasons.join("; ")}`,
+  );
+}
+
+if (await client.supportsFeature("manifestApply")) {
+  console.log("Manifest apply workflows are available on this server.");
+}
+
+const rawContract = await client.getCompatibility();
+console.log(rawContract.metadataSchemas);
+```
+
+`checkCompatibility()` reports support status, `supportsFeature()` gates coarse capabilities from
+`data.compatibility.features`, and `getCompatibility()` returns the raw server contract from
+`GET /api/v1/admin/capabilities`.
+
+This SDK baseline currently expects:
+- server version `>= 1.0.0`
+- control-plane API major `v1` on `/api/v1/admin`
+- server release channel `preview` or newer
 
 ---
 
