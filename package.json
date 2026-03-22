@@ -36,6 +36,10 @@
     "./webmap": {
       "types": "./dist/src/webmap/index.d.ts",
       "default": "./dist/src/webmap/index.js"
+    },
+    "./geocoding": {
+      "types": "./dist/src/geocoding/index.d.ts",
+      "default": "./dist/src/geocoding/index.js"
     }
   },
   "scripts": {
@@ -91,6 +95,14 @@
     "README.md",
     "CHANGELOG.md"
   ],
+  "peerDependencies": {
+    "typescript": ">=4.7.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
   "sideEffects": false,
   "engines": {
     "node": ">=20.0.0"

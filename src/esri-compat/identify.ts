@@ -330,7 +330,7 @@ function openViewPopup(view: unknown, options: PopupOpenOptionsCompat): void {
     return;
   }
 
-  const popupTarget = view as PopupTargetLike;
+  const popupTarget = view as unknown as PopupTargetLike;
   if (typeof popupTarget.openPopup === "function") {
     popupTarget.openPopup(options);
     return;
@@ -460,6 +460,6 @@ function toOptionalString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

@@ -30,45 +30,70 @@ export interface ControlHandleCompat {
   remove(): void;
 }
 
-export class HomeCompat {
+// ---------------------------------------------------------------------------
+// Base class – shared logic for all control compat classes
+// ---------------------------------------------------------------------------
+
+interface BaseControlCompatOptions {
+  view?: unknown;
+  container?: HTMLElement | string | null;
+  eventBus?: CompatEventBus;
+}
+
+export class BaseControlCompat {
   public readonly view: unknown;
   public readonly container: HTMLElement | string | null;
   public readonly eventBus: CompatEventBus;
   public loaded: boolean;
   public loadStatus: ControlLoadStatusCompat;
-  public viewpoint: HomeViewpointCompat;
+
+  protected readonly subscriptions: CompatEventSubscription[];
   private readonly watchListeners: Map<string, Set<(value: any) => void>>;
 
-  public constructor(options: HomeCompatOptions = {}) {
+  protected constructor(options: BaseControlCompatOptions, ...extraEventBusCandidates: unknown[]) {
     this.view = options.view;
     this.container = options.container ?? null;
-    this.eventBus = options.eventBus ?? resolveCompatEventBus(options.view) ?? new CompatEventBus();
+    this.eventBus =
+      options.eventBus ??
+      resolveCompatEventBus(options.view, ...extraEventBusCandidates) ??
+      new CompatEventBus();
     this.loaded = false;
     this.loadStatus = "not-loaded";
-    this.viewpoint = options.viewpoint ?? {
-      center: extractViewCenter(options.view),
-      zoom: extractViewZoom(options.view),
-    };
     this.watchListeners = new Map();
+    this.subscriptions = [];
   }
 
-  public async load(): Promise<HomeCompat> {
+  /**
+   * Subclasses override to provide the event-name prefix used in load(), e.g.
+   * `"home"` yields `"home.loading"` / `"home.loaded"`.
+   */
+  protected get controlName(): string {
+    return "control";
+  }
+
+  public async load(): Promise<this> {
     if (this.loaded) {
       return this;
     }
 
     this.loadStatus = "loading";
     this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("home.loading", undefined, this);
+    this.eventBus.emit(`${this.controlName}.loading`, undefined, this);
+    this.onLoad();
     this.loaded = true;
     this.notifyWatchers("loaded", this.loaded);
     this.loadStatus = "loaded";
     this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("home.loaded", undefined, this);
+    this.eventBus.emit(`${this.controlName}.loaded`, undefined, this);
     return this;
   }
 
-  public async when(callback?: (widget: HomeCompat) => void): Promise<HomeCompat> {
+  /** Hook for subclasses to perform work during load (e.g. ScaleBarCompat.refresh). */
+  protected onLoad(): void {
+    // default: no-op
+  }
+
+  public async when(callback?: (widget: this) => void): Promise<this> {
     const widget = await this.load();
     if (callback) {
       callback(widget);
@@ -93,6 +118,44 @@ export class HomeCompat {
       remove: () => {
         listeners?.delete(listener);
       },
+    };
+  }
+
+  public destroy(): void {
+    for (const subscription of this.subscriptions.splice(0)) {
+      subscription.remove();
+    }
+    this.watchListeners.clear();
+  }
+
+  protected notifyWatchers(propertyName: string, value: unknown): void {
+    const listeners = this.watchListeners.get(propertyName);
+    if (!listeners) {
+      return;
+    }
+
+    for (const listener of listeners) {
+      safeInvokeCompatListener(listener, value);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// HomeCompat
+// ---------------------------------------------------------------------------
+
+export class HomeCompat extends BaseControlCompat {
+  public viewpoint: HomeViewpointCompat;
+
+  protected override get controlName(): string {
+    return "home";
+  }
+
+  public constructor(options: HomeCompatOptions = {}) {
+    super(options);
+    this.viewpoint = options.viewpoint ?? {
+      center: extractViewCenter(options.view),
+      zoom: extractViewZoom(options.view),
     };
   }
 
@@ -119,22 +182,11 @@ export class HomeCompat {
     this.notifyWatchers("viewpoint", this.viewpoint);
     this.eventBus.emit("home.reset", this.viewpoint, this);
   }
-
-  public destroy(): void {
-    this.watchListeners.clear();
-  }
-
-  private notifyWatchers(propertyName: string, value: unknown): void {
-    const listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      return;
-    }
-
-    for (const listener of listeners) {
-      safeInvokeCompatListener(listener, value);
-    }
-  }
 }
+
+// ---------------------------------------------------------------------------
+// BasemapToggleCompat
+// ---------------------------------------------------------------------------
 
 export interface BasemapToggleCompatOptions {
   view?: unknown;
@@ -144,79 +196,27 @@ export interface BasemapToggleCompatOptions {
   eventBus?: CompatEventBus;
 }
 
-export class BasemapToggleCompat {
-  public readonly view: unknown;
+export class BasemapToggleCompat extends BaseControlCompat {
   public readonly map: unknown;
-  public readonly container: HTMLElement | string | null;
-  public readonly eventBus: CompatEventBus;
-  public loaded: boolean;
-  public loadStatus: ControlLoadStatusCompat;
   public activeBasemap: unknown;
   public nextBasemap: unknown;
 
-  private readonly subscriptions: CompatEventSubscription[];
-  private readonly watchListeners: Map<string, Set<(value: any) => void>>;
+  protected override get controlName(): string {
+    return "basemap-toggle";
+  }
 
   public constructor(options: BasemapToggleCompatOptions = {}) {
-    this.view = options.view;
-    this.map = options.map ?? extractViewMap(options.view);
-    this.container = options.container ?? null;
-    this.eventBus = options.eventBus ?? resolveCompatEventBus(options.view, this.map) ?? new CompatEventBus();
-    this.loaded = false;
-    this.loadStatus = "not-loaded";
+    const map = options.map ?? extractViewMap(options.view);
+    super({ view: options.view, container: options.container, eventBus: options.eventBus }, map);
+    this.map = map;
     this.activeBasemap = extractMapBasemap(this.map);
     this.nextBasemap = options.nextBasemap;
-    this.watchListeners = new Map();
-    this.subscriptions = [
+    this.subscriptions.push(
       this.eventBus.on("map.basemap-changed", (event) => {
         this.activeBasemap = extractPayloadBasemap(event.payload);
         this.notifyWatchers("activeBasemap", this.activeBasemap);
       }),
-    ];
-  }
-
-  public async load(): Promise<BasemapToggleCompat> {
-    if (this.loaded) {
-      return this;
-    }
-
-    this.loadStatus = "loading";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("basemap-toggle.loading", undefined, this);
-    this.loaded = true;
-    this.notifyWatchers("loaded", this.loaded);
-    this.loadStatus = "loaded";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("basemap-toggle.loaded", undefined, this);
-    return this;
-  }
-
-  public async when(callback?: (widget: BasemapToggleCompat) => void): Promise<BasemapToggleCompat> {
-    const widget = await this.load();
-    if (callback) {
-      callback(widget);
-    }
-    return widget;
-  }
-
-  public watch(propertyName: "visible", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "disabled", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loaded", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loadStatus", listener: (value: ControlLoadStatusCompat) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: unknown) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): ControlHandleCompat {
-    let listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      listeners = new Set();
-      this.watchListeners.set(propertyName, listeners);
-    }
-    listeners.add(listener);
-
-    return {
-      remove: () => {
-        listeners?.delete(listener);
-      },
-    };
+    );
   }
 
   public toggle(): unknown {
@@ -241,25 +241,11 @@ export class BasemapToggleCompat {
     );
     return this.activeBasemap;
   }
-
-  public destroy(): void {
-    for (const subscription of this.subscriptions.splice(0)) {
-      subscription.remove();
-    }
-    this.watchListeners.clear();
-  }
-
-  private notifyWatchers(propertyName: string, value: unknown): void {
-    const listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      return;
-    }
-
-    for (const listener of listeners) {
-      safeInvokeCompatListener(listener, value);
-    }
-  }
 }
+
+// ---------------------------------------------------------------------------
+// ScaleBarCompat
+// ---------------------------------------------------------------------------
 
 export type ScaleBarUnitCompat = "metric" | "imperial" | "dual";
 
@@ -270,80 +256,30 @@ export interface ScaleBarCompatOptions {
   eventBus?: CompatEventBus;
 }
 
-export class ScaleBarCompat {
-  public readonly view: unknown;
-  public readonly container: HTMLElement | string | null;
-  public readonly eventBus: CompatEventBus;
-  public loaded: boolean;
-  public loadStatus: ControlLoadStatusCompat;
+export class ScaleBarCompat extends BaseControlCompat {
   public unit: ScaleBarUnitCompat;
   public scale: number | undefined;
   public text: string;
 
-  private readonly subscriptions: CompatEventSubscription[];
-  private readonly watchListeners: Map<string, Set<(value: any) => void>>;
+  protected override get controlName(): string {
+    return "scalebar";
+  }
 
   public constructor(options: ScaleBarCompatOptions = {}) {
-    this.view = options.view;
-    this.container = options.container ?? null;
-    this.eventBus = options.eventBus ?? resolveCompatEventBus(options.view) ?? new CompatEventBus();
-    this.loaded = false;
-    this.loadStatus = "not-loaded";
+    super(options);
     this.unit = options.unit ?? "metric";
     this.scale = undefined;
     this.text = "";
-    this.watchListeners = new Map();
-    this.subscriptions = [
+    this.subscriptions.push(
       this.eventBus.on("view.go-to", () => {
         this.refresh();
       }),
-    ];
+    );
     this.refresh();
   }
 
-  public async load(): Promise<ScaleBarCompat> {
-    if (this.loaded) {
-      return this;
-    }
-
-    this.loadStatus = "loading";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("scalebar.loading", undefined, this);
+  protected override onLoad(): void {
     this.refresh();
-    this.loaded = true;
-    this.notifyWatchers("loaded", this.loaded);
-    this.loadStatus = "loaded";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("scalebar.loaded", undefined, this);
-    return this;
-  }
-
-  public async when(callback?: (widget: ScaleBarCompat) => void): Promise<ScaleBarCompat> {
-    const widget = await this.load();
-    if (callback) {
-      callback(widget);
-    }
-    return widget;
-  }
-
-  public watch(propertyName: "visible", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "disabled", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loaded", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loadStatus", listener: (value: ControlLoadStatusCompat) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: unknown) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): ControlHandleCompat {
-    let listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      listeners = new Set();
-      this.watchListeners.set(propertyName, listeners);
-    }
-    listeners.add(listener);
-
-    return {
-      remove: () => {
-        listeners?.delete(listener);
-      },
-    };
   }
 
   public refresh(): string {
@@ -364,25 +300,11 @@ export class ScaleBarCompat {
     this.eventBus.emit("scalebar.updated", { scale: mapScale, text: this.text, unit: this.unit }, this);
     return this.text;
   }
-
-  public destroy(): void {
-    for (const subscription of this.subscriptions.splice(0)) {
-      subscription.remove();
-    }
-    this.watchListeners.clear();
-  }
-
-  private notifyWatchers(propertyName: string, value: unknown): void {
-    const listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      return;
-    }
-
-    for (const listener of listeners) {
-      safeInvokeCompatListener(listener, value);
-    }
-  }
 }
+
+// ---------------------------------------------------------------------------
+// LocateCompat
+// ---------------------------------------------------------------------------
 
 export interface LocateCompatOptions {
   view?: unknown;
@@ -400,101 +322,21 @@ export interface LocatePositionCompat {
   };
 }
 
-export interface CompassCompatOptions {
-  view?: unknown;
-  container?: HTMLElement | string | null;
-  eventBus?: CompatEventBus;
-}
-
-export interface ZoomCompatOptions {
-  view?: unknown;
-  container?: HTMLElement | string | null;
-  eventBus?: CompatEventBus;
-  layout?: "vertical" | "horizontal";
-}
-
-export interface FullscreenCompatOptions {
-  view?: unknown;
-  container?: HTMLElement | string | null;
-  element?: HTMLElement | null;
-  eventBus?: CompatEventBus;
-}
-
-export interface AttributionCompatOptions {
-  view?: unknown;
-  map?: unknown;
-  container?: HTMLElement | string | null;
-  eventBus?: CompatEventBus;
-  itemDelimiter?: string;
-  attributions?: readonly string[];
-}
-
-export class LocateCompat {
-  public readonly view: unknown;
-  public readonly container: HTMLElement | string | null;
-  public readonly eventBus: CompatEventBus;
-  public loaded: boolean;
-  public loadStatus: ControlLoadStatusCompat;
+export class LocateCompat extends BaseControlCompat {
   public readonly zoom: number | undefined;
   public lastPosition: LocatePositionCompat | undefined;
 
   private readonly locateProvider: () => Promise<LocatePositionCompat>;
-  private readonly watchListeners: Map<string, Set<(value: any) => void>>;
+
+  protected override get controlName(): string {
+    return "locate";
+  }
 
   public constructor(options: LocateCompatOptions = {}) {
-    this.view = options.view;
-    this.container = options.container ?? null;
-    this.eventBus = options.eventBus ?? resolveCompatEventBus(options.view) ?? new CompatEventBus();
-    this.loaded = false;
-    this.loadStatus = "not-loaded";
+    super(options);
     this.zoom = options.zoom;
     this.lastPosition = undefined;
     this.locateProvider = options.locateProvider ?? getDefaultLocateProvider();
-    this.watchListeners = new Map();
-  }
-
-  public async load(): Promise<LocateCompat> {
-    if (this.loaded) {
-      return this;
-    }
-
-    this.loadStatus = "loading";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("locate.loading", undefined, this);
-    this.loaded = true;
-    this.notifyWatchers("loaded", this.loaded);
-    this.loadStatus = "loaded";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("locate.loaded", undefined, this);
-    return this;
-  }
-
-  public async when(callback?: (widget: LocateCompat) => void): Promise<LocateCompat> {
-    const widget = await this.load();
-    if (callback) {
-      callback(widget);
-    }
-    return widget;
-  }
-
-  public watch(propertyName: "visible", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "disabled", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loaded", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loadStatus", listener: (value: ControlLoadStatusCompat) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: unknown) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): ControlHandleCompat {
-    let listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      listeners = new Set();
-      this.watchListeners.set(propertyName, listeners);
-    }
-    listeners.add(listener);
-
-    return {
-      remove: () => {
-        listeners?.delete(listener);
-      },
-    };
   }
 
   public async locate(): Promise<LocatePositionCompat> {
@@ -529,84 +371,28 @@ export class LocateCompat {
       throw error;
     }
   }
-
-  public destroy(): void {
-    this.watchListeners.clear();
-  }
-
-  private notifyWatchers(propertyName: string, value: unknown): void {
-    const listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      return;
-    }
-
-    for (const listener of listeners) {
-      safeInvokeCompatListener(listener, value);
-    }
-  }
 }
 
-export class CompassCompat {
-  public readonly view: unknown;
-  public readonly container: HTMLElement | string | null;
-  public readonly eventBus: CompatEventBus;
-  public loaded: boolean;
-  public loadStatus: ControlLoadStatusCompat;
+// ---------------------------------------------------------------------------
+// CompassCompat
+// ---------------------------------------------------------------------------
+
+export interface CompassCompatOptions {
+  view?: unknown;
+  container?: HTMLElement | string | null;
+  eventBus?: CompatEventBus;
+}
+
+export class CompassCompat extends BaseControlCompat {
   public orientation: number;
-  private readonly watchListeners: Map<string, Set<(value: any) => void>>;
+
+  protected override get controlName(): string {
+    return "compass";
+  }
 
   public constructor(options: CompassCompatOptions = {}) {
-    this.view = options.view;
-    this.container = options.container ?? null;
-    this.eventBus = options.eventBus ?? resolveCompatEventBus(options.view) ?? new CompatEventBus();
-    this.loaded = false;
-    this.loadStatus = "not-loaded";
+    super(options);
     this.orientation = extractViewRotation(options.view) ?? 0;
-    this.watchListeners = new Map();
-  }
-
-  public async load(): Promise<CompassCompat> {
-    if (this.loaded) {
-      return this;
-    }
-
-    this.loadStatus = "loading";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("compass.loading", undefined, this);
-    this.loaded = true;
-    this.notifyWatchers("loaded", this.loaded);
-    this.loadStatus = "loaded";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("compass.loaded", undefined, this);
-    return this;
-  }
-
-  public async when(callback?: (widget: CompassCompat) => void): Promise<CompassCompat> {
-    const widget = await this.load();
-    if (callback) {
-      callback(widget);
-    }
-    return widget;
-  }
-
-  public watch(propertyName: "visible", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "disabled", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loaded", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loadStatus", listener: (value: ControlLoadStatusCompat) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: unknown) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): ControlHandleCompat {
-    let listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      listeners = new Set();
-      this.watchListeners.set(propertyName, listeners);
-    }
-    listeners.add(listener);
-
-    return {
-      remove: () => {
-        listeners?.delete(listener);
-      },
-    };
   }
 
   public rotateTo(rotation: number): number {
@@ -629,84 +415,29 @@ export class CompassCompat {
   public goToNorth(): number {
     return this.reset();
   }
-
-  public destroy(): void {
-    this.watchListeners.clear();
-  }
-
-  private notifyWatchers(propertyName: string, value: unknown): void {
-    const listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      return;
-    }
-
-    for (const listener of listeners) {
-      safeInvokeCompatListener(listener, value);
-    }
-  }
 }
 
-export class ZoomCompat {
-  public readonly view: unknown;
-  public readonly container: HTMLElement | string | null;
-  public readonly eventBus: CompatEventBus;
-  public loaded: boolean;
-  public loadStatus: ControlLoadStatusCompat;
+// ---------------------------------------------------------------------------
+// ZoomCompat
+// ---------------------------------------------------------------------------
+
+export interface ZoomCompatOptions {
+  view?: unknown;
+  container?: HTMLElement | string | null;
+  eventBus?: CompatEventBus;
+  layout?: "vertical" | "horizontal";
+}
+
+export class ZoomCompat extends BaseControlCompat {
   public readonly layout: "vertical" | "horizontal";
-  private readonly watchListeners: Map<string, Set<(value: any) => void>>;
+
+  protected override get controlName(): string {
+    return "zoom";
+  }
 
   public constructor(options: ZoomCompatOptions = {}) {
-    this.view = options.view;
-    this.container = options.container ?? null;
-    this.eventBus = options.eventBus ?? resolveCompatEventBus(options.view) ?? new CompatEventBus();
-    this.loaded = false;
-    this.loadStatus = "not-loaded";
+    super(options);
     this.layout = options.layout ?? "vertical";
-    this.watchListeners = new Map();
-  }
-
-  public async load(): Promise<ZoomCompat> {
-    if (this.loaded) {
-      return this;
-    }
-
-    this.loadStatus = "loading";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("zoom.loading", undefined, this);
-    this.loaded = true;
-    this.notifyWatchers("loaded", this.loaded);
-    this.loadStatus = "loaded";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("zoom.loaded", undefined, this);
-    return this;
-  }
-
-  public async when(callback?: (widget: ZoomCompat) => void): Promise<ZoomCompat> {
-    const widget = await this.load();
-    if (callback) {
-      callback(widget);
-    }
-    return widget;
-  }
-
-  public watch(propertyName: "visible", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "disabled", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loaded", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loadStatus", listener: (value: ControlLoadStatusCompat) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: unknown) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): ControlHandleCompat {
-    let listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      listeners = new Set();
-      this.watchListeners.set(propertyName, listeners);
-    }
-    listeners.add(listener);
-
-    return {
-      remove: () => {
-        listeners?.delete(listener);
-      },
-    };
   }
 
   public zoomIn(step = 1): number | undefined {
@@ -728,86 +459,31 @@ export class ZoomCompat {
     this.eventBus.emit("zoom.changed", { zoom: next, delta }, this);
     return next;
   }
-
-  public destroy(): void {
-    this.watchListeners.clear();
-  }
-
-  private notifyWatchers(propertyName: string, value: unknown): void {
-    const listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      return;
-    }
-
-    for (const listener of listeners) {
-      safeInvokeCompatListener(listener, value);
-    }
-  }
 }
 
-export class FullscreenCompat {
-  public readonly view: unknown;
-  public readonly container: HTMLElement | string | null;
+// ---------------------------------------------------------------------------
+// FullscreenCompat
+// ---------------------------------------------------------------------------
+
+export interface FullscreenCompatOptions {
+  view?: unknown;
+  container?: HTMLElement | string | null;
+  element?: HTMLElement | null;
+  eventBus?: CompatEventBus;
+}
+
+export class FullscreenCompat extends BaseControlCompat {
   public readonly element: HTMLElement | null;
-  public readonly eventBus: CompatEventBus;
-  public loaded: boolean;
-  public loadStatus: ControlLoadStatusCompat;
   public active: boolean;
-  private readonly watchListeners: Map<string, Set<(value: any) => void>>;
+
+  protected override get controlName(): string {
+    return "fullscreen";
+  }
 
   public constructor(options: FullscreenCompatOptions = {}) {
-    this.view = options.view;
-    this.container = options.container ?? null;
+    super(options);
     this.element = options.element ?? null;
-    this.eventBus = options.eventBus ?? resolveCompatEventBus(options.view) ?? new CompatEventBus();
-    this.loaded = false;
-    this.loadStatus = "not-loaded";
     this.active = false;
-    this.watchListeners = new Map();
-  }
-
-  public async load(): Promise<FullscreenCompat> {
-    if (this.loaded) {
-      return this;
-    }
-
-    this.loadStatus = "loading";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("fullscreen.loading", undefined, this);
-    this.loaded = true;
-    this.notifyWatchers("loaded", this.loaded);
-    this.loadStatus = "loaded";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("fullscreen.loaded", undefined, this);
-    return this;
-  }
-
-  public async when(callback?: (widget: FullscreenCompat) => void): Promise<FullscreenCompat> {
-    const widget = await this.load();
-    if (callback) {
-      callback(widget);
-    }
-    return widget;
-  }
-
-  public watch(propertyName: "visible", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "disabled", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loaded", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loadStatus", listener: (value: ControlLoadStatusCompat) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: unknown) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): ControlHandleCompat {
-    let listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      listeners = new Set();
-      this.watchListeners.set(propertyName, listeners);
-    }
-    listeners.add(listener);
-
-    return {
-      remove: () => {
-        listeners?.delete(listener);
-      },
-    };
   }
 
   public enter(): void {
@@ -837,88 +513,38 @@ export class FullscreenCompat {
     }
     return this.active;
   }
-
-  public destroy(): void {
-    this.watchListeners.clear();
-  }
-
-  private notifyWatchers(propertyName: string, value: unknown): void {
-    const listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      return;
-    }
-
-    for (const listener of listeners) {
-      safeInvokeCompatListener(listener, value);
-    }
-  }
 }
 
-export class AttributionCompat {
-  public readonly view: unknown;
+// ---------------------------------------------------------------------------
+// AttributionCompat
+// ---------------------------------------------------------------------------
+
+export interface AttributionCompatOptions {
+  view?: unknown;
+  map?: unknown;
+  container?: HTMLElement | string | null;
+  eventBus?: CompatEventBus;
+  itemDelimiter?: string;
+  attributions?: readonly string[];
+}
+
+export class AttributionCompat extends BaseControlCompat {
   public readonly map: unknown;
-  public readonly container: HTMLElement | string | null;
-  public readonly eventBus: CompatEventBus;
-  public loaded: boolean;
-  public loadStatus: ControlLoadStatusCompat;
   public itemDelimiter: string;
   public attributions: string[];
-  private readonly watchListeners: Map<string, Set<(value: any) => void>>;
+
+  protected override get controlName(): string {
+    return "attribution";
+  }
 
   public constructor(options: AttributionCompatOptions = {}) {
-    this.view = options.view;
+    super(
+      { view: options.view, container: options.container, eventBus: options.eventBus },
+      options.map,
+    );
     this.map = options.map ?? extractViewMap(options.view);
-    this.container = options.container ?? null;
-    this.eventBus = options.eventBus ?? resolveCompatEventBus(options.view, options.map) ?? new CompatEventBus();
-    this.loaded = false;
-    this.loadStatus = "not-loaded";
     this.itemDelimiter = options.itemDelimiter ?? " | ";
     this.attributions = options.attributions ? [...options.attributions] : [];
-    this.watchListeners = new Map();
-  }
-
-  public async load(): Promise<AttributionCompat> {
-    if (this.loaded) {
-      return this;
-    }
-
-    this.loadStatus = "loading";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("attribution.loading", undefined, this);
-    this.loaded = true;
-    this.notifyWatchers("loaded", this.loaded);
-    this.loadStatus = "loaded";
-    this.notifyWatchers("loadStatus", this.loadStatus);
-    this.eventBus.emit("attribution.loaded", undefined, this);
-    return this;
-  }
-
-  public async when(callback?: (widget: AttributionCompat) => void): Promise<AttributionCompat> {
-    const widget = await this.load();
-    if (callback) {
-      callback(widget);
-    }
-    return widget;
-  }
-
-  public watch(propertyName: "visible", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "disabled", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loaded", listener: (value: boolean) => void): ControlHandleCompat;
-  public watch(propertyName: "loadStatus", listener: (value: ControlLoadStatusCompat) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: unknown) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): ControlHandleCompat {
-    let listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      listeners = new Set();
-      this.watchListeners.set(propertyName, listeners);
-    }
-    listeners.add(listener);
-
-    return {
-      remove: () => {
-        listeners?.delete(listener);
-      },
-    };
   }
 
   public addAttribution(value: string): void {
@@ -949,22 +575,11 @@ export class AttributionCompat {
     }
     return this.attributions.join(this.itemDelimiter);
   }
-
-  public destroy(): void {
-    this.watchListeners.clear();
-  }
-
-  private notifyWatchers(propertyName: string, value: unknown): void {
-    const listeners = this.watchListeners.get(propertyName);
-    if (!listeners) {
-      return;
-    }
-
-    for (const listener of listeners) {
-      safeInvokeCompatListener(listener, value);
-    }
-  }
 }
+
+// ---------------------------------------------------------------------------
+// Private helper functions
+// ---------------------------------------------------------------------------
 
 interface GoToProvider {
   goTo(target: { center?: unknown; zoom?: number }): Promise<unknown> | unknown;
@@ -1103,6 +718,6 @@ function extractViewRotation(view: unknown): number | undefined {
   return typeof rotation === "number" && Number.isFinite(rotation) ? rotation : undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

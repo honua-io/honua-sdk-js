@@ -1090,6 +1090,6 @@ function extractPointCoordinates(value: unknown): [number, number] | undefined {
   return undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

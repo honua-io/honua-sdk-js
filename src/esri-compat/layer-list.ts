@@ -469,6 +469,6 @@ function toVisible(layer: LayerLike): boolean {
   return layer.visible ?? true;
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

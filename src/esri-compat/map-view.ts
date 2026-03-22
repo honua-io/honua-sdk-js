@@ -1128,7 +1128,7 @@ function normalizeGoToTarget(target: MapViewGoToInput): MapViewGoToTarget {
       mergeGoToTarget(normalized, normalizeGoToTarget(targetRecord.target as MapViewGoToInput));
     }
     if (targetRecord.center !== undefined) {
-      normalized.center = targetRecord.center;
+      normalized.center = targetRecord.center as MapViewCenterLike;
     }
     const zoom = normalizeFiniteNumber(targetRecord.zoom);
     if (zoom !== undefined) {
@@ -1143,7 +1143,7 @@ function normalizeGoToTarget(target: MapViewGoToInput): MapViewGoToTarget {
       normalized.rotation = rotation;
     }
     if (targetRecord.extent !== undefined) {
-      normalized.extent = targetRecord.extent;
+      normalized.extent = targetRecord.extent as MapViewExtentLike;
     }
   }
 
@@ -1601,11 +1601,11 @@ function safeInvokeListener(invoke: () => void): void {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function asRecord(value: unknown): Record<string, any> | undefined {
+function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!isRecord(value) || Array.isArray(value)) {
     return undefined;
   }
@@ -1620,6 +1620,6 @@ function extractPopupOptions(popup: Record<string, unknown> | unknown): MapViewP
   return {
     autoOpenEnabled: typeof popup.autoOpenEnabled === "boolean" ? popup.autoOpenEnabled : undefined,
     dockEnabled: typeof popup.dockEnabled === "boolean" ? popup.dockEnabled : undefined,
-    dockOptions: popup.dockOptions,
+    dockOptions: popup.dockOptions as Record<string, unknown> | undefined,
   };
 }

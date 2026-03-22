@@ -145,6 +145,6 @@ function isGoToProvider(value: unknown): value is GoToProvider {
   return isRecord(value) && typeof value.goTo === "function";
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

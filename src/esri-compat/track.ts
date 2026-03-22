@@ -235,6 +235,6 @@ function getDefaultTrackProvider(): () => Promise<TrackPositionCompat> {
     });
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

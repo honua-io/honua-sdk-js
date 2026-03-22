@@ -207,6 +207,6 @@ function isMapBasemapSetter(value: unknown): value is MapBasemapSetter {
   return isRecord(value) && typeof value.setBasemap === "function";
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
