@@ -21,7 +21,7 @@ A single-page app that:
 ```bash
 mkdir honua-map-demo && cd honua-map-demo
 npm init -y
-npm install honua-sdk maplibre-gl
+npm install @honua/sdk maplibre-gl
 ```
 
 ## Step 2: Query features (60 seconds)
@@ -29,7 +29,7 @@ npm install honua-sdk maplibre-gl
 Create `index.mjs`:
 
 ```javascript
-import { HonuaClient } from "honua-sdk";
+import { HonuaClient } from "@honua/sdk";
 
 const client = new HonuaClient({
   baseUrl: "https://demo.honua.io",
@@ -100,7 +100,7 @@ Create `index.html`:
   <div id="map"></div>
 
   <script type="module">
-    import { HonuaClient } from "honua-sdk";
+    import { HonuaClient } from "@honua/sdk";
 
     // 1. Create the Honua client
     const client = new HonuaClient({
@@ -262,7 +262,7 @@ Add address search to your map using `HonuaGeocodingClient`. Update the
 Then add this to the end of your `<script type="module">` block:
 
 ```javascript
-import { HonuaGeocodingClient } from "honua-sdk";
+import { HonuaGeocodingClient } from "@honua/sdk";
 
 const geocoder = new HonuaGeocodingClient({
   baseUrl: "https://demo.honua.io",
@@ -322,7 +322,7 @@ For apps with multiple data sources, the SDK provides `HonuaMap` -- a
 protocol-aware source/layer manager that produces MapLibre-compatible styles:
 
 ```javascript
-import { HonuaClient, HonuaMap } from "honua-sdk";
+import { HonuaClient, HonuaMap } from "@honua/sdk";
 
 const client = new HonuaClient({ baseUrl: "https://demo.honua.io" });
 
@@ -360,7 +360,7 @@ If your server exposes OGC API Features endpoints, you can query GeoJSON
 natively without conversion:
 
 ```javascript
-import { HonuaClient } from "honua-sdk";
+import { HonuaClient } from "@honua/sdk";
 
 const client = new HonuaClient({ baseUrl: "https://demo.honua.io" });
 const ogc = client.ogcFeatures();

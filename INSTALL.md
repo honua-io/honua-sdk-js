@@ -4,9 +4,9 @@
 
 | Package | Description |
 |---------|-------------|
-| `honua-sdk` | Core client — feature queries, web mapping, expressions |
-| `honua-sdk-esri-compat` | Esri ArcGIS JS compatibility layer for migration |
-| `honua-migrate` | CLI and library for migrating Esri apps to Honua |
+| `@honua/sdk` | Core client — feature queries, web mapping, expressions |
+| `@honua/sdk-esri-compat` | Esri ArcGIS JS compatibility layer for migration |
+| `@honua/honua-migrate` | CLI and library for migrating Esri apps to Honua |
 
 ## Prerequisites
 
@@ -17,19 +17,19 @@
 
 ```bash
 # Core SDK
-npm install honua-sdk
+npm install @honua/sdk
 
 # Esri compatibility (if migrating from ArcGIS)
-npm install honua-sdk-esri-compat
+npm install @honua/sdk-esri-compat
 
 # Migration CLI
-npm install -g honua-migrate
+npm install -g @honua/honua-migrate
 ```
 
 ## Quick Start
 
 ```typescript
-import { HonuaClient } from "honua-sdk";
+import { HonuaClient } from "@honua/sdk";
 
 const client = new HonuaClient({
   baseUrl: "https://your-honua-server.com",
@@ -50,10 +50,10 @@ console.log(`Found ${features.length} features`);
 
 ```bash
 # Scan an existing ArcGIS JS app
-npx honua-migrate scan --input ./src
+npx @honua/honua-migrate scan --input ./src
 
 # Generate a migration report
-npx honua-migrate codemod --input ./src --output ./migrated
+npx @honua/honua-migrate codemod --input ./src --output ./migrated
 ```
 
 ## Version Policy
