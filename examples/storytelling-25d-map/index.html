@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Honua 2.5D Storytelling Demo</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <section class="story-panel" aria-label="Storytelling controls">
+        <div class="panel-header">
+          <p class="eyebrow">Honua Demo / 2.5D Bridge</p>
+          <h1>Operational risk storytelling on a pitched web map</h1>
+          <p class="positioning-copy">
+            This is a <strong>2.5D</strong> browser map: pitched camera, polygon extrusions, and animated route
+            replay. It does not claim terrain, mesh, or digital-twin parity.
+          </p>
+        </div>
+
+        <section class="metric-strip" aria-label="Demo metrics">
+          <article class="metric-card">
+            <span>Total assets</span>
+            <strong id="metric-assets">0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Priority assets</span>
+            <strong id="metric-priority">0</strong>
+          </article>
+          <article class="metric-card">
+            <span>Route stops</span>
+            <strong id="metric-stops">0</strong>
+          </article>
+        </section>
+
+        <nav id="story-step-list" class="story-step-list" aria-label="Story steps"></nav>
+
+        <article class="story-card">
+          <p id="story-step-kicker" class="story-kicker">Loading story…</p>
+          <h2 id="story-step-title">Initializing demo</h2>
+          <p id="story-step-body" class="story-body">
+            Checking compatibility, loading collections, and preparing the 2.5D scene.
+          </p>
+          <p id="story-step-support" class="story-support"></p>
+          <div class="story-highlight">
+            <span id="story-metric-label">Runtime path</span>
+            <strong id="story-metric-value">Honua compatibility + OGC API Features</strong>
+          </div>
+          <div class="story-actions">
+            <button id="story-previous" type="button">Back</button>
+            <button id="story-next" type="button">Next</button>
+            <button id="story-replay" type="button" hidden>Replay route</button>
+          </div>
+        </article>
+
+        <article class="selection-card">
+          <div class="selection-card-header">
+            <p class="selection-label">Selected asset</p>
+            <span id="selection-risk-pill" class="risk-pill">Waiting</span>
+          </div>
+          <h3 id="selection-title">Choose an asset</h3>
+          <p id="selection-summary">
+            Click an extruded asset or follow the story steps to focus a single corridor.
+          </p>
+          <dl class="selection-facts">
+            <div>
+              <dt>Height</dt>
+              <dd id="selection-height">-</dd>
+            </div>
+            <div>
+              <dt>Risk</dt>
+              <dd id="selection-risk">-</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd id="selection-status">-</dd>
+            </div>
+            <div>
+              <dt>District</dt>
+              <dd id="selection-district">-</dd>
+            </div>
+          </dl>
+        </article>
+
+        <footer class="panel-footer">
+          <p id="demo-status" class="demo-status">Waiting for data.</p>
+          <p class="demo-footnote">
+            Primary live path: Honua browser compatibility gate plus OGC API Features collections.
+          </p>
+        </footer>
+      </section>
+
+      <section class="map-stage">
+        <div class="map-stage-header">
+          <p class="map-stage-label">Pitched asset corridor</p>
+          <div class="map-stage-stats">
+            <span id="map-mode-chip" class="map-mode-chip">Loading</span>
+            <span id="map-collection-chip" class="map-collection-chip">OGC collections</span>
+          </div>
+        </div>
+        <div id="map" class="map-canvas" aria-label="2.5D map"></div>
+        <div id="map-overlay" class="map-overlay" data-state="loading">
+          <p class="map-overlay-title">Preparing the 2.5D scene</p>
+          <p class="map-overlay-body">Checking compatibility, loading OGC collections, and staging the story steps.</p>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

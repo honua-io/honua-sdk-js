@@ -23,6 +23,24 @@ const result = await client.queryFeatures({ serviceId: "parcels", layerId: 0 });
 console.log(result.features); // fully typed HonuaFeature[]
 ```
 
+## Demo Apps
+
+- [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, OGC collection overlays, polygon extrusions, and route replay.
+
+Deterministic local review flow from this repo:
+
+```bash
+npm install
+npm run demo:25d:mock
+```
+
+Live Honua flow:
+
+```bash
+cp examples/storytelling-25d-map/.env.example examples/storytelling-25d-map/.env
+npm run demo:25d
+```
+
 ## Server Compatibility Baseline
 
 Use the server compatibility contract before enabling admin/control-plane flows:
@@ -101,6 +119,8 @@ npm install @honua/sdk-js
 
 ```bash
 npm install
+npm run demo:25d:mock
+npm run demo:25d
 ```
 
 ## Verify

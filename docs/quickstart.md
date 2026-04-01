@@ -3,6 +3,10 @@
 Build a web page that queries geospatial features from a Honua server and
 renders them on an interactive MapLibre GL JS map.
 
+If you want the richer portfolio demo path with a pitched `2.5D` map, polygon
+extrusions, and scripted route replay, see
+[`examples/storytelling-25d-map/README.md`](../examples/storytelling-25d-map/README.md).
+
 ## What You'll Build
 
 A single-page app that:
