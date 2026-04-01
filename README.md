@@ -172,6 +172,8 @@ npm run matrix:runtime
 npm run build:split-packages
 ```
 
+`npm run test:playwright` and `npm run demo:kepler:smoke` now bootstrap the isolated `examples/kepler-analytics` dependencies automatically when that package has not been installed yet.
+
 ## Split Package Artifacts
 
 Generate publish-ready split packages under `dist/packages/`:
