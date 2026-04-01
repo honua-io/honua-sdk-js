@@ -143,8 +143,8 @@ test("kepler analytics fixture demo renders portfolio replay shell", async ({ pa
         currentTime: 1777651650000,
         dataIds: ["incidents", "unit-tracks"],
         filteredCounts: {
-          incidents: 5,
-          "unit-tracks": 12
+          incidents: 1,
+          "unit-tracks": 3
         },
         layerIds: ["coverage-zones-layer", "incidents-layer", "unit-tracks-layer"],
         replayStatus: {

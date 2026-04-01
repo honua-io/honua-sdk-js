@@ -268,6 +268,123 @@ function getReplayFilter() {
   return getDemoState()?.visState?.filters.find((filter: any) => filter.id === REPLAY_FILTER_ID) ?? null;
 }
 
+function getDatasetFilterDataIds(filter: any): string[] {
+  if (Array.isArray(filter?.dataId)) {
+    return filter.dataId.filter((dataId: unknown): dataId is string => typeof dataId === "string");
+  }
+  return typeof filter?.dataId === "string" ? [filter.dataId] : [];
+}
+
+function getDatasetFilterFieldIndex(dataset: any, dataId: string, filter: any): number {
+  const dataIds = getDatasetFilterDataIds(filter);
+  const datasetIndex = dataIds.indexOf(dataId);
+  if (datasetIndex < 0) {
+    return -1;
+  }
+
+  const fieldIndexes = Array.isArray(filter?.fieldIdx) ? filter.fieldIdx : [filter?.fieldIdx];
+  const resolvedFieldIndex = fieldIndexes[datasetIndex] ?? fieldIndexes[0];
+  if (typeof resolvedFieldIndex === "number") {
+    return resolvedFieldIndex;
+  }
+
+  const fieldNames = Array.isArray(filter?.name) ? filter.name : [filter?.name];
+  const resolvedFieldName = fieldNames[datasetIndex] ?? fieldNames[0];
+  if (typeof resolvedFieldName !== "string") {
+    return -1;
+  }
+
+  return dataset.fields?.findIndex((field: any) => field.name === resolvedFieldName) ?? -1;
+}
+
+function datasetRowMatchesFilter(dataset: any, dataId: string, rowIndex: number, filter: any): boolean {
+  const fieldIndex = getDatasetFilterFieldIndex(dataset, dataId, filter);
+  if (fieldIndex < 0 || typeof dataset?.dataContainer?.valueAt !== "function") {
+    return true;
+  }
+
+  const fieldValue = dataset.dataContainer.valueAt(rowIndex, fieldIndex);
+
+  switch (filter?.type) {
+    case "multiSelect": {
+      const selectedValues = Array.isArray(filter.value) ? filter.value : [];
+      return selectedValues.length === 0 || selectedValues.includes(fieldValue);
+    }
+    case "select":
+      return fieldValue === filter.value;
+    case "range": {
+      if (!Array.isArray(filter.value) || filter.value.length < 2) {
+        return true;
+      }
+
+      const [minValue, maxValue] = filter.value.map(Number);
+      const numericValue = Number(fieldValue);
+      return (
+        Number.isFinite(minValue) &&
+        Number.isFinite(maxValue) &&
+        Number.isFinite(numericValue) &&
+        numericValue >= minValue &&
+        numericValue <= maxValue
+      );
+    }
+    case "timeRange": {
+      if (!Array.isArray(filter.value) || filter.value.length < 2) {
+        return true;
+      }
+
+      const [start, end] = filter.value.map(Number);
+      const timestamp =
+        typeof fieldValue === "number" ? fieldValue : Date.parse(typeof fieldValue === "string" ? fieldValue : "");
+
+      return (
+        Number.isFinite(start) &&
+        Number.isFinite(end) &&
+        Number.isFinite(timestamp) &&
+        timestamp >= start &&
+        timestamp <= end
+      );
+    }
+    default:
+      return true;
+  }
+}
+
+function getDatasetRowCount(dataset: any): number {
+  const rowCountValue = dataset?.dataContainer?.numRows;
+  if (typeof rowCountValue === "function") {
+    const computedRowCount = rowCountValue.call(dataset.dataContainer);
+    return typeof computedRowCount === "number" ? computedRowCount : 0;
+  }
+  if (typeof rowCountValue === "number") {
+    return rowCountValue;
+  }
+  return dataset?.allIndexes?.length ?? 0;
+}
+
+function getDatasetFilteredCount(demoState: any, dataId: ReplayDatasetId): number {
+  const dataset = demoState?.visState?.datasets?.[dataId];
+  const rowCount = getDatasetRowCount(dataset);
+  if (!dataset || typeof rowCount !== "number" || rowCount <= 0) {
+    return 0;
+  }
+
+  const activeFilters = demoState.visState.filters.filter(
+    (filter: any) => filter?.enabled !== false && getDatasetFilterDataIds(filter).includes(dataId),
+  );
+  if (activeFilters.length === 0) {
+    return rowCount;
+  }
+
+  let filteredCount = 0;
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    if (activeFilters.every((filter: any) => datasetRowMatchesFilter(dataset, dataId, rowIndex, filter))) {
+      filteredCount += 1;
+    }
+  }
+
+  return filteredCount;
+}
+
 function getReplayHarnessState(): ReplayHarnessState | null {
   const demoState = getDemoState();
   const replayFilter = getReplayFilter();
@@ -279,7 +396,7 @@ function getReplayHarnessState(): ReplayHarnessState | null {
   const filteredCounts = {} as Record<ReplayDatasetId, number>;
   const replayStatus = {} as Record<ReplayDatasetId, string | null>;
   for (const dataId of REPLAY_FILTER_DATASETS) {
-    filteredCounts[dataId] = demoState.visState.datasets[dataId]?.filteredIndex.length ?? 0;
+    filteredCounts[dataId] = getDatasetFilteredCount(demoState, dataId);
     replayStatus[dataId] =
       demoState.visState.datasets[dataId]?.changedFilters?.fixedDomain?.[REPLAY_FILTER_ID] ?? null;
   }
