@@ -4,6 +4,7 @@ export interface ExampleConfig {
   serviceId: string;
   layerId: number;
   routeId: string;
+  routeIdField: string;
   where: string;
   objectIds: string;
   resultRecordCount: number;

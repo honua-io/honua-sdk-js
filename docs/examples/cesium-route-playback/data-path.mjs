@@ -17,6 +17,7 @@ export function createExampleConfig(search = "") {
     serviceId: params.get("serviceId") ?? "route-playback-demo",
     layerId: parseInteger(params.get("layerId"), 0),
     routeId: params.get("routeId") ?? "",
+    routeIdField: params.get("routeIdField") ?? "",
     where: params.get("where") ?? "1=1",
     objectIds: params.get("objectIds") ?? "",
     resultRecordCount: parseInteger(params.get("resultRecordCount"), DEFAULT_RESULT_RECORD_COUNT),
@@ -171,7 +172,7 @@ export function normalizeRoutePlaybackSource(source, config = {}) {
     queryResponse,
     featureCount,
     routeName: readRouteName(selectedFeature.attributes),
-    routeId: readRouteId(selectedFeature.attributes),
+    routeId: readRouteId(selectedFeature.attributes, source.manifest),
     attributes: selectedFeature.attributes ?? {},
     geometryType: queryResponse.geometryType ?? "esriGeometryPolyline",
     pathCount: paths.length,
@@ -198,7 +199,7 @@ function createLiveManifest(config, queryRequest) {
       routeIdValue: config.routeId || null,
     },
     fieldMapping: {
-      routeId: null,
+      routeId: config.routeIdField || null,
       routeName: "route_name",
       startTimestamp: null,
     },
@@ -329,8 +330,8 @@ function readRouteName(attributes = {}) {
   return readAttributeValue(attributes, ROUTE_NAME_FIELDS) ?? "Route playback demo";
 }
 
-function readRouteId(attributes = {}) {
-  return readComparableAttributeValue(attributes, ROUTE_ID_FIELDS) ?? "route-playback-demo";
+function readRouteId(attributes = {}, manifest) {
+  return readComparableAttributeValue(attributes, getRouteIdMatchFields(manifest)) ?? "route-playback-demo";
 }
 
 function readAttributeValue(attributes, candidates) {

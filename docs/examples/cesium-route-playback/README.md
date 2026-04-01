@@ -52,13 +52,14 @@ The browser page reads its configuration from the query string.
 - `baseUrl`: required in live mode. Trailing slashes are trimmed before `HonuaClient` is created.
 - `serviceId`: defaults to `route-playback-demo`.
 - `layerId`: defaults to `0`.
-- `routeId`: optional explicit route identifier used only for client-side feature selection when a live query can still return multiple polylines. The matcher compares normalized string values across the configured route-id field when one is known, otherwise it falls back to the example's common route-id aliases.
+- `routeId`: optional explicit route identifier used only for client-side feature selection when a live query can still return multiple polylines. It does not narrow the server request by itself, so prefer pairing it with a tighter `where` or `objectIds` filter when possible. The matcher compares normalized string values across the configured route-id field when one is known, otherwise it falls back to the example's common route-id aliases.
+- `routeIdField`: optional live-mode route-id attribute name. Set this when the live layer stores route ids outside the example's built-in aliases like `route_id` or `routeId`.
 - `where`: defaults to `1=1`.
 - `objectIds`: optional live-mode filter passed through to the query request.
 - `resultRecordCount`: defaults to `1` so the live query stays intentionally bounded.
 - `speed`: playback speed in meters per second. Default: `18`.
 - `fixtureUrl`: fixture payload URL. Default: `./fixtures/route-query-response.json`.
-- `manifestUrl`: manifest URL. Default: `./fixtures/source-manifest.json`.
+- `manifestUrl`: fixture-mode manifest URL. Default: `./fixtures/source-manifest.json`.
 - `terrainUrl`: optional Cesium terrain endpoint. Tried before `ionToken`.
 - `ionToken`: optional Cesium ion token used only when `terrainUrl` is absent or fails.
 
@@ -82,8 +83,8 @@ Notes:
 - the query is intentionally bounded and always uses `outFields=["*"]`,
   `outSr=4326`, `returnGeometry=true`, and `extraParams.returnZ=true`
 - if the live layer can still return multiple polyline features, pass
-  `routeId` or narrow `where`/`objectIds`; the example errors instead of
-  choosing one heuristically
+  `routeId`, set `routeIdField` when the identifier lives in a custom attribute,
+  or narrow `where`/`objectIds`; the example errors instead of choosing one heuristically
 - the request duration shown in diagnostics comes from a temporary `HonuaClient`
   interceptor attached by the example
 - CORS still has to allow the browser request when `baseUrl` is cross-origin
@@ -99,13 +100,15 @@ The example keeps the conversion path explicit:
 3. The query response must expose `features[]` entries with polyline
    `geometry.paths`. Non-polyline features are ignored.
 4. `data-path.mjs` copies `routeId` into `manifest.query.routeIdValue` in live
-   mode and selects the polyline feature whose configured route id matches after
-   string normalization. It uses `fieldMapping.routeId` when available, and
-   otherwise falls back through the example's route-id aliases. If multiple
-   polyline features remain without a configured route id, the example throws
-   instead of guessing.
-5. Multipart polylines are reduced to the longest path with at least two valid
-   vertices, then normalized into Cesium-friendly WGS84 coordinates.
+   mode and uses it only for post-query client-side feature selection. It
+   selects the polyline feature whose configured route id matches after string
+   normalization. In live mode, `routeIdField` seeds `fieldMapping.routeId`
+   when the layer uses a nonstandard attribute name; otherwise the selector
+   falls back through the example's route-id aliases. If multiple polyline
+   features remain without a configured route id, the example throws instead of
+   guessing.
+5. Multipart polylines are reduced to the physically longest path by measured
+   segment distance, then normalized into Cesium-friendly WGS84 coordinates.
 6. Route labels fall back through `route_name`, `routeName`, `name`, and `Name`.
    Route ids fall back through `route_id`, `routeId`, `ROUTE_ID`, and `Name`.
 7. If source Z values exist, the example preserves them for display when terrain
@@ -127,7 +130,10 @@ preprocessing:
 - query in WGS84 degrees because Cesium expects longitude/latitude input
 - provide `routeId` or another query bound whenever a live route query can
   still return multiple polyline features
-- normalize Esri polyline paths into one playback track
+- provide `routeIdField` when the live route identifier is not exposed through
+  the example's built-in route-id aliases
+- normalize Esri polyline paths into one playback track by selecting the
+  physically longest path
 - decide how to treat source Z values when their units are not confirmed
 - derive timestamps client-side instead of consuming route time attributes
 - supply an external terrain source if topographic context matters
@@ -181,7 +187,8 @@ What is still missing:
 The example surfaces its runtime state in two places:
 
 - the page diagnostics panel shows source mode, selected query, geometry type,
-  feature and vertex counts, request duration, playback distance, and playback duration
+  feature and vertex counts, source-Z presence, height mode, terrain mode,
+  request duration, playback distance, and playback duration
 - the warnings panel shows terrain fallback and load failures directly
 
 For browser smoke tests and local inspection, the example also exposes:
@@ -191,8 +198,9 @@ For browser smoke tests and local inspection, the example also exposes:
 - `window.__cesiumRoutePlaybackResult`
 
 `window.__cesiumRoutePlaybackResult` includes the source mode, route identity,
-feature and vertex counts, terrain and height mode, query request details,
-warnings, preprocessing steps, and rendered entity count.
+feature and vertex counts, terrain and height mode, live compatibility status,
+request duration, query request details, warnings, preprocessing steps, and
+rendered entity count.
 
 Verification commands:
 

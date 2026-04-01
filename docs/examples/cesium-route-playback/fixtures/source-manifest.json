@@ -26,7 +26,7 @@
   },
   "preprocessing": [
     "Select the bounded route feature from a FeatureServer/query response.",
-    "Flatten the longest polyline path into a single WGS84 track for Cesium entities.",
+    "Flatten the physically longest polyline path by measured segment distance into a single WGS84 track for Cesium entities.",
     "Preserve source Z values when terrain sampling is disabled.",
     "Derive playback timestamps from cumulative segment distance because no route time field is present."
   ],
