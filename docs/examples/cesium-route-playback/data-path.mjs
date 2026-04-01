@@ -198,7 +198,7 @@ function createLiveManifest(config, queryRequest) {
       routeIdValue: config.routeId || null,
     },
     fieldMapping: {
-      routeId: "route_id",
+      routeId: null,
       routeName: "route_name",
       startTimestamp: null,
     },
@@ -218,14 +218,17 @@ function isPolylineFeature(geometry) {
 }
 
 function findFeatureByManifestRouteId(features, manifest) {
-  const routeIdField = manifest?.fieldMapping?.routeId;
-  const routeIdValue = manifest?.query?.routeIdValue;
+  const routeIdValue = normalizeComparableRouteId(manifest?.query?.routeIdValue);
 
-  if (!routeIdField || routeIdValue === undefined || routeIdValue === null || routeIdValue === "") {
+  if (!routeIdValue) {
     return null;
   }
 
-  return features.find((feature) => feature?.attributes?.[routeIdField] === routeIdValue) ?? null;
+  const routeIdFields = getRouteIdMatchFields(manifest);
+  return (
+    features.find((feature) => featureAttributesMatchRouteId(feature?.attributes, routeIdFields, routeIdValue)) ??
+    null
+  );
 }
 
 function selectSinglePolylineFeature(features, manifest) {
@@ -327,7 +330,7 @@ function readRouteName(attributes = {}) {
 }
 
 function readRouteId(attributes = {}) {
-  return readAttributeValue(attributes, ROUTE_ID_FIELDS) ?? "route-playback-demo";
+  return readComparableAttributeValue(attributes, ROUTE_ID_FIELDS) ?? "route-playback-demo";
 }
 
 function readAttributeValue(attributes, candidates) {
@@ -339,6 +342,45 @@ function readAttributeValue(attributes, candidates) {
   }
 
   return null;
+}
+
+function readComparableAttributeValue(attributes, candidates) {
+  for (const key of candidates) {
+    const value = normalizeComparableRouteId(attributes[key]);
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function getRouteIdMatchFields(manifest) {
+  const configuredField = manifest?.fieldMapping?.routeId;
+  return Array.from(new Set([configuredField, ...ROUTE_ID_FIELDS].filter(isNonEmptyString)));
+}
+
+function featureAttributesMatchRouteId(attributes, candidateFields, routeIdValue) {
+  if (!attributes || typeof attributes !== "object") {
+    return false;
+  }
+
+  return candidateFields.some((field) => normalizeComparableRouteId(attributes[field]) === routeIdValue);
+}
+
+function normalizeComparableRouteId(value) {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+  if (typeof value === "number" || typeof value === "bigint") {
+    return String(value);
+  }
+  return null;
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.length > 0;
 }
 
 function haversineDistanceMeters(from, to) {

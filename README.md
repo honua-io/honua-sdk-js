@@ -29,7 +29,7 @@ console.log(result.features); // fully typed HonuaFeature[]
 - [`examples/kepler-analytics/`](./examples/kepler-analytics/README.md): fixture-first kepler.gl analytics demo for an `operations replay` workflow with committed GeoJSON plus metadata, KPI cards, walkthrough copy, and focused browser smoke coverage.
 - [`docs/examples/cesium-route-playback/README.md`](./docs/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
-The example READMEs document the run lanes, accepted data contracts, preprocessing rules, and browser diagnostics for each workflow.
+The example READMEs document the run lanes, accepted data contracts, live-query narrowing rules, preprocessing rules, and browser diagnostics for each workflow.
 
 The kepler example README documents the fixture metadata manifest, required dataset IDs and fields, the default incident status and replay-window filters, browser readiness/error plus replay-harness hooks, refresh stdout JSON, and the runtime style override env vars used by the demo.
 
@@ -49,7 +49,7 @@ cp examples/storytelling-25d-map/.env.example examples/storytelling-25d-map/.env
 npm run demo:25d
 ```
 
-Use the linked example READMEs for the `2.5D` collection contract, the Cesium live-query URL parameters, terrain fallback behavior, and smoke-test globals.
+Use the linked example READMEs for the `2.5D` collection contract, the Cesium live-query URL parameters and multi-route selection rules, terrain fallback behavior, and smoke-test globals.
 
 ## Server Compatibility Baseline
 

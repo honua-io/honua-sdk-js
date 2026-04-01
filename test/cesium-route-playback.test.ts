@@ -50,6 +50,80 @@ const MULTI_FEATURE_QUERY_RESPONSE = {
   ],
 };
 
+const MULTI_FEATURE_QUERY_RESPONSE_WITH_ALIAS_ROUTE_ID = {
+  geometryType: "esriGeometryPolyline",
+  features: [
+    {
+      attributes: {
+        routeId: "dense-short",
+        route_name: "Dense short connector",
+      },
+      geometry: {
+        paths: [
+          [
+            [-157.8583, 21.3069, 12],
+            [-157.85825, 21.30695, 12],
+            [-157.8582, 21.307, 12],
+            [-157.85815, 21.30705, 12],
+            [-157.8581, 21.3071, 12],
+          ],
+        ],
+      },
+    },
+    {
+      attributes: {
+        routeId: "intended-long",
+        route_name: "Intended long route",
+      },
+      geometry: {
+        paths: [
+          [
+            [-157.8583, 21.3069, 12],
+            [-156.5, 21.3069, 12],
+          ],
+        ],
+      },
+    },
+  ],
+};
+
+const MULTI_FEATURE_QUERY_RESPONSE_WITH_NUMERIC_ROUTE_ID = {
+  geometryType: "esriGeometryPolyline",
+  features: [
+    {
+      attributes: {
+        route_id: 7,
+        route_name: "Dense short connector",
+      },
+      geometry: {
+        paths: [
+          [
+            [-157.8583, 21.3069, 12],
+            [-157.85825, 21.30695, 12],
+            [-157.8582, 21.307, 12],
+            [-157.85815, 21.30705, 12],
+            [-157.8581, 21.3071, 12],
+          ],
+        ],
+      },
+    },
+    {
+      attributes: {
+        route_id: 42,
+        route_name: "Numeric route id",
+      },
+      geometry: {
+        paths: [
+          [
+            [-157.8583, 21.3069, 12],
+            [-156.5, 21.3069, 12],
+          ],
+        ],
+      },
+    },
+  ],
+};
+
 type MockInterceptor = {
   after?: (context: { durationMs: number }) => void;
   error?: (context: { durationMs?: number }) => void;
@@ -170,6 +244,44 @@ describe("Cesium route playback example helpers", () => {
     });
     expect(normalized.routeId).toBe("intended-long");
     expect(normalized.routeName).toBe("Intended long route");
+    expect(normalized.vertexCount).toBe(2);
+  });
+
+  it("matches an explicit routeId against alias fields in live multi-feature responses", async () => {
+    const config = createExampleConfig(
+      "?mode=live&baseUrl=/mock-honua&serviceId=transport&layerId=0&routeId=intended-long&resultRecordCount=2",
+    );
+    const source = await loadRouteSource(config, {
+      HonuaClient: createMockHonuaClient(MULTI_FEATURE_QUERY_RESPONSE_WITH_ALIAS_ROUTE_ID),
+    });
+
+    const normalized = normalizeRoutePlaybackSource(source, config);
+
+    expect(source.manifest).toMatchObject({
+      fieldMapping: {
+        routeId: null,
+      },
+      query: {
+        routeIdValue: "intended-long",
+      },
+    });
+    expect(normalized.routeId).toBe("intended-long");
+    expect(normalized.routeName).toBe("Intended long route");
+    expect(normalized.vertexCount).toBe(2);
+  });
+
+  it("matches an explicit routeId against numeric live route ids", async () => {
+    const config = createExampleConfig(
+      "?mode=live&baseUrl=/mock-honua&serviceId=transport&layerId=0&routeId=42&resultRecordCount=2",
+    );
+    const source = await loadRouteSource(config, {
+      HonuaClient: createMockHonuaClient(MULTI_FEATURE_QUERY_RESPONSE_WITH_NUMERIC_ROUTE_ID),
+    });
+
+    const normalized = normalizeRoutePlaybackSource(source, config);
+
+    expect(normalized.routeId).toBe("42");
+    expect(normalized.routeName).toBe("Numeric route id");
     expect(normalized.vertexCount).toBe(2);
   });
 
