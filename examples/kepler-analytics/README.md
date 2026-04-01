@@ -56,6 +56,8 @@ The metadata file records:
 
 The app loads [`fixture-metadata.json`](./public/data/fixture-metadata.json) first, then fetches each dataset listed in `metadata.datasets`.
 
+The side rail renders `metadata.timeWindow.label`, but the shared kepler replay filter recomputes its `start` and `end` bounds from the minimum and maximum `replay_at` values present in the `incidents` and `unit-tracks` GeoJSON payloads when those timestamps exist. Fixture refreshes should keep `metadata.timeWindow` aligned with the exported timestamps so the visible copy and active replay filter stay in sync.
+
 Required metadata fields:
 
 - top-level story copy: `storyId`, `storyTitle`, `storySubtitle`, `modeLabel`, `exportedAt`, `sourceEnvironment`
@@ -63,7 +65,7 @@ Required metadata fields:
 - visible side-rail content: `walkthrough[]`, `kpis[]`, `provenance.badge`, `provenance.summary`, `provenance.derivationNotes[]`, `provenance.refreshCommand`
 - dataset manifest entries: `datasets[].id`, `label`, `path`, `recordCount`, and `source.{serviceId,layerId,endpoint,description,envServiceId,envLayerId,timeField?}`
 
-The saved kepler config references dataset IDs directly, and the replay time filter targets both `incidents` and `unit-tracks` on `replay_at`, so the committed manifest and any refreshed bundle must keep these exact IDs:
+The saved kepler config references dataset IDs directly. It applies `active-status-filter` to `incidents.status` with the default visible values `active`, `contained`, and `monitoring`, and `replay-window-filter` targets both `incidents` and `unit-tracks` on `replay_at`. The committed manifest and any refreshed bundle must keep these exact IDs:
 
 - `incidents`
 - `unit-tracks`
@@ -81,13 +83,7 @@ The browser derives the playback bundle from GeoJSON only. The refresh script co
 
 ## Maintainer refresh path
 
-The committed fixture is the default runtime path. Maintainers can refresh it from a live Honua environment with the SDK-backed script below.
-
-Prerequisite:
-
-```bash
-npm run build
-```
+The committed fixture is the default runtime path. Maintainers can refresh it from a live Honua environment with the SDK-backed script below. The documented repo-root wrapper builds `dist/src` first and then delegates to the example-local script.
 
 Required environment:
 
@@ -114,6 +110,8 @@ Refresh command:
 ```bash
 npm run demo:kepler:refresh-fixture
 ```
+
+If you invoke the example-local script directly with `npm --prefix examples/kepler-analytics run refresh-fixture`, run `npm run build` from the repo root first so it can import `dist/src/honua.js`.
 
 The refresh script:
 
@@ -149,6 +147,8 @@ On success it prints a JSON summary to stdout with this shape:
 }
 ```
 
+`telemetry[].status` is the HTTP status code for completed requests and `"error"` for interceptor-level failures. `durationMs` can be `null` when the request fails before a response is available.
+
 ## Smoke coverage
 
 Run the focused browser smoke for this demo:
@@ -159,6 +159,13 @@ npm run demo:kepler:smoke
 
 That build-and-smoke path validates the app shell, kepler mount, dataset labels, shared replay filtering, and browser error surface in fixture mode. The app also exposes `window.__keplerAnalyticsReady`, `window.__keplerAnalyticsError`, and `window.__keplerAnalyticsHarness` so smoke and external harnesses can wait for fixture load, inspect replay-filter state, and drive the shared replay window deterministically.
 
+`window.__keplerAnalyticsHarness` exposes:
+
+- `getReplayState()`, which returns `{ currentTime, dataIds, filteredCounts, layerIds, replayStatus, value }` for the shared replay filter state after kepler mounts
+- `setReplayWindow(startIso, endIso)`, which returns `true` once the demo is ready and updates the shared replay filter plus animation time
+
+`filteredCounts` reflects the currently active filters rather than raw manifest totals, so the default first load shows five visible incidents even though `fixture-metadata.json` records six incident features overall.
+
 ## Troubleshooting
 
 - If the app fails with missing modules, run `npm run demo:kepler:install` again.
@@ -166,4 +173,4 @@ That build-and-smoke path validates the app shell, kepler mount, dataset labels,
 - If the basemap style does not render in your environment, provide a Mapbox token and opt into kepler's defaults:
   - `VITE_MAPBOX_TOKEN=...`
   - `VITE_KEPLER_USE_MAPBOX_DEFAULTS=true`
-- If fixture refresh fails before querying, run `npm run build` from the repo root so the script can import the built SDK from `dist/src`.
+- If the example-local `refresh-fixture` script fails before querying, run `npm run build` from the repo root so it can import the built SDK from `dist/src`.

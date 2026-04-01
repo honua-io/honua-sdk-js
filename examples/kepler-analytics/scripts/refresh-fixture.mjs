@@ -111,6 +111,22 @@ function normalizeFeatureProperties(properties) {
   return properties && typeof properties === "object" ? properties : {};
 }
 
+function getFeatureProperties(feature) {
+  if (!feature || typeof feature !== "object") {
+    return {};
+  }
+
+  if ("attributes" in feature) {
+    return normalizeFeatureProperties(feature.attributes);
+  }
+
+  if ("properties" in feature) {
+    return normalizeFeatureProperties(feature.properties);
+  }
+
+  return {};
+}
+
 function geometryToGeoJson(geometry) {
   if (!geometry || typeof geometry !== "object") {
     return null;
@@ -165,24 +181,24 @@ function geometryToGeoJson(geometry) {
   throw new Error(`Unsupported geometry payload: ${JSON.stringify(geometry)}`);
 }
 
-function sortFeatures(features, timeField) {
+export function sortFeatures(features, timeField) {
   if (!timeField) {
     return [...features];
   }
 
   return [...features].sort((left, right) => {
-    const leftValue = toTimestamp(normalizeFeatureProperties(left.properties)[timeField]) ?? 0;
-    const rightValue = toTimestamp(normalizeFeatureProperties(right.properties)[timeField]) ?? 0;
+    const leftValue = toTimestamp(getFeatureProperties(left)[timeField]) ?? 0;
+    const rightValue = toTimestamp(getFeatureProperties(right)[timeField]) ?? 0;
     return leftValue - rightValue;
   });
 }
 
-function toFeatureCollection(features, timeField) {
+export function toFeatureCollection(features, timeField) {
   return {
     type: "FeatureCollection",
     features: sortFeatures(features, timeField).map((feature) => ({
       type: "Feature",
-      properties: normalizeFeatureProperties(feature.attributes),
+      properties: getFeatureProperties(feature),
       geometry: geometryToGeoJson(feature.geometry)
     }))
   };
@@ -360,7 +376,7 @@ function formatHonuaError(error) {
   return String(error);
 }
 
-async function main() {
+export async function main() {
   await ensureBuiltSdk();
 
   const { HonuaClient, isHonuaError } = await import(pathToFileURL(builtSdkEntry).href);
@@ -449,7 +465,7 @@ async function main() {
   return { isHonuaError };
 }
 
-main().catch(async (error) => {
+async function handleCliError(error) {
   try {
     await ensureBuiltSdk();
     const { isHonuaError } = await import(pathToFileURL(builtSdkEntry).href);
@@ -459,4 +475,10 @@ main().catch(async (error) => {
     process.stderr.write(`${formatHonuaError(error)}\n`);
   }
   process.exit(1);
-});
+}
+
+const isDirectRun = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+
+if (isDirectRun) {
+  await main().catch(handleCliError);
+}

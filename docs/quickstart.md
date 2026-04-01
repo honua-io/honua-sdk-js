@@ -26,6 +26,8 @@ npm run demo:kepler:dev
 
 Open `http://127.0.0.1:4175`. The demo loads `/data/fixture-metadata.json` first, then reads the committed GeoJSON datasets declared there, so the default local story stays deterministic without a live Honua environment.
 
+The shipped kepler config also applies an initial `status` filter on `incidents` (`active`, `contained`, `monitoring`) and a shared `replay_at` time range across `incidents` and `unit-tracks`, so first-load visible counts are intentionally narrower than the raw `recordCount` values recorded in the manifest.
+
 ## Prerequisites
 
 - Node.js 20+

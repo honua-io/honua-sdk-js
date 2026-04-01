@@ -30,7 +30,7 @@ console.log(result.features); // fully typed HonuaFeature[]
 
 The example README documents the mock and live run lanes, accepted collection-field aliases, and the browser telemetry/error hooks used by the demo.
 
-The kepler example README documents the fixture metadata manifest, required dataset IDs and fields, browser readiness/error plus replay-harness hooks, refresh stdout JSON, and the runtime style override env vars used by the demo.
+The kepler example README documents the fixture metadata manifest, required dataset IDs and fields, the default incident status and replay-window filters, browser readiness/error plus replay-harness hooks, refresh stdout JSON, and the runtime style override env vars used by the demo.
 
 Deterministic local review flow from this repo:
 
@@ -150,6 +150,8 @@ Open `http://127.0.0.1:4175` to view the fixture-first `operations replay` story
 ```bash
 npm run demo:kepler:refresh-fixture
 ```
+
+The repo-root refresh wrapper builds the SDK before delegating to the example-local script. Set `HONUA_DEMO_BASE_URL` and any optional auth or service override env vars described in the example README before running it.
 
 ## Verify
 
