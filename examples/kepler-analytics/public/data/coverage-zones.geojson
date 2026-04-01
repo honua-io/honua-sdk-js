@@ -1,0 +1,128 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "harbor-corridor",
+        "zone_name": "Harbor corridor",
+        "coverage_state": "At risk",
+        "sla_gap_pct": 14.2,
+        "median_response_min": 9,
+        "incidents_total": 3,
+        "units_engaged": 2,
+        "window_start": "2026-05-01T16:00:00.000Z",
+        "window_end": "2026-05-01T17:30:00.000Z"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -157.915,
+              21.288
+            ],
+            [
+              -157.915,
+              21.345
+            ],
+            [
+              -157.846,
+              21.345
+            ],
+            [
+              -157.846,
+              21.288
+            ],
+            [
+              -157.915,
+              21.288
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "urban-core",
+        "zone_name": "Urban core",
+        "coverage_state": "Stable",
+        "sla_gap_pct": 7.8,
+        "median_response_min": 7,
+        "incidents_total": 1,
+        "units_engaged": 1,
+        "window_start": "2026-05-01T16:00:00.000Z",
+        "window_end": "2026-05-01T17:30:00.000Z"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -157.866,
+              21.276
+            ],
+            [
+              -157.866,
+              21.318
+            ],
+            [
+              -157.821,
+              21.318
+            ],
+            [
+              -157.821,
+              21.276
+            ],
+            [
+              -157.866,
+              21.276
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone_id": "east-corridor",
+        "zone_name": "East corridor",
+        "coverage_state": "Breaching",
+        "sla_gap_pct": 18.9,
+        "median_response_min": 9,
+        "incidents_total": 2,
+        "units_engaged": 2,
+        "window_start": "2026-05-01T16:00:00.000Z",
+        "window_end": "2026-05-01T17:30:00.000Z"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -157.834,
+              21.262
+            ],
+            [
+              -157.834,
+              21.328
+            ],
+            [
+              -157.776,
+              21.328
+            ],
+            [
+              -157.776,
+              21.262
+            ],
+            [
+              -157.834,
+              21.262
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
