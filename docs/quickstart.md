@@ -8,6 +8,13 @@ lane, a pitched `2.5D` map, polygon extrusions, scripted route replay, and the
 exact compatibility, OGC collection, and telemetry contract used by the demo, see
 [`examples/storytelling-25d-map/README.md`](../examples/storytelling-25d-map/README.md).
 
+For an exploratory browser-side 3D workflow that keeps the SDK runtime surface
+unchanged, see
+[`docs/examples/cesium-route-playback/README.md`](./examples/cesium-route-playback/README.md).
+That example stays fixture-first by default, switches to a bounded live
+`FeatureServer/query` request only when `?mode=live&baseUrl=...` is supplied, and
+does not expand the SDK's WebMap or scene-contract support.
+
 ## What You'll Build
 
 A single-page app that:

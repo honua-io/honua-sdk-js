@@ -27,12 +27,13 @@ console.log(result.features); // fully typed HonuaFeature[]
 
 - [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, same-origin fixture mocking, OGC collection overlays, polygon extrusions, and route replay.
 - [`examples/kepler-analytics/`](./examples/kepler-analytics/README.md): fixture-first kepler.gl analytics demo for an `operations replay` workflow with committed GeoJSON plus metadata, KPI cards, walkthrough copy, and focused browser smoke coverage.
+- [`docs/examples/cesium-route-playback/README.md`](./docs/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
-The example README documents the mock and live run lanes, accepted collection-field aliases, and the browser telemetry/error hooks used by the demo.
+The example READMEs document the run lanes, accepted data contracts, preprocessing rules, and browser diagnostics for each workflow.
 
 The kepler example README documents the fixture metadata manifest, required dataset IDs and fields, the default incident status and replay-window filters, browser readiness/error plus replay-harness hooks, refresh stdout JSON, and the runtime style override env vars used by the demo.
 
-Deterministic local review flow from this repo:
+Deterministic local review flow for the `2.5D` demo:
 
 ```bash
 npm install
@@ -41,14 +42,14 @@ npm run demo:25d:mock
 
 The command builds the example, serves fixture-backed Honua responses, and prints `story25dMockUrl=http://127.0.0.1:PORT`.
 
-Live Honua flow:
+Live Honua flow for the `2.5D` demo:
 
 ```bash
 cp examples/storytelling-25d-map/.env.example examples/storytelling-25d-map/.env
 npm run demo:25d
 ```
 
-Use the example README for the required OGC collection shapes and supported property aliases.
+Use the linked example READMEs for the `2.5D` collection contract, the Cesium live-query URL parameters, terrain fallback behavior, and smoke-test globals.
 
 ## Server Compatibility Baseline
 
@@ -158,8 +159,10 @@ The repo-root refresh wrapper builds the SDK before delegating to the example-lo
 ```bash
 npm run typecheck
 npm run demo:25d:typecheck
+npx vitest run test/cesium-route-playback.test.ts
 npx vitest run test/storytelling-25d-config.test.ts test/storytelling-25d-data.test.ts
 npm test
+npx playwright test test/playwright/cesium-route-playback.spec.mjs
 npm run test:playwright:25d
 npm run test:playwright
 npm run demo:kepler:smoke

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Honua Cesium Route Playback Spike</title>
+    <link rel="stylesheet" href="/node_modules/cesium/Build/Cesium/Widgets/widgets.css" />
+    <style>
+      :root {
+        --bg: #020611;
+        --panel: rgba(7, 18, 33, 0.88);
+        --panel-border: rgba(126, 165, 214, 0.24);
+        --text: #eff7ff;
+        --muted: #9db3cb;
+        --accent: #46d6a7;
+        --accent-warm: #ff8b3d;
+        --danger: #ff6b6b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(70, 214, 167, 0.16), transparent 32%),
+          radial-gradient(circle at right center, rgba(255, 139, 61, 0.15), transparent 28%),
+          linear-gradient(160deg, #01040b 0%, #071222 52%, #09172a 100%);
+        color: var(--text);
+        font-family: "Segoe UI", "Avenir Next", sans-serif;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(320px, 420px) 1fr;
+        min-height: 100vh;
+      }
+
+      .panel {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        padding: 28px 22px 24px;
+        background: var(--panel);
+        backdrop-filter: blur(14px);
+        border-right: 1px solid var(--panel-border);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-self: flex-start;
+        padding: 6px 10px;
+        border-radius: 999px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 11px;
+        background: rgba(70, 214, 167, 0.14);
+        color: var(--accent);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.8rem, 2.8vw, 2.6rem);
+        line-height: 1.02;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 13px;
+        background: rgba(157, 179, 203, 0.12);
+        color: var(--text);
+      }
+
+      .status {
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(157, 179, 203, 0.18);
+      }
+
+      .status strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 14px;
+        font: inherit;
+        font-weight: 600;
+        color: var(--bg);
+        background: var(--text);
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .progress {
+        display: grid;
+        gap: 8px;
+      }
+
+      .progress-track {
+        height: 10px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(157, 179, 203, 0.16);
+      }
+
+      .progress-track span {
+        display: block;
+        width: 0;
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-warm));
+      }
+
+      .section {
+        display: grid;
+        gap: 10px;
+      }
+
+      .section h2 {
+        margin: 0;
+        font-size: 14px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .details {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+      }
+
+      .detail-item {
+        display: grid;
+        gap: 2px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(157, 179, 203, 0.12);
+      }
+
+      .detail-item dt {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+      }
+
+      .detail-item dd {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      ol,
+      ul {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+        padding-left: 20px;
+        color: var(--text);
+      }
+
+      li {
+        line-height: 1.45;
+      }
+
+      .warnings {
+        color: #ffe3d4;
+      }
+
+      #map {
+        position: relative;
+        min-height: 60vh;
+      }
+
+      @media (max-width: 920px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .panel {
+          border-right: 0;
+          border-bottom: 1px solid var(--panel-border);
+        }
+
+        #map {
+          min-height: 55vh;
+        }
+      }
+    </style>
+    <script>
+      window.CESIUM_BASE_URL = "/node_modules/cesium/Build/Cesium";
+    </script>
+    <script src="/node_modules/cesium/Build/Cesium/Cesium.js"></script>
+  </head>
+  <body>
+    <main class="layout">
+      <section class="panel">
+        <span class="eyebrow">Exploratory 3D Spike</span>
+        <div>
+          <h1>Cesium route playback with Honua query data</h1>
+          <p>
+            This example keeps the SDK runtime surface unchanged. It turns one Honua
+            polyline query into a moving Cesium entity with explicit geometry normalization,
+            optional terrain sampling, and diagnostics for what had to be inferred.
+          </p>
+        </div>
+
+        <div class="chips">
+          <span class="chip" id="source-chip">Loading source...</span>
+          <span class="chip" id="terrain-chip">Resolving terrain...</span>
+        </div>
+
+        <div class="status">
+          <strong id="result-banner">Starting example...</strong>
+          <span id="status-line">Waiting for the data path to initialize.</span>
+        </div>
+
+        <div class="controls">
+          <button id="play-button" disabled>Play</button>
+          <button id="pause-button" disabled>Pause</button>
+          <button id="replay-button" disabled>Replay</button>
+        </div>
+
+        <div class="progress">
+          <div class="chips">
+            <span class="chip">Playback progress</span>
+            <span class="chip" id="progress-value">0%</span>
+          </div>
+          <div class="progress-track">
+            <span id="progress-bar"></span>
+          </div>
+        </div>
+
+        <section class="section">
+          <h2>Diagnostics</h2>
+          <dl class="details" id="diagnostics-list"></dl>
+        </section>
+
+        <section class="section">
+          <h2>Data Path</h2>
+          <ol id="data-path"></ol>
+        </section>
+
+        <section class="section warnings">
+          <h2>Warnings</h2>
+          <ul id="warnings-list">
+            <li>None yet.</li>
+          </ul>
+        </section>
+      </section>
+
+      <div id="map"></div>
+    </main>
+
+    <script type="module" src="./app.mjs"></script>
+  </body>
+</html>
