@@ -25,9 +25,9 @@ console.log(result.features); // fully typed HonuaFeature[]
 
 ## Demo Apps
 
-- [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, OGC collection overlays, polygon extrusions, and route replay.
+- [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, same-origin fixture mocking, OGC collection overlays, polygon extrusions, and route replay.
 
-The example README documents the env vars, collection contract, and browser telemetry hooks used by the demo.
+The example README documents the mock and live run lanes, accepted collection-field aliases, and the browser telemetry/error hooks used by the demo.
 
 Deterministic local review flow from this repo:
 
@@ -140,6 +140,7 @@ npm run demo:25d
 ```bash
 npm run typecheck
 npm run demo:25d:typecheck
+npx vitest run test/storytelling-25d-config.test.ts test/storytelling-25d-data.test.ts
 npm test
 npm run test:playwright:25d
 npm run test:playwright

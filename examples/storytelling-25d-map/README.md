@@ -31,11 +31,14 @@ The script:
 2. serves the built app locally
 3. serves fixture responses for `GET /api/v1/admin/capabilities`
 4. serves fixture OGC collections for assets, route, and stops on same-origin paths
+5. overrides the basemap style to `/__honua-25d__/basemap-style.json` so the review lane stays self-contained
 
 The local URL is printed as `story25dMockUrl=http://127.0.0.1:PORT`.
 
 This lane depends on the demo defaulting `VITE_HONUA_25D_BASE_URL` to an empty string, so every SDK request stays
-same-origin against the fixture server.
+same-origin against the fixture server. It exercises the same `HonuaClient.checkCompatibility()` and
+`client.ogcFeatures().collection(...).items()` codepaths as the live app without depending on a seeded Honua
+environment.
 
 ## Live Honua Run
 
@@ -55,6 +58,8 @@ Supported env vars:
 - `VITE_HONUA_25D_STOPS_COLLECTION`: stops collection id. Default: `story-25d-stops`.
 - `VITE_HONUA_25D_BASEMAP_STYLE`: MapLibre style URL. Default: `https://demotiles.maplibre.org/style.json`.
 
+The app trims trailing slashes from `VITE_HONUA_25D_BASE_URL` before instantiating `HonuaClient`.
+
 ## Network And Compatibility Contract
 
 The browser runtime makes one compatibility request before it loads any story data:
@@ -73,26 +78,40 @@ After compatibility passes, the demo loads the three collections in parallel thr
 - `GET /ogc/features/collections/{route}/items?limit=250`
 - `GET /ogc/features/collections/{stops}/items?limit=250`
 
+When `VITE_HONUA_25D_API_KEY` is set, the SDK forwards it on the compatibility request and the OGC collection
+requests as `X-API-Key`.
+
 The route replay is client-side after this initial load, so story navigation and animation do not re-fetch data.
 
 ## Collection Contract
 
 Required live collection behavior:
 
-- assets collection: at least one `Polygon` or `MultiPolygon`
-- route collection: at least one `LineString` or `MultiLineString`
-- stops collection: at least one `Point`
+- assets collection: at least one `Polygon` or `MultiPolygon`; non-polygon features are ignored
+- route collection: at least one `LineString` or `MultiLineString`; the first matching feature becomes the replay path
+- stops collection: at least one `Point`; non-point features are ignored and the remaining stops are sorted by sequence
+- numeric risk, height, and sequence values may be native numbers or numeric strings
 
-Supported asset fields:
+Supported asset fields and defaults:
 
 - stable ids should come from `feature.id`; if omitted, the demo falls back to `story_id`, `asset_id`, `assetId`, `id`, `name`, or `title`
+- display title can come from `title`, `name`, `asset_name`, `assetName`, or `label`
+- district can come from `district`, `zone`, `area`, or `corridor`
+- status can come from `status`, `inspection_status`, or `condition`
+- summary can come from `summary`, `description`, `story`, or `note`
+- linked stop ids can come from `linked_stop_id`, `linkedStopId`, `stop_id`, or `stopId`
 - numeric risk can come from `risk_score`, `riskScore`, `risk`, `severity`, or `priority_score`
 - extrusion height can come from `extrusion_height_m`, `height_m`, `height`, `heightMeters`, `elevation_m`, `elevation`, or `floors` where `floors` is converted as `floors * 4`
-- display copy falls back from common aliases for title, district, status, summary, and linked stop id, then to deterministic defaults
+- missing title, district, status, and summary fields fall back to deterministic copy and missing heights are rejected
+- normalized heights are rounded to one decimal place and clamped to a minimum of `8m`
+- normalized risk buckets are `stable`, `guarded`, `high`, or `severe`
 
 Supported route and stop fields:
 
+- route ids use the same stable-id fallback chain if `feature.id` is absent
 - route title can come from `title`, `name`, or `route_name`; route summary can come from `summary` or `description`
+- stop ids use the same stable-id fallback chain if `feature.id` is absent
+- stop title can come from `title`, `name`, or `stop_name`; stop summary can come from `summary` or `description`
 - stops are ordered by `sequence`, `seq`, or `order`
 - stop-to-asset linkage can come from `linked_asset_id`, `linkedAssetId`, `asset_id`, or `assetId`
 
@@ -126,13 +145,19 @@ For browser smoke tests and developer inspection, the demo exposes runtime signa
 - `window.__HONUA_25D_EVENTS__`: ordered telemetry events such as `init`, `compatibility-ok`, `data-loaded`, `story-step-changed`, `route-playback-started`, `route-playback-finished`, and `error`
 - `window.__HONUA_25D_RUNTIME__`: runtime state including `datasetSummary`, `currentStepId`, `routeProgress`, `mapReady`, `pitch`, `sourceIds`, `layerIds`, and `selectedAssetId`
 - each telemetry event is also dispatched as `CustomEvent("honua:25d-demo")`
+- `compatibility-ok` includes `serverVersion`, `releaseChannel`, and resolved `baseUrl`; `data-loaded` includes the dataset summary plus resolved collection ids
+- `story-step-changed` includes `stepId`, `stepIndex`, and `totalSteps`; route playback events include stop counts and replay duration
 
-Startup failures are surfaced in the loading overlay and mirrored into `#demo-status`.
+Startup failures are surfaced in the loading overlay and mirrored into `#demo-status`. Unsupported compatibility
+reasons are shown directly, and collection fetch failures are wrapped as `Failed to load the {label} collection
+"{id}" from OGC API Features: ...`. Basemap style failures are wrapped as `Failed to load the basemap style
+"{url}": ...`.
 
 ## Verification
 
 ```bash
 npm run demo:25d:typecheck
+npx vitest run test/storytelling-25d-config.test.ts test/storytelling-25d-data.test.ts
 npm run test:playwright:25d
 ```
 

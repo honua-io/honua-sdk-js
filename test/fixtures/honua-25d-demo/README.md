@@ -16,5 +16,14 @@ Canonical fixture properties:
 - `route.json` uses a single `LineString` feature for playback
 - `stops.json` uses canonical `sequence` and `linked_asset_id` properties
 
+Mock-lane behavior:
+
+- `examples/storytelling-25d-map/mock-server.mjs` builds the demo with `VITE_HONUA_25D_BASE_URL=""` so every SDK
+  request stays same-origin against the fixture server
+- the mock lane also overrides `VITE_HONUA_25D_BASEMAP_STYLE` to `/__honua-25d__/basemap-style.json`
+- the fixture server only serves the initial compatibility response and first-page OGC `items?limit=250` payloads;
+  story-step transitions and route replay stay client-side after load
+
 The fixture lane exists for local review and browser smoke coverage. The live runtime path still uses the same
-SDK-supported Honua compatibility endpoint and OGC API Features collections.
+SDK-supported Honua compatibility endpoint and OGC API Features collections, but the example README documents the
+additional alias support accepted by live payload normalization.

@@ -252,7 +252,9 @@ export function buildStoryDataset(
   });
 
   const focusAsset = priorityViews[0] ?? assetViews[0];
-  const focusStop = stops.features.find((feature) => feature.properties.linked_asset_id === focusAsset.feature.id);
+  const focusStop =
+    resolveLinkedStop(stops.features, focusAsset.feature.properties.linked_stop_id) ??
+    stops.features.find((feature) => feature.properties.linked_asset_id === focusAsset.feature.id);
 
   const allBounds = mergeBounds([
     ...assetViews.map((entry) => entry.bounds),
@@ -282,6 +284,17 @@ export function buildStoryDataset(
       routeLengthKm: Number((routeMetrics.totalMeters / 1_000).toFixed(2)),
     },
   };
+}
+
+function resolveLinkedStop(
+  stops: readonly StoryStopFeature[],
+  linkedStopId: StoryFeatureId | null,
+): StoryStopFeature | undefined {
+  if (!linkedStopId) {
+    return undefined;
+  }
+
+  return stops.find((feature) => feature.id === linkedStopId || feature.properties.story_id === linkedStopId);
 }
 
 function createCollectionLoadError(label: string, collectionId: string, error: unknown): Error {

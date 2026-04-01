@@ -23,13 +23,47 @@ const ROUTE_MARKER_LAYER_ID = "story-route-marker-layer";
 const STOP_BASE_LAYER_ID = "story-stop-base";
 const STOP_ACTIVE_LAYER_ID = "story-stop-active";
 
-function waitForMapLoad(map: MapLibreMap): Promise<void> {
-  if (map.loaded()) {
+function getErrorDetail(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error && "error" in error) {
+    return getErrorDetail((error as { error?: unknown }).error);
+  }
+
+  return typeof error === "string" ? error : "Unknown MapLibre error.";
+}
+
+function createBasemapLoadError(styleUrl: string, error: unknown): Error {
+  return new Error(`Failed to load the basemap style "${styleUrl}": ${getErrorDetail(error)}`);
+}
+
+function waitForMapStyle(map: MapLibreMap, styleUrl: string): Promise<void> {
+  if (map.isStyleLoaded() === true) {
     return Promise.resolve();
   }
 
-  return new Promise((resolve) => {
-    map.once("load", () => resolve());
+  return new Promise((resolve, reject) => {
+    const onStyleLoad = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = (event: unknown) => {
+      cleanup();
+      reject(createBasemapLoadError(styleUrl, event));
+    };
+    const cleanup = () => {
+      map.off("style.load", onStyleLoad);
+      map.off("error", onError);
+    };
+
+    map.on("style.load", onStyleLoad);
+    map.on("error", onError);
   });
 }
 
@@ -108,7 +142,7 @@ export async function createStoryMap(options: CreateStoryMapOptions): Promise<St
   });
 
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-  await waitForMapLoad(map);
+  await waitForMapStyle(map, options.config.basemapStyle);
 
   const routeMetrics = buildRouteMetrics(options.dataset.routeCoordinates);
 

@@ -32,6 +32,36 @@ describe("storytelling 2.5D demo data", () => {
     expect(dataset.assets.features[0]?.properties.risk_bucket).toBe("severe");
   });
 
+  it("uses asset-side linked stop ids for the asset-focus step when stop-side linkage is absent", () => {
+    const config = resolveStoryDemoConfig({});
+    const stops = readFixture<{
+      type: "FeatureCollection";
+      features: Array<{
+        type: "Feature";
+        id: string;
+        properties: Record<string, unknown>;
+        geometry: {
+          type: "Point";
+          coordinates: [number, number];
+        };
+      }>;
+    }>("stops.json");
+
+    const dataset = buildStoryDataset(config, readFixture("assets.json"), readFixture("route.json"), {
+      ...stops,
+      features: stops.features.map((feature) => ({
+        ...feature,
+        properties: {
+          ...feature.properties,
+          linked_asset_id: null,
+        },
+      })),
+    });
+
+    expect(dataset.focusAssetId).toBe("asset-harbor-substation");
+    expect(dataset.focusStopId).toBe("stop-harbor");
+  });
+
   it("fails fast when polygon features do not include numeric risk and height fields", () => {
     expect(() =>
       normalizeAssets({
