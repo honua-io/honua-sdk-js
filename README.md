@@ -23,6 +23,30 @@ const result = await client.queryFeatures({ serviceId: "parcels", layerId: 0 });
 console.log(result.features); // fully typed HonuaFeature[]
 ```
 
+## Demo Apps
+
+- [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, same-origin fixture mocking, OGC collection overlays, polygon extrusions, and route replay.
+
+The example README documents the mock and live run lanes, accepted collection-field aliases, and the browser telemetry/error hooks used by the demo.
+
+Deterministic local review flow from this repo:
+
+```bash
+npm install
+npm run demo:25d:mock
+```
+
+The command builds the example, serves fixture-backed Honua responses, and prints `story25dMockUrl=http://127.0.0.1:PORT`.
+
+Live Honua flow:
+
+```bash
+cp examples/storytelling-25d-map/.env.example examples/storytelling-25d-map/.env
+npm run demo:25d
+```
+
+Use the example README for the required OGC collection shapes and supported property aliases.
+
 ## Server Compatibility Baseline
 
 Use the server compatibility contract before enabling admin/control-plane flows:
@@ -103,11 +127,22 @@ npm install @honua/sdk-js
 npm install
 ```
 
+Storytelling demo loops:
+
+```bash
+npm run demo:25d:mock
+# or, with examples/storytelling-25d-map/.env configured:
+npm run demo:25d
+```
+
 ## Verify
 
 ```bash
 npm run typecheck
+npm run demo:25d:typecheck
+npx vitest run test/storytelling-25d-config.test.ts test/storytelling-25d-data.test.ts
 npm test
+npm run test:playwright:25d
 npm run test:playwright
 npm run scan:arcgis -- ../../path/to/arcgis-app
 npm run migrate:arcgis -- ../../path/to/arcgis-app --write --report migration-report.json

@@ -1,8 +1,22 @@
+import path from "node:path";
+
 import { defineConfig } from "vitest/config";
 
 const ci = Boolean(process.env.CI);
 
 export default defineConfig({
+  resolve: {
+    alias: [
+      {
+        find: "@honua/sdk-js/honua",
+        replacement: path.resolve(import.meta.dirname, "src/honua.ts"),
+      },
+      {
+        find: "@honua/sdk-js",
+        replacement: path.resolve(import.meta.dirname, "src/index.ts"),
+      },
+    ],
+  },
   test: {
     include: ["test/**/*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],

@@ -1,0 +1,128 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "asset-harbor-substation",
+      "properties": {
+        "name": "Harbor substation",
+        "district": "Harbor edge",
+        "status": "Inspection overdue",
+        "summary": "Primary substation carrying the highest flood and corrosion risk in the corridor.",
+        "risk_score": 92,
+        "extrusion_height_m": 48,
+        "linked_stop_id": "stop-harbor"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-157.8788, 21.3031],
+            [-157.8774, 21.3031],
+            [-157.8774, 21.3021],
+            [-157.8788, 21.3021],
+            [-157.8788, 21.3031]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "asset-kakaako-pump",
+      "properties": {
+        "name": "Kakaako pump station",
+        "district": "Kakaako",
+        "status": "Pump output degrading",
+        "summary": "Mid-corridor pump station with rising maintenance demand and route access dependencies.",
+        "risk_score": 81,
+        "extrusion_height_m": 36,
+        "linked_stop_id": "stop-corridor"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-157.8715, 21.3008],
+            [-157.8701, 21.3008],
+            [-157.8701, 21.2998],
+            [-157.8715, 21.2998],
+            [-157.8715, 21.3008]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "asset-civic-hub",
+      "properties": {
+        "name": "Civic operations hub",
+        "district": "Civic district",
+        "status": "Crew staging active",
+        "summary": "Crew staging and dispatch hub that stays in the route story but below the urgent threshold.",
+        "risk_score": 67,
+        "extrusion_height_m": 28
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-157.8659, 21.2989],
+            [-157.8645, 21.2989],
+            [-157.8645, 21.2979],
+            [-157.8659, 21.2979],
+            [-157.8659, 21.2989]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "asset-downtown-valve",
+      "properties": {
+        "name": "Downtown valve cluster",
+        "district": "Downtown edge",
+        "status": "Valve audit queued",
+        "summary": "Valve cluster that supports the route narrative but remains outside the highest-risk triage slice.",
+        "risk_score": 58,
+        "extrusion_height_m": 22
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-157.8601, 21.2964],
+            [-157.8588, 21.2964],
+            [-157.8588, 21.2953],
+            [-157.8601, 21.2953],
+            [-157.8601, 21.2964]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "asset-ward-yard",
+      "properties": {
+        "name": "Ward service yard",
+        "district": "Ward corridor",
+        "status": "Ready reserve",
+        "summary": "Low-risk reserve yard that stays visible in overview mode and grounds the corridor extent.",
+        "risk_score": 42,
+        "extrusion_height_m": 18,
+        "linked_stop_id": "stop-yard"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-157.8558, 21.2929],
+            [-157.8544, 21.2929],
+            [-157.8544, 21.2918],
+            [-157.8558, 21.2918],
+            [-157.8558, 21.2929]
+          ]
+        ]
+      }
+    }
+  ]
+}

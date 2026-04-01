@@ -1,0 +1,25 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "route-inspection-corridor",
+      "properties": {
+        "name": "Inspection corridor replay",
+        "summary": "Deterministic route connecting the harbor substation, mid-corridor pump station, and reserve yard."
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-157.8781, 21.3026],
+          [-157.8737, 21.3017],
+          [-157.8695, 21.3001],
+          [-157.8651, 21.2984],
+          [-157.8612, 21.2964],
+          [-157.8576, 21.2944],
+          [-157.8551, 21.2924]
+        ]
+      }
+    }
+  ]
+}

@@ -35,7 +35,7 @@
     "lineWidth": 120
   },
   "files": {
-    "include": ["src/**/*.ts", "test/**/*.ts"],
+    "include": ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts"],
     "ignore": ["dist", "node_modules", "src/gen", "test/fixtures"]
   }
 }

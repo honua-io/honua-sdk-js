@@ -1,0 +1,47 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "stop-harbor",
+      "properties": {
+        "title": "Harbor start",
+        "summary": "Open with the highest-risk substation to anchor the corridor story.",
+        "sequence": 1,
+        "linked_asset_id": "asset-harbor-substation"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-157.8781, 21.3026]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "stop-corridor",
+      "properties": {
+        "title": "Mid-corridor checkpoint",
+        "summary": "Pause on the pump station before replaying the last leg toward the reserve yard.",
+        "sequence": 2,
+        "linked_asset_id": "asset-kakaako-pump"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-157.8695, 21.3001]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "stop-yard",
+      "properties": {
+        "title": "Reserve yard handoff",
+        "summary": "Close the route with the lower-risk reserve yard that frames the full corridor extent.",
+        "sequence": 3,
+        "linked_asset_id": "asset-ward-yard"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-157.8551, 21.2924]
+      }
+    }
+  ]
+}
