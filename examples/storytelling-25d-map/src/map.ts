@@ -274,7 +274,7 @@ export async function createStoryMap(options: CreateStoryMapOptions): Promise<St
     layer: ASSET_EXTRUSION_LAYER_ID,
   });
 
-  let selectionCallback: ((id: StoryFeatureId | undefined) => void) | undefined = options.onAssetSelected;
+  const selectionCallback: ((id: StoryFeatureId | undefined) => void) | undefined = options.onAssetSelected;
   const selection: SelectionHandle = createSelectionHandler(map, {
     source: options.config.sourceIds.assets,
     layer: ASSET_EXTRUSION_LAYER_ID,
