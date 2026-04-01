@@ -78,4 +78,58 @@ describe("Cesium route playback example helpers", () => {
     expect(normalized.playbackSamples.at(-1)?.distanceMeters).toBeGreaterThan(0);
     expect(normalized.preprocessingSteps).toContain("Loaded a checked-in Honua FeatureServer/query fixture for deterministic playback.");
   });
+
+  it("selects the physically longest path from a multipart polyline", () => {
+    const normalized = normalizeRoutePlaybackSource(
+      {
+        sourceMode: "fixture",
+        manifest: null,
+        queryRequest: null,
+        queryResponse: {
+          geometryType: "esriGeometryPolyline",
+          features: [
+            {
+              attributes: {
+                route_id: "multipart-demo",
+                route_name: "Multipart demo",
+              },
+              geometry: {
+                paths: [
+                  [
+                    [-157.8583, 21.3069, 12],
+                    [-157.8582, 21.307, 12],
+                    [-157.8581, 21.3071, 12],
+                  ],
+                  [
+                    [-157.8583, 21.3069, 12],
+                    [-156.5, 21.3069, 12],
+                  ],
+                ],
+              },
+            },
+          ],
+        },
+      },
+      { speedMetersPerSecond: 18 },
+    );
+
+    expect(normalized.pathCount).toBe(2);
+    expect(normalized.vertexCount).toBe(2);
+    expect(normalized.positions).toEqual([
+      {
+        longitude: -157.8583,
+        latitude: 21.3069,
+        sourceZ: 12,
+      },
+      {
+        longitude: -156.5,
+        latitude: 21.3069,
+        sourceZ: 12,
+      },
+    ]);
+    expect(normalized.totalDistanceMeters).toBeGreaterThan(100_000);
+    expect(normalized.preprocessingSteps).toContain(
+      "Selected the longest path from a multi-part polyline before playback.",
+    );
+  });
 });

@@ -240,9 +240,36 @@ function countFeatureVertices(feature) {
 }
 
 function selectLongestPath(paths) {
-  return paths.reduce((selected, candidate) => {
-    return candidate.length > selected.length ? candidate : selected;
-  });
+  let selected = paths[0];
+  let selectedLengthMeters = measurePathLengthMeters(selected);
+
+  for (const candidate of paths.slice(1)) {
+    const candidateLengthMeters = measurePathLengthMeters(candidate);
+    if (candidateLengthMeters > selectedLengthMeters) {
+      selected = candidate;
+      selectedLengthMeters = candidateLengthMeters;
+    }
+  }
+
+  return selected;
+}
+
+function measurePathLengthMeters(path) {
+  if (!Array.isArray(path)) {
+    return 0;
+  }
+
+  const positions = path.map((coordinate) => normalizeCoordinate(coordinate)).filter(Boolean);
+  if (positions.length < 2) {
+    return 0;
+  }
+
+  let totalDistanceMeters = 0;
+  for (let index = 1; index < positions.length; index += 1) {
+    totalDistanceMeters += haversineDistanceMeters(positions[index - 1], positions[index]);
+  }
+
+  return totalDistanceMeters;
 }
 
 function normalizeCoordinate(coordinate) {
