@@ -5,11 +5,84 @@ import { describe, expect, it } from "vitest";
 import {
   createExampleConfig,
   createLiveQueryRequest,
+  loadRouteSource,
   normalizeRoutePlaybackSource,
 } from "../docs/examples/cesium-route-playback/data-path.mjs";
 
 function readJson(relativePath: string): Record<string, unknown> {
   return JSON.parse(fs.readFileSync(new URL(relativePath, import.meta.url), "utf8")) as Record<string, unknown>;
+}
+
+const MULTI_FEATURE_QUERY_RESPONSE = {
+  geometryType: "esriGeometryPolyline",
+  features: [
+    {
+      attributes: {
+        route_id: "dense-short",
+        route_name: "Dense short connector",
+      },
+      geometry: {
+        paths: [
+          [
+            [-157.8583, 21.3069, 12],
+            [-157.85825, 21.30695, 12],
+            [-157.8582, 21.307, 12],
+            [-157.85815, 21.30705, 12],
+            [-157.8581, 21.3071, 12],
+          ],
+        ],
+      },
+    },
+    {
+      attributes: {
+        route_id: "intended-long",
+        route_name: "Intended long route",
+      },
+      geometry: {
+        paths: [
+          [
+            [-157.8583, 21.3069, 12],
+            [-156.5, 21.3069, 12],
+          ],
+        ],
+      },
+    },
+  ],
+};
+
+type MockInterceptor = {
+  after?: (context: { durationMs: number }) => void;
+  error?: (context: { durationMs?: number }) => void;
+};
+
+type MockClientOptions = {
+  baseUrl: string;
+  fetchFn?: typeof fetch;
+  interceptors?: MockInterceptor[];
+};
+
+function createMockHonuaClient(queryResponse: Record<string, unknown>) {
+  return class MockHonuaClient {
+    interceptors: MockInterceptor[];
+
+    constructor(options: MockClientOptions) {
+      this.interceptors = options.interceptors ?? [];
+    }
+
+    async checkCompatibility() {
+      return {
+        supported: true,
+        reasons: [],
+      };
+    }
+
+    async queryFeatures() {
+      for (const interceptor of this.interceptors) {
+        interceptor.after?.({ durationMs: 12 });
+      }
+      return queryResponse;
+    }
+  };
 }
 
 describe("Cesium route playback example helpers", () => {
@@ -18,6 +91,7 @@ describe("Cesium route playback example helpers", () => {
 
     expect(config.mode).toBe("live");
     expect(config.resultRecordCount).toBe(1);
+    expect(config.routeId).toBe("");
     expect(config.speedMetersPerSecond).toBe(18);
   });
 
@@ -77,6 +151,37 @@ describe("Cesium route playback example helpers", () => {
     });
     expect(normalized.playbackSamples.at(-1)?.distanceMeters).toBeGreaterThan(0);
     expect(normalized.preprocessingSteps).toContain("Loaded a checked-in Honua FeatureServer/query fixture for deterministic playback.");
+  });
+
+  it("matches an explicit routeId in live multi-feature responses", async () => {
+    const config = createExampleConfig(
+      "?mode=live&baseUrl=/mock-honua&serviceId=transport&layerId=0&routeId=intended-long&resultRecordCount=2",
+    );
+    const source = await loadRouteSource(config, {
+      HonuaClient: createMockHonuaClient(MULTI_FEATURE_QUERY_RESPONSE),
+    });
+
+    const normalized = normalizeRoutePlaybackSource(source, config);
+
+    expect(source.manifest).toMatchObject({
+      query: {
+        routeIdValue: "intended-long",
+      },
+    });
+    expect(normalized.routeId).toBe("intended-long");
+    expect(normalized.routeName).toBe("Intended long route");
+    expect(normalized.vertexCount).toBe(2);
+  });
+
+  it("throws instead of guessing across multiple live polyline features without routeId", async () => {
+    const config = createExampleConfig("?mode=live&baseUrl=/mock-honua&serviceId=transport&layerId=0&resultRecordCount=2");
+    const source = await loadRouteSource(config, {
+      HonuaClient: createMockHonuaClient(MULTI_FEATURE_QUERY_RESPONSE),
+    });
+
+    expect(() => normalizeRoutePlaybackSource(source, config)).toThrow(
+      "The Honua query response contained 2 polyline features. Configure routeId or narrow the query so only one route remains.",
+    );
   });
 
   it("selects the physically longest path from a multipart polyline", () => {

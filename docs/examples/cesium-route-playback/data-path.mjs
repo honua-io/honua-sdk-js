@@ -16,6 +16,7 @@ export function createExampleConfig(search = "") {
     baseUrl: trimTrailingSlash(params.get("baseUrl") ?? ""),
     serviceId: params.get("serviceId") ?? "route-playback-demo",
     layerId: parseInteger(params.get("layerId"), 0),
+    routeId: params.get("routeId") ?? "",
     where: params.get("where") ?? "1=1",
     objectIds: params.get("objectIds") ?? "",
     resultRecordCount: parseInteger(params.get("resultRecordCount"), DEFAULT_RESULT_RECORD_COUNT),
@@ -127,7 +128,8 @@ export function normalizeRoutePlaybackSource(source, config = {}) {
   }
 
   const selectedFeature =
-    findFeatureByManifestRouteId(polylineFeatures, source.manifest) ?? selectFeatureWithMostVertices(polylineFeatures);
+    findFeatureByManifestRouteId(polylineFeatures, source.manifest) ??
+    selectSinglePolylineFeature(polylineFeatures, source.manifest);
   const geometry = selectedFeature.geometry;
   const paths = geometry.paths.filter((path) => Array.isArray(path) && path.length >= 2);
 
@@ -193,6 +195,7 @@ function createLiveManifest(config, queryRequest) {
     query: {
       ...queryRequest,
       baseUrl: config.baseUrl,
+      routeIdValue: config.routeId || null,
     },
     fieldMapping: {
       routeId: "route_id",
@@ -218,25 +221,27 @@ function findFeatureByManifestRouteId(features, manifest) {
   const routeIdField = manifest?.fieldMapping?.routeId;
   const routeIdValue = manifest?.query?.routeIdValue;
 
-  if (!routeIdField || routeIdValue === undefined || routeIdValue === null) {
+  if (!routeIdField || routeIdValue === undefined || routeIdValue === null || routeIdValue === "") {
     return null;
   }
 
   return features.find((feature) => feature?.attributes?.[routeIdField] === routeIdValue) ?? null;
 }
 
-function selectFeatureWithMostVertices(features) {
-  return features.reduce((selected, candidate) => {
-    return countFeatureVertices(candidate) > countFeatureVertices(selected) ? candidate : selected;
-  });
-}
+function selectSinglePolylineFeature(features, manifest) {
+  const configuredRouteId = manifest?.query?.routeIdValue;
 
-function countFeatureVertices(feature) {
-  if (!feature?.geometry?.paths) {
-    return 0;
+  if (configuredRouteId !== undefined && configuredRouteId !== null && configuredRouteId !== "") {
+    throw new Error(`The Honua query response did not include the configured route id "${configuredRouteId}".`);
   }
 
-  return feature.geometry.paths.reduce((total, path) => total + (Array.isArray(path) ? path.length : 0), 0);
+  if (features.length === 1) {
+    return features[0];
+  }
+
+  throw new Error(
+    `The Honua query response contained ${features.length} polyline features. Configure routeId or narrow the query so only one route remains.`,
+  );
 }
 
 function selectLongestPath(paths) {

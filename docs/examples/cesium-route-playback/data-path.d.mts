@@ -3,6 +3,7 @@ export interface ExampleConfig {
   baseUrl: string;
   serviceId: string;
   layerId: number;
+  routeId: string;
   where: string;
   objectIds: string;
   resultRecordCount: number;

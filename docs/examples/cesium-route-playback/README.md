@@ -52,6 +52,7 @@ The browser page reads its configuration from the query string.
 - `baseUrl`: required in live mode. Trailing slashes are trimmed before `HonuaClient` is created.
 - `serviceId`: defaults to `route-playback-demo`.
 - `layerId`: defaults to `0`.
+- `routeId`: optional explicit route identifier used only for client-side feature selection when a live query can still return multiple polylines.
 - `where`: defaults to `1=1`.
 - `objectIds`: optional live-mode filter passed through to the query request.
 - `resultRecordCount`: defaults to `1` so the live query stays intentionally bounded.
@@ -67,7 +68,7 @@ Live mode uses the same example, but switches the source from the checked-in
 fixture to a user-supplied Honua server and feature layer:
 
 ```text
-http://127.0.0.1:8080/docs/examples/cesium-route-playback/?mode=live&baseUrl=https%3A%2F%2Fyour-honua-server.example&serviceId=transport&layerId=0&where=route_id%20%3D%20'route-playback-demo'
+http://127.0.0.1:8080/docs/examples/cesium-route-playback/?mode=live&baseUrl=https%3A%2F%2Fyour-honua-server.example&serviceId=transport&layerId=0&routeId=route-playback-demo&where=route_id%20%3D%20'route-playback-demo'
 ```
 
 Optional terrain:
@@ -94,9 +95,10 @@ The example keeps the conversion path explicit:
    `returnGeometry=true`, `outSr=4326`, and `returnZ=true`.
 3. The query response must expose `features[]` entries with polyline
    `geometry.paths`. Non-polyline features are ignored.
-4. `data-path.mjs` selects the feature that matches
-   `manifest.query.routeIdValue` plus `fieldMapping.routeId` when available;
-   otherwise it falls back to the polyline feature with the most vertices.
+4. `data-path.mjs` copies `routeId` into `manifest.query.routeIdValue` in live
+   mode and selects the polyline feature that matches that value plus
+   `fieldMapping.routeId` when available. If multiple polyline features remain
+   without a configured route id, the example throws instead of guessing.
 5. Multipart polylines are reduced to the longest path with at least two valid
    vertices, then normalized into Cesium-friendly WGS84 coordinates.
 6. Route labels fall back through `route_name`, `routeName`, `name`, and `Name`.
@@ -118,6 +120,8 @@ Nothing is hidden behind SDK internals. The example still needs consumer-side
 preprocessing:
 
 - query in WGS84 degrees because Cesium expects longitude/latitude input
+- provide `routeId` or another query bound whenever a live route query can
+  still return multiple polyline features
 - normalize Esri polyline paths into one playback track
 - decide how to treat source Z values when their units are not confirmed
 - derive timestamps client-side instead of consuming route time attributes

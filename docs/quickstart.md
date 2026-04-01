@@ -37,7 +37,7 @@ The shipped kepler config also applies an initial `status` filter on `incidents`
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 20.19+
 - A running Honua server (or use the demo endpoint at `https://demo.honua.io`)
 
 ## Step 1: Create project and install (30 seconds)
