@@ -1,0 +1,113 @@
+{
+  "storyId": "honolulu-operations-replay",
+  "storyTitle": "Honolulu operations replay",
+  "storySubtitle": "A committed Honua export fixture that replays incident escalations, unit movement, and coverage gaps without requiring a live server.",
+  "modeLabel": "Fixture mode · no server bring-up required",
+  "exportedAt": "2026-03-31T22:15:00.000Z",
+  "sourceEnvironment": "Committed Honua export fixture for portfolio demos",
+  "timeWindow": {
+    "start": "2026-05-01T16:00:00.000Z",
+    "end": "2026-05-01T17:26:00.000Z",
+    "label": "May 1, 2026 · 06:00-07:26 HST"
+  },
+  "datasets": [
+    {
+      "id": "incidents",
+      "label": "Incident escalations",
+      "path": "/data/incidents.geojson",
+      "recordCount": 6,
+      "source": {
+        "serviceId": "ops-analytics",
+        "layerId": 0,
+        "endpoint": "/rest/services/ops-analytics/FeatureServer/0",
+        "description": "Response incidents exported from the Honua incident replay contract.",
+        "envServiceId": "HONUA_DEMO_INCIDENTS_SERVICE_ID",
+        "envLayerId": "HONUA_DEMO_INCIDENTS_LAYER_ID",
+        "timeField": "replay_at"
+      }
+    },
+    {
+      "id": "unit-tracks",
+      "label": "Unit pings",
+      "path": "/data/unit-tracks.geojson",
+      "recordCount": 12,
+      "source": {
+        "serviceId": "ops-analytics",
+        "layerId": 1,
+        "endpoint": "/rest/services/ops-analytics/FeatureServer/1",
+        "description": "Timestamped unit positions exported from the same Honua replay environment.",
+        "envServiceId": "HONUA_DEMO_UNIT_TRACKS_SERVICE_ID",
+        "envLayerId": "HONUA_DEMO_UNIT_TRACKS_LAYER_ID",
+        "timeField": "replay_at"
+      }
+    },
+    {
+      "id": "coverage-zones",
+      "label": "Coverage gap zones",
+      "path": "/data/coverage-zones.geojson",
+      "recordCount": 3,
+      "source": {
+        "serviceId": "ops-analytics",
+        "layerId": 2,
+        "endpoint": "/rest/services/ops-analytics/FeatureServer/2",
+        "description": "Zone-level SLA gap summaries emitted by the ETL-to-insight path before the demo is loaded.",
+        "envServiceId": "HONUA_DEMO_COVERAGE_ZONES_SERVICE_ID",
+        "envLayerId": "HONUA_DEMO_COVERAGE_ZONES_LAYER_ID"
+      }
+    }
+  ],
+  "walkthrough": [
+    {
+      "title": "Play the first response wave",
+      "detail": "Use the time slider to replay the response window and watch active incidents stay in view while unit pings converge on the harbor and Waikiki corridors."
+    },
+    {
+      "title": "Switch from events to coverage risk",
+      "detail": "Leave the coverage polygons on to show which zones drifted past the SLA threshold even when the raw incident count looked manageable."
+    },
+    {
+      "title": "Connect the replay to Honua exports",
+      "detail": "Open the provenance panel to show the exact Honua service and layer IDs that produced the committed fixture and the maintainer refresh command."
+    },
+    {
+      "title": "Tell the ETL-to-insight story",
+      "detail": "Use the KPI cards as the punch line: ETL precomputes the gap metrics, the SDK refreshes the fixture, and kepler.gl turns it into a portfolio-ready briefing."
+    }
+  ],
+  "kpis": [
+    {
+      "id": "active-incidents",
+      "label": "Active incidents",
+      "value": "5",
+      "detail": "Five incidents remain active or in monitoring during the default filtered replay."
+    },
+    {
+      "id": "median-response",
+      "label": "Median first unit",
+      "value": "8 min",
+      "detail": "Median first-unit response across the exported incident set."
+    },
+    {
+      "id": "units-engaged",
+      "label": "Units engaged",
+      "value": "3",
+      "detail": "Three named units are visible in the committed replay trail."
+    },
+    {
+      "id": "zones-at-risk",
+      "label": "Zones at risk",
+      "value": "2",
+      "detail": "Two zones breach the SLA-gap threshold in the precomputed coverage layer."
+    }
+  ],
+  "provenance": {
+    "badge": "Honua export fixture",
+    "summary": "The default demo path loads committed GeoJSON exports captured from a Honua replay contract so evaluators can run the story locally without a live environment.",
+    "derivationNotes": [
+      "Coverage polygons already include SLA-gap percentages and median response minutes from the ETL pipeline; the browser does not recompute them on load.",
+      "The replay window is anchored to the shared replay_at timestamp field so incidents and unit pings scrub together during playback.",
+      "Maintainers can refresh the fixture from a live Honua environment with the documented script when the demo contract changes."
+    ],
+    "refreshCommand": "npm run demo:kepler:refresh-fixture"
+  }
+}

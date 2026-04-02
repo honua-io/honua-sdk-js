@@ -1,0 +1,245 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "OPS-7",
+        "unit_type": "Field operations",
+        "status": "repositioning",
+        "observed_at": "2026-05-01T16:00:00.000Z",
+        "replay_at": "2026-05-01T16:00:00.000Z",
+        "incident_id": "INC-401",
+        "zone_id": "harbor-corridor",
+        "speed_kph": 28
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.906,
+          21.3301
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "OPS-7",
+        "unit_type": "Field operations",
+        "status": "en route",
+        "observed_at": "2026-05-01T16:12:00.000Z",
+        "replay_at": "2026-05-01T16:12:00.000Z",
+        "incident_id": "INC-401",
+        "zone_id": "harbor-corridor",
+        "speed_kph": 41
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.8905,
+          21.3194
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "OPS-7",
+        "unit_type": "Field operations",
+        "status": "on scene",
+        "observed_at": "2026-05-01T16:24:00.000Z",
+        "replay_at": "2026-05-01T16:24:00.000Z",
+        "incident_id": "INC-402",
+        "zone_id": "harbor-corridor",
+        "speed_kph": 16
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.8833,
+          21.3124
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "OPS-7",
+        "unit_type": "Field operations",
+        "status": "clearing",
+        "observed_at": "2026-05-01T16:46:00.000Z",
+        "replay_at": "2026-05-01T16:46:00.000Z",
+        "incident_id": "INC-404",
+        "zone_id": "harbor-corridor",
+        "speed_kph": 24
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.8782,
+          21.3346
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "MED-4",
+        "unit_type": "Medical",
+        "status": "staged",
+        "observed_at": "2026-05-01T16:08:00.000Z",
+        "replay_at": "2026-05-01T16:08:00.000Z",
+        "incident_id": "INC-402",
+        "zone_id": "harbor-corridor",
+        "speed_kph": 22
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.8552,
+          21.2997
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "MED-4",
+        "unit_type": "Medical",
+        "status": "en route",
+        "observed_at": "2026-05-01T16:19:00.000Z",
+        "replay_at": "2026-05-01T16:19:00.000Z",
+        "incident_id": "INC-402",
+        "zone_id": "harbor-corridor",
+        "speed_kph": 36
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.868,
+          21.3072
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "MED-4",
+        "unit_type": "Medical",
+        "status": "reassigned",
+        "observed_at": "2026-05-01T17:01:00.000Z",
+        "replay_at": "2026-05-01T17:01:00.000Z",
+        "incident_id": "INC-405",
+        "zone_id": "east-corridor",
+        "speed_kph": 44
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.842,
+          21.2896
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "MED-4",
+        "unit_type": "Medical",
+        "status": "on scene",
+        "observed_at": "2026-05-01T17:14:00.000Z",
+        "replay_at": "2026-05-01T17:14:00.000Z",
+        "incident_id": "INC-405",
+        "zone_id": "east-corridor",
+        "speed_kph": 12
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.8277,
+          21.2794
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "ENG-2",
+        "unit_type": "Engineering",
+        "status": "staged",
+        "observed_at": "2026-05-01T16:21:00.000Z",
+        "replay_at": "2026-05-01T16:21:00.000Z",
+        "incident_id": "INC-403",
+        "zone_id": "urban-core",
+        "speed_kph": 19
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.8837,
+          21.3002
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "ENG-2",
+        "unit_type": "Engineering",
+        "status": "en route",
+        "observed_at": "2026-05-01T16:35:00.000Z",
+        "replay_at": "2026-05-01T16:35:00.000Z",
+        "incident_id": "INC-403",
+        "zone_id": "urban-core",
+        "speed_kph": 32
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.861,
+          21.2956
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "ENG-2",
+        "unit_type": "Engineering",
+        "status": "on scene",
+        "observed_at": "2026-05-01T16:52:00.000Z",
+        "replay_at": "2026-05-01T16:52:00.000Z",
+        "incident_id": "INC-403",
+        "zone_id": "urban-core",
+        "speed_kph": 8
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.8469,
+          21.2912
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "unit_id": "ENG-2",
+        "unit_type": "Engineering",
+        "status": "rebalanced",
+        "observed_at": "2026-05-01T17:26:00.000Z",
+        "replay_at": "2026-05-01T17:26:00.000Z",
+        "incident_id": "INC-406",
+        "zone_id": "east-corridor",
+        "speed_kph": 27
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.8132,
+          21.3044
+        ]
+      }
+    }
+  ]
+}

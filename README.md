@@ -26,8 +26,11 @@ console.log(result.features); // fully typed HonuaFeature[]
 ## Demo Apps
 
 - [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, same-origin fixture mocking, OGC collection overlays, polygon extrusions, and route replay.
+- [`examples/kepler-analytics/`](./examples/kepler-analytics/README.md): fixture-first kepler.gl analytics demo for an `operations replay` workflow with committed GeoJSON plus metadata, KPI cards, walkthrough copy, and focused browser smoke coverage.
 
 The example README documents the mock and live run lanes, accepted collection-field aliases, and the browser telemetry/error hooks used by the demo.
+
+The kepler example README documents the fixture metadata manifest, required dataset IDs and fields, the default incident status and replay-window filters, browser readiness/error plus replay-harness hooks, refresh stdout JSON, and the runtime style override env vars used by the demo.
 
 Deterministic local review flow from this repo:
 
@@ -135,6 +138,21 @@ npm run demo:25d:mock
 npm run demo:25d
 ```
 
+Advanced analytics demo loop:
+
+```bash
+npm run demo:kepler:install
+npm run demo:kepler:dev
+```
+
+Open `http://127.0.0.1:4175` to view the fixture-first `operations replay` story. The committed fixture lives under `examples/kepler-analytics/public/data`, and maintainers can refresh it from a live Honua environment with:
+
+```bash
+npm run demo:kepler:refresh-fixture
+```
+
+The repo-root refresh wrapper builds the SDK before delegating to the example-local script. Set `HONUA_DEMO_BASE_URL` and any optional auth or service override env vars described in the example README before running it.
+
 ## Verify
 
 ```bash
@@ -144,6 +162,7 @@ npx vitest run test/storytelling-25d-config.test.ts test/storytelling-25d-data.t
 npm test
 npm run test:playwright:25d
 npm run test:playwright
+npm run demo:kepler:smoke
 npm run scan:arcgis -- ../../path/to/arcgis-app
 npm run migrate:arcgis -- ../../path/to/arcgis-app --write --report migration-report.json
 npm run report:migration:real-samples
@@ -152,6 +171,8 @@ npm run gate:migration:demo-target
 npm run matrix:runtime
 npm run build:split-packages
 ```
+
+`npm run test:playwright` and `npm run demo:kepler:smoke` now bootstrap the isolated `examples/kepler-analytics` dependencies automatically when that package has not been installed yet.
 
 ## Split Package Artifacts
 

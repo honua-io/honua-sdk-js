@@ -16,6 +16,18 @@ A single-page app that:
 2. Queries a feature layer for geospatial data
 3. Renders the results on an interactive MapLibre map
 
+If you want the portfolio-ready analytics sample instead of the minimal map walkthrough, use the isolated kepler.gl demo in [`examples/kepler-analytics`](../examples/kepler-analytics/README.md). That path runs from a committed Honua export fixture and does not require a separate server bring-up flow:
+
+```bash
+npm install
+npm run demo:kepler:install
+npm run demo:kepler:dev
+```
+
+Open `http://127.0.0.1:4175`. The demo loads `/data/fixture-metadata.json` first, then reads the committed GeoJSON datasets declared there, so the default local story stays deterministic without a live Honua environment.
+
+The shipped kepler config also applies an initial `status` filter on `incidents` (`active`, `contained`, `monitoring`) and a shared `replay_at` time range across `incidents` and `unit-tracks`, so first-load visible counts are intentionally narrower than the raw `recordCount` values recorded in the manifest.
+
 ## Prerequisites
 
 - Node.js 20+
