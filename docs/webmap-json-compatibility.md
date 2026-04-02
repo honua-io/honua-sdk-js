@@ -18,6 +18,9 @@ Parser behavior:
 - Unsupported or unknown properties are warnings, not throw conditions.
 - Conversion aims to preserve visible map behavior for supported 2D properties.
 - Unsupported 3D and complex Arcade flows are explicitly called out for manual intervention.
+- The exploratory Cesium example under `docs/examples/cesium-route-playback/`
+  consumes `HonuaClient.queryFeatures()` directly and does not expand
+  `parseWebMap()` 3D support.
 
 ## Support Matrix
 
@@ -64,12 +67,12 @@ Primary warning codes emitted by the parser:
 
 Golden fixtures live under:
 
-- `js/test/fixtures/webmap-json/*/input.json`
-- `js/test/fixtures/webmap-json/*/expected.json`
+- `test/fixtures/webmap-json/*/input.json`
+- `test/fixtures/webmap-json/*/expected.json`
 
 Fixture suite test:
 
-- `js/test/webmap-parse.test.ts`
+- `test/webmap-parse.test.ts`
 
 The suite is executed by `npm test`, which is required in CI (`.github/workflows/ci.yml`) on every PR and push to `trunk`.
 

@@ -1,0 +1,39 @@
+{
+  "scenario": "Route playback with elevation context",
+  "preparedOn": "2026-04-01",
+  "sourceContract": "FeatureServer/query",
+  "query": {
+    "baseUrl": "<set via ?baseUrl=... for live mode>",
+    "serviceId": "route-playback-demo",
+    "layerId": 0,
+    "where": "route_id = 'route-playback-demo'",
+    "outFields": ["*"],
+    "outSr": 4326,
+    "returnGeometry": true,
+    "resultRecordCount": 1,
+    "extraParams": {
+      "outSr": 4326,
+      "returnZ": true
+    },
+    "routeIdValue": "route-playback-demo"
+  },
+  "fieldMapping": {
+    "routeId": "route_id",
+    "routeName": "route_name",
+    "startTimestamp": null
+  },
+  "playback": {
+    "startTimestamp": "2026-01-01T00:00:00Z",
+    "speedMetersPerSecond": 18
+  },
+  "preprocessing": [
+    "Select the bounded route feature from a FeatureServer/query response.",
+    "Flatten the physically longest polyline path by measured segment distance into a single WGS84 track for Cesium entities.",
+    "Preserve source Z values when terrain sampling is disabled.",
+    "Derive playback timestamps from cumulative segment distance because no route time field is present."
+  ],
+  "limitations": [
+    "The fixture is deterministic for CI and local review. Live mode still requires a user-supplied Honua server and line layer.",
+    "No terrain tiles are bundled in this repo. Optional terrain still depends on a user-supplied Cesium terrain URL or ion token."
+  ]
+}

@@ -13,7 +13,9 @@ const OUTPUT_ROOT = path.join(DIST_ROOT, "packages");
 const rootPackageJsonPath = path.join(PROJECT_ROOT, "package.json");
 const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, "utf8"));
 const version = rootPackageJson.version;
-const engines = rootPackageJson.engines ?? { node: ">=20.0.0" };
+// Keep published package install support aligned with the SDK runtime floor,
+// even when repo-only tooling or example dependencies need a newer Node patch.
+const publishedEngines = { node: ">=20.0.0" };
 
 if (!fs.existsSync(DIST_SRC_ROOT)) {
   process.stderr.write(
@@ -204,7 +206,7 @@ function writePackageJson(packageRoot, overrides) {
     exports: overrides.exports,
     bin: overrides.bin,
     dependencies: overrides.dependencies,
-    engines,
+    engines: publishedEngines,
   };
 
   fs.writeFileSync(

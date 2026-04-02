@@ -8,6 +8,28 @@ lane, a pitched `2.5D` map, polygon extrusions, scripted route replay, and the
 exact compatibility, OGC collection, and telemetry contract used by the demo, see
 [`examples/storytelling-25d-map/README.md`](../examples/storytelling-25d-map/README.md).
 
+For an exploratory browser-side 3D workflow that keeps the SDK runtime surface
+unchanged, see
+[`docs/examples/cesium-route-playback/README.md`](./examples/cesium-route-playback/README.md).
+That example stays fixture-first by default, switches to a bounded live
+`FeatureServer/query` request only when `?mode=live&baseUrl=...` is supplied,
+accepts optional `routeId` and `routeIdField` for post-query selection when
+multiple polyline routes could match, normalizes comparable route ids including
+numeric values coerced to strings, may require wider `resultRecordCount` or
+narrower query bounds to return that route, and does not expand the SDK's
+WebMap or scene-contract support. When `routeIdField` is supplied it becomes the
+authoritative live route-id matcher and preferred normalized output field, while
+the success summary leaves `routeId` as `null` if the selected feature has no
+route-id attribute. For smoke tests and local inspection it also exposes
+`window.__cesiumRoutePlaybackDone` as the completion signal on both success and
+failure, `window.__cesiumRoutePlaybackError` for terminal failures only, and
+`window.__cesiumRoutePlaybackResult` for success summaries only; that summary
+echoes the fixture manifest query in fixture mode and the bounded live
+`queryFeatures()` request in live mode, including `outFields=["*"]`,
+`outSr=4326`, `returnGeometry=true`, and
+`extraParams={ outSr: 4326, returnZ: true }`, with `compatibilitySupported`
+and `requestDurationMs` left `null` in fixture mode.
+
 ## What You'll Build
 
 A single-page app that:
@@ -30,7 +52,8 @@ The shipped kepler config also applies an initial `status` filter on `incidents`
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 20+ for the published `@honua/sdk` package used below
+- Node.js 20.19.0+ when you clone this repo and run `npm install` for the checked-in demo/example lanes
 - A running Honua server (or use the demo endpoint at `https://demo.honua.io`)
 
 ## Step 1: Create project and install (30 seconds)

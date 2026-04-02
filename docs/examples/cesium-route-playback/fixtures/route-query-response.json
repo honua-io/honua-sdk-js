@@ -1,0 +1,60 @@
+{
+  "objectIdFieldName": "OBJECTID",
+  "geometryType": "esriGeometryPolyline",
+  "spatialReference": {
+    "wkid": 4326,
+    "latestWkid": 4326
+  },
+  "fields": [
+    {
+      "name": "OBJECTID",
+      "type": "esriFieldTypeOID",
+      "alias": "OBJECTID"
+    },
+    {
+      "name": "route_id",
+      "type": "esriFieldTypeString",
+      "alias": "route_id",
+      "length": 64
+    },
+    {
+      "name": "route_name",
+      "type": "esriFieldTypeString",
+      "alias": "route_name",
+      "length": 128
+    },
+    {
+      "name": "captured_at",
+      "type": "esriFieldTypeDate",
+      "alias": "captured_at"
+    }
+  ],
+  "features": [
+    {
+      "attributes": {
+        "OBJECTID": 15,
+        "route_id": "route-playback-demo",
+        "route_name": "Honolulu Ridge Shuttle",
+        "captured_at": "2026-04-01T00:00:00Z"
+      },
+      "geometry": {
+        "paths": [
+          [
+            [-157.8583, 21.3069, 12],
+            [-157.8568, 21.3074, 18],
+            [-157.8551, 21.3081, 24],
+            [-157.8534, 21.3088, 31],
+            [-157.8514, 21.3094, 39],
+            [-157.8492, 21.3096, 45],
+            [-157.8473, 21.3093, 51],
+            [-157.8455, 21.3087, 56]
+          ]
+        ],
+        "spatialReference": {
+          "wkid": 4326,
+          "latestWkid": 4326
+        }
+      }
+    }
+  ]
+}
