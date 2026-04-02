@@ -331,7 +331,7 @@ function readRouteName(attributes = {}) {
 }
 
 function readRouteId(attributes = {}, manifest) {
-  return readComparableAttributeValue(attributes, getRouteIdDisplayFields(manifest)) ?? "route-playback-demo";
+  return readComparableAttributeValue(attributes, getRouteIdDisplayFields(manifest));
 }
 
 function readAttributeValue(attributes, candidates) {

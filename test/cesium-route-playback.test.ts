@@ -200,6 +200,26 @@ const MULTI_FEATURE_QUERY_RESPONSE_WITH_CUSTOM_ROUTE_ID_ALIAS_CONFLICT = {
   ],
 };
 
+const SINGLE_FEATURE_QUERY_RESPONSE_WITHOUT_ROUTE_ID = {
+  geometryType: "esriGeometryPolyline",
+  features: [
+    {
+      attributes: {
+        route_name: "Route without explicit id",
+      },
+      geometry: {
+        paths: [
+          [
+            [-157.8583, 21.3069, 12],
+            [-157.8582, 21.307, 12],
+            [-157.8581, 21.3071, 12],
+          ],
+        ],
+      },
+    },
+  ],
+};
+
 type MockInterceptor = {
   after?: (context: { durationMs: number }) => void;
   error?: (context: { durationMs?: number }) => void;
@@ -409,6 +429,19 @@ describe("Cesium route playback example helpers", () => {
     expect(() => normalizeRoutePlaybackSource(source, config)).toThrow(
       "The Honua query response contained 2 polyline features. Configure routeId or narrow the query so only one route remains.",
     );
+  });
+
+  it("leaves routeId null for single-feature live responses without route-id attributes", async () => {
+    const config = createExampleConfig("?mode=live&baseUrl=/mock-honua&serviceId=transport&layerId=0");
+    const source = await loadRouteSource(config, {
+      HonuaClient: createMockHonuaClient(SINGLE_FEATURE_QUERY_RESPONSE_WITHOUT_ROUTE_ID),
+    });
+
+    const normalized = normalizeRoutePlaybackSource(source, config);
+
+    expect(normalized.routeId).toBeNull();
+    expect(normalized.routeName).toBe("Route without explicit id");
+    expect(normalized.vertexCount).toBe(3);
   });
 
   it("selects the physically longest path from a multipart polyline", () => {

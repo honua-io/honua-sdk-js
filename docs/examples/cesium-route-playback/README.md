@@ -52,7 +52,7 @@ The browser page reads its configuration from the query string.
 - `baseUrl`: required in live mode. Trailing slashes are trimmed before `HonuaClient` is created.
 - `serviceId`: defaults to `route-playback-demo`.
 - `layerId`: defaults to `0`.
-- `routeId`: optional explicit route identifier used only for client-side feature selection when a live query can still return multiple polylines. It does not narrow the server request by itself, so prefer pairing it with a tighter `where` or `objectIds` filter when possible. If you rely on `routeId` to select among multiple returned routes, widen `resultRecordCount` beyond the default `1` so the target feature can actually be returned. The matcher compares normalized string values across the configured route-id field when one is known, otherwise it falls back to the example's common route-id aliases. If no returned polyline matches, the example throws instead of falling back to another feature. The normalized result summary also prefers that configured field when reporting `routeId`.
+- `routeId`: optional explicit route identifier used only for client-side feature selection when a live query can still return multiple polylines. It does not narrow the server request by itself, so prefer pairing it with a tighter `where` or `objectIds` filter when possible. If you rely on `routeId` to select among multiple returned routes, widen `resultRecordCount` beyond the default `1` so the target feature can actually be returned. The matcher compares normalized string values across the configured route-id field when one is known, otherwise it falls back to the example's common route-id aliases. If no returned polyline matches, the example throws instead of falling back to another feature. The normalized result summary also prefers that configured field when reporting `routeId`, and leaves `routeId` as `null` when the selected feature has no route-id attribute at all.
 - `routeIdField`: optional live-mode route-id attribute name. Set this when the live layer stores route ids outside the example's built-in aliases like `route_id` or `routeId`. When provided, live route matching treats that configured field as authoritative instead of falling back to alias fields.
 - `where`: defaults to `1=1`.
 - `objectIds`: optional live-mode filter passed through to the query request.
@@ -82,6 +82,11 @@ Notes:
 - live mode calls `checkCompatibility()` before querying features
 - the query is intentionally bounded and always uses `outFields=["*"]`,
   `outSr=4326`, `returnGeometry=true`, and `extraParams.returnZ=true`
+- the live `queryRequest` echoed in diagnostics and
+  `window.__cesiumRoutePlaybackResult` is that exact bounded
+  `HonuaClient.queryFeatures()` input: `serviceId`, `layerId`, `where`,
+  optional `objectIds`, `outFields`, `outSr`, `returnGeometry`,
+  `resultRecordCount`, and `extraParams={ outSr: 4326, returnZ: true }`
 - if the live layer can still return multiple polyline features, pass
   `routeId`, widen `resultRecordCount` enough to return that feature, set
   `routeIdField` when the identifier lives in a custom attribute, or narrow
@@ -116,7 +121,9 @@ The example keeps the conversion path explicit:
    segment distance, then normalized into Cesium-friendly WGS84 coordinates.
 6. Route labels fall back through `route_name`, `routeName`, `name`, and `Name`.
    Route ids first honor `manifest.fieldMapping.routeId` when it is set, then
-   fall back through `route_id`, `routeId`, `ROUTE_ID`, and `Name`.
+   fall back through `route_id`, `routeId`, `ROUTE_ID`, and `Name`. If none of
+   those attributes are present on the selected feature, the normalized summary
+   leaves `routeId` as `null` instead of inventing a placeholder.
 7. If source Z values exist, the example preserves them for display when terrain
    is disabled.
 8. If terrain is configured, the example samples external terrain and uses that
@@ -213,7 +220,7 @@ terminal failure message when the example cannot finish loading.
 `window.__cesiumRoutePlaybackResult` is populated only on success and remains
 `null` on failure. On success it includes:
 
-- `sourceMode`, `routeName`, `routeId`, `featureCount`, `vertexCount`, and `hasZ`
+- `sourceMode`, `routeName`, nullable `routeId`, `featureCount`, `vertexCount`, and `hasZ`
 - `terrainEnabled`, `terrainMode`, and `heightMode`
 - `compatibilitySupported` and `requestDurationMs`, both `null` in fixture mode
 - `queryRequest` (fixture manifest query in fixture mode, live request in live mode),
@@ -221,7 +228,9 @@ terminal failure message when the example cannot finish loading.
 
 The diagnostics panel uses the same `queryRequest` source: fixture mode echoes
 `fixtures/source-manifest.json#query`, while live mode echoes the bounded
-`queryFeatures()` request sent through `HonuaClient`.
+`queryFeatures()` request sent through `HonuaClient`. In live mode that echoed
+request does not include `routeId` or `routeIdField`; those stay in the
+synthetic manifest for post-query selection only.
 
 Verification commands:
 

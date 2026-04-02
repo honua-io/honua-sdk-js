@@ -31,12 +31,34 @@ export interface LiveQueryRequest {
   extraParams: Record<string, string | number | boolean>;
 }
 
+export interface RoutePlaybackManifestQuery extends Partial<LiveQueryRequest> {
+  baseUrl?: string;
+  /** Post-query selector copied from ?routeId=... in live mode. */
+  routeIdValue?: string | null;
+}
+
+export interface RoutePlaybackManifest {
+  scenario?: string;
+  sourceContract?: string;
+  query?: RoutePlaybackManifestQuery | null;
+  fieldMapping?: {
+    /** Optional authoritative live route-id field copied from ?routeIdField=... */
+    routeId?: string | null;
+    routeName?: string | null;
+    startTimestamp?: string | null;
+  } | null;
+  playback?: {
+    startTimestamp?: string | null;
+    speedMetersPerSecond?: number;
+  } | null;
+}
+
 export interface RoutePlaybackSource {
   sourceMode: "fixture" | "live";
   /** Fixture manifest in fixture mode, or a synthetic manifest derived from live params. */
-  manifest: Record<string, unknown> | null;
+  manifest: RoutePlaybackManifest | null;
   /** Fixture manifest query in fixture mode, or the bounded live query request in live mode. */
-  queryRequest: unknown;
+  queryRequest: RoutePlaybackManifestQuery | LiveQueryRequest | null;
   queryResponse: Record<string, unknown>;
   /** Live-mode compatibility result from checkCompatibility(); null in fixture mode. */
   compatibility?: {
@@ -63,12 +85,12 @@ export interface RoutePlaybackSample extends RoutePlaybackPosition {
 export interface NormalizedRoutePlayback {
   sourceMode: "fixture" | "live";
   /** Fixture manifest query in fixture mode, or the bounded live query request in live mode. */
-  queryRequest: unknown;
+  queryRequest: RoutePlaybackManifestQuery | LiveQueryRequest | null;
   queryResponse: Record<string, unknown>;
   featureCount: number;
   routeName: string;
-  /** Selected route id, preferring manifest.fieldMapping.routeId before alias fallbacks and normalizing numeric ids to strings. */
-  routeId: string;
+  /** Selected route id, preferring manifest.fieldMapping.routeId before alias fallbacks and normalizing numeric ids to strings; null when the selected feature has no route-id attribute. */
+  routeId: string | null;
   attributes: Record<string, unknown>;
   geometryType: string;
   pathCount: number;
@@ -87,7 +109,8 @@ export interface NormalizedRoutePlayback {
 export interface RoutePlaybackResultSummary {
   sourceMode: "fixture" | "live";
   routeName: string;
-  routeId: string;
+  /** Mirrors the normalized route id and stays null when the selected feature has no route-id attribute. */
+  routeId: string | null;
   featureCount: number;
   vertexCount: number;
   hasZ: boolean;
@@ -99,7 +122,7 @@ export interface RoutePlaybackResultSummary {
   /** Live query duration in milliseconds, otherwise null for fixture mode. */
   requestDurationMs: number | null;
   /** Fixture manifest query in fixture mode, or the bounded live query request in live mode. */
-  queryRequest: unknown;
+  queryRequest: RoutePlaybackManifestQuery | LiveQueryRequest | null;
   warnings: string[];
   preprocessingSteps: string[];
   entityCount: number;

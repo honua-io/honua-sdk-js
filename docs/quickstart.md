@@ -16,7 +16,11 @@ That example stays fixture-first by default, switches to a bounded live
 accepts optional `routeId` and `routeIdField` for post-query selection when
 multiple polyline routes could match, may require wider `resultRecordCount` or
 narrower query bounds to return that route, and does not expand the SDK's
-WebMap or scene-contract support.
+WebMap or scene-contract support. For smoke tests and local inspection it also
+exposes `window.__cesiumRoutePlaybackDone`, `window.__cesiumRoutePlaybackError`,
+and `window.__cesiumRoutePlaybackResult`; the success summary echoes the fixture
+manifest query in fixture mode and the bounded live `queryFeatures()` request in
+live mode.
 
 ## What You'll Build
 
