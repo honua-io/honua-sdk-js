@@ -49,7 +49,7 @@ cp examples/storytelling-25d-map/.env.example examples/storytelling-25d-map/.env
 npm run demo:25d
 ```
 
-Use the linked example READMEs for the `2.5D` collection contract, the Cesium live-query URL parameters and multi-route selection rules, terrain fallback behavior, and smoke-test globals.
+Use the linked example READMEs for the `2.5D` collection contract, the Cesium live-query URL parameters, custom `routeIdField` matching and multi-route selection rules, terrain fallback behavior, and smoke-test globals.
 
 ## Server Compatibility Baseline
 

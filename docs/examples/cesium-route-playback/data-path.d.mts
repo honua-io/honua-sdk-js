@@ -3,12 +3,16 @@ export interface ExampleConfig {
   baseUrl: string;
   serviceId: string;
   layerId: number;
+  /** Live-mode post-query selector for multi-feature route responses; matching normalizes strings and numeric ids. */
   routeId: string;
+  /** Optional live attribute name used for route-id matching and normalized output. */
   routeIdField: string;
   where: string;
   objectIds: string;
+  /** Defaults to 1; raise this when routeId must choose among multiple live features. */
   resultRecordCount: number;
   fixtureUrl: string;
+  /** Fixture-only manifest URL. Live mode derives a synthetic manifest instead. */
   manifestUrl: string;
   terrainUrl: string;
   ionToken: string;
@@ -29,6 +33,7 @@ export interface LiveQueryRequest {
 
 export interface RoutePlaybackSource {
   sourceMode: "fixture" | "live";
+  /** Fixture manifest in fixture mode, or a synthetic manifest derived from live params. */
   manifest: Record<string, unknown> | null;
   queryRequest: unknown;
   queryResponse: Record<string, unknown>;
@@ -58,6 +63,7 @@ export interface NormalizedRoutePlayback {
   queryResponse: Record<string, unknown>;
   featureCount: number;
   routeName: string;
+  /** Selected route id, preferring manifest.fieldMapping.routeId before alias fallbacks and normalizing numeric ids to strings. */
   routeId: string;
   attributes: Record<string, unknown>;
   geometryType: string;
@@ -73,6 +79,29 @@ export interface NormalizedRoutePlayback {
   warnings: string[];
 }
 
+export interface RoutePlaybackRequestInterceptor {
+  after?: (context: { durationMs: number }) => void;
+  error?: (context: { durationMs?: number }) => void;
+}
+
+export interface RoutePlaybackLiveClientOptions {
+  baseUrl: string;
+  fetchFn?: typeof fetch;
+  interceptors?: RoutePlaybackRequestInterceptor[];
+}
+
+export interface RoutePlaybackLiveClient {
+  checkCompatibility(): Promise<{
+    supported?: boolean;
+    reasons?: string[];
+  }>;
+  queryFeatures(request: LiveQueryRequest): Promise<Record<string, unknown>>;
+}
+
+export interface RoutePlaybackLiveClientConstructor {
+  new (options: RoutePlaybackLiveClientOptions): RoutePlaybackLiveClient;
+}
+
 export const DEFAULT_PLAYBACK_SPEED_METERS_PER_SECOND: number;
 
 export function createExampleConfig(search?: string): ExampleConfig;
@@ -84,7 +113,7 @@ export function loadRouteSource(
   config: ExampleConfig,
   options?: {
     fetchFn?: typeof fetch;
-    HonuaClient?: new (...args: unknown[]) => unknown;
+    HonuaClient?: RoutePlaybackLiveClientConstructor;
   },
 ): Promise<RoutePlaybackSource>;
 export function normalizeRoutePlaybackSource(
