@@ -30,6 +30,7 @@ Why this scenario:
 From the repo root:
 
 ```bash
+# Node.js 20.19.0+; `.nvmrc` pins the reviewed repo floor
 npm install
 npm run build
 python3 -m http.server 8080
@@ -87,6 +88,8 @@ Notes:
   `HonuaClient.queryFeatures()` input: `serviceId`, `layerId`, `where`,
   optional `objectIds`, `outFields`, `outSr`, `returnGeometry`,
   `resultRecordCount`, and `extraParams={ outSr: 4326, returnZ: true }`
+- the checked-in fixture manifest mirrors that same bounded query shape and
+  adds manifest-only `baseUrl` and `routeIdValue` notes for reproducible local review
 - the echoed live request intentionally omits `routeId` and `routeIdField`;
   those stay in the synthetic manifest as post-query selectors only
 - if the live layer can still return multiple polyline features, pass
@@ -229,10 +232,13 @@ terminal failure message when the example cannot finish loading.
   `warnings`, `preprocessingSteps`, and `entityCount`
 
 The diagnostics panel uses the same `queryRequest` source: fixture mode echoes
-`fixtures/source-manifest.json#query`, while live mode echoes the bounded
-`queryFeatures()` request sent through `HonuaClient`. In live mode that echoed
-request does not include `routeId` or `routeIdField`; those stay in the
-synthetic manifest for post-query selection only.
+`fixtures/source-manifest.json#query`, which mirrors the bounded live request
+shape with `outFields=["*"]`, `outSr=4326`, `returnGeometry=true`, and
+`extraParams={ outSr: 4326, returnZ: true }` plus manifest-only `baseUrl` and
+`routeIdValue`; live mode echoes the bounded `queryFeatures()` request sent
+through `HonuaClient`. In live mode that echoed request does not include
+`routeId` or `routeIdField`; those stay in the synthetic manifest for
+post-query selection only.
 The same success summary split applies to the browser globals: completion always
 lands on `window.__cesiumRoutePlaybackDone`, failures populate only
 `window.__cesiumRoutePlaybackError`, and successes populate only

@@ -21,6 +21,7 @@ This repo ships a deterministic local review lane that mirrors the live browser 
 endpoint shapes.
 
 ```bash
+# Node.js 20.19.0+; `.nvmrc` pins the reviewed repo floor
 npm install
 npm run demo:25d:mock
 ```

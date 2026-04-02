@@ -31,13 +31,14 @@ console.log(result.features); // fully typed HonuaFeature[]
 
 The example READMEs document the run lanes, accepted data contracts, live-query narrowing rules, preprocessing rules, and browser diagnostics for each workflow.
 For the Cesium spike specifically, `window.__cesiumRoutePlaybackDone` is the completion signal on both success and failure, `window.__cesiumRoutePlaybackError` is failure-only, and `window.__cesiumRoutePlaybackResult` is populated only on success.
-Its `queryRequest` summary echoes `fixtures/source-manifest.json#query` in fixture mode and the bounded live `queryFeatures()` request in live mode; `routeId` and `routeIdField` remain post-query selectors instead of extra server filters, `routeIdField` is authoritative when configured, the success summary leaves `routeId` as `null` when the selected feature has no route-id attribute, and fixture mode keeps `compatibilitySupported` plus `requestDurationMs` as `null`.
+Its `queryRequest` summary echoes `fixtures/source-manifest.json#query` in fixture mode and the bounded live `queryFeatures()` request in live mode; both describe the same `outFields=["*"]`, `outSr=4326`, `returnGeometry=true`, and `extraParams={ outSr: 4326, returnZ: true }` query shape, while `routeId` and `routeIdField` remain post-query selectors instead of extra server filters, `routeIdField` is authoritative when configured, matching normalizes numeric route ids to strings, the success summary leaves `routeId` as `null` when the selected feature has no route-id attribute, and fixture mode keeps `compatibilitySupported` plus `requestDurationMs` as `null`.
 
 The kepler example README documents the fixture metadata manifest, required dataset IDs and fields, the default incident status and replay-window filters, browser readiness/error plus replay-harness hooks, refresh stdout JSON, and the runtime style override env vars used by the demo.
 
 Deterministic local review flow for the `2.5D` demo:
 
 ```bash
+# Node.js 20.19.0+ at the repo root
 npm install
 npm run demo:25d:mock
 ```
@@ -128,6 +129,8 @@ npm install @honua/sdk-js
 ```
 
 ## Local development
+
+Repo-root installs for local development and the checked-in browser demos currently require Node.js 20.19.0 or newer because the Cesium example's dev dependency tree sets that patch-level floor. The published `@honua/sdk-js` package itself remains on the documented Node 20+ runtime contract.
 
 ```bash
 npm install

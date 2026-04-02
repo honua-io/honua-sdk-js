@@ -7,14 +7,15 @@
     "serviceId": "route-playback-demo",
     "layerId": 0,
     "where": "route_id = 'route-playback-demo'",
-    "routeIdValue": "route-playback-demo",
+    "outFields": ["*"],
     "outSr": 4326,
     "returnGeometry": true,
     "resultRecordCount": 1,
     "extraParams": {
       "outSr": 4326,
       "returnZ": true
-    }
+    },
+    "routeIdValue": "route-playback-demo"
   },
   "fieldMapping": {
     "routeId": "route_id",
