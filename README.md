@@ -31,7 +31,7 @@ console.log(result.features); // fully typed HonuaFeature[]
 
 The example READMEs document the run lanes, accepted data contracts, live-query narrowing rules, preprocessing rules, and browser diagnostics for each workflow.
 For the Cesium spike specifically, `window.__cesiumRoutePlaybackDone` is the completion signal on both success and failure, `window.__cesiumRoutePlaybackError` is failure-only, and `window.__cesiumRoutePlaybackResult` is populated only on success.
-Its `queryRequest` summary echoes `fixtures/source-manifest.json#query` in fixture mode and the bounded live `queryFeatures()` request in live mode; `routeId` and `routeIdField` remain post-query selectors instead of extra server filters, `routeIdField` is authoritative when configured, and the success summary leaves `routeId` as `null` when the selected feature has no route-id attribute.
+Its `queryRequest` summary echoes `fixtures/source-manifest.json#query` in fixture mode and the bounded live `queryFeatures()` request in live mode; `routeId` and `routeIdField` remain post-query selectors instead of extra server filters, `routeIdField` is authoritative when configured, the success summary leaves `routeId` as `null` when the selected feature has no route-id attribute, and fixture mode keeps `compatibilitySupported` plus `requestDurationMs` as `null`.
 
 The kepler example README documents the fixture metadata manifest, required dataset IDs and fields, the default incident status and replay-window filters, browser readiness/error plus replay-harness hooks, refresh stdout JSON, and the runtime style override env vars used by the demo.
 

@@ -67,12 +67,12 @@ Primary warning codes emitted by the parser:
 
 Golden fixtures live under:
 
-- `js/test/fixtures/webmap-json/*/input.json`
-- `js/test/fixtures/webmap-json/*/expected.json`
+- `test/fixtures/webmap-json/*/input.json`
+- `test/fixtures/webmap-json/*/expected.json`
 
 Fixture suite test:
 
-- `js/test/webmap-parse.test.ts`
+- `test/webmap-parse.test.ts`
 
 The suite is executed by `npm test`, which is required in CI (`.github/workflows/ci.yml`) on every PR and push to `trunk`.
 

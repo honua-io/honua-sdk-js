@@ -20,10 +20,12 @@ WebMap or scene-contract support. When `routeIdField` is supplied it becomes the
 authoritative live route-id matcher and preferred normalized output field, while
 the success summary leaves `routeId` as `null` if the selected feature has no
 route-id attribute. For smoke tests and local inspection it also exposes
-`window.__cesiumRoutePlaybackDone`, `window.__cesiumRoutePlaybackError`, and
-`window.__cesiumRoutePlaybackResult`; the success summary echoes the fixture
-manifest query in fixture mode and the bounded live `queryFeatures()` request in
-live mode.
+`window.__cesiumRoutePlaybackDone` as the completion signal on both success and
+failure, `window.__cesiumRoutePlaybackError` for terminal failures only, and
+`window.__cesiumRoutePlaybackResult` for success summaries only; that summary
+echoes the fixture manifest query in fixture mode and the bounded live
+`queryFeatures()` request in live mode, with `compatibilitySupported` and
+`requestDurationMs` left `null` in fixture mode.
 
 ## What You'll Build
 
