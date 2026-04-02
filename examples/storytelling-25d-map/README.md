@@ -67,10 +67,13 @@ The browser runtime makes one compatibility request before it loads any story da
 
 - `GET /api/v1/admin/capabilities` through `HonuaClient.checkCompatibility()`
 
+The SDK reads the compatibility contract from `data.compatibility` inside that JSON response.
+
 The demo continues only when the server satisfies the SDK compatibility baseline already enforced by the client:
 
 - server version `>= 1.0.0`
-- control-plane API major `v1` on `/api/v1/admin`
+- control-plane API major `v1` with base path `/api/v1/admin`
+- control-plane API deprecation flag `false`
 - release channel `preview` or newer
 
 After compatibility passes, the demo loads the three collections in parallel through OGC API Features:

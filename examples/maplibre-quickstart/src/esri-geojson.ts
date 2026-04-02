@@ -190,40 +190,55 @@ function isPointInsideRing(point: QuickstartPosition, ring: readonly QuickstartP
   return isInside;
 }
 
+function findContainingPolygonIndex(
+  polygons: readonly QuickstartPosition[][][],
+  outerAreas: readonly number[],
+  ring: readonly QuickstartPosition[],
+): number {
+  const samplePoint = ring[0];
+  if (!samplePoint) {
+    return -1;
+  }
+
+  let containingPolygonIndex = -1;
+  let smallestContainingArea = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < polygons.length; index += 1) {
+    const polygon = polygons[index];
+    const outerRing = polygon?.[0];
+    const outerArea = outerAreas[index];
+    if (!outerRing || outerArea === undefined || !isPointInsideRing(samplePoint, outerRing)) {
+      continue;
+    }
+
+    if (outerArea < smallestContainingArea) {
+      smallestContainingArea = outerArea;
+      containingPolygonIndex = index;
+    }
+  }
+
+  return containingPolygonIndex;
+}
+
 function convertPolygonRings(
   rings: readonly QuickstartPosition[][],
 ): QuickstartGeoJsonPolygon | QuickstartGeoJsonMultiPolygon {
   const polygons: QuickstartPosition[][][] = [];
   const outerAreas: number[] = [];
+  const interiorRings: QuickstartPosition[][] = [];
 
   for (const ring of rings) {
-    if (polygons.length < 1 || isExteriorRing(ring)) {
+    if (isExteriorRing(ring)) {
       polygons.push([ring]);
       outerAreas.push(Math.abs(computeRingSignedArea(ring)));
       continue;
     }
 
-    const samplePoint = ring[0];
-    if (!samplePoint) {
-      continue;
-    }
+    interiorRings.push(ring);
+  }
 
-    let containingPolygonIndex = -1;
-    let smallestContainingArea = Number.POSITIVE_INFINITY;
-
-    for (let index = 0; index < polygons.length; index += 1) {
-      const polygon = polygons[index];
-      const outerRing = polygon?.[0];
-      const outerArea = outerAreas[index];
-      if (!outerRing || outerArea === undefined || !isPointInsideRing(samplePoint, outerRing)) {
-        continue;
-      }
-
-      if (outerArea < smallestContainingArea) {
-        smallestContainingArea = outerArea;
-        containingPolygonIndex = index;
-      }
-    }
+  for (const ring of interiorRings) {
+    const containingPolygonIndex = findContainingPolygonIndex(polygons, outerAreas, ring);
 
     if (containingPolygonIndex < 0) {
       polygons.push([ring]);

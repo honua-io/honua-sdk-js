@@ -82,6 +82,9 @@ const result = await client.queryFeatures({
   outSr: 4326,
   resultRecordCount: 25,
 });
+
+const featureCount = result.features?.length ?? 0;
+console.log(`Found ${featureCount} feature(s)`);
 ```
 
 The committed example adds the browser pieces around this SDK path: GeoJSON conversion, bounds fitting, render
@@ -94,6 +97,21 @@ basemap style and any dependent assets:
 
 1. `GET /api/v1/admin/capabilities` through `HonuaClient.checkCompatibility()`
 2. `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query` through `client.queryFeatures(...)`
+
+The compatibility request must resolve to a JSON object whose SDK-relevant payload lives at `data.compatibility`.
+That object is parsed strictly and must include:
+
+- `serverVersion` and `releaseChannel`
+- `controlPlaneApi.major`, `controlPlaneApi.basePath`, and `controlPlaneApi.deprecated`
+- `metadataSchemas[]`
+- `features.metadataResources`, `features.manifestExport`, `features.manifestApply`, `features.manifestDryRun`, and `features.manifestPrune`
+
+The quickstart only proceeds when that compatibility contract reports:
+
+- server version `>= 1.0.0`
+- control-plane API major `v1` with base path `/api/v1/admin`
+- control-plane API deprecation flag `false`
+- release channel `preview` or newer
 
 The quickstart query is fixed to:
 
@@ -109,7 +127,7 @@ from the Honua API contract above.
 The app then expects the response to include:
 
 - a `features` array with at least one record
-- at least one record with renderable point, polyline, or polygon geometry after Esri JSON to GeoJSON conversion
+- at least one record whose geometry converts into the rendered point, line, or polygon buckets
 - raw query records without renderable geometry may still be present, but they are dropped before the app builds the rendered GeoJSON dataset
 
 If the query returns zero features, or only features without renderable geometry, startup stops with a visible error

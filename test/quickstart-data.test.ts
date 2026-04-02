@@ -125,6 +125,37 @@ describe("maplibre quickstart data", () => {
     });
   });
 
+  it("assigns hole-first Esri rings to the containing polygon", () => {
+    const outerRing = [
+      [0, 4],
+      [4, 4],
+      [4, 0],
+      [0, 0],
+      [0, 4],
+    ] as const;
+    const holeRing = [
+      [1, 1],
+      [3, 1],
+      [3, 3],
+      [1, 3],
+      [1, 1],
+    ] as const;
+
+    const geojson = convertEsriFeaturesToGeoJson([
+      {
+        attributes: { OBJECTID: 8, NAME: "Hole-first polygon" },
+        geometry: {
+          rings: [holeRing, outerRing],
+        },
+      },
+    ]);
+
+    expect(geojson.features[0]?.geometry).toEqual({
+      type: "Polygon",
+      coordinates: [outerRing, holeRing],
+    });
+  });
+
   it("builds a deterministic quickstart dataset from the query fixture", () => {
     const dataset = buildQuickstartDataset(
       resolveQuickstartConfig({}),

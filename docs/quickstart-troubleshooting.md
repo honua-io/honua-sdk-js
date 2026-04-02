@@ -10,12 +10,16 @@ Symptoms:
 - the app stops before querying data
 - the overlay shows an unsupported compatibility message
 - `window.__HONUA_QUICKSTART_RUNTIME__.serverVersion` or `releaseChannel` is missing or below the SDK baseline
+- the app reports `Server does not expose GET /api/v1/admin/capabilities.`
 
 Checks:
 
 - confirm `GET /api/v1/admin/capabilities` is reachable from the browser
+- confirm the endpoint responds with a JSON object containing `success` and `data.compatibility`
 - confirm the server reports version `>= 1.0.0`
-- confirm the control-plane API major is `v1` at `/api/v1/admin`
+- confirm `data.compatibility.controlPlaneApi.major` is `1` with base path `/api/v1/admin`
+- confirm `data.compatibility.controlPlaneApi.deprecated` is `false`
+- confirm `data.compatibility.metadataSchemas` is an array and `data.compatibility.features` includes the expected boolean flags
 - confirm the release channel is `preview` or newer
 
 The quickstart app intentionally fails before the feature query when this contract is not satisfied.
@@ -62,12 +66,15 @@ Symptoms:
 - the app fails before the compatibility check runs
 - the overlay or inline status reports `A quickstart layer id must be an integer.`
 - the overlay or inline status reports `A quickstart result record count must be greater than zero.`
+- local staging runs fail with `HONUA_STAGING_BASE_URL is required.` or the matching `HONUA_STAGING_*` required-variable message
+- the staging workflow fails during its validation step with `Missing HONUA_STAGING_BASE_URL`, `Missing HONUA_STAGING_SERVICE_ID`, or `Missing HONUA_STAGING_LAYER_ID`
 - `npm run test:quickstart:staging` fails before issuing any network requests when staging env values are malformed
 
 Checks:
 
 - set `VITE_HONUA_QUICKSTART_LAYER_ID` to an integer
 - set `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT` to a positive integer
+- set `HONUA_STAGING_BASE_URL`, `HONUA_STAGING_SERVICE_ID`, and `HONUA_STAGING_LAYER_ID` for local or CI staging runs
 - for staging CI, keep `HONUA_STAGING_LAYER_ID` integer-valued and `HONUA_STAGING_RESULT_RECORD_COUNT` positive when overridden
 
 These validation failures happen before the app or staging integration issues `GET /api/v1/admin/capabilities`.
@@ -100,7 +107,7 @@ Checks:
 
 - confirm the layer returns geometry-bearing features
 - confirm the quickstart query keeps `returnGeometry: true`
-- confirm the requested layer is a point, polyline, or polygon layer
+- confirm the requested layer returns geometry that converts into the app's point, line, or polygon render buckets
 - keep `outSr: 4326` so MapLibre receives browser-safe coordinates
 
 The app filters out non-renderable records and only creates render layers for returned points, lines, or polygons.

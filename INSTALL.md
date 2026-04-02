@@ -57,7 +57,9 @@ const featureCount = result.features?.length ?? 0;
 console.log(`Found ${featureCount} feature(s)`);
 ```
 
-For a runnable browser example from this repo, use [`examples/maplibre-quickstart/README.md`](./examples/maplibre-quickstart/README.md).
+`checkCompatibility()` reads the parsed `data.compatibility` contract from `GET /api/v1/admin/capabilities`.
+For a runnable browser example from this repo, including the renderable-geometry checks used by the committed
+MapLibre quickstart, use [`examples/maplibre-quickstart/README.md`](./examples/maplibre-quickstart/README.md).
 
 ## Esri Migration
 

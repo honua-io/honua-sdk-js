@@ -58,10 +58,14 @@ The browser runtime makes one compatibility request before it queries the layer:
 
 - `GET /api/v1/admin/capabilities` through `HonuaClient.checkCompatibility()`
 
+The SDK reads the compatibility contract from `data.compatibility` inside that JSON response. The parsed object must
+include `serverVersion`, `releaseChannel`, `controlPlaneApi`, `metadataSchemas`, and the boolean `features` map.
+
 The app continues only when the server satisfies the SDK compatibility baseline already enforced by the client:
 
 - server version `>= 1.0.0`
-- control-plane API major `v1` on `/api/v1/admin`
+- control-plane API major `v1` with base path `/api/v1/admin`
+- control-plane API deprecation flag `false`
 - release channel `preview` or newer
 
 After compatibility passes, the app performs one bounded feature query:
@@ -83,7 +87,7 @@ Response handling:
 - the app expects `queryResponse.features` to contain at least one record
 - non-renderable records are dropped during Esri JSON to GeoJSON conversion
 - `featureCount` tracks the raw query response while `renderableFeatureCount` tracks the post-conversion dataset used for rendering
-- startup fails with a visible error if no renderable point, line, or polygon geometry remains
+- startup fails with a visible error if no record converts into the rendered point, line, or polygon buckets
 - feature titles prefer `NAME`, `TITLE`, or `LABEL`, then lowercase variants, else `Feature N`
 - subtitles prefer `STATUS`, `CATEGORY`, or `TYPE`, then lowercase variants, else a geometry summary
 
@@ -117,7 +121,7 @@ Runtime state includes:
 - compatibility `serverVersion` and `releaseChannel`
 - `featureCount`, `renderableFeatureCount`, and `geometryTypes`
 - `queryDurationMs`
-- `mapReady`, `selectedFeatureId`, `popupOpen`, and `lastError`
+- `layerIds`, `mapReady`, `selectedFeatureId`, `popupOpen`, and `lastError`
 
 Startup failures are surfaced in the overlay and the inline status panel. For common fixes, use the troubleshooting
 guide at [`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md).

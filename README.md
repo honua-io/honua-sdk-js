@@ -44,7 +44,8 @@ console.log(featureCount); // the browser quickstart also expects at least one r
 ```
 
 The committed quickstart app uses this same request shape and fails fast when compatibility is unsupported, the
-query returns no features, or none of the returned records include renderable point, line, or polygon geometry.
+query returns no features, or none of the returned records survive conversion into the rendered point, line, or
+polygon geometry buckets.
 
 ## Demo Apps
 
@@ -114,17 +115,23 @@ if (await client.supportsFeature("manifestApply")) {
   console.log("Manifest apply workflows are available on this server.");
 }
 
-const rawContract = await client.getCompatibility();
-console.log(rawContract.metadataSchemas);
+const compatibilityContract = await client.getCompatibility();
+console.log(compatibilityContract.metadataSchemas);
 ```
 
 `checkCompatibility()` reports support status, `supportsFeature()` gates coarse capabilities from
-`data.compatibility.features`, and `getCompatibility()` returns the raw server contract from
+`data.compatibility.features`, and `getCompatibility()` returns the parsed `data.compatibility` object from
 `GET /api/v1/admin/capabilities`.
+
+The capabilities endpoint still needs to return a JSON object with `success` plus `data.compatibility`. The parsed
+compatibility object must include `serverVersion`, `releaseChannel`, `controlPlaneApi`, `metadataSchemas`, and the
+boolean `features` map. Top-level extras such as `metadataApiVersions` and `resourceKinds` may be present on the
+endpoint response, but they are not returned by `getCompatibility()`.
 
 This SDK baseline currently expects:
 - server version `>= 1.0.0`
-- control-plane API major `v1` on `/api/v1/admin`
+- control-plane API major `v1` with base path `/api/v1/admin`
+- control-plane API deprecation flag `false`
 - server release channel `preview` or newer
 
 ---
