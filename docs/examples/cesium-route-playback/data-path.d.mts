@@ -33,7 +33,7 @@ export interface LiveQueryRequest {
 
 export interface RoutePlaybackManifestQuery extends Partial<LiveQueryRequest> {
   baseUrl?: string;
-  /** Post-query selector copied from ?routeId=... in live mode. */
+  /** Post-query selector copied from ?routeId=... in live mode; not part of the echoed live queryRequest. */
   routeIdValue?: string | null;
 }
 
@@ -42,7 +42,7 @@ export interface RoutePlaybackManifest {
   sourceContract?: string;
   query?: RoutePlaybackManifestQuery | null;
   fieldMapping?: {
-    /** Optional authoritative live route-id field copied from ?routeIdField=... */
+    /** Optional authoritative live route-id field copied from ?routeIdField=...; not part of the echoed live queryRequest. */
     routeId?: string | null;
     routeName?: string | null;
     startTimestamp?: string | null;
@@ -57,7 +57,7 @@ export interface RoutePlaybackSource {
   sourceMode: "fixture" | "live";
   /** Fixture manifest in fixture mode, or a synthetic manifest derived from live params. */
   manifest: RoutePlaybackManifest | null;
-  /** Fixture manifest query in fixture mode, or the bounded live query request in live mode. */
+  /** Fixture manifest query in fixture mode, or the exact bounded live query request in live mode; live echoes do not include routeId/routeIdField selectors. */
   queryRequest: RoutePlaybackManifestQuery | LiveQueryRequest | null;
   queryResponse: Record<string, unknown>;
   /** Live-mode compatibility result from checkCompatibility(); null in fixture mode. */
@@ -84,7 +84,7 @@ export interface RoutePlaybackSample extends RoutePlaybackPosition {
 
 export interface NormalizedRoutePlayback {
   sourceMode: "fixture" | "live";
-  /** Fixture manifest query in fixture mode, or the bounded live query request in live mode. */
+  /** Fixture manifest query in fixture mode, or the exact bounded live query request in live mode; live echoes do not include routeId/routeIdField selectors. */
   queryRequest: RoutePlaybackManifestQuery | LiveQueryRequest | null;
   queryResponse: Record<string, unknown>;
   featureCount: number;
@@ -121,7 +121,7 @@ export interface RoutePlaybackResultSummary {
   compatibilitySupported: boolean | null;
   /** Live query duration in milliseconds, otherwise null for fixture mode. */
   requestDurationMs: number | null;
-  /** Fixture manifest query in fixture mode, or the bounded live query request in live mode. */
+  /** Fixture manifest query in fixture mode, or the exact bounded live query request in live mode; live echoes do not include routeId/routeIdField selectors. */
   queryRequest: RoutePlaybackManifestQuery | LiveQueryRequest | null;
   warnings: string[];
   preprocessingSteps: string[];

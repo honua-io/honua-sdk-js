@@ -53,7 +53,7 @@ The browser page reads its configuration from the query string.
 - `serviceId`: defaults to `route-playback-demo`.
 - `layerId`: defaults to `0`.
 - `routeId`: optional explicit route identifier used only for client-side feature selection when a live query can still return multiple polylines. It does not narrow the server request by itself, so prefer pairing it with a tighter `where` or `objectIds` filter when possible. If you rely on `routeId` to select among multiple returned routes, widen `resultRecordCount` beyond the default `1` so the target feature can actually be returned. The matcher compares normalized string values across the configured route-id field when one is known, otherwise it falls back to the example's common route-id aliases. If no returned polyline matches, the example throws instead of falling back to another feature. The normalized result summary also prefers that configured field when reporting `routeId`, and leaves `routeId` as `null` when the selected feature has no route-id attribute at all.
-- `routeIdField`: optional live-mode route-id attribute name. Set this when the live layer stores route ids outside the example's built-in aliases like `route_id` or `routeId`. When provided, live route matching treats that configured field as authoritative instead of falling back to alias fields.
+- `routeIdField`: optional live-mode route-id attribute name. Set this when the live layer stores route ids outside the example's built-in aliases like `route_id` or `routeId`. When provided, live route matching and normalized `routeId` output treat that configured field as authoritative instead of falling back to alias fields first.
 - `where`: defaults to `1=1`.
 - `objectIds`: optional live-mode filter passed through to the query request.
 - `resultRecordCount`: defaults to `1` so the live query stays intentionally bounded.
@@ -87,6 +87,8 @@ Notes:
   `HonuaClient.queryFeatures()` input: `serviceId`, `layerId`, `where`,
   optional `objectIds`, `outFields`, `outSr`, `returnGeometry`,
   `resultRecordCount`, and `extraParams={ outSr: 4326, returnZ: true }`
+- the echoed live request intentionally omits `routeId` and `routeIdField`;
+  those stay in the synthetic manifest as post-query selectors only
 - if the live layer can still return multiple polyline features, pass
   `routeId`, widen `resultRecordCount` enough to return that feature, set
   `routeIdField` when the identifier lives in a custom attribute, or narrow

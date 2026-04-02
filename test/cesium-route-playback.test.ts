@@ -7,10 +7,11 @@ import {
   createLiveQueryRequest,
   loadRouteSource,
   normalizeRoutePlaybackSource,
+  type RoutePlaybackManifest,
 } from "../docs/examples/cesium-route-playback/data-path.mjs";
 
-function readJson(relativePath: string): Record<string, unknown> {
-  return JSON.parse(fs.readFileSync(new URL(relativePath, import.meta.url), "utf8")) as Record<string, unknown>;
+function readJson<T>(relativePath: string): T {
+  return JSON.parse(fs.readFileSync(new URL(relativePath, import.meta.url), "utf8")) as T;
 }
 
 const MULTI_FEATURE_QUERY_RESPONSE = {
@@ -292,14 +293,18 @@ describe("Cesium route playback example helpers", () => {
   });
 
   it("normalizes a Honua polyline fixture into playback samples", () => {
-    const manifest = readJson("../docs/examples/cesium-route-playback/fixtures/source-manifest.json");
-    const queryResponse = readJson("../docs/examples/cesium-route-playback/fixtures/route-query-response.json");
+    const manifest = readJson<RoutePlaybackManifest>(
+      "../docs/examples/cesium-route-playback/fixtures/source-manifest.json",
+    );
+    const queryResponse = readJson<Record<string, unknown>>(
+      "../docs/examples/cesium-route-playback/fixtures/route-query-response.json",
+    );
 
     const normalized = normalizeRoutePlaybackSource(
       {
         sourceMode: "fixture",
         manifest,
-        queryRequest: manifest.query,
+        queryRequest: manifest.query ?? null,
         queryResponse,
       },
       { speedMetersPerSecond: 18 },
