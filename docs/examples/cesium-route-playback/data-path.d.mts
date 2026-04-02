@@ -35,6 +35,7 @@ export interface RoutePlaybackSource {
   sourceMode: "fixture" | "live";
   /** Fixture manifest in fixture mode, or a synthetic manifest derived from live params. */
   manifest: Record<string, unknown> | null;
+  /** Fixture manifest query in fixture mode, or the bounded live query request in live mode. */
   queryRequest: unknown;
   queryResponse: Record<string, unknown>;
   /** Live-mode compatibility result from checkCompatibility(); null in fixture mode. */
@@ -61,6 +62,7 @@ export interface RoutePlaybackSample extends RoutePlaybackPosition {
 
 export interface NormalizedRoutePlayback {
   sourceMode: "fixture" | "live";
+  /** Fixture manifest query in fixture mode, or the bounded live query request in live mode. */
   queryRequest: unknown;
   queryResponse: Record<string, unknown>;
   featureCount: number;

@@ -219,6 +219,10 @@ terminal failure message when the example cannot finish loading.
 - `queryRequest` (fixture manifest query in fixture mode, live request in live mode),
   `warnings`, `preprocessingSteps`, and `entityCount`
 
+The diagnostics panel uses the same `queryRequest` source: fixture mode echoes
+`fixtures/source-manifest.json#query`, while live mode echoes the bounded
+`queryFeatures()` request sent through `HonuaClient`.
+
 Verification commands:
 
 ```bash

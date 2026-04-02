@@ -30,6 +30,7 @@ console.log(result.features); // fully typed HonuaFeature[]
 - [`docs/examples/cesium-route-playback/README.md`](./docs/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
 The example READMEs document the run lanes, accepted data contracts, live-query narrowing rules, preprocessing rules, and browser diagnostics for each workflow.
+For the Cesium spike specifically, `window.__cesiumRoutePlaybackDone` is the completion signal on both success and failure, `window.__cesiumRoutePlaybackError` is failure-only, and `window.__cesiumRoutePlaybackResult` is populated only on success.
 
 The kepler example README documents the fixture metadata manifest, required dataset IDs and fields, the default incident status and replay-window filters, browser readiness/error plus replay-harness hooks, refresh stdout JSON, and the runtime style override env vars used by the demo.
 
