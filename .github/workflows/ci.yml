@@ -2,9 +2,13 @@ name: SDK CI
 
 on:
   push:
-    branches: [trunk]
+    branches:
+      - trunk
+      - "release/**"
   pull_request:
-    branches: [trunk]
+    branches:
+      - trunk
+      - "release/**"
 
 env:
   NODE_VERSION: "20.19.0"
@@ -32,8 +36,20 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Quickstart example typecheck
+        run: npm run demo:quickstart:typecheck
+
+      - name: Quickstart example build
+        run: npm run demo:quickstart:build
+
       - name: Unit tests with coverage
         run: npm run test:coverage
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Quickstart browser smoke
+        run: npm run test:playwright:quickstart
 
   mcp-sdk:
     name: MCP SDK

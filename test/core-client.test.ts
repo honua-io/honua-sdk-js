@@ -22,6 +22,7 @@ describe("HonuaClient", () => {
       where: "OBJECTID > 1",
       outFields: ["OBJECTID", "NAME"],
       returnGeometry: false,
+      outSr: 4326,
       method: "GET",
     });
 
@@ -30,6 +31,7 @@ describe("HonuaClient", () => {
     expect(requestedUrl).toContain("where=OBJECTID+%3E+1");
     expect(requestedUrl).toContain("outFields=OBJECTID%2CNAME");
     expect(requestedUrl).toContain("returnGeometry=false");
+    expect(requestedUrl).toContain("outSR=4326");
     expect(requestedInit?.method).toBe("GET");
   });
 

@@ -1715,6 +1715,12 @@ function mergePathWithQueryParams(path: string, additionalParams: URLSearchParam
 }
 
 function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesRequest | MapLayerQueryRequest): void {
+  if (request.outSr !== undefined) {
+    params.set(
+      "outSR",
+      typeof request.outSr === "object" && request.outSr !== null ? JSON.stringify(request.outSr) : String(request.outSr),
+    );
+  }
   if (request.orderByFields !== undefined) {
     params.set("orderByFields", request.orderByFields);
   }

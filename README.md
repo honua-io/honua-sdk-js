@@ -2,6 +2,17 @@
 
 ## Quickstart
 
+Canonical runnable browser quickstart from this repo:
+
+```bash
+npm install
+npm run demo:quickstart:mock
+```
+
+Use [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) for the committed app,
+[`docs/quickstart.md`](./docs/quickstart.md) for the guided quickstart flow, and
+[`docs/quickstart-troubleshooting.md`](./docs/quickstart-troubleshooting.md) for common failure modes.
+
 ```bash
 npm install @honua/sdk-js
 ```
@@ -25,6 +36,7 @@ console.log(result.features); // fully typed HonuaFeature[]
 
 ## Demo Apps
 
+- [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md): committed MapLibre quickstart app with a deterministic fixture-backed mock lane, one compatibility check, one read-only feature query, popup inspection, browser telemetry, and a matching staging integration suite.
 - [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, same-origin fixture mocking, OGC collection overlays, polygon extrusions, and route replay.
 - [`examples/kepler-analytics/`](./examples/kepler-analytics/README.md): fixture-first kepler.gl analytics demo for an `operations replay` workflow with committed GeoJSON plus metadata, KPI cards, walkthrough copy, and focused browser smoke coverage.
 - [`docs/examples/cesium-route-playback/README.md`](./docs/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
@@ -40,10 +52,11 @@ Deterministic local review flow for the `2.5D` demo:
 ```bash
 # Node.js 20.19.0+ at the repo root
 npm install
+npm run demo:quickstart:mock
 npm run demo:25d:mock
 ```
 
-The command builds the example, serves fixture-backed Honua responses, and prints `story25dMockUrl=http://127.0.0.1:PORT`.
+The quickstart command prints `quickstartMockUrl=http://127.0.0.1:PORT`. The 2.5D command prints `story25dMockUrl=http://127.0.0.1:PORT`.
 
 Live Honua flow for the `2.5D` demo:
 
@@ -139,6 +152,11 @@ npm install
 Storytelling demo loops:
 
 ```bash
+npm run demo:quickstart:mock
+# or, with examples/maplibre-quickstart/.env configured:
+npm run demo:quickstart
+
+# advanced storytelling demo:
 npm run demo:25d:mock
 # or, with examples/storytelling-25d-map/.env configured:
 npm run demo:25d
@@ -164,14 +182,18 @@ The repo-root refresh wrapper builds the SDK before delegating to the example-lo
 ```bash
 npm run typecheck
 npm run build
+npm run demo:quickstart:typecheck
 npm run demo:25d:typecheck
+npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts
 npx vitest run test/cesium-route-playback.test.ts
 npx vitest run test/storytelling-25d-config.test.ts test/storytelling-25d-data.test.ts
 npm test
+npm run test:playwright:quickstart
 npx playwright test test/playwright/cesium-route-playback.spec.mjs
 npm run test:playwright:25d
 npm run test:playwright
 npm run demo:kepler:smoke
+npm run test:quickstart:staging
 npm run scan:arcgis -- ../../path/to/arcgis-app
 npm run migrate:arcgis -- ../../path/to/arcgis-app --write --report migration-report.json
 npm run report:migration:real-samples
