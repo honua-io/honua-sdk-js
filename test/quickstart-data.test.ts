@@ -87,6 +87,44 @@ describe("maplibre quickstart data", () => {
     ).toThrow("The feature query returned 3 feature(s), but none included renderable geometry.");
   });
 
+  it("keeps disjoint Esri outer rings as a GeoJSON multipolygon", () => {
+    const outerRingA = [
+      [0, 4],
+      [4, 4],
+      [4, 0],
+      [0, 0],
+      [0, 4],
+    ] as const;
+    const holeRingA = [
+      [1, 1],
+      [3, 1],
+      [3, 3],
+      [1, 3],
+      [1, 1],
+    ] as const;
+    const outerRingB = [
+      [10, 4],
+      [14, 4],
+      [14, 0],
+      [10, 0],
+      [10, 4],
+    ] as const;
+
+    const geojson = convertEsriFeaturesToGeoJson([
+      {
+        attributes: { OBJECTID: 7, NAME: "Multipart polygon" },
+        geometry: {
+          rings: [outerRingA, holeRingA, outerRingB],
+        },
+      },
+    ]);
+
+    expect(geojson.features[0]?.geometry).toEqual({
+      type: "MultiPolygon",
+      coordinates: [[outerRingA, holeRingA], [outerRingB]],
+    });
+  });
+
   it("builds a deterministic quickstart dataset from the query fixture", () => {
     const dataset = buildQuickstartDataset(
       resolveQuickstartConfig({}),

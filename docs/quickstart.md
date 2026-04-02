@@ -110,9 +110,13 @@ The app then expects the response to include:
 
 - a `features` array with at least one record
 - at least one record with renderable point, polyline, or polygon geometry after Esri JSON to GeoJSON conversion
+- raw query records without renderable geometry may still be present, but they are dropped before the app builds the rendered GeoJSON dataset
 
 If the query returns zero features, or only features without renderable geometry, startup stops with a visible error
 instead of rendering an empty map.
+
+The staging integration reuses the same `loadQuickstartDataset(...)` helper and validates only the compatibility plus
+single-query portion of this contract. It does not boot MapLibre or fetch the basemap style.
 
 ## Optional Next Steps
 

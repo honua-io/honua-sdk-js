@@ -82,6 +82,7 @@ Response handling:
 
 - the app expects `queryResponse.features` to contain at least one record
 - non-renderable records are dropped during Esri JSON to GeoJSON conversion
+- `featureCount` tracks the raw query response while `renderableFeatureCount` tracks the post-conversion dataset used for rendering
 - startup fails with a visible error if no renderable point, line, or polygon geometry remains
 - feature titles prefer `NAME`, `TITLE`, or `LABEL`, then lowercase variants, else `Feature N`
 - subtitles prefer `STATUS`, `CATEGORY`, or `TYPE`, then lowercase variants, else a geometry summary
@@ -137,7 +138,9 @@ npm run test:quickstart:staging
 
 The staging suite expects the `HONUA_STAGING_*` environment described in
 [`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md#staging-ci-config-drift) and can
-write a JSON summary to `HONUA_QUICKSTART_STAGING_SUMMARY_FILE` for CI step reporting.
+write a JSON summary to `HONUA_QUICKSTART_STAGING_SUMMARY_FILE` for CI step reporting. It reuses
+`loadQuickstartDataset()` and validates the compatibility plus single-query contract only, so it does not start the
+browser app or fetch the basemap style.
 
 ## External Follow-on
 

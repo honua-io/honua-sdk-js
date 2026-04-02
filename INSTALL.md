@@ -35,16 +35,29 @@ const client = new HonuaClient({
   baseUrl: "https://your-honua-server.com",
 });
 
-// Query features
-const features = await client.queryFeatures({
-  serviceId: "my-service",
+const compatibility = await client.checkCompatibility();
+if (!compatibility.supported) {
+  throw new Error(
+    `Unsupported Honua server. Minimum supported version: ${HonuaClient.minimumSupportedServerVersion}. ` +
+      `Reasons: ${compatibility.reasons.join("; ")}`,
+  );
+}
+
+const result = await client.queryFeatures({
+  serviceId: "natural-earth",
   layerId: 0,
-  where: "status = 'active'",
+  where: "1=1",
   returnGeometry: true,
+  outFields: ["*"],
+  outSr: 4326,
+  resultRecordCount: 25,
 });
 
-console.log(`Found ${features.length} features`);
+const featureCount = result.features?.length ?? 0;
+console.log(`Found ${featureCount} feature(s)`);
 ```
+
+For a runnable browser example from this repo, use [`examples/maplibre-quickstart/README.md`](./examples/maplibre-quickstart/README.md).
 
 ## Esri Migration
 

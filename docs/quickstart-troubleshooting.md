@@ -60,8 +60,9 @@ example code.
 Symptoms:
 
 - the app fails before the compatibility check runs
-- the browser console shows `A quickstart layer id must be an integer.`
-- the browser console shows `A quickstart result record count must be greater than zero.`
+- the overlay or inline status reports `A quickstart layer id must be an integer.`
+- the overlay or inline status reports `A quickstart result record count must be greater than zero.`
+- `npm run test:quickstart:staging` fails before issuing any network requests when staging env values are malformed
 
 Checks:
 
@@ -103,6 +104,7 @@ Checks:
 - keep `outSr: 4326` so MapLibre receives browser-safe coordinates
 
 The app filters out non-renderable records and only creates render layers for returned points, lines, or polygons.
+That means `featureCount` can be greater than `renderableFeatureCount` when the server returns mixed-quality data.
 
 ## Basemap Style Load Failures
 
@@ -142,6 +144,7 @@ If staging CI starts failing after an environment change:
 - confirm the configured service and layer still exist
 - confirm the environment still exposes non-empty geometry-bearing data
 - confirm the auth policy still matches the configured secret or public access path
+- remember the staging suite reuses the shared quickstart data loader only; it does not open the browser app or fetch the basemap style
 - review the workflow step summary for `serverVersion`, `releaseChannel`, `featureCount`,
   `renderableFeatureCount`, `geometryTypes`, and `queryDurationMs`
 
@@ -158,7 +161,7 @@ Useful fields:
 - `serverVersion`, `releaseChannel`
 - `featureCount`, `renderableFeatureCount`, `geometryTypes`
 - `queryDurationMs`
-- `mapReady`, `selectedFeatureId`, `popupOpen`, `lastError`
+- `layerIds`, `mapReady`, `selectedFeatureId`, `popupOpen`, `lastError`
 
 Every telemetry event is also dispatched as `CustomEvent("honua:quickstart")`.
 

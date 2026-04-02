@@ -112,6 +112,139 @@ function collectPositionSets(value: unknown): QuickstartPosition[][] {
   return value.map((entry) => collectFinitePositions(entry)).filter((entry) => entry.length > 0);
 }
 
+function computeRingSignedArea(ring: readonly QuickstartPosition[]): number {
+  if (ring.length < 3) {
+    return 0;
+  }
+
+  let area = 0;
+  for (let index = 0; index < ring.length; index += 1) {
+    const current = ring[index];
+    const next = ring[(index + 1) % ring.length];
+    if (!current || !next) {
+      continue;
+    }
+    area += current[0] * next[1] - next[0] * current[1];
+  }
+
+  return area / 2;
+}
+
+function isExteriorRing(ring: readonly QuickstartPosition[]): boolean {
+  return computeRingSignedArea(ring) < 0;
+}
+
+function isPointOnSegment(
+  point: QuickstartPosition,
+  segmentStart: QuickstartPosition,
+  segmentEnd: QuickstartPosition,
+): boolean {
+  const epsilon = 1e-9;
+  const crossProduct =
+    (point[0] - segmentStart[0]) * (segmentEnd[1] - segmentStart[1]) -
+    (point[1] - segmentStart[1]) * (segmentEnd[0] - segmentStart[0]);
+
+  if (Math.abs(crossProduct) > epsilon) {
+    return false;
+  }
+
+  const dotProduct =
+    (point[0] - segmentStart[0]) * (segmentEnd[0] - segmentStart[0]) +
+    (point[1] - segmentStart[1]) * (segmentEnd[1] - segmentStart[1]);
+  if (dotProduct < -epsilon) {
+    return false;
+  }
+
+  const segmentLengthSquared =
+    (segmentEnd[0] - segmentStart[0]) * (segmentEnd[0] - segmentStart[0]) +
+    (segmentEnd[1] - segmentStart[1]) * (segmentEnd[1] - segmentStart[1]);
+
+  return dotProduct - segmentLengthSquared <= epsilon;
+}
+
+function isPointInsideRing(point: QuickstartPosition, ring: readonly QuickstartPosition[]): boolean {
+  if (ring.length < 3) {
+    return false;
+  }
+
+  let isInside = false;
+  for (let index = 0, previousIndex = ring.length - 1; index < ring.length; previousIndex = index, index += 1) {
+    const current = ring[index];
+    const previous = ring[previousIndex];
+    if (!current || !previous) {
+      continue;
+    }
+
+    if (isPointOnSegment(point, previous, current)) {
+      return true;
+    }
+
+    const intersects =
+      current[1] > point[1] !== previous[1] > point[1] &&
+      point[0] < ((previous[0] - current[0]) * (point[1] - current[1])) / (previous[1] - current[1]) + current[0];
+    if (intersects) {
+      isInside = !isInside;
+    }
+  }
+
+  return isInside;
+}
+
+function convertPolygonRings(
+  rings: readonly QuickstartPosition[][],
+): QuickstartGeoJsonPolygon | QuickstartGeoJsonMultiPolygon {
+  const polygons: QuickstartPosition[][][] = [];
+  const outerAreas: number[] = [];
+
+  for (const ring of rings) {
+    if (polygons.length < 1 || isExteriorRing(ring)) {
+      polygons.push([ring]);
+      outerAreas.push(Math.abs(computeRingSignedArea(ring)));
+      continue;
+    }
+
+    const samplePoint = ring[0];
+    if (!samplePoint) {
+      continue;
+    }
+
+    let containingPolygonIndex = -1;
+    let smallestContainingArea = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index < polygons.length; index += 1) {
+      const polygon = polygons[index];
+      const outerRing = polygon?.[0];
+      const outerArea = outerAreas[index];
+      if (!outerRing || outerArea === undefined || !isPointInsideRing(samplePoint, outerRing)) {
+        continue;
+      }
+
+      if (outerArea < smallestContainingArea) {
+        smallestContainingArea = outerArea;
+        containingPolygonIndex = index;
+      }
+    }
+
+    if (containingPolygonIndex < 0) {
+      polygons.push([ring]);
+      outerAreas.push(Math.abs(computeRingSignedArea(ring)));
+      continue;
+    }
+
+    polygons[containingPolygonIndex]?.push(ring);
+  }
+
+  return polygons.length === 1
+    ? {
+        type: "Polygon",
+        coordinates: polygons[0] ?? [],
+      }
+    : {
+        type: "MultiPolygon",
+        coordinates: polygons,
+      };
+}
+
 function includeCoordinate(bounds: QuickstartBounds | undefined, coordinate: QuickstartPosition): QuickstartBounds {
   if (!bounds) {
     return {
@@ -204,10 +337,7 @@ function convertGeometry(geometry: HonuaFeature["geometry"]): QuickstartGeoJsonG
       return null;
     }
 
-    return {
-      type: "Polygon",
-      coordinates,
-    };
+    return convertPolygonRings(coordinates);
   }
 
   if (
