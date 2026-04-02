@@ -37,10 +37,12 @@ export interface RoutePlaybackSource {
   manifest: Record<string, unknown> | null;
   queryRequest: unknown;
   queryResponse: Record<string, unknown>;
+  /** Live-mode compatibility result from checkCompatibility(); null in fixture mode. */
   compatibility?: {
     supported?: boolean;
     reasons?: string[];
   } | null;
+  /** Live-mode query duration captured from the temporary interceptor; null in fixture mode. */
   requestDurationMs?: number | null;
 }
 
@@ -77,6 +79,27 @@ export interface NormalizedRoutePlayback {
   playbackSamples: RoutePlaybackSample[];
   preprocessingSteps: string[];
   warnings: string[];
+}
+
+/** Browser-facing summary exposed on window.__cesiumRoutePlaybackResult. */
+export interface RoutePlaybackResultSummary {
+  sourceMode: "fixture" | "live";
+  routeName: string;
+  routeId: string;
+  featureCount: number;
+  vertexCount: number;
+  hasZ: boolean;
+  terrainEnabled: boolean;
+  terrainMode: string;
+  heightMode: string;
+  /** checkCompatibility().supported in live mode, otherwise null for fixture mode. */
+  compatibilitySupported: boolean | null;
+  /** Live query duration in milliseconds, otherwise null for fixture mode. */
+  requestDurationMs: number | null;
+  queryRequest: unknown;
+  warnings: string[];
+  preprocessingSteps: string[];
+  entityCount: number;
 }
 
 export interface RoutePlaybackRequestInterceptor {

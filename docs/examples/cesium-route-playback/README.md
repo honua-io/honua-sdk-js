@@ -53,7 +53,7 @@ The browser page reads its configuration from the query string.
 - `serviceId`: defaults to `route-playback-demo`.
 - `layerId`: defaults to `0`.
 - `routeId`: optional explicit route identifier used only for client-side feature selection when a live query can still return multiple polylines. It does not narrow the server request by itself, so prefer pairing it with a tighter `where` or `objectIds` filter when possible. If you rely on `routeId` to select among multiple returned routes, widen `resultRecordCount` beyond the default `1` so the target feature can actually be returned. The matcher compares normalized string values across the configured route-id field when one is known, otherwise it falls back to the example's common route-id aliases. If no returned polyline matches, the example throws instead of falling back to another feature. The normalized result summary also prefers that configured field when reporting `routeId`.
-- `routeIdField`: optional live-mode route-id attribute name. Set this when the live layer stores route ids outside the example's built-in aliases like `route_id` or `routeId`.
+- `routeIdField`: optional live-mode route-id attribute name. Set this when the live layer stores route ids outside the example's built-in aliases like `route_id` or `routeId`. When provided, live route matching treats that configured field as authoritative instead of falling back to alias fields.
 - `where`: defaults to `1=1`.
 - `objectIds`: optional live-mode filter passed through to the query request.
 - `resultRecordCount`: defaults to `1` so the live query stays intentionally bounded.
@@ -106,11 +106,12 @@ The example keeps the conversion path explicit:
    feature selection. It selects the polyline feature whose configured route id
    matches after string normalization, including numeric route ids that need to
    be coerced to strings. In live mode, `routeIdField` seeds
-   `fieldMapping.routeId` when the layer uses a nonstandard attribute name;
-   otherwise the selector falls back through the example's route-id aliases. If
-   no returned polyline matches the configured route id, or if multiple
-   polyline features remain without a configured route id, the example throws
-   instead of guessing.
+   `fieldMapping.routeId` when the layer uses a nonstandard attribute name, and
+   matching treats that configured field as authoritative; without
+   `routeIdField`, the selector falls back through the example's route-id
+   aliases. If no returned polyline matches the configured route id, or if
+   multiple polyline features remain without a configured route id, the example
+   throws instead of guessing.
 5. Multipart polylines are reduced to the physically longest path by measured
    segment distance, then normalized into Cesium-friendly WGS84 coordinates.
 6. Route labels fall back through `route_name`, `routeName`, `name`, and `Name`.
@@ -203,10 +204,15 @@ For browser smoke tests and local inspection, the example also exposes:
 - `window.__cesiumRoutePlaybackError`
 - `window.__cesiumRoutePlaybackResult`
 
-`window.__cesiumRoutePlaybackResult` includes the source mode, route identity,
-feature and vertex counts, terrain and height mode, live compatibility status,
-request duration, query request details, warnings, preprocessing steps, and
-rendered entity count.
+`window.__cesiumRoutePlaybackDone` flips to `true` on both success and failure
+so smoke tests can wait on completion before inspecting the error or result.
+
+`window.__cesiumRoutePlaybackResult` includes:
+
+- `sourceMode`, `routeName`, `routeId`, `featureCount`, `vertexCount`, and `hasZ`
+- `terrainEnabled`, `terrainMode`, and `heightMode`
+- `compatibilitySupported` and `requestDurationMs`, both `null` in fixture mode
+- `queryRequest`, `warnings`, `preprocessingSteps`, and `entityCount`
 
 Verification commands:
 

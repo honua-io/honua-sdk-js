@@ -161,6 +161,45 @@ const MULTI_FEATURE_QUERY_RESPONSE_WITH_CUSTOM_ROUTE_ID = {
   ],
 };
 
+const MULTI_FEATURE_QUERY_RESPONSE_WITH_CUSTOM_ROUTE_ID_ALIAS_CONFLICT = {
+  geometryType: "esriGeometryPolyline",
+  features: [
+    {
+      attributes: {
+        custom_route: "dense-short",
+        route_id: "intended-long",
+        route_name: "Alias trap route",
+      },
+      geometry: {
+        paths: [
+          [
+            [-157.8583, 21.3069, 12],
+            [-157.85825, 21.30695, 12],
+            [-157.8582, 21.307, 12],
+            [-157.85815, 21.30705, 12],
+            [-157.8581, 21.3071, 12],
+          ],
+        ],
+      },
+    },
+    {
+      attributes: {
+        custom_route: "intended-long",
+        route_id: "other-alias",
+        route_name: "Custom mapped route",
+      },
+      geometry: {
+        paths: [
+          [
+            [-157.8583, 21.3069, 12],
+            [-156.5, 21.3069, 12],
+          ],
+        ],
+      },
+    },
+  ],
+};
+
 type MockInterceptor = {
   after?: (context: { durationMs: number }) => void;
   error?: (context: { durationMs?: number }) => void;
@@ -341,6 +380,21 @@ describe("Cesium route playback example helpers", () => {
         routeIdValue: "intended-long",
       },
     });
+    expect(normalized.routeId).toBe("intended-long");
+    expect(normalized.routeName).toBe("Custom mapped route");
+    expect(normalized.vertexCount).toBe(2);
+  });
+
+  it("treats a configured custom live route-id field as authoritative for matching", async () => {
+    const config = createExampleConfig(
+      "?mode=live&baseUrl=/mock-honua&serviceId=transport&layerId=0&routeId=intended-long&routeIdField=custom_route&resultRecordCount=2",
+    );
+    const source = await loadRouteSource(config, {
+      HonuaClient: createMockHonuaClient(MULTI_FEATURE_QUERY_RESPONSE_WITH_CUSTOM_ROUTE_ID_ALIAS_CONFLICT),
+    });
+
+    const normalized = normalizeRoutePlaybackSource(source, config);
+
     expect(normalized.routeId).toBe("intended-long");
     expect(normalized.routeName).toBe("Custom mapped route");
     expect(normalized.vertexCount).toBe(2);

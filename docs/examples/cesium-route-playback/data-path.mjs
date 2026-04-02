@@ -225,7 +225,7 @@ function findFeatureByManifestRouteId(features, manifest) {
     return null;
   }
 
-  const routeIdFields = getRouteIdMatchFields(manifest);
+  const routeIdFields = getRouteIdSelectorFields(manifest);
   return (
     features.find((feature) => featureAttributesMatchRouteId(feature?.attributes, routeIdFields, routeIdValue)) ??
     null
@@ -331,7 +331,7 @@ function readRouteName(attributes = {}) {
 }
 
 function readRouteId(attributes = {}, manifest) {
-  return readComparableAttributeValue(attributes, getRouteIdMatchFields(manifest)) ?? "route-playback-demo";
+  return readComparableAttributeValue(attributes, getRouteIdDisplayFields(manifest)) ?? "route-playback-demo";
 }
 
 function readAttributeValue(attributes, candidates) {
@@ -356,7 +356,16 @@ function readComparableAttributeValue(attributes, candidates) {
   return null;
 }
 
-function getRouteIdMatchFields(manifest) {
+function getRouteIdSelectorFields(manifest) {
+  const configuredField = manifest?.fieldMapping?.routeId;
+  if (isNonEmptyString(configuredField)) {
+    return [configuredField];
+  }
+
+  return ROUTE_ID_FIELDS;
+}
+
+function getRouteIdDisplayFields(manifest) {
   const configuredField = manifest?.fieldMapping?.routeId;
   return Array.from(new Set([configuredField, ...ROUTE_ID_FIELDS].filter(isNonEmptyString)));
 }

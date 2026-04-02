@@ -158,6 +158,7 @@ The repo-root refresh wrapper builds the SDK before delegating to the example-lo
 
 ```bash
 npm run typecheck
+npm run build
 npm run demo:25d:typecheck
 npx vitest run test/cesium-route-playback.test.ts
 npx vitest run test/storytelling-25d-config.test.ts test/storytelling-25d-data.test.ts
