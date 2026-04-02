@@ -43,15 +43,18 @@ cp examples/maplibre-quickstart/.env.example examples/maplibre-quickstart/.env
 npm run demo:quickstart
 ```
 
-The live app expects:
+The live app accepts:
 
-- `VITE_HONUA_QUICKSTART_BASE_URL`
-- `VITE_HONUA_QUICKSTART_SERVICE_ID`
-- `VITE_HONUA_QUICKSTART_LAYER_ID`
-- optional `VITE_HONUA_QUICKSTART_WHERE`
-- optional `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT`
+- `VITE_HONUA_QUICKSTART_BASE_URL` for live runs. Leave it empty only for the same-origin fixture lane.
+- optional `VITE_HONUA_QUICKSTART_SERVICE_ID`. Default: `natural-earth`.
+- optional `VITE_HONUA_QUICKSTART_LAYER_ID`. Default: `0`. Must parse as an integer.
+- optional `VITE_HONUA_QUICKSTART_WHERE`. Default: `1=1`.
+- optional `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT`. Default: `25`. Must be greater than `0`.
+- optional `VITE_HONUA_QUICKSTART_BASEMAP_STYLE`. Default: `https://demotiles.maplibre.org/style.json`.
 - optional `VITE_HONUA_QUICKSTART_API_KEY`
 - optional `VITE_HONUA_QUICKSTART_BEARER_TOKEN`
+
+Invalid layer-id or result-count overrides fail startup before the app makes any Honua API requests.
 
 ## Minimal SDK Snippet
 
@@ -83,6 +86,33 @@ const result = await client.queryFeatures({
 
 The committed example adds the browser pieces around this SDK path: GeoJSON conversion, bounds fitting, render
 layers, popup inspection, and browser telemetry for smoke coverage.
+
+## Runtime And Response Contract
+
+The committed app performs exactly two Honua API requests on a healthy startup before MapLibre loads the configured
+basemap style and any dependent assets:
+
+1. `GET /api/v1/admin/capabilities` through `HonuaClient.checkCompatibility()`
+2. `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query` through `client.queryFeatures(...)`
+
+The quickstart query is fixed to:
+
+- `where`: configured filter, default `1=1`
+- `returnGeometry: true`
+- `outFields: ["*"]`
+- `outSr: 4326`
+- `resultRecordCount`: bounded by config, default `25`
+
+MapLibre then fetches `VITE_HONUA_QUICKSTART_BASEMAP_STYLE` and any referenced sprites, glyphs, or tiles separately
+from the Honua API contract above.
+
+The app then expects the response to include:
+
+- a `features` array with at least one record
+- at least one record with renderable point, polyline, or polygon geometry after Esri JSON to GeoJSON conversion
+
+If the query returns zero features, or only features without renderable geometry, startup stops with a visible error
+instead of rendering an empty map.
 
 ## Optional Next Steps
 

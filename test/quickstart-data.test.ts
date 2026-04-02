@@ -55,6 +55,38 @@ describe("maplibre quickstart data", () => {
     expect(summarizeRenderableGeometryTypes(geojson)).toEqual(["point", "line", "polygon"]);
   });
 
+  it("treats empty points, paths, and rings as non-renderable geometry", () => {
+    const features = [
+      {
+        attributes: { OBJECTID: 1, NAME: "Empty point set" },
+        geometry: { points: [] },
+      },
+      {
+        attributes: { OBJECTID: 2, NAME: "Empty path set" },
+        geometry: { paths: [] },
+      },
+      {
+        attributes: { OBJECTID: 3, NAME: "Empty ring set" },
+        geometry: { rings: [] },
+      },
+    ];
+    const geojson = convertEsriFeaturesToGeoJson(features);
+
+    expect(geojson.features.map((feature) => feature.geometry)).toEqual([null, null, null]);
+    expect(summarizeRenderableGeometryTypes(geojson)).toEqual([]);
+    expect(() =>
+      buildQuickstartDataset(
+        resolveQuickstartConfig({}),
+        {
+          serverVersion: "1.2.0",
+          releaseChannel: "stable",
+        },
+        { features },
+        9,
+      ),
+    ).toThrow("The feature query returned 3 feature(s), but none included renderable geometry.");
+  });
+
   it("builds a deterministic quickstart dataset from the query fixture", () => {
     const dataset = buildQuickstartDataset(
       resolveQuickstartConfig({}),

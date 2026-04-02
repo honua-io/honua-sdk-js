@@ -42,14 +42,15 @@ Supported env vars:
 
 - `VITE_HONUA_QUICKSTART_BASE_URL`: Honua base URL. Leave empty only for the same-origin fixture lane.
 - `VITE_HONUA_QUICKSTART_SERVICE_ID`: FeatureServer service id. Default: `natural-earth`.
-- `VITE_HONUA_QUICKSTART_LAYER_ID`: FeatureServer layer id. Default: `0`.
+- `VITE_HONUA_QUICKSTART_LAYER_ID`: FeatureServer layer id. Default: `0`. Must parse as an integer.
 - `VITE_HONUA_QUICKSTART_WHERE`: read-only filter. Default: `1=1`.
-- `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT`: bounded query size. Default: `25`.
+- `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT`: bounded query size. Default: `25`. Must be greater than `0`.
 - `VITE_HONUA_QUICKSTART_BASEMAP_STYLE`: MapLibre style URL. Default: `https://demotiles.maplibre.org/style.json`.
 - `VITE_HONUA_QUICKSTART_API_KEY`: optional API key forwarded as `X-API-Key`.
 - `VITE_HONUA_QUICKSTART_BEARER_TOKEN`: optional bearer token forwarded as `Authorization: Bearer ...`.
 
 The app trims trailing slashes from `VITE_HONUA_QUICKSTART_BASE_URL` before instantiating `HonuaClient`.
+Layer-id and result-count overrides are validated during startup before the app makes any Honua API requests.
 
 ## Network And Runtime Contract
 
@@ -74,6 +75,16 @@ Query shape:
 - `outFields: ["*"]`
 - `outSr: 4326`
 - `resultRecordCount`: bounded by env, default `25`
+
+MapLibre then fetches the configured basemap style and any dependent assets separately from the Honua API calls above.
+
+Response handling:
+
+- the app expects `queryResponse.features` to contain at least one record
+- non-renderable records are dropped during Esri JSON to GeoJSON conversion
+- startup fails with a visible error if no renderable point, line, or polygon geometry remains
+- feature titles prefer `NAME`, `TITLE`, or `LABEL`, then lowercase variants, else `Feature N`
+- subtitles prefer `STATUS`, `CATEGORY`, or `TYPE`, then lowercase variants, else a geometry summary
 
 The app renders only the geometry layers needed by the returned data:
 
@@ -125,7 +136,8 @@ npm run test:quickstart:staging
 ```
 
 The staging suite expects the `HONUA_STAGING_*` environment described in
-[`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md#staging-ci-config-drift).
+[`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md#staging-ci-config-drift) and can
+write a JSON summary to `HONUA_QUICKSTART_STAGING_SUMMARY_FILE` for CI step reporting.
 
 ## External Follow-on
 

@@ -55,6 +55,22 @@ npm run demo:quickstart:mock
 If the fixture lane works but the live lane fails, the problem is likely environment or browser policy rather than the
 example code.
 
+## Invalid Quickstart Config
+
+Symptoms:
+
+- the app fails before the compatibility check runs
+- the browser console shows `A quickstart layer id must be an integer.`
+- the browser console shows `A quickstart result record count must be greater than zero.`
+
+Checks:
+
+- set `VITE_HONUA_QUICKSTART_LAYER_ID` to an integer
+- set `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT` to a positive integer
+- for staging CI, keep `HONUA_STAGING_LAYER_ID` integer-valued and `HONUA_STAGING_RESULT_RECORD_COUNT` positive when overridden
+
+These validation failures happen before the app or staging integration issues `GET /api/v1/admin/capabilities`.
+
 ## Empty Feature Queries
 
 Symptoms:
@@ -126,7 +142,8 @@ If staging CI starts failing after an environment change:
 - confirm the configured service and layer still exist
 - confirm the environment still exposes non-empty geometry-bearing data
 - confirm the auth policy still matches the configured secret or public access path
-- review the workflow step summary for `serverVersion`, `releaseChannel`, `featureCount`, and `queryDurationMs`
+- review the workflow step summary for `serverVersion`, `releaseChannel`, `featureCount`,
+  `renderableFeatureCount`, `geometryTypes`, and `queryDurationMs`
 
 ## Inspecting Runtime State
 

@@ -96,6 +96,22 @@ function isFinitePosition(value: unknown): value is QuickstartPosition {
   );
 }
 
+function collectFinitePositions(value: unknown): QuickstartPosition[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(isFinitePosition);
+}
+
+function collectPositionSets(value: unknown): QuickstartPosition[][] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((entry) => collectFinitePositions(entry)).filter((entry) => entry.length > 0);
+}
+
 function includeCoordinate(bounds: QuickstartBounds | undefined, coordinate: QuickstartPosition): QuickstartBounds {
   if (!bounds) {
     return {
@@ -154,14 +170,23 @@ function convertGeometry(geometry: HonuaFeature["geometry"]): QuickstartGeoJsonG
   }
 
   if ("points" in geometry && Array.isArray(geometry.points)) {
+    const coordinates = collectFinitePositions(geometry.points);
+    if (coordinates.length < 1) {
+      return null;
+    }
+
     return {
       type: "MultiPoint",
-      coordinates: geometry.points.filter(isFinitePosition),
+      coordinates,
     };
   }
 
   if ("paths" in geometry && Array.isArray(geometry.paths)) {
-    const coordinates = geometry.paths.filter((path): path is QuickstartPosition[] => Array.isArray(path));
+    const coordinates = collectPositionSets(geometry.paths);
+    if (coordinates.length < 1) {
+      return null;
+    }
+
     return coordinates.length === 1
       ? {
           type: "LineString",
@@ -174,9 +199,14 @@ function convertGeometry(geometry: HonuaFeature["geometry"]): QuickstartGeoJsonG
   }
 
   if ("rings" in geometry && Array.isArray(geometry.rings)) {
+    const coordinates = collectPositionSets(geometry.rings);
+    if (coordinates.length < 1) {
+      return null;
+    }
+
     return {
       type: "Polygon",
-      coordinates: geometry.rings.filter((ring): ring is QuickstartPosition[] => Array.isArray(ring)),
+      coordinates,
     };
   }
 
