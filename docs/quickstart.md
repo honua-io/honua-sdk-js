@@ -13,9 +13,10 @@ unchanged, see
 [`docs/examples/cesium-route-playback/README.md`](./examples/cesium-route-playback/README.md).
 That example stays fixture-first by default, switches to a bounded live
 `FeatureServer/query` request only when `?mode=live&baseUrl=...` is supplied,
-expects `routeId` plus optional `routeIdField`, and may require wider
-`resultRecordCount` or narrower query bounds when multiple polyline routes
-could match, and does not expand the SDK's WebMap or scene-contract support.
+accepts optional `routeId` and `routeIdField` for post-query selection when
+multiple polyline routes could match, may require wider `resultRecordCount` or
+narrower query bounds to return that route, and does not expand the SDK's
+WebMap or scene-contract support.
 
 ## What You'll Build
 

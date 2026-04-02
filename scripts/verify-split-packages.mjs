@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const PACKAGES_ROOT = path.join(PROJECT_ROOT, "dist", "packages");
+const EXPECTED_PUBLISHED_NODE_ENGINE = ">=20.0.0";
 
 const packageDirs = {
   "@honua/sdk": path.join(PACKAGES_ROOT, "honua-sdk"),
@@ -20,6 +21,17 @@ for (const [name, directory] of Object.entries(packageDirs)) {
   if (!fs.existsSync(directory)) {
     process.stderr.write(`Missing split package output for ${name}: ${directory}\n`);
     process.stderr.write('Run "npm run build:split-packages" first.\n');
+    process.exit(1);
+  }
+
+  const packageJson = JSON.parse(fs.readFileSync(path.join(directory, "package.json"), "utf8"));
+  if (packageJson?.engines?.node !== EXPECTED_PUBLISHED_NODE_ENGINE) {
+    process.stderr.write(
+      `Unexpected published Node engine for ${name}: ${packageJson?.engines?.node ?? "<missing>"}\n`,
+    );
+    process.stderr.write(
+      `Expected split packages to keep the SDK runtime floor at ${EXPECTED_PUBLISHED_NODE_ENGINE}.\n`,
+    );
     process.exit(1);
   }
 }

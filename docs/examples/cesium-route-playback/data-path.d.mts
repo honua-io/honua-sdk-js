@@ -5,7 +5,7 @@ export interface ExampleConfig {
   layerId: number;
   /** Live-mode post-query selector for multi-feature route responses; matching normalizes strings and numeric ids. */
   routeId: string;
-  /** Optional live attribute name used for route-id matching and normalized output. */
+  /** Optional live attribute name treated as authoritative for route-id matching and preferred normalized output. */
   routeIdField: string;
   where: string;
   objectIds: string;
@@ -81,7 +81,7 @@ export interface NormalizedRoutePlayback {
   warnings: string[];
 }
 
-/** Browser-facing summary exposed on window.__cesiumRoutePlaybackResult. */
+/** Browser-facing success summary exposed on window.__cesiumRoutePlaybackResult. */
 export interface RoutePlaybackResultSummary {
   sourceMode: "fixture" | "live";
   routeName: string;
@@ -96,6 +96,7 @@ export interface RoutePlaybackResultSummary {
   compatibilitySupported: boolean | null;
   /** Live query duration in milliseconds, otherwise null for fixture mode. */
   requestDurationMs: number | null;
+  /** Fixture manifest query in fixture mode, or the bounded live query request in live mode. */
   queryRequest: unknown;
   warnings: string[];
   preprocessingSteps: string[];

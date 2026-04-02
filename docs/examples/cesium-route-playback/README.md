@@ -207,12 +207,17 @@ For browser smoke tests and local inspection, the example also exposes:
 `window.__cesiumRoutePlaybackDone` flips to `true` on both success and failure
 so smoke tests can wait on completion before inspecting the error or result.
 
-`window.__cesiumRoutePlaybackResult` includes:
+`window.__cesiumRoutePlaybackError` stays `null` on success and carries the
+terminal failure message when the example cannot finish loading.
+
+`window.__cesiumRoutePlaybackResult` is populated only on success and remains
+`null` on failure. On success it includes:
 
 - `sourceMode`, `routeName`, `routeId`, `featureCount`, `vertexCount`, and `hasZ`
 - `terrainEnabled`, `terrainMode`, and `heightMode`
 - `compatibilitySupported` and `requestDurationMs`, both `null` in fixture mode
-- `queryRequest`, `warnings`, `preprocessingSteps`, and `entityCount`
+- `queryRequest` (fixture manifest query in fixture mode, live request in live mode),
+  `warnings`, `preprocessingSteps`, and `entityCount`
 
 Verification commands:
 
