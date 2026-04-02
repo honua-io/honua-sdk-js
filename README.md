@@ -130,7 +130,7 @@ npm install @honua/sdk-js
 
 ## Local development
 
-Repo-root installs for local development and the checked-in browser demos currently require Node.js 20.19.0 or newer because the Cesium example's dev dependency tree sets that patch-level floor. The published `@honua/sdk-js` package itself remains on the documented Node 20+ runtime contract.
+Repo-root installs for local development and the checked-in browser demos currently require Node.js 20.19.0 or newer because the current demo/dev toolchain dependencies set that patch-level floor. The published `@honua/sdk-js` package itself remains on the documented Node 20+ runtime contract.
 
 ```bash
 npm install
