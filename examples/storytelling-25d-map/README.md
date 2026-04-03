@@ -72,7 +72,7 @@ The SDK reads the compatibility contract from `data.compatibility` inside that J
 The demo continues only when the server satisfies the SDK compatibility baseline already enforced by the client:
 
 - server version `>= 1.0.0`
-- control-plane API major `v1` with base path `/api/v1/admin`
+- control-plane API major integer `1` with base path `/api/v1/admin`
 - control-plane API deprecation flag `false`
 - release channel `preview` or newer
 

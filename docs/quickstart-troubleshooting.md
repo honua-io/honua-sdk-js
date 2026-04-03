@@ -17,9 +17,10 @@ Checks:
 - confirm `GET /api/v1/admin/capabilities` is reachable from the browser
 - confirm the endpoint responds with a JSON object containing `success` and `data.compatibility`
 - confirm the server reports version `>= 1.0.0`
-- confirm `data.compatibility.controlPlaneApi.major` is `1` with base path `/api/v1/admin`
+- confirm `data.compatibility.controlPlaneApi.major` is integer `1` with base path `/api/v1/admin`
 - confirm `data.compatibility.controlPlaneApi.deprecated` is `false`
-- confirm `data.compatibility.metadataSchemas` is an array and `data.compatibility.features` includes the expected boolean flags
+- confirm `data.compatibility.metadataSchemas[]` entries include `version` and `deprecated`
+- confirm `data.compatibility.features` includes the expected boolean flags
 - confirm the release channel is `preview` or newer
 
 The quickstart app intentionally fails before the feature query when this contract is not satisfied.
@@ -131,6 +132,8 @@ The fixture lane serves `/__honua-quickstart__/basemap-style.json` locally to ke
 ## Staging CI Config Drift
 
 The live staging suite is triggered by `npm run test:quickstart:staging` and `.github/workflows/quickstart-staging.yml`.
+The deterministic browser smoke lane runs from `.github/workflows/ci.yml` on `trunk` plus `release/**` pushes and pull
+requests.
 
 Required environment variables:
 

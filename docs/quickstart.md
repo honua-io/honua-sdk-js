@@ -102,14 +102,14 @@ The compatibility request must resolve to a JSON object whose SDK-relevant paylo
 That object is parsed strictly and must include:
 
 - `serverVersion` and `releaseChannel`
-- `controlPlaneApi.major`, `controlPlaneApi.basePath`, and `controlPlaneApi.deprecated`
-- `metadataSchemas[]`
+- `controlPlaneApi.major` as integer `1`, `controlPlaneApi.basePath`, and `controlPlaneApi.deprecated`
+- `metadataSchemas[]` entries with `version` and `deprecated`
 - `features.metadataResources`, `features.manifestExport`, `features.manifestApply`, `features.manifestDryRun`, and `features.manifestPrune`
 
 The quickstart only proceeds when that compatibility contract reports:
 
 - server version `>= 1.0.0`
-- control-plane API major `v1` with base path `/api/v1/admin`
+- control-plane API major integer `1` with base path `/api/v1/admin`
 - control-plane API deprecation flag `false`
 - release channel `preview` or newer
 

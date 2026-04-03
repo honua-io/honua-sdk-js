@@ -124,13 +124,14 @@ console.log(compatibilityContract.metadataSchemas);
 `GET /api/v1/admin/capabilities`.
 
 The capabilities endpoint still needs to return a JSON object with `success` plus `data.compatibility`. The parsed
-compatibility object must include `serverVersion`, `releaseChannel`, `controlPlaneApi`, `metadataSchemas`, and the
-boolean `features` map. Top-level extras such as `metadataApiVersions` and `resourceKinds` may be present on the
-endpoint response, but they are not returned by `getCompatibility()`.
+compatibility object must include `serverVersion`, `releaseChannel`, `controlPlaneApi.major`/`basePath`/`deprecated`,
+`metadataSchemas[]` entries with `version` and `deprecated`, and the boolean `features` map. Top-level extras such as
+`metadataApiVersions` and `resourceKinds` may be present on the endpoint response, but they are not returned by
+`getCompatibility()`.
 
 This SDK baseline currently expects:
 - server version `>= 1.0.0`
-- control-plane API major `v1` with base path `/api/v1/admin`
+- control-plane API major integer `1` with base path `/api/v1/admin`
 - control-plane API deprecation flag `false`
 - server release channel `preview` or newer
 

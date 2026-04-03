@@ -59,12 +59,13 @@ The browser runtime makes one compatibility request before it queries the layer:
 - `GET /api/v1/admin/capabilities` through `HonuaClient.checkCompatibility()`
 
 The SDK reads the compatibility contract from `data.compatibility` inside that JSON response. The parsed object must
-include `serverVersion`, `releaseChannel`, `controlPlaneApi`, `metadataSchemas`, and the boolean `features` map.
+include `serverVersion`, `releaseChannel`, `controlPlaneApi.major`/`basePath`/`deprecated`, `metadataSchemas[]`
+entries with `version` and `deprecated`, and the boolean `features` map.
 
 The app continues only when the server satisfies the SDK compatibility baseline already enforced by the client:
 
 - server version `>= 1.0.0`
-- control-plane API major `v1` with base path `/api/v1/admin`
+- control-plane API major integer `1` with base path `/api/v1/admin`
 - control-plane API deprecation flag `false`
 - release channel `preview` or newer
 
@@ -88,8 +89,8 @@ Response handling:
 - non-renderable records are dropped during Esri JSON to GeoJSON conversion
 - `featureCount` tracks the raw query response while `renderableFeatureCount` tracks the post-conversion dataset used for rendering
 - startup fails with a visible error if no record converts into the rendered point, line, or polygon buckets
-- feature titles prefer `NAME`, `TITLE`, or `LABEL`, then lowercase variants, else `Feature N`
-- subtitles prefer `STATUS`, `CATEGORY`, or `TYPE`, then lowercase variants, else a geometry summary
+- feature titles prefer `NAME`, `TITLE`, `name`, `title`, `LABEL`, then `label`, else `Feature N`
+- subtitles prefer `STATUS`, `CATEGORY`, `status`, `category`, `TYPE`, then `type`, else a geometry summary
 
 The app renders only the geometry layers needed by the returned data:
 
@@ -145,6 +146,13 @@ The staging suite expects the `HONUA_STAGING_*` environment described in
 write a JSON summary to `HONUA_QUICKSTART_STAGING_SUMMARY_FILE` for CI step reporting. It reuses
 `loadQuickstartDataset()` and validates the compatibility plus single-query contract only, so it does not start the
 browser app or fetch the basemap style.
+
+GitHub Actions coverage for this committed app is split across two workflows:
+
+- `.github/workflows/ci.yml`: runs the quickstart typecheck, build, and Playwright smoke lane on `trunk` and
+  `release/**` pushes and pull requests
+- `.github/workflows/quickstart-staging.yml`: runs the live staging integration on `trunk` and `release/**` pushes,
+  plus `workflow_dispatch`
 
 ## External Follow-on
 
