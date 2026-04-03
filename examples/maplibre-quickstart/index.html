@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Honua MapLibre Quickstart</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <section class="control-panel" aria-label="Quickstart controls">
+        <header class="panel-header">
+          <p class="eyebrow">Honua JS SDK / Quickstart</p>
+          <h1>Query one layer and render it on a MapLibre map.</h1>
+          <p>
+            This committed app is the runnable quickstart path for browser users: one compatibility check, one
+            read-only feature query, one GeoJSON source, and a popup-backed inspection flow.
+          </p>
+        </header>
+
+        <section class="status-grid" aria-label="Quickstart runtime status">
+          <article class="status-card">
+            <span>Compatibility</span>
+            <strong id="status-compatibility">Checking…</strong>
+          </article>
+          <article class="status-card">
+            <span>Target</span>
+            <strong id="status-target">Waiting…</strong>
+          </article>
+          <article class="status-card">
+            <span>Service / Layer</span>
+            <strong id="status-service-layer">Waiting…</strong>
+          </article>
+          <article class="status-card">
+            <span>Feature Count</span>
+            <strong id="status-feature-count">0</strong>
+          </article>
+          <article class="status-card">
+            <span>Geometry Types</span>
+            <strong id="status-geometry-types">Waiting…</strong>
+          </article>
+          <article class="status-card">
+            <span>Last Error</span>
+            <strong id="status-error">None</strong>
+          </article>
+        </section>
+
+        <article class="selection-card" aria-label="Selected feature">
+          <div class="selection-card-header">
+            <div>
+              <p class="eyebrow">Feature inspection</p>
+              <h2 id="selected-feature-title">Waiting for data</h2>
+            </div>
+          </div>
+          <p id="selected-feature-subtitle">Load a layer, then inspect a rendered feature from the list or the map.</p>
+          <dl class="selection-meta">
+            <div>
+              <dt>Feature ID</dt>
+              <dd id="selected-feature-id">-</dd>
+            </div>
+            <div>
+              <dt>Geometry</dt>
+              <dd id="selected-feature-geometry">-</dd>
+            </div>
+          </dl>
+          <div id="selected-feature-attributes" class="attribute-list">
+            <div class="empty-copy">Attributes will appear here after the first feature is selected.</div>
+          </div>
+        </article>
+
+        <section class="feature-list" aria-label="Inspectable features">
+          <div>
+            <p class="eyebrow">Rendered features</p>
+            <h2>Inspect from the same queried dataset</h2>
+          </div>
+          <div id="feature-list" class="feature-list-grid">
+            <div class="empty-copy">The quickstart is still loading.</div>
+          </div>
+        </section>
+
+        <footer class="panel-footer">
+          <p id="demo-status">Waiting for the compatibility check.</p>
+          <p>For troubleshooting, see <code>docs/quickstart-troubleshooting.md</code>.</p>
+        </footer>
+      </section>
+
+      <section class="map-stage">
+        <div class="map-stage-header">
+          <div>
+            <p class="eyebrow">MapLibre runtime</p>
+            <h2>Queried features</h2>
+          </div>
+          <div class="map-status">
+            <span>Compatibility gate first</span>
+            <span>FeatureServer query path</span>
+            <span>Popup inspection enabled</span>
+          </div>
+        </div>
+
+        <div id="map" class="map-canvas" aria-label="Quickstart map"></div>
+        <div id="map-overlay" class="map-overlay" data-state="loading">
+          <p class="map-overlay-title">Preparing the quickstart map</p>
+          <p class="map-overlay-body">Checking compatibility, querying the layer, and loading the results.</p>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

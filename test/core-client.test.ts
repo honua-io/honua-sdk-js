@@ -22,6 +22,7 @@ describe("HonuaClient", () => {
       where: "OBJECTID > 1",
       outFields: ["OBJECTID", "NAME"],
       returnGeometry: false,
+      outSr: 4326,
       method: "GET",
     });
 
@@ -30,7 +31,38 @@ describe("HonuaClient", () => {
     expect(requestedUrl).toContain("where=OBJECTID+%3E+1");
     expect(requestedUrl).toContain("outFields=OBJECTID%2CNAME");
     expect(requestedUrl).toContain("returnGeometry=false");
+    expect(requestedUrl).toContain("outSR=4326");
     expect(requestedInit?.method).toBe("GET");
+  });
+
+  it("keeps request outSr canonical when extraParams also provide outSr", async () => {
+    let requestedUrl: string | undefined;
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async (input) => {
+        requestedUrl = String(input);
+        return new Response(JSON.stringify({ features: [] }), { status: 200 });
+      },
+    });
+
+    await client.queryFeatures({
+      serviceId: "default",
+      layerId: 1000,
+      outSr: 4326,
+      extraParams: {
+        outSr: 3857,
+        outSR: 102100,
+        returnZ: true,
+      },
+      method: "GET",
+    });
+
+    const parsed = new URL(requestedUrl ?? "https://example.test");
+    expect(parsed.searchParams.get("outSR")).toBe("4326");
+    expect(parsed.searchParams.get("outSr")).toBeNull();
+    expect(parsed.searchParams.getAll("outSR")).toEqual(["4326"]);
+    expect(parsed.searchParams.get("returnZ")).toBe("true");
   });
 
   it("keeps empty outFields array as blank outFields value", async () => {

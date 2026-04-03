@@ -1,0 +1,73 @@
+name: Quickstart Staging
+
+on:
+  push:
+    branches:
+      - trunk
+      - "release/**"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  quickstart-staging:
+    name: Quickstart Staging
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      HONUA_STAGING_BASE_URL: ${{ vars.HONUA_STAGING_BASE_URL }}
+      HONUA_STAGING_SERVICE_ID: ${{ vars.HONUA_STAGING_SERVICE_ID }}
+      HONUA_STAGING_LAYER_ID: ${{ vars.HONUA_STAGING_LAYER_ID }}
+      HONUA_STAGING_WHERE: ${{ vars.HONUA_STAGING_WHERE }}
+      HONUA_STAGING_RESULT_RECORD_COUNT: ${{ vars.HONUA_STAGING_RESULT_RECORD_COUNT }}
+      HONUA_STAGING_API_KEY: ${{ secrets.HONUA_STAGING_API_KEY }}
+      HONUA_STAGING_BEARER_TOKEN: ${{ secrets.HONUA_STAGING_BEARER_TOKEN }}
+      HONUA_QUICKSTART_STAGING_SUMMARY_FILE: ${{ runner.temp }}/quickstart-staging-summary.json
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Validate staging configuration
+        run: |
+          test -n "$HONUA_STAGING_BASE_URL" || { echo "Missing HONUA_STAGING_BASE_URL"; exit 1; }
+          test -n "$HONUA_STAGING_SERVICE_ID" || { echo "Missing HONUA_STAGING_SERVICE_ID"; exit 1; }
+          test -n "$HONUA_STAGING_LAYER_ID" || { echo "Missing HONUA_STAGING_LAYER_ID"; exit 1; }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run quickstart staging integration
+        run: npm run test:quickstart:staging
+
+      - name: Publish staging summary
+        if: ${{ always() }}
+        run: |
+          if [ ! -f "$HONUA_QUICKSTART_STAGING_SUMMARY_FILE" ]; then
+            echo "Quickstart staging summary file was not produced." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node --input-type=module <<'EOF'
+          import fs from "node:fs";
+
+          const summaryPath = process.env.HONUA_QUICKSTART_STAGING_SUMMARY_FILE;
+          const summary = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
+          const lines = [
+            "## Quickstart Staging Summary",
+            "",
+            `- Base URL: \`${summary.baseUrl}\``,
+            `- Service / Layer: \`${summary.serviceId}\` / \`${summary.layerId}\``,
+            `- Server Version: \`${summary.serverVersion}\``,
+            `- Release Channel: \`${summary.releaseChannel}\``,
+            `- Feature Count: \`${summary.featureCount}\` (${summary.renderableFeatureCount} renderable)`,
+            `- Geometry Types: \`${summary.geometryTypes.join(", ")}\``,
+            `- Query Duration: \`${summary.queryDurationMs} ms\``,
+          ];
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
+          EOF

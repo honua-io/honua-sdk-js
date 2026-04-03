@@ -1,0 +1,368 @@
+:root {
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  color: #13201e;
+  background:
+    radial-gradient(circle at top left, rgba(250, 242, 224, 0.9), transparent 32rem),
+    linear-gradient(180deg, #f7f1e2 0%, #efe6d1 100%);
+  color-scheme: light;
+  --card: rgba(255, 250, 241, 0.92);
+  --card-border: rgba(24, 54, 47, 0.12);
+  --ink-soft: #4c615c;
+  --accent: #2f7d6a;
+  --accent-strong: #16433b;
+  --highlight: #b55127;
+  --shadow: 0 20px 50px rgba(39, 36, 24, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(20rem, 28rem) minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1.25rem;
+}
+
+.control-panel,
+.map-stage {
+  border: 1px solid var(--card-border);
+  border-radius: 1.5rem;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.control-panel {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  padding: 1.25rem;
+}
+
+.eyebrow,
+.feature-list-kicker,
+.popup-kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--highlight);
+}
+
+.panel-header h1 {
+  margin: 0.2rem 0 0.65rem;
+  font-size: clamp(2rem, 2.4vw, 2.8rem);
+  line-height: 1.05;
+}
+
+.panel-header p:last-child {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.status-card,
+.selection-card,
+.feature-list {
+  border: 1px solid var(--card-border);
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.status-card {
+  padding: 0.85rem 0.95rem;
+}
+
+.status-card span {
+  display: block;
+  font-size: 0.77rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.status-card strong {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.selection-card,
+.feature-list {
+  padding: 1rem;
+}
+
+.selection-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.selection-card h2,
+.feature-list h2 {
+  margin: 0.2rem 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.selection-card p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.selection-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 1rem 0;
+}
+
+.selection-meta div,
+.attribute-list {
+  border-radius: 0.9rem;
+  background: rgba(247, 241, 226, 0.8);
+  padding: 0.85rem;
+}
+
+.selection-meta dt,
+.attribute-row dt {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.selection-meta dd,
+.attribute-row dd {
+  margin: 0.25rem 0 0;
+  font-weight: 600;
+}
+
+.attribute-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.attribute-row {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.empty-copy {
+  color: var(--ink-soft);
+}
+
+.feature-list {
+  display: grid;
+  gap: 0.8rem;
+  max-height: 28rem;
+  overflow: auto;
+}
+
+.feature-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  border-radius: 0.95rem;
+  background: rgba(247, 241, 226, 0.8);
+  padding: 0.9rem;
+}
+
+.feature-list-item h3 {
+  margin: 0.15rem 0 0.2rem;
+  font-size: 1rem;
+}
+
+.feature-list-item p:last-child {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.feature-inspect-button {
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  color: #f9f5ea;
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    background 140ms ease;
+}
+
+.feature-inspect-button[data-selected="true"] {
+  background: var(--highlight);
+}
+
+.feature-inspect-button:hover {
+  transform: translateY(-1px);
+}
+
+.panel-footer {
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+.panel-footer p {
+  margin: 0;
+}
+
+.map-stage {
+  position: relative;
+  overflow: hidden;
+  min-height: 42rem;
+}
+
+.map-stage-header {
+  position: absolute;
+  inset: 1rem 1rem auto 1rem;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  background: rgba(21, 41, 38, 0.78);
+  color: #f8f2e5;
+}
+
+.map-stage-header h2 {
+  margin: 0.2rem 0 0;
+}
+
+.map-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.map-status span {
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(248, 242, 229, 0.14);
+  font-size: 0.84rem;
+}
+
+.map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.map-overlay {
+  position: absolute;
+  inset: auto 1rem 1rem auto;
+  z-index: 2;
+  max-width: 26rem;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(248, 242, 229, 0.2);
+  background: rgba(21, 41, 38, 0.86);
+  color: #f8f2e5;
+}
+
+.map-overlay[data-state="ready"] {
+  background: rgba(20, 67, 59, 0.82);
+}
+
+.map-overlay[data-state="error"] {
+  background: rgba(115, 41, 24, 0.9);
+}
+
+.map-overlay-title {
+  margin: 0 0 0.3rem;
+  font-weight: 700;
+}
+
+.map-overlay-body {
+  margin: 0;
+  color: rgba(248, 242, 229, 0.88);
+  line-height: 1.45;
+}
+
+.popup-card h3 {
+  margin: 0.2rem 0 0.35rem;
+}
+
+.popup-card p {
+  margin: 0 0 0.8rem;
+  color: #4c615c;
+}
+
+.popup-grid {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.popup-row {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.popup-row span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6e7468;
+}
+
+.popup-row strong {
+  line-height: 1.35;
+}
+
+.maplibregl-popup-content {
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .map-stage {
+    min-height: 34rem;
+  }
+
+  .map-stage-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .status-grid,
+  .selection-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-list-item {
+    grid-template-columns: 1fr;
+  }
+}

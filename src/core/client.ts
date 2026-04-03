@@ -555,12 +555,7 @@ export class HonuaClient {
     params.set("returnGeometry", String(request.returnGeometry ?? true));
 
     serializeQueryParams(params, request);
-
-    if (request.extraParams) {
-      for (const [key, value] of Object.entries(request.extraParams)) {
-        params.set(key, String(value));
-      }
-    }
+    appendQueryExtraParams(params, request);
 
     const path = `/rest/services/${encodeURIComponent(request.serviceId)}/FeatureServer/${request.layerId}/query`;
 
@@ -604,12 +599,7 @@ export class HonuaClient {
     params.set("returnGeometry", String(request.returnGeometry ?? true));
 
     serializeQueryParams(params, request);
-
-    if (request.extraParams) {
-      for (const [key, value] of Object.entries(request.extraParams)) {
-        params.set(key, String(value));
-      }
-    }
+    appendQueryExtraParams(params, request);
 
     const path = `/rest/services/${encodeURIComponent(request.serviceId)}/MapServer/${request.layerId}/query`;
     if (method === "GET") {
@@ -1715,6 +1705,12 @@ function mergePathWithQueryParams(path: string, additionalParams: URLSearchParam
 }
 
 function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesRequest | MapLayerQueryRequest): void {
+  if (request.outSr !== undefined) {
+    params.set(
+      "outSR",
+      typeof request.outSr === "object" && request.outSr !== null ? JSON.stringify(request.outSr) : String(request.outSr),
+    );
+  }
   if (request.orderByFields !== undefined) {
     params.set("orderByFields", request.orderByFields);
   }
@@ -1755,6 +1751,22 @@ function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesReq
   }
   if (request.resultRecordCount !== undefined) {
     params.set("resultRecordCount", String(request.resultRecordCount));
+  }
+}
+
+function appendQueryExtraParams(
+  params: URLSearchParams,
+  request: Pick<QueryFeaturesRequest | MapLayerQueryRequest, "outSr" | "extraParams">,
+): void {
+  if (!request.extraParams) {
+    return;
+  }
+
+  for (const [key, value] of Object.entries(request.extraParams)) {
+    if (request.outSr !== undefined && (key === "outSr" || key === "outSR")) {
+      continue;
+    }
+    params.set(key, String(value));
   }
 }
 

@@ -2,6 +2,17 @@
 
 ## Quickstart
 
+Canonical runnable browser quickstart from this repo:
+
+```bash
+npm install
+npm run demo:quickstart:mock
+```
+
+Use [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) for the committed app,
+[`docs/quickstart.md`](./docs/quickstart.md) for the guided quickstart flow, and
+[`docs/quickstart-troubleshooting.md`](./docs/quickstart-troubleshooting.md) for common failure modes.
+
 ```bash
 npm install @honua/sdk-js
 ```
@@ -19,31 +30,59 @@ if (!compatibility.supported) {
   );
 }
 
-const result = await client.queryFeatures({ serviceId: "parcels", layerId: 0 });
-console.log(result.features); // fully typed HonuaFeature[]
+const result = await client.queryFeatures({
+  serviceId: "natural-earth",
+  layerId: 0,
+  where: "1=1",
+  returnGeometry: true,
+  outFields: ["*"],
+  outSr: 4326,
+  resultRecordCount: 25,
+});
+const featureCount = result.features?.length ?? 0;
+console.log(featureCount); // the browser quickstart also expects at least one renderable geometry after conversion
 ```
+
+The committed quickstart app uses this same request shape and fails fast when compatibility is unsupported, the
+query returns no features, or none of the returned records survive conversion into the rendered point, line, or
+polygon geometry buckets.
 
 ## Demo Apps
 
+- [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md): committed MapLibre quickstart app with a deterministic fixture-backed mock lane, one compatibility check, one read-only feature query, popup inspection, browser telemetry, and a matching staging integration suite that reuses the same compatibility-plus-query data-loading path.
 - [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, same-origin fixture mocking, OGC collection overlays, polygon extrusions, and route replay.
 - [`examples/kepler-analytics/`](./examples/kepler-analytics/README.md): fixture-first kepler.gl analytics demo for an `operations replay` workflow with committed GeoJSON plus metadata, KPI cards, walkthrough copy, and focused browser smoke coverage.
 - [`docs/examples/cesium-route-playback/README.md`](./docs/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
-The example READMEs document the run lanes, accepted data contracts, live-query narrowing rules, preprocessing rules, and browser diagnostics for each workflow.
-For the Cesium spike specifically, `window.__cesiumRoutePlaybackDone` is the completion signal on both success and failure, `window.__cesiumRoutePlaybackError` is failure-only, and `window.__cesiumRoutePlaybackResult` is populated only on success.
-Its `queryRequest` summary echoes `fixtures/source-manifest.json#query` in fixture mode and the bounded live `queryFeatures()` request in live mode; both describe the same `outFields=["*"]`, `outSr=4326`, `returnGeometry=true`, and `extraParams={ outSr: 4326, returnZ: true }` query shape, while `routeId` and `routeIdField` remain post-query selectors instead of extra server filters, `routeIdField` is authoritative when configured, matching normalizes numeric route ids to strings, the success summary leaves `routeId` as `null` when the selected feature has no route-id attribute, and fixture mode keeps `compatibilitySupported` plus `requestDurationMs` as `null`.
+Each example README documents its own env surface, network contract, browser telemetry hooks, run lanes, accepted data
+contracts, live-query narrowing rules, preprocessing rules, and browser diagnostics.
+For the Cesium spike specifically, `window.__cesiumRoutePlaybackDone` is the completion signal on both success and
+failure, `window.__cesiumRoutePlaybackError` is failure-only, and `window.__cesiumRoutePlaybackResult` is populated
+only on success.
+Its `queryRequest` summary echoes `fixtures/source-manifest.json#query` in fixture mode and the bounded live
+`queryFeatures()` request in live mode; both describe the same `outFields=["*"]`, `outSr=4326`,
+`returnGeometry=true`, and `extraParams={ outSr: 4326, returnZ: true }` query shape, while `routeId` and
+`routeIdField` remain post-query selectors instead of extra server filters, `routeIdField` is authoritative when
+configured, matching normalizes numeric route ids to strings, the success summary leaves `routeId` as `null` when the
+selected feature has no route-id attribute, and fixture mode keeps `compatibilitySupported` plus `requestDurationMs`
+as `null`.
 
 The kepler example README documents the fixture metadata manifest, required dataset IDs and fields, the default incident status and replay-window filters, browser readiness/error plus replay-harness hooks, refresh stdout JSON, and the runtime style override env vars used by the demo.
 
-Deterministic local review flow for the `2.5D` demo:
+Deterministic local review flows from this repo:
 
 ```bash
 # Node.js 20.19.0+ at the repo root
 npm install
+
+# Run either mock server in its own terminal/session.
+npm run demo:quickstart:mock
+# or
 npm run demo:25d:mock
 ```
 
-The command builds the example, serves fixture-backed Honua responses, and prints `story25dMockUrl=http://127.0.0.1:PORT`.
+The quickstart command prints `quickstartMockUrl=http://127.0.0.1:PORT`. The 2.5D command prints
+`story25dMockUrl=http://127.0.0.1:PORT`.
 
 Live Honua flow for the `2.5D` demo:
 
@@ -76,17 +115,24 @@ if (await client.supportsFeature("manifestApply")) {
   console.log("Manifest apply workflows are available on this server.");
 }
 
-const rawContract = await client.getCompatibility();
-console.log(rawContract.metadataSchemas);
+const compatibilityContract = await client.getCompatibility();
+console.log(compatibilityContract.metadataSchemas);
 ```
 
 `checkCompatibility()` reports support status, `supportsFeature()` gates coarse capabilities from
-`data.compatibility.features`, and `getCompatibility()` returns the raw server contract from
+`data.compatibility.features`, and `getCompatibility()` returns the parsed `data.compatibility` object from
 `GET /api/v1/admin/capabilities`.
+
+The capabilities endpoint still needs to return a JSON object with `success` plus `data.compatibility`. The parsed
+compatibility object must include `serverVersion`, `releaseChannel`, `controlPlaneApi.major`/`basePath`/`deprecated`,
+`metadataSchemas[]` entries with `version` and `deprecated`, and the boolean `features` map. Top-level extras such as
+`metadataApiVersions` and `resourceKinds` may be present on the endpoint response, but they are not returned by
+`getCompatibility()`.
 
 This SDK baseline currently expects:
 - server version `>= 1.0.0`
-- control-plane API major `v1` on `/api/v1/admin`
+- control-plane API major integer `1` with base path `/api/v1/admin`
+- control-plane API deprecation flag `false`
 - server release channel `preview` or newer
 
 ---
@@ -139,6 +185,11 @@ npm install
 Storytelling demo loops:
 
 ```bash
+npm run demo:quickstart:mock
+# or, with examples/maplibre-quickstart/.env configured:
+npm run demo:quickstart
+
+# advanced storytelling demo:
 npm run demo:25d:mock
 # or, with examples/storytelling-25d-map/.env configured:
 npm run demo:25d
@@ -164,14 +215,18 @@ The repo-root refresh wrapper builds the SDK before delegating to the example-lo
 ```bash
 npm run typecheck
 npm run build
+npm run demo:quickstart:typecheck
 npm run demo:25d:typecheck
+npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts
 npx vitest run test/cesium-route-playback.test.ts
 npx vitest run test/storytelling-25d-config.test.ts test/storytelling-25d-data.test.ts
 npm test
+npm run test:playwright:quickstart
 npx playwright test test/playwright/cesium-route-playback.spec.mjs
 npm run test:playwright:25d
 npm run test:playwright
 npm run demo:kepler:smoke
+npm run test:quickstart:staging # requires HONUA_STAGING_* env
 npm run scan:arcgis -- ../../path/to/arcgis-app
 npm run migrate:arcgis -- ../../path/to/arcgis-app --write --report migration-report.json
 npm run report:migration:real-samples
