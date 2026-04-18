@@ -1,0 +1,77 @@
+# SourceDescriptor ↔ Server SourceBinding Alignment
+
+This document keeps the SDK's `SourceDescriptor` shape in lockstep with
+the server's `SourceBinding` document (defined in
+`/honua-server/docs/developer/AI_OPERATOR_CONTRACT.md`). Both shapes are
+intended to round-trip: an SDK `SourceDescriptor` exports cleanly to a
+server `SourceBinding`, and a `SourceBinding` re-imported through
+`createDataset` produces an equivalent `SourceDescriptor`.
+
+## Field map
+
+| `SourceDescriptor` (SDK) | `SourceBinding` (server) | Notes |
+| --- | --- | --- |
+| `id` | `id` | Stable identifier; preserved verbatim. |
+| `protocol` | `protocol` | Same enum; the SDK's MapLibre-native protocols (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`) project onto the server's `mapSpec.sources` stanza rather than `sourceBindings`. |
+| `locator.url` | `locator.url` | Fully qualified endpoint URL. |
+| `locator.serviceId` | `locator.serviceId` | GeoServices Feature/Map Service identifier. |
+| `locator.layerId` | `locator.layerId` | Numeric layer identifier within the service. |
+| `locator.collectionId` | `locator.collectionId` | OGC API Features collection. |
+| `locator.typeName` | `locator.typeName` | WFS / WMS type-name. |
+| `locator.entitySet` | `locator.entitySet` | OData entity set. |
+| `capabilities` | `capabilities` | Set serialized as a sorted string array on the wire. The server is authoritative for what it serves; the SDK's set is what the **adapter** can produce. |
+| `schema.fields` | `schema.fields` | Optional. Same shape as `HonuaFieldInfo`. |
+| `schema.primaryKey` | `schema.primaryKey` | Optional; defaults to first PK detected in `fields`. |
+| `schema.timeField` | `schema.timeField` | Optional temporal validity hint. |
+| `attribution` | `attribution` | Free text. Attribution survives round-trip; the SDK does not modify it. |
+
+## MapBinding ↔ MapPackage
+
+| `MapBinding` (SDK) | `MapPackage.sourceBindings[i]` / `mapSpec.layers[j]` (server) |
+| --- | --- |
+| `sourceId` | Resolved against `sourceBindings[].id`; the export writer dedupes. |
+| `layerIds` | Layer ids in `mapSpec.layers[].id`. |
+| `style` | Merged into the corresponding `mapSpec.layers[].paint` / `.layout` blocks. |
+| `minzoom` / `maxzoom` | `mapSpec.layers[].minzoom` / `.maxzoom`. |
+
+The SDK does not own `MapPackage.metadata` or `AppPackage` shapes — those
+are server-side concepts. An SDK ticket exporting an `AppPackage` should
+construct one server-side document that wraps the canonical
+`SourceDescriptor` + `MapBinding` arrays produced here.
+
+## What changes when you add a protocol
+
+Adding a new protocol on the SDK side requires:
+
+1. Extending the `Protocol` union and the `PROTOCOLS` array in
+   `src/contract/types.ts`.
+2. Adding an entry to `PROTOCOL_DEFAULT_CAPABILITIES`.
+3. Updating the matrix in
+   [`protocol-capability-matrix.md`](./protocol-capability-matrix.md).
+4. Implementing the adapter (built-in or via `resolveSource`).
+5. Coordinating with the server-side `SourceBinding.protocol` enum so the
+   exported document round-trips. If the protocol is SDK-only (e.g. an
+   in-memory cache layer), the export writer must drop or transform it
+   before serializing.
+
+## What does not round-trip
+
+- `Source.adapter()` — the typed escape hatch. Exists only on the SDK
+  side. The exporter emits the descriptor, not the live adapter instance.
+- `Capabilities` derived from per-source server metadata — when the SDK
+  downgrades a capability set based on `supportsStatistics: false`, the
+  exported `SourceBinding.capabilities` reflects the runtime set, not the
+  protocol default. Re-importing yields the same downgraded set; the
+  server treats this as authoritative.
+- `Result.degraded` flags — they describe runtime behavior, not the
+  source itself. Exporting state to a `SourceBinding` discards them.
+- Auth headers — never serialized into a `SourceBinding`. The
+  server-side runtime resolves credentials from its own credential store.
+
+## Verification
+
+The conformance suite under `test/contract/` includes a round-trip
+scenario per protocol that takes a `SourceDescriptor`, projects it to a
+`SourceBinding`-shaped object, and re-imports it. If the server-side
+shape changes, that fixture must be updated in lockstep with this
+document and `PROTOCOL_DEFAULT_CAPABILITIES`.

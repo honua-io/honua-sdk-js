@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   HonuaAbortError,
+  HonuaCapabilityNotSupportedError,
   HonuaClient,
+  HonuaExplorationContextError,
   HonuaGrpcError,
   HonuaHttpError,
   HonuaNetworkError,
@@ -104,13 +106,45 @@ describe("Error hierarchy", () => {
     });
   });
 
+  describe("HonuaCapabilityNotSupportedError", () => {
+    it("exposes capability, protocol, sourceId and crafts a clear message", () => {
+      const err = new HonuaCapabilityNotSupportedError("queryAggregate", "ogc-features", "parcels-ogc");
+      expect(err.name).toBe("HonuaCapabilityNotSupportedError");
+      expect(err.capability).toBe("queryAggregate");
+      expect(err.protocol).toBe("ogc-features");
+      expect(err.sourceId).toBe("parcels-ogc");
+      expect(err.message).toContain("queryAggregate");
+      expect(err.message).toContain("ogc-features");
+      expect(err.message).toContain("parcels-ogc");
+      expect(err).toBeInstanceOf(Error);
+    });
+
+    it("omits the source id from the message when not provided", () => {
+      const err = new HonuaCapabilityNotSupportedError("render", "wfs");
+      expect(err.sourceId).toBeUndefined();
+      expect(err.message).not.toContain("undefined");
+    });
+  });
+
+  describe("HonuaExplorationContextError", () => {
+    it("exposes a code and message", () => {
+      const err = new HonuaExplorationContextError("disposed", "context disposed");
+      expect(err.name).toBe("HonuaExplorationContextError");
+      expect(err.code).toBe("disposed");
+      expect(err.message).toBe("context disposed");
+      expect(err).toBeInstanceOf(Error);
+    });
+  });
+
   describe("isHonuaError", () => {
-    it("returns true for all 5 error types", () => {
+    it("returns true for all 7 error types", () => {
       expect(isHonuaError(new HonuaHttpError(404, "not found", null))).toBe(true);
       expect(isHonuaError(new HonuaTimeoutError(1000))).toBe(true);
       expect(isHonuaError(new HonuaNetworkError("fail", null))).toBe(true);
       expect(isHonuaError(new HonuaAbortError())).toBe(true);
       expect(isHonuaError(new HonuaGrpcError(2, "unknown"))).toBe(true);
+      expect(isHonuaError(new HonuaCapabilityNotSupportedError("query", "wfs"))).toBe(true);
+      expect(isHonuaError(new HonuaExplorationContextError("disposed", "ctx"))).toBe(true);
     });
 
     it("returns false for plain Error and non-Error values", () => {

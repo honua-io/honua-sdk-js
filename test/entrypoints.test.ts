@@ -105,6 +105,23 @@ import {
   scanArcGisUsage,
   summarizeJsParityMatrix,
 } from "../src/migration-entry.js";
+import {
+  CAPABILITIES,
+  PROTOCOLS,
+  PROTOCOL_DEFAULT_CAPABILITIES,
+  capabilities,
+  createDataset,
+  geoServicesFeatureSource,
+  geoServicesMapServiceSource,
+  ogcFeaturesSource,
+} from "../src/contract/index.js";
+import {
+  EMPTY_STATE,
+  LINKED_VIEW_PRESETS,
+  SLICES,
+  createExplorationContext,
+  reduce,
+} from "../src/exploration/index.js";
 
 describe("entrypoint modules", () => {
   it("exposes honua-first core entrypoint", () => {
@@ -213,5 +230,30 @@ describe("entrypoint modules", () => {
     expect(getJsParityMatrix).toBeTypeOf("function");
     expect(runLayerReconciliation).toBeTypeOf("function");
     expect(summarizeJsParityMatrix).toBeTypeOf("function");
+  });
+
+  it("exposes the canonical contract entrypoint", () => {
+    expect(PROTOCOLS).toHaveLength(9);
+    expect(CAPABILITIES.length).toBeGreaterThan(0);
+    expect(Object.keys(PROTOCOL_DEFAULT_CAPABILITIES)).toEqual([...PROTOCOLS]);
+    expect(capabilities).toBeTypeOf("function");
+    expect(createDataset).toBeTypeOf("function");
+    expect(geoServicesFeatureSource).toBeTypeOf("function");
+    expect(geoServicesMapServiceSource).toBeTypeOf("function");
+    expect(ogcFeaturesSource).toBeTypeOf("function");
+  });
+
+  it("exposes the exploration entrypoint", () => {
+    expect(EMPTY_STATE.preset).toBe("globalLinked");
+    expect(SLICES[0]).toBe("all");
+    expect(reduce).toBeTypeOf("function");
+    expect(createExplorationContext).toBeTypeOf("function");
+    expect(Object.keys(LINKED_VIEW_PRESETS)).toEqual([
+      "globalLinked",
+      "mapDriven",
+      "gridDriven",
+      "chartDriven",
+      "decoupled",
+    ]);
   });
 });
