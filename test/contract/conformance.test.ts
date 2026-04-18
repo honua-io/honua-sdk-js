@@ -305,14 +305,14 @@ for (const harness of harnesses) {
 }
 
 describe("contract / strict capability policy", () => {
-  it("throws HonuaCapabilityNotSupportedError when an aggregation is missing", async () => {
+  function buildStrictOgcDataset(): Dataset {
     const client = makeMockClient({
       routes: [
         ["/ogc/features/collections/parcels", () => jsonResponse(ogcCollectionMetadata())],
         ["/ogc/features/collections/parcels/items", () => jsonResponse(ogcItemsResponse())],
       ],
     });
-    const dataset = createDataset({
+    return createDataset({
       id: "parcels",
       client,
       capabilityPolicy: "strict",
@@ -322,17 +322,87 @@ describe("contract / strict capability policy", () => {
           id: "parcels-ogc",
           protocol: "ogc-features",
           locator: { url: "https://mock/", collectionId: "parcels" },
-          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"], // does NOT include queryAggregate
+          // PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"] omits queryAggregate and queryExtent.
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
         },
       ],
     });
-    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+  }
+
+  it("throws HonuaCapabilityNotSupportedError when queryAggregate is missing", async () => {
+    const source = buildStrictOgcDataset().source<ParcelAttrs>("parcels-ogc")!;
     await expect(
       source.queryAggregate({
         aggregation: { metrics: [{ fn: "sum", field: "ACRES" }] },
       } as Query<ParcelAttrs> & { aggregation: { metrics: ReadonlyArray<{ fn: "sum"; field: string }> } }),
     ).rejects.toThrow(HonuaCapabilityNotSupportedError);
   });
+
+  it("throws from query() when an aggregation is requested on a source without queryAggregate", async () => {
+    const source = buildStrictOgcDataset().source<ParcelAttrs>("parcels-ogc")!;
+    await expect(
+      source.query({
+        aggregation: { metrics: [{ fn: "sum", field: "ACRES" }] },
+      }),
+    ).rejects.toThrow(HonuaCapabilityNotSupportedError);
+  });
+
+  it("throws from queryExtent() when queryExtent is not advertised", async () => {
+    const source = buildStrictOgcDataset().source<ParcelAttrs>("parcels-ogc")!;
+    await expect(source.queryExtent()).rejects.toThrow(HonuaCapabilityNotSupportedError);
+  });
+});
+
+describe("contract / GeoServices queryAll pagination limit", () => {
+  for (const variant of [
+    {
+      label: "geoservices-feature-service",
+      path: "/rest/services/Parcels/FeatureServer/0/query",
+      protocol: "geoservices-feature-service" as const,
+    },
+    {
+      label: "geoservices-map-service",
+      path: "/rest/services/Parcels/MapServer/0/query",
+      protocol: "geoservices-map-service" as const,
+    },
+  ]) {
+    it(`${variant.label}: queryAll honors Query.pagination.limit`, async () => {
+      const observedRecordCounts: string[] = [];
+      const client = makeMockClient({
+        routes: [
+          [
+            variant.path,
+            (url) => {
+              const recordCount = url.searchParams.get("resultRecordCount") ?? "";
+              const offset = Number(url.searchParams.get("resultOffset") ?? "0");
+              observedRecordCounts.push(recordCount);
+              const clampedCount = recordCount ? Math.max(0, Number(recordCount)) : PARCEL_FEATURES.length;
+              const slice = PARCEL_FEATURES.slice(offset, offset + clampedCount);
+              return jsonResponse(geoservicesQueryResponse(slice));
+            },
+          ],
+        ],
+      });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES[variant.protocol],
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const source = dataset.source<ParcelAttrs>("parcels")!;
+      const result = await source.queryAll({ pagination: { limit: 1 } });
+      expect(result.features).toHaveLength(1);
+      expect(result.totalCount).toBe(1);
+      expect(observedRecordCounts[0]).toBe("1");
+    });
+  }
 });
 
 describe("contract / SourceDescriptor round-trip", () => {

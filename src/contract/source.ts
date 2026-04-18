@@ -155,11 +155,13 @@ export function geoServicesFeatureSource<T>(
       return featureLayerResultFromTyped<T>(response);
     },
     async queryAll(request) {
-      const features = await layer.queryFeaturesAll(toFeatureLayerRequest(request));
+      const params = withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit);
+      const features = await layer.queryFeaturesAll(params);
+      const { features: limited, exceededTransferLimit } = applyQueryAllLimit(features, request?.pagination?.limit);
       return {
-        features,
-        exceededTransferLimit: false,
-        totalCount: features.length,
+        features: limited,
+        exceededTransferLimit,
+        totalCount: limited.length,
       } satisfies Result<T>;
     },
     async queryAggregate(request) {
@@ -215,11 +217,14 @@ export function geoServicesMapServiceSource<T>(
       return featureLayerResultFromUntyped<T>(response);
     },
     async queryAll(request) {
-      const features = await layer.queryFeaturesAll(toFeatureLayerRequest(request));
+      const params = withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit);
+      const features = await layer.queryFeaturesAll(params);
+      const typed = features.map(toTypedFeature<T>);
+      const { features: limited, exceededTransferLimit } = applyQueryAllLimit(typed, request?.pagination?.limit);
       return {
-        features: features.map(toTypedFeature<T>),
-        exceededTransferLimit: false,
-        totalCount: features.length,
+        features: limited,
+        exceededTransferLimit,
+        totalCount: limited.length,
       } satisfies Result<T>;
     },
     async queryAggregate(request) {
@@ -267,6 +272,9 @@ export function ogcFeaturesSource<T>(
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
       ensureCapability(descriptor, caps, "query", policy);
+      if (request?.aggregation) {
+        ensureCapability(descriptor, caps, "queryAggregate", policy);
+      }
       const response = await collection.items(toOgcRequest(request));
       const features = response.features.map(toTypedFeatureFromOgc<T>);
       const totalCount = response.numberMatched;
@@ -303,13 +311,7 @@ export function ogcFeaturesSource<T>(
       } satisfies Result<T>;
     },
     async queryAggregate(request) {
-      if (policy === "strict" && !caps.has("queryAggregate")) {
-        throw new HonuaCapabilityNotSupportedError(
-          "queryAggregate",
-          descriptor.protocol,
-          descriptor.id,
-        );
-      }
+      ensureCapability(descriptor, caps, "queryAggregate", policy);
       const all = await collection.itemsAll(toOgcRequest(request));
       const features = all.map(toTypedFeatureFromOgc<T>);
       return {
@@ -327,6 +329,7 @@ export function ogcFeaturesSource<T>(
       } satisfies Result<T>;
     },
     async queryExtent(request) {
+      ensureCapability(descriptor, caps, "queryExtent", policy);
       const meta = await collection.metadata();
       const bbox = meta.extent?.spatial?.bbox?.[0];
       if (!bbox || bbox.length < 4) return { extent: null };
@@ -417,6 +420,35 @@ function requireOgcLocator(descriptor: SourceDescriptor): { collectionId: string
     throw new Error(`createDataset: source "${descriptor.id}" (ogc-features) requires locator.collectionId`);
   }
   return { collectionId };
+}
+
+/**
+ * `HonuaFeatureLayer.queryFeaturesAll` / `HonuaMapLayer.queryFeaturesAll`
+ * drive paging from their own `pageSize` / `maxPages` knobs and overwrite
+ * `resultRecordCount` per page, so the canonical `Query.pagination.limit`
+ * the adapter translates to `resultRecordCount` is ignored. When a limit is
+ * supplied, scale the per-page fetch to the limit so small limits do a
+ * single request and large limits still terminate promptly.
+ */
+function withPaginationLimitAsPageSize<R extends object>(
+  params: R,
+  limit: number | undefined,
+): R & { pageSize?: number } {
+  if (typeof limit !== "number" || limit < 1) return params;
+  return { ...params, pageSize: Math.max(1, Math.min(limit, 2000)) };
+}
+
+function applyQueryAllLimit<F>(
+  features: readonly F[],
+  limit: number | undefined,
+): { features: readonly F[]; exceededTransferLimit: boolean } {
+  if (typeof limit !== "number" || limit < 0) {
+    return { features, exceededTransferLimit: false };
+  }
+  if (features.length <= limit) {
+    return { features, exceededTransferLimit: false };
+  }
+  return { features: features.slice(0, limit), exceededTransferLimit: true };
 }
 
 function toFeatureLayerRequest<T>(request?: Query<T>): {

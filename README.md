@@ -165,8 +165,69 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - Honua-first core: `@honua/sdk-js/honua`
 - Esri compat bridge: `@honua/sdk-js/esri-compat`
 - Migration tooling: `@honua/sdk-js/migration`
+- Canonical shared client contract: `@honua/sdk-js/contract`
+- Exploration state + linked-view presets: `@honua/sdk-js/exploration`
 
 The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export for compatibility.
+
+## Shared Client Contract And Exploration
+
+`HonuaFeatureLayer`, `HonuaMapService`, and `HonuaOgcFeatureCollection` continue to be the runtime classes. For
+cross-protocol code — exploration views, visual builders, server packaging, and the WFS / WMS / OData adapter
+tickets — the SDK also exposes a protocol-neutral contract and exploration state module that wrap (not replace)
+those classes.
+
+- `@honua/sdk-js/contract` — canonical `Dataset`, `Source`, `SourceDescriptor`, `Capabilities`, `Query`, `Result`,
+  and `MapBinding` types, plus `createDataset(...)` and built-in adapters for `geoservices-feature-service`,
+  `geoservices-map-service`, and `ogc-features`. Capability negotiation is `strict` by default; `degraded` opts
+  into client-side fallbacks that surface `Result.degraded[]`. WFS / WMS / OData adapters plug in via
+  `CreateDatasetOptions.resolveSource`. Full contract reference:
+  [`docs/shared-client-contract.md`](./docs/shared-client-contract.md).
+- `@honua/sdk-js/exploration` — `createExplorationContext(...)` returning an observable, microtask-coalesced
+  reducer over filters, spatial filter, extent, selection, sort, pagination, visible fields, grouping, and
+  aggregation. View bindings (`map`, `grid`, `chart`, `card`, `detail`) propagate through five linked-view
+  presets (`globalLinked`, `mapDriven`, `gridDriven`, `chartDriven`, `decoupled`). Full state model and
+  worked example: [`docs/exploration-context.md`](./docs/exploration-context.md).
+- Capability coverage per protocol: [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md).
+- Round-trip mapping to the server `SourceBinding` / `MapPackage` document:
+  [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md).
+
+```ts
+import { createDataset } from "@honua/sdk-js/contract";
+import { createExplorationContext } from "@honua/sdk-js/exploration";
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({ baseUrl: "https://your-honua-server.example" });
+
+const dataset = createDataset({
+  id: "parcels",
+  client,
+  sources: [
+    {
+      id: "parcels-fs",
+      protocol: "geoservices-feature-service",
+      locator: { url: "https://your-honua-server.example", serviceId: "parcels", layerId: 0 },
+      capabilities: new Set(["query", "queryExtent", "queryObjectIds"]),
+    },
+  ],
+});
+
+const parcels = dataset.source("parcels-fs")!;
+const result = await parcels.query({ where: "STATUS = 'ACTIVE'", pagination: { limit: 100 } });
+const { extent } = await parcels.queryExtent({ where: "STATUS = 'ACTIVE'" });
+
+const ctx = createExplorationContext({
+  datasetId: dataset.id,
+  sourceIds: dataset.sourceIds(),
+  preset: "mapDriven",
+});
+ctx.bind({ id: "map", role: "map" });
+if (extent) ctx.dispatch({ kind: "set-extent", extent, viewId: "map" });
+console.log(`Loaded ${result.features.length} features`);
+```
+
+Capability misses throw `HonuaCapabilityNotSupportedError` (under `strict` policy). Exploration misuses throw
+`HonuaExplorationContextError`. Both are in the `HonuaError` union and pass `isHonuaError(e)`.
 
 ## Install
 
