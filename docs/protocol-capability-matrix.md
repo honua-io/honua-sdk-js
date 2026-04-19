@@ -11,6 +11,11 @@ the default set themselves and pass the result on
 read service metadata today; automatic metadata-driven downgrades are
 tracked as future work.
 
+This matrix spans the full shared capability vocabulary, not just the
+protocol-neutral `Source` methods implemented in this ticket. Capabilities
+without a canonical `Source` method today are negotiated for
+`Source.adapter()` escape hatches and follow-on adapter tickets.
+
 `✓` = first-party support, no client-side fallback needed.
 `◐` = supported only under `degraded` capability policy (client-side fallback).
 `—` = not supported.

@@ -58,10 +58,14 @@ export const PROTOCOLS: readonly Protocol[] = [
 // ── Capabilities ──────────────────────────────────────────────
 
 /**
- * Coarse-grained operations a `Source` may expose. Keep this list aligned
- * with `docs/protocol-capability-matrix.md`. Adapters declare which
- * capabilities they support so that `ExplorationContext` and downstream
- * tickets can negotiate without protocol-specific branches.
+ * Coarse-grained protocol capabilities negotiated across the canonical
+ * `Source` methods and the typed `Source.adapter()` escape hatch. This
+ * ticket intentionally standardizes only the query-family subset on
+ * `Source`; capabilities such as `render`, `tiles`, `sql`, and
+ * `queryObjectIds` stay in the shared registry so downstream adapter
+ * tickets can reuse one vocabulary without widening the top-level API.
+ *
+ * Keep this list aligned with `docs/protocol-capability-matrix.md`.
  */
 export type Capability =
   | "query"

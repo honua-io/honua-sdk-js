@@ -337,7 +337,7 @@ export function ogcFeaturesSource<T>(
       // the descriptor must advertise `queryAggregate`; under `degraded` the
       // fallback runs unconditionally.
       ensureCapabilityOrFallback(descriptor, caps, "queryAggregate", policy);
-      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request)));
+      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcMaterializedRequest(request)));
       const features = all.map(toTypedFeatureFromOgc<T>);
       return {
         features,
@@ -369,7 +369,7 @@ export function ogcFeaturesSource<T>(
         const [xmin, ymin, xmax, ymax] = bbox;
         return { extent: { xmin, ymin, xmax, ymax } };
       }
-      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request)));
+      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcMaterializedRequest(request)));
       return computeExtentFromOgcFeatures(all);
     },
     async *stream(request) {
@@ -720,6 +720,19 @@ function toOgcRequest<T>(request?: Query<T>): Record<string, unknown> {
     }
   }
   if (request.signal) out.signal = request.signal;
+  return out;
+}
+
+/**
+ * OGC operations that must inspect the full matching record set (`queryAggregate`
+ * and degraded `queryExtent`) cannot inherit caller pagination. `limit` /
+ * `offset` would silently materialize only a window of the match set and break
+ * the whole-result contract those methods promise.
+ */
+function toOgcMaterializedRequest<T>(request?: Query<T>): Record<string, unknown> {
+  const { limit: _limit, offset: _offset, ...out } = toOgcRequest(request);
+  void _limit;
+  void _offset;
   return out;
 }
 

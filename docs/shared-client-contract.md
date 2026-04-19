@@ -44,8 +44,8 @@ top-level `@honua/sdk-js` and `@honua/sdk-js/honua` barrels).
 | Type | What it is |
 | --- | --- |
 | `Protocol` | One of nine identifiers (`geoservices-feature-service`, `geoservices-map-service`, `ogc-features`, `wfs`, `wms`, `odata`, `maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
-| `Capability` | A coarse-grained operation a `Source` may expose (`query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `connect`). |
-| `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party support. Under `strict` (default) a missing capability throws `HonuaCapabilityNotSupportedError`. Under `degraded` only call sites with a defined fallback proceed (today: OGC `queryAggregate` and `queryExtent`); every other missing capability still throws. |
+| `Capability` | A coarse-grained protocol capability (`query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `connect`). The canonical `Source` surface standardizes the query-family subset today; the rest stay in the shared registry for `Source.adapter()` escape hatches and follow-on adapter tickets. |
+| `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party protocol support, whether the caller consumes it through a canonical `Source` method or the typed adapter escape hatch. Under `strict` (default) a missing capability throws `HonuaCapabilityNotSupportedError`. Under `degraded` only call sites with a defined fallback proceed (today: OGC `queryAggregate` and `queryExtent`); every other missing capability still throws. |
 | `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `typeName`, `entitySet`). Field-compatible with the server `SourceBinding.locator`. |
 | `SourceDescriptor` | `{ id, protocol, locator, capabilities, schema?, attribution? }`. The serializable identity of one source. |
 | `Source<T>` | Runtime handle. Methods: `query`, `queryAll`, `queryAggregate`, `queryExtent`, `stream`, `adapter`. |
@@ -76,6 +76,10 @@ Automatic metadata-driven downgrades inside the adapter constructors are
 tracked as future work; when implemented, the adapter will read service
 metadata and intersect the declared capability set with what the server
 advertises.
+
+The registry is intentionally broader than the current `Source` method list so
+downstream adapter tickets can negotiate `render` / `tiles` / `sql` /
+`queryObjectIds` / etc. without inventing a second capability vocabulary.
 
 ## Source factory
 

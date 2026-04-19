@@ -25,6 +25,7 @@ import {
 import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";
 import {
   HonuaFeatureLayer,
+  type HonuaOgcCollectionItemsAllRequest,
   HonuaMapLayer,
   HonuaMapService,
   HonuaOgcFeatureCollection,
@@ -1064,6 +1065,78 @@ describe("contract / OGC queryAll pagination limit", () => {
     const result = await source.queryAll({ pagination: { limit: PARCEL_FEATURES.length } });
     expect(result.features).toHaveLength(PARCEL_FEATURES.length);
     expect(result.exceededTransferLimit).toBe(false);
+  });
+});
+
+describe("contract / OGC materialized operations ignore Query.pagination", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function buildDataset(): Dataset {
+    const client = makeMockClient({ routes: [] });
+    return createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        } satisfies SourceDescriptor,
+      ],
+    });
+  }
+
+  function mockItemsAllByRequest(): ReturnType<typeof vi.spyOn> {
+    return vi
+      .spyOn(HonuaOgcFeatureCollection.prototype, "itemsAll")
+      .mockImplementation(async (request: HonuaOgcCollectionItemsAllRequest = {}) => {
+        const offset = typeof request.offset === "number" ? request.offset : 0;
+        const limit = typeof request.limit === "number" ? request.limit : PARCEL_FEATURES.length;
+        return ogcItemsResponse(PARCEL_FEATURES.slice(offset, offset + limit)).features;
+      });
+  }
+
+  it("queryAggregate drains the full match set even when pagination is supplied", async () => {
+    const itemsAllSpy = mockItemsAllByRequest();
+    const source = buildDataset().source<ParcelAttrs>("parcels-ogc")!;
+    const result = await source.queryAggregate({
+      pagination: { offset: 1, limit: 1 },
+      aggregation: { groupBy: ["STATE"], metrics: [{ fn: "sum", field: "ACRES", alias: "SUM_ACRES" }] },
+    });
+
+    const request = itemsAllSpy.mock.calls[0][0] as HonuaOgcCollectionItemsAllRequest;
+    expect(request.limit).toBeUndefined();
+    expect(request.offset).toBeUndefined();
+    expect(request.maxPages).toBe(Number.MAX_SAFE_INTEGER);
+    expect(result.features).toHaveLength(PARCEL_FEATURES.length);
+    expect(result.aggregateRows).toEqual([
+      { STATE: "CA", SUM_ACRES: 19.5 },
+      { STATE: "OR", SUM_ACRES: 20 },
+    ]);
+  });
+
+  it("queryExtent computes the filtered bbox from all matches even when pagination is supplied", async () => {
+    const itemsAllSpy = mockItemsAllByRequest();
+    const source = buildDataset().source<ParcelAttrs>("parcels-ogc")!;
+    const out = await source.queryExtent({
+      where: "1=1",
+      pagination: { offset: 1, limit: 1 },
+    });
+
+    const request = itemsAllSpy.mock.calls[0][0] as HonuaOgcCollectionItemsAllRequest;
+    expect(request.filter).toBe("1=1");
+    expect(request.limit).toBeUndefined();
+    expect(request.offset).toBeUndefined();
+    expect(request.maxPages).toBe(Number.MAX_SAFE_INTEGER);
+    expect(out).toEqual({
+      extent: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+      count: PARCEL_FEATURES.length,
+    });
   });
 });
 
