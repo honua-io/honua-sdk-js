@@ -143,6 +143,7 @@ export function geoServicesFeatureSource<T>(
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
+      ensureCapability(descriptor, caps, "query", policy);
       const requestParams = toFeatureLayerRequest(request);
       if (request?.aggregation) {
         ensureCapability(descriptor, caps, "queryAggregate", policy);
@@ -156,6 +157,7 @@ export function geoServicesFeatureSource<T>(
       return featureLayerResultFromTyped<T>(response);
     },
     async queryAll(request) {
+      ensureCapability(descriptor, caps, "query", policy);
       const params = withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(features, request?.pagination?.limit);
@@ -179,6 +181,7 @@ export function geoServicesFeatureSource<T>(
       return { extent: out.extent ?? null, count: out.count };
     },
     async *stream(request) {
+      ensureCapability(descriptor, caps, "stream", policy);
       const stream = layer.queryFeaturesStream(toFeatureLayerRequest(request));
       for await (const page of stream) {
         yield {
@@ -209,6 +212,7 @@ export function geoServicesMapServiceSource<T>(
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
+      ensureCapability(descriptor, caps, "query", policy);
       const params = toFeatureLayerRequest(request);
       if (request?.aggregation) {
         ensureCapability(descriptor, caps, "queryAggregate", policy);
@@ -219,6 +223,7 @@ export function geoServicesMapServiceSource<T>(
       return featureLayerResultFromUntyped<T>(response);
     },
     async queryAll(request) {
+      ensureCapability(descriptor, caps, "query", policy);
       const params = withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const typed = features.map(toTypedFeature<T>);
@@ -243,6 +248,7 @@ export function geoServicesMapServiceSource<T>(
       return { extent: out.extent ?? null, count: out.count };
     },
     async *stream(request) {
+      ensureCapability(descriptor, caps, "stream", policy);
       const stream = layer.queryFeaturesStream(toFeatureLayerRequest(request));
       for await (const page of stream) {
         yield {
@@ -304,6 +310,7 @@ export function ogcFeaturesSource<T>(
       } satisfies Result<T>;
     },
     async queryAll(request) {
+      ensureCapability(descriptor, caps, "query", policy);
       const all = await collection.itemsAll(toOgcRequest(request));
       const features = all.map(toTypedFeatureFromOgc<T>);
       return {
@@ -342,6 +349,7 @@ export function ogcFeaturesSource<T>(
       };
     },
     async *stream(request) {
+      ensureCapability(descriptor, caps, "stream", policy);
       const stream = collection.itemsStream(toOgcRequest(request));
       for await (const page of stream) {
         yield {

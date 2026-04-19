@@ -111,6 +111,47 @@ describe("exploration / reduce", () => {
     expect(restored.changedSlices.size).toBe(0);
   });
 
+  it("set-aggregation treats structurally equal specs as a no-op", () => {
+    const seeded = reduce(EMPTY_STATE, {
+      kind: "set-aggregation",
+      aggregation: {
+        groupBy: ["STATE"],
+        metrics: [{ fn: "sum", field: "ACRES", alias: "SUM_ACRES" }],
+      },
+    });
+    const again = reduce(seeded.state, {
+      kind: "set-aggregation",
+      aggregation: {
+        groupBy: ["STATE"],
+        metrics: [{ fn: "sum", field: "ACRES", alias: "SUM_ACRES" }],
+      },
+    });
+    expect(again.changedSlices.size).toBe(0);
+    expect(again.state).toBe(seeded.state);
+  });
+
+  it("snapshot-restore with a structurally equal aggregation does not flag aggregation as changed", () => {
+    const seeded = reduce(EMPTY_STATE, {
+      kind: "set-aggregation",
+      aggregation: {
+        groupBy: ["STATE"],
+        metrics: [{ fn: "sum", field: "ACRES" }],
+      },
+    });
+    const restored = reduce(seeded.state, {
+      kind: "snapshot-restore",
+      snapshot: {
+        version: 1,
+        state: {
+          ...seeded.state,
+          aggregation: { groupBy: ["STATE"], metrics: [{ fn: "sum", field: "ACRES" }] },
+        },
+      },
+    });
+    expect(restored.changedSlices.has("aggregation")).toBe(false);
+    expect(restored.changedSlices.size).toBe(0);
+  });
+
   it("set-extent treats structurally equal extents as a no-op", () => {
     const a = reduce(EMPTY_STATE, {
       kind: "set-extent",
@@ -204,6 +245,32 @@ describe("exploration / createExplorationContext", () => {
     expect(sortEvents.length).toBe(1);
     expect(allEvents.length).toBe(1);
     expect(allEvents[0].changedSlices).toEqual(new Set(["filters", "sort"]));
+    ctx.dispose();
+  });
+
+  it("subscribe(\"all\") still fires when the policy blocks slice-specific wakeups", async () => {
+    const ctx = createExplorationContext({
+      datasetId: "d",
+      sourceIds: ["s"],
+      preset: "mapDriven",
+    });
+    ctx.bind({ id: "grid", role: "grid" });
+
+    const sortEvents: ChangeEvent[] = [];
+    const allEvents: ChangeEvent[] = [];
+    ctx.subscribe("sort", (e) => sortEvents.push(e));
+    ctx.subscribe("all", (e) => allEvents.push(e));
+
+    // Grid sort does not propagate under mapDriven → slice listener is silent,
+    // but "all" fires because central state still moved.
+    ctx.dispatch({ kind: "set-sort", sort: [{ field: "A" }], viewId: "grid" });
+    await flush();
+
+    expect(sortEvents.length).toBe(0);
+    expect(allEvents.length).toBe(1);
+    expect(allEvents[0].changedSlices.has("sort")).toBe(true);
+    expect(ctx.state.sort).toHaveLength(1);
+
     ctx.dispose();
   });
 

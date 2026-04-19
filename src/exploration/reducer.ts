@@ -10,6 +10,7 @@
  */
 
 import type { SpatialFilter } from "../core/spatial-filter.js";
+import type { AggregationSpec } from "../contract/types.js";
 import type { ExplorationIntent, ExplorationSlice, ExplorationState, FilterClause } from "./types.js";
 
 export interface ReducerResult {
@@ -112,7 +113,9 @@ export function reduce(state: ExplorationState, intent: ExplorationIntent): Redu
       };
     }
     case "set-aggregation": {
-      if (state.aggregation === intent.aggregation) return { state, changedSlices: EMPTY };
+      if (aggregationEqual(state.aggregation, intent.aggregation)) {
+        return { state, changedSlices: EMPTY };
+      }
       return {
         state: cloneWithOptional(state, "aggregation", intent.aggregation),
         changedSlices: only("aggregation"),
@@ -258,7 +261,24 @@ function diffSlices(prev: ExplorationState, next: ExplorationState): Set<Explora
   if (!pageEqual(prev.page, next.page)) changed.add("page");
   if (!sequenceEqual(prev.visibleFields, next.visibleFields)) changed.add("visibleFields");
   if (!sequenceEqual(prev.grouping, next.grouping)) changed.add("grouping");
-  if (prev.aggregation !== next.aggregation) changed.add("aggregation");
+  if (!aggregationEqual(prev.aggregation, next.aggregation)) changed.add("aggregation");
   if (prev.preset !== next.preset) changed.add("preset");
   return changed;
+}
+
+function aggregationEqual(a: AggregationSpec | undefined, b: AggregationSpec | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const aGroup = a.groupBy ?? [];
+  const bGroup = b.groupBy ?? [];
+  if (!sequenceEqual(aGroup, bGroup)) return false;
+  if (a.metrics.length !== b.metrics.length) return false;
+  for (let i = 0; i < a.metrics.length; i++) {
+    const am = a.metrics[i];
+    const bm = b.metrics[i];
+    if (am.fn !== bm.fn || am.field !== bm.field || (am.alias ?? null) !== (bm.alias ?? null)) {
+      return false;
+    }
+  }
+  return true;
 }

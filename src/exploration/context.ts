@@ -52,8 +52,13 @@ export function createExplorationContext(options: CreateExplorationContextOption
   const sliceListeners = new Map<ExplorationSlice, Set<Listener>>();
 
   // Coalescing state — a microtask is scheduled at most once per tick.
+  // `pendingRawChangedSlices` is the full set of slices the reducer changed
+  // (used to wake `"all"` subscribers per the public slice contract);
+  // `pendingChangedSlices` is the policy-filtered subset used to wake
+  // slice-specific subscribers.
   let pendingFlush = false;
   let pendingPrev: ExplorationState = state;
+  const pendingRawChangedSlices = new Set<ExplorationSlice>();
   const pendingChangedSlices = new Set<ExplorationSlice>();
   let pendingOrigin: ExplorationIntent | undefined;
 
@@ -71,26 +76,36 @@ export function createExplorationContext(options: CreateExplorationContextOption
     pendingFlush = true;
     queueMicrotask(() => {
       pendingFlush = false;
-      if (pendingChangedSlices.size === 0) return;
-      const event: ChangeEvent = {
+      if (pendingRawChangedSlices.size === 0) return;
+      // `"all"` subscribers see every change the reducer produced, including
+      // those the linked-view policy kept local to the originating view.
+      // Slice-specific subscribers only fire for the filtered subset.
+      const allEvent: ChangeEvent = {
         state,
         previous: pendingPrev,
-        changedSlices: new Set(pendingChangedSlices),
+        changedSlices: new Set(pendingRawChangedSlices),
         origin: pendingOrigin,
       };
+      const filteredChanges = new Set(pendingChangedSlices);
+      pendingRawChangedSlices.clear();
       pendingChangedSlices.clear();
       pendingPrev = state;
       pendingOrigin = undefined;
 
-      // Always notify "all" subscribers; then specific slice subscribers.
       const allListeners = sliceListeners.get("all");
       if (allListeners) {
-        for (const fn of [...allListeners]) fn(event);
+        for (const fn of [...allListeners]) fn(allEvent);
       }
-      for (const slice of event.changedSlices) {
+      for (const slice of filteredChanges) {
         const listeners = sliceListeners.get(slice);
         if (!listeners) continue;
-        for (const fn of [...listeners]) fn(event);
+        const sliceEvent: ChangeEvent = {
+          state: allEvent.state,
+          previous: allEvent.previous,
+          changedSlices: filteredChanges,
+          origin: allEvent.origin,
+        };
+        for (const fn of [...listeners]) fn(sliceEvent);
       }
     });
   }
@@ -132,10 +147,13 @@ export function createExplorationContext(options: CreateExplorationContextOption
 
       const filtered = filterByPolicy(result.changedSlices, intent, policy, bindings);
       // Always update central state — propagation only filters which slice
-      // listeners are woken, not whether the state itself moves.
-      const movedToFreshTick = pendingChangedSlices.size === 0;
+      // listeners are woken, not whether the state itself moves. Record the
+      // raw changed slices so `"all"` subscribers always see the change per
+      // the public slice contract, even when the filtered set is empty.
+      const movedToFreshTick = pendingRawChangedSlices.size === 0;
       if (movedToFreshTick) pendingPrev = state;
       state = result.state;
+      for (const slice of result.changedSlices) pendingRawChangedSlices.add(slice);
       for (const slice of filtered) pendingChangedSlices.add(slice);
       pendingOrigin = intent;
 
@@ -146,7 +164,7 @@ export function createExplorationContext(options: CreateExplorationContextOption
         policy = LINKED_VIEW_PRESETS[state.preset];
       }
 
-      if (pendingChangedSlices.size > 0) scheduleFlush();
+      if (pendingRawChangedSlices.size > 0) scheduleFlush();
     },
 
     subscribe(slice: ExplorationSlice, fn: Listener): Unsubscribe {
@@ -185,6 +203,7 @@ export function createExplorationContext(options: CreateExplorationContextOption
       disposed = true;
       bindings.clear();
       sliceListeners.clear();
+      pendingRawChangedSlices.clear();
       pendingChangedSlices.clear();
       pendingFlush = false;
     },

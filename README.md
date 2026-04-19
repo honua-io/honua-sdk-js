@@ -185,7 +185,7 @@ those classes.
   [`docs/shared-client-contract.md`](./docs/shared-client-contract.md).
 - `@honua/sdk-js/exploration` — `createExplorationContext(...)` returning an observable, microtask-coalesced
   reducer over filters, spatial filter, extent, selection, sort, pagination, visible fields, grouping, and
-  aggregation. View bindings (`map`, `grid`, `chart`, `card`, `detail`) propagate through five linked-view
+  aggregation. View bindings (`map`, `grid`, `chart`, `form`, `custom`) propagate through five linked-view
   presets (`globalLinked`, `mapDriven`, `gridDriven`, `chartDriven`, `decoupled`). Full state model and
   worked example: [`docs/exploration-context.md`](./docs/exploration-context.md).
 - Capability coverage per protocol: [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md).

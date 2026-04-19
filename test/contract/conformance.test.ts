@@ -424,7 +424,113 @@ describe("contract / strict capability policy", () => {
         }),
       ).rejects.toThrow(HonuaCapabilityNotSupportedError);
     });
+
+    it(`${variant.label}: throws from query() when the source does not advertise query`, async () => {
+      const client = makeMockClient({
+        routes: [[variant.path, () => jsonResponse(geoservicesQueryResponse())]],
+      });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        capabilityPolicy: "strict",
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: capabilities([]),
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const source = dataset.source<ParcelAttrs>("parcels")!;
+      await expect(source.query({ where: "1=1" })).rejects.toThrow(HonuaCapabilityNotSupportedError);
+      await expect(source.queryAll()).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    });
+
+    it(`${variant.label}: throws from stream() when the source does not advertise stream`, async () => {
+      const client = makeMockClient({
+        routes: [[variant.path, () => jsonResponse(geoservicesQueryResponse())]],
+      });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        capabilityPolicy: "strict",
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: capabilities(["query"]),
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const source = dataset.source<ParcelAttrs>("parcels")!;
+      await expect(async () => {
+        for await (const _page of source.stream()) {
+          void _page;
+          break;
+        }
+      }).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    });
   }
+
+  it("ogc-features: throws from query()/queryAll() when query capability is missing", async () => {
+    const client = makeMockClient({
+      routes: [
+        ["/ogc/features/collections/parcels/items", () => jsonResponse(ogcItemsResponse())],
+        ["/ogc/features/collections/parcels", () => jsonResponse(ogcCollectionMetadata())],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "strict",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: capabilities(["stream"]),
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    await expect(source.query({ where: "1=1" })).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    await expect(source.queryAll()).rejects.toThrow(HonuaCapabilityNotSupportedError);
+  });
+
+  it("ogc-features: throws from stream() when stream capability is missing", async () => {
+    const client = makeMockClient({
+      routes: [
+        ["/ogc/features/collections/parcels/items", () => jsonResponse(ogcItemsResponse())],
+        ["/ogc/features/collections/parcels", () => jsonResponse(ogcCollectionMetadata())],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "strict",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: capabilities(["query"]),
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    await expect(async () => {
+      for await (const _page of source.stream()) {
+        void _page;
+        break;
+      }
+    }).rejects.toThrow(HonuaCapabilityNotSupportedError);
+  });
 });
 
 describe("contract / GeoServices queryAll pagination limit", () => {
