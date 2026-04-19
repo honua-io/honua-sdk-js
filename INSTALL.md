@@ -61,6 +61,21 @@ console.log(`Found ${featureCount} feature(s)`);
 For a runnable browser example from this repo, including the renderable-geometry checks used by the committed
 MapLibre quickstart, use [`examples/maplibre-quickstart/README.md`](./examples/maplibre-quickstart/README.md).
 
+## Canonical Contract And Exploration
+
+The SDK exposes a protocol-neutral client contract and exploration state module that wrap the existing
+`HonuaFeatureLayer` / `HonuaMapService` / `HonuaOgcFeatureCollection` classes. These ship from the
+`@honua/sdk` package as the `@honua/sdk/contract` and `@honua/sdk/exploration` subpath entrypoints:
+
+- [`docs/shared-client-contract.md`](./docs/shared-client-contract.md) — `Dataset`, `Source`, `Capabilities`,
+  `Query`, `Result`, `MapBinding`, and `createDataset(...)`.
+- [`docs/exploration-context.md`](./docs/exploration-context.md) — `createExplorationContext(...)` with
+  linked-view presets (`globalLinked`, `mapDriven`, `gridDriven`, `chartDriven`, `decoupled`).
+- [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md) — capability coverage per
+  protocol (`geoservices-feature-service`, `geoservices-map-service`, `ogc-features`, `wfs`, `wms`, `odata`).
+- [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md) — round-trip mapping between
+  `SourceDescriptor` and the server `SourceBinding` document.
+
 ## Esri Migration
 
 ```bash

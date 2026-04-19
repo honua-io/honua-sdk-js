@@ -58,6 +58,16 @@ try {
   const smokeScript = `
 import { HonuaClient, HonuaMapLayer } from "@honua/sdk";
 import {
+  CAPABILITIES,
+  PROTOCOLS,
+  createDataset,
+} from "@honua/sdk/contract";
+import {
+  EMPTY_STATE,
+  LINKED_VIEW_PRESETS,
+  createExplorationContext,
+} from "@honua/sdk/exploration";
+import {
   AttributionCompat,
   BasemapCompat,
   BasemapToggleCompat,
@@ -146,6 +156,18 @@ import {
 
 if (typeof HonuaClient !== "function") throw new Error("HonuaClient export missing");
 if (typeof HonuaMapLayer !== "function") throw new Error("HonuaMapLayer export missing");
+if (!Array.isArray(CAPABILITIES) || CAPABILITIES.length === 0)
+  throw new Error("CAPABILITIES export missing from @honua/sdk/contract");
+if (!Array.isArray(PROTOCOLS) || PROTOCOLS.length === 0)
+  throw new Error("PROTOCOLS export missing from @honua/sdk/contract");
+if (typeof createDataset !== "function")
+  throw new Error("createDataset export missing from @honua/sdk/contract");
+if (typeof EMPTY_STATE !== "object" || EMPTY_STATE === null)
+  throw new Error("EMPTY_STATE export missing from @honua/sdk/exploration");
+if (typeof LINKED_VIEW_PRESETS !== "object" || LINKED_VIEW_PRESETS === null)
+  throw new Error("LINKED_VIEW_PRESETS export missing from @honua/sdk/exploration");
+if (typeof createExplorationContext !== "function")
+  throw new Error("createExplorationContext export missing from @honua/sdk/exploration");
 if (typeof CompatEventBus !== "function") throw new Error("CompatEventBus export missing");
 if (typeof CoordinateConversionCompat !== "function") throw new Error("CoordinateConversionCompat export missing");
 if (typeof createEsriRequestInterceptors !== "function") throw new Error("createEsriRequestInterceptors export missing");

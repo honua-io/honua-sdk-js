@@ -50,6 +50,14 @@
     "./geocoding": {
       "types": "./dist/src/geocoding/index.d.ts",
       "default": "./dist/src/geocoding/index.js"
+    },
+    "./contract": {
+      "types": "./dist/src/contract/index.d.ts",
+      "default": "./dist/src/contract/index.js"
+    },
+    "./exploration": {
+      "types": "./dist/src/exploration/index.d.ts",
+      "default": "./dist/src/exploration/index.js"
     }
   },
   "scripts": {

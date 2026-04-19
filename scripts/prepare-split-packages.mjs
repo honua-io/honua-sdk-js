@@ -41,9 +41,11 @@ function createSdkPackage() {
   const packageRoot = path.join(OUTPUT_ROOT, "honua-sdk");
   fs.mkdirSync(packageRoot, { recursive: true });
 
+  copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
   copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
@@ -62,6 +64,14 @@ function createSdkPackage() {
       ".": {
         types: "./index.d.ts",
         default: "./index.js",
+      },
+      "./contract": {
+        types: "./contract/index.d.ts",
+        default: "./contract/index.js",
+      },
+      "./exploration": {
+        types: "./exploration/index.d.ts",
+        default: "./exploration/index.js",
       },
       "./expr": {
         types: "./expr/index.d.ts",

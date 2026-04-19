@@ -53,8 +53,56 @@ export class HonuaGrpcError extends Error {
   }
 }
 
+/**
+ * Thrown when a `Source` is asked to perform an operation that the underlying
+ * protocol or server does not support and the active capability policy is
+ * `strict`. The `capability` field names the missing capability so callers can
+ * decide whether to swap protocols, fall back to a degraded strategy, or
+ * surface the limitation to the user.
+ */
+export class HonuaCapabilityNotSupportedError extends Error {
+  public readonly capability: string;
+  public readonly protocol: string;
+  public readonly sourceId: string | undefined;
+
+  public constructor(capability: string, protocol: string, sourceId?: string) {
+    super(
+      sourceId
+        ? `Capability "${capability}" is not supported by protocol "${protocol}" on source "${sourceId}"`
+        : `Capability "${capability}" is not supported by protocol "${protocol}"`,
+    );
+    this.name = "HonuaCapabilityNotSupportedError";
+    this.capability = capability;
+    this.protocol = protocol;
+    this.sourceId = sourceId;
+  }
+}
+
+/**
+ * Thrown when an `ExplorationContext` operation is invalid — for example,
+ * dispatching an intent against a context that has been disposed, restoring
+ * an incompatible snapshot, or binding a view that requests a slice that is
+ * not exposed by the current dataset.
+ */
+export class HonuaExplorationContextError extends Error {
+  public readonly code: string;
+
+  public constructor(code: string, message: string) {
+    super(message);
+    this.name = "HonuaExplorationContextError";
+    this.code = code;
+  }
+}
+
 /** All Honua SDK error types that can be discriminated with `instanceof`. */
-export type HonuaError = HonuaHttpError | HonuaTimeoutError | HonuaNetworkError | HonuaAbortError | HonuaGrpcError;
+export type HonuaError =
+  | HonuaHttpError
+  | HonuaTimeoutError
+  | HonuaNetworkError
+  | HonuaAbortError
+  | HonuaGrpcError
+  | HonuaCapabilityNotSupportedError
+  | HonuaExplorationContextError;
 
 /** Type guard that narrows any value to one of the Honua SDK error types. */
 export function isHonuaError(error: unknown): error is HonuaError {
@@ -63,6 +111,8 @@ export function isHonuaError(error: unknown): error is HonuaError {
     error instanceof HonuaTimeoutError ||
     error instanceof HonuaNetworkError ||
     error instanceof HonuaAbortError ||
-    error instanceof HonuaGrpcError
+    error instanceof HonuaGrpcError ||
+    error instanceof HonuaCapabilityNotSupportedError ||
+    error instanceof HonuaExplorationContextError
   );
 }

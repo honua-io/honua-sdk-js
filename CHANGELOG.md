@@ -6,6 +6,19 @@ All notable changes to the Honua JS SDK will be documented in this file.
 
 ### Added
 
+- Canonical shared client contract at `@honua/sdk-js/contract`: `Dataset`, `Source`, `SourceDescriptor`,
+  `Capabilities`, `Query`, `Result`, and `MapBinding` types plus `createDataset(...)` with built-in adapters
+  for `geoservices-feature-service`, `geoservices-map-service`, and `ogc-features`; WFS / WMS / OData plug
+  in through `CreateDatasetOptions.resolveSource`. Capability policy defaults to `strict` (missing
+  capabilities throw `HonuaCapabilityNotSupportedError`); `degraded` opts into client-side fallbacks that
+  surface `Result.degraded[]`.
+- Exploration state module at `@honua/sdk-js/exploration`: `createExplorationContext(...)` with a
+  microtask-coalesced reducer over filters, spatial filter, extent, selection, sort, pagination, visible
+  fields, grouping, and aggregation; five linked-view presets (`globalLinked`, `mapDriven`, `gridDriven`,
+  `chartDriven`, `decoupled`); view bindings for `map`, `grid`, `chart`, `form`, and `custom`; snapshot
+  restore; `HonuaExplorationContextError` for disposed / duplicate-binding / incompatible-snapshot states.
+- Contract docs: `docs/shared-client-contract.md`, `docs/exploration-context.md`,
+  `docs/protocol-capability-matrix.md`, and `docs/source-binding-alignment.md`.
 - Core HTTP client (`HonuaClient`) with FeatureServer, MapServer, and OGC API Features support
 - Fluent layer wrappers (`featureLayer()`, `mapLayer()`, `mapService()`, `ogcFeatures()`)
 - Typed response models for all query, edit, metadata, and OGC endpoints
