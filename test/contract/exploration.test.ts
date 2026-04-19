@@ -95,6 +95,47 @@ describe("exploration / reduce", () => {
     expect(b.state).toBe(a.state);
   });
 
+  it("snapshot-restore with a structurally equal filter map does not flag filters as changed", () => {
+    const seeded = reduce(EMPTY_STATE, {
+      kind: "set-filter",
+      id: "state",
+      clause: { field: "STATE", operator: "=", value: "CA" },
+    });
+    // Deep-clone the filter map the way `context.restore()` does, so the
+    // reference differs but the content is identical.
+    const clonedFilters = {
+      state: { ...seeded.state.filters.state },
+    };
+    const restored = reduce(seeded.state, {
+      kind: "snapshot-restore",
+      snapshot: {
+        version: 1,
+        state: { ...seeded.state, filters: clonedFilters },
+      },
+    });
+    expect(restored.changedSlices.has("filters")).toBe(false);
+    expect(restored.changedSlices.size).toBe(0);
+  });
+
+  it("snapshot-restore flags filters when a clause value differs", () => {
+    const seeded = reduce(EMPTY_STATE, {
+      kind: "set-filter",
+      id: "state",
+      clause: { field: "STATE", operator: "=", value: "CA" },
+    });
+    const restored = reduce(seeded.state, {
+      kind: "snapshot-restore",
+      snapshot: {
+        version: 1,
+        state: {
+          ...seeded.state,
+          filters: { state: { field: "STATE", operator: "=", value: "NY" } },
+        },
+      },
+    });
+    expect(restored.changedSlices.has("filters")).toBe(true);
+  });
+
   it("snapshot-restore with a structurally equal spatial filter does not flag spatialFilter as changed", () => {
     const seeded = reduce(EMPTY_STATE, {
       kind: "set-spatial-filter",

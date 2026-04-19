@@ -140,6 +140,21 @@ function only(slice: ExplorationSlice): ReadonlySet<ExplorationSlice> {
   return new Set([slice]);
 }
 
+function filterMapsEqual(
+  a: Readonly<Record<string, FilterClause>>,
+  b: Readonly<Record<string, FilterClause>>,
+): boolean {
+  if (a === b) return true;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const key of aKeys) {
+    if (!Object.hasOwn(b, key)) return false;
+    if (!filtersEqual(a[key], b[key])) return false;
+  }
+  return true;
+}
+
 function filtersEqual(a: FilterClause, b: FilterClause): boolean {
   if (a.field !== b.field || a.operator !== b.operator) return false;
   if (a.value !== b.value) {
@@ -253,7 +268,7 @@ function cloneWithOptional<K extends "spatialFilter" | "extent" | "aggregation">
 
 function diffSlices(prev: ExplorationState, next: ExplorationState): Set<ExplorationSlice> {
   const changed = new Set<ExplorationSlice>();
-  if (prev.filters !== next.filters) changed.add("filters");
+  if (!filterMapsEqual(prev.filters, next.filters)) changed.add("filters");
   if (!spatialFiltersEqual(prev.spatialFilter, next.spatialFilter)) changed.add("spatialFilter");
   if (!extentsEqual(prev.extent, next.extent)) changed.add("extent");
   if (!sequenceEqual(prev.selection, next.selection)) changed.add("selection");
