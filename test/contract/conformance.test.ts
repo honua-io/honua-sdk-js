@@ -12,19 +12,27 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_CAPABILITIES,
   CAPABILITIES,
-  PROTOCOL_DEFAULT_CAPABILITIES,
-  PROTOCOLS,
-  capabilities,
-  createDataset,
   type Dataset,
+  PROTOCOLS,
+  PROTOCOL_DEFAULT_CAPABILITIES,
   type Protocol,
   type Query,
   type Source,
   type SourceDescriptor,
+  capabilities,
+  createDataset,
 } from "../../src/contract/index.js";
 import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";
+import {
+  HonuaFeatureLayer,
+  HonuaMapLayer,
+  HonuaMapService,
+  HonuaOgcFeatureCollection,
+} from "../../src/core/surfaces.js";
 
 import {
+  PARCEL_FEATURES,
+  type ParcelAttrs,
   geoservicesAggregateResponse,
   geoservicesExtentResponse,
   geoservicesQueryResponse,
@@ -32,8 +40,6 @@ import {
   makeMockClient,
   ogcCollectionMetadata,
   ogcItemsResponse,
-  PARCEL_FEATURES,
-  type ParcelAttrs,
 } from "./shared.js";
 
 interface Harness {
@@ -173,8 +179,18 @@ describe("contract / Dataset", () => {
         client,
         skipCompatibilityCheck: true,
         sources: [
-          { id: "a", protocol: "geoservices-feature-service", locator: { url: "u", serviceId: "S", layerId: 0 }, capabilities: capabilities([]) },
-          { id: "a", protocol: "geoservices-feature-service", locator: { url: "u", serviceId: "S", layerId: 1 }, capabilities: capabilities([]) },
+          {
+            id: "a",
+            protocol: "geoservices-feature-service",
+            locator: { url: "u", serviceId: "S", layerId: 0 },
+            capabilities: capabilities([]),
+          },
+          {
+            id: "a",
+            protocol: "geoservices-feature-service",
+            locator: { url: "u", serviceId: "S", layerId: 1 },
+            capabilities: capabilities([]),
+          },
         ],
       }),
     ).toThrow(/duplicate source id/);
@@ -198,7 +214,12 @@ describe("contract / Dataset", () => {
       client,
       skipCompatibilityCheck: true,
       sources: [
-        { id: "wfs-1", protocol: "wfs", locator: { url: "u", typeName: "ns:foo" }, capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs },
+        {
+          id: "wfs-1",
+          protocol: "wfs",
+          locator: { url: "u", typeName: "ns:foo" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
+        },
       ],
     });
     expect(() => dataset.source("wfs-1")).toThrow(HonuaCapabilityNotSupportedError);
@@ -227,7 +248,12 @@ describe("contract / Dataset", () => {
       client,
       skipCompatibilityCheck: true,
       sources: [
-        { id: "wfs-1", protocol: "wfs", locator: { url: "u", typeName: "ns:foo" }, capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs },
+        {
+          id: "wfs-1",
+          protocol: "wfs",
+          locator: { url: "u", typeName: "ns:foo" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
+        },
       ],
       resolveSource: () => stubSource,
     });
@@ -351,6 +377,54 @@ describe("contract / strict capability policy", () => {
     const source = buildStrictOgcDataset().source<ParcelAttrs>("parcels-ogc")!;
     await expect(source.queryExtent()).rejects.toThrow(HonuaCapabilityNotSupportedError);
   });
+
+  for (const variant of [
+    {
+      label: "geoservices-feature-service",
+      path: "/rest/services/Parcels/FeatureServer/0/query",
+      protocol: "geoservices-feature-service" as const,
+    },
+    {
+      label: "geoservices-map-service",
+      path: "/rest/services/Parcels/MapServer/0/query",
+      protocol: "geoservices-map-service" as const,
+    },
+  ]) {
+    it(`${variant.label}: throws from query() when aggregation is requested on a source without queryAggregate`, async () => {
+      const client = makeMockClient({
+        routes: [
+          [
+            variant.path,
+            (url) => {
+              const stats = url.searchParams.get("outStatistics");
+              if (stats) return jsonResponse(geoservicesAggregateResponse());
+              return jsonResponse(geoservicesQueryResponse());
+            },
+          ],
+        ],
+      });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        capabilityPolicy: "strict",
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: capabilities(["query"]),
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const source = dataset.source<ParcelAttrs>("parcels")!;
+      await expect(
+        source.query({
+          aggregation: { metrics: [{ fn: "sum", field: "ACRES" }] },
+        }),
+      ).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    });
+  }
 });
 
 describe("contract / GeoServices queryAll pagination limit", () => {
@@ -402,7 +476,116 @@ describe("contract / GeoServices queryAll pagination limit", () => {
       expect(result.totalCount).toBe(1);
       expect(observedRecordCounts[0]).toBe("1");
     });
+
+    it(`${variant.label}: queryAll starts from Query.pagination.offset`, async () => {
+      const observedOffsets: string[] = [];
+      const client = makeMockClient({
+        routes: [
+          [
+            variant.path,
+            (url) => {
+              observedOffsets.push(url.searchParams.get("resultOffset") ?? "");
+              const offset = Number(url.searchParams.get("resultOffset") ?? "0");
+              const recordCount = url.searchParams.get("resultRecordCount") ?? "";
+              const clampedCount = recordCount ? Math.max(0, Number(recordCount)) : PARCEL_FEATURES.length;
+              const slice = PARCEL_FEATURES.slice(offset, offset + clampedCount);
+              return jsonResponse(geoservicesQueryResponse(slice));
+            },
+          ],
+        ],
+      });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES[variant.protocol],
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const source = dataset.source<ParcelAttrs>("parcels")!;
+      const result = await source.queryAll({ pagination: { offset: 1, limit: 1 } });
+      expect(result.features).toHaveLength(1);
+      expect(result.features[0].attributes.OBJECTID).toBe(2);
+      expect(observedOffsets[0]).toBe("1");
+    });
+
+    it(`${variant.label}: stream starts from Query.pagination.offset`, async () => {
+      const observedOffsets: string[] = [];
+      const client = makeMockClient({
+        routes: [
+          [
+            variant.path,
+            (url) => {
+              observedOffsets.push(url.searchParams.get("resultOffset") ?? "");
+              const offset = Number(url.searchParams.get("resultOffset") ?? "0");
+              return jsonResponse(geoservicesQueryResponse(PARCEL_FEATURES.slice(offset, offset + 1)));
+            },
+          ],
+        ],
+      });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES[variant.protocol],
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const source = dataset.source<ParcelAttrs>("parcels")!;
+      const pages: Array<ReadonlyArray<{ attributes: ParcelAttrs }>> = [];
+      for await (const page of source.stream({ pagination: { offset: 1 } })) {
+        pages.push(page.features as ReadonlyArray<{ attributes: ParcelAttrs }>);
+        if (pages.length >= 1) break;
+      }
+      expect(pages.length).toBeGreaterThan(0);
+      expect(pages[0][0].attributes.OBJECTID).toBe(2);
+      expect(observedOffsets[0]).toBe("1");
+    });
   }
+});
+
+describe("contract / Source.adapter() typed escape hatch", () => {
+  it("narrows geoservices-feature-service to HonuaFeatureLayer at the type level", () => {
+    const dataset = harnesses[0].build();
+    const source = dataset.source("parcels-fs")!;
+    const adapter = source.adapter("geoservices-feature-service");
+    expect(adapter).toBeInstanceOf(HonuaFeatureLayer);
+    // Compile-time assertion: AdapterFor<"geoservices-feature-service"> is HonuaFeatureLayer | undefined.
+    const _typed: HonuaFeatureLayer | undefined = adapter;
+    void _typed;
+  });
+
+  it("narrows geoservices-map-service to HonuaMapService and geoservices-map-layer to HonuaMapLayer", () => {
+    const dataset = harnesses[1].build();
+    const source = dataset.source("parcels-ms")!;
+    const service = source.adapter("geoservices-map-service");
+    const layer = source.adapter("geoservices-map-layer");
+    expect(service).toBeInstanceOf(HonuaMapService);
+    expect(layer).toBeInstanceOf(HonuaMapLayer);
+    const _service: HonuaMapService | undefined = service;
+    const _layer: HonuaMapLayer | undefined = layer;
+    void _service;
+    void _layer;
+  });
+
+  it("narrows ogc-features to HonuaOgcFeatureCollection", () => {
+    const dataset = harnesses[2].build();
+    const source = dataset.source("parcels-ogc")!;
+    const adapter = source.adapter("ogc-features");
+    expect(adapter).toBeInstanceOf(HonuaOgcFeatureCollection);
+    const _typed: HonuaOgcFeatureCollection | undefined = adapter;
+    void _typed;
+  });
 });
 
 describe("contract / SourceDescriptor round-trip", () => {

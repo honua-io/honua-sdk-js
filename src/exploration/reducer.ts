@@ -9,12 +9,8 @@
  * @module
  */
 
-import type {
-  ExplorationIntent,
-  ExplorationSlice,
-  ExplorationState,
-  FilterClause,
-} from "./types.js";
+import type { SpatialFilter } from "../core/spatial-filter.js";
+import type { ExplorationIntent, ExplorationSlice, ExplorationState, FilterClause } from "./types.js";
 
 export interface ReducerResult {
   readonly state: ExplorationState;
@@ -44,7 +40,7 @@ export function reduce(state: ExplorationState, intent: ExplorationIntent): Redu
       return { state: { ...state, filters }, changedSlices: only("filters") };
     }
     case "set-spatial-filter": {
-      if (state.spatialFilter === intent.spatialFilter) {
+      if (spatialFiltersEqual(state.spatialFilter, intent.spatialFilter)) {
         return { state, changedSlices: EMPTY };
       }
       return {
@@ -69,7 +65,7 @@ export function reduce(state: ExplorationState, intent: ExplorationIntent): Redu
       } else {
         selection = dedupe([...state.selection, ...incoming]);
       }
-      if (sequenceEqual(state.selection, selection as ReadonlyArray<typeof state.selection[number]>)) {
+      if (sequenceEqual(state.selection, selection as ReadonlyArray<(typeof state.selection)[number]>)) {
         return { state, changedSlices: EMPTY };
       }
       return {
@@ -160,19 +156,47 @@ function filtersEqual(a: FilterClause, b: FilterClause): boolean {
   return true;
 }
 
-function extentsEqual(
-  a: ExplorationState["extent"],
-  b: ExplorationState["extent"],
-): boolean {
+function spatialFiltersEqual(a: SpatialFilter | undefined, b: SpatialFilter | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.geometryType !== b.geometryType) return false;
+  if ((a.spatialRel ?? null) !== (b.spatialRel ?? null)) return false;
+  return geometryEqual(a.geometry, b.geometry);
+}
+
+function geometryEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!geometryEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const aKeys = Object.keys(a as Record<string, unknown>);
+    const bKeys = Object.keys(b as Record<string, unknown>);
+    if (aKeys.length !== bKeys.length) return false;
+    for (const key of aKeys) {
+      if (!Object.hasOwn(b as Record<string, unknown>, key)) return false;
+      if (!geometryEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+function extentsEqual(a: ExplorationState["extent"], b: ExplorationState["extent"]): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
   return a.xmin === b.xmin && a.ymin === b.ymin && a.xmax === b.xmax && a.ymax === b.ymax;
 }
 
-function sortEqual(
-  a: ExplorationState["sort"],
-  b: ExplorationState["sort"],
-): boolean {
+function sortEqual(a: ExplorationState["sort"], b: ExplorationState["sort"]): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -227,7 +251,7 @@ function cloneWithOptional<K extends "spatialFilter" | "extent" | "aggregation">
 function diffSlices(prev: ExplorationState, next: ExplorationState): Set<ExplorationSlice> {
   const changed = new Set<ExplorationSlice>();
   if (prev.filters !== next.filters) changed.add("filters");
-  if (prev.spatialFilter !== next.spatialFilter) changed.add("spatialFilter");
+  if (!spatialFiltersEqual(prev.spatialFilter, next.spatialFilter)) changed.add("spatialFilter");
   if (!extentsEqual(prev.extent, next.extent)) changed.add("extent");
   if (!sequenceEqual(prev.selection, next.selection)) changed.add("selection");
   if (!sortEqual(prev.sort, next.sort)) changed.add("sort");

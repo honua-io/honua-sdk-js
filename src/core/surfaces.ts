@@ -305,6 +305,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       typeof request.maxPages === "number" && Number.isFinite(request.maxPages)
         ? Math.max(1, Math.trunc(request.maxPages))
         : 100;
+    const startingOffset = normalizeOffset(request.resultOffset);
 
     const features: HonuaTypedFeature<T>[] = [];
     for (let page = 0; page < maxPages; page += 1) {
@@ -312,7 +313,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: startingOffset + page * pageSize,
           resultRecordCount: pageSize,
         },
       });
@@ -342,6 +343,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       typeof request.maxPages === "number" && Number.isFinite(request.maxPages)
         ? Math.max(1, Math.trunc(request.maxPages))
         : 100;
+    const startingOffset = normalizeOffset(request.resultOffset);
 
     // Use server streaming RPC when gRPC-Web transport is active
     if (this.client.isGrpcWeb) {
@@ -369,7 +371,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: startingOffset + page * pageSize,
           resultRecordCount: pageSize,
         },
       });
@@ -871,6 +873,7 @@ export class HonuaMapLayer {
       typeof request.maxPages === "number" && Number.isFinite(request.maxPages)
         ? Math.max(1, Math.trunc(request.maxPages))
         : 100;
+    const startingOffset = normalizeOffset(request.resultOffset);
 
     const features: HonuaFeature[] = [];
     for (let page = 0; page < maxPages; page += 1) {
@@ -878,7 +881,7 @@ export class HonuaMapLayer {
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: startingOffset + page * pageSize,
           resultRecordCount: pageSize,
         },
       });
@@ -908,13 +911,14 @@ export class HonuaMapLayer {
       typeof request.maxPages === "number" && Number.isFinite(request.maxPages)
         ? Math.max(1, Math.trunc(request.maxPages))
         : 100;
+    const startingOffset = normalizeOffset(request.resultOffset);
 
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: startingOffset + page * pageSize,
           resultRecordCount: pageSize,
         },
       });

@@ -145,6 +145,7 @@ export function geoServicesFeatureSource<T>(
     async query(request) {
       const requestParams = toFeatureLayerRequest(request);
       if (request?.aggregation) {
+        ensureCapability(descriptor, caps, "queryAggregate", policy);
         const [extraParams, aggregateAlias] = appendAggregationParams(requestParams.extraParams, request.aggregation);
         return aggregateResultFromFeatureLayer(
           await layer.queryFeatures({ ...requestParams, extraParams }),
@@ -210,6 +211,7 @@ export function geoServicesMapServiceSource<T>(
     async query(request) {
       const params = toFeatureLayerRequest(request);
       if (request?.aggregation) {
+        ensureCapability(descriptor, caps, "queryAggregate", policy);
         const [extraParams, aggregateAlias] = appendAggregationParams(params.extraParams, request.aggregation);
         return aggregateResultFromUntyped<T>(await layer.queryFeatures({ ...params, extraParams }), aggregateAlias);
       }
@@ -675,6 +677,24 @@ function applyAggregation(fn: AggregationFn, values: readonly number[], totalLen
 function readField(attributes: unknown, field: string): unknown {
   if (typeof attributes !== "object" || attributes === null) return undefined;
   return (attributes as Record<string, unknown>)[field];
+}
+
+// ── Built-in AdapterTypeMap augmentation ──────────────────────
+
+/**
+ * Declare the shipped adapter → runtime-class bindings so
+ * `Source.adapter("geoservices-feature-service")` et al. narrow to the
+ * right class instead of collapsing to `unknown`. Downstream adapter
+ * tickets (WFS / WMS / OData) add their own augmentations in their own
+ * modules.
+ */
+declare module "./types.js" {
+  interface AdapterTypeMap {
+    "geoservices-feature-service": HonuaFeatureLayer;
+    "geoservices-map-service": HonuaMapService;
+    "geoservices-map-layer": HonuaMapLayer;
+    "ogc-features": HonuaOgcFeatureCollection;
+  }
 }
 
 // ── Re-exports for downstream tickets ─────────────────────────

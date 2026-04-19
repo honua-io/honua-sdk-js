@@ -9,16 +9,17 @@
 import { describe, expect, it } from "vitest";
 
 import { HonuaExplorationContextError } from "../../src/core/errors.js";
+import { envelope } from "../../src/core/spatial-filter.js";
 import {
+  type ChangeEvent,
   EMPTY_STATE,
+  type ExplorationIntent,
+  type ExplorationState,
   LINKED_VIEW_PRESETS,
   SLICES,
   createExplorationContext,
   propagationFor,
   reduce,
-  type ChangeEvent,
-  type ExplorationIntent,
-  type ExplorationState,
 } from "../../src/exploration/index.js";
 
 async function flush(): Promise<void> {
@@ -79,6 +80,35 @@ describe("exploration / reduce", () => {
     const seeded = reduce(EMPTY_STATE, { kind: "select", ids: [1, 2, 3] });
     const wiped = reduce(seeded.state, { kind: "deselect" });
     expect(wiped.state.selection).toEqual([]);
+  });
+
+  it("set-spatial-filter treats structurally equal filters as a no-op", () => {
+    const a = reduce(EMPTY_STATE, {
+      kind: "set-spatial-filter",
+      spatialFilter: envelope(-118, 33, -117, 34),
+    });
+    const b = reduce(a.state, {
+      kind: "set-spatial-filter",
+      spatialFilter: envelope(-118, 33, -117, 34),
+    });
+    expect(b.changedSlices.size).toBe(0);
+    expect(b.state).toBe(a.state);
+  });
+
+  it("snapshot-restore with a structurally equal spatial filter does not flag spatialFilter as changed", () => {
+    const seeded = reduce(EMPTY_STATE, {
+      kind: "set-spatial-filter",
+      spatialFilter: envelope(-118, 33, -117, 34),
+    });
+    const restored = reduce(seeded.state, {
+      kind: "snapshot-restore",
+      snapshot: {
+        version: 1,
+        state: { ...seeded.state, spatialFilter: envelope(-118, 33, -117, 34) },
+      },
+    });
+    expect(restored.changedSlices.has("spatialFilter")).toBe(false);
+    expect(restored.changedSlices.size).toBe(0);
   });
 
   it("set-extent treats structurally equal extents as a no-op", () => {
@@ -252,9 +282,9 @@ describe("exploration / createExplorationContext", () => {
 
   it("rejects snapshots whose version is unsupported", () => {
     const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
-    expect(() =>
-      ctx.restore({ version: 99 as unknown as 1, state: EMPTY_STATE } as never),
-    ).toThrow(HonuaExplorationContextError);
+    expect(() => ctx.restore({ version: 99 as unknown as 1, state: EMPTY_STATE } as never)).toThrow(
+      HonuaExplorationContextError,
+    );
     ctx.dispose();
   });
 });
