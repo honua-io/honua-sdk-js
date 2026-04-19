@@ -114,9 +114,10 @@ export function capabilities(values: readonly Capability[]): Capabilities {
 }
 
 /**
- * Default capability sets keyed by protocol. Adapters may override on a
- * per-source basis (e.g. a Feature Service whose metadata reports
- * `supportsStatistics: false` would drop `queryAggregate`).
+ * Default capability sets keyed by protocol. Callers that need a narrower
+ * surface for a specific source must intersect the default set themselves
+ * and pass the result on `SourceDescriptor.capabilities`; the built-in
+ * adapter constructors do not read service metadata today.
  *
  * The matrix here mirrors the one in `docs/protocol-capability-matrix.md`.
  * Update both together.

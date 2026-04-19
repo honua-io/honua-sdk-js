@@ -44,8 +44,14 @@ export function createExplorationContext(options: CreateExplorationContextOption
   const { datasetId, sourceIds } = options;
   const sourceIdsCopy = [...sourceIds];
 
-  let policy: LinkedViewPolicy = LINKED_VIEW_PRESETS[options.preset ?? "globalLinked"];
+  // `mergeInitial` resolves the active preset (explicit `options.preset`
+  // overrides `initialState.preset`, which overrides the empty default).
+  // Derive `policy` from the merged state's preset rather than reading
+  // `options.preset` directly so that a caller who seeds the context via
+  // `initialState.preset` (without `options.preset`) still starts with a
+  // policy that matches their intended linked-view behavior.
   let state: ExplorationState = mergeInitial(options.initialState, options.preset);
+  let policy: LinkedViewPolicy = LINKED_VIEW_PRESETS[state.preset];
   let disposed = false;
 
   const bindings = new Map<string, ViewBinding>();

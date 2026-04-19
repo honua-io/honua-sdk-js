@@ -158,9 +158,7 @@ export function geoServicesFeatureSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = withUnboundedMaxPages(
-        withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit),
-      );
+      const params = withPagingBounds(toFeatureLayerRequest(request), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(features, request?.pagination?.limit);
       return {
@@ -225,9 +223,7 @@ export function geoServicesMapServiceSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = withUnboundedMaxPages(
-        withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit),
-      );
+      const params = withPagingBounds(toFeatureLayerRequest(request), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const typed = features.map(toTypedFeature<T>);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(typed, request?.pagination?.limit);
@@ -460,22 +456,6 @@ function requireOgcLocator(descriptor: SourceDescriptor): { collectionId: string
 }
 
 /**
- * `HonuaFeatureLayer.queryFeaturesAll` / `HonuaMapLayer.queryFeaturesAll`
- * drive paging from their own `pageSize` / `maxPages` knobs and overwrite
- * `resultRecordCount` per page, so the canonical `Query.pagination.limit`
- * the adapter translates to `resultRecordCount` is ignored. When a limit is
- * supplied, scale the per-page fetch to the limit so small limits do a
- * single request and large limits still terminate promptly.
- */
-function withPaginationLimitAsPageSize<R extends object>(
-  params: R,
-  limit: number | undefined,
-): R & { pageSize?: number } {
-  if (typeof limit !== "number" || limit < 1) return params;
-  return { ...params, pageSize: Math.max(1, Math.min(limit, 2000)) };
-}
-
-/**
  * The core paging helpers default `maxPages` to 100, which would silently
  * truncate the canonical `queryAll()` / `stream()` whose contract is to
  * drain until the source is exhausted. Override with
@@ -487,6 +467,28 @@ function withPaginationLimitAsPageSize<R extends object>(
  */
 function withUnboundedMaxPages<R extends object>(params: R): R & { maxPages: number } {
   return { ...params, maxPages: Number.MAX_SAFE_INTEGER };
+}
+
+/**
+ * `HonuaFeatureLayer.queryFeaturesAll` / `HonuaMapLayer.queryFeaturesAll` only
+ * stop on an empty or short page — they have no total-row cap. When the
+ * canonical `Query.pagination.limit` supplies a cap, derive the per-page size
+ * *and* `maxPages` from it so the paging loop fetches at most `limit + 1`
+ * rows (the extra row lets `applyQueryAllLimit` stamp `exceededTransferLimit`
+ * when more records exist). Without this, `queryAll({ pagination: { limit: 1 } })`
+ * would keep issuing `resultOffset=0,1,2,…` until the source is drained.
+ */
+function withPagingBounds<R extends object>(
+  params: R,
+  limit: number | undefined,
+): R & { pageSize?: number; maxPages: number } {
+  if (typeof limit !== "number" || limit < 0) {
+    return { ...params, maxPages: Number.MAX_SAFE_INTEGER };
+  }
+  const pageSize = Math.max(1, Math.min(Math.max(limit, 1), 2000));
+  const target = limit + 1;
+  const maxPages = Math.max(1, Math.ceil(target / pageSize));
+  return { ...params, pageSize, maxPages };
 }
 
 function applyQueryAllLimit<F>(
@@ -649,7 +651,17 @@ function toOgcRequest<T>(request?: Query<T>): Record<string, unknown> {
       .map((s) => `${s.direction === "desc" ? "-" : ""}${s.field}`)
       .join(",");
   }
-  if (request.spatialFilter && request.spatialFilter.geometryType === "esriGeometryEnvelope") {
+  if (request.spatialFilter) {
+    // OGC API Features only exposes bbox at /items; arbitrary geometry types
+    // would need CQL2 (which this adapter does not yet emit). Refuse the
+    // request explicitly instead of silently dropping the constraint and
+    // returning unfiltered features, which would look like a silent data
+    // quality bug to the caller.
+    if (request.spatialFilter.geometryType !== "esriGeometryEnvelope") {
+      throw new Error(
+        `ogc-features: spatialFilter.geometryType "${request.spatialFilter.geometryType}" is not supported; only "esriGeometryEnvelope" translates to OGC bbox. Convert the geometry to an envelope or use a GeoServices source.`,
+      );
+    }
     const env = request.spatialFilter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
     if (
       typeof env.xmin === "number" &&

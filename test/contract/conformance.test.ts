@@ -728,6 +728,49 @@ describe("contract / GeoServices queryAll pagination limit", () => {
       expect(result.features).toHaveLength(1);
       expect(result.totalCount).toBe(1);
       expect(observedRecordCounts[0]).toBe("1");
+      // The core paging helper stops only on empty/short pages; without a
+      // bounded maxPages the adapter would drain the full layer at
+      // resultOffset=0,1,2,… Bounding keeps the network cost proportional to
+      // `limit`: pageSize=1 + maxPages=2 ⇒ at most 2 requests, enough to
+      // detect `exceededTransferLimit` via one lookahead row.
+      expect(observedRecordCounts.length).toBeLessThanOrEqual(2);
+      expect(result.exceededTransferLimit).toBe(true);
+    });
+
+    it(`${variant.label}: queryAll with unbounded limit drains the layer in one sweep`, async () => {
+      const observedRecordCounts: string[] = [];
+      const client = makeMockClient({
+        routes: [
+          [
+            variant.path,
+            (url) => {
+              const recordCount = url.searchParams.get("resultRecordCount") ?? "";
+              const offset = Number(url.searchParams.get("resultOffset") ?? "0");
+              observedRecordCounts.push(recordCount);
+              const clampedCount = recordCount ? Math.max(0, Number(recordCount)) : PARCEL_FEATURES.length;
+              const slice = PARCEL_FEATURES.slice(offset, offset + clampedCount);
+              return jsonResponse(geoservicesQueryResponse(slice));
+            },
+          ],
+        ],
+      });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES[variant.protocol],
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const source = dataset.source<ParcelAttrs>("parcels")!;
+      const result = await source.queryAll();
+      expect(result.features).toHaveLength(PARCEL_FEATURES.length);
+      expect(result.exceededTransferLimit).toBe(false);
     });
 
     it(`${variant.label}: queryAll starts from Query.pagination.offset`, async () => {
@@ -981,12 +1024,12 @@ describe("contract / queryAll + stream drain past the core default page cap", ()
     expect((streamSpy.mock.calls[0][0] as { maxPages?: number }).maxPages).toBe(Number.MAX_SAFE_INTEGER);
   });
 
-  it("geoservices-feature-service: queryAll actually iterates past page 100 at runtime", async () => {
-    // The core helper's default pageSize is 2000 and it terminates when a
-    // page returns fewer than pageSize features. Returning full pages for
-    // 101 iterations (plus an empty terminator) forces the >100-page loop.
-    // The result is clipped to the caller's limit so the test asserts on
-    // the fetch count rather than materializing all features.
+  it("geoservices-feature-service: queryAll actually iterates past page 100 at runtime when unbounded", async () => {
+    // The core helper's default `maxPages` is 100; without the contract
+    // layer's unbounded override an unbounded `queryAll()` would silently
+    // truncate at 100 pages. This test uses 101 full pages + a short page
+    // to prove the adapter keeps paging until the source is exhausted when
+    // the caller does not supply `pagination.limit`.
     const PAGE_SIZE = 2000;
     const TOTAL_PAGES = 101;
     const fullPage = Array.from({ length: PAGE_SIZE }, (_, i) => ({
@@ -1022,11 +1065,11 @@ describe("contract / queryAll + stream drain past the core default page cap", ()
       ],
     });
     const source = dataset.source<ParcelAttrs>("parcels-fs")!;
-    const result = await source.queryAll({ pagination: { limit: PAGE_SIZE } });
+    const result = await source.queryAll();
     // 101 full pages + 1 empty terminator page = 102 fetches; the old
-    // code would have stopped at exactly 100.
+    // `maxPages=100` default would have stopped at exactly 100.
     expect(fetchCount).toBeGreaterThan(100);
-    expect(result.features.length).toBe(PAGE_SIZE);
+    expect(result.features.length).toBe(TOTAL_PAGES * PAGE_SIZE);
   });
 });
 
@@ -1143,6 +1186,64 @@ describe("contract / queryExtent forwards canonical filters", () => {
     expect(out.extent!.xmax).toBe(-120);
     expect(out.extent!.ymin).toBe(37);
     expect(out.extent!.ymax).toBe(38);
+  });
+
+  it("ogc-features: rejects non-envelope spatialFilter rather than silently dropping it", async () => {
+    let itemsHits = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/features/collections/parcels/items",
+          () => {
+            itemsHits += 1;
+            return jsonResponse(ogcItemsResponse());
+          },
+        ],
+        ["/ogc/features/collections/parcels", () => jsonResponse(ogcCollectionMetadata())],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    // OGC only exposes bbox at /items; a polygon filter cannot be translated
+    // without CQL2. The adapter must refuse rather than drop the constraint
+    // and return unfiltered features.
+    const polygonFilter = {
+      geometryType: "esriGeometryPolygon" as const,
+      geometry: {
+        rings: [
+          [
+            [-121, 37],
+            [-121, 38],
+            [-120, 38],
+            [-120, 37],
+            [-121, 37],
+          ],
+        ],
+      },
+      spatialRel: "esriSpatialRelIntersects" as const,
+    };
+    await expect(source.query({ spatialFilter: polygonFilter })).rejects.toThrow(
+      /geometryType "esriGeometryPolygon" is not supported/,
+    );
+    await expect(source.queryAll({ spatialFilter: polygonFilter })).rejects.toThrow(
+      /geometryType "esriGeometryPolygon" is not supported/,
+    );
+    // No items call should have been issued; the error surfaces before
+    // the request is dispatched.
+    expect(itemsHits).toBe(0);
   });
 
   it("ogc-features degraded: bare queryExtent() still uses the metadata bbox shortcut", async () => {

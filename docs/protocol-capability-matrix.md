@@ -3,10 +3,13 @@
 Status: implemented in `src/contract/types.ts` (`PROTOCOL_DEFAULT_CAPABILITIES`).
 Update both this document and the table in code together.
 
-The matrix below is the **default** capability set per protocol. Adapter
-constructors may downgrade per source when server metadata reports a
-narrower surface (e.g. a Feature Service whose `supportsStatistics` is
-`false` removes `queryAggregate` from its `Capabilities` set).
+The matrix below is the **default** capability set per protocol. Callers
+that need a narrower surface for a specific source (for example a Feature
+Service whose metadata reports `supportsStatistics: false`) must intersect
+the default set themselves and pass the result on
+`SourceDescriptor.capabilities`. The built-in adapter constructors do not
+read service metadata today; automatic metadata-driven downgrades are
+tracked as future work.
 
 `✓` = first-party support, no client-side fallback needed.
 `◐` = supported only under `degraded` capability policy (client-side fallback).
@@ -53,9 +56,17 @@ endpoint is read-only.
 client-side over the returned page, while `Source.queryAggregate()` drains
 every page first and then aggregates. Both stamp a `queryAggregate`
 `DegradedReason` on the `Result` so downstream views can flag the number
-as non-authoritative. `queryExtent` is approximated from the collection
-metadata's `extent.spatial.bbox[0]`. `queryRelated`, `attachments`, and
-`pbf` are out-of-scope for the OGC standard.
+as non-authoritative. `queryExtent` is also degraded: a bare
+`queryExtent()` returns the collection metadata's
+`extent.spatial.bbox[0]` shortcut, while a filtered request (`where` or
+`spatialFilter`) drains `itemsAll()` and computes the bbox client-side
+over matching features. `queryExtent` returns `{ extent, count? }` and
+does not carry a `degraded` array. Only `spatialFilter.geometryType =
+"esriGeometryEnvelope"` is translated (to the OGC `bbox` query param);
+other geometry types would require CQL2, which the adapter does not
+yet emit, so they throw rather than silently drop the constraint.
+`queryRelated`, `attachments`, and `pbf` are out-of-scope for the OGC
+standard.
 
 ### WFS
 Read + edit, no aggregation, no relates. `queryExtent` is supported via
@@ -85,7 +96,8 @@ When you add or remove a capability for any protocol:
 2. Update this table.
 3. Update the conformance scenario in `test/contract/` so the canonical
    tests fail the right way for the new shape.
-4. If a server-side flag (e.g. `supportsStatistics`) changes capability
-   per source, the adapter constructor must override the descriptor's
-   `capabilities` set. Document the override in the adapter's source
-   file and add a unit test.
+4. Per-source downgrades are the caller's responsibility today: pass an
+   intersected `Capabilities` set on `SourceDescriptor.capabilities`. When
+   automatic metadata-driven downgrades land in the adapter constructors,
+   document the override in the adapter's source file and add a unit test
+   covering the intersected set.

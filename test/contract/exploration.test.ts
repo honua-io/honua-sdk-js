@@ -370,6 +370,33 @@ describe("exploration / createExplorationContext", () => {
     ctx.dispose();
   });
 
+  it("initialState.preset seeds both state.preset and the active policy", () => {
+    // Without `options.preset`, the seeded `initialState.preset` must drive
+    // the initial linked-view policy too — otherwise a decoupled seed would
+    // silently run with globalLinked propagation until the next preset
+    // dispatch.
+    const ctx = createExplorationContext({
+      datasetId: "d",
+      sourceIds: ["s"],
+      initialState: { preset: "decoupled" },
+    });
+    expect(ctx.state.preset).toBe("decoupled");
+    expect(ctx.policy.preset).toBe("decoupled");
+    ctx.dispose();
+  });
+
+  it("explicit options.preset overrides initialState.preset for both state and policy", () => {
+    const ctx = createExplorationContext({
+      datasetId: "d",
+      sourceIds: ["s"],
+      preset: "mapDriven",
+      initialState: { preset: "decoupled" },
+    });
+    expect(ctx.state.preset).toBe("mapDriven");
+    expect(ctx.policy.preset).toBe("mapDriven");
+    ctx.dispose();
+  });
+
   it("fresh contexts do not share nested-state references with EMPTY_STATE or each other", () => {
     const a = createExplorationContext({ datasetId: "a", sourceIds: ["s"] });
     const b = createExplorationContext({ datasetId: "b", sourceIds: ["s"] });

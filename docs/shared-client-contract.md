@@ -45,7 +45,7 @@ top-level `@honua/sdk-js` and `@honua/sdk-js/honua` barrels).
 | --- | --- |
 | `Protocol` | One of nine identifiers (`geoservices-feature-service`, `geoservices-map-service`, `ogc-features`, `wfs`, `wms`, `odata`, `maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
 | `Capability` | A coarse-grained operation a `Source` may expose (`query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `connect`). |
-| `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party support; missing capabilities either fail in `strict` policy or fall back to client-side strategies in `degraded` policy. |
+| `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party support. Under `strict` (default) a missing capability throws `HonuaCapabilityNotSupportedError`. Under `degraded` only call sites with a defined fallback proceed (today: OGC `queryAggregate` and `queryExtent`); every other missing capability still throws. |
 | `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `typeName`, `entitySet`). Field-compatible with the server `SourceBinding.locator`. |
 | `SourceDescriptor` | `{ id, protocol, locator, capabilities, schema?, attribution? }`. The serializable identity of one source. |
 | `Source<T>` | Runtime handle. Methods: `query`, `queryAll`, `queryAggregate`, `queryExtent`, `stream`, `adapter`. |
