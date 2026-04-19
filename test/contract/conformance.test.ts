@@ -1029,3 +1029,161 @@ describe("contract / queryAll + stream drain past the core default page cap", ()
     expect(result.features.length).toBe(PAGE_SIZE);
   });
 });
+
+describe("contract / queryExtent forwards canonical filters", () => {
+  for (const variant of [
+    {
+      label: "geoservices-feature-service",
+      path: "/rest/services/Parcels/FeatureServer/0/query",
+      protocol: "geoservices-feature-service" as const,
+    },
+    {
+      label: "geoservices-map-service",
+      path: "/rest/services/Parcels/MapServer/0/query",
+      protocol: "geoservices-map-service" as const,
+    },
+  ]) {
+    it(`${variant.label}: queryExtent forwards where + spatial filter + outSr`, async () => {
+      const observed: URL[] = [];
+      const client = makeMockClient({
+        routes: [
+          [
+            variant.path,
+            (url) => {
+              observed.push(url);
+              return jsonResponse(geoservicesExtentResponse());
+            },
+          ],
+        ],
+      });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES[variant.protocol],
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const source = dataset.source<ParcelAttrs>("parcels")!;
+      const out = await source.queryExtent({
+        where: "STATE = 'CA'",
+        outSr: 3857,
+        spatialFilter: {
+          geometryType: "esriGeometryEnvelope",
+          geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+          spatialRel: "esriSpatialRelIntersects",
+        },
+      });
+      expect(out.extent).toBeTruthy();
+      expect(observed).toHaveLength(1);
+      const hit = observed[0];
+      expect(hit.searchParams.get("where")).toBe("STATE = 'CA'");
+      expect(hit.searchParams.get("returnExtentOnly")).toBe("true");
+      expect(hit.searchParams.get("returnGeometry")).toBe("false");
+      expect(hit.searchParams.get("geometryType")).toBe("esriGeometryEnvelope");
+      expect(hit.searchParams.get("spatialRel")).toBe("esriSpatialRelIntersects");
+      expect(hit.searchParams.get("outSR")).toBe("3857");
+      const rawGeometry = hit.searchParams.get("geometry");
+      expect(rawGeometry).toBeTruthy();
+      const parsed = JSON.parse(rawGeometry!) as { xmin: number; xmax: number };
+      expect(parsed.xmin).toBe(-123);
+      expect(parsed.xmax).toBe(-120);
+    });
+  }
+
+  it("ogc-features degraded: queryExtent with a where filter computes bbox from matching items", async () => {
+    const caMatches = PARCEL_FEATURES.filter((f) => f.attributes.STATE === "CA");
+    let metadataHits = 0;
+    let itemsHits = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/features/collections/parcels/items",
+          () => {
+            itemsHits += 1;
+            return jsonResponse(ogcItemsResponse(caMatches));
+          },
+        ],
+        [
+          "/ogc/features/collections/parcels",
+          () => {
+            metadataHits += 1;
+            return jsonResponse(ogcCollectionMetadata());
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    const out = await source.queryExtent({ where: "STATE = 'CA'" });
+    // Must drain the items endpoint, not the collection metadata bbox.
+    expect(itemsHits).toBeGreaterThanOrEqual(1);
+    expect(metadataHits).toBe(0);
+    expect(out.extent).toBeTruthy();
+    // Features are CA only: x in {-120, -121}, y in {38, 37}.
+    expect(out.extent!.xmin).toBe(-121);
+    expect(out.extent!.xmax).toBe(-120);
+    expect(out.extent!.ymin).toBe(37);
+    expect(out.extent!.ymax).toBe(38);
+  });
+
+  it("ogc-features degraded: bare queryExtent() still uses the metadata bbox shortcut", async () => {
+    let metadataHits = 0;
+    let itemsHits = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/features/collections/parcels/items",
+          () => {
+            itemsHits += 1;
+            return jsonResponse(ogcItemsResponse());
+          },
+        ],
+        [
+          "/ogc/features/collections/parcels",
+          () => {
+            metadataHits += 1;
+            return jsonResponse(ogcCollectionMetadata());
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    const out = await source.queryExtent();
+    expect(metadataHits).toBe(1);
+    expect(itemsHits).toBe(0);
+    expect(out.extent).toBeTruthy();
+  });
+});

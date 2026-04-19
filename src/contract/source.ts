@@ -178,9 +178,8 @@ export function geoServicesFeatureSource<T>(
     },
     async queryExtent(request) {
       ensureCapability(descriptor, caps, "queryExtent");
-      const params = toFeatureLayerRequest(request);
-      const out = await layer.queryExtent({ where: params.where, method: params.method, extraParams: params.extraParams });
-      return { extent: out.extent ?? null, count: out.count };
+      const response = await layer.queryFeatures(toExtentOnlyRequest(toFeatureLayerRequest(request)));
+      return extractExtentEnvelope(response);
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
@@ -247,9 +246,8 @@ export function geoServicesMapServiceSource<T>(
     },
     async queryExtent(request) {
       ensureCapability(descriptor, caps, "queryExtent");
-      const params = toFeatureLayerRequest(request);
-      const out = await layer.queryExtent({ where: params.where, method: params.method, extraParams: params.extraParams });
-      return { extent: out.extent ?? null, count: out.count };
+      const response = await layer.queryFeatures(toExtentOnlyRequest(toFeatureLayerRequest(request)));
+      return extractExtentEnvelope(response);
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
@@ -348,16 +346,20 @@ export function ogcFeaturesSource<T>(
       } satisfies Result<T>;
     },
     async queryExtent(request) {
-      // Fallback: approximate from `collection.metadata().extent.spatial.bbox[0]`.
       ensureCapabilityOrFallback(descriptor, caps, "queryExtent", policy);
-      const meta = await collection.metadata();
-      const bbox = meta.extent?.spatial?.bbox?.[0];
-      if (!bbox || bbox.length < 4) return { extent: null };
-      void request;
-      const [xmin, ymin, xmax, ymax] = bbox;
-      return {
-        extent: { xmin, ymin, xmax, ymax },
-      };
+      // Collection-wide extent (no filters): the metadata bbox is accurate
+      // and avoids draining items. A filtered request must be computed
+      // client-side — the collection bbox would over-report the matching
+      // subset's extent.
+      if (!hasExtentFilter(request)) {
+        const meta = await collection.metadata();
+        const bbox = meta.extent?.spatial?.bbox?.[0];
+        if (!bbox || bbox.length < 4) return { extent: null };
+        const [xmin, ymin, xmax, ymax] = bbox;
+        return { extent: { xmin, ymin, xmax, ymax } };
+      }
+      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request)));
+      return computeExtentFromOgcFeatures(all);
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
@@ -537,6 +539,99 @@ function toFeatureLayerRequest<T>(request?: Query<T>): {
   }
   if (request.signal) out.signal = request.signal;
   return out;
+}
+
+/**
+ * Convert a translated GeoServices request into an extent-only variant. The
+ * caller's spatial filter / outSr / signal / orderByFields must survive; only
+ * paging and geometry-return are dropped, and `returnExtentOnly=true` is
+ * stamped via `extraParams`. The returnCountOnly/ExtentOnly/IdsOnly side
+ * channel lives in the untyped `extraParams` bag because it sits outside
+ * `QueryFeaturesRequest`.
+ */
+function toExtentOnlyRequest(
+  params: ReturnType<typeof toFeatureLayerRequest>,
+): ReturnType<typeof toFeatureLayerRequest> & { returnGeometry: false } {
+  const { resultOffset: _offset, resultRecordCount: _count, outFields: _outFields, ...rest } = params;
+  void _offset;
+  void _count;
+  void _outFields;
+  return {
+    ...rest,
+    returnGeometry: false,
+    extraParams: {
+      ...(rest.extraParams ?? {}),
+      returnExtentOnly: true,
+    },
+  };
+}
+
+/**
+ * True when the canonical `Query` carries constraints that restrict which
+ * records count towards the extent. Used by the degraded OGC fallback to
+ * decide whether the collection metadata bbox (unfiltered) is a safe
+ * shortcut or whether the extent must be computed client-side over the
+ * matching records.
+ */
+function hasExtentFilter<T>(request?: Query<T>): boolean {
+  if (!request) return false;
+  if (request.where !== undefined && request.where !== "") return true;
+  if (request.spatialFilter) return true;
+  return false;
+}
+
+function computeExtentFromOgcFeatures(
+  features: ReadonlyArray<import("../core/types.js").HonuaOgcFeatureResponse>,
+): { extent: import("../core/types.js").HonuaExtent | null; count: number } {
+  let xmin = Number.POSITIVE_INFINITY;
+  let ymin = Number.POSITIVE_INFINITY;
+  let xmax = Number.NEGATIVE_INFINITY;
+  let ymax = Number.NEGATIVE_INFINITY;
+  let saw = false;
+  for (const feature of features) {
+    visitGeometryCoords(feature.geometry, (x, y) => {
+      if (x < xmin) xmin = x;
+      if (y < ymin) ymin = y;
+      if (x > xmax) xmax = x;
+      if (y > ymax) ymax = y;
+      saw = true;
+    });
+  }
+  if (!saw) return { extent: null, count: features.length };
+  return { extent: { xmin, ymin, xmax, ymax }, count: features.length };
+}
+
+function visitGeometryCoords(geometry: unknown, visit: (x: number, y: number) => void): void {
+  if (typeof geometry !== "object" || geometry === null) return;
+  const geom = geometry as { type?: unknown; coordinates?: unknown; geometries?: unknown };
+  if (Array.isArray(geom.geometries)) {
+    for (const inner of geom.geometries) visitGeometryCoords(inner, visit);
+    return;
+  }
+  visitCoordinates(geom.coordinates, visit);
+}
+
+function visitCoordinates(coords: unknown, visit: (x: number, y: number) => void): void {
+  if (!Array.isArray(coords)) return;
+  if (coords.length >= 2 && typeof coords[0] === "number" && typeof coords[1] === "number") {
+    visit(coords[0], coords[1]);
+    return;
+  }
+  for (const inner of coords) visitCoordinates(inner, visit);
+}
+
+function extractExtentEnvelope(response: unknown): {
+  extent: import("../core/types.js").HonuaExtent | null;
+  count?: number;
+} {
+  if (typeof response !== "object" || response === null) return { extent: null };
+  const obj = response as { extent?: unknown; count?: unknown };
+  const extent =
+    typeof obj.extent === "object" && obj.extent !== null
+      ? (obj.extent as import("../core/types.js").HonuaExtent)
+      : null;
+  const count = typeof obj.count === "number" && Number.isFinite(obj.count) ? obj.count : undefined;
+  return { extent, count };
 }
 
 function toOgcRequest<T>(request?: Query<T>): Record<string, unknown> {

@@ -67,9 +67,15 @@ Two policies, declared at `createDataset({ capabilityPolicy })`:
   `degraded: DegradedReason[]` documenting what was approximated and why.
 
 The capability matrix lives in
-[`protocol-capability-matrix.md`](./protocol-capability-matrix.md). Adapter
-constructors apply per-source overrides (e.g. a Feature Service whose
-metadata reports `supportsStatistics: false` drops `queryAggregate`).
+[`protocol-capability-matrix.md`](./protocol-capability-matrix.md). Callers
+must pass the capability set they want enforced via
+`SourceDescriptor.capabilities` — per-source overrides (e.g. downgrading
+`queryAggregate` on a Feature Service whose metadata reports
+`supportsStatistics: false`) are the caller's responsibility today.
+Automatic metadata-driven downgrades inside the adapter constructors are
+tracked as future work; when implemented, the adapter will read service
+metadata and intersect the declared capability set with what the server
+advertises.
 
 ## Source factory
 

@@ -58,11 +58,14 @@ Adding a new protocol on the SDK side requires:
 
 - `Source.adapter()` — the typed escape hatch. Exists only on the SDK
   side. The exporter emits the descriptor, not the live adapter instance.
-- `Capabilities` derived from per-source server metadata — when the SDK
-  downgrades a capability set based on `supportsStatistics: false`, the
-  exported `SourceBinding.capabilities` reflects the runtime set, not the
-  protocol default. Re-importing yields the same downgraded set; the
-  server treats this as authoritative.
+- `Capabilities` from the `SourceDescriptor` serialize verbatim on
+  export. Automatic metadata-driven downgrades inside the adapter
+  constructor (e.g. dropping `queryAggregate` when metadata reports
+  `supportsStatistics: false`) are not implemented today — callers that
+  want a downgraded capability set must pass it on
+  `SourceDescriptor.capabilities`. When metadata-driven downgrades land,
+  the exported `SourceBinding.capabilities` will reflect the runtime set
+  and the server will treat it as authoritative.
 - `Result.degraded` flags — they describe runtime behavior, not the
   source itself. Exporting state to a `SourceBinding` discards them.
 - Auth headers — never serialized into a `SourceBinding`. The
