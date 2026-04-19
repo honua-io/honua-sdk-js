@@ -62,7 +62,7 @@ the linked-view preset table.
 | `set-extent` | `extent` | Update the viewport extent (typically driven by the map view). |
 | `select` / `deselect` | `selection` | Mutate the cross-view selection set. `select` is additive by default; `deselect` without ids clears the entire selection. |
 | `set-sort` | `sort` | Apply a sort order shared across grid + chart views. |
-| `set-page` | `page` | Update offset / limit / cursor. |
+| `set-page` | `page` | Update offset / limit. |
 | `set-visible-fields` | `visibleFields` | Drives field visibility in tables and forms. Empty = "all". |
 | `set-grouping` | `grouping` | Group-by keys for chart / pivot views. |
 | `set-aggregation` | `aggregation` | Mirror of `Query.aggregation`. |

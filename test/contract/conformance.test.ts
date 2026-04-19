@@ -850,6 +850,143 @@ describe("contract / GeoServices queryAll pagination limit", () => {
   }
 });
 
+describe("contract / GeoServices aggregation wire-level fields", () => {
+  // Regression: the contract layer previously routed `outStatistics` /
+  // `groupByFieldsForStatistics` through `extraParams`. The REST path
+  // serialized them by accident (extraParams pass-through), but the gRPC
+  // adapter only reads them from the root of `QueryFeaturesRequest`, so
+  // grpc-web callers saw raw features instead of server aggregates. The
+  // contract layer now writes them on the request root so both transports
+  // observe them identically.
+  for (const variant of [
+    {
+      label: "geoservices-feature-service",
+      path: "/rest/services/Parcels/FeatureServer/0/query",
+      protocol: "geoservices-feature-service" as const,
+    },
+    {
+      label: "geoservices-map-service",
+      path: "/rest/services/Parcels/MapServer/0/query",
+      protocol: "geoservices-map-service" as const,
+    },
+  ]) {
+    it(`${variant.label}: query({ aggregation }) passes outStatistics/groupBy on the request root`, async () => {
+      const LayerClass =
+        variant.protocol === "geoservices-feature-service" ? HonuaFeatureLayer : HonuaMapLayer;
+      const spy = vi
+        .spyOn(LayerClass.prototype, "queryFeatures")
+        .mockResolvedValue(geoservicesAggregateResponse() as never);
+      const client = makeMockClient({ routes: [] });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES[variant.protocol],
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const source = dataset.source<ParcelAttrs>("parcels")!;
+      await source.query({
+        aggregation: { groupBy: ["STATE"], metrics: [{ fn: "sum", field: "ACRES", alias: "SUM_ACRES" }] },
+      });
+      await source.queryAggregate({
+        aggregation: { metrics: [{ fn: "count", field: "OBJECTID", alias: "cnt" }] },
+      });
+      expect(spy).toHaveBeenCalledTimes(2);
+      const first = spy.mock.calls[0][0] as {
+        outStatistics?: unknown;
+        groupByFieldsForStatistics?: unknown;
+        returnGeometry?: unknown;
+        extraParams?: { outStatistics?: unknown; groupByFieldsForStatistics?: unknown };
+      };
+      expect(Array.isArray(first.outStatistics)).toBe(true);
+      expect(first.groupByFieldsForStatistics).toBe("STATE");
+      expect(first.returnGeometry).toBe(false);
+      // The wire-level fields must NOT leak back into extraParams; the gRPC
+      // adapter whitelists extraParams keys and would drop them there.
+      expect(first.extraParams?.outStatistics).toBeUndefined();
+      expect(first.extraParams?.groupByFieldsForStatistics).toBeUndefined();
+      const second = spy.mock.calls[1][0] as {
+        outStatistics?: unknown;
+        groupByFieldsForStatistics?: unknown;
+        returnGeometry?: unknown;
+      };
+      expect(Array.isArray(second.outStatistics)).toBe(true);
+      expect(second.groupByFieldsForStatistics).toBeUndefined();
+      expect(second.returnGeometry).toBe(false);
+      spy.mockRestore();
+    });
+  }
+});
+
+describe("contract / GeoServices stream honors Query.pagination.limit", () => {
+  // Regression: the stream adapter previously dropped pagination.limit into
+  // `resultRecordCount` only, which `queryFeaturesStream` then overwrote with
+  // its own `pageSize` default (2000). source.stream({ pagination: { limit: 10 } })
+  // should fetch 10-row pages, not 2000-row pages.
+  for (const variant of [
+    {
+      label: "geoservices-feature-service",
+      path: "/rest/services/Parcels/FeatureServer/0/query",
+      protocol: "geoservices-feature-service" as const,
+    },
+    {
+      label: "geoservices-map-service",
+      path: "/rest/services/Parcels/MapServer/0/query",
+      protocol: "geoservices-map-service" as const,
+    },
+  ]) {
+    it(`${variant.label}: stream({ pagination: { limit: N } }) requests N-row pages`, async () => {
+      const observedRecordCounts: string[] = [];
+      const client = makeMockClient({
+        routes: [
+          [
+            variant.path,
+            (url) => {
+              const recordCount = url.searchParams.get("resultRecordCount") ?? "";
+              observedRecordCounts.push(recordCount);
+              const offset = Number(url.searchParams.get("resultOffset") ?? "0");
+              const take = recordCount ? Math.max(0, Number(recordCount)) : PARCEL_FEATURES.length;
+              const slice = PARCEL_FEATURES.slice(offset, offset + take);
+              return jsonResponse(geoservicesQueryResponse(slice));
+            },
+          ],
+        ],
+      });
+      const dataset = createDataset({
+        id: "parcels",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES[variant.protocol],
+          } satisfies SourceDescriptor,
+        ],
+      });
+      const source = dataset.source<ParcelAttrs>("parcels")!;
+      const pages: Array<ReadonlyArray<{ attributes: ParcelAttrs }>> = [];
+      for await (const page of source.stream({ pagination: { limit: 1 } })) {
+        pages.push(page.features as ReadonlyArray<{ attributes: ParcelAttrs }>);
+      }
+      expect(pages.length).toBe(PARCEL_FEATURES.length);
+      for (const count of observedRecordCounts) {
+        expect(count).toBe("1");
+      }
+      for (const page of pages) {
+        expect(page).toHaveLength(1);
+      }
+    });
+  }
+});
+
 describe("contract / Source.adapter() typed escape hatch", () => {
   it("narrows geoservices-feature-service to HonuaFeatureLayer at the type level", () => {
     const dataset = harnesses[0].build();
@@ -1244,6 +1381,60 @@ describe("contract / queryExtent forwards canonical filters", () => {
     // No items call should have been issued; the error surfaces before
     // the request is dispatched.
     expect(itemsHits).toBe(0);
+  });
+
+  it("ogc-features: rejects non-intersects spatial relationships rather than collapsing them to bbox-intersects", async () => {
+    let itemsHits = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/features/collections/parcels/items",
+          () => {
+            itemsHits += 1;
+            return jsonResponse(ogcItemsResponse());
+          },
+        ],
+        ["/ogc/features/collections/parcels", () => jsonResponse(ogcCollectionMetadata())],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    // `contains` / `within` restrict the result set more strictly than bbox
+    // intersects. Issuing the same /items?bbox=... request would silently
+    // broaden the match; the adapter must refuse rather than drift.
+    for (const rel of ["esriSpatialRelContains", "esriSpatialRelWithin", "esriSpatialRelCrosses"] as const) {
+      await expect(
+        source.query({
+          spatialFilter: {
+            geometryType: "esriGeometryEnvelope",
+            geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+            spatialRel: rel,
+          },
+        }),
+      ).rejects.toThrow(/spatialRel .* is not supported/);
+    }
+    // Envelope-intersects stays supported: bbox carries its semantics exactly.
+    await source.query({
+      spatialFilter: {
+        geometryType: "esriGeometryEnvelope",
+        geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+        spatialRel: "esriSpatialRelEnvelopeIntersects",
+      },
+    });
+    expect(itemsHits).toBeGreaterThanOrEqual(1);
   });
 
   it("ogc-features degraded: bare queryExtent() still uses the metadata bbox shortcut", async () => {

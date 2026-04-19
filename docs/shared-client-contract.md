@@ -51,7 +51,7 @@ top-level `@honua/sdk-js` and `@honua/sdk-js/honua` barrels).
 | `Source<T>` | Runtime handle. Methods: `query`, `queryAll`, `queryAggregate`, `queryExtent`, `stream`, `adapter`. |
 | `Dataset` | Logical grouping of sources sharing identity. Methods: `source(id)`, `sourceIds()`, `isCompatible()`, `supportsFeature()`. |
 | `Query<T>` | `{ where?, spatialFilter?, outFields?, orderBy?, pagination?, aggregation?, returnGeometry?, outSr?, signal? }`. |
-| `Result<T>` | `{ features, exceededTransferLimit, nextCursor?, totalCount?, aggregateRows?, extent?, fields?, degraded? }`. |
+| `Result<T>` | `{ features, exceededTransferLimit, totalCount?, aggregateRows?, extent?, fields?, degraded? }`. |
 | `MapBinding` | `{ sourceId, layerIds, style?, minzoom?, maxzoom? }`. Maps onto `MapPackage.sourceBindings` + `MapPackage.mapSpec` server-side. |
 
 ## Capability negotiation

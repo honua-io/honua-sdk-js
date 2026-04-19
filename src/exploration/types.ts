@@ -68,7 +68,7 @@ export interface ExplorationState {
   readonly selection: ReadonlyArray<FeatureId>;
   /** Sort order shared across linked views. */
   readonly sort: ReadonlyArray<SortSpec>;
-  /** Pagination cursor / offset / limit. */
+  /** Pagination offset / limit. */
   readonly page: PaginationSpec;
   /** Field visibility for tabular / form views. Empty = "all". */
   readonly visibleFields: ReadonlyArray<string>;

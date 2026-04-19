@@ -211,7 +211,7 @@ function sortEqual(a: ExplorationState["sort"], b: ExplorationState["sort"]): bo
 }
 
 function pageEqual(a: ExplorationState["page"], b: ExplorationState["page"]): boolean {
-  return a.offset === b.offset && a.limit === b.limit && a.cursor === b.cursor;
+  return a.offset === b.offset && a.limit === b.limit;
 }
 
 function sequenceEqual<T>(a: ReadonlyArray<T>, b: ReadonlyArray<T>): boolean {

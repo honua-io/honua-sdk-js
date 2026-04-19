@@ -147,9 +147,9 @@ export function geoServicesFeatureSource<T>(
       const requestParams = toFeatureLayerRequest(request);
       if (request?.aggregation) {
         ensureCapability(descriptor, caps, "queryAggregate");
-        const [extraParams, aggregateAlias] = appendAggregationParams(requestParams.extraParams, request.aggregation);
+        const { aggregateAlias, ...aggFields } = buildAggregationFields(request.aggregation);
         return aggregateResultFromFeatureLayer(
-          await layer.queryFeatures({ ...requestParams, extraParams }),
+          await layer.queryFeatures({ ...requestParams, ...aggFields }),
           aggregateAlias,
         );
       }
@@ -170,8 +170,8 @@ export function geoServicesFeatureSource<T>(
     async queryAggregate(request) {
       ensureCapability(descriptor, caps, "queryAggregate");
       const requestParams = toFeatureLayerRequest(request);
-      const [extraParams, aggregateAlias] = appendAggregationParams(requestParams.extraParams, request.aggregation);
-      const response = await layer.queryFeatures({ ...requestParams, extraParams });
+      const { aggregateAlias, ...aggFields } = buildAggregationFields(request.aggregation);
+      const response = await layer.queryFeatures({ ...requestParams, ...aggFields });
       return aggregateResultFromFeatureLayer(response, aggregateAlias);
     },
     async queryExtent(request) {
@@ -181,7 +181,7 @@ export function geoServicesFeatureSource<T>(
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
-      const stream = layer.queryFeaturesStream(withUnboundedMaxPages(toFeatureLayerRequest(request)));
+      const stream = layer.queryFeaturesStream(withStreamPageSize(toFeatureLayerRequest(request), request?.pagination?.limit));
       for await (const page of stream) {
         yield {
           features: page,
@@ -215,8 +215,8 @@ export function geoServicesMapServiceSource<T>(
       const params = toFeatureLayerRequest(request);
       if (request?.aggregation) {
         ensureCapability(descriptor, caps, "queryAggregate");
-        const [extraParams, aggregateAlias] = appendAggregationParams(params.extraParams, request.aggregation);
-        return aggregateResultFromUntyped<T>(await layer.queryFeatures({ ...params, extraParams }), aggregateAlias);
+        const { aggregateAlias, ...aggFields } = buildAggregationFields(request.aggregation);
+        return aggregateResultFromUntyped<T>(await layer.queryFeatures({ ...params, ...aggFields }), aggregateAlias);
       }
       const response = await layer.queryFeatures(params);
       return featureLayerResultFromUntyped<T>(response);
@@ -236,8 +236,8 @@ export function geoServicesMapServiceSource<T>(
     async queryAggregate(request) {
       ensureCapability(descriptor, caps, "queryAggregate");
       const params = toFeatureLayerRequest(request);
-      const [extraParams, aggregateAlias] = appendAggregationParams(params.extraParams, request.aggregation);
-      const response = await layer.queryFeatures({ ...params, extraParams });
+      const { aggregateAlias, ...aggFields } = buildAggregationFields(request.aggregation);
+      const response = await layer.queryFeatures({ ...params, ...aggFields });
       return aggregateResultFromUntyped<T>(response, aggregateAlias);
     },
     async queryExtent(request) {
@@ -247,7 +247,7 @@ export function geoServicesMapServiceSource<T>(
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
-      const stream = layer.queryFeaturesStream(withUnboundedMaxPages(toFeatureLayerRequest(request)));
+      const stream = layer.queryFeaturesStream(withStreamPageSize(toFeatureLayerRequest(request), request?.pagination?.limit));
       for await (const page of stream) {
         yield {
           features: page.map(toTypedFeature<T>),
@@ -491,6 +491,27 @@ function withPagingBounds<R extends object>(
   return { ...params, pageSize, maxPages };
 }
 
+/**
+ * `HonuaFeatureLayer.queryFeaturesStream` / `HonuaMapLayer.queryFeaturesStream`
+ * derive per-page size from `pageSize` and default to 2000 when it is
+ * omitted. `toFeatureLayerRequest` maps `pagination.limit` to
+ * `resultRecordCount`, which the stream helper then overwrites with its own
+ * `pageSize`. Without this bridge `source.stream({ pagination: { limit: 10 } })`
+ * would still fetch 2000-row pages. Treat `pagination.limit` as the caller's
+ * per-batch budget in streaming mode (it carries the same meaning as
+ * `resultRecordCount` for a single-page `query()`).
+ */
+function withStreamPageSize<R extends object>(
+  params: R,
+  limit: number | undefined,
+): R & { pageSize?: number; maxPages: number } {
+  const base = { ...params, maxPages: Number.MAX_SAFE_INTEGER };
+  if (typeof limit !== "number" || !Number.isFinite(limit) || limit < 1) {
+    return base;
+  }
+  return { ...base, pageSize: Math.max(1, Math.trunc(limit)) };
+}
+
 function applyQueryAllLimit<F>(
   features: readonly F[],
   limit: number | undefined,
@@ -662,6 +683,17 @@ function toOgcRequest<T>(request?: Query<T>): Record<string, unknown> {
         `ogc-features: spatialFilter.geometryType "${request.spatialFilter.geometryType}" is not supported; only "esriGeometryEnvelope" translates to OGC bbox. Convert the geometry to an envelope or use a GeoServices source.`,
       );
     }
+    // The OGC bbox parameter is defined as an envelope-intersects predicate
+    // (OGC 17-069r4 §7.15.3). `contains`, `within`, `crosses`, etc. would
+    // require CQL2 which this adapter does not yet emit. Refuse the request
+    // rather than fall back to bbox semantics — a "within" request that
+    // silently returns every intersecting feature is a correctness bug.
+    const rel = request.spatialFilter.spatialRel;
+    if (rel !== undefined && rel !== "esriSpatialRelIntersects" && rel !== "esriSpatialRelEnvelopeIntersects") {
+      throw new Error(
+        `ogc-features: spatialFilter.spatialRel "${rel}" is not supported; the OGC bbox parameter only expresses envelope-intersects. Use a GeoServices source or convert to an intersects predicate.`,
+      );
+    }
     const env = request.spatialFilter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
     if (
       typeof env.xmin === "number" &&
@@ -707,22 +739,38 @@ function toTypedFeatureFromOgc<T>(feature: import("../core/types.js").HonuaOgcFe
   };
 }
 
-function appendAggregationParams(
-  extraParams: Record<string, string | number | boolean> | undefined,
-  aggregation: AggregationSpec,
-): [Record<string, string | number | boolean>, string | undefined] {
-  const next: Record<string, string | number | boolean> = { ...(extraParams ?? {}) };
+/**
+ * Build the GeoServices aggregation fields that must live on the top-level
+ * `QueryFeaturesRequest` / `MapLayerQueryRequest`. Both the REST serializer
+ * (`client.ts`) and the gRPC adapter (`grpc-adapter.ts`) read `outStatistics`
+ * and `groupByFieldsForStatistics` from the request root; stashing them in
+ * `extraParams` would be silently dropped by the gRPC path.
+ */
+function buildAggregationFields(aggregation: AggregationSpec): {
+  outStatistics: ReadonlyArray<Record<string, unknown>>;
+  groupByFieldsForStatistics?: string;
+  returnGeometry: false;
+  aggregateAlias: string | undefined;
+} {
   const stats = aggregation.metrics.map((m) => ({
     statisticType: toGeoServicesStatisticType(m.fn),
     onStatisticField: m.field,
     outStatisticFieldName: m.alias ?? `${m.fn}_${m.field}`,
   }));
-  next.outStatistics = JSON.stringify(stats);
+  const out: {
+    outStatistics: ReadonlyArray<Record<string, unknown>>;
+    groupByFieldsForStatistics?: string;
+    returnGeometry: false;
+    aggregateAlias: string | undefined;
+  } = {
+    outStatistics: stats,
+    returnGeometry: false,
+    aggregateAlias: stats[0]?.outStatisticFieldName,
+  };
   if (aggregation.groupBy && aggregation.groupBy.length > 0) {
-    next.groupByFieldsForStatistics = aggregation.groupBy.join(",");
+    out.groupByFieldsForStatistics = aggregation.groupBy.join(",");
   }
-  next.returnGeometry = false;
-  return [next, stats[0]?.outStatisticFieldName];
+  return out;
 }
 
 function toGeoServicesStatisticType(fn: AggregationFn): string {

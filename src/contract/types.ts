@@ -212,8 +212,6 @@ export interface PaginationSpec {
   offset?: number;
   /** Maximum records per page. Implementation may clamp. */
   limit?: number;
-  /** Opaque cursor returned by a previous `Result.nextCursor`. */
-  cursor?: string;
 }
 
 export interface SortSpec {
@@ -289,8 +287,6 @@ export interface Result<T = Record<string, unknown>> {
   features: readonly HonuaTypedFeature<T>[];
   /** True if the server signalled that more records exist than were returned. */
   exceededTransferLimit: boolean;
-  /** Opaque cursor for the next page. */
-  nextCursor?: string;
   /** Total count when known (counts request, OGC `numberMatched`). */
   totalCount?: number;
   /** Aggregated rows when the query carried an `aggregation` spec. */
