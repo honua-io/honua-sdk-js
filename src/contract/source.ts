@@ -143,10 +143,10 @@ export function geoServicesFeatureSource<T>(
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
-      ensureCapability(descriptor, caps, "query", policy);
+      ensureCapability(descriptor, caps, "query");
       const requestParams = toFeatureLayerRequest(request);
       if (request?.aggregation) {
-        ensureCapability(descriptor, caps, "queryAggregate", policy);
+        ensureCapability(descriptor, caps, "queryAggregate");
         const [extraParams, aggregateAlias] = appendAggregationParams(requestParams.extraParams, request.aggregation);
         return aggregateResultFromFeatureLayer(
           await layer.queryFeatures({ ...requestParams, extraParams }),
@@ -157,7 +157,7 @@ export function geoServicesFeatureSource<T>(
       return featureLayerResultFromTyped<T>(response);
     },
     async queryAll(request) {
-      ensureCapability(descriptor, caps, "query", policy);
+      ensureCapability(descriptor, caps, "query");
       const params = withUnboundedMaxPages(
         withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit),
       );
@@ -170,20 +170,20 @@ export function geoServicesFeatureSource<T>(
       } satisfies Result<T>;
     },
     async queryAggregate(request) {
-      ensureCapability(descriptor, caps, "queryAggregate", policy);
+      ensureCapability(descriptor, caps, "queryAggregate");
       const requestParams = toFeatureLayerRequest(request);
       const [extraParams, aggregateAlias] = appendAggregationParams(requestParams.extraParams, request.aggregation);
       const response = await layer.queryFeatures({ ...requestParams, extraParams });
       return aggregateResultFromFeatureLayer(response, aggregateAlias);
     },
     async queryExtent(request) {
-      ensureCapability(descriptor, caps, "queryExtent", policy);
+      ensureCapability(descriptor, caps, "queryExtent");
       const params = toFeatureLayerRequest(request);
       const out = await layer.queryExtent({ where: params.where, method: params.method, extraParams: params.extraParams });
       return { extent: out.extent ?? null, count: out.count };
     },
     async *stream(request) {
-      ensureCapability(descriptor, caps, "stream", policy);
+      ensureCapability(descriptor, caps, "stream");
       const stream = layer.queryFeaturesStream(withUnboundedMaxPages(toFeatureLayerRequest(request)));
       for await (const page of stream) {
         yield {
@@ -214,10 +214,10 @@ export function geoServicesMapServiceSource<T>(
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
-      ensureCapability(descriptor, caps, "query", policy);
+      ensureCapability(descriptor, caps, "query");
       const params = toFeatureLayerRequest(request);
       if (request?.aggregation) {
-        ensureCapability(descriptor, caps, "queryAggregate", policy);
+        ensureCapability(descriptor, caps, "queryAggregate");
         const [extraParams, aggregateAlias] = appendAggregationParams(params.extraParams, request.aggregation);
         return aggregateResultFromUntyped<T>(await layer.queryFeatures({ ...params, extraParams }), aggregateAlias);
       }
@@ -225,7 +225,7 @@ export function geoServicesMapServiceSource<T>(
       return featureLayerResultFromUntyped<T>(response);
     },
     async queryAll(request) {
-      ensureCapability(descriptor, caps, "query", policy);
+      ensureCapability(descriptor, caps, "query");
       const params = withUnboundedMaxPages(
         withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit),
       );
@@ -239,20 +239,20 @@ export function geoServicesMapServiceSource<T>(
       } satisfies Result<T>;
     },
     async queryAggregate(request) {
-      ensureCapability(descriptor, caps, "queryAggregate", policy);
+      ensureCapability(descriptor, caps, "queryAggregate");
       const params = toFeatureLayerRequest(request);
       const [extraParams, aggregateAlias] = appendAggregationParams(params.extraParams, request.aggregation);
       const response = await layer.queryFeatures({ ...params, extraParams });
       return aggregateResultFromUntyped<T>(response, aggregateAlias);
     },
     async queryExtent(request) {
-      ensureCapability(descriptor, caps, "queryExtent", policy);
+      ensureCapability(descriptor, caps, "queryExtent");
       const params = toFeatureLayerRequest(request);
       const out = await layer.queryExtent({ where: params.where, method: params.method, extraParams: params.extraParams });
       return { extent: out.extent ?? null, count: out.count };
     },
     async *stream(request) {
-      ensureCapability(descriptor, caps, "stream", policy);
+      ensureCapability(descriptor, caps, "stream");
       const stream = layer.queryFeaturesStream(withUnboundedMaxPages(toFeatureLayerRequest(request)));
       for await (const page of stream) {
         yield {
@@ -283,9 +283,12 @@ export function ogcFeaturesSource<T>(
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
-      ensureCapability(descriptor, caps, "query", policy);
+      ensureCapability(descriptor, caps, "query");
       if (request?.aggregation) {
-        ensureCapability(descriptor, caps, "queryAggregate", policy);
+        // OGC has no server-side aggregation; the adapter always aggregates
+        // client-side over the returned page. `queryAggregate` is therefore a
+        // degradable capability here.
+        ensureCapabilityOrFallback(descriptor, caps, "queryAggregate", policy);
       }
       const response = await collection.items(toOgcRequest(request));
       const features = response.features.map(toTypedFeatureFromOgc<T>);
@@ -314,7 +317,7 @@ export function ogcFeaturesSource<T>(
       } satisfies Result<T>;
     },
     async queryAll(request) {
-      ensureCapability(descriptor, caps, "query", policy);
+      ensureCapability(descriptor, caps, "query");
       const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request)));
       const features = all.map(toTypedFeatureFromOgc<T>);
       return {
@@ -324,7 +327,10 @@ export function ogcFeaturesSource<T>(
       } satisfies Result<T>;
     },
     async queryAggregate(request) {
-      ensureCapability(descriptor, caps, "queryAggregate", policy);
+      // Always client-side (OGC has no server-side aggregation). Under `strict`
+      // the descriptor must advertise `queryAggregate`; under `degraded` the
+      // fallback runs unconditionally.
+      ensureCapabilityOrFallback(descriptor, caps, "queryAggregate", policy);
       const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request)));
       const features = all.map(toTypedFeatureFromOgc<T>);
       return {
@@ -342,7 +348,8 @@ export function ogcFeaturesSource<T>(
       } satisfies Result<T>;
     },
     async queryExtent(request) {
-      ensureCapability(descriptor, caps, "queryExtent", policy);
+      // Fallback: approximate from `collection.metadata().extent.spatial.bbox[0]`.
+      ensureCapabilityOrFallback(descriptor, caps, "queryExtent", policy);
       const meta = await collection.metadata();
       const bbox = meta.extent?.spatial?.bbox?.[0];
       if (!bbox || bbox.length < 4) return { extent: null };
@@ -353,7 +360,7 @@ export function ogcFeaturesSource<T>(
       };
     },
     async *stream(request) {
-      ensureCapability(descriptor, caps, "stream", policy);
+      ensureCapability(descriptor, caps, "stream");
       const stream = collection.itemsStream(withUnboundedMaxPages(toOgcRequest(request)));
       for await (const page of stream) {
         yield {
@@ -400,12 +407,26 @@ function ensureCapability(
   descriptor: SourceDescriptor,
   caps: ReadonlySet<Capability>,
   capability: Capability,
-  policy: CapabilityPolicy,
 ): void {
   if (caps.has(capability)) return;
+  throw new HonuaCapabilityNotSupportedError(capability, descriptor.protocol, descriptor.id);
+}
+
+// `degraded` may only bypass a missing capability when the call site immediately
+// takes a defined fallback path. Returns true when the descriptor advertises the
+// capability (use the native path), false when policy is `degraded` and a
+// fallback will execute, and throws under `strict` when missing.
+function ensureCapabilityOrFallback(
+  descriptor: SourceDescriptor,
+  caps: ReadonlySet<Capability>,
+  capability: Capability,
+  policy: CapabilityPolicy,
+): boolean {
+  if (caps.has(capability)) return true;
   if (policy === "strict") {
     throw new HonuaCapabilityNotSupportedError(capability, descriptor.protocol, descriptor.id);
   }
+  return false;
 }
 
 function requireFeatureServiceLocator(descriptor: SourceDescriptor): { serviceId: string; layerId: number } {

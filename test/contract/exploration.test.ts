@@ -370,6 +370,36 @@ describe("exploration / createExplorationContext", () => {
     ctx.dispose();
   });
 
+  it("fresh contexts do not share nested-state references with EMPTY_STATE or each other", () => {
+    const a = createExplorationContext({ datasetId: "a", sourceIds: ["s"] });
+    const b = createExplorationContext({ datasetId: "b", sourceIds: ["s"] });
+    // Each context must own its nested collections; mutating one cannot leak
+    // into EMPTY_STATE or a peer context.
+    expect(a.state.selection).not.toBe(EMPTY_STATE.selection);
+    expect(a.state.selection).not.toBe(b.state.selection);
+    expect(a.state.filters).not.toBe(EMPTY_STATE.filters);
+    expect(a.state.filters).not.toBe(b.state.filters);
+    (a.state.selection as Array<number>).push(99);
+    expect(b.state.selection).toEqual([]);
+    expect(EMPTY_STATE.selection).toEqual([]);
+    a.dispose();
+    b.dispose();
+  });
+
+  it("caller-held initialState is detached — post-construction mutation does not reach live state", () => {
+    const seed = { selection: [1, 2], visibleFields: ["A", "B"] };
+    const ctx = createExplorationContext({
+      datasetId: "d",
+      sourceIds: ["s"],
+      initialState: seed,
+    });
+    seed.selection.push(999);
+    seed.visibleFields.push("ROGUE");
+    expect(ctx.state.selection).toEqual([1, 2]);
+    expect(ctx.state.visibleFields).toEqual(["A", "B"]);
+    ctx.dispose();
+  });
+
   it("rejects bind / dispatch / restore after dispose with HonuaExplorationContextError", () => {
     const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
     ctx.dispose();

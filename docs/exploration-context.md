@@ -73,8 +73,11 @@ the linked-view preset table.
 
 Five built-in presets describe how an intent originating in one view
 propagates to peers. The reducer applies central state unconditionally;
-the preset gates which slice listeners get woken so peer views can opt
-out of unrelated noise.
+the preset gates which **slice-specific** listeners get woken so peer
+views can opt out of unrelated noise. Subscribers to the `"all"` slice
+always fire for every reducer-produced change — including the slices
+the preset suppressed for peers — so global observers, devtools, and
+snapshot writers cannot silently miss a state movement.
 
 | Preset | What propagates |
 | --- | --- |
@@ -128,6 +131,12 @@ ctx.restore(snap);                     // dispatch a snapshot-restore intent
 `version: 1` is the only supported version today. A future shape change
 must bump the version and add a forward-migration before
 `HonuaExplorationContextError("incompatible-snapshot", ...)` triggers.
+
+`snapshot()` returns a deep copy of the live state and `restore()` deep
+copies its input before dispatching. Callers may freely retain, serialize,
+or mutate a snapshot without aliasing the context's live state — and the
+reverse: subsequent `dispatch()` calls cannot mutate a previously returned
+snapshot's arrays or nested objects.
 
 ## Lifecycle
 

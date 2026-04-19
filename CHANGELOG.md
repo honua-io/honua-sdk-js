@@ -15,7 +15,7 @@ All notable changes to the Honua JS SDK will be documented in this file.
 - Exploration state module at `@honua/sdk-js/exploration`: `createExplorationContext(...)` with a
   microtask-coalesced reducer over filters, spatial filter, extent, selection, sort, pagination, visible
   fields, grouping, and aggregation; five linked-view presets (`globalLinked`, `mapDriven`, `gridDriven`,
-  `chartDriven`, `decoupled`); view bindings for `map`, `grid`, `chart`, `card`, and `detail`; snapshot
+  `chartDriven`, `decoupled`); view bindings for `map`, `grid`, `chart`, `form`, and `custom`; snapshot
   restore; `HonuaExplorationContextError` for disposed / duplicate-binding / incompatible-snapshot states.
 - Contract docs: `docs/shared-client-contract.md`, `docs/exploration-context.md`,
   `docs/protocol-capability-matrix.md`, and `docs/source-binding-alignment.md`.

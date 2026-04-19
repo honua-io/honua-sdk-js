@@ -216,16 +216,20 @@ export function createExplorationContext(options: CreateExplorationContextOption
   };
 }
 
+// `EMPTY_STATE` and caller-provided `initialState` both hold live nested
+// objects. Deep-clone the merged result so (a) multiple fresh contexts do not
+// share nested references, and (b) post-construction mutation of the caller's
+// `initialState` cannot bypass `dispatch()` by aliasing into live state.
 function mergeInitial(
   initial: Partial<ExplorationState> | undefined,
   preset: ExplorationState["preset"] | undefined,
 ): ExplorationState {
-  if (!initial && !preset) return EMPTY_STATE;
-  return {
+  const merged: ExplorationState = {
     ...EMPTY_STATE,
     ...(initial ?? {}),
     preset: preset ?? initial?.preset ?? EMPTY_STATE.preset,
   };
+  return structuredClone(merged) as ExplorationState;
 }
 
 /**

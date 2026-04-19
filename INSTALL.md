@@ -64,8 +64,8 @@ MapLibre quickstart, use [`examples/maplibre-quickstart/README.md`](./examples/m
 ## Canonical Contract And Exploration
 
 The SDK exposes a protocol-neutral client contract and exploration state module that wrap the existing
-`HonuaFeatureLayer` / `HonuaMapService` / `HonuaOgcFeatureCollection` classes. These ship from the root
-`@honua/sdk-js` package as the `@honua/sdk-js/contract` and `@honua/sdk-js/exploration` subpath entrypoints:
+`HonuaFeatureLayer` / `HonuaMapService` / `HonuaOgcFeatureCollection` classes. These ship from the
+`@honua/sdk` package as the `@honua/sdk/contract` and `@honua/sdk/exploration` subpath entrypoints:
 
 - [`docs/shared-client-contract.md`](./docs/shared-client-contract.md) — `Dataset`, `Source`, `Capabilities`,
   `Query`, `Result`, `MapBinding`, and `createDataset(...)`.

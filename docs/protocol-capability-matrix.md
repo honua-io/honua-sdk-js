@@ -49,11 +49,13 @@ endpoint is read-only.
 
 ### OGC API Features
 `query`, `queryObjectIds`, `applyEdits`, `stream` are first-party.
-`queryAggregate` is degraded — the adapter materializes the result page,
-applies the aggregation client-side, and stamps `degraded` on the
-`Result`. `queryExtent` is approximated from the collection metadata's
-`extent.spatial.bbox[0]`. `queryRelated`, `attachments`, and `pbf` are
-out-of-scope for the OGC standard.
+`queryAggregate` is degraded — `Source.query({ aggregation })` aggregates
+client-side over the returned page, while `Source.queryAggregate()` drains
+every page first and then aggregates. Both stamp a `queryAggregate`
+`DegradedReason` on the `Result` so downstream views can flag the number
+as non-authoritative. `queryExtent` is approximated from the collection
+metadata's `extent.spatial.bbox[0]`. `queryRelated`, `attachments`, and
+`pbf` are out-of-scope for the OGC standard.
 
 ### WFS
 Read + edit, no aggregation, no relates. `queryExtent` is supported via

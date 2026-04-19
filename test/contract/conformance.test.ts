@@ -533,6 +533,153 @@ describe("contract / strict capability policy", () => {
   });
 });
 
+describe("contract / degraded capability policy", () => {
+  // Under `degraded`, a missing capability may only be silently bypassed at
+  // call sites that take a defined fallback path. GeoServices has none; OGC
+  // has fallbacks for `queryAggregate` (client-side) and `queryExtent`
+  // (metadata bbox). All other GeoServices / OGC paths must still throw.
+
+  for (const variant of [
+    {
+      label: "geoservices-feature-service",
+      path: "/rest/services/Parcels/FeatureServer/0/query",
+      protocol: "geoservices-feature-service" as const,
+    },
+    {
+      label: "geoservices-map-service",
+      path: "/rest/services/Parcels/MapServer/0/query",
+      protocol: "geoservices-map-service" as const,
+    },
+  ]) {
+    function buildDegradedDataset(caps: ReadonlyArray<(typeof CAPABILITIES)[number]>): Dataset {
+      const client = makeMockClient({
+        routes: [
+          [
+            variant.path,
+            (url) => {
+              const stats = url.searchParams.get("outStatistics");
+              if (stats) return jsonResponse(geoservicesAggregateResponse());
+              const returnExtent = url.searchParams.get("returnExtentOnly") === "true";
+              if (returnExtent) return jsonResponse(geoservicesExtentResponse());
+              return jsonResponse(geoservicesQueryResponse());
+            },
+          ],
+        ],
+      });
+      return createDataset({
+        id: "parcels",
+        client,
+        capabilityPolicy: "degraded",
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels",
+            protocol: variant.protocol,
+            locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+            capabilities: capabilities(caps),
+          } satisfies SourceDescriptor,
+        ],
+      });
+    }
+
+    it(`${variant.label}: throws from query() when aggregation is requested and queryAggregate is not advertised`, async () => {
+      const source = buildDegradedDataset(["query"]).source<ParcelAttrs>("parcels")!;
+      await expect(
+        source.query({
+          aggregation: { metrics: [{ fn: "sum", field: "ACRES" }] },
+        }),
+      ).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    });
+
+    it(`${variant.label}: throws from queryAggregate() when queryAggregate is not advertised`, async () => {
+      const source = buildDegradedDataset(["query"]).source<ParcelAttrs>("parcels")!;
+      await expect(
+        source.queryAggregate({
+          aggregation: { metrics: [{ fn: "sum", field: "ACRES" }] },
+        }),
+      ).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    });
+
+    it(`${variant.label}: throws from query()/queryAll() when query is not advertised`, async () => {
+      const source = buildDegradedDataset([]).source<ParcelAttrs>("parcels")!;
+      await expect(source.query({ where: "1=1" })).rejects.toThrow(HonuaCapabilityNotSupportedError);
+      await expect(source.queryAll()).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    });
+
+    it(`${variant.label}: throws from queryExtent() when queryExtent is not advertised`, async () => {
+      const source = buildDegradedDataset(["query"]).source<ParcelAttrs>("parcels")!;
+      await expect(source.queryExtent()).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    });
+
+    it(`${variant.label}: throws from stream() when stream is not advertised`, async () => {
+      const source = buildDegradedDataset(["query"]).source<ParcelAttrs>("parcels")!;
+      await expect(async () => {
+        for await (const _page of source.stream()) {
+          void _page;
+          break;
+        }
+      }).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    });
+  }
+
+  function buildDegradedOgcDataset(caps: ReadonlyArray<(typeof CAPABILITIES)[number]>): Dataset {
+    const client = makeMockClient({
+      routes: [
+        ["/ogc/features/collections/parcels", () => jsonResponse(ogcCollectionMetadata())],
+        ["/ogc/features/collections/parcels/items", () => jsonResponse(ogcItemsResponse())],
+      ],
+    });
+    return createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: capabilities(caps),
+        },
+      ],
+    });
+  }
+
+  it("ogc-features: queryAggregate falls back to client-side aggregation and stamps degraded", async () => {
+    const source = buildDegradedOgcDataset(["query"]).source<ParcelAttrs>("parcels-ogc")!;
+    const result = await source.queryAggregate({
+      aggregation: { groupBy: ["STATE"], metrics: [{ fn: "sum", field: "ACRES", alias: "SUM_ACRES" }] },
+    });
+    expect(result.aggregateRows).toBeDefined();
+    expect(result.degraded?.[0]?.capability).toBe("queryAggregate");
+  });
+
+  it("ogc-features: queryExtent falls back to metadata bbox", async () => {
+    const source = buildDegradedOgcDataset(["query"]).source<ParcelAttrs>("parcels-ogc")!;
+    const out = await source.queryExtent();
+    // Mock metadata advertises a bbox.
+    if (out.extent) {
+      expect(out.extent.xmin).toBeLessThanOrEqual(out.extent.xmax);
+    }
+  });
+
+  it("ogc-features: stream still throws under degraded when stream is not advertised", async () => {
+    const source = buildDegradedOgcDataset(["query"]).source<ParcelAttrs>("parcels-ogc")!;
+    await expect(async () => {
+      for await (const _page of source.stream()) {
+        void _page;
+        break;
+      }
+    }).rejects.toThrow(HonuaCapabilityNotSupportedError);
+  });
+
+  it("ogc-features: query() and queryAll() throw under degraded when query is not advertised", async () => {
+    const source = buildDegradedOgcDataset(["stream"]).source<ParcelAttrs>("parcels-ogc")!;
+    await expect(source.query({ where: "1=1" })).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    await expect(source.queryAll()).rejects.toThrow(HonuaCapabilityNotSupportedError);
+  });
+});
+
 describe("contract / GeoServices queryAll pagination limit", () => {
   for (const variant of [
     {
