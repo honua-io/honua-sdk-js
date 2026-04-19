@@ -987,6 +987,168 @@ describe("contract / GeoServices stream honors Query.pagination.limit", () => {
   }
 });
 
+describe("contract / OGC queryAll pagination limit", () => {
+  it("queryAll honors Query.pagination.limit and stamps exceededTransferLimit when more rows exist", async () => {
+    const observedLimits: string[] = [];
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/features/collections/parcels/items",
+          (url) => {
+            const limit = url.searchParams.get("limit") ?? "";
+            observedLimits.push(limit);
+            const offset = Number(url.searchParams.get("offset") ?? "0");
+            const take = limit ? Math.max(0, Number(limit)) : PARCEL_FEATURES.length;
+            const slice = PARCEL_FEATURES.slice(offset, offset + take);
+            return jsonResponse(ogcItemsResponse(slice));
+          },
+        ],
+        ["/ogc/features/collections/parcels", () => jsonResponse(ogcCollectionMetadata())],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    const result = await source.queryAll({ pagination: { limit: 1 } });
+    expect(result.features).toHaveLength(1);
+    expect(result.totalCount).toBe(1);
+    // The adapter must ask the server for one lookahead row (limit+1) so it
+    // can distinguish "exactly `limit` rows matched" from "truncated".
+    expect(observedLimits[0]).toBe("2");
+    expect(result.exceededTransferLimit).toBe(true);
+  });
+
+  it("queryAll with limit equal to the full set reports exceededTransferLimit=false", async () => {
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/features/collections/parcels/items",
+          (url) => {
+            const limit = url.searchParams.get("limit") ?? "";
+            const offset = Number(url.searchParams.get("offset") ?? "0");
+            const take = limit ? Math.max(0, Number(limit)) : PARCEL_FEATURES.length;
+            const slice = PARCEL_FEATURES.slice(offset, offset + take);
+            return jsonResponse(ogcItemsResponse(slice));
+          },
+        ],
+        ["/ogc/features/collections/parcels", () => jsonResponse(ogcCollectionMetadata())],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    const result = await source.queryAll({ pagination: { limit: PARCEL_FEATURES.length } });
+    expect(result.features).toHaveLength(PARCEL_FEATURES.length);
+    expect(result.exceededTransferLimit).toBe(false);
+  });
+});
+
+describe("contract / OGC queryExtent honors Query.outSr", () => {
+  it("queryExtent({ outSr }) skips the metadata shortcut and drives through /items with crs set", async () => {
+    let metadataCalls = 0;
+    const observedCrs: string[] = [];
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/features/collections/parcels/items",
+          (url) => {
+            observedCrs.push(url.searchParams.get("crs") ?? "");
+            // Return features with coordinates that would differ from the
+            // metadata bbox if the adapter ever swapped to the shortcut.
+            return jsonResponse(ogcItemsResponse());
+          },
+        ],
+        [
+          "/ogc/features/collections/parcels",
+          () => {
+            metadataCalls += 1;
+            return jsonResponse(ogcCollectionMetadata());
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    const out = await source.queryExtent({ outSr: 3857 });
+    // The bbox returned must come from the features, not the metadata bbox.
+    expect(out.extent).toEqual({ xmin: -123, ymin: 37, xmax: -120, ymax: 45 });
+    expect(metadataCalls).toBe(0);
+    expect(observedCrs[0]).toBe("3857");
+  });
+
+  it("queryExtent() without outSr still takes the metadata shortcut", async () => {
+    let itemsCalls = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/features/collections/parcels/items",
+          () => {
+            itemsCalls += 1;
+            return jsonResponse(ogcItemsResponse());
+          },
+        ],
+        ["/ogc/features/collections/parcels", () => jsonResponse(ogcCollectionMetadata())],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    const out = await source.queryExtent();
+    expect(out.extent).toEqual({ xmin: -123, ymin: 37, xmax: -120, ymax: 45 });
+    // Shortcut path must avoid draining /items.
+    expect(itemsCalls).toBe(0);
+  });
+});
+
 describe("contract / Source.adapter() typed escape hatch", () => {
   it("narrows geoservices-feature-service to HonuaFeatureLayer at the type level", () => {
     const dataset = harnesses[0].build();

@@ -107,8 +107,17 @@ register themselves through `CreateDatasetOptions.resolveSource`.
 `Source.queryAll()` and `Source.stream()` drain every page the server
 returns — the built-in adapters override the core helpers' 100-page
 default so a large `queryAll()` is not silently truncated. Callers who
-want a hard cap should paginate with `Query.pagination` (`limit` clips the
-single-call result; `offset` skips ahead).
+want a hard cap should paginate with `Query.pagination` (`offset` skips
+ahead; `limit` clips, and its meaning depends on the method):
+
+- `query()` — `limit` is the single-page record count.
+- `queryAll()` — `limit` is the total-row cap on the materialized result.
+  The adapter sizes `pageSize` and `maxPages` from `limit` so the paging
+  loop fetches at most `limit + 1` rows; the extra row lets the result
+  stamp `exceededTransferLimit: true` when more records exist.
+- `stream()` — `limit` is the per-batch page size (not a global cap).
+  Each yielded `Result` carries up to `limit` features; callers that
+  want a global cap must stop iterating explicitly.
 
 ## Compatibility gating
 

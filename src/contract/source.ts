@@ -312,11 +312,23 @@ export function ogcFeaturesSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request)));
-      const features = all.map(toTypedFeatureFromOgc<T>);
+      const limit = request?.pagination?.limit;
+      // When the caller caps the result with `pagination.limit`, request
+      // `limit + 1` rows from the OGC helper (the lookahead row) so the
+      // adapter can stamp `exceededTransferLimit: true` when more records
+      // exist. Mirrors the GeoServices `withPagingBounds` + `applyQueryAllLimit`
+      // pattern so `queryAll({ pagination: { limit } })` has the same
+      // contract across protocols.
+      const ogcRequest = toOgcRequest(request);
+      if (typeof limit === "number" && Number.isFinite(limit) && limit >= 0) {
+        ogcRequest.limit = limit + 1;
+      }
+      const all = await collection.itemsAll(withUnboundedMaxPages(ogcRequest));
+      const typed = all.map(toTypedFeatureFromOgc<T>);
+      const { features, exceededTransferLimit } = applyQueryAllLimit(typed, limit);
       return {
         features,
-        exceededTransferLimit: false,
+        exceededTransferLimit,
         totalCount: features.length,
       } satisfies Result<T>;
     },
@@ -346,8 +358,11 @@ export function ogcFeaturesSource<T>(
       // Collection-wide extent (no filters): the metadata bbox is accurate
       // and avoids draining items. A filtered request must be computed
       // client-side — the collection bbox would over-report the matching
-      // subset's extent.
-      if (!hasExtentFilter(request)) {
+      // subset's extent. `outSr` also forces the items path so the extent
+      // is expressed in the caller's requested CRS; the metadata bbox is
+      // frozen in the collection's native CRS (typically CRS84) and would
+      // silently mislead `queryExtent({ outSr: 3857 })` callers.
+      if (!hasExtentFilter(request) && request?.outSr === undefined) {
         const meta = await collection.metadata();
         const bbox = meta.extent?.spatial?.bbox?.[0];
         if (!bbox || bbox.length < 4) return { extent: null };

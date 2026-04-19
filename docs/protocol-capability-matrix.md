@@ -39,34 +39,55 @@ do not flow through the `Source.query` path.
 ## Notes by protocol
 
 ### GeoServices Feature Service
-First-class. Aggregations use the `outStatistics` JSON encoding. Pagination
-uses `resultOffset` / `resultRecordCount`. Streaming wraps
-`HonuaFeatureLayer.queryFeaturesStream`. `pbf` is supported when the server
-returns `f=pbf`; the contract accepts both encodings transparently.
+First-class. Aggregations set `outStatistics`, `groupByFieldsForStatistics`,
+and `returnGeometry=false` as top-level fields on the translated
+`QueryFeaturesRequest` so both the REST serializer and the gRPC-Web
+adapter pick them up (they are not stashed in `extraParams`, which the
+gRPC path would silently drop). Pagination uses `resultOffset` /
+`resultRecordCount`. Streaming wraps
+`HonuaFeatureLayer.queryFeaturesStream`; the adapter derives `pageSize`
+from `Query.pagination.limit` so `source.stream({ pagination: { limit } })`
+yields pages of at most `limit` rows instead of the core helper's
+default 2000. `pbf` is supported when the server returns `f=pbf`; the
+contract accepts both encodings transparently.
 
 ### GeoServices Map Service / Map Layer
-Same query semantics as Feature Service for the layers it exposes.
-`render` and `tiles` come from the service-level export endpoints.
-`applyEdits` and `attachments` are not supported because the Map Service
-endpoint is read-only.
+Same query semantics as Feature Service for the layers it exposes
+(including the root-level aggregation encoding and `pagination.limit`
+→ `pageSize` bridge for `stream()`). `render` and `tiles` come from
+the service-level export endpoints. `applyEdits` and `attachments` are
+not supported because the Map Service endpoint is read-only.
 
 ### OGC API Features
 `query`, `queryObjectIds`, `applyEdits`, `stream` are first-party.
-`queryAggregate` is degraded — `Source.query({ aggregation })` aggregates
-client-side over the returned page, while `Source.queryAggregate()` drains
-every page first and then aggregates. Both stamp a `queryAggregate`
-`DegradedReason` on the `Result` so downstream views can flag the number
-as non-authoritative. `queryExtent` is also degraded: a bare
-`queryExtent()` returns the collection metadata's
-`extent.spatial.bbox[0]` shortcut, while a filtered request (`where` or
-`spatialFilter`) drains `itemsAll()` and computes the bbox client-side
-over matching features. `queryExtent` returns `{ extent, count? }` and
-does not carry a `degraded` array. Only `spatialFilter.geometryType =
+`queryAll()` requests `limit + 1` rows from `itemsAll()` when the caller
+caps the result with `Query.pagination.limit` so the adapter can stamp
+`exceededTransferLimit: true` when more records exist (mirroring the
+GeoServices lookahead-row pattern). `queryAggregate` is degraded —
+`Source.query({ aggregation })` aggregates client-side over the returned
+page, while `Source.queryAggregate()` drains every page first and then
+aggregates. Both stamp a `queryAggregate` `DegradedReason` on the
+`Result` so downstream views can flag the number as non-authoritative.
+`queryExtent` is also degraded: an unfiltered `queryExtent()` with no
+`outSr` returns the collection metadata's `extent.spatial.bbox[0]`
+shortcut, while a filtered request (`where` or `spatialFilter`) — or
+any request that sets `outSr` — drains `itemsAll()` and computes the
+bbox client-side over matching features. The `outSr` carve-out exists
+because the metadata bbox is frozen in the collection's native CRS
+(typically CRS84) and the OGC `/collections/{id}` endpoint does not
+accept a target CRS, so reusing the shortcut when the caller asked for
+a different CRS would silently return the wrong coordinates.
+`queryExtent` returns `{ extent, count? }` and does not carry a
+`degraded` array. Only `spatialFilter.geometryType =
 "esriGeometryEnvelope"` is translated (to the OGC `bbox` query param);
 other geometry types would require CQL2, which the adapter does not
 yet emit, so they throw rather than silently drop the constraint.
-`queryRelated`, `attachments`, and `pbf` are out-of-scope for the OGC
-standard.
+Likewise, only `spatialRel` values of `esriSpatialRelIntersects` or
+`esriSpatialRelEnvelopeIntersects` are accepted — the OGC `bbox`
+parameter is defined as an envelope-intersects predicate (OGC
+17-069r4 §7.15.3), so `contains`/`within`/`crosses`/etc. throw rather
+than silently widen to bbox semantics. `queryRelated`, `attachments`,
+and `pbf` are out-of-scope for the OGC standard.
 
 ### WFS
 Read + edit, no aggregation, no relates. `queryExtent` is supported via
