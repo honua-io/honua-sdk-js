@@ -248,7 +248,7 @@ describe("exploration / createExplorationContext", () => {
     ctx.dispose();
   });
 
-  it("subscribe(\"all\") still fires when the policy blocks slice-specific wakeups", async () => {
+  it('subscribe("all") still fires when the policy blocks slice-specific wakeups', async () => {
     const ctx = createExplorationContext({
       datasetId: "d",
       sourceIds: ["s"],
@@ -321,6 +321,43 @@ describe("exploration / createExplorationContext", () => {
     ctx.restore(snap);
     await flush();
     expect(ctx.state.filters.state.value).toBe("CA");
+    ctx.dispose();
+  });
+
+  it("snapshot() returns an isolated copy — caller mutations do not leak into live state", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
+    ctx.dispatch({ kind: "select", ids: [1, 2, 3] });
+    await flush();
+
+    const snap = ctx.snapshot();
+    // The snapshot's state is a detached value object; mutate a nested
+    // array as if the caller tried to mutate the record locally.
+    (snap.state.selection as Array<number>).push(999);
+    (snap.state.filters as Record<string, unknown>).rogue = { field: "X", operator: "=" };
+
+    expect(ctx.state.selection).toEqual([1, 2, 3]);
+    expect(ctx.state.filters).toEqual({});
+    ctx.dispose();
+  });
+
+  it("restore() detaches the supplied snapshot so later mutations do not reach into live state", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
+    ctx.dispatch({ kind: "select", ids: [10] });
+    await flush();
+
+    const snap = ctx.snapshot();
+    ctx.dispatch({ kind: "deselect" });
+    await flush();
+    expect(ctx.state.selection).toEqual([]);
+
+    ctx.restore(snap);
+    await flush();
+    expect(ctx.state.selection).toEqual([10]);
+
+    // Mutate the caller-held snapshot after restore() returned — the live
+    // state must not alias it and must therefore stay at [10].
+    (snap.state.selection as Array<number>).push(42);
+    expect(ctx.state.selection).toEqual([10]);
     ctx.dispose();
   });
 

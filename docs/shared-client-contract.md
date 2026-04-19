@@ -98,6 +98,12 @@ The built-in resolver handles `geoservices-feature-service`,
 `geoservices-map-service`, and `ogc-features`. WFS / WMS / OData adapters
 register themselves through `CreateDatasetOptions.resolveSource`.
 
+`Source.queryAll()` and `Source.stream()` drain every page the server
+returns — the built-in adapters override the core helpers' 100-page
+default so a large `queryAll()` is not silently truncated. Callers who
+want a hard cap should paginate with `Query.pagination` (`limit` clips the
+single-call result; `offset` skips ahead).
+
 ## Compatibility gating
 
 `Dataset.isCompatible()` calls `HonuaClient.checkCompatibility()` once and

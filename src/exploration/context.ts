@@ -18,16 +18,16 @@ import { HonuaExplorationContextError } from "../core/errors.js";
 import { LINKED_VIEW_PRESETS, propagationFor } from "./presets.js";
 import { reduce } from "./reducer.js";
 import {
-  EMPTY_STATE,
   type ChangeEvent,
   type CreateExplorationContextOptions,
+  EMPTY_STATE,
   type ExplorationContext,
   type ExplorationIntent,
   type ExplorationSlice,
   type ExplorationState,
   type ExplorationStateSnapshot,
-  type Listener,
   type LinkedViewPolicy,
+  type Listener,
   type Unsubscribe,
   type ViewBinding,
   type ViewHandle,
@@ -184,7 +184,10 @@ export function createExplorationContext(options: CreateExplorationContextOption
     },
 
     snapshot(): ExplorationStateSnapshot {
-      return { version: 1, state };
+      // Detach the snapshot from live state — the contract advertises
+      // snapshots as serializable value objects, so caller-side mutation
+      // must not leak into the context and vice versa.
+      return { version: 1, state: cloneExplorationState(state) };
     },
 
     restore(snapshot: ExplorationStateSnapshot): void {
@@ -195,7 +198,10 @@ export function createExplorationContext(options: CreateExplorationContextOption
           `ExplorationContext("${datasetId}"): snapshot version ${String(snapshot.version)} is not supported`,
         );
       }
-      this.dispatch({ kind: "snapshot-restore", snapshot });
+      this.dispatch({
+        kind: "snapshot-restore",
+        snapshot: { version: 1, state: cloneExplorationState(snapshot.state) },
+      });
     },
 
     dispose(): void {
@@ -220,6 +226,16 @@ function mergeInitial(
     ...(initial ?? {}),
     preset: preset ?? initial?.preset ?? EMPTY_STATE.preset,
   };
+}
+
+/**
+ * Deep-copy an `ExplorationState`. Used at the snapshot / restore boundary
+ * so that saved snapshots and the live state do not alias shared arrays or
+ * nested objects — callers may retain, serialize, and mutate snapshots
+ * without side effects on the context, and vice versa.
+ */
+function cloneExplorationState(source: ExplorationState): ExplorationState {
+  return structuredClone(source) as ExplorationState;
 }
 
 /**

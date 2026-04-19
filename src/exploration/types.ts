@@ -8,15 +8,9 @@
  * @module
  */
 
+import type { AggregationSpec, FeatureId, PaginationSpec, SortSpec, SourceId } from "../contract/types.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { HonuaExtent } from "../core/types.js";
-import type {
-  AggregationSpec,
-  FeatureId,
-  PaginationSpec,
-  SortSpec,
-  SourceId,
-} from "../contract/types.js";
 
 // ── Filter clauses ────────────────────────────────────────────
 
@@ -255,12 +249,7 @@ export interface ExplorationStateSnapshot {
  * - `chartDriven`: only the chart's grouping / aggregation propagates outward.
  * - `decoupled`: nothing propagates — each view is independent.
  */
-export type LinkedViewPresetName =
-  | "globalLinked"
-  | "mapDriven"
-  | "gridDriven"
-  | "chartDriven"
-  | "decoupled";
+export type LinkedViewPresetName = "globalLinked" | "mapDriven" | "gridDriven" | "chartDriven" | "decoupled";
 
 /**
  * Per-view propagation rule. `propagatesFrom` lists the view roles whose
@@ -284,13 +273,13 @@ export interface LinkedViewPolicy {
 
 /**
  * Descriptor a caller passes to `ExplorationContext.bind`. `role` is used
- * by the linked-view policy; `slices` declares which slices the view wants
- * to subscribe to (defaults to `["all"]`).
+ * by the linked-view policy. Callers opt into specific slice notifications
+ * by calling `ExplorationContext.subscribe(slice, fn)` directly — the
+ * binding itself only names the view and its role.
  */
 export interface ViewBinding {
   readonly id: string;
   readonly role: ViewRole;
-  readonly slices?: ReadonlyArray<ExplorationSlice>;
 }
 
 /** Handle returned from `ExplorationContext.bind`. */

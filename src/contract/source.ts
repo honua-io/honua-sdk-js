@@ -158,7 +158,9 @@ export function geoServicesFeatureSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query", policy);
-      const params = withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit);
+      const params = withUnboundedMaxPages(
+        withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit),
+      );
       const features = await layer.queryFeaturesAll(params);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(features, request?.pagination?.limit);
       return {
@@ -182,7 +184,7 @@ export function geoServicesFeatureSource<T>(
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream", policy);
-      const stream = layer.queryFeaturesStream(toFeatureLayerRequest(request));
+      const stream = layer.queryFeaturesStream(withUnboundedMaxPages(toFeatureLayerRequest(request)));
       for await (const page of stream) {
         yield {
           features: page,
@@ -224,7 +226,9 @@ export function geoServicesMapServiceSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query", policy);
-      const params = withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit);
+      const params = withUnboundedMaxPages(
+        withPaginationLimitAsPageSize(toFeatureLayerRequest(request), request?.pagination?.limit),
+      );
       const features = await layer.queryFeaturesAll(params);
       const typed = features.map(toTypedFeature<T>);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(typed, request?.pagination?.limit);
@@ -249,7 +253,7 @@ export function geoServicesMapServiceSource<T>(
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream", policy);
-      const stream = layer.queryFeaturesStream(toFeatureLayerRequest(request));
+      const stream = layer.queryFeaturesStream(withUnboundedMaxPages(toFeatureLayerRequest(request)));
       for await (const page of stream) {
         yield {
           features: page.map(toTypedFeature<T>),
@@ -311,7 +315,7 @@ export function ogcFeaturesSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query", policy);
-      const all = await collection.itemsAll(toOgcRequest(request));
+      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request)));
       const features = all.map(toTypedFeatureFromOgc<T>);
       return {
         features,
@@ -321,7 +325,7 @@ export function ogcFeaturesSource<T>(
     },
     async queryAggregate(request) {
       ensureCapability(descriptor, caps, "queryAggregate", policy);
-      const all = await collection.itemsAll(toOgcRequest(request));
+      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request)));
       const features = all.map(toTypedFeatureFromOgc<T>);
       return {
         features,
@@ -350,7 +354,7 @@ export function ogcFeaturesSource<T>(
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream", policy);
-      const stream = collection.itemsStream(toOgcRequest(request));
+      const stream = collection.itemsStream(withUnboundedMaxPages(toOgcRequest(request)));
       for await (const page of stream) {
         yield {
           features: page.map(toTypedFeatureFromOgc<T>),
@@ -446,6 +450,20 @@ function withPaginationLimitAsPageSize<R extends object>(
 ): R & { pageSize?: number } {
   if (typeof limit !== "number" || limit < 1) return params;
   return { ...params, pageSize: Math.max(1, Math.min(limit, 2000)) };
+}
+
+/**
+ * The core paging helpers default `maxPages` to 100, which would silently
+ * truncate the canonical `queryAll()` / `stream()` whose contract is to
+ * drain until the source is exhausted. Override with
+ * `Number.MAX_SAFE_INTEGER` so the helper loop only terminates on an empty
+ * page or short page.
+ *
+ * `normalizeMaxPages` / the inline GeoServices checks require a finite
+ * integer, so `Infinity` cannot be used as the sentinel.
+ */
+function withUnboundedMaxPages<R extends object>(params: R): R & { maxPages: number } {
+  return { ...params, maxPages: Number.MAX_SAFE_INTEGER };
 }
 
 function applyQueryAllLimit<F>(

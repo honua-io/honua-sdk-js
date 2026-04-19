@@ -7,7 +7,7 @@
  * test-side changes.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ALL_CAPABILITIES,
@@ -724,5 +724,161 @@ describe("contract / SourceDescriptor round-trip", () => {
     expect(reimported.locator).toEqual(original.locator);
     expect([...reimported.capabilities].sort()).toEqual([...original.capabilities].sort());
     expect(reimported.attribution).toBe(original.attribution);
+  });
+});
+
+async function* emptyAsyncGenerator(): AsyncGenerator<never, void, undefined> {}
+
+describe("contract / queryAll + stream drain past the core default page cap", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("geoservices-feature-service: queryAll overrides the 100-page core default", async () => {
+    const spy = vi.spyOn(HonuaFeatureLayer.prototype, "queryFeaturesAll").mockResolvedValue([]);
+    const client = makeMockClient({ routes: [] });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-fs",
+          protocol: "geoservices-feature-service",
+          locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+        },
+      ],
+    });
+    await dataset.source<ParcelAttrs>("parcels-fs")!.queryAll();
+    const forwarded = spy.mock.calls[0][0] as { maxPages?: number } | undefined;
+    expect(forwarded?.maxPages).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("geoservices-feature-service: stream overrides the 100-page core default", async () => {
+    const spy = vi.spyOn(HonuaFeatureLayer.prototype, "queryFeaturesStream").mockImplementation(emptyAsyncGenerator);
+    const client = makeMockClient({ routes: [] });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-fs",
+          protocol: "geoservices-feature-service",
+          locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+        },
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-fs")!;
+    for await (const _page of source.stream()) {
+      void _page;
+    }
+    const forwarded = spy.mock.calls[0][0] as { maxPages?: number } | undefined;
+    expect(forwarded?.maxPages).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("geoservices-map-service: queryAll + stream override the 100-page core default", async () => {
+    const allSpy = vi.spyOn(HonuaMapLayer.prototype, "queryFeaturesAll").mockResolvedValue([]);
+    const streamSpy = vi.spyOn(HonuaMapLayer.prototype, "queryFeaturesStream").mockImplementation(emptyAsyncGenerator);
+    const client = makeMockClient({ routes: [] });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ms",
+          protocol: "geoservices-map-service",
+          locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-map-service"],
+        },
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ms")!;
+    await source.queryAll();
+    for await (const _page of source.stream()) {
+      void _page;
+    }
+    expect((allSpy.mock.calls[0][0] as { maxPages?: number }).maxPages).toBe(Number.MAX_SAFE_INTEGER);
+    expect((streamSpy.mock.calls[0][0] as { maxPages?: number }).maxPages).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("ogc-features: queryAll + stream override the 100-page core default", async () => {
+    const allSpy = vi.spyOn(HonuaOgcFeatureCollection.prototype, "itemsAll").mockResolvedValue([]);
+    const streamSpy = vi
+      .spyOn(HonuaOgcFeatureCollection.prototype, "itemsStream")
+      .mockImplementation(emptyAsyncGenerator);
+    const client = makeMockClient({ routes: [] });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      capabilityPolicy: "degraded",
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        },
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    await source.queryAll();
+    for await (const _page of source.stream()) {
+      void _page;
+    }
+    expect((allSpy.mock.calls[0][0] as { maxPages?: number }).maxPages).toBe(Number.MAX_SAFE_INTEGER);
+    expect((streamSpy.mock.calls[0][0] as { maxPages?: number }).maxPages).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("geoservices-feature-service: queryAll actually iterates past page 100 at runtime", async () => {
+    // The core helper's default pageSize is 2000 and it terminates when a
+    // page returns fewer than pageSize features. Returning full pages for
+    // 101 iterations (plus an empty terminator) forces the >100-page loop.
+    // The result is clipped to the caller's limit so the test asserts on
+    // the fetch count rather than materializing all features.
+    const PAGE_SIZE = 2000;
+    const TOTAL_PAGES = 101;
+    const fullPage = Array.from({ length: PAGE_SIZE }, (_, i) => ({
+      attributes: { OBJECTID: i + 1, STATE: "CA", ACRES: 1 } as ParcelAttrs,
+      geometry: { x: 0, y: 0 },
+    }));
+    let fetchCount = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/rest/services/Parcels/FeatureServer/0/query",
+          (url) => {
+            fetchCount += 1;
+            const offset = Number(url.searchParams.get("resultOffset") ?? "0");
+            const page = Math.floor(offset / PAGE_SIZE);
+            if (page >= TOTAL_PAGES) return jsonResponse(geoservicesQueryResponse([]));
+            return jsonResponse(geoservicesQueryResponse(fullPage));
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-fs",
+          protocol: "geoservices-feature-service",
+          locator: { url: "https://mock/", serviceId: "Parcels", layerId: 0 },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+        },
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-fs")!;
+    const result = await source.queryAll({ pagination: { limit: PAGE_SIZE } });
+    // 101 full pages + 1 empty terminator page = 102 fetches; the old
+    // code would have stopped at exactly 100.
+    expect(fetchCount).toBeGreaterThan(100);
+    expect(result.features.length).toBe(PAGE_SIZE);
   });
 });
