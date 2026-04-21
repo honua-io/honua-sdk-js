@@ -58,6 +58,10 @@
     "./exploration": {
       "types": "./dist/src/exploration/index.d.ts",
       "default": "./dist/src/exploration/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/src/runtime/index.d.ts",
+      "default": "./dist/src/runtime/index.js"
     }
   },
   "scripts": {
