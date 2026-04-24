@@ -100,7 +100,7 @@ export function projectSourceBindings(
     descriptors.push({
       id: binding.sourceId,
       protocol: sdkProtocol,
-      locator: toSourceLocator(packageId, binding),
+      locator: toSourceLocator(packageId, binding, sdkProtocol),
       capabilities: PROTOCOL_DEFAULT_CAPABILITIES[sdkProtocol],
       attribution: binding.attribution,
     });
@@ -202,7 +202,11 @@ function toMapLibreNativeSource(binding: HonuaMapPackageSourceBinding): NativeMa
   }
 }
 
-function toSourceLocator(packageId: string | undefined, binding: HonuaMapPackageSourceBinding): SourceLocator {
+function toSourceLocator(
+  packageId: string | undefined,
+  binding: HonuaMapPackageSourceBinding,
+  sdkProtocol: Protocol,
+): SourceLocator {
   const loc = binding.locator;
   if (binding.protocol === "workspace_artifact") {
     throw new HonuaMapPackageError(
@@ -220,11 +224,84 @@ function toSourceLocator(packageId: string | undefined, binding: HonuaMapPackage
 
   const locator: SourceLocator = { url: loc.url };
   if (loc.serviceId !== undefined) locator.serviceId = loc.serviceId;
-  if (loc.layerId !== undefined) locator.layerId = loc.layerId;
+  const normalizedLayerId = normalizeLayerId(loc.layerId);
+  if (normalizedLayerId !== undefined) locator.layerId = normalizedLayerId;
   if (loc.collectionId !== undefined) locator.collectionId = loc.collectionId;
   if (loc.typeName !== undefined) locator.typeName = loc.typeName;
   if (loc.entitySet !== undefined) locator.entitySet = loc.entitySet;
+
+  // Backfill protocol-specific fields from the URL when the server ships
+  // only `locator.url`. The built-in GeoServices and OGC adapters require
+  // `serviceId` + `layerId` / `collectionId`, so projection must fill them
+  // in here rather than failing later inside `createDataset`.
+  if (sdkProtocol === "geoservices-feature-service" || sdkProtocol === "geoservices-map-service") {
+    const parsed = parseGeoServicesUrl(loc.url);
+    if (parsed) {
+      if (locator.serviceId === undefined && parsed.serviceId !== undefined) {
+        locator.serviceId = parsed.serviceId;
+      }
+      if (locator.layerId === undefined && parsed.layerId !== undefined) {
+        locator.layerId = parsed.layerId;
+      }
+    }
+  } else if (sdkProtocol === "ogc-features") {
+    if (locator.collectionId === undefined) {
+      const parsedCollectionId = parseOgcCollectionId(loc.url);
+      if (parsedCollectionId !== undefined) locator.collectionId = parsedCollectionId;
+    }
+  }
   return locator;
+}
+
+/**
+ * Coerce `layerId` to a number when the server wire format serialises it
+ * as a numeric string (the C# mirror declares it as a string so the
+ * JSON wire may arrive as `"0"`). Non-numeric strings are left as-is so
+ * the built-in adapters can surface a typed validation error.
+ */
+function normalizeLayerId(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string" && value.length > 0) {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return undefined;
+    if (!/^-?\d+$/.test(trimmed)) return undefined;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+const GEOSERVICES_URL_RE = /\/rest\/services\/([^/?#]+)\/(?:FeatureServer|MapServer)(?:\/(\d+))?/i;
+
+function parseGeoServicesUrl(url: string): { serviceId?: string; layerId?: number } | undefined {
+  const match = GEOSERVICES_URL_RE.exec(url);
+  if (!match) return undefined;
+  const result: { serviceId?: string; layerId?: number } = {};
+  if (match[1]) {
+    try {
+      result.serviceId = decodeURIComponent(match[1]);
+    } catch {
+      result.serviceId = match[1];
+    }
+  }
+  if (match[2]) {
+    const parsed = Number(match[2]);
+    if (Number.isFinite(parsed)) result.layerId = parsed;
+  }
+  return result;
+}
+
+const OGC_COLLECTION_URL_RE = /\/collections\/([^/?#]+)/i;
+
+function parseOgcCollectionId(url: string): string | undefined {
+  const match = OGC_COLLECTION_URL_RE.exec(url);
+  if (!match || !match[1]) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
 }
 
 function requireLocatorUrl(descriptor: SourceDescriptor): string {

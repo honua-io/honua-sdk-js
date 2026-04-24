@@ -85,6 +85,18 @@ export type HonuaRuntimeEventListener = (event: HonuaRuntimeEvent) => void;
 
 // ── Options ──────────────────────────────────────────────────
 
+/**
+ * Result of a reload pass produced by the loader. `updatePackage` uses
+ * this to replace the runtime's dataset / honuaMap on structural
+ * refresh, so `runtime.dataset` and `runtime.honuaMap` observe changes
+ * to `sourceBindings[]` instead of going stale.
+ */
+export interface HonuaMapRuntimeReload {
+  composed: HonuaStyleSpecification;
+  dataset: Dataset;
+  honuaMap: HonuaMap;
+}
+
 /** Options passed to the `HonuaMapRuntime` constructor; the loader fills these in. */
 export interface HonuaMapRuntimeInternals {
   map: MaplibreMap;
@@ -95,7 +107,7 @@ export interface HonuaMapRuntimeInternals {
   telemetry?: HonuaRuntimeTelemetry;
   popupFactory?: PopupFactory;
   popupRenderer?: PopupRenderer;
-  reload: (next: HonuaMapPackage) => Promise<HonuaStyleSpecification>;
+  reload: (next: HonuaMapPackage) => Promise<HonuaMapRuntimeReload>;
 }
 
 export interface SetViewStateInput {
@@ -112,8 +124,6 @@ export interface SetViewStateInput {
 
 export class HonuaMapRuntime {
   public readonly map: MaplibreMap;
-  public readonly honuaMap: HonuaMap;
-  public readonly dataset: Dataset;
 
   readonly #packageRef: { current: HonuaMapPackage };
   readonly #listeners = new Set<HonuaRuntimeEventListener>();
@@ -121,21 +131,43 @@ export class HonuaMapRuntime {
   readonly #popupFactory: PopupFactory | undefined;
   readonly #popupRenderer: PopupRenderer | undefined;
   readonly #popupBindings = new Map<string, PopupBindingHandle>();
-  readonly #reload: (next: HonuaMapPackage) => Promise<HonuaStyleSpecification>;
+  readonly #reload: (next: HonuaMapPackage) => Promise<HonuaMapRuntimeReload>;
+  #honuaMap: HonuaMap;
+  #dataset: Dataset;
   #composedStyle: HonuaStyleSpecification;
   #disposed = false;
 
   /** @internal — constructed by {@link loadMapPackage}. */
   public constructor(internals: HonuaMapRuntimeInternals) {
     this.map = internals.map;
-    this.honuaMap = internals.honuaMap;
-    this.dataset = internals.dataset;
+    this.#honuaMap = internals.honuaMap;
+    this.#dataset = internals.dataset;
     this.#composedStyle = internals.composedStyle;
     this.#packageRef = internals.packageRef;
     this.#telemetry = internals.telemetry;
     this.#popupFactory = internals.popupFactory;
     this.#popupRenderer = internals.popupRenderer;
     this.#reload = internals.reload;
+  }
+
+  /**
+   * The `HonuaMap` owning the current package's sources and layers. The
+   * reference is replaced on any structural `updatePackage` call so
+   * consumers always observe the live source set rather than the one
+   * captured at first load.
+   */
+  public get honuaMap(): HonuaMap {
+    return this.#honuaMap;
+  }
+
+  /**
+   * The `Dataset` bound to the current package's source bindings. The
+   * reference is replaced on any structural `updatePackage` call so a
+   * source-binding locator or filter change is visible through
+   * `runtime.dataset.source(id)`.
+   */
+  public get dataset(): Dataset {
+    return this.#dataset;
   }
 
   /** The currently applied package. */
@@ -248,20 +280,23 @@ export class HonuaMapRuntime {
 
       const diff = diffPackages(this.#packageRef.current, next);
 
-      const composed = await this.#reload(next);
+      const reload = await this.#reload(next);
 
       if (!diff.incremental) {
-        this.map.setStyle(composed);
+        this.#honuaMap.clear();
+        this.map.setStyle(reload.composed);
+        this.#honuaMap = reload.honuaMap;
+        this.#dataset = reload.dataset;
         this.#packageRef.current = next;
-        this.#composedStyle = composed;
+        this.#composedStyle = reload.composed;
         this.#emit({ type: "package-updated", packageId: next.mapPackageId, diff });
         this.#finishSpan(span);
         return;
       }
 
-      this.#applyIncremental(composed, diff);
+      this.#applyIncremental(reload.composed, diff);
       this.#packageRef.current = next;
-      this.#composedStyle = composed;
+      this.#composedStyle = reload.composed;
       this.#emit({ type: "package-updated", packageId: next.mapPackageId, diff });
       this.#finishSpan(span);
     } catch (error) {
@@ -302,7 +337,7 @@ export class HonuaMapRuntime {
       for (const sourceId of Object.keys(this.#composedStyle.sources)) {
         this.map.removeSource?.(sourceId);
       }
-      this.honuaMap.clear();
+      this.#honuaMap.clear();
       this.#emit({ type: "disposed", packageId: this.#packageRef.current.mapPackageId });
       this.#listeners.clear();
       this.#disposed = true;
@@ -318,12 +353,8 @@ export class HonuaMapRuntime {
   #applyIncremental(composed: HonuaStyleSpecification, diff: MapPackageDiff): void {
     const prevStyle = this.#composedStyle;
 
-    for (const sourceId of diff.removedSourceIds) {
-      this.honuaMap.removeSource(sourceId);
-      this.map.removeSource?.(sourceId);
-    }
     for (const layerId of diff.removedLayerIds) {
-      this.honuaMap.removeLayer(layerId);
+      this.#honuaMap.removeLayer(layerId);
       this.map.removeLayer?.(layerId);
     }
 
@@ -349,16 +380,30 @@ export class HonuaMapRuntime {
   }
 
   #patchLayer(layerId: string, prev: Readonly<{ paint?: Record<string, unknown>; layout?: Record<string, unknown>; filter?: unknown }>, next: Readonly<{ paint?: Record<string, unknown>; layout?: Record<string, unknown>; filter?: unknown }>): void {
+    const prevPaint = prev.paint ?? {};
+    const nextPaint = next.paint ?? {};
     if (this.map.setPaintProperty) {
-      for (const [key, value] of Object.entries(next.paint ?? {})) {
-        if (!prev.paint || prev.paint[key] !== value) this.map.setPaintProperty(layerId, key, value);
+      const keys = unionKeys(prevPaint, nextPaint);
+      for (const key of keys) {
+        const prevValue = prevPaint[key];
+        const nextValue = Object.hasOwn(nextPaint, key) ? nextPaint[key] : undefined;
+        if (prevValue === nextValue) continue;
+        this.map.setPaintProperty(layerId, key, nextValue);
       }
     }
+
+    const prevLayout = prev.layout ?? {};
+    const nextLayout = next.layout ?? {};
     if (this.map.setLayoutProperty) {
-      for (const [key, value] of Object.entries(next.layout ?? {})) {
-        if (!prev.layout || prev.layout[key] !== value) this.map.setLayoutProperty(layerId, key, value);
+      const keys = unionKeys(prevLayout, nextLayout);
+      for (const key of keys) {
+        const prevValue = prevLayout[key];
+        const nextValue = Object.hasOwn(nextLayout, key) ? nextLayout[key] : undefined;
+        if (prevValue === nextValue) continue;
+        this.map.setLayoutProperty(layerId, key, nextValue);
       }
     }
+
     if (this.map.setFilter && JSON.stringify(prev.filter) !== JSON.stringify(next.filter)) {
       this.map.setFilter(layerId, next.filter);
     }
@@ -418,6 +463,13 @@ function shallowPaintLayoutEqual(
     JSON.stringify(a.layout ?? {}) === JSON.stringify(b.layout ?? {}) &&
     JSON.stringify(a.filter) === JSON.stringify(b.filter)
   );
+}
+
+function unionKeys(a: Record<string, unknown>, b: Record<string, unknown>): string[] {
+  const seen = new Set<string>();
+  for (const key of Object.keys(a)) seen.add(key);
+  for (const key of Object.keys(b)) seen.add(key);
+  return [...seen];
 }
 
 // ── Re-exports for barrel ────────────────────────────────────

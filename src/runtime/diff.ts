@@ -62,7 +62,13 @@ export function diffPackages(previous: HonuaMapPackage, next: HonuaMapPackage): 
     if (!nextLayers.has(id)) removedLayerIds.push(id);
   }
 
-  const structuralReason = detectStructuralChange(previous.mapSpec, next.mapSpec);
+  const styleStructuralReason = detectStructuralChange(previous.mapSpec, next.mapSpec);
+  const sourceStructuralReason = detectSourceBindingChange(
+    addedSourceBindings,
+    removedSourceIds,
+    changedSourceIds,
+  );
+  const structuralReason = styleStructuralReason ?? sourceStructuralReason;
 
   return {
     addedSourceBindings,
@@ -74,6 +80,17 @@ export function diffPackages(previous: HonuaMapPackage, next: HonuaMapPackage): 
     incremental: structuralReason === undefined,
     structuralReason,
   };
+}
+
+function detectSourceBindingChange(
+  added: readonly HonuaMapPackageSourceBinding[],
+  removed: readonly string[],
+  changed: readonly string[],
+): string | undefined {
+  if (added.length > 0) return "source bindings added";
+  if (removed.length > 0) return "source bindings removed";
+  if (changed.length > 0) return "source bindings changed";
+  return undefined;
 }
 
 function sameBinding(a: HonuaMapPackageSourceBinding, b: HonuaMapPackageSourceBinding): boolean {

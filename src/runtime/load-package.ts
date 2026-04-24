@@ -16,6 +16,8 @@ import { HonuaMapPackageError } from "./errors.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage } from "./map-package.js";
 import {
   HonuaMapRuntime,
+  type HonuaMapRuntimeReload,
+  type HonuaRuntimeEventListener,
   type HonuaRuntimeTelemetry,
   type MaplibreMap,
 } from "./runtime.js";
@@ -49,6 +51,15 @@ export interface LoadMapPackageOptions {
    * Defaults to `true`.
    */
   applyInitialView?: boolean;
+  /**
+   * Listener registered on the runtime **before** the first
+   * `source-ready` / `package-loaded` emissions so callers can observe
+   * the initial lifecycle without race-binding through
+   * `runtime.on(...)`. Equivalent to calling `runtime.on(listener)`
+   * immediately after construction. Subsequent events (updatePackage,
+   * disposed, …) also flow through this listener.
+   */
+  onEvent?: HonuaRuntimeEventListener;
 }
 
 /**
@@ -128,11 +139,18 @@ export async function loadMapPackage(
       telemetry: options.telemetry,
       popupFactory: options.popupFactory,
       popupRenderer: options.popupRenderer,
-      reload: async (next) => {
+      reload: async (next): Promise<HonuaMapRuntimeReload> => {
         const result = await compose(next);
-        return result.composed;
+        return { composed: result.composed, dataset: result.dataset, honuaMap: result.honuaMap };
       },
     });
+
+    // Register the caller's listener before emitting initial lifecycle
+    // events so callers can observe source-ready / package-loaded once
+    // per load instead of losing them to a race before runtime.on(...).
+    if (options.onEvent) {
+      runtime.on(options.onEvent);
+    }
 
     if (options.applyInitialView !== false && pkg.initialView) {
       try {

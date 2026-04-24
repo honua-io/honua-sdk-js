@@ -182,9 +182,8 @@ describe("loadMapPackage", () => {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
+      onEvent: (event) => events.push(event),
     });
-    runtime.on((event) => events.push(event));
-    runtime._emit({ type: "source-ready", sourceId: "replay" });
 
     const setStyle = map._calls.find((c) => c.method === "setStyle");
     expect(setStyle, "setStyle should be called").toBeDefined();
@@ -192,7 +191,10 @@ describe("loadMapPackage", () => {
     expect(runtime.composedStyle.layers).toHaveLength(1);
     expect(runtime.dataset.sourceIds()).toEqual(["parcels"]);
 
-    expect(events.some((e) => e.type === "source-ready")).toBe(true);
+    expect(events.some((e) => e.type === "source-ready" && e.sourceId === "parcels")).toBe(true);
+    expect(
+      events.some((e) => e.type === "package-loaded" && e.packageId === pkg.mapPackageId),
+    ).toBe(true);
   });
 
   test("rejects unsupported package format via HonuaMapPackageError", async () => {
@@ -454,6 +456,248 @@ describe("buildLegend", () => {
       },
     );
     expect(entries[0].color).toBe("#ff00ff");
+  });
+});
+
+// ── Regression coverage for review findings ──────────────────
+
+describe("updatePackage: source-binding changes swap runtime dataset/honuaMap", () => {
+  test("locator change triggers setStyle and refreshes runtime.dataset", async () => {
+    const map = makeMockMap();
+    const runtime = await loadMapPackage(makePackage(), map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+    });
+    const datasetBefore = runtime.dataset;
+    const honuaMapBefore = runtime.honuaMap;
+    map._calls.length = 0;
+
+    const next = makePackage({
+      sourceBindings: [
+        {
+          sourceId: "parcels",
+          protocol: "geoservices_feature_service",
+          locator: { url: "https://server.example.com/rest/services/ParcelsV2/FeatureServer/0" },
+          attribution: "© Example County Assessor",
+        },
+      ],
+    });
+
+    const diff = diffPackages(runtime.mapPackage, next);
+    expect(diff.incremental).toBe(false);
+    expect(diff.structuralReason).toBeDefined();
+    expect(diff.changedSourceIds).toContain("parcels");
+
+    await runtime.updatePackage(next);
+
+    expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
+    expect(runtime.dataset).not.toBe(datasetBefore);
+    expect(runtime.honuaMap).not.toBe(honuaMapBefore);
+    const refreshed = runtime.dataset.source("parcels");
+    expect(refreshed).toBeDefined();
+  });
+
+  test("added source binding triggers structural fallback even without style changes", async () => {
+    const map = makeMockMap();
+    const runtime = await loadMapPackage(makePackage(), map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+    });
+    map._calls.length = 0;
+
+    const next = makePackage({
+      sourceBindings: [
+        ...runtime.mapPackage.sourceBindings,
+        {
+          sourceId: "owners",
+          protocol: "geoservices_feature_service",
+          locator: { url: "https://server.example.com/rest/services/Owners/FeatureServer/1" },
+        },
+      ],
+    });
+
+    const diff = diffPackages(runtime.mapPackage, next);
+    expect(diff.incremental).toBe(false);
+    expect(diff.addedSourceBindings.map((b) => b.sourceId)).toEqual(["owners"]);
+
+    await runtime.updatePackage(next);
+    expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
+    expect(runtime.dataset.sourceIds()).toContain("owners");
+  });
+});
+
+describe("#patchLayer: paint/layout key removal", () => {
+  test("removing a paint key calls setPaintProperty with undefined to clear it", async () => {
+    const map = makeMockMap();
+    const runtime = await loadMapPackage(makePackage(), map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+    });
+    map._calls.length = 0;
+
+    const next = makePackage({
+      mapSpec: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: "parcels-fill",
+            type: "fill",
+            source: "parcels",
+            paint: { "fill-color": "#cccccc" }, // fill-opacity removed
+            layout: { visibility: "visible" },
+          },
+        ],
+      },
+    });
+    await runtime.updatePackage(next);
+
+    const removedPaint = map._calls.find(
+      (c) => c.method === "setPaintProperty" && c.args[1] === "fill-opacity",
+    );
+    expect(removedPaint, "setPaintProperty should be called for removed fill-opacity").toBeDefined();
+    expect(removedPaint?.args[2]).toBeUndefined();
+  });
+
+  test("removing a layout key calls setLayoutProperty with undefined to clear it", async () => {
+    const pkg = makePackage({
+      mapSpec: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: "parcels-fill",
+            type: "fill",
+            source: "parcels",
+            paint: { "fill-color": "#cccccc" },
+            layout: { visibility: "visible", "fill-sort-key": 2 },
+          },
+        ],
+      },
+    });
+    const map = makeMockMap();
+    const runtime = await loadMapPackage(pkg, map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+    });
+    map._calls.length = 0;
+
+    const next = makePackage({
+      mapSpec: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: "parcels-fill",
+            type: "fill",
+            source: "parcels",
+            paint: { "fill-color": "#cccccc" },
+            layout: { visibility: "visible" }, // fill-sort-key removed
+          },
+        ],
+      },
+    });
+    await runtime.updatePackage(next);
+
+    const removedLayout = map._calls.find(
+      (c) => c.method === "setLayoutProperty" && c.args[1] === "fill-sort-key",
+    );
+    expect(removedLayout, "setLayoutProperty should be called for removed fill-sort-key").toBeDefined();
+    expect(removedLayout?.args[2]).toBeUndefined();
+  });
+});
+
+describe("projectSourceBindings: locator normalization", () => {
+  test("parses GeoServices serviceId and numeric layerId from URL when omitted", () => {
+    const projection = projectSourceBindings("pkg", [
+      {
+        sourceId: "parcels",
+        protocol: "geoservices_feature_service",
+        locator: { url: "https://server.example.com/rest/services/ParcelsV2/FeatureServer/0" },
+      },
+    ]);
+    expect(projection.descriptors[0].locator).toMatchObject({
+      url: "https://server.example.com/rest/services/ParcelsV2/FeatureServer/0",
+      serviceId: "ParcelsV2",
+      layerId: 0,
+    });
+  });
+
+  test("coerces string layerId from server JSON to number", () => {
+    const projection = projectSourceBindings("pkg", [
+      {
+        sourceId: "parcels",
+        protocol: "geoservices_map_service",
+        locator: {
+          url: "https://server.example.com/rest/services/Parcels/MapServer",
+          serviceId: "Parcels",
+          layerId: "3" as unknown as number,
+        },
+      },
+    ]);
+    expect(projection.descriptors[0].locator.layerId).toBe(3);
+  });
+
+  test("parses OGC collectionId from URL when omitted", () => {
+    const projection = projectSourceBindings("pkg", [
+      {
+        sourceId: "boundaries",
+        protocol: "ogc_features",
+        locator: {
+          url: "https://server.example.com/ogc/collections/admin-boundaries",
+        },
+      },
+    ]);
+    expect(projection.descriptors[0].locator.collectionId).toBe("admin-boundaries");
+  });
+
+  test("runtime.dataset.source(...) is usable when the package ships URL-only GeoServices locators", async () => {
+    const map = makeMockMap();
+    const runtime = await loadMapPackage(
+      makePackage({
+        sourceBindings: [
+          {
+            sourceId: "parcels",
+            protocol: "geoservices_feature_service",
+            locator: { url: "https://server.example.com/rest/services/Parcels/FeatureServer/0" },
+          },
+        ],
+      }),
+      map,
+      {
+        client: makeClient(),
+        skipCompatibilityCheck: true,
+        applyInitialView: false,
+      },
+    );
+    const source = runtime.dataset.source("parcels");
+    expect(source).toBeDefined();
+    const adapter = source?.adapter("geoservices-feature-service");
+    expect(adapter).toBeDefined();
+  });
+});
+
+describe("loadMapPackage: onEvent captures initial lifecycle events", () => {
+  test("source-ready and package-loaded reach a listener registered via options.onEvent", async () => {
+    const map = makeMockMap();
+    const pkg = makePackage();
+    const captured: HonuaRuntimeEvent[] = [];
+
+    await loadMapPackage(pkg, map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+      onEvent: (event) => captured.push(event),
+    });
+
+    expect(captured.some((e) => e.type === "source-ready" && e.sourceId === "parcels")).toBe(true);
+    expect(
+      captured.some((e) => e.type === "package-loaded" && e.packageId === pkg.mapPackageId),
+    ).toBe(true);
   });
 });
 

@@ -27,6 +27,7 @@ export type { LoadMapPackageOptions } from "./load-package.js";
 export { HonuaMapRuntime } from "./runtime.js";
 export type {
   HonuaMapRuntimeInternals,
+  HonuaMapRuntimeReload,
   HonuaRuntimeEvent,
   HonuaRuntimeEventListener,
   HonuaRuntimeTelemetry,

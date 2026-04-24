@@ -83,6 +83,7 @@ interface LoadMapPackageOptions {
   popupFactory?: PopupFactory;             // required only if runtime.bindPopup is called
   popupRenderer?: PopupRenderer;           // defaults to defaultPopupRenderer
   applyInitialView?: boolean;              // default true
+  onEvent?: HonuaRuntimeEventListener;     // subscribed BEFORE initial emissions
 }
 ```
 
@@ -90,6 +91,13 @@ interface LoadMapPackageOptions {
 omits the inline body. Draft-1 of `honua-server#731` attaches both
 inline; out-of-band retrieval plugs in through these hooks without
 reopening the loader.
+
+`onEvent` is registered on the runtime before the first
+`source-ready` / `package-loaded` emissions, so callers that need to
+observe the initial lifecycle without racing against `loadMapPackage`'s
+return must use this hook instead of calling `runtime.on(...)` after
+`await`. Subsequent events (`package-updated`, `disposed`, ...) also
+flow through the same listener.
 
 ## `MapPackage` version gate
 
@@ -130,6 +138,20 @@ Additional contract:
   Honua custom source spec (`definitionExpression` on
   `honua-feature-service`, `filter` on `honua-ogc-features` and the
   generic fallback). Edits never flow from the runtime.
+- Locator fields are normalized during projection so the shared
+  contract adapters can bind even when the server ships a URL-only
+  `SourceBinding.locator`:
+  - **GeoServices Feature / Map Service**: `serviceId` and numeric
+    `layerId` are parsed from the canonical
+    `/rest/services/<name>/FeatureServer/<id>` or
+    `/rest/services/<name>/MapServer/<id>` URL shape when the binding
+    omits them. Explicit locator fields always win over parsed ones.
+  - **OGC API Features**: `collectionId` is parsed from the
+    `/collections/<id>` URL segment when omitted.
+  - **`locator.layerId`**: numeric strings (e.g. `"0"`) are coerced to
+    numbers — the server C# mirror serialises `LayerId` as a string,
+    so the wire may arrive that way; non-numeric strings are left
+    unset so the adapter surfaces the typed validation error.
 - Capabilities for protocol-backed descriptors are always sourced
   from `PROTOCOL_DEFAULT_CAPABILITIES[protocol]` (see
   [`protocol-capability-matrix.md`](./protocol-capability-matrix.md)).
@@ -193,24 +215,45 @@ them.
      attribution, or protocol differences).
    - Added / removed / changed layer ids (paint, layout, filter,
      source, source-layer, min/max zoom).
-   - A `structuralReason` string and `incremental: false` when
-     `mapSpec.version` changed, the layer set changed, or the layer
-     order changed.
+   - A `structuralReason` string and `incremental: false` when any of
+     the following hold: `mapSpec.version` changed, the layer set
+     changed, the layer order changed, OR any source binding was
+     added / removed / changed. Source-binding changes force the
+     structural path because the runtime must rebuild the underlying
+     `Dataset` and `HonuaMap` so `runtime.dataset.source(id)` observes
+     the new locator / filter.
 3. **Apply.** If `diff.incremental` is false, the runtime rebuilds the
-   composed style and calls `map.setStyle(composed)`. Otherwise it
-   removes dropped sources / layers, patches changed layers in place
-   via `setPaintProperty` / `setLayoutProperty` / `setFilter`, and
-   emits a single `package-updated` event with the diff attached.
-   Theme-only tweaks and single-layer paint/filter edits never trigger
-   a full `setStyle`.
+   composed style, clears the old `HonuaMap`, calls
+   `map.setStyle(composed)`, and swaps in the freshly projected
+   `dataset` and `honuaMap` references. Otherwise it removes dropped
+   layers, patches changed layers in place via `setPaintProperty` /
+   `setLayoutProperty` / `setFilter`, and emits a single
+   `package-updated` event with the diff attached. Theme-only tweaks
+   and single-layer paint/filter edits never trigger a full
+   `setStyle`.
 
-Incremental patching compares `JSON.stringify` on `filter` /
-`paint` / `layout` shapes when deciding whether to emit a setter, so
-identical values skip the MapLibre call.
+Incremental layer patching iterates the **union** of previous and
+next paint / layout keys. Keys present in the previous layer but
+dropped in the next are cleared by calling
+`setPaintProperty(layerId, key, undefined)` /
+`setLayoutProperty(layerId, key, undefined)` so MapLibre resets them
+to the property default rather than retaining the stale value.
+Identical values are short-circuited with a strict-equality check so
+unchanged properties do not trip a MapLibre setter call.
+
+After any structural reload, `runtime.dataset` and `runtime.honuaMap`
+return the new references (both are exposed through getters, not
+fixed `readonly` fields, so live callers see the refreshed state
+immediately).
 
 ## Events
 
-`runtime.on(listener)` receives:
+Subscribe through `LoadMapPackageOptions.onEvent` to observe the
+initial emissions, or `runtime.on(listener)` for subsequent events.
+`onEvent` is the only way to capture `source-ready` /
+`package-loaded` on a successful load because those events are
+dispatched synchronously before `loadMapPackage` returns the runtime
+handle. `runtime.on(...)` handles every subsequent event.
 
 | Event | Emitted when |
 | --- | --- |
