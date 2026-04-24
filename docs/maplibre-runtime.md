@@ -1,0 +1,303 @@
+# MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)
+
+Status: implemented in `src/runtime/` (ticket `honua-sdk-js-21`).
+Public entrypoint: `@honua/sdk-js/runtime` (subpath export only; the
+root barrel does not re-export the runtime so hosts that do not need a
+map can avoid pulling in the MapLibre-aware code).
+
+The runtime binds a server-produced `MapPackage` (from
+`honua-io/honua-server#731`) to a caller-provided `maplibre-gl.Map`. It
+composes the style, projects `sourceBindings[]` through the shared
+`@honua/sdk-js/contract` adapters, applies `StyleRef` overrides and
+`ThemeSpec` tokens, wires popups / legend / initial view, and exposes
+a stable operational API for `#22` (mixed-protocol composition) and
+`#29` (operator components) to build on.
+
+The runtime **does not** instantiate `maplibre-gl.Map`, issue edit
+writes, or duplicate query logic — `maplibre-gl` stays a peer
+dependency, edits flow through the existing adapters, and queries go
+through the contract's `Source` handles.
+
+## Module layout
+
+```
+src/runtime/
+├── index.ts           # barrel — public surface
+├── map-package.ts     # HonuaMapPackage type (mirrors honua-server#731)
+├── load-package.ts    # loadMapPackage(pkg, map, opts) → HonuaMapRuntime
+├── runtime.ts         # HonuaMapRuntime class + event/telemetry types
+├── source-bridge.ts   # SourceBinding[] → SourceDescriptor[] + native sources
+├── style-compose.ts   # applyStyleRefs + applyTheme
+├── diff.ts            # MapPackageDiff primitives for updatePackage
+├── popups.ts          # bindPopup + default unstyled DOM renderer
+├── legend.ts          # buildLegend + swatch backfill
+└── errors.ts          # HonuaMapPackageError (stages)
+```
+
+## Public surface
+
+```ts
+import maplibregl from "maplibre-gl";
+import { HonuaClient } from "@honua/sdk-js";
+import { loadMapPackage } from "@honua/sdk-js/runtime";
+
+const map = new maplibregl.Map({ container: "map" });
+const runtime = await loadMapPackage(pkg, map, {
+  client: new HonuaClient({ baseUrl: "https://honua.example.com" }),
+  popupFactory: () => new maplibregl.Popup(),
+});
+
+runtime.setLayerVisibility("parcels-fill", false);
+const legend = runtime.getLegend();
+await runtime.updatePackage(nextPkg);
+runtime.dispose();
+```
+
+| Export | Shape | Notes |
+| --- | --- | --- |
+| `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | The only async entry point. Throws `HonuaMapPackageError` for binding failures; adapter failures surface on `source-error` events. |
+| `HonuaMapRuntime` | class | `map`, `honuaMap`, `dataset`, `mapPackage`, `composedStyle`, `getLegend`, `setLayerVisibility`, `bindPopup`, `setViewState`, `updatePackage`, `on`, `dispose`. |
+| `HonuaMapPackage` | type | v1 package shape. `format` is gated against `HONUA_MAP_PACKAGE_FORMAT_V1` (`"honua_map_package.v1"`). |
+| `HONUA_MAP_PACKAGE_FORMAT_V1` | const | Canonical format tag. |
+| `HonuaMapPackageError` / `HonuaMapPackageErrorStage` | class / union | Stage union: `"load" \| "update" \| "style-compose" \| "source-bind" \| "view" \| "popup" \| "dispose"`. |
+| `HonuaRuntimeEvent` / `HonuaRuntimeEventListener` | types | See Events below. |
+| `HonuaRuntimeTelemetry` | type | `before` / `after` / `error` collector, matching the `HonuaRequestInterceptor` shape. |
+| `MaplibreMap` | interface | Duck-typed subset of `maplibre-gl.Map`; keeps the SDK bundle-neutral. |
+| `SetViewStateInput` | type | `{ bbox?, center?, zoom?, pitch?, bearing?, padding?, animate? }`. |
+| `applyStyleRefs`, `applyTheme`, `composeStyle` | functions | Pure helpers — safe to call outside a runtime for testing / SSR composition. |
+| `projectSourceBindings`, `toHonuaSourceSpec` | functions | Exposed for `#22` and adapter tickets that need the bridge without loading a package. |
+| `diffPackages`, `MapPackageDiff` | function / type | Stable-id diff used by `updatePackage`. |
+| `buildLegend`, `LegendEntry` | function / type | Shared with operator components. |
+| `bindPopup`, `defaultPopupRenderer`, `PopupFactory`, `PopupRenderer` | function / types | The default DOM renderer is intentionally unstyled — rich popups belong in `#29`. |
+
+## Loader options
+
+```ts
+interface LoadMapPackageOptions {
+  client: HonuaClient;
+  resolveStyleRef?: (styleId: string, presetId?: string) => Promise<HonuaStyleRefBody>;
+  resolveTheme?: (themeId: string) => Promise<HonuaMapPackageThemeSpec>;
+  resolveSource?: SourceResolver;          // forwarded to createDataset for WFS/WMS/OData/tiles
+  skipCompatibilityCheck?: boolean;        // tests / conformance fixtures
+  telemetry?: HonuaRuntimeTelemetry;
+  popupFactory?: PopupFactory;             // required only if runtime.bindPopup is called
+  popupRenderer?: PopupRenderer;           // defaults to defaultPopupRenderer
+  applyInitialView?: boolean;              // default true
+}
+```
+
+`resolveStyleRef` and `resolveTheme` are only invoked when the package
+omits the inline body. Draft-1 of `honua-server#731` attaches both
+inline; out-of-band retrieval plugs in through these hooks without
+reopening the loader.
+
+## `MapPackage` version gate
+
+- `pkg.format` must equal `HONUA_MAP_PACKAGE_FORMAT_V1`
+  (`"honua_map_package.v1"`). The loader throws
+  `HonuaMapPackageError { stage: "load" }` for any other value.
+- `updatePackage(next)` throws `HonuaMapPackageError { stage: "update" }`
+  when `next.format` does not match the already-loaded format so
+  version mismatches surface at the call site rather than silently
+  corrupting the map.
+- Unknown fields on `HonuaMapPackage` (and on each `SourceBinding`
+  locator) are preserved on round-trip through `updatePackage`, so
+  minor additive changes on the server do not force a runtime bump.
+
+## Source binding projection
+
+`projectSourceBindings` routes each `SourceBinding` to one of three
+destinations, using the alignment table in
+[`source-binding-alignment.md`](./source-binding-alignment.md):
+
+| Server wire protocol (snake_case) | Route | SDK protocol / source type |
+| --- | --- | --- |
+| `geoservices_feature_service` | contract adapter | `geoservices-feature-service`, custom source type `honua-feature-service`. |
+| `geoservices_map_service` | contract adapter | `geoservices-map-service`, custom source type `honua-map-service`. |
+| `ogc_features` | contract adapter | `ogc-features`, custom source type `honua-ogc-features`. Collection id is copied from `locator.collectionId`. |
+| `wfs` / `wms` / `odata` | contract adapter (plug-in) | Requires `opts.resolveSource` until the adapter ships. |
+| `vector_tile` / `ogc_tiles` | MapLibre-native | Projected to a `{ type: "vector", tiles: [url], attribution? }` source entry — no contract adapter. |
+| `raster_tile` / `ogc_maps` | MapLibre-native | Projected to a `{ type: "raster", tiles: [url], attribution? }` source entry. |
+| `workspace_artifact` | deferred | Throws `HonuaMapPackageError { stage: "source-bind" }` — no artifact resolver is wired yet. |
+
+Additional contract:
+
+- Duplicate `sourceId` across bindings is rejected at
+  `stage: "source-bind"`.
+- A protocol-backed binding without a `locator.url` is rejected at
+  `stage: "source-bind"`.
+- `binding.filter` is captured per source id and passed through to the
+  Honua custom source spec (`definitionExpression` on
+  `honua-feature-service`, `filter` on `honua-ogc-features` and the
+  generic fallback). Edits never flow from the runtime.
+- Capabilities for protocol-backed descriptors are always sourced
+  from `PROTOCOL_DEFAULT_CAPABILITIES[protocol]` (see
+  [`protocol-capability-matrix.md`](./protocol-capability-matrix.md)).
+  The server `SourceBinding` shape does not carry a `capabilities`
+  field today, and the runtime does not expose a hook to downgrade
+  per-source capabilities — callers that need a narrower set must
+  call `createDataset` directly and pass explicit `SourceDescriptor`
+  entries, then bind the map through the lower-level SDK primitives.
+
+## Style composition
+
+`composeStyle` runs two passes over `pkg.mapSpec`:
+
+1. **`applyStyleRefs`** merges each `styleRefs[*].body` onto its
+   corresponding layer by id. The body is a
+   `Record<string, HonuaStyleRefLayerOverride>` where keys are
+   `mapSpec.layers[].id` and values carry any of
+   `paint`, `layout`, `minzoom`, `maxzoom`, `filter`, `metadata`.
+   Unknown layer ids are silently skipped (they may belong to a
+   downstream adapter plugin). If `ref.body` is absent and no
+   `resolveStyleRef` was supplied, the loader throws
+   `HonuaMapPackageError { stage: "style-compose" }`.
+2. **`applyTheme`** substitutes `{theme:key}` placeholders in string
+   `paint` / `layout` values against `pkg.theme.tokens` (or the
+   resolved `pkg.themeId` body). Only a full-string match on
+   `/^\{theme:([^}]+)\}$/` is replaced — substring interpolation is
+   not supported in v1. Unresolved tokens are left untouched so
+   authors can flag missing tokens at review time.
+
+Theme application recurses into nested arrays / objects inside
+`paint` / `layout` so expression literals can reference theme tokens.
+
+## Operational API
+
+| Method | Behavior |
+| --- | --- |
+| `setLayerVisibility(layerId, visible)` | `map.setLayoutProperty(layerId, "visibility", …)`. |
+| `getLegend()` | Runs `buildLegend` against the current package and composed style; backfills missing swatches from the first `fill-color` / `circle-color` / `line-color` paint property when it is a string literal. |
+| `bindPopup(layerId, binding?)` | Requires `opts.popupFactory`. When `binding` is omitted the runtime looks up `pkg.popupBindings[]` by the layer's source id. The default renderer emits an unstyled `<dl>` of the first feature's properties (or a `{field}` template when `binding.template` is set). Returns a `{ remove() }` handle; re-binding on the same layer tears down the prior handle. |
+| `setViewState(view)` | If `view.bbox` is supplied and `map.fitBounds` exists, fits the bounds (`animate: false` by default). Otherwise falls back to `map.jumpTo` for `center` / `zoom` / `pitch` / `bearing`. A final fallback applies `pkg.initialView.bbox` when no input is given. |
+| `updatePackage(next)` | See the Update lifecycle section. |
+| `on(listener)` | Subscribes to `HonuaRuntimeEvent`. Returns a `{ remove() }` handle. |
+| `dispose()` | Clears popup bindings, removes every layer and source owned by the composed style via `honuaMap.clear()` + `map.removeLayer` / `map.removeSource`, emits `disposed`, and rejects subsequent mutating calls. Idempotent. |
+
+`runtime.map`, `runtime.honuaMap`, `runtime.dataset`,
+`runtime.mapPackage`, and `runtime.composedStyle` are readable at any
+time. Feature-state interactions continue to flow through
+`src/interactions/feature-state` — the runtime does not replicate
+them.
+
+## Update lifecycle
+
+`updatePackage(next)` does three things in order:
+
+1. **Format gate.** `next.format` must match the currently loaded
+   format, or the call throws `HonuaMapPackageError { stage: "update" }`
+   before any map mutation.
+2. **Diff.** `diffPackages(previous, next)` produces a
+   `MapPackageDiff` keyed by stable ids:
+   - Added / removed / changed source bindings (locator, filter,
+     attribution, or protocol differences).
+   - Added / removed / changed layer ids (paint, layout, filter,
+     source, source-layer, min/max zoom).
+   - A `structuralReason` string and `incremental: false` when
+     `mapSpec.version` changed, the layer set changed, or the layer
+     order changed.
+3. **Apply.** If `diff.incremental` is false, the runtime rebuilds the
+   composed style and calls `map.setStyle(composed)`. Otherwise it
+   removes dropped sources / layers, patches changed layers in place
+   via `setPaintProperty` / `setLayoutProperty` / `setFilter`, and
+   emits a single `package-updated` event with the diff attached.
+   Theme-only tweaks and single-layer paint/filter edits never trigger
+   a full `setStyle`.
+
+Incremental patching compares `JSON.stringify` on `filter` /
+`paint` / `layout` shapes when deciding whether to emit a setter, so
+identical values skip the MapLibre call.
+
+## Events
+
+`runtime.on(listener)` receives:
+
+| Event | Emitted when |
+| --- | --- |
+| `{ type: "package-loaded", packageId }` | After the first `setStyle` + initial view apply succeed. Fired last, once per successful load. |
+| `{ type: "source-ready", sourceId }` | Once per source id produced by the contract `Dataset`, fired synchronously just before `package-loaded`. |
+| `{ type: "source-error", sourceId, error }` | Declared for per-source adapter failures surfaced by downstream query / stream calls. The loader itself rejects binding-time failures as `HonuaMapPackageError { stage: "source-bind" }`; this event is reserved for query-time adapter errors that future `#22` / `#29` wiring can bubble through the runtime instead of re-implementing a parallel pipeline. |
+| `{ type: "package-updated", packageId, diff }` | After `updatePackage` completes (both incremental and full-`setStyle` paths). |
+| `{ type: "layer-rendered", layerId }` | Declared for MapLibre render callbacks bridged by the host. The runtime itself does not fire it today. |
+| `{ type: "disposed", packageId }` | Once inside `dispose()`, just before listeners are cleared. |
+
+Listeners fire synchronously in subscription order. Adapter-level
+request errors continue to flow through the `HonuaClient` interceptor
+chain for trace correlation — the runtime does not add a parallel
+pipeline.
+
+## Errors
+
+`HonuaMapPackageError` wraps every runtime-binding failure and carries
+`{ packageId, stage, detail, cause }`. Stages:
+
+- `load` — format validation, `mapSpec` missing, unknown loader error.
+- `update` — `updatePackage` format mismatch or unhandled error.
+- `style-compose` — missing style-ref body with no resolver, theme
+  resolver threw, general composition failure.
+- `source-bind` — unknown protocol, missing locator, duplicate source
+  id, deferred `workspace_artifact`.
+- `view` — `initialView` application failed.
+- `popup` — `bindPopup` called without a `popupFactory`, or no binding
+  found for the layer.
+- `dispose` — mutating call after `dispose()`.
+
+Per-source protocol failures keep their existing classes
+(`HonuaCapabilityNotSupportedError`, `HonuaHttpError`, adapter-specific
+errors) and flow through `source-error` events rather than being
+wrapped.
+
+## Telemetry
+
+`HonuaRuntimeTelemetry` is a `{ before?, after?, error? }` collector
+matching the `HonuaRequestInterceptor` contract. The runtime emits
+spans for `kind: "load" | "update" | "dispose" | "source-bind" | "popup"`
+with `startedAt` / `finishedAt` / `durationMs`. Adapter traffic is
+still instrumented through the shared `HonuaClient` interceptor
+chain, so distributed-trace correlation is preserved end-to-end.
+
+## Peer dependency posture
+
+- `maplibre-gl` is a peer/dev dependency — the runtime never imports
+  it at the type or value level. `MaplibreMap` and `PopupHandle` are
+  duck-typed, matching the pattern used by
+  `src/interactions/feature-state`.
+- Hosts pass their own `maplibre-gl.Map` instance. Custom subclasses
+  and third-party wrappers (deck.gl overlay, OpenLayers bridge) are
+  supported as long as they satisfy the `MaplibreMap` method shape.
+- `popupFactory` keeps the popup dependency on the host side; omit it
+  when the app does not call `runtime.bindPopup`.
+
+## Test coverage
+
+`test/runtime/runtime.test.ts` exercises the full `load →
+updatePackage → dispose` lifecycle against a recording mock map.
+Behavior covered includes:
+
+- Format gate rejects non-v1 packages.
+- Source projection routes each protocol to the correct destination
+  and captures filters.
+- `composeStyle` applies `StyleRef` overrides and theme token
+  substitution.
+- `diffPackages` flags structural changes (layer reorder, mapSpec
+  version bump) and incremental patches update paint / layout /
+  filter without re-running `setStyle`.
+- Event stream emits `package-loaded`, `source-ready`,
+  `package-updated`, `disposed` in the documented order.
+- `dispose` removes layers and sources in reverse and ignores
+  subsequent calls.
+
+Conformance-style assertions rely only on the duck-typed `MaplibreMap`
+interface so no `maplibre-gl` dependency creeps into the SDK's
+runtime bundle.
+
+## Deferred follow-ups
+
+- `workspace_artifact` resolver wiring — blocked on server surface.
+- Partial-load recovery (skip unresolved sources, continue) — the
+  loader is strict in v1; an `opts.allowPartial` escape hatch is
+  tracked alongside `#22` mixed-source composition.
+- Refinement / preview components — opaque pass-through today;
+  `#29` operator components are the documented home.
+- Finer-grained diff primitives (layer reorder without teardown) —
+  extension point already in `diff.ts`; no consumer yet.

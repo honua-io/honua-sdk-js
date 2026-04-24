@@ -98,6 +98,7 @@ runtime's `source-bridge.ts`:
 
 Unknown fields on a `SourceBinding` are preserved on the
 `HonuaMapPackage` round-trip so server additions do not break runtime
-consumers. See `src/runtime/index.ts` for the full surface and
+consumers. See [`maplibre-runtime.md`](./maplibre-runtime.md) for the
+full runtime surface, `src/runtime/index.ts` for the module barrel, and
 `test/runtime/runtime.test.ts` for the lifecycle contract (`load →
 updatePackage → dispose`).

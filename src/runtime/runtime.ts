@@ -11,7 +11,7 @@
 
 import type { Dataset } from "../contract/index.js";
 import type { FeatureStateMap, MapEventTarget } from "../interactions/feature-state.js";
-import { HonuaMap } from "../map/honua-map.js";
+import type { HonuaMap } from "../map/honua-map.js";
 import type { HonuaStyleSpecification } from "../style/specification.js";
 import { diffPackages, type MapPackageDiff } from "./diff.js";
 import { HonuaMapPackageError } from "./errors.js";
