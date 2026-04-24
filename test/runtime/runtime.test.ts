@@ -287,6 +287,42 @@ describe("HonuaMapRuntime", () => {
     expect(paint?.args).toEqual(["parcels-fill", "fill-color", "#ff0000"]);
   });
 
+  test("composed root layer changes fall back to full setStyle", async () => {
+    const map = makeMockMap();
+    const runtime = await loadMapPackage(makePackage(), map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+    });
+    map._calls.length = 0;
+
+    const next = makePackage({
+      mapSpec: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: "parcels-fill",
+            type: "fill",
+            source: "parcels",
+            minzoom: 7,
+            paint: { "fill-color": "#cccccc", "fill-opacity": 0.5 },
+            layout: { visibility: "visible" },
+          },
+        ],
+      },
+    });
+
+    await runtime.updatePackage(next);
+
+    const setStyle = map._calls.find((c) => c.method === "setStyle");
+    expect(setStyle, "minzoom cannot be patched through paint/layout/filter setters").toBeDefined();
+    expect(
+      map._calls.some((c) => c.method === "setPaintProperty" || c.method === "setLayoutProperty" || c.method === "setFilter"),
+    ).toBe(false);
+    expect((setStyle?.args[0] as { layers?: Array<{ minzoom?: number }> }).layers?.[0]?.minzoom).toBe(7);
+  });
+
   test("structural update (layer added) falls back to full setStyle", async () => {
     const map = makeMockMap();
     const runtime = await loadMapPackage(makePackage(), map, {
@@ -770,6 +806,32 @@ describe("updatePackage: structural fallback error paths and popup reaping", () 
         ],
       },
     });
+    await runtime.updatePackage(next);
+
+    expect(
+      map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill"),
+    ).toBeUndefined();
+  });
+
+  test("changing a package popup binding tears down the active package-resolved listener", async () => {
+    const popupFactory: PopupFactory = () => makePopupHandle();
+    const map = makeMockMap();
+    const runtime = await loadMapPackage(makePackage(), map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+      popupFactory,
+    });
+
+    runtime.bindPopup("parcels-fill");
+    expect(
+      map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill"),
+    ).toBeDefined();
+
+    const next = makePackage({
+      popupBindings: [{ sourceId: "parcels", fieldName: "OWNER", title: "Owner" }],
+    });
+
     await runtime.updatePackage(next);
 
     expect(

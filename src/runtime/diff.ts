@@ -23,7 +23,7 @@ export interface MapPackageDiff {
   addedLayerIds: string[];
   /** Layer ids removed in `next`. */
   removedLayerIds: string[];
-  /** Layer ids whose paint/layout/filter changed. */
+  /** Layer ids whose raw layer spec changed. */
   changedLayerIds: string[];
   /** Whether the diff is safe to apply incrementally. */
   incremental: boolean;

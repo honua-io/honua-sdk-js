@@ -120,6 +120,13 @@ export interface SetViewStateInput {
   animate?: boolean;
 }
 
+interface ActivePopupBinding {
+  handle: PopupBindingHandle;
+  sourceId: string | undefined;
+  binding: HonuaMapPackagePopupBinding;
+  resolvedFromPackage: boolean;
+}
+
 // ── Runtime ──────────────────────────────────────────────────
 
 export class HonuaMapRuntime {
@@ -130,7 +137,7 @@ export class HonuaMapRuntime {
   readonly #telemetry: HonuaRuntimeTelemetry | undefined;
   readonly #popupFactory: PopupFactory | undefined;
   readonly #popupRenderer: PopupRenderer | undefined;
-  readonly #popupBindings = new Map<string, PopupBindingHandle>();
+  readonly #popupBindings = new Map<string, ActivePopupBinding>();
   readonly #reload: (next: HonuaMapPackage) => Promise<HonuaMapRuntimeReload>;
   #honuaMap: HonuaMap;
   #dataset: Dataset;
@@ -199,8 +206,10 @@ export class HonuaMapRuntime {
         { packageId: this.#packageRef.current.mapPackageId, stage: "popup", detail: { layerId } },
       );
     }
+    const sourceId = layerIdToSource(this.#composedStyle, layerId);
+    const resolvedFromPackage = binding === undefined;
     const resolved =
-      binding ?? this.#packageRef.current.popupBindings?.find((b) => b.sourceId === layerIdToSource(this.#composedStyle, layerId));
+      binding ?? popupBindingForSource(this.#packageRef.current, sourceId);
     if (!resolved) {
       throw new HonuaMapPackageError(
         `no popupBinding found for layer "${layerId}"; supply a binding argument or add one to MapPackage.popupBindings`,
@@ -208,18 +217,20 @@ export class HonuaMapRuntime {
       );
     }
 
-    this.#popupBindings.get(layerId)?.remove();
+    this.#popupBindings.get(layerId)?.handle.remove();
     const handle = bindPopup(this.map, {
       binding: resolved,
       layerId,
       popupFactory: this.#popupFactory,
       render: this.#popupRenderer,
     });
-    this.#popupBindings.set(layerId, handle);
+    this.#popupBindings.set(layerId, { handle, sourceId, binding: resolved, resolvedFromPackage });
     return {
       remove: () => {
         handle.remove();
-        this.#popupBindings.delete(layerId);
+        if (this.#popupBindings.get(layerId)?.handle === handle) {
+          this.#popupBindings.delete(layerId);
+        }
       },
     };
   }
@@ -278,16 +289,25 @@ export class HonuaMapRuntime {
         );
       }
 
-      const diff = diffPackages(this.#packageRef.current, next);
+      let diff = diffPackages(this.#packageRef.current, next);
 
       const reload = await this.#reload(next);
+      const composedStructuralReason =
+        diff.incremental ? detectUnpatchableLayerChange(this.#composedStyle, reload.composed) : undefined;
+      if (composedStructuralReason) {
+        diff = {
+          ...diff,
+          incremental: false,
+          structuralReason: composedStructuralReason,
+        };
+      }
 
       if (!diff.incremental) {
         // setStyle first so a host-map failure leaves the previous
         // runtime state intact. Only after it succeeds do we clear the
         // old HonuaMap, swap in the new dataset / honuaMap, and tear
-        // down popup bindings that reference layers the new composed
-        // style no longer contains.
+        // down popup bindings whose layer, source, or package binding
+        // changed.
         const previousHonuaMap = this.#honuaMap;
         this.map.setStyle(reload.composed);
         previousHonuaMap.clear();
@@ -295,7 +315,7 @@ export class HonuaMapRuntime {
         this.#dataset = reload.dataset;
         this.#packageRef.current = next;
         this.#composedStyle = reload.composed;
-        this.#reapPopupBindings(reload.composed);
+        this.#reapPopupBindings(reload.composed, next);
         this.#emit({ type: "package-updated", packageId: next.mapPackageId, diff });
         this.#finishSpan(span);
         return;
@@ -304,6 +324,7 @@ export class HonuaMapRuntime {
       this.#applyIncremental(reload.composed, diff);
       this.#packageRef.current = next;
       this.#composedStyle = reload.composed;
+      this.#reapPopupBindings(reload.composed, next);
       this.#emit({ type: "package-updated", packageId: next.mapPackageId, diff });
       this.#finishSpan(span);
     } catch (error) {
@@ -335,7 +356,7 @@ export class HonuaMapRuntime {
     if (this.#disposed) return;
     const span = this.#startSpan("dispose", this.#packageRef.current.mapPackageId);
     try {
-      for (const handle of this.#popupBindings.values()) handle.remove();
+      for (const binding of this.#popupBindings.values()) binding.handle.remove();
       this.#popupBindings.clear();
 
       for (const layer of this.#composedStyle.layers) {
@@ -416,12 +437,15 @@ export class HonuaMapRuntime {
     }
   }
 
-  #reapPopupBindings(composed: HonuaStyleSpecification): void {
+  #reapPopupBindings(composed: HonuaStyleSpecification, pkg: HonuaMapPackage): void {
     if (this.#popupBindings.size === 0) return;
-    const nextLayerIds = new Set(composed.layers.map((l) => l.id));
-    for (const [layerId, handle] of Array.from(this.#popupBindings)) {
-      if (!nextLayerIds.has(layerId)) {
-        handle.remove();
+    for (const [layerId, active] of Array.from(this.#popupBindings)) {
+      const nextSourceId = layerIdToSource(composed, layerId);
+      const packageBindingChanged =
+        active.resolvedFromPackage &&
+        !sameJson(active.binding, popupBindingForSource(pkg, nextSourceId));
+      if (!nextSourceId || nextSourceId !== active.sourceId || packageBindingChanged) {
+        active.handle.remove();
         this.#popupBindings.delete(layerId);
       }
     }
@@ -472,14 +496,45 @@ function layerIdToSource(style: HonuaStyleSpecification, layerId: string): strin
   return style.layers.find((l) => l.id === layerId)?.source;
 }
 
+function popupBindingForSource(pkg: HonuaMapPackage, sourceId: string | undefined): HonuaMapPackagePopupBinding | undefined {
+  if (!sourceId) return undefined;
+  return pkg.popupBindings?.find((binding) => binding.sourceId === sourceId);
+}
+
+function detectUnpatchableLayerChange(previous: HonuaStyleSpecification, next: HonuaStyleSpecification): string | undefined {
+  const previousLayers = new Map(previous.layers.map((layer) => [layer.id, layer]));
+  for (const nextLayer of next.layers) {
+    const previousLayer = previousLayers.get(nextLayer.id);
+    if (!previousLayer) continue;
+    if (!patchableLayerShapeEqual(previousLayer, nextLayer)) {
+      return `layer "${nextLayer.id}" changed outside paint/layout/filter`;
+    }
+  }
+  return undefined;
+}
+
+function patchableLayerShapeEqual(
+  a: HonuaStyleSpecification["layers"][number],
+  b: HonuaStyleSpecification["layers"][number],
+): boolean {
+  return (
+    a.type === b.type &&
+    (a.source ?? "") === (b.source ?? "") &&
+    a["source-layer"] === b["source-layer"] &&
+    a.minzoom === b.minzoom &&
+    a.maxzoom === b.maxzoom &&
+    sameJson(a.metadata, b.metadata)
+  );
+}
+
 function shallowPaintLayoutEqual(
   a: Readonly<{ paint?: Record<string, unknown>; layout?: Record<string, unknown>; filter?: unknown }>,
   b: Readonly<{ paint?: Record<string, unknown>; layout?: Record<string, unknown>; filter?: unknown }>,
 ): boolean {
   return (
-    JSON.stringify(a.paint ?? {}) === JSON.stringify(b.paint ?? {}) &&
-    JSON.stringify(a.layout ?? {}) === JSON.stringify(b.layout ?? {}) &&
-    JSON.stringify(a.filter) === JSON.stringify(b.filter)
+    sameJson(a.paint ?? {}, b.paint ?? {}) &&
+    sameJson(a.layout ?? {}, b.layout ?? {}) &&
+    sameJson(a.filter, b.filter)
   );
 }
 
@@ -488,6 +543,15 @@ function unionKeys(a: Record<string, unknown>, b: Record<string, unknown>): stri
   for (const key of Object.keys(a)) seen.add(key);
   for (const key of Object.keys(b)) seen.add(key);
   return [...seen];
+}
+
+function sameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
 }
 
 // ── Re-exports for barrel ────────────────────────────────────

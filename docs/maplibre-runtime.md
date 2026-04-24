@@ -55,7 +55,7 @@ runtime.dispose();
 
 | Export | Shape | Notes |
 | --- | --- | --- |
-| `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | The only async entry point. Throws `HonuaMapPackageError` for binding failures; adapter failures surface on `source-error` events. |
+| `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | The only async entry point. Throws `HonuaMapPackageError` for binding failures. Query-time adapter failures surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient` interceptor chain; the `source-error` event is declared but reserved (see Events). |
 | `HonuaMapRuntime` | class | `map`, `honuaMap`, `dataset`, `mapPackage`, `composedStyle`, `getLegend`, `setLayerVisibility`, `bindPopup`, `setViewState`, `updatePackage`, `on`, `dispose`. |
 | `HonuaMapPackage` | type | v1 package shape. `format` is gated against `HONUA_MAP_PACKAGE_FORMAT_V1` (`"honua_map_package.v1"`). |
 | `HONUA_MAP_PACKAGE_FORMAT_V1` | const | Canonical format tag. |
@@ -216,14 +216,15 @@ them.
    - Added / removed / changed source bindings (locator, filter,
      attribution, or protocol differences).
    - Added / removed / changed layer ids (paint, layout, filter,
-     source, source-layer, min/max zoom).
+     source, source-layer, min/max zoom, metadata).
    - A `structuralReason` string and `incremental: false` when any of
      the following hold: `mapSpec.version` changed, the layer set
-     changed, the layer order changed, OR any source binding was
-     added / removed / changed. Source-binding changes force the
-     structural path because the runtime must rebuild the underlying
-     `Dataset` and `HonuaMap` so `runtime.dataset.source(id)` observes
-     the new locator / filter.
+     changed, the layer order changed, any source binding was added /
+     removed / changed, OR the composed layer changed outside the
+     runtime's paint / layout / filter patch surface. Source-binding
+     changes force the structural path because the runtime must rebuild
+     the underlying `Dataset` and `HonuaMap` so
+     `runtime.dataset.source(id)` observes the new locator / filter.
 3. **Apply.** If `diff.incremental` is false, the runtime rebuilds the
    composed style and calls `map.setStyle(composed)` first; only once
    that returns does it clear the old `HonuaMap` and swap in the
@@ -232,13 +233,15 @@ them.
    previous state — `dataset`, `honuaMap`, `mapPackage`,
    `composedStyle`, and all popup bindings — is left intact so the
    caller can retry without a half-applied update. After a successful
-   swap, any popup binding whose layer id is no longer present in the
-   new composed style is torn down so stale click listeners do not
-   linger. Otherwise it removes dropped layers, patches changed
-   layers in place via `setPaintProperty` / `setLayoutProperty` /
-   `setFilter`, and emits a single `package-updated` event with the
-   diff attached. Theme-only tweaks and single-layer paint/filter
-   edits never trigger a full `setStyle`.
+   swap, any popup binding whose layer id is no longer present, whose
+   layer source changed, or whose package-resolved binding changed is
+   torn down so stale click listeners do not linger. Otherwise it
+   removes dropped layers, patches changed layers in place via
+   `setPaintProperty` / `setLayoutProperty` / `setFilter`, and emits a
+   single `package-updated` event with the diff attached. Theme-only
+   tweaks and single-layer paint/filter edits never trigger a full
+   `setStyle`; root layer changes such as `minzoom`, `maxzoom`,
+   `metadata`, `source`, `source-layer`, or `type` do.
 
 Incremental layer patching iterates the **union** of previous and
 next paint / layout keys. Keys present in the previous layer but
@@ -326,7 +329,7 @@ chain, so distributed-trace correlation is preserved end-to-end.
 
 `test/runtime/runtime.test.ts` exercises the full `load →
 updatePackage → dispose` lifecycle against a recording mock map
-(29 tests). Behavior covered includes:
+(31 tests). Behavior covered includes:
 
 - Format gate rejects non-v1 packages and `workspace_artifact`
   bindings surface `HonuaMapPackageError { stage: "source-bind" }`.
@@ -336,15 +339,17 @@ updatePackage → dispose` lifecycle against a recording mock map
 - `composeStyle` applies `StyleRef` overrides; `applyTheme` substitutes
   `{theme:key}` placeholders and leaves unknown tokens in place.
 - `diffPackages` flags structural changes (layer reorder, mapSpec
-  version bump, source bindings added / removed / changed); incremental
-  patches update paint / layout / filter without re-running `setStyle`.
+  version bump, source bindings added / removed / changed), and the
+  runtime promotes composed root-layer changes to the same path;
+  incremental patches update paint / layout / filter without
+  re-running `setStyle`.
 - Event stream emits `package-loaded`, `source-ready`,
   `package-updated`, `disposed` in the documented order.
 - `dispose` removes layers and sources in reverse and ignores
   subsequent calls; further mutating calls throw
   `stage: "dispose"`.
 
-Regression coverage added alongside this release (+9 tests) locks in
+Regression coverage added alongside this release (+11 tests) locks in
 the fix-pass behaviors:
 
 - **Source-binding structural fallback.** A locator change or a new
@@ -377,6 +382,13 @@ the fix-pass behaviors:
 - **Popup reap on layer removal.** A structural update that drops
   a previously bound layer tears down the layer's popup click
   listener before emitting `package-updated`.
+- **Non-patchable composed layer changes.** A package update that
+  changes a root layer field such as `minzoom` routes through
+  `setStyle` rather than claiming an incremental paint/layout/filter
+  patch applied it.
+- **Popup reap on binding changes.** Updating `popupBindings[]` for an
+  active package-resolved popup tears down the existing click listener
+  so the closed-over binding cannot go stale.
 
 Conformance-style assertions rely only on the duck-typed `MaplibreMap`
 interface so no `maplibre-gl` dependency creeps into the SDK's

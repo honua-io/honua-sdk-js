@@ -24,8 +24,11 @@ export type HonuaMapPackageErrorStage =
 /**
  * Thrown for runtime-level binding failures. Per-source / per-request
  * protocol failures keep their existing error classes
- * (`HonuaCapabilityNotSupportedError`, `HonuaHttpError`) and bubble
- * through `runtime.on("source-error")`.
+ * (`HonuaCapabilityNotSupportedError`, `HonuaHttpError`) and surface on
+ * the per-`Source` promises from `runtime.dataset` and through the
+ * shared `HonuaClient` interceptor chain. The `source-error` event is
+ * declared on `HonuaRuntimeEvent` but is reserved for future `#22` /
+ * `#29` wiring and is not emitted by the loader today.
  */
 export class HonuaMapPackageError extends Error {
   public readonly packageId: string | undefined;
