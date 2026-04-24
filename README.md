@@ -263,10 +263,11 @@ runtime.dispose();
   mismatches without mutating the map.
 
 Binding failures throw `HonuaMapPackageError` with a `stage` of
-`"load" | "update" | "style-compose" | "source-bind" | "view" | "popup" | "dispose"`. Per-source protocol
+`"load" | "update" | "style-compose" | "source-bind" | "view" | "popup" | "dispose"`. Query-time adapter
 errors (`HonuaCapabilityNotSupportedError`, `HonuaHttpError`, adapter-specific classes) are not wrapped —
-they flow through `runtime.on(...)` as `source-error` events so callers can distinguish binding failure
-from adapter failure.
+they surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient`
+interceptor chain. The `source-error` runtime event is declared for future `#22` / `#29` wiring and is
+not emitted by the loader today.
 
 ## Install
 

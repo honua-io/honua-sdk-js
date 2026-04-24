@@ -283,12 +283,19 @@ export class HonuaMapRuntime {
       const reload = await this.#reload(next);
 
       if (!diff.incremental) {
-        this.#honuaMap.clear();
+        // setStyle first so a host-map failure leaves the previous
+        // runtime state intact. Only after it succeeds do we clear the
+        // old HonuaMap, swap in the new dataset / honuaMap, and tear
+        // down popup bindings that reference layers the new composed
+        // style no longer contains.
+        const previousHonuaMap = this.#honuaMap;
         this.map.setStyle(reload.composed);
+        previousHonuaMap.clear();
         this.#honuaMap = reload.honuaMap;
         this.#dataset = reload.dataset;
         this.#packageRef.current = next;
         this.#composedStyle = reload.composed;
+        this.#reapPopupBindings(reload.composed);
         this.#emit({ type: "package-updated", packageId: next.mapPackageId, diff });
         this.#finishSpan(span);
         return;
@@ -406,6 +413,17 @@ export class HonuaMapRuntime {
 
     if (this.map.setFilter && JSON.stringify(prev.filter) !== JSON.stringify(next.filter)) {
       this.map.setFilter(layerId, next.filter);
+    }
+  }
+
+  #reapPopupBindings(composed: HonuaStyleSpecification): void {
+    if (this.#popupBindings.size === 0) return;
+    const nextLayerIds = new Set(composed.layers.map((l) => l.id));
+    for (const [layerId, handle] of Array.from(this.#popupBindings)) {
+      if (!nextLayerIds.has(layerId)) {
+        handle.remove();
+        this.#popupBindings.delete(layerId);
+      }
     }
   }
 

@@ -45,7 +45,14 @@ export type HonuaMapPackageProtocol =
 export interface HonuaMapPackageLocator {
   url?: string;
   serviceId?: string;
-  layerId?: number;
+  /**
+   * The server's canonical `SourceLocator.LayerId` is `string?`
+   * (`honua-server/src/Honua.Core/Features/Geoprocessing/Domain/SourceBinding.cs`).
+   * Numeric forms (`0`) are accepted to match the SDK's historical
+   * shape; both variants are coerced to a number inside
+   * `projectSourceBindings` before hitting `createDataset`.
+   */
+  layerId?: number | string;
   collectionId?: string | number;
   typeName?: string;
   entitySet?: string;

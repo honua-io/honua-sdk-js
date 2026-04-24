@@ -65,9 +65,13 @@ export interface LoadMapPackageOptions {
 /**
  * Load a `MapPackage` onto a caller-provided `MaplibreMap`. Returns a
  * runtime handle that exposes the operational API. Throws
- * `HonuaMapPackageError` on binding failure; bubbles adapter errors
- * (`HonuaHttpError`, `HonuaCapabilityNotSupportedError`, ...) through
- * `source-error` events but does not swallow them.
+ * `HonuaMapPackageError` on binding failure. Query-time adapter errors
+ * (`HonuaHttpError`, `HonuaCapabilityNotSupportedError`, ...) continue
+ * to flow through the returned `Source` promises on `runtime.dataset`
+ * and through the shared `HonuaClient` interceptor chain; the
+ * `source-error` event is declared on `HonuaRuntimeEvent` but is
+ * reserved for future `#22` / `#29` wiring and is not emitted by the
+ * loader today.
  */
 export async function loadMapPackage(
   pkg: HonuaMapPackage,

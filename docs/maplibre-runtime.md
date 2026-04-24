@@ -148,10 +148,12 @@ Additional contract:
     omits them. Explicit locator fields always win over parsed ones.
   - **OGC API Features**: `collectionId` is parsed from the
     `/collections/<id>` URL segment when omitted.
-  - **`locator.layerId`**: numeric strings (e.g. `"0"`) are coerced to
-    numbers — the server C# mirror serialises `LayerId` as a string,
-    so the wire may arrive that way; non-numeric strings are left
-    unset so the adapter surfaces the typed validation error.
+  - **`locator.layerId`**: the server's canonical
+    `SourceLocator.LayerId` is `string?`, so
+    `HonuaMapPackageLocator.layerId` is typed `number | string`.
+    Numeric strings (e.g. `"0"`) are coerced to numbers during
+    projection; non-numeric strings are left unset so the adapter
+    surfaces the typed validation error.
 - Capabilities for protocol-backed descriptors are always sourced
   from `PROTOCOL_DEFAULT_CAPABILITIES[protocol]` (see
   [`protocol-capability-matrix.md`](./protocol-capability-matrix.md)).
@@ -223,14 +225,20 @@ them.
      `Dataset` and `HonuaMap` so `runtime.dataset.source(id)` observes
      the new locator / filter.
 3. **Apply.** If `diff.incremental` is false, the runtime rebuilds the
-   composed style, clears the old `HonuaMap`, calls
-   `map.setStyle(composed)`, and swaps in the freshly projected
-   `dataset` and `honuaMap` references. Otherwise it removes dropped
-   layers, patches changed layers in place via `setPaintProperty` /
-   `setLayoutProperty` / `setFilter`, and emits a single
-   `package-updated` event with the diff attached. Theme-only tweaks
-   and single-layer paint/filter edits never trigger a full
-   `setStyle`.
+   composed style and calls `map.setStyle(composed)` first; only once
+   that returns does it clear the old `HonuaMap` and swap in the
+   freshly projected `dataset` / `honuaMap` references. This ordering
+   guarantees that if the host map's `setStyle` throws, the runtime's
+   previous state — `dataset`, `honuaMap`, `mapPackage`,
+   `composedStyle`, and all popup bindings — is left intact so the
+   caller can retry without a half-applied update. After a successful
+   swap, any popup binding whose layer id is no longer present in the
+   new composed style is torn down so stale click listeners do not
+   linger. Otherwise it removes dropped layers, patches changed
+   layers in place via `setPaintProperty` / `setLayoutProperty` /
+   `setFilter`, and emits a single `package-updated` event with the
+   diff attached. Theme-only tweaks and single-layer paint/filter
+   edits never trigger a full `setStyle`.
 
 Incremental layer patching iterates the **union** of previous and
 next paint / layout keys. Keys present in the previous layer but
@@ -287,8 +295,11 @@ pipeline.
 
 Per-source protocol failures keep their existing classes
 (`HonuaCapabilityNotSupportedError`, `HonuaHttpError`, adapter-specific
-errors) and flow through `source-error` events rather than being
-wrapped.
+errors) and are not wrapped by the runtime. They continue to surface
+on the per-`Source` promises exposed by `runtime.dataset` and through
+the shared `HonuaClient` interceptor chain. The `source-error` event
+on `HonuaRuntimeEvent` is reserved for a future `#22` / `#29` bridge
+and is not emitted by the loader today.
 
 ## Telemetry
 
@@ -314,21 +325,58 @@ chain, so distributed-trace correlation is preserved end-to-end.
 ## Test coverage
 
 `test/runtime/runtime.test.ts` exercises the full `load →
-updatePackage → dispose` lifecycle against a recording mock map.
-Behavior covered includes:
+updatePackage → dispose` lifecycle against a recording mock map
+(29 tests). Behavior covered includes:
 
-- Format gate rejects non-v1 packages.
-- Source projection routes each protocol to the correct destination
-  and captures filters.
-- `composeStyle` applies `StyleRef` overrides and theme token
-  substitution.
+- Format gate rejects non-v1 packages and `workspace_artifact`
+  bindings surface `HonuaMapPackageError { stage: "source-bind" }`.
+- Source projection routes each protocol to the correct destination,
+  captures filters, translates `snake_case` server protocol names to
+  `kebab-case` SDK protocols, and rejects duplicate source ids.
+- `composeStyle` applies `StyleRef` overrides; `applyTheme` substitutes
+  `{theme:key}` placeholders and leaves unknown tokens in place.
 - `diffPackages` flags structural changes (layer reorder, mapSpec
-  version bump) and incremental patches update paint / layout /
-  filter without re-running `setStyle`.
+  version bump, source bindings added / removed / changed); incremental
+  patches update paint / layout / filter without re-running `setStyle`.
 - Event stream emits `package-loaded`, `source-ready`,
   `package-updated`, `disposed` in the documented order.
 - `dispose` removes layers and sources in reverse and ignores
-  subsequent calls.
+  subsequent calls; further mutating calls throw
+  `stage: "dispose"`.
+
+Regression coverage added alongside this release (+9 tests) locks in
+the fix-pass behaviors:
+
+- **Source-binding structural fallback.** A locator change or a new
+  binding forces a full `setStyle` *and* swaps
+  `runtime.dataset` / `runtime.honuaMap` to fresh references so
+  `runtime.dataset.source(id)` observes the new locator / filter.
+- **Paint / layout key removal.** Removing a paint or layout key
+  (e.g. dropping `fill-opacity` or `fill-sort-key` from the next
+  layer) calls `setPaintProperty` / `setLayoutProperty` with
+  `undefined` so MapLibre resets the property instead of retaining
+  the stale value.
+- **URL-only locator backfill.** `projectSourceBindings` parses
+  `serviceId` / numeric `layerId` from a canonical
+  `/rest/services/<name>/FeatureServer/<id>` (and `MapServer` variant)
+  URL when the binding omits them, parses `collectionId` from
+  `/collections/<id>` for OGC API Features bindings, and coerces
+  numeric-string `layerId` values to numbers so the C# server mirror
+  (which serialises `LayerId` as a string) still binds through the
+  built-in adapters. An end-to-end test loads a URL-only GeoServices
+  binding and verifies `runtime.dataset.source(id).adapter(...)` is
+  reachable.
+- **`onEvent` captures initial lifecycle.**
+  `LoadMapPackageOptions.onEvent` receives `source-ready` and
+  `package-loaded` without racing against `loadMapPackage`'s
+  `await`-return.
+- **Structural-update error containment.** When `map.setStyle`
+  throws during a structural `updatePackage`, the previous
+  `honuaMap` / `dataset` / `mapPackage` references are preserved so
+  the runtime is not left half-applied.
+- **Popup reap on layer removal.** A structural update that drops
+  a previously bound layer tears down the layer's popup click
+  listener before emitting `package-updated`.
 
 Conformance-style assertions rely only on the duck-typed `MaplibreMap`
 interface so no `maplibre-gl` dependency creeps into the SDK's

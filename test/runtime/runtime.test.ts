@@ -635,7 +635,7 @@ describe("projectSourceBindings: locator normalization", () => {
         locator: {
           url: "https://server.example.com/rest/services/Parcels/MapServer",
           serviceId: "Parcels",
-          layerId: "3" as unknown as number,
+          layerId: "3",
         },
       },
     ]);
@@ -698,6 +698,83 @@ describe("loadMapPackage: onEvent captures initial lifecycle events", () => {
     expect(
       captured.some((e) => e.type === "package-loaded" && e.packageId === pkg.mapPackageId),
     ).toBe(true);
+  });
+});
+
+describe("updatePackage: structural fallback error paths and popup reaping", () => {
+  test("setStyle failure on structural update leaves previous honuaMap intact", async () => {
+    const map = makeMockMap();
+    const runtime = await loadMapPackage(makePackage(), map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+    });
+    const previousHonuaMap = runtime.honuaMap;
+    const previousPackage = runtime.mapPackage;
+    expect(previousHonuaMap.sourceIds).toContain("parcels");
+
+    // Force setStyle to throw on the next (structural) update. The
+    // runtime should preserve the prior state instead of leaving the
+    // honuaMap cleared mid-swap.
+    map.setStyle = () => {
+      throw new Error("host setStyle blew up");
+    };
+
+    const next = makePackage({
+      sourceBindings: [
+        ...makePackage().sourceBindings,
+        {
+          sourceId: "owners",
+          protocol: "geoservices_feature_service",
+          locator: { url: "https://server.example.com/rest/services/Owners/FeatureServer/1" },
+        },
+      ],
+    });
+
+    await expect(runtime.updatePackage(next)).rejects.toBeInstanceOf(HonuaMapPackageError);
+
+    expect(runtime.honuaMap).toBe(previousHonuaMap);
+    expect(runtime.mapPackage).toBe(previousPackage);
+    expect(runtime.honuaMap.sourceIds).toContain("parcels");
+  });
+
+  test("removing a layer in a structural update tears down its popup binding", async () => {
+    const popupFactory: PopupFactory = () => makePopupHandle();
+    const map = makeMockMap();
+    const runtime = await loadMapPackage(makePackage(), map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+      popupFactory,
+    });
+
+    runtime.bindPopup("parcels-fill");
+    expect(
+      map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill"),
+    ).toBeDefined();
+
+    // Remove the bound layer in the next package so the diff goes
+    // structural (layer set changed) and the popup binding should be
+    // reaped — the map-level click listener must come down with it.
+    const next = makePackage({
+      mapSpec: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: "parcels-outline",
+            type: "line",
+            source: "parcels",
+            paint: { "line-color": "#000000" },
+          },
+        ],
+      },
+    });
+    await runtime.updatePackage(next);
+
+    expect(
+      map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill"),
+    ).toBeUndefined();
   });
 });
 
