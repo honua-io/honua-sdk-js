@@ -78,3 +78,27 @@ scenario per protocol that takes a `SourceDescriptor`, projects it to a
 `SourceBinding`-shaped object, and re-imports it. If the server-side
 shape changes, that fixture must be updated in lockstep with this
 document and `PROTOCOL_DEFAULT_CAPABILITIES`.
+
+## Runtime consumer: `@honua/sdk-js/runtime`
+
+The MapLibre GL JS-first runtime (`loadMapPackage`) consumes a
+server-produced `MapPackage` and projects its `sourceBindings[]` through
+the same alignment table. Protocol name translation happens inside the
+runtime's `source-bridge.ts`:
+
+| Server wire (snake_case) | SDK `Protocol` (kebab-case) |
+| --- | --- |
+| `geoservices_feature_service` | `geoservices-feature-service` |
+| `geoservices_map_service` | `geoservices-map-service` |
+| `ogc_features` | `ogc-features` |
+| `wfs` / `wms` / `odata` | `wfs` / `wms` / `odata` |
+| `vector_tile` / `ogc_tiles` | MapLibre-native `vector` source (no SDK adapter) |
+| `raster_tile` / `ogc_maps` | MapLibre-native `raster` source (no SDK adapter) |
+| `workspace_artifact` | Deferred — throws `HonuaMapPackageError { stage: "source-bind" }` until a workspace resolver is wired. |
+
+Unknown fields on a `SourceBinding` are preserved on the
+`HonuaMapPackage` round-trip so server additions do not break runtime
+consumers. See [`maplibre-runtime.md`](./maplibre-runtime.md) for the
+full runtime surface, `src/runtime/index.ts` for the module barrel, and
+`test/runtime/runtime.test.ts` for the lifecycle contract (`load →
+updatePackage → dispose`).

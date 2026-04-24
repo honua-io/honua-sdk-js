@@ -75,6 +75,8 @@ The SDK exposes a protocol-neutral client contract and exploration state module 
   protocol (`geoservices-feature-service`, `geoservices-map-service`, `ogc-features`, `wfs`, `wms`, `odata`).
 - [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md) — round-trip mapping between
   `SourceDescriptor` and the server `SourceBinding` document.
+- [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage(...)` and `HonuaMapRuntime`
+  for the MapLibre GL JS-first `MapPackage` runtime.
 
 ## Esri Migration
 

@@ -167,6 +167,7 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - Migration tooling: `@honua/sdk-js/migration`
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
+- MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
 
 The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export for compatibility.
 
@@ -228,6 +229,45 @@ console.log(`Loaded ${result.features.length} features`);
 
 Capability misses throw `HonuaCapabilityNotSupportedError` (under `strict` policy). Exploration misuses throw
 `HonuaExplorationContextError`. Both are in the `HonuaError` union and pass `isHonuaError(e)`.
+
+## MapLibre GL JS Runtime For `MapPackage`
+
+`@honua/sdk-js/runtime` binds a server-produced `MapPackage` (from `honua-io/honua-server#731`) to a
+caller-provided `maplibre-gl.Map`. It composes the style from `mapSpec` + `styleRefs[]` + `theme` tokens,
+projects `sourceBindings[]` through the `@honua/sdk-js/contract` adapters, and exposes an operational API
+that `honua-io/honua-sdk-js#22` and `#29` build on. The runtime never instantiates the map (`maplibre-gl`
+stays a peer dependency) and never issues edit writes.
+
+```ts
+import maplibregl from "maplibre-gl";
+import { HonuaClient } from "@honua/sdk-js/honua";
+import { loadMapPackage } from "@honua/sdk-js/runtime";
+
+const map = new maplibregl.Map({ container: "map", style: { version: 8, sources: {}, layers: [] } });
+const runtime = await loadMapPackage(pkg, map, {
+  client: new HonuaClient({ baseUrl: "https://your-honua-server.example" }),
+  popupFactory: () => new maplibregl.Popup(),
+});
+
+runtime.setLayerVisibility("parcels-fill", true);
+runtime.bindPopup("parcels-fill");
+await runtime.updatePackage(nextPkg);  // diffs by stable ids, falls back to setStyle on structural change
+runtime.dispose();
+```
+
+- Full runtime reference: [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md).
+- Protocol routing (server `SourceBinding` → MapLibre / contract adapter):
+  [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md#runtime-consumer-honuasdkjsruntime).
+- `MapPackage` format tag: `honua_map_package.v1`. The loader throws
+  `HonuaMapPackageError { stage: "load" }` on any other value, and `updatePackage` rejects format
+  mismatches without mutating the map.
+
+Binding failures throw `HonuaMapPackageError` with a `stage` of
+`"load" | "update" | "style-compose" | "source-bind" | "view" | "popup" | "dispose"`. Query-time adapter
+errors (`HonuaCapabilityNotSupportedError`, `HonuaHttpError`, adapter-specific classes) are not wrapped —
+they surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient`
+interceptor chain. The `source-error` runtime event is declared for future `#22` / `#29` wiring and is
+not emitted by the loader today.
 
 ## Install
 
