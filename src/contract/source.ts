@@ -15,14 +15,20 @@ import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import {
   HonuaFeatureLayer,
+  HonuaImageService,
+  HonuaGeometryService,
+  HonuaGeoprocessingService,
   HonuaMapLayer,
   HonuaMapService,
   HonuaOgcFeatureCollection,
   HonuaOgcFeatures,
 } from "../core/surfaces.js";
 import type {
+  HonuaAttachmentEditResult,
+  HonuaAttachmentInfo,
   HonuaFeature,
   HonuaQueryResponse,
+  HonuaRelatedRecordGroup,
   HonuaTypedFeature,
   HonuaTypedQueryResponse,
 } from "../core/types.js";
@@ -34,13 +40,28 @@ import {
   type AggregationFn,
   type AggregationMetric,
   type AggregationSpec,
+  type AttachmentAdd,
+  type AttachmentApi,
+  type AttachmentDelete,
+  type AttachmentEditOutcome,
+  type AttachmentGroup,
+  type AttachmentInfo,
+  type AttachmentQuery,
+  type AttachmentUpdate,
   type Capability,
   type CapabilityPolicy,
   type CreateDatasetOptions,
   type Dataset,
   type DegradedReason,
+  type EditEnvelope,
+  type EditOutcome,
+  type EditResult,
+  type FeatureId,
   type Protocol,
   type Query,
+  type RelatedGroup,
+  type RelatedQuery,
+  type RelatedResult,
   type Result,
   type Source,
   type SourceDescriptor,
@@ -119,6 +140,12 @@ function buildBuiltInSource<T>(
       return geoServicesFeatureSource<T>(descriptor, client, policy);
     case "geoservices-map-service":
       return geoServicesMapServiceSource<T>(descriptor, client, policy);
+    case "geoservices-image-service":
+      return geoServicesImageSource<T>(descriptor, client, policy);
+    case "geoservices-geometry-service":
+      return geoServicesGeometryServiceSource<T>(descriptor, client, policy);
+    case "geoservices-gp-service":
+      return geoServicesGPServiceSource<T>(descriptor, client, policy);
     case "ogc-features":
       return ogcFeaturesSource<T>(descriptor, client, policy);
     default:
@@ -189,6 +216,25 @@ export function geoServicesFeatureSource<T>(
         } satisfies Result<T>;
       }
     },
+    async queryObjectIds(request) {
+      ensureCapability(descriptor, caps, "queryObjectIds");
+      const ids = await layer.queryObjectIds({
+        where: request?.where,
+        ...(request?.signal ? { extraParams: {} } : {}),
+      });
+      return ids;
+    },
+    async applyEdits(envelope) {
+      ensureCapability(descriptor, caps, "applyEdits");
+      const response = await layer.applyEdits(toApplyEditsRequest(envelope));
+      return canonicalEditResult(response);
+    },
+    async queryRelated<R>(request: RelatedQuery) {
+      ensureCapability(descriptor, caps, "queryRelated");
+      const response = await layer.queryRelatedRecords(toRelatedRecordsRequest(request));
+      return canonicalRelatedResult<R>(response);
+    },
+    attachments: featureLayerAttachmentApi(descriptor, caps, layer),
   });
 }
 
@@ -255,6 +301,24 @@ export function geoServicesMapServiceSource<T>(
         } satisfies Result<T>;
       }
     },
+    async queryObjectIds(request) {
+      ensureCapability(descriptor, caps, "queryObjectIds");
+      const ids = await layer.queryObjectIds({
+        where: request?.where,
+      });
+      return ids;
+    },
+    async applyEdits() {
+      // MapServer is read-only; applyEdits exists only on the FeatureServer
+      // surface. Refuse rather than silently no-op so callers can branch.
+      throw new HonuaCapabilityNotSupportedError("applyEdits", descriptor.protocol, descriptor.id);
+    },
+    async queryRelated<R>(request: RelatedQuery) {
+      ensureCapability(descriptor, caps, "queryRelated");
+      const response = await layer.queryRelatedRecords(toRelatedRecordsRequest(request));
+      return canonicalRelatedResult<R>(response);
+    },
+    attachments: unsupportedAttachmentApi(descriptor),
   });
 }
 
@@ -382,7 +446,188 @@ export function ogcFeaturesSource<T>(
         } satisfies Result<T>;
       }
     },
+    async queryObjectIds(request) {
+      ensureCapability(descriptor, caps, "queryObjectIds");
+      // OGC `/items` does not expose a server-side ids-only mode; drain the
+      // matching set and project the GeoJSON `id`. Callers that need a
+      // bounded scan should pass `pagination.limit`.
+      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request)));
+      const ids: FeatureId[] = [];
+      for (const feature of all) {
+        if (feature.id !== undefined && feature.id !== null) {
+          ids.push(feature.id as FeatureId);
+        }
+      }
+      return ids;
+    },
+    async applyEdits(envelope) {
+      ensureCapability(descriptor, caps, "applyEdits");
+      const added: EditOutcome[] = [];
+      const updated: EditOutcome[] = [];
+      const deleted: EditOutcome[] = [];
+
+      for (const add of envelope.adds ?? []) {
+        try {
+          const created = await collection.createItem({ feature: featureToGeoJsonFeature(add) });
+          added.push({ id: created.id as FeatureId | undefined, success: true });
+        } catch (err) {
+          added.push({ success: false, error: editErrorFromCatch(err) });
+        }
+      }
+      for (const update of envelope.updates ?? []) {
+        if (update.id === undefined || update.id === null) {
+          updated.push({ success: false, error: { code: 400, description: "update.id is required" } });
+          continue;
+        }
+        try {
+          await collection.replaceItem({
+            featureId: update.id,
+            feature: featureToGeoJsonFeature(update),
+          });
+          updated.push({ id: update.id, success: true });
+        } catch (err) {
+          updated.push({ id: update.id, success: false, error: editErrorFromCatch(err) });
+        }
+      }
+      for (const id of envelope.deletes ?? []) {
+        try {
+          await collection.deleteItem({ featureId: id });
+          deleted.push({ id, success: true });
+        } catch (err) {
+          deleted.push({ id, success: false, error: editErrorFromCatch(err) });
+        }
+      }
+
+      return { added, updated, deleted } satisfies EditResult;
+    },
+    async queryRelated() {
+      // OGC API Features has no related-records concept; refuse rather than
+      // silently return empty groups.
+      throw new HonuaCapabilityNotSupportedError("queryRelated", descriptor.protocol, descriptor.id);
+    },
+    attachments: unsupportedAttachmentApi(descriptor),
   });
+}
+
+// ── GeoServices Image Service ────────────────────────────────
+
+/**
+ * Build a `Source` over an Esri-style ImageServer endpoint. The query
+ * surface drives the raster catalog (each row is a raster with footprint
+ * geometry); image export, identify, and tile operations live behind
+ * `Source.protocol("geoservices-image-service")`.
+ */
+export function geoServicesImageSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): Source<T> {
+  const { serviceId } = requireImageServiceLocator(descriptor);
+  const service = new HonuaImageService({ client, serviceId });
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-image-service"];
+
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
+    "geoservices-image-service": service,
+  };
+
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
+    async query(request) {
+      ensureCapability(descriptor, caps, "query");
+      // ImageServer query returns the raster catalog. The GeoServices
+      // request shape is identical to FeatureServer query so we reuse
+      // `toFeatureLayerRequest` and dispatch through the service.
+      const response = await service.queryRasterCatalog(toFeatureLayerRequest(request));
+      return featureLayerResultFromUntyped<T>(response);
+    },
+    async queryAll(request) {
+      ensureCapability(descriptor, caps, "query");
+      const response = await service.queryRasterCatalog(toFeatureLayerRequest(request));
+      const features = (response.features ?? []).map(toTypedFeature<T>);
+      const { features: limited, exceededTransferLimit } = applyQueryAllLimit(features, request?.pagination?.limit);
+      return {
+        features: limited,
+        exceededTransferLimit,
+        totalCount: limited.length,
+        fields: response.fields,
+      } satisfies Result<T>;
+    },
+    async queryAggregate() {
+      throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+    },
+    async queryExtent(request) {
+      ensureCapability(descriptor, caps, "queryExtent");
+      const response = await service.queryRasterCatalog(
+        toExtentOnlyRequest(toFeatureLayerRequest(request)),
+      );
+      return extractExtentEnvelope(response);
+    },
+    async *stream() {
+      // ImageServer does not expose a streaming raster-catalog mode; the
+      // catalog is intentionally enumerable in one page. Refuse rather
+      // than silently emit a single page that callers might mistake for
+      // a paginated stream.
+      throw new HonuaCapabilityNotSupportedError("stream", descriptor.protocol, descriptor.id);
+    },
+    async queryObjectIds(request) {
+      ensureCapability(descriptor, caps, "queryObjectIds");
+      return service.queryRasterCatalogObjectIds({ where: request?.where });
+    },
+    async applyEdits() {
+      throw new HonuaCapabilityNotSupportedError("applyEdits", descriptor.protocol, descriptor.id);
+    },
+    async queryRelated() {
+      throw new HonuaCapabilityNotSupportedError("queryRelated", descriptor.protocol, descriptor.id);
+    },
+    attachments: unsupportedAttachmentApi(descriptor),
+  });
+}
+
+// ── GeoServices Geometry Service ─────────────────────────────
+
+/**
+ * Build a `Source` over an Esri-style Geometry Service endpoint. Geometry
+ * Service is a stateless utility — it does not host features — so the
+ * query family throws `HonuaCapabilityNotSupportedError` and operations
+ * (buffer, project, simplify, etc.) live behind
+ * `Source.protocol("geoservices-geometry-service")`.
+ */
+export function geoServicesGeometryServiceSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): Source<T> {
+  const service = new HonuaGeometryService({ client });
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-geometry-service"];
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
+    "geoservices-geometry-service": service,
+  };
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
+}
+
+// ── GeoServices GP Service ───────────────────────────────────
+
+/**
+ * Build a `Source` over an Esri-style GP (geoprocessing) service. GP
+ * services run async tasks rather than hosting features; the canonical
+ * feature surface throws and task submission / status / result lookup
+ * live behind `Source.protocol("geoservices-gp-service")`.
+ */
+export function geoServicesGPServiceSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): Source<T> {
+  const { serviceId } = requireGPServiceLocator(descriptor);
+  const service = new HonuaGeoprocessingService({
+    client,
+    serviceId,
+    taskName: descriptor.locator.taskName,
+  });
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-gp-service"];
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
+    "geoservices-gp-service": service,
+  };
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
 }
 
 // ── Internal helpers ──────────────────────────────────────────
@@ -393,6 +638,10 @@ interface SourceImplementation<T> {
   queryAggregate(request: Query<T> & { aggregation: AggregationSpec }): Promise<Result<T>>;
   queryExtent(request?: Query<T>): Promise<{ extent: import("../core/types.js").HonuaExtent | null; count?: number }>;
   stream(request?: Query<T>): AsyncGenerator<Result<T>, void, undefined>;
+  queryObjectIds(request?: Query<T>): Promise<readonly FeatureId[]>;
+  applyEdits(envelope: EditEnvelope<T>): Promise<EditResult>;
+  queryRelated<R>(request: RelatedQuery): Promise<RelatedResult<R>>;
+  attachments: AttachmentApi;
 }
 
 function makeSource<T>(
@@ -402,6 +651,9 @@ function makeSource<T>(
   adapters: Partial<Record<AdapterKind, unknown>>,
   impl: SourceImplementation<T>,
 ): Source<T> {
+  function lookupAdapter<K extends AdapterKind>(kind: K): AdapterFor<K> | undefined {
+    return adapters[kind] as AdapterFor<K> | undefined;
+  }
   return {
     descriptor: { ...descriptor, capabilities: caps },
     capabilities: caps,
@@ -410,9 +662,81 @@ function makeSource<T>(
     queryAggregate: impl.queryAggregate.bind(impl),
     queryExtent: impl.queryExtent.bind(impl),
     stream: impl.stream.bind(impl),
-    adapter<K extends AdapterKind>(kind: K): AdapterFor<K> | undefined {
-      return adapters[kind] as AdapterFor<K> | undefined;
+    queryObjectIds: impl.queryObjectIds.bind(impl),
+    applyEdits: impl.applyEdits.bind(impl),
+    queryRelated: impl.queryRelated.bind(impl),
+    attachments: impl.attachments,
+    protocol: lookupAdapter,
+    adapter: lookupAdapter,
+  };
+}
+
+/**
+ * Helper: build a no-attachment-support `AttachmentApi` whose every method
+ * throws `HonuaCapabilityNotSupportedError` for the descriptor. Used by
+ * adapters that do not advertise `attachments` so the namespace property
+ * is present (callers can always read `source.attachments`) but the calls
+ * themselves participate in capability negotiation.
+ */
+function unsupportedAttachmentApi(descriptor: SourceDescriptor): AttachmentApi {
+  const fail = (): never => {
+    throw new HonuaCapabilityNotSupportedError("attachments", descriptor.protocol, descriptor.id);
+  };
+  return {
+    async query() {
+      return fail();
     },
+    async list() {
+      return fail();
+    },
+    async add() {
+      return fail();
+    },
+    async update() {
+      return fail();
+    },
+    async delete() {
+      return fail();
+    },
+  };
+}
+
+/**
+ * Build a `SourceImplementation` skeleton whose every method throws
+ * `HonuaCapabilityNotSupportedError`. Used by the geometry- and gp-service
+ * sources, which do not host features and only surface protocol-specific
+ * operations through `Source.protocol()`.
+ */
+function unsupportedFeatureSurface<T>(descriptor: SourceDescriptor): SourceImplementation<T> {
+  const fail = (capability: Capability): never => {
+    throw new HonuaCapabilityNotSupportedError(capability, descriptor.protocol, descriptor.id);
+  };
+  return {
+    async query() {
+      return fail("query");
+    },
+    async queryAll() {
+      return fail("query");
+    },
+    async queryAggregate() {
+      return fail("queryAggregate");
+    },
+    async queryExtent() {
+      return fail("queryExtent");
+    },
+    async *stream() {
+      fail("stream");
+    },
+    async queryObjectIds() {
+      return fail("queryObjectIds");
+    },
+    async applyEdits() {
+      return fail("applyEdits");
+    },
+    async queryRelated() {
+      return fail("queryRelated");
+    },
+    attachments: unsupportedAttachmentApi(descriptor),
   };
 }
 
@@ -468,6 +792,26 @@ function requireOgcLocator(descriptor: SourceDescriptor): { collectionId: string
     throw new Error(`createDataset: source "${descriptor.id}" (ogc-features) requires locator.collectionId`);
   }
   return { collectionId };
+}
+
+function requireImageServiceLocator(descriptor: SourceDescriptor): { serviceId: string } {
+  const { serviceId } = descriptor.locator;
+  if (typeof serviceId !== "string") {
+    throw new Error(
+      `createDataset: source "${descriptor.id}" (geoservices-image-service) requires locator.serviceId`,
+    );
+  }
+  return { serviceId };
+}
+
+function requireGPServiceLocator(descriptor: SourceDescriptor): { serviceId: string } {
+  const { serviceId } = descriptor.locator;
+  if (typeof serviceId !== "string") {
+    throw new Error(
+      `createDataset: source "${descriptor.id}" (geoservices-gp-service) requires locator.serviceId`,
+    );
+  }
+  return { serviceId };
 }
 
 /**
@@ -909,6 +1253,259 @@ function readField(attributes: unknown, field: string): unknown {
   return (attributes as Record<string, unknown>)[field];
 }
 
+// ── Edit / related / attachment translators ───────────────────
+
+function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
+  adds?: HonuaFeature[];
+  updates?: HonuaFeature[];
+  deletes?: number[] | string;
+  rollbackOnFailure?: boolean;
+} {
+  const out: {
+    adds?: HonuaFeature[];
+    updates?: HonuaFeature[];
+    deletes?: number[] | string;
+    rollbackOnFailure?: boolean;
+  } = {};
+  if (envelope.adds && envelope.adds.length > 0) {
+    out.adds = envelope.adds.map((f) => canonicalToHonuaFeature(f));
+  }
+  if (envelope.updates && envelope.updates.length > 0) {
+    out.updates = envelope.updates.map((f) => canonicalToHonuaFeature(f));
+  }
+  if (envelope.deletes && envelope.deletes.length > 0) {
+    const numericIds: number[] = [];
+    let allNumeric = true;
+    for (const id of envelope.deletes) {
+      const parsed = Number(id);
+      if (Number.isFinite(parsed)) {
+        numericIds.push(parsed);
+      } else {
+        allNumeric = false;
+        break;
+      }
+    }
+    out.deletes = allNumeric ? numericIds : envelope.deletes.map(String).join(",");
+  }
+  if (envelope.rollbackOnFailure !== undefined) {
+    out.rollbackOnFailure = envelope.rollbackOnFailure;
+  }
+  return out;
+}
+
+function canonicalToHonuaFeature<T>(feature: { id?: FeatureId; attributes: T; geometry?: Record<string, unknown> | null }): HonuaFeature {
+  const attributes = { ...(feature.attributes as Record<string, unknown>) };
+  // GeoServices addresses updates by `OBJECTID` inside attributes; populate it
+  // from the canonical `id` when the caller supplied one but did not embed it
+  // in attributes themselves. Skip when an OBJECTID is already present so a
+  // mismatch surfaces as a server-side validation error rather than being
+  // silently overwritten.
+  if (feature.id !== undefined && feature.id !== null && attributes.OBJECTID === undefined) {
+    attributes.OBJECTID = feature.id;
+  }
+  const out: HonuaFeature = { attributes };
+  if (feature.geometry !== undefined) {
+    out.geometry = feature.geometry;
+  }
+  return out;
+}
+
+function canonicalEditResult(response: import("../core/types.js").HonuaApplyEditsResponse): EditResult {
+  return {
+    added: (response.addResults ?? []).map(toEditOutcome),
+    updated: (response.updateResults ?? []).map(toEditOutcome),
+    deleted: (response.deleteResults ?? []).map(toEditOutcome),
+  };
+}
+
+function toEditOutcome(result: import("../core/types.js").HonuaEditResult): EditOutcome {
+  const out: EditOutcome = { success: result.success };
+  if (typeof result.objectId === "number" && Number.isFinite(result.objectId)) {
+    out.id = result.objectId;
+  }
+  if (result.error) {
+    out.error = { code: result.error.code, description: result.error.description };
+  }
+  return out;
+}
+
+function toRelatedRecordsRequest(request: RelatedQuery): {
+  relationshipId: number;
+  objectIds?: number[] | string;
+  where?: string;
+  outFields?: string | string[];
+  returnGeometry?: boolean;
+  signal?: AbortSignal;
+} {
+  const out: {
+    relationshipId: number;
+    objectIds?: number[] | string;
+    where?: string;
+    outFields?: string | string[];
+    returnGeometry?: boolean;
+    signal?: AbortSignal;
+  } = { relationshipId: request.relationshipId };
+  if (request.sourceIds.length > 0) {
+    const numeric: number[] = [];
+    let allNumeric = true;
+    for (const id of request.sourceIds) {
+      const parsed = Number(id);
+      if (Number.isFinite(parsed)) numeric.push(parsed);
+      else {
+        allNumeric = false;
+        break;
+      }
+    }
+    out.objectIds = allNumeric ? numeric : request.sourceIds.map(String).join(",");
+  }
+  if (request.where !== undefined) out.where = request.where;
+  if (request.outFields && request.outFields.length > 0) out.outFields = [...request.outFields];
+  if (request.returnGeometry !== undefined) out.returnGeometry = request.returnGeometry;
+  if (request.signal) out.signal = request.signal;
+  return out;
+}
+
+function canonicalRelatedResult<R>(response: import("../core/types.js").HonuaRelatedRecordsResponse): RelatedResult<R> {
+  const groups: RelatedGroup<R>[] = (response.relatedRecordGroups ?? []).map((g: HonuaRelatedRecordGroup) => ({
+    sourceId: g.objectId,
+    features: (g.relatedRecords ?? []).map((f) => ({
+      attributes: f.attributes as R,
+      geometry: f.geometry ?? null,
+    })),
+  }));
+  const out: RelatedResult<R> = { groups };
+  if (response.fields) out.fields = response.fields;
+  return out;
+}
+
+function featureToGeoJsonFeature<T>(feature: { id?: FeatureId; attributes: T; geometry?: Record<string, unknown> | null }): {
+  type: "Feature";
+  id?: FeatureId;
+  geometry: Record<string, unknown> | null;
+  properties: Record<string, unknown>;
+} {
+  const out: {
+    type: "Feature";
+    id?: FeatureId;
+    geometry: Record<string, unknown> | null;
+    properties: Record<string, unknown>;
+  } = {
+    type: "Feature",
+    geometry: feature.geometry ?? null,
+    properties: { ...(feature.attributes as Record<string, unknown>) },
+  };
+  if (feature.id !== undefined && feature.id !== null) {
+    out.id = feature.id;
+  }
+  return out;
+}
+
+function editErrorFromCatch(err: unknown): { code: number; description: string } {
+  if (err instanceof Error) {
+    const candidate = err as { status?: unknown; code?: unknown };
+    const code = typeof candidate.status === "number" ? candidate.status : typeof candidate.code === "number" ? candidate.code : 500;
+    return { code, description: err.message };
+  }
+  return { code: 500, description: String(err) };
+}
+
+function featureLayerAttachmentApi<T>(
+  descriptor: SourceDescriptor,
+  caps: ReadonlySet<Capability>,
+  layer: HonuaFeatureLayer<T>,
+): AttachmentApi {
+  function ensureAttachments(): void {
+    if (!caps.has("attachments")) {
+      throw new HonuaCapabilityNotSupportedError("attachments", descriptor.protocol, descriptor.id);
+    }
+  }
+  return {
+    async query(request) {
+      ensureAttachments();
+      const response = await layer.queryAttachments({
+        ...(request?.parentIds ? { objectIds: request.parentIds.map(toAttachmentNumericId).filter(isFiniteNumberStrict) } : {}),
+        ...(request?.where !== undefined ? { where: request.where } : {}),
+      });
+      return (response.attachmentGroups ?? []).map((group) => ({
+        parentId: group.parentObjectId,
+        attachments: (group.attachmentInfos ?? []).map(toAttachmentInfo(group.parentObjectId)),
+      })) satisfies ReadonlyArray<AttachmentGroup>;
+    },
+    async list(parentId) {
+      ensureAttachments();
+      const response = await layer.listAttachments({ objectId: parentId });
+      const numericParent = Number(parentId);
+      return (response.attachmentInfos ?? []).map(
+        toAttachmentInfo(Number.isFinite(numericParent) ? numericParent : (parentId as FeatureId)),
+      );
+    },
+    async add(request) {
+      ensureAttachments();
+      const response = await layer.addAttachment({
+        objectId: request.parentId,
+        attachment: request.attachment,
+        ...(request.name ? { name: request.name } : {}),
+        ...(request.contentType ? { contentType: request.contentType } : {}),
+      });
+      return toAttachmentEditOutcome(response.addAttachmentResult, request.parentId);
+    },
+    async update(request) {
+      ensureAttachments();
+      const response = await layer.updateAttachment({
+        objectId: request.parentId,
+        attachmentId: request.attachmentId,
+        attachment: request.attachment,
+        ...(request.name ? { name: request.name } : {}),
+        ...(request.contentType ? { contentType: request.contentType } : {}),
+      });
+      return toAttachmentEditOutcome(response.updateAttachmentResult, request.parentId);
+    },
+    async delete(request) {
+      ensureAttachments();
+      const numericIds = request.attachmentIds.map(toAttachmentNumericId).filter(isFiniteNumberStrict);
+      const response = await layer.deleteAttachments({
+        objectId: request.parentId,
+        attachmentIds: numericIds.length === request.attachmentIds.length ? numericIds : request.attachmentIds.map(String).join(","),
+      });
+      return (response.deleteAttachmentResults ?? []).map((r) => toAttachmentEditOutcome(r, request.parentId));
+    },
+  };
+}
+
+function toAttachmentInfo(parentId: FeatureId): (info: HonuaAttachmentInfo) => AttachmentInfo {
+  return (info) => {
+    const out: AttachmentInfo = {
+      id: info.id,
+      parentId: info.parentObjectId ?? parentId,
+    };
+    if (info.name !== undefined) out.name = info.name;
+    if (info.contentType !== undefined) out.contentType = info.contentType;
+    if (info.size !== undefined) out.size = info.size;
+    return out;
+  };
+}
+
+function toAttachmentEditOutcome(result: HonuaAttachmentEditResult, parentId?: FeatureId): AttachmentEditOutcome {
+  const out: AttachmentEditOutcome = { success: result.success };
+  if (parentId !== undefined) out.parentId = parentId;
+  if (typeof result.objectId === "number" && Number.isFinite(result.objectId)) {
+    out.attachmentId = result.objectId;
+  }
+  if (result.error) {
+    out.error = { code: result.error.code, description: result.error.description };
+  }
+  return out;
+}
+
+function toAttachmentNumericId(id: FeatureId): number {
+  const parsed = Number(id);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function isFiniteNumberStrict(n: number): n is number {
+  return Number.isFinite(n);
+}
+
 // ── Built-in AdapterTypeMap augmentation ──────────────────────
 
 /**
@@ -923,6 +1520,9 @@ declare module "./types.js" {
     "geoservices-feature-service": HonuaFeatureLayer;
     "geoservices-map-service": HonuaMapService;
     "geoservices-map-layer": HonuaMapLayer;
+    "geoservices-image-service": HonuaImageService;
+    "geoservices-geometry-service": HonuaGeometryService;
+    "geoservices-gp-service": HonuaGeoprocessingService;
     "ogc-features": HonuaOgcFeatureCollection;
   }
 }
@@ -936,5 +1536,8 @@ export const ALL_CAPABILITIES: ReadonlySet<Capability> = new Set(CAPABILITIES);
 export const FIRST_PARTY_PROTOCOLS: ReadonlySet<Protocol> = new Set([
   "geoservices-feature-service",
   "geoservices-map-service",
+  "geoservices-image-service",
+  "geoservices-geometry-service",
+  "geoservices-gp-service",
   "ogc-features",
 ] as const);
