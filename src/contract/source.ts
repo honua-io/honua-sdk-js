@@ -12,7 +12,7 @@
  */
 
 import type { HonuaClient } from "../core/client.js";
-import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
+import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
 import {
   HonuaFeatureLayer,
   HonuaImageService,
@@ -535,6 +535,7 @@ export function geoServicesImageSource<T>(
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
       ensureCapability(descriptor, caps, "query");
+      requireImageServerCompatibleQuery(request);
       // ImageServer query returns the raster catalog. The GeoServices
       // request shape is identical to FeatureServer query so we reuse
       // `toFeatureLayerRequest` and dispatch through the service.
@@ -543,6 +544,7 @@ export function geoServicesImageSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
+      requireImageServerCompatibleQuery(request);
       const baseParams = toFeatureLayerRequest(request);
       const limit = request?.pagination?.limit;
       // ImageServer's catalog endpoint supports `resultOffset`/`resultRecordCount`
@@ -589,6 +591,7 @@ export function geoServicesImageSource<T>(
     },
     async queryExtent(request) {
       ensureCapability(descriptor, caps, "queryExtent");
+      requireImageServerCompatibleQuery(request);
       const response = await service.queryRasterCatalog(
         toExtentOnlyRequest(toFeatureLayerRequest(request)),
       );
@@ -600,6 +603,7 @@ export function geoServicesImageSource<T>(
     },
     async queryObjectIds(request) {
       ensureCapability(descriptor, caps, "queryObjectIds");
+      requireImageServerCompatibleQuery(request);
       return service.queryRasterCatalogObjectIds(toFeatureLayerRequest(request));
     },
     async applyEdits() {
@@ -833,6 +837,35 @@ function requireImageServiceLocator(descriptor: SourceDescriptor): { serviceId: 
     );
   }
   return { serviceId };
+}
+
+/**
+ * Reject canonical `Query` fields the ImageServer catalog endpoint cannot
+ * honor. The Honua Server catalog handler reads `where` / `objectIds` /
+ * `outSR` / `resultOffset` / `resultRecordCount` / `returnGeometry` and
+ * silently ignores `outFields`, `geometry` / `geometryType` / `spatialRel`,
+ * and `orderByFields`. Refusing the request explicitly prevents callers
+ * from receiving an unfiltered, unsorted, or wider result that looks like
+ * a silent data quality bug. Mirrors the OGC adapter's spatialFilter /
+ * spatialRel guards.
+ */
+function requireImageServerCompatibleQuery<T>(request?: Query<T>): void {
+  if (!request) return;
+  if (request.spatialFilter) {
+    throw new Error(
+      "geoservices-image-service: Query.spatialFilter is not supported on the raster catalog; the ImageServer catalog endpoint does not accept geometry / geometryType / spatialRel filters. Use Query.where to constrain the catalog or call protocol().identify() / exportImage() on the typed escape hatch.",
+    );
+  }
+  if (request.orderBy && request.orderBy.length > 0) {
+    throw new Error(
+      "geoservices-image-service: Query.orderBy is not supported on the raster catalog; the ImageServer catalog endpoint does not honor orderByFields. Drop orderBy or sort client-side.",
+    );
+  }
+  if (request.outFields && request.outFields.length > 0) {
+    throw new Error(
+      "geoservices-image-service: Query.outFields is not supported on the raster catalog; the ImageServer catalog endpoint always returns the full catalog row schema. Drop outFields or project client-side.",
+    );
+  }
 }
 
 function requireGPServiceLocator(
@@ -1451,9 +1484,22 @@ function featureToGeoJsonFeature<T>(feature: { id?: FeatureId; attributes: T; ge
 }
 
 function editErrorFromCatch(err: unknown): { code: number; description: string } {
+  if (err instanceof HonuaHttpError) {
+    return { code: err.statusCode, description: err.message };
+  }
   if (err instanceof Error) {
-    const candidate = err as { status?: unknown; code?: unknown };
-    const code = typeof candidate.status === "number" ? candidate.status : typeof candidate.code === "number" ? candidate.code : 500;
+    // Fall back to ad-hoc `status` / `code` / `statusCode` shapes that
+    // third-party errors might carry; default to 500 when nothing fits so
+    // the per-item EditOutcome still surfaces a numeric code.
+    const candidate = err as { status?: unknown; statusCode?: unknown; code?: unknown };
+    const code =
+      typeof candidate.statusCode === "number"
+        ? candidate.statusCode
+        : typeof candidate.status === "number"
+          ? candidate.status
+          : typeof candidate.code === "number"
+            ? candidate.code
+            : 500;
     return { code, description: err.message };
   }
   return { code: 500, description: String(err) };

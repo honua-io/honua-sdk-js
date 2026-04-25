@@ -91,9 +91,13 @@ shapes (mosaic rule, rendering rule, pixel size, raster function chains)
 are ImageServer-specific. The wrapper accepts both `GET` (params on the
 query string) and `POST` (form-encoded body) per request; `POST` is the
 correct mode when payload size or proxy URL limits would truncate a
-`GET` URL. `applyEdits`, `attachments`, `queryRelated`,
-`queryAggregate`, and `stream` are intentionally absent from the
-default capability set; the canonical methods throw
+`GET` URL. The catalog endpoint does not honor `Query.spatialFilter`,
+`Query.orderBy`, or `Query.outFields`, so the adapter rejects those
+fields explicitly rather than silently widening the result; use
+`Query.where` to constrain the catalog or move to a FeatureServer
+source for richer query semantics. `applyEdits`, `attachments`,
+`queryRelated`, `queryAggregate`, and `stream` are intentionally absent
+from the default capability set; the canonical methods throw
 `HonuaCapabilityNotSupportedError` rather than silently no-op.
 
 ### GeoServices Geometry Service

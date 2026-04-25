@@ -485,6 +485,42 @@ describe("contract / GeoServices ImageServer parity", () => {
     }).rejects.toThrow(HonuaCapabilityNotSupportedError);
   });
 
+  it("rejects Query.spatialFilter / orderBy / outFields rather than silently widening the catalog result", async () => {
+    // The honua-server ImageServer catalog reads where / objectIds /
+    // outSR / paging / returnGeometry. It silently ignores geometry,
+    // outFields, and orderByFields. The SDK refuses such queries
+    // explicitly so callers do not mistake an unfiltered/unsorted
+    // catalog response for a filtered/sorted one.
+    let hits = 0;
+    const dataset = buildImageDataset([
+      [
+        "/rest/services/Imagery/ImageServer/query",
+        () => {
+          hits += 1;
+          return jsonResponse(imageServerCatalogResponse());
+        },
+      ],
+    ]);
+    const source = dataset.source("tiles-img")!;
+
+    const spatialFilter = {
+      geometryType: "esriGeometryPolygon" as const,
+      geometry: { rings: [[[-120, 38], [-119, 38], [-119, 39], [-120, 39], [-120, 38]]] },
+    };
+    await expect(source.query({ spatialFilter })).rejects.toThrow(/spatialFilter is not supported/);
+    await expect(source.queryAll({ spatialFilter })).rejects.toThrow(/spatialFilter is not supported/);
+    await expect(source.queryExtent({ spatialFilter })).rejects.toThrow(/spatialFilter is not supported/);
+    await expect(source.queryObjectIds({ spatialFilter })).rejects.toThrow(/spatialFilter is not supported/);
+
+    await expect(source.query({ orderBy: [{ field: "Name", direction: "asc" }] })).rejects.toThrow(
+      /orderBy is not supported/,
+    );
+    await expect(source.query({ outFields: ["Name", "Acquired"] })).rejects.toThrow(/outFields is not supported/);
+
+    // Refusal must surface before any wire call.
+    expect(hits).toBe(0);
+  });
+
   it("queryRasterCatalog forwards objectIds to the ImageServer catalog endpoint (GET serializes as CSV)", async () => {
     let observedObjectIds: string | null = null;
     const dataset = buildImageDataset([
@@ -1041,5 +1077,73 @@ describe("contract / OGC Features applyEdits via createItem/replaceItem/deleteIt
     for (const signal of observedSignals) {
       expect(signal).toBeDefined();
     }
+  });
+
+  it("preserves the HonuaHttpError statusCode on per-item EditOutcome failures", async () => {
+    // The OGC server can reject a single item with 4xx (validation, conflict)
+    // while the others succeed. The per-item EditOutcome must surface the
+    // real status code, not 500, so callers can branch on `400 vs 409 vs 500`.
+    const itemRegex = /\/ogc\/features\/collections\/parcels\/items\/(\d+)/;
+    const client = makeMockClient({
+      routes: [
+        [
+          itemRegex,
+          (url) => {
+            const match = itemRegex.exec(url.pathname);
+            const id = match ? Number(match[1]) : undefined;
+            if (id === 7) {
+              // Conflict on update of id=7.
+              return new Response(JSON.stringify({ error: "version conflict" }), {
+                status: 409,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
+            if (id === 9) {
+              // Not-found on delete of id=9.
+              return new Response(JSON.stringify({ error: "not found" }), {
+                status: 404,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
+            return new Response(null, { status: 204 });
+          },
+        ],
+        [
+          "/ogc/features/collections/parcels/items",
+          () => {
+            // Rejected create: 400 validation failure.
+            return new Response(JSON.stringify({ error: "missing required field" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        },
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    const result = await source.applyEdits({
+      adds: [{ attributes: { OBJECTID: 0, STATE: "WA", ACRES: 1 } }],
+      updates: [{ id: 7, attributes: { OBJECTID: 7, STATE: "CA", ACRES: 2 } }],
+      deletes: [9],
+    });
+    expect(result.added[0].success).toBe(false);
+    expect(result.added[0].error?.code).toBe(400);
+    expect(result.updated[0].success).toBe(false);
+    expect(result.updated[0].error?.code).toBe(409);
+    expect(result.deleted[0].success).toBe(false);
+    expect(result.deleted[0].error?.code).toBe(404);
   });
 });
