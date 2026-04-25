@@ -177,6 +177,37 @@ describe("wfs / FES emission", () => {
     expect(xml).toContain("<fes:Within>");
     expect(xml).toContain("<gml:Polygon");
   });
+
+  it("envelope + contains lowers to a polygon under <fes:Contains> (not bbox semantics)", () => {
+    const compiled = compileSpatialFilter(
+      {
+        geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelContains",
+      },
+      { geometryProperty: "the_geom" },
+    );
+    expect(compiled).not.toBe(UNSUPPORTED_FES);
+    if (compiled === UNSUPPORTED_FES) return;
+    const xml = serializeFes([compiled]);
+    expect(xml).toContain("<fes:Contains>");
+    expect(xml).toContain("<gml:Polygon");
+    expect(xml).not.toContain("<fes:BBOX>");
+  });
+
+  it("envelope + intersects keeps the bbox shortcut", () => {
+    const compiled = compileSpatialFilter(
+      {
+        geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelIntersects",
+      },
+      { geometryProperty: "the_geom" },
+    );
+    expect(compiled).not.toBe(UNSUPPORTED_FES);
+    if (compiled === UNSUPPORTED_FES) return;
+    expect(compiled.kind).toBe("bbox");
+  });
 });
 
 describe("wfs / canonical Source", () => {
@@ -592,6 +623,209 @@ describe("wfs / canonical Source", () => {
     const result = await source.queryAll({ pagination: { limit: 1 } });
     expect(result.features).toHaveLength(1);
     expect(result.exceededTransferLimit).toBe(true);
+  });
+
+  it("applyEdits with an id-less update does not POST an unfiltered <wfs:Update>", async () => {
+    let observedBody: string | undefined;
+    let postHits = 0;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        async (url, init) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (init?.method === "POST") {
+            postHits += 1;
+            observedBody = typeof init.body === "string" ? init.body : await new Response(init.body).text();
+            return xmlResponse(wfsTransactionResponseXml());
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const result = await source.applyEdits({
+      // biome-ignore lint/suspicious/noExplicitAny: deliberately exercising an id-less update on the canonical envelope shape
+      updates: [{ attributes: { OBJECTID: 1, STATE: "CA", ACRES: 8 } } as any],
+    });
+    // Per-item failure for the malformed update; transaction is never sent
+    // because no operations remain after filtering.
+    expect(postHits).toBe(0);
+    expect(observedBody).toBeUndefined();
+    expect(result.updated).toHaveLength(1);
+    expect(result.updated[0].success).toBe(false);
+    expect(result.updated[0].error?.code).toBe(400);
+    expect(result.updated[0].error?.description).toContain("update.id");
+  });
+
+  it("applyEdits skips id-less updates from the body but still sends valid edits", async () => {
+    let observedBody: string | undefined;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        async (url, init) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (init?.method === "POST") {
+            observedBody = typeof init.body === "string" ? init.body : await new Response(init.body).text();
+            return xmlResponse(wfsTransactionResponseXml());
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const result = await source.applyEdits({
+      updates: [
+        // biome-ignore lint/suspicious/noExplicitAny: deliberately mixing a malformed update with a valid one
+        { attributes: { OBJECTID: 1, STATE: "CA", ACRES: 8 } } as any,
+        { id: 2, attributes: { OBJECTID: 2, STATE: "CA", ACRES: 11 } },
+      ],
+    });
+    expect(observedBody).toBeDefined();
+    // The malformed update never made it onto the wire; only the valid one.
+    expect(observedBody!.match(/<wfs:Update/g) ?? []).toHaveLength(1);
+    expect(observedBody).toContain('<fes:ResourceId rid="2"/>');
+    expect(result.updated).toHaveLength(2);
+    expect(result.updated[0].success).toBe(false);
+    expect(result.updated[0].error?.code).toBe(400);
+    expect(result.updated[1].success).toBe(true);
+    expect(result.updated[1].id).toBe(2);
+  });
+
+  it("queryObjectIds drains pages until the server returns a short page", async () => {
+    let pageRequests = 0;
+    const totalRows = 4500; // > one drain page (2000)
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            pageRequests += 1;
+            const start = Number(url.searchParams.get("startIndex") ?? "0");
+            const count = Number(url.searchParams.get("count") ?? "2000");
+            const end = Math.min(totalRows, start + count);
+            const features = Array.from({ length: end - start }, (_, idx) => ({
+              type: "Feature" as const,
+              id: start + idx + 1,
+              properties: { OBJECTID: start + idx + 1, STATE: "CA", ACRES: 1 },
+              geometry: { type: "Point", coordinates: [-122, 38] },
+            }));
+            return new Response(
+              JSON.stringify({ type: "FeatureCollection", features, numberMatched: totalRows }),
+              { status: 200, headers: { "Content-Type": "application/geo+json" } },
+            );
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const ids = await source.queryObjectIds({ where: "1=1" });
+    expect(pageRequests).toBeGreaterThanOrEqual(3);
+    expect(ids).toHaveLength(totalRows);
+    expect(ids[0]).toBe(1);
+    expect(ids[ids.length - 1]).toBe(totalRows);
+  });
+
+  it("queryObjectIds caps at Query.pagination.limit when supplied", async () => {
+    const totalRows = 4500;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            const start = Number(url.searchParams.get("startIndex") ?? "0");
+            const count = Number(url.searchParams.get("count") ?? "2000");
+            const end = Math.min(totalRows, start + count);
+            const features = Array.from({ length: end - start }, (_, idx) => ({
+              type: "Feature" as const,
+              id: start + idx + 1,
+              properties: { OBJECTID: start + idx + 1, STATE: "CA", ACRES: 1 },
+              geometry: { type: "Point", coordinates: [-122, 38] },
+            }));
+            return new Response(
+              JSON.stringify({ type: "FeatureCollection", features, numberMatched: totalRows }),
+              { status: 200, headers: { "Content-Type": "application/geo+json" } },
+            );
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const ids = await source.queryObjectIds({ pagination: { limit: 50 } });
+    expect(ids).toHaveLength(50);
+  });
+
+  it("envelope spatialRel='within' takes the FES path, not bbox=", async () => {
+    let getFeatureUrl: URL | undefined;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            getFeatureUrl = url;
+            return new Response(JSON.stringify(wfsGeoJsonResponse()), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    await source.query({
+      spatialFilter: {
+        geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelWithin",
+      },
+    });
+    // Non-intersects envelope must NOT shortcut as bbox= — it must emit
+    // <fes:Within> in the filter so the server preserves "within" semantics.
+    expect(getFeatureUrl?.searchParams.get("bbox")).toBeNull();
+    const filter = getFeatureUrl?.searchParams.get("filter") ?? "";
+    expect(filter).toContain("<fes:Within>");
+    expect(filter).toContain("<gml:Polygon");
+  });
+
+  it("envelope spatialRel='intersects' still takes the bbox= shortcut", async () => {
+    let getFeatureUrl: URL | undefined;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            getFeatureUrl = url;
+            return new Response(JSON.stringify(wfsGeoJsonResponse()), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    await source.query({
+      spatialFilter: {
+        geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelIntersects",
+      },
+    });
+    expect(getFeatureUrl?.searchParams.get("bbox")).toBe("-123,37,-120,45");
+    expect(getFeatureUrl?.searchParams.get("filter")).toBeNull();
   });
 });
 

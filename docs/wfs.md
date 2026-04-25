@@ -94,13 +94,16 @@ on `SourceDescriptor.capabilities`.
 
 ## Content-type negotiation
 
-The adapter prefers `application/geo+json` (or `application/json` when
-the server lists it) over GML. If `OperationsMetadata.GetFeature`
-advertises only GML, the canonical `Source.query()` throws
-`HonuaCapabilityNotSupportedError("query")` rather than ship raw XML
-through `Result.features`. Callers can still reach the GML payload
-through `Source.protocol("wfs").getFeature(...)` (see "Protocol
-escape hatch" below).
+The adapter treats the server as advertising JSON when
+`OperationsMetadata.GetFeature` lists any of
+`application/geo+json`, `application/json`,
+`application/vnd.geo+json`, `json`, or `geojson` and prefers the
+GeoJSON encoding over GML. If only GML is advertised, the canonical
+`Source.query()` throws `HonuaCapabilityNotSupportedError("query")`
+rather than ship raw XML through `Result.features`. Callers can still
+reach the GML payload through
+`Source.protocol("wfs").getFeature(...)` (see "Protocol escape hatch"
+below).
 
 GML decoding is intentionally out of scope. A future ticket may add an
 opt-in GML decoder; for now the canonical surface is GeoJSON-only.
@@ -126,12 +129,17 @@ silent partial filter. Callers that need the full FES vocabulary
 reach the wire through
 `Source.protocol("wfs").getFeature({ filter: rawFesXml })`.
 
-`Query.spatialFilter` compiles to FES `<fes:BBOX>` (envelope-only) or
-the corresponding spatial predicate (`<fes:Intersects>`,
-`<fes:Within>`, `<fes:Contains>`, `<fes:Crosses>`, `<fes:Overlaps>`,
-`<fes:Touches>`). Geometry serialization is GML 3.2 simple
-(point / line / polygon); curves and surfaces throw and require the
-escape hatch.
+`Query.spatialFilter` compiles to FES `<fes:BBOX>` (envelope geometry
+with `spatialRel` undefined / `esriSpatialRelIntersects` /
+`esriSpatialRelEnvelopeIntersects`) or the corresponding spatial
+predicate (`<fes:Intersects>`, `<fes:Within>`, `<fes:Contains>`,
+`<fes:Crosses>`, `<fes:Overlaps>`, `<fes:Touches>`). For envelope
+geometry with a non-intersects relation (`Contains`, `Within`,
+`Crosses`, `Overlaps`, `Touches`), the adapter lowers the envelope to
+a GML 3.2 polygon and emits the requested predicate so the server
+honors the relation rather than silently widening to bbox semantics.
+Geometry serialization is GML 3.2 simple (point / line / polygon);
+curves and surfaces throw and require the escape hatch.
 
 The geometry property name defaults to `the_geom`. Servers using a
 different name (`geometry`, `shape`, …) can supply a per-source filter

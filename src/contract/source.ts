@@ -1149,26 +1149,73 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
     async queryObjectIds(request) {
       ensureCapability(descriptor, caps, "queryObjectIds");
       // WFS does not expose a server-side ids-only mode that interoperates
-      // across implementations; drain the matching set and project the
-      // GeoJSON `id`. `Query.pagination.limit` bounds the scan.
+      // across implementations; drain the matching set across pages and
+      // project the GeoJSON `id`. `Query.pagination.limit` bounds the scan
+      // as a global cap (not a per-page count) so callers can stop the drain
+      // without learning the server's default page size.
       const choice = await negotiateJsonOrThrow();
-      const json = await runGetFeatureJson(featureType, typeName, choice, request, request?.pagination?.limit);
-      const collection = json as { features?: ReadonlyArray<{ id?: unknown }> };
+      const limitCap =
+        typeof request?.pagination?.limit === "number" && request.pagination.limit > 0
+          ? request.pagination.limit
+          : undefined;
+      const drainPageSize = 2000;
       const ids: FeatureId[] = [];
-      for (const feature of collection.features ?? []) {
-        if (feature.id !== undefined && feature.id !== null) {
-          ids.push(feature.id as FeatureId);
+      let offset = request?.pagination?.offset ?? 0;
+      while (true) {
+        const remainingCap = limitCap !== undefined ? Math.max(0, limitCap - ids.length) : undefined;
+        if (remainingCap === 0) break;
+        const pageSize = remainingCap !== undefined ? Math.min(drainPageSize, remainingCap) : drainPageSize;
+        const pageRequest: Query<T> = {
+          ...(request ?? {}),
+          pagination: { offset, limit: pageSize },
+        };
+        const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, pageSize);
+        const collection = json as { features?: ReadonlyArray<{ id?: unknown }> };
+        const features = collection.features ?? [];
+        for (const feature of features) {
+          if (feature.id !== undefined && feature.id !== null) {
+            ids.push(feature.id as FeatureId);
+            if (limitCap !== undefined && ids.length >= limitCap) break;
+          }
         }
+        if (limitCap !== undefined && ids.length >= limitCap) break;
+        if (features.length < pageSize) break;
+        offset += features.length;
       }
       return ids;
     },
     async applyEdits(envelope) {
       ensureCapability(descriptor, caps, "applyEdits");
-      const body = buildTransactionBody(typeName, envelope, featureNamespace);
-      const transactionOptions: { body: string; signal?: AbortSignal } = { body };
-      if (envelope.signal) transactionOptions.signal = envelope.signal;
-      const summary = await featureType.transaction(transactionOptions);
-      return canonicalEditResultFromTransaction(envelope, summary);
+      // CanonicalFeature.id is required for updates because each <wfs:Update>
+      // is filtered by `<fes:ResourceId>`; without an id the block would
+      // mass-update every feature in the type. Mirror the OGC adapter's
+      // per-item guard: push a failure outcome for each malformed update and
+      // build the transaction with only the valid ones.
+      const malformedUpdateIndices = new Set<number>();
+      const validUpdates: Array<NonNullable<typeof envelope.updates>[number]> = [];
+      for (const [idx, update] of (envelope.updates ?? []).entries()) {
+        if (update.id === undefined || update.id === null) {
+          malformedUpdateIndices.add(idx);
+        } else {
+          validUpdates.push(update);
+        }
+      }
+      const adds = envelope.adds ?? [];
+      const deletes = envelope.deletes ?? [];
+      let summary: import("../core/wfs-capabilities.js").WfsTransactionSummary;
+      if (adds.length === 0 && validUpdates.length === 0 && deletes.length === 0) {
+        // Nothing to send — every operation was either absent or malformed.
+        // Skip the wire round-trip entirely so the server never sees an
+        // unaddressed transaction.
+        summary = { totalInserted: 0, totalUpdated: 0, totalDeleted: 0, insertResults: [] };
+      } else {
+        const filtered: EditEnvelope<T> = { ...envelope, updates: validUpdates };
+        const body = buildTransactionBody(typeName, filtered, featureNamespace);
+        const transactionOptions: { body: string; signal?: AbortSignal } = { body };
+        if (envelope.signal) transactionOptions.signal = envelope.signal;
+        summary = await featureType.transaction(transactionOptions);
+      }
+      return canonicalEditResultFromTransaction(envelope, summary, malformedUpdateIndices);
     },
     async queryRelated() {
       throw new HonuaCapabilityNotSupportedError("queryRelated", descriptor.protocol, descriptor.id);
@@ -1230,8 +1277,21 @@ async function runGetFeatureJson<T>(
     }
   }
   if (request?.spatialFilter) {
+    const spatialRel = request.spatialFilter.spatialRel;
+    // The `bbox=` KVP and `<fes:BBOX>` both encode envelope-intersects
+    // semantics (OGC 09-026r2). Only take the bbox shortcut when the caller
+    // wants intersects (default), envelope-intersects, or did not specify.
+    // Anything else (Contains, Within, Crosses, Overlaps, Touches) needs an
+    // FES predicate that preserves the requested relation, which means
+    // routing the envelope through compileSpatialFilter so the geometry is
+    // serialized as a polygon under the correct spatial op.
+    const isEnvelopeIntersects =
+      spatialRel === undefined ||
+      spatialRel === "esriSpatialRelIntersects" ||
+      spatialRel === "esriSpatialRelEnvelopeIntersects";
     if (
       request.spatialFilter.geometryType === "esriGeometryEnvelope" &&
+      isEnvelopeIntersects &&
       filterNodes.length === 0 &&
       request.where === undefined
     ) {
@@ -1546,6 +1606,7 @@ function escapeXmlText(value: string): string {
 function canonicalEditResultFromTransaction<T>(
   envelope: EditEnvelope<T>,
   summary: import("../core/wfs-capabilities.js").WfsTransactionSummary,
+  malformedUpdateIndices: ReadonlySet<number> = new Set(),
 ): EditResult {
   const added: EditOutcome[] = (envelope.adds ?? []).map((_, idx) => {
     const insertBucket = summary.insertResults[idx];
@@ -1555,11 +1616,21 @@ function canonicalEditResultFromTransaction<T>(
     if (insertedId !== undefined) out.id = insertedId;
     return out;
   });
-  const updated: EditOutcome[] = (envelope.updates ?? []).map((u, idx) => {
-    const out: EditOutcome = { success: idx < summary.totalUpdated };
-    if (u.id !== undefined) out.id = u.id;
-    return out;
-  });
+  // Updates that were skipped because they had no id never went on the wire;
+  // their outcome is a deterministic 400. The remaining indices align with
+  // the transaction summary in the order the body sent them.
+  const updated: EditOutcome[] = [];
+  let validUpdateIdx = 0;
+  for (const [idx, update] of (envelope.updates ?? []).entries()) {
+    if (malformedUpdateIndices.has(idx)) {
+      updated.push({ success: false, error: { code: 400, description: "update.id is required" } });
+      continue;
+    }
+    const out: EditOutcome = { success: validUpdateIdx < summary.totalUpdated };
+    if (update.id !== undefined) out.id = update.id;
+    updated.push(out);
+    validUpdateIdx += 1;
+  }
   const deleted: EditOutcome[] = (envelope.deletes ?? []).map((id, idx) => ({
     id,
     success: idx < summary.totalDeleted,

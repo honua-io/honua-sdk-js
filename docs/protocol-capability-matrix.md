@@ -255,7 +255,9 @@ silent partial filter — callers reach the wire through
 `Source.protocol("wfs")`. `queryExtent` prefers the per-feature-type
 `WGS84BoundingBox` from `GetCapabilities` for unfiltered requests so
 no extra HTTP traffic is issued; filtered or `outSr`-bearing requests
-drain a single page and compute the bbox client-side.
+drain every matching page (2000 features per page) and compute the
+bbox client-side, ignoring caller pagination so the returned extent
+covers the full matching set.
 Content negotiation prefers `application/geo+json` /
 `application/json` when the server's `OperationsMetadata`
 advertises it; if only GML is offered the canonical `query()` throws

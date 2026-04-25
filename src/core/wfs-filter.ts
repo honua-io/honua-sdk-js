@@ -93,6 +93,7 @@ export function compileSpatialFilter(
 ): FesCompileResult {
   const property = options.geometryProperty;
   const srsName = options.srsName;
+  const op = mapSpatialRel(filter.spatialRel);
   if (filter.geometryType === "esriGeometryEnvelope") {
     const env = filter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
     if (
@@ -103,20 +104,40 @@ export function compileSpatialFilter(
     ) {
       return UNSUPPORTED_FES;
     }
-    const envelope: { xmin: number; ymin: number; xmax: number; ymax: number; srsName?: string } = {
-      xmin: env.xmin,
-      ymin: env.ymin,
-      xmax: env.xmax,
-      ymax: env.ymax,
-    };
-    if (srsName) envelope.srsName = srsName;
-    return { kind: "bbox", property, envelope };
+    // <fes:BBOX> is envelope-intersects only. For any other relation the
+    // adapter must lower the envelope to a polygon and emit the requested
+    // FES spatial op explicitly so non-intersects relations preserve their
+    // semantics.
+    if (op === "Intersects") {
+      const envelope: { xmin: number; ymin: number; xmax: number; ymax: number; srsName?: string } = {
+        xmin: env.xmin,
+        ymin: env.ymin,
+        xmax: env.xmax,
+        ymax: env.ymax,
+      };
+      if (srsName) envelope.srsName = srsName;
+      return { kind: "bbox", property, envelope };
+    }
+    if (!op) return UNSUPPORTED_FES;
+    const gml = envelopeToPolygonGml(env.xmin, env.ymin, env.xmax, env.ymax, srsName);
+    return { kind: "spatial", op, property, gml };
   }
-  const op = mapSpatialRel(filter.spatialRel);
   if (!op) return UNSUPPORTED_FES;
   const gml = geometryToGml(filter.geometry, filter.geometryType, srsName);
   if (gml === undefined) return UNSUPPORTED_FES;
   return { kind: "spatial", op, property, gml };
+}
+
+function envelopeToPolygonGml(
+  xmin: number,
+  ymin: number,
+  xmax: number,
+  ymax: number,
+  srsName: string | undefined,
+): string {
+  const srsAttr = srsName ? ` srsName=${attr(srsName)}` : "";
+  const ring = `${xmin} ${ymin} ${xmax} ${ymin} ${xmax} ${ymax} ${xmin} ${ymax} ${xmin} ${ymin}`;
+  return `<gml:Polygon${srsAttr}><gml:exterior><gml:LinearRing><gml:posList>${ring}</gml:posList></gml:LinearRing></gml:exterior></gml:Polygon>`;
 }
 
 function mapSpatialRel(rel: SpatialFilter["spatialRel"]): FesSpatialOp | undefined {

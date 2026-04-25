@@ -124,9 +124,10 @@ destinations, using the alignment table in
 | `geoservices_feature_service` | contract adapter | `geoservices-feature-service`, custom source type `honua-feature-service`. |
 | `geoservices_map_service` | contract adapter | `geoservices-map-service`, custom source type `honua-map-service`. |
 | `ogc_features` | contract adapter | `ogc-features`, custom source type `honua-ogc-features`. Collection id is copied from `locator.collectionId`. |
+| `wfs` | contract adapter | `wfs` (built-in), custom source type `honua-wfs`. `locator.typeName` (and optional `locator.featureNamespace`) are forwarded; first-party WFS 2.0 adapter ships in `@honua/sdk-js/contract`. |
 | `wms` | contract adapter | `wms`, custom source type `honua-wms`. `locator.typeName` projects as `layers`, `locator.styleId` as `styles`. Use `buildWmsRasterSourceSpec(descriptor)` to produce a MapLibre-ready `{ type: "raster", tiles, tileSize }` spec with a pre-baked KVP `GetMap` template that uses MapLibre's `{bbox-epsg3857}` / `{width}` / `{height}` placeholders. |
 | `wmts` | contract adapter | `wmts`, custom source type `honua-wmts`. `locator.typeName` / `locator.styleId` / `locator.tileMatrixSetId` project as `layer` / `style` / `tileMatrixSet`. Use `buildWmtsRasterSourceSpec(descriptor)` to produce a MapLibre-ready `{ type: "raster", tiles, tileSize, scheme: "xyz" }` spec using the RESTful `{layer}/{style}/{tms}/{z}/{y}/{x}.{ext}` route. |
-| `wfs` / `odata` | contract adapter (plug-in) | Requires `opts.resolveSource` until the adapter ships. |
+| `odata` | contract adapter (plug-in) | Requires `opts.resolveSource` until the adapter ships. |
 | `vector_tile` / `ogc_tiles` | MapLibre-native | Projected to a `{ type: "vector", tiles: [url], attribution? }` source entry — no contract adapter. |
 | `raster_tile` / `ogc_maps` | MapLibre-native | Projected to a `{ type: "raster", tiles: [url], attribution? }` source entry. |
 | `workspace_artifact` | deferred | Throws `HonuaMapPackageError { stage: "source-bind" }` — no artifact resolver is wired yet. |
