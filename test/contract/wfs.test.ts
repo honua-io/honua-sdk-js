@@ -293,6 +293,38 @@ describe("wfs / canonical Source", () => {
     expect(out.extent!.xmin).toBeLessThanOrEqual(out.extent!.xmax);
   });
 
+  it("queryExtent ignores outFields so projected requests still include geometry", async () => {
+    let observedPropertyName: string | null | undefined;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            observedPropertyName = url.searchParams.get("propertyName");
+            const projectedAwayGeometry = observedPropertyName !== null;
+            const body = wfsGeoJsonResponse(PARCEL_FEATURES.filter((f) => f.attributes.STATE === "CA"));
+            return new Response(
+              JSON.stringify({
+                ...body,
+                features: projectedAwayGeometry
+                  ? body.features.map((feature) => ({ ...feature, geometry: null }))
+                  : body.features,
+              }),
+              { status: 200, headers: { "Content-Type": "application/geo+json" } },
+            );
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const out = await source.queryExtent({ where: "STATE = 'CA'", outFields: ["OBJECTID"] });
+    expect(observedPropertyName).toBeNull();
+    expect(out.extent).toEqual({ xmin: -121, ymin: 37, xmax: -120, ymax: 38 });
+  });
+
   it("filtered queryExtent drains all pages so the widest geometry on a later page is included", async () => {
     // Server-side feature set: two pages worth, where the second page holds
     // the widest x and the smallest y. A single-page implementation would

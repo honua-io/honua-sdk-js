@@ -1104,6 +1104,7 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
       // queryExtent is a "what bbox holds the matching set" question.
       const choice = await negotiateJsonOrThrow();
       const drainPageSize = 2000;
+      const extentRequest = toWfsExtentDrainRequest(request);
       let xmin = Number.POSITIVE_INFINITY;
       let ymin = Number.POSITIVE_INFINITY;
       let xmax = Number.NEGATIVE_INFINITY;
@@ -1113,7 +1114,7 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
       let offset = 0;
       while (true) {
         const pageRequest: Query<T> = {
-          ...(request ?? {}),
+          ...extentRequest,
           pagination: { offset, limit: drainPageSize },
         };
         const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, drainPageSize);
@@ -1259,6 +1260,13 @@ function requireWfsLocator(descriptor: SourceDescriptor): {
     typeName,
     featureNamespace: typeof featureNamespace === "string" ? featureNamespace : undefined,
   };
+}
+
+function toWfsExtentDrainRequest<T>(request: Query<T> | undefined): Query<T> {
+  const { outFields: _outFields, pagination: _pagination, ...extentRequest } = request ?? {};
+  void _outFields;
+  void _pagination;
+  return extentRequest;
 }
 
 /**

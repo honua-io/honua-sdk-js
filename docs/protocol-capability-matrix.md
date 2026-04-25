@@ -263,6 +263,12 @@ adapter drains the matching set in 2000-feature pages and projects each
 GeoJSON `id`. `Query.pagination.limit` caps the global id count
 (callers can stop the drain without learning the server's page size)
 and `Query.pagination.offset` chooses where the drain starts.
+`pagination.limit === 0` is treated as an explicit zero cap across
+`query`, `stream`, and `queryObjectIds` (each short-circuits before
+the wire call); `queryAll` still issues a single 1-row lookahead so
+`exceededTransferLimit` can flip when more records exist — matching
+the `withPagingBounds` / `applyQueryAllLimit` semantics shared with
+GeoServices and OGC Features.
 Content negotiation prefers `application/geo+json` /
 `application/json` when the server's `OperationsMetadata`
 advertises it; if only GML is offered the canonical `query()` throws
@@ -279,7 +285,7 @@ description: "update.id is required" } }`) so an unaddressed
 envelope is absent or malformed the wire round-trip is skipped.
 Stored-query discovery (`ListStoredQueries`) and execution
 (`GetFeature?storedquery_id=...`) are reachable through
-`Source.protocol("wfs").storedQuery(id).execute({ parameters })`.
+`Source.protocol("wfs")!.root.storedQuery(id).execute({ parameters })`.
 Stored queries that advertise only GML (e.g. Honua Server's
 `urn:ogc:def:query:OGC-WFS::GetFeatureById`) cannot be projected onto
 the canonical `Source.query()` envelope; the canonical surface throws

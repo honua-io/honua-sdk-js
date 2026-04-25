@@ -58,7 +58,13 @@ All notable changes to the Honua JS SDK will be documented in this file.
   the full matching set. `queryObjectIds` drains pages of 2000 ids
   until the server returns a short page; `Query.pagination.limit` caps
   the global id count and `Query.pagination.offset` chooses where the
-  drain starts. `applyEdits` builds a single `<wfs:Transaction>`
+  drain starts. `pagination.limit === 0` is honored as an explicit
+  zero cap across `query`, `stream`, and `queryObjectIds` (each
+  short-circuits before the wire call); `queryAll` still issues a
+  single 1-row lookahead so `exceededTransferLimit` can flip when more
+  records exist — matching the `withPagingBounds` /
+  `applyQueryAllLimit` semantics already used by GeoServices and OGC
+  Features. `applyEdits` builds a single `<wfs:Transaction>`
   (Insert / Update / Delete), maps `EditEnvelope.rollbackOnFailure` to
   `releaseAction` `ALL` / `SOME`, and surfaces per-handle
   `InsertResults` IDs onto `EditOutcome.id`. Updates without a
