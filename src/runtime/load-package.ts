@@ -176,8 +176,11 @@ export async function loadMapPackage(
         // query-time call. The built-in adapter constructors are
         // side-effect free (no HTTP), so eager resolution is cheap.
         dataset.source(descriptor.id);
-        styleSources[descriptor.id] = honuaSpec;
+        // Commit to honuaMap before exposing the spec on styleSources so
+        // a thrown addSource cannot leave the failed source in
+        // composedStyle.sources after the catch records the failure.
         honuaMap.addSource(descriptor.id, honuaSpec);
+        styleSources[descriptor.id] = honuaSpec;
       } catch (cause) {
         recordSourceFailure(descriptor, cause);
       }

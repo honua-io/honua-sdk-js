@@ -560,6 +560,33 @@ function detectUnpatchableLayerChange(
   previous: HonuaStyleSpecification,
   next: HonuaStyleSpecification,
 ): string | undefined {
+  // Tolerant source failure / recovery on reload can change the composed
+  // layer or source set without showing up in the raw package diff
+  // (which is computed from `mapSpec`, not the post-filter composed
+  // style). Force structural fallback whenever the composed shape
+  // differs so `#applyIncremental` does not leave stale MapLibre layers
+  // or sources behind.
+  const previousLayerIds = previous.layers.map((layer) => layer.id);
+  const nextLayerIds = next.layers.map((layer) => layer.id);
+  if (previousLayerIds.length !== nextLayerIds.length) {
+    return "composed layer set changed (tolerant source failure or recovery)";
+  }
+  for (let i = 0; i < previousLayerIds.length; i++) {
+    if (previousLayerIds[i] !== nextLayerIds[i]) {
+      return "composed layer set or order changed (tolerant source failure or recovery)";
+    }
+  }
+  const previousSourceIds = Object.keys(previous.sources).sort();
+  const nextSourceIds = Object.keys(next.sources).sort();
+  if (previousSourceIds.length !== nextSourceIds.length) {
+    return "composed source set changed (tolerant source failure or recovery)";
+  }
+  for (let i = 0; i < previousSourceIds.length; i++) {
+    if (previousSourceIds[i] !== nextSourceIds[i]) {
+      return "composed source set changed (tolerant source failure or recovery)";
+    }
+  }
+
   const previousLayers = new Map(previous.layers.map((layer) => [layer.id, layer]));
   for (const nextLayer of next.layers) {
     const previousLayer = previousLayers.get(nextLayer.id);

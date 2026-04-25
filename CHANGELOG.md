@@ -150,6 +150,39 @@ All notable changes to the Honua JS SDK will be documented in this file.
 - Contract docs: `docs/shared-client-contract.md`, `docs/exploration-context.md`,
   `docs/protocol-capability-matrix.md`, `docs/source-binding-alignment.md`, and
   `docs/maplibre-runtime.md`.
+- Mixed-protocol composition surface (`#22`) on the existing `Source` /
+  `Dataset` / `Capabilities` / `Result.degraded[]` contract — no new
+  vocabulary. `intersectCapabilities` and `unionCapabilities` (re-exported
+  from `@honua/sdk-js/contract` and the root entry) compute the weakest /
+  best-case capability set across heterogeneous participants;
+  `intersectCapabilities` is the canonical helper for refusing the
+  silent-wrong-result failure mode (promising a capability the weakest
+  source lacks). `DegradedReason` gains an additive optional `sourceId`
+  field, populated by the OGC Features and OData adapters from
+  `descriptor.id`, so a fan-out across multiple sources can attribute each
+  degradation back to the source that emitted it. `loadMapPackage` accepts
+  a new `sourceErrorPolicy: "tolerant" | "fail-fast"` option (default
+  `"tolerant"`): a per-source binding failure under `"tolerant"` no longer
+  aborts the load — the failed source is dropped from `composedStyle.sources`,
+  layers whose `source` references it are filtered out of `composedStyle.layers`,
+  the runtime emits one `{ type: "source-error", sourceId, error }` event
+  per failed source after `source-ready` and before `package-loaded`, and
+  `HonuaRuntimeTelemetry.error` receives a `source-bind` span carrying
+  `{ sourceId }` in `detail`. `"fail-fast"` preserves the historical
+  reject-on-any-binding-failure behaviour. Configuration-level binding
+  errors raised by `projectSourceBindings` (unknown protocol, missing
+  `locator.url`, duplicate `sourceId`, deferred `workspace_artifact`)
+  always fail-fast under either policy. A new
+  `runtime.reportSourceError(sourceId, error)` shim on `HonuaMapRuntime`
+  lets consumers that fan a query across the dataset broadcast a query-
+  time rejection through the same `source-error` event and `source-bind`
+  telemetry span; idempotent and a no-op on a disposed runtime. The
+  composition guide ([`docs/composition.md`](./docs/composition.md)) covers
+  the weakest-set rule, the partition-then-intersect pattern for per-
+  operation reasoning, the four representative scenarios (GeoServices +
+  OGC Features + WMS + STAC; FeatureServer + OData; WMTS basemap + OGC
+  Features overlay; partial-failure under `loadMapPackage`), and the
+  first-party / `resolveSource` / render-only matrix.
 - Core HTTP client (`HonuaClient`) with FeatureServer, MapServer, and OGC API Features support
 - Fluent layer wrappers (`featureLayer()`, `mapLayer()`, `mapService()`, `ogcFeatures()`)
 - Typed response models for all query, edit, metadata, and OGC endpoints

@@ -279,11 +279,21 @@ runtime.dispose();
   mismatches without mutating the map.
 
 Binding failures throw `HonuaMapPackageError` with a `stage` of
-`"load" | "update" | "style-compose" | "source-bind" | "view" | "popup" | "dispose"`. Query-time adapter
-errors (`HonuaCapabilityNotSupportedError`, `HonuaHttpError`, adapter-specific classes) are not wrapped —
-they surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient`
-interceptor chain. The `source-error` runtime event is declared for future `#22` / `#29` wiring and is
-not emitted by the loader today.
+`"load" | "update" | "style-compose" | "source-bind" | "view" | "popup" | "dispose"` under the opt-in
+`sourceErrorPolicy: "fail-fast"`. Under the default `"tolerant"` policy a single per-source binding
+failure does not abort the load — the failed source is dropped from the composed style along with any
+layer that referenced it, the runtime emits a `source-error` event for the failed source, and a
+`source-bind` telemetry error span fires. Remaining sources keep rendering. Query-time adapter errors
+(`HonuaCapabilityNotSupportedError`, `HonuaHttpError`, adapter-specific classes) are not wrapped — they
+surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient`
+interceptor chain; consumers fanning a query across the dataset can broadcast a per-source rejection
+through `runtime.reportSourceError(sourceId, error)` to fold it into the same `source-error` channel.
+
+For mixed-protocol compositions (parcels FeatureServer + WMS basemap + STAC overlay + OData operational
+layer in one map), use `intersectCapabilities` from `@honua/sdk-js/contract` to compute the **weakest**
+capability set across participating sources before fanning a call out, and rely on `Result.degraded[]`
+entries (now carrying optional `sourceId`) for per-source attribution. Full composition guide:
+[`docs/composition.md`](./docs/composition.md).
 
 ## Install
 

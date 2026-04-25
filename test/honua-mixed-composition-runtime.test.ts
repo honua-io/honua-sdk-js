@@ -22,10 +22,11 @@
  * production.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PROTOCOL_DEFAULT_CAPABILITIES, type SourceDescriptor, intersectCapabilities } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
+import { HonuaMap } from "../src/map/honua-map.js";
 import {
   HONUA_MAP_PACKAGE_FORMAT_V1,
   type HonuaMapPackage,
@@ -230,6 +231,10 @@ function makeMixedPackage(overrides: { ogcLocatorUrl?: string } = {}): HonuaMapP
 }
 
 describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it(
     "binds GeoServices + OGC Features + WMS basemap + vector tiles through one loadMapPackage call",
     { timeout: 30_000 },
@@ -333,6 +338,131 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
       // The remaining sources are still queryable end-to-end.
       const fsResult = await runtime.dataset.source("parcels")!.query({ where: "1=1" });
       expect(fsResult.features).toHaveLength(2);
+    },
+  );
+
+  it(
+    "tolerant policy: a thrown honuaMap.addSource still drops the source from composedStyle.sources",
+    { timeout: 30_000 },
+    async () => {
+      // Regression: previously the loader assigned styleSources[id] before
+      // calling honuaMap.addSource, so a thrown addSource left the failed
+      // source in composedStyle.sources even though the catch recorded
+      // the failure. The fix swaps the order so addSource commits before
+      // styleSources is touched.
+      const map = makeMockMap();
+      const { fetchFn } = makeMockFetch();
+      const client = new HonuaClient({ baseUrl: "https://mock.honua.test", fetchFn });
+      const events: HonuaRuntimeEvent[] = [];
+
+      const realAddSource = HonuaMap.prototype.addSource;
+      vi.spyOn(HonuaMap.prototype, "addSource").mockImplementation(function (
+        this: HonuaMap,
+        name: string,
+        spec: Parameters<HonuaMap["addSource"]>[1],
+      ): void {
+        if (name === "parcels") {
+          throw new Error("honuaMap.addSource refused 'parcels'");
+        }
+        realAddSource.call(this, name, spec);
+      });
+
+      const runtime = await loadMapPackage(makeMixedPackage(), map, {
+        client,
+        skipCompatibilityCheck: true,
+        applyInitialView: false,
+        onEvent: (event) => events.push(event),
+      });
+
+      // Failed source absent from composedStyle.sources and from
+      // composedStyle.layers; the rest of the composition keeps rendering.
+      expect(Object.keys(runtime.composedStyle.sources).sort()).toEqual([
+        "basemap-tiles",
+        "imagery",
+        "ogc-overlay",
+      ]);
+      const layerIds = runtime.composedStyle.layers.map((l) => l.id).sort();
+      expect(layerIds).not.toContain("parcels-fill");
+      expect(layerIds).toEqual(["background", "basemap-line", "imagery-raster", "ogc-circle"]);
+
+      // Exactly one source-error for the failed source.
+      const sourceErrors = events.filter((e) => e.type === "source-error");
+      expect(sourceErrors).toHaveLength(1);
+      expect((sourceErrors[0] as { sourceId: string }).sourceId).toBe("parcels");
+    },
+  );
+
+  it(
+    "tolerant reload: failure / recovery between updatePackage calls forces structural setStyle",
+    { timeout: 30_000 },
+    async () => {
+      // Regression: previously detectUnpatchableLayerChange only compared
+      // shapes for layer ids that existed in both composed styles, so a
+      // tolerant source failure (or recovery) on reload could leave the
+      // raw package diff incremental and #applyIncremental would skip
+      // the removed layer / source — leaving stale MapLibre state. The
+      // fix forces structural fallback whenever the composed layer or
+      // source set differs across reloads.
+      //
+      // The trigger: hand the runtime two identical packages back to
+      // back; flip a spy between calls so the second reload's
+      // honuaMap.addSource throws only for one source. The raw package
+      // diff is then empty (would be incremental), but the composed
+      // style now drops one source/layer — the runtime must detect that
+      // composed-shape divergence and fall back to setStyle.
+      const map = makeMockMap();
+      const { fetchFn } = makeMockFetch();
+      const client = new HonuaClient({ baseUrl: "https://mock.honua.test", fetchFn });
+
+      // First load: spy is a pass-through, every source binds successfully.
+      const realAddSource = HonuaMap.prototype.addSource;
+      let failOgcOnReload = false;
+      vi.spyOn(HonuaMap.prototype, "addSource").mockImplementation(function (
+        this: HonuaMap,
+        name: string,
+        spec: Parameters<HonuaMap["addSource"]>[1],
+      ): void {
+        if (failOgcOnReload && name === "ogc-overlay") {
+          throw new Error("simulated ogc-overlay bind failure on reload");
+        }
+        realAddSource.call(this, name, spec);
+      });
+
+      const pkg = makeMixedPackage();
+      const runtime = await loadMapPackage(pkg, map, {
+        client,
+        skipCompatibilityCheck: true,
+        applyInitialView: false,
+      });
+
+      expect(runtime.composedStyle.layers.map((l) => l.id)).toContain("ogc-circle");
+      expect(runtime.composedStyle.sources).toHaveProperty("ogc-overlay");
+
+      // Drop the load-time setStyle so the assertion below isolates the
+      // structural fallback driven by tolerant failure on reload.
+      map._calls.length = 0;
+      failOgcOnReload = true;
+
+      // Same package object → raw diff is empty (incremental). With the
+      // spy now refusing ogc-overlay at bind time, the reload's composed
+      // style drops the layer + source. The runtime must detect the
+      // composed-shape change and fall back to setStyle.
+      await runtime.updatePackage(pkg);
+
+      expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
+      expect(runtime.composedStyle.sources).not.toHaveProperty("ogc-overlay");
+      expect(runtime.composedStyle.layers.map((l) => l.id)).not.toContain("ogc-circle");
+
+      // Recovery path: flip the spy back, re-update with the same
+      // package. Raw diff again empty, composed style now re-introduces
+      // the source/layer — must again force structural fallback.
+      map._calls.length = 0;
+      failOgcOnReload = false;
+      await runtime.updatePackage(pkg);
+
+      expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
+      expect(runtime.composedStyle.sources).toHaveProperty("ogc-overlay");
+      expect(runtime.composedStyle.layers.map((l) => l.id)).toContain("ogc-circle");
     },
   );
 
