@@ -20,25 +20,25 @@ without a canonical `Source` method today are negotiated for
 `◐` = supported only under `degraded` capability policy (client-side fallback).
 `—` = not supported.
 
-| Capability | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | STAC | WFS | WMS | OData |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `query` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | ✓ |
-| `queryAggregate` | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — |
-| `queryExtent` | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | ✓ | — | — |
-| `queryObjectIds` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | ✓ |
-| `queryRelated` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — |
-| `applyEdits` | ✓ | — | — | — | — | ✓ | — | — | — | ✓ | — | — |
-| `attachments` | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `render` | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | ✓ | — |
-| `tiles` | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | ✓ | — |
-| `sql` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — |
-| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | — | — | — |
-| `pbf` | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `connect` | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — |
-| `image` | — | — | ✓ | — | — | — | — | — | — | — | — | — |
-| `geometry` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `geoprocess` | — | — | — | — | ✓ | — | — | — | — | — | — | — |
-| `processes` | — | — | — | — | — | — | — | — | — | — | — | — |
+| Capability | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | STAC | WFS | WMS | WMTS | OData |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `query` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | ✓ |
+| `queryAggregate` | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — |
+| `queryExtent` | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | ✓ | — | — | — |
+| `queryObjectIds` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ |
+| `queryRelated` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| `applyEdits` | ✓ | — | — | — | — | ✓ | — | — | — | ✓ | — | — | — |
+| `attachments` | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| `render` | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | ✓ | ✓ | — |
+| `tiles` | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | ✓ | ✓ | — |
+| `sql` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | — | — | — | — |
+| `pbf` | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| `connect` | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — |
+| `image` | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
+| `geometry` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — |
+| `geoprocess` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
+| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 MapLibre-native sources (`maplibre-vector`, `maplibre-raster`,
 `maplibre-geojson`) are render-only and contribute `render` and (where
@@ -245,11 +245,47 @@ Read + edit, no aggregation, no relates. `queryExtent` is supported via
 Adapter ticket should map `Query.where` to OGC Filter Encoding XML.
 
 ### WMS
-Render-only. The `query` column is `—` because WMS does not expose a
-feature-query path; the GetFeatureInfo response is converted to features
-in the adapter under the `attachments`-adjacent path but not exposed via
-`Source.query`. The adapter ticket may add a `wms-feature-info` capability
-if richer reuse is needed.
+First-party WMS 1.3.0 adapter. `render` and `tiles` come from `GetMap`;
+`query` is supported through `GetFeatureInfo` with a point spatial
+filter (`Query.spatialFilter.geometryType === "esriGeometryPoint"`). The
+adapter constructs a 1×1 render envelope around the requested point,
+asks for `INFO_FORMAT=application/json`, and decodes the JSON response
+into the canonical `Result<T>` envelope. Non-point queries throw
+`HonuaCapabilityNotSupportedError("query", "wms", id)` because WMS has
+no spatial-rel semantics for envelopes / polygons; raw multi-pixel
+GetFeatureInfo lives behind `Source.protocol("wms").featureInfo()`.
+
+Styled-map selection enumerates per-layer styles from
+`HonuaWms.capabilities()` and is bound on the layer handle (`layer.map`,
+`layer.featureInfo`) via the `style` parameter or descriptor
+`locator.styleId`. Dimension handling (`TIME` / `ELEVATION`) flows
+through the typed `WmsMapRequest` envelope; defaults come from
+`Capabilities`, request overrides go on the wire. honua-server does not
+implement `GetLegendGraphic` today, so the adapter raises
+`HonuaCapabilityNotSupportedError` from `legend()` when the parsed
+Capabilities advertise no `<GetLegendGraphic>` request element. CRS axis
+order is honored per WMS 1.3 §6.7.3.2 — `EPSG:4326` is swapped to
+(lat, lon) on the wire while `CRS:84` and `EPSG:3857` keep canonical
+(x, y) tuples. MapLibre integration ships through
+`buildWmsRasterSourceSpec(descriptor)`, which emits a `raster` source
+spec with a pre-baked KVP `tiles` template using MapLibre's runtime
+`{bbox-epsg3857}` / `{width}` / `{height}` placeholders.
+
+### WMTS
+First-party WMTS 1.0.0 adapter. Render-only — `Source.query()` throws
+because WMTS GetFeatureInfo is keyed on tile pixels (which doesn't fit
+the canonical `Query.spatialFilter`). Capabilities expose advertised
+TileMatrixSets through the typed surface; honua-server only advertises
+`WebMercatorQuad` today and the parser-driven design tolerates additional
+sets without a client refactor. Protocol escape hatches:
+`Source.protocol("wmts")` returns the service handle,
+`Source.protocol("wmts-layer")` a layer-bound handle, and
+`Source.protocol("wmts-tileset")` a (layer × style × TMS) tileset handle.
+`fetchWmtsTile` defaults to the RESTful route (`{layer}/{style}/{tms}/{z}/{y}/{x}.{ext}`)
+because it is a single string substitution per tile and skips
+`URLSearchParams`; `mode: "kvp"` is opt-in for KVP-only proxies.
+`buildWmtsRasterSourceSpec(descriptor)` emits a MapLibre `raster`
+source spec using the same RESTful path with `{z}/{y}/{x}` placeholders.
 
 ### OData
 Tabular query with $filter, $select, $orderby, $top, $skip — maps cleanly

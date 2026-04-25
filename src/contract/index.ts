@@ -74,6 +74,8 @@ export {
   ogcTilesSource,
   ogcMapsSource,
   stacSearchSource,
+  wmsSource,
+  wmtsSource,
 } from "./source.js";
 
 export type {

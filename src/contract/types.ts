@@ -17,12 +17,7 @@
 
 import type { HonuaClient } from "../core/client.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
-import type {
-  HonuaExtent,
-  HonuaFieldInfo,
-  HonuaServerCompatibilityFeature,
-  HonuaTypedFeature,
-} from "../core/types.js";
+import type { HonuaExtent, HonuaFieldInfo, HonuaServerCompatibilityFeature, HonuaTypedFeature } from "../core/types.js";
 
 // ── Protocol identifiers ──────────────────────────────────────
 
@@ -53,6 +48,7 @@ export type Protocol =
   | "stac"
   | "wfs"
   | "wms"
+  | "wmts"
   | "odata"
   | "maplibre-vector"
   | "maplibre-raster"
@@ -71,6 +67,7 @@ export const PROTOCOLS: readonly Protocol[] = [
   "stac",
   "wfs",
   "wms",
+  "wmts",
   "odata",
   "maplibre-vector",
   "maplibre-raster",
@@ -197,7 +194,8 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   "ogc-maps": capabilities(["render"]),
   stac: capabilities(["query", "queryObjectIds", "stream"]),
   wfs: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits"]),
-  wms: capabilities(["render", "tiles"]),
+  wms: capabilities(["render", "tiles", "query"]),
+  wmts: capabilities(["render", "tiles"]),
   odata: capabilities(["query", "queryObjectIds"]),
   "maplibre-vector": capabilities(["render", "tiles"]),
   "maplibre-raster": capabilities(["render", "tiles"]),
@@ -534,6 +532,10 @@ export type AdapterKind =
   | "stac"
   | "wfs"
   | "wms"
+  | "wms-layer"
+  | "wmts"
+  | "wmts-layer"
+  | "wmts-tileset"
   | "odata";
 
 /**
@@ -644,10 +646,7 @@ export interface ResolveSourceContext {
  * tickets register their adapters by passing one through
  * `CreateDatasetOptions.resolveSource`.
  */
-export type SourceResolver = (
-  descriptor: SourceDescriptor,
-  ctx: ResolveSourceContext,
-) => Source | undefined;
+export type SourceResolver = (descriptor: SourceDescriptor, ctx: ResolveSourceContext) => Source | undefined;
 
 export interface CreateDatasetOptions {
   id: DatasetId;

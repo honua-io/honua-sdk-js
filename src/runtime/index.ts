@@ -75,7 +75,12 @@ export type {
 export { applyStyleRefs, applyTheme, composeStyle } from "./style-compose.js";
 export type { StyleComposeOptions, StyleRefResolver, ThemeResolver } from "./style-compose.js";
 
-export { projectSourceBindings, toHonuaSourceSpec } from "./source-bridge.js";
+export {
+  buildWmsRasterSourceSpec,
+  buildWmtsRasterSourceSpec,
+  projectSourceBindings,
+  toHonuaSourceSpec,
+} from "./source-bridge.js";
 export type { NativeMapLibreSourceEntry, SourceBridgeProjection } from "./source-bridge.js";
 
 export { diffPackages } from "./diff.js";

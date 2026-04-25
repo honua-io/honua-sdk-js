@@ -245,11 +245,11 @@ describe("entrypoint modules", () => {
   });
 
   it("exposes the canonical contract entrypoint", () => {
-    // Fifteen canonical protocols: five GeoServices service types
+    // Sixteen canonical protocols: five GeoServices service types
     // (FeatureServer, MapServer, ImageServer, Geometry, GP), OGC API
-    // Features / Tiles / Maps, STAC, WFS / WMS / OData, and three
+    // Features / Tiles / Maps, STAC, WFS / WMS / WMTS / OData, and three
     // MapLibre-native sources.
-    expect(PROTOCOLS).toHaveLength(15);
+    expect(PROTOCOLS).toHaveLength(16);
     expect(CAPABILITIES.length).toBeGreaterThan(0);
     expect(Object.keys(PROTOCOL_DEFAULT_CAPABILITIES)).toEqual([...PROTOCOLS]);
     expect(capabilities).toBeTypeOf("function");

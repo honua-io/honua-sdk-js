@@ -7,6 +7,21 @@ import { HonuaOgcProcesses } from "./ogc-processes.js";
 import { HonuaOgcTiles } from "./ogc-tiles.js";
 import { HonuaStacSearch } from "./stac.js";
 import { HonuaFeatureLayer, HonuaMapLayer, HonuaMapService, HonuaOgcFeatures, HonuaService } from "./surfaces.js";
+import { HonuaWms } from "./wms.js";
+import { type WmsCapabilities, parseWmsCapabilities } from "./wms-capabilities.js";
+import { HonuaWmts } from "./wmts.js";
+import { type WmtsCapabilities, parseWmtsCapabilities } from "./wmts-capabilities.js";
+import type {
+  HonuaWmsFeatureInfoResponse,
+  HonuaWmsImageResponse,
+  HonuaWmtsFeatureInfoResponse,
+  HonuaWmtsTileResponse,
+  WmsFeatureInfoRequest,
+  WmsLegendRequest,
+  WmsMapRequest,
+  WmtsFeatureInfoRequest,
+  WmtsTileRequest,
+} from "./wms-types.js";
 import type {
   ApplyEditsRequest,
   ExportMapRequest,
@@ -342,6 +357,14 @@ export class HonuaClient {
     return new HonuaOgcMaps({ client: this });
   }
 
+  public wms(serviceId: string): HonuaWms {
+    return new HonuaWms({ client: this, serviceId });
+  }
+
+  public wmts(serviceId: string): HonuaWmts {
+    return new HonuaWmts({ client: this, serviceId });
+  }
+
   public ogcProcesses(): HonuaOgcProcesses {
     return new HonuaOgcProcesses({ client: this });
   }
@@ -372,9 +395,7 @@ export class HonuaClient {
     return compatibility;
   }
 
-  public async checkCompatibility(
-    options: HonuaCompatibilityRequest = {},
-  ): Promise<HonuaServerCompatibilityStatus> {
+  public async checkCompatibility(options: HonuaCompatibilityRequest = {}): Promise<HonuaServerCompatibilityStatus> {
     try {
       const compatibility = await this.getCompatibility(options);
       const reasons = evaluateCompatibility(compatibility);
@@ -605,9 +626,7 @@ export class HonuaClient {
     ) as Promise<HonuaOgcConformanceResponse>;
   }
 
-  public async listOgcTileMatrixSets(
-    request: OgcMetadataRequest = {},
-  ): Promise<HonuaOgcTileMatrixSetsResponse> {
+  public async listOgcTileMatrixSets(request: OgcMetadataRequest = {}): Promise<HonuaOgcTileMatrixSetsResponse> {
     const params = createOgcMetadataParams(request);
     return this.requestJson(
       "GET",
@@ -674,14 +693,212 @@ export class HonuaClient {
   public async getOgcMapImage(request: OgcMapImageRequest): Promise<HonuaOgcMapImageResponse> {
     const params = serializeOgcMapImageParams(request);
     const collectionPart =
-      request.collectionId !== undefined
-        ? `/collections/${encodeURIComponent(String(request.collectionId))}`
-        : "";
+      request.collectionId !== undefined ? `/collections/${encodeURIComponent(String(request.collectionId))}` : "";
     const stylePart = request.styleId ? `/styles/${encodeURIComponent(request.styleId)}` : "";
     const path = `/ogc/maps${collectionPart}${stylePart}/map${params.size > 0 ? `?${params.toString()}` : ""}`;
     const accept = ogcMapAcceptHeader(request.format) ?? "image/png";
     const response = await this.requestBytes("GET", path, accept, undefined, request.signal);
     return { bytes: response.bytes, contentType: response.contentType };
+  }
+
+  // ── WMS 1.3 ─────────────────────────────────────────────────
+
+  /**
+   * Fetch and parse a WMS `GetCapabilities` document for the addressed
+   * service. The XML body decodes through `requestText`; the parsed
+   * shape is the typed `WmsCapabilities` envelope (no XML node leaks
+   * through the public surface).
+   */
+  public async getWmsCapabilities(request: {
+    serviceId: string;
+    version?: string;
+    signal?: AbortSignal;
+    extraParams?: Record<string, string | number | boolean>;
+  }): Promise<WmsCapabilities> {
+    const params = new URLSearchParams();
+    params.set("SERVICE", "WMS");
+    params.set("REQUEST", "GetCapabilities");
+    params.set("VERSION", request.version ?? "1.3.0");
+    if (request.extraParams) {
+      for (const [key, value] of Object.entries(request.extraParams)) {
+        params.set(key, String(value));
+      }
+    }
+    const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
+    const xml = await this.requestText("GET", path, "text/xml,application/xml", undefined, request.signal);
+    return parseWmsCapabilities(xml);
+  }
+
+  /** Render a WMS `GetMap`. Returns the raw image bytes. */
+  public async getWmsMap(request: { serviceId: string } & WmsMapRequest): Promise<HonuaWmsImageResponse> {
+    const params = serializeWmsMapParams(request);
+    params.set("REQUEST", "GetMap");
+    const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
+    const accept = request.format ?? "image/png";
+    const response = await this.requestBytes("GET", path, accept, undefined, request.signal);
+    return { bytes: response.bytes, contentType: response.contentType };
+  }
+
+  /**
+   * Issue a WMS `GetFeatureInfo`. When `INFO_FORMAT=application/json`
+   * the JSON body decodes into the canonical `HonuaTypedFeature[]`
+   * shape; non-JSON formats round-trip on `bytes` so callers retain the
+   * raw payload behind the protocol escape hatch.
+   */
+  public async getWmsFeatureInfo<T = Record<string, unknown>>(
+    request: { serviceId: string } & WmsFeatureInfoRequest,
+  ): Promise<HonuaWmsFeatureInfoResponse<T>> {
+    const params = serializeWmsMapParams(request);
+    params.set("REQUEST", "GetFeatureInfo");
+    params.set("QUERY_LAYERS", request.queryLayers.join(","));
+    params.set("I", String(Math.trunc(request.i)));
+    params.set("J", String(Math.trunc(request.j)));
+    const infoFormat = request.infoFormat ?? "application/json";
+    params.set("INFO_FORMAT", infoFormat);
+    if (request.featureCount !== undefined) {
+      params.set("FEATURE_COUNT", String(Math.trunc(request.featureCount)));
+    }
+    const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
+    const response = await this.requestBytes("GET", path, infoFormat, undefined, request.signal);
+    return decodeWmsFeatureInfoResponse<T>(response.bytes, response.contentType, infoFormat);
+  }
+
+  /**
+   * Fetch a WMS `GetLegendGraphic`. honua-server does not implement
+   * GetLegendGraphic today; callers should branch on
+   * `WmsCapabilities.request.getLegendGraphic` before invoking. When
+   * the wire returns 5xx the underlying `HonuaHttpError` flows through.
+   */
+  public async getWmsLegend(request: { serviceId: string } & WmsLegendRequest): Promise<HonuaWmsImageResponse> {
+    const params = new URLSearchParams();
+    params.set("SERVICE", "WMS");
+    params.set("VERSION", "1.3.0");
+    params.set("REQUEST", "GetLegendGraphic");
+    params.set("LAYER", request.layer);
+    if (request.style) params.set("STYLE", request.style);
+    const format = request.format ?? "image/png";
+    params.set("FORMAT", format);
+    if (request.width !== undefined) params.set("WIDTH", String(Math.trunc(request.width)));
+    if (request.height !== undefined) params.set("HEIGHT", String(Math.trunc(request.height)));
+    if (request.extraParams) {
+      for (const [key, value] of Object.entries(request.extraParams)) {
+        params.set(key, String(value));
+      }
+    }
+    const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
+    const response = await this.requestBytes("GET", path, format, undefined, request.signal);
+    return { bytes: response.bytes, contentType: response.contentType };
+  }
+
+  // ── WMTS 1.0 ────────────────────────────────────────────────
+
+  public async getWmtsCapabilities(request: {
+    serviceId: string;
+    signal?: AbortSignal;
+  }): Promise<WmtsCapabilities> {
+    const params = new URLSearchParams();
+    params.set("SERVICE", "WMTS");
+    params.set("REQUEST", "GetCapabilities");
+    params.set("VERSION", "1.0.0");
+    const path = `${wmtsBasePath(request.serviceId)}?${params.toString()}`;
+    const xml = await this.requestText("GET", path, "text/xml,application/xml", undefined, request.signal);
+    return parseWmtsCapabilities(xml);
+  }
+
+  /**
+   * Fetch a single WMTS tile. `mode` selects between KVP
+   * (`?REQUEST=GetTile&...`) and the RESTful path
+   * (`/{layer}/{style}/{tms}/{z}/{y}/{x}.{ext}`). honua-server
+   * advertises both; the SDK defaults to RESTful because the wire path
+   * is a single string substitution per tile and skips
+   * URLSearchParams serialisation on the hot path.
+   */
+  public async fetchWmtsTile(request: { serviceId: string } & WmtsTileRequest): Promise<HonuaWmtsTileResponse> {
+    const mode: "kvp" | "rest" = request.mode ?? "rest";
+    const format = request.format ?? "image/png";
+    const style = request.style ?? "default";
+    const tileMatrixSet = request.tileMatrixSet ?? "WebMercatorQuad";
+    if (mode === "kvp") {
+      const params = new URLSearchParams();
+      params.set("SERVICE", "WMTS");
+      params.set("VERSION", "1.0.0");
+      params.set("REQUEST", "GetTile");
+      params.set("LAYER", request.layer);
+      params.set("STYLE", style);
+      params.set("FORMAT", format);
+      params.set("TILEMATRIXSET", tileMatrixSet);
+      params.set("TILEMATRIX", String(request.tileMatrix));
+      params.set("TILEROW", String(request.tileRow));
+      params.set("TILECOL", String(request.tileCol));
+      if (request.extraParams) {
+        for (const [key, value] of Object.entries(request.extraParams)) {
+          params.set(key, String(value));
+        }
+      }
+      const path = `${wmtsBasePath(request.serviceId)}?${params.toString()}`;
+      return this.requestBytes("GET", path, format, undefined, request.signal);
+    }
+    const ext = wmtsExtensionForFormat(format);
+    const path =
+      `${wmtsBasePath(request.serviceId)}` +
+      `/${encodeURIComponent(request.layer)}` +
+      `/${encodeURIComponent(style)}` +
+      `/${encodeURIComponent(tileMatrixSet)}` +
+      `/${encodeURIComponent(String(request.tileMatrix))}` +
+      `/${encodeURIComponent(String(request.tileRow))}` +
+      `/${encodeURIComponent(String(request.tileCol))}.${ext}`;
+    return this.requestBytes("GET", path, format, undefined, request.signal);
+  }
+
+  /**
+   * WMTS GetFeatureInfo. honua-server accepts both KVP and RESTful
+   * routing; mode default mirrors `fetchWmtsTile`.
+   */
+  public async getWmtsFeatureInfo<T = Record<string, unknown>>(
+    request: { serviceId: string } & WmtsFeatureInfoRequest,
+  ): Promise<HonuaWmtsFeatureInfoResponse<T>> {
+    const mode: "kvp" | "rest" = request.mode ?? "rest";
+    const infoFormat = request.infoFormat ?? "application/json";
+    const format = request.format ?? "image/png";
+    const style = request.style ?? "default";
+    const tileMatrixSet = request.tileMatrixSet ?? "WebMercatorQuad";
+    if (mode === "kvp") {
+      const params = new URLSearchParams();
+      params.set("SERVICE", "WMTS");
+      params.set("VERSION", "1.0.0");
+      params.set("REQUEST", "GetFeatureInfo");
+      params.set("LAYER", request.layer);
+      params.set("STYLE", style);
+      params.set("FORMAT", format);
+      params.set("TILEMATRIXSET", tileMatrixSet);
+      params.set("TILEMATRIX", String(request.tileMatrix));
+      params.set("TILEROW", String(request.tileRow));
+      params.set("TILECOL", String(request.tileCol));
+      params.set("I", String(Math.trunc(request.i)));
+      params.set("J", String(Math.trunc(request.j)));
+      params.set("INFOFORMAT", infoFormat);
+      if (request.extraParams) {
+        for (const [key, value] of Object.entries(request.extraParams)) {
+          params.set(key, String(value));
+        }
+      }
+      const path = `${wmtsBasePath(request.serviceId)}?${params.toString()}`;
+      const response = await this.requestBytes("GET", path, infoFormat, undefined, request.signal);
+      return decodeWmsFeatureInfoResponse<T>(response.bytes, response.contentType, infoFormat);
+    }
+    const ext = wmtsFeatureInfoExtensionForFormat(infoFormat);
+    const path =
+      `${wmtsBasePath(request.serviceId)}` +
+      `/${encodeURIComponent(request.layer)}` +
+      `/${encodeURIComponent(style)}` +
+      `/${encodeURIComponent(tileMatrixSet)}` +
+      `/${encodeURIComponent(String(request.tileMatrix))}` +
+      `/${encodeURIComponent(String(request.tileRow))}` +
+      `/${encodeURIComponent(String(request.tileCol))}` +
+      `/${encodeURIComponent(String(Math.trunc(request.j)))}` +
+      `/${encodeURIComponent(String(Math.trunc(request.i)))}.${ext}`;
+    const response = await this.requestBytes("GET", path, infoFormat, undefined, request.signal);
+    return decodeWmsFeatureInfoResponse<T>(response.bytes, response.contentType, infoFormat);
   }
 
   // ── OGC API Processes ───────────────────────────────────────
@@ -729,12 +946,7 @@ export class HonuaClient {
       outputs: request.outputs,
       response: "document",
     });
-    return this.requestJson(
-      "POST",
-      path,
-      { headers, body },
-      request.signal,
-    ) as Promise<HonuaOgcProcessJobAccepted>;
+    return this.requestJson("POST", path, { headers, body }, request.signal) as Promise<HonuaOgcProcessJobAccepted>;
   }
 
   public async getOgcProcessJob(request: {
@@ -791,10 +1003,7 @@ export class HonuaClient {
 
   public async listStacCollections(request: OgcMetadataRequest = {}): Promise<HonuaOgcCollectionsResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
-      `/stac/collections?${params.toString()}`,
-    ) as Promise<HonuaOgcCollectionsResponse>;
+    return this.requestJson("GET", `/stac/collections?${params.toString()}`) as Promise<HonuaOgcCollectionsResponse>;
   }
 
   public async getStacCollection(request: OgcCollectionRequest): Promise<HonuaOgcCollectionMetadata> {
@@ -816,7 +1025,12 @@ export class HonuaClient {
     const path =
       `/stac/collections/${encodeURIComponent(String(request.collectionId))}` +
       `/items/${encodeURIComponent(String(request.itemId))}`;
-    return this.requestJson("GET", `${path}?${params.toString()}`, undefined, request.signal) as Promise<HonuaStacItemResponse>;
+    return this.requestJson(
+      "GET",
+      `${path}?${params.toString()}`,
+      undefined,
+      request.signal,
+    ) as Promise<HonuaStacItemResponse>;
   }
 
   public async searchStac(request: StacSearchRequest = {}): Promise<HonuaStacItemCollectionResponse> {
@@ -1392,6 +1606,23 @@ export class HonuaClient {
   }
 
   /**
+   * Fetch a text/XML response. Used by the WMS / WMTS Capabilities
+   * pipeline to drain the body as a UTF-8 string (the parsers consume
+   * the raw text). Reuses `requestBytes` so interceptors, retry, and
+   * timeout plumbing stay consistent with the JSON / binary paths.
+   */
+  private async requestText(
+    method: QueryMethod,
+    path: string,
+    accept: string | undefined,
+    init?: RequestInit,
+    callerSignal?: AbortSignal,
+  ): Promise<string> {
+    const response = await this.requestBytes(method, path, accept, init, callerSignal);
+    return new TextDecoder("utf-8").decode(response.bytes);
+  }
+
+  /**
    * Fetch a binary response (raw bytes plus content type). Used by the
    * OGC API Tiles and OGC API Maps wire methods, both of which negotiate
    * non-JSON output formats. The interceptor / retry / abort plumbing
@@ -1764,7 +1995,10 @@ function parseVersion(version: string): ParsedVersion | undefined {
 
   const prereleaseParts =
     prerelease.length > 0
-      ? prerelease.split(".").map((segment) => segment.trim()).filter((segment) => segment.length > 0)
+      ? prerelease
+          .split(".")
+          .map((segment) => segment.trim())
+          .filter((segment) => segment.length > 0)
       : [];
 
   return {
@@ -2113,7 +2347,9 @@ function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesReq
   if (request.outSr !== undefined) {
     params.set(
       "outSR",
-      typeof request.outSr === "object" && request.outSr !== null ? JSON.stringify(request.outSr) : String(request.outSr),
+      typeof request.outSr === "object" && request.outSr !== null
+        ? JSON.stringify(request.outSr)
+        : String(request.outSr),
     );
   }
   if (request.orderByFields !== undefined) {
@@ -2288,9 +2524,7 @@ function stacSearchBody(request: StacSearchRequest): Record<string, unknown> {
   return out;
 }
 
-function stacFieldsCsv(
-  fields: StacSearchRequest["fields"] | undefined,
-): string | undefined {
+function stacFieldsCsv(fields: StacSearchRequest["fields"] | undefined): string | undefined {
   if (!fields) return undefined;
   const parts: string[] = [];
   if (fields.include) {
@@ -2304,4 +2538,116 @@ function stacFieldsCsv(
     }
   }
   return parts.length > 0 ? parts.join(",") : undefined;
+}
+
+// ── WMS / WMTS helpers ──────────────────────────────────────────
+
+/** Canonical WMS endpoint path. honua-server publishes both `/rest/services/{id}/MapServer/WMS` and `/ogc/services/{id}/wms`; the SDK targets the GeoServices-aliased path because every Honua deployment exposes it. */
+function wmsBasePath(serviceId: string): string {
+  return `/rest/services/${encodeURIComponent(serviceId)}/MapServer/WMS`;
+}
+
+/** Canonical WMTS endpoint path. */
+function wmtsBasePath(serviceId: string): string {
+  return `/rest/services/${encodeURIComponent(serviceId)}/MapServer/WMTS`;
+}
+
+/**
+ * CRS table for WMS 1.3 axis order. WMS 1.3 honors authority axis order,
+ * which means `EPSG:4326` is `(lat, lon)` and `CRS:84` / `EPSG:3857` are
+ * `(x, y)`. The `BBOX` envelope tuple supplied by callers is the
+ * canonical `[minx, miny, maxx, maxy]`; this map decides whether the
+ * tuple is swapped on the wire.
+ */
+const WMS_AXIS_SWAP_CRS: ReadonlySet<string> = new Set(["EPSG:4326"]);
+
+function serializeWmsMapParams(request: WmsMapRequest & { serviceId: string }): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set("SERVICE", "WMS");
+  params.set("VERSION", "1.3.0");
+  params.set("LAYERS", request.layers.join(","));
+  params.set("STYLES", request.styles ? request.styles.join(",") : "");
+  const crs = request.crs ?? "EPSG:3857";
+  params.set("CRS", crs);
+  const [minx, miny, maxx, maxy] = request.bbox;
+  const wireBbox = WMS_AXIS_SWAP_CRS.has(crs) ? [miny, minx, maxy, maxx] : [minx, miny, maxx, maxy];
+  params.set("BBOX", wireBbox.join(","));
+  params.set("WIDTH", String(Math.trunc(request.width)));
+  params.set("HEIGHT", String(Math.trunc(request.height)));
+  params.set("FORMAT", request.format ?? "image/png");
+  params.set("TRANSPARENT", String(request.transparent ?? true).toUpperCase());
+  if (request.bgcolor !== undefined) params.set("BGCOLOR", request.bgcolor);
+  if (request.time !== undefined) params.set("TIME", request.time);
+  if (request.elevation !== undefined) params.set("ELEVATION", request.elevation);
+  if (request.extraParams) {
+    for (const [key, value] of Object.entries(request.extraParams)) {
+      params.set(key, String(value));
+    }
+  }
+  return params;
+}
+
+function decodeWmsFeatureInfoResponse<T>(
+  bytes: Uint8Array,
+  contentType: string,
+  requestedFormat: string,
+): HonuaWmsFeatureInfoResponse<T> {
+  const isJson =
+    contentType.toLowerCase().includes("application/json") ||
+    requestedFormat.toLowerCase().includes("application/json");
+  if (!isJson) {
+    return { contentType, bytes };
+  }
+  const text = new TextDecoder("utf-8").decode(bytes);
+  if (text.length === 0) {
+    return { contentType, features: [] };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // Server emitted a non-JSON body despite the JSON Accept; preserve as bytes.
+    return { contentType, bytes };
+  }
+  const features = extractFeatureInfoFeatures<T>(parsed);
+  return { contentType, features };
+}
+
+function extractFeatureInfoFeatures<T>(parsed: unknown): ReadonlyArray<import("./types.js").HonuaTypedFeature<T>> {
+  if (!parsed || typeof parsed !== "object") return [];
+  // honua-server emits `{ type: "FeatureInfoResponse", features: [{ layer, attributes }, ...] }`
+  // and a fallback GeoJSON `{ type: "FeatureCollection", features: [...] }`; both decode here.
+  const obj = parsed as Record<string, unknown>;
+  const featuresRaw = Array.isArray(obj.features) ? obj.features : [];
+  const out: import("./types.js").HonuaTypedFeature<T>[] = [];
+  for (const raw of featuresRaw) {
+    if (!raw || typeof raw !== "object") continue;
+    const feat = raw as Record<string, unknown>;
+    const attributes = (feat.attributes ?? feat.properties ?? {}) as T;
+    const geometry = (feat.geometry as Record<string, unknown> | null | undefined) ?? null;
+    out.push({ attributes, geometry });
+  }
+  return out;
+}
+
+const WMTS_TILE_FORMAT_TO_EXTENSION: ReadonlyMap<string, string> = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpeg"],
+  ["image/jpg", "jpeg"],
+  ["image/webp", "webp"],
+]);
+
+function wmtsExtensionForFormat(format: string): string {
+  return WMTS_TILE_FORMAT_TO_EXTENSION.get(format.toLowerCase()) ?? "png";
+}
+
+const WMTS_FEATURE_INFO_FORMAT_TO_EXTENSION: ReadonlyMap<string, string> = new Map([
+  ["application/json", "json"],
+  ["text/plain", "txt"],
+  ["text/html", "html"],
+  ["application/geo+json", "geojson"],
+]);
+
+function wmtsFeatureInfoExtensionForFormat(format: string): string {
+  return WMTS_FEATURE_INFO_FORMAT_TO_EXTENSION.get(format.toLowerCase()) ?? "txt";
 }

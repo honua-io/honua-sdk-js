@@ -29,6 +29,8 @@ export {
   isFeatureServiceSource,
   isMapServiceSource,
   isOgcFeaturesSource,
+  isWmsSource,
+  isWmtsSource,
   parseOgcFeaturesUrl,
   validateHonuaStyle,
   createSources,
@@ -38,6 +40,8 @@ export type {
   HonuaFeatureServiceSourceSpecification,
   HonuaMapServiceSourceSpecification,
   HonuaOgcFeaturesSourceSpecification,
+  HonuaWmsSourceSpecification,
+  HonuaWmtsSourceSpecification,
   HonuaSourceSpecification,
   HonuaLayerSpecification,
   HonuaStyleSpecification,
@@ -848,6 +852,70 @@ export type {
   HonuaOgcMapsOptions,
 } from "./core/ogc-maps.js";
 export {
+  createHonuaWms,
+  HonuaWms,
+  HonuaWmsLayer,
+} from "./core/wms.js";
+export type {
+  HonuaWmsLayerOptions,
+  HonuaWmsOptions,
+} from "./core/wms.js";
+export {
+  createHonuaWmts,
+  HonuaWmts,
+  HonuaWmtsLayer,
+  HonuaWmtsTileset,
+} from "./core/wmts.js";
+export type {
+  HonuaWmtsLayerOptions,
+  HonuaWmtsOptions,
+  HonuaWmtsTilesetOptions,
+} from "./core/wmts.js";
+export {
+  HonuaWmsCapabilitiesParseError,
+  findWmsLayer,
+  iterateWmsLayers,
+  parseWmsCapabilities,
+} from "./core/wms-capabilities.js";
+export type {
+  WmsCapabilities,
+  WmsCapabilitiesFormats,
+  WmsCapabilitiesRequestSupport,
+  WmsCapabilitiesService,
+  WmsCapabilityBoundingBox,
+  WmsCapabilityDimension,
+  WmsCapabilityLayer,
+  WmsCapabilityStyle,
+} from "./core/wms-capabilities.js";
+export {
+  HonuaWmtsCapabilitiesParseError,
+  findWmtsLayer,
+  findWmtsTileMatrixSet,
+  parseWmtsCapabilities,
+} from "./core/wmts-capabilities.js";
+export type {
+  WmtsCapabilities,
+  WmtsCapabilitiesService,
+  WmtsCapabilityLayer,
+  WmtsCapabilityResourceUrl,
+  WmtsCapabilityStyle,
+  WmtsCapabilityTileMatrix,
+  WmtsCapabilityTileMatrixSet,
+} from "./core/wmts-capabilities.js";
+export type {
+  HonuaWmsFeatureInfoResponse,
+  HonuaWmsImageResponse,
+  HonuaWmtsFeatureInfoResponse,
+  HonuaWmtsTileResponse,
+  WmsCrs,
+  WmsFeatureInfoRequest,
+  WmsLegendRequest,
+  WmsMapRequest,
+  WmtsFeatureInfoRequest,
+  WmtsTileMode,
+  WmtsTileRequest,
+} from "./core/wms-types.js";
+export {
   createHonuaOgcProcesses,
   HonuaJobFailedError,
   HonuaOgcProcessJobRun,
@@ -1068,6 +1136,8 @@ export {
   ogcMapsSource,
   ogcTilesSource,
   stacSearchSource,
+  wmsSource,
+  wmtsSource,
 } from "./contract/index.js";
 export type {
   AdapterFor,
