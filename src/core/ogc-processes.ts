@@ -75,10 +75,10 @@ export class HonuaOgcProcesses {
   }
 
   /**
-   * Submit a process for execution. Returns an `IJobRun` regardless of
-   * `mode` so callers can branch uniformly on `status` and `results()`.
-   * For `mode: "sync"` the job's first poll resolves immediately with
-   * the inline result; for async the runner polls the server.
+   * Submit a process for execution. Always returns an `IJobRun`: honua-server
+   * is async-only (advertises `jobControlOptions: ['async-execute', 'dismiss']`),
+   * so the runner polls for the terminal snapshot regardless of whether
+   * `mode` is `"async"` or `"auto"`.
    */
   public async execute<T = unknown>(request: OgcProcessExecuteRequest): Promise<IJobRun<T>> {
     const accepted = await this.client.executeOgcProcess(request);
@@ -242,11 +242,15 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
 
     if (status === "successful") {
       try {
+        // Per OGC API Processes §7.11.1 the document-mode result body is the
+        // outputs map itself (honua-server returns `{}` for the canonical
+        // V1 process; populated maps are keyed by output id). Wrap it into
+        // the canonical `JobResult.outputs` envelope.
         const results = await this.client.getOgcProcessJobResults({ jobId: this.id });
         const snapshot: JobSnapshot<T> = {
           status: "successful",
           progress,
-          result: { outputs: results.outputs as Record<string, T> },
+          result: { outputs: results as Record<string, T> },
         };
         this.terminalSnapshot = snapshot;
         this.notify(snapshot);

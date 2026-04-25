@@ -722,10 +722,12 @@ export class HonuaClient {
       preferHeaderForExecute(request),
     );
     const path = `/ogc/processes/processes/${encodeURIComponent(request.processId)}/execution`;
+    // honua-server only supports `response: "document"` and rejects "raw"
+    // with HTTP 501; the SDK pins the supported value here.
     const body = JSON.stringify({
       inputs: request.inputs ?? {},
       outputs: request.outputs,
-      response: request.response ?? "document",
+      response: "document",
     });
     return this.requestJson(
       "POST",
@@ -2233,15 +2235,15 @@ function ogcMapAcceptHeader(format: string | undefined): string | undefined {
 
 /**
  * Build the `Prefer` header for an OGC API Processes execution request.
- * Async runs use `respond-async`; sync runs use `respond-sync`. The header
- * is what flips the server between accepting-async-job vs returning-result
- * inline, and OGC Processes 1.0 §7.10 normatively binds the two.
+ * honua-server is async-only: `mode: "async"` sends an explicit
+ * `Prefer: respond-async` so OGC-conformance checkers see the header;
+ * `mode: "auto"` (or unset) omits it and lets the server default apply.
  */
 function preferHeaderForExecute(request: OgcProcessExecuteRequest): { Prefer: string } | undefined {
-  if (!request.mode || request.mode === "auto") {
-    return undefined;
+  if (request.mode === "async") {
+    return { Prefer: "respond-async" };
   }
-  return { Prefer: request.mode === "async" ? "respond-async" : "respond-sync" };
+  return undefined;
 }
 
 function serializeStacSearchParams(request: StacSearchRequest): URLSearchParams {

@@ -65,7 +65,13 @@ describe("ogc-conformance / negotiateOgcCapabilities", () => {
     expect(caps.has("processes")).toBe(true);
   });
 
-  it("translates STAC item-search to query + queryObjectIds", () => {
+  it("translates STAC item-search to query + queryObjectIds and does not advertise queryAggregate for filter", () => {
+    // STAC's `filter` extension is CQL2 query-side filtering, not server-side
+    // aggregation. The STAC source adapter has no aggregation implementation
+    // (`stacSearchSource.queryAggregate` always throws), so the negotiated
+    // capability set must not include `queryAggregate`. Otherwise a
+    // descriptor built from negotiated caps would advertise a method the
+    // adapter cannot fulfill.
     const caps = negotiateOgcCapabilities("stac", {
       conformsTo: [
         "https://api.stacspec.org/v1.0.0/core",
@@ -75,7 +81,7 @@ describe("ogc-conformance / negotiateOgcCapabilities", () => {
     });
     expect(caps.has("query")).toBe(true);
     expect(caps.has("queryObjectIds")).toBe(true);
-    expect(caps.has("queryAggregate")).toBe(true);
+    expect(caps.has("queryAggregate")).toBe(false);
   });
 
   it("returns an empty set when the server does not advertise any matching class", () => {

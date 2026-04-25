@@ -113,9 +113,9 @@ describe("ogc-processes / IJobRun lifecycle", () => {
         [
           "/ogc/processes/jobs/job-2/results",
           () =>
-            jsonResponse({
-              outputs: { result: { type: "Polygon", coordinates: [[[0, 0]]] } },
-            }),
+            // OGC API Processes §7.11.1: the document-mode body is the
+            // outputs map itself, keyed by output id.
+            jsonResponse({ result: { type: "Polygon", coordinates: [[[0, 0]]] } }),
         ],
         [
           "/ogc/processes/jobs/job-2",
@@ -240,7 +240,7 @@ describe("ogc-processes / IJobRun lifecycle", () => {
         ],
         [
           "/ogc/processes/jobs/job-race/results",
-          () => jsonResponse({ outputs: { result: { type: "Point", coordinates: [0, 0] } } }),
+          () => jsonResponse({ result: { type: "Point", coordinates: [0, 0] } }),
         ],
       ],
     });
@@ -384,6 +384,34 @@ describe("ogc-processes / IJobRun lifecycle", () => {
     const job = await client.ogcProcesses().execute({ processId: "buffer", inputs: {}, mode: "async" });
     await expect(job.cancel()).rejects.toMatchObject({ statusCode: 409 });
     expect(job.status).toBe("running");
+  });
+
+  it("accepts the empty `{}` results body honua-server emits for V1's value-less canonical process", async () => {
+    // honua-server returns 200 OK + `{}` from /jobs/{id}/results until the
+    // artifact store is wired up. The runner must surface `result.outputs = {}`
+    // — not throw a parse error trying to dereference a missing `outputs`
+    // wrapper.
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/processes/processes/buffer/execution",
+          () => jsonResponse({ jobID: "job-empty", status: "running", processID: "buffer" }),
+        ],
+        [
+          "/ogc/processes/jobs/job-empty/results",
+          () => jsonResponse({}),
+        ],
+        [
+          "/ogc/processes/jobs/job-empty",
+          () => jsonResponse({ jobID: "job-empty", status: "successful" }),
+        ],
+      ],
+    });
+    const job = await client.ogcProcesses().execute({ processId: "buffer", inputs: {}, mode: "async" });
+    (job as unknown as { pollIntervalMs: number }).pollIntervalMs = 0;
+    const result = await job.results();
+    expect(result.outputs).toEqual({});
+    expect(job.status).toBe("successful");
   });
 
   it("populates HonuaJobFailedError from statusInfo.message when the server omits `exception`", async () => {

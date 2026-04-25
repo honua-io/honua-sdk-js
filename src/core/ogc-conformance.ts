@@ -77,7 +77,10 @@ const STAC_CONFORMANCE_MAP: ReadonlyArray<readonly [string, readonly Capability[
   ["api.stacspec.org/v1.0.0/item-search", ["query", "queryObjectIds"]],
   ["api.stacspec.org/v1.0.0/ogcapi-features", ["query", "queryObjectIds"]],
   ["api.stacspec.org/v1.0.0/collections", []],
-  ["api.stacspec.org/v1.0.0/filter", ["queryAggregate"]],
+  // STAC's `filter` extension is CQL2 query-side filtering, not server-side
+  // aggregation. The STAC source adapter has no aggregation implementation,
+  // so this conformance class must not advertise `queryAggregate`.
+  ["api.stacspec.org/v1.0.0/filter", []],
 ];
 
 const CONFORMANCE_TABLES: Record<OgcConformanceProtocol, ReadonlyArray<readonly [string, readonly Capability[]]>> = {

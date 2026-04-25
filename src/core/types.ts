@@ -968,15 +968,20 @@ export interface HonuaOgcProcessJobStatus {
   exception?: { code: string; message: string; details?: unknown };
 }
 
-/** Process-execution request envelope. */
+/**
+ * Process-execution request envelope. honua-server advertises
+ * `jobControlOptions: ['async-execute', 'dismiss']` and rejects any
+ * `response` other than `document` with HTTP 501 — the SDK type mirrors
+ * that supported surface (no `sync` mode, no `raw` response). `mode: "auto"`
+ * omits the `Prefer` header so the server applies its default; `"async"`
+ * sends `Prefer: respond-async` explicitly.
+ */
 export interface OgcProcessExecuteRequest {
   processId: string;
   inputs?: OgcProcessInputs;
   outputs?: Record<string, { transmissionMode?: "value" | "reference"; format?: { mediaType?: string } }>;
-  /** `sync-execute` runs the process inline; `async-execute` returns a job. */
-  mode?: "async" | "sync" | "auto";
-  /** `raw` returns the result body directly; `document` returns a JSON envelope. */
-  response?: "raw" | "document";
+  /** `async-execute` returns a job; `auto` lets the server pick (always async on Honua). */
+  mode?: "async" | "auto";
   headers?: HeadersInit;
   signal?: AbortSignal;
 }
@@ -991,13 +996,14 @@ export interface HonuaOgcProcessJobAccepted {
   statusInfo?: HonuaOgcProcessJobStatus;
 }
 
-/** Result document returned from `/jobs/{jobId}/results`. */
-export interface HonuaOgcProcessJobResults {
-  outputs: Record<string, unknown>;
-  /** Format negotiated for the result body. */
-  format?: { mediaType?: string };
-  links?: HonuaOgcLink[];
-}
+/**
+ * Result document returned from `/jobs/{jobId}/results`. OGC API Processes
+ * Part 1 §7.11.1 defines the document-mode body as a map keyed by output
+ * identifier; the body is the map itself, not an `{ outputs: ... }`
+ * envelope. honua-server returns `{}` until populated entries land via the
+ * artifact store.
+ */
+export type HonuaOgcProcessJobResults = Record<string, unknown>;
 
 // ── STAC API ──────────────────────────────────
 
