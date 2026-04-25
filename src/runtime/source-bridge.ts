@@ -26,12 +26,9 @@ import {
   type SourceDescriptor,
   type SourceLocator,
 } from "../contract/index.js";
+import { wmtsExtensionForFormat } from "../core/wms-types.js";
 import { HonuaMapPackageError } from "./errors.js";
-import type {
-  HonuaMapPackageLocator,
-  HonuaMapPackageProtocol,
-  HonuaMapPackageSourceBinding,
-} from "./map-package.js";
+import type { HonuaMapPackageLocator, HonuaMapPackageProtocol, HonuaMapPackageSourceBinding } from "./map-package.js";
 
 /** One MapLibre-native source entry derived from a binding. */
 export interface NativeMapLibreSourceEntry {
@@ -113,7 +110,10 @@ export function projectSourceBindings(
  * Build the Honua custom-source spec (to be inserted into `style.sources`)
  * for a protocol-backed descriptor.
  */
-export function toHonuaSourceSpec(descriptor: SourceDescriptor, filter?: string): { type: string; [key: string]: unknown } {
+export function toHonuaSourceSpec(
+  descriptor: SourceDescriptor,
+  filter?: string,
+): { type: string; [key: string]: unknown } {
   switch (descriptor.protocol) {
     case "geoservices-feature-service": {
       const url = requireLocatorUrl(descriptor);
@@ -144,6 +144,33 @@ export function toHonuaSourceSpec(descriptor: SourceDescriptor, filter?: string)
         ...(descriptor.attribution ? { attribution: descriptor.attribution } : {}),
       };
     }
+    case "wms": {
+      const url = requireLocatorUrl(descriptor);
+      const out: { type: string; [key: string]: unknown } = {
+        type: "honua-wms",
+        url,
+      };
+      if (descriptor.locator.serviceId !== undefined) out.serviceId = descriptor.locator.serviceId;
+      if (descriptor.locator.typeName !== undefined) out.layers = descriptor.locator.typeName;
+      if (descriptor.locator.styleId !== undefined) out.styles = descriptor.locator.styleId;
+      if (descriptor.attribution !== undefined) out.attribution = descriptor.attribution;
+      return out;
+    }
+    case "wmts": {
+      const url = requireLocatorUrl(descriptor);
+      const out: { type: string; [key: string]: unknown } = {
+        type: "honua-wmts",
+        url,
+      };
+      if (descriptor.locator.serviceId !== undefined) out.serviceId = descriptor.locator.serviceId;
+      if (descriptor.locator.typeName !== undefined) out.layer = descriptor.locator.typeName;
+      if (descriptor.locator.styleId !== undefined) out.style = descriptor.locator.styleId;
+      if (descriptor.locator.tileMatrixSetId !== undefined) {
+        out.tileMatrixSet = descriptor.locator.tileMatrixSetId;
+      }
+      if (descriptor.attribution !== undefined) out.attribution = descriptor.attribution;
+      return out;
+    }
     default:
       return {
         type: `honua-${descriptor.protocol}`,
@@ -152,6 +179,93 @@ export function toHonuaSourceSpec(descriptor: SourceDescriptor, filter?: string)
         ...(descriptor.attribution ? { attribution: descriptor.attribution } : {}),
       };
   }
+}
+
+/**
+ * Build a MapLibre `raster` source spec for a WMS descriptor. The
+ * `tiles` template uses MapLibre's runtime substitution placeholders
+ * (`{bbox-epsg3857}`, `{width}`, `{height}`) so each tile request is a
+ * pre-baked KVP URL — consumers do not have to hand-assemble GetMap
+ * URLs themselves.
+ */
+export function buildWmsRasterSourceSpec(
+  descriptor: SourceDescriptor,
+  options: { tileSize?: number; format?: string; transparent?: boolean } = {},
+): { type: "raster"; tiles: string[]; tileSize: number; attribution?: string } {
+  const url = requireLocatorUrl(descriptor);
+  const tileSize = options.tileSize ?? 256;
+  const format = options.format ?? "image/png";
+  const transparent = options.transparent ?? true;
+  const layers = descriptor.locator.typeName ?? "";
+  const styles = descriptor.locator.styleId ?? "";
+  const params = new URLSearchParams();
+  params.set("SERVICE", "WMS");
+  params.set("VERSION", "1.3.0");
+  params.set("REQUEST", "GetMap");
+  params.set("LAYERS", layers);
+  params.set("STYLES", styles);
+  params.set("CRS", "EPSG:3857");
+  params.set("FORMAT", format);
+  params.set("TRANSPARENT", String(transparent).toUpperCase());
+  // MapLibre substitutes these placeholders at fetch-time. They are
+  // intentionally appended verbatim (no encoding) so MapLibre's
+  // template parser sees the literal tokens. WIDTH and HEIGHT are
+  // emitted only as placeholders — duplicating them as fixed params
+  // would produce ambiguous query keys that honua-server's
+  // TryGetRequiredQueryValue / int.TryParse pair rejects.
+  const baseUrl = `${url}?${params.toString()}&BBOX={bbox-epsg3857}&WIDTH={width}&HEIGHT={height}`;
+  const out: { type: "raster"; tiles: string[]; tileSize: number; attribution?: string } = {
+    type: "raster",
+    tiles: [baseUrl],
+    tileSize,
+  };
+  if (descriptor.attribution) out.attribution = descriptor.attribution;
+  return out;
+}
+
+/**
+ * Build a MapLibre `raster` source spec for a WMTS descriptor using the
+ * RESTful tile route. The template expands `{z}/{y}/{x}` at runtime
+ * (MapLibre's standard tile placeholders).
+ */
+export function buildWmtsRasterSourceSpec(
+  descriptor: SourceDescriptor,
+  options: { tileSize?: number; format?: string; minzoom?: number; maxzoom?: number } = {},
+): {
+  type: "raster";
+  tiles: string[];
+  tileSize: number;
+  scheme?: string;
+  minzoom?: number;
+  maxzoom?: number;
+  attribution?: string;
+} {
+  const url = requireLocatorUrl(descriptor);
+  const tileSize = options.tileSize ?? 256;
+  const format = options.format ?? "image/png";
+  const ext = wmtsExtensionForFormat(format);
+  const layer = descriptor.locator.typeName ?? "";
+  const style = descriptor.locator.styleId ?? "default";
+  const tms = descriptor.locator.tileMatrixSetId ?? "WebMercatorQuad";
+  const tileTemplate = `${url}/${encodeURIComponent(layer)}/${encodeURIComponent(style)}/${encodeURIComponent(tms)}/{z}/{y}/{x}.${ext}`;
+  const out: {
+    type: "raster";
+    tiles: string[];
+    tileSize: number;
+    scheme?: string;
+    minzoom?: number;
+    maxzoom?: number;
+    attribution?: string;
+  } = {
+    type: "raster",
+    tiles: [tileTemplate],
+    tileSize,
+    scheme: "xyz",
+  };
+  if (options.minzoom !== undefined) out.minzoom = options.minzoom;
+  if (options.maxzoom !== undefined) out.maxzoom = options.maxzoom;
+  if (descriptor.attribution) out.attribution = descriptor.attribution;
+  return out;
 }
 
 function toSdkProtocol(protocol: HonuaMapPackageProtocol): Protocol | undefined {
@@ -166,6 +280,8 @@ function toSdkProtocol(protocol: HonuaMapPackageProtocol): Protocol | undefined 
       return "wfs";
     case "wms":
       return "wms";
+    case "wmts":
+      return "wmts";
     case "odata":
       return "odata";
     default:
@@ -216,10 +332,11 @@ function toSourceLocator(
   }
 
   if (typeof loc.url !== "string" || loc.url.length === 0) {
-    throw new HonuaMapPackageError(
-      `SourceBinding "${binding.sourceId}" is missing locator.url`,
-      { packageId, stage: "source-bind", detail: { sourceId: binding.sourceId, protocol: binding.protocol } },
-    );
+    throw new HonuaMapPackageError(`SourceBinding "${binding.sourceId}" is missing locator.url`, {
+      packageId,
+      stage: "source-bind",
+      detail: { sourceId: binding.sourceId, protocol: binding.protocol },
+    });
   }
 
   const locator: SourceLocator = { url: loc.url };
@@ -229,6 +346,12 @@ function toSourceLocator(
   if (loc.collectionId !== undefined) locator.collectionId = loc.collectionId;
   if (loc.typeName !== undefined) locator.typeName = loc.typeName;
   if (loc.entitySet !== undefined) locator.entitySet = loc.entitySet;
+  if (typeof (loc as { styleId?: unknown }).styleId === "string") {
+    locator.styleId = (loc as { styleId: string }).styleId;
+  }
+  if (typeof (loc as { tileMatrixSetId?: unknown }).tileMatrixSetId === "string") {
+    locator.tileMatrixSetId = (loc as { tileMatrixSetId: string }).tileMatrixSetId;
+  }
 
   // Backfill protocol-specific fields from the URL when the server ships
   // only `locator.url`. The built-in GeoServices and OGC adapters require
@@ -248,6 +371,11 @@ function toSourceLocator(
     if (locator.collectionId === undefined) {
       const parsedCollectionId = parseOgcCollectionId(loc.url);
       if (parsedCollectionId !== undefined) locator.collectionId = parsedCollectionId;
+    }
+  } else if (sdkProtocol === "wms" || sdkProtocol === "wmts") {
+    if (locator.serviceId === undefined) {
+      const parsedServiceId = parseWmsServiceId(loc.url);
+      if (parsedServiceId !== undefined) locator.serviceId = parsedServiceId;
     }
   }
   return locator;
@@ -304,13 +432,28 @@ function parseOgcCollectionId(url: string): string | undefined {
   }
 }
 
+const WMS_SERVICE_URL_RE =
+  /\/(?:rest\/services\/([^/?#]+)\/MapServer\/(?:WMS|WMTS)|ogc\/services\/([^/?#]+)\/(?:wms|wmts))/i;
+
+function parseWmsServiceId(url: string): string | undefined {
+  const match = WMS_SERVICE_URL_RE.exec(url);
+  if (!match) return undefined;
+  const id = match[1] ?? match[2];
+  if (!id) return undefined;
+  try {
+    return decodeURIComponent(id);
+  } catch {
+    return id;
+  }
+}
+
 function requireLocatorUrl(descriptor: SourceDescriptor): string {
   const url = descriptor.locator.url;
   if (typeof url !== "string" || url.length === 0) {
-    throw new HonuaMapPackageError(
-      `descriptor for "${descriptor.id}" is missing locator.url`,
-      { stage: "source-bind", detail: { sourceId: descriptor.id, protocol: descriptor.protocol } },
-    );
+    throw new HonuaMapPackageError(`descriptor for "${descriptor.id}" is missing locator.url`, {
+      stage: "source-bind",
+      detail: { sourceId: descriptor.id, protocol: descriptor.protocol },
+    });
   }
   return url;
 }

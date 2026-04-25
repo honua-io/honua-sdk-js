@@ -3,6 +3,8 @@ export {
   isFeatureServiceSource,
   isMapServiceSource,
   isOgcFeaturesSource,
+  isWmsSource,
+  isWmtsSource,
   parseOgcFeaturesUrl,
   validateHonuaStyle,
 } from "./specification.js";
@@ -11,6 +13,8 @@ export type {
   HonuaFeatureServiceSourceSpecification,
   HonuaMapServiceSourceSpecification,
   HonuaOgcFeaturesSourceSpecification,
+  HonuaWmsSourceSpecification,
+  HonuaWmtsSourceSpecification,
   HonuaSourceSpecification,
   HonuaLayerSpecification,
   HonuaStyleSpecification,

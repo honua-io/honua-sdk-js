@@ -66,6 +66,7 @@ runtime.dispose();
 | `SetViewStateInput` | type | `{ bbox?, center?, zoom?, pitch?, bearing?, padding?, animate? }`. |
 | `applyStyleRefs`, `applyTheme`, `composeStyle` | functions | Pure helpers — safe to call outside a runtime for testing / SSR composition. |
 | `projectSourceBindings`, `toHonuaSourceSpec` | functions | Exposed for `#22` and adapter tickets that need the bridge without loading a package. |
+| `buildWmsRasterSourceSpec`, `buildWmtsRasterSourceSpec` | functions | Pre-bake a MapLibre `raster` source spec from a WMS / WMTS `SourceDescriptor`. Used by callers that compose a map outside `loadMapPackage`. See the source-binding projection table for the URL templates emitted on each protocol. |
 | `diffPackages`, `MapPackageDiff` | function / type | Stable-id diff used by `updatePackage`. |
 | `buildLegend`, `LegendEntry` | function / type | Shared with operator components. |
 | `bindPopup`, `defaultPopupRenderer`, `PopupFactory`, `PopupRenderer` | function / types | The default DOM renderer is intentionally unstyled — rich popups belong in `#29`. |
@@ -123,7 +124,9 @@ destinations, using the alignment table in
 | `geoservices_feature_service` | contract adapter | `geoservices-feature-service`, custom source type `honua-feature-service`. |
 | `geoservices_map_service` | contract adapter | `geoservices-map-service`, custom source type `honua-map-service`. |
 | `ogc_features` | contract adapter | `ogc-features`, custom source type `honua-ogc-features`. Collection id is copied from `locator.collectionId`. |
-| `wfs` / `wms` / `odata` | contract adapter (plug-in) | Requires `opts.resolveSource` until the adapter ships. |
+| `wms` | contract adapter | `wms`, custom source type `honua-wms`. `locator.typeName` projects as `layers`, `locator.styleId` as `styles`. Use `buildWmsRasterSourceSpec(descriptor)` to produce a MapLibre-ready `{ type: "raster", tiles, tileSize }` spec with a pre-baked KVP `GetMap` template that uses MapLibre's `{bbox-epsg3857}` / `{width}` / `{height}` placeholders. |
+| `wmts` | contract adapter | `wmts`, custom source type `honua-wmts`. `locator.typeName` / `locator.styleId` / `locator.tileMatrixSetId` project as `layer` / `style` / `tileMatrixSet`. Use `buildWmtsRasterSourceSpec(descriptor)` to produce a MapLibre-ready `{ type: "raster", tiles, tileSize, scheme: "xyz" }` spec using the RESTful `{layer}/{style}/{tms}/{z}/{y}/{x}.{ext}` route. |
+| `wfs` / `odata` | contract adapter (plug-in) | Requires `opts.resolveSource` until the adapter ships. |
 | `vector_tile` / `ogc_tiles` | MapLibre-native | Projected to a `{ type: "vector", tiles: [url], attribution? }` source entry — no contract adapter. |
 | `raster_tile` / `ogc_maps` | MapLibre-native | Projected to a `{ type: "raster", tiles: [url], attribution? }` source entry. |
 | `workspace_artifact` | deferred | Throws `HonuaMapPackageError { stage: "source-bind" }` — no artifact resolver is wired yet. |
@@ -158,6 +161,12 @@ Additional contract:
     omits them. Explicit locator fields always win over parsed ones.
   - **OGC API Features**: `collectionId` is parsed from the
     `/collections/<id>` URL segment when omitted.
+  - **WMS / WMTS**: `serviceId` is parsed from
+    `/rest/services/<name>/MapServer/WMS` (and `/WMTS`) and from
+    `/ogc/services/<name>/wms` (and `/wmts`) when the binding omits
+    it. `locator.typeName` and `locator.styleId` are not URL-derived
+    today; the server ships them when a binding pins a specific layer
+    or style.
   - **`locator.layerId`**: the server's canonical
     `SourceLocator.LayerId` is `string?`, so
     `HonuaMapPackageLocator.layerId` is typed `number | string`.

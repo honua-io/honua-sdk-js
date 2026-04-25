@@ -13,15 +13,15 @@
 
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
-import { HonuaOgcMaps, HonuaOgcCollectionMap } from "../core/ogc-maps.js";
+import { HonuaOgcCollectionMap, HonuaOgcMaps } from "../core/ogc-maps.js";
 import type { HonuaOgcProcesses } from "../core/ogc-processes.js";
 import { HonuaOgcTiles, HonuaOgcTileset } from "../core/ogc-tiles.js";
 import { HonuaStacSearch } from "../core/stac.js";
 import {
   HonuaFeatureLayer,
-  HonuaImageService,
   HonuaGeometryService,
   HonuaGeoprocessingService,
+  HonuaImageService,
   HonuaMapLayer,
   HonuaMapService,
   HonuaOgcFeatureCollection,
@@ -38,9 +38,9 @@ import type {
   HonuaTypedQueryResponse,
   StacSearchRequest,
 } from "../core/types.js";
+import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
+import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import {
-  CAPABILITIES,
-  PROTOCOL_DEFAULT_CAPABILITIES,
   type AdapterFor,
   type AdapterKind,
   type AggregationFn,
@@ -54,6 +54,7 @@ import {
   type AttachmentInfo,
   type AttachmentQuery,
   type AttachmentUpdate,
+  CAPABILITIES,
   type Capability,
   type CapabilityPolicy,
   type CreateDatasetOptions,
@@ -63,6 +64,7 @@ import {
   type EditOutcome,
   type EditResult,
   type FeatureId,
+  PROTOCOL_DEFAULT_CAPABILITIES,
   type Protocol,
   type Query,
   type RelatedGroup,
@@ -96,14 +98,11 @@ export function createDataset(options: CreateDatasetOptions): Dataset {
     const cached = handles.get(descriptor.id);
     if (cached) return cached as Source<T>;
 
-    const built = buildBuiltInSource<T>(descriptor, client, policy)
-      ?? resolveSource?.(descriptor, { client, capabilityPolicy: policy }) as Source<T> | undefined;
+    const built =
+      buildBuiltInSource<T>(descriptor, client, policy) ??
+      (resolveSource?.(descriptor, { client, capabilityPolicy: policy }) as Source<T> | undefined);
     if (!built) {
-      throw new HonuaCapabilityNotSupportedError(
-        "query",
-        descriptor.protocol,
-        descriptor.id,
-      );
+      throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
     }
     handles.set(descriptor.id, built as Source);
     return built;
@@ -124,7 +123,10 @@ export function createDataset(options: CreateDatasetOptions): Dataset {
     isCompatible(): Promise<boolean> {
       if (options.skipCompatibilityCheck) return Promise.resolve(true);
       if (!compatibilityPromise) {
-        compatibilityPromise = client.checkCompatibility().then((status) => status.supported).catch(() => false);
+        compatibilityPromise = client
+          .checkCompatibility()
+          .then((status) => status.supported)
+          .catch(() => false);
       }
       return compatibilityPromise;
     },
@@ -158,6 +160,10 @@ function buildBuiltInSource<T>(
       return ogcTilesSource<T>(descriptor, client, policy);
     case "ogc-maps":
       return ogcMapsSource<T>(descriptor, client, policy);
+    case "wms":
+      return wmsSource<T>(descriptor, client, policy);
+    case "wmts":
+      return wmtsSource<T>(descriptor, client, policy);
     case "stac":
       return stacSearchSource<T>(descriptor, client, policy);
     default:
@@ -220,7 +226,9 @@ export function geoServicesFeatureSource<T>(
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
-      const stream = layer.queryFeaturesStream(withStreamPageSize(toFeatureLayerRequest(request), request?.pagination?.limit));
+      const stream = layer.queryFeaturesStream(
+        withStreamPageSize(toFeatureLayerRequest(request), request?.pagination?.limit),
+      );
       for await (const page of stream) {
         yield {
           features: page,
@@ -301,7 +309,9 @@ export function geoServicesMapServiceSource<T>(
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
-      const stream = layer.queryFeaturesStream(withStreamPageSize(toFeatureLayerRequest(request), request?.pagination?.limit));
+      const stream = layer.queryFeaturesStream(
+        withStreamPageSize(toFeatureLayerRequest(request), request?.pagination?.limit),
+      );
       for await (const page of stream) {
         yield {
           features: page.map(toTypedFeature<T>),
@@ -362,7 +372,8 @@ export function ogcFeaturesSource<T>(
         const aggregateRows = clientSideAggregate(features, request.aggregation);
         degraded.push({
           capability: "queryAggregate",
-          reason: "OGC API Features does not expose server-side aggregation; aggregating client-side over the returned page.",
+          reason:
+            "OGC API Features does not expose server-side aggregation; aggregating client-side over the returned page.",
           protocol: "ogc-features",
         });
         return {
@@ -604,9 +615,7 @@ export function geoServicesImageSource<T>(
     async queryExtent(request) {
       ensureCapability(descriptor, caps, "queryExtent");
       requireImageServerCompatibleQuery(request);
-      const response = await service.queryRasterCatalog(
-        toExtentOnlyRequest(toFeatureLayerRequest(request)),
-      );
+      const response = await service.queryRasterCatalog(toExtentOnlyRequest(toFeatureLayerRequest(request)));
       return extractExtentEnvelope(response);
     },
     // biome-ignore lint/correctness/useYield: ImageServer has no streaming raster-catalog mode; this generator refuses iteration rather than silently emit a single page
@@ -737,6 +746,137 @@ export function ogcMapsSource<T>(
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
 }
 
+// ── WMS 1.3 ───────────────────────────────────────────────────
+
+/**
+ * `Source` adapter for first-party WMS 1.3.0 services. The render path
+ * routes through `HonuaWms` / `HonuaWmsLayer` (both of which sit
+ * behind the canonical `Source.protocol("wms" | "wms-layer")` escape
+ * hatch); `Source.query()` translates a point spatial filter into a
+ * `GetFeatureInfo` call. Non-point queries throw
+ * `HonuaCapabilityNotSupportedError` so the canonical query envelope
+ * stays honest — multi-pixel feature info lives on
+ * `Source.protocol("wms").featureInfo()`.
+ */
+export function wmsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
+  const { serviceId } = requireWmsLocator(descriptor);
+  const layerName = descriptor.locator.typeName;
+  const styleId = descriptor.locator.styleId;
+  const root = new HonuaWms({ client, serviceId });
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = { wms: root };
+  // `HonuaWmsLayer` is a single-layer handle (its `describe()` resolves
+  // exactly one `<Layer>` from the parsed Capabilities). Multi-layer
+  // composites (`LAYERS=a,b`) must stay on the service-level `wms`
+  // handle and use `featureInfo()` directly; registering them as a
+  // `wms-layer` would silently mis-route `describe()` / `stylesIn()` /
+  // `legend()` to a single layer name that does not exist on the wire.
+  const parsedLayers = parseWmsLayerNames(layerName);
+  if (parsedLayers.length === 1) {
+    const layerOpts: { client: HonuaClient; serviceId: string; layerName: string; defaultStyleId?: string } = {
+      client,
+      serviceId,
+      layerName: parsedLayers[0]!,
+    };
+    if (typeof styleId === "string") layerOpts.defaultStyleId = styleId;
+    adapterRegistry["wms-layer"] = new HonuaWmsLayer(layerOpts);
+  }
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wms;
+
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
+    async query(request) {
+      ensureCapability(descriptor, caps, "query");
+      requireWmsCompatibleQuery(descriptor, request);
+      const layers = wmsRequireLayers(descriptor, layerName);
+      const { x: px, y: py, crs } = wmsExtractPointFromQuery(request, descriptor);
+      const bboxRadius = 0.0001; // tiny envelope around the point keeps the request a 1×1 image.
+      const widthHeight = 1;
+      const featureCount = request?.pagination?.limit;
+      const response = await client.getWmsFeatureInfo<T>({
+        serviceId,
+        layers,
+        ...(styleId !== undefined ? { styles: [styleId] } : {}),
+        queryLayers: layers,
+        crs,
+        bbox: [px - bboxRadius, py - bboxRadius, px + bboxRadius, py + bboxRadius],
+        width: widthHeight,
+        height: widthHeight,
+        i: 0,
+        j: 0,
+        infoFormat: "application/json",
+        ...(featureCount !== undefined ? { featureCount } : {}),
+        ...(request?.signal ? { signal: request.signal } : {}),
+      });
+      return {
+        features: response.features ?? [],
+        exceededTransferLimit: false,
+      } satisfies Result<T>;
+    },
+    async queryAll(request) {
+      ensureCapability(descriptor, caps, "query");
+      // GetFeatureInfo returns a single response set; queryAll degenerates
+      // to query() because there is no paging on the wire.
+      const result = await this.query(request);
+      return result;
+    },
+    async queryAggregate() {
+      throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+    },
+    async queryExtent() {
+      throw new HonuaCapabilityNotSupportedError("queryExtent", descriptor.protocol, descriptor.id);
+    },
+    // biome-ignore lint/correctness/useYield: WMS exposes only single-shot GetFeatureInfo, which is delivered through query()
+    async *stream() {
+      throw new HonuaCapabilityNotSupportedError("stream", descriptor.protocol, descriptor.id);
+    },
+    async queryObjectIds() {
+      throw new HonuaCapabilityNotSupportedError("queryObjectIds", descriptor.protocol, descriptor.id);
+    },
+    async applyEdits() {
+      throw new HonuaCapabilityNotSupportedError("applyEdits", descriptor.protocol, descriptor.id);
+    },
+    async queryRelated() {
+      throw new HonuaCapabilityNotSupportedError("queryRelated", descriptor.protocol, descriptor.id);
+    },
+    attachments: unsupportedAttachmentApi(descriptor),
+  });
+}
+
+// ── WMTS 1.0 ──────────────────────────────────────────────────
+
+/**
+ * Render-only `Source` adapter for first-party WMTS 1.0.0 services.
+ * `Source.query()` throws because WMTS GetFeatureInfo is keyed on tile
+ * pixels (not a canonical spatial filter); raw access lives on
+ * `Source.protocol("wmts" | "wmts-layer" | "wmts-tileset")`.
+ */
+export function wmtsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
+  const { serviceId } = requireWmtsLocator(descriptor);
+  const layerName = descriptor.locator.typeName;
+  const tileMatrixSetId = descriptor.locator.tileMatrixSetId ?? "WebMercatorQuad";
+  const styleId = descriptor.locator.styleId ?? "default";
+  const root = new HonuaWmts({ client, serviceId });
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = { wmts: root };
+  if (typeof layerName === "string" && layerName.length > 0) {
+    adapterRegistry["wmts-layer"] = new HonuaWmtsLayer({
+      client,
+      serviceId,
+      layerName,
+      defaultStyleId: styleId,
+      defaultTileMatrixSetId: tileMatrixSetId,
+    });
+    adapterRegistry["wmts-tileset"] = new HonuaWmtsTileset({
+      client,
+      serviceId,
+      layerName,
+      styleId,
+      tileMatrixSetId,
+    });
+  }
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wmts;
+
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
+}
+
 // ── STAC API ──────────────────────────────────────────────────
 
 export function stacSearchSource<T>(
@@ -761,8 +901,7 @@ export function stacSearchSource<T>(
       const response = await stac.search(stacRequest);
       const features = (response.features ?? []).map(toTypedFeatureFromStac<T>);
       const totalCount = response.numberMatched ?? response.context?.matched;
-      const exceededTransferLimit =
-        totalCount !== undefined && features.length < totalCount;
+      const exceededTransferLimit = totalCount !== undefined && features.length < totalCount;
       return {
         features,
         exceededTransferLimit,
@@ -948,11 +1087,7 @@ function unsupportedFeatureSurface<T>(descriptor: SourceDescriptor): SourceImple
   };
 }
 
-function ensureCapability(
-  descriptor: SourceDescriptor,
-  caps: ReadonlySet<Capability>,
-  capability: Capability,
-): void {
+function ensureCapability(descriptor: SourceDescriptor, caps: ReadonlySet<Capability>, capability: Capability): void {
   if (caps.has(capability)) return;
   throw new HonuaCapabilityNotSupportedError(capability, descriptor.protocol, descriptor.id);
 }
@@ -1005,9 +1140,7 @@ function requireOgcLocator(descriptor: SourceDescriptor): { collectionId: string
 function requireImageServiceLocator(descriptor: SourceDescriptor): { serviceId: string } {
   const { serviceId } = descriptor.locator;
   if (typeof serviceId !== "string") {
-    throw new Error(
-      `createDataset: source "${descriptor.id}" (geoservices-image-service) requires locator.serviceId`,
-    );
+    throw new Error(`createDataset: source "${descriptor.id}" (geoservices-image-service) requires locator.serviceId`);
   }
   return { serviceId };
 }
@@ -1047,9 +1180,7 @@ function requireGPServiceLocator(
 ): { serviceId: string; taskName: string | undefined } {
   const { serviceId, taskName } = descriptor.locator;
   if (typeof serviceId !== "string") {
-    throw new Error(
-      `createDataset: source "${descriptor.id}" (geoservices-gp-service) requires locator.serviceId`,
-    );
+    throw new Error(`createDataset: source "${descriptor.id}" (geoservices-gp-service) requires locator.serviceId`);
   }
   // Honua Server publishes submitJob / jobs / cancel / results only under
   // /rest/services/<serviceId>/GPServer/<taskName>/..., so descriptors that
@@ -1074,6 +1205,143 @@ function requireOgcTilesLocator(descriptor: SourceDescriptor): {
     throw new Error(`createDataset: source "${descriptor.id}" (ogc-tiles) requires locator.collectionId`);
   }
   return { collectionId, tileMatrixSetId };
+}
+
+function requireWmsLocator(descriptor: SourceDescriptor): { serviceId: string } {
+  const { serviceId } = descriptor.locator;
+  if (typeof serviceId !== "string" || serviceId.length === 0) {
+    throw new Error(`createDataset: source "${descriptor.id}" (wms) requires locator.serviceId`);
+  }
+  return { serviceId };
+}
+
+function requireWmtsLocator(descriptor: SourceDescriptor): { serviceId: string } {
+  const { serviceId } = descriptor.locator;
+  if (typeof serviceId !== "string" || serviceId.length === 0) {
+    throw new Error(`createDataset: source "${descriptor.id}" (wmts) requires locator.serviceId`);
+  }
+  return { serviceId };
+}
+
+function wmsRequireLayers(descriptor: SourceDescriptor, locatorTypeName: string | undefined): readonly string[] {
+  const parsed = parseWmsLayerNames(locatorTypeName);
+  if (parsed.length === 0) {
+    throw new Error(
+      `createDataset: source "${descriptor.id}" (wms) requires locator.typeName (the WMS LAYER name) for canonical query()`,
+    );
+  }
+  return parsed;
+}
+
+/**
+ * Reject canonical `Query` fields that WMS GetFeatureInfo cannot honor so a
+ * mixed-source caller does not silently receive an unfiltered, reprojected,
+ * or differently-shaped result. WMS GetFeatureInfo only consumes the
+ * (i, j) pixel pair plus the rendered envelope; there is no SQL/CQL filter,
+ * no field projection, no order, no offset paging, no geometry toggle, and
+ * no separate output-SR knob on the wire — honua-server projects the
+ * response in the request CRS itself. `aggregation` is mapped to
+ * `queryAggregate` so the error carries the same capability vocabulary as
+ * the rest of the contract. `pagination.limit` is honored (it maps to
+ * `FEATURE_COUNT`).
+ */
+function requireWmsCompatibleQuery<T>(descriptor: SourceDescriptor, request: Query<T> | undefined): void {
+  if (!request) return;
+  if (request.aggregation) {
+    throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+  }
+  if (typeof request.where === "string" && request.where.length > 0) {
+    throw new Error(
+      `wms: Query.where is not supported on GetFeatureInfo for source "${descriptor.id}"; WMS has no SQL/CQL filter on the wire. Pre-filter via Query.spatialFilter (point) or use a tabular protocol.`,
+    );
+  }
+  if (request.outFields && request.outFields.length > 0) {
+    throw new Error(
+      `wms: Query.outFields is not supported on GetFeatureInfo for source "${descriptor.id}"; the server returns the layer's full attribute schema. Project client-side after the result lands.`,
+    );
+  }
+  if (request.orderBy && request.orderBy.length > 0) {
+    throw new Error(
+      `wms: Query.orderBy is not supported on GetFeatureInfo for source "${descriptor.id}"; the server has no sort surface. Sort client-side after the result lands.`,
+    );
+  }
+  if (typeof request.pagination?.offset === "number" && request.pagination.offset > 0) {
+    throw new Error(
+      `wms: Query.pagination.offset is not supported on GetFeatureInfo for source "${descriptor.id}"; the request returns at most FEATURE_COUNT records and does not paginate. Drop pagination.offset.`,
+    );
+  }
+  if (request.returnGeometry === false) {
+    throw new Error(
+      `wms: Query.returnGeometry=false is not supported on GetFeatureInfo for source "${descriptor.id}"; the server controls geometry inclusion via INFO_FORMAT and the layer template. Drop returnGeometry or strip geometry client-side.`,
+    );
+  }
+  if (request.outSr !== undefined) {
+    throw new Error(
+      `wms: Query.outSr is not supported on GetFeatureInfo for source "${descriptor.id}"; honua-server projects the response in the request CRS and has no separate output-SR knob. Stamp the spatial filter geometry's spatialReference with the desired CRS instead, or reproject the result client-side.`,
+    );
+  }
+}
+
+/**
+ * Extract `(x, y)` and the WMS CRS from `Query.spatialFilter`. WMS only
+ * exposes feature-info on a pixel coordinate, so the canonical
+ * `Source.query()` is restricted to point spatial filters. The CRS is
+ * derived from the geometry's `spatialReference` (`wkid` / `latestWkid` /
+ * `wkt`) and falls back to `CRS:84` — the WMS 1.3.0 longitude/latitude
+ * code that preserves the canonical `(x, y)` axis order — when the
+ * caller did not stamp the geometry with a spatial reference. Non-point
+ * geometries throw `HonuaCapabilityNotSupportedError`. `Query.outSr` is
+ * intentionally not consulted here: it is the **output** spatial
+ * reference for projected results, not the input CRS for the
+ * GetFeatureInfo wire request.
+ */
+function wmsExtractPointFromQuery<T>(
+  request: Query<T> | undefined,
+  descriptor: SourceDescriptor,
+): { x: number; y: number; crs: string } {
+  const filter = request?.spatialFilter;
+  if (!filter) {
+    throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
+  }
+  const geom = filter.geometry as
+    | { x?: unknown; y?: unknown; coordinates?: unknown; spatialReference?: unknown }
+    | undefined;
+  if (filter.geometryType !== "esriGeometryPoint") {
+    throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
+  }
+  const crs = wmsCrsFromGeometrySpatialReference(geom?.spatialReference);
+  if (geom && typeof geom.x === "number" && typeof geom.y === "number") {
+    return { x: geom.x, y: geom.y, crs };
+  }
+  if (geom && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+    const [x, y] = geom.coordinates as readonly unknown[];
+    if (typeof x === "number" && typeof y === "number") return { x, y, crs };
+  }
+  throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
+}
+
+/**
+ * Translate a geometry's `spatialReference` (Esri-style `{ wkid?,
+ * latestWkid?, wkt? }`) into a WMS-compatible CRS code. `wkid` /
+ * `latestWkid` map to `EPSG:N`. A non-empty `wkt` is passed through
+ * verbatim — the server validates it. When no recognizable hint is
+ * present the function returns `CRS:84` so the canonical (x, y) axis
+ * order is preserved on the wire.
+ */
+function wmsCrsFromGeometrySpatialReference(spatialReference: unknown): string {
+  if (spatialReference && typeof spatialReference === "object") {
+    const sr = spatialReference as { wkid?: unknown; latestWkid?: unknown; wkt?: unknown };
+    if (typeof sr.latestWkid === "number" && Number.isFinite(sr.latestWkid)) {
+      return `EPSG:${sr.latestWkid}`;
+    }
+    if (typeof sr.wkid === "number" && Number.isFinite(sr.wkid)) {
+      return `EPSG:${sr.wkid}`;
+    }
+    if (typeof sr.wkt === "string" && sr.wkt.trim().length > 0) {
+      return sr.wkt.trim();
+    }
+  }
+  return "CRS:84";
 }
 
 function toStacRequest<T>(
@@ -1215,9 +1483,7 @@ function toFeatureLayerRequest<T>(request?: Query<T>): {
   if (request.returnGeometry !== undefined) out.returnGeometry = request.returnGeometry;
   if (request.outSr !== undefined) out.outSr = request.outSr;
   if (request.orderBy && request.orderBy.length > 0) {
-    out.orderByFields = request.orderBy
-      .map((s) => `${s.field}${s.direction === "desc" ? " DESC" : ""}`)
-      .join(",");
+    out.orderByFields = request.orderBy.map((s) => `${s.field}${s.direction === "desc" ? " DESC" : ""}`).join(",");
   }
   if (request.spatialFilter) {
     out.geometry = request.spatialFilter.geometry;
@@ -1271,9 +1537,10 @@ function hasExtentFilter<T>(request?: Query<T>): boolean {
   return false;
 }
 
-function computeExtentFromOgcFeatures(
-  features: ReadonlyArray<import("../core/types.js").HonuaOgcFeatureResponse>,
-): { extent: import("../core/types.js").HonuaExtent | null; count: number } {
+function computeExtentFromOgcFeatures(features: ReadonlyArray<import("../core/types.js").HonuaOgcFeatureResponse>): {
+  extent: import("../core/types.js").HonuaExtent | null;
+  count: number;
+} {
   let xmin = Number.POSITIVE_INFINITY;
   let ymin = Number.POSITIVE_INFINITY;
   let xmax = Number.NEGATIVE_INFINITY;
@@ -1336,9 +1603,7 @@ function toOgcRequest<T>(request?: Query<T>): Record<string, unknown> {
     if (request.pagination.offset !== undefined) out.offset = request.pagination.offset;
   }
   if (request.orderBy && request.orderBy.length > 0) {
-    out.sortby = request.orderBy
-      .map((s) => `${s.direction === "desc" ? "-" : ""}${s.field}`)
-      .join(",");
+    out.sortby = request.orderBy.map((s) => `${s.direction === "desc" ? "-" : ""}${s.field}`).join(",");
   }
   if (request.spatialFilter) {
     // OGC API Features only exposes bbox at /items; arbitrary geometry types
@@ -1607,7 +1872,11 @@ function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
   return out;
 }
 
-function canonicalToHonuaFeature<T>(feature: { id?: FeatureId; attributes: T; geometry?: Record<string, unknown> | null }): HonuaFeature {
+function canonicalToHonuaFeature<T>(feature: {
+  id?: FeatureId;
+  attributes: T;
+  geometry?: Record<string, unknown> | null;
+}): HonuaFeature {
   const attributes = { ...(feature.attributes as Record<string, unknown>) };
   // GeoServices addresses updates by `OBJECTID` inside attributes; populate it
   // from the canonical `id` when the caller supplied one but did not embed it
@@ -1692,7 +1961,11 @@ function canonicalRelatedResult<R>(response: import("../core/types.js").HonuaRel
   return out;
 }
 
-function featureToGeoJsonFeature<T>(feature: { id?: FeatureId; attributes: T; geometry?: Record<string, unknown> | null }): {
+function featureToGeoJsonFeature<T>(feature: {
+  id?: FeatureId;
+  attributes: T;
+  geometry?: Record<string, unknown> | null;
+}): {
   type: "Feature";
   id?: FeatureId;
   geometry: Record<string, unknown> | null;
@@ -1750,7 +2023,9 @@ function featureLayerAttachmentApi<T>(
     async query(request) {
       ensureAttachments();
       const response = await layer.queryAttachments({
-        ...(request?.parentIds ? { objectIds: request.parentIds.map(toAttachmentNumericId).filter(isFiniteNumberStrict) } : {}),
+        ...(request?.parentIds
+          ? { objectIds: request.parentIds.map(toAttachmentNumericId).filter(isFiniteNumberStrict) }
+          : {}),
         ...(request?.where !== undefined ? { where: request.where } : {}),
         ...(request?.signal ? { signal: request.signal } : {}),
       });
@@ -1798,7 +2073,8 @@ function featureLayerAttachmentApi<T>(
       const numericIds = request.attachmentIds.map(toAttachmentNumericId).filter(isFiniteNumberStrict);
       const response = await layer.deleteAttachments({
         objectId: request.parentId,
-        attachmentIds: numericIds.length === request.attachmentIds.length ? numericIds : request.attachmentIds.map(String).join(","),
+        attachmentIds:
+          numericIds.length === request.attachmentIds.length ? numericIds : request.attachmentIds.map(String).join(","),
         ...(request.signal ? { signal: request.signal } : {}),
       });
       return (response.deleteAttachmentResults ?? []).map((r) => toAttachmentEditOutcome(r, request.parentId));
@@ -1862,6 +2138,11 @@ declare module "./types.js" {
     "ogc-maps": HonuaOgcMaps | HonuaOgcCollectionMap;
     "ogc-processes": HonuaOgcProcesses;
     stac: HonuaStacSearch;
+    wms: HonuaWms;
+    "wms-layer": HonuaWmsLayer;
+    wmts: HonuaWmts;
+    "wmts-layer": HonuaWmtsLayer;
+    "wmts-tileset": HonuaWmtsTileset;
   }
 }
 
@@ -1881,4 +2162,6 @@ export const FIRST_PARTY_PROTOCOLS: ReadonlySet<Protocol> = new Set([
   "ogc-tiles",
   "ogc-maps",
   "stac",
+  "wms",
+  "wmts",
 ] as const);

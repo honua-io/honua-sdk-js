@@ -36,6 +36,7 @@ export type HonuaMapPackageProtocol =
   | "ogc_tiles"
   | "wfs"
   | "wms"
+  | "wmts"
   | "odata"
   | "vector_tile"
   | "raster_tile"

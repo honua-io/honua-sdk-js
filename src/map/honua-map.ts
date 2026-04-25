@@ -19,6 +19,8 @@ import {
   type HonuaOgcFeatureCollection,
   HonuaOgcFeatures,
 } from "../core/surfaces.js";
+import type { HonuaWms, HonuaWmsLayer } from "../core/wms.js";
+import type { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import { parseFeatureLayerUrl, parseMapServiceUrl } from "../esri-compat/url.js";
 import type {
   HonuaLayerSpecification,
@@ -30,13 +32,25 @@ import {
   isHonuaSource,
   isMapServiceSource,
   isOgcFeaturesSource,
+  isWmsSource,
+  isWmtsSource,
   parseOgcFeaturesUrl,
 } from "../style/specification.js";
+import { resolveWmsSpec, resolveWmtsSpec } from "../style/wms-wmts-resolvers.js";
 
 // ── Types ─────────────────────────────────────────────────────
 
 /** A resolved Honua source: either an SDK surface instance or `null` for native MapLibre sources. */
-export type ResolvedMapSource = HonuaFeatureLayer | HonuaMapService | HonuaOgcFeatureCollection | null;
+export type ResolvedMapSource =
+  | HonuaFeatureLayer
+  | HonuaMapService
+  | HonuaOgcFeatureCollection
+  | HonuaWms
+  | HonuaWmsLayer
+  | HonuaWmts
+  | HonuaWmtsLayer
+  | HonuaWmtsTileset
+  | null;
 
 /** Options for constructing a {@link HonuaMap}. */
 export interface HonuaMapOptions {
@@ -378,6 +392,12 @@ export class HonuaMap {
       const ogcRoot = new HonuaOgcFeatures({ client: this.#client });
       const collectionId = spec.collectionId ?? parsed.collectionId ?? "";
       return ogcRoot.collection(collectionId);
+    }
+    if (isWmsSource(spec)) {
+      return resolveWmsSpec(this.#client, spec);
+    }
+    if (isWmtsSource(spec)) {
+      return resolveWmtsSpec(this.#client, spec);
     }
     return null;
   }

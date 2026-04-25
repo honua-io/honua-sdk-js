@@ -76,11 +76,53 @@ export interface HonuaOgcFeaturesSourceSpecification extends HonuaSourceBase {
   limit?: number;
 }
 
+/**
+ * A source backed by a first-party WMS 1.3.0 service.
+ *
+ * URL format: `https://host/rest/services/{serviceId}/MapServer/WMS`.
+ */
+export interface HonuaWmsSourceSpecification extends HonuaSourceBase {
+  type: "honua-wms";
+  /** Service identifier, when not parseable from the URL. */
+  serviceId?: string;
+  /** Comma-separated layer names (the WMS `LAYERS=` value). */
+  layers?: string;
+  /** Comma-separated style names (the WMS `STYLES=` value). */
+  styles?: string;
+  /** Image MIME type. Defaults to `image/png`. */
+  format?: string;
+  /** Whether the rendered image should be transparent. */
+  transparent?: boolean;
+  /** CRS code. Defaults to `EPSG:3857`. */
+  crs?: string;
+}
+
+/**
+ * A source backed by a first-party WMTS 1.0.0 service.
+ *
+ * URL format: `https://host/rest/services/{serviceId}/MapServer/WMTS`.
+ */
+export interface HonuaWmtsSourceSpecification extends HonuaSourceBase {
+  type: "honua-wmts";
+  /** Service identifier, when not parseable from the URL. */
+  serviceId?: string;
+  /** Layer identifier. */
+  layer?: string;
+  /** Style identifier. Defaults to `default`. */
+  style?: string;
+  /** TileMatrixSet identifier. Defaults to `WebMercatorQuad`. */
+  tileMatrixSet?: string;
+  /** Image MIME type. Defaults to `image/png`. */
+  format?: string;
+}
+
 /** Union of all Honua custom source types. */
 export type HonuaSourceSpecification =
   | HonuaFeatureServiceSourceSpecification
   | HonuaMapServiceSourceSpecification
-  | HonuaOgcFeaturesSourceSpecification;
+  | HonuaOgcFeaturesSourceSpecification
+  | HonuaWmsSourceSpecification
+  | HonuaWmtsSourceSpecification;
 
 // ── Minimal layer type (MapLibre-compatible) ─────────────────
 
@@ -141,6 +183,16 @@ export function isMapServiceSource(source: { type: string }): source is HonuaMap
 /** Test whether a source is a `honua-ogc-features`. */
 export function isOgcFeaturesSource(source: { type: string }): source is HonuaOgcFeaturesSourceSpecification {
   return source.type === "honua-ogc-features";
+}
+
+/** Test whether a source is a `honua-wms`. */
+export function isWmsSource(source: { type: string }): source is HonuaWmsSourceSpecification {
+  return source.type === "honua-wms";
+}
+
+/** Test whether a source is a `honua-wmts`. */
+export function isWmtsSource(source: { type: string }): source is HonuaWmtsSourceSpecification {
+  return source.type === "honua-wmts";
 }
 
 // ── URL parsing ──────────────────────────────────────────────

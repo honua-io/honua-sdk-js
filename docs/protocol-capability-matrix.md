@@ -20,25 +20,25 @@ without a canonical `Source` method today are negotiated for
 `◐` = supported only under `degraded` capability policy (client-side fallback).
 `—` = not supported.
 
-| Capability | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | STAC | WFS | WMS | OData |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `query` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | ✓ |
-| `queryAggregate` | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — |
-| `queryExtent` | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | ✓ | — | — |
-| `queryObjectIds` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | ✓ |
-| `queryRelated` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — |
-| `applyEdits` | ✓ | — | — | — | — | ✓ | — | — | — | ✓ | — | — |
-| `attachments` | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `render` | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | ✓ | — |
-| `tiles` | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | ✓ | — |
-| `sql` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — |
-| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | — | — | — |
-| `pbf` | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `connect` | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — |
-| `image` | — | — | ✓ | — | — | — | — | — | — | — | — | — |
-| `geometry` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `geoprocess` | — | — | — | — | ✓ | — | — | — | — | — | — | — |
-| `processes` | — | — | — | — | — | — | — | — | — | — | — | — |
+| Capability | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | STAC | WFS | WMS | WMTS | OData |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `query` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | ✓ |
+| `queryAggregate` | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — |
+| `queryExtent` | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | ✓ | — | — | — |
+| `queryObjectIds` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ |
+| `queryRelated` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| `applyEdits` | ✓ | — | — | — | — | ✓ | — | — | — | ✓ | — | — | — |
+| `attachments` | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| `render` | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | ✓ | ✓ | — |
+| `tiles` | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | ✓ | ✓ | — |
+| `sql` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | — | — | — | — |
+| `pbf` | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| `connect` | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — |
+| `image` | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
+| `geometry` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — |
+| `geoprocess` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
+| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 MapLibre-native sources (`maplibre-vector`, `maplibre-raster`,
 `maplibre-geojson`) are render-only and contribute `render` and (where
@@ -245,11 +245,101 @@ Read + edit, no aggregation, no relates. `queryExtent` is supported via
 Adapter ticket should map `Query.where` to OGC Filter Encoding XML.
 
 ### WMS
-Render-only. The `query` column is `—` because WMS does not expose a
-feature-query path; the GetFeatureInfo response is converted to features
-in the adapter under the `attachments`-adjacent path but not exposed via
-`Source.query`. The adapter ticket may add a `wms-feature-info` capability
-if richer reuse is needed.
+First-party WMS 1.3.0 adapter. `render` and `tiles` come from `GetMap`;
+`query` is supported through `GetFeatureInfo` with a point spatial
+filter (`Query.spatialFilter.geometryType === "esriGeometryPoint"`). The
+adapter constructs a 1×1 render envelope around the requested point,
+asks for `INFO_FORMAT=application/json`, and decodes the JSON response
+into the canonical `Result<T>` envelope. The wire CRS is derived from
+the spatial filter geometry's `spatialReference` (`latestWkid` first,
+then `wkid`, then `wkt`) and falls back to `CRS:84` (the WMS 1.3.0
+longitude/latitude code that preserves the canonical `(x, y)` axis
+order). `Query.outSr` is intentionally not consulted on this path
+because it is the **output** spatial reference, not the input CRS for
+GetFeatureInfo. Non-point queries throw
+`HonuaCapabilityNotSupportedError("query", "wms", id)` because WMS has
+no spatial-rel semantics for envelopes / polygons; raw multi-pixel
+GetFeatureInfo lives behind `Source.protocol("wms").featureInfo()`.
+Other canonical `Query` fields that GetFeatureInfo cannot honor are
+rejected up front rather than silently dropped: `query({ aggregation })`
+throws `HonuaCapabilityNotSupportedError("queryAggregate", ...)`, and
+`Query.where` / `Query.outFields` / `Query.orderBy` /
+`Query.pagination.offset` / `Query.returnGeometry === false` /
+`Query.outSr` throw typed `Error` messages so a mixed-source caller
+cannot get an unfiltered, reprojected, or differently-shaped result.
+`Query.outSr` fails fast because honua-server's WMS GetFeatureInfo
+projects the response in the request CRS itself and exposes no
+separate output-SR knob — callers that need a specific projection
+must stamp the spatial filter geometry's `spatialReference` with the
+desired CRS (the wire CRS is derived from there) or reproject the
+result client-side. `Query.pagination.limit` is honored — it maps to
+`FEATURE_COUNT` on the wire.
+
+`Source.protocol("wms-layer")` is registered only when
+`locator.typeName` parses to a single non-empty layer token because
+`HonuaWmsLayer` is a single-layer handle (its `describe()` resolves
+exactly one `<Layer>` from the parsed Capabilities). Multi-layer
+composites (`typeName: "a,b"`) keep `Source.protocol("wms-layer")`
+unset and route through the service-level `Source.protocol("wms")`
+handle, which can target the composite verbatim via
+`featureInfo()` / `map()`.
+
+Styled-map selection enumerates per-layer styles from
+`HonuaWms.capabilities()` and is bound on the layer handle (`layer.map`,
+`layer.featureInfo`) via the `style` parameter or descriptor
+`locator.styleId`. Dimension handling (`TIME` / `ELEVATION`) flows
+through the typed `WmsMapRequest` envelope; defaults come from
+`Capabilities`, request overrides go on the wire. honua-server does not
+implement `GetLegendGraphic` today, so the adapter raises
+`HonuaCapabilityNotSupportedError` from `legend()` when the parsed
+Capabilities advertise no `<GetLegendGraphic>` request element. The
+gating always runs: when the caller does not pre-supply
+`options.capabilities`, the handle lazy-loads them once via
+`getWmsCapabilities` and caches the in-flight promise on the instance
+so repeat `legend()` calls reuse the same fetch (transient failures
+clear the cache so the next call retries). The `HonuaWms` parser
+extracts each `<Layer>`'s own `<Name>`, `<Title>`, `<CRS>`,
+`<BoundingBox>`, `<Style>`, and `<Dimension>` from the layer's direct
+children only — descendant `<Layer>` subtrees are stripped before
+metadata reads so child fields never leak upward into the parent (or,
+through ancestor-merge, sideways into sibling layers). CRS axis
+order is honored per WMS 1.3 §6.7.3.2 — `EPSG:4326` is swapped to
+(lat, lon) on the wire while `CRS:84` and `EPSG:3857` keep canonical
+(x, y) tuples. MapLibre integration ships through
+`buildWmsRasterSourceSpec(descriptor)`, which emits a `raster` source
+spec with a pre-baked KVP `tiles` template using MapLibre's runtime
+`{bbox-epsg3857}` / `{width}` / `{height}` placeholders.
+
+### WMTS
+First-party WMTS 1.0.0 adapter. Render-only — `Source.query()` throws
+because WMTS GetFeatureInfo is keyed on tile pixels (which doesn't fit
+the canonical `Query.spatialFilter`). Capabilities expose advertised
+TileMatrixSets through the typed surface; honua-server only advertises
+`WebMercatorQuad` today and the parser-driven design tolerates additional
+sets without a client refactor. Protocol escape hatches:
+`Source.protocol("wmts")` returns the service handle,
+`Source.protocol("wmts-layer")` a layer-bound handle, and
+`Source.protocol("wmts-tileset")` a (layer × style × TMS) tileset handle.
+`fetchWmtsTile` defaults to the RESTful route (`{layer}/{style}/{tms}/{z}/{y}/{x}.{ext}`)
+because it is a single string substitution per tile and skips
+`URLSearchParams`; `mode: "kvp"` is opt-in for KVP-only proxies.
+The `Format` MIME → RESTful `.ext` mapping is canonical and shared
+between the wire client and the MapLibre helper via
+`wmtsExtensionForFormat` (`src/core/wms-types.ts`): `image/png` →
+`png`, `image/jpeg` / `image/jpg` → `jpeg`, `image/webp` → `webp`;
+unknown formats fall back to `png`. The same caller-supplied `format`
+therefore lands on the same path extension whether the URL is composed
+by `fetchWmtsTile` or `buildWmtsRasterSourceSpec`.
+`request.extraParams` is honored on both routing modes — under
+`mode: "kvp"` keys are merged into the query string verbatim; under
+the default RESTful route the path-encoded WMTS keys (`LAYER`,
+`STYLE`, `TILEMATRIXSET`, `TILEMATRIX`, `TILEROW`, `TILECOL`,
+`FORMAT`, `INFOFORMAT`, `I`, `J`, plus `SERVICE` / `VERSION` /
+`REQUEST`) take precedence and any conflicting `extraParams` keys
+(case-insensitive) are dropped so the same URL never carries the
+value twice. `buildWmtsRasterSourceSpec(descriptor)` emits a
+MapLibre `raster` source spec using the same RESTful path with
+`{z}/{y}/{x}` placeholders.
 
 ### OData
 Tabular query with $filter, $select, $orderby, $top, $skip — maps cleanly
