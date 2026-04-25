@@ -1802,19 +1802,22 @@ export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient
     async query(request) {
       ensureCapability(descriptor, declaredCaps, "query");
       await negotiation.ensureAdvertised(descriptor, "query");
-      const params = await buildOdataParams(entity, descriptor, request, { count: true });
+      const geomColumn = await resolveOdataGeometryColumn(entity, descriptor);
+      const params = await buildOdataParams(entity, descriptor, request, { count: true, geomColumn });
       const page = await entity.query<Record<string, unknown>>(params);
       return odataResultFromPage<T>(
         descriptor,
         page,
         await negotiation.fieldsFor(descriptor.id),
         request?.returnGeometry,
+        geomColumn,
       );
     },
     async queryAll(request) {
       ensureCapability(descriptor, declaredCaps, "query");
       await negotiation.ensureAdvertised(descriptor, "query");
-      const params = await buildOdataParams(entity, descriptor, request, { count: true });
+      const geomColumn = await resolveOdataGeometryColumn(entity, descriptor);
+      const params = await buildOdataParams(entity, descriptor, request, { count: true, geomColumn });
       const limit = request?.pagination?.limit;
       // Lookahead row: ask the server for `limit + 1` so we can prove
       // truncation by collecting more than `limit` rows even when the
@@ -1824,7 +1827,9 @@ export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient
         params.top = limit + 1;
       }
       const drained = await entity.queryAll<Record<string, unknown>>(params);
-      const allFeatures = drained.rows.map((row) => odataRowToFeature<T>(row, descriptor, request?.returnGeometry));
+      const allFeatures = drained.rows.map((row) =>
+        odataRowToFeature<T>(row, descriptor, request?.returnGeometry, geomColumn),
+      );
       const { features: limited, exceededTransferLimit: collectedExceeded } = applyQueryAllLimit(allFeatures, limit);
       // Belt-and-braces: if the server respected `$top` exactly but
       // reports `@odata.count > limited.length`, that also proves
@@ -1858,19 +1863,25 @@ export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient
     async *stream(request) {
       ensureCapability(descriptor, declaredCaps, "stream");
       await negotiation.ensureAdvertised(descriptor, "query");
-      const params = await buildOdataParams(entity, descriptor, request, { count: false });
+      const geomColumn = await resolveOdataGeometryColumn(entity, descriptor);
+      const params = await buildOdataParams(entity, descriptor, request, { count: false, geomColumn });
       const fields = await negotiation.fieldsFor(descriptor.id);
       const stream = entity.queryStream<Record<string, unknown>>(params);
       for await (const page of stream) {
-        yield odataResultFromPage<T>(descriptor, page, fields, request?.returnGeometry);
+        yield odataResultFromPage<T>(descriptor, page, fields, request?.returnGeometry, geomColumn);
       }
     },
     async queryObjectIds(request) {
       ensureCapability(descriptor, declaredCaps, "queryObjectIds");
       await negotiation.ensureAdvertised(descriptor, "query");
       const keyField = await negotiation.keyField(descriptor.id);
-      const params = await buildOdataParams(entity, descriptor, request, { count: false });
+      const geomColumn = await resolveOdataGeometryColumn(entity, descriptor);
+      const params = await buildOdataParams(entity, descriptor, request, { count: false, geomColumn });
       params.select = [keyField];
+      // `queryObjectIds` projects only the key field, so `out.expand`
+      // built from dotted `outFields` is irrelevant; clear it so a
+      // caller-supplied projection cannot inflate the wire request.
+      delete params.expand;
       // `entity.queryAll` respects `top` exactly. The canonical
       // `queryObjectIds` honors `Query.pagination.limit` as a hard cap
       // and slices the projection to it (mirrors the STAC adapter at
@@ -2223,6 +2234,101 @@ function extractOdataBasePath(url: string): string {
 }
 
 /**
+ * Resolve the OData geometry column for a descriptor. Prefers
+ * `descriptor.schema.fields` (where a field of type
+ * `esriFieldTypeGeometry` names the column), then falls back to the
+ * lazy `$metadata` probe (the first property typed `Edm.Geography` /
+ * `Edm.Geometry` per CSDL parsing). Returns `undefined` when neither
+ * declares one — callers fall back to the canonical name guesses
+ * (`Geometry` / `Geography` / `Shape`) where the column name is
+ * needed for client-side filtering only (never for emitting a
+ * spatial filter, which throws when the column cannot be resolved).
+ */
+async function resolveOdataGeometryColumn(
+  entity: HonuaOdataEntitySet,
+  descriptor: SourceDescriptor,
+): Promise<string | undefined> {
+  const schemaCol = descriptor.schema?.fields?.find((f) => f.type === "esriFieldTypeGeometry")?.name;
+  if (schemaCol) return schemaCol;
+  try {
+    const meta = await entity.metadata();
+    const typeName = meta.entitySets[entity.entitySetName];
+    const fields = (typeName ? meta.fields[typeName] : undefined) ?? [];
+    return fields.find((f) => f.isSpatial)?.name;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Split a list of canonical `outFields` into a root `$select` list and
+ * an OData `$expand` argument. Plain field names go into `$select`.
+ * Dotted field paths (e.g. `Owner.name`) are translated to OData
+ * navigation expands such as `Owner($select=name)`. Multi-level paths
+ * (e.g. `Owner.address.street`) nest as
+ * `Owner($expand=address($select=street))`. Multiple fields under the
+ * same navigation share one expand entry
+ * (`Owner($select=name,email)`) so the URL stays compact.
+ */
+function splitOdataOutFields(outFields: ReadonlyArray<string>): { select: string[]; expand: string[] } {
+  type Node = { select: string[]; children: Map<string, Node> };
+  const root: Node = { select: [], children: new Map() };
+  for (const field of outFields) {
+    const segments = field.split(".");
+    if (segments.length === 1) {
+      root.select.push(segments[0]);
+      continue;
+    }
+    let cursor = root;
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      const seg = segments[i];
+      let child = cursor.children.get(seg);
+      if (!child) {
+        child = { select: [], children: new Map() };
+        cursor.children.set(seg, child);
+      }
+      cursor = child;
+    }
+    cursor.select.push(segments[segments.length - 1]);
+  }
+  function serialize(node: Node): string {
+    const parts: string[] = [];
+    if (node.select.length > 0) parts.push(`$select=${node.select.join(",")}`);
+    if (node.children.size > 0) {
+      const segs: string[] = [];
+      for (const [name, child] of node.children) {
+        const inner = serialize(child);
+        segs.push(inner === "" ? name : `${name}(${inner})`);
+      }
+      parts.push(`$expand=${segs.join(",")}`);
+    }
+    return parts.join(";");
+  }
+  const expand: string[] = [];
+  for (const [name, child] of root.children) {
+    const inner = serialize(child);
+    expand.push(inner === "" ? name : `${name}(${inner})`);
+  }
+  return { select: root.select, expand };
+}
+
+/**
+ * Decide whether a candidate root `outFields` entry refers to the
+ * geometry column. When the resolver supplied a column name (from
+ * descriptor schema or metadata), match against it directly. The
+ * canonical name guesses (`geometry`, `geography`, `shape`) are
+ * preserved as a fallback so a server that emits a hard-coded geometry
+ * field still drops out of `$select` even when neither schema nor
+ * metadata declares one.
+ */
+function isOdataGeometryFieldName(field: string, resolved: string | undefined): boolean {
+  if (resolved && field === resolved) return true;
+  if (resolved) return false;
+  const lower = field.toLowerCase();
+  return lower === "geometry" || lower === "geography" || lower === "shape";
+}
+
+/**
  * Build the OData query params for a canonical `Query`. Materializes
  * `$metadata` through the negotiator only when a translation rule needs
  * a geometry column or the key field — otherwise the request stays
@@ -2232,7 +2338,7 @@ async function buildOdataParams<T>(
   entity: HonuaOdataEntitySet,
   descriptor: SourceDescriptor,
   request: Query<T> | undefined,
-  options: { count: boolean },
+  options: { count: boolean; geomColumn?: string },
 ): Promise<HonuaOdataQueryParams> {
   const out: HonuaOdataQueryParams = {};
   if (options.count) out.count = true;
@@ -2251,19 +2357,25 @@ async function buildOdataParams<T>(
     // SR via column-side projection on the server). Derive the input SRID
     // from `spatialFilter.geometry.spatialReference` and fall back to the
     // metadata-declared column SRID; if neither is available, omit the
-    // SRID prefix and let the column default apply.
+    // SRID prefix and let the column default apply. The geometry column
+    // itself is preferred from `options.geomColumn` (descriptor schema
+    // first, then metadata isSpatial) so a schema-declared column named
+    // anything other than `Geometry`/`Geography`/`Shape` is honored.
     const ctx: import("../core/odata.js").OdataSpatialFilterContext = {
+      ...(options.geomColumn ? { geometryColumn: options.geomColumn } : {}),
       ...(spatialFields.length > 0 ? { geometryFields: spatialFields } : {}),
     };
     filterParts.push(buildOdataSpatialFilter(request.spatialFilter, ctx));
   }
   if (filterParts.length > 0) out.filter = filterParts.join(" and ");
   if (request.outFields && request.outFields.length > 0) {
+    const split = splitOdataOutFields(request.outFields);
+    let rootSelect = split.select;
     if (request.returnGeometry === false) {
-      out.select = request.outFields.filter((f) => !looksLikeGeometryField(f));
-    } else {
-      out.select = [...request.outFields];
+      rootSelect = rootSelect.filter((f) => !isOdataGeometryFieldName(f, options.geomColumn));
     }
+    if (rootSelect.length > 0) out.select = rootSelect;
+    if (split.expand.length > 0) out.expand = split.expand;
   } else if (request.returnGeometry === false) {
     // No outFields supplied — derive `$select` from metadata so the
     // geometry column never reaches the wire. Falls through silently
@@ -2273,7 +2385,9 @@ async function buildOdataParams<T>(
     if (meta) {
       const typeName = meta.entitySets[entity.entitySetName];
       const allFields = (typeName ? meta.fields[typeName] : undefined) ?? [];
-      const nonSpatial = allFields.filter((f) => !f.isSpatial).map((f) => f.name);
+      const nonSpatial = allFields
+        .filter((f) => !f.isSpatial && (options.geomColumn === undefined || f.name !== options.geomColumn))
+        .map((f) => f.name);
       if (nonSpatial.length > 0) out.select = nonSpatial;
     }
   }
@@ -2289,18 +2403,14 @@ async function buildOdataParams<T>(
   return out;
 }
 
-function looksLikeGeometryField(field: string): boolean {
-  const lower = field.toLowerCase();
-  return lower === "geometry" || lower === "geography" || lower === "shape";
-}
-
 function odataResultFromPage<T>(
   descriptor: SourceDescriptor,
   page: HonuaOdataPage<Record<string, unknown>>,
   fields: ReadonlyArray<import("../core/types.js").HonuaFieldInfo>,
   returnGeometry: boolean | undefined,
+  geomColumn: string | undefined,
 ): Result<T> {
-  const features = page.rows.map((row) => odataRowToFeature<T>(row, descriptor, returnGeometry));
+  const features = page.rows.map((row) => odataRowToFeature<T>(row, descriptor, returnGeometry, geomColumn));
   const exceededTransferLimit =
     typeof page.totalCount === "number" ? features.length < page.totalCount : Boolean(page.nextLink);
   return {
@@ -2318,15 +2428,21 @@ function odataResultFromPage<T>(
  * `returnGeometry === false`, the geometry column is dropped from both
  * the attributes envelope and the `geometry` field — defensive against
  * servers that ignore the `$select` exclusion (or callers that bypassed
- * metadata-derived selects).
+ * metadata-derived selects). The geometry column is sourced from the
+ * caller-resolved `geomColumn` (descriptor schema → metadata
+ * `isSpatial`) and falls back to the canonical name guesses on the
+ * row keys when neither declares one.
  */
 function odataRowToFeature<T>(
   row: Record<string, unknown>,
   descriptor: SourceDescriptor,
   returnGeometry: boolean | undefined,
+  geomColumn: string | undefined,
 ): import("../core/types.js").HonuaTypedFeature<T> {
-  const geomFieldName = descriptor.schema?.fields?.find((f) => f.type === "esriFieldTypeGeometry")?.name;
-  const geometryKey = geomFieldName ?? findGeometryKey(row);
+  const geometryKey =
+    geomColumn ??
+    descriptor.schema?.fields?.find((f) => f.type === "esriFieldTypeGeometry")?.name ??
+    findGeometryKey(row);
   if (geometryKey && row[geometryKey] !== undefined) {
     const { [geometryKey]: geometry, ...rest } = row;
     return {

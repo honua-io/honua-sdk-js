@@ -552,10 +552,12 @@ const ids = await parcels.queryObjectIds({ where: "STATUS = 'ACTIVE'" });
 // Dialect-specific operations stay behind the typed escape hatch.
 const odata = parcels.protocol("odata")!;
 const meta = await odata.metadata();
-const aggregated = await odata.apply({
-  groupBy: ["STATE"],
-  aggregations: [{ field: "ACRES", fn: "sum", alias: "SumAcres" }],
-});
+// `apply` accepts a literal OData v4 `$apply` transformation string
+// per OData v4 §5.1.4 — `groupby((<dim>),aggregate(<expr>))` is the
+// canonical form for SQL-style group-by + sum.
+const aggregated = await odata.apply(
+  "groupby((STATE),aggregate(ACRES with sum as SumAcres))",
+);
 ```
 
 `Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites

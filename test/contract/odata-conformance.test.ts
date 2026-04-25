@@ -1164,3 +1164,267 @@ describe("odata / HonuaOdataEntitySet path metadata", () => {
     expect(entity.entitySetName).toBe("Features");
   });
 });
+
+describe("odata / SQL comparison operator rewriting (review fix)", () => {
+  it("rewrites SQL `>` / `<` / `>=` / `<=` to OData `gt` / `lt` / `ge` / `le`", () => {
+    expect(rewriteWhereToOdataFilter("ACRES > 10")).toBe("ACRES gt 10");
+    expect(rewriteWhereToOdataFilter("ACRES < 10")).toBe("ACRES lt 10");
+    expect(rewriteWhereToOdataFilter("ACRES >= 10")).toBe("ACRES ge 10");
+    expect(rewriteWhereToOdataFilter("ACRES <= 10")).toBe("ACRES le 10");
+  });
+
+  it("translates the README-style mixed predicate end-to-end", () => {
+    // Honua Server's OData lexer rejects `>` as `InvalidQueryOption`.
+    // The README publishes `STATE = 'CA' AND ACRES > 10` as a working
+    // example, so the rewriter must produce a valid OData $filter.
+    expect(rewriteWhereToOdataFilter("STATE = 'CA' AND ACRES > 10")).toBe("STATE eq 'CA' and ACRES gt 10");
+  });
+
+  it("does not split `<>` into `lt`/`gt` (not-equal stays as `ne`)", () => {
+    expect(rewriteWhereToOdataFilter("STATE <> 'CA'")).toBe("STATE ne 'CA'");
+  });
+
+  it("does not rewrite comparison operators inside quoted string literals", () => {
+    expect(rewriteWhereToOdataFilter("NAME = 'A>B'")).toBe("NAME eq 'A>B'");
+    expect(rewriteWhereToOdataFilter("NAME = 'A<=B'")).toBe("NAME eq 'A<=B'");
+  });
+});
+
+describe("odata / outFields → $select + $expand (review fix)", () => {
+  function buildSource(
+    routes: Array<[string | RegExp, (url: URL, init: RequestInit | undefined) => Response | Promise<Response>]>,
+  ) {
+    const client = makeMockClient({
+      routes: [["/odata/$metadata", () => odataMetadataResponse()], ...routes],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-odata",
+          protocol: "odata",
+          locator: { url: "https://mock/odata", entitySet: "Parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+        } satisfies SourceDescriptor,
+      ],
+    });
+    return dataset.source<ParcelAttrs>("parcels-odata")!;
+  }
+
+  it("translates a single dotted outField into $expand=Owner($select=name) and an empty/no $select", async () => {
+    let observedSelect: string | null = null;
+    let observedExpand: string | null = null;
+    const source = buildSource([
+      [
+        "/odata/Parcels",
+        (url) => {
+          observedSelect = url.searchParams.get("$select");
+          observedExpand = url.searchParams.get("$expand");
+          return jsonResponse(odataParcelsResponse());
+        },
+      ],
+    ]);
+    await source.query({ outFields: ["Owner.name"] });
+    expect(observedSelect).toBeNull();
+    expect(observedExpand).toBe("Owner($select=name)");
+  });
+
+  it("groups multiple fields under the same navigation property into one $expand entry", async () => {
+    let observedSelect: string | null = null;
+    let observedExpand: string | null = null;
+    const source = buildSource([
+      [
+        "/odata/Parcels",
+        (url) => {
+          observedSelect = url.searchParams.get("$select");
+          observedExpand = url.searchParams.get("$expand");
+          return jsonResponse(odataParcelsResponse());
+        },
+      ],
+    ]);
+    await source.query({ outFields: ["STATE", "Owner.name", "Owner.email"] });
+    expect(observedSelect).toBe("STATE");
+    expect(observedExpand).toBe("Owner($select=name,email)");
+  });
+
+  it("nests multi-level dotted paths as $expand=Owner($expand=address($select=street))", async () => {
+    let observedExpand: string | null = null;
+    const source = buildSource([
+      [
+        "/odata/Parcels",
+        (url) => {
+          observedExpand = url.searchParams.get("$expand");
+          return jsonResponse(odataParcelsResponse());
+        },
+      ],
+    ]);
+    await source.query({ outFields: ["Owner.address.street"] });
+    expect(observedExpand).toBe("Owner($expand=address($select=street))");
+  });
+
+  it("excludes the geometry column from $select even when other dotted outFields project navigations", async () => {
+    let observedSelect: string | null = null;
+    let observedExpand: string | null = null;
+    const source = buildSource([
+      [
+        "/odata/Parcels",
+        (url) => {
+          observedSelect = url.searchParams.get("$select");
+          observedExpand = url.searchParams.get("$expand");
+          return jsonResponse(odataParcelsResponse());
+        },
+      ],
+    ]);
+    await source.query({
+      outFields: ["STATE", "Geometry", "Owner.name"],
+      returnGeometry: false,
+    });
+    // Geometry is dropped from the root select; the navigation expand is preserved.
+    expect(observedSelect).toBe("STATE");
+    expect(observedExpand).toBe("Owner($select=name)");
+  });
+});
+
+describe("odata / geometry-field resolution honors descriptor.schema (review fix)", () => {
+  function buildSchemaSource(
+    metadataDoc: string,
+    routes: Array<[string | RegExp, (url: URL, init: RequestInit | undefined) => Response | Promise<Response>]>,
+  ) {
+    const client = makeMockClient({
+      routes: [
+        [
+          "/odata/$metadata",
+          () => new Response(metadataDoc, { status: 200, headers: { "Content-Type": "application/xml" } }),
+        ],
+        ...routes,
+      ],
+    });
+    const dataset = createDataset({
+      id: "places",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "places-odata",
+          protocol: "odata",
+          locator: { url: "https://mock/odata", entitySet: "Places" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+          // Caller-supplied schema names the geometry column "Location",
+          // which is neither `Geometry` nor `Geography` nor `Shape`.
+          schema: {
+            fields: [
+              { name: "OBJECTID", type: "esriFieldTypeOID" },
+              { name: "STATE", type: "esriFieldTypeString" },
+              { name: "Location", type: "esriFieldTypeGeometry" },
+            ],
+          },
+        } satisfies SourceDescriptor,
+      ],
+    });
+    return dataset.source("places-odata")!;
+  }
+
+  // Metadata where the `Place` type names its spatial column `Location`
+  // and the `Places` entity-set carries a SRID-stamped declaration. The
+  // adapter must honor this name end-to-end (spatial filter, $select
+  // dropping when returnGeometry=false, row split).
+  const metadataLocation = `<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema Namespace="Honua.OData" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <EntityType Name="Place">
+        <Key><PropertyRef Name="OBJECTID"/></Key>
+        <Property Name="OBJECTID" Type="Edm.Int64" Nullable="false"/>
+        <Property Name="STATE" Type="Edm.String"/>
+        <Property Name="Location" Type="Edm.Geography" SRID="4326"/>
+      </EntityType>
+      <EntityContainer Name="Container">
+        <EntitySet Name="Places" EntityType="Honua.OData.Place"/>
+      </EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>`;
+
+  it("emits geo.intersects against the schema-declared `Location` column (not hard-coded `Geometry`)", async () => {
+    let observedFilter: string | null = null;
+    const source = buildSchemaSource(metadataLocation, [
+      [
+        "/odata/Places",
+        (url) => {
+          observedFilter = url.searchParams.get("$filter");
+          return jsonResponse({
+            "@odata.context": "https://mock/odata/$metadata#Places",
+            value: [],
+          });
+        },
+      ],
+    ]);
+    await source.query({ spatialFilter: envelope(-123, 37, -120, 45, { wkid: 4326 }) });
+    expect(observedFilter).toMatch(/^geo\.intersects\(Location,geography'SRID=4326;POLYGON/);
+  });
+
+  it("drops the `Location` column from the metadata-derived $select on returnGeometry=false", async () => {
+    let observedSelect: string | null = null;
+    const source = buildSchemaSource(metadataLocation, [
+      [
+        "/odata/Places",
+        (url) => {
+          observedSelect = url.searchParams.get("$select");
+          return jsonResponse({
+            "@odata.context": "https://mock/odata/$metadata#Places",
+            value: [],
+          });
+        },
+      ],
+    ]);
+    await source.query({ returnGeometry: false });
+    expect(observedSelect).toBeTruthy();
+    expect(observedSelect!.split(",")).toEqual(expect.arrayContaining(["OBJECTID", "STATE"]));
+    expect(observedSelect).not.toContain("Location");
+  });
+
+  it("splits the `Location` column out of attributes onto feature.geometry", async () => {
+    const source = buildSchemaSource(metadataLocation, [
+      [
+        "/odata/Places",
+        () =>
+          jsonResponse({
+            "@odata.context": "https://mock/odata/$metadata#Places",
+            value: [
+              { OBJECTID: 1, STATE: "CA", Location: { type: "Point", coordinates: [-120, 38] } },
+            ],
+          }),
+      ],
+    ]);
+    const result = await source.query();
+    const first = result.features[0];
+    expect(first.geometry).toEqual({ type: "Point", coordinates: [-120, 38] });
+    expect((first.attributes as unknown as Record<string, unknown>).Location).toBeUndefined();
+  });
+});
+
+describe("odata / HonuaOdataEntitySet.apply signature (README fix)", () => {
+  it("accepts a literal OData $apply transformation string and forwards it on the wire", async () => {
+    let observedApply: string | null = null;
+    const client = makeMockClient({
+      routes: [
+        ["/odata/$metadata", () => odataMetadataResponse()],
+        [
+          "/odata/Parcels",
+          (url) => {
+            observedApply = url.searchParams.get("$apply");
+            return jsonResponse(odataApplyResponse());
+          },
+        ],
+      ],
+    });
+    const entity = new HonuaOdataEntitySet({ client, entitySet: "Parcels" });
+    // Matches the README example shape exactly: the published call is
+    // `odata.apply("groupby((STATE),aggregate(ACRES with sum as SumAcres))")`.
+    const result = await entity.apply("groupby((STATE),aggregate(ACRES with sum as SumAcres))");
+    expect(observedApply).toBe("groupby((STATE),aggregate(ACRES with sum as SumAcres))");
+    expect(result.rows).toHaveLength(2);
+  });
+});

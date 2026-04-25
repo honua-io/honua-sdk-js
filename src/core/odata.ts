@@ -780,6 +780,9 @@ const UNSUPPORTED_OPERATOR_RES: ReadonlyArray<{ token: string; re: RegExp }> = [
  *  - `IS NULL` / `IS NOT NULL` → `eq null` / `ne null`
  *  - `<col> = '...'`, `<col> = N` → `<col> eq '...'` / `<col> eq N`
  *  - SQL-style `<>` → `ne`
+ *  - SQL comparison operators `>=` / `<=` / `>` / `<` → `ge` / `le` /
+ *    `gt` / `lt` (Honua Server's OData lexer rejects bare punctuation
+ *    comparisons as `InvalidQueryOption`).
  *
  * Predicates whose syntax already matches OData (e.g. `STATE eq 'CA'`)
  * pass through unchanged. Unsupported operators (`HAS`, `IN`, `ANY`,
@@ -808,7 +811,14 @@ export function rewriteWhereToOdataFilter(where: string): string {
     let out = segment;
     out = out.replace(/\bIS\s+NOT\s+NULL\b/gi, "ne null");
     out = out.replace(/\bIS\s+NULL\b/gi, "eq null");
+    // `<>` must be rewritten before bare `<` / `>` so the not-equal
+    // operator does not get split into `lt` / `gt`. Two-char operators
+    // (`>=` / `<=`) likewise come before bare `>` / `<`.
     out = out.replace(/<>/g, "ne");
+    out = out.replace(/(\b\w+\b)\s*>=\s*/g, (_match, lhs: string) => `${lhs} ge `);
+    out = out.replace(/(\b\w+\b)\s*<=\s*/g, (_match, lhs: string) => `${lhs} le `);
+    out = out.replace(/(\b\w+\b)\s*>\s*/g, (_match, lhs: string) => `${lhs} gt `);
+    out = out.replace(/(\b\w+\b)\s*<\s*/g, (_match, lhs: string) => `${lhs} lt `);
     out = out.replace(/(\b\w+\b)\s*=\s*/g, (_match, lhs: string) => `${lhs} eq `);
     out = out.replace(/\bAND\b/gi, "and");
     out = out.replace(/\bOR\b/gi, "or");

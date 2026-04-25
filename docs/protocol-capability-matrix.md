@@ -436,13 +436,27 @@ Tabular query with `$filter`, `$select`, `$orderby`, `$top`, `$skip`,
 `$expand` maps cleanly onto `Query.where`, `outFields`, `orderBy`,
 `pagination`. `Query.where` accepts SQL-92 / OData `$filter` text;
 the adapter rewrites a small intersection (`IS NULL` → `eq null`,
-`<>` → `ne`, `=` → `eq`) and rejects operators the parity matrix
-documents as unsupported (`has`, `in`, `any`, `all`, `cast`, `isof`)
-rather than letting them reach the wire. The rewrite tokenizes
-single-quoted string literals (with `''` escape sequences preserved)
-so values like `NAME = 'A=B'` or `NAME = 'has'` round-trip unchanged
-— rewrites and unsupported-operator detection only run against
-non-literal spans.
+`<>` → `ne`, `=` → `eq`, plus the SQL comparison operators `>=` /
+`<=` / `>` / `<` → `ge` / `le` / `gt` / `lt`) and rejects operators
+the parity matrix documents as unsupported (`has`, `in`, `any`,
+`all`, `cast`, `isof`) rather than letting them reach the wire.
+The rewrite tokenizes single-quoted string literals (with `''`
+escape sequences preserved) so values like `NAME = 'A=B'` or
+`NAME = 'has'` or `NAME = 'A>B'` round-trip unchanged — rewrites
+and unsupported-operator detection only run against non-literal
+spans.
+
+`Query.outFields` lowers onto OData's `$select` for plain field
+names and `$expand` for navigation paths. Plain entries
+(`["STATE", "ACRES"]`) become `$select=STATE,ACRES`. Dotted entries
+identify a navigation property and a sub-field — `["Owner.name"]`
+becomes `$expand=Owner($select=name)`, multiple sub-fields under
+the same navigation share one expand entry
+(`$expand=Owner($select=name,email)`), and multi-level dotted paths
+nest as `$expand=Owner($expand=address($select=street))`. The same
+`outFields` list can mix plain and dotted entries; each goes to the
+matching query option so a server that distinguishes `$select` from
+`$expand` honors both.
 
 The descriptor locator resolves to the entity-set request path one of
 two ways. SDK callers that pass `locator.entitySet` (e.g. `"Parcels"`
@@ -470,16 +484,25 @@ then the metadata-declared SRID on the geometry column); `Query.outSr`
 is a request for the *output* CRS and is not stamped onto the input
 WKT (the OData server has no request-side output-CRS knob — output
 geometry comes back in the column's declared SRID). The geometry
-column resolves from `SourceSchema.fields` typed `Edm.Geography`
-first, otherwise from the lazy `$metadata` probe; if neither yields
-one the adapter throws rather than guess.
+column resolves from `SourceDescriptor.schema.fields` first
+(prefers a field whose canonical `type === "esriFieldTypeGeometry"`),
+otherwise from the lazy `$metadata` probe (the first property typed
+`Edm.Geography` / `Edm.Geometry` per CSDL parsing). For spatial
+filters the adapter throws when neither declares one rather than
+guess at the column name; the same resolved name is reused by
+`returnGeometry === false` $select trimming and the row-to-feature
+geometry split, so a schema-declared spatial column named anything
+other than `Geometry` / `Geography` / `Shape` is honored end-to-end.
 
 `Query.returnGeometry === false` keeps the geometry column off the
-wire: when `outFields` is set the geometry name is filtered out of
-`$select`; when `outFields` is unset the adapter derives `$select`
-from `$metadata` to include only non-spatial columns. As a defensive
-backstop, the canonical `Result` drops geometry from each feature
-even if the server still emitted it.
+wire: when `outFields` is set the resolved geometry column is
+filtered out of `$select`; when `outFields` is unset the adapter
+derives `$select` from `$metadata` to include only non-spatial
+columns. The canonical name guesses (`Geometry` / `Geography` /
+`Shape`) are kept as a fallback for the `$select` filter only when
+neither the descriptor schema nor `$metadata` declares a spatial
+column. As a defensive backstop, the canonical `Result` drops
+geometry from each feature even if the server still emitted it.
 
 Server-driven pagination (`$skiptoken` via `@odata.nextLink`) is
 consumed transparently inside `queryAll()` and `stream()`. `queryAll`
@@ -488,7 +511,16 @@ lookahead pattern (sent on the wire as `$top = limit + 1`) so
 `exceededTransferLimit: true` is stamped accurately when the cap is
 hit. As a belt-and-braces signal, `@odata.count > limited.length`
 also sets the flag for servers that respect `$top` exactly but report
-a higher matched-row total.
+a higher matched-row total. The lookahead is added by the canonical
+`Source.queryAll` only — the lower-level `HonuaOdataEntitySet.queryAll`
+treats `params.top` as an exact hard cap (including `top === 0`,
+which collects zero rows) so callers that already added a lookahead
+row do not double-count. `queryObjectIds` projects the metadata key
+field through `$select`, drains the matching set, and slices the
+resulting id list to `Query.pagination.limit` (no lookahead row is
+needed because the result is ids, not features, and there is no
+`exceededTransferLimit` flag to stamp on `FeatureId[]`); a
+`pagination.limit === 0` cap collapses to an empty array.
 
 `applyEdits` routes adds → `POST /<entitySet>`, updates → `PATCH
 /<entitySet>(<key>)` with the full canonical body, deletes → `DELETE
