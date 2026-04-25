@@ -142,7 +142,7 @@ Initial JavaScript SDK scaffold for the JS-first migration phase (`#324`).
 This package currently provides:
 
 - core HTTP client (`HonuaClient`) for FeatureServer, MapServer export/query/related-record operations, and catalog operations, plus fluent layer wrappers (`client.featureLayer(...)`, `client.mapLayer(...)`, `service.featureLayer(...)`, `service.featureLayers()`, `service.mapLayer(...)`, `service.mapLayers()`, `service.mapService().layer(...)`),
-- first-class OGC API Features client/wrappers (`client.ogcFeatures()`) for landing page, conformance, collections, queryables, items, paged `itemsAll` helpers, and item CRUD,
+- first-class OGC API clients/wrappers for Features (`client.ogcFeatures()`), Tiles (`client.ogcTiles()`), Maps (`client.ogcMaps()`), Processes (`client.ogcProcesses()`), and STAC (`client.stac()`), including landing/conformance discovery, feature items, tile and map bytes, async `IJobRun` process execution, and STAC search,
 - Esri-style compatibility wrappers (`FeatureLayerCompat`, `MapImageLayerCompat`, `TileLayerCompat`, `RouteLayerCompat`, `MapCompat`, `MapViewCompat`, `SceneViewCompat`, `WebMapCompat`) for migration-critical patterns,
   including basic `when()` lifecycle support, `FeatureLayer.refresh()/createQuery()/queryFeaturesAll()/queryObjectIds()/queryFeatureCount()/queryExtent()/queryRelatedFeatures()/addAttachment()/updateAttachment()/listFields()/getField()`, `MapImageLayer.when()/refresh()/createQuery()/exportImage()/getLegend()/find()/identify()/queryFeatures()/queryFeaturesAll()/queryFeatureCount()/queryObjectIds()/queryExtent()/queryRelatedFeatures()/findSublayerById()/sublayer(...).query*()` where writable `layer.sublayers` and sublayer lookups return query-capable `MapImageSublayerCompat` wrappers (and auto-hydrate from metadata when not explicitly configured) with nested `sublayer.sublayers/allSublayers`, `sublayer.visible`, and `sublayer.definitionExpression` bridging to query defaults, `FeatureTableCompat` row/query helpers with runtime `layer` switching (`table.layer = nextLayer` / `table.setLayer(nextLayer)`), `Map` layer collection helpers, `GraphicsLayerCompat`/`GroupLayerCompat`, and `MapView` watch/event handles with popup/layer-view bridges plus `toMap`/`toScreen`/`hitTest`/`takeScreenshot()` and `view.ui.add/remove/move/getComponents` compatibility,
 - identify controller (`IdentifyCompat`) for cross-layer MapServer identify workflows with optional popup auto-open,
@@ -190,6 +190,11 @@ those classes.
   silently widening the catalog result. Capability negotiation is `strict` by
   default; `degraded` opts into client-side fallbacks that surface `Result.degraded[]`. WFS / WMS / OData
   adapters plug in via `CreateDatasetOptions.resolveSource`. Full contract reference:
+  `IJobRun`, and `MapBinding` types, plus `createDataset(...)` and built-in adapters for
+  `geoservices-feature-service`, `geoservices-map-service`, `ogc-features`, `ogc-tiles`, `ogc-maps`, and `stac`.
+  Capability negotiation is `strict` by default; `degraded` opts
+  into client-side fallbacks that surface `Result.degraded[]`. WFS / WMS / OData adapters plug in via
+  `CreateDatasetOptions.resolveSource`. Full contract reference:
   [`docs/shared-client-contract.md`](./docs/shared-client-contract.md).
 - `@honua/sdk-js/exploration` — `createExplorationContext(...)` returning an observable, microtask-coalesced
   reducer over filters, spatial filter, extent, selection, sort, pagination, visible fields, grouping, and
@@ -415,6 +420,53 @@ const items = await parcels.items({ limit: 100, filter: "status = 'active'" });
 const allItems = await parcels.itemsAll({ pageSize: 500, maxPages: 20 });
 const feature = await parcels.item({ featureId: "123" });
 ```
+
+## OGC API Tiles, Maps, Processes, STAC
+
+The first-party OGC client covers the OGC conformance areas that
+operator apps need. Everything is exposed through canonical Honua types
+— OGC conformance class identifiers stay internal.
+
+```ts
+import { HonuaClient } from "@honua/sdk-js/honua";
+import type { IJobRun } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({ baseUrl: "https://example.test" });
+
+// OGC API Tiles — vector or raster over the canonical collection-tile route
+const tile = await client.ogcTiles()
+  .tileset("parcels", "WebMercatorQuad")
+  .tile({ tileMatrix: 5, tileRow: 9, tileCol: 12 });
+
+// OGC API Maps — server-rendered map images
+const map = await client.ogcMaps().map({
+  width: 1024, height: 1024,
+  bbox: [-122, 37, -120, 38],
+  collections: ["parcels", "roads"],
+});
+
+// OGC API Processes — async job execution mapped onto canonical IJobRun
+const job: IJobRun = await client.ogcProcesses().execute({
+  processId: "buffer",
+  inputs: { feature: someGeoJson, distance: 500 },
+  mode: "async",
+});
+const { outputs } = await job.results();
+
+// STAC API — cross-collection search, also available through Source.query()
+const search = await client.stac().search({
+  bbox: [-122, 37, -120, 38],
+  collections: ["sentinel-2"],
+  filter: "cloud_cover < 10",
+  filterLang: "cql2-text",
+});
+```
+
+See [`docs/ogc-api.md`](./docs/ogc-api.md) for the full developer
+reference, [`docs/shared-client-contract.md`](./docs/shared-client-contract.md)
+for the canonical `Source` / `IJobRun` model, and
+[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md)
+for capability coverage.
 
 ## Mixed Esri + OGC in one app
 

@@ -14,7 +14,8 @@ than re-litigating the surface in each ticket.
 - **Goal:** one canonical name for "the dataset", "the source", "the
   capability", "the query", "the result", "the map binding", and "the
   exploration state" across `HonuaFeatureLayer`, `HonuaMapService`,
-  `HonuaOgcFeatures`, and the upcoming WFS / WMS / OData adapters.
+  `HonuaOgcFeatures`, first-party OGC render/search adapters, and the
+  upcoming WFS / WMS / OData adapters.
 - **Goal:** wrap (do not replace) the existing runtime classes in
   `src/core/surfaces.ts`. Existing callers continue to work; adapter
   tickets opt in to the canonical surface.
@@ -22,10 +23,11 @@ than re-litigating the surface in each ticket.
   the server `SourceBinding` / `MapPackage` documents (see
   [`source-binding-alignment.md`](./source-binding-alignment.md)).
 - **Non-goal:** a runtime rewrite. The contract is a typed surface plus
-  six thin adapter functions — one per built-in protocol
+  thin adapter functions — one per built-in protocol
   (`geoServicesFeatureSource`, `geoServicesMapServiceSource`,
   `geoServicesImageSource`, `geoServicesGeometryServiceSource`,
-  `geoServicesGPServiceSource`, `ogcFeaturesSource`).
+  `geoServicesGPServiceSource`, `ogcFeaturesSource`, `ogcTilesSource`,
+  `ogcMapsSource`, `stacSearchSource`).
 - **Non-goal:** a query DSL. `Query.where` is still a SQL-92 / CQL2
   string; adapters translate to their wire format.
 
@@ -45,10 +47,10 @@ top-level `@honua/sdk-js` and `@honua/sdk-js/honua` barrels).
 
 | Type | What it is |
 | --- | --- |
-| `Protocol` | One of twelve identifiers — five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), `ogc-features`, `wfs`, `wms`, `odata`, plus three MapLibre-native (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
-| `Capability` | A coarse-grained protocol capability (`query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `connect`, `image`, `geometry`, `geoprocess`). The canonical `Source` surface standardizes the query / edit / related / attachment / object-id subset today; `image` / `geometry` / `geoprocess` are negotiated for `Source.protocol()` escape hatches because their request shapes are too protocol-specific to belong on the unified envelope. |
+| `Protocol` | One of fifteen identifiers — five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), four OGC API + STAC adapters (`ogc-features`, `ogc-tiles`, `ogc-maps`, `stac`), `wfs`, `wms`, `odata`, plus three MapLibre-native (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
+| `Capability` | A coarse-grained protocol capability (`query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `connect`, `image`, `geometry`, `geoprocess`, `processes`). The canonical `Source` surface standardizes the query / edit / related / attachment / object-id subset today; `image` / `geometry` / `geoprocess` / `processes` are negotiated for `Source.protocol()` escape hatches and for the `IJobRun`-based OGC API Processes runner because their request shapes are too protocol-specific to belong on the unified envelope. |
 | `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party protocol support, whether the caller consumes it through a canonical `Source` method or the typed protocol escape hatch. Under `strict` (default) a missing capability throws `HonuaCapabilityNotSupportedError`. Under `degraded` only call sites with a defined fallback proceed (today: OGC `queryAggregate` and `queryExtent`); every other missing capability still throws. |
-| `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `typeName`, `entitySet`, `taskName`). Field-compatible with the server `SourceBinding.locator`. |
+| `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `tileMatrixSetId`, `styleId`, `typeName`, `entitySet`, `taskName`). Field-compatible with the server `SourceBinding.locator`; `tileMatrixSetId` / `styleId` carry OGC API Tiles / Maps route hints for downstream `SourceBinding` work tracked in [`source-binding-alignment.md`](./source-binding-alignment.md). |
 | `SourceDescriptor` | `{ id, protocol, locator, capabilities, schema?, attribution? }`. The serializable identity of one source. |
 | `Source<T>` | Runtime handle. Methods: `query`, `queryAll`, `queryAggregate`, `queryExtent`, `stream`, `queryObjectIds`, `applyEdits`, `queryRelated`, `attachments` (namespace), `protocol` (typed escape hatch; `adapter` is the legacy alias). |
 | `Dataset` | Logical grouping of sources sharing identity. Methods: `source(id)`, `sourceIds()`, `isCompatible()`, `supportsFeature()`. |
@@ -112,9 +114,12 @@ const result = await parcels.query({ where: "STATE = 'CA'", pagination: { limit:
 
 The built-in resolver handles `geoservices-feature-service`,
 `geoservices-map-service`, `geoservices-image-service`,
-`geoservices-geometry-service`, `geoservices-gp-service`, and
-`ogc-features`. WFS / WMS / OData adapters register themselves through
-`CreateDatasetOptions.resolveSource`.
+`geoservices-geometry-service`, `geoservices-gp-service`, `ogc-features`,
+`ogc-tiles`, `ogc-maps`, and `stac`. WFS / WMS / OData adapters register
+themselves through `CreateDatasetOptions.resolveSource`. OGC API
+Processes is a job runner rather than a queryable source — reach it
+through `HonuaClient.ogcProcesses().execute(...)` (returns the canonical
+`IJobRun<T>`) instead of `Dataset.source()`.
 
 The five GeoServices factories cover the surface published in
 `honua-server/docs/gis/geoservices-rest-parity.md`:
@@ -130,6 +135,16 @@ The five GeoServices factories cover the surface published in
   query family throws, operations live behind `protocol()`).
 - `geoServicesGPServiceSource` — GP Service (utility-only; submitJob /
   jobStatus / cancelJob / jobResult via `protocol()`).
+
+The OGC API and STAC factories cover `docs/ogc-api.md`:
+
+- `ogcFeaturesSource` — OGC API Features (query, edits, object ids,
+  stream; `queryAggregate` / `queryExtent` degrade client-side).
+- `ogcTilesSource` — OGC API Tiles (render-only; query family throws,
+  `HonuaOgcTileset` / `HonuaOgcTiles` reachable via `protocol()`).
+- `ogcMapsSource` — OGC API Maps (render-only; same shape as Tiles).
+- `stacSearchSource` — STAC API search (`/search` query, queryObjectIds,
+  stream; cross-collection scope via `locator.collectionId`).
 
 `Source.queryAll()` and `Source.stream()` drain every page the server
 returns — the built-in adapters override the core helpers' 100-page
@@ -196,6 +211,77 @@ The shipped map covers `geoservices-feature-service` →
 3. New error types must flow through `HonuaError` and `isHonuaError`.
    This ticket added `HonuaCapabilityNotSupportedError` and
    `HonuaExplorationContextError`.
+
+## Async operations: `IJobRun`
+
+Long-running server-side operations (OGC API Processes execution today;
+future GeoServices async exports, OData function imports, etc.) surface
+through the canonical `IJobRun<T>` interface in `@honua/sdk-js/contract`:
+
+```ts
+import type { IJobRun } from "@honua/sdk-js/contract";
+
+const job: IJobRun = await client.ogcProcesses().execute({
+  processId: "buffer",
+  inputs: { feature: someGeoJson },
+  mode: "async",
+});
+
+const unwatch = job.watch((snap) => {
+  console.log(snap.status, snap.progress);
+});
+const { outputs } = await job.results();
+unwatch();
+```
+
+`IJobRun` exposes `id`, `type`, `status`, `progress`, `poll()`,
+`watch()`, `results()`, and `cancel()`. The OGC API Processes 1.0
+status vocabulary (`accepted`, `running`, `successful`, `failed`,
+`dismissed`) is canonical; adapters for other protocols translate onto
+it. Failed runs reject `results()` with `HonuaJobFailedError`, whose
+`message` is populated from the server's `statusInfo.exception.message`
+when present and falls back to `statusInfo.message` otherwise (to match
+honua-server's `StatusInfo` DTO, which exposes only `message`).
+`cancel()` is idempotent against the two documented benign paths:
+"job gone" (404) returns the cached status, and the terminal race
+(409 "Cannot dismiss completed job" from honua-server) triggers a
+follow-up GET and returns the authoritative terminal status — but
+only if the poll confirms a terminal state. honua-server also emits
+409 for "Dismiss could not be confirmed" (backend dismissal unconfirmed)
+and "Cancellation not supported" (backend lacks cancel support); both
+rethrow as `HonuaHttpError` so callers can branch or retry instead of
+seeing a fabricated success. Submitted processes are typed as
+`IJobRun<T>`; `HonuaOgcProcessJobRun` is the implementation behind that
+interface and should not be the caller-facing contract.
+
+## OGC API Tiles / Maps / Processes / STAC
+
+The first-party OGC adapters live alongside `HonuaOgcFeatures`:
+
+| Conformance area | Entry point | Source protocol | Contract capabilities |
+| --- | --- | --- | --- |
+| OGC API Features | `client.ogcFeatures()` / `HonuaOgcFeatures` | `ogc-features` | `query`, `queryObjectIds`, `applyEdits`, `stream` |
+| OGC API Tiles | `client.ogcTiles()` / `HonuaOgcTiles`, `HonuaOgcTileset` | `ogc-tiles` | `render`, `tiles` (tileset-bound when locator includes `tileMatrixSetId`; root discovery handle otherwise) |
+| OGC API Maps | `client.ogcMaps()` / `HonuaOgcMaps`, `HonuaOgcCollectionMap` | `ogc-maps` | `render` |
+| OGC API Processes | `client.ogcProcesses()` / `HonuaOgcProcesses` | (no source — job runner) | `processes` from conformance negotiation, not `PROTOCOL_DEFAULT_CAPABILITIES` |
+| STAC API | `client.stac()` / `HonuaStacSearch` | `stac` | `query`, `queryObjectIds`, `stream` |
+
+OGC API Tiles and OGC API Maps are render-only — their `Source.query*`
+methods throw, and renderers reach the underlying class through
+`Source.adapter("ogc-tiles")` / `Source.adapter("ogc-maps")`. STAC
+search flows through the canonical `Source.query()` like every other
+tabular protocol. OGC API Processes does not register as a `Source`
+because its inputs are not queryable; it produces `IJobRun<T>` from
+`execute(...)`.
+
+OGC conformance class identifiers are intentionally kept *internal*.
+`negotiateOgcCapabilities(protocol, conformsTo)` from
+`@honua/sdk-js/honua` translates a server-advertised `conformsTo[]`
+list into a canonical `Capabilities` set; downstream callers that want
+to gate on a specific extension (CQL2, transactions, etc.) use
+`hasOgcConformanceClass(...)` with a substring match. No OGC
+conformance class name appears as a primary SDK type, per the ticket
+constraint.
 
 ## Test coverage
 

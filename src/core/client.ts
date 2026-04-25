@@ -2,6 +2,10 @@ import type { Client } from "@connectrpc/connect";
 import type { FeatureService } from "../gen/honua/v1/feature_service_pb.js";
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
 import { decodePbfQueryResponse, isPbfResponse } from "./pbf-decoder.js";
+import { HonuaOgcMaps } from "./ogc-maps.js";
+import { HonuaOgcProcesses } from "./ogc-processes.js";
+import { HonuaOgcTiles } from "./ogc-tiles.js";
+import { HonuaStacSearch } from "./stac.js";
 import { HonuaFeatureLayer, HonuaMapLayer, HonuaMapService, HonuaOgcFeatures, HonuaService } from "./surfaces.js";
 import type {
   ApplyEditsRequest,
@@ -23,7 +27,18 @@ import type {
   HonuaOgcFeatureCollectionResponse,
   HonuaOgcFeatureResponse,
   HonuaOgcLandingResponse,
+  HonuaOgcMapImageResponse,
+  HonuaOgcProcessDescription,
+  HonuaOgcProcessJobAccepted,
+  HonuaOgcProcessJobResults,
+  HonuaOgcProcessJobStatus,
+  HonuaOgcProcessesResponse,
   HonuaOgcQueryablesResponse,
+  HonuaOgcTileMatrixSet,
+  HonuaOgcTileMatrixSetsResponse,
+  HonuaOgcTileResponse,
+  HonuaOgcTilesetMetadata,
+  HonuaOgcTilesetsResponse,
   HonuaQueryResponse,
   HonuaRawRequest,
   HonuaRelatedRecordsResponse,
@@ -38,6 +53,9 @@ import type {
   HonuaServerCompatibilityStatus,
   HonuaServiceMetadata,
   HonuaServicesResponse,
+  HonuaStacItemCollectionResponse,
+  HonuaStacItemResponse,
+  HonuaStacLandingResponse,
   HonuaTransport,
   MapFindRequest,
   MapIdentifyRequest,
@@ -49,12 +67,18 @@ import type {
   OgcDeleteItemRequest,
   OgcItemRequest,
   OgcItemsRequest,
+  OgcMapImageRequest,
   OgcMetadataRequest,
   OgcPatchItemRequest,
+  OgcProcessExecuteRequest,
   OgcReplaceItemRequest,
+  OgcTileRequest,
+  OgcTilesetRequest,
+  OgcTilesetsRequest,
   QueryFeaturesRequest,
   QueryMethod,
   QueryRelatedRecordsRequest,
+  StacSearchRequest,
 } from "./types.js";
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -310,6 +334,22 @@ export class HonuaClient {
     });
   }
 
+  public ogcTiles(): HonuaOgcTiles {
+    return new HonuaOgcTiles({ client: this });
+  }
+
+  public ogcMaps(): HonuaOgcMaps {
+    return new HonuaOgcMaps({ client: this });
+  }
+
+  public ogcProcesses(): HonuaOgcProcesses {
+    return new HonuaOgcProcesses({ client: this });
+  }
+
+  public stac(): HonuaStacSearch {
+    return new HonuaStacSearch({ client: this });
+  }
+
   public async listServices(format: "json" | "pjson" = "json"): Promise<HonuaServicesResponse> {
     const query = new URLSearchParams({ f: format });
     return this.requestJson("GET", `/rest/services?${query.toString()}`) as Promise<HonuaServicesResponse>;
@@ -548,6 +588,256 @@ export class HonuaClient {
       `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}` +
       `/items/${encodeURIComponent(String(request.featureId))}`;
     await this.requestJson("DELETE", `${path}?${params.toString()}`, undefined, request.signal);
+  }
+
+  // ── OGC API Tiles ───────────────────────────────────────────
+
+  public async getOgcTilesLanding(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson("GET", `/ogc/tiles?${params.toString()}`) as Promise<HonuaOgcLandingResponse>;
+  }
+
+  public async getOgcTilesConformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/ogc/tiles/conformance?${params.toString()}`,
+    ) as Promise<HonuaOgcConformanceResponse>;
+  }
+
+  public async listOgcTileMatrixSets(
+    request: OgcMetadataRequest = {},
+  ): Promise<HonuaOgcTileMatrixSetsResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/ogc/tiles/tileMatrixSets?${params.toString()}`,
+    ) as Promise<HonuaOgcTileMatrixSetsResponse>;
+  }
+
+  public async getOgcTileMatrixSet(request: {
+    tileMatrixSetId: string;
+    responseFormat?: string;
+    extraParams?: Record<string, string | number | boolean>;
+  }): Promise<HonuaOgcTileMatrixSet> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/ogc/tiles/tileMatrixSets/${encodeURIComponent(request.tileMatrixSetId)}?${params.toString()}`,
+    ) as Promise<HonuaOgcTileMatrixSet>;
+  }
+
+  public async listOgcCollectionTilesets(request: OgcTilesetsRequest): Promise<HonuaOgcTilesetsResponse> {
+    const params = createOgcMetadataParams(request);
+    const path = `/ogc/tiles/collections/${encodeURIComponent(String(request.collectionId))}/tiles`;
+    return this.requestJson("GET", `${path}?${params.toString()}`) as Promise<HonuaOgcTilesetsResponse>;
+  }
+
+  public async getOgcCollectionTileset(request: OgcTilesetRequest): Promise<HonuaOgcTilesetMetadata> {
+    const params = createOgcMetadataParams(request);
+    const path =
+      `/ogc/tiles/collections/${encodeURIComponent(String(request.collectionId))}` +
+      `/tiles/${encodeURIComponent(request.tileMatrixSetId)}`;
+    return this.requestJson("GET", `${path}?${params.toString()}`) as Promise<HonuaOgcTilesetMetadata>;
+  }
+
+  public async fetchOgcTile(request: OgcTileRequest): Promise<HonuaOgcTileResponse> {
+    const params = new URLSearchParams();
+    if (request.extraParams) {
+      for (const [key, value] of Object.entries(request.extraParams)) {
+        params.set(key, String(value));
+      }
+    }
+    const collection = encodeURIComponent(String(request.collectionId));
+    const matrixSet = encodeURIComponent(request.tileMatrixSetId);
+    const matrix = encodeURIComponent(String(request.tileMatrix));
+    const query = params.size > 0 ? `?${params.toString()}` : "";
+    const path = `/ogc/tiles/collections/${collection}/tiles/${matrixSet}/${matrix}/${request.tileRow}/${request.tileCol}${query}`;
+    return this.requestBytes("GET", path, request.accept, undefined, request.signal);
+  }
+
+  // ── OGC API Maps ────────────────────────────────────────────
+
+  public async getOgcMapsLanding(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson("GET", `/ogc/maps?${params.toString()}`) as Promise<HonuaOgcLandingResponse>;
+  }
+
+  public async getOgcMapsConformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/ogc/maps/conformance?${params.toString()}`,
+    ) as Promise<HonuaOgcConformanceResponse>;
+  }
+
+  public async getOgcMapImage(request: OgcMapImageRequest): Promise<HonuaOgcMapImageResponse> {
+    const params = serializeOgcMapImageParams(request);
+    const collectionPart =
+      request.collectionId !== undefined
+        ? `/collections/${encodeURIComponent(String(request.collectionId))}`
+        : "";
+    const stylePart = request.styleId ? `/styles/${encodeURIComponent(request.styleId)}` : "";
+    const path = `/ogc/maps${collectionPart}${stylePart}/map${params.size > 0 ? `?${params.toString()}` : ""}`;
+    const accept = ogcMapAcceptHeader(request.format) ?? "image/png";
+    const response = await this.requestBytes("GET", path, accept, undefined, request.signal);
+    return { bytes: response.bytes, contentType: response.contentType };
+  }
+
+  // ── OGC API Processes ───────────────────────────────────────
+
+  public async getOgcProcessesLanding(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson("GET", `/ogc/processes?${params.toString()}`) as Promise<HonuaOgcLandingResponse>;
+  }
+
+  public async getOgcProcessesConformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/ogc/processes/conformance?${params.toString()}`,
+    ) as Promise<HonuaOgcConformanceResponse>;
+  }
+
+  public async listOgcProcesses(request: OgcMetadataRequest = {}): Promise<HonuaOgcProcessesResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/ogc/processes/processes?${params.toString()}`,
+    ) as Promise<HonuaOgcProcessesResponse>;
+  }
+
+  public async getOgcProcess(request: { processId: string } & OgcMetadataRequest): Promise<HonuaOgcProcessDescription> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/ogc/processes/processes/${encodeURIComponent(request.processId)}?${params.toString()}`,
+    ) as Promise<HonuaOgcProcessDescription>;
+  }
+
+  public async executeOgcProcess(request: OgcProcessExecuteRequest): Promise<HonuaOgcProcessJobAccepted> {
+    const headers = mergeHeaders(
+      { "Content-Type": "application/json", Accept: "application/json" },
+      request.headers,
+      preferHeaderForExecute(request),
+    );
+    const path = `/ogc/processes/processes/${encodeURIComponent(request.processId)}/execution`;
+    // honua-server only supports `response: "document"` and rejects "raw"
+    // with HTTP 501; the SDK pins the supported value here.
+    const body = JSON.stringify({
+      inputs: request.inputs ?? {},
+      outputs: request.outputs,
+      response: "document",
+    });
+    return this.requestJson(
+      "POST",
+      path,
+      { headers, body },
+      request.signal,
+    ) as Promise<HonuaOgcProcessJobAccepted>;
+  }
+
+  public async getOgcProcessJob(request: {
+    jobId: string;
+    signal?: AbortSignal;
+    responseFormat?: string;
+    extraParams?: Record<string, string | number | boolean>;
+  }): Promise<HonuaOgcProcessJobStatus> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/ogc/processes/jobs/${encodeURIComponent(request.jobId)}?${params.toString()}`,
+      undefined,
+      request.signal,
+    ) as Promise<HonuaOgcProcessJobStatus>;
+  }
+
+  public async getOgcProcessJobResults(request: {
+    jobId: string;
+    signal?: AbortSignal;
+    responseFormat?: string;
+    extraParams?: Record<string, string | number | boolean>;
+  }): Promise<HonuaOgcProcessJobResults> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/ogc/processes/jobs/${encodeURIComponent(request.jobId)}/results?${params.toString()}`,
+      undefined,
+      request.signal,
+    ) as Promise<HonuaOgcProcessJobResults>;
+  }
+
+  public async cancelOgcProcessJob(request: {
+    jobId: string;
+    signal?: AbortSignal;
+    responseFormat?: string;
+    extraParams?: Record<string, string | number | boolean>;
+  }): Promise<HonuaOgcProcessJobStatus> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "DELETE",
+      `/ogc/processes/jobs/${encodeURIComponent(request.jobId)}?${params.toString()}`,
+      undefined,
+      request.signal,
+    ) as Promise<HonuaOgcProcessJobStatus>;
+  }
+
+  // ── STAC API ────────────────────────────────────────────────
+
+  public async getStacLanding(request: OgcMetadataRequest = {}): Promise<HonuaStacLandingResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson("GET", `/stac?${params.toString()}`) as Promise<HonuaStacLandingResponse>;
+  }
+
+  public async listStacCollections(request: OgcMetadataRequest = {}): Promise<HonuaOgcCollectionsResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/stac/collections?${params.toString()}`,
+    ) as Promise<HonuaOgcCollectionsResponse>;
+  }
+
+  public async getStacCollection(request: OgcCollectionRequest): Promise<HonuaOgcCollectionMetadata> {
+    const params = createOgcMetadataParams(request);
+    return this.requestJson(
+      "GET",
+      `/stac/collections/${encodeURIComponent(String(request.collectionId))}?${params.toString()}`,
+    ) as Promise<HonuaOgcCollectionMetadata>;
+  }
+
+  public async getStacItem(request: {
+    collectionId: string | number;
+    itemId: string | number;
+    signal?: AbortSignal;
+    responseFormat?: string;
+    extraParams?: Record<string, string | number | boolean>;
+  }): Promise<HonuaStacItemResponse> {
+    const params = createOgcMetadataParams(request);
+    const path =
+      `/stac/collections/${encodeURIComponent(String(request.collectionId))}` +
+      `/items/${encodeURIComponent(String(request.itemId))}`;
+    return this.requestJson("GET", `${path}?${params.toString()}`, undefined, request.signal) as Promise<HonuaStacItemResponse>;
+  }
+
+  public async searchStac(request: StacSearchRequest = {}): Promise<HonuaStacItemCollectionResponse> {
+    if (request.usePost) {
+      return this.requestJson(
+        "POST",
+        "/stac/search",
+        {
+          headers: mergeHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+          body: JSON.stringify(stacSearchBody(request)),
+        },
+        request.signal,
+      ) as Promise<HonuaStacItemCollectionResponse>;
+    }
+    const params = serializeStacSearchParams(request);
+    return this.requestJson(
+      "GET",
+      `/stac/search?${params.toString()}`,
+      undefined,
+      request.signal,
+    ) as Promise<HonuaStacItemCollectionResponse>;
   }
 
   public async getMapServiceMetadata(serviceId: string): Promise<HonuaServiceMetadata> {
@@ -1098,6 +1388,91 @@ export class HonuaClient {
 
       // Server returned JSON despite PBF request (e.g. error or unsupported)
       return parseResponseBody(response);
+    }
+  }
+
+  /**
+   * Fetch a binary response (raw bytes plus content type). Used by the
+   * OGC API Tiles and OGC API Maps wire methods, both of which negotiate
+   * non-JSON output formats. The interceptor / retry / abort plumbing
+   * mirrors `requestJson`.
+   */
+  private async requestBytes(
+    method: QueryMethod,
+    path: string,
+    accept: string | undefined,
+    init?: RequestInit,
+    callerSignal?: AbortSignal,
+  ): Promise<{ bytes: Uint8Array; contentType: string; empty: boolean }> {
+    const acceptHeader = accept ?? "application/octet-stream";
+    let request: HonuaRequestContext = {
+      url: resolveRequestUrl(this.baseUrl, path),
+      path,
+      method,
+      init: {
+        method,
+        headers: mergeHeaders(this.defaultHeaders, { Accept: acceptHeader }, init?.headers),
+        body: init?.body,
+      },
+    };
+
+    request = await this.applyBeforeInterceptors(request);
+
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
+      const timeout = createTimeoutSignal(callerSignal ?? request.init.signal, this.timeoutMs);
+      const startTime = performance.now();
+      try {
+        response = await this.fetchFn(request.url, {
+          ...request.init,
+          method: request.method,
+          signal: timeout.signal,
+        });
+      } catch (error) {
+        const durationMs = performance.now() - startTime;
+        const normalizedError = timeout.didTimeout
+          ? new HonuaTimeoutError(this.timeoutMs ?? 0)
+          : normalizeNetworkError(error);
+        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
+          await sleep(this.resolveRetryDelayMs(attempt));
+          continue;
+        }
+        await this.applyErrorInterceptors({
+          request: cloneRequestContext(request),
+          error: normalizedError,
+          durationMs,
+        });
+        throw normalizedError;
+      } finally {
+        timeout.dispose();
+      }
+      const durationMs = performance.now() - startTime;
+
+      if (!response.ok) {
+        const body = await parseResponseBody(response.clone());
+        const httpError = this.toHttpError(response.status, body);
+        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
+          await sleep(this.resolveRetryDelayMs(attempt, response));
+          continue;
+        }
+        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
+        throw httpError;
+      }
+
+      try {
+        await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
+      } catch (error) {
+        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
+        throw error;
+      }
+
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      return {
+        bytes,
+        contentType: response.headers.get("content-type") ?? acceptHeader,
+        empty: response.status === 204 || bytes.byteLength === 0,
+      };
     }
   }
 
@@ -1805,4 +2180,128 @@ function normalizeCsv(value: string | readonly (string | number)[]): string {
     return value;
   }
   return Array.from(value).join(",");
+}
+
+function serializeOgcMapImageParams(request: OgcMapImageRequest): URLSearchParams {
+  const params = new URLSearchParams();
+  const f = ogcMapShortFormat(request.format);
+  if (f !== undefined) params.set("f", f);
+  if (request.width !== undefined) params.set("width", String(request.width));
+  if (request.height !== undefined) params.set("height", String(request.height));
+  if (request.bbox !== undefined) {
+    params.set("bbox", typeof request.bbox === "string" ? request.bbox : request.bbox.join(","));
+  }
+  if (request.bboxCrs !== undefined) params.set("bbox-crs", request.bboxCrs);
+  if (request.crs !== undefined) params.set("crs", request.crs);
+  if (request.collections !== undefined && request.collections.length > 0) {
+    params.set("collections", request.collections.join(","));
+  }
+  if (request.transparent !== undefined) params.set("transparent", String(request.transparent));
+  if (request.extraParams) {
+    for (const [key, value] of Object.entries(request.extraParams)) {
+      params.set(key, String(value));
+    }
+  }
+  return params;
+}
+
+const OGC_MAP_FORMAT_TO_SHORT: ReadonlyMap<string, string> = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpeg"],
+  ["image/jpg", "jpg"],
+  ["image/tiff", "tiff"],
+  ["image/tif", "tif"],
+]);
+
+const OGC_MAP_SHORT_TO_MEDIA: ReadonlyMap<string, string> = new Map([
+  ["png", "image/png"],
+  ["jpeg", "image/jpeg"],
+  ["jpg", "image/jpeg"],
+  ["tiff", "image/tiff"],
+  ["tif", "image/tiff"],
+]);
+
+function ogcMapShortFormat(format: string | undefined): string | undefined {
+  if (format === undefined) return undefined;
+  const lower = format.toLowerCase();
+  return OGC_MAP_FORMAT_TO_SHORT.get(lower) ?? lower;
+}
+
+function ogcMapAcceptHeader(format: string | undefined): string | undefined {
+  if (format === undefined) return undefined;
+  const lower = format.toLowerCase();
+  return OGC_MAP_SHORT_TO_MEDIA.get(lower) ?? format;
+}
+
+/**
+ * Build the `Prefer` header for an OGC API Processes execution request.
+ * honua-server is async-only: `mode: "async"` sends an explicit
+ * `Prefer: respond-async` so OGC-conformance checkers see the header;
+ * `mode: "auto"` (or unset) omits it and lets the server default apply.
+ */
+function preferHeaderForExecute(request: OgcProcessExecuteRequest): { Prefer: string } | undefined {
+  if (request.mode === "async") {
+    return { Prefer: "respond-async" };
+  }
+  return undefined;
+}
+
+function serializeStacSearchParams(request: StacSearchRequest): URLSearchParams {
+  const params = new URLSearchParams();
+  if (request.bbox !== undefined) params.set("bbox", request.bbox.join(","));
+  if (request.datetime !== undefined) params.set("datetime", request.datetime);
+  if (request.ids !== undefined && request.ids.length > 0) params.set("ids", request.ids.join(","));
+  if (request.collections !== undefined && request.collections.length > 0) {
+    params.set("collections", request.collections.join(","));
+  }
+  // honua-server accepts `intersects` on GET as a JSON-encoded geometry
+  // and `fields` as a CSV with `-` prefix marking excludes (matches
+  // STAC Item Search GET conventions and the server's parser).
+  if (request.intersects !== undefined) params.set("intersects", JSON.stringify(request.intersects));
+  const fields = stacFieldsCsv(request.fields);
+  if (fields !== undefined) params.set("fields", fields);
+  if (request.filter !== undefined) params.set("filter", request.filter);
+  if (request.filterLang !== undefined) params.set("filter-lang", request.filterLang);
+  if (request.limit !== undefined) params.set("limit", String(request.limit));
+  // honua-server uses numeric `offset` paging on GET. `next` is kept as
+  // optional support for STAC servers that advertise an opaque token.
+  if (request.offset !== undefined) params.set("offset", String(request.offset));
+  if (request.next !== undefined) params.set("next", request.next);
+  if (request.sortby !== undefined) params.set("sortby", request.sortby);
+  return params;
+}
+
+function stacSearchBody(request: StacSearchRequest): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (request.bbox !== undefined) out.bbox = request.bbox;
+  if (request.datetime !== undefined) out.datetime = request.datetime;
+  if (request.intersects !== undefined) out.intersects = request.intersects;
+  if (request.ids !== undefined) out.ids = request.ids;
+  if (request.collections !== undefined) out.collections = request.collections;
+  if (request.filter !== undefined) out.filter = request.filter;
+  if (request.filterLang !== undefined) out["filter-lang"] = request.filterLang;
+  if (request.limit !== undefined) out.limit = request.limit;
+  if (request.offset !== undefined) out.offset = request.offset;
+  if (request.next !== undefined) out.next = request.next;
+  if (request.sortby !== undefined) out.sortby = request.sortby;
+  if (request.fields !== undefined) out.fields = request.fields;
+  return out;
+}
+
+function stacFieldsCsv(
+  fields: StacSearchRequest["fields"] | undefined,
+): string | undefined {
+  if (!fields) return undefined;
+  const parts: string[] = [];
+  if (fields.include) {
+    for (const f of fields.include) {
+      if (typeof f === "string" && f.length > 0) parts.push(f);
+    }
+  }
+  if (fields.exclude) {
+    for (const f of fields.exclude) {
+      if (typeof f === "string" && f.length > 0) parts.push(`-${f}`);
+    }
+  }
+  return parts.length > 0 ? parts.join(",") : undefined;
 }
