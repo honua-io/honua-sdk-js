@@ -4,10 +4,9 @@ Status: implemented in `src/contract/` (ticket `honua-sdk-js-23`).
 
 The shared contract is the protocol-neutral vocabulary every Honua data
 adapter speaks. It exists so cross-protocol code — exploration views,
-visual builders, the server `SourceBinding`/`MapPackage` exporters, and
-the downstream OData adapter ticket — can be written once
-against `Dataset` / `Source` / `Query` / `Result` / `MapBinding` rather
-than re-litigating the surface in each ticket.
+visual builders, and the server `SourceBinding`/`MapPackage` exporters
+— can be written once against `Dataset` / `Source` / `Query` / `Result`
+/ `MapBinding` rather than re-litigating the surface in each ticket.
 
 ## Goals (and non-goals)
 
@@ -16,7 +15,7 @@ than re-litigating the surface in each ticket.
   exploration state" across `HonuaFeatureLayer`, `HonuaMapService`,
   `HonuaOgcFeatures`, first-party OGC render/search adapters,
   first-party WMS / WMTS adapters, the first-party WFS 2.0 adapter,
-  and the upcoming OData adapter.
+  and the first-party OData adapter.
 - **Goal:** wrap (do not replace) the existing runtime classes in
   `src/core/surfaces.ts`. Existing callers continue to work; adapter
   tickets opt in to the canonical surface.
@@ -29,7 +28,7 @@ than re-litigating the surface in each ticket.
   `geoServicesImageSource`, `geoServicesGeometryServiceSource`,
   `geoServicesGPServiceSource`, `ogcFeaturesSource`, `ogcTilesSource`,
   `ogcMapsSource`, `stacSearchSource`, `wmsSource`, `wmtsSource`,
-  `wfsSource`).
+  `wfsSource`, `odataSource`).
 - **Non-goal:** a query DSL. `Query.where` is still a SQL-92 / CQL2
   string; adapters translate to their wire format.
 
@@ -81,11 +80,16 @@ The capability matrix lives in
 must pass the capability set they want enforced via
 `SourceDescriptor.capabilities` — per-source overrides (e.g. downgrading
 `queryAggregate` on a Feature Service whose metadata reports
-`supportsStatistics: false`) are the caller's responsibility today.
-Automatic metadata-driven downgrades inside the adapter constructors are
-tracked as future work; when implemented, the adapter will read service
-metadata and intersect the declared capability set with what the server
-advertises.
+`supportsStatistics: false`) are the caller's responsibility for the
+GeoServices, OGC, STAC, WFS, and WMS adapters today. **OData is the
+first adapter to implement automatic metadata-driven downgrades**: the
+entity-set adapter lazily fetches `$metadata` on the first
+capability-gated method, parses `Capabilities.*` annotations, and
+intersects the declared capability set with what the server advertises.
+See [`protocol-capability-matrix.md`](./protocol-capability-matrix.md)
+under *OData* for the implementation details. Other adapters (GeoServices
+`supportsStatistics`, OGC `conformsTo`) follow the same pattern as
+follow-up work.
 
 The registry is intentionally broader than the current `Source` method list so
 downstream adapter tickets can negotiate `render` / `tiles` / `sql` /
@@ -117,9 +121,9 @@ const result = await parcels.query({ where: "STATE = 'CA'", pagination: { limit:
 The built-in resolver handles `geoservices-feature-service`,
 `geoservices-map-service`, `geoservices-image-service`,
 `geoservices-geometry-service`, `geoservices-gp-service`, `ogc-features`,
-`ogc-tiles`, `ogc-maps`, `stac`, `wfs`, `wms`, and `wmts`. The OData
-adapter registers itself through `CreateDatasetOptions.resolveSource`.
-OGC API
+`ogc-tiles`, `ogc-maps`, `stac`, `wfs`, `wms`, `wmts`, and `odata`.
+MapLibre-native sources register through
+`CreateDatasetOptions.resolveSource`. OGC API
 Processes is a job runner rather than a queryable source — reach it
 through `HonuaClient.ogcProcesses().execute(...)` (returns the canonical
 `IJobRun<T>`) instead of `Dataset.source()`.
@@ -166,6 +170,21 @@ The WMS / WMTS factories cover the OGC web-map services per
   applyEdits, stream; FES 2.0 emission for `Query.where` /
   `Query.spatialFilter`; raw GML / `<wfs:Transaction>` payloads via
   `protocol("wfs")`).
+
+The OData factory wraps an OData v4 entity set behind the canonical
+surface:
+
+- `odataSource` — query / queryObjectIds / stream / applyEdits
+  first-party (POST/PATCH/DELETE; PUT is unsupported per the parity
+  matrix and addressed by `PATCH` with the full canonical body).
+  Dialect-specific `$batch` / `$apply` / `$search` / `$deltatoken`
+  reach `HonuaOdataEntitySet` through `Source.protocol("odata")`.
+  OData is the **first adapter** to lazily fetch service metadata
+  (`$metadata`) and intersect the declared `Capabilities` set with
+  what the server advertises through `Capabilities.*` annotations —
+  see [`protocol-capability-matrix.md`](./protocol-capability-matrix.md)
+  for the precedent and [`decisions/odata-library-selection.md`](./decisions/odata-library-selection.md)
+  for the runtime-library posture.
 
 `Source.queryAll()` and `Source.stream()` drain every page the server
 returns — the built-in adapters override the core helpers' 100-page
@@ -222,18 +241,19 @@ HonuaOgcTiles`, `ogc-maps` → `HonuaOgcMaps |
 HonuaOgcCollectionMap`, `ogc-processes` → `HonuaOgcProcesses`,
 `stac` → `HonuaStacSearch`, `wms` → `HonuaWms`, `wms-layer` →
 `HonuaWmsLayer`, `wmts` → `HonuaWmts`, `wmts-layer` →
-`HonuaWmtsLayer`, `wmts-tileset` → `HonuaWmtsTileset`, and
-`wfs` → `HonuaWfsFeatureType`. The WFS root handle (capabilities
-cache, stored-query discovery) is reachable through
-`Source.protocol("wfs").root`.
+`HonuaWmtsLayer`, `wmts-tileset` → `HonuaWmtsTileset`,
+`wfs` → `HonuaWfsFeatureType`, and `odata` → `HonuaOdataEntitySet`.
+The WFS root handle (capabilities cache, stored-query discovery) is
+reachable through `Source.protocol("wfs").root`.
 
 ## What downstream tickets must consume
 
-1. The OData adapter ticket must implement `Source<T>` and register
-   through `resolveSource` (or land as a built-in like the shipped
-   `wmsSource` / `wmtsSource` / `wfsSource`). It must declare its
-   default capability set in `PROTOCOL_DEFAULT_CAPABILITIES` (this
-   file owns that table — adapter PRs extend it).
+1. New protocol adapters must implement `Source<T>` and register either
+   as a built-in `case` in `buildBuiltInSource` (the precedent followed
+   by `wmsSource` / `wmtsSource` / `wfsSource` / `odataSource`) or
+   through `CreateDatasetOptions.resolveSource`. They must declare
+   their default capability set in `PROTOCOL_DEFAULT_CAPABILITIES`
+   (this file owns that table — adapter PRs extend it).
 2. Visual builder, exploration, and server-export tickets must consume
    `Dataset` / `Source` / `Query` / `Result` / `MapBinding` rather than
    the per-class request shapes (`QueryFeaturesRequest`, etc.). Per-class
@@ -355,3 +375,13 @@ Conformance fixtures under `test/contract/` exercise the canonical
 surface against mock adapters for each protocol. Adding a new protocol
 adapter means adding a fixture there; the parametrized scenarios run
 unchanged.
+
+- `test/contract/conformance.test.ts` — cross-protocol parametric
+  scenarios. Each new adapter registers a harness; the suite runs the
+  same query / queryExtent / queryAggregate / stream cases against
+  every harness.
+- `test/contract/odata-conformance.test.ts` — adapter-specific
+  translation rules and escape-hatch surface (`metadata`, `batch`,
+  `apply`, `search`, `delta`, `raw`).
+- `test/contract/ogc-conformance.test.ts` — the conformance-class
+  → capability negotiation translation table.

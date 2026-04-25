@@ -1,35 +1,19 @@
 import type { Client } from "@connectrpc/connect";
 import type { FeatureService } from "../gen/honua/v1/feature_service_pb.js";
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
-import { decodePbfQueryResponse, isPbfResponse } from "./pbf-decoder.js";
 import { HonuaOgcMaps } from "./ogc-maps.js";
 import { HonuaOgcProcesses } from "./ogc-processes.js";
 import { HonuaOgcTiles } from "./ogc-tiles.js";
+import { decodePbfQueryResponse, isPbfResponse } from "./pbf-decoder.js";
 import { HonuaStacSearch } from "./stac.js";
 import { HonuaFeatureLayer, HonuaMapLayer, HonuaMapService, HonuaOgcFeatures, HonuaService } from "./surfaces.js";
-import { HonuaWms } from "./wms.js";
-import { type WmsCapabilities, parseWmsCapabilities } from "./wms-capabilities.js";
-import { HonuaWmts } from "./wmts.js";
-import { type WmtsCapabilities, parseWmtsCapabilities } from "./wmts-capabilities.js";
-import {
-  type HonuaWmsFeatureInfoResponse,
-  type HonuaWmsImageResponse,
-  type HonuaWmtsFeatureInfoResponse,
-  type HonuaWmtsTileResponse,
-  type WmsFeatureInfoRequest,
-  type WmsLegendRequest,
-  type WmsMapRequest,
-  type WmtsFeatureInfoRequest,
-  type WmtsTileRequest,
-  wmtsExtensionForFormat,
-} from "./wms-types.js";
 import type {
   ApplyEditsRequest,
   ExportMapRequest,
   HonuaApiEnvelope,
   HonuaApplyEditsResponse,
-  HonuaCompatibilityRequest,
   HonuaClientOptions,
+  HonuaCompatibilityRequest,
   HonuaErrorContext,
   HonuaExportMapResponse,
   HonuaFeature,
@@ -96,6 +80,22 @@ import type {
   QueryRelatedRecordsRequest,
   StacSearchRequest,
 } from "./types.js";
+import { type WmsCapabilities, parseWmsCapabilities } from "./wms-capabilities.js";
+import {
+  type HonuaWmsFeatureInfoResponse,
+  type HonuaWmsImageResponse,
+  type HonuaWmtsFeatureInfoResponse,
+  type HonuaWmtsTileResponse,
+  type WmsFeatureInfoRequest,
+  type WmsLegendRequest,
+  type WmsMapRequest,
+  type WmtsFeatureInfoRequest,
+  type WmtsTileRequest,
+  wmtsExtensionForFormat,
+} from "./wms-types.js";
+import { HonuaWms } from "./wms.js";
+import { type WmtsCapabilities, parseWmtsCapabilities } from "./wmts-capabilities.js";
+import { HonuaWmts } from "./wmts.js";
 
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, "");
@@ -444,6 +444,111 @@ export class HonuaClient {
       },
       request.signal,
     ) as Promise<T>;
+  }
+
+  /**
+   * Pipeline-aware JSON request that bypasses the GeoServices `f=json`
+   * convention used by {@link request}. Adapters whose protocols do not
+   * model `f=` (OData, OGC API, …) call this directly so they keep the
+   * shared auth / retry / timeout / interceptor pipeline without sending
+   * a query parameter the server would reject as `InvalidQueryOption`.
+   *
+   * Caller-supplied query parameters belong on `path` itself; `init`
+   * carries the body, headers, and abort signal. The default `Accept`
+   * header is `application/json`; pass an explicit `Accept` in
+   * `init.headers` to override.
+   */
+  public async pipelineRequestJson<T = unknown>(
+    method: QueryMethod,
+    path: string,
+    init?: { headers?: HeadersInit; body?: BodyInit | null },
+    signal?: AbortSignal,
+  ): Promise<T> {
+    return this.requestJson(method, path, init, signal) as Promise<T>;
+  }
+
+  /**
+   * Pipeline-aware request that returns the raw `Response` after the
+   * shared auth / retry / timeout / interceptor pipeline finishes
+   * successfully. Used by adapters that need to consume non-JSON bodies
+   * (OData `$metadata` XML, raw passthrough) without inheriting the
+   * `Accept: application/json` default of {@link pipelineRequestJson}.
+   *
+   * The returned `Response` is unconsumed — the caller picks `.json()`,
+   * `.text()`, or `.arrayBuffer()`. Non-2xx responses still throw the
+   * normalized `HonuaHttpError` (and trigger retries) so error handling
+   * matches every other client method.
+   */
+  public async pipelineFetch(
+    method: QueryMethod,
+    path: string,
+    init?: RequestInit,
+    callerSignal?: AbortSignal,
+  ): Promise<Response> {
+    let request: HonuaRequestContext = {
+      url: resolveRequestUrl(this.baseUrl, path),
+      path,
+      method,
+      init: {
+        method,
+        headers: mergeHeaders(this.defaultHeaders, init?.headers),
+        body: init?.body ?? null,
+        ...(init?.signal ? { signal: init.signal } : {}),
+      },
+    };
+
+    request = await this.applyBeforeInterceptors(request);
+
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
+      const timeout = createTimeoutSignal(callerSignal ?? request.init.signal, this.timeoutMs);
+      const startTime = performance.now();
+      try {
+        response = await this.fetchFn(request.url, {
+          ...request.init,
+          method: request.method,
+          signal: timeout.signal,
+        });
+      } catch (error) {
+        const durationMs = performance.now() - startTime;
+        const normalizedError = timeout.didTimeout
+          ? new HonuaTimeoutError(this.timeoutMs ?? 0)
+          : normalizeNetworkError(error);
+        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
+          await sleep(this.resolveRetryDelayMs(attempt));
+          continue;
+        }
+        await this.applyErrorInterceptors({
+          request: cloneRequestContext(request),
+          error: normalizedError,
+          durationMs,
+        });
+        throw normalizedError;
+      } finally {
+        timeout.dispose();
+      }
+      const durationMs = performance.now() - startTime;
+
+      if (!response.ok) {
+        const body = await parseResponseBody(response.clone());
+        const httpError = this.toHttpError(response.status, body);
+        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
+          await sleep(this.resolveRetryDelayMs(attempt, response));
+          continue;
+        }
+        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
+        throw httpError;
+      }
+
+      try {
+        await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
+      } catch (error) {
+        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
+        throw error;
+      }
+
+      return response;
+    }
   }
 
   public async getLayerMetadata(serviceId: string, layerId: number): Promise<HonuaLayerMetadata> {

@@ -206,6 +206,28 @@ export type {
   HonuaStacSearchOptions,
 } from "./core/stac.js";
 export {
+  HonuaOdataEntitySet,
+  buildOdataSpatialFilter,
+  odataFieldSchema,
+  parseOdataMetadata,
+  rewriteWhereToOdataFilter,
+} from "./core/odata.js";
+export type {
+  HonuaOdataAdvertisedCapabilities,
+  HonuaOdataAggregateResult,
+  HonuaOdataBatchOperation,
+  HonuaOdataBatchOptions,
+  HonuaOdataBatchOutcome,
+  HonuaOdataBatchResult,
+  HonuaOdataDeltaPage,
+  HonuaOdataEntitySetOptions,
+  HonuaOdataFieldInfo,
+  HonuaOdataMetadata,
+  HonuaOdataPage,
+  HonuaOdataQueryParams,
+  OdataSpatialFilterContext,
+} from "./core/odata.js";
+export {
   hasOgcConformanceClass,
   negotiateOgcCapabilities,
 } from "./core/ogc-conformance.js";
@@ -432,6 +454,7 @@ export {
   geoServicesImageSource,
   geoServicesMapServiceSource,
   isJobTerminal,
+  odataSource,
   ogcFeaturesSource,
   ogcMapsSource,
   ogcTilesSource,

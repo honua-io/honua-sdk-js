@@ -196,7 +196,7 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   wfs: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits", "stream"]),
   wms: capabilities(["render", "tiles", "query"]),
   wmts: capabilities(["render", "tiles"]),
-  odata: capabilities(["query", "queryObjectIds"]),
+  odata: capabilities(["query", "queryObjectIds", "stream", "applyEdits"]),
   "maplibre-vector": capabilities(["render", "tiles"]),
   "maplibre-raster": capabilities(["render", "tiles"]),
   "maplibre-geojson": capabilities(["render"]),
@@ -653,7 +653,7 @@ export interface ResolveSourceContext {
 
 /**
  * Adapter factory invoked for descriptors the built-in resolvers cannot
- * handle (today: `wfs`, `wms`, `odata`, MapLibre-native sources). Downstream
+ * handle (today: `wfs`, `wms`, MapLibre-native sources). Downstream
  * tickets register their adapters by passing one through
  * `CreateDatasetOptions.resolveSource`.
  */

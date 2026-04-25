@@ -78,7 +78,7 @@ interface LoadMapPackageOptions {
   client: HonuaClient;
   resolveStyleRef?: (styleId: string, presetId?: string) => Promise<HonuaStyleRefBody>;
   resolveTheme?: (themeId: string) => Promise<HonuaMapPackageThemeSpec>;
-  resolveSource?: SourceResolver;          // forwarded to createDataset for WFS/WMS/OData/tiles
+  resolveSource?: SourceResolver;          // forwarded to createDataset for tiles / MapLibre-native sources
   skipCompatibilityCheck?: boolean;        // tests / conformance fixtures
   telemetry?: HonuaRuntimeTelemetry;
   popupFactory?: PopupFactory;             // required only if runtime.bindPopup is called
@@ -127,7 +127,7 @@ destinations, using the alignment table in
 | `wfs` | contract adapter | `wfs` (built-in), custom source type `honua-wfs`. `locator.typeName` (and optional `locator.featureNamespace`) are forwarded; first-party WFS 2.0 adapter ships in `@honua/sdk-js/contract`. |
 | `wms` | contract adapter | `wms`, custom source type `honua-wms`. `locator.typeName` projects as `layers`, `locator.styleId` as `styles`. Use `buildWmsRasterSourceSpec(descriptor)` to produce a MapLibre-ready `{ type: "raster", tiles, tileSize }` spec with a pre-baked KVP `GetMap` template that uses MapLibre's `{bbox-epsg3857}` / `{width}` / `{height}` placeholders. |
 | `wmts` | contract adapter | `wmts`, custom source type `honua-wmts`. `locator.typeName` / `locator.styleId` / `locator.tileMatrixSetId` project as `layer` / `style` / `tileMatrixSet`. Use `buildWmtsRasterSourceSpec(descriptor)` to produce a MapLibre-ready `{ type: "raster", tiles, tileSize, scheme: "xyz" }` spec using the RESTful `{layer}/{style}/{tms}/{z}/{y}/{x}.{ext}` route. |
-| `odata` | contract adapter (plug-in) | Requires `opts.resolveSource` until the adapter ships. |
+| `odata` | contract adapter | `odata`. The entity-set request path comes from `locator.entitySet` when set; otherwise it is derived from `locator.layerId` as `Layers(<layerId>)/Features` to match Honua Server's layer-scoped OData routes. Optional path prefix from `locator.url`. |
 | `vector_tile` / `ogc_tiles` | MapLibre-native | Projected to a `{ type: "vector", tiles: [url], attribution? }` source entry — no contract adapter. |
 | `raster_tile` / `ogc_maps` | MapLibre-native | Projected to a `{ type: "raster", tiles: [url], attribution? }` source entry. |
 | `workspace_artifact` | deferred | Throws `HonuaMapPackageError { stage: "source-bind" }` — no artifact resolver is wired yet. |
@@ -168,6 +168,14 @@ Additional contract:
     it. `locator.typeName` and `locator.styleId` are not URL-derived
     today; the server ships them when a binding pins a specific layer
     or style.
+  - **OData**: the server `SourceLocator` carries only `url`,
+    `serviceId`, and `layerId`, so `entitySet` is typically absent on
+    bindings produced by the server. The `odataSource` adapter derives
+    the canonical layer-scoped request path
+    `Layers(<layerId>)/Features` from `locator.layerId` when
+    `locator.entitySet` is absent (see the *OData* notes in
+    [`protocol-capability-matrix.md`](./protocol-capability-matrix.md)
+    for the exact resolution rule).
   - **`locator.layerId`**: the server's canonical
     `SourceLocator.LayerId` is `string?`, so
     `HonuaMapPackageLocator.layerId` is typed `number | string`.

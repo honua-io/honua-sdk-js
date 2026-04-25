@@ -39,6 +39,8 @@ import {
   geoservicesQueryResponse,
   jsonResponse,
   makeMockClient,
+  odataMetadataResponse,
+  odataParcelsResponse,
   ogcCollectionMetadata,
   ogcItemsResponse,
   wfsCapabilitiesXml,
@@ -182,6 +184,34 @@ const harnesses: Harness[] = [
       });
     },
   },
+  {
+    protocol: "odata",
+    sourceId: "parcels-odata",
+    build() {
+      const client = makeMockClient({
+        routes: [
+          ["/odata/$metadata", () => odataMetadataResponse()],
+          [
+            "/odata/Parcels",
+            () => jsonResponse(odataParcelsResponse(PARCEL_FEATURES, { count: PARCEL_FEATURES.length })),
+          ],
+        ],
+      });
+      return createDataset({
+        id: "parcels",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels-odata",
+            protocol: "odata",
+            locator: { url: "https://mock/odata", entitySet: "Parcels" },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+          } satisfies SourceDescriptor,
+        ],
+      });
+    },
+  },
 ];
 
 describe("contract / Protocol enum", () => {
@@ -263,14 +293,14 @@ describe("contract / Dataset", () => {
       skipCompatibilityCheck: true,
       sources: [
         {
-          id: "odata-1",
-          protocol: "odata",
-          locator: { url: "u", entitySet: "Things" },
-          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+          id: "ml-1",
+          protocol: "maplibre-vector",
+          locator: { url: "u" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["maplibre-vector"],
         },
       ],
     });
-    expect(() => dataset.source("odata-1")).toThrow(HonuaCapabilityNotSupportedError);
+    expect(() => dataset.source("ml-1")).toThrow(HonuaCapabilityNotSupportedError);
   });
 
   it("invokes resolveSource for adapter-wrapped protocols and uses the returned source", async () => {
@@ -284,12 +314,12 @@ describe("contract / Dataset", () => {
     };
     const stubSource: Source = {
       descriptor: {
-        id: "odata-1",
-        protocol: "odata",
-        locator: { url: "u", entitySet: "Things" },
-        capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+        id: "ml-1",
+        protocol: "maplibre-vector",
+        locator: { url: "u" },
+        capabilities: PROTOCOL_DEFAULT_CAPABILITIES["maplibre-vector"],
       },
-      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["maplibre-vector"],
       query: async () => ({ features: [], exceededTransferLimit: false }),
       queryAll: async () => ({ features: [], exceededTransferLimit: false }),
       queryAggregate: async () => ({ features: [], exceededTransferLimit: false }),
@@ -309,15 +339,15 @@ describe("contract / Dataset", () => {
       skipCompatibilityCheck: true,
       sources: [
         {
-          id: "odata-1",
-          protocol: "odata",
-          locator: { url: "u", entitySet: "Things" },
-          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+          id: "ml-1",
+          protocol: "maplibre-vector",
+          locator: { url: "u" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["maplibre-vector"],
         },
       ],
       resolveSource: () => stubSource,
     });
-    const source = dataset.source("odata-1");
+    const source = dataset.source("ml-1");
     expect(source).toBe(stubSource);
     expect(await source!.query()).toEqual({ features: [], exceededTransferLimit: false });
   });
@@ -347,6 +377,13 @@ for (const harness of harnesses) {
     it("queryExtent yields a HonuaExtent envelope", async () => {
       const dataset = harness.build();
       const source = dataset.source(harness.sourceId)!;
+      // OData has no extent endpoint and refuses on the canonical surface
+      // (parity matrix marks queryExtent unsupported); other protocols
+      // either advertise it natively or take a degraded path.
+      if (harness.protocol === "odata") {
+        await expect(source.queryExtent()).rejects.toThrow(HonuaCapabilityNotSupportedError);
+        return;
+      }
       const out = await source.queryExtent();
       if (out.extent) {
         expect(out.extent.xmin).toBeLessThanOrEqual(out.extent.xmax);

@@ -175,27 +175,31 @@ The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export f
 ## Shared Client Contract And Exploration
 
 `HonuaFeatureLayer`, `HonuaMapService`, and `HonuaOgcFeatureCollection` continue to be the runtime classes. For
-cross-protocol code — exploration views, visual builders, server packaging, and the OData adapter
-ticket — the SDK also exposes a protocol-neutral contract and exploration state module that wrap (not replace)
-those classes.
+cross-protocol code — exploration views, visual builders, and server packaging — the SDK also exposes a
+protocol-neutral contract and exploration state module that wrap (not replace) those classes.
 
 - `@honua/sdk-js/contract` — canonical `Dataset`, `Source`, `SourceDescriptor`, `Capabilities`, `Query`, `Result`,
   `IJobRun`, and `MapBinding` types, plus `createDataset(...)` and built-in adapters for the five GeoServices
   service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`,
   `geoservices-geometry-service`, `geoservices-gp-service`), the four OGC API + STAC adapters (`ogc-features`,
-  `ogc-tiles`, `ogc-maps`, `stac`), the OGC web-map adapters (`wms`, `wmts`), and `wfs` (WFS 2.0). Image /
-  Geometry / GP services expose their protocol-specific surface (raster `exportImage` / `identify`, geometry
-  `project` / `buffer` / `simplify` / `intersect` / `union` / `clip` / `difference`, GP `submitJob` /
-  `jobStatus` / `cancelJob` / `jobResult`) through the typed `Source.protocol()` escape hatch — the canonical
-  query family throws `HonuaCapabilityNotSupportedError` for utility-only services so mixed-source apps surface
-  the limitation explicitly. The ImageServer adapter rejects `Query.spatialFilter` / `orderBy` / `outFields`
-  rather than silently widening the catalog result. WMS surfaces `query` through point-only `GetFeatureInfo`;
-  WMTS is render-only (`Source.query()` throws). The WFS adapter compiles `Query.where` / `Query.spatialFilter`
-  to FES 2.0, prefers GeoJSON over GML via `OperationsMetadata` negotiation, builds `<wfs:Transaction>` bodies
-  for `applyEdits`, and reaches raw GML / `LockFeature` / `GetPropertyValue` / stored queries through
-  `Source.protocol("wfs")`. Capability negotiation is `strict` by default; `degraded` opts into client-side
-  fallbacks that surface `Result.degraded[]`. The OData adapter plugs in via `CreateDatasetOptions.resolveSource`.
-  Full contract reference: [`docs/shared-client-contract.md`](./docs/shared-client-contract.md).
+  `ogc-tiles`, `ogc-maps`, `stac`), the OGC web-map adapters (`wms`, `wmts`), `wfs` (WFS 2.0), and `odata`
+  (OData v4). Image / Geometry / GP services expose their protocol-specific surface (raster `exportImage` /
+  `identify`, geometry `project` / `buffer` / `simplify` / `intersect` / `union` / `clip` / `difference`, GP
+  `submitJob` / `jobStatus` / `cancelJob` / `jobResult`) through the typed `Source.protocol()` escape hatch —
+  the canonical query family throws `HonuaCapabilityNotSupportedError` for utility-only services so
+  mixed-source apps surface the limitation explicitly. The ImageServer adapter rejects `Query.spatialFilter` /
+  `orderBy` / `outFields` rather than silently widening the catalog result. WMS surfaces `query` through
+  point-only `GetFeatureInfo`; WMTS is render-only (`Source.query()` throws). The WFS adapter compiles
+  `Query.where` / `Query.spatialFilter` to FES 2.0, prefers GeoJSON over GML via `OperationsMetadata`
+  negotiation, builds `<wfs:Transaction>` bodies for `applyEdits`, and reaches raw GML / `LockFeature` /
+  `GetPropertyValue` / stored queries through `Source.protocol("wfs")`. The OData adapter exposes
+  `query` / `queryObjectIds` / `stream` / `applyEdits` first-party
+  (PATCH-with-full-body in place of PUT, per the parity matrix) and surfaces `$batch` / `$apply` /
+  `$search` / `$deltatoken` through `Source.protocol("odata")` on a `HonuaOdataEntitySet`; it is also
+  the first adapter to lazily fetch service `$metadata` and intersect the declared capability set with
+  the server's `Capabilities.*` annotations. Capability negotiation is `strict` by default; `degraded`
+  opts into client-side fallbacks that surface `Result.degraded[]`. Full contract reference:
+  [`docs/shared-client-contract.md`](./docs/shared-client-contract.md).
 - `@honua/sdk-js/exploration` — `createExplorationContext(...)` returning an observable, microtask-coalesced
   reducer over filters, spatial filter, extent, selection, sort, pagination, visible fields, grouping, and
   aggregation. View bindings (`map`, `grid`, `chart`, `form`, `custom`) propagate through five linked-view
@@ -517,6 +521,61 @@ negotiation; if the server only advertises GML the canonical surface
 throws `HonuaCapabilityNotSupportedError` and points callers at
 `Source.protocol("wfs")` for the raw payload. Full reference:
 [`docs/wfs.md`](./docs/wfs.md).
+
+## OData v4
+
+```ts
+import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({ baseUrl: "https://server.honua.io" });
+const dataset = createDataset({
+  id: "parcels",
+  client,
+  sources: [
+    {
+      id: "parcels-odata",
+      protocol: "odata",
+      // Pass `entitySet` directly — or pass `layerId` and let the
+      // adapter derive `Layers(<layerId>)/Features` for layer-scoped
+      // server bindings.
+      locator: { url: "https://server.honua.io/odata", entitySet: "Parcels" },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+    },
+  ],
+});
+
+const parcels = dataset.source("parcels-odata")!;
+const result = await parcels.query({ where: "STATE = 'CA' AND ACRES > 10" });
+const ids = await parcels.queryObjectIds({ where: "STATUS = 'ACTIVE'" });
+
+// Dialect-specific operations stay behind the typed escape hatch.
+const odata = parcels.protocol("odata")!;
+const meta = await odata.metadata();
+const aggregated = await odata.apply({
+  groupBy: ["STATE"],
+  aggregations: [{ field: "ACRES", fn: "sum", alias: "SumAcres" }],
+});
+```
+
+`Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites
+the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` → `eq`)
+and rejects operators the parity matrix marks unsupported (`has`, `in`,
+`any`, `all`, `cast`, `isof`). `Query.spatialFilter` translates to
+`geo.intersects` / `geo.distance` against the geometry column resolved
+from `SourceSchema.fields` first, then `$metadata`. `applyEdits` routes
+adds → `POST`, updates → `PATCH /<entitySet>(<key>)` with the full
+canonical body (PUT is unsupported per the parity matrix), deletes →
+`DELETE /<entitySet>(<key>)`. When `EditEnvelope.rollbackOnFailure: true`
+and `$metadata` advertises `Capabilities.BatchSupported`, all operations
+collapse into one `$batch` request with a shared `atomicityGroup`. OData
+is the **first adapter** to lazily fetch service `$metadata` and
+intersect declared capabilities against the server's `Capabilities.*`
+annotations — see
+[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md)
+for the rule and
+[`docs/decisions/odata-library-selection.md`](./docs/decisions/odata-library-selection.md)
+for the runtime-library posture.
 
 ## Mixed Esri + OGC in one app
 

@@ -7,9 +7,16 @@ The matrix below is the **default** capability set per protocol. Callers
 that need a narrower surface for a specific source (for example a Feature
 Service whose metadata reports `supportsStatistics: false`) must intersect
 the default set themselves and pass the result on
-`SourceDescriptor.capabilities`. The built-in adapter constructors do not
-read service metadata today; automatic metadata-driven downgrades are
-tracked as future work.
+`SourceDescriptor.capabilities`. The GeoServices, OGC, STAC, WFS, and WMS
+adapter constructors do not read service metadata today, so per-source
+downgrades for those protocols stay caller-side. **OData is the
+exception**: the `odataSource` adapter lazily fetches `$metadata` on the
+first capability-gated method, parses `Capabilities.*` annotations
+(both inline inside `<EntitySet>` and sibling
+`<Annotations Target="Container/EntitySet">` blocks), and intersects
+the descriptor's declared `Capabilities` set with the server's
+advertised flags — see the *OData* notes below for details. Other
+adapters will follow the same pattern as follow-up work.
 
 This matrix spans the full shared capability vocabulary, not just the
 protocol-neutral `Source` methods implemented in this ticket. Capabilities
@@ -27,12 +34,12 @@ without a canonical `Source` method today are negotiated for
 | `queryExtent` | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | ✓ | — | — | — |
 | `queryObjectIds` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ |
 | `queryRelated` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `applyEdits` | ✓ | — | — | — | — | ✓ | — | — | — | ✓ | — | — | — |
+| `applyEdits` | ✓ | — | — | — | — | ✓ | — | — | — | ✓ | — | — | ✓ |
 | `attachments` | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
 | `render` | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | ✓ | ✓ | — |
 | `tiles` | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | ✓ | ✓ | — |
 | `sql` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | — | — | — |
+| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ |
 | `pbf` | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
 | `connect` | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — |
 | `image` | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
@@ -424,12 +431,151 @@ MapLibre `raster` source spec using the same RESTful path with
 `{z}/{y}/{x}` placeholders.
 
 ### OData
-Tabular query with $filter, $select, $orderby, $top, $skip — maps cleanly
-to `Query.where`, `outFields`, `orderBy`, `pagination`. Geometry is
-modelled when the entity exposes a GeoJSON or Edm.Geography column. No
-aggregation in the canonical surface (OData `$apply` is too dialect-specific
-for protocol-neutral consumers; downstream tickets can expose it through
-the adapter escape hatch).
+First-party adapter: `query`, `queryObjectIds`, `stream`, `applyEdits`.
+Tabular query with `$filter`, `$select`, `$orderby`, `$top`, `$skip`,
+`$expand` maps cleanly onto `Query.where`, `outFields`, `orderBy`,
+`pagination`. `Query.where` accepts SQL-92 / OData `$filter` text;
+the adapter rewrites a small intersection (`IS NULL` → `eq null`,
+`<>` → `ne`, `=` → `eq`) and rejects operators the parity matrix
+documents as unsupported (`has`, `in`, `any`, `all`, `cast`, `isof`)
+rather than letting them reach the wire. The rewrite tokenizes
+single-quoted string literals (with `''` escape sequences preserved)
+so values like `NAME = 'A=B'` or `NAME = 'has'` round-trip unchanged
+— rewrites and unsupported-operator detection only run against
+non-literal spans.
+
+The descriptor locator resolves to the entity-set request path one of
+two ways. SDK callers that pass `locator.entitySet` (e.g. `"Parcels"`
+or the navigation path `"Layers(1)/Features"`) win unchanged. Bindings
+produced by Honua Server only carry `url`, `serviceId`, and `layerId`,
+so when `entitySet` is absent the adapter derives the canonical
+layer-scoped path `Layers(<layerId>)/Features` from `locator.layerId`.
+A descriptor that has neither field is rejected with
+`createDataset: source "<id>" (odata) requires locator.entitySet or
+locator.layerId`. The resolved token is the wire path used for entity
+requests; CSDL metadata lookups (capabilities, key fields, schema)
+key on the **unqualified entity-set name** instead — for navigation
+paths that is the trailing segment, exposed as
+`HonuaOdataEntitySet.entitySetName` so the lookup still hits the
+`<EntitySet Name="…">` entry the server emits.
+
+`Query.spatialFilter` translates to a `geo.intersects` / `geo.distance`
+predicate against the geometry column. Only `esriSpatialRelIntersects`
+/ `esriSpatialRelEnvelopeIntersects` (intersects) and
+`esriSpatialRelDistance` (distance, requires `spatialFilter.distance`)
+are accepted; other relations throw rather than silently widen. The
+WKT literal carries the **input** geometry's SRID (resolved from
+`spatialFilter.geometry.spatialReference.{wkid|latestWkid}` first,
+then the metadata-declared SRID on the geometry column); `Query.outSr`
+is a request for the *output* CRS and is not stamped onto the input
+WKT (the OData server has no request-side output-CRS knob — output
+geometry comes back in the column's declared SRID). The geometry
+column resolves from `SourceSchema.fields` typed `Edm.Geography`
+first, otherwise from the lazy `$metadata` probe; if neither yields
+one the adapter throws rather than guess.
+
+`Query.returnGeometry === false` keeps the geometry column off the
+wire: when `outFields` is set the geometry name is filtered out of
+`$select`; when `outFields` is unset the adapter derives `$select`
+from `$metadata` to include only non-spatial columns. As a defensive
+backstop, the canonical `Result` drops geometry from each feature
+even if the server still emitted it.
+
+Server-driven pagination (`$skiptoken` via `@odata.nextLink`) is
+consumed transparently inside `queryAll()` and `stream()`. `queryAll`
+honors `Query.pagination.limit` with the GeoServices/OGC `limit + 1`
+lookahead pattern (sent on the wire as `$top = limit + 1`) so
+`exceededTransferLimit: true` is stamped accurately when the cap is
+hit. As a belt-and-braces signal, `@odata.count > limited.length`
+also sets the flag for servers that respect `$top` exactly but report
+a higher matched-row total.
+
+`applyEdits` routes adds → `POST /<entitySet>`, updates → `PATCH
+/<entitySet>(<key>)` with the full canonical body, deletes → `DELETE
+/<entitySet>(<key>)`. PUT is not issued — Honua Server's OData v4
+parity matrix lists PUT as unsupported (PATCH-only); the documented
+`PATCH with full body` path matches `PUT` replacement semantics on the
+canonical surface. Composite-key entities address rows by passing the
+pre-formatted key expression on `deletes: FeatureId[]` (e.g.
+`"LayerId=1,ObjectId=3"`) or by populating each key field on
+`updates[].attributes`. Layer-scoped paths
+(`Layers(<n>)/Features`) carry the parent key (`LayerId`) in the URL
+itself, so callers can — and should — pass a bare ObjectId on
+`feature.id` or `deletes: FeatureId[]`; the adapter strips `LayerId`
+from the entity-set key parens to produce
+`/odata/Layers(<n>)/Features(<objectId>)` directly.
+
+When `EditEnvelope.rollbackOnFailure === true` AND `$metadata`
+advertises `Capabilities.BatchSupported`, the adapter collapses the
+envelope into a single `$batch` request whose every operation carries
+the same `atomicityGroup` token. Honua Server's `ODataBatchHandler`
+groups requests by `request.AtomicityGroup` and rolls the entire
+group back when any operation fails. The per-operation outcomes are
+threaded back into the canonical `EditOutcome` buckets in the
+original order. When `$batch` is not advertised, the adapter
+degrades to per-call edits and stamps a `degraded[]` entry citing
+`applyEdits` so downstream views can flag the result as non-atomic.
+
+`queryAggregate`, `queryExtent`, `queryRelated`, and `attachments` are
+intentionally absent from the canonical surface. Aggregation lives
+behind `Source.protocol("odata").apply(...)` (`$apply` driver),
+extent computation is a caller-side concern when the entity exposes
+`Edm.Geography`, related navigation goes through `$expand` on the
+escape-hatch `query()` (or `protocol("odata").raw(...)`), and
+attachments are not in the parity matrix.
+
+OData is the **first adapter** to implement automatic
+metadata-driven capability intersection. The lazy `$metadata` fetch
+on first method call parses `Capabilities.*` annotations and
+intersects against the descriptor's declared `Capabilities`; declared
+capabilities the service explicitly advertises as `false` raise
+`HonuaCapabilityNotSupportedError` with both protocol and reason in
+the message. The CSDL parser accepts both annotation shapes — inline
+inside `<EntitySet>` *and* sibling `<Annotations
+Target="<schema>.<container>/<entitySet>">` blocks (the form Honua
+Server emits next to the `EntityContainer`) — and parses the OData
+v4 capability vocabulary including `Insertable` / `Updatable` /
+`Deletable` / `Searchable` / `Filterable` / `Selectable` /
+`Expandable` / `Countable` plus the generic `Supported` property
+records use for `ChangeTracking`. Other adapters (GeoServices
+`supportsStatistics`, OGC `conformsTo`) follow the same pattern but
+currently rely on caller-supplied caps; the contract doc tracks this
+as the precedent for that future work.
+
+Dialect-specific `$batch`, `$apply`, `$search`, and `$deltatoken`
+operations live behind `Source.protocol("odata")` on a
+`HonuaOdataEntitySet` instance:
+
+- `metadata({ refresh? })` — cached, SDK-shaped projection of
+  `$metadata` (`entitySets`, `keys`, `fields`, `capabilities`).
+- `batch(operations, { atomicity })` — JSON `$batch` envelope. Pass
+  `atomicity: "all"` to stamp the same `atomicityGroup` token on every
+  request item so the server runs them as one change-set with rollback
+  on any failure (per OData v4 §11.7.7.3 and Honua Server's
+  `ODataBatchHandler`, which groups by `request.AtomicityGroup`).
+  Default behavior (`"none"`) leaves the field unset so each request
+  runs independently.
+- `apply(transformations)` — `$apply` driver (`aggregate` / `groupby`
+  / `filter` / `compute`) returning `{ rows, totalCount? }`.
+- `search(text, params)` — `$search` driver returning a
+  `HonuaOdataPage<T>`.
+- `delta({ since? })` — async-iterable `$deltatoken` change feed; the
+  final page carries `deltaLink` for the caller to persist.
+- `raw(method, path, init?)` — last-resort passthrough that still
+  flows through `HonuaClient.fetch` (auth headers, retry, timeout,
+  interceptors, telemetry, normalized `HonuaHttpError`).
+
+All HTTP traffic — including `$metadata` discovery and `raw()`
+passthrough — is routed through `HonuaClient.pipelineFetch` /
+`pipelineRequestJson` rather than the GeoServices-shaped
+`HonuaClient.request()` helper, so the OData wire request never
+carries the `f=json` parameter (Honua Server's OData validators
+reject it as `InvalidQueryOption`). Auth headers, interceptors,
+retry, timeout, and normalized error mapping all apply to OData the
+same way they do to every other adapter.
+
+Library posture is recorded in
+[`decisions/odata-library-selection.md`](./decisions/odata-library-selection.md).
 
 ## Maintaining the matrix
 

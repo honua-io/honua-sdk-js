@@ -70,6 +70,7 @@ export {
   geoServicesGeometryServiceSource,
   geoServicesImageSource,
   geoServicesMapServiceSource,
+  odataSource,
   ogcFeaturesSource,
   ogcTilesSource,
   ogcMapsSource,

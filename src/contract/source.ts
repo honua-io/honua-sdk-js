@@ -1,8 +1,10 @@
 /**
  * Built-in `Source` adapters that wrap the runtime classes in
  * `src/core/surfaces.ts` (`HonuaFeatureLayer`, `HonuaMapLayer`,
- * `HonuaOgcFeatureCollection`). Downstream tickets supply WFS / WMS /
- * OData adapters via `CreateDatasetOptions.resolveSource`.
+ * `HonuaOgcFeatureCollection`) and the OGC / STAC / WFS / WMS / OData
+ * adapters in `src/core/`. Consumers register adapters for any other
+ * protocol (MapLibre-native sources, etc.) via
+ * `CreateDatasetOptions.resolveSource`.
  *
  * These adapters do not reimplement query logic — they translate the
  * canonical `Query` / `Result` envelope to and from the existing per-class
@@ -13,6 +15,18 @@
 
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
+import {
+  type HonuaOdataAdvertisedCapabilities,
+  type HonuaOdataBatchOperation,
+  type HonuaOdataBatchOutcome,
+  HonuaOdataEntitySet,
+  type HonuaOdataMetadata,
+  type HonuaOdataPage,
+  type HonuaOdataQueryParams,
+  buildOdataSpatialFilter,
+  odataFieldSchema,
+  rewriteWhereToOdataFilter,
+} from "../core/odata.js";
 import { HonuaOgcCollectionMap, HonuaOgcMaps } from "../core/ogc-maps.js";
 import type { HonuaOgcProcesses } from "../core/ogc-processes.js";
 import { HonuaOgcTiles, HonuaOgcTileset } from "../core/ogc-tiles.js";
@@ -38,8 +52,6 @@ import type {
   HonuaTypedQueryResponse,
   StacSearchRequest,
 } from "../core/types.js";
-import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
-import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import {
   type FesNode,
   UNSUPPORTED_FES,
@@ -49,6 +61,8 @@ import {
   serializeFes,
 } from "../core/wfs-filter.js";
 import { HonuaWfs, HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
+import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
+import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import {
   type AdapterFor,
   type AdapterKind,
@@ -177,6 +191,8 @@ function buildBuiltInSource<T>(
       return stacSearchSource<T>(descriptor, client, policy);
     case "wfs":
       return wfsSource<T>(descriptor, client, policy);
+    case "odata":
+      return odataSource<T>(descriptor, client, policy);
     default:
       return undefined;
   }
@@ -1756,6 +1772,794 @@ function canonicalEditResultFromTransaction<T>(
   return { added, updated, deleted };
 }
 
+// ── OData entity set ──────────────────────────────────────────
+
+/**
+ * Build a `Source` over an OData v4 entity set. The `Query` translation
+ * lowers `where` / `outFields` / `orderBy` / pagination / spatial filter
+ * onto OData's `$`-prefixed query options. Dialect-specific operations
+ * (`$batch`, `$apply`, `$search`, `$deltatoken`) live behind
+ * `Source.protocol("odata")` on the returned `HonuaOdataEntitySet`.
+ *
+ * `$metadata` is fetched lazily on the first call that needs it and
+ * cached on the entity-set instance. The fetched capability annotations
+ * are intersected with the descriptor's declared `Capabilities` set the
+ * first time a capability-gated method is invoked — this is the
+ * precedent for the metadata-driven downgrade pattern referenced in
+ * `docs/shared-client-contract.md`.
+ */
+export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
+  const { entitySet, basePath } = requireOdataLocator(descriptor);
+  const entity = new HonuaOdataEntitySet({ client, entitySet, basePath });
+  const declaredCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.odata;
+  const negotiation = new OdataCapabilityNegotiator(entity, declaredCaps);
+
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
+    odata: entity,
+  };
+
+  return makeSource<T>(descriptor, declaredCaps, policy, adapterRegistry, {
+    async query(request) {
+      ensureCapability(descriptor, declaredCaps, "query");
+      await negotiation.ensureAdvertised(descriptor, "query");
+      const params = await buildOdataParams(entity, descriptor, request, { count: true });
+      const page = await entity.query<Record<string, unknown>>(params);
+      return odataResultFromPage<T>(
+        descriptor,
+        page,
+        await negotiation.fieldsFor(descriptor.id),
+        request?.returnGeometry,
+      );
+    },
+    async queryAll(request) {
+      ensureCapability(descriptor, declaredCaps, "query");
+      await negotiation.ensureAdvertised(descriptor, "query");
+      const params = await buildOdataParams(entity, descriptor, request, { count: true });
+      const limit = request?.pagination?.limit;
+      // Lookahead row: ask the server for `limit + 1` so we can prove
+      // truncation by collecting more than `limit` rows even when the
+      // response carries no `@odata.nextLink`. Mirrors the GeoServices
+      // and OGC `queryAll` truncation pattern.
+      if (typeof limit === "number" && limit >= 0) {
+        params.top = limit + 1;
+      }
+      const drained = await entity.queryAll<Record<string, unknown>>(params);
+      const allFeatures = drained.rows.map((row) => odataRowToFeature<T>(row, descriptor, request?.returnGeometry));
+      const { features: limited, exceededTransferLimit: collectedExceeded } = applyQueryAllLimit(allFeatures, limit);
+      // Belt-and-braces: if the server respected `$top` exactly but
+      // reports `@odata.count > limited.length`, that also proves
+      // truncation. Either signal sets the flag.
+      const countExceeded =
+        typeof drained.totalCount === "number" && typeof limit === "number" && drained.totalCount > limited.length;
+      const exceededTransferLimit = collectedExceeded || countExceeded;
+      const fields = await negotiation.fieldsFor(descriptor.id);
+      return {
+        features: limited,
+        exceededTransferLimit,
+        ...(typeof drained.totalCount === "number"
+          ? { totalCount: drained.totalCount }
+          : { totalCount: limited.length }),
+        ...(fields.length > 0 ? { fields } : {}),
+      } satisfies Result<T>;
+    },
+    async queryAggregate() {
+      // OData aggregation is dialect-specific (`$apply` pipeline). The
+      // canonical surface refuses; callers reach the typed escape hatch
+      // (`Source.protocol("odata").apply(...)`) for the dialect surface.
+      throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+    },
+    async queryExtent() {
+      // OData does not expose an extent endpoint; computing one client-side
+      // would require draining every matching row, which the canonical
+      // surface refuses to do silently. Mirrors the OGC `attachments` /
+      // `queryRelated` posture: refuse rather than ship a degraded path.
+      throw new HonuaCapabilityNotSupportedError("queryExtent", descriptor.protocol, descriptor.id);
+    },
+    async *stream(request) {
+      ensureCapability(descriptor, declaredCaps, "stream");
+      await negotiation.ensureAdvertised(descriptor, "query");
+      const params = await buildOdataParams(entity, descriptor, request, { count: false });
+      const fields = await negotiation.fieldsFor(descriptor.id);
+      const stream = entity.queryStream<Record<string, unknown>>(params);
+      for await (const page of stream) {
+        yield odataResultFromPage<T>(descriptor, page, fields, request?.returnGeometry);
+      }
+    },
+    async queryObjectIds(request) {
+      ensureCapability(descriptor, declaredCaps, "queryObjectIds");
+      await negotiation.ensureAdvertised(descriptor, "query");
+      const keyField = await negotiation.keyField(descriptor.id);
+      const params = await buildOdataParams(entity, descriptor, request, { count: false });
+      params.select = [keyField];
+      // `entity.queryAll` respects `top` exactly. The canonical
+      // `queryObjectIds` honors `Query.pagination.limit` as a hard cap
+      // and slices the projection to it (mirrors the STAC adapter at
+      // line 825). No lookahead row is needed because the result is
+      // ids, not features — there is no `exceededTransferLimit` flag
+      // to stamp.
+      const limit = request?.pagination?.limit;
+      const drained = await entity.queryAll<Record<string, unknown>>(params);
+      const ids: FeatureId[] = [];
+      for (const row of drained.rows) {
+        const value = row[keyField];
+        if (value === undefined || value === null) continue;
+        ids.push(typeof value === "number" ? value : String(value));
+      }
+      if (typeof limit === "number" && limit >= 0 && ids.length > limit) {
+        return ids.slice(0, limit);
+      }
+      return ids;
+    },
+    async applyEdits(envelope) {
+      ensureCapability(descriptor, declaredCaps, "applyEdits");
+      await negotiation.ensureAdvertised(descriptor, "applyEdits");
+      const keyFields = await negotiation.keyFields(descriptor.id);
+
+      // Atomic path: when the caller asks for rollback-on-failure AND the
+      // service advertises `$batch`, collapse the envelope into a single
+      // OData batch with a shared `atomicityGroup` so a later failure
+      // tears down earlier edits server-side. When `$batch` is not
+      // advertised the rollback contract cannot be honored — degrade to
+      // the per-call path and stamp `degraded[]` so downstream views can
+      // flag the result.
+      if (envelope.rollbackOnFailure === true) {
+        const batchAdvertised = await negotiation.batchAdvertised();
+        if (batchAdvertised) {
+          return atomicOdataApplyEdits(entity, envelope, keyFields, descriptor);
+        }
+        const result = await perCallOdataApplyEdits(entity, envelope, keyFields);
+        return {
+          ...result,
+          degraded: [
+            ...(result.degraded ?? []),
+            {
+              capability: "applyEdits",
+              protocol: descriptor.protocol,
+              reason:
+                "rollbackOnFailure was requested but the OData service does not advertise $batch; edits ran per-call without atomicity.",
+            },
+          ],
+        } satisfies EditResult;
+      }
+
+      return perCallOdataApplyEdits(entity, envelope, keyFields);
+    },
+    async queryRelated() {
+      // OData has no canonical related-records surface; navigation
+      // properties live behind the typed escape hatch (`$expand` via
+      // `protocol("odata").raw(...)` or `apply()` for cross-set joins).
+      throw new HonuaCapabilityNotSupportedError("queryRelated", descriptor.protocol, descriptor.id);
+    },
+    attachments: unsupportedAttachmentApi(descriptor),
+  });
+}
+
+/**
+ * Per-call OData edits — issues independent POST/PATCH/DELETE requests
+ * and collects per-row outcomes. This is the non-atomic fallback used
+ * when `rollbackOnFailure` is unset or the server does not advertise
+ * `$batch`.
+ */
+async function perCallOdataApplyEdits<T>(
+  entity: HonuaOdataEntitySet,
+  envelope: EditEnvelope<T>,
+  keyFields: ReadonlyArray<string>,
+): Promise<EditResult> {
+  const added: EditOutcome[] = [];
+  const updated: EditOutcome[] = [];
+  const deleted: EditOutcome[] = [];
+  const { signal } = envelope;
+
+  for (const add of envelope.adds ?? []) {
+    try {
+      const created = await entity.add<Record<string, unknown>>(featureToOdataBody(add), {
+        ...(signal ? { signal } : {}),
+      });
+      const id = readKey(created, keyFields, add.id);
+      added.push(id !== undefined ? { id, success: true } : { success: true });
+    } catch (err) {
+      added.push({ success: false, error: editErrorFromCatch(err) });
+    }
+  }
+  // Layer-scoped paths like `Layers(<n>)/Features` carry the parent key
+  // (`LayerId`) in the URL itself, so the entity-set key parens only
+  // need the non-parent components. `readKey` / `readKeyFromBody` keep
+  // using the full `keyFields` because the response body still carries
+  // every key.
+  const urlKeys = urlKeyFields(entity.entitySet, keyFields);
+  for (const update of envelope.updates ?? []) {
+    const key = canonicalKeyToOdata(update, urlKeys);
+    if (key === undefined) {
+      updated.push({ success: false, error: { code: 400, description: "update.id is required" } });
+      continue;
+    }
+    try {
+      await entity.update(key, featureToOdataBody(update), { ...(signal ? { signal } : {}) });
+      updated.push({ id: update.id ?? readKeyFromBody(update.attributes, keyFields), success: true });
+    } catch (err) {
+      updated.push({ id: update.id, success: false, error: editErrorFromCatch(err) });
+    }
+  }
+  for (const id of envelope.deletes ?? []) {
+    const key = canonicalKeyToOdata({ id, attributes: {} as Record<string, unknown> }, urlKeys);
+    if (key === undefined) {
+      deleted.push({ success: false, error: { code: 400, description: "delete id is required" } });
+      continue;
+    }
+    try {
+      await entity.delete(key, { ...(signal ? { signal } : {}) });
+      deleted.push({ id, success: true });
+    } catch (err) {
+      deleted.push({ id, success: false, error: editErrorFromCatch(err) });
+    }
+  }
+
+  return { added, updated, deleted } satisfies EditResult;
+}
+
+/**
+ * Atomic OData edits — collapses the envelope into a single
+ * `$batch` request whose change-set wraps every operation in the same
+ * `atomicityGroup`. Honua Server's `ODataBatchHandler` rolls back the
+ * entire group when any operation fails. The batch responses are
+ * threaded back into per-row `EditOutcome` entries in the original
+ * order so callers see the same shape regardless of transport.
+ */
+async function atomicOdataApplyEdits<T>(
+  entity: HonuaOdataEntitySet,
+  envelope: EditEnvelope<T>,
+  keyFields: ReadonlyArray<string>,
+  descriptor: SourceDescriptor,
+): Promise<EditResult> {
+  const operations: HonuaOdataBatchOperation[] = [];
+  // Track which bucket each operation belongs to so the response loop
+  // can fan the outcomes back into added / updated / deleted in the
+  // original order.
+  type BucketKind = "add" | "update" | "delete";
+  const plan: Array<{ kind: BucketKind; id?: FeatureId; key?: string }> = [];
+  const bucketIndices: Record<BucketKind, number[]> = { add: [], update: [], delete: [] };
+
+  // Layer-scoped paths like `Layers(<n>)/Features` carry the parent key
+  // (`LayerId`) in the URL itself, so the entity-set key parens only
+  // need the non-parent components.
+  const urlKeys = urlKeyFields(entity.entitySet, keyFields);
+
+  // Sequence ids deterministically so the response shape is predictable
+  // and the test surface stays small.
+  let seq = 1;
+  const adds = envelope.adds ?? [];
+  for (const add of adds) {
+    const id = String(seq++);
+    operations.push({
+      id,
+      method: "POST",
+      url: stripLeadingSlashLocal(entity.entitySet),
+      body: featureToOdataBody(add),
+    });
+    bucketIndices.add.push(plan.length);
+    plan.push({ kind: "add", id: add.id });
+  }
+  const updates = envelope.updates ?? [];
+  for (const update of updates) {
+    const id = String(seq++);
+    const key = canonicalKeyToOdata(update, urlKeys);
+    if (key === undefined) {
+      bucketIndices.update.push(plan.length);
+      plan.push({ kind: "update", id: update.id });
+      continue;
+    }
+    operations.push({
+      id,
+      method: "PATCH",
+      url: `${entity.entitySet}(${key})`,
+      body: featureToOdataBody(update),
+    });
+    bucketIndices.update.push(plan.length);
+    plan.push({ kind: "update", id: update.id, key });
+  }
+  const deletes = envelope.deletes ?? [];
+  for (const rawId of deletes) {
+    const id = String(seq++);
+    const key = canonicalKeyToOdata({ id: rawId, attributes: {} as Record<string, unknown> }, urlKeys);
+    if (key === undefined) {
+      bucketIndices.delete.push(plan.length);
+      plan.push({ kind: "delete", id: rawId });
+      continue;
+    }
+    operations.push({ id, method: "DELETE", url: `${entity.entitySet}(${key})` });
+    bucketIndices.delete.push(plan.length);
+    plan.push({ kind: "delete", id: rawId, key });
+  }
+
+  // Items with `key === undefined` were never added to operations; mark
+  // their outcome here without consulting the response.
+  const added: EditOutcome[] = new Array(adds.length);
+  const updated: EditOutcome[] = new Array(updates.length);
+  const deleted: EditOutcome[] = new Array(deletes.length);
+  for (let i = 0; i < updates.length; i += 1) {
+    const planIdx = bucketIndices.update[i];
+    if (plan[planIdx].key === undefined) {
+      updated[i] = { success: false, error: { code: 400, description: "update.id is required" } };
+    }
+  }
+  for (let i = 0; i < deletes.length; i += 1) {
+    const planIdx = bucketIndices.delete[i];
+    if (plan[planIdx].key === undefined) {
+      deleted[i] = { success: false, error: { code: 400, description: "delete id is required" } };
+    }
+  }
+
+  if (operations.length === 0) {
+    // Every requested edit was malformed — return the validation outcomes
+    // rather than send an empty batch.
+    return { added, updated, deleted } satisfies EditResult;
+  }
+
+  let batchOutcomes: ReadonlyArray<HonuaOdataBatchOutcome>;
+  try {
+    const batchResult = await entity.batch(operations, {
+      atomicity: "all",
+      ...(envelope.signal ? { signal: envelope.signal } : {}),
+    });
+    batchOutcomes = batchResult.responses;
+  } catch (err) {
+    // Whole-batch failure (network/auth/etc.). Apply the same error to
+    // every requested row so the caller sees a uniform rollback signal.
+    const error = editErrorFromCatch(err);
+    for (let i = 0; i < adds.length; i += 1) added[i] = { success: false, error };
+    for (let i = 0; i < updates.length; i += 1) {
+      if (!updated[i]) updated[i] = { id: updates[i].id, success: false, error };
+    }
+    for (let i = 0; i < deletes.length; i += 1) {
+      if (!deleted[i]) deleted[i] = { id: deletes[i], success: false, error };
+    }
+    return { added, updated, deleted } satisfies EditResult;
+  }
+
+  // Index outcomes by id for O(1) lookup.
+  const byId = new Map<string, HonuaOdataBatchOutcome>();
+  for (const r of batchOutcomes) byId.set(String(r.id), r);
+
+  // Walk the operations in submission order so outcome indices line up
+  // with adds/updates/deletes positions.
+  let opCursor = 0;
+  for (let i = 0; i < adds.length; i += 1) {
+    const id = operations[opCursor].id ?? String(opCursor + 1);
+    opCursor += 1;
+    const outcome = byId.get(String(id));
+    added[i] = batchOutcomeToEdit(outcome, adds[i].id, keyFields);
+  }
+  for (let i = 0; i < updates.length; i += 1) {
+    if (updated[i]) continue; // skipped (no key)
+    const id = operations[opCursor].id ?? String(opCursor + 1);
+    opCursor += 1;
+    const outcome = byId.get(String(id));
+    updated[i] = batchOutcomeToEdit(outcome, updates[i].id, keyFields);
+  }
+  for (let i = 0; i < deletes.length; i += 1) {
+    if (deleted[i]) continue;
+    const id = operations[opCursor].id ?? String(opCursor + 1);
+    opCursor += 1;
+    const outcome = byId.get(String(id));
+    deleted[i] = batchOutcomeToEdit(outcome, deletes[i], keyFields);
+  }
+
+  void descriptor;
+  return { added, updated, deleted } satisfies EditResult;
+}
+
+function batchOutcomeToEdit(
+  outcome: HonuaOdataBatchOutcome | undefined,
+  fallbackId: FeatureId | undefined,
+  keyFields: ReadonlyArray<string>,
+): EditOutcome {
+  if (!outcome) {
+    return {
+      ...(fallbackId !== undefined ? { id: fallbackId } : {}),
+      success: false,
+      error: { code: 0, description: "missing batch response" },
+    };
+  }
+  if (outcome.status >= 200 && outcome.status < 300) {
+    const body =
+      outcome.body && typeof outcome.body === "object" ? (outcome.body as Record<string, unknown>) : undefined;
+    const id = body ? readKey(body, keyFields, fallbackId) : fallbackId;
+    return id !== undefined ? { id, success: true } : { success: true };
+  }
+  const description = describeBatchError(outcome.body, outcome.status);
+  return {
+    ...(fallbackId !== undefined ? { id: fallbackId } : {}),
+    success: false,
+    error: { code: outcome.status, description },
+  };
+}
+
+function describeBatchError(body: unknown, status: number): string {
+  if (body && typeof body === "object") {
+    const err = (body as { error?: { message?: string } }).error;
+    if (err && typeof err.message === "string") return err.message;
+  }
+  return `HTTP ${status}`;
+}
+
+function stripLeadingSlashLocal(url: string): string {
+  return url.startsWith("/") ? url.slice(1) : url;
+}
+
+function requireOdataLocator(descriptor: SourceDescriptor): { entitySet: string; basePath: string } {
+  const { entitySet, url, layerId } = descriptor.locator;
+  // Resolve the entity-set token. Honua Server's `SourceLocator` only
+  // carries `url`, `serviceId`, and `layerId`, so server-produced OData
+  // bindings arrive without `entitySet`. The canonical server route is
+  // layer-scoped — `/odata/Layers(<layerId>)/Features` — so derive that
+  // path when only `layerId` is provided. SDK callers that already pass
+  // `entitySet` (the historical path) continue to win.
+  let resolvedEntitySet: string | undefined;
+  if (typeof entitySet === "string" && entitySet !== "") {
+    resolvedEntitySet = entitySet;
+  } else if (typeof layerId === "number" && Number.isFinite(layerId)) {
+    resolvedEntitySet = `Layers(${layerId})/Features`;
+  }
+  if (resolvedEntitySet === undefined) {
+    throw new Error(`createDataset: source "${descriptor.id}" (odata) requires locator.entitySet or locator.layerId`);
+  }
+  // `locator.url` is informational on the canonical surface; the request
+  // path is built from `basePath/<entitySet>`. When `locator.url` carries
+  // a path, treat its trailing path component as the basePath so a
+  // descriptor pointing at `https://srv/odata/v4` still resolves correctly.
+  const basePath = url ? extractOdataBasePath(url) : "/odata";
+  return { entitySet: resolvedEntitySet, basePath };
+}
+
+function extractOdataBasePath(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname.replace(/\/+$/, "");
+    return pathname === "" ? "/odata" : pathname;
+  } catch {
+    // Relative URL: take it as the basePath verbatim.
+    return url.startsWith("/") ? url.replace(/\/+$/, "") || "/odata" : `/${url.replace(/\/+$/, "")}`;
+  }
+}
+
+/**
+ * Build the OData query params for a canonical `Query`. Materializes
+ * `$metadata` through the negotiator only when a translation rule needs
+ * a geometry column or the key field — otherwise the request stays
+ * metadata-free.
+ */
+async function buildOdataParams<T>(
+  entity: HonuaOdataEntitySet,
+  descriptor: SourceDescriptor,
+  request: Query<T> | undefined,
+  options: { count: boolean },
+): Promise<HonuaOdataQueryParams> {
+  const out: HonuaOdataQueryParams = {};
+  if (options.count) out.count = true;
+  if (!request) return out;
+  const filterParts: string[] = [];
+  if (request.where !== undefined && request.where !== "") {
+    const rewritten = rewriteWhereToOdataFilter(request.where);
+    if (rewritten !== "") filterParts.push(rewritten);
+  }
+  if (request.spatialFilter) {
+    const meta = await entity.metadata();
+    const typeName = meta.entitySets[entity.entitySetName];
+    const spatialFields = (typeName ? meta.fields[typeName] : []) ?? [];
+    // The WKT SRID stamps the **input** literal's coordinate system, not
+    // the desired output SR (`Query.outSr` controls the response geometry
+    // SR via column-side projection on the server). Derive the input SRID
+    // from `spatialFilter.geometry.spatialReference` and fall back to the
+    // metadata-declared column SRID; if neither is available, omit the
+    // SRID prefix and let the column default apply.
+    const ctx: import("../core/odata.js").OdataSpatialFilterContext = {
+      ...(spatialFields.length > 0 ? { geometryFields: spatialFields } : {}),
+    };
+    filterParts.push(buildOdataSpatialFilter(request.spatialFilter, ctx));
+  }
+  if (filterParts.length > 0) out.filter = filterParts.join(" and ");
+  if (request.outFields && request.outFields.length > 0) {
+    if (request.returnGeometry === false) {
+      out.select = request.outFields.filter((f) => !looksLikeGeometryField(f));
+    } else {
+      out.select = [...request.outFields];
+    }
+  } else if (request.returnGeometry === false) {
+    // No outFields supplied — derive `$select` from metadata so the
+    // geometry column never reaches the wire. Falls through silently
+    // when metadata is unavailable; the result-side dropper still
+    // strips the geometry from the canonical Result.
+    const meta = await entity.metadata().catch(() => undefined);
+    if (meta) {
+      const typeName = meta.entitySets[entity.entitySetName];
+      const allFields = (typeName ? meta.fields[typeName] : undefined) ?? [];
+      const nonSpatial = allFields.filter((f) => !f.isSpatial).map((f) => f.name);
+      if (nonSpatial.length > 0) out.select = nonSpatial;
+    }
+  }
+  if (request.orderBy && request.orderBy.length > 0) {
+    out.orderBy = request.orderBy.map((s) => (s.direction === "desc" ? `${s.field} desc` : s.field));
+  }
+  if (request.pagination?.limit !== undefined) out.top = request.pagination.limit;
+  if (request.pagination?.offset !== undefined && request.pagination.offset > 0) {
+    out.skip = request.pagination.offset;
+  }
+  if (request.signal) out.signal = request.signal;
+  void descriptor;
+  return out;
+}
+
+function looksLikeGeometryField(field: string): boolean {
+  const lower = field.toLowerCase();
+  return lower === "geometry" || lower === "geography" || lower === "shape";
+}
+
+function odataResultFromPage<T>(
+  descriptor: SourceDescriptor,
+  page: HonuaOdataPage<Record<string, unknown>>,
+  fields: ReadonlyArray<import("../core/types.js").HonuaFieldInfo>,
+  returnGeometry: boolean | undefined,
+): Result<T> {
+  const features = page.rows.map((row) => odataRowToFeature<T>(row, descriptor, returnGeometry));
+  const exceededTransferLimit =
+    typeof page.totalCount === "number" ? features.length < page.totalCount : Boolean(page.nextLink);
+  return {
+    features,
+    exceededTransferLimit,
+    ...(typeof page.totalCount === "number" ? { totalCount: page.totalCount } : {}),
+    ...(fields.length > 0 ? { fields } : {}),
+  };
+}
+
+/**
+ * Convert one OData JSON row into a canonical `HonuaTypedFeature`. The
+ * geometry column (when the row carries one as GeoJSON via Honua Server's
+ * spatial encoding) is split out from the attributes envelope. When
+ * `returnGeometry === false`, the geometry column is dropped from both
+ * the attributes envelope and the `geometry` field — defensive against
+ * servers that ignore the `$select` exclusion (or callers that bypassed
+ * metadata-derived selects).
+ */
+function odataRowToFeature<T>(
+  row: Record<string, unknown>,
+  descriptor: SourceDescriptor,
+  returnGeometry: boolean | undefined,
+): import("../core/types.js").HonuaTypedFeature<T> {
+  const geomFieldName = descriptor.schema?.fields?.find((f) => f.type === "esriFieldTypeGeometry")?.name;
+  const geometryKey = geomFieldName ?? findGeometryKey(row);
+  if (geometryKey && row[geometryKey] !== undefined) {
+    const { [geometryKey]: geometry, ...rest } = row;
+    return {
+      attributes: rest as T,
+      geometry: returnGeometry === false ? null : ((geometry ?? null) as Record<string, unknown> | null),
+    };
+  }
+  return { attributes: row as T, geometry: null };
+}
+
+function findGeometryKey(row: Record<string, unknown>): string | undefined {
+  for (const key of Object.keys(row)) {
+    const lower = key.toLowerCase();
+    if (lower === "geometry" || lower === "geography" || lower === "shape") return key;
+  }
+  return undefined;
+}
+
+function featureToOdataBody<T>(feature: {
+  id?: FeatureId;
+  attributes: T;
+  geometry?: Record<string, unknown> | null;
+}): Record<string, unknown> {
+  const body: Record<string, unknown> = { ...(feature.attributes as Record<string, unknown>) };
+  if (feature.geometry !== undefined && feature.geometry !== null) {
+    if (body.Geometry === undefined && body.geometry === undefined) {
+      body.Geometry = feature.geometry;
+    }
+  }
+  return body;
+}
+
+function readKey(
+  body: Record<string, unknown>,
+  keyFields: ReadonlyArray<string>,
+  fallback: FeatureId | undefined,
+): FeatureId | undefined {
+  if (keyFields.length === 1) {
+    const value = body[keyFields[0]];
+    if (typeof value === "number" || typeof value === "string") return value;
+  }
+  if (keyFields.length > 1) {
+    // Composite key: surface as `Field=value,Field=value`. Numeric fallback
+    // is preferred when only one of the key parts is OBJECTID-like to keep
+    // the EditOutcome.id readable.
+    const objectId = body.ObjectId ?? body.objectId ?? body.OBJECTID;
+    if (typeof objectId === "number" || typeof objectId === "string") return objectId;
+  }
+  return fallback;
+}
+
+function readKeyFromBody(attributes: unknown, keyFields: ReadonlyArray<string>): FeatureId | undefined {
+  if (typeof attributes !== "object" || attributes === null) return undefined;
+  return readKey(attributes as Record<string, unknown>, keyFields, undefined);
+}
+
+/**
+ * For OData navigation paths like `Layers(<n>)/Features`, the parent key
+ * (`LayerId`) is already encoded in the URL path — the entity-set key
+ * parens should only carry the non-parent components of the composite
+ * key. Returns the metadata key fields with the parent-key field removed
+ * when the path is layer-scoped, so a caller addressing a row by its
+ * bare ObjectId still produces a valid `Features(<objectId>)` URL.
+ *
+ * Direct paths (e.g. `Parcels`) return the input key fields unchanged.
+ */
+function urlKeyFields(entitySetPath: string, keyFields: ReadonlyArray<string>): ReadonlyArray<string> {
+  if (!/^Layers\(\d+\)\/Features$/i.test(entitySetPath)) return keyFields;
+  const filtered = keyFields.filter((f) => f.toLowerCase() !== "layerid");
+  // Defense in depth: if filtering eliminates every key field (the
+  // metadata declared LayerId-only) fall back to the original list so
+  // the formatter at least has something to work with.
+  return filtered.length === 0 ? keyFields : filtered;
+}
+
+function canonicalKeyToOdata<T>(
+  feature: { id?: FeatureId; attributes: T },
+  keyFields: ReadonlyArray<string>,
+): string | undefined {
+  if (keyFields.length === 0) {
+    if (feature.id === undefined || feature.id === null) return undefined;
+    return formatOdataKeyValue(feature.id);
+  }
+  if (keyFields.length === 1) {
+    const fieldName = keyFields[0];
+    const value = (feature.attributes as Record<string, unknown> | undefined)?.[fieldName] ?? feature.id;
+    if (value === undefined || value === null) return undefined;
+    return formatOdataKeyValue(value as FeatureId);
+  }
+  // Composite key — prefer attribute-derived components. When `feature.id`
+  // is a pre-formatted key expression (`LayerId=1,ObjectId=3` or the bare
+  // `1,3` tuple), use it verbatim so callers that address composite-key
+  // rows on the canonical `deletes: FeatureId[]` envelope still work.
+  if (typeof feature.id === "string" && (feature.id.includes("=") || feature.id.includes(","))) {
+    return feature.id;
+  }
+  const parts: string[] = [];
+  for (const fieldName of keyFields) {
+    const value = (feature.attributes as Record<string, unknown> | undefined)?.[fieldName];
+    if (value === undefined || value === null) {
+      // Allow a single-value `feature.id` to fill the ObjectId component
+      // when the key is the conventional Honua (LayerId, ObjectId) pair
+      // and the caller addressed the row by its bare ObjectId.
+      if (fieldName === "ObjectId" && (typeof feature.id === "number" || typeof feature.id === "string")) {
+        parts.push(`${fieldName}=${formatOdataKeyValue(feature.id)}`);
+        continue;
+      }
+      return undefined;
+    }
+    parts.push(`${fieldName}=${formatOdataKeyValue(value as FeatureId)}`);
+  }
+  return parts.join(",");
+}
+
+function formatOdataKeyValue(value: FeatureId): string {
+  if (typeof value === "number") return String(value);
+  // Strings are quoted; numeric strings stay as numbers because OData's
+  // key syntax accepts both for Edm.Int* keys.
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && String(numeric) === value) return String(numeric);
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+/**
+ * Lazy, per-source negotiator that fetches `$metadata` exactly once and
+ * intersects the declared capability set with what the service actually
+ * advertises through `Capabilities.*` annotations. The intersection is
+ * surfaced as `HonuaCapabilityNotSupportedError` on the first call that
+ * needs the missing capability.
+ */
+class OdataCapabilityNegotiator {
+  private readonly entity: HonuaOdataEntitySet;
+  private readonly declared: ReadonlyArray<Capability>;
+  private metaPromise: Promise<HonuaOdataMetadata> | undefined;
+  private fieldsCache: ReadonlyArray<import("../core/types.js").HonuaFieldInfo> | undefined;
+
+  public constructor(entity: HonuaOdataEntitySet, declared: ReadonlySet<Capability>) {
+    this.entity = entity;
+    this.declared = [...declared];
+  }
+
+  public async ensureAdvertised(descriptor: SourceDescriptor, capability: Capability): Promise<void> {
+    // Only check capabilities the descriptor declares — caller-passed
+    // narrower sets short-circuit through `ensureCapability` before this
+    // is reached.
+    if (!this.declared.includes(capability)) return;
+    const meta = await this.materialize();
+    const advertised: HonuaOdataAdvertisedCapabilities = meta.capabilities[this.entity.entitySetName] ?? {};
+    const flag = advertisedFlag(advertised, capability);
+    if (flag === false) {
+      throw new HonuaCapabilityNotSupportedError(capability, descriptor.protocol, descriptor.id);
+    }
+  }
+
+  public async fieldsFor(_sourceId: SourceId): Promise<ReadonlyArray<import("../core/types.js").HonuaFieldInfo>> {
+    void _sourceId;
+    if (this.fieldsCache) return this.fieldsCache;
+    try {
+      const meta = await this.materialize();
+      const fields = odataFieldSchema(meta, this.entity.entitySetName);
+      this.fieldsCache = fields;
+      return fields;
+    } catch {
+      // A missing `$metadata` endpoint is allowed at runtime — the
+      // canonical surface still works, just without the schema in the
+      // result envelope. Errors are surfaced from `query` itself so the
+      // adapter does not double-throw.
+      this.fieldsCache = [];
+      return this.fieldsCache;
+    }
+  }
+
+  public async keyFields(_sourceId: SourceId): Promise<ReadonlyArray<string>> {
+    void _sourceId;
+    const meta = await this.materialize().catch(() => undefined);
+    if (!meta) return [];
+    const typeName = meta.entitySets[this.entity.entitySetName];
+    if (!typeName) return [];
+    return meta.keys[typeName] ?? [];
+  }
+
+  public async keyField(sourceId: SourceId): Promise<string> {
+    const keys = await this.keyFields(sourceId);
+    if (keys.length === 1) return keys[0];
+    // Composite key: prefer the conventional Honua `ObjectId` field for
+    // `queryObjectIds()` so the canonical surface returns a flat
+    // `FeatureId[]` instead of composite-key strings.
+    if (keys.includes("ObjectId")) return "ObjectId";
+    if (keys.length > 0) return keys[0];
+    return "ObjectId";
+  }
+
+  /**
+   * Returns true when the entity-set's `Capabilities.BatchSupported`
+   * annotation is `true`, false when explicitly `false`, and true by
+   * default when the metadata is unavailable (the OData spec defaults
+   * `$batch` to supported when the annotation is absent).
+   */
+  public async batchAdvertised(): Promise<boolean> {
+    const meta = await this.materialize().catch(() => undefined);
+    if (!meta) return true;
+    const flag = meta.capabilities[this.entity.entitySetName]?.batch;
+    return flag !== false;
+  }
+
+  private materialize(): Promise<HonuaOdataMetadata> {
+    if (!this.metaPromise) {
+      this.metaPromise = this.entity.metadata();
+    }
+    return this.metaPromise;
+  }
+}
+
+function advertisedFlag(advertised: HonuaOdataAdvertisedCapabilities, capability: Capability): boolean | undefined {
+  switch (capability) {
+    case "query":
+      return advertised.query;
+    case "stream":
+      return advertised.query;
+    case "queryObjectIds":
+      return advertised.query;
+    case "applyEdits":
+      // Treat the union as the canonical "applyEdits" gate — adapters
+      // refuse only when every relevant flag is explicitly false.
+      if (advertised.insert === false && advertised.update === false && advertised.delete === false) {
+        return false;
+      }
+      return undefined;
+    default:
+      return undefined;
+  }
+}
+
 // ── Internal helpers ──────────────────────────────────────────
 
 interface SourceImplementation<T> {
@@ -2902,8 +3706,8 @@ function isFiniteNumberStrict(n: number): n is number {
  * Declare the shipped adapter → runtime-class bindings so
  * `Source.adapter("geoservices-feature-service")` et al. narrow to the
  * right class instead of collapsing to `unknown`. Downstream adapter
- * tickets (WFS / WMS / OData) add their own augmentations in their own
- * modules.
+ * tickets that ship outside this module add their own augmentations in
+ * their own modules.
  */
 declare module "./types.js" {
   interface AdapterTypeMap {
@@ -2924,6 +3728,7 @@ declare module "./types.js" {
     wmts: HonuaWmts;
     "wmts-layer": HonuaWmtsLayer;
     "wmts-tileset": HonuaWmtsTileset;
+    odata: HonuaOdataEntitySet;
   }
 }
 

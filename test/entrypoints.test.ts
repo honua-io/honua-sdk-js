@@ -11,6 +11,7 @@ import {
   geoServicesGeometryServiceSource,
   geoServicesImageSource,
   geoServicesMapServiceSource,
+  odataSource,
   ogcFeaturesSource,
   ogcMapsSource,
   ogcTilesSource,
@@ -267,6 +268,7 @@ describe("entrypoint modules", () => {
     expect(ogcTilesSource).toBeTypeOf("function");
     expect(ogcMapsSource).toBeTypeOf("function");
     expect(stacSearchSource).toBeTypeOf("function");
+    expect(odataSource).toBeTypeOf("function");
   });
 
   it("exposes the exploration entrypoint", () => {
