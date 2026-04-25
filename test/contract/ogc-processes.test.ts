@@ -356,6 +356,36 @@ describe("ogc-processes / IJobRun lifecycle", () => {
     expect(job.status).toBe("running");
   });
 
+  it("rethrows the original 409 when the follow-up poll itself fails", async () => {
+    // Same invariant family as the previous test: the cancel-side 409 is
+    // the most honest signal we have. If the confirmation poll cannot run
+    // (network blip, server outage), surface the 409 instead of letting a
+    // poll-side error swallow the cancel-side conflict.
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/processes/processes/buffer/execution",
+          () => jsonResponse({ jobID: "job-pollfail", status: "running", processID: "buffer" }),
+        ],
+        [
+          "/ogc/processes/jobs/job-pollfail",
+          (_url, init) => {
+            if (init?.method === "DELETE") {
+              return new Response(
+                JSON.stringify({ title: "Cannot dismiss completed job", status: 409 }),
+                { status: 409, headers: { "Content-Type": "application/json" } },
+              );
+            }
+            return new Response("upstream unavailable", { status: 502 });
+          },
+        ],
+      ],
+    });
+    const job = await client.ogcProcesses().execute({ processId: "buffer", inputs: {}, mode: "async" });
+    await expect(job.cancel()).rejects.toMatchObject({ statusCode: 409 });
+    expect(job.status).toBe("running");
+  });
+
   it("populates HonuaJobFailedError from statusInfo.message when the server omits `exception`", async () => {
     // honua-server's StatusInfo DTO has no `exception` field; failure
     // text rides on `message`. Terminal-failure snapshots must fall back

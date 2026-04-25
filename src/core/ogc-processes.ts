@@ -194,7 +194,15 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
         return this.currentStatus;
       }
       if (statusCode === 409 && isCompletedJobConflict(error)) {
-        const fresh = await this.pollFn(this.id);
+        let fresh: HonuaOgcProcessJobStatus;
+        try {
+          fresh = await this.pollFn(this.id);
+        } catch {
+          // Server claimed the job is in a terminal state but the
+          // follow-up poll could not confirm it. Surface the original
+          // 409 instead of letting the poll-side error swallow it.
+          throw error;
+        }
         const snapshot = await this.handleOgcStatus(fresh);
         if (!isJobTerminal(snapshot.status)) {
           throw error;
