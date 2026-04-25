@@ -59,15 +59,24 @@ yields pages of at most `limit` rows instead of the core helper's
 default 2000. `pbf` is supported when the server returns `f=pbf`; the
 contract accepts both encodings transparently.
 `Source.attachments.query()` requires a non-empty
-`parentIds` set of numeric ObjectIDs and rejects `AttachmentQuery.where`:
-the FeatureServer `queryAttachments` endpoint filters by `objectIds`
-only, returns `400 "objectIds parameter is required"` when the set is
-empty, accepts only long-integer ids, and silently ignores `where`. The
-adapter throws explicitly rather than make a failing wire call or let
-callers think `where` filtered. Use `attachments.list(parentId)` for
-the single-parent shortcut, and filter by attachment metadata
-client-side over the returned `AttachmentGroups` when richer predicates
-are needed.
+`parentIds` set of strict signed long-integer tokens and rejects
+`AttachmentQuery.where`: the FeatureServer `queryAttachments` endpoint
+filters by `objectIds` only, returns `400 "objectIds parameter is
+required"` when the set is empty, parses each id with .NET
+`long.TryParse(.., NumberStyles.Integer, ..)` (which rejects decimals,
+scientific notation, hex, and blank tokens), and silently ignores
+`where`. The adapter validates each `parentIds` entry against the same
+contract — numeric values must be `Number.isSafeInteger`, string values
+must match `/^-?\d+$/` — so callers cannot trip the silent
+`Number("")===0`, `Number("1.5")===1.5`, or
+`Number("9223372036854775807")===9223372036854776000` coercions. Long
+ids outside the JS safe-integer range must be passed as strings; the
+adapter forwards them verbatim as a comma-separated `objectIds` wire
+parameter so precision survives. `Source.attachments.delete()`
+applies the same long-integer contract to its `attachmentIds` set.
+Use `attachments.list(parentId)` for the single-parent shortcut, and
+filter by attachment metadata client-side over the returned
+`AttachmentGroups` when richer predicates are needed.
 
 ### GeoServices Map Service / Map Layer
 Same query semantics as Feature Service for the layers it exposes

@@ -425,14 +425,19 @@ export interface AttachmentInfo {
  * others may add `where` predicates. Adapters that cannot honor a
  * field throw an explicit `Error` rather than silently dropping it.
  * For example, the GeoServices FeatureServer adapter requires
- * `parentIds` (numeric ObjectIDs only) and rejects `where` because the
- * server endpoint filters by `objectIds` only and ignores `where`.
+ * `parentIds` (strict signed long-integer ObjectIDs only — numerics
+ * must be safe integers, strings must match `/^-?\d+$/`) and rejects
+ * `where` because the server endpoint filters by `objectIds` only
+ * and ignores `where`. Long ids outside JS's safe-integer range must
+ * be passed as strings to survive without `Number()` precision loss.
  */
 export interface AttachmentQuery {
   /**
    * Caller-supplied parent ids. Required by adapters whose underlying
    * endpoint filters by id (e.g. GeoServices FeatureServer); adapters
-   * with a richer query surface may treat this as optional.
+   * with a richer query surface may treat this as optional. Long ids
+   * outside JS's safe-integer range should be passed as strings; the
+   * GeoServices adapter forwards strings verbatim on the wire.
    */
   parentIds?: ReadonlyArray<FeatureId>;
   /**

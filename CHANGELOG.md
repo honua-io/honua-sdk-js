@@ -50,9 +50,12 @@ All notable changes to the Honua JS SDK will be documented in this file.
   The ImageServer adapter rejects `Query.spatialFilter` / `Query.orderBy` / `Query.outFields` instead of
   silently widening the catalog result. OGC `applyEdits` per-item failures preserve `HonuaHttpError.statusCode`
   on the `EditOutcome.error.code` rather than collapsing to `500`. The GeoServices FeatureServer
-  `attachments.query()` requires non-empty numeric `parentIds` and rejects `AttachmentQuery.where`,
-  matching what the FeatureServer `queryAttachments` endpoint actually enforces (`objectIds` filter only,
-  numeric ids only, `where` is ignored on the wire).
+  `attachments.query()` requires non-empty `parentIds` (strict signed long-integer tokens — safe-integer
+  numerics or `/^-?\d+$/` strings) and rejects `AttachmentQuery.where`, matching what the FeatureServer
+  `queryAttachments` endpoint actually enforces (`long.TryParse` integer parser, `objectIds` filter only,
+  `where` ignored on the wire). Long-integer ids outside JS's safe-integer range round-trip as strings on
+  the wire so callers do not lose precision via `Number()`. `attachments.delete()` applies the same
+  long-integer contract to its `attachmentIds` set.
 - Exploration state module at `@honua/sdk-js/exploration`: `createExplorationContext(...)` with a
   microtask-coalesced reducer over filters, spatial filter, extent, selection, sort, pagination, visible
   fields, grouping, and aggregation; five linked-view presets (`globalLinked`, `mapDriven`, `gridDriven`,

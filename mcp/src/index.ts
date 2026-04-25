@@ -25,7 +25,7 @@ export interface RuntimeOptions {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RETRIES = 2;
-const DEFAULT_SERVER_VERSION = "0.0.1-alpha.0";
+const DEFAULT_SERVER_VERSION = "0.0.2-alpha.0";
 
 export const SERVER_VERSION = resolveServerVersion();
 

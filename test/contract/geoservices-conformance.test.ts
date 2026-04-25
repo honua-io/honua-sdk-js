@@ -308,20 +308,47 @@ describe("contract / GeoServices FeatureServer parity", () => {
       /AttachmentQuery\.parentIds is required/,
     );
 
-    // Non-numeric parent ids would either be silently dropped (silent narrowing of
-    // the filter set) or produce an opaque server 400; the adapter throws so the
-    // caller sees the actual constraint.
+    // Non-integer parent ids would either be silently coerced through Number()
+    // (e.g. "" -> 0, "1.5" -> 1.5) or produce an opaque server 400; the adapter
+    // throws so the caller sees the actual constraint.
     await expect(source.attachments.query({ parentIds: ["not-a-number"] })).rejects.toThrow(
-      /must contain only numeric ObjectIDs/,
+      /must contain only signed long-integer ObjectIDs/,
     );
     await expect(source.attachments.query({ parentIds: [1, "x"] })).rejects.toThrow(
-      /must contain only numeric ObjectIDs/,
+      /must contain only signed long-integer ObjectIDs/,
+    );
+    // Blank tokens slip past Number() as 0; the adapter must reject them.
+    await expect(source.attachments.query({ parentIds: [""] })).rejects.toThrow(
+      /must contain only signed long-integer ObjectIDs/,
+    );
+    await expect(source.attachments.query({ parentIds: [" 5 "] })).rejects.toThrow(
+      /must contain only signed long-integer ObjectIDs/,
+    );
+    // Decimal / scientific / hex tokens slip past Number(); the server's
+    // long.TryParse rejects them, and so must the adapter.
+    await expect(source.attachments.query({ parentIds: ["1.5"] })).rejects.toThrow(
+      /must contain only signed long-integer ObjectIDs/,
+    );
+    await expect(source.attachments.query({ parentIds: [1.5] })).rejects.toThrow(
+      /must contain only signed long-integer ObjectIDs/,
+    );
+    await expect(source.attachments.query({ parentIds: ["1e3"] })).rejects.toThrow(
+      /must contain only signed long-integer ObjectIDs/,
+    );
+    await expect(source.attachments.query({ parentIds: ["0x10"] })).rejects.toThrow(
+      /must contain only signed long-integer ObjectIDs/,
+    );
+    // Numerics outside the JS safe-integer range silently round-trip through
+    // Number() with precision loss; the adapter rejects them so callers know
+    // to pass long ids as strings instead.
+    await expect(source.attachments.query({ parentIds: [Number("9223372036854775807")] })).rejects.toThrow(
+      /must contain only signed long-integer ObjectIDs/,
     );
 
     expect(observedQueryAttachments).toBe(0);
   });
 
-  it("attachments.query forwards the numeric parentIds set as objectIds on the wire", async () => {
+  it("attachments.query forwards the parentIds set as a comma-separated objectIds string preserving long-integer precision", async () => {
     let observedObjectIds: string | null = null;
     const dataset = buildFeatureDataset([
       [
@@ -334,10 +361,50 @@ describe("contract / GeoServices FeatureServer parity", () => {
     ]);
     const source = dataset.source<ParcelAttrs>("parcels-fs")!;
 
-    // Numeric strings are accepted and coerced; the wire format remains the
-    // canonical comma-separated long-integer list the server expects.
-    await source.attachments.query({ parentIds: [1, "2", 3] });
-    expect(observedObjectIds).toBe("1,2,3");
+    // Numeric and integer-string ids both round-trip into the canonical
+    // comma-separated long list. Long-integer strings outside JS's safe-integer
+    // range survive verbatim because the adapter never calls Number() on them.
+    await source.attachments.query({
+      parentIds: [1, "2", 3, "9223372036854775807"],
+    });
+    expect(observedObjectIds).toBe("1,2,3,9223372036854775807");
+  });
+
+  it("attachments.delete validates attachmentIds with the same long-integer contract and preserves long-string precision on the wire", async () => {
+    let observedAttachmentIds: string | null = null;
+    let observedDeleteCalls = 0;
+    const dataset = buildFeatureDataset([
+      [
+        "/rest/services/Parcels/FeatureServer/0/1/deleteAttachments",
+        async (_url, init) => {
+          observedDeleteCalls += 1;
+          // deleteAttachments is POST + form-encoded; the attachmentIds parameter
+          // lives in the body, not the URL.
+          const body = typeof init?.body === "string" ? init.body : await (init?.body as Blob).text();
+          const params = new URLSearchParams(body);
+          observedAttachmentIds = params.get("attachmentIds");
+          return jsonResponse(geoservicesDeleteAttachmentsResponse());
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-fs")!;
+
+    await expect(source.attachments.delete({ parentId: 1, attachmentIds: [] })).rejects.toThrow(
+      /AttachmentDelete\.attachmentIds must contain at least one id/,
+    );
+    await expect(source.attachments.delete({ parentId: 1, attachmentIds: [""] })).rejects.toThrow(
+      /must contain only signed long-integer ids/,
+    );
+    await expect(source.attachments.delete({ parentId: 1, attachmentIds: ["1.5"] })).rejects.toThrow(
+      /must contain only signed long-integer ids/,
+    );
+    await expect(source.attachments.delete({ parentId: 1, attachmentIds: [Number("9223372036854775807")] })).rejects.toThrow(
+      /must contain only signed long-integer ids/,
+    );
+    expect(observedDeleteCalls).toBe(0);
+
+    await source.attachments.delete({ parentId: 1, attachmentIds: [7, "9223372036854775807"] });
+    expect(observedAttachmentIds).toBe("7,9223372036854775807");
   });
 
   it("protocol() escape hatch returns the underlying HonuaFeatureLayer for raw GeoServices ops", () => {

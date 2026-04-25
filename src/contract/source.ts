@@ -1564,10 +1564,10 @@ function featureLayerAttachmentApi<T>(
     },
     async delete(request) {
       ensureAttachments();
-      const numericIds = request.attachmentIds.map(toAttachmentNumericId).filter(isFiniteNumberStrict);
+      const attachmentIds = requireFeatureServerCompatibleAttachmentIds(request.attachmentIds);
       const response = await layer.deleteAttachments({
         objectId: request.parentId,
-        attachmentIds: numericIds.length === request.attachmentIds.length ? numericIds : request.attachmentIds.map(String).join(","),
+        attachmentIds,
         ...(request.signal ? { signal: request.signal } : {}),
       });
       return (response.deleteAttachmentResults ?? []).map((r) => toAttachmentEditOutcome(r, request.parentId));
@@ -1600,13 +1600,33 @@ function toAttachmentEditOutcome(result: HonuaAttachmentEditResult, parentId?: F
   return out;
 }
 
-function toAttachmentNumericId(id: FeatureId): number {
-  const parsed = Number(id);
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
+/**
+ * Strict integer-token check for `FeatureId` values bound for GeoServices
+ * `objectIds` / `attachmentIds` parameters. Honua Server parses these as
+ * .NET `long` via `long.TryParse(.., NumberStyles.Integer, ..)` which
+ * rejects decimals, scientific notation, hex, and empty / whitespace
+ * tokens (see `Honua.Server/.../FeatureServer/AttachmentEndpoints.cs`
+ * `TryParseObjectIds`). Mirroring that strictness in the SDK avoids
+ * silent coercion (`Number("") === 0`, `Number("1.5") === 1.5`) and
+ * precision loss on long-integer strings outside JS's safe-integer
+ * range (e.g. `Number("9223372036854775807") === 9223372036854776000`).
+ */
+function isLongIntegerToken(id: FeatureId): boolean {
+  if (typeof id === "number") {
+    return Number.isInteger(id) && Number.isSafeInteger(id);
+  }
+  if (typeof id !== "string") return false;
+  return /^-?\d+$/.test(id);
 }
 
-function isFiniteNumberStrict(n: number): n is number {
-  return Number.isFinite(n);
+/**
+ * Render a validated `parentIds` / `attachmentIds` set as the canonical
+ * `objectIds` / `attachmentIds` comma-separated wire string. Strings are
+ * preserved verbatim so long-integer ids outside JS's safe-integer range
+ * round-trip without precision loss.
+ */
+function attachmentIdsToWireString(ids: ReadonlyArray<FeatureId>): string {
+  return ids.map((id) => String(id)).join(",");
 }
 
 /**
@@ -1620,9 +1640,11 @@ function isFiniteNumberStrict(n: number): n is number {
  * silent widening when callers rely on `where` and prevents an opaque
  * server 400 when ids cannot parse. Mirrors the OGC adapter's
  * `requireQueryGeometryEnvelope` and the ImageServer
- * `requireImageServerCompatibleQuery` guards.
+ * `requireImageServerCompatibleQuery` guards. Returns the validated id
+ * set as a comma-separated `objectIds` string so long-integer string
+ * ids survive without `Number()` precision loss.
  */
-function requireFeatureServerCompatibleAttachmentQuery(request: AttachmentQuery | undefined): readonly number[] {
+function requireFeatureServerCompatibleAttachmentQuery(request: AttachmentQuery | undefined): string {
   if (request?.where !== undefined) {
     throw new Error(
       "geoservices-feature-service: AttachmentQuery.where is not supported on the FeatureServer queryAttachments endpoint; the server filters by objectIds only and silently ignores `where`. Drop `where` or filter the returned AttachmentGroups client-side.",
@@ -1634,14 +1656,35 @@ function requireFeatureServerCompatibleAttachmentQuery(request: AttachmentQuery 
       "geoservices-feature-service: AttachmentQuery.parentIds is required on the FeatureServer queryAttachments endpoint; the server returns 400 when objectIds is empty. Pass at least one parent feature id, or call attachments.list(parentId) for a single feature.",
     );
   }
-  const numeric = parentIds.map(toAttachmentNumericId);
-  const dropped = parentIds.filter((_, index) => !Number.isFinite(numeric[index]));
-  if (dropped.length > 0) {
+  const invalid = parentIds.filter((id) => !isLongIntegerToken(id));
+  if (invalid.length > 0) {
     throw new Error(
-      `geoservices-feature-service: AttachmentQuery.parentIds must contain only numeric ObjectIDs; received non-numeric ${JSON.stringify(dropped)}. The FeatureServer queryAttachments endpoint accepts long-integer feature ids only.`,
+      `geoservices-feature-service: AttachmentQuery.parentIds must contain only signed long-integer ObjectIDs; received non-integer ${JSON.stringify(invalid)}. The FeatureServer queryAttachments endpoint accepts long-integer feature ids only (no decimals, scientific notation, hex, blank tokens, or numerics outside the JS safe-integer range — pass long ids as strings).`,
     );
   }
-  return numeric;
+  return attachmentIdsToWireString(parentIds);
+}
+
+/**
+ * Mirror of `requireFeatureServerCompatibleAttachmentQuery` for the
+ * `attachmentIds` set on `AttachmentApi.delete`. The server's
+ * `deleteAttachments` route parses every entry as `long`, so the same
+ * strict integer-token contract applies; passing through `Number()`
+ * would silently round long-string ids and accept `""` as `0`.
+ */
+function requireFeatureServerCompatibleAttachmentIds(ids: ReadonlyArray<FeatureId>): string {
+  if (ids.length === 0) {
+    throw new Error(
+      "geoservices-feature-service: AttachmentDelete.attachmentIds must contain at least one id; the FeatureServer deleteAttachments endpoint requires the comma-separated attachmentIds parameter.",
+    );
+  }
+  const invalid = ids.filter((id) => !isLongIntegerToken(id));
+  if (invalid.length > 0) {
+    throw new Error(
+      `geoservices-feature-service: AttachmentDelete.attachmentIds must contain only signed long-integer ids; received non-integer ${JSON.stringify(invalid)}. The FeatureServer deleteAttachments endpoint accepts long-integer ids only (no decimals, scientific notation, hex, blank tokens, or numerics outside the JS safe-integer range — pass long ids as strings).`,
+    );
+  }
+  return attachmentIdsToWireString(ids);
 }
 
 // ── Built-in AdapterTypeMap augmentation ──────────────────────
