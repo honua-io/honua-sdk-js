@@ -1478,6 +1478,37 @@ export interface HonuaGeometrySimplifyRequest {
   signal?: AbortSignal;
 }
 
+/**
+ * Shared request shape for the binary GeometryServer operations
+ * (`intersect`, `clip`, `difference`). Honua Server reads `geometries` as
+ * the input set, `geometry` as the comparison operand, and `sr` as the
+ * shared spatial reference (see
+ * `Honua.Server/Features/Protocols/GeoServices/GeometryService/Services/GeometryServiceHandler.cs`
+ * `HandleBinaryGeometryOperationAsync`).
+ */
+export interface HonuaGeometryBinaryOperationRequest {
+  geometries: { geometryType: string; geometries: ReadonlyArray<Record<string, unknown>> } | string;
+  geometry: Record<string, unknown> | string;
+  sr: string | number | Record<string, unknown>;
+  responseFormat?: "json" | "pjson";
+  method?: QueryMethod;
+  extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
+}
+
+export type HonuaGeometryIntersectRequest = HonuaGeometryBinaryOperationRequest;
+export type HonuaGeometryClipRequest = HonuaGeometryBinaryOperationRequest;
+export type HonuaGeometryDifferenceRequest = HonuaGeometryBinaryOperationRequest;
+
+export interface HonuaGeometryUnionRequest {
+  geometries: { geometryType: string; geometries: ReadonlyArray<Record<string, unknown>> } | string;
+  sr: string | number | Record<string, unknown>;
+  responseFormat?: "json" | "pjson";
+  method?: QueryMethod;
+  extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
+}
+
 export interface HonuaGeometryOperationResponse {
   geometries?: ReadonlyArray<Record<string, unknown>>;
 }
@@ -1486,10 +1517,13 @@ export interface HonuaGeometryOperationResponse {
  * Wrapper over a Honua Geometry Service endpoint. Routes match the
  * canonical paths published by Honua Server's `EndpointRegistry`
  * (`/rest/services/Utilities/Geometry/GeometryServer/<op>`; see
- * `honua-server/docs/gis/geometry-service-matrix.md`). Operations not
- * implemented in Honua Server (autoComplete, convexHull, cut, etc.)
- * intentionally have no wrapper — callers that need them go through the
- * raw `request()` escape hatch and handle 404s themselves.
+ * `honua-server/docs/gis/geometry-service-matrix.md`). Wraps the
+ * server-supported operations: `project`, `buffer`, `simplify`,
+ * `intersect`, `union`, `clip`, `difference`. Operations not
+ * implemented in Honua Server (autoComplete, convexHull, cut,
+ * areasAndLengths/lengths measurement helpers, etc.) intentionally have
+ * no wrapper — callers that need them go through the raw `request()`
+ * escape hatch and handle 404s themselves.
  *
  * POST mode submits form-encoded bodies so the server's
  * `TryReadRequestValuesAsync` parser finds the parameters. GET mode keeps
@@ -1516,8 +1550,24 @@ export class HonuaGeometryService {
     return this.dispatch<HonuaGeometryOperationResponse>("simplify", request, geometrySimplifyParams(request));
   }
 
+  public async intersect(request: HonuaGeometryIntersectRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("intersect", request, geometryBinaryParams(request));
+  }
+
+  public async union(request: HonuaGeometryUnionRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("union", request, geometryUnionParams(request));
+  }
+
+  public async clip(request: HonuaGeometryClipRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("clip", request, geometryBinaryParams(request));
+  }
+
+  public async difference(request: HonuaGeometryDifferenceRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("difference", request, geometryBinaryParams(request));
+  }
+
   private async dispatch<R>(
-    op: "project" | "buffer" | "simplify",
+    op: "project" | "buffer" | "simplify" | "intersect" | "union" | "clip" | "difference",
     request: { method?: QueryMethod; responseFormat?: "json" | "pjson"; signal?: AbortSignal },
     params: Record<string, string | number | boolean>,
   ): Promise<R> {
@@ -1567,6 +1617,25 @@ function geometrySimplifyParams(request: HonuaGeometrySimplifyRequest): Record<s
     geometries: typeof request.geometries === "string" ? request.geometries : JSON.stringify(request.geometries),
   };
   if (request.sr !== undefined) params.sr = typeof request.sr === "object" ? JSON.stringify(request.sr) : String(request.sr);
+  Object.assign(params, request.extraParams ?? {});
+  return params;
+}
+
+function geometryBinaryParams(request: HonuaGeometryBinaryOperationRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {
+    geometries: typeof request.geometries === "string" ? request.geometries : JSON.stringify(request.geometries),
+    geometry: typeof request.geometry === "string" ? request.geometry : JSON.stringify(request.geometry),
+    sr: typeof request.sr === "object" ? JSON.stringify(request.sr) : String(request.sr),
+  };
+  Object.assign(params, request.extraParams ?? {});
+  return params;
+}
+
+function geometryUnionParams(request: HonuaGeometryUnionRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {
+    geometries: typeof request.geometries === "string" ? request.geometries : JSON.stringify(request.geometries),
+    sr: typeof request.sr === "object" ? JSON.stringify(request.sr) : String(request.sr),
+  };
   Object.assign(params, request.extraParams ?? {});
   return params;
 }

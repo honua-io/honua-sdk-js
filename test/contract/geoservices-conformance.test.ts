@@ -691,6 +691,118 @@ describe("contract / GeoServices Geometry Service parity", () => {
     await expect(source.attachments.list(1)).rejects.toThrow(HonuaCapabilityNotSupportedError);
   });
 
+  it("intersect / union / clip / difference route through their EndpointRegistry paths", async () => {
+    const observed: Record<string, { method?: string; body?: string }> = {};
+    const captureRoute = (op: string) =>
+      [
+        `/rest/services/Utilities/Geometry/GeometryServer/${op}`,
+        async (_url: URL, init: RequestInit | undefined) => {
+          observed[op] = {
+            method: init?.method,
+            body: typeof init?.body === "string" ? init.body : undefined,
+          };
+          return jsonResponse(geometryProjectResponse());
+        },
+      ] as [string, (url: URL, init: RequestInit | undefined) => Promise<Response>];
+    const client = makeMockClient({
+      routes: [
+        captureRoute("intersect"),
+        captureRoute("union"),
+        captureRoute("clip"),
+        captureRoute("difference"),
+      ],
+    });
+    const dataset = createDataset({
+      id: "geom",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "geom-svc",
+          protocol: "geoservices-geometry-service",
+          locator: { url: "https://mock/" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-geometry-service"],
+        },
+      ],
+    });
+    const adapter = dataset.source("geom-svc")!.protocol("geoservices-geometry-service")!;
+
+    const inputGeoms = {
+      geometryType: "esriGeometryPolygon",
+      geometries: [{ rings: [[[-120, 38], [-119, 38], [-119, 39], [-120, 39], [-120, 38]]] }],
+    } as const;
+    const operatorGeom = { rings: [[[-120, 38], [-119.5, 38], [-119.5, 39], [-120, 39], [-120, 38]]] };
+
+    // Binary ops (intersect / clip / difference) all carry geometries, geometry, sr.
+    await adapter.intersect({ geometries: inputGeoms, geometry: operatorGeom, sr: 4326 });
+    expect(observed.intersect.method).toBe("POST");
+    expect(observed.intersect.body).toContain("geometries=");
+    expect(observed.intersect.body).toContain("geometry=");
+    expect(observed.intersect.body).toContain("sr=4326");
+    expect(observed.intersect.body).toContain("f=json");
+
+    await adapter.clip({ geometries: inputGeoms, geometry: operatorGeom, sr: 4326 });
+    expect(observed.clip.method).toBe("POST");
+    expect(observed.clip.body).toContain("geometry=");
+    expect(observed.clip.body).toContain("sr=4326");
+
+    await adapter.difference({ geometries: inputGeoms, geometry: operatorGeom, sr: 4326 });
+    expect(observed.difference.method).toBe("POST");
+    expect(observed.difference.body).toContain("geometry=");
+
+    // Union skips the comparison geometry.
+    await adapter.union({ geometries: inputGeoms, sr: 4326 });
+    expect(observed.union.method).toBe("POST");
+    expect(observed.union.body).toContain("geometries=");
+    expect(observed.union.body).toContain("sr=4326");
+    expect(observed.union.body).not.toContain("geometry=");
+  });
+
+  it("intersect serializes its params on the URL when method=GET (no body)", async () => {
+    let observedMethod: string | undefined;
+    let observedBody: unknown;
+    let observedGeometryParam: string | null = null;
+    let observedSr: string | null = null;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/rest/services/Utilities/Geometry/GeometryServer/intersect",
+          (url, init) => {
+            observedMethod = init?.method;
+            observedBody = init?.body ?? undefined;
+            observedGeometryParam = url.searchParams.get("geometry");
+            observedSr = url.searchParams.get("sr");
+            return jsonResponse(geometryProjectResponse());
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "geom",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "geom-svc",
+          protocol: "geoservices-geometry-service",
+          locator: { url: "https://mock/" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-geometry-service"],
+        },
+      ],
+    });
+    const adapter = dataset.source("geom-svc")!.protocol("geoservices-geometry-service")!;
+    await adapter.intersect({
+      geometries: { geometryType: "esriGeometryPoint", geometries: [{ x: -120, y: 38 }] },
+      geometry: { x: -119, y: 38 },
+      sr: 4326,
+      method: "GET",
+    });
+    expect(observedMethod).toBe("GET");
+    expect(observedBody).toBeUndefined();
+    expect(observedGeometryParam).toContain("\"x\":-119");
+    expect(observedSr).toBe("4326");
+  });
+
   it("GET mode keeps geometry params in the query string with no body", async () => {
     let observedMethod: string | undefined;
     let observedBody: unknown;
