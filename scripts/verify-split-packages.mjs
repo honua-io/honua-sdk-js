@@ -56,11 +56,20 @@ try {
   );
 
   const smokeScript = `
-import { HonuaClient, HonuaMapLayer } from "@honua/sdk";
+import {
+  HonuaClient,
+  HonuaGeometryService,
+  HonuaGeoprocessingService,
+  HonuaImageService,
+  HonuaMapLayer,
+} from "@honua/sdk";
 import {
   CAPABILITIES,
   PROTOCOLS,
   createDataset,
+  geoServicesGPServiceSource,
+  geoServicesGeometryServiceSource,
+  geoServicesImageSource,
 } from "@honua/sdk/contract";
 import {
   EMPTY_STATE,
@@ -156,12 +165,24 @@ import {
 
 if (typeof HonuaClient !== "function") throw new Error("HonuaClient export missing");
 if (typeof HonuaMapLayer !== "function") throw new Error("HonuaMapLayer export missing");
+if (typeof HonuaImageService !== "function")
+  throw new Error("HonuaImageService export missing from @honua/sdk");
+if (typeof HonuaGeometryService !== "function")
+  throw new Error("HonuaGeometryService export missing from @honua/sdk");
+if (typeof HonuaGeoprocessingService !== "function")
+  throw new Error("HonuaGeoprocessingService export missing from @honua/sdk");
 if (!Array.isArray(CAPABILITIES) || CAPABILITIES.length === 0)
   throw new Error("CAPABILITIES export missing from @honua/sdk/contract");
 if (!Array.isArray(PROTOCOLS) || PROTOCOLS.length === 0)
   throw new Error("PROTOCOLS export missing from @honua/sdk/contract");
 if (typeof createDataset !== "function")
   throw new Error("createDataset export missing from @honua/sdk/contract");
+if (typeof geoServicesImageSource !== "function")
+  throw new Error("geoServicesImageSource export missing from @honua/sdk/contract");
+if (typeof geoServicesGeometryServiceSource !== "function")
+  throw new Error("geoServicesGeometryServiceSource export missing from @honua/sdk/contract");
+if (typeof geoServicesGPServiceSource !== "function")
+  throw new Error("geoServicesGPServiceSource export missing from @honua/sdk/contract");
 if (typeof EMPTY_STATE !== "object" || EMPTY_STATE === null)
   throw new Error("EMPTY_STATE export missing from @honua/sdk/exploration");
 if (typeof LINKED_VIEW_PRESETS !== "object" || LINKED_VIEW_PRESETS === null)

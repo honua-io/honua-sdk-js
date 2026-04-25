@@ -115,3 +115,160 @@ export function ogcItemsResponse(
     numberReturned: features.length,
   };
 }
+
+// ── GeoServices edit / related / attachment fixtures ─────────
+
+export function geoservicesApplyEditsResponse(): {
+  addResults?: Array<{ objectId: number; success: boolean }>;
+  updateResults?: Array<{ objectId: number; success: boolean }>;
+  deleteResults?: Array<{ objectId: number; success: boolean }>;
+} {
+  return {
+    addResults: [{ objectId: 99, success: true }],
+    updateResults: [{ objectId: 1, success: true }],
+    deleteResults: [{ objectId: 3, success: true }],
+  };
+}
+
+export function geoservicesObjectIdsResponse(): { objectIds: number[]; objectIdFieldName: string } {
+  return { objectIds: [1, 2, 3], objectIdFieldName: "OBJECTID" };
+}
+
+export function geoservicesRelatedRecordsResponse(): {
+  relatedRecordGroups: Array<{
+    objectId: number;
+    relatedRecords: Array<{ attributes: Record<string, unknown>; geometry?: null }>;
+  }>;
+  fields: Array<{ name: string; type: string }>;
+} {
+  return {
+    relatedRecordGroups: [
+      {
+        objectId: 1,
+        relatedRecords: [
+          { attributes: { OBJECTID: 11, NOTE: "permit-A" } },
+          { attributes: { OBJECTID: 12, NOTE: "permit-B" } },
+        ],
+      },
+    ],
+    fields: [
+      { name: "OBJECTID", type: "esriFieldTypeOID" },
+      { name: "NOTE", type: "esriFieldTypeString" },
+    ],
+  };
+}
+
+export function geoservicesAttachmentInfosResponse(): {
+  attachmentInfos: Array<{ id: number; name: string; contentType: string; size: number; parentObjectId: number }>;
+} {
+  return {
+    attachmentInfos: [
+      { id: 7, parentObjectId: 1, name: "deed.pdf", contentType: "application/pdf", size: 1024 },
+    ],
+  };
+}
+
+export function geoservicesQueryAttachmentsResponse(): {
+  attachmentGroups: Array<{
+    parentObjectId: number;
+    attachmentInfos: Array<{ id: number; name: string; contentType: string; size: number }>;
+  }>;
+} {
+  return {
+    attachmentGroups: [
+      {
+        parentObjectId: 1,
+        attachmentInfos: [{ id: 7, name: "deed.pdf", contentType: "application/pdf", size: 1024 }],
+      },
+    ],
+  };
+}
+
+export function geoservicesAddAttachmentResponse(): {
+  addAttachmentResult: { objectId: number; success: boolean };
+} {
+  return { addAttachmentResult: { objectId: 7, success: true } };
+}
+
+export function geoservicesUpdateAttachmentResponse(): {
+  updateAttachmentResult: { objectId: number; success: boolean };
+} {
+  return { updateAttachmentResult: { objectId: 7, success: true } };
+}
+
+export function geoservicesDeleteAttachmentsResponse(): {
+  deleteAttachmentResults: Array<{ objectId: number; success: boolean }>;
+} {
+  return { deleteAttachmentResults: [{ objectId: 7, success: true }] };
+}
+
+// ── ImageServer fixtures ─────────────────────────────────────
+
+export function imageServerCatalogResponse(): import("../../src/core/types.js").HonuaQueryResponse {
+  return {
+    objectIdFieldName: "OBJECTID",
+    fields: [
+      { name: "OBJECTID", type: "esriFieldTypeOID" },
+      { name: "Name", type: "esriFieldTypeString" },
+    ],
+    features: [
+      {
+        attributes: { OBJECTID: 101, Name: "tile_a" },
+        geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+      },
+      {
+        attributes: { OBJECTID: 102, Name: "tile_b" },
+        geometry: { xmin: -120, ymin: 37, xmax: -117, ymax: 45 },
+      },
+    ],
+    exceededTransferLimit: false,
+  };
+}
+
+export function imageServerExportResponse(): import("../../src/core/types.js").HonuaExportMapResponse {
+  return {
+    href: "https://mock/export/abcd.png",
+    width: 256,
+    height: 256,
+    extent: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+    scale: 1,
+  };
+}
+
+export function imageServerIdentifyResponse(): import("../../src/core/types.js").HonuaIdentifyResponse {
+  return {
+    results: [
+      {
+        layerId: 0,
+        layerName: "Imagery",
+        attributes: { Pixel: "12.4" },
+      },
+    ],
+  };
+}
+
+// ── Geometry Service fixtures ────────────────────────────────
+
+export function geometryProjectResponse(): { geometries: Array<Record<string, unknown>> } {
+  return {
+    geometries: [{ x: 100, y: 200, spatialReference: { wkid: 3857 } }],
+  };
+}
+
+export function geometryBufferResponse(): { geometries: Array<Record<string, unknown>> } {
+  return {
+    geometries: [
+      { rings: [[[-122, 37], [-122, 38], [-121, 38], [-121, 37], [-122, 37]]] },
+    ],
+  };
+}
+
+// ── GP Service fixtures ──────────────────────────────────────
+
+export function gpSubmitJobResponse(): { jobId: string; jobStatus: string } {
+  return { jobId: "job-001", jobStatus: "esriJobSubmitted" };
+}
+
+export function gpJobStatusResponse(): { jobId: string; jobStatus: string } {
+  return { jobId: "job-001", jobStatus: "esriJobSucceeded" };
+}

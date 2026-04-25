@@ -128,6 +128,16 @@ destinations, using the alignment table in
 | `raster_tile` / `ogc_maps` | MapLibre-native | Projected to a `{ type: "raster", tiles: [url], attribution? }` source entry. |
 | `workspace_artifact` | deferred | Throws `HonuaMapPackageError { stage: "source-bind" }` — no artifact resolver is wired yet. |
 
+`geoservices-image-service`, `geoservices-geometry-service`, and
+`geoservices-gp-service` are contract-layer adapters (constructed
+directly via `geoServicesImageSource`, `geoServicesGeometryServiceSource`,
+`geoServicesGPServiceSource`) and are not currently translated by
+`source-bridge.ts`. ImageServer / Geometry / GP bindings on a
+`MapPackage` are rejected at `stage: "source-bind"` because those
+services are typically utility / non-map surfaces; routing them through
+the runtime is a follow-on for downstream tickets that need ImageServer
+rasters or geoprocessing tasks composed alongside a map.
+
 Additional contract:
 
 - Duplicate `sourceId` across bindings is rejected at

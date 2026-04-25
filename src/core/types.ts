@@ -204,6 +204,7 @@ export interface ApplyEditsRequest {
   updates?: HonuaFeature[];
   deletes?: number[] | string;
   rollbackOnFailure?: boolean;
+  signal?: AbortSignal;
 }
 
 export type HonuaTransport = "rest" | "grpc-web";
@@ -326,6 +327,7 @@ export interface OgcItemRequest extends OgcCollectionRequest {
 export interface OgcCreateItemRequest extends OgcCollectionRequest {
   feature: GeoJsonFeature | Record<string, unknown>;
   headers?: HeadersInit;
+  signal?: AbortSignal;
 }
 
 export interface OgcReplaceItemRequest extends OgcItemRequest {

@@ -145,10 +145,13 @@ const harnesses: Harness[] = [
 ];
 
 describe("contract / Protocol enum", () => {
-  it("includes all nine canonical protocols", () => {
+  it("includes all twelve canonical protocols (five GeoServices service types, OGC, WFS/WMS/OData, MapLibre-native)", () => {
     expect(PROTOCOLS).toEqual([
       "geoservices-feature-service",
       "geoservices-map-service",
+      "geoservices-image-service",
+      "geoservices-geometry-service",
+      "geoservices-gp-service",
       "ogc-features",
       "wfs",
       "wms",
@@ -228,6 +231,13 @@ describe("contract / Dataset", () => {
 
   it("invokes resolveSource for adapter-wrapped protocols and uses the returned source", async () => {
     const client = makeMockClient({ routes: [] });
+    const stubAttachments = {
+      query: async () => [],
+      list: async () => [],
+      add: async () => ({ success: false, error: { code: 0, description: "stub" } }),
+      update: async () => ({ success: false, error: { code: 0, description: "stub" } }),
+      delete: async () => [],
+    };
     const stubSource: Source = {
       descriptor: {
         id: "wfs-1",
@@ -242,6 +252,11 @@ describe("contract / Dataset", () => {
       queryExtent: async () => ({ extent: null }),
       // eslint-disable-next-line @typescript-eslint/no-empty-function, require-yield
       stream: async function* () {},
+      queryObjectIds: async () => [],
+      applyEdits: async () => ({ added: [], updated: [], deleted: [] }),
+      queryRelated: async () => ({ groups: [] }),
+      attachments: stubAttachments,
+      protocol: () => undefined,
       adapter: () => undefined,
     };
     const dataset = createDataset({

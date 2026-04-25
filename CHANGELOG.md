@@ -36,11 +36,20 @@ All notable changes to the Honua JS SDK will be documented in this file.
 ### Added
 
 - Canonical shared client contract at `@honua/sdk-js/contract`: `Dataset`, `Source`, `SourceDescriptor`,
-  `Capabilities`, `Query`, `Result`, and `MapBinding` types plus `createDataset(...)` with built-in adapters
-  for `geoservices-feature-service`, `geoservices-map-service`, and `ogc-features`; WFS / WMS / OData plug
-  in through `CreateDatasetOptions.resolveSource`. Capability policy defaults to `strict` (missing
-  capabilities throw `HonuaCapabilityNotSupportedError`); `degraded` opts into client-side fallbacks that
-  surface `Result.degraded[]`.
+  `Capabilities`, `Query`, `Result`, `EditEnvelope`, `EditResult`, `RelatedQuery` / `RelatedResult`,
+  `AttachmentApi`, and `MapBinding` types plus `createDataset(...)` with built-in adapters for the five
+  GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`,
+  `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`) and `ogc-features`;
+  WFS / WMS / OData plug in through `CreateDatasetOptions.resolveSource`. Image / Geometry / GP services
+  expose `exportImage` / `identify` / `project` / `buffer` / `simplify` / `intersect` / `union` / `clip` /
+  `difference` / `submitJob` / `jobStatus` / `cancelJob` / `jobResult` through the typed
+  `Source.protocol(kind)` escape hatch (the legacy `Source.adapter(kind)` accessor remains as an alias).
+  Capability policy defaults to `strict` (missing capabilities throw `HonuaCapabilityNotSupportedError`);
+  `degraded` opts into client-side fallbacks that surface `Result.degraded[]`. `SourceLocator.taskName`
+  carries the GP Service task identifier so a single descriptor uniquely identifies an async task.
+  The ImageServer adapter rejects `Query.spatialFilter` / `Query.orderBy` / `Query.outFields` instead of
+  silently widening the catalog result. OGC `applyEdits` per-item failures preserve `HonuaHttpError.statusCode`
+  on the `EditOutcome.error.code` rather than collapsing to `500`.
 - Exploration state module at `@honua/sdk-js/exploration`: `createExplorationContext(...)` with a
   microtask-coalesced reducer over filters, spatial filter, extent, selection, sort, pagination, visible
   fields, grouping, and aggregation; five linked-view presets (`globalLinked`, `mapDriven`, `gridDriven`,

@@ -63,9 +63,7 @@ export type HonuaFeatureLayerQueryAllRequest = HonuaFeatureLayerQueryRequest & {
 export type HonuaFeatureLayerQueryCountRequest = Pick<QueryFeaturesRequest, "where" | "method"> & {
   extraParams?: Record<string, string | number | boolean>;
 };
-export type HonuaFeatureLayerQueryObjectIdsRequest = Pick<QueryFeaturesRequest, "where" | "method"> & {
-  extraParams?: Record<string, string | number | boolean>;
-};
+export type HonuaFeatureLayerQueryObjectIdsRequest = HonuaFeatureLayerQueryRequest;
 export type HonuaFeatureLayerQueryExtentRequest = HonuaFeatureLayerQueryCountRequest;
 export type HonuaFeatureLayerQueryRelatedRecordsRequest = Omit<QueryRelatedRecordsRequest, "serviceId" | "layerId">;
 export type HonuaFeatureLayerApplyEditsRequest = Omit<ApplyEditsRequest, "serviceId" | "layerId">;
@@ -79,17 +77,20 @@ export interface HonuaFeatureLayerQueryAttachmentsRequest {
   method?: QueryMethod;
   responseFormat?: "json" | "pjson";
   extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
 }
 export interface HonuaFeatureLayerListAttachmentsRequest {
   objectId: number | string;
   responseFormat?: "json" | "pjson";
   extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
 }
 export interface HonuaFeatureLayerDeleteAttachmentsRequest {
   objectId: number | string;
   attachmentIds: readonly number[] | string;
   responseFormat?: "json" | "pjson";
   extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
 }
 export type HonuaFeatureLayerAttachmentData = Blob | File | string;
 export interface HonuaFeatureLayerAddAttachmentRequest {
@@ -99,6 +100,7 @@ export interface HonuaFeatureLayerAddAttachmentRequest {
   contentType?: string;
   responseFormat?: "json" | "pjson";
   extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
 }
 export interface HonuaFeatureLayerUpdateAttachmentRequest extends HonuaFeatureLayerAddAttachmentRequest {
   attachmentId: number | string;
@@ -139,9 +141,7 @@ export type HonuaMapLayerQueryRelatedRecordsRequest = Omit<MapRelatedRecordsRequ
 export type HonuaMapLayerQueryCountRequest = Pick<MapLayerQueryRequest, "where" | "method"> & {
   extraParams?: Record<string, string | number | boolean>;
 };
-export type HonuaMapLayerQueryObjectIdsRequest = Pick<MapLayerQueryRequest, "where" | "method"> & {
-  extraParams?: Record<string, string | number | boolean>;
-};
+export type HonuaMapLayerQueryObjectIdsRequest = HonuaMapLayerQueryRequest;
 export type HonuaMapLayerQueryExtentRequest = HonuaMapLayerQueryCountRequest;
 export interface HonuaMapLayerQueryExtentResponse {
   extent: HonuaExtent | null;
@@ -413,12 +413,12 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
 
   public async queryObjectIds(request: HonuaFeatureLayerQueryObjectIdsRequest = {}): Promise<number[]> {
     const response = await this.client.queryFeatures({
+      ...request,
       serviceId: this.serviceId,
       layerId: this.layerId,
       where: request.where ?? "1=1",
       returnGeometry: false,
-      outFields: "OBJECTID",
-      method: request.method,
+      outFields: request.outFields ?? "OBJECTID",
       extraParams: {
         returnIdsOnly: true,
         ...request.extraParams,
@@ -497,6 +497,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         path,
         responseFormat: request.responseFormat ?? "json",
         query,
+        signal: request.signal,
       }) as Promise<HonuaQueryAttachmentsResponse>;
     }
 
@@ -511,6 +512,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body,
+      signal: request.signal,
     }) as Promise<HonuaQueryAttachmentsResponse>;
   }
 
@@ -522,6 +524,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         `/FeatureServer/${this.layerId}/${request.objectId}/attachments`,
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
+      signal: request.signal,
     }) as Promise<HonuaAttachmentListResponse>;
   }
 
@@ -542,6 +545,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body,
+      signal: request.signal,
     });
   }
 
@@ -555,6 +559,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
       body: form,
+      signal: request.signal,
     });
   }
 
@@ -571,6 +576,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
       body: form,
+      signal: request.signal,
     });
   }
 
@@ -951,10 +957,10 @@ export class HonuaMapLayer {
 
   public async queryObjectIds(request: HonuaMapLayerQueryObjectIdsRequest = {}): Promise<number[]> {
     const response = await this.queryFeatures({
+      ...request,
       where: request.where ?? "1=1",
       returnGeometry: false,
-      outFields: "OBJECTID",
-      method: request.method,
+      outFields: request.outFields ?? "OBJECTID",
       extraParams: {
         returnIdsOnly: true,
         ...request.extraParams,
@@ -1234,6 +1240,501 @@ export function createHonuaOgcFeatures(client: HonuaClient): HonuaOgcFeatures {
   return new HonuaOgcFeatures({
     client,
   });
+}
+
+// ── ImageServer ───────────────────────────────
+
+export interface HonuaImageServiceOptions {
+  client: HonuaClient;
+  serviceId: string;
+}
+
+export type HonuaImageServiceQueryRequest = HonuaFeatureLayerQueryRequest;
+
+/** Optional ImageServer raster export. Mirrors Esri `exportImage` parameters. */
+export interface HonuaImageServiceExportRequest {
+  bbox?: string | [number, number, number, number];
+  size?: string | [number, number];
+  format?: string;
+  pixelType?: string;
+  noData?: number | string;
+  interpolation?: string;
+  compressionQuality?: number;
+  bandIds?: readonly number[] | string;
+  mosaicRule?: Record<string, unknown> | string;
+  renderingRule?: Record<string, unknown> | string;
+  imageSr?: string | number;
+  bboxSr?: string | number;
+  responseFormat?: "json" | "pjson";
+  method?: QueryMethod;
+  extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
+}
+
+export interface HonuaImageServiceIdentifyRequest {
+  geometry: string | Record<string, unknown>;
+  geometryType?: string;
+  sr?: string | number;
+  mosaicRule?: Record<string, unknown> | string;
+  renderingRule?: Record<string, unknown> | string;
+  pixelSize?: string | [number, number];
+  responseFormat?: "json" | "pjson";
+  method?: QueryMethod;
+  extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
+}
+
+/**
+ * Wrapper over a Honua ImageServer endpoint. Each operation maps to the
+ * server route published in
+ * `honua-server/docs/gis/image-server-matrix.md`. The wrapper does not
+ * downgrade to a generic raw call: it carries a typed request shape so
+ * the contract layer can negotiate capabilities and the server can
+ * branch on a stable method name.
+ */
+export class HonuaImageService {
+  public readonly client: HonuaClient;
+  public readonly serviceId: string;
+
+  public constructor(options: HonuaImageServiceOptions) {
+    this.client = options.client;
+    this.serviceId = options.serviceId;
+  }
+
+  public async metadata(): Promise<HonuaServiceMetadata> {
+    return this.client.request<HonuaServiceMetadata>({
+      method: "GET",
+      path: `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer`,
+      responseFormat: "json",
+    });
+  }
+
+  public async queryRasterCatalog(request: HonuaImageServiceQueryRequest = {}): Promise<HonuaQueryResponse> {
+    return this.dispatch<HonuaQueryResponse>("query", request, imageQueryParams(request));
+  }
+
+  public async queryRasterCatalogObjectIds(request: HonuaImageServiceQueryRequest = {}): Promise<number[]> {
+    const response = await this.dispatch<{ objectIds?: Array<number | string> }>(
+      "query",
+      request,
+      { ...imageQueryParams(request), where: request.where ?? "1=1", returnIdsOnly: true },
+    );
+    if (!Array.isArray(response.objectIds)) return [];
+    return response.objectIds.map((v) => Number(v)).filter((v) => Number.isFinite(v));
+  }
+
+  public async exportImage(request: HonuaImageServiceExportRequest): Promise<HonuaExportMapResponse> {
+    return this.dispatch<HonuaExportMapResponse>("exportImage", request, imageExportParams(request));
+  }
+
+  public async identify(request: HonuaImageServiceIdentifyRequest): Promise<HonuaIdentifyResponse> {
+    return this.dispatch<HonuaIdentifyResponse>("identify", request, imageIdentifyParams(request));
+  }
+
+  /**
+   * Dispatch an ImageServer operation. POST mode sends params as a
+   * form-encoded body so the server's `TryReadRequestValuesAsync` parser
+   * finds them (returns "Request body is required" otherwise); GET mode
+   * keeps params in the query string. Both encodings are accepted by
+   * Honua Server per its ImageServer endpoint registration.
+   */
+  private async dispatch<R>(
+    op: "query" | "exportImage" | "identify",
+    request: { method?: QueryMethod; responseFormat?: "json" | "pjson"; signal?: AbortSignal },
+    params: Record<string, string | number | boolean>,
+  ): Promise<R> {
+    const method: QueryMethod = request.method ?? "GET";
+    const path = `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/${op}`;
+    const responseFormat = request.responseFormat ?? "json";
+    if (method === "GET") {
+      return this.client.request<R>({ method: "GET", path, responseFormat, query: params, signal: request.signal });
+    }
+    return this.client.request<R>({
+      method: "POST",
+      path,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: toFormBody({ f: responseFormat, ...params }),
+      signal: request.signal,
+    });
+  }
+
+  public tileUrl(level: number, row: number, col: number, format: "png" | "jpg" | "jpeg" | "tif" | "tiff" = "png"): string {
+    const path = `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/tile/${level}/${row}/${col}`;
+    return `${this.client.serverBaseUrl}${path}?f=${format}`;
+  }
+
+  public async legend(): Promise<HonuaLegendResponse> {
+    return this.client.request<HonuaLegendResponse>({
+      method: "GET",
+      path: `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/legend`,
+      responseFormat: "json",
+    });
+  }
+}
+
+function imageQueryParams(request: HonuaImageServiceQueryRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {};
+  if (request.where !== undefined) params.where = request.where;
+  if (request.outFields !== undefined) {
+    params.outFields = Array.isArray(request.outFields) ? request.outFields.join(",") : String(request.outFields);
+  }
+  if (request.objectIds !== undefined) {
+    params.objectIds = Array.isArray(request.objectIds) ? request.objectIds.join(",") : String(request.objectIds);
+  }
+  if (request.returnGeometry !== undefined) params.returnGeometry = request.returnGeometry;
+  if (request.outSr !== undefined) params.outSR = String(request.outSr);
+  if (request.resultOffset !== undefined) params.resultOffset = request.resultOffset;
+  if (request.resultRecordCount !== undefined) params.resultRecordCount = request.resultRecordCount;
+  if (request.geometry !== undefined) params.geometry = JSON.stringify(request.geometry);
+  if (request.geometryType !== undefined) params.geometryType = String(request.geometryType);
+  if (request.spatialRel !== undefined) params.spatialRel = String(request.spatialRel);
+  Object.assign(params, request.extraParams ?? {});
+  return params;
+}
+
+function imageExportParams(request: HonuaImageServiceExportRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {};
+  if (request.bbox !== undefined) {
+    params.bbox = Array.isArray(request.bbox) ? request.bbox.join(",") : request.bbox;
+  }
+  if (request.size !== undefined) {
+    params.size = Array.isArray(request.size) ? request.size.join(",") : request.size;
+  }
+  if (request.format !== undefined) params.format = request.format;
+  if (request.pixelType !== undefined) params.pixelType = request.pixelType;
+  if (request.noData !== undefined) params.noData = request.noData;
+  if (request.interpolation !== undefined) params.interpolation = request.interpolation;
+  if (request.compressionQuality !== undefined) params.compressionQuality = request.compressionQuality;
+  if (request.bandIds !== undefined) {
+    params.bandIds = Array.isArray(request.bandIds) ? request.bandIds.join(",") : String(request.bandIds);
+  }
+  if (request.mosaicRule !== undefined) {
+    params.mosaicRule = typeof request.mosaicRule === "string" ? request.mosaicRule : JSON.stringify(request.mosaicRule);
+  }
+  if (request.renderingRule !== undefined) {
+    params.renderingRule = typeof request.renderingRule === "string" ? request.renderingRule : JSON.stringify(request.renderingRule);
+  }
+  if (request.imageSr !== undefined) params.imageSR = String(request.imageSr);
+  if (request.bboxSr !== undefined) params.bboxSR = String(request.bboxSr);
+  Object.assign(params, request.extraParams ?? {});
+  return params;
+}
+
+function imageIdentifyParams(request: HonuaImageServiceIdentifyRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {};
+  params.geometry = typeof request.geometry === "string" ? request.geometry : JSON.stringify(request.geometry);
+  if (request.geometryType !== undefined) params.geometryType = request.geometryType;
+  if (request.sr !== undefined) params.sr = String(request.sr);
+  if (request.mosaicRule !== undefined) {
+    params.mosaicRule = typeof request.mosaicRule === "string" ? request.mosaicRule : JSON.stringify(request.mosaicRule);
+  }
+  if (request.renderingRule !== undefined) {
+    params.renderingRule = typeof request.renderingRule === "string" ? request.renderingRule : JSON.stringify(request.renderingRule);
+  }
+  if (request.pixelSize !== undefined) {
+    params.pixelSize = Array.isArray(request.pixelSize) ? request.pixelSize.join(",") : request.pixelSize;
+  }
+  Object.assign(params, request.extraParams ?? {});
+  return params;
+}
+
+// ── Geometry Service ──────────────────────────
+
+export interface HonuaGeometryServiceOptions {
+  client: HonuaClient;
+}
+
+export interface HonuaGeometryProjectRequest {
+  geometries: { geometryType: string; geometries: ReadonlyArray<Record<string, unknown>> } | string;
+  inSr: string | number | Record<string, unknown>;
+  outSr: string | number | Record<string, unknown>;
+  responseFormat?: "json" | "pjson";
+  method?: QueryMethod;
+  extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
+}
+
+export interface HonuaGeometryBufferRequest {
+  geometries: { geometryType: string; geometries: ReadonlyArray<Record<string, unknown>> } | string;
+  distances: readonly number[] | string;
+  unit?: string | number;
+  inSr?: string | number | Record<string, unknown>;
+  outSr?: string | number | Record<string, unknown>;
+  bufferSr?: string | number | Record<string, unknown>;
+  unionResults?: boolean;
+  geodesic?: boolean;
+  responseFormat?: "json" | "pjson";
+  method?: QueryMethod;
+  extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
+}
+
+export interface HonuaGeometrySimplifyRequest {
+  geometries: { geometryType: string; geometries: ReadonlyArray<Record<string, unknown>> } | string;
+  sr?: string | number | Record<string, unknown>;
+  responseFormat?: "json" | "pjson";
+  method?: QueryMethod;
+  extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
+}
+
+/**
+ * Shared request shape for the binary GeometryServer operations
+ * (`intersect`, `clip`, `difference`). Honua Server reads `geometries` as
+ * the input set, `geometry` as the comparison operand, and `sr` as the
+ * shared spatial reference (see
+ * `Honua.Server/Features/Protocols/GeoServices/GeometryService/Services/GeometryServiceHandler.cs`
+ * `HandleBinaryGeometryOperationAsync`).
+ */
+export interface HonuaGeometryBinaryOperationRequest {
+  geometries: { geometryType: string; geometries: ReadonlyArray<Record<string, unknown>> } | string;
+  geometry: Record<string, unknown> | string;
+  sr: string | number | Record<string, unknown>;
+  responseFormat?: "json" | "pjson";
+  method?: QueryMethod;
+  extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
+}
+
+export type HonuaGeometryIntersectRequest = HonuaGeometryBinaryOperationRequest;
+export type HonuaGeometryClipRequest = HonuaGeometryBinaryOperationRequest;
+export type HonuaGeometryDifferenceRequest = HonuaGeometryBinaryOperationRequest;
+
+export interface HonuaGeometryUnionRequest {
+  geometries: { geometryType: string; geometries: ReadonlyArray<Record<string, unknown>> } | string;
+  sr: string | number | Record<string, unknown>;
+  responseFormat?: "json" | "pjson";
+  method?: QueryMethod;
+  extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
+}
+
+export interface HonuaGeometryOperationResponse {
+  geometries?: ReadonlyArray<Record<string, unknown>>;
+}
+
+/**
+ * Wrapper over a Honua Geometry Service endpoint. Routes match the
+ * canonical paths published by Honua Server's `EndpointRegistry`
+ * (`/rest/services/Utilities/Geometry/GeometryServer/<op>`; see
+ * `honua-server/docs/gis/geometry-service-matrix.md`). Wraps the
+ * server-supported operations: `project`, `buffer`, `simplify`,
+ * `intersect`, `union`, `clip`, `difference`. Operations not
+ * implemented in Honua Server (autoComplete, convexHull, cut,
+ * areasAndLengths/lengths measurement helpers, etc.) intentionally have
+ * no wrapper — callers that need them go through the raw `request()`
+ * escape hatch and handle 404s themselves.
+ *
+ * POST mode submits form-encoded bodies so the server's
+ * `TryReadRequestValuesAsync` parser finds the parameters. GET mode keeps
+ * params in the query string (the server accepts both).
+ */
+const GEOMETRY_SERVICE_ROOT = "/rest/services/Utilities/Geometry/GeometryServer";
+
+export class HonuaGeometryService {
+  public readonly client: HonuaClient;
+
+  public constructor(options: HonuaGeometryServiceOptions) {
+    this.client = options.client;
+  }
+
+  public async project(request: HonuaGeometryProjectRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("project", request, geometryProjectParams(request));
+  }
+
+  public async buffer(request: HonuaGeometryBufferRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("buffer", request, geometryBufferParams(request));
+  }
+
+  public async simplify(request: HonuaGeometrySimplifyRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("simplify", request, geometrySimplifyParams(request));
+  }
+
+  public async intersect(request: HonuaGeometryIntersectRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("intersect", request, geometryBinaryParams(request));
+  }
+
+  public async union(request: HonuaGeometryUnionRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("union", request, geometryUnionParams(request));
+  }
+
+  public async clip(request: HonuaGeometryClipRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("clip", request, geometryBinaryParams(request));
+  }
+
+  public async difference(request: HonuaGeometryDifferenceRequest): Promise<HonuaGeometryOperationResponse> {
+    return this.dispatch<HonuaGeometryOperationResponse>("difference", request, geometryBinaryParams(request));
+  }
+
+  private async dispatch<R>(
+    op: "project" | "buffer" | "simplify" | "intersect" | "union" | "clip" | "difference",
+    request: { method?: QueryMethod; responseFormat?: "json" | "pjson"; signal?: AbortSignal },
+    params: Record<string, string | number | boolean>,
+  ): Promise<R> {
+    const method: QueryMethod = request.method ?? "POST";
+    const path = `${GEOMETRY_SERVICE_ROOT}/${op}`;
+    const responseFormat = request.responseFormat ?? "json";
+    if (method === "GET") {
+      return this.client.request<R>({ method: "GET", path, responseFormat, query: params, signal: request.signal });
+    }
+    return this.client.request<R>({
+      method: "POST",
+      path,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: toFormBody({ f: responseFormat, ...params }),
+      signal: request.signal,
+    });
+  }
+}
+
+function geometryProjectParams(request: HonuaGeometryProjectRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {
+    geometries: typeof request.geometries === "string" ? request.geometries : JSON.stringify(request.geometries),
+    inSR: typeof request.inSr === "string" || typeof request.inSr === "number" ? String(request.inSr) : JSON.stringify(request.inSr),
+    outSR: typeof request.outSr === "string" || typeof request.outSr === "number" ? String(request.outSr) : JSON.stringify(request.outSr),
+  };
+  Object.assign(params, request.extraParams ?? {});
+  return params;
+}
+
+function geometryBufferParams(request: HonuaGeometryBufferRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {
+    geometries: typeof request.geometries === "string" ? request.geometries : JSON.stringify(request.geometries),
+    distances: Array.isArray(request.distances) ? request.distances.join(",") : String(request.distances),
+  };
+  if (request.unit !== undefined) params.unit = request.unit;
+  if (request.inSr !== undefined) params.inSR = typeof request.inSr === "object" ? JSON.stringify(request.inSr) : String(request.inSr);
+  if (request.outSr !== undefined) params.outSR = typeof request.outSr === "object" ? JSON.stringify(request.outSr) : String(request.outSr);
+  if (request.bufferSr !== undefined) params.bufferSR = typeof request.bufferSr === "object" ? JSON.stringify(request.bufferSr) : String(request.bufferSr);
+  if (request.unionResults !== undefined) params.unionResults = request.unionResults;
+  if (request.geodesic !== undefined) params.geodesic = request.geodesic;
+  Object.assign(params, request.extraParams ?? {});
+  return params;
+}
+
+function geometrySimplifyParams(request: HonuaGeometrySimplifyRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {
+    geometries: typeof request.geometries === "string" ? request.geometries : JSON.stringify(request.geometries),
+  };
+  if (request.sr !== undefined) params.sr = typeof request.sr === "object" ? JSON.stringify(request.sr) : String(request.sr);
+  Object.assign(params, request.extraParams ?? {});
+  return params;
+}
+
+function geometryBinaryParams(request: HonuaGeometryBinaryOperationRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {
+    geometries: typeof request.geometries === "string" ? request.geometries : JSON.stringify(request.geometries),
+    geometry: typeof request.geometry === "string" ? request.geometry : JSON.stringify(request.geometry),
+    sr: typeof request.sr === "object" ? JSON.stringify(request.sr) : String(request.sr),
+  };
+  Object.assign(params, request.extraParams ?? {});
+  return params;
+}
+
+function geometryUnionParams(request: HonuaGeometryUnionRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {
+    geometries: typeof request.geometries === "string" ? request.geometries : JSON.stringify(request.geometries),
+    sr: typeof request.sr === "object" ? JSON.stringify(request.sr) : String(request.sr),
+  };
+  Object.assign(params, request.extraParams ?? {});
+  return params;
+}
+
+// ── GP Service ────────────────────────────────
+
+export interface HonuaGeoprocessingServiceOptions {
+  client: HonuaClient;
+  serviceId: string;
+  taskName?: string;
+}
+
+export interface HonuaGeoprocessingSubmitRequest {
+  parameters: Record<string, unknown>;
+  responseFormat?: "json" | "pjson";
+  method?: QueryMethod;
+  extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
+}
+
+export interface HonuaGeoprocessingJob {
+  jobId: string;
+  jobStatus: string;
+  results?: Record<string, unknown>;
+  messages?: ReadonlyArray<{ type: string; description: string }>;
+}
+
+/**
+ * Wrapper over a Honua GP Service task. Mirrors the routes published in
+ * `honua-server/docs/gis/geoprocess-framework-analysis.md`: `submitJob`,
+ * `jobs/{jobId}` (status), `jobs/{jobId}/cancel`, and per-result lookup
+ * (currently registered route, output delivery still depends on the
+ * execution engine — see the parity matrix).
+ */
+export class HonuaGeoprocessingService {
+  public readonly client: HonuaClient;
+  public readonly serviceId: string;
+  public readonly taskName: string | undefined;
+
+  public constructor(options: HonuaGeoprocessingServiceOptions) {
+    this.client = options.client;
+    this.serviceId = options.serviceId;
+    this.taskName = options.taskName;
+  }
+
+  public async submitJob(request: HonuaGeoprocessingSubmitRequest): Promise<HonuaGeoprocessingJob> {
+    return this.client.request<HonuaGeoprocessingJob>({
+      method: request.method ?? "POST",
+      path: this.taskPath("submitJob"),
+      responseFormat: request.responseFormat ?? "json",
+      query: gpSubmitParams(request),
+      signal: request.signal,
+    });
+  }
+
+  public async jobStatus(jobId: string, options: { signal?: AbortSignal } = {}): Promise<HonuaGeoprocessingJob> {
+    return this.client.request<HonuaGeoprocessingJob>({
+      method: "GET",
+      path: `${this.taskPath("jobs")}/${encodeURIComponent(jobId)}`,
+      responseFormat: "json",
+      signal: options.signal,
+    });
+  }
+
+  public async cancelJob(jobId: string, options: { signal?: AbortSignal } = {}): Promise<HonuaGeoprocessingJob> {
+    return this.client.request<HonuaGeoprocessingJob>({
+      method: "POST",
+      path: `${this.taskPath("jobs")}/${encodeURIComponent(jobId)}/cancel`,
+      responseFormat: "json",
+      signal: options.signal,
+    });
+  }
+
+  public async jobResult(
+    jobId: string,
+    resultName: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<Record<string, unknown>> {
+    return this.client.request<Record<string, unknown>>({
+      method: "GET",
+      path: `${this.taskPath("jobs")}/${encodeURIComponent(jobId)}/results/${encodeURIComponent(resultName)}`,
+      responseFormat: "json",
+      signal: options.signal,
+    });
+  }
+
+  private taskPath(suffix: string): string {
+    const taskSegment = this.taskName ? `/${encodeURIComponent(this.taskName)}` : "";
+    return `/rest/services/${encodeURIComponent(this.serviceId)}/GPServer${taskSegment}/${suffix}`;
+  }
+}
+
+function gpSubmitParams(request: HonuaGeoprocessingSubmitRequest): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(request.parameters)) {
+    params[key] = typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value : JSON.stringify(value);
+  }
+  Object.assign(params, request.extraParams ?? {});
+  return params;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

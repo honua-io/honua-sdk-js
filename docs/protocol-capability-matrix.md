@@ -20,21 +20,24 @@ without a canonical `Source` method today are negotiated for
 `◐` = supported only under `degraded` capability policy (client-side fallback).
 `—` = not supported.
 
-| Capability | GeoServices Feature Service | GeoServices Map Service | OGC Features | WFS | WMS | OData |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: |
-| `query` | ✓ | ✓ | ✓ | ✓ | — | ✓ |
-| `queryAggregate` | ✓ | ✓ | ◐ | — | — | — |
-| `queryExtent` | ✓ | ✓ | ◐ | ✓ | — | — |
-| `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | ✓ |
-| `queryRelated` | ✓ | ✓ | — | — | — | — |
-| `applyEdits` | ✓ | — | ✓ | ✓ | — | — |
-| `attachments` | ✓ | — | — | — | — | — |
-| `render` | — | ✓ | — | — | ✓ | — |
-| `tiles` | ◐ | ✓ | — | — | ✓ | — |
-| `sql` | ✓ | ✓ | — | — | — | — |
-| `stream` | ✓ | ✓ | ✓ | — | — | — |
-| `pbf` | ✓ | — | — | — | — | — |
-| `connect` | ✓ | — | — | — | — | — |
+| Capability | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | WFS | WMS | OData |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `query` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | ✓ |
+| `queryAggregate` | ✓ | ✓ | — | — | — | ◐ | — | — | — |
+| `queryExtent` | ✓ | ✓ | ✓ | — | — | ◐ | ✓ | — | — |
+| `queryObjectIds` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | ✓ |
+| `queryRelated` | ✓ | ✓ | — | — | — | — | — | — | — |
+| `applyEdits` | ✓ | — | — | — | — | ✓ | ✓ | — | — |
+| `attachments` | ✓ | — | — | — | — | — | — | — | — |
+| `render` | — | ✓ | ✓ | — | — | — | — | ✓ | — |
+| `tiles` | ◐ | ✓ | ✓ | — | — | — | — | ✓ | — |
+| `sql` | ✓ | ✓ | — | — | — | — | — | — | — |
+| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | — |
+| `pbf` | ✓ | — | — | — | — | — | — | — | — |
+| `connect` | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — |
+| `image` | — | — | ✓ | — | — | — | — | — | — |
+| `geometry` | — | — | — | ✓ | — | — | — | — | — |
+| `geoprocess` | — | — | — | — | ✓ | — | — | — | — |
 
 MapLibre-native sources (`maplibre-vector`, `maplibre-raster`,
 `maplibre-geojson`) are render-only and contribute `render` and (where
@@ -61,10 +64,81 @@ Same query semantics as Feature Service for the layers it exposes
 (including the root-level aggregation encoding and `pagination.limit`
 → `pageSize` bridge for `stream()`). `render` and `tiles` come from
 the service-level export endpoints. `applyEdits` and `attachments` are
-not supported because the Map Service endpoint is read-only.
+not supported because the Map Service endpoint is read-only —
+`Source.applyEdits()` and `Source.attachments.*` throw
+`HonuaCapabilityNotSupportedError` so a mixed-source app does not
+silently drop the edits. `Source.queryObjectIds()` and
+`Source.queryRelated()` round-trip through the same canonical envelopes
+as the FeatureServer adapter.
+
+### GeoServices Image Service
+The Image Service adapter wraps Honua Server's ImageServer endpoints
+(see `feature-server-matrix.md`'s sibling
+`image-server-matrix.md`). `Source.query()` returns the raster catalog
+as canonical features (one row per raster, footprint geometry on each).
+`Source.queryAll()` drains pages from the catalog endpoint internally
+(`resultOffset` / `resultRecordCount`) and uses a `limit + 1` lookahead
+row to stamp `exceededTransferLimit: true` when the cap is hit, mirroring
+the FeatureServer / OGC `queryAll` semantics. `Source.queryExtent()` and
+`Source.queryObjectIds()` reuse the same catalog endpoint with the
+standard GeoServices shaping flags (`returnExtentOnly`, `returnIdsOnly`).
+Tile URLs come from
+`Source.protocol("geoservices-image-service").tileUrl(level, row, col)`.
+`exportImage`, `identify`, `legend` live on the same
+`HonuaImageService` typed escape hatch — these protocol-specific
+operations are not on the canonical `Source` because their request
+shapes (mosaic rule, rendering rule, pixel size, raster function chains)
+are ImageServer-specific. The wrapper accepts both `GET` (params on the
+query string) and `POST` (form-encoded body) per request; `POST` is the
+correct mode when payload size or proxy URL limits would truncate a
+`GET` URL. The catalog endpoint does not honor `Query.spatialFilter`,
+`Query.orderBy`, or `Query.outFields`, so the adapter rejects those
+fields explicitly rather than silently widening the result; use
+`Query.where` to constrain the catalog or move to a FeatureServer
+source for richer query semantics. `applyEdits`, `attachments`,
+`queryRelated`, `queryAggregate`, and `stream` are intentionally absent
+from the default capability set; the canonical methods throw
+`HonuaCapabilityNotSupportedError` rather than silently no-op.
+
+### GeoServices Geometry Service
+Geometry Service is a stateless utility — it does not host features —
+so the canonical query family throws on every method. The default
+capabilities advertise only `geometry` and `connect`. Operations
+(`buffer`, `simplify`, `project`, `intersect`, `union`, `clip`,
+`difference`) live behind
+`Source.protocol("geoservices-geometry-service")` on a
+`HonuaGeometryService` instance whose request shapes match the routes
+in `honua-server/docs/gis/geometry-service-matrix.md`. The wrapper
+targets the `EndpointRegistry` prefix
+`/rest/services/Utilities/Geometry/GeometryServer/<op>` (the canonical
+Esri Utilities path); `POST` requests submit form-encoded bodies (the
+default), `GET` keeps params in the query string. Operations the server
+does not implement (`autoComplete`, `convexHull`, `cut`, `densify`,
+etc.) intentionally have no wrapper.
+
+### GeoServices GP Service
+GP Services run async tasks rather than hosting features. The default
+capabilities advertise only `geoprocess` and `connect`; the canonical
+query family throws. Task lifecycle — `submitJob`, `jobStatus`,
+`cancelJob`, `jobResult` — lives behind
+`Source.protocol("geoservices-gp-service")` on a
+`HonuaGeoprocessingService` instance. The service id and task name come
+from `SourceLocator.serviceId` / `SourceLocator.taskName` so a single
+descriptor uniquely identifies a task without leaking task parameters
+into the canonical descriptor shape. `createDataset` rejects descriptors
+that advertise `geoprocess` without a `locator.taskName` because Honua
+Server publishes the lifecycle routes only under
+`/rest/services/<serviceId>/GPServer/<taskName>/...`; descriptors that
+advertise only `connect` (service-root metadata probe) may omit the
+task name.
 
 ### OGC API Features
 `query`, `queryObjectIds`, `applyEdits`, `stream` are first-party.
+OGC has no batch edit endpoint, so `applyEdits` fans out to per-item
+`createItem` / `replaceItem` / `deleteItem` calls and forwards
+`EditEnvelope.signal` to every request — aborting the signal cancels
+every operation that has not yet been issued, while operations already
+in flight resolve into per-item failures on the returned `EditResult`.
 `queryAll()` requests `limit + 1` rows from `itemsAll()` when the caller
 caps the result with `Query.pagination.limit` so the adapter can stamp
 `exceededTransferLimit: true` when more records exist (mirroring the
