@@ -218,11 +218,7 @@ export function geoServicesFeatureSource<T>(
     },
     async queryObjectIds(request) {
       ensureCapability(descriptor, caps, "queryObjectIds");
-      const ids = await layer.queryObjectIds({
-        where: request?.where,
-        ...(request?.signal ? { extraParams: {} } : {}),
-      });
-      return ids;
+      return layer.queryObjectIds(toFeatureLayerRequest(request));
     },
     async applyEdits(envelope) {
       ensureCapability(descriptor, caps, "applyEdits");
@@ -303,10 +299,7 @@ export function geoServicesMapServiceSource<T>(
     },
     async queryObjectIds(request) {
       ensureCapability(descriptor, caps, "queryObjectIds");
-      const ids = await layer.queryObjectIds({
-        where: request?.where,
-      });
-      return ids;
+      return layer.queryObjectIds(toFeatureLayerRequest(request));
     },
     async applyEdits() {
       // MapServer is read-only; applyEdits exists only on the FeatureServer
@@ -541,14 +534,45 @@ export function geoServicesImageSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const response = await service.queryRasterCatalog(toFeatureLayerRequest(request));
-      const features = (response.features ?? []).map(toTypedFeature<T>);
-      const { features: limited, exceededTransferLimit } = applyQueryAllLimit(features, request?.pagination?.limit);
+      const baseParams = toFeatureLayerRequest(request);
+      const limit = request?.pagination?.limit;
+      // ImageServer's catalog endpoint supports `resultOffset`/`resultRecordCount`
+      // but the wrapper does not expose a `queryAllRasterCatalog` helper, so
+      // drain pages here. Mirror `withPagingBounds` + `applyQueryAllLimit` so
+      // an empty/short page or a `limit + 1` lookahead row stops the loop and
+      // stamps `exceededTransferLimit` correctly.
+      const startingOffset = typeof baseParams.resultOffset === "number" ? baseParams.resultOffset : 0;
+      const pageSize =
+        typeof limit === "number" && limit > 0
+          ? Math.max(1, Math.min(limit, 2000))
+          : typeof baseParams.resultRecordCount === "number" && baseParams.resultRecordCount > 0
+            ? baseParams.resultRecordCount
+            : 2000;
+      const collected: import("../core/types.js").HonuaFeature[] = [];
+      let lastFields: import("../core/types.js").HonuaFieldInfo[] | undefined;
+      const target = typeof limit === "number" && limit >= 0 ? limit + 1 : Number.POSITIVE_INFINITY;
+      for (let page = 0; ; page += 1) {
+        const response = await service.queryRasterCatalog({
+          ...baseParams,
+          resultOffset: startingOffset + page * pageSize,
+          resultRecordCount: pageSize,
+        });
+        if (response.fields) lastFields = response.fields;
+        const pageFeatures = response.features ?? [];
+        for (const feature of pageFeatures) {
+          collected.push(feature);
+          if (collected.length >= target) break;
+        }
+        if (collected.length >= target) break;
+        if (pageFeatures.length < pageSize) break;
+      }
+      const typed = collected.map(toTypedFeature<T>);
+      const { features: bounded, exceededTransferLimit } = applyQueryAllLimit(typed, limit);
       return {
-        features: limited,
+        features: bounded,
         exceededTransferLimit,
-        totalCount: limited.length,
-        fields: response.fields,
+        totalCount: bounded.length,
+        ...(lastFields ? { fields: lastFields } : {}),
       } satisfies Result<T>;
     },
     async queryAggregate() {
@@ -567,7 +591,7 @@ export function geoServicesImageSource<T>(
     },
     async queryObjectIds(request) {
       ensureCapability(descriptor, caps, "queryObjectIds");
-      return service.queryRasterCatalogObjectIds({ where: request?.where });
+      return service.queryRasterCatalogObjectIds(toFeatureLayerRequest(request));
     },
     async applyEdits() {
       throw new HonuaCapabilityNotSupportedError("applyEdits", descriptor.protocol, descriptor.id);
@@ -1258,12 +1282,14 @@ function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
   updates?: HonuaFeature[];
   deletes?: number[] | string;
   rollbackOnFailure?: boolean;
+  signal?: AbortSignal;
 } {
   const out: {
     adds?: HonuaFeature[];
     updates?: HonuaFeature[];
     deletes?: number[] | string;
     rollbackOnFailure?: boolean;
+    signal?: AbortSignal;
   } = {};
   if (envelope.adds && envelope.adds.length > 0) {
     out.adds = envelope.adds.map((f) => canonicalToHonuaFeature(f));
@@ -1287,6 +1313,9 @@ function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
   }
   if (envelope.rollbackOnFailure !== undefined) {
     out.rollbackOnFailure = envelope.rollbackOnFailure;
+  }
+  if (envelope.signal) {
+    out.signal = envelope.signal;
   }
   return out;
 }
@@ -1423,15 +1452,19 @@ function featureLayerAttachmentApi<T>(
       const response = await layer.queryAttachments({
         ...(request?.parentIds ? { objectIds: request.parentIds.map(toAttachmentNumericId).filter(isFiniteNumberStrict) } : {}),
         ...(request?.where !== undefined ? { where: request.where } : {}),
+        ...(request?.signal ? { signal: request.signal } : {}),
       });
       return (response.attachmentGroups ?? []).map((group) => ({
         parentId: group.parentObjectId,
         attachments: (group.attachmentInfos ?? []).map(toAttachmentInfo(group.parentObjectId)),
       })) satisfies ReadonlyArray<AttachmentGroup>;
     },
-    async list(parentId) {
+    async list(parentId, options) {
       ensureAttachments();
-      const response = await layer.listAttachments({ objectId: parentId });
+      const response = await layer.listAttachments({
+        objectId: parentId,
+        ...(options?.signal ? { signal: options.signal } : {}),
+      });
       const numericParent = Number(parentId);
       return (response.attachmentInfos ?? []).map(
         toAttachmentInfo(Number.isFinite(numericParent) ? numericParent : (parentId as FeatureId)),
@@ -1444,6 +1477,7 @@ function featureLayerAttachmentApi<T>(
         attachment: request.attachment,
         ...(request.name ? { name: request.name } : {}),
         ...(request.contentType ? { contentType: request.contentType } : {}),
+        ...(request.signal ? { signal: request.signal } : {}),
       });
       return toAttachmentEditOutcome(response.addAttachmentResult, request.parentId);
     },
@@ -1455,6 +1489,7 @@ function featureLayerAttachmentApi<T>(
         attachment: request.attachment,
         ...(request.name ? { name: request.name } : {}),
         ...(request.contentType ? { contentType: request.contentType } : {}),
+        ...(request.signal ? { signal: request.signal } : {}),
       });
       return toAttachmentEditOutcome(response.updateAttachmentResult, request.parentId);
     },
@@ -1464,6 +1499,7 @@ function featureLayerAttachmentApi<T>(
       const response = await layer.deleteAttachments({
         objectId: request.parentId,
         attachmentIds: numericIds.length === request.attachmentIds.length ? numericIds : request.attachmentIds.map(String).join(","),
+        ...(request.signal ? { signal: request.signal } : {}),
       });
       return (response.deleteAttachmentResults ?? []).map((r) => toAttachmentEditOutcome(r, request.parentId));
     },

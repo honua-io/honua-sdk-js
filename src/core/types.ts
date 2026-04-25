@@ -204,6 +204,7 @@ export interface ApplyEditsRequest {
   updates?: HonuaFeature[];
   deletes?: number[] | string;
   rollbackOnFailure?: boolean;
+  signal?: AbortSignal;
 }
 
 export type HonuaTransport = "rest" | "grpc-web";

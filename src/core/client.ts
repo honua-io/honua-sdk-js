@@ -639,12 +639,17 @@ export class HonuaClient {
       params.set("deletes", encodeDeletesValue(request.deletes));
     }
 
-    return this.requestJson("POST", path, {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+    return this.requestJson(
+      "POST",
+      path,
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
       },
-      body: params.toString(),
-    }) as Promise<HonuaApplyEditsResponse>;
+      request.signal,
+    ) as Promise<HonuaApplyEditsResponse>;
   }
 
   public async queryRelatedRecords(request: QueryRelatedRecordsRequest): Promise<HonuaRelatedRecordsResponse> {

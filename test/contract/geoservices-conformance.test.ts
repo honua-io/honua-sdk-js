@@ -86,6 +86,106 @@ describe("contract / GeoServices FeatureServer parity", () => {
     expect(ids).toEqual([1, 2, 3]);
   });
 
+  it("queryObjectIds threads spatialFilter / pagination / outSr / signal into the GeoServices request", async () => {
+    let observedGeometryType: string | null = null;
+    let observedSpatialRel: string | null = null;
+    let observedResultOffset: string | null = null;
+    let observedResultRecordCount: string | null = null;
+    let observedOutSr: string | null = null;
+    let observedSignal: AbortSignal | undefined;
+    const dataset = buildFeatureDataset([
+      [
+        "/rest/services/Parcels/FeatureServer/0/query",
+        (url, init) => {
+          observedGeometryType = url.searchParams.get("geometryType");
+          observedSpatialRel = url.searchParams.get("spatialRel");
+          observedResultOffset = url.searchParams.get("resultOffset");
+          observedResultRecordCount = url.searchParams.get("resultRecordCount");
+          observedOutSr = url.searchParams.get("outSR");
+          observedSignal = init?.signal ?? undefined;
+          return jsonResponse(geoservicesObjectIdsResponse());
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-fs")!;
+    const controller = new AbortController();
+    await source.queryObjectIds({
+      where: "STATE='CA'",
+      spatialFilter: {
+        geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 39 },
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelIntersects",
+      },
+      pagination: { offset: 100, limit: 50 },
+      outSr: 3857,
+      signal: controller.signal,
+    });
+    expect(observedGeometryType).toBe("esriGeometryEnvelope");
+    expect(observedSpatialRel).toBe("esriSpatialRelIntersects");
+    expect(observedResultOffset).toBe("100");
+    expect(observedResultRecordCount).toBe("50");
+    expect(observedOutSr).toBe("3857");
+    expect(observedSignal).toBeDefined();
+  });
+
+  it("applyEdits / attachment ops thread the AbortSignal into the underlying HTTP requests", async () => {
+    let observedEditSignal: AbortSignal | undefined;
+    let observedListSignal: AbortSignal | undefined;
+    let observedAddSignal: AbortSignal | undefined;
+    let observedDeleteSignal: AbortSignal | undefined;
+    const dataset = buildFeatureDataset([
+      [
+        "/rest/services/Parcels/FeatureServer/0/applyEdits",
+        (_url, init) => {
+          observedEditSignal = init?.signal ?? undefined;
+          return jsonResponse(geoservicesApplyEditsResponse());
+        },
+      ],
+      [
+        "/rest/services/Parcels/FeatureServer/0/1/attachments",
+        (_url, init) => {
+          observedListSignal = init?.signal ?? undefined;
+          return jsonResponse(geoservicesAttachmentInfosResponse());
+        },
+      ],
+      [
+        "/rest/services/Parcels/FeatureServer/0/1/addAttachment",
+        (_url, init) => {
+          observedAddSignal = init?.signal ?? undefined;
+          return jsonResponse(geoservicesAddAttachmentResponse());
+        },
+      ],
+      [
+        "/rest/services/Parcels/FeatureServer/0/1/deleteAttachments",
+        (_url, init) => {
+          observedDeleteSignal = init?.signal ?? undefined;
+          return jsonResponse(geoservicesDeleteAttachmentsResponse());
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-fs")!;
+    const controller = new AbortController();
+    await source.applyEdits({
+      adds: [{ attributes: { OBJECTID: 0, STATE: "AZ", ACRES: 1 } }],
+      signal: controller.signal,
+    });
+    await source.attachments.list(1, { signal: controller.signal });
+    await source.attachments.add({
+      parentId: 1,
+      attachment: "doc",
+      signal: controller.signal,
+    });
+    await source.attachments.delete({
+      parentId: 1,
+      attachmentIds: [7],
+      signal: controller.signal,
+    });
+    expect(observedEditSignal).toBeDefined();
+    expect(observedListSignal).toBeDefined();
+    expect(observedAddSignal).toBeDefined();
+    expect(observedDeleteSignal).toBeDefined();
+  });
+
   it("applyEdits round-trips canonical EditEnvelope/EditResult through the FeatureServer applyEdits route", async () => {
     let observedBody: string | undefined;
     const dataset = buildFeatureDataset([
@@ -279,6 +379,71 @@ describe("contract / GeoServices ImageServer parity", () => {
     const result = await source.query({ where: "1=1" });
     expect(result.features).toHaveLength(2);
     expect((result.features[0].attributes as Record<string, unknown>).Name).toBe("tile_a");
+  });
+
+  it("queryObjectIds is part of the default ImageServer capability set and routes through returnIdsOnly", async () => {
+    let observedReturnIdsOnly = false;
+    const dataset = buildImageDataset([
+      [
+        "/rest/services/Imagery/ImageServer/query",
+        (url) => {
+          observedReturnIdsOnly = url.searchParams.get("returnIdsOnly") === "true";
+          return jsonResponse({ objectIdFieldName: "OBJECTID", objectIds: [101, 102] });
+        },
+      ],
+    ]);
+    const source = dataset.source("tiles-img")!;
+    const ids = await source.queryObjectIds({ where: "Name LIKE 'tile_%'" });
+    expect(observedReturnIdsOnly).toBe(true);
+    expect(ids).toEqual([101, 102]);
+  });
+
+  it("queryAll drains the ImageServer catalog using resultOffset/resultRecordCount until a short page", async () => {
+    const observedOffsets: string[] = [];
+    const dataset = buildImageDataset([
+      [
+        "/rest/services/Imagery/ImageServer/query",
+        (url) => {
+          observedOffsets.push(url.searchParams.get("resultOffset") ?? "");
+          const offset = Number(url.searchParams.get("resultOffset") ?? "0");
+          const pageSize = Number(url.searchParams.get("resultRecordCount") ?? "0");
+          // Two pages of `pageSize` then a short final page with one row.
+          if (offset === 0) {
+            return jsonResponse({
+              objectIdFieldName: "OBJECTID",
+              fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }],
+              features: Array.from({ length: pageSize }, (_v, i) => ({
+                attributes: { OBJECTID: i + 1, Name: `tile_${i + 1}` },
+              })),
+              exceededTransferLimit: true,
+            });
+          }
+          if (offset === pageSize) {
+            return jsonResponse({
+              objectIdFieldName: "OBJECTID",
+              features: Array.from({ length: pageSize }, (_v, i) => ({
+                attributes: { OBJECTID: pageSize + i + 1, Name: `tile_${pageSize + i + 1}` },
+              })),
+              exceededTransferLimit: true,
+            });
+          }
+          return jsonResponse({
+            objectIdFieldName: "OBJECTID",
+            features: [{ attributes: { OBJECTID: 999, Name: "tile_last" } }],
+            exceededTransferLimit: false,
+          });
+        },
+      ],
+    ]);
+    const source = dataset.source("tiles-img")!;
+    const result = await source.queryAll({ pagination: { limit: 2000 } });
+    // Three pages worth: 2000 + 2000 + 1 = 4001, capped to limit (2000) with
+    // exceededTransferLimit when more rows exist beyond the limit.
+    expect(observedOffsets.length).toBeGreaterThanOrEqual(2);
+    expect(observedOffsets[0]).toBe("0");
+    expect(observedOffsets[1]).toBe("2000");
+    expect(result.features.length).toBe(2000);
+    expect(result.exceededTransferLimit).toBe(true);
   });
 
   it("protocol().exportImage / identify route through the ImageServer adapter", async () => {

@@ -63,9 +63,7 @@ export type HonuaFeatureLayerQueryAllRequest = HonuaFeatureLayerQueryRequest & {
 export type HonuaFeatureLayerQueryCountRequest = Pick<QueryFeaturesRequest, "where" | "method"> & {
   extraParams?: Record<string, string | number | boolean>;
 };
-export type HonuaFeatureLayerQueryObjectIdsRequest = Pick<QueryFeaturesRequest, "where" | "method"> & {
-  extraParams?: Record<string, string | number | boolean>;
-};
+export type HonuaFeatureLayerQueryObjectIdsRequest = HonuaFeatureLayerQueryRequest;
 export type HonuaFeatureLayerQueryExtentRequest = HonuaFeatureLayerQueryCountRequest;
 export type HonuaFeatureLayerQueryRelatedRecordsRequest = Omit<QueryRelatedRecordsRequest, "serviceId" | "layerId">;
 export type HonuaFeatureLayerApplyEditsRequest = Omit<ApplyEditsRequest, "serviceId" | "layerId">;
@@ -79,17 +77,20 @@ export interface HonuaFeatureLayerQueryAttachmentsRequest {
   method?: QueryMethod;
   responseFormat?: "json" | "pjson";
   extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
 }
 export interface HonuaFeatureLayerListAttachmentsRequest {
   objectId: number | string;
   responseFormat?: "json" | "pjson";
   extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
 }
 export interface HonuaFeatureLayerDeleteAttachmentsRequest {
   objectId: number | string;
   attachmentIds: readonly number[] | string;
   responseFormat?: "json" | "pjson";
   extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
 }
 export type HonuaFeatureLayerAttachmentData = Blob | File | string;
 export interface HonuaFeatureLayerAddAttachmentRequest {
@@ -99,6 +100,7 @@ export interface HonuaFeatureLayerAddAttachmentRequest {
   contentType?: string;
   responseFormat?: "json" | "pjson";
   extraParams?: Record<string, string | number | boolean>;
+  signal?: AbortSignal;
 }
 export interface HonuaFeatureLayerUpdateAttachmentRequest extends HonuaFeatureLayerAddAttachmentRequest {
   attachmentId: number | string;
@@ -139,9 +141,7 @@ export type HonuaMapLayerQueryRelatedRecordsRequest = Omit<MapRelatedRecordsRequ
 export type HonuaMapLayerQueryCountRequest = Pick<MapLayerQueryRequest, "where" | "method"> & {
   extraParams?: Record<string, string | number | boolean>;
 };
-export type HonuaMapLayerQueryObjectIdsRequest = Pick<MapLayerQueryRequest, "where" | "method"> & {
-  extraParams?: Record<string, string | number | boolean>;
-};
+export type HonuaMapLayerQueryObjectIdsRequest = HonuaMapLayerQueryRequest;
 export type HonuaMapLayerQueryExtentRequest = HonuaMapLayerQueryCountRequest;
 export interface HonuaMapLayerQueryExtentResponse {
   extent: HonuaExtent | null;
@@ -413,12 +413,12 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
 
   public async queryObjectIds(request: HonuaFeatureLayerQueryObjectIdsRequest = {}): Promise<number[]> {
     const response = await this.client.queryFeatures({
+      ...request,
       serviceId: this.serviceId,
       layerId: this.layerId,
       where: request.where ?? "1=1",
       returnGeometry: false,
-      outFields: "OBJECTID",
-      method: request.method,
+      outFields: request.outFields ?? "OBJECTID",
       extraParams: {
         returnIdsOnly: true,
         ...request.extraParams,
@@ -497,6 +497,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         path,
         responseFormat: request.responseFormat ?? "json",
         query,
+        signal: request.signal,
       }) as Promise<HonuaQueryAttachmentsResponse>;
     }
 
@@ -511,6 +512,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body,
+      signal: request.signal,
     }) as Promise<HonuaQueryAttachmentsResponse>;
   }
 
@@ -522,6 +524,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         `/FeatureServer/${this.layerId}/${request.objectId}/attachments`,
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
+      signal: request.signal,
     }) as Promise<HonuaAttachmentListResponse>;
   }
 
@@ -542,6 +545,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body,
+      signal: request.signal,
     });
   }
 
@@ -555,6 +559,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
       body: form,
+      signal: request.signal,
     });
   }
 
@@ -571,6 +576,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
       body: form,
+      signal: request.signal,
     });
   }
 
@@ -951,10 +957,10 @@ export class HonuaMapLayer {
 
   public async queryObjectIds(request: HonuaMapLayerQueryObjectIdsRequest = {}): Promise<number[]> {
     const response = await this.queryFeatures({
+      ...request,
       where: request.where ?? "1=1",
       returnGeometry: false,
-      outFields: "OBJECTID",
-      method: request.method,
+      outFields: request.outFields ?? "OBJECTID",
       extraParams: {
         returnIdsOnly: true,
         ...request.extraParams,
@@ -1313,12 +1319,13 @@ export class HonuaImageService {
     });
   }
 
-  public async queryRasterCatalogObjectIds(request: { where?: string }): Promise<number[]> {
+  public async queryRasterCatalogObjectIds(request: HonuaImageServiceQueryRequest = {}): Promise<number[]> {
     const response = await this.client.request<{ objectIds?: Array<number | string> }>({
-      method: "GET",
+      method: request.method ?? "GET",
       path: `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/query`,
       responseFormat: "json",
-      query: { where: request.where ?? "1=1", returnIdsOnly: true },
+      query: { ...imageQueryParams(request), where: request.where ?? "1=1", returnIdsOnly: true },
+      signal: request.signal,
     });
     if (!Array.isArray(response.objectIds)) return [];
     return response.objectIds.map((v) => Number(v)).filter((v) => Number.isFinite(v));
