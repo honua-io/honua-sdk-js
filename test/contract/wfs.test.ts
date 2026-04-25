@@ -713,10 +713,10 @@ describe("wfs / canonical Source", () => {
               properties: { OBJECTID: start + idx + 1, STATE: "CA", ACRES: 1 },
               geometry: { type: "Point", coordinates: [-122, 38] },
             }));
-            return new Response(
-              JSON.stringify({ type: "FeatureCollection", features, numberMatched: totalRows }),
-              { status: 200, headers: { "Content-Type": "application/geo+json" } },
-            );
+            return new Response(JSON.stringify({ type: "FeatureCollection", features, numberMatched: totalRows }), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
           }
           return new Response("not found", { status: 404 });
         },
@@ -748,10 +748,10 @@ describe("wfs / canonical Source", () => {
               properties: { OBJECTID: start + idx + 1, STATE: "CA", ACRES: 1 },
               geometry: { type: "Point", coordinates: [-122, 38] },
             }));
-            return new Response(
-              JSON.stringify({ type: "FeatureCollection", features, numberMatched: totalRows }),
-              { status: 200, headers: { "Content-Type": "application/geo+json" } },
-            );
+            return new Response(JSON.stringify({ type: "FeatureCollection", features, numberMatched: totalRows }), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
           }
           return new Response("not found", { status: 404 });
         },
@@ -826,6 +826,116 @@ describe("wfs / canonical Source", () => {
     });
     expect(getFeatureUrl?.searchParams.get("bbox")).toBe("-123,37,-120,45");
     expect(getFeatureUrl?.searchParams.get("filter")).toBeNull();
+  });
+
+  it("query({ pagination: { limit: 0 } }) returns empty without a GetFeature wire call", async () => {
+    let getFeatureHits = 0;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            getFeatureHits += 1;
+            return new Response(JSON.stringify(wfsGeoJsonResponse()), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const result = await source.query({ pagination: { limit: 0 } });
+    expect(result.features).toEqual([]);
+    expect(result.exceededTransferLimit).toBe(false);
+    expect(getFeatureHits).toBe(0);
+  });
+
+  it("queryAll({ pagination: { limit: 0 } }) fetches a lookahead page and stamps exceededTransferLimit", async () => {
+    let observedCount: string | null | undefined;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            observedCount = url.searchParams.get("count");
+            const requested = Number(observedCount ?? PARCEL_FEATURES.length);
+            const slice = PARCEL_FEATURES.slice(0, requested);
+            return new Response(
+              JSON.stringify({
+                ...wfsGeoJsonResponse(slice),
+                numberMatched: PARCEL_FEATURES.length,
+              }),
+              { status: 200, headers: { "Content-Type": "application/geo+json" } },
+            );
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const result = await source.queryAll({ pagination: { limit: 0 } });
+    expect(observedCount).toBe("1");
+    expect(result.features).toEqual([]);
+    expect(result.exceededTransferLimit).toBe(true);
+  });
+
+  it("stream({ pagination: { limit: 0 } }) yields nothing without a GetFeature wire call", async () => {
+    let getFeatureHits = 0;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            getFeatureHits += 1;
+            return new Response(JSON.stringify(wfsGeoJsonResponse()), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const yielded: number[] = [];
+    for await (const page of source.stream({ pagination: { limit: 0 } })) {
+      yielded.push(page.features.length);
+    }
+    expect(yielded).toEqual([]);
+    expect(getFeatureHits).toBe(0);
+  });
+
+  it("queryObjectIds({ pagination: { limit: 0 } }) returns [] without a GetFeature wire call", async () => {
+    let getFeatureHits = 0;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            getFeatureHits += 1;
+            return new Response(JSON.stringify(wfsGeoJsonResponse()), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const ids = await source.queryObjectIds({ pagination: { limit: 0 } });
+    expect(ids).toEqual([]);
+    expect(getFeatureHits).toBe(0);
   });
 });
 

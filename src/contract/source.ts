@@ -1043,6 +1043,12 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
         // silent partial result.
         throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
       }
+      // `pagination.limit === 0` is an explicit zero cap, not "unbounded";
+      // short-circuit before the wire call so we do not silently widen to the
+      // server's default page size.
+      if (request?.pagination?.limit === 0) {
+        return { features: [], exceededTransferLimit: false } satisfies Result<T>;
+      }
       const choice = await negotiateJsonOrThrow();
       const json = await runGetFeatureJson(featureType, typeName, choice, request, request?.pagination?.limit);
       return resultFromGeoJson<T>(json);
@@ -1055,7 +1061,10 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
       const collected: HonuaTypedFeature<T>[] = [];
       let totalCount: number | undefined;
       let offset = request?.pagination?.offset ?? 0;
-      const pageSize = typeof limit === "number" && limit > 0 ? Math.max(1, Math.min(limit + 1, 2000)) : 2000;
+      // Mirror `withPagingBounds`: a finite limit (including 0) sets the
+      // lookahead page size to `limit + 1` so we can stamp
+      // `exceededTransferLimit` without overfetching a full default page.
+      const pageSize = typeof limit === "number" && limit >= 0 ? Math.max(1, Math.min(limit + 1, 2000)) : 2000;
       while (collected.length < target) {
         const pageRequest: Query<T> = {
           ...(request ?? {}),
@@ -1126,8 +1135,11 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
       ensureCapability(descriptor, caps, "stream");
       // WFS 2.0 has no native streaming verb; iterate pages over GetFeature
       // and yield each as a Result. Reuses the same negotiation as `query`.
-      const choice = await negotiateJsonOrThrow();
       const limit = request?.pagination?.limit;
+      // `pagination.limit === 0` is an explicit zero cap; yield nothing
+      // rather than silently fall back to the default 2000-row page size.
+      if (limit === 0) return;
+      const choice = await negotiateJsonOrThrow();
       const pageSize = typeof limit === "number" && limit > 0 ? Math.max(1, limit) : 2000;
       let offset = request?.pagination?.offset ?? 0;
       while (true) {
@@ -1152,12 +1164,13 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
       // across implementations; drain the matching set across pages and
       // project the GeoJSON `id`. `Query.pagination.limit` bounds the scan
       // as a global cap (not a per-page count) so callers can stop the drain
-      // without learning the server's default page size.
+      // without learning the server's default page size. A finite limit
+      // (including 0) is honored as a real cap; only `undefined` / negative
+      // means "drain everything".
+      const requestedLimit = request?.pagination?.limit;
+      if (requestedLimit === 0) return [];
       const choice = await negotiateJsonOrThrow();
-      const limitCap =
-        typeof request?.pagination?.limit === "number" && request.pagination.limit > 0
-          ? request.pagination.limit
-          : undefined;
+      const limitCap = typeof requestedLimit === "number" && requestedLimit > 0 ? requestedLimit : undefined;
       const drainPageSize = 2000;
       const ids: FeatureId[] = [];
       let offset = request?.pagination?.offset ?? 0;

@@ -169,6 +169,14 @@ can stamp `Result.exceededTransferLimit: true` when more records exist.
 `stream` paginates internally with a 2000-row default page size or
 the caller's `pagination.limit` when supplied.
 
+`pagination.limit === 0` is treated as an explicit "zero records" cap
+across `query`, `queryAll`, `stream`, and `queryObjectIds` — the
+default page-size fallback only applies when `limit` is unset or
+negative. `query` / `stream` / `queryObjectIds` short-circuit before
+the wire call (returning an empty result, no yielded pages, or `[]`
+respectively); `queryAll` still issues a single 1-row lookahead so
+`exceededTransferLimit` can flip when more records exist.
+
 `Result.totalCount` populates from the GeoJSON `numberMatched` field;
 `exceededTransferLimit` flips when `numberMatched > features.length`.
 
@@ -183,7 +191,8 @@ drain stops as soon as the server returns a short page.
 caps the global id count — not the per-page count — so callers can
 stop the drain without learning the server's default page size. The
 adapter shrinks each page to `min(2000, remaining)` so the final page
-never overshoots the cap.
+never overshoots the cap. A `pagination.limit` of `0` short-circuits
+the drain and returns `[]` without a wire call.
 
 ## queryExtent
 
