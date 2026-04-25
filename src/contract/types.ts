@@ -193,7 +193,7 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   "ogc-tiles": capabilities(["render", "tiles"]),
   "ogc-maps": capabilities(["render"]),
   stac: capabilities(["query", "queryObjectIds", "stream"]),
-  wfs: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits"]),
+  wfs: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits", "stream"]),
   wms: capabilities(["render", "tiles", "query"]),
   wmts: capabilities(["render", "tiles"]),
   odata: capabilities(["query", "queryObjectIds"]),

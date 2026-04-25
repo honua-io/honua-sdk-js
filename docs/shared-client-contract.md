@@ -116,8 +116,9 @@ const result = await parcels.query({ where: "STATE = 'CA'", pagination: { limit:
 The built-in resolver handles `geoservices-feature-service`,
 `geoservices-map-service`, `geoservices-image-service`,
 `geoservices-geometry-service`, `geoservices-gp-service`, `ogc-features`,
-`ogc-tiles`, `ogc-maps`, `stac`, `wms`, and `wmts`. WFS / OData adapters
-register themselves through `CreateDatasetOptions.resolveSource`. OGC API
+`ogc-tiles`, `ogc-maps`, `stac`, `wfs`, `wms`, and `wmts`. The OData
+adapter registers itself through `CreateDatasetOptions.resolveSource`.
+OGC API
 Processes is a job runner rather than a queryable source — reach it
 through `HonuaClient.ogcProcesses().execute(...)` (returns the canonical
 `IJobRun<T>`) instead of `Dataset.source()`.
@@ -157,6 +158,13 @@ The WMS / WMTS factories cover the OGC web-map services per
 - `wmtsSource` — WMTS 1.0.0 (render + tiles via RESTful tiles; query
   family throws; service / layer / tileset handles reachable via
   `Source.protocol("wmts" | "wmts-layer" | "wmts-tileset")`).
+
+`docs/wfs.md` documents the WFS 2.0 factory in the same shape:
+
+- `wfsSource` — WFS 2.0 (query, queryAll, queryExtent, queryObjectIds,
+  applyEdits, stream; FES 2.0 emission for `Query.where` /
+  `Query.spatialFilter`; raw GML / `<wfs:Transaction>` payloads via
+  `protocol("wfs")`).
 
 `Source.queryAll()` and `Source.stream()` drain every page the server
 returns — the built-in adapters override the core helpers' 100-page
