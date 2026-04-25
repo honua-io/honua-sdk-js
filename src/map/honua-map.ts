@@ -19,15 +19,13 @@ import {
   type HonuaOgcFeatureCollection,
   HonuaOgcFeatures,
 } from "../core/surfaces.js";
-import { HonuaWms, HonuaWmsLayer } from "../core/wms.js";
-import { HonuaWmts, type HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
+import type { HonuaWms, HonuaWmsLayer } from "../core/wms.js";
+import type { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import { parseFeatureLayerUrl, parseMapServiceUrl } from "../esri-compat/url.js";
 import type {
   HonuaLayerSpecification,
   HonuaSourceSpecification,
   HonuaStyleSpecification,
-  HonuaWmsSourceSpecification,
-  HonuaWmtsSourceSpecification,
 } from "../style/specification.js";
 import {
   isFeatureServiceSource,
@@ -38,6 +36,7 @@ import {
   isWmtsSource,
   parseOgcFeaturesUrl,
 } from "../style/specification.js";
+import { resolveWmsSpec, resolveWmtsSpec } from "../style/wms-wmts-resolvers.js";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -408,61 +407,4 @@ export class HonuaMap {
       listener(event);
     }
   }
-}
-
-const WMS_URL_RE = /\/(?:rest\/services\/([^/?#]+)\/MapServer\/(?:WMS|WMTS)|ogc\/services\/([^/?#]+)\/(?:wms|wmts))/i;
-
-function parseWmsServiceIdFromUrl(url: string): string | undefined {
-  const match = WMS_URL_RE.exec(url);
-  if (!match) return undefined;
-  const id = match[1] ?? match[2];
-  if (!id) return undefined;
-  try {
-    return decodeURIComponent(id);
-  } catch {
-    return id;
-  }
-}
-
-function resolveWmsSpec(client: HonuaClient, spec: HonuaWmsSourceSpecification): HonuaWms | HonuaWmsLayer {
-  const serviceId = spec.serviceId ?? parseWmsServiceIdFromUrl(spec.url);
-  if (!serviceId) {
-    throw new Error("HonuaMap: honua-wms source requires either serviceId or a URL containing the service id");
-  }
-  const root = new HonuaWms({ client, serviceId });
-  if (typeof spec.layers === "string" && spec.layers.length > 0) {
-    const opts: { client: HonuaClient; serviceId: string; layerName: string; defaultStyleId?: string } = {
-      client,
-      serviceId,
-      layerName: spec.layers,
-    };
-    if (typeof spec.styles === "string" && spec.styles.length > 0) {
-      opts.defaultStyleId = spec.styles;
-    }
-    return new HonuaWmsLayer(opts);
-  }
-  return root;
-}
-
-function resolveWmtsSpec(
-  client: HonuaClient,
-  spec: HonuaWmtsSourceSpecification,
-): HonuaWmts | HonuaWmtsLayer | HonuaWmtsTileset {
-  const serviceId = spec.serviceId ?? parseWmsServiceIdFromUrl(spec.url);
-  if (!serviceId) {
-    throw new Error("HonuaMap: honua-wmts source requires either serviceId or a URL containing the service id");
-  }
-  const root = new HonuaWmts({ client, serviceId });
-  if (typeof spec.layer === "string" && spec.layer.length > 0) {
-    const style = spec.style ?? "default";
-    const tms = spec.tileMatrixSet ?? "WebMercatorQuad";
-    return new HonuaWmtsTileset({
-      client,
-      serviceId,
-      layerName: spec.layer,
-      styleId: style,
-      tileMatrixSetId: tms,
-    });
-  }
-  return root;
 }

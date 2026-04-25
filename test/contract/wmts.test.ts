@@ -312,4 +312,33 @@ describe("wmts / MapLibre binding", () => {
       "https://mock.honua.test/rest/services/imagery/MapServer/WMTS/imagery/default/WebMercatorQuad/{z}/{y}/{x}.png",
     );
   });
+
+  // Regression: format-to-extension mapping must agree with the WMTS wire
+  // client's `wmtsExtensionForFormat`. Earlier, the runtime helper had a
+  // bespoke jpeg/png-only branch that emitted `.png` for `image/webp` while
+  // the client tile path emitted `.webp`, so MapLibre tiles diverged from
+  // the same logical service.
+  it("uses the shared WMTS format-to-extension mapping (image/webp → .webp)", () => {
+    const descriptor: SourceDescriptor = {
+      id: "imagery-tiles",
+      protocol: "wmts",
+      locator: {
+        url: "https://mock.honua.test/rest/services/imagery/MapServer/WMTS",
+        serviceId: "imagery",
+        typeName: "imagery",
+        styleId: "default",
+        tileMatrixSetId: "WebMercatorQuad",
+      },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wmts,
+    };
+    expect(buildWmtsRasterSourceSpec(descriptor, { format: "image/webp" }).tiles[0]).toBe(
+      "https://mock.honua.test/rest/services/imagery/MapServer/WMTS/imagery/default/WebMercatorQuad/{z}/{y}/{x}.webp",
+    );
+    expect(buildWmtsRasterSourceSpec(descriptor, { format: "image/jpeg" }).tiles[0]).toBe(
+      "https://mock.honua.test/rest/services/imagery/MapServer/WMTS/imagery/default/WebMercatorQuad/{z}/{y}/{x}.jpeg",
+    );
+    expect(buildWmtsRasterSourceSpec(descriptor, { format: "image/avif" }).tiles[0]).toBe(
+      "https://mock.honua.test/rest/services/imagery/MapServer/WMTS/imagery/default/WebMercatorQuad/{z}/{y}/{x}.png",
+    );
+  });
 });

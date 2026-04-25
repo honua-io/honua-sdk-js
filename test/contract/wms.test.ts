@@ -515,6 +515,44 @@ describe("wms / Source adapter", () => {
     await expect(source.queryObjectIds()).rejects.toThrow(HonuaCapabilityNotSupportedError);
     await expect(source.applyEdits({ adds: [] })).rejects.toThrow(HonuaCapabilityNotSupportedError);
   });
+
+  it("rejects unsupported Query fields on Source.query() instead of silently dropping them", async () => {
+    // GetFeatureInfo only consumes (i, j) plus the rendered envelope; rejecting
+    // the other Query fields up front prevents callers from receiving an
+    // unfiltered or differently-shaped result that looks like a silent data bug.
+    const client = makeMockClient({ routes: [] });
+    const dataset = createDataset({
+      id: "imagery",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels",
+          protocol: "wms",
+          locator: {
+            url: "https://mock.honua.test/rest/services/imagery/MapServer/WMS",
+            serviceId: "imagery",
+            typeName: "parcels",
+          },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wms,
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source("parcels")!;
+    const filter = point(-13624000, 4567000);
+    await expect(
+      source.query({ spatialFilter: filter, aggregation: { metrics: [{ fn: "count", field: "*" }] } }),
+    ).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    await expect(source.query({ spatialFilter: filter, where: "STATE = 'CA'" })).rejects.toThrow(/Query\.where/);
+    await expect(source.query({ spatialFilter: filter, outFields: ["NAME"] })).rejects.toThrow(/Query\.outFields/);
+    await expect(
+      source.query({ spatialFilter: filter, orderBy: [{ field: "OBJECTID", direction: "asc" }] }),
+    ).rejects.toThrow(/Query\.orderBy/);
+    await expect(source.query({ spatialFilter: filter, pagination: { offset: 50 } })).rejects.toThrow(
+      /pagination\.offset/,
+    );
+    await expect(source.query({ spatialFilter: filter, returnGeometry: false })).rejects.toThrow(/returnGeometry/);
+  });
 });
 
 describe("wms / MapLibre binding", () => {

@@ -26,6 +26,7 @@ import {
   type SourceDescriptor,
   type SourceLocator,
 } from "../contract/index.js";
+import { wmtsExtensionForFormat } from "../core/wms-types.js";
 import { HonuaMapPackageError } from "./errors.js";
 import type { HonuaMapPackageLocator, HonuaMapPackageProtocol, HonuaMapPackageSourceBinding } from "./map-package.js";
 
@@ -242,7 +243,7 @@ export function buildWmtsRasterSourceSpec(
   const url = requireLocatorUrl(descriptor);
   const tileSize = options.tileSize ?? 256;
   const format = options.format ?? "image/png";
-  const ext = format.toLowerCase().includes("jpeg") || format.toLowerCase().includes("jpg") ? "jpeg" : "png";
+  const ext = wmtsExtensionForFormat(format);
   const layer = descriptor.locator.typeName ?? "";
   const style = descriptor.locator.styleId ?? "default";
   const tms = descriptor.locator.tileMatrixSetId ?? "WebMercatorQuad";

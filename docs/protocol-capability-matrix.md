@@ -260,6 +260,14 @@ GetFeatureInfo. Non-point queries throw
 `HonuaCapabilityNotSupportedError("query", "wms", id)` because WMS has
 no spatial-rel semantics for envelopes / polygons; raw multi-pixel
 GetFeatureInfo lives behind `Source.protocol("wms").featureInfo()`.
+Other canonical `Query` fields that GetFeatureInfo cannot honor are
+rejected up front rather than silently dropped: `query({ aggregation })`
+throws `HonuaCapabilityNotSupportedError("queryAggregate", ...)`, and
+`Query.where` / `Query.outFields` / `Query.orderBy` /
+`Query.pagination.offset` / `Query.returnGeometry === false` throw
+typed `Error` messages so a mixed-source caller cannot get an
+unfiltered or differently-shaped result. `Query.pagination.limit` is
+honored — it maps to `FEATURE_COUNT` on the wire.
 
 Styled-map selection enumerates per-layer styles from
 `HonuaWms.capabilities()` and is bound on the layer handle (`layer.map`,

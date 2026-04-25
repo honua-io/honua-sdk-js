@@ -11,16 +11,17 @@ import { HonuaWms } from "./wms.js";
 import { type WmsCapabilities, parseWmsCapabilities } from "./wms-capabilities.js";
 import { HonuaWmts } from "./wmts.js";
 import { type WmtsCapabilities, parseWmtsCapabilities } from "./wmts-capabilities.js";
-import type {
-  HonuaWmsFeatureInfoResponse,
-  HonuaWmsImageResponse,
-  HonuaWmtsFeatureInfoResponse,
-  HonuaWmtsTileResponse,
-  WmsFeatureInfoRequest,
-  WmsLegendRequest,
-  WmsMapRequest,
-  WmtsFeatureInfoRequest,
-  WmtsTileRequest,
+import {
+  type HonuaWmsFeatureInfoResponse,
+  type HonuaWmsImageResponse,
+  type HonuaWmtsFeatureInfoResponse,
+  type HonuaWmtsTileResponse,
+  type WmsFeatureInfoRequest,
+  type WmsLegendRequest,
+  type WmsMapRequest,
+  type WmtsFeatureInfoRequest,
+  type WmtsTileRequest,
+  wmtsExtensionForFormat,
 } from "./wms-types.js";
 import type {
   ApplyEditsRequest,
@@ -2630,17 +2631,6 @@ function extractFeatureInfoFeatures<T>(parsed: unknown): ReadonlyArray<import(".
     out.push({ attributes, geometry });
   }
   return out;
-}
-
-const WMTS_TILE_FORMAT_TO_EXTENSION: ReadonlyMap<string, string> = new Map([
-  ["image/png", "png"],
-  ["image/jpeg", "jpeg"],
-  ["image/jpg", "jpeg"],
-  ["image/webp", "webp"],
-]);
-
-function wmtsExtensionForFormat(format: string): string {
-  return WMTS_TILE_FORMAT_TO_EXTENSION.get(format.toLowerCase()) ?? "png";
 }
 
 const WMTS_FEATURE_INFO_FORMAT_TO_EXTENSION: ReadonlyMap<string, string> = new Map([

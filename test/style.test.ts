@@ -13,6 +13,10 @@ import {
   HonuaClient,
   HonuaFeatureLayer,
   HonuaMapService,
+  HonuaWms,
+  HonuaWmsLayer,
+  HonuaWmts,
+  HonuaWmtsTileset,
 } from "../src/index.js";
 import { HonuaOgcFeatureCollection } from "../src/core/surfaces.js";
 import type { HonuaStyleSpecification } from "../src/index.js";
@@ -273,6 +277,84 @@ describe("createSources", () => {
     expect(
       (sources.get("data") as HonuaOgcFeatureCollection).collectionId,
     ).toBe("new-name");
+  });
+
+  it("creates HonuaWms (service-level) for honua-wms sources without LAYERS", () => {
+    const style: HonuaStyleSpecification = {
+      version: 8,
+      sources: {
+        imagery: {
+          type: "honua-wms",
+          url: "https://gis.example.com/rest/services/imagery/MapServer/WMS",
+        },
+      },
+      layers: [],
+    };
+    const sources = createSources(client, style);
+    const handle = sources.get("imagery");
+    expect(handle).toBeInstanceOf(HonuaWms);
+    expect((handle as HonuaWms).serviceId).toBe("imagery");
+  });
+
+  it("creates HonuaWmsLayer when honua-wms binds a single LAYER (and STYLE)", () => {
+    const style: HonuaStyleSpecification = {
+      version: 8,
+      sources: {
+        parcels: {
+          type: "honua-wms",
+          url: "https://gis.example.com/rest/services/imagery/MapServer/WMS",
+          layers: "parcels",
+          styles: "default",
+        },
+      },
+      layers: [],
+    };
+    const sources = createSources(client, style);
+    const handle = sources.get("parcels");
+    expect(handle).toBeInstanceOf(HonuaWmsLayer);
+    expect((handle as HonuaWmsLayer).serviceId).toBe("imagery");
+    expect((handle as HonuaWmsLayer).layerName).toBe("parcels");
+    expect((handle as HonuaWmsLayer).defaultStyleId).toBe("default");
+  });
+
+  it("creates HonuaWmts (service-level) for honua-wmts sources without a layer", () => {
+    const style: HonuaStyleSpecification = {
+      version: 8,
+      sources: {
+        tiles: {
+          type: "honua-wmts",
+          url: "https://gis.example.com/rest/services/imagery/MapServer/WMTS",
+        },
+      },
+      layers: [],
+    };
+    const sources = createSources(client, style);
+    const handle = sources.get("tiles");
+    expect(handle).toBeInstanceOf(HonuaWmts);
+    expect((handle as HonuaWmts).serviceId).toBe("imagery");
+  });
+
+  it("creates HonuaWmtsTileset when honua-wmts pins a layer + style + TileMatrixSet", () => {
+    const style: HonuaStyleSpecification = {
+      version: 8,
+      sources: {
+        tiles: {
+          type: "honua-wmts",
+          url: "https://gis.example.com/rest/services/imagery/MapServer/WMTS",
+          layer: "imagery",
+          style: "default",
+          tileMatrixSet: "WebMercatorQuad",
+        },
+      },
+      layers: [],
+    };
+    const sources = createSources(client, style);
+    const handle = sources.get("tiles");
+    expect(handle).toBeInstanceOf(HonuaWmtsTileset);
+    expect((handle as HonuaWmtsTileset).serviceId).toBe("imagery");
+    expect((handle as HonuaWmtsTileset).layerName).toBe("imagery");
+    expect((handle as HonuaWmtsTileset).styleId).toBe("default");
+    expect((handle as HonuaWmtsTileset).tileMatrixSetId).toBe("WebMercatorQuad");
   });
 
   it("returns null for non-Honua sources", () => {

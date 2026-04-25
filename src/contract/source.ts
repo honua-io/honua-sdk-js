@@ -778,6 +778,7 @@ export function wmsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
       ensureCapability(descriptor, caps, "query");
+      requireWmsCompatibleQuery(descriptor, request);
       const layers = wmsRequireLayers(descriptor, layerName);
       const { x: px, y: py, crs } = wmsExtractPointFromQuery(request, descriptor);
       const bboxRadius = 0.0001; // tiny envelope around the point keeps the request a 1×1 image.
@@ -1225,6 +1226,48 @@ function wmsRequireLayers(descriptor: SourceDescriptor, locatorTypeName: string 
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
+}
+
+/**
+ * Reject canonical `Query` fields that WMS GetFeatureInfo cannot honor so a
+ * mixed-source caller does not silently receive an unfiltered or
+ * differently-shaped result. WMS GetFeatureInfo only consumes the (i, j)
+ * pixel pair plus the rendered envelope; there is no SQL/CQL filter, no
+ * field projection, no order, no offset paging, and no geometry toggle on
+ * the wire. `aggregation` is mapped to `queryAggregate` so the error
+ * carries the same capability vocabulary as the rest of the contract.
+ * `pagination.limit` is honored (it maps to `FEATURE_COUNT`).
+ */
+function requireWmsCompatibleQuery<T>(descriptor: SourceDescriptor, request: Query<T> | undefined): void {
+  if (!request) return;
+  if (request.aggregation) {
+    throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+  }
+  if (typeof request.where === "string" && request.where.length > 0) {
+    throw new Error(
+      `wms: Query.where is not supported on GetFeatureInfo for source "${descriptor.id}"; WMS has no SQL/CQL filter on the wire. Pre-filter via Query.spatialFilter (point) or use a tabular protocol.`,
+    );
+  }
+  if (request.outFields && request.outFields.length > 0) {
+    throw new Error(
+      `wms: Query.outFields is not supported on GetFeatureInfo for source "${descriptor.id}"; the server returns the layer's full attribute schema. Project client-side after the result lands.`,
+    );
+  }
+  if (request.orderBy && request.orderBy.length > 0) {
+    throw new Error(
+      `wms: Query.orderBy is not supported on GetFeatureInfo for source "${descriptor.id}"; the server has no sort surface. Sort client-side after the result lands.`,
+    );
+  }
+  if (typeof request.pagination?.offset === "number" && request.pagination.offset > 0) {
+    throw new Error(
+      `wms: Query.pagination.offset is not supported on GetFeatureInfo for source "${descriptor.id}"; the request returns at most FEATURE_COUNT records and does not paginate. Drop pagination.offset.`,
+    );
+  }
+  if (request.returnGeometry === false) {
+    throw new Error(
+      `wms: Query.returnGeometry=false is not supported on GetFeatureInfo for source "${descriptor.id}"; the server controls geometry inclusion via INFO_FORMAT and the layer template. Drop returnGeometry or strip geometry client-side.`,
+    );
+  }
 }
 
 /**

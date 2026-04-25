@@ -139,3 +139,29 @@ export interface HonuaWmtsTileResponse {
 
 /** WMTS GetFeatureInfo response (mirrors WMS). */
 export type HonuaWmtsFeatureInfoResponse<T = Record<string, unknown>> = HonuaWmsFeatureInfoResponse<T>;
+
+// ── WMTS wire-format helpers ──────────────────────────────────
+
+/**
+ * Canonical mapping from WMTS `Format` MIME types to RESTful path
+ * extensions. Shared between the wire client (`getWmtsTile` /
+ * `featureInfo` URL builders in `src/core/client.ts`) and the MapLibre
+ * raster source helper (`buildWmtsRasterSourceSpec` in
+ * `src/runtime/source-bridge.ts`) so a caller-supplied `format` lands on
+ * the same extension regardless of which surface composes the URL.
+ *
+ * The map is intentionally narrow — formats not listed here fall back
+ * to `png` per the conservative WMTS default. Add a new entry only when
+ * honua-server adds first-party support for the encoding.
+ */
+const WMTS_TILE_FORMAT_TO_EXTENSION: ReadonlyMap<string, string> = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpeg"],
+  ["image/jpg", "jpeg"],
+  ["image/webp", "webp"],
+]);
+
+/** Resolve the RESTful path extension for a WMTS tile `Format` MIME type. */
+export function wmtsExtensionForFormat(format: string): string {
+  return WMTS_TILE_FORMAT_TO_EXTENSION.get(format.toLowerCase()) ?? "png";
+}
