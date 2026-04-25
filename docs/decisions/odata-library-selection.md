@@ -53,7 +53,11 @@ No candidate clears every bar.
 ## Decision
 
 Implement the OData adapter as a thin URL/JSON serializer over
-`HonuaClient.fetch`, the same pattern every shipped adapter uses
+`HonuaClient.pipelineFetch` / `pipelineRequestJson` (the
+`f=json`-free variants of the shared HTTP pipeline — the
+GeoServices-shaped `request()` helper injects `f=json` and Honua
+Server's OData validators reject it as `InvalidQueryOption`), the
+same wrap-not-rewrite pattern every shipped adapter uses
 (`HonuaOgcFeatureCollection`, `HonuaStacSearch`, `HonuaFeatureLayer`,
 the GeoServices wrappers). Concretely:
 
@@ -68,9 +72,11 @@ the GeoServices wrappers). Concretely:
   not implemented — Honua Server emits both formats, the SDK uses the
   JSON envelope, and an external `$batch` consumer can call the typed
   escape hatch's `raw()` for multipart.
-- All HTTP traffic flows through `HonuaClient.fetch` so the existing
-  auth / retry / telemetry pipeline applies without a parallel
-  request stack.
+- All HTTP traffic flows through `HonuaClient.pipelineFetch` /
+  `pipelineRequestJson` so the existing auth / retry / telemetry
+  pipeline applies without a parallel request stack and without
+  injecting GeoServices-only query params (`f=json`) onto the OData
+  wire.
 
 This satisfies the spirit of "wrap, don't rewrite" — the SDK does not
 reimplement OData semantics, it serializes a constrained subset

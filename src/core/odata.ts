@@ -4,10 +4,13 @@
  *
  * Library posture is recorded in
  * `docs/decisions/odata-library-selection.md`: the canonical surface is a
- * thin URL/JSON serializer over `HonuaClient.fetch` so that the auth /
- * retry / telemetry pipeline stays centralized. The dialect-specific
- * `$batch` / `$apply` / `$search` / `$deltatoken` operations live behind
- * the typed escape hatch returned by `Source.protocol("odata")`.
+ * thin URL/JSON serializer over `HonuaClient.pipelineFetch` /
+ * `pipelineRequestJson` (rather than the GeoServices-shaped
+ * `request()` helper, which would inject `f=json` and trip Honua
+ * Server's OData validators) so that the auth / retry / telemetry
+ * pipeline stays centralized. The dialect-specific `$batch` / `$apply`
+ * / `$search` / `$deltatoken` operations live behind the typed escape
+ * hatch returned by `Source.protocol("odata")`.
  *
  * @module
  */
@@ -892,9 +895,12 @@ function splitOdataLiteralSpans(input: string): string[] {
  * SR. The resolution order is `inputSrid` → the
  * `spatialFilter.geometry.spatialReference.{wkid|latestWkid}` carried by
  * the canonical `SpatialFilter` constructors → the metadata-declared
- * SRID on the geometry column. When none of those is available the
- * literal is emitted without a `SRID=` prefix and the server falls back
- * to the column's declared SRID.
+ * SRID on the **selected** geometry column (matched by name against
+ * `geometryColumn` when supplied; falls back to the first `isSpatial`
+ * field only when no column was pinned). Multi-geometry entity types
+ * never borrow SRIDs across columns. When none of those resolves, the
+ * literal is emitted without a `SRID=` prefix and the server falls
+ * back to the column's declared SRID.
  */
 export interface OdataSpatialFilterContext {
   geometryColumn?: string;
@@ -956,6 +962,19 @@ function resolveInputSrid(
   const sr = geometry.spatialReference as { wkid?: number; latestWkid?: number } | undefined;
   if (sr?.wkid !== undefined && Number.isFinite(sr.wkid)) return sr.wkid;
   if (sr?.latestWkid !== undefined && Number.isFinite(sr.latestWkid)) return sr.latestWkid;
+  // Prefer the SRID of the *selected* geometry column when a name was
+  // pinned by the caller — entity types with multiple spatial fields
+  // can declare different SRIDs per column, and the WKT must be stamped
+  // with the SRID of the column the predicate is being evaluated
+  // against. Falls back to the first spatial field only when no column
+  // was pinned (or the pinned column is absent from the supplied
+  // metadata fields).
+  const selected =
+    context.geometryColumn !== undefined
+      ? context.geometryFields?.find((f) => f.name === context.geometryColumn)
+      : undefined;
+  if (selected?.srid !== undefined && Number.isFinite(selected.srid)) return selected.srid;
+  if (context.geometryColumn !== undefined && selected) return undefined;
   const spatial = context.geometryFields?.find((f) => f.isSpatial);
   if (spatial?.srid !== undefined && Number.isFinite(spatial.srid)) return spatial.srid;
   return undefined;

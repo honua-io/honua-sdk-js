@@ -561,14 +561,19 @@ const aggregated = await odata.apply(
 ```
 
 `Query.where` accepts SQL-92 / OData `$filter` text; the adapter rewrites
-the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` → `eq`)
-and rejects operators the parity matrix marks unsupported (`has`, `in`,
-`any`, `all`, `cast`, `isof`). `Query.spatialFilter` translates to
-`geo.intersects` / `geo.distance` against the geometry column resolved
-from `SourceSchema.fields` first, then `$metadata`. `applyEdits` routes
-adds → `POST`, updates → `PATCH /<entitySet>(<key>)` with the full
-canonical body (PUT is unsupported per the parity matrix), deletes →
-`DELETE /<entitySet>(<key>)`. When `EditEnvelope.rollbackOnFailure: true`
+the documented intersection (`IS NULL` → `eq null`, `<>` → `ne`, `=` →
+`eq`, plus the SQL comparison operators `>=` / `<=` / `>` / `<` → `ge` /
+`le` / `gt` / `lt`) and rejects operators the parity matrix marks
+unsupported (`has`, `in`, `any`, `all`, `cast`, `isof`). `Query.outFields`
+splits onto `$select` for plain field names and `$expand` for navigation
+paths — `["Owner.name"]` lowers to `$expand=Owner($select=name)` so
+related properties round-trip through the canonical request envelope.
+`Query.spatialFilter` translates to `geo.intersects` / `geo.distance`
+against the geometry column resolved from `SourceDescriptor.schema.fields`
+(typed `esriFieldTypeGeometry`) first, then the lazy `$metadata` probe.
+`applyEdits` routes adds → `POST`, updates → `PATCH /<entitySet>(<key>)`
+with the full canonical body (PUT is unsupported per the parity matrix),
+deletes → `DELETE /<entitySet>(<key>)`. When `EditEnvelope.rollbackOnFailure: true`
 and `$metadata` advertises `Capabilities.BatchSupported`, all operations
 collapse into one `$batch` request with a shared `atomicityGroup`. OData
 is the **first adapter** to lazily fetch service `$metadata` and

@@ -480,10 +480,13 @@ predicate against the geometry column. Only `esriSpatialRelIntersects`
 are accepted; other relations throw rather than silently widen. The
 WKT literal carries the **input** geometry's SRID (resolved from
 `spatialFilter.geometry.spatialReference.{wkid|latestWkid}` first,
-then the metadata-declared SRID on the geometry column); `Query.outSr`
-is a request for the *output* CRS and is not stamped onto the input
-WKT (the OData server has no request-side output-CRS knob — output
-geometry comes back in the column's declared SRID). The geometry
+then the metadata-declared SRID on the *selected* geometry column —
+matched by name when the descriptor or metadata pinned a column, never
+borrowed across columns when an entity type declares more than one
+spatial field); `Query.outSr` is a request for the *output* CRS and
+is not stamped onto the input WKT (the OData server has no
+request-side output-CRS knob — output geometry comes back in the
+column's declared SRID). The geometry
 column resolves from `SourceDescriptor.schema.fields` first
 (prefers a field whose canonical `type === "esriFieldTypeGeometry"`),
 otherwise from the lazy `$metadata` probe (the first property typed
@@ -594,8 +597,9 @@ operations live behind `Source.protocol("odata")` on a
 - `delta({ since? })` — async-iterable `$deltatoken` change feed; the
   final page carries `deltaLink` for the caller to persist.
 - `raw(method, path, init?)` — last-resort passthrough that still
-  flows through `HonuaClient.fetch` (auth headers, retry, timeout,
-  interceptors, telemetry, normalized `HonuaHttpError`).
+  flows through `HonuaClient.pipelineFetch` (auth headers, retry,
+  timeout, interceptors, telemetry, normalized `HonuaHttpError`,
+  `init.signal` propagation for caller-driven cancellation).
 
 All HTTP traffic — including `$metadata` discovery and `raw()`
 passthrough — is routed through `HonuaClient.pipelineFetch` /
