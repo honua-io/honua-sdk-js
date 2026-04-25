@@ -21,6 +21,7 @@ import {
   capabilities,
   createDataset,
 } from "../../src/contract/index.js";
+import { HonuaClient } from "../../src/core/client.js";
 import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";
 import {
   HonuaFeatureLayer,
@@ -482,6 +483,79 @@ describe("contract / GeoServices ImageServer parity", () => {
         break;
       }
     }).rejects.toThrow(HonuaCapabilityNotSupportedError);
+  });
+
+  it("queryRasterCatalog forwards objectIds to the ImageServer catalog endpoint (GET serializes as CSV)", async () => {
+    let observedObjectIds: string | null = null;
+    const dataset = buildImageDataset([
+      [
+        "/rest/services/Imagery/ImageServer/query",
+        (url) => {
+          observedObjectIds = url.searchParams.get("objectIds");
+          return jsonResponse(imageServerCatalogResponse());
+        },
+      ],
+    ]);
+    const source = dataset.source("tiles-img")!;
+    const adapter = source.protocol("geoservices-image-service")!;
+    await adapter.queryRasterCatalog({ objectIds: [101, 102, 103] });
+    expect(observedObjectIds).toBe("101,102,103");
+
+    // queryRasterCatalogObjectIds must also forward objectIds so callers can
+    // narrow a returnIdsOnly probe to a specific raster set.
+    let idsOnlyObjectIds: string | null = null;
+    const idsDataset = buildImageDataset([
+      [
+        "/rest/services/Imagery/ImageServer/query",
+        (url) => {
+          idsOnlyObjectIds = url.searchParams.get("objectIds");
+          return jsonResponse({ objectIdFieldName: "OBJECTID", objectIds: [101] });
+        },
+      ],
+    ]);
+    const idsSource = idsDataset.source("tiles-img")!;
+    const idsAdapter = idsSource.protocol("geoservices-image-service")!;
+    const ids = await idsAdapter.queryRasterCatalogObjectIds({ objectIds: [101] });
+    expect(idsOnlyObjectIds).toBe("101");
+    expect(ids).toEqual([101]);
+  });
+
+  it("queryRasterCatalog forwards objectIds in the form-encoded body when method is POST", async () => {
+    let observedBody: string | undefined;
+    const dataset = buildImageDataset([
+      [
+        "/rest/services/Imagery/ImageServer/query",
+        async (_url, init) => {
+          observedBody = typeof init?.body === "string" ? init.body : undefined;
+          return jsonResponse(imageServerCatalogResponse());
+        },
+      ],
+    ]);
+    const source = dataset.source("tiles-img")!;
+    const adapter = source.protocol("geoservices-image-service")!;
+    await adapter.queryRasterCatalog({ method: "POST", objectIds: [201, 202] });
+    expect(observedBody).toBeDefined();
+    expect(observedBody).toContain("objectIds=201%2C202");
+  });
+
+  it("tileUrl prefixes the HonuaClient base URL so non-root deployments resolve correctly", () => {
+    // Honua Server may be mounted under a base path (e.g. https://example.test/honua).
+    // The tile URL must include that origin and prefix; otherwise tile fetches
+    // resolve against the web app origin instead of the server.
+    const client = new HonuaClient({ baseUrl: "https://example.test/honua" });
+    const service = new HonuaImageService({ client, serviceId: "Imagery" });
+    expect(service.tileUrl(2, 3, 4)).toBe(
+      "https://example.test/honua/rest/services/Imagery/ImageServer/tile/2/3/4?f=png",
+    );
+    expect(service.tileUrl(2, 3, 4, "jpg")).toContain("?f=jpg");
+
+    // Trailing slashes on the configured baseUrl must be normalized so the
+    // tile URL has a single boundary slash.
+    const trailingClient = new HonuaClient({ baseUrl: "https://example.test/honua/" });
+    const trailingService = new HonuaImageService({ client: trailingClient, serviceId: "Imagery" });
+    expect(trailingService.tileUrl(0, 0, 0)).toBe(
+      "https://example.test/honua/rest/services/Imagery/ImageServer/tile/0/0/0?f=png",
+    );
   });
 
   it("ImageServer POST mode sends params as a form-encoded body (not just in the URL)", async () => {

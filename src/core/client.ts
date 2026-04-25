@@ -257,6 +257,16 @@ export class HonuaClient {
     return this.transport === "grpc-web";
   }
 
+  /**
+   * Normalized base URL the client was constructed with (trailing slashes
+   * trimmed). Helpers that build absolute URLs without going through
+   * `request()` (e.g. tile URL generators) read this so they produce the
+   * same origin and base path the server actually serves from.
+   */
+  public get serverBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   public async *queryFeaturesStream(request: QueryFeaturesRequest): AsyncGenerator<HonuaFeature[], void, undefined> {
     const client = await this.ensureConnectClient();
     const grpcAdapter = await HonuaClient.loadGrpcAdapter();

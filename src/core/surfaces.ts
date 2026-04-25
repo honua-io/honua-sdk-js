@@ -1360,7 +1360,7 @@ export class HonuaImageService {
 
   public tileUrl(level: number, row: number, col: number, format: "png" | "jpg" | "jpeg" | "tif" | "tiff" = "png"): string {
     const path = `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/tile/${level}/${row}/${col}`;
-    return `${path}?f=${format}`;
+    return `${this.client.serverBaseUrl}${path}?f=${format}`;
   }
 
   public async legend(): Promise<HonuaLegendResponse> {
@@ -1377,6 +1377,9 @@ function imageQueryParams(request: HonuaImageServiceQueryRequest): Record<string
   if (request.where !== undefined) params.where = request.where;
   if (request.outFields !== undefined) {
     params.outFields = Array.isArray(request.outFields) ? request.outFields.join(",") : String(request.outFields);
+  }
+  if (request.objectIds !== undefined) {
+    params.objectIds = Array.isArray(request.objectIds) ? request.objectIds.join(",") : String(request.objectIds);
   }
   if (request.returnGeometry !== undefined) params.returnGeometry = request.returnGeometry;
   if (request.outSr !== undefined) params.outSR = String(request.outSr);

@@ -5,7 +5,10 @@ import {
   createHonuaService,
   HonuaClient,
   HonuaFeatureLayer,
+  HonuaGeometryService,
+  HonuaGeoprocessingService,
   HonuaHttpError,
+  HonuaImageService,
   HonuaMapLayer,
   HonuaMapService,
   HonuaOgcFeatureCollection,
@@ -112,6 +115,9 @@ import {
   capabilities,
   createDataset,
   geoServicesFeatureSource,
+  geoServicesGPServiceSource,
+  geoServicesGeometryServiceSource,
+  geoServicesImageSource,
   geoServicesMapServiceSource,
   ogcFeaturesSource,
 } from "../src/contract/index.js";
@@ -133,6 +139,9 @@ describe("entrypoint modules", () => {
     expect(HonuaMapService).toBeTypeOf("function");
     expect(HonuaOgcFeatures).toBeTypeOf("function");
     expect(HonuaOgcFeatureCollection).toBeTypeOf("function");
+    expect(HonuaImageService).toBeTypeOf("function");
+    expect(HonuaGeometryService).toBeTypeOf("function");
+    expect(HonuaGeoprocessingService).toBeTypeOf("function");
     expect(createHonuaService).toBeTypeOf("function");
     expect(createHonuaOgcFeatures).toBeTypeOf("function");
   });
@@ -243,6 +252,9 @@ describe("entrypoint modules", () => {
     expect(createDataset).toBeTypeOf("function");
     expect(geoServicesFeatureSource).toBeTypeOf("function");
     expect(geoServicesMapServiceSource).toBeTypeOf("function");
+    expect(geoServicesImageSource).toBeTypeOf("function");
+    expect(geoServicesGeometryServiceSource).toBeTypeOf("function");
+    expect(geoServicesGPServiceSource).toBeTypeOf("function");
     expect(ogcFeaturesSource).toBeTypeOf("function");
   });
 

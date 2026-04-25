@@ -76,15 +76,22 @@ The Image Service adapter wraps Honua Server's ImageServer endpoints
 (see `feature-server-matrix.md`'s sibling
 `image-server-matrix.md`). `Source.query()` returns the raster catalog
 as canonical features (one row per raster, footprint geometry on each).
-`Source.queryExtent()` and `Source.queryObjectIds()` reuse the same
-catalog endpoint with the standard GeoServices shaping flags
-(`returnExtentOnly`, `returnIdsOnly`). Tile URLs come from
+`Source.queryAll()` drains pages from the catalog endpoint internally
+(`resultOffset` / `resultRecordCount`) and uses a `limit + 1` lookahead
+row to stamp `exceededTransferLimit: true` when the cap is hit, mirroring
+the FeatureServer / OGC `queryAll` semantics. `Source.queryExtent()` and
+`Source.queryObjectIds()` reuse the same catalog endpoint with the
+standard GeoServices shaping flags (`returnExtentOnly`, `returnIdsOnly`).
+Tile URLs come from
 `Source.protocol("geoservices-image-service").tileUrl(level, row, col)`.
 `exportImage`, `identify`, `legend` live on the same
 `HonuaImageService` typed escape hatch — these protocol-specific
 operations are not on the canonical `Source` because their request
 shapes (mosaic rule, rendering rule, pixel size, raster function chains)
-are ImageServer-specific. `applyEdits`, `attachments`, `queryRelated`,
+are ImageServer-specific. The wrapper accepts both `GET` (params on the
+query string) and `POST` (form-encoded body) per request; `POST` is the
+correct mode when payload size or proxy URL limits would truncate a
+`GET` URL. `applyEdits`, `attachments`, `queryRelated`,
 `queryAggregate`, and `stream` are intentionally absent from the
 default capability set; the canonical methods throw
 `HonuaCapabilityNotSupportedError` rather than silently no-op.
@@ -97,9 +104,13 @@ capabilities advertise only `geometry` and `connect`. Operations
 `difference`) live behind
 `Source.protocol("geoservices-geometry-service")` on a
 `HonuaGeometryService` instance whose request shapes match the routes
-in `honua-server/docs/gis/geometry-service-matrix.md`. Operations the
-server does not implement (`autoComplete`, `convexHull`, `cut`,
-`densify`, etc.) intentionally have no wrapper.
+in `honua-server/docs/gis/geometry-service-matrix.md`. The wrapper
+targets the `EndpointRegistry` prefix
+`/rest/services/Utilities/Geometry/GeometryServer/<op>` (the canonical
+Esri Utilities path); `POST` requests submit form-encoded bodies (the
+default), `GET` keeps params in the query string. Operations the server
+does not implement (`autoComplete`, `convexHull`, `cut`, `densify`,
+etc.) intentionally have no wrapper.
 
 ### GeoServices GP Service
 GP Services run async tasks rather than hosting features. The default
@@ -119,6 +130,11 @@ task name.
 
 ### OGC API Features
 `query`, `queryObjectIds`, `applyEdits`, `stream` are first-party.
+OGC has no batch edit endpoint, so `applyEdits` fans out to per-item
+`createItem` / `replaceItem` / `deleteItem` calls and forwards
+`EditEnvelope.signal` to every request — aborting the signal cancels
+every operation that has not yet been issued, while operations already
+in flight resolve into per-item failures on the returned `EditResult`.
 `queryAll()` requests `limit + 1` rows from `itemsAll()` when the caller
 caps the result with `Query.pagination.limit` so the adapter can stamp
 `exceededTransferLimit: true` when more records exist (mirroring the

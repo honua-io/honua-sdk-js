@@ -19,7 +19,7 @@ server `SourceBinding`, and a `SourceBinding` re-imported through
 | `locator.collectionId` | `locator.collectionId` | OGC API Features collection. |
 | `locator.typeName` | `locator.typeName` | WFS / WMS type-name. |
 | `locator.entitySet` | `locator.entitySet` | OData entity set. |
-| `locator.taskName` | `locator.taskName` | GP Service task identifier; combined with `serviceId` it uniquely identifies one async task without leaking task parameters into the descriptor. |
+| `locator.taskName` | `locator.taskName` | GP Service task identifier; combined with `serviceId` it uniquely identifies one async task without leaking task parameters into the descriptor. Required on descriptors that advertise the `geoprocess` capability — `createDataset` rejects bindings without it because the lifecycle routes (`/GPServer/<taskName>/submitJob` etc.) do not exist at the service root. |
 | `capabilities` | `capabilities` | Set serialized as a sorted string array on the wire. The server is authoritative for what it serves; the SDK's set is what the **adapter** can produce. |
 | `schema.fields` | `schema.fields` | Optional. Same shape as `HonuaFieldInfo`. |
 | `schema.primaryKey` | `schema.primaryKey` | Optional; defaults to first PK detected in `fields`. |
