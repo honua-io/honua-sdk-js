@@ -58,6 +58,16 @@ from `Query.pagination.limit` so `source.stream({ pagination: { limit } })`
 yields pages of at most `limit` rows instead of the core helper's
 default 2000. `pbf` is supported when the server returns `f=pbf`; the
 contract accepts both encodings transparently.
+`Source.attachments.query()` requires a non-empty
+`parentIds` set of numeric ObjectIDs and rejects `AttachmentQuery.where`:
+the FeatureServer `queryAttachments` endpoint filters by `objectIds`
+only, returns `400 "objectIds parameter is required"` when the set is
+empty, accepts only long-integer ids, and silently ignores `where`. The
+adapter throws explicitly rather than make a failing wire call or let
+callers think `where` filtered. Use `attachments.list(parentId)` for
+the single-parent shortcut, and filter by attachment metadata
+client-side over the returned `AttachmentGroups` when richer predicates
+are needed.
 
 ### GeoServices Map Service / Map Layer
 Same query semantics as Feature Service for the layers it exposes

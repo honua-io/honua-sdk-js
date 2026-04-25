@@ -49,7 +49,10 @@ All notable changes to the Honua JS SDK will be documented in this file.
   carries the GP Service task identifier so a single descriptor uniquely identifies an async task.
   The ImageServer adapter rejects `Query.spatialFilter` / `Query.orderBy` / `Query.outFields` instead of
   silently widening the catalog result. OGC `applyEdits` per-item failures preserve `HonuaHttpError.statusCode`
-  on the `EditOutcome.error.code` rather than collapsing to `500`.
+  on the `EditOutcome.error.code` rather than collapsing to `500`. The GeoServices FeatureServer
+  `attachments.query()` requires non-empty numeric `parentIds` and rejects `AttachmentQuery.where`,
+  matching what the FeatureServer `queryAttachments` endpoint actually enforces (`objectIds` filter only,
+  numeric ids only, `where` is ignored on the wire).
 - Exploration state module at `@honua/sdk-js/exploration`: `createExplorationContext(...)` with a
   microtask-coalesced reducer over filters, spatial filter, extent, selection, sort, pagination, visible
   fields, grouping, and aggregation; five linked-view presets (`globalLinked`, `mapDriven`, `gridDriven`,

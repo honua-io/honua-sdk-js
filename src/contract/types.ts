@@ -418,10 +418,27 @@ export interface AttachmentInfo {
   size?: number;
 }
 
-/** Canonical attachment-query envelope. */
+/**
+ * Canonical attachment-query envelope.
+ *
+ * Adapter coverage varies — some protocols filter by parent id only,
+ * others may add `where` predicates. Adapters that cannot honor a
+ * field throw an explicit `Error` rather than silently dropping it.
+ * For example, the GeoServices FeatureServer adapter requires
+ * `parentIds` (numeric ObjectIDs only) and rejects `where` because the
+ * server endpoint filters by `objectIds` only and ignores `where`.
+ */
 export interface AttachmentQuery {
-  /** Optional caller-supplied parent ids. Empty = all matching `where`. */
+  /**
+   * Caller-supplied parent ids. Required by adapters whose underlying
+   * endpoint filters by id (e.g. GeoServices FeatureServer); adapters
+   * with a richer query surface may treat this as optional.
+   */
   parentIds?: ReadonlyArray<FeatureId>;
+  /**
+   * Optional predicate. Adapters that cannot honor a `where` clause
+   * throw rather than silently widening the result.
+   */
   where?: string;
   signal?: AbortSignal;
 }

@@ -1518,9 +1518,9 @@ function featureLayerAttachmentApi<T>(
   return {
     async query(request) {
       ensureAttachments();
+      const objectIds = requireFeatureServerCompatibleAttachmentQuery(request);
       const response = await layer.queryAttachments({
-        ...(request?.parentIds ? { objectIds: request.parentIds.map(toAttachmentNumericId).filter(isFiniteNumberStrict) } : {}),
-        ...(request?.where !== undefined ? { where: request.where } : {}),
+        objectIds,
         ...(request?.signal ? { signal: request.signal } : {}),
       });
       return (response.attachmentGroups ?? []).map((group) => ({
@@ -1607,6 +1607,41 @@ function toAttachmentNumericId(id: FeatureId): number {
 
 function isFiniteNumberStrict(n: number): n is number {
   return Number.isFinite(n);
+}
+
+/**
+ * Reject `AttachmentQuery` shapes the FeatureServer `queryAttachments`
+ * endpoint cannot honor. Honua Server reads `objectIds` only — `where`
+ * is silently ignored, an empty / missing `objectIds` returns
+ * `400 "objectIds parameter is required"`, and non-numeric tokens are
+ * rejected with `"objectIds parameter must contain only numeric values"`
+ * (see `Honua.Server/.../FeatureServer/AttachmentEndpoints.cs`
+ * `TryParseObjectIds`). Refusing the request explicitly here prevents
+ * silent widening when callers rely on `where` and prevents an opaque
+ * server 400 when ids cannot parse. Mirrors the OGC adapter's
+ * `requireQueryGeometryEnvelope` and the ImageServer
+ * `requireImageServerCompatibleQuery` guards.
+ */
+function requireFeatureServerCompatibleAttachmentQuery(request: AttachmentQuery | undefined): readonly number[] {
+  if (request?.where !== undefined) {
+    throw new Error(
+      "geoservices-feature-service: AttachmentQuery.where is not supported on the FeatureServer queryAttachments endpoint; the server filters by objectIds only and silently ignores `where`. Drop `where` or filter the returned AttachmentGroups client-side.",
+    );
+  }
+  const parentIds = request?.parentIds;
+  if (!parentIds || parentIds.length === 0) {
+    throw new Error(
+      "geoservices-feature-service: AttachmentQuery.parentIds is required on the FeatureServer queryAttachments endpoint; the server returns 400 when objectIds is empty. Pass at least one parent feature id, or call attachments.list(parentId) for a single feature.",
+    );
+  }
+  const numeric = parentIds.map(toAttachmentNumericId);
+  const dropped = parentIds.filter((_, index) => !Number.isFinite(numeric[index]));
+  if (dropped.length > 0) {
+    throw new Error(
+      `geoservices-feature-service: AttachmentQuery.parentIds must contain only numeric ObjectIDs; received non-numeric ${JSON.stringify(dropped)}. The FeatureServer queryAttachments endpoint accepts long-integer feature ids only.`,
+    );
+  }
+  return numeric;
 }
 
 // ── Built-in AdapterTypeMap augmentation ──────────────────────

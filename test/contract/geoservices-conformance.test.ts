@@ -281,6 +281,65 @@ describe("contract / GeoServices FeatureServer parity", () => {
     expect(deleted).toEqual([{ parentId: 1, attachmentId: 7, success: true }]);
   });
 
+  it("attachments.query rejects unsupported AttachmentQuery shapes rather than silently widening", async () => {
+    let observedQueryAttachments = 0;
+    const dataset = buildFeatureDataset([
+      [
+        "/rest/services/Parcels/FeatureServer/0/queryAttachments",
+        () => {
+          observedQueryAttachments += 1;
+          return jsonResponse(geoservicesQueryAttachmentsResponse());
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-fs")!;
+
+    // `where` is silently ignored by the FeatureServer queryAttachments endpoint,
+    // so the adapter must throw instead of letting the caller think it filtered.
+    await expect(source.attachments.query({ parentIds: [1], where: "STATUS = 'A'" })).rejects.toThrow(
+      /AttachmentQuery\.where is not supported/,
+    );
+
+    // The server returns 400 when objectIds is empty; the adapter must throw rather
+    // than make the failing wire call.
+    await expect(source.attachments.query({})).rejects.toThrow(/AttachmentQuery\.parentIds is required/);
+    await expect(source.attachments.query()).rejects.toThrow(/AttachmentQuery\.parentIds is required/);
+    await expect(source.attachments.query({ parentIds: [] })).rejects.toThrow(
+      /AttachmentQuery\.parentIds is required/,
+    );
+
+    // Non-numeric parent ids would either be silently dropped (silent narrowing of
+    // the filter set) or produce an opaque server 400; the adapter throws so the
+    // caller sees the actual constraint.
+    await expect(source.attachments.query({ parentIds: ["not-a-number"] })).rejects.toThrow(
+      /must contain only numeric ObjectIDs/,
+    );
+    await expect(source.attachments.query({ parentIds: [1, "x"] })).rejects.toThrow(
+      /must contain only numeric ObjectIDs/,
+    );
+
+    expect(observedQueryAttachments).toBe(0);
+  });
+
+  it("attachments.query forwards the numeric parentIds set as objectIds on the wire", async () => {
+    let observedObjectIds: string | null = null;
+    const dataset = buildFeatureDataset([
+      [
+        "/rest/services/Parcels/FeatureServer/0/queryAttachments",
+        (url) => {
+          observedObjectIds = url.searchParams.get("objectIds");
+          return jsonResponse(geoservicesQueryAttachmentsResponse());
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-fs")!;
+
+    // Numeric strings are accepted and coerced; the wire format remains the
+    // canonical comma-separated long-integer list the server expects.
+    await source.attachments.query({ parentIds: [1, "2", 3] });
+    expect(observedObjectIds).toBe("1,2,3");
+  });
+
   it("protocol() escape hatch returns the underlying HonuaFeatureLayer for raw GeoServices ops", () => {
     const dataset = buildFeatureDataset([]);
     const source = dataset.source<ParcelAttrs>("parcels-fs")!;
