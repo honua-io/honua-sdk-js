@@ -613,6 +613,38 @@ same way they do to every other adapter.
 Library posture is recorded in
 [`decisions/odata-library-selection.md`](./decisions/odata-library-selection.md).
 
+## Multi-source negotiation
+
+When more than one source participates in a composition, the
+composition supports a capability **only when every participating
+source supports it**. Use `intersectCapabilities` from
+`@honua/sdk-js/contract` to compute that weakest set:
+
+```ts
+import {
+  PROTOCOL_DEFAULT_CAPABILITIES,
+  intersectCapabilities,
+} from "@honua/sdk-js/contract";
+
+const weakest = intersectCapabilities([
+  { capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"] },
+  { capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wms },
+]);
+weakest.has("query"); // true
+weakest.has("applyEdits"); // false — WMS lacks edits
+```
+
+The helper is structurally typed on `{ capabilities }` so it accepts
+both `SourceDescriptor[]` (declared capabilities) and live `Source[]`
+(post-metadata-negotiation capabilities — the OData adapter, for
+example, intersects the descriptor's declared set with `$metadata`
+flags on first capability-gated method).
+
+Promising a capability the weakest source lacks is the worst possible
+mixed-source failure mode (silent wrong result). The full guide and
+the per-operation partitioning pattern live in
+[`composition.md`](./composition.md).
+
 ## Maintaining the matrix
 
 When you add or remove a capability for any protocol:
@@ -626,3 +658,6 @@ When you add or remove a capability for any protocol:
    automatic metadata-driven downgrades land in the adapter constructors,
    document the override in the adapter's source file and add a unit test
    covering the intersected set.
+5. Adapters that emit `Result.degraded[]` should populate
+   `DegradedReason.sourceId` with `descriptor.id` so mixed-source fan-outs
+   can attribute the degradation back to the source that emitted it.

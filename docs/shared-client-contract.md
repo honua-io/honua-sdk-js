@@ -95,6 +95,15 @@ The registry is intentionally broader than the current `Source` method list so
 downstream adapter tickets can negotiate `render` / `tiles` / `sql` /
 `queryObjectIds` / etc. without inventing a second capability vocabulary.
 
+For multi-source compositions, use `intersectCapabilities` from
+`@honua/sdk-js/contract` to compute the **weakest** capability set
+across the participating sources before fanning a call out — the rule
+plus the partition-then-intersect pattern for per-operation reasoning
+lives in [`composition.md`](./composition.md). Adapters that emit
+`Result.degraded[]` populate `DegradedReason.sourceId` from
+`descriptor.id` so a fan-out can attribute each degradation back to
+the exact source that triggered it.
+
 ## Source factory
 
 ```ts
