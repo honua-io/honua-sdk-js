@@ -204,13 +204,14 @@ export function buildWmsRasterSourceSpec(
   params.set("LAYERS", layers);
   params.set("STYLES", styles);
   params.set("CRS", "EPSG:3857");
-  params.set("WIDTH", String(tileSize));
-  params.set("HEIGHT", String(tileSize));
   params.set("FORMAT", format);
   params.set("TRANSPARENT", String(transparent).toUpperCase());
   // MapLibre substitutes these placeholders at fetch-time. They are
   // intentionally appended verbatim (no encoding) so MapLibre's
-  // template parser sees the literal `{bbox-epsg3857}` token.
+  // template parser sees the literal tokens. WIDTH and HEIGHT are
+  // emitted only as placeholders — duplicating them as fixed params
+  // would produce ambiguous query keys that honua-server's
+  // TryGetRequiredQueryValue / int.TryParse pair rejects.
   const baseUrl = `${url}?${params.toString()}&BBOX={bbox-epsg3857}&WIDTH={width}&HEIGHT={height}`;
   const out: { type: "raster"; tiles: string[]; tileSize: number; attribution?: string } = {
     type: "raster",

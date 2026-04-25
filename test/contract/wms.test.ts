@@ -245,8 +245,91 @@ describe("wms / Source adapter", () => {
     expect(observed?.get("J")).toBe("0");
     expect(observed?.get("INFO_FORMAT")).toBe("application/json");
     expect(observed?.get("QUERY_LAYERS")).toBe("parcels");
+    // WGS84 lon/lat point with no explicit spatial reference defaults
+    // to CRS:84 (lon, lat axis order) per WMS 1.3.0; outSr is the
+    // output SR and must not leak into the input CRS.
+    expect(observed?.get("CRS")).toBe("CRS:84");
     expect(result.features).toHaveLength(1);
     expect(result.features[0]?.attributes.OBJECTID).toBe(7);
+  });
+
+  it("derives the WMS CRS from the spatial filter geometry's spatialReference", async () => {
+    let observed: URLSearchParams | undefined;
+    const client = makeMockClient({
+      routes: [
+        [
+          "MapServer/WMS",
+          (url) => {
+            observed = url.searchParams;
+            return jsonResponse({ type: "FeatureInfoResponse", features: [] });
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "imagery",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels",
+          protocol: "wms",
+          locator: {
+            url: "https://mock.honua.test/rest/services/imagery/MapServer/WMS",
+            serviceId: "imagery",
+            typeName: "parcels",
+          },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wms,
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source("parcels")!;
+    // EPSG:4326 lat/lon point. outSr is the output SR (3857 here)
+    // and must not be mistaken for the input CRS.
+    await source.query({
+      outSr: 3857,
+      spatialFilter: point(38, -122, { wkid: 4326 }),
+    });
+    expect(observed?.get("CRS")).toBe("EPSG:4326");
+    expect(observed?.get("WIDTH")).toBe("1");
+    expect(observed?.get("HEIGHT")).toBe("1");
+  });
+
+  it("prefers latestWkid over wkid when both are present on the spatial reference", async () => {
+    let observed: URLSearchParams | undefined;
+    const client = makeMockClient({
+      routes: [
+        [
+          "MapServer/WMS",
+          (url) => {
+            observed = url.searchParams;
+            return jsonResponse({ type: "FeatureInfoResponse", features: [] });
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "imagery",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels",
+          protocol: "wms",
+          locator: {
+            url: "https://mock.honua.test/rest/services/imagery/MapServer/WMS",
+            serviceId: "imagery",
+            typeName: "parcels",
+          },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wms,
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source("parcels")!;
+    await source.query({
+      spatialFilter: point(-13624000, 4567000, { wkid: 102100, latestWkid: 3857 }),
+    });
+    expect(observed?.get("CRS")).toBe("EPSG:3857");
   });
 
   it("rejects non-point spatialFilter envelopes through Source.query()", async () => {
@@ -333,5 +416,14 @@ describe("wms / MapLibre binding", () => {
     expect(url).toContain("BBOX={bbox-epsg3857}");
     expect(url).toContain("WIDTH={width}");
     expect(url).toContain("HEIGHT={height}");
+    // Honua Server's WMS handler reads WIDTH / HEIGHT through
+    // `TryGetRequiredQueryValue` + `int.TryParse`, so the same key
+    // must appear exactly once. Counting the occurrences keeps a
+    // future regression that re-introduces a fixed `WIDTH=256` from
+    // silently breaking GetMap dispatch.
+    const widthOccurrences = url.match(/[?&]WIDTH=/g) ?? [];
+    const heightOccurrences = url.match(/[?&]HEIGHT=/g) ?? [];
+    expect(widthOccurrences).toHaveLength(1);
+    expect(heightOccurrences).toHaveLength(1);
   });
 });

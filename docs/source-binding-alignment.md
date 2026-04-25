@@ -22,7 +22,7 @@ locator fields until the server schema exposes them explicitly.
 | `locator.collectionId` | `locator.collectionId` | OGC API Features / Tiles / Maps / STAC collection. |
 | `locator.tileMatrixSetId` | `locator.tileMatrixSetId` | OGC API Tiles tile-matrix-set identifier. When set, `Source.adapter("ogc-tiles")` returns a bound `HonuaOgcTileset`; when omitted, it returns the root `HonuaOgcTiles` handle for tile-matrix-set discovery. Preserved as an additive locator field when present. |
 | `locator.styleId` | `locator.styleId` | OGC API Maps styled-output identifier. Consumed by `Source.adapter("ogc-maps")` to build the `/styles/{styleId}/map` route. Not consumed by the OGC Tiles adapter today: honua-server does not expose a `/styles/{styleId}/tiles/...` route, so the SDK keeps the tile path canonical. Preserved as an additive locator field when present. |
-| `locator.typeName` | `locator.typeName` | WFS / WMS type-name. |
+| `locator.typeName` | `locator.typeName` | WFS / WMS / WMTS layer name (the WMS `LAYERS=` value, the WMTS `Layer` identifier). |
 | `locator.entitySet` | `locator.entitySet` | OData entity set. |
 | `locator.taskName` | `locator.taskName` | GP Service task identifier; combined with `serviceId` it uniquely identifies one async task without leaking task parameters into the descriptor. Required on descriptors that advertise the `geoprocess` capability — `createDataset` rejects bindings without it because the lifecycle routes (`/GPServer/<taskName>/submitJob` etc.) do not exist at the service root. |
 | `capabilities` | `capabilities` | Set serialized as a sorted string array on the wire. The server is authoritative for what it serves; the SDK's set is what the **adapter** can produce. |
@@ -106,7 +106,9 @@ runtime's `source-bridge.ts`:
 | `geoservices_feature_service` | `geoservices-feature-service` |
 | `geoservices_map_service` | `geoservices-map-service` |
 | `ogc_features` | `ogc-features` |
-| `wfs` / `wms` / `odata` | `wfs` / `wms` / `odata` |
+| `wms` | `wms` (custom MapLibre source `honua-wms`; `locator.typeName` → `layers`, `locator.styleId` → `styles`) |
+| `wmts` | `wmts` (custom MapLibre source `honua-wmts`; `locator.typeName` / `locator.styleId` / `locator.tileMatrixSetId` → `layer` / `style` / `tileMatrixSet`) |
+| `wfs` / `odata` | `wfs` / `odata` |
 | `vector_tile` / `ogc_tiles` | MapLibre-native `vector` source (no SDK adapter) |
 | `raster_tile` / `ogc_maps` | MapLibre-native `raster` source (no SDK adapter) |
 | `workspace_artifact` | Deferred — throws `HonuaMapPackageError { stage: "source-bind" }` until a workspace resolver is wired. |

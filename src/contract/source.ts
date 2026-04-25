@@ -779,10 +779,8 @@ export function wmsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
     async query(request) {
       ensureCapability(descriptor, caps, "query");
       const layers = wmsRequireLayers(descriptor, layerName);
-      const point = wmsExtractPointFromQuery(request, descriptor);
-      const crs = (request?.outSr !== undefined ? wmsCrsFromOutSr(request.outSr) : "EPSG:3857") as string;
+      const { x: px, y: py, crs } = wmsExtractPointFromQuery(request, descriptor);
       const bboxRadius = 0.0001; // tiny envelope around the point keeps the request a 1×1 image.
-      const [px, py] = point;
       const widthHeight = 1;
       const featureCount = request?.pagination?.limit;
       const response = await client.getWmsFeatureInfo<T>({
@@ -1230,45 +1228,65 @@ function wmsRequireLayers(descriptor: SourceDescriptor, locatorTypeName: string 
 }
 
 /**
- * Extract a single (x, y) point from `Query.spatialFilter`. WMS only
+ * Extract `(x, y)` and the WMS CRS from `Query.spatialFilter`. WMS only
  * exposes feature-info on a pixel coordinate, so the canonical
- * `Source.query()` is restricted to point spatial filters. Non-point
- * geometries throw `HonuaCapabilityNotSupportedError`.
+ * `Source.query()` is restricted to point spatial filters. The CRS is
+ * derived from the geometry's `spatialReference` (`wkid` / `latestWkid` /
+ * `wkt`) and falls back to `CRS:84` — the WMS 1.3.0 longitude/latitude
+ * code that preserves the canonical `(x, y)` axis order — when the
+ * caller did not stamp the geometry with a spatial reference. Non-point
+ * geometries throw `HonuaCapabilityNotSupportedError`. `Query.outSr` is
+ * intentionally not consulted here: it is the **output** spatial
+ * reference for projected results, not the input CRS for the
+ * GetFeatureInfo wire request.
  */
 function wmsExtractPointFromQuery<T>(
   request: Query<T> | undefined,
   descriptor: SourceDescriptor,
-): readonly [number, number] {
+): { x: number; y: number; crs: string } {
   const filter = request?.spatialFilter;
   if (!filter) {
     throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
   }
-  const geom = filter.geometry as { x?: unknown; y?: unknown; coordinates?: unknown } | undefined;
+  const geom = filter.geometry as
+    | { x?: unknown; y?: unknown; coordinates?: unknown; spatialReference?: unknown }
+    | undefined;
   if (filter.geometryType !== "esriGeometryPoint") {
     throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
   }
+  const crs = wmsCrsFromGeometrySpatialReference(geom?.spatialReference);
   if (geom && typeof geom.x === "number" && typeof geom.y === "number") {
-    return [geom.x, geom.y] as const;
+    return { x: geom.x, y: geom.y, crs };
   }
   if (geom && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
     const [x, y] = geom.coordinates as readonly unknown[];
-    if (typeof x === "number" && typeof y === "number") return [x, y] as const;
+    if (typeof x === "number" && typeof y === "number") return { x, y, crs };
   }
   throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
 }
 
 /**
- * Translate a canonical `Query.outSr` (WKID or full SR object) into a
- * WMS-compatible CRS code. Only the codes honua-server advertises
- * (`EPSG:4326`, `EPSG:3857`, `CRS:84`) are first-party; anything else
- * passes through verbatim and the server's CRS validator decides.
+ * Translate a geometry's `spatialReference` (Esri-style `{ wkid?,
+ * latestWkid?, wkt? }`) into a WMS-compatible CRS code. `wkid` /
+ * `latestWkid` map to `EPSG:N`. A non-empty `wkt` is passed through
+ * verbatim — the server validates it. When no recognizable hint is
+ * present the function returns `CRS:84` so the canonical (x, y) axis
+ * order is preserved on the wire.
  */
-function wmsCrsFromOutSr(outSr: string | number | undefined): string | undefined {
-  if (outSr === undefined) return undefined;
-  if (typeof outSr === "number") return `EPSG:${outSr}`;
-  const trimmed = outSr.trim();
-  if (/^\d+$/.test(trimmed)) return `EPSG:${trimmed}`;
-  return trimmed;
+function wmsCrsFromGeometrySpatialReference(spatialReference: unknown): string {
+  if (spatialReference && typeof spatialReference === "object") {
+    const sr = spatialReference as { wkid?: unknown; latestWkid?: unknown; wkt?: unknown };
+    if (typeof sr.latestWkid === "number" && Number.isFinite(sr.latestWkid)) {
+      return `EPSG:${sr.latestWkid}`;
+    }
+    if (typeof sr.wkid === "number" && Number.isFinite(sr.wkid)) {
+      return `EPSG:${sr.wkid}`;
+    }
+    if (typeof sr.wkt === "string" && sr.wkt.trim().length > 0) {
+      return sr.wkt.trim();
+    }
+  }
+  return "CRS:84";
 }
 
 function toStacRequest<T>(

@@ -839,14 +839,15 @@ export class HonuaClient {
       return this.requestBytes("GET", path, format, undefined, request.signal);
     }
     const ext = wmtsExtensionForFormat(format);
-    const path =
-      `${wmtsBasePath(request.serviceId)}` +
-      `/${encodeURIComponent(request.layer)}` +
-      `/${encodeURIComponent(style)}` +
-      `/${encodeURIComponent(tileMatrixSet)}` +
-      `/${encodeURIComponent(String(request.tileMatrix))}` +
-      `/${encodeURIComponent(String(request.tileRow))}` +
-      `/${encodeURIComponent(String(request.tileCol))}.${ext}`;
+    const base = wmtsBasePath(request.serviceId);
+    const layer = encodeURIComponent(request.layer);
+    const styleSeg = encodeURIComponent(style);
+    const tmsSeg = encodeURIComponent(tileMatrixSet);
+    const tm = encodeURIComponent(String(request.tileMatrix));
+    const tr = encodeURIComponent(String(request.tileRow));
+    const tc = encodeURIComponent(String(request.tileCol));
+    const extra = wmtsRestExtraParamsSuffix(request.extraParams);
+    const path = `${base}/${layer}/${styleSeg}/${tmsSeg}/${tm}/${tr}/${tc}.${ext}${extra}`;
     return this.requestBytes("GET", path, format, undefined, request.signal);
   }
 
@@ -887,16 +888,17 @@ export class HonuaClient {
       return decodeWmsFeatureInfoResponse<T>(response.bytes, response.contentType, infoFormat);
     }
     const ext = wmtsFeatureInfoExtensionForFormat(infoFormat);
-    const path =
-      `${wmtsBasePath(request.serviceId)}` +
-      `/${encodeURIComponent(request.layer)}` +
-      `/${encodeURIComponent(style)}` +
-      `/${encodeURIComponent(tileMatrixSet)}` +
-      `/${encodeURIComponent(String(request.tileMatrix))}` +
-      `/${encodeURIComponent(String(request.tileRow))}` +
-      `/${encodeURIComponent(String(request.tileCol))}` +
-      `/${encodeURIComponent(String(Math.trunc(request.j)))}` +
-      `/${encodeURIComponent(String(Math.trunc(request.i)))}.${ext}`;
+    const base = wmtsBasePath(request.serviceId);
+    const layer = encodeURIComponent(request.layer);
+    const styleSeg = encodeURIComponent(style);
+    const tmsSeg = encodeURIComponent(tileMatrixSet);
+    const tm = encodeURIComponent(String(request.tileMatrix));
+    const tr = encodeURIComponent(String(request.tileRow));
+    const tc = encodeURIComponent(String(request.tileCol));
+    const jSeg = encodeURIComponent(String(Math.trunc(request.j)));
+    const iSeg = encodeURIComponent(String(Math.trunc(request.i)));
+    const extra = wmtsRestExtraParamsSuffix(request.extraParams);
+    const path = `${base}/${layer}/${styleSeg}/${tmsSeg}/${tm}/${tr}/${tc}/${jSeg}/${iSeg}.${ext}${extra}`;
     const response = await this.requestBytes("GET", path, infoFormat, undefined, request.signal);
     return decodeWmsFeatureInfoResponse<T>(response.bytes, response.contentType, infoFormat);
   }
@@ -2650,4 +2652,39 @@ const WMTS_FEATURE_INFO_FORMAT_TO_EXTENSION: ReadonlyMap<string, string> = new M
 
 function wmtsFeatureInfoExtensionForFormat(format: string): string {
   return WMTS_FEATURE_INFO_FORMAT_TO_EXTENSION.get(format.toLowerCase()) ?? "txt";
+}
+
+const WMTS_REST_RESERVED_KEYS: ReadonlySet<string> = new Set([
+  "service",
+  "version",
+  "request",
+  "layer",
+  "style",
+  "format",
+  "infoformat",
+  "tilematrixset",
+  "tilematrix",
+  "tilerow",
+  "tilecol",
+  "i",
+  "j",
+]);
+
+/**
+ * Serialize `extraParams` for the RESTful WMTS routes. Path-encoded WMTS
+ * keys take precedence — any extraParams whose key (case-insensitively)
+ * matches a path-derived value is dropped so the same URL never carries
+ * the value twice. Returns the query-string suffix to append (empty
+ * string when there is nothing left after filtering).
+ */
+function wmtsRestExtraParamsSuffix(extraParams: Record<string, unknown> | undefined): string {
+  if (!extraParams) return "";
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(extraParams)) {
+    if (value === undefined || value === null) continue;
+    if (WMTS_REST_RESERVED_KEYS.has(key.toLowerCase())) continue;
+    params.set(key, String(value));
+  }
+  const serialized = params.toString();
+  return serialized.length > 0 ? `?${serialized}` : "";
 }

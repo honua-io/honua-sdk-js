@@ -143,6 +143,7 @@ This package currently provides:
 
 - core HTTP client (`HonuaClient`) for FeatureServer, MapServer export/query/related-record operations, and catalog operations, plus fluent layer wrappers (`client.featureLayer(...)`, `client.mapLayer(...)`, `service.featureLayer(...)`, `service.featureLayers()`, `service.mapLayer(...)`, `service.mapLayers()`, `service.mapService().layer(...)`),
 - first-class OGC API clients/wrappers for Features (`client.ogcFeatures()`), Tiles (`client.ogcTiles()`), Maps (`client.ogcMaps()`), Processes (`client.ogcProcesses()`), and STAC (`client.stac()`), including landing/conformance discovery, feature items, tile and map bytes, async `IJobRun` process execution, and STAC search,
+- first-party OGC web-map clients/wrappers for WMS 1.3.0 (`client.wms(serviceId)` → `HonuaWms` / `HonuaWmsLayer`) and WMTS 1.0.0 (`client.wmts(serviceId)` → `HonuaWmts` / `HonuaWmtsLayer` / `HonuaWmtsTileset`) covering Capabilities, `GetMap` (with `TIME` / `ELEVATION` dimension handling and CRS axis-order swap per WMS 1.3 §6.7.3.2), `GetFeatureInfo`, `GetLegendGraphic` (when the server advertises it; otherwise `HonuaCapabilityNotSupportedError`), RESTful + KVP tile fetch, plus MapLibre source helpers `buildWmsRasterSourceSpec(descriptor)` / `buildWmtsRasterSourceSpec(descriptor)` from `@honua/sdk-js/runtime`,
 - Esri-style compatibility wrappers (`FeatureLayerCompat`, `MapImageLayerCompat`, `TileLayerCompat`, `RouteLayerCompat`, `MapCompat`, `MapViewCompat`, `SceneViewCompat`, `WebMapCompat`) for migration-critical patterns,
   including basic `when()` lifecycle support, `FeatureLayer.refresh()/createQuery()/queryFeaturesAll()/queryObjectIds()/queryFeatureCount()/queryExtent()/queryRelatedFeatures()/addAttachment()/updateAttachment()/listFields()/getField()`, `MapImageLayer.when()/refresh()/createQuery()/exportImage()/getLegend()/find()/identify()/queryFeatures()/queryFeaturesAll()/queryFeatureCount()/queryObjectIds()/queryExtent()/queryRelatedFeatures()/findSublayerById()/sublayer(...).query*()` where writable `layer.sublayers` and sublayer lookups return query-capable `MapImageSublayerCompat` wrappers (and auto-hydrate from metadata when not explicitly configured) with nested `sublayer.sublayers/allSublayers`, `sublayer.visible`, and `sublayer.definitionExpression` bridging to query defaults, `FeatureTableCompat` row/query helpers with runtime `layer` switching (`table.layer = nextLayer` / `table.setLayer(nextLayer)`), `Map` layer collection helpers, `GraphicsLayerCompat`/`GroupLayerCompat`, and `MapView` watch/event handles with popup/layer-view bridges plus `toMap`/`toScreen`/`hitTest`/`takeScreenshot()` and `view.ui.add/remove/move/getComponents` compatibility,
 - identify controller (`IdentifyCompat`) for cross-layer MapServer identify workflows with optional popup auto-open,
@@ -174,26 +175,23 @@ The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export f
 ## Shared Client Contract And Exploration
 
 `HonuaFeatureLayer`, `HonuaMapService`, and `HonuaOgcFeatureCollection` continue to be the runtime classes. For
-cross-protocol code — exploration views, visual builders, server packaging, and the WFS / WMS / OData adapter
+cross-protocol code — exploration views, visual builders, server packaging, and the WFS / OData adapter
 tickets — the SDK also exposes a protocol-neutral contract and exploration state module that wrap (not replace)
 those classes.
 
 - `@honua/sdk-js/contract` — canonical `Dataset`, `Source`, `SourceDescriptor`, `Capabilities`, `Query`, `Result`,
-  and `MapBinding` types, plus `createDataset(...)` and built-in adapters for the five GeoServices service
-  types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`,
-  `geoservices-geometry-service`, `geoservices-gp-service`) and `ogc-features`. Image / Geometry / GP services
+  `IJobRun`, and `MapBinding` types, plus `createDataset(...)` and built-in adapters for the five GeoServices
+  service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`,
+  `geoservices-geometry-service`, `geoservices-gp-service`), the four OGC API + STAC adapters (`ogc-features`,
+  `ogc-tiles`, `ogc-maps`, `stac`), and the OGC web-map adapters (`wms`, `wmts`). Image / Geometry / GP services
   expose their protocol-specific surface (raster `exportImage` / `identify`, geometry `project` / `buffer` /
   `simplify` / `intersect` / `union` / `clip` / `difference`, GP `submitJob` / `jobStatus` / `cancelJob` /
   `jobResult`) through the typed `Source.protocol()` escape hatch — the canonical query family throws
   `HonuaCapabilityNotSupportedError` for utility-only services so mixed-source apps surface the limitation
   explicitly. The ImageServer adapter rejects `Query.spatialFilter` / `orderBy` / `outFields` rather than
-  silently widening the catalog result. Capability negotiation is `strict` by
-  default; `degraded` opts into client-side fallbacks that surface `Result.degraded[]`. WFS / WMS / OData
-  adapters plug in via `CreateDatasetOptions.resolveSource`. Full contract reference:
-  `IJobRun`, and `MapBinding` types, plus `createDataset(...)` and built-in adapters for
-  `geoservices-feature-service`, `geoservices-map-service`, `ogc-features`, `ogc-tiles`, `ogc-maps`, and `stac`.
-  Capability negotiation is `strict` by default; `degraded` opts
-  into client-side fallbacks that surface `Result.degraded[]`. WFS / WMS / OData adapters plug in via
+  silently widening the catalog result. WMS surfaces `query` through point-only `GetFeatureInfo`; WMTS is
+  render-only (`Source.query()` throws). Capability negotiation is `strict` by default; `degraded` opts into
+  client-side fallbacks that surface `Result.degraded[]`. WFS / OData adapters plug in via
   `CreateDatasetOptions.resolveSource`. Full contract reference:
   [`docs/shared-client-contract.md`](./docs/shared-client-contract.md).
 - `@honua/sdk-js/exploration` — `createExplorationContext(...)` returning an observable, microtask-coalesced

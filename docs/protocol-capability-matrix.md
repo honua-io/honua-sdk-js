@@ -250,7 +250,13 @@ First-party WMS 1.3.0 adapter. `render` and `tiles` come from `GetMap`;
 filter (`Query.spatialFilter.geometryType === "esriGeometryPoint"`). The
 adapter constructs a 1×1 render envelope around the requested point,
 asks for `INFO_FORMAT=application/json`, and decodes the JSON response
-into the canonical `Result<T>` envelope. Non-point queries throw
+into the canonical `Result<T>` envelope. The wire CRS is derived from
+the spatial filter geometry's `spatialReference` (`latestWkid` first,
+then `wkid`, then `wkt`) and falls back to `CRS:84` (the WMS 1.3.0
+longitude/latitude code that preserves the canonical `(x, y)` axis
+order). `Query.outSr` is intentionally not consulted on this path
+because it is the **output** spatial reference, not the input CRS for
+GetFeatureInfo. Non-point queries throw
 `HonuaCapabilityNotSupportedError("query", "wms", id)` because WMS has
 no spatial-rel semantics for envelopes / polygons; raw multi-pixel
 GetFeatureInfo lives behind `Source.protocol("wms").featureInfo()`.
@@ -284,8 +290,16 @@ sets without a client refactor. Protocol escape hatches:
 `fetchWmtsTile` defaults to the RESTful route (`{layer}/{style}/{tms}/{z}/{y}/{x}.{ext}`)
 because it is a single string substitution per tile and skips
 `URLSearchParams`; `mode: "kvp"` is opt-in for KVP-only proxies.
-`buildWmtsRasterSourceSpec(descriptor)` emits a MapLibre `raster`
-source spec using the same RESTful path with `{z}/{y}/{x}` placeholders.
+`request.extraParams` is honored on both routing modes — under
+`mode: "kvp"` keys are merged into the query string verbatim; under
+the default RESTful route the path-encoded WMTS keys (`LAYER`,
+`STYLE`, `TILEMATRIXSET`, `TILEMATRIX`, `TILEROW`, `TILECOL`,
+`FORMAT`, `INFOFORMAT`, `I`, `J`, plus `SERVICE` / `VERSION` /
+`REQUEST`) take precedence and any conflicting `extraParams` keys
+(case-insensitive) are dropped so the same URL never carries the
+value twice. `buildWmtsRasterSourceSpec(descriptor)` emits a
+MapLibre `raster` source spec using the same RESTful path with
+`{z}/{y}/{x}` placeholders.
 
 ### OData
 Tabular query with $filter, $select, $orderby, $top, $skip — maps cleanly

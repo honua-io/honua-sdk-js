@@ -5,7 +5,7 @@ Status: implemented in `src/contract/` (ticket `honua-sdk-js-23`).
 The shared contract is the protocol-neutral vocabulary every Honua data
 adapter speaks. It exists so cross-protocol code — exploration views,
 visual builders, the server `SourceBinding`/`MapPackage` exporters, and
-downstream WFS / WMS / OData adapter tickets — can be written once
+downstream WFS / OData adapter tickets — can be written once
 against `Dataset` / `Source` / `Query` / `Result` / `MapBinding` rather
 than re-litigating the surface in each ticket.
 
@@ -14,8 +14,9 @@ than re-litigating the surface in each ticket.
 - **Goal:** one canonical name for "the dataset", "the source", "the
   capability", "the query", "the result", "the map binding", and "the
   exploration state" across `HonuaFeatureLayer`, `HonuaMapService`,
-  `HonuaOgcFeatures`, first-party OGC render/search adapters, and the
-  upcoming WFS / WMS / OData adapters.
+  `HonuaOgcFeatures`, first-party OGC render/search adapters,
+  first-party WMS / WMTS adapters, and the upcoming WFS / OData
+  adapters.
 - **Goal:** wrap (do not replace) the existing runtime classes in
   `src/core/surfaces.ts`. Existing callers continue to work; adapter
   tickets opt in to the canonical surface.
@@ -27,7 +28,7 @@ than re-litigating the surface in each ticket.
   (`geoServicesFeatureSource`, `geoServicesMapServiceSource`,
   `geoServicesImageSource`, `geoServicesGeometryServiceSource`,
   `geoServicesGPServiceSource`, `ogcFeaturesSource`, `ogcTilesSource`,
-  `ogcMapsSource`, `stacSearchSource`).
+  `ogcMapsSource`, `stacSearchSource`, `wmsSource`, `wmtsSource`).
 - **Non-goal:** a query DSL. `Query.where` is still a SQL-92 / CQL2
   string; adapters translate to their wire format.
 
@@ -47,7 +48,7 @@ top-level `@honua/sdk-js` and `@honua/sdk-js/honua` barrels).
 
 | Type | What it is |
 | --- | --- |
-| `Protocol` | One of fifteen identifiers — five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), four OGC API + STAC adapters (`ogc-features`, `ogc-tiles`, `ogc-maps`, `stac`), `wfs`, `wms`, `odata`, plus three MapLibre-native (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
+| `Protocol` | One of sixteen identifiers — five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), four OGC API + STAC adapters (`ogc-features`, `ogc-tiles`, `ogc-maps`, `stac`), `wfs`, `wms`, `wmts`, `odata`, plus three MapLibre-native (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
 | `Capability` | A coarse-grained protocol capability (`query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `connect`, `image`, `geometry`, `geoprocess`, `processes`). The canonical `Source` surface standardizes the query / edit / related / attachment / object-id subset today; `image` / `geometry` / `geoprocess` / `processes` are negotiated for `Source.protocol()` escape hatches and for the `IJobRun`-based OGC API Processes runner because their request shapes are too protocol-specific to belong on the unified envelope. |
 | `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party protocol support, whether the caller consumes it through a canonical `Source` method or the typed protocol escape hatch. Under `strict` (default) a missing capability throws `HonuaCapabilityNotSupportedError`. Under `degraded` only call sites with a defined fallback proceed (today: OGC `queryAggregate` and `queryExtent`); every other missing capability still throws. |
 | `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `tileMatrixSetId`, `styleId`, `typeName`, `entitySet`, `taskName`). Field-compatible with the server `SourceBinding.locator`; `tileMatrixSetId` / `styleId` carry OGC API Tiles / Maps route hints for downstream `SourceBinding` work tracked in [`source-binding-alignment.md`](./source-binding-alignment.md). |
@@ -115,8 +116,8 @@ const result = await parcels.query({ where: "STATE = 'CA'", pagination: { limit:
 The built-in resolver handles `geoservices-feature-service`,
 `geoservices-map-service`, `geoservices-image-service`,
 `geoservices-geometry-service`, `geoservices-gp-service`, `ogc-features`,
-`ogc-tiles`, `ogc-maps`, and `stac`. WFS / WMS / OData adapters register
-themselves through `CreateDatasetOptions.resolveSource`. OGC API
+`ogc-tiles`, `ogc-maps`, `stac`, `wms`, and `wmts`. WFS / OData adapters
+register themselves through `CreateDatasetOptions.resolveSource`. OGC API
 Processes is a job runner rather than a queryable source — reach it
 through `HonuaClient.ogcProcesses().execute(...)` (returns the canonical
 `IJobRun<T>`) instead of `Dataset.source()`.
@@ -145,6 +146,17 @@ The OGC API and STAC factories cover `docs/ogc-api.md`:
 - `ogcMapsSource` — OGC API Maps (render-only; same shape as Tiles).
 - `stacSearchSource` — STAC API search (`/search` query, queryObjectIds,
   stream; cross-collection scope via `locator.collectionId`).
+
+The WMS / WMTS factories cover the OGC web-map services per
+`docs/protocol-capability-matrix.md`:
+
+- `wmsSource` — WMS 1.3.0 (render + tiles via `GetMap`; `query` via
+  point-only `GetFeatureInfo`; raw multi-pixel `featureInfo()` and the
+  per-layer service handles reachable via
+  `Source.protocol("wms" | "wms-layer")`).
+- `wmtsSource` — WMTS 1.0.0 (render + tiles via RESTful tiles; query
+  family throws; service / layer / tileset handles reachable via
+  `Source.protocol("wmts" | "wmts-layer" | "wmts-tileset")`).
 
 `Source.queryAll()` and `Source.stream()` drain every page the server
 returns — the built-in adapters override the core helpers' 100-page
@@ -195,12 +207,14 @@ The shipped map covers `geoservices-feature-service` →
 `geoservices-map-layer` → `HonuaMapLayer`, `geoservices-image-service`
 → `HonuaImageService`, `geoservices-geometry-service` →
 `HonuaGeometryService`, `geoservices-gp-service` →
-`HonuaGeoprocessingService`, and `ogc-features` →
-`HonuaOgcFeatureCollection`.
+`HonuaGeoprocessingService`, `ogc-features` →
+`HonuaOgcFeatureCollection`, `wms` → `HonuaWms`, `wms-layer` →
+`HonuaWmsLayer`, `wmts` → `HonuaWmts`, `wmts-layer` →
+`HonuaWmtsLayer`, and `wmts-tileset` → `HonuaWmtsTileset`.
 
 ## What downstream tickets must consume
 
-1. WFS, WMS, OData adapter tickets must implement `Source<T>` and
+1. WFS and OData adapter tickets must implement `Source<T>` and
    register through `resolveSource`. They must declare their default
    capability set in `PROTOCOL_DEFAULT_CAPABILITIES` (this file owns
    that table — adapter PRs extend it).
@@ -273,6 +287,28 @@ search flows through the canonical `Source.query()` like every other
 tabular protocol. OGC API Processes does not register as a `Source`
 because its inputs are not queryable; it produces `IJobRun<T>` from
 `execute(...)`.
+
+## WMS / WMTS web-map services
+
+The first-party OGC web-map adapters share the contract surface:
+
+| Service | Entry point | Source protocol | Contract capabilities |
+| --- | --- | --- | --- |
+| WMS 1.3.0 | `client.wms(serviceId)` / `HonuaWms`, `HonuaWmsLayer` | `wms` | `render`, `tiles`, `query` (point-only `GetFeatureInfo`) |
+| WMTS 1.0.0 | `client.wmts(serviceId)` / `HonuaWmts`, `HonuaWmtsLayer`, `HonuaWmtsTileset` | `wmts` | `render`, `tiles` |
+
+`Source.protocol("wms")` returns the service handle and
+`Source.protocol("wms-layer")` a layer-bound handle (when
+`locator.typeName` is set). WMTS exposes three handles —
+`Source.protocol("wmts")` (service), `"wmts-layer"` (layer-bound), and
+`"wmts-tileset"` (layer × style × tile-matrix-set bound). MapLibre
+integration ships through the runtime helpers
+`buildWmsRasterSourceSpec(descriptor)` /
+`buildWmtsRasterSourceSpec(descriptor)` from `@honua/sdk-js/runtime` —
+they emit a `raster` source spec without forcing callers to hand-assemble
+a `GetMap` URL or RESTful tile template. See
+[`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md)
+for axis-order, dimension, legend, and TileMatrixSet notes.
 
 OGC conformance class identifiers are intentionally kept *internal*.
 `negotiateOgcCapabilities(protocol, conformsTo)` from

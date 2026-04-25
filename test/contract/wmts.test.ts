@@ -155,6 +155,67 @@ describe("wmts / wire", () => {
     expect(observedPath).toContain("/imagery/default/WebMercatorQuad/3/2/1/64/128.json");
     expect(response.features?.[0]?.attributes.px).toBeCloseTo(0.42);
   });
+
+  it("appends extraParams to the RESTful tile URL while preserving the path", async () => {
+    let observedPath = "";
+    let observed: URLSearchParams | undefined;
+    const client = makeMockClient({
+      routes: [
+        [
+          /MapServer\/WMTS\/imagery\/default\/WebMercatorQuad\/5\/9\/12\.png/,
+          (url) => {
+            observedPath = url.pathname;
+            observed = url.searchParams;
+            return pngResponse();
+          },
+        ],
+      ],
+    });
+    await client.wmts("imagery").tile({
+      layer: "imagery",
+      tileMatrix: 5,
+      tileRow: 9,
+      tileCol: 12,
+      // Path-encoded keys (LAYER / TILEMATRIX / etc.) must be dropped
+      // by the SDK so honua-server's RESTful router never sees the
+      // value twice. `time` and `apiKey` are pass-through query
+      // parameters that the server preserves before dispatch.
+      extraParams: { time: "2026-04-01", apiKey: "secret-token", LAYER: "ignored" },
+    });
+    expect(observedPath).toContain("/imagery/default/WebMercatorQuad/5/9/12.png");
+    expect(observed?.get("time")).toBe("2026-04-01");
+    expect(observed?.get("apiKey")).toBe("secret-token");
+    expect(observed?.has("LAYER")).toBe(false);
+  });
+
+  it("appends extraParams to the RESTful GetFeatureInfo URL", async () => {
+    let observedPath = "";
+    let observed: URLSearchParams | undefined;
+    const client = makeMockClient({
+      routes: [
+        [
+          /MapServer\/WMTS\/imagery\/default\/WebMercatorQuad\/3\/2\/1\/64\/128\.json/,
+          (url) => {
+            observedPath = url.pathname;
+            observed = url.searchParams;
+            return jsonResponse({ type: "FeatureInfoResponse", features: [] });
+          },
+        ],
+      ],
+    });
+    await client.wmts("imagery").featureInfo({
+      layer: "imagery",
+      tileMatrix: 3,
+      tileRow: 2,
+      tileCol: 1,
+      i: 128,
+      j: 64,
+      extraParams: { time: "2026-04-01", INFOFORMAT: "ignored" },
+    });
+    expect(observedPath).toContain("/imagery/default/WebMercatorQuad/3/2/1/64/128.json");
+    expect(observed?.get("time")).toBe("2026-04-01");
+    expect(observed?.has("INFOFORMAT")).toBe(false);
+  });
 });
 
 describe("wmts / Source adapter", () => {
