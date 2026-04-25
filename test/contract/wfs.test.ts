@@ -725,6 +725,146 @@ describe("wfs / canonical Source", () => {
     expect(result.updated[1].id).toBe(2);
   });
 
+  it("applyEdits maps InsertResults by handle even when the server reorders the buckets", async () => {
+    // Server replies with InsertResults in *reverse* request order. Without
+    // handle-based mapping the canonical EditOutcome.id values would be
+    // swapped — adds[0] would carry the rid meant for adds[1] and so on.
+    const reorderedTransactionResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<wfs:TransactionResponse xmlns:wfs="http://www.opengis.net/wfs/2.0" version="2.0.0">
+  <wfs:TransactionSummary>
+    <wfs:totalInserted>3</wfs:totalInserted>
+    <wfs:totalUpdated>0</wfs:totalUpdated>
+    <wfs:totalDeleted>0</wfs:totalDeleted>
+  </wfs:TransactionSummary>
+  <wfs:InsertResults>
+    <wfs:Feature handle="add-3">
+      <fes:ResourceId xmlns:fes="http://www.opengis.net/fes/2.0" rid="parcels:lot.300"/>
+    </wfs:Feature>
+    <wfs:Feature handle="add-1">
+      <fes:ResourceId xmlns:fes="http://www.opengis.net/fes/2.0" rid="parcels:lot.100"/>
+    </wfs:Feature>
+    <wfs:Feature handle="add-2">
+      <fes:ResourceId xmlns:fes="http://www.opengis.net/fes/2.0" rid="parcels:lot.200"/>
+    </wfs:Feature>
+  </wfs:InsertResults>
+</wfs:TransactionResponse>`;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        async (url, init) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (init?.method === "POST") return xmlResponse(reorderedTransactionResponse);
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const result = await source.applyEdits({
+      adds: [
+        { attributes: { OBJECTID: 100, STATE: "CA", ACRES: 1 }, geometry: { type: "Point", coordinates: [-122, 37] } },
+        { attributes: { OBJECTID: 200, STATE: "CA", ACRES: 2 }, geometry: { type: "Point", coordinates: [-121, 38] } },
+        { attributes: { OBJECTID: 300, STATE: "CA", ACRES: 3 }, geometry: { type: "Point", coordinates: [-120, 39] } },
+      ],
+    });
+    expect(result.added).toHaveLength(3);
+    expect(result.added[0].id).toBe("parcels:lot.100");
+    expect(result.added[1].id).toBe("parcels:lot.200");
+    expect(result.added[2].id).toBe("parcels:lot.300");
+    expect(result.added.every((o) => o.success)).toBe(true);
+  });
+
+  it("applyEdits surfaces missing InsertResults handles as success: false under releaseAction='SOME'", async () => {
+    // releaseAction="SOME" lets the server commit a subset of inserts. The
+    // server only echoes the handles that committed, so the missing
+    // bucket must surface as success: false rather than the legacy
+    // first-N-succeeded heuristic which would silently mark adds[0] /
+    // adds[1] as successful and drop adds[2].
+    const partialTransactionResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<wfs:TransactionResponse xmlns:wfs="http://www.opengis.net/wfs/2.0" version="2.0.0">
+  <wfs:TransactionSummary>
+    <wfs:totalInserted>2</wfs:totalInserted>
+    <wfs:totalUpdated>0</wfs:totalUpdated>
+    <wfs:totalDeleted>0</wfs:totalDeleted>
+  </wfs:TransactionSummary>
+  <wfs:InsertResults>
+    <wfs:Feature handle="add-1">
+      <fes:ResourceId xmlns:fes="http://www.opengis.net/fes/2.0" rid="parcels:lot.100"/>
+    </wfs:Feature>
+    <wfs:Feature handle="add-3">
+      <fes:ResourceId xmlns:fes="http://www.opengis.net/fes/2.0" rid="parcels:lot.300"/>
+    </wfs:Feature>
+  </wfs:InsertResults>
+</wfs:TransactionResponse>`;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        async (url, init) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (init?.method === "POST") return xmlResponse(partialTransactionResponse);
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const result = await source.applyEdits({
+      adds: [
+        { attributes: { OBJECTID: 100, STATE: "CA", ACRES: 1 }, geometry: { type: "Point", coordinates: [-122, 37] } },
+        { attributes: { OBJECTID: 200, STATE: "CA", ACRES: 2 }, geometry: { type: "Point", coordinates: [-121, 38] } },
+        { attributes: { OBJECTID: 300, STATE: "CA", ACRES: 3 }, geometry: { type: "Point", coordinates: [-120, 39] } },
+      ],
+      rollbackOnFailure: false,
+    });
+    expect(result.added[0]).toEqual({ id: "parcels:lot.100", success: true });
+    expect(result.added[1]).toEqual({ success: false });
+    expect(result.added[2]).toEqual({ id: "parcels:lot.300", success: true });
+  });
+
+  it("applyEdits falls back to positional InsertResults when the server omits handles", async () => {
+    // Some WFS servers do not echo the `handle` attribute on
+    // <wfs:Feature> (the spec marks it informational). The adapter must
+    // not drop every insert id in that case — it falls back to the
+    // legacy positional pairing keyed on InsertResults order +
+    // totalInserted.
+    const noHandleTransactionResponse = `<?xml version="1.0" encoding="UTF-8"?>
+<wfs:TransactionResponse xmlns:wfs="http://www.opengis.net/wfs/2.0" version="2.0.0">
+  <wfs:TransactionSummary>
+    <wfs:totalInserted>2</wfs:totalInserted>
+    <wfs:totalUpdated>0</wfs:totalUpdated>
+    <wfs:totalDeleted>0</wfs:totalDeleted>
+  </wfs:TransactionSummary>
+  <wfs:InsertResults>
+    <wfs:Feature>
+      <fes:ResourceId xmlns:fes="http://www.opengis.net/fes/2.0" rid="parcels:lot.100"/>
+    </wfs:Feature>
+    <wfs:Feature>
+      <fes:ResourceId xmlns:fes="http://www.opengis.net/fes/2.0" rid="parcels:lot.200"/>
+    </wfs:Feature>
+  </wfs:InsertResults>
+</wfs:TransactionResponse>`;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        async (url, init) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (init?.method === "POST") return xmlResponse(noHandleTransactionResponse);
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const result = await source.applyEdits({
+      adds: [
+        { attributes: { OBJECTID: 100, STATE: "CA", ACRES: 1 }, geometry: { type: "Point", coordinates: [-122, 37] } },
+        { attributes: { OBJECTID: 200, STATE: "CA", ACRES: 2 }, geometry: { type: "Point", coordinates: [-121, 38] } },
+      ],
+    });
+    expect(result.added[0]).toEqual({ id: "parcels:lot.100", success: true });
+    expect(result.added[1]).toEqual({ id: "parcels:lot.200", success: true });
+  });
+
   it("queryObjectIds drains pages until the server returns a short page", async () => {
     let pageRequests = 0;
     const totalRows = 4500; // > one drain page (2000)

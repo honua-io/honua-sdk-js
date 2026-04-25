@@ -203,9 +203,14 @@ HTTP traffic. Filtered or `outSr`-bearing requests drain every page of
 the matching set (2000 features per page) and compute the bbox
 client-side, so the returned extent always covers the full filtered
 set rather than just the first server page. Caller pagination
-(`Query.pagination.offset` / `.limit`) is intentionally ignored on
-this path — `queryExtent` answers "what bbox holds the matching
-records" rather than "what bbox holds the first page". `queryExtent`
+(`Query.pagination.offset` / `.limit`) and `Query.outFields` are
+intentionally ignored on this path — `queryExtent` answers "what bbox
+holds the matching records" rather than "what bbox holds the first
+page", and a caller-supplied `outFields` projection would emit
+`propertyName=...` on the wire and drop geometry from every drained
+page, leaving the bbox empty. The drain therefore strips
+`outFields` and pagination from the request before issuing each
+`GetFeature` page so geometry is preserved end-to-end. `queryExtent`
 returns `{ extent, count? }` and does not carry a `degraded[]` array;
 the OGC Features adapter is the only one that flags this fallback
 today.
@@ -224,10 +229,20 @@ GML 3.2). The transaction's `releaseAction` follows
 | `false` / omitted   | `SOME`          |
 
 Per-handle `<wfs:InsertResults>` `<fes:ResourceId rid="…"/>` IDs
-populate `EditOutcome.id`. `OperationProcessingFailed` and other
-`<ows:ExceptionReport>` responses surface as
-`HonuaWfsExceptionError` with `.exceptionCode` / `.locator`
-preserved.
+populate `EditOutcome.id`. The adapter stamps each `<wfs:Insert>` with
+a stable `handle="add-N"` (1-based, matching `envelope.adds` order)
+and indexes the returned `<wfs:Feature handle="…">` buckets by handle
+when mapping ResourceIds back onto `EditResult.added`, so a server
+that reorders the buckets — or omits them under `releaseAction="SOME"`
+when an insert fails — does not misassign IDs to the wrong
+`envelope.adds[i]`. Inserts whose handle is missing from the response
+surface as `{ success: false }` rather than silently inheriting the
+neighbouring success. The handle attribute is informational in WFS 2.0,
+so when no `<wfs:Feature>` carries one the adapter falls back to the
+legacy positional pairing instead of dropping every id.
+`OperationProcessingFailed` and other `<ows:ExceptionReport>`
+responses surface as `HonuaWfsExceptionError` with `.exceptionCode` /
+`.locator` preserved.
 
 `CanonicalFeature.id` is required on every update because each
 `<wfs:Update>` is filtered by `<fes:ResourceId>`; without an id the

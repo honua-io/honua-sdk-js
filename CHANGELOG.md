@@ -55,7 +55,10 @@ All notable changes to the Honua JS SDK will be documented in this file.
   `GetCapabilities`; filtered or `outSr`-bearing requests drain every
   matching page (2000 features per page) and compute the bbox
   client-side, ignoring caller pagination so the returned extent covers
-  the full matching set. `queryObjectIds` drains pages of 2000 ids
+  the full matching set. The drain also strips `Query.outFields`
+  before issuing each page so a caller-supplied `propertyName=`
+  projection cannot drop geometry from the drained features and leave
+  the bbox empty. `queryObjectIds` drains pages of 2000 ids
   until the server returns a short page; `Query.pagination.limit` caps
   the global id count and `Query.pagination.offset` chooses where the
   drain starts. `pagination.limit === 0` is honored as an explicit
@@ -67,7 +70,17 @@ All notable changes to the Honua JS SDK will be documented in this file.
   Features. `applyEdits` builds a single `<wfs:Transaction>`
   (Insert / Update / Delete), maps `EditEnvelope.rollbackOnFailure` to
   `releaseAction` `ALL` / `SOME`, and surfaces per-handle
-  `InsertResults` IDs onto `EditOutcome.id`. Updates without a
+  `InsertResults` IDs onto `EditOutcome.id`. Each `<wfs:Insert>` is
+  stamped with a stable `handle="add-N"` (1-based, matching
+  `envelope.adds` order) and the returned `<wfs:Feature handle="…">`
+  buckets are indexed by handle when populating `EditResult.added`, so
+  servers that reorder the buckets — or omit them under
+  `releaseAction="SOME"` partial failure — never misassign IDs to the
+  wrong `envelope.adds[i]`; inserts whose handle is missing surface as
+  `{ success: false }` rather than silently inheriting a neighbour's
+  outcome. The handle attribute is informational in WFS 2.0, so when
+  no `<wfs:Feature>` carries one the adapter falls back to the legacy
+  positional pairing rather than dropping every id. Updates without a
   `CanonicalFeature.id` are rejected per-item (`{ success: false, error:
   { code: 400, description: "update.id is required" } }`) so an
   unaddressed `<wfs:Update>` can never reach the server. Namespace-

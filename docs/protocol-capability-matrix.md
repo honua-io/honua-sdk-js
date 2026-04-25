@@ -256,7 +256,8 @@ silent partial filter — callers reach the wire through
 `WGS84BoundingBox` from `GetCapabilities` for unfiltered requests so
 no extra HTTP traffic is issued; filtered or `outSr`-bearing requests
 drain every matching page (2000 features per page) and compute the
-bbox client-side, ignoring caller pagination so the returned extent
+bbox client-side, ignoring caller pagination and `Query.outFields` so
+geometry is preserved on every drained page and the returned extent
 covers the full matching set.
 `queryObjectIds` has no interoperable server-side ids-only mode, so the
 adapter drains the matching set in 2000-feature pages and projects each
@@ -276,13 +277,22 @@ and callers reach the GML payload through `Source.protocol("wfs")`. GML
 decoding is intentionally out of scope. `applyEdits` builds a single
 `<wfs:Transaction>` POST body (`<wfs:Insert>` / `<wfs:Update>` /
 `<wfs:Delete>`) and surfaces the per-handle `InsertResults` IDs onto
-`EditOutcome.id`. `rollbackOnFailure` drives the transaction
-`releaseAction` (`ALL` vs `SOME`). Updates whose `id` is `undefined` /
-`null` are filtered out before the transaction body is built and surface
-as per-item failures (`{ success: false, error: { code: 400,
-description: "update.id is required" } }`) so an unaddressed
-`<wfs:Update>` can never reach the server; if every operation in the
-envelope is absent or malformed the wire round-trip is skipped.
+`EditOutcome.id`. Each `<wfs:Insert>` is stamped with a stable
+`handle="add-N"` (1-based, matching `envelope.adds` order) and the
+returned `<wfs:Feature handle="…">` buckets are indexed by that
+handle, so reordered or omitted (`releaseAction="SOME"` partial
+failure) buckets never misassign IDs to the wrong `envelope.adds[i]`;
+inserts whose handle is missing from the response surface as
+`{ success: false }`. The handle attribute is informational in WFS
+2.0, so when no `<wfs:Feature>` carries one the adapter falls back
+to the legacy positional pairing rather than dropping every id.
+`rollbackOnFailure` drives the transaction `releaseAction` (`ALL` vs
+`SOME`). Updates whose `id` is `undefined` / `null` are filtered out
+before the transaction body is built and surface as per-item failures
+(`{ success: false, error: { code: 400, description: "update.id is
+required" } }`) so an unaddressed `<wfs:Update>` can never reach the
+server; if every operation in the envelope is absent or malformed the
+wire round-trip is skipped.
 Stored-query discovery (`ListStoredQueries`) and execution
 (`GetFeature?storedquery_id=...`) are reachable through
 `Source.protocol("wfs")!.root.storedQuery(id).execute({ parameters })`.

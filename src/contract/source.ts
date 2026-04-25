@@ -1525,11 +1525,16 @@ function buildTransactionBody<T>(
   const featureNs = prefix ? (featureNamespace ?? syntheticFeatureNamespace(prefix)) : undefined;
   const featureNsAttr = prefix && featureNs ? ` xmlns:${prefix}="${escapeXmlAttr(featureNs)}"` : "";
   const blocks: string[] = [];
-  let handleCounter = 0;
-  for (const add of envelope.adds ?? []) {
-    handleCounter += 1;
-    blocks.push(buildInsertBlock(typeName, add, `add-${handleCounter}`));
+  // Insert handles are read back in `canonicalEditResultFromTransaction`
+  // to map server-echoed `<wfs:Feature handle="…">` entries inside
+  // `<wfs:InsertResults>` onto the originating `envelope.adds[i]`. The
+  // shared scheme lives in `wfsInsertHandle` so the build side and the
+  // result-mapping side cannot drift.
+  const adds = envelope.adds ?? [];
+  for (let i = 0; i < adds.length; i += 1) {
+    blocks.push(buildInsertBlock(typeName, adds[i], wfsInsertHandle(i)));
   }
+  let handleCounter = adds.length;
   for (const update of envelope.updates ?? []) {
     handleCounter += 1;
     blocks.push(buildUpdateBlock(typeName, update, `upd-${handleCounter}`));
@@ -1624,15 +1629,46 @@ function escapeXmlText(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
+/**
+ * Stable handle scheme for `<wfs:Insert>` blocks. The server is expected
+ * (but not required by WFS 2.0) to echo this on the matching
+ * `<wfs:Feature handle="…">` element inside `<wfs:InsertResults>`, which
+ * lets `canonicalEditResultFromTransaction` map returned ResourceIds back
+ * onto `envelope.adds[i]` even when the server reorders the buckets or
+ * omits failed inserts under `releaseAction="SOME"`.
+ */
+function wfsInsertHandle(idx: number): string {
+  return `add-${idx + 1}`;
+}
+
 function canonicalEditResultFromTransaction<T>(
   envelope: EditEnvelope<T>,
   summary: import("../core/wfs-capabilities.js").WfsTransactionSummary,
   malformedUpdateIndices: ReadonlySet<number> = new Set(),
 ): EditResult {
+  // Index `<wfs:InsertResults>` by the handle the server echoed so that
+  // server-side reordering or `releaseAction="SOME"` partial failures do
+  // not misassign ResourceIds to the wrong `envelope.adds[i]`. The
+  // handle attribute is informational in the WFS 2.0 spec, so when the
+  // server omits it on every `<wfs:Feature>` we fall back to the legacy
+  // positional pairing rather than dropping every insert id silently.
+  let anyHandleEchoed = false;
+  const insertByHandle = new Map<string, ReadonlyArray<string>>();
+  for (const bucket of summary.insertResults) {
+    if (bucket.handle !== undefined) {
+      anyHandleEchoed = true;
+      insertByHandle.set(bucket.handle, bucket.ids);
+    }
+  }
   const added: EditOutcome[] = (envelope.adds ?? []).map((_, idx) => {
-    const insertBucket = summary.insertResults[idx];
-    const insertedId = insertBucket?.ids?.[0];
-    const ok = idx < summary.totalInserted;
+    const matchedIds = anyHandleEchoed ? insertByHandle.get(wfsInsertHandle(idx)) : summary.insertResults[idx]?.ids;
+    const insertedId = matchedIds?.[0];
+    // When handles are echoed, presence in `InsertResults` is the
+    // authoritative per-insert success signal (the server only emits a
+    // bucket for the inserts that actually committed). Without handles
+    // we fall back to the legacy "first N succeeded" heuristic anchored
+    // on `totalInserted`.
+    const ok = anyHandleEchoed ? matchedIds !== undefined : idx < summary.totalInserted;
     const out: EditOutcome = { success: ok };
     if (insertedId !== undefined) out.id = insertedId;
     return out;
