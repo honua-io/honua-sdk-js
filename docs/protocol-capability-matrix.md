@@ -20,24 +20,25 @@ without a canonical `Source` method today are negotiated for
 `◐` = supported only under `degraded` capability policy (client-side fallback).
 `—` = not supported.
 
-| Capability | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | WFS | WMS | OData |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `query` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | ✓ |
-| `queryAggregate` | ✓ | ✓ | — | — | — | ◐ | — | — | — |
-| `queryExtent` | ✓ | ✓ | ✓ | — | — | ◐ | ✓ | — | — |
-| `queryObjectIds` | ✓ | ✓ | ✓ | — | — | ✓ | ✓ | — | ✓ |
-| `queryRelated` | ✓ | ✓ | — | — | — | — | — | — | — |
-| `applyEdits` | ✓ | — | — | — | — | ✓ | ✓ | — | — |
-| `attachments` | ✓ | — | — | — | — | — | — | — | — |
-| `render` | — | ✓ | ✓ | — | — | — | — | ✓ | — |
-| `tiles` | ◐ | ✓ | ✓ | — | — | — | — | ✓ | — |
-| `sql` | ✓ | ✓ | — | — | — | — | — | — | — |
-| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | — |
-| `pbf` | ✓ | — | — | — | — | — | — | — | — |
-| `connect` | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — |
-| `image` | — | — | ✓ | — | — | — | — | — | — |
-| `geometry` | — | — | — | ✓ | — | — | — | — | — |
-| `geoprocess` | — | — | — | — | ✓ | — | — | — | — |
+| Capability | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | STAC | WFS | WMS | OData |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `query` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | ✓ |
+| `queryAggregate` | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — |
+| `queryExtent` | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | ✓ | — | — |
+| `queryObjectIds` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | ✓ |
+| `queryRelated` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — |
+| `applyEdits` | ✓ | — | — | — | — | ✓ | — | — | — | ✓ | — | — |
+| `attachments` | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| `render` | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | ✓ | — |
+| `tiles` | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | ✓ | — |
+| `sql` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — |
+| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | — | — | — |
+| `pbf` | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| `connect` | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — |
+| `image` | — | — | ✓ | — | — | — | — | — | — | — | — | — |
+| `geometry` | — | — | — | ✓ | — | — | — | — | — | — | — | — |
+| `geoprocess` | — | — | — | — | ✓ | — | — | — | — | — | — | — |
+| `processes` | — | — | — | — | — | — | — | — | — | — | — | — |
 
 MapLibre-native sources (`maplibre-vector`, `maplibre-raster`,
 `maplibre-geojson`) are render-only and contribute `render` and (where
@@ -131,6 +132,76 @@ Server publishes the lifecycle routes only under
 `/rest/services/<serviceId>/GPServer/<taskName>/...`; descriptors that
 advertise only `connect` (service-root metadata probe) may omit the
 task name.
+
+### OGC API Tiles
+Render-only adapter. `tiles` and `render` are the first-party capabilities; the
+canonical `Source.query*` family throws `HonuaCapabilityNotSupportedError`
+because the conformance class is tile-fetch, not feature-query. The
+canonical tile path is `/collections/{id}/tiles/{tms}/{z}/{y}/{x}`;
+tile-matrix-set discovery uses `/tileMatrixSets` and `/tileMatrixSets/{id}`.
+Styled-tile access (OGC `/styles/{styleId}/tiles/...`) is part of the
+standard but is not exposed by honua-server today, so the SDK does not
+synthesize that route.
+
+`Source.adapter("ogc-tiles")` returns a `HonuaOgcTileset` bound to
+`(collectionId, tileMatrixSetId)` when both are set in the locator; when
+only `collectionId` is set, the adapter falls back to the root
+`HonuaOgcTiles` handle so callers can discover which tile-matrix-sets
+the server advertises before rebinding.
+
+### OGC API Maps
+Render-only adapter. `render` is the first-party capability; same
+escape-hatch model as Tiles. `Source.adapter("ogc-maps")` returns either
+the dataset-level `HonuaOgcMaps` (when `locator.collectionId` is unset)
+or a `HonuaOgcCollectionMap` bound to the descriptor's collection +
+optional style. The wire path is
+`/maps[/collections/{id}][/styles/{styleId}]/map`; bbox / crs / format
+flow through query parameters. The `format` field is normalized to the
+server's short-name token (`png`, `jpeg`, `jpg`, `tiff`, `tif`) before
+it is written to `f=`; media-type aliases (`image/png`, etc.) are
+accepted for ergonomics and translated. The public request envelope has
+no `filter` field because honua-server's Maps request model has none.
+
+### OGC API Processes
+No `Source` adapter — Processes is a job runner, not a queryable source.
+`HonuaClient.ogcProcesses().execute(...)` returns the canonical
+`IJobRun<T>` (the same interface every other long-running operation in
+the SDK speaks). The implementation polls `/jobs/{jobId}` until
+terminal, fetches `/jobs/{jobId}/results` on `successful`, and maps
+failure terminals onto `JobSnapshot.error`: it prefers
+`statusInfo.exception` (OGC Processes Part 1 vocabulary) and falls back
+to `statusInfo.message` so honua-server's single-`message` failure text
+still surfaces through `HonuaJobFailedError.message`. `cancel()` issues
+`DELETE /jobs/{jobId}` and is idempotent only on the documented benign
+paths: 404 (job gone) returns the cached status; 409 with problem-details
+title `"Cannot dismiss completed job"` triggers a follow-up GET and
+returns the authoritative terminal status — but only if the poll confirms
+a terminal state, otherwise the original 409 is rethrown. The
+non-benign 409 titles `"Dismiss could not be confirmed"` (backend
+dismissal unconfirmed) and `"Cancellation not supported"` (backend
+lacks dismissal capability) are rethrown verbatim. The canonical
+`processes` capability is part of `CAPABILITIES` and is returned by
+`negotiateOgcCapabilities("ogc-processes", conformance)`; it is
+intentionally absent from `PROTOCOL_DEFAULT_CAPABILITIES` because there
+is no `ogc-processes` `Source` protocol.
+
+### STAC API
+STAC piggy-backs on OGC API Features for items but adds a
+cross-collection `/search` endpoint. The canonical `Source.query` uses
+`/search` (GET by default; opt into POST with `usePost: true`). Both
+the GET and POST paths serialize `intersects` (as JSON on GET, raw on
+POST) and `fields` (as a CSV with `-` prefixes on GET, structured on
+POST) so caller-supplied geometry constraints and selections are not
+silently dropped. `spatialFilter` translates to STAC `bbox` only —
+`intersects` geometry support requires CQL2 and is left to a downstream
+extension. Paging follows the server's `rel=next` link: honua-server
+emits `?offset=N` on the href and the adapter parses that numeric
+offset; non-Honua STAC servers that emit an opaque `?next=…` token
+remain supported as a fallback. `Query.pagination.offset` propagates
+through to the STAC `offset` parameter on the initial request.
+`queryAggregate` and `queryExtent` are not advertised. STAC's
+collection-scoping is handled via `locator.collectionId`; the adapter
+forwards it as the `collections=[id]` parameter on the wire.
 
 ### OGC API Features
 `query`, `queryObjectIds`, `applyEdits`, `stream` are first-party.

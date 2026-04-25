@@ -164,6 +164,51 @@ export {
   HonuaOgcFeatures,
   HonuaService,
 } from "./core/surfaces.js";
+export {
+  createHonuaOgcTiles,
+  HonuaOgcTiles,
+  HonuaOgcTileset,
+} from "./core/ogc-tiles.js";
+export type {
+  HonuaOgcCollectionTileRequest,
+  HonuaOgcCollectionTilesetRequest,
+  HonuaOgcCollectionTilesetsRequest,
+  HonuaOgcTilesOptions,
+  HonuaOgcTilesetOptions,
+} from "./core/ogc-tiles.js";
+export {
+  createHonuaOgcMaps,
+  HonuaOgcCollectionMap,
+  HonuaOgcMaps,
+} from "./core/ogc-maps.js";
+export type {
+  HonuaOgcCollectionMapImageRequest,
+  HonuaOgcCollectionMapOptions,
+  HonuaOgcMapsOptions,
+} from "./core/ogc-maps.js";
+export {
+  createHonuaOgcProcesses,
+  HonuaJobFailedError,
+  HonuaOgcProcessJobRun,
+  HonuaOgcProcesses,
+} from "./core/ogc-processes.js";
+export type {
+  HonuaOgcProcessJobOptions,
+  HonuaOgcProcessesOptions,
+} from "./core/ogc-processes.js";
+export {
+  createHonuaStacSearch,
+  HonuaStacSearch,
+} from "./core/stac.js";
+export type {
+  HonuaStacSearchAllRequest,
+  HonuaStacSearchOptions,
+} from "./core/stac.js";
+export {
+  hasOgcConformanceClass,
+  negotiateOgcCapabilities,
+} from "./core/ogc-conformance.js";
+export type { OgcConformanceProtocol } from "./core/ogc-conformance.js";
 export type {
   ApplyEditsRequest,
   ExportMapRequest,
@@ -194,6 +239,19 @@ export type {
   HonuaOgcFeatureCollectionResponse,
   HonuaOgcFeatureResponse,
   HonuaOgcLink,
+  HonuaOgcMapImageResponse,
+  HonuaOgcProcessDescription,
+  HonuaOgcProcessJobAccepted,
+  HonuaOgcProcessJobResults,
+  HonuaOgcProcessJobStatus,
+  HonuaOgcProcessSummary,
+  HonuaOgcProcessesResponse,
+  HonuaOgcTileMatrix,
+  HonuaOgcTileMatrixSet,
+  HonuaOgcTileMatrixSetsResponse,
+  HonuaOgcTileResponse,
+  HonuaOgcTilesetMetadata,
+  HonuaOgcTilesetsResponse,
   HonuaQueryAttachmentsResponse,
   HonuaQueryResponse,
   HonuaRawRequest,
@@ -210,6 +268,9 @@ export type {
   HonuaOgcCollectionMetadata,
   HonuaOgcQueryableProperty,
   HonuaOgcQueryablesResponse,
+  HonuaStacItemCollectionResponse,
+  HonuaStacItemResponse,
+  HonuaStacLandingResponse,
   HonuaErrorContext,
   HonuaRequestContext,
   HonuaRequestInterceptor,
@@ -238,10 +299,21 @@ export type {
   OgcDeleteItemRequest,
   OgcItemRequest,
   OgcItemsRequest,
+  OgcMapImageRequest,
+  OgcMapFormat,
   OgcMetadataRequest,
   OgcPatchItemRequest,
+  OgcProcessExecuteRequest,
+  OgcProcessIoValue,
+  OgcProcessInputs,
+  OgcProcessStatus,
   OgcReplaceItemRequest,
   OgcResponseFormat,
+  OgcTileDataType,
+  OgcTileMatrixSetId,
+  OgcTileRequest,
+  OgcTilesetRequest,
+  OgcTilesetsRequest,
   QueryFeaturesRequest,
   QueryMethod,
   QueryRelatedRecordsRequest,
@@ -256,6 +328,7 @@ export type {
   EsriGeometry,
   GeoJsonFeature,
   HonuaServicesResponse,
+  StacSearchRequest,
 } from "./core/types.js";
 export type {
   HonuaFeatureLayerAddAttachmentRequest,
@@ -357,7 +430,11 @@ export {
   geoServicesGeometryServiceSource,
   geoServicesImageSource,
   geoServicesMapServiceSource,
+  isJobTerminal,
   ogcFeaturesSource,
+  ogcMapsSource,
+  ogcTilesSource,
+  stacSearchSource,
 } from "./contract/index.js";
 export type {
   AdapterFor,
@@ -386,6 +463,13 @@ export type {
   EditOutcome,
   EditResult,
   FeatureId,
+  IJobRun,
+  JobError,
+  JobProgress,
+  JobResult,
+  JobSnapshot,
+  JobSnapshotListener,
+  JobStatus,
   MapBinding,
   PaginationSpec,
   Protocol,

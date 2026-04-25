@@ -71,4 +71,18 @@ export {
   geoServicesImageSource,
   geoServicesMapServiceSource,
   ogcFeaturesSource,
+  ogcTilesSource,
+  ogcMapsSource,
+  stacSearchSource,
 } from "./source.js";
+
+export type {
+  IJobRun,
+  JobError,
+  JobProgress,
+  JobResult,
+  JobSnapshot,
+  JobSnapshotListener,
+  JobStatus,
+} from "./jobs.js";
+export { isJobTerminal } from "./jobs.js";

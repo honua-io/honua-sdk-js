@@ -120,6 +120,9 @@ import {
   geoServicesImageSource,
   geoServicesMapServiceSource,
   ogcFeaturesSource,
+  ogcMapsSource,
+  ogcTilesSource,
+  stacSearchSource,
 } from "../src/contract/index.js";
 import {
   EMPTY_STATE,
@@ -242,10 +245,11 @@ describe("entrypoint modules", () => {
   });
 
   it("exposes the canonical contract entrypoint", () => {
-    // Twelve canonical protocols: five GeoServices service types
-    // (FeatureServer, MapServer, ImageServer, Geometry, GP), OGC Features,
-    // WFS / WMS / OData, and three MapLibre-native sources.
-    expect(PROTOCOLS).toHaveLength(12);
+    // Fifteen canonical protocols: five GeoServices service types
+    // (FeatureServer, MapServer, ImageServer, Geometry, GP), OGC API
+    // Features / Tiles / Maps, STAC, WFS / WMS / OData, and three
+    // MapLibre-native sources.
+    expect(PROTOCOLS).toHaveLength(15);
     expect(CAPABILITIES.length).toBeGreaterThan(0);
     expect(Object.keys(PROTOCOL_DEFAULT_CAPABILITIES)).toEqual([...PROTOCOLS]);
     expect(capabilities).toBeTypeOf("function");
@@ -256,6 +260,9 @@ describe("entrypoint modules", () => {
     expect(geoServicesGeometryServiceSource).toBeTypeOf("function");
     expect(geoServicesGPServiceSource).toBeTypeOf("function");
     expect(ogcFeaturesSource).toBeTypeOf("function");
+    expect(ogcTilesSource).toBeTypeOf("function");
+    expect(ogcMapsSource).toBeTypeOf("function");
+    expect(stacSearchSource).toBeTypeOf("function");
   });
 
   it("exposes the exploration entrypoint", () => {

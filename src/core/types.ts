@@ -776,6 +776,285 @@ export interface HonuaOgcQueryablesResponse {
   properties?: Record<string, HonuaOgcQueryableProperty>;
 }
 
+// ── OGC API Tiles ─────────────────────────────
+
+/** Identifier of an OGC tile-matrix-set (e.g. `WebMercatorQuad`). */
+export type OgcTileMatrixSetId = string;
+
+/** Identifier for a tileset variant (vector or raster) within a collection. */
+export type OgcTileDataType = "vector" | "map" | "coverage" | (string & {});
+
+/** Metadata for one tile-matrix entry (zoom level). */
+export interface HonuaOgcTileMatrix {
+  id: string;
+  scaleDenominator?: number;
+  cellSize?: number;
+  matrixWidth?: number;
+  matrixHeight?: number;
+  tileWidth?: number;
+  tileHeight?: number;
+  pointOfOrigin?: readonly number[];
+  cornerOfOrigin?: "topLeft" | "bottomLeft";
+}
+
+/** Metadata for one tile-matrix-set (CRS and supported tile matrices). */
+export interface HonuaOgcTileMatrixSet {
+  id: string;
+  uri?: string;
+  title?: string;
+  description?: string;
+  crs?: string;
+  orderedAxes?: readonly string[];
+  tileMatrices?: readonly HonuaOgcTileMatrix[];
+  links?: HonuaOgcLink[];
+}
+
+/** Response from `/tileMatrixSets`. */
+export interface HonuaOgcTileMatrixSetsResponse {
+  tileMatrixSets: HonuaOgcTileMatrixSet[];
+  links?: HonuaOgcLink[];
+}
+
+/** Metadata for a single tileset (a tile-matrix-set bound to a collection). */
+export interface HonuaOgcTilesetMetadata {
+  tileMatrixSetURI?: string;
+  tileMatrixSetId?: string;
+  dataType?: OgcTileDataType;
+  crs?: string;
+  links?: HonuaOgcLink[];
+  /** Optional explicit CRS for tile bounds, otherwise inferred from TMS. */
+  boundingBox?: { lowerLeft?: readonly number[]; upperRight?: readonly number[]; crs?: string };
+  /** Pre-baked styles available on the tileset (for styled-tile access). */
+  styles?: Array<{ id: string; title?: string }>;
+}
+
+/** Response from `/collections/{id}/tiles` (list of tilesets). */
+export interface HonuaOgcTilesetsResponse {
+  tilesets: HonuaOgcTilesetMetadata[];
+  links?: HonuaOgcLink[];
+}
+
+/** Request envelope for tileset-discovery operations. */
+export interface OgcTilesetsRequest extends OgcMetadataRequest {
+  collectionId: string | number;
+}
+
+/** Request envelope for one tileset's metadata. */
+export interface OgcTilesetRequest extends OgcTilesetsRequest {
+  tileMatrixSetId: OgcTileMatrixSetId;
+}
+
+/** Request envelope for fetching a single tile. */
+export interface OgcTileRequest {
+  collectionId: string | number;
+  tileMatrixSetId: OgcTileMatrixSetId;
+  tileMatrix: string | number;
+  tileRow: number;
+  tileCol: number;
+  /** `Accept` header (`application/vnd.mapbox-vector-tile`, `image/png`, …). */
+  accept?: string;
+  signal?: AbortSignal;
+  extraParams?: Record<string, string | number | boolean>;
+}
+
+/** Raw bytes returned from a tile fetch, plus the negotiated content type. */
+export interface HonuaOgcTileResponse {
+  bytes: Uint8Array;
+  contentType: string;
+  /** True when the server returned a non-error empty payload (sparse tile). */
+  empty: boolean;
+}
+
+// ── OGC API Maps ──────────────────────────────
+
+/**
+ * Output format token for an OGC API Maps request. The OGC standard
+ * defines the `f` query value as a short-name token (`png`, `jpeg`,
+ * `jpg`, `tiff`, `tif`); the server validates against that set. The SDK
+ * also accepts the matching media-type aliases (`image/png`, etc.) and
+ * normalizes them to the short name on the wire. The Accept header is
+ * media-type based regardless.
+ */
+export type OgcMapFormat =
+  | "png"
+  | "jpeg"
+  | "jpg"
+  | "tiff"
+  | "tif"
+  | "image/png"
+  | "image/jpeg"
+  | "image/tiff"
+  | (string & {});
+
+/**
+ * Request envelope for an OGC API Maps render. `collectionId` is omitted
+ * for dataset-level renders. `styleId` selects a server-managed style;
+ * inline style overrides are not exposed here (the server-side spec
+ * does not standardize an inline-style channel).
+ */
+export interface OgcMapImageRequest {
+  collectionId?: string | number;
+  styleId?: string;
+  width?: number;
+  height?: number;
+  bbox?: readonly [number, number, number, number] | string;
+  bboxCrs?: string;
+  crs?: string;
+  format?: OgcMapFormat;
+  /** Optional comma-separated list of collections (dataset-level only). */
+  collections?: readonly string[];
+  /** Optional transparency hint. */
+  transparent?: boolean;
+  signal?: AbortSignal;
+  extraParams?: Record<string, string | number | boolean>;
+}
+
+/** Raw bytes returned from a map render, plus the negotiated content type. */
+export interface HonuaOgcMapImageResponse {
+  bytes: Uint8Array;
+  contentType: string;
+}
+
+// ── OGC API Processes ─────────────────────────
+
+/** Process input/output literal envelope. */
+export type OgcProcessIoValue = string | number | boolean | null | Record<string, unknown> | unknown[];
+
+/** Process input bag — id → value (or qualified value). */
+export type OgcProcessInputs = Record<string, OgcProcessIoValue>;
+
+/** OGC API Processes process metadata (subset; servers may include more). */
+export interface HonuaOgcProcessSummary {
+  id: string;
+  title?: string;
+  description?: string;
+  version?: string;
+  jobControlOptions?: readonly string[];
+  outputTransmission?: readonly string[];
+  links?: HonuaOgcLink[];
+}
+
+/** Detailed process description (input / output schemas). */
+export interface HonuaOgcProcessDescription extends HonuaOgcProcessSummary {
+  inputs?: Record<string, Record<string, unknown>>;
+  outputs?: Record<string, Record<string, unknown>>;
+}
+
+/** Response from `/processes`. */
+export interface HonuaOgcProcessesResponse {
+  processes: HonuaOgcProcessSummary[];
+  links?: HonuaOgcLink[];
+}
+
+/** OGC API Processes 1.0 status values. */
+export type OgcProcessStatus = "accepted" | "running" | "successful" | "failed" | "dismissed";
+
+/**
+ * Job-status payload returned from `/jobs/{jobId}`. Mirrors the OGC
+ * Processes 1.0 statusInfo schema.
+ */
+export interface HonuaOgcProcessJobStatus {
+  jobID: string;
+  processID?: string;
+  status: OgcProcessStatus;
+  message?: string;
+  progress?: number;
+  created?: string;
+  started?: string;
+  finished?: string;
+  updated?: string;
+  links?: HonuaOgcLink[];
+  /** Server-reported error envelope on failure. */
+  exception?: { code: string; message: string; details?: unknown };
+}
+
+/** Process-execution request envelope. */
+export interface OgcProcessExecuteRequest {
+  processId: string;
+  inputs?: OgcProcessInputs;
+  outputs?: Record<string, { transmissionMode?: "value" | "reference"; format?: { mediaType?: string } }>;
+  /** `sync-execute` runs the process inline; `async-execute` returns a job. */
+  mode?: "async" | "sync" | "auto";
+  /** `raw` returns the result body directly; `document` returns a JSON envelope. */
+  response?: "raw" | "document";
+  headers?: HeadersInit;
+  signal?: AbortSignal;
+}
+
+/** Job descriptor returned when the server accepted an async execution. */
+export interface HonuaOgcProcessJobAccepted {
+  jobID: string;
+  status: OgcProcessStatus;
+  processID?: string;
+  links?: HonuaOgcLink[];
+  /** Initial (often `accepted` or `running`) status payload, when reported. */
+  statusInfo?: HonuaOgcProcessJobStatus;
+}
+
+/** Result document returned from `/jobs/{jobId}/results`. */
+export interface HonuaOgcProcessJobResults {
+  outputs: Record<string, unknown>;
+  /** Format negotiated for the result body. */
+  format?: { mediaType?: string };
+  links?: HonuaOgcLink[];
+}
+
+// ── STAC API ──────────────────────────────────
+
+/** Subset of the STAC core API search request shape. */
+export interface StacSearchRequest {
+  bbox?: readonly [number, number, number, number];
+  datetime?: string;
+  intersects?: Record<string, unknown>;
+  ids?: readonly string[];
+  collections?: readonly string[];
+  filter?: string;
+  filterLang?: "cql2-text" | "cql2-json";
+  limit?: number;
+  /**
+   * Numeric page offset. honua-server's `/stac/search` uses `offset` as
+   * the canonical paging token (its `rel=next` link href carries
+   * `?offset=N`). Prefer this over `next` for honua-server compatibility.
+   */
+  offset?: number;
+  /**
+   * Server-driven page token. Optional support for STAC servers that
+   * advertise an opaque `?next=…` token instead of `offset`.
+   */
+  next?: string;
+  /** Subset of asset / item properties to return. */
+  fields?: { include?: readonly string[]; exclude?: readonly string[] };
+  sortby?: string;
+  signal?: AbortSignal;
+  /** When `true`, the adapter posts the body to `/search`. */
+  usePost?: boolean;
+}
+
+/** Single STAC item (a GeoJSON feature with STAC-specific extensions). */
+export interface HonuaStacItemResponse extends HonuaOgcFeatureResponse {
+  collection?: string;
+  stac_version?: string;
+  stac_extensions?: readonly string[];
+  assets?: Record<string, { href: string; type?: string; title?: string; roles?: readonly string[] }>;
+}
+
+/** Response from STAC `/search`. */
+export interface HonuaStacItemCollectionResponse {
+  type: "FeatureCollection";
+  features: HonuaStacItemResponse[];
+  links?: HonuaOgcLink[];
+  numberMatched?: number;
+  numberReturned?: number;
+  context?: { matched?: number; returned?: number; limit?: number };
+}
+
+/** Subset of the STAC catalog landing page. */
+export interface HonuaStacLandingResponse extends HonuaOgcLandingResponse {
+  conformsTo?: readonly string[];
+  /** Stac-specific catalog id. */
+  id?: string;
+}
+
 // ── Schema-Aware Typed Collections ────────────
 
 /**

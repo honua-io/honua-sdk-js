@@ -27,10 +27,12 @@ import type {
 // ── Protocol identifiers ──────────────────────────────────────
 
 /**
- * Canonical protocol identifiers. The GeoServices and OGC / WFS / WMS /
- * OData entries are spatial / tabular protocols served behind a `Source`;
- * the trailing `maplibre-*` entries are MapLibre-native sources composed
- * alongside protocol sources by `HonuaMap` and `MapBinding`.
+ * Canonical protocol identifiers. Spatial / tabular protocols served
+ * behind a `Source` come first, then the render-only OGC tile and map
+ * adapters (reachable through `Source.protocol()`), then the STAC API
+ * search adapter, the WFS / WMS / OData adapters, and finally the
+ * MapLibre-native sources composed alongside protocol sources by
+ * `HonuaMap` and `MapBinding`.
  *
  * The five GeoServices identifiers correspond to the five Esri service
  * types Honua Server publishes: FeatureServer, MapServer, ImageServer,
@@ -46,6 +48,9 @@ export type Protocol =
   | "geoservices-geometry-service"
   | "geoservices-gp-service"
   | "ogc-features"
+  | "ogc-tiles"
+  | "ogc-maps"
+  | "stac"
   | "wfs"
   | "wms"
   | "odata"
@@ -61,6 +66,9 @@ export const PROTOCOLS: readonly Protocol[] = [
   "geoservices-geometry-service",
   "geoservices-gp-service",
   "ogc-features",
+  "ogc-tiles",
+  "ogc-maps",
+  "stac",
   "wfs",
   "wms",
   "odata",
@@ -97,7 +105,8 @@ export type Capability =
   | "connect"
   | "image"
   | "geometry"
-  | "geoprocess";
+  | "geoprocess"
+  | "processes";
 
 /** All capability identifiers, in declaration order. */
 export const CAPABILITIES: readonly Capability[] = [
@@ -117,6 +126,7 @@ export const CAPABILITIES: readonly Capability[] = [
   "image",
   "geometry",
   "geoprocess",
+  "processes",
 ] as const;
 
 /**
@@ -183,6 +193,9 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   "geoservices-geometry-service": capabilities(["geometry", "connect"]),
   "geoservices-gp-service": capabilities(["geoprocess", "connect"]),
   "ogc-features": capabilities(["query", "queryObjectIds", "applyEdits", "stream"]),
+  "ogc-tiles": capabilities(["render", "tiles"]),
+  "ogc-maps": capabilities(["render"]),
+  stac: capabilities(["query", "queryObjectIds", "stream"]),
   wfs: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits"]),
   wms: capabilities(["render", "tiles"]),
   odata: capabilities(["query", "queryObjectIds"]),
@@ -210,8 +223,12 @@ export interface SourceLocator {
   serviceId?: string;
   /** GeoServices layer identifier within the service. */
   layerId?: number;
-  /** OGC API Features collection identifier. */
+  /** OGC API Features / Tiles / Maps collection identifier. */
   collectionId?: string | number;
+  /** OGC API Tiles tile-matrix-set identifier (e.g. `WebMercatorQuad`). */
+  tileMatrixSetId?: string;
+  /** OGC API Maps / Tiles style identifier for styled-output endpoints. */
+  styleId?: string;
   /** WFS / WMS type-name identifier. */
   typeName?: string;
   /** OData entity-set identifier. */
@@ -511,6 +528,10 @@ export type AdapterKind =
   | "geoservices-geometry-service"
   | "geoservices-gp-service"
   | "ogc-features"
+  | "ogc-tiles"
+  | "ogc-maps"
+  | "ogc-processes"
+  | "stac"
   | "wfs"
   | "wms"
   | "odata";

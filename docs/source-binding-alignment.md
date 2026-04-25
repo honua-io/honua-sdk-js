@@ -1,11 +1,14 @@
 # SourceDescriptor ↔ Server SourceBinding Alignment
 
-This document keeps the SDK's `SourceDescriptor` shape in lockstep with
-the server's `SourceBinding` document (defined in
-`/honua-server/docs/developer/AI_OPERATOR_CONTRACT.md`). Both shapes are
-intended to round-trip: an SDK `SourceDescriptor` exports cleanly to a
-server `SourceBinding`, and a `SourceBinding` re-imported through
-`createDataset` produces an equivalent `SourceDescriptor`.
+This document keeps the SDK's `SourceDescriptor` shape aligned with the
+server's `SourceBinding` model (currently implemented in
+`honua-server/src/Honua.Core/Features/Geoprocessing/Domain/SourceBinding.cs`)
+and the SDK runtime's `HonuaMapPackageSourceBinding` mirror. The SDK
+`SourceLocator` is a superset of the current server locator: `url`,
+`serviceId`, and `layerId` are guaranteed by the server model today,
+while OGC route hints such as `collectionId`, `tileMatrixSetId`, and
+`styleId` are SDK-side fields that can be carried as additive package
+locator fields until the server schema exposes them explicitly.
 
 ## Field map
 
@@ -16,7 +19,9 @@ server `SourceBinding`, and a `SourceBinding` re-imported through
 | `locator.url` | `locator.url` | Fully qualified endpoint URL. |
 | `locator.serviceId` | `locator.serviceId` | GeoServices service identifier (FeatureServer, MapServer, ImageServer, Geometry, GP). |
 | `locator.layerId` | `locator.layerId` | Numeric layer identifier within the service. |
-| `locator.collectionId` | `locator.collectionId` | OGC API Features collection. |
+| `locator.collectionId` | `locator.collectionId` | OGC API Features / Tiles / Maps / STAC collection. |
+| `locator.tileMatrixSetId` | `locator.tileMatrixSetId` | OGC API Tiles tile-matrix-set identifier. When set, `Source.adapter("ogc-tiles")` returns a bound `HonuaOgcTileset`; when omitted, it returns the root `HonuaOgcTiles` handle for tile-matrix-set discovery. Preserved as an additive locator field when present. |
+| `locator.styleId` | `locator.styleId` | OGC API Maps styled-output identifier. Consumed by `Source.adapter("ogc-maps")` to build the `/styles/{styleId}/map` route. Not consumed by the OGC Tiles adapter today: honua-server does not expose a `/styles/{styleId}/tiles/...` route, so the SDK keeps the tile path canonical. Preserved as an additive locator field when present. |
 | `locator.typeName` | `locator.typeName` | WFS / WMS type-name. |
 | `locator.entitySet` | `locator.entitySet` | OData entity set. |
 | `locator.taskName` | `locator.taskName` | GP Service task identifier; combined with `serviceId` it uniquely identifies one async task without leaking task parameters into the descriptor. Required on descriptors that advertise the `geoprocess` capability — `createDataset` rejects bindings without it because the lifecycle routes (`/GPServer/<taskName>/submitJob` etc.) do not exist at the service root. |
@@ -75,6 +80,11 @@ Adding a new protocol on the SDK side requires:
   source itself. Exporting state to a `SourceBinding` discards them.
 - Auth headers — never serialized into a `SourceBinding`. The
   server-side runtime resolves credentials from its own credential store.
+- The current honua-server `SourceLocator` model guarantees `url`,
+  `serviceId`, and `layerId`; OGC-specific locator hints such as
+  `collectionId`, `tileMatrixSetId`, and `styleId` are SDK-side route
+  discriminators until the server schema carries them explicitly. Unknown
+  locator fields are preserved by the SDK runtime package model.
 
 ## Verification
 

@@ -13,6 +13,10 @@
 
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
+import { HonuaOgcMaps, HonuaOgcCollectionMap } from "../core/ogc-maps.js";
+import type { HonuaOgcProcesses } from "../core/ogc-processes.js";
+import { HonuaOgcTiles, HonuaOgcTileset } from "../core/ogc-tiles.js";
+import { HonuaStacSearch } from "../core/stac.js";
 import {
   HonuaFeatureLayer,
   HonuaImageService,
@@ -29,8 +33,10 @@ import type {
   HonuaFeature,
   HonuaQueryResponse,
   HonuaRelatedRecordGroup,
+  HonuaStacItemResponse,
   HonuaTypedFeature,
   HonuaTypedQueryResponse,
+  StacSearchRequest,
 } from "../core/types.js";
 import {
   CAPABILITIES,
@@ -148,6 +154,12 @@ function buildBuiltInSource<T>(
       return geoServicesGPServiceSource<T>(descriptor, client, policy);
     case "ogc-features":
       return ogcFeaturesSource<T>(descriptor, client, policy);
+    case "ogc-tiles":
+      return ogcTilesSource<T>(descriptor, client, policy);
+    case "ogc-maps":
+      return ogcMapsSource<T>(descriptor, client, policy);
+    case "stac":
+      return stacSearchSource<T>(descriptor, client, policy);
     default:
       return undefined;
   }
@@ -664,6 +676,165 @@ export function geoServicesGPServiceSource<T>(
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
 }
 
+// ── OGC API Tiles ─────────────────────────────────────────────
+
+/**
+ * Render-only Source adapter for OGC API Tiles. The query family throws
+ * `HonuaCapabilityNotSupportedError` (the conformance class is
+ * tile-fetch, not feature-query); rendering integrations consume the
+ * tileset through `Source.protocol("ogc-tiles")` to reach the underlying
+ * runtime class.
+ */
+export function ogcTilesSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): Source<T> {
+  const { collectionId, tileMatrixSetId } = requireOgcTilesLocator(descriptor);
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["ogc-tiles"];
+
+  // Descriptors without a tileMatrixSetId cannot construct a usable
+  // HonuaOgcTileset (every tile route requires `tileMatrixSetId`). Expose
+  // the root HonuaOgcTiles adapter instead so callers can discover the
+  // tilesets the server advertises for the collection before binding one.
+  const adapter =
+    tileMatrixSetId !== undefined && tileMatrixSetId !== ""
+      ? new HonuaOgcTileset({ client, collectionId, tileMatrixSetId })
+      : new HonuaOgcTiles({ client });
+
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
+    "ogc-tiles": adapter,
+  };
+
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
+}
+
+// ── OGC API Maps ──────────────────────────────────────────────
+
+/**
+ * Render-only Source adapter for OGC API Maps. Same shape as the Tiles
+ * adapter — `Source.protocol("ogc-maps")` exposes the runtime class for
+ * server-rendered map images; the canonical query family throws.
+ */
+export function ogcMapsSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): Source<T> {
+  const root = new HonuaOgcMaps({ client });
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {};
+  if (descriptor.locator.collectionId !== undefined) {
+    adapterRegistry["ogc-maps"] = new HonuaOgcCollectionMap({
+      client,
+      collectionId: descriptor.locator.collectionId,
+      styleId: descriptor.locator.styleId,
+    });
+  } else {
+    adapterRegistry["ogc-maps"] = root;
+  }
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["ogc-maps"];
+
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
+}
+
+// ── STAC API ──────────────────────────────────────────────────
+
+export function stacSearchSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): Source<T> {
+  const stac = new HonuaStacSearch({ client });
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.stac;
+  const collectionScope = descriptor.locator.collectionId;
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
+    stac,
+  };
+
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
+    async query(request) {
+      ensureCapability(descriptor, caps, "query");
+      if (request?.aggregation) {
+        throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+      }
+      const stacRequest = toStacRequest(request, collectionScope);
+      const response = await stac.search(stacRequest);
+      const features = (response.features ?? []).map(toTypedFeatureFromStac<T>);
+      const totalCount = response.numberMatched ?? response.context?.matched;
+      const exceededTransferLimit =
+        totalCount !== undefined && features.length < totalCount;
+      return {
+        features,
+        exceededTransferLimit,
+        totalCount,
+      } satisfies Result<T>;
+    },
+    async queryAll(request) {
+      ensureCapability(descriptor, caps, "query");
+      const limit = request?.pagination?.limit;
+      const items = await stac.searchAll({
+        ...toStacRequest(request, collectionScope),
+        pageSize: limit !== undefined ? Math.max(1, limit) : undefined,
+        maxPages: Number.MAX_SAFE_INTEGER,
+      });
+      const typed = items.map(toTypedFeatureFromStac<T>);
+      const { features, exceededTransferLimit } = applyQueryAllLimit(typed, limit);
+      return {
+        features,
+        exceededTransferLimit,
+        totalCount: features.length,
+      } satisfies Result<T>;
+    },
+    async queryAggregate() {
+      throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+    },
+    async queryExtent() {
+      throw new HonuaCapabilityNotSupportedError("queryExtent", descriptor.protocol, descriptor.id);
+    },
+    async *stream(request) {
+      ensureCapability(descriptor, caps, "stream");
+      const limit = request?.pagination?.limit;
+      const stream = stac.searchStream({
+        ...toStacRequest(request, collectionScope),
+        pageSize: limit !== undefined ? Math.max(1, limit) : undefined,
+        maxPages: Number.MAX_SAFE_INTEGER,
+      });
+      for await (const page of stream) {
+        yield {
+          features: page.map(toTypedFeatureFromStac<T>),
+          exceededTransferLimit: false,
+        } satisfies Result<T>;
+      }
+    },
+    async queryObjectIds(request) {
+      ensureCapability(descriptor, caps, "queryObjectIds");
+      // STAC `/search` does not expose a server-side ids-only mode; drain
+      // the matching items and project the GeoJSON `id`. Callers that need
+      // a bounded scan should pass `pagination.limit`.
+      const limit = request?.pagination?.limit;
+      const items = await stac.searchAll({
+        ...toStacRequest(request, collectionScope),
+        pageSize: limit !== undefined ? Math.max(1, limit) : undefined,
+        maxPages: Number.MAX_SAFE_INTEGER,
+      });
+      const ids: FeatureId[] = [];
+      for (const item of items) {
+        if (item.id !== undefined && item.id !== null) {
+          ids.push(item.id as FeatureId);
+        }
+      }
+      return ids;
+    },
+    async applyEdits() {
+      throw new HonuaCapabilityNotSupportedError("applyEdits", descriptor.protocol, descriptor.id);
+    },
+    async queryRelated() {
+      throw new HonuaCapabilityNotSupportedError("queryRelated", descriptor.protocol, descriptor.id);
+    },
+    attachments: unsupportedAttachmentApi(descriptor),
+  });
+}
+
 // ── Internal helpers ──────────────────────────────────────────
 
 interface SourceImplementation<T> {
@@ -890,6 +1061,64 @@ function requireGPServiceLocator(
     );
   }
   return { serviceId, taskName };
+}
+
+function requireOgcTilesLocator(descriptor: SourceDescriptor): {
+  collectionId: string | number;
+  tileMatrixSetId: string | undefined;
+} {
+  const { collectionId, tileMatrixSetId } = descriptor.locator;
+  if (collectionId === undefined || collectionId === null || collectionId === "") {
+    throw new Error(`createDataset: source "${descriptor.id}" (ogc-tiles) requires locator.collectionId`);
+  }
+  return { collectionId, tileMatrixSetId };
+}
+
+function toStacRequest<T>(
+  request: Query<T> | undefined,
+  collectionScope: string | number | undefined,
+): StacSearchRequest {
+  const out: StacSearchRequest = {};
+  if (request?.where !== undefined) {
+    out.filter = request.where;
+    out.filterLang = "cql2-text";
+  }
+  if (request?.outFields && request.outFields.length > 0) {
+    out.fields = { include: [...request.outFields] };
+  }
+  if (request?.pagination?.limit !== undefined) out.limit = request.pagination.limit;
+  if (request?.pagination?.offset !== undefined) out.offset = request.pagination.offset;
+  if (request?.orderBy && request.orderBy.length > 0) {
+    out.sortby = request.orderBy.map((s) => `${s.direction === "desc" ? "-" : ""}${s.field}`).join(",");
+  }
+  if (request?.spatialFilter) {
+    if (request.spatialFilter.geometryType !== "esriGeometryEnvelope") {
+      throw new Error(
+        `stac: spatialFilter.geometryType "${request.spatialFilter.geometryType}" is not supported; only "esriGeometryEnvelope" translates to STAC bbox.`,
+      );
+    }
+    const env = request.spatialFilter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
+    if (
+      typeof env.xmin === "number" &&
+      typeof env.ymin === "number" &&
+      typeof env.xmax === "number" &&
+      typeof env.ymax === "number"
+    ) {
+      out.bbox = [env.xmin, env.ymin, env.xmax, env.ymax];
+    }
+  }
+  if (collectionScope !== undefined && collectionScope !== "") {
+    out.collections = [String(collectionScope)];
+  }
+  if (request?.signal) out.signal = request.signal;
+  return out;
+}
+
+function toTypedFeatureFromStac<T>(feature: HonuaStacItemResponse): HonuaTypedFeature<T> {
+  return {
+    attributes: (feature.properties ?? {}) as T,
+    geometry: feature.geometry as Record<string, unknown> | null,
+  };
 }
 
 /**
@@ -1627,6 +1856,10 @@ declare module "./types.js" {
     "geoservices-geometry-service": HonuaGeometryService;
     "geoservices-gp-service": HonuaGeoprocessingService;
     "ogc-features": HonuaOgcFeatureCollection;
+    "ogc-tiles": HonuaOgcTileset | HonuaOgcTiles;
+    "ogc-maps": HonuaOgcMaps | HonuaOgcCollectionMap;
+    "ogc-processes": HonuaOgcProcesses;
+    stac: HonuaStacSearch;
   }
 }
 
@@ -1643,4 +1876,7 @@ export const FIRST_PARTY_PROTOCOLS: ReadonlySet<Protocol> = new Set([
   "geoservices-geometry-service",
   "geoservices-gp-service",
   "ogc-features",
+  "ogc-tiles",
+  "ogc-maps",
+  "stac",
 ] as const);

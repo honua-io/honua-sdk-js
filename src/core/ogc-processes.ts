@@ -1,0 +1,386 @@
+/**
+ * OGC API Processes surface. Process discovery, execution, and async
+ * job tracking. Per the ticket constraint, async executions return an
+ * `IJobRun` (the canonical async-operation surface) rather than an
+ * OGC-specific job type.
+ *
+ * @module
+ */
+
+import type {
+  IJobRun,
+  JobError,
+  JobProgress,
+  JobResult,
+  JobSnapshot,
+  JobSnapshotListener,
+  JobStatus,
+} from "../contract/jobs.js";
+import { isJobTerminal } from "../contract/jobs.js";
+import type { HonuaClient } from "./client.js";
+import type {
+  HonuaOgcConformanceResponse,
+  HonuaOgcLandingResponse,
+  HonuaOgcProcessDescription,
+  HonuaOgcProcessJobAccepted,
+  HonuaOgcProcessJobResults,
+  HonuaOgcProcessJobStatus,
+  HonuaOgcProcessesResponse,
+  OgcMetadataRequest,
+  OgcProcessExecuteRequest,
+  OgcProcessStatus,
+} from "./types.js";
+
+export interface HonuaOgcProcessesOptions {
+  client: HonuaClient;
+}
+
+export interface HonuaOgcProcessJobOptions {
+  client: HonuaClient;
+  jobId: string;
+  /** Process identifier the job was created from, when known. */
+  processId?: string;
+  /** Initial server snapshot, as returned from `executeOgcProcess`. */
+  initialStatus?: HonuaOgcProcessJobStatus;
+  /** Default `pollIntervalMs` for `results()`. */
+  pollIntervalMs?: number;
+  /** Override of the default polling behavior; useful in tests. */
+  pollFn?: (jobId: string, signal?: AbortSignal) => Promise<HonuaOgcProcessJobStatus>;
+}
+
+const DEFAULT_POLL_INTERVAL_MS = 1_000;
+
+/** Top-level OGC API Processes handle. */
+export class HonuaOgcProcesses {
+  public readonly client: HonuaClient;
+
+  public constructor(options: HonuaOgcProcessesOptions) {
+    this.client = options.client;
+  }
+
+  public async landing(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
+    return this.client.getOgcProcessesLanding(request);
+  }
+
+  public async conformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
+    return this.client.getOgcProcessesConformance(request);
+  }
+
+  public async list(request: OgcMetadataRequest = {}): Promise<HonuaOgcProcessesResponse> {
+    return this.client.listOgcProcesses(request);
+  }
+
+  public async describe(processId: string, request: OgcMetadataRequest = {}): Promise<HonuaOgcProcessDescription> {
+    return this.client.getOgcProcess({ ...request, processId });
+  }
+
+  /**
+   * Submit a process for execution. Returns an `IJobRun` regardless of
+   * `mode` so callers can branch uniformly on `status` and `results()`.
+   * For `mode: "sync"` the job's first poll resolves immediately with
+   * the inline result; for async the runner polls the server.
+   */
+  public async execute<T = unknown>(request: OgcProcessExecuteRequest): Promise<IJobRun<T>> {
+    const accepted = await this.client.executeOgcProcess(request);
+    return new HonuaOgcProcessJobRun<T>({
+      client: this.client,
+      jobId: accepted.jobID,
+      processId: accepted.processID ?? request.processId,
+      initialStatus: accepted.statusInfo ?? {
+        jobID: accepted.jobID,
+        processID: accepted.processID ?? request.processId,
+        status: accepted.status,
+      },
+    });
+  }
+
+  /** Adopt an existing job by id (useful when reconnecting after navigation). */
+  public job<T = unknown>(jobId: string, options: { processId?: string } = {}): IJobRun<T> {
+    return new HonuaOgcProcessJobRun<T>({
+      client: this.client,
+      jobId,
+      processId: options.processId,
+    });
+  }
+}
+
+/**
+ * `IJobRun` implementation backed by OGC API Processes 1.0 status / result
+ * endpoints. Watchers receive the latest `JobSnapshot` when status,
+ * progress, or terminal result changes; cancel is idempotent and races
+ * the server's `dismissed` response against any concurrent terminal
+ * transition.
+ */
+export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
+  public readonly id: string;
+  public readonly type: string;
+
+  private readonly client: HonuaClient;
+  private readonly pollIntervalMs: number;
+  private readonly pollFn: (jobId: string, signal?: AbortSignal) => Promise<HonuaOgcProcessJobStatus>;
+  private currentStatus: JobStatus;
+  private currentProgress: JobProgress | undefined;
+  private terminalSnapshot: JobSnapshot<T> | undefined;
+  private terminalPromise: Promise<JobResult<T>> | undefined;
+  private readonly listeners = new Set<JobSnapshotListener<T>>();
+
+  public constructor(options: HonuaOgcProcessJobOptions) {
+    this.client = options.client;
+    this.id = options.jobId;
+    this.type = options.processId ?? options.initialStatus?.processID ?? "unknown";
+    this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+    this.pollFn =
+      options.pollFn ??
+      ((jobId, signal) => options.client.getOgcProcessJob({ jobId, signal }));
+    const initial = options.initialStatus;
+    this.currentStatus = (initial?.status as JobStatus) ?? "accepted";
+    this.currentProgress = progressFromOgcStatus(initial);
+  }
+
+  public get status(): JobStatus {
+    return this.currentStatus;
+  }
+
+  public get progress(): JobProgress | undefined {
+    return this.currentProgress;
+  }
+
+  public async poll(): Promise<JobSnapshot<T>> {
+    if (this.terminalSnapshot) {
+      return this.terminalSnapshot;
+    }
+    const ogcStatus = await this.pollFn(this.id);
+    return this.handleOgcStatus(ogcStatus);
+  }
+
+  public watch(listener: JobSnapshotListener<T>): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  public async results(): Promise<JobResult<T>> {
+    if (!this.terminalPromise) {
+      this.terminalPromise = this.runUntilTerminal();
+    }
+    return this.terminalPromise;
+  }
+
+  public async cancel(): Promise<JobStatus> {
+    if (this.terminalSnapshot) {
+      return this.currentStatus;
+    }
+    try {
+      const cancelled = await this.client.cancelOgcProcessJob({ jobId: this.id });
+      const snapshot = await this.handleOgcStatus(cancelled);
+      return snapshot.status;
+    } catch (error) {
+      const statusCode = (error as { statusCode?: number } | undefined)?.statusCode;
+      // `IJobRun.cancel` is documented as idempotent: when the job is
+      // already gone (404), return the cached status. honua-server uses
+      // 409 for three distinct cases — only the terminal-race case is
+      // benign:
+      //   - "Cannot dismiss completed job" → terminal race; poll for the
+      //     authoritative terminal status and return it.
+      //   - "Dismiss could not be confirmed" → backend dismissal request
+      //     was issued but did not confirm; rethrow so callers can retry.
+      //   - "Cancellation not supported" → backend lacks cancel support;
+      //     rethrow so callers can branch.
+      // Any 409 with an unknown title also rethrows. The terminal-race
+      // branch only swallows the 409 when the follow-up poll reaches a
+      // terminal status; a non-terminal poll or a poll failure means the
+      // "completed job" claim cannot be confirmed and the original 409
+      // is the most honest signal.
+      if (statusCode === 404) {
+        return this.currentStatus;
+      }
+      if (statusCode === 409 && isCompletedJobConflict(error)) {
+        const fresh = await this.pollFn(this.id);
+        const snapshot = await this.handleOgcStatus(fresh);
+        if (!isJobTerminal(snapshot.status)) {
+          throw error;
+        }
+        return snapshot.status;
+      }
+      throw error;
+    }
+  }
+
+  private async runUntilTerminal(): Promise<JobResult<T>> {
+    while (!this.terminalSnapshot) {
+      const ogcStatus = await this.pollFn(this.id);
+      await this.handleOgcStatus(ogcStatus);
+      if (this.terminalSnapshot) break;
+      if (this.pollIntervalMs > 0) {
+        await delay(this.pollIntervalMs);
+      }
+    }
+    if (this.terminalSnapshot.status === "successful" && this.terminalSnapshot.result) {
+      return this.terminalSnapshot.result;
+    }
+    throw makeJobFailedError(this.terminalSnapshot);
+  }
+
+  /**
+   * Translate an OGC `statusInfo` payload onto the canonical snapshot
+   * surface, fire watchers, and (for `successful` terminals) fetch the
+   * result document inline so the snapshot's `result.outputs` is
+   * populated by the time `runUntilTerminal` / `poll` resolves.
+   */
+  private async handleOgcStatus(ogcStatus: HonuaOgcProcessJobStatus): Promise<JobSnapshot<T>> {
+    const status = (ogcStatus.status as JobStatus) ?? "accepted";
+    const progress = progressFromOgcStatus(ogcStatus);
+    this.currentStatus = status;
+    this.currentProgress = progress;
+
+    if (status === "successful") {
+      try {
+        const results = await this.client.getOgcProcessJobResults({ jobId: this.id });
+        const snapshot: JobSnapshot<T> = {
+          status: "successful",
+          progress,
+          result: { outputs: results.outputs as Record<string, T> },
+        };
+        this.terminalSnapshot = snapshot;
+        this.notify(snapshot);
+        return snapshot;
+      } catch (error) {
+        const failure: JobSnapshot<T> = {
+          status: "failed",
+          progress,
+          error: {
+            code: (error as { name?: string } | undefined)?.name ?? "ResultsFetchFailed",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        };
+        this.currentStatus = "failed";
+        this.terminalSnapshot = failure;
+        this.notify(failure);
+        return failure;
+      }
+    }
+
+    if (status === "failed" || status === "dismissed") {
+      const error = terminalJobError(status, ogcStatus);
+      const snapshot: JobSnapshot<T> = {
+        status,
+        progress,
+        ...(error ? { error } : {}),
+      };
+      this.terminalSnapshot = snapshot;
+      this.notify(snapshot);
+      return snapshot;
+    }
+
+    const snapshot: JobSnapshot<T> = { status, progress };
+    this.notify(snapshot);
+    return snapshot;
+  }
+
+  private notify(snapshot: JobSnapshot<T>): void {
+    for (const listener of this.listeners) {
+      try {
+        listener(snapshot);
+      } catch {
+        // Listener exceptions must not break the runner; log silently.
+      }
+    }
+  }
+}
+
+/** Error thrown when `IJobRun.results()` resolves a non-success terminal. */
+export class HonuaJobFailedError extends Error {
+  public readonly status: JobStatus;
+  public readonly errorCode: string | undefined;
+  public readonly details: unknown;
+
+  public constructor(message: string, status: JobStatus, errorCode?: string, details?: unknown) {
+    super(message);
+    this.name = "HonuaJobFailedError";
+    this.status = status;
+    this.errorCode = errorCode;
+    this.details = details;
+  }
+}
+
+/**
+ * Honua-server emits problem-details JSON for DELETE /jobs/{id} 409s. The
+ * `title` distinguishes the benign terminal race ("Cannot dismiss
+ * completed job") from non-benign 409s ("Dismiss could not be confirmed",
+ * "Cancellation not supported"). The detail text mirrors the title
+ * ("terminal state '...'") so we accept either as confirmation.
+ */
+function isCompletedJobConflict(error: unknown): boolean {
+  const body = (error as { body?: unknown } | undefined)?.body;
+  if (!body || typeof body !== "object") return false;
+  const title = (body as { title?: unknown }).title;
+  const detail = (body as { detail?: unknown }).detail;
+  if (typeof title === "string" && /cannot dismiss completed job/i.test(title)) {
+    return true;
+  }
+  if (typeof detail === "string" && /terminal state/i.test(detail)) {
+    return true;
+  }
+  return false;
+}
+
+function terminalJobError(
+  status: JobStatus,
+  ogcStatus: HonuaOgcProcessJobStatus,
+): JobError | undefined {
+  if (ogcStatus.exception) {
+    return { ...ogcStatus.exception };
+  }
+  // honua-server emits failure text as `statusInfo.message` (its
+  // StatusInfo DTO has no `exception` field). Fall back to the progress
+  // message so `HonuaJobFailedError.message` carries the server reason
+  // instead of the generic "non-success terminal state" default.
+  if (typeof ogcStatus.message === "string" && ogcStatus.message.length > 0) {
+    return {
+      code: status === "dismissed" ? "JobDismissed" : "JobFailed",
+      message: ogcStatus.message,
+    };
+  }
+  return undefined;
+}
+
+function progressFromOgcStatus(ogcStatus: HonuaOgcProcessJobStatus | undefined): JobProgress | undefined {
+  if (!ogcStatus) return undefined;
+  const out: JobProgress = {};
+  if (typeof ogcStatus.progress === "number" && Number.isFinite(ogcStatus.progress)) {
+    out.percent = clampPercent(ogcStatus.progress);
+  }
+  if (ogcStatus.message !== undefined) out.message = ogcStatus.message;
+  if (ogcStatus.updated !== undefined) out.updatedAt = ogcStatus.updated;
+  if (out.percent === undefined && out.message === undefined && out.updatedAt === undefined) {
+    return undefined;
+  }
+  return out;
+}
+
+function clampPercent(value: number): number {
+  if (value < 0) return 0;
+  if (value > 100) return 100;
+  return value;
+}
+
+function makeJobFailedError<T>(snapshot: JobSnapshot<T>): HonuaJobFailedError {
+  const error: JobError | undefined = snapshot.error;
+  const message = error?.message ?? `Job ended in non-success terminal state: ${snapshot.status}`;
+  return new HonuaJobFailedError(message, snapshot.status, error?.code, error?.details);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+export function createHonuaOgcProcesses(client: HonuaClient): HonuaOgcProcesses {
+  return new HonuaOgcProcesses({ client });
+}
+
+// Type-only re-export so adapter map augmentation in `contract/source.ts`
+// can reference the OGC processes runner without importing the full
+// surface module.
+export type HonuaOgcProcessesAdapter = HonuaOgcProcesses;
+export type { OgcProcessStatus };
