@@ -1175,12 +1175,13 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
       const drainPageSize = 2000;
       const ids: FeatureId[] = [];
       let offset = request?.pagination?.offset ?? 0;
+      const idsRequest = toWfsObjectIdsDrainRequest(request);
       while (true) {
         const remainingCap = limitCap !== undefined ? Math.max(0, limitCap - ids.length) : undefined;
         if (remainingCap === 0) break;
         const pageSize = remainingCap !== undefined ? Math.min(drainPageSize, remainingCap) : drainPageSize;
         const pageRequest: Query<T> = {
-          ...(request ?? {}),
+          ...idsRequest,
           pagination: { offset, limit: pageSize },
         };
         const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, pageSize);
@@ -1263,10 +1264,44 @@ function requireWfsLocator(descriptor: SourceDescriptor): {
 }
 
 function toWfsExtentDrainRequest<T>(request: Query<T> | undefined): Query<T> {
-  const { outFields: _outFields, pagination: _pagination, ...extentRequest } = request ?? {};
+  // The drain computes a bbox over geometries, so a caller-supplied
+  // `returnGeometry: false` would suppress geometry on every page and
+  // leave the extent empty. Strip it alongside `outFields` and
+  // `pagination` so the drain always sees the full geometry-bearing
+  // response regardless of the caller's projection / paging / geometry
+  // intent.
+  const {
+    outFields: _outFields,
+    pagination: _pagination,
+    returnGeometry: _returnGeometry,
+    ...extentRequest
+  } = request ?? {};
   void _outFields;
   void _pagination;
+  void _returnGeometry;
   return extentRequest;
+}
+
+/**
+ * `queryObjectIds` reads the GeoJSON `id` from each drained feature, so
+ * neither `outFields` nor `returnGeometry` affects the result. Strip
+ * both before issuing each `GetFeature` page so a caller-supplied
+ * `returnGeometry: false` cannot throw the runGetFeatureJson guard
+ * (which refuses to suppress geometry without an explicit `outFields`)
+ * and so the drain's `propertyName=` does not balloon with the
+ * geometry property the caller never asked for.
+ */
+function toWfsObjectIdsDrainRequest<T>(request: Query<T> | undefined): Query<T> {
+  const {
+    outFields: _outFields,
+    returnGeometry: _returnGeometry,
+    pagination: _pagination,
+    ...idsRequest
+  } = request ?? {};
+  void _outFields;
+  void _returnGeometry;
+  void _pagination;
+  return idsRequest;
 }
 
 /**
@@ -1354,8 +1389,34 @@ async function runGetFeatureJson<T>(
   const params: Parameters<HonuaWfsFeatureType["getFeature"]>[0] = {};
   if (bbox !== undefined) params.bbox = bbox;
   if (filterXml !== undefined && !needsPostBody) params.filter = filterXml;
-  const propertyNames = request?.outFields && request.outFields.length > 0 ? [...request.outFields] : undefined;
-  if (propertyNames) params.propertyName = propertyNames;
+  // WFS `propertyName=` drops every property the caller does not list,
+  // including the geometry column. Honor the canonical contract: when
+  // `outFields` is set and `returnGeometry !== false`, append the
+  // geometry property so geometry is preserved; when
+  // `returnGeometry === false`, omit the geometry property; when
+  // `returnGeometry === false` is asked without an `outFields` list,
+  // refuse the request because WFS cannot suppress geometry without
+  // enumerating every non-geometry property — silently widening to
+  // "geometry included" would break the canonical contract.
+  const callerOutFields = request?.outFields && request.outFields.length > 0 ? request.outFields : undefined;
+  const wantsGeometry = request?.returnGeometry !== false;
+  let propertyNames: readonly string[] | undefined;
+  if (callerOutFields !== undefined) {
+    if (wantsGeometry) {
+      const merged = [...callerOutFields];
+      if (!merged.includes(DEFAULT_WFS_GEOMETRY_PROPERTY)) merged.push(DEFAULT_WFS_GEOMETRY_PROPERTY);
+      propertyNames = merged;
+    } else {
+      propertyNames = [...callerOutFields];
+    }
+  } else if (request?.returnGeometry === false) {
+    throw new HonuaCapabilityNotSupportedError(
+      "query",
+      "wfs",
+      `returnGeometry=false requires an explicit outFields list (WFS propertyName cannot suppress geometry without enumerating non-geometry properties); set Query.outFields or reach the wire through Source.protocol("wfs")`,
+    );
+  }
+  if (propertyNames) params.propertyName = [...propertyNames];
   const sortBy =
     request?.orderBy && request.orderBy.length > 0
       ? request.orderBy.map((s) => `${s.field}${s.direction === "desc" ? " D" : " A"}`).join(",")

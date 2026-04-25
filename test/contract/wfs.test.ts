@@ -391,6 +391,151 @@ describe("wfs / canonical Source", () => {
     expect(out.extent!.ymax).toBeGreaterThanOrEqual(50);
   });
 
+  it("query with outFields appends the geometry property so geometry is preserved", async () => {
+    let observedPropertyName: string | null = null;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            observedPropertyName = url.searchParams.get("propertyName");
+            return new Response(JSON.stringify(wfsGeoJsonResponse(PARCEL_FEATURES.slice(0, 1))), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const result = await source.query({ outFields: ["OBJECTID", "STATE"] });
+    expect(observedPropertyName).toBe("OBJECTID,STATE,the_geom");
+    expect(result.features[0].geometry).not.toBeNull();
+  });
+
+  it("query with returnGeometry=false omits the geometry property", async () => {
+    let observedPropertyName: string | null = null;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            observedPropertyName = url.searchParams.get("propertyName");
+            const body = wfsGeoJsonResponse(PARCEL_FEATURES.slice(0, 1));
+            return new Response(
+              JSON.stringify({ ...body, features: body.features.map((f) => ({ ...f, geometry: null })) }),
+              { status: 200, headers: { "Content-Type": "application/geo+json" } },
+            );
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const result = await source.query({ outFields: ["OBJECTID", "STATE"], returnGeometry: false });
+    expect(observedPropertyName).toBe("OBJECTID,STATE");
+    expect(result.features[0].geometry).toBeNull();
+  });
+
+  it("query with returnGeometry=false but no outFields throws (WFS cannot suppress geometry without enumeration)", async () => {
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          return new Response(JSON.stringify(wfsGeoJsonResponse()), {
+            status: 200,
+            headers: { "Content-Type": "application/geo+json" },
+          });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    await expect(source.query({ where: "1=1", returnGeometry: false })).rejects.toThrow(
+      HonuaCapabilityNotSupportedError,
+    );
+  });
+
+  it("query with outFields that already include the geometry property does not duplicate it", async () => {
+    let observedPropertyName: string | null = null;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            observedPropertyName = url.searchParams.get("propertyName");
+            return new Response(JSON.stringify(wfsGeoJsonResponse(PARCEL_FEATURES.slice(0, 1))), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    await source.query({ outFields: ["OBJECTID", "the_geom", "STATE"] });
+    expect(observedPropertyName).toBe("OBJECTID,the_geom,STATE");
+  });
+
+  it("queryObjectIds tolerates returnGeometry=false (geometry intent is irrelevant for ids-only)", async () => {
+    let observedPropertyName: string | null = null;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            observedPropertyName = url.searchParams.get("propertyName");
+            return new Response(JSON.stringify(wfsGeoJsonResponse(PARCEL_FEATURES.slice(0, 2))), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const ids = await source.queryObjectIds({ where: "STATE = 'CA'", returnGeometry: false, outFields: ["OBJECTID"] });
+    expect(observedPropertyName).toBeNull();
+    expect(ids.length).toBeGreaterThan(0);
+  });
+
+  it("filtered queryExtent tolerates returnGeometry=false (drain forces geometry on the wire)", async () => {
+    let observedPropertyName: string | null = null;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            observedPropertyName = url.searchParams.get("propertyName");
+            return new Response(
+              JSON.stringify(wfsGeoJsonResponse(PARCEL_FEATURES.filter((f) => f.attributes.STATE === "CA"))),
+              { status: 200, headers: { "Content-Type": "application/geo+json" } },
+            );
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const out = await source.queryExtent({ where: "STATE = 'CA'", returnGeometry: false });
+    expect(observedPropertyName).toBeNull();
+    expect(out.extent).toBeTruthy();
+  });
+
   it("numeric outSr maps to an EPSG URN srsName on GET GetFeature", async () => {
     let getFeatureUrl: URL | undefined;
     const dataset = buildWfsDataset([
@@ -454,6 +599,9 @@ describe("wfs / canonical Source", () => {
     expect(observedBody).toContain('srsName="urn:ogc:def:crs:EPSG::3857"');
     expect(observedBody).toContain("<wfs:PropertyName>OBJECTID</wfs:PropertyName>");
     expect(observedBody).toContain("<wfs:PropertyName>STATE</wfs:PropertyName>");
+    // Geometry property is appended so outFields callers do not silently
+    // lose geometry on the wire.
+    expect(observedBody).toContain("<wfs:PropertyName>the_geom</wfs:PropertyName>");
     expect(observedBody).toContain("<fes:SortBy>");
     expect(observedBody).toContain("<fes:ValueReference>ACRES</fes:ValueReference>");
     expect(observedBody).toContain("<fes:SortOrder>DESC</fes:SortOrder>");

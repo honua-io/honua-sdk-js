@@ -145,6 +145,39 @@ The geometry property name defaults to `the_geom`. Servers using a
 different name (`geometry`, `shape`, …) can supply a per-source filter
 through the protocol escape hatch.
 
+## Field projection (`outFields` and `returnGeometry`)
+
+WFS `propertyName=` drops every property the caller does not list,
+including the geometry column. The canonical `Query` contract treats
+`outFields` and `returnGeometry` as independent controls (geometry is
+included unless `returnGeometry === false`), so the adapter resolves
+the two like this:
+
+| `outFields` | `returnGeometry` | wire `propertyName=` |
+| --- | --- | --- |
+| _unset / empty_ | _unset_ / `true` | _omitted_ — server returns all fields + geometry |
+| _set_ | _unset_ / `true` | `outFields,the_geom` (geometry property appended unless already listed) |
+| _set_ | `false` | `outFields` only — geometry is intentionally dropped |
+| _unset / empty_ | `false` | _refused_ — `HonuaCapabilityNotSupportedError("query")` |
+
+The `returnGeometry === false` + no-`outFields` case throws because
+WFS cannot suppress geometry without enumerating every non-geometry
+property; silently widening to "geometry included" would break the
+canonical contract. Callers that need geometry-less rows must list the
+non-geometry fields they want, or reach the wire through
+`Source.protocol("wfs")`.
+
+`queryExtent` and `queryObjectIds` ignore both `outFields` and
+`returnGeometry` on the drain path so caller intent on those fields
+cannot break the drain. `queryExtent` always issues geometry-bearing
+pages (it computes a bbox from each feature's geometry); a
+`returnGeometry: false` paired with `queryExtent` does **not** throw,
+the field is stripped before the drain. `queryObjectIds` reads each
+feature's GeoJSON `id` directly, so neither knob affects the result —
+both are stripped before the drain so the caller's `outFields` cannot
+push the geometry property onto the wire and `returnGeometry: false`
+cannot trip the propertyName-suppression guard.
+
 ## GET vs. POST routing
 
 Filters whose encoded length exceeds `~7000` characters are routed
@@ -194,6 +227,14 @@ adapter shrinks each page to `min(2000, remaining)` so the final page
 never overshoots the cap. A `pagination.limit` of `0` short-circuits
 the drain and returns `[]` without a wire call.
 
+`Query.outFields` and `Query.returnGeometry` are stripped before each
+drained page is requested. The drain reads each feature's top-level
+GeoJSON `id` (a sibling of `properties` and `geometry`), so neither
+knob affects the result; stripping them keeps the wire request from
+emitting an unnecessary `propertyName=` and prevents
+`returnGeometry: false` from tripping the canonical "no `outFields`"
+guard documented in [Field projection](#field-projection-outfields-and-returngeometry).
+
 ## queryExtent
 
 Unfiltered `queryExtent()` (no `where`, no `spatialFilter`, no
@@ -203,17 +244,19 @@ HTTP traffic. Filtered or `outSr`-bearing requests drain every page of
 the matching set (2000 features per page) and compute the bbox
 client-side, so the returned extent always covers the full filtered
 set rather than just the first server page. Caller pagination
-(`Query.pagination.offset` / `.limit`) and `Query.outFields` are
-intentionally ignored on this path — `queryExtent` answers "what bbox
-holds the matching records" rather than "what bbox holds the first
-page", and a caller-supplied `outFields` projection would emit
-`propertyName=...` on the wire and drop geometry from every drained
-page, leaving the bbox empty. The drain therefore strips
-`outFields` and pagination from the request before issuing each
-`GetFeature` page so geometry is preserved end-to-end. `queryExtent`
-returns `{ extent, count? }` and does not carry a `degraded[]` array;
-the OGC Features adapter is the only one that flags this fallback
-today.
+(`Query.pagination.offset` / `.limit`), `Query.outFields`, and
+`Query.returnGeometry` are intentionally ignored on this path —
+`queryExtent` answers "what bbox holds the matching records" rather
+than "what bbox holds the first page", and the drain must always see
+geometry on the wire to compute a bbox. A caller-supplied `outFields`
+projection would emit `propertyName=...` and drop geometry from every
+drained page; a caller-supplied `returnGeometry: false` would trip the
+field-projection guard. The drain therefore strips all three fields
+before issuing each `GetFeature` page so geometry is preserved
+end-to-end and the call cannot be refused on a knob that does not
+apply to extent computation. `queryExtent` returns
+`{ extent, count? }` and does not carry a `degraded[]` array; the OGC
+Features adapter is the only one that flags this fallback today.
 
 ## Edits (`applyEdits`)
 

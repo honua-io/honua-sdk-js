@@ -252,18 +252,34 @@ with the `<fes:Filter>` body. Anything richer than the supported subset
 (subqueries, function calls, vendor extensions, curves / surfaces)
 throws `HonuaCapabilityNotSupportedError("query")` rather than ship a
 silent partial filter — callers reach the wire through
-`Source.protocol("wfs")`. `queryExtent` prefers the per-feature-type
-`WGS84BoundingBox` from `GetCapabilities` for unfiltered requests so
-no extra HTTP traffic is issued; filtered or `outSr`-bearing requests
-drain every matching page (2000 features per page) and compute the
-bbox client-side, ignoring caller pagination and `Query.outFields` so
-geometry is preserved on every drained page and the returned extent
-covers the full matching set.
+`Source.protocol("wfs")`.
+WFS `propertyName=` drops every property the caller does not list,
+including the geometry column, so `Query.outFields` and
+`Query.returnGeometry` are resolved together: an `outFields` list with
+`returnGeometry !== false` appends the geometry property
+(`the_geom` by default) before the projection lands on the wire so
+geometry survives; `returnGeometry === false` paired with an
+`outFields` list emits exactly the requested fields (no geometry); a
+`returnGeometry === false` request without an `outFields` list throws
+`HonuaCapabilityNotSupportedError("query")` because WFS cannot
+suppress geometry without enumerating non-geometry properties.
+`queryExtent` prefers the per-feature-type `WGS84BoundingBox` from
+`GetCapabilities` for unfiltered requests so no extra HTTP traffic is
+issued; filtered or `outSr`-bearing requests drain every matching
+page (2000 features per page) and compute the bbox client-side,
+ignoring caller pagination, `Query.outFields`, and
+`Query.returnGeometry` so geometry is preserved on every drained
+page and the returned extent covers the full matching set.
 `queryObjectIds` has no interoperable server-side ids-only mode, so the
 adapter drains the matching set in 2000-feature pages and projects each
-GeoJSON `id`. `Query.pagination.limit` caps the global id count
-(callers can stop the drain without learning the server's page size)
-and `Query.pagination.offset` chooses where the drain starts.
+GeoJSON `id`. The drain strips `Query.outFields` and
+`Query.returnGeometry` (the GeoJSON `id` is read from each feature's
+top-level field, so neither knob affects the result) so the request
+cannot push the geometry property onto the wire and a caller-supplied
+`returnGeometry: false` cannot trip the field-projection guard.
+`Query.pagination.limit` caps the global id count (callers can stop
+the drain without learning the server's page size) and
+`Query.pagination.offset` chooses where the drain starts.
 `pagination.limit === 0` is treated as an explicit zero cap across
 `query`, `stream`, and `queryObjectIds` (each short-circuits before
 the wire call); `queryAll` still issues a single 1-row lookahead so
