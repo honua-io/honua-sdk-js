@@ -480,10 +480,15 @@ export class HonuaClient {
   public async createOgcItem(request: OgcCreateItemRequest): Promise<HonuaOgcFeatureResponse> {
     const params = createOgcMetadataParams(request);
     const path = `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}/items`;
-    return this.requestJson("POST", `${path}?${params.toString()}`, {
-      headers: mergeHeaders({ "Content-Type": "application/geo+json" }, request.headers),
-      body: JSON.stringify(request.feature),
-    }) as Promise<HonuaOgcFeatureResponse>;
+    return this.requestJson(
+      "POST",
+      `${path}?${params.toString()}`,
+      {
+        headers: mergeHeaders({ "Content-Type": "application/geo+json" }, request.headers),
+        body: JSON.stringify(request.feature),
+      },
+      request.signal,
+    ) as Promise<HonuaOgcFeatureResponse>;
   }
 
   public async replaceOgcItem(request: OgcReplaceItemRequest): Promise<HonuaOgcFeatureResponse> {
@@ -494,10 +499,15 @@ export class HonuaClient {
     const path =
       `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}` +
       `/items/${encodeURIComponent(String(request.featureId))}`;
-    return this.requestJson("PUT", `${path}?${params.toString()}`, {
-      headers: mergeHeaders({ "Content-Type": "application/geo+json" }, request.headers),
-      body: JSON.stringify(request.feature),
-    }) as Promise<HonuaOgcFeatureResponse>;
+    return this.requestJson(
+      "PUT",
+      `${path}?${params.toString()}`,
+      {
+        headers: mergeHeaders({ "Content-Type": "application/geo+json" }, request.headers),
+        body: JSON.stringify(request.feature),
+      },
+      request.signal,
+    ) as Promise<HonuaOgcFeatureResponse>;
   }
 
   public async patchOgcItem(request: OgcPatchItemRequest): Promise<HonuaOgcFeatureResponse> {
@@ -508,10 +518,15 @@ export class HonuaClient {
     const path =
       `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}` +
       `/items/${encodeURIComponent(String(request.featureId))}`;
-    return this.requestJson("PATCH", `${path}?${params.toString()}`, {
-      headers: mergeHeaders({ "Content-Type": "application/merge-patch+json" }, request.headers),
-      body: JSON.stringify(request.patch),
-    }) as Promise<HonuaOgcFeatureResponse>;
+    return this.requestJson(
+      "PATCH",
+      `${path}?${params.toString()}`,
+      {
+        headers: mergeHeaders({ "Content-Type": "application/merge-patch+json" }, request.headers),
+        body: JSON.stringify(request.patch),
+      },
+      request.signal,
+    ) as Promise<HonuaOgcFeatureResponse>;
   }
 
   public async deleteOgcItem(request: OgcDeleteItemRequest): Promise<void> {
@@ -522,7 +537,7 @@ export class HonuaClient {
     const path =
       `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}` +
       `/items/${encodeURIComponent(String(request.featureId))}`;
-    await this.requestJson("DELETE", `${path}?${params.toString()}`);
+    await this.requestJson("DELETE", `${path}?${params.toString()}`, undefined, request.signal);
   }
 
   public async getMapServiceMetadata(serviceId: string): Promise<HonuaServiceMetadata> {

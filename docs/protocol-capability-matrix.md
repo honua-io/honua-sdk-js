@@ -107,10 +107,15 @@ capabilities advertise only `geoprocess` and `connect`; the canonical
 query family throws. Task lifecycle — `submitJob`, `jobStatus`,
 `cancelJob`, `jobResult` — lives behind
 `Source.protocol("geoservices-gp-service")` on a
-`HonuaGeoprocessingService` instance. The service id and (optional)
-task name come from `SourceLocator.serviceId` / `SourceLocator.taskName`
-so a single descriptor uniquely identifies a task without leaking task
-parameters into the canonical descriptor shape.
+`HonuaGeoprocessingService` instance. The service id and task name come
+from `SourceLocator.serviceId` / `SourceLocator.taskName` so a single
+descriptor uniquely identifies a task without leaking task parameters
+into the canonical descriptor shape. `createDataset` rejects descriptors
+that advertise `geoprocess` without a `locator.taskName` because Honua
+Server publishes the lifecycle routes only under
+`/rest/services/<serviceId>/GPServer/<taskName>/...`; descriptors that
+advertise only `connect` (service-root metadata probe) may omit the
+task name.
 
 ### OGC API Features
 `query`, `queryObjectIds`, `applyEdits`, `stream` are first-party.

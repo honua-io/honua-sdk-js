@@ -1310,43 +1310,50 @@ export class HonuaImageService {
   }
 
   public async queryRasterCatalog(request: HonuaImageServiceQueryRequest = {}): Promise<HonuaQueryResponse> {
-    return this.client.request<HonuaQueryResponse>({
-      method: request.method ?? "GET",
-      path: `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/query`,
-      responseFormat: "json",
-      query: imageQueryParams(request),
-      signal: request.signal,
-    });
+    return this.dispatch<HonuaQueryResponse>("query", request, imageQueryParams(request));
   }
 
   public async queryRasterCatalogObjectIds(request: HonuaImageServiceQueryRequest = {}): Promise<number[]> {
-    const response = await this.client.request<{ objectIds?: Array<number | string> }>({
-      method: request.method ?? "GET",
-      path: `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/query`,
-      responseFormat: "json",
-      query: { ...imageQueryParams(request), where: request.where ?? "1=1", returnIdsOnly: true },
-      signal: request.signal,
-    });
+    const response = await this.dispatch<{ objectIds?: Array<number | string> }>(
+      "query",
+      request,
+      { ...imageQueryParams(request), where: request.where ?? "1=1", returnIdsOnly: true },
+    );
     if (!Array.isArray(response.objectIds)) return [];
     return response.objectIds.map((v) => Number(v)).filter((v) => Number.isFinite(v));
   }
 
   public async exportImage(request: HonuaImageServiceExportRequest): Promise<HonuaExportMapResponse> {
-    return this.client.request<HonuaExportMapResponse>({
-      method: request.method ?? "GET",
-      path: `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/exportImage`,
-      responseFormat: request.responseFormat ?? "json",
-      query: imageExportParams(request),
-      signal: request.signal,
-    });
+    return this.dispatch<HonuaExportMapResponse>("exportImage", request, imageExportParams(request));
   }
 
   public async identify(request: HonuaImageServiceIdentifyRequest): Promise<HonuaIdentifyResponse> {
-    return this.client.request<HonuaIdentifyResponse>({
-      method: request.method ?? "GET",
-      path: `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/identify`,
-      responseFormat: request.responseFormat ?? "json",
-      query: imageIdentifyParams(request),
+    return this.dispatch<HonuaIdentifyResponse>("identify", request, imageIdentifyParams(request));
+  }
+
+  /**
+   * Dispatch an ImageServer operation. POST mode sends params as a
+   * form-encoded body so the server's `TryReadRequestValuesAsync` parser
+   * finds them (returns "Request body is required" otherwise); GET mode
+   * keeps params in the query string. Both encodings are accepted by
+   * Honua Server per its ImageServer endpoint registration.
+   */
+  private async dispatch<R>(
+    op: "query" | "exportImage" | "identify",
+    request: { method?: QueryMethod; responseFormat?: "json" | "pjson"; signal?: AbortSignal },
+    params: Record<string, string | number | boolean>,
+  ): Promise<R> {
+    const method: QueryMethod = request.method ?? "GET";
+    const path = `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/${op}`;
+    const responseFormat = request.responseFormat ?? "json";
+    if (method === "GET") {
+      return this.client.request<R>({ method: "GET", path, responseFormat, query: params, signal: request.signal });
+    }
+    return this.client.request<R>({
+      method: "POST",
+      path,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: toFormBody({ f: responseFormat, ...params }),
       signal: request.signal,
     });
   }
@@ -1474,12 +1481,19 @@ export interface HonuaGeometryOperationResponse {
 
 /**
  * Wrapper over a Honua Geometry Service endpoint. Routes match the
- * canonical paths in `honua-server/docs/gis/geometry-service-matrix.md`
- * (`/rest/services/geometry/<op>`). Operations not implemented in
- * Honua Server (autoComplete, convexHull, cut, etc.) intentionally have
- * no wrapper — callers that need them go through the raw `request()`
- * escape hatch and handle 404s themselves.
+ * canonical paths published by Honua Server's `EndpointRegistry`
+ * (`/rest/services/Utilities/Geometry/GeometryServer/<op>`; see
+ * `honua-server/docs/gis/geometry-service-matrix.md`). Operations not
+ * implemented in Honua Server (autoComplete, convexHull, cut, etc.)
+ * intentionally have no wrapper — callers that need them go through the
+ * raw `request()` escape hatch and handle 404s themselves.
+ *
+ * POST mode submits form-encoded bodies so the server's
+ * `TryReadRequestValuesAsync` parser finds the parameters. GET mode keeps
+ * params in the query string (the server accepts both).
  */
+const GEOMETRY_SERVICE_ROOT = "/rest/services/Utilities/Geometry/GeometryServer";
+
 export class HonuaGeometryService {
   public readonly client: HonuaClient;
 
@@ -1488,31 +1502,33 @@ export class HonuaGeometryService {
   }
 
   public async project(request: HonuaGeometryProjectRequest): Promise<HonuaGeometryOperationResponse> {
-    return this.client.request<HonuaGeometryOperationResponse>({
-      method: request.method ?? "POST",
-      path: "/rest/services/geometry/project",
-      responseFormat: request.responseFormat ?? "json",
-      query: geometryProjectParams(request),
-      signal: request.signal,
-    });
+    return this.dispatch<HonuaGeometryOperationResponse>("project", request, geometryProjectParams(request));
   }
 
   public async buffer(request: HonuaGeometryBufferRequest): Promise<HonuaGeometryOperationResponse> {
-    return this.client.request<HonuaGeometryOperationResponse>({
-      method: request.method ?? "POST",
-      path: "/rest/services/geometry/buffer",
-      responseFormat: request.responseFormat ?? "json",
-      query: geometryBufferParams(request),
-      signal: request.signal,
-    });
+    return this.dispatch<HonuaGeometryOperationResponse>("buffer", request, geometryBufferParams(request));
   }
 
   public async simplify(request: HonuaGeometrySimplifyRequest): Promise<HonuaGeometryOperationResponse> {
-    return this.client.request<HonuaGeometryOperationResponse>({
-      method: request.method ?? "POST",
-      path: "/rest/services/geometry/simplify",
-      responseFormat: request.responseFormat ?? "json",
-      query: geometrySimplifyParams(request),
+    return this.dispatch<HonuaGeometryOperationResponse>("simplify", request, geometrySimplifyParams(request));
+  }
+
+  private async dispatch<R>(
+    op: "project" | "buffer" | "simplify",
+    request: { method?: QueryMethod; responseFormat?: "json" | "pjson"; signal?: AbortSignal },
+    params: Record<string, string | number | boolean>,
+  ): Promise<R> {
+    const method: QueryMethod = request.method ?? "POST";
+    const path = `${GEOMETRY_SERVICE_ROOT}/${op}`;
+    const responseFormat = request.responseFormat ?? "json";
+    if (method === "GET") {
+      return this.client.request<R>({ method: "GET", path, responseFormat, query: params, signal: request.signal });
+    }
+    return this.client.request<R>({
+      method: "POST",
+      path,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: toFormBody({ f: responseFormat, ...params }),
       signal: request.signal,
     });
   }

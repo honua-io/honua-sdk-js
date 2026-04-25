@@ -458,10 +458,18 @@ export function ogcFeaturesSource<T>(
       const added: EditOutcome[] = [];
       const updated: EditOutcome[] = [];
       const deleted: EditOutcome[] = [];
+      // OGC has no batch edit endpoint; edits fan out to per-item
+      // createItem / replaceItem / deleteItem. The canonical envelope's
+      // signal aborts every remaining request as soon as the caller
+      // cancels — each item call passes the same signal through.
+      const { signal } = envelope;
 
       for (const add of envelope.adds ?? []) {
         try {
-          const created = await collection.createItem({ feature: featureToGeoJsonFeature(add) });
+          const created = await collection.createItem({
+            feature: featureToGeoJsonFeature(add),
+            ...(signal ? { signal } : {}),
+          });
           added.push({ id: created.id as FeatureId | undefined, success: true });
         } catch (err) {
           added.push({ success: false, error: editErrorFromCatch(err) });
@@ -476,6 +484,7 @@ export function ogcFeaturesSource<T>(
           await collection.replaceItem({
             featureId: update.id,
             feature: featureToGeoJsonFeature(update),
+            ...(signal ? { signal } : {}),
           });
           updated.push({ id: update.id, success: true });
         } catch (err) {
@@ -484,7 +493,7 @@ export function ogcFeaturesSource<T>(
       }
       for (const id of envelope.deletes ?? []) {
         try {
-          await collection.deleteItem({ featureId: id });
+          await collection.deleteItem({ featureId: id, ...(signal ? { signal } : {}) });
           deleted.push({ id, success: true });
         } catch (err) {
           deleted.push({ id, success: false, error: editErrorFromCatch(err) });
@@ -638,13 +647,13 @@ export function geoServicesGPServiceSource<T>(
   client: HonuaClient,
   policy: CapabilityPolicy,
 ): Source<T> {
-  const { serviceId } = requireGPServiceLocator(descriptor);
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-gp-service"];
+  const { serviceId, taskName } = requireGPServiceLocator(descriptor, caps);
   const service = new HonuaGeoprocessingService({
     client,
     serviceId,
-    taskName: descriptor.locator.taskName,
+    taskName,
   });
-  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["geoservices-gp-service"];
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
     "geoservices-gp-service": service,
   };
@@ -826,14 +835,28 @@ function requireImageServiceLocator(descriptor: SourceDescriptor): { serviceId: 
   return { serviceId };
 }
 
-function requireGPServiceLocator(descriptor: SourceDescriptor): { serviceId: string } {
-  const { serviceId } = descriptor.locator;
+function requireGPServiceLocator(
+  descriptor: SourceDescriptor,
+  caps: ReadonlySet<Capability>,
+): { serviceId: string; taskName: string | undefined } {
+  const { serviceId, taskName } = descriptor.locator;
   if (typeof serviceId !== "string") {
     throw new Error(
       `createDataset: source "${descriptor.id}" (geoservices-gp-service) requires locator.serviceId`,
     );
   }
-  return { serviceId };
+  // Honua Server publishes submitJob / jobs / cancel / results only under
+  // /rest/services/<serviceId>/GPServer/<taskName>/..., so descriptors that
+  // advertise the `geoprocess` capability must carry a task name. Without
+  // one the lifecycle routes resolve to non-existent paths on the server.
+  // Descriptors with only `connect` (service-root metadata probe) may omit
+  // taskName.
+  if (caps.has("geoprocess") && (typeof taskName !== "string" || taskName.length === 0)) {
+    throw new Error(
+      `createDataset: source "${descriptor.id}" (geoservices-gp-service) advertises "geoprocess" but locator.taskName is missing; GP lifecycle routes require /GPServer/<taskName>/...`,
+    );
+  }
+  return { serviceId, taskName };
 }
 
 /**

@@ -483,14 +483,93 @@ describe("contract / GeoServices ImageServer parity", () => {
       }
     }).rejects.toThrow(HonuaCapabilityNotSupportedError);
   });
+
+  it("ImageServer POST mode sends params as a form-encoded body (not just in the URL)", async () => {
+    let queryMethod: string | undefined;
+    let queryBody: string | undefined;
+    let exportMethod: string | undefined;
+    let exportBody: string | undefined;
+    let identifyMethod: string | undefined;
+    let identifyBody: string | undefined;
+    const dataset = buildImageDataset([
+      [
+        "/rest/services/Imagery/ImageServer/query",
+        async (_url, init) => {
+          queryMethod = init?.method;
+          queryBody = typeof init?.body === "string" ? init.body : undefined;
+          return jsonResponse(imageServerCatalogResponse());
+        },
+      ],
+      [
+        "/rest/services/Imagery/ImageServer/exportImage",
+        async (_url, init) => {
+          exportMethod = init?.method;
+          exportBody = typeof init?.body === "string" ? init.body : undefined;
+          return jsonResponse(imageServerExportResponse());
+        },
+      ],
+      [
+        "/rest/services/Imagery/ImageServer/identify",
+        async (_url, init) => {
+          identifyMethod = init?.method;
+          identifyBody = typeof init?.body === "string" ? init.body : undefined;
+          return jsonResponse(imageServerIdentifyResponse());
+        },
+      ],
+    ]);
+    const source = dataset.source("tiles-img")!;
+    const adapter = source.protocol("geoservices-image-service")!;
+
+    await adapter.queryRasterCatalog({ method: "POST", where: "Name LIKE 'tile%'" });
+    expect(queryMethod).toBe("POST");
+    expect(queryBody).toBeDefined();
+    expect(queryBody).toContain("f=json");
+    expect(queryBody).toContain("where=");
+
+    await adapter.exportImage({
+      method: "POST",
+      bbox: [-123, 37, -120, 45],
+      size: [256, 256],
+      format: "png",
+    });
+    expect(exportMethod).toBe("POST");
+    expect(exportBody).toBeDefined();
+    expect(exportBody).toContain("bbox=");
+    expect(exportBody).toContain("size=");
+
+    await adapter.identify({
+      method: "POST",
+      geometry: { x: -121, y: 38 },
+      geometryType: "esriGeometryPoint",
+    });
+    expect(identifyMethod).toBe("POST");
+    expect(identifyBody).toBeDefined();
+    expect(identifyBody).toContain("geometry=");
+  });
 });
 
 describe("contract / GeoServices Geometry Service parity", () => {
   it("Geometry source exposes only the protocol() escape hatch; canonical query family throws", async () => {
+    let projectMethod: string | undefined;
+    let projectBody: string | undefined;
+    let bufferMethod: string | undefined;
     const client = makeMockClient({
       routes: [
-        ["/rest/services/geometry/project", () => jsonResponse(geometryProjectResponse())],
-        ["/rest/services/geometry/buffer", () => jsonResponse(geometryBufferResponse())],
+        [
+          "/rest/services/Utilities/Geometry/GeometryServer/project",
+          async (_url, init) => {
+            projectMethod = init?.method;
+            projectBody = typeof init?.body === "string" ? init.body : undefined;
+            return jsonResponse(geometryProjectResponse());
+          },
+        ],
+        [
+          "/rest/services/Utilities/Geometry/GeometryServer/buffer",
+          (_url, init) => {
+            bufferMethod = init?.method;
+            return jsonResponse(geometryBufferResponse());
+          },
+        ],
       ],
     });
     const dataset = createDataset({
@@ -515,18 +594,68 @@ describe("contract / GeoServices Geometry Service parity", () => {
       outSr: 3857,
     });
     expect(projected.geometries).toHaveLength(1);
+    // POST is the default and must ship a form-encoded body — the server's
+    // TryReadRequestValuesAsync parser rejects POSTs with empty bodies.
+    expect(projectMethod).toBe("POST");
+    expect(projectBody).toBeDefined();
+    expect(projectBody).toContain("geometries=");
+    expect(projectBody).toContain("inSR=4326");
+    expect(projectBody).toContain("outSR=3857");
+    expect(projectBody).toContain("f=json");
     const buffered = await adapter!.buffer({
       geometries: { geometryType: "esriGeometryPoint", geometries: [{ x: -120, y: 38 }] },
       distances: [1000],
       inSr: 4326,
     });
     expect(buffered.geometries).toHaveLength(1);
+    expect(bufferMethod).toBe("POST");
 
     // Canonical feature surface is intentionally unsupported.
     await expect(source.query({ where: "1=1" })).rejects.toThrow(HonuaCapabilityNotSupportedError);
     await expect(source.queryObjectIds()).rejects.toThrow(HonuaCapabilityNotSupportedError);
     await expect(source.applyEdits({ adds: [] })).rejects.toThrow(HonuaCapabilityNotSupportedError);
     await expect(source.attachments.list(1)).rejects.toThrow(HonuaCapabilityNotSupportedError);
+  });
+
+  it("GET mode keeps geometry params in the query string with no body", async () => {
+    let observedMethod: string | undefined;
+    let observedBody: unknown;
+    let observedInSR: string | null = null;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/rest/services/Utilities/Geometry/GeometryServer/simplify",
+          (url, init) => {
+            observedMethod = init?.method;
+            observedBody = init?.body ?? undefined;
+            observedInSR = url.searchParams.get("sr");
+            return jsonResponse(geometryProjectResponse());
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "geom",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "geom-svc",
+          protocol: "geoservices-geometry-service",
+          locator: { url: "https://mock/" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-geometry-service"],
+        },
+      ],
+    });
+    const adapter = dataset.source("geom-svc")!.protocol("geoservices-geometry-service")!;
+    await adapter.simplify({
+      geometries: { geometryType: "esriGeometryPoint", geometries: [{ x: -120, y: 38 }] },
+      sr: 4326,
+      method: "GET",
+    });
+    expect(observedMethod).toBe("GET");
+    expect(observedBody).toBeUndefined();
+    expect(observedInSR).toBe("4326");
   });
 });
 
@@ -564,6 +693,46 @@ describe("contract / GeoServices GP Service parity", () => {
     // Canonical feature surface is intentionally unsupported.
     await expect(source.query({ where: "1=1" })).rejects.toThrow(HonuaCapabilityNotSupportedError);
     await expect(source.applyEdits({ adds: [] })).rejects.toThrow(HonuaCapabilityNotSupportedError);
+  });
+
+  it("rejects a GP descriptor that advertises geoprocess without locator.taskName", () => {
+    const client = makeMockClient({ routes: [] });
+    expect(() =>
+      createDataset({
+        id: "print",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "print-gp",
+            protocol: "geoservices-gp-service",
+            locator: { url: "https://mock/", serviceId: "Print" },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-gp-service"],
+          },
+        ],
+      }).source("print-gp"),
+    ).toThrow(/taskName/);
+  });
+
+  it("allows GP descriptors without taskName when only `connect` is advertised (service-root metadata)", () => {
+    const client = makeMockClient({ routes: [] });
+    const dataset = createDataset({
+      id: "print",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "print-gp-root",
+          protocol: "geoservices-gp-service",
+          locator: { url: "https://mock/", serviceId: "Print" },
+          capabilities: capabilities(["connect"]),
+        },
+      ],
+    });
+    // Constructing the source must succeed; the lifecycle routes that
+    // require a task name are not in the advertised capability set.
+    const source = dataset.source("print-gp-root");
+    expect(source).toBeDefined();
   });
 });
 
@@ -632,5 +801,59 @@ describe("contract / OGC Features applyEdits via createItem/replaceItem/deleteIt
     expect(created).toHaveLength(1);
     expect(replaced).not.toBeNull();
     expect(deleted).toEqual([3]);
+  });
+
+  it("forwards EditEnvelope.signal into every OGC per-item mutation", async () => {
+    const observedSignals: Array<AbortSignal | undefined> = [];
+    const itemRegex = /\/ogc\/features\/collections\/parcels\/items\/(\d+)/;
+    const client = makeMockClient({
+      routes: [
+        [
+          itemRegex,
+          async (_url, init) => {
+            observedSignals.push(init?.signal ?? undefined);
+            const method = init?.method ?? "GET";
+            if (method === "PUT") {
+              return jsonResponse({ id: 1, type: "Feature", properties: {}, geometry: null });
+            }
+            return new Response(null, { status: 204 });
+          },
+        ],
+        [
+          "/ogc/features/collections/parcels/items",
+          (_url, init) => {
+            observedSignals.push(init?.signal ?? undefined);
+            return jsonResponse({ id: 99, type: "Feature", properties: {}, geometry: null });
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-ogc",
+          protocol: "ogc-features",
+          locator: { url: "https://mock/", collectionId: "parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        },
+      ],
+    });
+    const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
+    const controller = new AbortController();
+    await source.applyEdits({
+      adds: [{ attributes: { OBJECTID: 0, STATE: "WA", ACRES: 1 } }],
+      updates: [{ id: 1, attributes: { OBJECTID: 1, STATE: "CA", ACRES: 2 } }],
+      deletes: [3],
+      signal: controller.signal,
+    });
+    // Each mutation (create, replace, delete) must surface the same signal
+    // so the caller can abort the whole applyEdits fan-out.
+    expect(observedSignals).toHaveLength(3);
+    for (const signal of observedSignals) {
+      expect(signal).toBeDefined();
+    }
   });
 });
