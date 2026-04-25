@@ -1,3 +1,6 @@
+import { HonuaWmsCapabilitiesParseError } from "./wms-capabilities.js";
+import { HonuaWmtsCapabilitiesParseError } from "./wmts-capabilities.js";
+
 export class HonuaHttpError extends Error {
   public readonly statusCode: number;
   public readonly body: unknown;
@@ -102,7 +105,9 @@ export type HonuaError =
   | HonuaAbortError
   | HonuaGrpcError
   | HonuaCapabilityNotSupportedError
-  | HonuaExplorationContextError;
+  | HonuaExplorationContextError
+  | HonuaWmsCapabilitiesParseError
+  | HonuaWmtsCapabilitiesParseError;
 
 /** Type guard that narrows any value to one of the Honua SDK error types. */
 export function isHonuaError(error: unknown): error is HonuaError {
@@ -113,6 +118,8 @@ export function isHonuaError(error: unknown): error is HonuaError {
     error instanceof HonuaAbortError ||
     error instanceof HonuaGrpcError ||
     error instanceof HonuaCapabilityNotSupportedError ||
-    error instanceof HonuaExplorationContextError
+    error instanceof HonuaExplorationContextError ||
+    error instanceof HonuaWmsCapabilitiesParseError ||
+    error instanceof HonuaWmtsCapabilitiesParseError
   );
 }

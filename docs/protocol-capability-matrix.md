@@ -269,7 +269,17 @@ through the typed `WmsMapRequest` envelope; defaults come from
 `Capabilities`, request overrides go on the wire. honua-server does not
 implement `GetLegendGraphic` today, so the adapter raises
 `HonuaCapabilityNotSupportedError` from `legend()` when the parsed
-Capabilities advertise no `<GetLegendGraphic>` request element. CRS axis
+Capabilities advertise no `<GetLegendGraphic>` request element. The
+gating always runs: when the caller does not pre-supply
+`options.capabilities`, the handle lazy-loads them once via
+`getWmsCapabilities` and caches the in-flight promise on the instance
+so repeat `legend()` calls reuse the same fetch (transient failures
+clear the cache so the next call retries). The `HonuaWms` parser
+extracts each `<Layer>`'s own `<Name>`, `<Title>`, `<CRS>`,
+`<BoundingBox>`, `<Style>`, and `<Dimension>` from the layer's direct
+children only — descendant `<Layer>` subtrees are stripped before
+metadata reads so child fields never leak upward into the parent (or,
+through ancestor-merge, sideways into sibling layers). CRS axis
 order is honored per WMS 1.3 §6.7.3.2 — `EPSG:4326` is swapped to
 (lat, lon) on the wire while `CRS:84` and `EPSG:3857` keep canonical
 (x, y) tuples. MapLibre integration ships through

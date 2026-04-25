@@ -224,7 +224,10 @@ The shipped map covers `geoservices-feature-service` →
    shapes are still available via `Source.adapter()` for legacy paths.
 3. New error types must flow through `HonuaError` and `isHonuaError`.
    This ticket added `HonuaCapabilityNotSupportedError` and
-   `HonuaExplorationContextError`.
+   `HonuaExplorationContextError`. The first-party WMS / WMTS adapter
+   ticket extended the union with `HonuaWmsCapabilitiesParseError` and
+   `HonuaWmtsCapabilitiesParseError` so callers can classify XML parser
+   failures through the same guard.
 
 ## Async operations: `IJobRun`
 

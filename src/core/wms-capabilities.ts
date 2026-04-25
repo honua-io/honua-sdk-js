@@ -189,13 +189,20 @@ function* iterChildLayers(
     if (!layer) break;
     const queryableAttr = readAttribute(layer.openTag, "queryable");
     const inherited = mergeAncestors(ancestors);
-    const name = readTextElement(layer.inner, "Name") ?? "";
-    const title = readTextElement(layer.inner, "Title");
-    const abstract = readTextElement(layer.inner, "Abstract");
-    const localCrs = collectChildText(layer.inner, "CRS");
-    const localBbox = collectBoundingBoxes(layer.inner);
-    const localStyles = collectStyles(layer.inner);
-    const localDimensions = collectDimensions(layer.inner);
+    // Strip nested <Layer>...</Layer> subtrees from the layer's own inner so
+    // descendant Name / Title / CRS / BoundingBox / Style / Dimension nodes
+    // do not leak upward into the parent (and from there into siblings via
+    // `mergeAncestors`). WMS 1.3 §7.2.4.6 inheritance is ancestor → descendant
+    // only; without this guard, an unnamed group layer takes its first child's
+    // name and bleeds the child's style across siblings.
+    const ownInner = stripNestedLayers(layer.inner);
+    const name = readTextElement(ownInner, "Name") ?? "";
+    const title = readTextElement(ownInner, "Title");
+    const abstract = readTextElement(ownInner, "Abstract");
+    const localCrs = collectChildText(ownInner, "CRS");
+    const localBbox = collectBoundingBoxes(ownInner);
+    const localStyles = collectStyles(ownInner);
+    const localDimensions = collectDimensions(ownInner);
     const mergedCrs = uniqueOrder([...inherited.crs, ...localCrs]);
     const mergedBbox = mergeBoundingBoxes(inherited.bbox, localBbox);
     const mergedStyles = mergeStyles(inherited.styles, localStyles);
@@ -409,6 +416,27 @@ function collectChildText(inner: string, tag: string): readonly string[] {
   return out;
 }
 
+/**
+ * Return `inner` with every nested `<Layer>...</Layer>` (and self-closed
+ * `<Layer .../>`) subtree elided. Used by `iterChildLayers` to read the
+ * layer's *own* metadata without walking into descendant layers.
+ */
+function stripNestedLayers(inner: string): string {
+  if (inner.indexOf("<Layer") < 0) return inner;
+  let cursor = 0;
+  let out = "";
+  while (cursor < inner.length) {
+    const node = findElement(inner, cursor, "Layer");
+    if (!node) {
+      out += inner.slice(cursor);
+      break;
+    }
+    out += inner.slice(cursor, node.startIndex);
+    cursor = node.endIndex;
+  }
+  return out;
+}
+
 // ── Tiny named-element walker ─────────────────────────────────
 
 interface FoundElement {
@@ -416,6 +444,8 @@ interface FoundElement {
   openTag: string;
   /** Inner text/markup (between open and close tags). */
   inner: string;
+  /** Index of the opening `<` of this element. */
+  startIndex: number;
   /** Index immediately after the closing tag. */
   endIndex: number;
 }
@@ -467,7 +497,7 @@ function findElement(xml: string, from: number, tag: string): FoundElement | und
     const openTag = xml.slice(i, close + 1);
     const selfClosing = !isClosing && xml.charCodeAt(close - 1) === 47; // '/'
     if (selfClosing) {
-      return { openTag, inner: "", endIndex: close + 1 };
+      return { openTag, inner: "", startIndex: i, endIndex: close + 1 };
     }
     if (isClosing) {
       // unmatched closing tag at this level — caller advanced past the
@@ -507,6 +537,7 @@ function findElement(xml: string, from: number, tag: string): FoundElement | und
             return {
               openTag,
               inner: xml.slice(close + 1, angle),
+              startIndex: i,
               endIndex: angleClose + 1,
             };
           }

@@ -165,6 +165,53 @@ describe("parseWmsCapabilities", () => {
     expect(caps.service.title).toBeUndefined();
   });
 
+  it("does not leak descendant Layer metadata into the parent or siblings", () => {
+    // Unnamed group layer with two named children. Child `a` advertises a
+    // `red` style and a `EPSG:32612` CRS; child `b` advertises neither.
+    // Without the direct-child guard, the unnamed parent inherits `a`'s
+    // Name / Style / CRS by scanning into the descendant subtree, then
+    // `mergeAncestors` propagates the leaked style and CRS down to sibling
+    // `b`. This regression test pins both layers' local fields.
+    const xml = `<?xml version="1.0"?>
+<WMS_Capabilities version="1.3.0">
+  <Capability>
+    <Request><GetMap><Format>image/png</Format></GetMap></Request>
+    <Layer>
+      <Title>Unnamed group</Title>
+      <Layer queryable="1">
+        <Name>a</Name>
+        <Title>A</Title>
+        <CRS>EPSG:32612</CRS>
+        <Style><Name>red</Name></Style>
+      </Layer>
+      <Layer queryable="1">
+        <Name>b</Name>
+        <Title>B</Title>
+      </Layer>
+    </Layer>
+  </Capability>
+</WMS_Capabilities>`;
+    const caps = parseWmsCapabilities(xml);
+    const named = [...iterateWmsLayers(caps)];
+    expect(named.map((l) => l.name).sort()).toEqual(["a", "b"]);
+
+    const a = findWmsLayer(caps, "a");
+    const b = findWmsLayer(caps, "b");
+    expect(a?.styles.map((s) => s.name)).toEqual(["red"]);
+    expect(a?.crs).toContain("EPSG:32612");
+
+    // The sibling must NOT inherit `a`'s style or CRS.
+    expect(b?.styles).toEqual([]);
+    expect(b?.crs).not.toContain("EPSG:32612");
+
+    // The unnamed group must not synthesize a name from its child.
+    const root = caps.layers[0];
+    expect(root?.name).toBe("");
+    expect(root?.title).toBe("Unnamed group");
+    expect(root?.styles).toEqual([]);
+    expect(root?.crs).toEqual([]);
+  });
+
   it("decodes XML entities in element text", () => {
     const xml = `<?xml version="1.0"?>
 <WMS_Capabilities version="1.3.0">

@@ -9,6 +9,8 @@ import {
   HonuaHttpError,
   HonuaNetworkError,
   HonuaTimeoutError,
+  HonuaWmsCapabilitiesParseError,
+  HonuaWmtsCapabilitiesParseError,
   isHonuaError,
 } from "../src/index.js";
 
@@ -136,8 +138,26 @@ describe("Error hierarchy", () => {
     });
   });
 
+  describe("HonuaWmsCapabilitiesParseError", () => {
+    it("carries the parser message and is an Error", () => {
+      const err = new HonuaWmsCapabilitiesParseError("missing <WMS_Capabilities> root element");
+      expect(err.name).toBe("HonuaWmsCapabilitiesParseError");
+      expect(err.message).toContain("WMS_Capabilities");
+      expect(err).toBeInstanceOf(Error);
+    });
+  });
+
+  describe("HonuaWmtsCapabilitiesParseError", () => {
+    it("carries the parser message and is an Error", () => {
+      const err = new HonuaWmtsCapabilitiesParseError("missing <Capabilities> root element");
+      expect(err.name).toBe("HonuaWmtsCapabilitiesParseError");
+      expect(err.message).toContain("Capabilities");
+      expect(err).toBeInstanceOf(Error);
+    });
+  });
+
   describe("isHonuaError", () => {
-    it("returns true for all 7 error types", () => {
+    it("returns true for all SDK error types", () => {
       expect(isHonuaError(new HonuaHttpError(404, "not found", null))).toBe(true);
       expect(isHonuaError(new HonuaTimeoutError(1000))).toBe(true);
       expect(isHonuaError(new HonuaNetworkError("fail", null))).toBe(true);
@@ -145,6 +165,8 @@ describe("Error hierarchy", () => {
       expect(isHonuaError(new HonuaGrpcError(2, "unknown"))).toBe(true);
       expect(isHonuaError(new HonuaCapabilityNotSupportedError("query", "wfs"))).toBe(true);
       expect(isHonuaError(new HonuaExplorationContextError("disposed", "ctx"))).toBe(true);
+      expect(isHonuaError(new HonuaWmsCapabilitiesParseError("missing root"))).toBe(true);
+      expect(isHonuaError(new HonuaWmtsCapabilitiesParseError("missing root"))).toBe(true);
     });
 
     it("returns false for plain Error and non-Error values", () => {

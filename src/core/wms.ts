@@ -43,6 +43,7 @@ export interface HonuaWmsLayerOptions extends HonuaWmsOptions {
 export class HonuaWms {
   public readonly client: HonuaClient;
   public readonly serviceId: string;
+  private capabilitiesPromise: Promise<WmsCapabilities> | undefined;
 
   public constructor(options: HonuaWmsOptions) {
     this.client = options.client;
@@ -81,19 +82,34 @@ export class HonuaWms {
   }
 
   /**
-   * Fetch a `GetLegendGraphic` image. Throws
-   * `HonuaCapabilityNotSupportedError` when the service `Capabilities`
-   * does not advertise `<GetLegendGraphic>` so callers can branch
-   * deterministically on advertised support.
+   * Fetch a `GetLegendGraphic` image. Always gates on parsed Capabilities:
+   * when the caller does not pre-supply `options.capabilities`, the handle
+   * lazily loads them once via `getWmsCapabilities` and caches the
+   * promise on the instance so repeat calls reuse the same fetch. Throws
+   * `HonuaCapabilityNotSupportedError("legend", "wms", serviceId)` when
+   * the service does not advertise `<GetLegendGraphic>`.
    */
   public async legend(
     request: WmsLegendRequest,
     options?: { capabilities?: WmsCapabilities },
   ): Promise<HonuaWmsImageResponse> {
-    if (options?.capabilities && !options.capabilities.request.getLegendGraphic) {
+    const caps = options?.capabilities ?? (await this.loadCachedCapabilities());
+    if (!caps.request.getLegendGraphic) {
       throw new HonuaCapabilityNotSupportedError("legend", "wms", this.serviceId);
     }
     return this.client.getWmsLegend({ serviceId: this.serviceId, ...request });
+  }
+
+  private async loadCachedCapabilities(): Promise<WmsCapabilities> {
+    if (!this.capabilitiesPromise) {
+      this.capabilitiesPromise = this.capabilities().catch((error) => {
+        // Drop the cached promise on failure so the next call retries
+        // instead of permanently surfacing the same error.
+        this.capabilitiesPromise = undefined;
+        throw error;
+      });
+    }
+    return this.capabilitiesPromise;
   }
 }
 
@@ -107,6 +123,7 @@ export class HonuaWmsLayer {
   public readonly serviceId: string;
   public readonly layerName: string;
   public readonly defaultStyleId: string | undefined;
+  private capabilitiesPromise: Promise<WmsCapabilities> | undefined;
 
   public constructor(options: HonuaWmsLayerOptions) {
     this.client = options.client;
@@ -164,11 +181,20 @@ export class HonuaWmsLayer {
     });
   }
 
+  /**
+   * Fetch a `GetLegendGraphic` image scoped to the bound layer + style.
+   * Mirrors `HonuaWms.legend`'s gating: when `options.capabilities` is
+   * not supplied, the handle lazily loads them once via
+   * `getWmsCapabilities` and caches the promise. Throws
+   * `HonuaCapabilityNotSupportedError("legend", "wms", serviceId)` when
+   * the service does not advertise `<GetLegendGraphic>`.
+   */
   public async legend(
     request: Omit<WmsLegendRequest, "layer" | "style"> & { style?: string } = {},
     options?: { capabilities?: WmsCapabilities },
   ): Promise<HonuaWmsImageResponse> {
-    if (options?.capabilities && !options.capabilities.request.getLegendGraphic) {
+    const caps = options?.capabilities ?? (await this.loadCachedCapabilities());
+    if (!caps.request.getLegendGraphic) {
       throw new HonuaCapabilityNotSupportedError("legend", "wms", this.serviceId);
     }
     const { style, ...rest } = request;
@@ -179,6 +205,16 @@ export class HonuaWmsLayer {
       ...(styleId !== undefined ? { style: styleId } : {}),
       ...rest,
     });
+  }
+
+  private async loadCachedCapabilities(): Promise<WmsCapabilities> {
+    if (!this.capabilitiesPromise) {
+      this.capabilitiesPromise = this.capabilities().catch((error) => {
+        this.capabilitiesPromise = undefined;
+        throw error;
+      });
+    }
+    return this.capabilitiesPromise;
   }
 }
 

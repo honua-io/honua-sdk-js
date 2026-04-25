@@ -66,6 +66,7 @@ runtime.dispose();
 | `SetViewStateInput` | type | `{ bbox?, center?, zoom?, pitch?, bearing?, padding?, animate? }`. |
 | `applyStyleRefs`, `applyTheme`, `composeStyle` | functions | Pure helpers — safe to call outside a runtime for testing / SSR composition. |
 | `projectSourceBindings`, `toHonuaSourceSpec` | functions | Exposed for `#22` and adapter tickets that need the bridge without loading a package. |
+| `buildWmsRasterSourceSpec`, `buildWmtsRasterSourceSpec` | functions | Pre-bake a MapLibre `raster` source spec from a WMS / WMTS `SourceDescriptor`. Used by callers that compose a map outside `loadMapPackage`. See the source-binding projection table for the URL templates emitted on each protocol. |
 | `diffPackages`, `MapPackageDiff` | function / type | Stable-id diff used by `updatePackage`. |
 | `buildLegend`, `LegendEntry` | function / type | Shared with operator components. |
 | `bindPopup`, `defaultPopupRenderer`, `PopupFactory`, `PopupRenderer` | function / types | The default DOM renderer is intentionally unstyled — rich popups belong in `#29`. |
@@ -160,6 +161,12 @@ Additional contract:
     omits them. Explicit locator fields always win over parsed ones.
   - **OGC API Features**: `collectionId` is parsed from the
     `/collections/<id>` URL segment when omitted.
+  - **WMS / WMTS**: `serviceId` is parsed from
+    `/rest/services/<name>/MapServer/WMS` (and `/WMTS`) and from
+    `/ogc/services/<name>/wms` (and `/wmts`) when the binding omits
+    it. `locator.typeName` and `locator.styleId` are not URL-derived
+    today; the server ships them when a binding pins a specific layer
+    or style.
   - **`locator.layerId`**: the server's canonical
     `SourceLocator.LayerId` is `string?`, so
     `HonuaMapPackageLocator.layerId` is typed `number | string`.

@@ -175,6 +175,132 @@ describe("wms / wire", () => {
   });
 });
 
+describe("wms / legend gating", () => {
+  // Capabilities fixture that *does* advertise GetLegendGraphic, so the
+  // gated path lets the request through.
+  const LEGEND_CAPABILITIES = `<?xml version="1.0" encoding="UTF-8"?>
+<WMS_Capabilities version="1.3.0">
+  <Service><Title>Honua WMS</Title></Service>
+  <Capability>
+    <Request>
+      <GetMap><Format>image/png</Format></GetMap>
+      <GetLegendGraphic><Format>image/png</Format></GetLegendGraphic>
+    </Request>
+    <Layer queryable="1"><Name>parcels</Name><Style><Name>default</Name></Style></Layer>
+  </Capability>
+</WMS_Capabilities>`;
+
+  it("HonuaWms.legend throws when caller-supplied capabilities omit GetLegendGraphic", async () => {
+    const client = makeMockClient({
+      routes: [["MapServer/WMS", () => xmlResponse(WMS_CAPABILITIES_FIXTURE)]],
+    });
+    const wms = new HonuaWms({ client, serviceId: "imagery" });
+    const caps = await wms.capabilities();
+    await expect(wms.legend({ layer: "parcels" }, { capabilities: caps })).rejects.toThrow(
+      HonuaCapabilityNotSupportedError,
+    );
+  });
+
+  it("HonuaWms.legend lazy-loads capabilities and throws when the server does not advertise GetLegendGraphic", async () => {
+    let capabilitiesFetches = 0;
+    let legendFetches = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "MapServer/WMS",
+          (url) => {
+            const request = url.searchParams.get("REQUEST");
+            if (request === "GetLegendGraphic") {
+              legendFetches += 1;
+              return pngResponse();
+            }
+            capabilitiesFetches += 1;
+            return xmlResponse(WMS_CAPABILITIES_FIXTURE);
+          },
+        ],
+      ],
+    });
+    const wms = new HonuaWms({ client, serviceId: "imagery" });
+    await expect(wms.legend({ layer: "parcels" })).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    // A second call reuses the cached capabilities promise — no second
+    // GetCapabilities round-trip.
+    await expect(wms.legend({ layer: "parcels" })).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    expect(capabilitiesFetches).toBe(1);
+    expect(legendFetches).toBe(0);
+  });
+
+  it("HonuaWms.legend forwards the request when capabilities advertise GetLegendGraphic", async () => {
+    let observed: URLSearchParams | undefined;
+    const client = makeMockClient({
+      routes: [
+        [
+          "MapServer/WMS",
+          (url) => {
+            const request = url.searchParams.get("REQUEST");
+            if (request === "GetLegendGraphic") {
+              observed = url.searchParams;
+              return pngResponse();
+            }
+            return xmlResponse(LEGEND_CAPABILITIES);
+          },
+        ],
+      ],
+    });
+    const wms = new HonuaWms({ client, serviceId: "imagery" });
+    await wms.legend({ layer: "parcels", style: "default" });
+    expect(observed?.get("REQUEST")).toBe("GetLegendGraphic");
+    expect(observed?.get("LAYER")).toBe("parcels");
+    expect(observed?.get("STYLE")).toBe("default");
+  });
+
+  it("HonuaWmsLayer.legend lazy-loads capabilities and throws when GetLegendGraphic is missing", async () => {
+    let capabilitiesFetches = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "MapServer/WMS",
+          (url) => {
+            const request = url.searchParams.get("REQUEST");
+            if (request === "GetLegendGraphic") return pngResponse();
+            capabilitiesFetches += 1;
+            return xmlResponse(WMS_CAPABILITIES_FIXTURE);
+          },
+        ],
+      ],
+    });
+    const layer = new HonuaWmsLayer({ client, serviceId: "imagery", layerName: "parcels" });
+    await expect(layer.legend()).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    await expect(layer.legend()).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    expect(capabilitiesFetches).toBe(1);
+  });
+
+  it("HonuaWms.legend retries the capabilities fetch after a transient failure", async () => {
+    let capabilitiesFetches = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "MapServer/WMS",
+          (url) => {
+            const request = url.searchParams.get("REQUEST");
+            if (request === "GetLegendGraphic") return pngResponse();
+            capabilitiesFetches += 1;
+            if (capabilitiesFetches === 1) {
+              return new Response("transient", { status: 503 });
+            }
+            return xmlResponse(LEGEND_CAPABILITIES);
+          },
+        ],
+      ],
+    });
+    const wms = new HonuaWms({ client, serviceId: "imagery" });
+    await expect(wms.legend({ layer: "parcels" })).rejects.not.toThrow(HonuaCapabilityNotSupportedError);
+    // The first call's failed cache entry must be cleared so the second
+    // call retries the capabilities fetch (and then succeeds).
+    await wms.legend({ layer: "parcels" });
+    expect(capabilitiesFetches).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe("wms / Source adapter", () => {
   it("registers under the canonical Source surface and exposes the wms-layer adapter", () => {
     const client = makeMockClient({ routes: [] });
