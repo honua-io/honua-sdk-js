@@ -26,10 +26,15 @@ import {
   xmlResponse,
 } from "./shared.js";
 
-const WFS_LOCATOR = { url: "https://mock.honua.test/wfs", typeName: "parcels:lot" };
+const WFS_LOCATOR = {
+  url: "https://mock.honua.test/wfs",
+  typeName: "parcels:lot",
+  featureNamespace: "http://parcels.example.test/ns",
+};
 
 function buildWfsDataset(
   routes: Array<[string | RegExp, (url: URL, init?: RequestInit) => Response | Promise<Response>]>,
+  locator: { url: string; typeName: string; featureNamespace?: string } = WFS_LOCATOR,
 ) {
   const client = makeMockClient({ routes });
   return createDataset({
@@ -40,7 +45,7 @@ function buildWfsDataset(
       {
         id: "parcels-wfs",
         protocol: "wfs",
-        locator: WFS_LOCATOR,
+        locator,
         capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
       } satisfies SourceDescriptor,
     ],
@@ -257,6 +262,140 @@ describe("wfs / canonical Source", () => {
     expect(out.extent!.xmin).toBeLessThanOrEqual(out.extent!.xmax);
   });
 
+  it("filtered queryExtent drains all pages so the widest geometry on a later page is included", async () => {
+    // Server-side feature set: two pages worth, where the second page holds
+    // the widest x and the smallest y. A single-page implementation would
+    // miss those extremes.
+    const widePageFeatures = [
+      {
+        type: "Feature" as const,
+        id: 100,
+        properties: { OBJECTID: 100, STATE: "CA", ACRES: 1 },
+        geometry: { type: "Point", coordinates: [-130, 30] },
+      },
+      {
+        type: "Feature" as const,
+        id: 101,
+        properties: { OBJECTID: 101, STATE: "CA", ACRES: 1 },
+        geometry: { type: "Point", coordinates: [-110, 50] },
+      },
+    ];
+    const firstPageFeatures = PARCEL_FEATURES.map((f) => ({
+      type: "Feature" as const,
+      id: f.attributes.OBJECTID,
+      properties: { ...f.attributes },
+      geometry: { type: "Point", coordinates: [f.geometry.x, f.geometry.y] },
+    }));
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            const startIndex = Number(url.searchParams.get("startIndex") ?? "0");
+            const count = Number(url.searchParams.get("count") ?? "2000");
+            // Page 1: PARCEL_FEATURES + filler to hit the page-size cap.
+            // Page 2: widePageFeatures. Page 3: empty (drain terminates).
+            if (startIndex === 0) {
+              const filler = Array.from({ length: Math.max(0, count - firstPageFeatures.length) }, (_, idx) => ({
+                type: "Feature" as const,
+                id: 9000 + idx,
+                properties: { OBJECTID: 9000 + idx, STATE: "CA", ACRES: 1 },
+                geometry: { type: "Point", coordinates: [-122, 38] },
+              }));
+              const features = [...firstPageFeatures, ...filler];
+              return new Response(
+                JSON.stringify({ type: "FeatureCollection", features, numberMatched: features.length + 2 }),
+                { status: 200, headers: { "Content-Type": "application/geo+json" } },
+              );
+            }
+            return new Response(
+              JSON.stringify({ type: "FeatureCollection", features: widePageFeatures, numberMatched: 2 }),
+              { status: 200, headers: { "Content-Type": "application/geo+json" } },
+            );
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const out = await source.queryExtent({ where: "STATE = 'CA'" });
+    expect(out.extent).toBeTruthy();
+    // Wide x from page 2 (-130) and high y from page 2 (50) must appear in
+    // the extent — proves the drain visited the second page.
+    expect(out.extent!.xmin).toBeLessThanOrEqual(-130);
+    expect(out.extent!.ymax).toBeGreaterThanOrEqual(50);
+  });
+
+  it("numeric outSr maps to an EPSG URN srsName on GET GetFeature", async () => {
+    let getFeatureUrl: URL | undefined;
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        (url) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "GetFeature") {
+            getFeatureUrl = url;
+            return new Response(JSON.stringify(wfsGeoJsonResponse()), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    await source.query({ where: "STATE = 'CA'", outSr: 3857 });
+    expect(getFeatureUrl?.searchParams.get("srsName")).toBe("urn:ogc:def:crs:EPSG::3857");
+  });
+
+  it("long-filter POST GetFeature preserves propertyName, sortBy, and srsName in the body", async () => {
+    let observedBody = "";
+    const dataset = buildWfsDataset([
+      [
+        "/wfs",
+        async (url, init) => {
+          const request = url.searchParams.get("request");
+          if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (init?.method === "POST") {
+            observedBody = typeof init.body === "string" ? init.body : await new Response(init.body).text();
+            return new Response(JSON.stringify(wfsGeoJsonResponse()), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          if (request === "GetFeature") {
+            return new Response(JSON.stringify(wfsGeoJsonResponse()), {
+              status: 200,
+              headers: { "Content-Type": "application/geo+json" },
+            });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      ],
+    ]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    // Construct a where clause whose URL-encoded FES filter exceeds the
+    // GET budget so the adapter switches to POST GetFeature.
+    const longList = Array.from({ length: 600 }, (_, i) => `'value-${i}'`).join(", ");
+    await source.query({
+      where: `STATE IN (${longList})`,
+      outFields: ["OBJECTID", "STATE"],
+      orderBy: [{ field: "ACRES", direction: "desc" }],
+      outSr: 3857,
+    });
+    expect(observedBody).toContain("<wfs:GetFeature");
+    expect(observedBody).toContain('srsName="urn:ogc:def:crs:EPSG::3857"');
+    expect(observedBody).toContain("<wfs:PropertyName>OBJECTID</wfs:PropertyName>");
+    expect(observedBody).toContain("<wfs:PropertyName>STATE</wfs:PropertyName>");
+    expect(observedBody).toContain("<fes:SortBy>");
+    expect(observedBody).toContain("<fes:ValueReference>ACRES</fes:ValueReference>");
+    expect(observedBody).toContain("<fes:SortOrder>DESC</fes:SortOrder>");
+  });
+
   it("throws HonuaCapabilityNotSupportedError when only GML is advertised", async () => {
     const gmlOnlyCapabilities = wfsCapabilitiesXml().replace("<ows:Value>application/geo+json</ows:Value>", "");
     const dataset = buildWfsDataset([
@@ -324,10 +463,64 @@ describe("wfs / canonical Source", () => {
     expect(observedBody).toContain("<wfs:Insert");
     expect(observedBody).toContain("<wfs:Update");
     expect(observedBody).toContain("<wfs:Delete");
+    // The prefix in `parcels:lot` must be bound on the Transaction root —
+    // see review finding "WFS-T inserts emit unbound namespace prefixes".
+    expect(observedBody).toContain('xmlns:parcels="http://parcels.example.test/ns"');
+    expect(observedBody).toContain("<parcels:lot>");
     expect(result.added[0].id).toBe("parcels:lot.99");
     expect(result.added[0].success).toBe(true);
     expect(result.updated[0].success).toBe(true);
     expect(result.deleted[0].success).toBe(true);
+  });
+
+  it("applyEdits falls back to a synthetic xmlns when the locator omits featureNamespace", async () => {
+    let observedBody: string | undefined;
+    const dataset = buildWfsDataset(
+      [
+        [
+          "/wfs",
+          async (url, init) => {
+            const request = url.searchParams.get("request");
+            if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+            if (init?.method === "POST") {
+              observedBody = typeof init.body === "string" ? init.body : await new Response(init.body).text();
+              return xmlResponse(wfsTransactionResponseXml());
+            }
+            return new Response("not found", { status: 404 });
+          },
+        ],
+      ],
+      { url: "https://mock.honua.test/wfs", typeName: "parcels:lot" },
+    );
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    await source.applyEdits({ deletes: [1] });
+    expect(observedBody).toContain('xmlns:parcels="urn:honua:wfs:feature-namespace:parcels"');
+  });
+
+  it("applyEdits omits xmlns binding for an unprefixed type name", async () => {
+    let observedBody: string | undefined;
+    const dataset = buildWfsDataset(
+      [
+        [
+          "/wfs",
+          async (url, init) => {
+            const request = url.searchParams.get("request");
+            if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+            if (init?.method === "POST") {
+              observedBody = typeof init.body === "string" ? init.body : await new Response(init.body).text();
+              return xmlResponse(wfsTransactionResponseXml());
+            }
+            return new Response("not found", { status: 404 });
+          },
+        ],
+      ],
+      { url: "https://mock.honua.test/wfs", typeName: "lot" },
+    );
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    await source.applyEdits({ deletes: [1] });
+    expect(observedBody).toContain("<wfs:Transaction");
+    expect(observedBody).not.toContain("xmlns:parcels=");
+    expect(observedBody).not.toContain("urn:honua:wfs:feature-namespace");
   });
 
   it("applyEdits surfaces ExceptionReport as HonuaWfsExceptionError", async () => {

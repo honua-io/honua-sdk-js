@@ -1001,7 +1001,7 @@ const WFS_GET_FILTER_BUDGET = 7000;
 const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
 
 export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
-  const { url, typeName } = requireWfsLocator(descriptor);
+  const { url, typeName, featureNamespace } = requireWfsLocator(descriptor);
   const root = new HonuaWfs({ client, endpointUrl: url });
   const featureType = new HonuaWfsFeatureType({ root, typeName });
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wfs;
@@ -1089,10 +1089,38 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
           return { extent: { ...ft.wgs84BoundingBox } };
         }
       }
-      // Filtered request: drain a single page and compute the bbox client-side.
+      // Filtered request: drain every matching page so the returned extent
+      // covers all features the filter resolves to, not just the first
+      // server-default page. Caller pagination is intentionally ignored —
+      // queryExtent is a "what bbox holds the matching set" question.
       const choice = await negotiateJsonOrThrow();
-      const json = await runGetFeatureJson(featureType, typeName, choice, request, undefined);
-      return computeExtentFromFeatureCollection(json);
+      const drainPageSize = 2000;
+      let xmin = Number.POSITIVE_INFINITY;
+      let ymin = Number.POSITIVE_INFINITY;
+      let xmax = Number.NEGATIVE_INFINITY;
+      let ymax = Number.NEGATIVE_INFINITY;
+      let saw = false;
+      let count = 0;
+      let offset = 0;
+      while (true) {
+        const pageRequest: Query<T> = {
+          ...(request ?? {}),
+          pagination: { offset, limit: drainPageSize },
+        };
+        const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, drainPageSize);
+        const page = computeExtentFromFeatureCollection(json);
+        count += page.count;
+        if (page.extent) {
+          if (page.extent.xmin < xmin) xmin = page.extent.xmin;
+          if (page.extent.ymin < ymin) ymin = page.extent.ymin;
+          if (page.extent.xmax > xmax) xmax = page.extent.xmax;
+          if (page.extent.ymax > ymax) ymax = page.extent.ymax;
+          saw = true;
+        }
+        if (page.count < drainPageSize) break;
+        offset += page.count;
+      }
+      return saw ? { extent: { xmin, ymin, xmax, ymax }, count } : { extent: null, count };
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
@@ -1136,7 +1164,7 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
     },
     async applyEdits(envelope) {
       ensureCapability(descriptor, caps, "applyEdits");
-      const body = buildTransactionBody(typeName, envelope);
+      const body = buildTransactionBody(typeName, envelope, featureNamespace);
       const transactionOptions: { body: string; signal?: AbortSignal } = { body };
       if (envelope.signal) transactionOptions.signal = envelope.signal;
       const summary = await featureType.transaction(transactionOptions);
@@ -1149,15 +1177,28 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
   });
 }
 
-function requireWfsLocator(descriptor: SourceDescriptor): { url: string; typeName: string } {
-  const { url, typeName } = descriptor.locator;
+function requireWfsLocator(descriptor: SourceDescriptor): {
+  url: string;
+  typeName: string;
+  featureNamespace: string | undefined;
+} {
+  const { url, typeName, featureNamespace } = descriptor.locator;
   if (typeof url !== "string" || url.length === 0) {
     throw new Error(`createDataset: source "${descriptor.id}" (wfs) requires locator.url`);
   }
   if (typeof typeName !== "string" || typeName.length === 0) {
     throw new Error(`createDataset: source "${descriptor.id}" (wfs) requires locator.typeName`);
   }
-  return { url, typeName };
+  if (featureNamespace !== undefined && (typeof featureNamespace !== "string" || featureNamespace.length === 0)) {
+    throw new Error(
+      `createDataset: source "${descriptor.id}" (wfs) locator.featureNamespace must be a non-empty string`,
+    );
+  }
+  return {
+    url,
+    typeName,
+    featureNamespace: typeof featureNamespace === "string" ? featureNamespace : undefined,
+  };
 }
 
 /**
@@ -1207,9 +1248,10 @@ async function runGetFeatureJson<T>(
         bbox = `${env.xmin},${env.ymin},${env.xmax},${env.ymax}`;
       }
     } else {
+      const filterSrsName = wfsSrsNameFromOutSr(request.outSr);
       const compiled = compileSpatialFilter(request.spatialFilter, {
         geometryProperty: DEFAULT_WFS_GEOMETRY_PROPERTY,
-        ...(typeof request.outSr === "string" ? { srsName: request.outSr } : {}),
+        ...(filterSrsName !== undefined ? { srsName: filterSrsName } : {}),
       });
       if (compiled === UNSUPPORTED_FES) {
         throw new HonuaCapabilityNotSupportedError(
@@ -1231,10 +1273,13 @@ async function runGetFeatureJson<T>(
   const params: Parameters<HonuaWfsFeatureType["getFeature"]>[0] = {};
   if (bbox !== undefined) params.bbox = bbox;
   if (filterXml !== undefined && !needsPostBody) params.filter = filterXml;
-  if (request?.outFields && request.outFields.length > 0) params.propertyName = [...request.outFields];
-  if (request?.orderBy && request.orderBy.length > 0) {
-    params.sortBy = request.orderBy.map((s) => `${s.field}${s.direction === "desc" ? " D" : " A"}`).join(",");
-  }
+  const propertyNames = request?.outFields && request.outFields.length > 0 ? [...request.outFields] : undefined;
+  if (propertyNames) params.propertyName = propertyNames;
+  const sortBy =
+    request?.orderBy && request.orderBy.length > 0
+      ? request.orderBy.map((s) => `${s.field}${s.direction === "desc" ? " D" : " A"}`).join(",")
+      : undefined;
+  if (sortBy !== undefined) params.sortBy = sortBy;
   if (typeof pageSize === "number" && pageSize > 0) {
     params.count = pageSize;
   } else if (typeof request?.pagination?.limit === "number" && request.pagination.limit > 0) {
@@ -1243,19 +1288,24 @@ async function runGetFeatureJson<T>(
   if (typeof request?.pagination?.offset === "number" && request.pagination.offset > 0) {
     params.startIndex = request.pagination.offset;
   }
-  if (typeof request?.outSr === "string") params.srsName = request.outSr;
+  const srsName = wfsSrsNameFromOutSr(request?.outSr);
+  if (srsName !== undefined) params.srsName = srsName;
   params.outputFormat = choice.format;
   if (request?.signal) params.signal = request.signal;
 
   if (needsPostBody && filterXml !== undefined) {
     params.method = "POST";
-    params.body = buildPostGetFeatureBody({
+    const postOptions: Parameters<typeof buildPostGetFeatureBody>[0] = {
       typeName,
       filter: filterXml,
       count: params.count,
       startIndex: params.startIndex,
       outputFormat: choice.format,
-    });
+    };
+    if (propertyNames) postOptions.propertyNames = propertyNames;
+    if (sortBy !== undefined) postOptions.sortBy = sortBy;
+    if (srsName !== undefined) postOptions.srsName = srsName;
+    params.body = buildPostGetFeatureBody(postOptions);
   }
 
   const response = await featureType.getFeature(params);
@@ -1275,11 +1325,51 @@ function buildPostGetFeatureBody(options: {
   count: number | undefined;
   startIndex: number | undefined;
   outputFormat: string;
+  propertyNames?: readonly string[];
+  sortBy?: string;
+  srsName?: string;
 }): string {
   const countAttr = typeof options.count === "number" ? ` count="${options.count}"` : "";
   const startAttr = typeof options.startIndex === "number" ? ` startIndex="${options.startIndex}"` : "";
   const outputAttr = ` outputFormat="${escapeXmlAttr(options.outputFormat)}"`;
-  return `<wfs:GetFeature xmlns:wfs="http://www.opengis.net/wfs/2.0" service="WFS" version="2.0.0"${outputAttr}${countAttr}${startAttr}><wfs:Query typeNames="${escapeXmlAttr(options.typeName)}">${options.filter}</wfs:Query></wfs:GetFeature>`;
+  const queryAttrs = options.srsName !== undefined ? ` srsName="${escapeXmlAttr(options.srsName)}"` : "";
+  const propertyXml =
+    options.propertyNames && options.propertyNames.length > 0
+      ? options.propertyNames.map((name) => `<wfs:PropertyName>${escapeXmlText(name)}</wfs:PropertyName>`).join("")
+      : "";
+  const sortByXml = options.sortBy !== undefined ? buildSortByXml(options.sortBy) : "";
+  return `<wfs:GetFeature xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:fes="http://www.opengis.net/fes/2.0" service="WFS" version="2.0.0"${outputAttr}${countAttr}${startAttr}><wfs:Query typeNames="${escapeXmlAttr(options.typeName)}"${queryAttrs}>${propertyXml}${options.filter}${sortByXml}</wfs:Query></wfs:GetFeature>`;
+}
+
+/**
+ * Build a `<fes:SortBy>` block from the same comma-separated `sortBy` string
+ * the GET path emits (`FIELD A,OTHER D`). Empty entries are skipped.
+ */
+function buildSortByXml(sortBy: string): string {
+  const entries = sortBy
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  if (entries.length === 0) return "";
+  const properties = entries.map((entry) => {
+    const parts = entry.split(/\s+/);
+    const field = parts[0];
+    const direction = parts[1]?.toUpperCase() === "D" ? "DESC" : "ASC";
+    return `<fes:SortProperty><fes:ValueReference>${escapeXmlText(field)}</fes:ValueReference><fes:SortOrder>${direction}</fes:SortOrder></fes:SortProperty>`;
+  });
+  return `<fes:SortBy>${properties.join("")}</fes:SortBy>`;
+}
+
+/**
+ * Translate a canonical `Query.outSr` (string CRS URI / EPSG token, or numeric
+ * WKID) into the WFS `srsName` form. Numeric WKIDs become the OGC URN form
+ * `urn:ogc:def:crs:EPSG::<wkid>` so cross-server interop matches the format
+ * advertised in `OperationsMetadata` / `Filter_Capabilities`.
+ */
+function wfsSrsNameFromOutSr(outSr: string | number | undefined): string | undefined {
+  if (typeof outSr === "string") return outSr.length > 0 ? outSr : undefined;
+  if (typeof outSr === "number" && Number.isFinite(outSr)) return `urn:ogc:def:crs:EPSG::${outSr}`;
+  return undefined;
 }
 
 function escapeXmlAttr(value: string): string {
@@ -1337,8 +1427,22 @@ function computeExtentFromFeatureCollection(data: unknown): {
   return { extent: { xmin, ymin, xmax, ymax }, count };
 }
 
-function buildTransactionBody<T>(typeName: string, envelope: EditEnvelope<T>): string {
+function buildTransactionBody<T>(
+  typeName: string,
+  envelope: EditEnvelope<T>,
+  featureNamespace: string | undefined,
+): string {
   const releaseAction = envelope.rollbackOnFailure ? "ALL" : "SOME";
+  const { prefix } = splitTypeName(typeName);
+  // Bind the feature-namespace prefix on the Transaction root so prefixed
+  // feature elements inside <wfs:Insert> and prefixed `typeName=` attribute
+  // references on <wfs:Update>/<wfs:Delete> resolve. When the descriptor's
+  // locator does not advertise `featureNamespace`, fall back to a synthetic
+  // URN so the document is at least well-formed XML; strict servers will
+  // reject the unknown URI with a diagnostic ExceptionReport that the caller
+  // can resolve by setting `locator.featureNamespace`.
+  const featureNs = prefix ? (featureNamespace ?? syntheticFeatureNamespace(prefix)) : undefined;
+  const featureNsAttr = prefix && featureNs ? ` xmlns:${prefix}="${escapeXmlAttr(featureNs)}"` : "";
   const blocks: string[] = [];
   let handleCounter = 0;
   for (const add of envelope.adds ?? []) {
@@ -1353,7 +1457,29 @@ function buildTransactionBody<T>(typeName: string, envelope: EditEnvelope<T>): s
     handleCounter += 1;
     blocks.push(buildDeleteBlock(typeName, id, `del-${handleCounter}`));
   }
-  return `<wfs:Transaction xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:fes="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2" service="WFS" version="2.0.0" releaseAction="${releaseAction}">${blocks.join("")}</wfs:Transaction>`;
+  return `<wfs:Transaction xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:fes="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2"${featureNsAttr} service="WFS" version="2.0.0" releaseAction="${releaseAction}">${blocks.join("")}</wfs:Transaction>`;
+}
+
+/**
+ * Split a namespace-qualified WFS type name like `parcels:lot` into its
+ * prefix and local components. Returns `{ prefix: undefined, local: typeName }`
+ * for unprefixed names.
+ */
+function splitTypeName(typeName: string): { prefix: string | undefined; local: string } {
+  const colon = typeName.indexOf(":");
+  if (colon < 0) return { prefix: undefined, local: typeName };
+  return { prefix: typeName.slice(0, colon), local: typeName.slice(colon + 1) };
+}
+
+/**
+ * Deterministic stub URI used when the locator does not declare a
+ * `featureNamespace`. Servers that perform strict schema validation will
+ * reject this URI with an `<ows:ExceptionReport>` rather than silently
+ * accept the body — the message names the prefix so callers know which
+ * `featureNamespace` to set on the descriptor.
+ */
+function syntheticFeatureNamespace(prefix: string): string {
+  return `urn:honua:wfs:feature-namespace:${prefix}`;
 }
 
 function buildInsertBlock<T>(

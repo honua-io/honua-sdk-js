@@ -134,6 +134,7 @@ export {
   HonuaGrpcError,
   HonuaCapabilityNotSupportedError,
   HonuaExplorationContextError,
+  HonuaWfsExceptionError,
   isHonuaError,
 } from "./core/errors.js";
 export type { HonuaError } from "./core/errors.js";

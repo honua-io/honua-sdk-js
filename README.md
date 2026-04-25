@@ -175,25 +175,27 @@ The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export f
 ## Shared Client Contract And Exploration
 
 `HonuaFeatureLayer`, `HonuaMapService`, and `HonuaOgcFeatureCollection` continue to be the runtime classes. For
-cross-protocol code — exploration views, visual builders, server packaging, and the WFS / OData adapter
-tickets — the SDK also exposes a protocol-neutral contract and exploration state module that wrap (not replace)
+cross-protocol code — exploration views, visual builders, server packaging, and the OData adapter
+ticket — the SDK also exposes a protocol-neutral contract and exploration state module that wrap (not replace)
 those classes.
 
 - `@honua/sdk-js/contract` — canonical `Dataset`, `Source`, `SourceDescriptor`, `Capabilities`, `Query`, `Result`,
   `IJobRun`, and `MapBinding` types, plus `createDataset(...)` and built-in adapters for the five GeoServices
   service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`,
   `geoservices-geometry-service`, `geoservices-gp-service`), the four OGC API + STAC adapters (`ogc-features`,
-  `ogc-tiles`, `ogc-maps`, `stac`), and the OGC web-map adapters (`wms`, `wmts`). Image / Geometry / GP services
-  expose their protocol-specific surface (raster `exportImage` / `identify`, geometry `project` / `buffer` /
-  `simplify` / `intersect` / `union` / `clip` / `difference`, GP `submitJob` / `jobStatus` / `cancelJob` /
-  `jobResult`) through the typed `Source.protocol()` escape hatch — the canonical query family throws
-  `HonuaCapabilityNotSupportedError` for utility-only services so mixed-source apps surface the limitation
-  explicitly. The ImageServer adapter rejects `Query.spatialFilter` / `orderBy` / `outFields` rather than
-  silently widening the catalog result. WMS surfaces `query` through point-only `GetFeatureInfo`; WMTS is
-  render-only (`Source.query()` throws). Capability negotiation is `strict` by default; `degraded` opts into
-  client-side fallbacks that surface `Result.degraded[]`. WFS / OData adapters plug in via
-  `CreateDatasetOptions.resolveSource`. Full contract reference:
-  [`docs/shared-client-contract.md`](./docs/shared-client-contract.md).
+  `ogc-tiles`, `ogc-maps`, `stac`), the OGC web-map adapters (`wms`, `wmts`), and `wfs` (WFS 2.0). Image /
+  Geometry / GP services expose their protocol-specific surface (raster `exportImage` / `identify`, geometry
+  `project` / `buffer` / `simplify` / `intersect` / `union` / `clip` / `difference`, GP `submitJob` /
+  `jobStatus` / `cancelJob` / `jobResult`) through the typed `Source.protocol()` escape hatch — the canonical
+  query family throws `HonuaCapabilityNotSupportedError` for utility-only services so mixed-source apps surface
+  the limitation explicitly. The ImageServer adapter rejects `Query.spatialFilter` / `orderBy` / `outFields`
+  rather than silently widening the catalog result. WMS surfaces `query` through point-only `GetFeatureInfo`;
+  WMTS is render-only (`Source.query()` throws). The WFS adapter compiles `Query.where` / `Query.spatialFilter`
+  to FES 2.0, prefers GeoJSON over GML via `OperationsMetadata` negotiation, builds `<wfs:Transaction>` bodies
+  for `applyEdits`, and reaches raw GML / `LockFeature` / `GetPropertyValue` / stored queries through
+  `Source.protocol("wfs")`. Capability negotiation is `strict` by default; `degraded` opts into client-side
+  fallbacks that surface `Result.degraded[]`. The OData adapter plugs in via `CreateDatasetOptions.resolveSource`.
+  Full contract reference: [`docs/shared-client-contract.md`](./docs/shared-client-contract.md).
 - `@honua/sdk-js/exploration` — `createExplorationContext(...)` returning an observable, microtask-coalesced
   reducer over filters, spatial filter, extent, selection, sort, pagination, visible fields, grouping, and
   aggregation. View bindings (`map`, `grid`, `chart`, `form`, `custom`) propagate through five linked-view
@@ -465,6 +467,56 @@ reference, [`docs/shared-client-contract.md`](./docs/shared-client-contract.md)
 for the canonical `Source` / `IJobRun` model, and
 [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md)
 for capability coverage.
+
+## WFS 2.0
+
+```ts
+import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({ baseUrl: "https://server.honua.io" });
+const dataset = createDataset({
+  id: "parcels",
+  client,
+  sources: [
+    {
+      id: "parcels-wfs",
+      protocol: "wfs",
+      locator: {
+        url: "https://server.honua.io/wfs",
+        typeName: "parcels:lot",
+        // Required for applyEdits when typeName is namespace-qualified;
+        // bound on <wfs:Transaction xmlns:parcels="…"> so the server can
+        // resolve the schema element. Falls back to a synthetic URN
+        // when omitted.
+        featureNamespace: "http://parcels.example.com/ns",
+      },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
+    },
+  ],
+});
+
+const wfs = dataset.source("parcels-wfs")!;
+const result = await wfs.query({ where: "STATE = 'CA' AND ACRES > 10" });
+const ids = await wfs.queryObjectIds({ where: "STATUS = 'ACTIVE'" });
+
+// Stored-query discovery + execution stays under the typed escape hatch.
+const root = wfs.protocol("wfs")!.root;
+const storedQueries = await root.storedQueries();
+```
+
+`Query.where` compiles to FES 2.0 (comparison, `IN`, `BETWEEN`,
+`LIKE`, `IS NULL`, boolean combinators); `Query.spatialFilter`
+becomes a KVP `bbox=` for envelope-only requests or a `<fes:Filter>`
+otherwise. Filters that exceed the GET budget switch to POST
+GetFeature with the `<fes:Filter>` body. `applyEdits` builds a single
+`<wfs:Transaction>` (`<wfs:Insert>` / `<wfs:Update>` / `<wfs:Delete>`)
+and surfaces per-handle `<fes:ResourceId>` IDs onto `EditOutcome.id`.
+GeoJSON is preferred over GML through `OperationsMetadata`
+negotiation; if the server only advertises GML the canonical surface
+throws `HonuaCapabilityNotSupportedError` and points callers at
+`Source.protocol("wfs")` for the raw payload. Full reference:
+[`docs/wfs.md`](./docs/wfs.md).
 
 ## Mixed Esri + OGC in one app
 

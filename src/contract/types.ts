@@ -229,6 +229,17 @@ export interface SourceLocator {
   styleId?: string;
   /** WFS / WMS type-name identifier. */
   typeName?: string;
+  /**
+   * WFS feature namespace URI bound to the prefix in `typeName`. Required for
+   * WFS-T `applyEdits` when `typeName` carries a namespace prefix
+   * (e.g. `parcels:lot`) — the prefix is declared on the
+   * `<wfs:Transaction>` root with this URI so the per-handle feature
+   * element resolves to the schema element the server expects. The
+   * namespace URI typically appears on the `<wfs:WFS_Capabilities>` root
+   * (`xmlns:<prefix>=…`); record it on the descriptor so applyEdits does
+   * not have to fetch capabilities synchronously.
+   */
+  featureNamespace?: string;
   /** OData entity-set identifier. */
   entitySet?: string;
   /** GP Service task identifier (for `geoservices-gp-service`). */

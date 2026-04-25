@@ -35,12 +35,37 @@ All notable changes to the Honua JS SDK will be documented in this file.
 
 ### Added
 
+- First-party WFS 2.0 adapter on the shared client contract (`wfsSource`,
+  `protocol: "wfs"`). `Query.where` / `Query.spatialFilter` compile to
+  FES 2.0; envelope-only spatial filters travel as a KVP `bbox=` and
+  longer filters automatically switch to POST GetFeature with the
+  `<fes:Filter>` body. Content-type negotiation prefers GeoJSON over
+  GML via `OperationsMetadata`; GML-only servers throw
+  `HonuaCapabilityNotSupportedError` from the canonical `query()` and
+  point callers at `Source.protocol("wfs")` for the raw payload.
+  `queryExtent` short-circuits unfiltered requests through the
+  per-feature-type `WGS84BoundingBox` from `GetCapabilities`.
+  `applyEdits` builds a single `<wfs:Transaction>` (Insert / Update /
+  Delete), maps `EditEnvelope.rollbackOnFailure` to `releaseAction`
+  `ALL` / `SOME`, and surfaces per-handle `InsertResults` IDs onto
+  `EditOutcome.id`. Stored queries (`ListStoredQueries` /
+  `DescribeStoredQueries` / `GetFeature?storedquery_id=…`),
+  `GetPropertyValue`, raw `<fes:Filter>` bodies, and
+  `<wfs:Transaction>` POSTs are reachable through
+  `Source.protocol("wfs")` (returns `HonuaWfsFeatureType`). The
+  capabilities XML walker refuses any document declaring
+  `<!DOCTYPE>` / `<!ENTITY>` (XXE defense). New error class
+  `HonuaWfsExceptionError` carries `<ows:ExceptionReport>`
+  `exceptionCode` / `locator`. Locking (`LockFeature` /
+  `GetFeatureWithLock`) is intentionally not exposed in the canonical
+  surface. Full reference: [`docs/wfs.md`](./docs/wfs.md).
 - Canonical shared client contract at `@honua/sdk-js/contract`: `Dataset`, `Source`, `SourceDescriptor`,
   `Capabilities`, `Query`, `Result`, `EditEnvelope`, `EditResult`, `RelatedQuery` / `RelatedResult`,
   `AttachmentApi`, and `MapBinding` types plus `createDataset(...)` with built-in adapters for the five
   GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`,
-  `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`) and `ogc-features`;
-  WFS / WMS / OData plug in through `CreateDatasetOptions.resolveSource`. Image / Geometry / GP services
+  `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`),
+  `ogc-features`, `ogc-tiles`, `ogc-maps`, `stac`, and `wfs`; WMS / OData plug in through
+  `CreateDatasetOptions.resolveSource`. Image / Geometry / GP services
   expose `exportImage` / `identify` / `project` / `buffer` / `simplify` / `intersect` / `union` / `clip` /
   `difference` / `submitJob` / `jobStatus` / `cancelJob` / `jobResult` through the typed
   `Source.protocol(kind)` escape hatch (the legacy `Source.adapter(kind)` accessor remains as an alias).

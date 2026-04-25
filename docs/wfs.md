@@ -47,28 +47,50 @@ server-side aggregation, related-records, or feature attachments.
 
 ```ts
 {
-  url: string;       // Fully qualified WFS endpoint (e.g. https://server/wfs)
-  typeName: string;  // Namespace-qualified feature-type name (e.g. parcels:lot)
+  url: string;                 // Fully qualified WFS endpoint (e.g. https://server/wfs)
+  typeName: string;            // Namespace-qualified feature-type name (e.g. parcels:lot)
+  featureNamespace?: string;   // URI bound to the typeName prefix (required for prefixed applyEdits)
 }
 ```
 
 The endpoint URL must share an origin with the `HonuaClient`'s `baseUrl`;
 cross-origin WFS sources require constructing a separate `HonuaClient`.
 
+`featureNamespace` is the namespace URI the server advertises for the
+`typeName` prefix (typically declared as `xmlns:<prefix>="…"` on the
+`<wfs:WFS_Capabilities>` root). The canonical adapter binds it on the
+`<wfs:Transaction>` root so per-handle feature elements
+(`<parcels:lot>…</parcels:lot>`) and prefixed `typeName="…"` attribute
+references on `<wfs:Update>` / `<wfs:Delete>` resolve. When the locator
+omits `featureNamespace` and the type name carries a prefix, the
+adapter falls back to a synthetic URN
+(`urn:honua:wfs:feature-namespace:<prefix>`) so the document is
+well-formed XML; strict servers will reject the synthetic URI with an
+`<ows:ExceptionReport>` whose locator names the prefix, telling
+callers which descriptor field to set. Unprefixed `typeName` values
+do not need `featureNamespace`.
+
 ## Capability negotiation
 
 `HonuaWfs.capabilities()` issues a single `GetCapabilities` request the
-first time a capability-gated method runs (`query`, `queryAll`,
-`queryExtent` with a filter, `queryObjectIds`, `stream`, `applyEdits`).
-The parsed snapshot is cached per `HonuaWfs` instance — subsequent calls
-reuse it. Use `wfs.refresh()` to drop the cache.
+first time `query`, `queryAll`, `queryObjectIds`, `stream`, or
+`queryExtent` runs (the no-network `queryExtent` shortcut also reads
+the cached snapshot to find the per-feature-type
+`ows:WGS84BoundingBox`). The parsed snapshot is cached per `HonuaWfs`
+instance — subsequent calls reuse it. Use `wfs.refresh()` to drop the
+cache. `applyEdits` does not pre-fetch capabilities because the
+canonical transaction body never needs the output-format negotiation;
+servers that do not advertise `Transaction` surface that as a
+server-side `OperationProcessingFailed` `<ows:ExceptionReport>` on the
+first transaction request, projected onto `HonuaWfsExceptionError`
+(carrying `exceptionCode` and `locator`).
 
-The adapter intersects the descriptor's `capabilities` set with what
-the server actually advertises. When the server omits an operation
-(for example `Transaction`) but the descriptor included
-`applyEdits`, calls to `applyEdits` may fail with a server-side
-`OperationProcessingFailed` ExceptionReport surfaced as
-`HonuaWfsExceptionError`.
+The descriptor's `capabilities` set is the SDK's promise of what the
+adapter can fulfil; the constructor does not currently widen or narrow
+it from `GetCapabilities`. Callers that need a downgraded set per
+source (for example, dropping `applyEdits` for a server that publishes
+WFS read-only) intersect the default themselves and pass the result
+on `SourceDescriptor.capabilities`.
 
 ## Content-type negotiation
 
@@ -118,10 +140,18 @@ through the protocol escape hatch.
 ## GET vs. POST routing
 
 Filters whose encoded length exceeds `~7000` characters are routed
-through POST GetFeature with a `<fes:Filter>` body. The canonical
-surface still serializes the same FES tree — the only difference is
-transport. The threshold is intentionally a single constant we revise
-after telemetry lands.
+through POST GetFeature with a `<wfs:GetFeature>` body containing a
+`<wfs:Query typeNames="…" srsName="…">`, optional
+`<wfs:PropertyName>` projections, the same `<fes:Filter>` tree, and an
+optional `<fes:SortBy>` block. `Query.outFields`, `Query.orderBy`, and
+`Query.outSr` survive the GET → POST switch — the only transport
+difference is the body encoding. The 7000-character threshold is a
+single constant we revise after telemetry lands.
+
+`Query.outSr` accepts either a string CRS URI / EPSG token (passed
+through verbatim) or a numeric WKID. Numeric WKIDs are translated to
+the OGC URN form `urn:ogc:def:crs:EPSG::<wkid>` so the wire shape
+matches what `OperationsMetadata` and `Filter_Capabilities` advertise.
 
 ## Pagination
 
@@ -136,11 +166,19 @@ the caller's `pagination.limit` when supplied.
 
 ## queryExtent
 
-Unfiltered `queryExtent()` reads the per-feature-type
-`ows:WGS84BoundingBox` from `GetCapabilities` and returns the cached
-envelope without any extra HTTP traffic. Filtered or `outSr`-bearing
-requests drain a single page and compute the bbox client-side, mirroring
-the OGC Features adapter's degraded extent path.
+Unfiltered `queryExtent()` (no `where`, no `spatialFilter`, no
+`outSr`) reads the per-feature-type `ows:WGS84BoundingBox` from
+`GetCapabilities` and returns the cached envelope without any extra
+HTTP traffic. Filtered or `outSr`-bearing requests drain every page of
+the matching set (2000 features per page) and compute the bbox
+client-side, so the returned extent always covers the full filtered
+set rather than just the first server page. Caller pagination
+(`Query.pagination.offset` / `.limit`) is intentionally ignored on
+this path — `queryExtent` answers "what bbox holds the matching
+records" rather than "what bbox holds the first page". `queryExtent`
+returns `{ extent, count? }` and does not carry a `degraded[]` array;
+the OGC Features adapter is the only one that flags this fallback
+today.
 
 ## Edits (`applyEdits`)
 
@@ -214,14 +252,21 @@ the protocol escape hatch — there is no top-level
 
 - The capabilities XML walker refuses any document declaring
   `<!DOCTYPE>` or `<!ENTITY>`. This stops XXE-class attacks before any
-  property is read.
+  property is read. The same walker is reused for
+  `<ows:ExceptionReport>` and `<wfs:TransactionResponse>` parsing, so
+  every WFS XML payload entering the canonical surface is hardened.
 - The WFS adapter never reaches `fetch` directly; all wire calls go
   through `HonuaClient.requestText`, so the existing interceptor / retry
   / timeout / abort signal pipeline applies.
 - WFS responses with content-type `application/xml` containing
   `<ows:ExceptionReport>` are turned into typed
-  `HonuaWfsExceptionError` instances so the canonical surface
+  `HonuaWfsExceptionError` instances (`exceptionCode`, `locator`, and
+  the message as the parser saw it) so the canonical surface
   surfaces structured WFS errors instead of opaque HTTP failures.
+  `HonuaWfsExceptionError` is also raised when an
+  `<ows:ExceptionReport>` arrives wrapped inside a `HonuaHttpError`
+  body (the body is sniffed for `ExceptionReport` and re-thrown as
+  the typed error before the failure leaves the adapter).
 
 ## Server compatibility
 
