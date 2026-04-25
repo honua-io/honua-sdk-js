@@ -97,6 +97,30 @@ export class HonuaExplorationContextError extends Error {
   }
 }
 
+/**
+ * Thrown when a WFS server replies with an `ows:ExceptionReport`. Carries the
+ * structured exception metadata so callers can distinguish capability misses
+ * (for example `OperationProcessingFailed`, `InvalidParameterValue`) from
+ * transport / timeout failures. The XML payload is consumed by
+ * `src/core/wfs-capabilities.ts`; raw access lives behind the `protocol("wfs")`
+ * escape hatch.
+ */
+export class HonuaWfsExceptionError extends Error {
+  public readonly exceptionCode: string;
+  public readonly locator: string | undefined;
+
+  public constructor(exceptionCode: string, message: string, locator?: string) {
+    super(
+      locator
+        ? `WFS ExceptionReport ${exceptionCode} (${locator}): ${message}`
+        : `WFS ExceptionReport ${exceptionCode}: ${message}`,
+    );
+    this.name = "HonuaWfsExceptionError";
+    this.exceptionCode = exceptionCode;
+    this.locator = locator;
+  }
+}
+
 /** All Honua SDK error types that can be discriminated with `instanceof`. */
 export type HonuaError =
   | HonuaHttpError
@@ -106,6 +130,7 @@ export type HonuaError =
   | HonuaGrpcError
   | HonuaCapabilityNotSupportedError
   | HonuaExplorationContextError
+  | HonuaWfsExceptionError
   | HonuaWmsCapabilitiesParseError
   | HonuaWmtsCapabilitiesParseError;
 
@@ -119,6 +144,7 @@ export function isHonuaError(error: unknown): error is HonuaError {
     error instanceof HonuaGrpcError ||
     error instanceof HonuaCapabilityNotSupportedError ||
     error instanceof HonuaExplorationContextError ||
+    error instanceof HonuaWfsExceptionError ||
     error instanceof HonuaWmsCapabilitiesParseError ||
     error instanceof HonuaWmtsCapabilitiesParseError
   );

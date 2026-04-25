@@ -41,6 +41,15 @@ import type {
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import {
+  type FesNode,
+  UNSUPPORTED_FES,
+  compileSpatialFilter,
+  compileWhere,
+  geoJsonGeometryToGml,
+  serializeFes,
+} from "../core/wfs-filter.js";
+import { HonuaWfs, HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
+import {
   type AdapterFor,
   type AdapterKind,
   type AggregationFn,
@@ -166,6 +175,8 @@ function buildBuiltInSource<T>(
       return wmtsSource<T>(descriptor, client, policy);
     case "stac":
       return stacSearchSource<T>(descriptor, client, policy);
+    case "wfs":
+      return wfsSource<T>(descriptor, client, policy);
     default:
       return undefined;
   }
@@ -974,6 +985,775 @@ export function stacSearchSource<T>(
     },
     attachments: unsupportedAttachmentApi(descriptor),
   });
+}
+
+// ── WFS 2.0 ───────────────────────────────────────────────────
+
+/**
+ * Threshold above which the WFS adapter switches to POST GetFeature with a
+ * `<fes:Filter>` body. URL budget under 7000 chars stays GET-friendly; longer
+ * filters are routed through POST so we do not stress middleboxes that
+ * trim long query strings. The threshold is intentionally a single
+ * constant we can revise after telemetry lands.
+ */
+const WFS_GET_FILTER_BUDGET = 7000;
+
+const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
+
+export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
+  const { url, typeName, featureNamespace } = requireWfsLocator(descriptor);
+  const root = new HonuaWfs({ client, endpointUrl: url });
+  const featureType = new HonuaWfsFeatureType({ root, typeName });
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wfs;
+  void policy;
+
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
+    wfs: featureType,
+  };
+
+  /**
+   * Negotiated output format cache. Populated lazily on the first
+   * capability-gated call so a no-op `createDataset({ sources: [...wfs] })`
+   * does not issue network traffic.
+   */
+  let cachedFormat: OutputFormatChoice | undefined;
+  async function negotiateJsonOrThrow(): Promise<OutputFormatChoice> {
+    if (cachedFormat) return cachedFormat;
+    const snapshot = await root.capabilities();
+    const choice = root.negotiateOutputFormat(snapshot);
+    if (!choice) {
+      throw new HonuaCapabilityNotSupportedError("query", descriptor.protocol, descriptor.id);
+    }
+    if (choice.kind !== "json") {
+      throw new HonuaCapabilityNotSupportedError(
+        "query",
+        descriptor.protocol,
+        `${descriptor.id} (server advertises only ${choice.format}; reach raw GML through Source.protocol("wfs"))`,
+      );
+    }
+    cachedFormat = choice;
+    return choice;
+  }
+
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
+    async query(request) {
+      ensureCapability(descriptor, caps, "query");
+      if (request?.aggregation) {
+        // WFS 2.0 has no server-side aggregation; refuse rather than ship a
+        // silent partial result.
+        throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+      }
+      // `pagination.limit === 0` is an explicit zero cap, not "unbounded";
+      // short-circuit before the wire call so we do not silently widen to the
+      // server's default page size.
+      if (request?.pagination?.limit === 0) {
+        return { features: [], exceededTransferLimit: false } satisfies Result<T>;
+      }
+      const choice = await negotiateJsonOrThrow();
+      const json = await runGetFeatureJson(featureType, typeName, choice, request, request?.pagination?.limit);
+      return resultFromGeoJson<T>(json);
+    },
+    async queryAll(request) {
+      ensureCapability(descriptor, caps, "query");
+      const choice = await negotiateJsonOrThrow();
+      const limit = request?.pagination?.limit;
+      const target = typeof limit === "number" && limit >= 0 ? limit + 1 : Number.POSITIVE_INFINITY;
+      const collected: HonuaTypedFeature<T>[] = [];
+      let totalCount: number | undefined;
+      let offset = request?.pagination?.offset ?? 0;
+      // Mirror `withPagingBounds`: a finite limit (including 0) sets the
+      // lookahead page size to `limit + 1` so we can stamp
+      // `exceededTransferLimit` without overfetching a full default page.
+      const pageSize = typeof limit === "number" && limit >= 0 ? Math.max(1, Math.min(limit + 1, 2000)) : 2000;
+      while (collected.length < target) {
+        const pageRequest: Query<T> = {
+          ...(request ?? {}),
+          pagination: { offset, limit: pageSize },
+        };
+        const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, pageSize);
+        const result = resultFromGeoJson<T>(json);
+        if (result.totalCount !== undefined) totalCount = result.totalCount;
+        collected.push(...result.features);
+        if (result.features.length < pageSize) break;
+        offset += result.features.length;
+      }
+      const { features, exceededTransferLimit } = applyQueryAllLimit(collected, limit);
+      return {
+        features,
+        exceededTransferLimit,
+        totalCount: totalCount ?? features.length,
+      } satisfies Result<T>;
+    },
+    async queryAggregate() {
+      throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+    },
+    async queryExtent(request) {
+      ensureCapability(descriptor, caps, "queryExtent");
+      // Unfiltered queryExtent: prefer the per-feature-type WGS84BoundingBox
+      // from GetCapabilities so we avoid an extra HTTP request entirely.
+      if (!hasExtentFilter(request) && request?.outSr === undefined) {
+        const snapshot = await root.capabilities();
+        const ft = snapshot.featureTypes.find((entry) => entry.name === typeName);
+        if (ft?.wgs84BoundingBox) {
+          return { extent: { ...ft.wgs84BoundingBox } };
+        }
+      }
+      // Filtered request: drain every matching page so the returned extent
+      // covers all features the filter resolves to, not just the first
+      // server-default page. Caller pagination is intentionally ignored —
+      // queryExtent is a "what bbox holds the matching set" question.
+      const choice = await negotiateJsonOrThrow();
+      const drainPageSize = 2000;
+      const extentRequest = toWfsExtentDrainRequest(request);
+      let xmin = Number.POSITIVE_INFINITY;
+      let ymin = Number.POSITIVE_INFINITY;
+      let xmax = Number.NEGATIVE_INFINITY;
+      let ymax = Number.NEGATIVE_INFINITY;
+      let saw = false;
+      let count = 0;
+      let offset = 0;
+      while (true) {
+        const pageRequest: Query<T> = {
+          ...extentRequest,
+          pagination: { offset, limit: drainPageSize },
+        };
+        const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, drainPageSize);
+        const page = computeExtentFromFeatureCollection(json);
+        count += page.count;
+        if (page.extent) {
+          if (page.extent.xmin < xmin) xmin = page.extent.xmin;
+          if (page.extent.ymin < ymin) ymin = page.extent.ymin;
+          if (page.extent.xmax > xmax) xmax = page.extent.xmax;
+          if (page.extent.ymax > ymax) ymax = page.extent.ymax;
+          saw = true;
+        }
+        if (page.count < drainPageSize) break;
+        offset += page.count;
+      }
+      return saw ? { extent: { xmin, ymin, xmax, ymax }, count } : { extent: null, count };
+    },
+    async *stream(request) {
+      ensureCapability(descriptor, caps, "stream");
+      // WFS 2.0 has no native streaming verb; iterate pages over GetFeature
+      // and yield each as a Result. Reuses the same negotiation as `query`.
+      const limit = request?.pagination?.limit;
+      // `pagination.limit === 0` is an explicit zero cap; yield nothing
+      // rather than silently fall back to the default 2000-row page size.
+      if (limit === 0) return;
+      const choice = await negotiateJsonOrThrow();
+      const pageSize = typeof limit === "number" && limit > 0 ? Math.max(1, limit) : 2000;
+      let offset = request?.pagination?.offset ?? 0;
+      while (true) {
+        const pageRequest: Query<T> = {
+          ...(request ?? {}),
+          pagination: { offset, limit: pageSize },
+        };
+        const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, pageSize);
+        const result = resultFromGeoJson<T>(json);
+        if (result.features.length === 0) break;
+        yield {
+          features: result.features,
+          exceededTransferLimit: false,
+        } satisfies Result<T>;
+        if (result.features.length < pageSize) break;
+        offset += result.features.length;
+      }
+    },
+    async queryObjectIds(request) {
+      ensureCapability(descriptor, caps, "queryObjectIds");
+      // WFS does not expose a server-side ids-only mode that interoperates
+      // across implementations; drain the matching set across pages and
+      // project the GeoJSON `id`. `Query.pagination.limit` bounds the scan
+      // as a global cap (not a per-page count) so callers can stop the drain
+      // without learning the server's default page size. A finite limit
+      // (including 0) is honored as a real cap; only `undefined` / negative
+      // means "drain everything".
+      const requestedLimit = request?.pagination?.limit;
+      if (requestedLimit === 0) return [];
+      const choice = await negotiateJsonOrThrow();
+      const limitCap = typeof requestedLimit === "number" && requestedLimit > 0 ? requestedLimit : undefined;
+      const drainPageSize = 2000;
+      const ids: FeatureId[] = [];
+      let offset = request?.pagination?.offset ?? 0;
+      const idsRequest = toWfsObjectIdsDrainRequest(request);
+      while (true) {
+        const remainingCap = limitCap !== undefined ? Math.max(0, limitCap - ids.length) : undefined;
+        if (remainingCap === 0) break;
+        const pageSize = remainingCap !== undefined ? Math.min(drainPageSize, remainingCap) : drainPageSize;
+        const pageRequest: Query<T> = {
+          ...idsRequest,
+          pagination: { offset, limit: pageSize },
+        };
+        const json = await runGetFeatureJson(featureType, typeName, choice, pageRequest, pageSize);
+        const collection = json as { features?: ReadonlyArray<{ id?: unknown }> };
+        const features = collection.features ?? [];
+        for (const feature of features) {
+          if (feature.id !== undefined && feature.id !== null) {
+            ids.push(feature.id as FeatureId);
+            if (limitCap !== undefined && ids.length >= limitCap) break;
+          }
+        }
+        if (limitCap !== undefined && ids.length >= limitCap) break;
+        if (features.length < pageSize) break;
+        offset += features.length;
+      }
+      return ids;
+    },
+    async applyEdits(envelope) {
+      ensureCapability(descriptor, caps, "applyEdits");
+      // CanonicalFeature.id is required for updates because each <wfs:Update>
+      // is filtered by `<fes:ResourceId>`; without an id the block would
+      // mass-update every feature in the type. Mirror the OGC adapter's
+      // per-item guard: push a failure outcome for each malformed update and
+      // build the transaction with only the valid ones.
+      const malformedUpdateIndices = new Set<number>();
+      const validUpdates: Array<NonNullable<typeof envelope.updates>[number]> = [];
+      for (const [idx, update] of (envelope.updates ?? []).entries()) {
+        if (update.id === undefined || update.id === null) {
+          malformedUpdateIndices.add(idx);
+        } else {
+          validUpdates.push(update);
+        }
+      }
+      const adds = envelope.adds ?? [];
+      const deletes = envelope.deletes ?? [];
+      let summary: import("../core/wfs-capabilities.js").WfsTransactionSummary;
+      if (adds.length === 0 && validUpdates.length === 0 && deletes.length === 0) {
+        // Nothing to send — every operation was either absent or malformed.
+        // Skip the wire round-trip entirely so the server never sees an
+        // unaddressed transaction.
+        summary = { totalInserted: 0, totalUpdated: 0, totalDeleted: 0, insertResults: [] };
+      } else {
+        const filtered: EditEnvelope<T> = { ...envelope, updates: validUpdates };
+        const body = buildTransactionBody(typeName, filtered, featureNamespace);
+        const transactionOptions: { body: string; signal?: AbortSignal } = { body };
+        if (envelope.signal) transactionOptions.signal = envelope.signal;
+        summary = await featureType.transaction(transactionOptions);
+      }
+      return canonicalEditResultFromTransaction(envelope, summary, malformedUpdateIndices);
+    },
+    async queryRelated() {
+      throw new HonuaCapabilityNotSupportedError("queryRelated", descriptor.protocol, descriptor.id);
+    },
+    attachments: unsupportedAttachmentApi(descriptor),
+  });
+}
+
+function requireWfsLocator(descriptor: SourceDescriptor): {
+  url: string;
+  typeName: string;
+  featureNamespace: string | undefined;
+} {
+  const { url, typeName, featureNamespace } = descriptor.locator;
+  if (typeof url !== "string" || url.length === 0) {
+    throw new Error(`createDataset: source "${descriptor.id}" (wfs) requires locator.url`);
+  }
+  if (typeof typeName !== "string" || typeName.length === 0) {
+    throw new Error(`createDataset: source "${descriptor.id}" (wfs) requires locator.typeName`);
+  }
+  if (featureNamespace !== undefined && (typeof featureNamespace !== "string" || featureNamespace.length === 0)) {
+    throw new Error(
+      `createDataset: source "${descriptor.id}" (wfs) locator.featureNamespace must be a non-empty string`,
+    );
+  }
+  return {
+    url,
+    typeName,
+    featureNamespace: typeof featureNamespace === "string" ? featureNamespace : undefined,
+  };
+}
+
+function toWfsExtentDrainRequest<T>(request: Query<T> | undefined): Query<T> {
+  // The drain computes a bbox over geometries, so a caller-supplied
+  // `returnGeometry: false` would suppress geometry on every page and
+  // leave the extent empty. Strip it alongside `outFields` and
+  // `pagination` so the drain always sees the full geometry-bearing
+  // response regardless of the caller's projection / paging / geometry
+  // intent.
+  const {
+    outFields: _outFields,
+    pagination: _pagination,
+    returnGeometry: _returnGeometry,
+    ...extentRequest
+  } = request ?? {};
+  void _outFields;
+  void _pagination;
+  void _returnGeometry;
+  return extentRequest;
+}
+
+/**
+ * `queryObjectIds` reads the GeoJSON `id` from each drained feature, so
+ * neither `outFields` nor `returnGeometry` affects the result. Strip
+ * both before issuing each `GetFeature` page so a caller-supplied
+ * `returnGeometry: false` cannot throw the runGetFeatureJson guard
+ * (which refuses to suppress geometry without an explicit `outFields`)
+ * and so the drain's `propertyName=` does not balloon with the
+ * geometry property the caller never asked for.
+ */
+function toWfsObjectIdsDrainRequest<T>(request: Query<T> | undefined): Query<T> {
+  const {
+    outFields: _outFields,
+    returnGeometry: _returnGeometry,
+    pagination: _pagination,
+    ...idsRequest
+  } = request ?? {};
+  void _outFields;
+  void _returnGeometry;
+  void _pagination;
+  return idsRequest;
+}
+
+/**
+ * Compile `Query.where` and `Query.spatialFilter` into a (possibly empty)
+ * FES filter and route the request through GET or POST GetFeature based on
+ * the URL budget. Returns the decoded GeoJSON FeatureCollection.
+ */
+async function runGetFeatureJson<T>(
+  featureType: HonuaWfsFeatureType,
+  typeName: string,
+  choice: OutputFormatChoice,
+  request: Query<T> | undefined,
+  pageSize: number | undefined,
+): Promise<unknown> {
+  const filterNodes: FesNode[] = [];
+  let needsPostBody = false;
+  let bbox: string | undefined;
+  if (request?.where !== undefined && request.where !== "") {
+    const compiled = compileWhere(request.where);
+    if (compiled === UNSUPPORTED_FES) {
+      throw new HonuaCapabilityNotSupportedError(
+        "query",
+        "wfs",
+        `where clause is not expressible in FES; route the request through Source.protocol("wfs") to emit a custom filter`,
+      );
+    }
+    if (compiled.kind !== "and" || compiled.operands.length > 0) {
+      filterNodes.push(compiled);
+    }
+  }
+  if (request?.spatialFilter) {
+    const spatialRel = request.spatialFilter.spatialRel;
+    // The `bbox=` KVP and `<fes:BBOX>` both encode envelope-intersects
+    // semantics (OGC 09-026r2). Only take the bbox shortcut when the caller
+    // wants intersects (default), envelope-intersects, or did not specify.
+    // Anything else (Contains, Within, Crosses, Overlaps, Touches) needs an
+    // FES predicate that preserves the requested relation, which means
+    // routing the envelope through compileSpatialFilter so the geometry is
+    // serialized as a polygon under the correct spatial op.
+    const isEnvelopeIntersects =
+      spatialRel === undefined ||
+      spatialRel === "esriSpatialRelIntersects" ||
+      spatialRel === "esriSpatialRelEnvelopeIntersects";
+    if (
+      request.spatialFilter.geometryType === "esriGeometryEnvelope" &&
+      isEnvelopeIntersects &&
+      filterNodes.length === 0 &&
+      request.where === undefined
+    ) {
+      // BBox-only requests are short and travel safely as a `bbox=` KVP, no
+      // FES emission required. Saves a round-trip through XML serialization
+      // and keeps the URL human-debuggable.
+      const env = request.spatialFilter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
+      if (
+        typeof env.xmin === "number" &&
+        typeof env.ymin === "number" &&
+        typeof env.xmax === "number" &&
+        typeof env.ymax === "number"
+      ) {
+        bbox = `${env.xmin},${env.ymin},${env.xmax},${env.ymax}`;
+      }
+    } else {
+      const filterSrsName = wfsSrsNameFromOutSr(request.outSr);
+      const compiled = compileSpatialFilter(request.spatialFilter, {
+        geometryProperty: DEFAULT_WFS_GEOMETRY_PROPERTY,
+        ...(filterSrsName !== undefined ? { srsName: filterSrsName } : {}),
+      });
+      if (compiled === UNSUPPORTED_FES) {
+        throw new HonuaCapabilityNotSupportedError(
+          "query",
+          "wfs",
+          `spatial filter (geometryType=${request.spatialFilter.geometryType}, spatialRel=${request.spatialFilter.spatialRel ?? "default"}) is not expressible in FES; reach the wire through Source.protocol("wfs")`,
+        );
+      }
+      filterNodes.push(compiled);
+    }
+  }
+
+  const filterXml = filterNodes.length > 0 ? serializeFes(filterNodes, { typeName }) : undefined;
+  if (filterXml !== undefined) {
+    const encoded = encodeURIComponent(filterXml);
+    if (encoded.length > WFS_GET_FILTER_BUDGET) needsPostBody = true;
+  }
+
+  const params: Parameters<HonuaWfsFeatureType["getFeature"]>[0] = {};
+  if (bbox !== undefined) params.bbox = bbox;
+  if (filterXml !== undefined && !needsPostBody) params.filter = filterXml;
+  // WFS `propertyName=` drops every property the caller does not list,
+  // including the geometry column. Honor the canonical contract: when
+  // `outFields` is set and `returnGeometry !== false`, append the
+  // geometry property so geometry is preserved; when
+  // `returnGeometry === false`, omit the geometry property; when
+  // `returnGeometry === false` is asked without an `outFields` list,
+  // refuse the request because WFS cannot suppress geometry without
+  // enumerating every non-geometry property — silently widening to
+  // "geometry included" would break the canonical contract.
+  const callerOutFields = request?.outFields && request.outFields.length > 0 ? request.outFields : undefined;
+  const wantsGeometry = request?.returnGeometry !== false;
+  let propertyNames: readonly string[] | undefined;
+  if (callerOutFields !== undefined) {
+    if (wantsGeometry) {
+      const merged = [...callerOutFields];
+      if (!merged.includes(DEFAULT_WFS_GEOMETRY_PROPERTY)) merged.push(DEFAULT_WFS_GEOMETRY_PROPERTY);
+      propertyNames = merged;
+    } else {
+      propertyNames = [...callerOutFields];
+    }
+  } else if (request?.returnGeometry === false) {
+    throw new HonuaCapabilityNotSupportedError(
+      "query",
+      "wfs",
+      `returnGeometry=false requires an explicit outFields list (WFS propertyName cannot suppress geometry without enumerating non-geometry properties); set Query.outFields or reach the wire through Source.protocol("wfs")`,
+    );
+  }
+  if (propertyNames) params.propertyName = [...propertyNames];
+  const sortBy =
+    request?.orderBy && request.orderBy.length > 0
+      ? request.orderBy.map((s) => `${s.field}${s.direction === "desc" ? " D" : " A"}`).join(",")
+      : undefined;
+  if (sortBy !== undefined) params.sortBy = sortBy;
+  if (typeof pageSize === "number" && pageSize > 0) {
+    params.count = pageSize;
+  } else if (typeof request?.pagination?.limit === "number" && request.pagination.limit > 0) {
+    params.count = request.pagination.limit;
+  }
+  if (typeof request?.pagination?.offset === "number" && request.pagination.offset > 0) {
+    params.startIndex = request.pagination.offset;
+  }
+  const srsName = wfsSrsNameFromOutSr(request?.outSr);
+  if (srsName !== undefined) params.srsName = srsName;
+  params.outputFormat = choice.format;
+  if (request?.signal) params.signal = request.signal;
+
+  if (needsPostBody && filterXml !== undefined) {
+    params.method = "POST";
+    const postOptions: Parameters<typeof buildPostGetFeatureBody>[0] = {
+      typeName,
+      filter: filterXml,
+      count: params.count,
+      startIndex: params.startIndex,
+      outputFormat: choice.format,
+    };
+    if (propertyNames) postOptions.propertyNames = propertyNames;
+    if (sortBy !== undefined) postOptions.sortBy = sortBy;
+    if (srsName !== undefined) postOptions.srsName = srsName;
+    params.body = buildPostGetFeatureBody(postOptions);
+  }
+
+  const response = await featureType.getFeature(params);
+  if (response.kind !== "json") {
+    throw new HonuaCapabilityNotSupportedError(
+      "query",
+      "wfs",
+      `WFS GetFeature returned ${response.contentType}; canonical surface only carries JSON. Reach raw output through Source.protocol("wfs")`,
+    );
+  }
+  return response.data;
+}
+
+function buildPostGetFeatureBody(options: {
+  typeName: string;
+  filter: string;
+  count: number | undefined;
+  startIndex: number | undefined;
+  outputFormat: string;
+  propertyNames?: readonly string[];
+  sortBy?: string;
+  srsName?: string;
+}): string {
+  const countAttr = typeof options.count === "number" ? ` count="${options.count}"` : "";
+  const startAttr = typeof options.startIndex === "number" ? ` startIndex="${options.startIndex}"` : "";
+  const outputAttr = ` outputFormat="${escapeXmlAttr(options.outputFormat)}"`;
+  const queryAttrs = options.srsName !== undefined ? ` srsName="${escapeXmlAttr(options.srsName)}"` : "";
+  const propertyXml =
+    options.propertyNames && options.propertyNames.length > 0
+      ? options.propertyNames.map((name) => `<wfs:PropertyName>${escapeXmlText(name)}</wfs:PropertyName>`).join("")
+      : "";
+  const sortByXml = options.sortBy !== undefined ? buildSortByXml(options.sortBy) : "";
+  return `<wfs:GetFeature xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:fes="http://www.opengis.net/fes/2.0" service="WFS" version="2.0.0"${outputAttr}${countAttr}${startAttr}><wfs:Query typeNames="${escapeXmlAttr(options.typeName)}"${queryAttrs}>${propertyXml}${options.filter}${sortByXml}</wfs:Query></wfs:GetFeature>`;
+}
+
+/**
+ * Build a `<fes:SortBy>` block from the same comma-separated `sortBy` string
+ * the GET path emits (`FIELD A,OTHER D`). Empty entries are skipped.
+ */
+function buildSortByXml(sortBy: string): string {
+  const entries = sortBy
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  if (entries.length === 0) return "";
+  const properties = entries.map((entry) => {
+    const parts = entry.split(/\s+/);
+    const field = parts[0];
+    const direction = parts[1]?.toUpperCase() === "D" ? "DESC" : "ASC";
+    return `<fes:SortProperty><fes:ValueReference>${escapeXmlText(field)}</fes:ValueReference><fes:SortOrder>${direction}</fes:SortOrder></fes:SortProperty>`;
+  });
+  return `<fes:SortBy>${properties.join("")}</fes:SortBy>`;
+}
+
+/**
+ * Translate a canonical `Query.outSr` (string CRS URI / EPSG token, or numeric
+ * WKID) into the WFS `srsName` form. Numeric WKIDs become the OGC URN form
+ * `urn:ogc:def:crs:EPSG::<wkid>` so cross-server interop matches the format
+ * advertised in `OperationsMetadata` / `Filter_Capabilities`.
+ */
+function wfsSrsNameFromOutSr(outSr: string | number | undefined): string | undefined {
+  if (typeof outSr === "string") return outSr.length > 0 ? outSr : undefined;
+  if (typeof outSr === "number" && Number.isFinite(outSr)) return `urn:ogc:def:crs:EPSG::${outSr}`;
+  return undefined;
+}
+
+function escapeXmlAttr(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+function resultFromGeoJson<T>(data: unknown): Result<T> {
+  if (typeof data !== "object" || data === null) {
+    return { features: [], exceededTransferLimit: false };
+  }
+  const collection = data as {
+    features?: ReadonlyArray<{ id?: unknown; properties?: Record<string, unknown>; geometry?: unknown }>;
+    numberMatched?: unknown;
+  };
+  const features: HonuaTypedFeature<T>[] = (collection.features ?? []).map((f) => ({
+    attributes: (f.properties ?? {}) as T,
+    geometry: f.geometry as Record<string, unknown> | null,
+  }));
+  const totalCount =
+    typeof collection.numberMatched === "number" && Number.isFinite(collection.numberMatched)
+      ? collection.numberMatched
+      : undefined;
+  const exceededTransferLimit = totalCount !== undefined && features.length < totalCount;
+  const out: Result<T> = {
+    features,
+    exceededTransferLimit,
+  };
+  if (totalCount !== undefined) out.totalCount = totalCount;
+  return out;
+}
+
+function computeExtentFromFeatureCollection(data: unknown): {
+  extent: import("../core/types.js").HonuaExtent | null;
+  count: number;
+} {
+  if (typeof data !== "object" || data === null) return { extent: null, count: 0 };
+  const collection = data as { features?: ReadonlyArray<{ geometry?: unknown }> };
+  let xmin = Number.POSITIVE_INFINITY;
+  let ymin = Number.POSITIVE_INFINITY;
+  let xmax = Number.NEGATIVE_INFINITY;
+  let ymax = Number.NEGATIVE_INFINITY;
+  let saw = false;
+  let count = 0;
+  for (const feature of collection.features ?? []) {
+    count += 1;
+    visitGeometryCoords(feature.geometry, (x, y) => {
+      if (x < xmin) xmin = x;
+      if (y < ymin) ymin = y;
+      if (x > xmax) xmax = x;
+      if (y > ymax) ymax = y;
+      saw = true;
+    });
+  }
+  if (!saw) return { extent: null, count };
+  return { extent: { xmin, ymin, xmax, ymax }, count };
+}
+
+function buildTransactionBody<T>(
+  typeName: string,
+  envelope: EditEnvelope<T>,
+  featureNamespace: string | undefined,
+): string {
+  const releaseAction = envelope.rollbackOnFailure ? "ALL" : "SOME";
+  const { prefix } = splitTypeName(typeName);
+  // Bind the feature-namespace prefix on the Transaction root so prefixed
+  // feature elements inside <wfs:Insert> and prefixed `typeName=` attribute
+  // references on <wfs:Update>/<wfs:Delete> resolve. When the descriptor's
+  // locator does not advertise `featureNamespace`, fall back to a synthetic
+  // URN so the document is at least well-formed XML; strict servers will
+  // reject the unknown URI with a diagnostic ExceptionReport that the caller
+  // can resolve by setting `locator.featureNamespace`.
+  const featureNs = prefix ? (featureNamespace ?? syntheticFeatureNamespace(prefix)) : undefined;
+  const featureNsAttr = prefix && featureNs ? ` xmlns:${prefix}="${escapeXmlAttr(featureNs)}"` : "";
+  const blocks: string[] = [];
+  // Insert handles are read back in `canonicalEditResultFromTransaction`
+  // to map server-echoed `<wfs:Feature handle="…">` entries inside
+  // `<wfs:InsertResults>` onto the originating `envelope.adds[i]`. The
+  // shared scheme lives in `wfsInsertHandle` so the build side and the
+  // result-mapping side cannot drift.
+  const adds = envelope.adds ?? [];
+  for (let i = 0; i < adds.length; i += 1) {
+    blocks.push(buildInsertBlock(typeName, adds[i], wfsInsertHandle(i)));
+  }
+  let handleCounter = adds.length;
+  for (const update of envelope.updates ?? []) {
+    handleCounter += 1;
+    blocks.push(buildUpdateBlock(typeName, update, `upd-${handleCounter}`));
+  }
+  for (const id of envelope.deletes ?? []) {
+    handleCounter += 1;
+    blocks.push(buildDeleteBlock(typeName, id, `del-${handleCounter}`));
+  }
+  return `<wfs:Transaction xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:fes="http://www.opengis.net/fes/2.0" xmlns:gml="http://www.opengis.net/gml/3.2"${featureNsAttr} service="WFS" version="2.0.0" releaseAction="${releaseAction}">${blocks.join("")}</wfs:Transaction>`;
+}
+
+/**
+ * Split a namespace-qualified WFS type name like `parcels:lot` into its
+ * prefix and local components. Returns `{ prefix: undefined, local: typeName }`
+ * for unprefixed names.
+ */
+function splitTypeName(typeName: string): { prefix: string | undefined; local: string } {
+  const colon = typeName.indexOf(":");
+  if (colon < 0) return { prefix: undefined, local: typeName };
+  return { prefix: typeName.slice(0, colon), local: typeName.slice(colon + 1) };
+}
+
+/**
+ * Deterministic stub URI used when the locator does not declare a
+ * `featureNamespace`. Servers that perform strict schema validation will
+ * reject this URI with an `<ows:ExceptionReport>` rather than silently
+ * accept the body — the message names the prefix so callers know which
+ * `featureNamespace` to set on the descriptor.
+ */
+function syntheticFeatureNamespace(prefix: string): string {
+  return `urn:honua:wfs:feature-namespace:${prefix}`;
+}
+
+function buildInsertBlock<T>(
+  typeName: string,
+  feature: { attributes: T; geometry?: Record<string, unknown> | null },
+  handle: string,
+): string {
+  const attributes = feature.attributes as Record<string, unknown>;
+  const propertyXml = Object.entries(attributes)
+    .filter(([, value]) => value !== undefined)
+    .map(
+      ([key, value]) => `<${escapeXmlElement(key)}>${escapeXmlText(formatLiteral(value))}</${escapeXmlElement(key)}>`,
+    )
+    .join("");
+  const geometryXml = feature.geometry ? (geoJsonGeometryToGml(feature.geometry, undefined) ?? "") : "";
+  const featureXml = `<${escapeXmlElement(typeName)}>${propertyXml}${geometryXml ? `<the_geom>${geometryXml}</the_geom>` : ""}</${escapeXmlElement(typeName)}>`;
+  return `<wfs:Insert handle="${handle}">${featureXml}</wfs:Insert>`;
+}
+
+function buildUpdateBlock<T>(
+  typeName: string,
+  feature: { id?: FeatureId; attributes: T; geometry?: Record<string, unknown> | null },
+  handle: string,
+): string {
+  const attributes = feature.attributes as Record<string, unknown>;
+  const properties = Object.entries(attributes)
+    .filter(([, value]) => value !== undefined)
+    .map(
+      ([key, value]) =>
+        `<wfs:Property><wfs:ValueReference>${escapeXmlText(key)}</wfs:ValueReference><wfs:Value>${escapeXmlText(formatLiteral(value))}</wfs:Value></wfs:Property>`,
+    )
+    .join("");
+  const geometryProperty = feature.geometry
+    ? `<wfs:Property><wfs:ValueReference>the_geom</wfs:ValueReference><wfs:Value>${geoJsonGeometryToGml(feature.geometry, undefined) ?? ""}</wfs:Value></wfs:Property>`
+    : "";
+  const filter =
+    feature.id !== undefined
+      ? `<fes:Filter><fes:ResourceId rid="${escapeXmlAttr(String(feature.id))}"/></fes:Filter>`
+      : "";
+  return `<wfs:Update handle="${handle}" typeName="${escapeXmlAttr(typeName)}">${properties}${geometryProperty}${filter}</wfs:Update>`;
+}
+
+function buildDeleteBlock(typeName: string, id: FeatureId, handle: string): string {
+  return `<wfs:Delete handle="${handle}" typeName="${escapeXmlAttr(typeName)}"><fes:Filter><fes:ResourceId rid="${escapeXmlAttr(String(id))}"/></fes:Filter></wfs:Delete>`;
+}
+
+function formatLiteral(value: unknown): string {
+  if (value === null) return "";
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return String(value);
+}
+
+function escapeXmlElement(name: string): string {
+  // Element names in WFS are namespace-qualified, but we treat the typeName
+  // as a single token so callers may include `:` or `_`. Disallow anything
+  // that could break the document.
+  return name.replace(/[^A-Za-z0-9_:.-]/g, "_");
+}
+
+function escapeXmlText(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+/**
+ * Stable handle scheme for `<wfs:Insert>` blocks. The server is expected
+ * (but not required by WFS 2.0) to echo this on the matching
+ * `<wfs:Feature handle="…">` element inside `<wfs:InsertResults>`, which
+ * lets `canonicalEditResultFromTransaction` map returned ResourceIds back
+ * onto `envelope.adds[i]` even when the server reorders the buckets or
+ * omits failed inserts under `releaseAction="SOME"`.
+ */
+function wfsInsertHandle(idx: number): string {
+  return `add-${idx + 1}`;
+}
+
+function canonicalEditResultFromTransaction<T>(
+  envelope: EditEnvelope<T>,
+  summary: import("../core/wfs-capabilities.js").WfsTransactionSummary,
+  malformedUpdateIndices: ReadonlySet<number> = new Set(),
+): EditResult {
+  // Index `<wfs:InsertResults>` by the handle the server echoed so that
+  // server-side reordering or `releaseAction="SOME"` partial failures do
+  // not misassign ResourceIds to the wrong `envelope.adds[i]`. The
+  // handle attribute is informational in the WFS 2.0 spec, so when the
+  // server omits it on every `<wfs:Feature>` we fall back to the legacy
+  // positional pairing rather than dropping every insert id silently.
+  let anyHandleEchoed = false;
+  const insertByHandle = new Map<string, ReadonlyArray<string>>();
+  for (const bucket of summary.insertResults) {
+    if (bucket.handle !== undefined) {
+      anyHandleEchoed = true;
+      insertByHandle.set(bucket.handle, bucket.ids);
+    }
+  }
+  const added: EditOutcome[] = (envelope.adds ?? []).map((_, idx) => {
+    const matchedIds = anyHandleEchoed ? insertByHandle.get(wfsInsertHandle(idx)) : summary.insertResults[idx]?.ids;
+    const insertedId = matchedIds?.[0];
+    // When handles are echoed, presence in `InsertResults` is the
+    // authoritative per-insert success signal (the server only emits a
+    // bucket for the inserts that actually committed). Without handles
+    // we fall back to the legacy "first N succeeded" heuristic anchored
+    // on `totalInserted`.
+    const ok = anyHandleEchoed ? matchedIds !== undefined : idx < summary.totalInserted;
+    const out: EditOutcome = { success: ok };
+    if (insertedId !== undefined) out.id = insertedId;
+    return out;
+  });
+  // Updates that were skipped because they had no id never went on the wire;
+  // their outcome is a deterministic 400. The remaining indices align with
+  // the transaction summary in the order the body sent them.
+  const updated: EditOutcome[] = [];
+  let validUpdateIdx = 0;
+  for (const [idx, update] of (envelope.updates ?? []).entries()) {
+    if (malformedUpdateIndices.has(idx)) {
+      updated.push({ success: false, error: { code: 400, description: "update.id is required" } });
+      continue;
+    }
+    const out: EditOutcome = { success: validUpdateIdx < summary.totalUpdated };
+    if (update.id !== undefined) out.id = update.id;
+    updated.push(out);
+    validUpdateIdx += 1;
+  }
+  const deleted: EditOutcome[] = (envelope.deletes ?? []).map((id, idx) => ({
+    id,
+    success: idx < summary.totalDeleted,
+  }));
+  return { added, updated, deleted };
 }
 
 // ── Internal helpers ──────────────────────────────────────────
@@ -2138,6 +2918,7 @@ declare module "./types.js" {
     "ogc-maps": HonuaOgcMaps | HonuaOgcCollectionMap;
     "ogc-processes": HonuaOgcProcesses;
     stac: HonuaStacSearch;
+    wfs: HonuaWfsFeatureType;
     wms: HonuaWms;
     "wms-layer": HonuaWmsLayer;
     wmts: HonuaWmts;
@@ -2162,6 +2943,7 @@ export const FIRST_PARTY_PROTOCOLS: ReadonlySet<Protocol> = new Set([
   "ogc-tiles",
   "ogc-maps",
   "stac",
+  "wfs",
   "wms",
   "wmts",
 ] as const);

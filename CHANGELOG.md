@@ -35,12 +35,93 @@ All notable changes to the Honua JS SDK will be documented in this file.
 
 ### Added
 
+- First-party WFS 2.0 adapter on the shared client contract (`wfsSource`,
+  `protocol: "wfs"`). `Query.where` / `Query.spatialFilter` compile to
+  FES 2.0; envelope-only spatial filters travel as a KVP `bbox=` and
+  longer filters automatically switch to POST GetFeature with the
+  `<fes:Filter>` body. The `bbox=` shortcut fires only for
+  intersects-style relations (`undefined` / `esriSpatialRelIntersects` /
+  `esriSpatialRelEnvelopeIntersects`); envelope geometry combined with
+  `Contains` / `Within` / `Crosses` / `Overlaps` / `Touches` is lowered
+  to a GML 3.2 polygon under the requested FES op so the server honors
+  the relation rather than silently widening to bbox semantics.
+  Content-type negotiation prefers GeoJSON over GML via
+  `OperationsMetadata` (any of `application/geo+json`,
+  `application/json`, `application/vnd.geo+json`, `json`, `geojson`);
+  GML-only servers throw `HonuaCapabilityNotSupportedError` from the
+  canonical `query()` and point callers at `Source.protocol("wfs")` for
+  the raw payload. `Query.outFields` and `Query.returnGeometry` are
+  resolved together so a `propertyName=` projection cannot silently
+  drop geometry: an `outFields` list with `returnGeometry !== false`
+  appends the geometry property (`the_geom`) to the wire projection;
+  `returnGeometry === false` paired with an `outFields` list emits
+  exactly the requested fields (no geometry); a
+  `returnGeometry === false` request without an `outFields` list throws
+  `HonuaCapabilityNotSupportedError("query")` because WFS cannot
+  suppress geometry without enumerating non-geometry properties.
+  `queryExtent` short-circuits unfiltered requests
+  through the per-feature-type `WGS84BoundingBox` from
+  `GetCapabilities`; filtered or `outSr`-bearing requests drain every
+  matching page (2000 features per page) and compute the bbox
+  client-side, ignoring caller pagination, `Query.outFields`, and
+  `Query.returnGeometry` so the drain always sees geometry on the wire
+  and the returned extent covers the full matching set; stripping
+  `outFields` prevents a caller-supplied `propertyName=` projection
+  from dropping geometry, and stripping `returnGeometry` prevents a
+  caller-supplied `returnGeometry: false` from tripping the
+  field-projection guard on the drain. `queryObjectIds` drains pages
+  of 2000 ids until the server returns a short page;
+  `Query.pagination.limit` caps the global id count and
+  `Query.pagination.offset` chooses where the drain starts. The drain
+  strips `Query.outFields` and `Query.returnGeometry` because the
+  GeoJSON `id` is read from each feature's top-level field, so neither
+  knob affects the result. `pagination.limit === 0` is honored as an explicit
+  zero cap across `query`, `stream`, and `queryObjectIds` (each
+  short-circuits before the wire call); `queryAll` still issues a
+  single 1-row lookahead so `exceededTransferLimit` can flip when more
+  records exist — matching the `withPagingBounds` /
+  `applyQueryAllLimit` semantics already used by GeoServices and OGC
+  Features. `applyEdits` builds a single `<wfs:Transaction>`
+  (Insert / Update / Delete), maps `EditEnvelope.rollbackOnFailure` to
+  `releaseAction` `ALL` / `SOME`, and surfaces per-handle
+  `InsertResults` IDs onto `EditOutcome.id`. Each `<wfs:Insert>` is
+  stamped with a stable `handle="add-N"` (1-based, matching
+  `envelope.adds` order) and the returned `<wfs:Feature handle="…">`
+  buckets are indexed by handle when populating `EditResult.added`, so
+  servers that reorder the buckets — or omit them under
+  `releaseAction="SOME"` partial failure — never misassign IDs to the
+  wrong `envelope.adds[i]`; inserts whose handle is missing surface as
+  `{ success: false }` rather than silently inheriting a neighbour's
+  outcome. The handle attribute is informational in WFS 2.0, so when
+  no `<wfs:Feature>` carries one the adapter falls back to the legacy
+  positional pairing rather than dropping every id. Updates without a
+  `CanonicalFeature.id` are rejected per-item (`{ success: false, error:
+  { code: 400, description: "update.id is required" } }`) so an
+  unaddressed `<wfs:Update>` can never reach the server. Namespace-
+  qualified type names bind `xmlns:<prefix>` to
+  `locator.featureNamespace` on the transaction root, falling back to a
+  synthetic `urn:honua:wfs:feature-namespace:<prefix>` URN if the
+  locator omits it. Stored queries (`ListStoredQueries` /
+  `DescribeStoredQueries` / `GetFeature?storedquery_id=…`),
+  `GetPropertyValue`, raw `<fes:Filter>` bodies, and
+  `<wfs:Transaction>` POSTs are reachable through
+  `Source.protocol("wfs")` (returns `HonuaWfsFeatureType`). The
+  capabilities XML walker refuses any document declaring
+  `<!DOCTYPE>` / `<!ENTITY>` (XXE defense) and is reused for
+  `<ows:ExceptionReport>` and `<wfs:TransactionResponse>` parsing. New
+  error class `HonuaWfsExceptionError` carries
+  `<ows:ExceptionReport>` `exceptionCode` / `locator` and is also
+  raised when an exception report arrives wrapped inside a
+  `HonuaHttpError` body. Locking (`LockFeature` /
+  `GetFeatureWithLock`) is intentionally not exposed in the canonical
+  surface. Full reference: [`docs/wfs.md`](./docs/wfs.md).
 - Canonical shared client contract at `@honua/sdk-js/contract`: `Dataset`, `Source`, `SourceDescriptor`,
   `Capabilities`, `Query`, `Result`, `EditEnvelope`, `EditResult`, `RelatedQuery` / `RelatedResult`,
   `AttachmentApi`, and `MapBinding` types plus `createDataset(...)` with built-in adapters for the five
   GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`,
-  `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`) and `ogc-features`;
-  WFS / WMS / OData plug in through `CreateDatasetOptions.resolveSource`. Image / Geometry / GP services
+  `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`),
+  `ogc-features`, `ogc-tiles`, `ogc-maps`, `stac`, and `wfs`; WMS / OData plug in through
+  `CreateDatasetOptions.resolveSource`. Image / Geometry / GP services
   expose `exportImage` / `identify` / `project` / `buffer` / `simplify` / `intersect` / `union` / `clip` /
   `difference` / `submitJob` / `jobStatus` / `cancelJob` / `jobResult` through the typed
   `Source.protocol(kind)` escape hatch (the legacy `Source.adapter(kind)` accessor remains as an alias).

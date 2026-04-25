@@ -25,9 +25,9 @@ import {
 import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";
 import {
   HonuaFeatureLayer,
-  type HonuaOgcCollectionItemsAllRequest,
   HonuaMapLayer,
   HonuaMapService,
+  type HonuaOgcCollectionItemsAllRequest,
   HonuaOgcFeatureCollection,
 } from "../../src/core/surfaces.js";
 
@@ -41,6 +41,9 @@ import {
   makeMockClient,
   ogcCollectionMetadata,
   ogcItemsResponse,
+  wfsCapabilitiesXml,
+  wfsGeoJsonResponse,
+  xmlResponse,
 } from "./shared.js";
 
 interface Harness {
@@ -142,6 +145,43 @@ const harnesses: Harness[] = [
       });
     },
   },
+  {
+    protocol: "wfs",
+    sourceId: "parcels-wfs",
+    build() {
+      const client = makeMockClient({
+        routes: [
+          [
+            "/wfs",
+            (url) => {
+              const request = url.searchParams.get("request");
+              if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+              if (request === "GetFeature") {
+                return new Response(JSON.stringify(wfsGeoJsonResponse()), {
+                  status: 200,
+                  headers: { "Content-Type": "application/geo+json" },
+                });
+              }
+              return new Response("not implemented", { status: 404 });
+            },
+          ],
+        ],
+      });
+      return createDataset({
+        id: "parcels",
+        client,
+        skipCompatibilityCheck: true,
+        sources: [
+          {
+            id: "parcels-wfs",
+            protocol: "wfs",
+            locator: { url: "https://mock.honua.test/wfs", typeName: "parcels:lot" },
+            capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
+          } satisfies SourceDescriptor,
+        ],
+      });
+    },
+  },
 ];
 
 describe("contract / Protocol enum", () => {
@@ -223,14 +263,14 @@ describe("contract / Dataset", () => {
       skipCompatibilityCheck: true,
       sources: [
         {
-          id: "wfs-1",
-          protocol: "wfs",
-          locator: { url: "u", typeName: "ns:foo" },
-          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
+          id: "odata-1",
+          protocol: "odata",
+          locator: { url: "u", entitySet: "Things" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
         },
       ],
     });
-    expect(() => dataset.source("wfs-1")).toThrow(HonuaCapabilityNotSupportedError);
+    expect(() => dataset.source("odata-1")).toThrow(HonuaCapabilityNotSupportedError);
   });
 
   it("invokes resolveSource for adapter-wrapped protocols and uses the returned source", async () => {
@@ -244,12 +284,12 @@ describe("contract / Dataset", () => {
     };
     const stubSource: Source = {
       descriptor: {
-        id: "wfs-1",
-        protocol: "wfs",
-        locator: { url: "u", typeName: "ns:foo" },
-        capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
+        id: "odata-1",
+        protocol: "odata",
+        locator: { url: "u", entitySet: "Things" },
+        capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
       },
-      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
       query: async () => ({ features: [], exceededTransferLimit: false }),
       queryAll: async () => ({ features: [], exceededTransferLimit: false }),
       queryAggregate: async () => ({ features: [], exceededTransferLimit: false }),
@@ -269,15 +309,15 @@ describe("contract / Dataset", () => {
       skipCompatibilityCheck: true,
       sources: [
         {
-          id: "wfs-1",
-          protocol: "wfs",
-          locator: { url: "u", typeName: "ns:foo" },
-          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
+          id: "odata-1",
+          protocol: "odata",
+          locator: { url: "u", entitySet: "Things" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
         },
       ],
       resolveSource: () => stubSource,
     });
-    const source = dataset.source("wfs-1");
+    const source = dataset.source("odata-1");
     expect(source).toBe(stubSource);
     expect(await source!.query()).toEqual({ features: [], exceededTransferLimit: false });
   });
@@ -891,8 +931,7 @@ describe("contract / GeoServices aggregation wire-level fields", () => {
     },
   ]) {
     it(`${variant.label}: query({ aggregation }) passes outStatistics/groupBy on the request root`, async () => {
-      const LayerClass =
-        variant.protocol === "geoservices-feature-service" ? HonuaFeatureLayer : HonuaMapLayer;
+      const LayerClass = variant.protocol === "geoservices-feature-service" ? HonuaFeatureLayer : HonuaMapLayer;
       const spy = vi
         .spyOn(LayerClass.prototype, "queryFeatures")
         .mockResolvedValue(geoservicesAggregateResponse() as never);

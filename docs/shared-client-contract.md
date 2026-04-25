@@ -5,7 +5,7 @@ Status: implemented in `src/contract/` (ticket `honua-sdk-js-23`).
 The shared contract is the protocol-neutral vocabulary every Honua data
 adapter speaks. It exists so cross-protocol code — exploration views,
 visual builders, the server `SourceBinding`/`MapPackage` exporters, and
-downstream WFS / OData adapter tickets — can be written once
+the downstream OData adapter ticket — can be written once
 against `Dataset` / `Source` / `Query` / `Result` / `MapBinding` rather
 than re-litigating the surface in each ticket.
 
@@ -15,8 +15,8 @@ than re-litigating the surface in each ticket.
   capability", "the query", "the result", "the map binding", and "the
   exploration state" across `HonuaFeatureLayer`, `HonuaMapService`,
   `HonuaOgcFeatures`, first-party OGC render/search adapters,
-  first-party WMS / WMTS adapters, and the upcoming WFS / OData
-  adapters.
+  first-party WMS / WMTS adapters, the first-party WFS 2.0 adapter,
+  and the upcoming OData adapter.
 - **Goal:** wrap (do not replace) the existing runtime classes in
   `src/core/surfaces.ts`. Existing callers continue to work; adapter
   tickets opt in to the canonical surface.
@@ -28,7 +28,8 @@ than re-litigating the surface in each ticket.
   (`geoServicesFeatureSource`, `geoServicesMapServiceSource`,
   `geoServicesImageSource`, `geoServicesGeometryServiceSource`,
   `geoServicesGPServiceSource`, `ogcFeaturesSource`, `ogcTilesSource`,
-  `ogcMapsSource`, `stacSearchSource`, `wmsSource`, `wmtsSource`).
+  `ogcMapsSource`, `stacSearchSource`, `wmsSource`, `wmtsSource`,
+  `wfsSource`).
 - **Non-goal:** a query DSL. `Query.where` is still a SQL-92 / CQL2
   string; adapters translate to their wire format.
 
@@ -116,8 +117,9 @@ const result = await parcels.query({ where: "STATE = 'CA'", pagination: { limit:
 The built-in resolver handles `geoservices-feature-service`,
 `geoservices-map-service`, `geoservices-image-service`,
 `geoservices-geometry-service`, `geoservices-gp-service`, `ogc-features`,
-`ogc-tiles`, `ogc-maps`, `stac`, `wms`, and `wmts`. WFS / OData adapters
-register themselves through `CreateDatasetOptions.resolveSource`. OGC API
+`ogc-tiles`, `ogc-maps`, `stac`, `wfs`, `wms`, and `wmts`. The OData
+adapter registers itself through `CreateDatasetOptions.resolveSource`.
+OGC API
 Processes is a job runner rather than a queryable source — reach it
 through `HonuaClient.ogcProcesses().execute(...)` (returns the canonical
 `IJobRun<T>`) instead of `Dataset.source()`.
@@ -158,6 +160,13 @@ The WMS / WMTS factories cover the OGC web-map services per
   family throws; service / layer / tileset handles reachable via
   `Source.protocol("wmts" | "wmts-layer" | "wmts-tileset")`).
 
+`docs/wfs.md` documents the WFS 2.0 factory in the same shape:
+
+- `wfsSource` — WFS 2.0 (query, queryAll, queryExtent, queryObjectIds,
+  applyEdits, stream; FES 2.0 emission for `Query.where` /
+  `Query.spatialFilter`; raw GML / `<wfs:Transaction>` payloads via
+  `protocol("wfs")`).
+
 `Source.queryAll()` and `Source.stream()` drain every page the server
 returns — the built-in adapters override the core helpers' 100-page
 default so a large `queryAll()` is not silently truncated. Callers who
@@ -197,7 +206,7 @@ without touching this file.
 ```ts
 declare module "@honua/sdk-js/contract" {
   interface AdapterTypeMap {
-    "wfs": HonuaWfsLayer;
+    "my-protocol": MyProtocolLayer;
   }
 }
 ```
@@ -208,16 +217,23 @@ The shipped map covers `geoservices-feature-service` →
 → `HonuaImageService`, `geoservices-geometry-service` →
 `HonuaGeometryService`, `geoservices-gp-service` →
 `HonuaGeoprocessingService`, `ogc-features` →
-`HonuaOgcFeatureCollection`, `wms` → `HonuaWms`, `wms-layer` →
+`HonuaOgcFeatureCollection`, `ogc-tiles` → `HonuaOgcTileset |
+HonuaOgcTiles`, `ogc-maps` → `HonuaOgcMaps |
+HonuaOgcCollectionMap`, `ogc-processes` → `HonuaOgcProcesses`,
+`stac` → `HonuaStacSearch`, `wms` → `HonuaWms`, `wms-layer` →
 `HonuaWmsLayer`, `wmts` → `HonuaWmts`, `wmts-layer` →
-`HonuaWmtsLayer`, and `wmts-tileset` → `HonuaWmtsTileset`.
+`HonuaWmtsLayer`, `wmts-tileset` → `HonuaWmtsTileset`, and
+`wfs` → `HonuaWfsFeatureType`. The WFS root handle (capabilities
+cache, stored-query discovery) is reachable through
+`Source.protocol("wfs").root`.
 
 ## What downstream tickets must consume
 
-1. WFS and OData adapter tickets must implement `Source<T>` and
-   register through `resolveSource`. They must declare their default
-   capability set in `PROTOCOL_DEFAULT_CAPABILITIES` (this file owns
-   that table — adapter PRs extend it).
+1. The OData adapter ticket must implement `Source<T>` and register
+   through `resolveSource` (or land as a built-in like the shipped
+   `wmsSource` / `wmtsSource` / `wfsSource`). It must declare its
+   default capability set in `PROTOCOL_DEFAULT_CAPABILITIES` (this
+   file owns that table — adapter PRs extend it).
 2. Visual builder, exploration, and server-export tickets must consume
    `Dataset` / `Source` / `Query` / `Result` / `MapBinding` rather than
    the per-class request shapes (`QueryFeaturesRequest`, etc.). Per-class

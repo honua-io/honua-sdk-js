@@ -32,7 +32,7 @@ without a canonical `Source` method today are negotiated for
 | `render` | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | ✓ | ✓ | — |
 | `tiles` | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | ✓ | ✓ | — |
 | `sql` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | — | — | — | — |
+| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | — | — | — |
 | `pbf` | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
 | `connect` | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — |
 | `image` | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
@@ -240,9 +240,91 @@ than silently widen to bbox semantics. `queryRelated`, `attachments`,
 and `pbf` are out-of-scope for the OGC standard.
 
 ### WFS
-Read + edit, no aggregation, no relates. `queryExtent` is supported via
-`getCapabilities` extent metadata and per-feature-type bounding boxes.
-Adapter ticket should map `Query.where` to OGC Filter Encoding XML.
+First-party WFS 2.0 adapter (`wfsSource`); see [`wfs.md`](./wfs.md) for
+the full reference. `query` / `queryAll` / `stream`
+all route through `GetFeature` after a one-time `GetCapabilities`
+negotiation; `Query.where` compiles to FES 2.0 (comparison, `IN`,
+`BETWEEN`, `LIKE`, `IS NULL`, boolean combinators, parenthesization), and
+`Query.spatialFilter` becomes either a KVP `bbox=` for envelope-only
+requests or a `<fes:Filter>` for everything else (envelope, point,
+polygon, polyline). Filters longer than ~7 KB switch to POST GetFeature
+with the `<fes:Filter>` body. Anything richer than the supported subset
+(subqueries, function calls, vendor extensions, curves / surfaces)
+throws `HonuaCapabilityNotSupportedError("query")` rather than ship a
+silent partial filter — callers reach the wire through
+`Source.protocol("wfs")`.
+WFS `propertyName=` drops every property the caller does not list,
+including the geometry column, so `Query.outFields` and
+`Query.returnGeometry` are resolved together: an `outFields` list with
+`returnGeometry !== false` appends the geometry property
+(`the_geom` by default) before the projection lands on the wire so
+geometry survives; `returnGeometry === false` paired with an
+`outFields` list emits exactly the requested fields (no geometry); a
+`returnGeometry === false` request without an `outFields` list throws
+`HonuaCapabilityNotSupportedError("query")` because WFS cannot
+suppress geometry without enumerating non-geometry properties.
+`queryExtent` prefers the per-feature-type `WGS84BoundingBox` from
+`GetCapabilities` for unfiltered requests so no extra HTTP traffic is
+issued; filtered or `outSr`-bearing requests drain every matching
+page (2000 features per page) and compute the bbox client-side,
+ignoring caller pagination, `Query.outFields`, and
+`Query.returnGeometry` so geometry is preserved on every drained
+page and the returned extent covers the full matching set.
+`queryObjectIds` has no interoperable server-side ids-only mode, so the
+adapter drains the matching set in 2000-feature pages and projects each
+GeoJSON `id`. The drain strips `Query.outFields` and
+`Query.returnGeometry` (the GeoJSON `id` is read from each feature's
+top-level field, so neither knob affects the result) so the request
+cannot push the geometry property onto the wire and a caller-supplied
+`returnGeometry: false` cannot trip the field-projection guard.
+`Query.pagination.limit` caps the global id count (callers can stop
+the drain without learning the server's page size) and
+`Query.pagination.offset` chooses where the drain starts.
+`pagination.limit === 0` is treated as an explicit zero cap across
+`query`, `stream`, and `queryObjectIds` (each short-circuits before
+the wire call); `queryAll` still issues a single 1-row lookahead so
+`exceededTransferLimit` can flip when more records exist — matching
+the `withPagingBounds` / `applyQueryAllLimit` semantics shared with
+GeoServices and OGC Features.
+Content negotiation prefers `application/geo+json` /
+`application/json` when the server's `OperationsMetadata`
+advertises it; if only GML is offered the canonical `query()` throws
+and callers reach the GML payload through `Source.protocol("wfs")`. GML
+decoding is intentionally out of scope. `applyEdits` builds a single
+`<wfs:Transaction>` POST body (`<wfs:Insert>` / `<wfs:Update>` /
+`<wfs:Delete>`) and surfaces the per-handle `InsertResults` IDs onto
+`EditOutcome.id`. Each `<wfs:Insert>` is stamped with a stable
+`handle="add-N"` (1-based, matching `envelope.adds` order) and the
+returned `<wfs:Feature handle="…">` buckets are indexed by that
+handle, so reordered or omitted (`releaseAction="SOME"` partial
+failure) buckets never misassign IDs to the wrong `envelope.adds[i]`;
+inserts whose handle is missing from the response surface as
+`{ success: false }`. The handle attribute is informational in WFS
+2.0, so when no `<wfs:Feature>` carries one the adapter falls back
+to the legacy positional pairing rather than dropping every id.
+`rollbackOnFailure` drives the transaction `releaseAction` (`ALL` vs
+`SOME`). Updates whose `id` is `undefined` / `null` are filtered out
+before the transaction body is built and surface as per-item failures
+(`{ success: false, error: { code: 400, description: "update.id is
+required" } }`) so an unaddressed `<wfs:Update>` can never reach the
+server; if every operation in the envelope is absent or malformed the
+wire round-trip is skipped.
+Stored-query discovery (`ListStoredQueries`) and execution
+(`GetFeature?storedquery_id=...`) are reachable through
+`Source.protocol("wfs")!.root.storedQuery(id).execute({ parameters })`.
+Stored queries that advertise only GML (e.g. Honua Server's
+`urn:ogc:def:query:OGC-WFS::GetFeatureById`) cannot be projected onto
+the canonical `Source.query()` envelope; the canonical surface throws
+`HonuaCapabilityNotSupportedError("query")` and points the caller at
+the protocol escape hatch.
+Locking (`LockFeature` / `GetFeatureWithLock`) is not exposed in the
+canonical surface; callers that need it reach the wire through
+`Source.protocol("wfs")`.
+The capabilities XML walker refuses any document declaring
+`<!DOCTYPE>` or `<!ENTITY>` to defend against XXE-class attacks.
+WFS `Result.totalCount` populates from the `numberMatched` GeoJSON
+field; `exceededTransferLimit` is set when `numberMatched >
+features.length`.
 
 ### WMS
 First-party WMS 1.3.0 adapter. `render` and `tiles` come from `GetMap`;

@@ -726,7 +726,10 @@ export class HonuaClient {
       }
     }
     const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
-    const xml = await this.requestText("GET", path, "text/xml,application/xml", undefined, request.signal);
+    const { text: xml } = await this.requestText("GET", path, {
+      accept: "text/xml,application/xml",
+      signal: request.signal,
+    });
     return parseWmsCapabilities(xml);
   }
 
@@ -802,7 +805,10 @@ export class HonuaClient {
     params.set("REQUEST", "GetCapabilities");
     params.set("VERSION", "1.0.0");
     const path = `${wmtsBasePath(request.serviceId)}?${params.toString()}`;
-    const xml = await this.requestText("GET", path, "text/xml,application/xml", undefined, request.signal);
+    const { text: xml } = await this.requestText("GET", path, {
+      accept: "text/xml,application/xml",
+      signal: request.signal,
+    });
     return parseWmtsCapabilities(xml);
   }
 
@@ -1609,20 +1615,86 @@ export class HonuaClient {
   }
 
   /**
-   * Fetch a text/XML response. Used by the WMS / WMTS Capabilities
-   * pipeline to drain the body as a UTF-8 string (the parsers consume
-   * the raw text). Reuses `requestBytes` so interceptors, retry, and
-   * timeout plumbing stay consistent with the JSON / binary paths.
+   * Fetch a text response (e.g. XML / JSON / plain) with an explicit Accept
+   * negotiation. Used by the WFS adapter for `GetCapabilities`,
+   * `Transaction` responses, and ExceptionReport bodies, and by the
+   * WMS / WMTS Capabilities pipelines. Routes through the same
+   * interceptor / retry / abort pipeline as `requestJson` /
+   * `requestBytes`, so adapter callers do not need to bypass `HonuaClient`
+   * to reach `fetch` directly.
    */
-  private async requestText(
+  public async requestText(
     method: QueryMethod,
     path: string,
-    accept: string | undefined,
-    init?: RequestInit,
-    callerSignal?: AbortSignal,
-  ): Promise<string> {
-    const response = await this.requestBytes(method, path, accept, init, callerSignal);
-    return new TextDecoder("utf-8").decode(response.bytes);
+    options?: { accept?: string; contentType?: string; body?: BodyInit; signal?: AbortSignal },
+  ): Promise<{ text: string; contentType: string; status: number }> {
+    const acceptHeader = options?.accept ?? "*/*";
+    const headers: Record<string, string> = { Accept: acceptHeader };
+    if (options?.contentType) headers["Content-Type"] = options.contentType;
+    let request: HonuaRequestContext = {
+      url: resolveRequestUrl(this.baseUrl, path),
+      path,
+      method,
+      init: {
+        method,
+        headers: mergeHeaders(this.defaultHeaders, headers),
+        ...(options?.body !== undefined ? { body: options.body } : {}),
+      },
+    };
+
+    request = await this.applyBeforeInterceptors(request);
+
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
+      const timeout = createTimeoutSignal(options?.signal ?? request.init.signal, this.timeoutMs);
+      const startTime = performance.now();
+      try {
+        response = await this.fetchFn(request.url, {
+          ...request.init,
+          method: request.method,
+          signal: timeout.signal,
+        });
+      } catch (error) {
+        const durationMs = performance.now() - startTime;
+        const normalizedError = timeout.didTimeout
+          ? new HonuaTimeoutError(this.timeoutMs ?? 0)
+          : normalizeNetworkError(error);
+        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
+          await sleep(this.resolveRetryDelayMs(attempt));
+          continue;
+        }
+        await this.applyErrorInterceptors({
+          request: cloneRequestContext(request),
+          error: normalizedError,
+          durationMs,
+        });
+        throw normalizedError;
+      } finally {
+        timeout.dispose();
+      }
+      const durationMs = performance.now() - startTime;
+
+      const text = await response.clone().text();
+      const contentType = response.headers.get("content-type") ?? acceptHeader;
+      if (!response.ok) {
+        const httpError = this.toHttpError(response.status, text ? { raw: text, contentType } : {});
+        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
+          await sleep(this.resolveRetryDelayMs(attempt, response));
+          continue;
+        }
+        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
+        throw httpError;
+      }
+
+      try {
+        await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
+      } catch (error) {
+        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
+        throw error;
+      }
+
+      return { text, contentType, status: response.status };
+    }
   }
 
   /**
