@@ -774,8 +774,7 @@ export function stacSearchSource<T>(
       const limit = request?.pagination?.limit;
       const items = await stac.searchAll({
         ...toStacRequest(request, collectionScope),
-        pageSize: limit !== undefined ? Math.max(1, limit) : undefined,
-        maxPages: Number.MAX_SAFE_INTEGER,
+        ...withPagingBounds({}, limit),
       });
       const typed = items.map(toTypedFeatureFromStac<T>);
       const { features, exceededTransferLimit } = applyQueryAllLimit(typed, limit);
@@ -809,19 +808,22 @@ export function stacSearchSource<T>(
     async queryObjectIds(request) {
       ensureCapability(descriptor, caps, "queryObjectIds");
       // STAC `/search` does not expose a server-side ids-only mode; drain
-      // the matching items and project the GeoJSON `id`. Callers that need
-      // a bounded scan should pass `pagination.limit`.
+      // the matching items and project the GeoJSON `id`. `pagination.limit`
+      // routes through `withPagingBounds` so the underlying searchAll
+      // fetches at most `limit + 1` rows, never a full-catalog scan.
       const limit = request?.pagination?.limit;
       const items = await stac.searchAll({
         ...toStacRequest(request, collectionScope),
-        pageSize: limit !== undefined ? Math.max(1, limit) : undefined,
-        maxPages: Number.MAX_SAFE_INTEGER,
+        ...withPagingBounds({}, limit),
       });
       const ids: FeatureId[] = [];
       for (const item of items) {
         if (item.id !== undefined && item.id !== null) {
           ids.push(item.id as FeatureId);
         }
+      }
+      if (typeof limit === "number" && limit >= 0 && ids.length > limit) {
+        return ids.slice(0, limit);
       }
       return ids;
     },

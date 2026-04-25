@@ -382,4 +382,107 @@ describe("stac / Source adapter", () => {
     }
     expect(pages[0]).toBe(2);
   });
+
+  it("queryAll({ limit }) caps STAC fetch at limit + 1 rows even when the catalog advertises more pages", async () => {
+    // The shared contract promises queryAll fetches at most limit + 1
+    // rows so the slice can stamp `exceededTransferLimit` honestly. STAC
+    // search emits rel=next links for every additional page; without the
+    // bounded paging helper, queryAll({ limit: 1 }) would scan the whole
+    // catalog before slicing to one feature.
+    let calls = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/stac/search",
+          () => {
+            calls += 1;
+            return jsonResponse({
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  id: `item-${calls}`,
+                  geometry: null,
+                  properties: { datetime: "2024-04-01T00:00:00Z", cloud_cover: calls },
+                },
+              ],
+              numberMatched: 1000,
+              numberReturned: 1,
+              // Always advertises another page; only the bounded fetch
+              // stops the loop.
+              links: [{ rel: "next", href: `https://mock/stac/search?limit=1&offset=${calls}` }],
+            });
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "sentinel",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "sentinel-stac",
+          protocol: "stac",
+          locator: { url: "https://mock/", collectionId: "sentinel-2" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<StacFeatureAttrs>("sentinel-stac")!;
+    const result = await source.queryAll({ pagination: { limit: 1 } });
+    expect(result.features).toHaveLength(1);
+    expect(result.exceededTransferLimit).toBe(true);
+    // limit + 1: two requests, then stop. Without the bounded helper this
+    // would have followed the rel=next chain forever.
+    expect(calls).toBe(2);
+  });
+
+  it("queryObjectIds({ limit }) caps STAC fetch at limit + 1 rows and slices IDs to limit", async () => {
+    // Mirrors the queryAll contract for the ids-only projection. STAC
+    // has no server-side ids endpoint, so the adapter drains items and
+    // projects `id` — the bounded helper must keep that drain finite.
+    let calls = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/stac/search",
+          () => {
+            calls += 1;
+            return jsonResponse({
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  id: `item-${calls}`,
+                  geometry: null,
+                  properties: { datetime: "2024-04-01T00:00:00Z", cloud_cover: calls },
+                },
+              ],
+              numberMatched: 1000,
+              numberReturned: 1,
+              links: [{ rel: "next", href: `https://mock/stac/search?limit=1&offset=${calls}` }],
+            });
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "sentinel",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "sentinel-stac",
+          protocol: "stac",
+          locator: { url: "https://mock/", collectionId: "sentinel-2" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source<StacFeatureAttrs>("sentinel-stac")!;
+    const ids = await source.queryObjectIds({ pagination: { limit: 1 } });
+    expect(ids).toEqual(["item-1"]);
+    expect(calls).toBe(2);
+  });
 });
