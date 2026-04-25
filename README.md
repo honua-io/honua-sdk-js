@@ -179,10 +179,15 @@ tickets — the SDK also exposes a protocol-neutral contract and exploration sta
 those classes.
 
 - `@honua/sdk-js/contract` — canonical `Dataset`, `Source`, `SourceDescriptor`, `Capabilities`, `Query`, `Result`,
-  and `MapBinding` types, plus `createDataset(...)` and built-in adapters for `geoservices-feature-service`,
-  `geoservices-map-service`, and `ogc-features`. Capability negotiation is `strict` by default; `degraded` opts
-  into client-side fallbacks that surface `Result.degraded[]`. WFS / WMS / OData adapters plug in via
-  `CreateDatasetOptions.resolveSource`. Full contract reference:
+  and `MapBinding` types, plus `createDataset(...)` and built-in adapters for the five GeoServices service
+  types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`,
+  `geoservices-geometry-service`, `geoservices-gp-service`) and `ogc-features`. Image / Geometry / GP services
+  expose their protocol-specific surface (raster `exportImage` / `identify`, geometry `buffer` / `project` /
+  `simplify`, GP `submitJob` / `jobStatus` / `cancelJob` / `jobResult`) through the typed `Source.protocol()`
+  escape hatch — the canonical query family throws `HonuaCapabilityNotSupportedError` for utility-only
+  services so mixed-source apps surface the limitation explicitly. Capability negotiation is `strict` by
+  default; `degraded` opts into client-side fallbacks that surface `Result.degraded[]`. WFS / WMS / OData
+  adapters plug in via `CreateDatasetOptions.resolveSource`. Full contract reference:
   [`docs/shared-client-contract.md`](./docs/shared-client-contract.md).
 - `@honua/sdk-js/exploration` — `createExplorationContext(...)` returning an observable, microtask-coalesced
   reducer over filters, spatial filter, extent, selection, sort, pagination, visible fields, grouping, and

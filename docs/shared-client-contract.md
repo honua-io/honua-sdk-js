@@ -22,8 +22,10 @@ than re-litigating the surface in each ticket.
   the server `SourceBinding` / `MapPackage` documents (see
   [`source-binding-alignment.md`](./source-binding-alignment.md)).
 - **Non-goal:** a runtime rewrite. The contract is a typed surface plus
-  three thin adapter functions (`geoServicesFeatureSource`,
-  `geoServicesMapServiceSource`, `ogcFeaturesSource`).
+  six thin adapter functions — one per built-in protocol
+  (`geoServicesFeatureSource`, `geoServicesMapServiceSource`,
+  `geoServicesImageSource`, `geoServicesGeometryServiceSource`,
+  `geoServicesGPServiceSource`, `ogcFeaturesSource`).
 - **Non-goal:** a query DSL. `Query.where` is still a SQL-92 / CQL2
   string; adapters translate to their wire format.
 

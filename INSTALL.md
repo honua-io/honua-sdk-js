@@ -72,7 +72,8 @@ The SDK exposes a protocol-neutral client contract and exploration state module 
 - [`docs/exploration-context.md`](./docs/exploration-context.md) — `createExplorationContext(...)` with
   linked-view presets (`globalLinked`, `mapDriven`, `gridDriven`, `chartDriven`, `decoupled`).
 - [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md) — capability coverage per
-  protocol (`geoservices-feature-service`, `geoservices-map-service`, `ogc-features`, `wfs`, `wms`, `odata`).
+  protocol (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`,
+  `geoservices-geometry-service`, `geoservices-gp-service`, `ogc-features`, `wfs`, `wms`, `odata`).
 - [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md) — round-trip mapping between
   `SourceDescriptor` and the server `SourceBinding` document.
 - [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage(...)` and `HonuaMapRuntime`

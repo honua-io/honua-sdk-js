@@ -561,11 +561,8 @@ export function geoServicesImageSource<T>(
       );
       return extractExtentEnvelope(response);
     },
+    // biome-ignore lint/correctness/useYield: ImageServer has no streaming raster-catalog mode; this generator refuses iteration rather than silently emit a single page
     async *stream() {
-      // ImageServer does not expose a streaming raster-catalog mode; the
-      // catalog is intentionally enumerable in one page. Refuse rather
-      // than silently emit a single page that callers might mistake for
-      // a paginated stream.
       throw new HonuaCapabilityNotSupportedError("stream", descriptor.protocol, descriptor.id);
     },
     async queryObjectIds(request) {
@@ -724,6 +721,7 @@ function unsupportedFeatureSurface<T>(descriptor: SourceDescriptor): SourceImple
     async queryExtent() {
       return fail("queryExtent");
     },
+    // biome-ignore lint/correctness/useYield: utility-only services (Geometry, GP) do not host features; this generator refuses iteration rather than silently complete with no pages
     async *stream() {
       fail("stream");
     },

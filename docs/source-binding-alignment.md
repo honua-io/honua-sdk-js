@@ -14,11 +14,12 @@ server `SourceBinding`, and a `SourceBinding` re-imported through
 | `id` | `id` | Stable identifier; preserved verbatim. |
 | `protocol` | `protocol` | Same enum; the SDK's MapLibre-native protocols (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`) project onto the server's `mapSpec.sources` stanza rather than `sourceBindings`. |
 | `locator.url` | `locator.url` | Fully qualified endpoint URL. |
-| `locator.serviceId` | `locator.serviceId` | GeoServices Feature/Map Service identifier. |
+| `locator.serviceId` | `locator.serviceId` | GeoServices service identifier (FeatureServer, MapServer, ImageServer, Geometry, GP). |
 | `locator.layerId` | `locator.layerId` | Numeric layer identifier within the service. |
 | `locator.collectionId` | `locator.collectionId` | OGC API Features collection. |
 | `locator.typeName` | `locator.typeName` | WFS / WMS type-name. |
 | `locator.entitySet` | `locator.entitySet` | OData entity set. |
+| `locator.taskName` | `locator.taskName` | GP Service task identifier; combined with `serviceId` it uniquely identifies one async task without leaking task parameters into the descriptor. |
 | `capabilities` | `capabilities` | Set serialized as a sorted string array on the wire. The server is authoritative for what it serves; the SDK's set is what the **adapter** can produce. |
 | `schema.fields` | `schema.fields` | Optional. Same shape as `HonuaFieldInfo`. |
 | `schema.primaryKey` | `schema.primaryKey` | Optional; defaults to first PK detected in `fields`. |
@@ -56,8 +57,12 @@ Adding a new protocol on the SDK side requires:
 
 ## What does not round-trip
 
-- `Source.adapter()` — the typed escape hatch. Exists only on the SDK
-  side. The exporter emits the descriptor, not the live adapter instance.
+- `Source.protocol()` (alias `Source.adapter()`) — the typed escape
+  hatch. Exists only on the SDK side. The exporter emits the descriptor,
+  not the live adapter instance, so protocol-specific operations
+  (`exportImage`, `identify`, `buffer`, `project`, `submitJob`, raw
+  `where` / `outFields`, `calculate`, `validateSQL`, `replica`,
+  `queryBins`, `getEstimates`) never serialize into a `SourceBinding`.
 - `Capabilities` from the `SourceDescriptor` serialize verbatim on
   export. Automatic metadata-driven downgrades inside the adapter
   constructor (e.g. dropping `queryAggregate` when metadata reports
@@ -95,6 +100,19 @@ runtime's `source-bridge.ts`:
 | `vector_tile` / `ogc_tiles` | MapLibre-native `vector` source (no SDK adapter) |
 | `raster_tile` / `ogc_maps` | MapLibre-native `raster` source (no SDK adapter) |
 | `workspace_artifact` | Deferred — throws `HonuaMapPackageError { stage: "source-bind" }` until a workspace resolver is wired. |
+
+The `geoservices-image-service`, `geoservices-geometry-service`, and
+`geoservices-gp-service` protocols are first-party at the contract
+layer (`createDataset`, `Source.protocol()`) but are **not yet
+translated by `source-bridge.ts`** — the runtime currently rejects a
+`MapPackage` that ships an ImageServer / Geometry / GP binding because
+those services are not typically composed as map sources. Direct
+construction via `geoServicesImageSource(...)`,
+`geoServicesGeometryServiceSource(...)`, or
+`geoServicesGPServiceSource(...)` works without going through the
+package projection. Routing them through `MapPackage.sourceBindings[]`
+is tracked as a follow-on; until it lands the server should not emit
+those protocols on bindings consumed by `loadMapPackage`.
 
 Unknown fields on a `SourceBinding` are preserved on the
 `HonuaMapPackage` round-trip so server additions do not break runtime
