@@ -172,6 +172,19 @@ the caller's `pagination.limit` when supplied.
 `Result.totalCount` populates from the GeoJSON `numberMatched` field;
 `exceededTransferLimit` flips when `numberMatched > features.length`.
 
+## queryObjectIds
+
+WFS 2.0 has no interoperable server-side ids-only mode, so
+`queryObjectIds` drains the matching set across pages and projects the
+GeoJSON `id` from each feature. The default page size is 2000; the
+drain stops as soon as the server returns a short page.
+`Query.pagination.offset` chooses where the drain starts (forwarded as
+`startIndex` to `GetFeature`) and `Query.pagination.limit`, when set,
+caps the global id count — not the per-page count — so callers can
+stop the drain without learning the server's default page size. The
+adapter shrinks each page to `min(2000, remaining)` so the final page
+never overshoots the cap.
+
 ## queryExtent
 
 Unfiltered `queryExtent()` (no `where`, no `spatialFilter`, no
@@ -206,6 +219,18 @@ populate `EditOutcome.id`. `OperationProcessingFailed` and other
 `<ows:ExceptionReport>` responses surface as
 `HonuaWfsExceptionError` with `.exceptionCode` / `.locator`
 preserved.
+
+`CanonicalFeature.id` is required on every update because each
+`<wfs:Update>` is filtered by `<fes:ResourceId>`; without an id the
+block would mass-update every feature in the type. Updates whose `id`
+is `undefined` / `null` are filtered out before the transaction body is
+built and surface as deterministic per-item failures
+(`{ success: false, error: { code: 400, description: "update.id is
+required" } }`) on `EditResult.updated`. Valid updates in the same
+envelope still travel as a single transaction. When every operation in
+the envelope is absent or malformed the adapter skips the wire
+round-trip entirely so the server never sees an unaddressed
+transaction.
 
 ## Stored queries
 

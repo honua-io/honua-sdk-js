@@ -258,6 +258,11 @@ no extra HTTP traffic is issued; filtered or `outSr`-bearing requests
 drain every matching page (2000 features per page) and compute the
 bbox client-side, ignoring caller pagination so the returned extent
 covers the full matching set.
+`queryObjectIds` has no interoperable server-side ids-only mode, so the
+adapter drains the matching set in 2000-feature pages and projects each
+GeoJSON `id`. `Query.pagination.limit` caps the global id count
+(callers can stop the drain without learning the server's page size)
+and `Query.pagination.offset` chooses where the drain starts.
 Content negotiation prefers `application/geo+json` /
 `application/json` when the server's `OperationsMetadata`
 advertises it; if only GML is offered the canonical `query()` throws
@@ -266,7 +271,12 @@ decoding is intentionally out of scope. `applyEdits` builds a single
 `<wfs:Transaction>` POST body (`<wfs:Insert>` / `<wfs:Update>` /
 `<wfs:Delete>`) and surfaces the per-handle `InsertResults` IDs onto
 `EditOutcome.id`. `rollbackOnFailure` drives the transaction
-`releaseAction` (`ALL` vs `SOME`).
+`releaseAction` (`ALL` vs `SOME`). Updates whose `id` is `undefined` /
+`null` are filtered out before the transaction body is built and surface
+as per-item failures (`{ success: false, error: { code: 400,
+description: "update.id is required" } }`) so an unaddressed
+`<wfs:Update>` can never reach the server; if every operation in the
+envelope is absent or malformed the wire round-trip is skipped.
 Stored-query discovery (`ListStoredQueries`) and execution
 (`GetFeature?storedquery_id=...`) are reachable through
 `Source.protocol("wfs").storedQuery(id).execute({ parameters })`.
