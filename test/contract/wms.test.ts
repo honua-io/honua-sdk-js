@@ -8,10 +8,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset, type SourceDescriptor } from "../../src/contract/index.js";
+import { PROTOCOL_DEFAULT_CAPABILITIES, type SourceDescriptor, createDataset } from "../../src/contract/index.js";
 import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";
-import { HonuaWms, HonuaWmsLayer } from "../../src/core/wms.js";
 import { point } from "../../src/core/spatial-filter.js";
+import { HonuaWms, HonuaWmsLayer } from "../../src/core/wms.js";
 import { buildWmsRasterSourceSpec } from "../../src/runtime/source-bridge.js";
 
 import { jsonResponse, makeMockClient } from "./shared.js";
@@ -329,6 +329,34 @@ describe("wms / Source adapter", () => {
     expect(source.protocol("wms-layer")).toBeInstanceOf(HonuaWmsLayer);
   });
 
+  it("does not register the wms-layer adapter when locator.typeName is a multi-layer composite", () => {
+    // HonuaWmsLayer.describe() resolves a single <Layer> by name from
+    // the parsed Capabilities, so binding it to "a,b" would silently
+    // mis-route describe() / stylesIn() / legend(). Multi-layer queries
+    // still work through the service-level wms handle.
+    const client = makeMockClient({ routes: [] });
+    const dataset = createDataset({
+      id: "imagery",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "composite",
+          protocol: "wms",
+          locator: {
+            url: "https://mock.honua.test/rest/services/imagery/MapServer/WMS",
+            serviceId: "imagery",
+            typeName: "parcels,roads",
+          },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wms,
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const source = dataset.source("composite")!;
+    expect(source.protocol("wms")).toBeInstanceOf(HonuaWms);
+    expect(source.protocol("wms-layer")).toBeUndefined();
+  });
+
   it("translates a point spatialFilter into a 1x1 GetFeatureInfo and decodes the JSON response", async () => {
     let observed: URLSearchParams | undefined;
     const client = makeMockClient({
@@ -410,10 +438,9 @@ describe("wms / Source adapter", () => {
       ],
     });
     const source = dataset.source("parcels")!;
-    // EPSG:4326 lat/lon point. outSr is the output SR (3857 here)
-    // and must not be mistaken for the input CRS.
+    // EPSG:4326 lat/lon point. The wire CRS comes from the geometry's
+    // spatialReference, not from Query.outSr.
     await source.query({
-      outSr: 3857,
       spatialFilter: point(38, -122, { wkid: 4326 }),
     });
     expect(observed?.get("CRS")).toBe("EPSG:4326");
@@ -552,6 +579,11 @@ describe("wms / Source adapter", () => {
       /pagination\.offset/,
     );
     await expect(source.query({ spatialFilter: filter, returnGeometry: false })).rejects.toThrow(/returnGeometry/);
+    // Query.outSr must fail fast — honua-server's WMS GetFeatureInfo
+    // projects the response in the request CRS itself and has no
+    // separate output-SR knob. Silently dropping outSr would let a
+    // mixed-source caller think they got reprojected results.
+    await expect(source.query({ spatialFilter: filter, outSr: 3857 })).rejects.toThrow(/Query\.outSr/);
   });
 });
 

@@ -9,7 +9,7 @@
  */
 
 import type { HonuaClient } from "../core/client.js";
-import { HonuaWms, HonuaWmsLayer } from "../core/wms.js";
+import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsTileset } from "../core/wmts.js";
 import type { HonuaWmsSourceSpecification, HonuaWmtsSourceSpecification } from "./specification.js";
 
@@ -42,9 +42,12 @@ export function parseWmsServiceIdFromUrl(url: string): string | undefined {
 
 /**
  * Resolve a `honua-wms` source spec to a runtime handle. Returns the
- * layer-bound `HonuaWmsLayer` when the spec pins a single LAYER (and
- * optional STYLE); otherwise returns the service-level `HonuaWms`
- * handle for multi-layer composites.
+ * layer-bound `HonuaWmsLayer` only when `spec.layers` parses to exactly
+ * one non-empty layer token, because `HonuaWmsLayer` is a single-layer
+ * handle (its `describe()` resolves one `<Layer>` from the parsed
+ * Capabilities). Multi-layer composites (`LAYERS=a,b`) and
+ * empty / missing values stay on the service-level `HonuaWms` handle so
+ * `map()` / `featureInfo()` can still target the composite.
  */
 export function resolveWmsSpec(client: HonuaClient, spec: HonuaWmsSourceSpecification): HonuaWms | HonuaWmsLayer {
   const serviceId = spec.serviceId ?? parseWmsServiceIdFromUrl(spec.url);
@@ -52,11 +55,12 @@ export function resolveWmsSpec(client: HonuaClient, spec: HonuaWmsSourceSpecific
     throw new Error("honua-wms source requires either serviceId or a URL containing the service id");
   }
   const root = new HonuaWms({ client, serviceId });
-  if (typeof spec.layers === "string" && spec.layers.length > 0) {
+  const parsedLayers = parseWmsLayerNames(spec.layers);
+  if (parsedLayers.length === 1) {
     const opts: { client: HonuaClient; serviceId: string; layerName: string; defaultStyleId?: string } = {
       client,
       serviceId,
-      layerName: spec.layers,
+      layerName: parsedLayers[0]!,
     };
     if (typeof spec.styles === "string" && spec.styles.length > 0) {
       opts.defaultStyleId = spec.styles;

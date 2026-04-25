@@ -309,8 +309,19 @@ integration ships through the runtime helpers
 `buildWmsRasterSourceSpec(descriptor)` /
 `buildWmtsRasterSourceSpec(descriptor)` from `@honua/sdk-js/runtime` —
 they emit a `raster` source spec without forcing callers to hand-assemble
-a `GetMap` URL or RESTful tile template. See
-[`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md)
+a `GetMap` URL or RESTful tile template. The style-spec resolver
+`createSources(client, style)` (from `@honua/sdk-js`) and
+`HonuaMap.getSource(name)` both produce the same `HonuaWms` /
+`HonuaWmsLayer` / `HonuaWmts` / `HonuaWmtsTileset` handles when a
+style declares a `honua-wms` / `honua-wmts` source type — the shared
+`src/style/wms-wmts-resolvers.ts` module owns the URL parsing and
+layer / tileset selection rules so the two surfaces never diverge.
+The WMS `LAYERS=` / `locator.typeName` / `spec.layers` value is
+parsed through the canonical `parseWmsLayerNames` helper (in
+`src/core/wms.ts`); the layer-bound `HonuaWmsLayer` handle is only
+returned for a single non-empty token, while multi-layer composites
+(`"a,b"`) stay on the service-level `HonuaWms` handle.
+See [`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md)
 for axis-order, dimension, legend, and TileMatrixSet notes.
 
 OGC conformance class identifiers are intentionally kept *internal*.

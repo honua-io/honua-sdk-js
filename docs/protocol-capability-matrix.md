@@ -264,10 +264,25 @@ Other canonical `Query` fields that GetFeatureInfo cannot honor are
 rejected up front rather than silently dropped: `query({ aggregation })`
 throws `HonuaCapabilityNotSupportedError("queryAggregate", ...)`, and
 `Query.where` / `Query.outFields` / `Query.orderBy` /
-`Query.pagination.offset` / `Query.returnGeometry === false` throw
-typed `Error` messages so a mixed-source caller cannot get an
-unfiltered or differently-shaped result. `Query.pagination.limit` is
-honored — it maps to `FEATURE_COUNT` on the wire.
+`Query.pagination.offset` / `Query.returnGeometry === false` /
+`Query.outSr` throw typed `Error` messages so a mixed-source caller
+cannot get an unfiltered, reprojected, or differently-shaped result.
+`Query.outSr` fails fast because honua-server's WMS GetFeatureInfo
+projects the response in the request CRS itself and exposes no
+separate output-SR knob — callers that need a specific projection
+must stamp the spatial filter geometry's `spatialReference` with the
+desired CRS (the wire CRS is derived from there) or reproject the
+result client-side. `Query.pagination.limit` is honored — it maps to
+`FEATURE_COUNT` on the wire.
+
+`Source.protocol("wms-layer")` is registered only when
+`locator.typeName` parses to a single non-empty layer token because
+`HonuaWmsLayer` is a single-layer handle (its `describe()` resolves
+exactly one `<Layer>` from the parsed Capabilities). Multi-layer
+composites (`typeName: "a,b"`) keep `Source.protocol("wms-layer")`
+unset and route through the service-level `Source.protocol("wms")`
+handle, which can target the composite verbatim via
+`featureInfo()` / `map()`.
 
 Styled-map selection enumerates per-layer styles from
 `HonuaWms.capabilities()` and is bound on the layer handle (`layer.map`,
@@ -308,6 +323,13 @@ sets without a client refactor. Protocol escape hatches:
 `fetchWmtsTile` defaults to the RESTful route (`{layer}/{style}/{tms}/{z}/{y}/{x}.{ext}`)
 because it is a single string substitution per tile and skips
 `URLSearchParams`; `mode: "kvp"` is opt-in for KVP-only proxies.
+The `Format` MIME → RESTful `.ext` mapping is canonical and shared
+between the wire client and the MapLibre helper via
+`wmtsExtensionForFormat` (`src/core/wms-types.ts`): `image/png` →
+`png`, `image/jpeg` / `image/jpg` → `jpeg`, `image/webp` → `webp`;
+unknown formats fall back to `png`. The same caller-supplied `format`
+therefore lands on the same path extension whether the URL is composed
+by `fetchWmtsTile` or `buildWmtsRasterSourceSpec`.
 `request.extraParams` is honored on both routing modes — under
 `mode: "kvp"` keys are merged into the query string verbatim; under
 the default RESTful route the path-encoded WMTS keys (`LAYER`,

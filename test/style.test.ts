@@ -1,15 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { HonuaOgcFeatureCollection } from "../src/core/surfaces.js";
 import {
-  isHonuaSource,
-  isFeatureServiceSource,
-  isMapServiceSource,
-  isOgcFeaturesSource,
-  parseFeatureLayerUrl,
-  parseMapServiceUrl,
-  parseOgcFeaturesUrl,
-  validateHonuaStyle,
-  createSources,
   HonuaClient,
   HonuaFeatureLayer,
   HonuaMapService,
@@ -17,8 +9,16 @@ import {
   HonuaWmsLayer,
   HonuaWmts,
   HonuaWmtsTileset,
+  createSources,
+  isFeatureServiceSource,
+  isHonuaSource,
+  isMapServiceSource,
+  isOgcFeaturesSource,
+  parseFeatureLayerUrl,
+  parseMapServiceUrl,
+  parseOgcFeaturesUrl,
+  validateHonuaStyle,
 } from "../src/index.js";
-import { HonuaOgcFeatureCollection } from "../src/core/surfaces.js";
 import type { HonuaStyleSpecification } from "../src/index.js";
 
 describe("Type guards", () => {
@@ -315,6 +315,49 @@ describe("createSources", () => {
     expect((handle as HonuaWmsLayer).serviceId).toBe("imagery");
     expect((handle as HonuaWmsLayer).layerName).toBe("parcels");
     expect((handle as HonuaWmsLayer).defaultStyleId).toBe("default");
+  });
+
+  it("trims whitespace around a single LAYER token before binding HonuaWmsLayer", () => {
+    const style: HonuaStyleSpecification = {
+      version: 8,
+      sources: {
+        parcels: {
+          type: "honua-wms",
+          url: "https://gis.example.com/rest/services/imagery/MapServer/WMS",
+          layers: "  parcels  ",
+        },
+      },
+      layers: [],
+    };
+    const sources = createSources(client, style);
+    const handle = sources.get("parcels");
+    expect(handle).toBeInstanceOf(HonuaWmsLayer);
+    expect((handle as HonuaWmsLayer).layerName).toBe("parcels");
+  });
+
+  it("returns service-level HonuaWms for multi-layer LAYERS=a,b composites", () => {
+    // HonuaWmsLayer is a single-layer handle (its describe() resolves
+    // exactly one <Layer>); registering it for a comma-separated
+    // composite would silently mis-route describe() / stylesIn() /
+    // legend() to a layer name that does not exist on the wire. The
+    // service-level handle keeps map() / featureInfo() targeting the
+    // composite verbatim.
+    const style: HonuaStyleSpecification = {
+      version: 8,
+      sources: {
+        composite: {
+          type: "honua-wms",
+          url: "https://gis.example.com/rest/services/imagery/MapServer/WMS",
+          layers: "parcels, roads",
+        },
+      },
+      layers: [],
+    };
+    const sources = createSources(client, style);
+    const handle = sources.get("composite");
+    expect(handle).toBeInstanceOf(HonuaWms);
+    expect(handle).not.toBeInstanceOf(HonuaWmsLayer);
+    expect((handle as HonuaWms).serviceId).toBe("imagery");
   });
 
   it("creates HonuaWmts (service-level) for honua-wmts sources without a layer", () => {

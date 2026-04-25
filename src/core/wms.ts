@@ -28,6 +28,20 @@ export interface HonuaWmsOptions {
   serviceId: string;
 }
 
+/**
+ * Split a WMS `LAYERS=` value (or `locator.typeName` / `spec.layers` of
+ * the same shape) into the list of non-empty trimmed layer tokens. Used
+ * by the contract WMS adapter and shared style resolver so the
+ * single-layer handle rule stays in one place.
+ */
+export function parseWmsLayerNames(value: string | undefined): readonly string[] {
+  if (typeof value !== "string" || value.length === 0) return [];
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
 export interface HonuaWmsLayerOptions extends HonuaWmsOptions {
   /** WMS LAYER name (single layer; multi-layer renders use the parent handle). */
   layerName: string;

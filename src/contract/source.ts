@@ -13,17 +13,15 @@
 
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
-import { HonuaOgcMaps, HonuaOgcCollectionMap } from "../core/ogc-maps.js";
+import { HonuaOgcCollectionMap, HonuaOgcMaps } from "../core/ogc-maps.js";
 import type { HonuaOgcProcesses } from "../core/ogc-processes.js";
 import { HonuaOgcTiles, HonuaOgcTileset } from "../core/ogc-tiles.js";
 import { HonuaStacSearch } from "../core/stac.js";
-import { HonuaWms, HonuaWmsLayer } from "../core/wms.js";
-import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import {
   HonuaFeatureLayer,
-  HonuaImageService,
   HonuaGeometryService,
   HonuaGeoprocessingService,
+  HonuaImageService,
   HonuaMapLayer,
   HonuaMapService,
   HonuaOgcFeatureCollection,
@@ -40,9 +38,9 @@ import type {
   HonuaTypedQueryResponse,
   StacSearchRequest,
 } from "../core/types.js";
+import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
+import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import {
-  CAPABILITIES,
-  PROTOCOL_DEFAULT_CAPABILITIES,
   type AdapterFor,
   type AdapterKind,
   type AggregationFn,
@@ -56,6 +54,7 @@ import {
   type AttachmentInfo,
   type AttachmentQuery,
   type AttachmentUpdate,
+  CAPABILITIES,
   type Capability,
   type CapabilityPolicy,
   type CreateDatasetOptions,
@@ -65,6 +64,7 @@ import {
   type EditOutcome,
   type EditResult,
   type FeatureId,
+  PROTOCOL_DEFAULT_CAPABILITIES,
   type Protocol,
   type Query,
   type RelatedGroup,
@@ -764,11 +764,18 @@ export function wmsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
   const styleId = descriptor.locator.styleId;
   const root = new HonuaWms({ client, serviceId });
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = { wms: root };
-  if (typeof layerName === "string" && layerName.length > 0) {
+  // `HonuaWmsLayer` is a single-layer handle (its `describe()` resolves
+  // exactly one `<Layer>` from the parsed Capabilities). Multi-layer
+  // composites (`LAYERS=a,b`) must stay on the service-level `wms`
+  // handle and use `featureInfo()` directly; registering them as a
+  // `wms-layer` would silently mis-route `describe()` / `stylesIn()` /
+  // `legend()` to a single layer name that does not exist on the wire.
+  const parsedLayers = parseWmsLayerNames(layerName);
+  if (parsedLayers.length === 1) {
     const layerOpts: { client: HonuaClient; serviceId: string; layerName: string; defaultStyleId?: string } = {
       client,
       serviceId,
-      layerName,
+      layerName: parsedLayers[0]!,
     };
     if (typeof styleId === "string") layerOpts.defaultStyleId = styleId;
     adapterRegistry["wms-layer"] = new HonuaWmsLayer(layerOpts);
@@ -1217,26 +1224,26 @@ function requireWmtsLocator(descriptor: SourceDescriptor): { serviceId: string }
 }
 
 function wmsRequireLayers(descriptor: SourceDescriptor, locatorTypeName: string | undefined): readonly string[] {
-  if (typeof locatorTypeName !== "string" || locatorTypeName.length === 0) {
+  const parsed = parseWmsLayerNames(locatorTypeName);
+  if (parsed.length === 0) {
     throw new Error(
       `createDataset: source "${descriptor.id}" (wms) requires locator.typeName (the WMS LAYER name) for canonical query()`,
     );
   }
-  return locatorTypeName
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  return parsed;
 }
 
 /**
  * Reject canonical `Query` fields that WMS GetFeatureInfo cannot honor so a
- * mixed-source caller does not silently receive an unfiltered or
- * differently-shaped result. WMS GetFeatureInfo only consumes the (i, j)
- * pixel pair plus the rendered envelope; there is no SQL/CQL filter, no
- * field projection, no order, no offset paging, and no geometry toggle on
- * the wire. `aggregation` is mapped to `queryAggregate` so the error
- * carries the same capability vocabulary as the rest of the contract.
- * `pagination.limit` is honored (it maps to `FEATURE_COUNT`).
+ * mixed-source caller does not silently receive an unfiltered, reprojected,
+ * or differently-shaped result. WMS GetFeatureInfo only consumes the
+ * (i, j) pixel pair plus the rendered envelope; there is no SQL/CQL filter,
+ * no field projection, no order, no offset paging, no geometry toggle, and
+ * no separate output-SR knob on the wire — honua-server projects the
+ * response in the request CRS itself. `aggregation` is mapped to
+ * `queryAggregate` so the error carries the same capability vocabulary as
+ * the rest of the contract. `pagination.limit` is honored (it maps to
+ * `FEATURE_COUNT`).
  */
 function requireWmsCompatibleQuery<T>(descriptor: SourceDescriptor, request: Query<T> | undefined): void {
   if (!request) return;
@@ -1266,6 +1273,11 @@ function requireWmsCompatibleQuery<T>(descriptor: SourceDescriptor, request: Que
   if (request.returnGeometry === false) {
     throw new Error(
       `wms: Query.returnGeometry=false is not supported on GetFeatureInfo for source "${descriptor.id}"; the server controls geometry inclusion via INFO_FORMAT and the layer template. Drop returnGeometry or strip geometry client-side.`,
+    );
+  }
+  if (request.outSr !== undefined) {
+    throw new Error(
+      `wms: Query.outSr is not supported on GetFeatureInfo for source "${descriptor.id}"; honua-server projects the response in the request CRS and has no separate output-SR knob. Stamp the spatial filter geometry's spatialReference with the desired CRS instead, or reproject the result client-side.`,
     );
   }
 }
