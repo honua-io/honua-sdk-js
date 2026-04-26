@@ -393,6 +393,57 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
   );
 
   it(
+    "tolerant policy: a predeclared inline mapSpec.sources entry is dropped when its binding fails",
+    { timeout: 30_000 },
+    async () => {
+      // Regression: previously the loader pre-populated styleSources from
+      // mapSpec.sources and only filtered failed-source LAYERS — so an
+      // inline `mapSpec.sources["foo"]` colliding with a failing binding
+      // for the same id stayed in composedStyle.sources, contradicting
+      // the documented tolerant contract. The fix deletes the predeclared
+      // entry from styleSources when the binding fails tolerantly.
+      const map = makeMockMap();
+      const { fetchFn } = makeMockFetch();
+      const client = new HonuaClient({ baseUrl: "https://mock.honua.test", fetchFn });
+      const events: HonuaRuntimeEvent[] = [];
+
+      // OGC binding URL omits `/collections/<id>`, so the resolver throws
+      // at materialization — the same trigger used by the existing
+      // tolerant-policy test, but now with a colliding inline source.
+      const pkg = makeMixedPackage({ ogcLocatorUrl: "https://mock.honua.test/ogc/features" });
+      const pkgWithInline: HonuaMapPackage = {
+        ...pkg,
+        mapSpec: {
+          ...pkg.mapSpec,
+          sources: {
+            ...pkg.mapSpec.sources,
+            // Predeclared inline source colliding with the failing binding.
+            "ogc-overlay": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+          },
+        },
+      };
+
+      const runtime = await loadMapPackage(pkgWithInline, map, {
+        client,
+        skipCompatibilityCheck: true,
+        applyInitialView: false,
+        onEvent: (event) => events.push(event),
+      });
+
+      // The predeclared inline `ogc-overlay` source must be dropped along
+      // with the binding-derived spec.
+      expect(runtime.composedStyle.sources).not.toHaveProperty("ogc-overlay");
+      const layerIds = runtime.composedStyle.layers.map((l) => l.id).sort();
+      expect(layerIds).not.toContain("ogc-circle");
+
+      // Exactly one source-error for the failed binding.
+      const sourceErrors = events.filter((e) => e.type === "source-error");
+      expect(sourceErrors).toHaveLength(1);
+      expect((sourceErrors[0] as { sourceId: string }).sourceId).toBe("ogc-overlay");
+    },
+  );
+
+  it(
     "tolerant reload: failure / recovery between updatePackage calls forces structural setStyle",
     { timeout: 30_000 },
     async () => {

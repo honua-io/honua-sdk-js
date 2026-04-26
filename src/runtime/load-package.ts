@@ -165,6 +165,12 @@ export async function loadMapPackage(
       }
       failedSourceIds.add(descriptor.id);
       failedSources.push({ sourceId: descriptor.id, error: cause });
+      // The tolerant contract is "failed sources are dropped from
+      // composedStyle.sources". Inline `mapSpec.sources` entries that
+      // collide with a failing binding id must go too — otherwise the
+      // composed style still advertises the failed source through the
+      // predeclared spec, which contradicts the documented behaviour.
+      delete styleSources[descriptor.id];
     };
 
     for (const descriptor of projection.descriptors) {
