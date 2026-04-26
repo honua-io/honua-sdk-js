@@ -59,6 +59,8 @@ export {
   PROTOCOL_DEFAULT_CAPABILITIES,
   PROTOCOLS,
   capabilities,
+  intersectCapabilities,
+  unionCapabilities,
 } from "./types.js";
 
 export {

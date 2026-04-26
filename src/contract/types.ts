@@ -145,6 +145,56 @@ export function capabilities(values: readonly Capability[]): Capabilities {
 }
 
 /**
+ * Compute the **weakest** (intersected) capability set across one or
+ * more participating sources / descriptors. This is the canonical helper
+ * for cross-protocol capability negotiation in a mixed-source
+ * composition (`#22`): a composition supports a capability only when
+ * **every** participating source supports it.
+ *
+ * Promising a capability the weakest source lacks is the worst possible
+ * mixed-source failure mode (silent wrong result), so consumers should
+ * always intersect before fanning a query out to a heterogeneous set.
+ *
+ * Accepts anything with a `capabilities` field (live `Source` instances
+ * or plain `SourceDescriptor`s). Empty input returns an empty set.
+ *
+ * For per-operation reasoning across a heterogeneous mix, partition
+ * sources first (e.g., feature sources only) and intersect on the
+ * partition; intersecting a render-only source with a feature source
+ * yields the empty set, which is honest but rarely actionable on its
+ * own.
+ */
+export function intersectCapabilities(
+  participants: ReadonlyArray<{ readonly capabilities: Capabilities }>,
+): Capabilities {
+  if (participants.length === 0) return new Set();
+  const [first, ...rest] = participants;
+  const out = new Set<Capability>(first.capabilities);
+  for (const next of rest) {
+    for (const cap of out) {
+      if (!next.capabilities.has(cap)) out.delete(cap);
+    }
+    if (out.size === 0) return out;
+  }
+  return out;
+}
+
+/**
+ * Companion of {@link intersectCapabilities}: the union (best-case)
+ * capability set across participants. Useful for documenting what
+ * capability fan-out under `degraded` policy could reach if every
+ * source were queried independently — never use this to gate a single
+ * fan-out call (that needs the intersection).
+ */
+export function unionCapabilities(participants: ReadonlyArray<{ readonly capabilities: Capabilities }>): Capabilities {
+  const out = new Set<Capability>();
+  for (const participant of participants) {
+    for (const cap of participant.capabilities) out.add(cap);
+  }
+  return out;
+}
+
+/**
  * Default capability sets keyed by protocol. Callers that need a narrower
  * surface for a specific source must intersect the default set themselves
  * and pass the result on `SourceDescriptor.capabilities`; the built-in
@@ -329,6 +379,11 @@ export interface Query<_T = Record<string, unknown>> {
  * Reasons that a `Source` may have fulfilled a `Query` with a degraded
  * strategy. Surfaced in `Result.degraded`. Downstream views should check
  * this field before reporting numbers as authoritative.
+ *
+ * `sourceId` is populated by mixed-source consumers (`#22`) so a fan-out
+ * across multiple sources can attribute each degradation back to the
+ * exact source that triggered it without parsing the human-readable
+ * `reason`.
  */
 export interface DegradedReason {
   /** The capability that was missing or partially supported. */
@@ -337,6 +392,12 @@ export interface DegradedReason {
   reason: string;
   /** Which protocol the degradation was relative to. */
   protocol?: Protocol;
+  /**
+   * Optional id of the source that emitted this degradation. Set by the
+   * adapter when the degradation can be attributed to a specific source
+   * (the common case once mixed-source compositions are in play).
+   */
+  sourceId?: SourceId;
 }
 
 /**

@@ -13,16 +13,11 @@ import type { Dataset } from "../contract/index.js";
 import type { FeatureStateMap, MapEventTarget } from "../interactions/feature-state.js";
 import type { HonuaMap } from "../map/honua-map.js";
 import type { HonuaStyleSpecification } from "../style/specification.js";
-import { diffPackages, type MapPackageDiff } from "./diff.js";
+import { type MapPackageDiff, diffPackages } from "./diff.js";
 import { HonuaMapPackageError } from "./errors.js";
-import { buildLegend, type LegendEntry } from "./legend.js";
+import { type LegendEntry, buildLegend } from "./legend.js";
 import type { HonuaMapPackage, HonuaMapPackageInitialView, HonuaMapPackagePopupBinding } from "./map-package.js";
-import {
-  bindPopup,
-  type PopupBindingHandle,
-  type PopupFactory,
-  type PopupRenderer,
-} from "./popups.js";
+import { type PopupBindingHandle, type PopupFactory, type PopupRenderer, bindPopup } from "./popups.js";
 
 /**
  * Minimal subset of `maplibre-gl.Map` required by the runtime. Mirrors
@@ -43,7 +38,10 @@ export interface MaplibreMap extends FeatureStateMap, MapEventTarget {
   setFilter?(layerId: string, filter: unknown): void;
   getSource?(id: string): unknown;
 
-  fitBounds?(bounds: [[number, number], [number, number]] | [number, number, number, number], options?: Record<string, unknown>): void;
+  fitBounds?(
+    bounds: [[number, number], [number, number]] | [number, number, number, number],
+    options?: Record<string, unknown>,
+  ): void;
   jumpTo?(options: { center?: [number, number]; zoom?: number; bearing?: number; pitch?: number }): void;
   easeTo?(options: Record<string, unknown>): void;
   flyTo?(options: Record<string, unknown>): void;
@@ -90,11 +88,17 @@ export type HonuaRuntimeEventListener = (event: HonuaRuntimeEvent) => void;
  * this to replace the runtime's dataset / honuaMap on structural
  * refresh, so `runtime.dataset` and `runtime.honuaMap` observe changes
  * to `sourceBindings[]` instead of going stale.
+ *
+ * `failedSources` carries any per-source binding failures the loader
+ * absorbed under `"tolerant"` mode so the runtime can re-emit them as
+ * `source-error` events after the new style takes effect, mirroring
+ * the lifecycle ordering used at first load.
  */
 export interface HonuaMapRuntimeReload {
   composed: HonuaStyleSpecification;
   dataset: Dataset;
   honuaMap: HonuaMap;
+  failedSources?: ReadonlyArray<{ sourceId: string; error: unknown }>;
 }
 
 /** Options passed to the `HonuaMapRuntime` constructor; the loader fills these in. */
@@ -201,15 +205,15 @@ export class HonuaMapRuntime {
   public bindPopup(layerId: string, binding?: HonuaMapPackagePopupBinding): { remove(): void } {
     this.#assertLive();
     if (!this.#popupFactory) {
-      throw new HonuaMapPackageError(
-        "bindPopup requires opts.popupFactory to be set on loadMapPackage",
-        { packageId: this.#packageRef.current.mapPackageId, stage: "popup", detail: { layerId } },
-      );
+      throw new HonuaMapPackageError("bindPopup requires opts.popupFactory to be set on loadMapPackage", {
+        packageId: this.#packageRef.current.mapPackageId,
+        stage: "popup",
+        detail: { layerId },
+      });
     }
     const sourceId = layerIdToSource(this.#composedStyle, layerId);
     const resolvedFromPackage = binding === undefined;
-    const resolved =
-      binding ?? popupBindingForSource(this.#packageRef.current, sourceId);
+    const resolved = binding ?? popupBindingForSource(this.#packageRef.current, sourceId);
     if (!resolved) {
       throw new HonuaMapPackageError(
         `no popupBinding found for layer "${layerId}"; supply a binding argument or add one to MapPackage.popupBindings`,
@@ -285,15 +289,20 @@ export class HonuaMapRuntime {
       if (next.format !== this.#packageRef.current.format) {
         throw new HonuaMapPackageError(
           `updatePackage: format "${next.format}" is incompatible with "${this.#packageRef.current.format}"`,
-          { packageId: next.mapPackageId, stage: "update", detail: { expected: this.#packageRef.current.format, received: next.format } },
+          {
+            packageId: next.mapPackageId,
+            stage: "update",
+            detail: { expected: this.#packageRef.current.format, received: next.format },
+          },
         );
       }
 
       let diff = diffPackages(this.#packageRef.current, next);
 
       const reload = await this.#reload(next);
-      const composedStructuralReason =
-        diff.incremental ? detectUnpatchableLayerChange(this.#composedStyle, reload.composed) : undefined;
+      const composedStructuralReason = diff.incremental
+        ? detectUnpatchableLayerChange(this.#composedStyle, reload.composed)
+        : undefined;
       if (composedStructuralReason) {
         diff = {
           ...diff,
@@ -317,6 +326,7 @@ export class HonuaMapRuntime {
         this.#composedStyle = reload.composed;
         this.#reapPopupBindings(reload.composed, next);
         this.#emit({ type: "package-updated", packageId: next.mapPackageId, diff });
+        this.#emitReloadFailures(reload.failedSources);
         this.#finishSpan(span);
         return;
       }
@@ -326,6 +336,7 @@ export class HonuaMapRuntime {
       this.#composedStyle = reload.composed;
       this.#reapPopupBindings(reload.composed, next);
       this.#emit({ type: "package-updated", packageId: next.mapPackageId, diff });
+      this.#emitReloadFailures(reload.failedSources);
       this.#finishSpan(span);
     } catch (error) {
       this.#finishSpan(span, error);
@@ -350,6 +361,37 @@ export class HonuaMapRuntime {
   /** @internal used by the loader to emit `package-loaded`. */
   public _emit(event: HonuaRuntimeEvent): void {
     this.#emit(event);
+  }
+
+  /**
+   * Surface a per-source failure detected outside the loader path —
+   * typically a query / stream rejection in a mixed-source fan-out
+   * (the canonical consumer is `#29`'s operator components). Emits the
+   * existing `source-error` runtime event so listeners do not have to
+   * subscribe to a parallel error channel and pipes the failure
+   * through {@link HonuaRuntimeTelemetry.error} as a `source-bind`
+   * span if the consumer wired one up.
+   *
+   * Idempotent and side-effect-free outside listener / telemetry
+   * fan-out: the runtime does not retry, suppress, or reshape the
+   * underlying source. Disposed runtimes silently no-op so a late
+   * rejection from a stream never throws inside an event handler.
+   */
+  public reportSourceError(sourceId: string, error: unknown): void {
+    if (this.#disposed) return;
+    if (this.#telemetry?.error) {
+      const startedAt = Date.now();
+      this.#telemetry.error({
+        kind: "source-bind",
+        packageId: this.#packageRef.current.mapPackageId,
+        startedAt,
+        finishedAt: startedAt,
+        durationMs: 0,
+        detail: { sourceId },
+        error,
+      });
+    }
+    this.#emit({ type: "source-error", sourceId, error });
   }
 
   public dispose(): void {
@@ -407,7 +449,11 @@ export class HonuaMapRuntime {
     }
   }
 
-  #patchLayer(layerId: string, prev: Readonly<{ paint?: Record<string, unknown>; layout?: Record<string, unknown>; filter?: unknown }>, next: Readonly<{ paint?: Record<string, unknown>; layout?: Record<string, unknown>; filter?: unknown }>): void {
+  #patchLayer(
+    layerId: string,
+    prev: Readonly<{ paint?: Record<string, unknown>; layout?: Record<string, unknown>; filter?: unknown }>,
+    next: Readonly<{ paint?: Record<string, unknown>; layout?: Record<string, unknown>; filter?: unknown }>,
+  ): void {
     const prevPaint = prev.paint ?? {};
     const nextPaint = next.paint ?? {};
     if (this.map.setPaintProperty) {
@@ -442,8 +488,7 @@ export class HonuaMapRuntime {
     for (const [layerId, active] of Array.from(this.#popupBindings)) {
       const nextSourceId = layerIdToSource(composed, layerId);
       const packageBindingChanged =
-        active.resolvedFromPackage &&
-        !sameJson(active.binding, popupBindingForSource(pkg, nextSourceId));
+        active.resolvedFromPackage && !sameJson(active.binding, popupBindingForSource(pkg, nextSourceId));
       if (!nextSourceId || nextSourceId !== active.sourceId || packageBindingChanged) {
         active.handle.remove();
         this.#popupBindings.delete(layerId);
@@ -453,6 +498,13 @@ export class HonuaMapRuntime {
 
   #emit(event: HonuaRuntimeEvent): void {
     for (const listener of this.#listeners) listener(event);
+  }
+
+  #emitReloadFailures(failures: ReadonlyArray<{ sourceId: string; error: unknown }> | undefined): void {
+    if (!failures || failures.length === 0) return;
+    for (const failure of failures) {
+      this.#emit({ type: "source-error", sourceId: failure.sourceId, error: failure.error });
+    }
   }
 
   #assertLive(): void {
@@ -496,12 +548,45 @@ function layerIdToSource(style: HonuaStyleSpecification, layerId: string): strin
   return style.layers.find((l) => l.id === layerId)?.source;
 }
 
-function popupBindingForSource(pkg: HonuaMapPackage, sourceId: string | undefined): HonuaMapPackagePopupBinding | undefined {
+function popupBindingForSource(
+  pkg: HonuaMapPackage,
+  sourceId: string | undefined,
+): HonuaMapPackagePopupBinding | undefined {
   if (!sourceId) return undefined;
   return pkg.popupBindings?.find((binding) => binding.sourceId === sourceId);
 }
 
-function detectUnpatchableLayerChange(previous: HonuaStyleSpecification, next: HonuaStyleSpecification): string | undefined {
+function detectUnpatchableLayerChange(
+  previous: HonuaStyleSpecification,
+  next: HonuaStyleSpecification,
+): string | undefined {
+  // Tolerant source failure / recovery on reload can change the composed
+  // layer or source set without showing up in the raw package diff
+  // (which is computed from `mapSpec`, not the post-filter composed
+  // style). Force structural fallback whenever the composed shape
+  // differs so `#applyIncremental` does not leave stale MapLibre layers
+  // or sources behind.
+  const previousLayerIds = previous.layers.map((layer) => layer.id);
+  const nextLayerIds = next.layers.map((layer) => layer.id);
+  if (previousLayerIds.length !== nextLayerIds.length) {
+    return "composed layer set changed (tolerant source failure or recovery)";
+  }
+  for (let i = 0; i < previousLayerIds.length; i++) {
+    if (previousLayerIds[i] !== nextLayerIds[i]) {
+      return "composed layer set or order changed (tolerant source failure or recovery)";
+    }
+  }
+  const previousSourceIds = Object.keys(previous.sources).sort();
+  const nextSourceIds = Object.keys(next.sources).sort();
+  if (previousSourceIds.length !== nextSourceIds.length) {
+    return "composed source set changed (tolerant source failure or recovery)";
+  }
+  for (let i = 0; i < previousSourceIds.length; i++) {
+    if (previousSourceIds[i] !== nextSourceIds[i]) {
+      return "composed source set changed (tolerant source failure or recovery)";
+    }
+  }
+
   const previousLayers = new Map(previous.layers.map((layer) => [layer.id, layer]));
   for (const nextLayer of next.layers) {
     const previousLayer = previousLayers.get(nextLayer.id);
@@ -532,9 +617,7 @@ function shallowPaintLayoutEqual(
   b: Readonly<{ paint?: Record<string, unknown>; layout?: Record<string, unknown>; filter?: unknown }>,
 ): boolean {
   return (
-    sameJson(a.paint ?? {}, b.paint ?? {}) &&
-    sameJson(a.layout ?? {}, b.layout ?? {}) &&
-    sameJson(a.filter, b.filter)
+    sameJson(a.paint ?? {}, b.paint ?? {}) && sameJson(a.layout ?? {}, b.layout ?? {}) && sameJson(a.filter, b.filter)
   );
 }
 

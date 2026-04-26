@@ -26,9 +26,13 @@ export type HonuaMapPackageErrorStage =
  * protocol failures keep their existing error classes
  * (`HonuaCapabilityNotSupportedError`, `HonuaHttpError`) and surface on
  * the per-`Source` promises from `runtime.dataset` and through the
- * shared `HonuaClient` interceptor chain. The `source-error` event is
- * declared on `HonuaRuntimeEvent` but is reserved for future `#22` /
- * `#29` wiring and is not emitted by the loader today.
+ * shared `HonuaClient` interceptor chain. The `source-error` event on
+ * `HonuaRuntimeEvent` is the canonical observable for per-source
+ * failures: the loader emits it for tolerant bind-time failures
+ * (`sourceErrorPolicy: "tolerant"`, the default) and
+ * `HonuaMapRuntime.reportSourceError` emits the same event for
+ * query-time rejections forwarded by mixed-source consumers — see
+ * `docs/composition.md`.
  */
 export class HonuaMapPackageError extends Error {
   public readonly packageId: string | undefined;

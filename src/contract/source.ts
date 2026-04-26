@@ -402,6 +402,7 @@ export function ogcFeaturesSource<T>(
           reason:
             "OGC API Features does not expose server-side aggregation; aggregating client-side over the returned page.",
           protocol: "ogc-features",
+          sourceId: descriptor.id,
         });
         return {
           features,
@@ -456,6 +457,7 @@ export function ogcFeaturesSource<T>(
             capability: "queryAggregate",
             reason: "OGC API Features aggregation evaluated client-side over the materialized result set.",
             protocol: "ogc-features",
+            sourceId: descriptor.id,
           },
         ],
       } satisfies Result<T>;
@@ -1928,6 +1930,7 @@ export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient
               protocol: descriptor.protocol,
               reason:
                 "rollbackOnFailure was requested but the OData service does not advertise $batch; edits ran per-call without atomicity.",
+              sourceId: descriptor.id,
             },
           ],
         } satisfies EditResult;

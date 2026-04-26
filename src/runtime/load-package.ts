@@ -8,12 +8,13 @@
  * @module
  */
 
-import { createDataset, type Dataset, type SourceResolver } from "../contract/index.js";
+import { type Dataset, type SourceDescriptor, type SourceResolver, createDataset } from "../contract/index.js";
 import type { HonuaClient } from "../core/client.js";
 import { HonuaMap } from "../map/honua-map.js";
-import type { HonuaStyleSpecification } from "../style/specification.js";
+import type { HonuaLayerSpecification, HonuaStyleSpecification } from "../style/specification.js";
 import { HonuaMapPackageError } from "./errors.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage } from "./map-package.js";
+import type { PopupFactory, PopupRenderer } from "./popups.js";
 import {
   HonuaMapRuntime,
   type HonuaMapRuntimeReload,
@@ -21,9 +22,32 @@ import {
   type HonuaRuntimeTelemetry,
   type MaplibreMap,
 } from "./runtime.js";
-import type { PopupFactory, PopupRenderer } from "./popups.js";
 import { projectSourceBindings, toHonuaSourceSpec } from "./source-bridge.js";
-import { composeStyle, type StyleRefResolver, type ThemeResolver } from "./style-compose.js";
+import { type StyleRefResolver, type ThemeResolver, composeStyle } from "./style-compose.js";
+
+/**
+ * How `loadMapPackage` reacts when a single protocol-backed source
+ * binding fails to project / build a Honua source spec. Defaults to
+ * `"tolerant"` because the entire point of mixed-protocol composition is
+ * that one bad source should not break the rest of the map.
+ *
+ * Per-source binding failures still surface loudly under `"tolerant"`:
+ *
+ *  - the runtime emits a `{ type: "source-error", sourceId, error }`
+ *    event,
+ *  - {@link HonuaRuntimeTelemetry.error} receives a `source-bind` span,
+ *  - layers whose `source` references a failed source are dropped from
+ *    the composed style so MapLibre does not throw on a missing source.
+ *
+ * `"fail-fast"` preserves the historical single-source behaviour: any
+ * per-source binding failure rejects the load with
+ * `HonuaMapPackageError({ stage: "source-bind" })`. Configuration-level
+ * binding errors (unknown protocol, missing locator, duplicate id,
+ * deferred `workspace_artifact`) raised by `projectSourceBindings`
+ * always fail-fast under either policy — those are operator errors that
+ * must be fixed.
+ */
+export type SourceErrorPolicy = "tolerant" | "fail-fast";
 
 export interface LoadMapPackageOptions {
   /** Active `HonuaClient`; used for protocol adapter binding. */
@@ -60,6 +84,16 @@ export interface LoadMapPackageOptions {
    * disposed, …) also flow through this listener.
    */
   onEvent?: HonuaRuntimeEventListener;
+  /**
+   * Per-source binding error policy. Defaults to `"tolerant"`: a single
+   * source failing to bind (resolver throws, `toHonuaSourceSpec` throws,
+   * `dataset.source(id)` throws) does not abort the whole package load.
+   * Failed sources surface via `source-error` events and the
+   * {@link HonuaRuntimeTelemetry.error} hook; remaining sources continue
+   * to render. Pass `"fail-fast"` to reject the load on any per-source
+   * binding failure (the historical single-source behaviour).
+   */
+  sourceErrorPolicy?: SourceErrorPolicy;
 }
 
 /**
@@ -68,10 +102,16 @@ export interface LoadMapPackageOptions {
  * `HonuaMapPackageError` on binding failure. Query-time adapter errors
  * (`HonuaHttpError`, `HonuaCapabilityNotSupportedError`, ...) continue
  * to flow through the returned `Source` promises on `runtime.dataset`
- * and through the shared `HonuaClient` interceptor chain; the
- * `source-error` event is declared on `HonuaRuntimeEvent` but is
- * reserved for future `#22` / `#29` wiring and is not emitted by the
- * loader today.
+ * and through the shared `HonuaClient` interceptor chain.
+ *
+ * Per-source binding tolerance is governed by
+ * {@link LoadMapPackageOptions.sourceErrorPolicy} — the default
+ * `"tolerant"` policy lets a heterogeneous (mixed-protocol) composition
+ * keep rendering when one source fails by skipping the failing source
+ * (and any layers that reference it) and emitting a `source-error`
+ * runtime event plus a `source-bind` telemetry error span. Pass
+ * `"fail-fast"` to restore the historical reject-on-any-binding-failure
+ * behaviour.
  */
 export async function loadMapPackage(
   pkg: HonuaMapPackage,
@@ -87,7 +127,16 @@ export async function loadMapPackage(
     startedAt,
   });
 
-  const compose = async (target: HonuaMapPackage): Promise<{ composed: HonuaStyleSpecification; dataset: Dataset; honuaMap: HonuaMap }> => {
+  const sourceErrorPolicy: SourceErrorPolicy = options.sourceErrorPolicy ?? "tolerant";
+
+  const compose = async (
+    target: HonuaMapPackage,
+  ): Promise<{
+    composed: HonuaStyleSpecification;
+    dataset: Dataset;
+    honuaMap: HonuaMap;
+    failedSources: ReadonlyArray<{ sourceId: string; error: unknown }>;
+  }> => {
     const projection = projectSourceBindings(target.mapPackageId, target.sourceBindings);
 
     const dataset = createDataset({
@@ -101,20 +150,58 @@ export async function loadMapPackage(
     const honuaMap = new HonuaMap({ client: options.client });
 
     const styleSources: HonuaStyleSpecification["sources"] = { ...target.mapSpec.sources };
+    const failedSources: Array<{ sourceId: string; error: unknown }> = [];
+    const failedSourceIds = new Set<string>();
+
+    const recordSourceFailure = (descriptor: SourceDescriptor, cause: unknown): void => {
+      if (sourceErrorPolicy === "fail-fast") {
+        if (cause instanceof HonuaMapPackageError) throw cause;
+        throw new HonuaMapPackageError(`binding source "${descriptor.id}" failed`, {
+          packageId: target.mapPackageId,
+          stage: "source-bind",
+          detail: { sourceId: descriptor.id, protocol: descriptor.protocol },
+          cause,
+        });
+      }
+      failedSourceIds.add(descriptor.id);
+      failedSources.push({ sourceId: descriptor.id, error: cause });
+      // The tolerant contract is "failed sources are dropped from
+      // composedStyle.sources". Inline `mapSpec.sources` entries that
+      // collide with a failing binding id must go too — otherwise the
+      // composed style still advertises the failed source through the
+      // predeclared spec, which contradicts the documented behaviour.
+      delete styleSources[descriptor.id];
+    };
+
     for (const descriptor of projection.descriptors) {
-      const filter = projection.filtersBySourceId.get(descriptor.id);
-      const honuaSpec = toHonuaSourceSpec(descriptor, filter);
-      styleSources[descriptor.id] = honuaSpec;
-      honuaMap.addSource(descriptor.id, honuaSpec);
+      try {
+        const filter = projection.filtersBySourceId.get(descriptor.id);
+        const honuaSpec = toHonuaSourceSpec(descriptor, filter);
+        // Eagerly materialize so a `resolveSource` rejection (or missing
+        // built-in resolver) surfaces at bind time rather than the first
+        // query-time call. The built-in adapter constructors are
+        // side-effect free (no HTTP), so eager resolution is cheap.
+        dataset.source(descriptor.id);
+        // Commit to honuaMap before exposing the spec on styleSources so
+        // a thrown addSource cannot leave the failed source in
+        // composedStyle.sources after the catch records the failure.
+        honuaMap.addSource(descriptor.id, honuaSpec);
+        styleSources[descriptor.id] = honuaSpec;
+      } catch (cause) {
+        recordSourceFailure(descriptor, cause);
+      }
     }
     for (const native of projection.nativeSources) {
       styleSources[native.sourceId] = native.spec;
       honuaMap.addSource(native.sourceId, native.spec);
     }
 
+    const layers = filterLayersByAvailableSource(target.mapSpec.layers, failedSourceIds);
+
     const preComposed: HonuaStyleSpecification = {
       ...target.mapSpec,
       sources: styleSources,
+      layers,
     };
 
     for (const layer of preComposed.layers) {
@@ -125,11 +212,11 @@ export async function loadMapPackage(
       resolveStyleRef: options.resolveStyleRef,
       resolveTheme: options.resolveTheme,
     });
-    return { composed, dataset, honuaMap };
+    return { composed, dataset, honuaMap, failedSources };
   };
 
   try {
-    const { composed, dataset, honuaMap } = await compose(pkg);
+    const { composed, dataset, honuaMap, failedSources } = await compose(pkg);
 
     map.setStyle(composed);
 
@@ -145,7 +232,15 @@ export async function loadMapPackage(
       popupRenderer: options.popupRenderer,
       reload: async (next): Promise<HonuaMapRuntimeReload> => {
         const result = await compose(next);
-        return { composed: result.composed, dataset: result.dataset, honuaMap: result.honuaMap };
+        for (const failed of result.failedSources) {
+          emitSourceBindFailure(options.telemetry, next.mapPackageId, failed);
+        }
+        return {
+          composed: result.composed,
+          dataset: result.dataset,
+          honuaMap: result.honuaMap,
+          failedSources: result.failedSources,
+        };
       },
     });
 
@@ -174,8 +269,14 @@ export async function loadMapPackage(
       }
     }
 
+    const failedIds = new Set(failedSources.map((entry) => entry.sourceId));
     for (const sourceId of dataset.sourceIds()) {
+      if (failedIds.has(sourceId)) continue;
       runtime._emit({ type: "source-ready", sourceId });
+    }
+    for (const failed of failedSources) {
+      emitSourceBindFailure(options.telemetry, pkg.mapPackageId, failed);
+      runtime._emit({ type: "source-error", sourceId: failed.sourceId, error: failed.error });
     }
     runtime._emit({ type: "package-loaded", packageId: pkg.mapPackageId });
 
@@ -206,6 +307,36 @@ export async function loadMapPackage(
       cause: error,
     });
   }
+}
+
+function filterLayersByAvailableSource(
+  layers: ReadonlyArray<HonuaLayerSpecification>,
+  failedSourceIds: ReadonlySet<string>,
+): HonuaLayerSpecification[] {
+  if (failedSourceIds.size === 0) return [...layers];
+  return layers.filter((layer) => {
+    const sourceId = typeof layer.source === "string" ? layer.source : undefined;
+    if (sourceId === undefined) return true;
+    return !failedSourceIds.has(sourceId);
+  });
+}
+
+function emitSourceBindFailure(
+  telemetry: HonuaRuntimeTelemetry | undefined,
+  packageId: string | undefined,
+  failed: { sourceId: string; error: unknown },
+): void {
+  if (!telemetry?.error) return;
+  const startedAt = Date.now();
+  telemetry.error({
+    kind: "source-bind",
+    packageId,
+    startedAt,
+    finishedAt: startedAt,
+    durationMs: 0,
+    detail: { sourceId: failed.sourceId },
+    error: failed.error,
+  });
 }
 
 function assertPackageFormat(pkg: HonuaMapPackage): void {

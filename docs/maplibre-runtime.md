@@ -55,8 +55,8 @@ runtime.dispose();
 
 | Export | Shape | Notes |
 | --- | --- | --- |
-| `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | The only async entry point. Throws `HonuaMapPackageError` for binding failures. Query-time adapter failures surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient` interceptor chain; the `source-error` event is declared but reserved (see Events). |
-| `HonuaMapRuntime` | class | `map`, `honuaMap`, `dataset`, `mapPackage`, `composedStyle`, `getLegend`, `setLayerVisibility`, `bindPopup`, `setViewState`, `updatePackage`, `on`, `dispose`. |
+| `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | The only async entry point. Throws `HonuaMapPackageError` for binding failures under `sourceErrorPolicy: "fail-fast"`; under the default `"tolerant"` policy a single per-source binding failure does not abort the load — see *Tolerant binding* below. Query-time adapter failures surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient` interceptor chain; consumers can broadcast them through `runtime.reportSourceError(sourceId, error)` to convert query-time rejections into the canonical `source-error` event. |
+| `HonuaMapRuntime` | class | `map`, `honuaMap`, `dataset`, `mapPackage`, `composedStyle`, `getLegend`, `setLayerVisibility`, `bindPopup`, `setViewState`, `updatePackage`, `on`, `reportSourceError`, `dispose`. |
 | `HonuaMapPackage` | type | v1 package shape. `format` is gated against `HONUA_MAP_PACKAGE_FORMAT_V1` (`"honua_map_package.v1"`). |
 | `HONUA_MAP_PACKAGE_FORMAT_V1` | const | Canonical format tag. |
 | `HonuaMapPackageError` / `HonuaMapPackageErrorStage` | class / union | Stage union: `"load" \| "update" \| "style-compose" \| "source-bind" \| "view" \| "popup" \| "dispose"`. |
@@ -85,6 +85,7 @@ interface LoadMapPackageOptions {
   popupRenderer?: PopupRenderer;           // defaults to defaultPopupRenderer
   applyInitialView?: boolean;              // default true
   onEvent?: HonuaRuntimeEventListener;     // subscribed BEFORE initial emissions
+  sourceErrorPolicy?: "tolerant" | "fail-fast"; // default "tolerant" — see Tolerant binding
 }
 ```
 
@@ -99,6 +100,34 @@ observe the initial lifecycle without racing against `loadMapPackage`'s
 return must use this hook instead of calling `runtime.on(...)` after
 `await`. Subsequent events (`package-updated`, `disposed`, ...) also
 flow through the same listener.
+
+### Tolerant binding (`sourceErrorPolicy`)
+
+`loadMapPackage` defaults to `sourceErrorPolicy: "tolerant"`: a single
+per-source binding failure (resolver throws, `toHonuaSourceSpec`
+throws, eager `dataset.source(id)` materialization throws) does not
+abort the load. The failed source is dropped from the composed style
+along with any layer whose `source` references it; the runtime emits
+one `source-error` event per failed source after the `source-ready`
+events and before `package-loaded`; `HonuaRuntimeTelemetry.error`
+receives a `source-bind` span. Remaining sources continue to render.
+
+Pass `sourceErrorPolicy: "fail-fast"` to restore the historical
+single-source behaviour, where any binding failure rejects the load
+with `HonuaMapPackageError({ stage: "source-bind" })`.
+
+Configuration-level binding errors (unknown protocol, missing
+`locator.url`, duplicate `sourceId`, deferred `workspace_artifact`)
+raised by `projectSourceBindings` always fail-fast under either
+policy — those are operator errors that must be fixed.
+
+Mixed-source consumers that fan a query out across the dataset can
+broadcast a query-time rejection back through the runtime by calling
+`runtime.reportSourceError(sourceId, error)` — the helper emits the
+same `source-error` event and pipes the failure through the
+`source-bind` telemetry span, so observers see one consistent
+per-source error channel for both bind-time and query-time
+failures. The full guide lives in [`composition.md`](./composition.md).
 
 ## `MapPackage` version gate
 
@@ -298,7 +327,7 @@ handle. `runtime.on(...)` handles every subsequent event.
 | --- | --- |
 | `{ type: "package-loaded", packageId }` | After the first `setStyle` + initial view apply succeed. Fired last, once per successful load. |
 | `{ type: "source-ready", sourceId }` | Once per source id produced by the contract `Dataset`, fired synchronously just before `package-loaded`. |
-| `{ type: "source-error", sourceId, error }` | Declared for per-source adapter failures surfaced by downstream query / stream calls. The loader itself rejects binding-time failures as `HonuaMapPackageError { stage: "source-bind" }`; this event is reserved for query-time adapter errors that future `#22` / `#29` wiring can bubble through the runtime instead of re-implementing a parallel pipeline. |
+| `{ type: "source-error", sourceId, error }` | Per-source binding or query-time failure. Under `sourceErrorPolicy: "tolerant"` the loader emits one `source-error` per source whose bind-time projection / spec-build / eager materialization threw; the runtime fans this through the listener chain right after `source-ready` and before `package-loaded`, with telemetry observing a `source-bind` error span. Consumers that fan a query out across the dataset broadcast query-time rejections through `runtime.reportSourceError(sourceId, error)`, which emits the same event so listeners do not have to subscribe to a parallel error channel. |
 | `{ type: "package-updated", packageId, diff }` | After `updatePackage` completes (both incremental and full-`setStyle` paths). |
 | `{ type: "layer-rendered", layerId }` | Declared for MapLibre render callbacks bridged by the host. The runtime itself does not fire it today. |
 | `{ type: "disposed", packageId }` | Once inside `dispose()`, just before listeners are cleared. |
@@ -326,20 +355,28 @@ pipeline.
 
 Per-source protocol failures keep their existing classes
 (`HonuaCapabilityNotSupportedError`, `HonuaHttpError`, adapter-specific
-errors) and are not wrapped by the runtime. They continue to surface
-on the per-`Source` promises exposed by `runtime.dataset` and through
-the shared `HonuaClient` interceptor chain. The `source-error` event
-on `HonuaRuntimeEvent` is reserved for a future `#22` / `#29` bridge
-and is not emitted by the loader today.
+errors) and are not wrapped by the runtime. They surface on the
+per-`Source` promises exposed by `runtime.dataset` and through the
+shared `HonuaClient` interceptor chain. The runtime additionally emits
+`source-error` events for per-source binding failures absorbed under
+the tolerant policy and for any query-time rejection a consumer
+broadcasts through `runtime.reportSourceError(sourceId, error)`. See
+*Tolerant binding* above and [`composition.md`](./composition.md) for
+the full mixed-source contract.
 
 ## Telemetry
 
 `HonuaRuntimeTelemetry` is a `{ before?, after?, error? }` collector
 matching the `HonuaRequestInterceptor` contract. The runtime emits
 spans for `kind: "load" | "update" | "dispose" | "source-bind" | "popup"`
-with `startedAt` / `finishedAt` / `durationMs`. Adapter traffic is
-still instrumented through the shared `HonuaClient` interceptor
-chain, so distributed-trace correlation is preserved end-to-end.
+with `startedAt` / `finishedAt` / `durationMs`. The `source-bind`
+error span fires once per source whose binding fails under the
+tolerant `sourceErrorPolicy`, and once per call to
+`runtime.reportSourceError(sourceId, error)`; its `detail` carries
+`{ sourceId }` so observability stacks see the failure alongside other
+runtime spans. Adapter traffic is still instrumented through the
+shared `HonuaClient` interceptor chain, so distributed-trace
+correlation is preserved end-to-end.
 
 ## Peer dependency posture
 

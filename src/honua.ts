@@ -453,12 +453,14 @@ export {
   geoServicesGeometryServiceSource,
   geoServicesImageSource,
   geoServicesMapServiceSource,
+  intersectCapabilities,
   isJobTerminal,
   odataSource,
   ogcFeaturesSource,
   ogcMapsSource,
   ogcTilesSource,
   stacSearchSource,
+  unionCapabilities,
 } from "./contract/index.js";
 export type {
   AdapterFor,
