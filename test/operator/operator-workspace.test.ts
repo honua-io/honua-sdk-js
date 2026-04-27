@@ -730,12 +730,15 @@ describe("OperatorWorkspace", () => {
     workspace.clarification.load(intentA);
     workspace.clarification.setAnswer("area", "Honolulu");
     const submission = workspace.clarification.submit();
+    expect(workspace.clarification.state.submitting).toBe(true);
     workspace.clarification.load(intentB);
+    expect(workspace.clarification.state.submitting).toBe(false);
     releaseSlow(revivedA);
     await submission;
     await flushMicrotasks();
 
     expect(workspace.clarification.state.intent?.id).toBe("intent-B");
+    expect(workspace.clarification.state.submitting).toBe(false);
     expect(events.some((event) => event.kind === "clarification-answered")).toBe(false);
 
     workspace.dispose();

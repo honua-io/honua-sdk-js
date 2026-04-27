@@ -63,6 +63,11 @@ export class ClarificationController {
 
   public load(intent: AnalysisIntent | BuilderIntent): void {
     this.#generation += 1;
+    // Reset the submitting flag here too: a load() that supersedes a
+    // pending submit() leaves the in-flight call unable to clear it
+    // (its `finally` is generation-gated), so without this the
+    // observable `state.submitting` would stay true forever.
+    this.#submitting = false;
     this.#intent = intent;
     this.#answers.clear();
     this.#bag.emit({ kind: "loaded", intent });
