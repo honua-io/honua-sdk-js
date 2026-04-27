@@ -74,6 +74,12 @@ export class MapWorkspaceController {
   #viewHandle: ViewHandle | undefined;
   #disposeMap: (() => void) | undefined;
   #activeIntentId: string | undefined;
+  // Bumped on every loadPackage() / refine() / dispose() entry. The
+  // operation captures it before awaiting and only commits state when
+  // the captured value still matches at resolution time. Parallel
+  // loads or refinements thereby cannot let an older `MapPackage`
+  // overwrite a newer one.
+  #opGeneration = 0;
 
   public constructor(options: MapWorkspaceControllerOptions) {
     this.#client = options.client;
@@ -106,32 +112,53 @@ export class MapWorkspaceController {
   /**
    * Load a `MapPackage` into a fresh runtime + exploration context.
    * Tears down any previously loaded package; safe to call repeatedly.
+   *
+   * Concurrent loads supersede each other via `#opGeneration`: an
+   * older load whose factory or `loadMapPackage` is still pending when
+   * a newer load arrives discards its locally-built runtime/context
+   * instead of overwriting the newer state.
    */
   public async loadPackage(pkg: HonuaMapPackage): Promise<HonuaMapRuntime> {
-    this.#tearDown();
-
     if (!this.#loadOptions) {
       throw new HonuaOperatorMapError("loadPackage requires loadOptions on the controller", {
         detail: { mapPackageId: pkg.mapPackageId },
       });
     }
 
+    this.#tearDown();
+    const gen = ++this.#opGeneration;
+
     return withTelemetrySpan(
       this.#telemetry,
       "map-load",
       this.#activeIntentId,
       async () => {
+        let factoryResult: MapFactoryResult | undefined;
+        let runtime: HonuaMapRuntime | undefined;
         try {
           // The host-supplied factory can reject before any runtime
           // setup happens (e.g. WebGL unavailable). Keep its failure
           // inside the wrapper so embedders see a typed
           // HonuaOperatorMapError on the workspace event stream
           // instead of a raw factory rejection.
-          const factoryResult = await this.#mapFactory();
-          this.#disposeMap = factoryResult.dispose;
-          const runtime = await loadMapPackage(pkg, factoryResult.map, {
+          factoryResult = await this.#mapFactory();
+          if (gen !== this.#opGeneration) {
+            disposeFactoryResult(factoryResult);
+            throw new HonuaOperatorMapError("map load superseded by newer load", {
+              detail: { mapPackageId: pkg.mapPackageId },
+            });
+          }
+          runtime = await loadMapPackage(pkg, factoryResult.map, {
             ...this.#loadOptions!,
           });
+          if (gen !== this.#opGeneration) {
+            disposeRuntime(runtime);
+            disposeFactoryResult(factoryResult);
+            throw new HonuaOperatorMapError("map load superseded by newer load", {
+              detail: { mapPackageId: pkg.mapPackageId },
+            });
+          }
+          this.#disposeMap = factoryResult.dispose;
           this.#runtime = runtime;
           this.#context = createExplorationContext({
             datasetId: pkg.mapPackageId,
@@ -142,6 +169,10 @@ export class MapWorkspaceController {
           this.#bag.emit({ kind: "package-loaded", pkg });
           return runtime;
         } catch (error) {
+          if (gen !== this.#opGeneration) {
+            // Superseded; the newer load owns teardown. Don't re-tear or emit.
+            throw error;
+          }
           this.#tearDown();
           const wrapped =
             error instanceof HonuaOperatorMapError
@@ -172,6 +203,8 @@ export class MapWorkspaceController {
       throw new HonuaOperatorMapError("refine requires bindIntent before invocation");
     }
     const intentId = this.#activeIntentId;
+    const ownRuntime = this.#runtime;
+    const gen = ++this.#opGeneration;
     return withTelemetrySpan(
       this.#telemetry,
       "map-refine",
@@ -179,11 +212,24 @@ export class MapWorkspaceController {
       async () => {
         try {
           const next = await this.#client.operator.refineMap(intentId, prompt, signal);
-          await this.#runtime!.updatePackage(next);
+          if (gen !== this.#opGeneration || this.#runtime !== ownRuntime) {
+            // Superseded by a newer load/refine, or the runtime was
+            // torn down while we awaited. Skip the apply so we never
+            // mutate a stale or replaced runtime.
+            return next;
+          }
+          await ownRuntime.updatePackage(next);
+          if (gen !== this.#opGeneration || this.#runtime !== ownRuntime) {
+            return next;
+          }
           this.#syncExplorationContext(next);
           this.#bag.emit({ kind: "package-refined", pkg: next });
           return next;
         } catch (error) {
+          if (gen !== this.#opGeneration || this.#runtime !== ownRuntime) {
+            // Superseded; let the newer op own error reporting.
+            throw error;
+          }
           const wrapped = new HonuaOperatorMapError("map refine failed", {
             intentId,
             cause: error,
@@ -193,7 +239,7 @@ export class MapWorkspaceController {
           // Forward any per-source recoveries to the runtime so
           // listeners on the runtime see the failure on the same
           // channel as native source events.
-          this.#runtime?.reportSourceError("__refine__", error);
+          ownRuntime.reportSourceError("__refine__", error);
           throw wrapped;
         }
       },
@@ -220,6 +266,7 @@ export class MapWorkspaceController {
   }
 
   public dispose(): void {
+    this.#opGeneration += 1;
     this.#tearDown();
     this.#bag.clear();
   }
@@ -299,4 +346,20 @@ function sameSourceIds(a: ReadonlyArray<string>, b: ReadonlyArray<string>): bool
     if (a[i] !== b[i]) return false;
   }
   return true;
+}
+
+function disposeFactoryResult(factoryResult: MapFactoryResult): void {
+  try {
+    factoryResult.dispose?.();
+  } catch {
+    // ignore — host-owned teardown.
+  }
+}
+
+function disposeRuntime(runtime: HonuaMapRuntime): void {
+  try {
+    runtime.dispose();
+  } catch {
+    // dispose is best-effort during supersession cleanup.
+  }
 }

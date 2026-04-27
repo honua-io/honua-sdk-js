@@ -51,6 +51,11 @@ export class BuilderWorkspaceController {
   #pkg: AppPackage | undefined;
   #boundMap: HonuaMapPackage | undefined;
   #activeIntentId: string | undefined;
+  // Same generation pattern as the other controllers: bumped on
+  // every loadPackage()/refine()/dispose(), captured by each
+  // operation, and consulted at resolution time so an older
+  // refineApp() cannot overwrite a newer package.
+  #opGeneration = 0;
 
   public constructor(options: BuilderWorkspaceControllerOptions) {
     this.#client = options.client;
@@ -71,11 +76,13 @@ export class BuilderWorkspaceController {
   }
 
   public async loadPackage(pkg: AppPackage): Promise<void> {
+    const gen = ++this.#opGeneration;
     return withTelemetrySpan(
       this.#telemetry,
       "app-load",
       this.#activeIntentId,
       async () => {
+        if (gen !== this.#opGeneration) return;
         this.#pkg = pkg;
         this.#bag.emit({ kind: "package-loaded", pkg });
       },
@@ -104,6 +111,7 @@ export class BuilderWorkspaceController {
       throw new HonuaOperatorAppError("refine requires bindIntent before invocation");
     }
     const intentId = this.#activeIntentId;
+    const gen = ++this.#opGeneration;
     return withTelemetrySpan(
       this.#telemetry,
       "app-refine",
@@ -111,6 +119,7 @@ export class BuilderWorkspaceController {
       async () => {
         try {
           const next = await this.#client.operator.refineApp(intentId, prompt, signal);
+          if (gen !== this.#opGeneration) return next;
           this.#pkg = next;
           this.#bag.emit({ kind: "package-refined", pkg: next });
           return next;
@@ -120,7 +129,9 @@ export class BuilderWorkspaceController {
             cause: error,
             detail: { prompt },
           });
-          this.#bag.emit({ kind: "error", error: wrapped });
+          if (gen === this.#opGeneration) {
+            this.#bag.emit({ kind: "error", error: wrapped });
+          }
           throw wrapped;
         }
       },
@@ -129,6 +140,7 @@ export class BuilderWorkspaceController {
   }
 
   public dispose(): void {
+    this.#opGeneration += 1;
     this.#pkg = undefined;
     this.#boundMap = undefined;
     this.#activeIntentId = undefined;

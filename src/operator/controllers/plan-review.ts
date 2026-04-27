@@ -49,6 +49,12 @@ export class PlanReviewController {
   readonly #decorateStep: DecorateStep | undefined;
   readonly #bag = new ListenerBag<PlanReviewEvent>();
   #plan: OperatorPlan | undefined;
+  // Bumped on every load() / revise() entry. When `getPlan` /
+  // `revisePlan` resolves out of order (older intent's plan arrives
+  // after a newer intent has already triggered a load), the older
+  // resolution finds gen !== captured and is dropped without
+  // committing or emitting — accept() never executes a stale plan.
+  #generation = 0;
 
   public constructor(options: PlanReviewControllerOptions) {
     this.#client = options.client;
@@ -69,12 +75,17 @@ export class PlanReviewController {
    * `HonuaOperatorPlanError` and emits an `error` event.
    */
   public async load(intentId: string, signal?: AbortSignal): Promise<OperatorPlan> {
+    const gen = ++this.#generation;
     try {
       const plan = await withTelemetrySpan(this.#telemetry, "plan-load", intentId, () =>
         this.#client.operator.getPlan(intentId, signal),
       );
-      this.#plan = plan;
       const decorated = this.#decoratedPlan(plan);
+      if (gen !== this.#generation) {
+        // Superseded by a newer load()/revise(); don't commit or emit.
+        return decorated;
+      }
+      this.#plan = plan;
       this.#bag.emit({ kind: "plan-loaded", plan: decorated });
       return decorated;
     } catch (error) {
@@ -82,7 +93,9 @@ export class PlanReviewController {
         error instanceof HonuaOperatorPlanError
           ? error
           : new HonuaOperatorPlanError("plan load failed", { intentId, cause: error });
-      this.#bag.emit({ kind: "error", error: wrapped });
+      if (gen === this.#generation) {
+        this.#bag.emit({ kind: "error", error: wrapped });
+      }
       throw wrapped;
     }
   }
@@ -110,6 +123,7 @@ export class PlanReviewController {
     if (this.#plan) {
       this.#bag.emit({ kind: "plan-revising", plan: this.#decoratedPlan(this.#plan) });
     }
+    const gen = ++this.#generation;
     try {
       const next = await withTelemetrySpan(
         this.#telemetry,
@@ -118,8 +132,11 @@ export class PlanReviewController {
         () => this.#client.operator.revisePlan(request.intentId, request.notes, signal),
         { revision: true, notes: request.notes },
       );
-      this.#plan = next;
       const decorated = this.#decoratedPlan(next);
+      if (gen !== this.#generation) {
+        return decorated;
+      }
+      this.#plan = next;
       this.#bag.emit({ kind: "plan-revised", plan: decorated });
       return decorated;
     } catch (error) {
@@ -130,7 +147,9 @@ export class PlanReviewController {
               intentId: request.intentId,
               cause: error,
             });
-      this.#bag.emit({ kind: "error", error: wrapped });
+      if (gen === this.#generation) {
+        this.#bag.emit({ kind: "error", error: wrapped });
+      }
       throw wrapped;
     }
   }

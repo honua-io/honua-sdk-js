@@ -37,6 +37,11 @@ export class ClarificationController {
   #intent: AnalysisIntent | BuilderIntent | undefined;
   #answers = new Map<string, string>();
   #submitting = false;
+  // Bumped on every load() and submit(); an in-flight submit checks
+  // this on resolution so a slow clarify() response cannot revive a
+  // superseded intent after the host has already moved on to a newer
+  // one. Generation > captured generation ⇒ drop the result silently.
+  #generation = 0;
 
   public constructor(options: ClarificationControllerOptions) {
     this.#client = options.client;
@@ -57,6 +62,7 @@ export class ClarificationController {
   }
 
   public load(intent: AnalysisIntent | BuilderIntent): void {
+    this.#generation += 1;
     this.#intent = intent;
     this.#answers.clear();
     this.#bag.emit({ kind: "loaded", intent });
@@ -102,6 +108,7 @@ export class ClarificationController {
       fieldId,
       value,
     }));
+    const gen = ++this.#generation;
     this.#submitting = true;
     try {
       const revised = await withTelemetrySpan(
@@ -111,6 +118,13 @@ export class ClarificationController {
         () => this.#client.operator.clarify(intent.id, answers, signal),
         { fieldCount: answers.length },
       );
+      if (gen !== this.#generation) {
+        // A newer load()/submit() superseded this submission while it
+        // was in flight. Drop the response without committing or
+        // emitting so the workspace cannot be driven back to a stale
+        // intent.
+        return revised;
+      }
       this.#intent = revised;
       this.#answers.clear();
       this.#bag.emit({ kind: "submitted", intent: revised });
@@ -123,10 +137,12 @@ export class ClarificationController {
               intentId: intent.id,
               cause: error,
             });
-      this.#bag.emit({ kind: "error", error: wrapped });
+      if (gen === this.#generation) {
+        this.#bag.emit({ kind: "error", error: wrapped });
+      }
       throw wrapped;
     } finally {
-      this.#submitting = false;
+      if (gen === this.#generation) this.#submitting = false;
     }
   }
 }

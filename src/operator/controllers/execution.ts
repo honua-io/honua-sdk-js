@@ -40,6 +40,12 @@ export class ExecutionController {
   #unsubscribe: (() => void) | undefined;
   #activePlan: OperatorPlan | undefined;
   #lastSnapshot: JobSnapshot<ExecutionResult> | undefined;
+  // Per-start abort controller. dispose() aborts it so the in-flight
+  // submitPlan() can short-circuit; the start path also uses identity
+  // comparison (this.#startAbort === captured) to detect the case
+  // where submitPlan resolved despite the abort and a newer start
+  // already took ownership.
+  #startAbort: AbortController | undefined;
 
   public constructor(options: ExecutionControllerOptions) {
     this.#client = options.client;
@@ -61,16 +67,26 @@ export class ExecutionController {
   /**
    * Submit a plan and start watching the resulting job. Resolves with
    * the live `IJobRun` once the watch subscription is active.
+   *
+   * Concurrent calls supersede each other: the second call disposes
+   * the first (which aborts its in-flight `submitPlan`); if the older
+   * `submitPlan` still resolves, the result is cancelled and the
+   * promise rejects so the older caller does not see a started event
+   * for a run that is no longer authoritative.
    */
   public async start(plan: OperatorPlan, signal?: AbortSignal): Promise<IJobRun<ExecutionResult>> {
     this.dispose();
+    const startAbort = new AbortController();
+    this.#startAbort = startAbort;
+    const linkedSignal = linkSignals(signal, startAbort);
+
     let run: IJobRun<ExecutionResult>;
     try {
       run = await withTelemetrySpan(
         this.#telemetry,
         "execution-start",
         plan.intentId,
-        () => this.#client.operator.submitPlan(plan, signal),
+        () => this.#client.operator.submitPlan(plan, linkedSignal),
         { planId: plan.id, planKind: plan.kind },
       );
     } catch (error) {
@@ -78,14 +94,37 @@ export class ExecutionController {
         intentId: plan.intentId,
         detail: { planId: plan.id, planKind: plan.kind },
       });
-      this.#bag.emit({ kind: "error", error: wrapped });
+      // Suppress the error event when this start was superseded — the
+      // newer start owns the surface and a stale error would mislead
+      // observers about the current execution.
+      if (this.#startAbort === startAbort) {
+        this.#bag.emit({ kind: "error", error: wrapped });
+      }
       throw wrapped;
     }
+
+    if (this.#startAbort !== startAbort) {
+      // A newer start took ownership while we were awaiting submitPlan.
+      // Cancel this run silently and reject so the original caller is
+      // not handed a stale IJobRun.
+      void run.cancel().catch(() => {});
+      throw new HonuaOperatorExecutionError("execution superseded by a newer start", {
+        intentId: plan.intentId,
+        executionId: run.id,
+        failureKind: "Cancelled",
+      });
+    }
+
     this.#activeRun = run;
     this.#activePlan = plan;
     this.#bag.emit({ kind: "started", executionId: run.id });
 
     this.#unsubscribe = run.watch((snapshot) => {
+      // Stale-watch guard: an older watch subscription can fire after
+      // dispose() if the underlying adapter has already buffered the
+      // snapshot. `#activeRun !== run` means we are no longer the
+      // authoritative run; drop without emitting.
+      if (this.#activeRun !== run) return;
       this.#lastSnapshot = snapshot;
       if (snapshot.progress) {
         this.#bag.emit({ kind: "progress", executionId: run.id, progress: snapshot.progress });
@@ -131,6 +170,8 @@ export class ExecutionController {
   }
 
   public dispose(): void {
+    this.#startAbort?.abort();
+    this.#startAbort = undefined;
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
     this.#activeRun = undefined;
@@ -231,4 +272,19 @@ function wrapExecutionError(
     failureKind: "ExecutionFailed",
     cause: error,
   });
+}
+
+/**
+ * Returns an `AbortSignal` that fires when either the externally-supplied
+ * caller signal aborts or the per-start internal controller is aborted by
+ * `dispose()`. Lets `submitPlan` be cancelled by either source.
+ */
+function linkSignals(external: AbortSignal | undefined, internal: AbortController): AbortSignal {
+  if (!external) return internal.signal;
+  if (external.aborted) {
+    internal.abort();
+    return internal.signal;
+  }
+  external.addEventListener("abort", () => internal.abort(), { once: true });
+  return internal.signal;
 }

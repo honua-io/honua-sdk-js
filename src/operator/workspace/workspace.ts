@@ -167,9 +167,22 @@ export class OperatorWorkspace {
         switch (event.kind) {
           case "plan-loaded":
           case "plan-revised":
+            // Defence-in-depth: PlanReviewController already drops
+            // stale resolutions via its generation token, but a host
+            // that drives planReview.load directly could still queue a
+            // plan whose intent is no longer the active one. The
+            // filter only fires when an active intent is set; hosts
+            // that exercise plan-review without going through the
+            // chat/clarification flow still see the events.
+            if (this.#activeIntentId !== undefined && event.plan.intentId !== this.#activeIntentId) {
+              break;
+            }
             this.#bag.emit({ kind: "plan-loaded", plan: event.plan });
             break;
           case "plan-accepted":
+            if (this.#activeIntentId !== undefined && event.plan.intentId !== this.#activeIntentId) {
+              break;
+            }
             this.#bag.emit({ kind: "plan-accepted", plan: event.plan });
             this.#advanceToExecution(event.plan);
             break;
@@ -201,19 +214,29 @@ export class OperatorWorkspace {
             });
             break;
           case "successful": {
-            this.#bag.emit({ kind: "execution-terminal", executionId: event.executionId, result: event.result });
+            // Bind the result load to the executionId that produced
+            // it. If a newer execution takes ownership before this
+            // load finishes, the .catch suppresses the stale error and
+            // the controller-level generation token prevents the stale
+            // package from clobbering newer state.
+            const executionId = event.executionId;
+            if (executionId !== this.#activeOperationId) break;
+            this.#bag.emit({ kind: "execution-terminal", executionId, result: event.result });
             const { result } = event;
             if (result.mapPackage && this.map) {
               // Map / app loadPackage always rejects with a typed
               // operator error after wrapping; route any rejection
               // through `#emitError` (which wraps unknowns) so a host
-              // factory failure cannot disappear from the event stream.
+              // factory failure cannot disappear from the event stream
+              // — but only when the execution is still active.
               void this.map.loadPackage(result.mapPackage).catch((error: unknown) => {
+                if (executionId !== this.#activeOperationId) return;
                 this.#emitError(error);
               });
             }
             if (result.appPackage) {
               void this.builder.loadPackage(result.appPackage).catch((error: unknown) => {
+                if (executionId !== this.#activeOperationId) return;
                 this.#emitError(error);
               });
               if (result.mapPackage) this.builder.bindMapPackage(result.mapPackage);

@@ -666,6 +666,277 @@ describe("OperatorWorkspace", () => {
 
     workspace.dispose();
   });
+
+  it("does not let a slow clarification submit revive a superseded intent", async () => {
+    let releaseSlow!: (intent: AnalysisIntent) => void;
+    const slowClarify = new Promise<AnalysisIntent>((resolve) => {
+      releaseSlow = resolve;
+    });
+    const intentA: AnalysisIntent = {
+      id: "intent-A",
+      kind: "analysis",
+      request: "first",
+      clarifications: [{ id: "area", label: "Area", type: "text", required: true }],
+    };
+    const intentB: AnalysisIntent = {
+      id: "intent-B",
+      kind: "analysis",
+      request: "second",
+      clarifications: [],
+    };
+    const revivedA: AnalysisIntent = { ...intentA, clarifications: [] };
+
+    const client: OperatorClient = {
+      operator: {
+        async *chat(): AsyncIterable<ChatChunk> {
+          yield { turnId: "agent-1", delta: "ok", done: true };
+        },
+        async clarify() {
+          return slowClarify;
+        },
+        async getPlan(intentId) {
+          return makePlan(intentId);
+        },
+        async revisePlan(intentId) {
+          return makePlan(intentId);
+        },
+        async submitPlan() {
+          return new FakeJobRun({ kind: "analysis" });
+        },
+        async refineMap() {
+          return makeMapPackage();
+        },
+        async refineApp() {
+          return makeAppPackage();
+        },
+        async getApproval() {
+          return makeDecision("pending");
+        },
+        async confirmApproval() {
+          return makeDecision("granted");
+        },
+      },
+    };
+
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({ client });
+    workspace.on((event) => events.push(event));
+
+    workspace.clarification.load(intentA);
+    workspace.clarification.setAnswer("area", "Honolulu");
+    const submission = workspace.clarification.submit();
+    workspace.clarification.load(intentB);
+    releaseSlow(revivedA);
+    await submission;
+    await flushMicrotasks();
+
+    expect(workspace.clarification.state.intent?.id).toBe("intent-B");
+    expect(events.some((event) => event.kind === "clarification-answered")).toBe(false);
+
+    workspace.dispose();
+  });
+
+  it("drops out-of-order plan loads so accept executes the latest intent's plan", async () => {
+    const planA: AnalysisPlan = { ...makePlan("intent-A"), id: "plan-A" };
+    const planB: AnalysisPlan = { ...makePlan("intent-B"), id: "plan-B" };
+    let releaseA!: () => void;
+    const aGate = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+
+    const client: OperatorClient = {
+      operator: {
+        async *chat(): AsyncIterable<ChatChunk> {
+          yield { turnId: "agent-1", delta: "ok", done: true };
+        },
+        async clarify() {
+          return makeIntent(false);
+        },
+        async getPlan(intentId) {
+          if (intentId === "intent-A") {
+            await aGate;
+            return planA;
+          }
+          return planB;
+        },
+        async revisePlan(intentId) {
+          return makePlan(intentId);
+        },
+        async submitPlan() {
+          return new FakeJobRun({ kind: "analysis" });
+        },
+        async refineMap() {
+          return makeMapPackage();
+        },
+        async refineApp() {
+          return makeAppPackage();
+        },
+        async getApproval() {
+          return makeDecision("pending");
+        },
+        async confirmApproval() {
+          return makeDecision("granted");
+        },
+      },
+    };
+
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({ client });
+    workspace.on((event) => events.push(event));
+
+    const slowLoad = workspace.planReview.load("intent-A").catch(() => undefined);
+    const fastLoad = workspace.planReview.load("intent-B");
+    const fastResult = await fastLoad;
+    expect(fastResult.id).toBe("plan-B");
+    expect(workspace.planReview.plan?.id).toBe("plan-B");
+
+    releaseA();
+    await slowLoad;
+    await flushMicrotasks();
+
+    expect(workspace.planReview.plan?.id).toBe("plan-B");
+    const planLoadedEvents = events.filter((event) => event.kind === "plan-loaded");
+    expect(planLoadedEvents).toHaveLength(1);
+    if (planLoadedEvents[0]?.kind !== "plan-loaded") throw new Error("expected plan-loaded");
+    expect(planLoadedEvents[0].plan.id).toBe("plan-B");
+
+    workspace.dispose();
+  });
+
+  it("cancels an older submitPlan that resolves after a newer start has taken ownership", async () => {
+    let releaseSlow!: (run: IJobRun<ExecutionResult>) => void;
+    const slowSubmit = new Promise<IJobRun<ExecutionResult>>((resolve) => {
+      releaseSlow = resolve;
+    });
+    const slowResult: ExecutionResult = { kind: "analysis", summary: "slow" };
+    const fastResult: ExecutionResult = { kind: "analysis", summary: "fast" };
+    const slowRun = new FakeJobRun(slowResult);
+    let cancelCalls = 0;
+    const originalCancel = slowRun.cancel.bind(slowRun);
+    slowRun.cancel = async () => {
+      cancelCalls += 1;
+      return originalCancel();
+    };
+
+    let submitCount = 0;
+    const client: OperatorClient = {
+      operator: {
+        async *chat(): AsyncIterable<ChatChunk> {
+          yield { turnId: "agent-1", delta: "ok", done: true };
+        },
+        async clarify() {
+          return makeIntent(false);
+        },
+        async getPlan(intentId) {
+          return makePlan(intentId);
+        },
+        async revisePlan(intentId) {
+          return makePlan(intentId);
+        },
+        async submitPlan() {
+          submitCount += 1;
+          if (submitCount === 1) return slowSubmit;
+          return new FakeJobRun(fastResult);
+        },
+        async refineMap() {
+          return makeMapPackage();
+        },
+        async refineApp() {
+          return makeAppPackage();
+        },
+        async getApproval() {
+          return makeDecision("pending");
+        },
+        async confirmApproval() {
+          return makeDecision("granted");
+        },
+      },
+    };
+
+    const workspace = new OperatorWorkspace({ client });
+
+    const slowStart = workspace.execution.start(makePlan("intent-slow")).catch((error: unknown) => error);
+    const fastStart = workspace.execution.start(makePlan("intent-fast"));
+    const fastRun = await fastStart;
+    expect(fastRun.id).toBe("op-1");
+    expect(workspace.execution.run).toBe(fastRun);
+
+    releaseSlow(slowRun);
+    const slowOutcome = await slowStart;
+    expect(slowOutcome).toBeInstanceOf(HonuaOperatorExecutionError);
+    expect(workspace.execution.run).toBe(fastRun);
+    expect(cancelCalls).toBe(1);
+
+    workspace.dispose();
+  });
+
+  it("does not let a slow map loadPackage overwrite a newer load's runtime", async () => {
+    const mapA = makeMockMap();
+    const mapB = makeMockMap();
+    const pkgA: HonuaMapPackage = { ...makeMapPackage(), mapPackageId: "pkg-A" };
+    const pkgB: HonuaMapPackage = {
+      mapPackageId: "pkg-B",
+      format: HONUA_MAP_PACKAGE_FORMAT_V1,
+      sourceBindings: [
+        {
+          sourceId: "vector",
+          protocol: "raster_tile",
+          locator: { url: "https://tiles.example.test/v2/{z}/{x}/{y}.png" },
+        },
+      ],
+      mapSpec: {
+        version: 8,
+        sources: {},
+        layers: [{ id: "vector", type: "raster", source: "vector" }],
+      },
+      initialView: { center: [-157.85, 21.3], zoom: 9 },
+    };
+    let releaseA!: () => void;
+    const aGate = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+    let factoryCall = 0;
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({
+      client: makeOperatorClient(),
+      mapFactory: async () => {
+        factoryCall += 1;
+        if (factoryCall === 1) {
+          await aGate;
+          return { map: mapA };
+        }
+        return { map: mapB };
+      },
+      mapLoadOptions: {
+        client: new HonuaClient({
+          baseUrl: "https://honua.example.test",
+          fetchFn: async () => new Response("not used", { status: 200 }),
+        }),
+        skipCompatibilityCheck: true,
+      },
+    });
+    workspace.on((event) => events.push(event));
+    workspace.map?.bindIntent("intent-1");
+
+    const slow = workspace.map!.loadPackage(pkgA).catch((error: unknown) => error);
+    const fast = workspace.map!.loadPackage(pkgB);
+    const fastRuntime = await fast;
+    expect(workspace.map?.exploration?.datasetId).toBe("pkg-B");
+    expect(workspace.map?.runtime).toBe(fastRuntime);
+
+    releaseA();
+    await slow;
+    await flushMicrotasks();
+
+    expect(workspace.map?.exploration?.datasetId).toBe("pkg-B");
+    expect(workspace.map?.runtime).toBe(fastRuntime);
+    const mapLoadedEvents = events.filter((event) => event.kind === "map-loaded");
+    expect(mapLoadedEvents).toHaveLength(1);
+    if (mapLoadedEvents[0]?.kind !== "map-loaded") throw new Error("expected map-loaded");
+    expect(mapLoadedEvents[0].pkg.mapPackageId).toBe("pkg-B");
+
+    workspace.dispose();
+  });
 });
 
 class PassiveJobRun implements IJobRun<ExecutionResult> {
