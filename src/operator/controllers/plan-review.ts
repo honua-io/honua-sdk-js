@@ -101,9 +101,10 @@ export class PlanReviewController {
   }
 
   /**
-   * Ask the server for a revised plan. Pass-through wrapper around
-   * `OperatorClient.getPlan` with the intent id; revision payload (notes,
-   * etc.) is server-side. The controller never mutates step shape locally.
+   * Ask the server for a revised plan. The controller forwards the
+   * embedder's revision notes through `OperatorClient.revisePlan` so
+   * the server can act on them, instead of just observing them in
+   * telemetry. The controller never mutates step shape locally.
    */
   public async revise(request: PlanRevisionRequest, signal?: AbortSignal): Promise<OperatorPlan> {
     if (this.#plan) {
@@ -114,7 +115,7 @@ export class PlanReviewController {
         this.#telemetry,
         "plan-load",
         request.intentId,
-        () => this.#client.operator.getPlan(request.intentId, signal),
+        () => this.#client.operator.revisePlan(request.intentId, request.notes, signal),
         { revision: true, notes: request.notes },
       );
       this.#plan = next;

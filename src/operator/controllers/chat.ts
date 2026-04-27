@@ -78,8 +78,16 @@ export class ChatController {
    * with the final agent turn (intent draft inlined) when the stream
    * completes; rejects with `HonuaOperatorIntentError` on transport
    * failure.
+   *
+   * If a previous send is still in flight, it is aborted before this
+   * one starts. The active controller identity is the per-send token —
+   * stream updates, `intent-drafted`, and `error` emissions are gated
+   * on it so a slow earlier stream cannot drive workspace state back
+   * to a stale intent after a newer send has taken over.
    */
   public async send(text: string): Promise<ConversationTurn> {
+    this.#abortController?.abort();
+
     const userTurn = this.#appendTurn({ role: "user", content: text });
     const agentTurnId = this.#generateTurnId();
     const startedAt = this.#now();
@@ -92,8 +100,10 @@ export class ChatController {
       }) - 1;
     this.#emitTurnUpdated(this.#turns[agentIndex]!);
 
-    this.#abortController = new AbortController();
-    const signal = this.#abortController.signal;
+    const controller = new AbortController();
+    this.#abortController = controller;
+    const signal = controller.signal;
+    const isCurrent = (): boolean => this.#abortController === controller;
 
     try {
       return await withTelemetrySpan(
@@ -106,6 +116,7 @@ export class ChatController {
           let lastChunk: ChatChunk | undefined;
 
           for await (const chunk of this.#client.operator.chat(text, signal)) {
+            if (!isCurrent()) return this.#turns[agentIndex]!;
             lastChunk = chunk;
             accumulated += chunk.delta;
             if (chunk.intentDraft) intentDraft = chunk.intentDraft;
@@ -121,6 +132,8 @@ export class ChatController {
             this.#emitTurnUpdated(updated);
             if (chunk.done) break;
           }
+
+          if (!isCurrent()) return this.#turns[agentIndex]!;
 
           if (!lastChunk?.done) {
             // Stream ended without an explicit terminal chunk — close
@@ -147,10 +160,15 @@ export class ChatController {
         error instanceof HonuaOperatorIntentError
           ? error
           : new HonuaOperatorIntentError("chat send failed", { cause: error, detail: { turnId: agentTurnId } });
-      this.#bag.emit({ kind: "error", error: wrapped });
+      // Only emit on the bag if this send still owns the surface; a
+      // superseded send is expected to throw (its consumer awaits the
+      // returned promise) but should not pollute the event stream.
+      if (isCurrent()) {
+        this.#bag.emit({ kind: "error", error: wrapped });
+      }
       throw wrapped;
     } finally {
-      this.#abortController = undefined;
+      if (isCurrent()) this.#abortController = undefined;
     }
   }
 

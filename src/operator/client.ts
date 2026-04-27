@@ -49,6 +49,17 @@ export interface OperatorClientApi {
     intentId: string,
     signal?: AbortSignal,
   ): Promise<AnalysisPlan | PublishingPlan | BuilderPlan | DeploymentPlan>;
+  /**
+   * Request a revised plan from the server. `notes` carries the
+   * embedder's revision request (e.g. "use vector tiles instead") and
+   * is forwarded as part of the wire request, not just observed in
+   * telemetry.
+   */
+  revisePlan(
+    intentId: string,
+    notes: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<AnalysisPlan | PublishingPlan | BuilderPlan | DeploymentPlan>;
   submitPlan(
     plan: AnalysisPlan | PublishingPlan | BuilderPlan | DeploymentPlan,
     signal?: AbortSignal,

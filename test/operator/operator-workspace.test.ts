@@ -231,6 +231,9 @@ function makeOperatorClient(): OperatorClient {
       async getPlan(intentId) {
         return makePlan(intentId);
       },
+      async revisePlan(intentId) {
+        return makePlan(intentId);
+      },
       async submitPlan() {
         return new FakeJobRun(result);
       },
@@ -313,6 +316,9 @@ function makeDismissingClient(): OperatorClient {
         return intent;
       },
       async getPlan(intentId) {
+        return makePlan(intentId);
+      },
+      async revisePlan(intentId) {
         return makePlan(intentId);
       },
       async submitPlan() {
@@ -485,6 +491,181 @@ describe("OperatorWorkspace", () => {
 
     workspace.dispose();
   });
+
+  it("forwards plan revision notes through OperatorClient.revisePlan", async () => {
+    const captured: Array<{ intentId: string; notes: string | undefined }> = [];
+    const client: OperatorClient = {
+      operator: {
+        async *chat(): AsyncIterable<ChatChunk> {
+          yield { turnId: "agent-1", delta: "ok", done: true };
+        },
+        async clarify() {
+          return makeIntent(false);
+        },
+        async getPlan(intentId) {
+          return makePlan(intentId);
+        },
+        async revisePlan(intentId, notes) {
+          captured.push({ intentId, notes });
+          return { ...makePlan(intentId), id: "plan-revised" };
+        },
+        async submitPlan() {
+          return new FakeJobRun({ kind: "analysis" });
+        },
+        async refineMap() {
+          return makeMapPackage();
+        },
+        async refineApp() {
+          return makeAppPackage();
+        },
+        async getApproval() {
+          return makeDecision("pending");
+        },
+        async confirmApproval() {
+          return makeDecision("granted");
+        },
+      },
+    };
+    const workspace = new OperatorWorkspace({ client });
+
+    await workspace.planReview.load("intent-rev");
+    await workspace.planReview.revise({ intentId: "intent-rev", notes: "use vector tiles" });
+
+    expect(captured).toEqual([{ intentId: "intent-rev", notes: "use vector tiles" }]);
+    expect(workspace.planReview.plan?.id).toBe("plan-revised");
+
+    workspace.dispose();
+  });
+
+  it("surfaces map factory failures as HonuaOperatorMapError on the workspace error stream", async () => {
+    const factoryFailure = new Error("WebGL unavailable");
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({
+      client: makeOperatorClient(),
+      mapFactory: () => {
+        throw factoryFailure;
+      },
+      mapLoadOptions: {
+        client: new HonuaClient({
+          baseUrl: "https://honua.example.test",
+          fetchFn: async () => new Response("not used", { status: 200 }),
+        }),
+        skipCompatibilityCheck: true,
+      },
+    });
+    workspace.on((event) => events.push(event));
+
+    workspace.map?.bindIntent("intent-factory");
+    await expect(workspace.map!.loadPackage(makeMapPackage())).rejects.toMatchObject({
+      name: "HonuaOperatorMapError",
+      cause: factoryFailure,
+    });
+
+    workspace.dispose();
+  });
+
+  it("propagates host map factory failures through the workspace event stream when execution loads a map", async () => {
+    const factoryFailure = new Error("factory boom");
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({
+      client: makeOperatorClient(),
+      mapFactory: () => {
+        throw factoryFailure;
+      },
+      mapLoadOptions: {
+        client: new HonuaClient({
+          baseUrl: "https://honua.example.test",
+          fetchFn: async () => new Response("not used", { status: 200 }),
+        }),
+        skipCompatibilityCheck: true,
+      },
+    });
+    workspace.on((event) => events.push(event));
+
+    await workspace.chat.send("draft");
+    workspace.clarification.setAnswer("area", "Honolulu");
+    await workspace.clarification.submit();
+    await waitForEvent(events, "plan-loaded");
+    workspace.planReview.accept();
+    await waitForEvent(events, "execution-terminal");
+    await waitForEvent(events, "error");
+
+    const errorEvent = events.find((event) => event.kind === "error");
+    if (errorEvent?.kind !== "error") throw new Error("expected error event");
+    expect(errorEvent.error.name).toBe("HonuaOperatorMapError");
+    expect(errorEvent.error.cause).toBe(factoryFailure);
+
+    workspace.dispose();
+  });
+
+  it("does not let an in-flight chat send overwrite a newer send's intent", async () => {
+    let resolveSlow!: () => void;
+    const slowGate = new Promise<void>((resolve) => {
+      resolveSlow = resolve;
+    });
+    const slowIntent: AnalysisIntent = { ...makeIntent(false), id: "intent-slow" };
+    const fastIntent: AnalysisIntent = { ...makeIntent(false), id: "intent-fast" };
+    let sendIndex = 0;
+
+    const client: OperatorClient = {
+      operator: {
+        async *chat(): AsyncIterable<ChatChunk> {
+          sendIndex += 1;
+          const ownIndex = sendIndex;
+          if (ownIndex === 1) {
+            await slowGate;
+            yield { turnId: "agent-slow", delta: "slow", done: true, intentDraft: slowIntent };
+          } else {
+            yield { turnId: "agent-fast", delta: "fast", done: true, intentDraft: fastIntent };
+          }
+        },
+        async clarify() {
+          return fastIntent;
+        },
+        async getPlan(intentId) {
+          return makePlan(intentId);
+        },
+        async revisePlan(intentId) {
+          return makePlan(intentId);
+        },
+        async submitPlan() {
+          return new FakeJobRun({ kind: "analysis" });
+        },
+        async refineMap() {
+          return makeMapPackage();
+        },
+        async refineApp() {
+          return makeAppPackage();
+        },
+        async getApproval() {
+          return makeDecision("pending");
+        },
+        async confirmApproval() {
+          return makeDecision("granted");
+        },
+      },
+    };
+
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({ client });
+    workspace.on((event) => events.push(event));
+
+    const slow = workspace.chat.send("first").catch(() => undefined);
+    const fast = workspace.chat.send("second");
+
+    await fast;
+    resolveSlow();
+    await slow;
+    await flushMicrotasks();
+
+    const intentEvents = events.filter((event) => event.kind === "intent-drafted");
+    expect(intentEvents).toHaveLength(1);
+    if (intentEvents[0]?.kind !== "intent-drafted") throw new Error("expected intent-drafted");
+    expect(intentEvents[0].intent.id).toBe("intent-fast");
+    expect(workspace.activeIntentId).toBe("intent-fast");
+
+    workspace.dispose();
+  });
 });
 
 class PassiveJobRun implements IJobRun<ExecutionResult> {
@@ -545,6 +726,9 @@ function makeClientWithRun(run: IJobRun<ExecutionResult>): OperatorClient {
       async getPlan(intentId) {
         return makePlan(intentId);
       },
+      async revisePlan(intentId) {
+        return makePlan(intentId);
+      },
       async submitPlan() {
         return run;
       },
@@ -576,6 +760,9 @@ function makeFailingSubmitClient(failure: Error): OperatorClient {
       async getPlan(intentId) {
         return makePlan(intentId);
       },
+      async revisePlan(intentId) {
+        return makePlan(intentId);
+      },
       async submitPlan() {
         throw failure;
       },
@@ -605,6 +792,9 @@ function makeRefiningClient(refined: HonuaMapPackage): OperatorClient {
         return makeIntent(false);
       },
       async getPlan(intentId) {
+        return makePlan(intentId);
+      },
+      async revisePlan(intentId) {
         return makePlan(intentId);
       },
       async submitPlan() {

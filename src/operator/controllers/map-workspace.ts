@@ -121,9 +121,14 @@ export class MapWorkspaceController {
       "map-load",
       this.#activeIntentId,
       async () => {
-        const factoryResult = await this.#mapFactory();
-        this.#disposeMap = factoryResult.dispose;
         try {
+          // The host-supplied factory can reject before any runtime
+          // setup happens (e.g. WebGL unavailable). Keep its failure
+          // inside the wrapper so embedders see a typed
+          // HonuaOperatorMapError on the workspace event stream
+          // instead of a raw factory rejection.
+          const factoryResult = await this.#mapFactory();
+          this.#disposeMap = factoryResult.dispose;
           const runtime = await loadMapPackage(pkg, factoryResult.map, {
             ...this.#loadOptions!,
           });

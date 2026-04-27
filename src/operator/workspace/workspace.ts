@@ -204,13 +204,17 @@ export class OperatorWorkspace {
             this.#bag.emit({ kind: "execution-terminal", executionId: event.executionId, result: event.result });
             const { result } = event;
             if (result.mapPackage && this.map) {
+              // Map / app loadPackage always rejects with a typed
+              // operator error after wrapping; route any rejection
+              // through `#emitError` (which wraps unknowns) so a host
+              // factory failure cannot disappear from the event stream.
               void this.map.loadPackage(result.mapPackage).catch((error: unknown) => {
-                if (isHonuaOperatorError(error)) this.#emitError(error);
+                this.#emitError(error);
               });
             }
             if (result.appPackage) {
               void this.builder.loadPackage(result.appPackage).catch((error: unknown) => {
-                if (isHonuaOperatorError(error)) this.#emitError(error);
+                this.#emitError(error);
               });
               if (result.mapPackage) this.builder.bindMapPackage(result.mapPackage);
             }
