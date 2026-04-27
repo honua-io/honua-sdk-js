@@ -12,6 +12,14 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/honua.ts"),
       },
       {
+        find: "@honua/sdk-js/operator",
+        replacement: path.resolve(import.meta.dirname, "src/operator/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/runtime",
+        replacement: path.resolve(import.meta.dirname, "src/runtime/index.ts"),
+      },
+      {
         find: "@honua/sdk-js",
         replacement: path.resolve(import.meta.dirname, "src/index.ts"),
       },

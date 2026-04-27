@@ -62,6 +62,26 @@
     "./runtime": {
       "types": "./dist/src/runtime/index.d.ts",
       "default": "./dist/src/runtime/index.js"
+    },
+    "./operator": {
+      "types": "./dist/src/operator/index.d.ts",
+      "default": "./dist/src/operator/index.js"
+    },
+    "./operator/controllers": {
+      "types": "./dist/src/operator/controllers/index.d.ts",
+      "default": "./dist/src/operator/controllers/index.js"
+    },
+    "./operator/workspace": {
+      "types": "./dist/src/operator/workspace/index.d.ts",
+      "default": "./dist/src/operator/workspace/index.js"
+    },
+    "./operator/theming": {
+      "types": "./dist/src/operator/theming/index.d.ts",
+      "default": "./dist/src/operator/theming/index.js"
+    },
+    "./operator/i18n": {
+      "types": "./dist/src/operator/i18n/index.d.ts",
+      "default": "./dist/src/operator/i18n/index.js"
     }
   },
   "scripts": {
