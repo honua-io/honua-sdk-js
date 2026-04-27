@@ -2,6 +2,19 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.3-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.2-alpha.0...js-sdk-vv0.0.3-alpha.0) (2026-04-27)
+
+
+### Features
+
+* **#24:** first-party GeoServices REST client on the shared JS client contract ([#33](https://github.com/honua-io/honua-sdk-js/issues/33)) ([61c8c7f](https://github.com/honua-io/honua-sdk-js/commit/61c8c7f4c3a9dfd2d46628aaf3e6626998425990))
+* First-party OGC API client on the shared JS client contract ([#25](https://github.com/honua-io/honua-sdk-js/issues/25)) ([#35](https://github.com/honua-io/honua-sdk-js/issues/35)) ([1eadbec](https://github.com/honua-io/honua-sdk-js/commit/1eadbeca9851b3bd85a6b331840d28101888b827))
+* First-party WFS client on the shared JS client contract ([#27](https://github.com/honua-io/honua-sdk-js/issues/27)) ([a1bafdd](https://github.com/honua-io/honua-sdk-js/commit/a1bafdd4dd3429ae42a5dc82f1c782c02b152684))
+* First-party WMS client on the shared JS client contract ([#28](https://github.com/honua-io/honua-sdk-js/issues/28)) ([514b4ef](https://github.com/honua-io/honua-sdk-js/commit/514b4ef09965543fe06b7231576badf1da836ab3))
+* OData adapter integration behind the shared JS client contract ([#26](https://github.com/honua-io/honua-sdk-js/issues/26)) ([8841be4](https://github.com/honua-io/honua-sdk-js/commit/8841be45cbe4acd0a21ba31ead0f79799e88e52a))
+* Operator-native component architecture on the shared JS client and MapPackage runtime ([#29](https://github.com/honua-io/honua-sdk-js/issues/29)) ([3416b28](https://github.com/honua-io/honua-sdk-js/commit/3416b28b43eddc40bb007c84e6ca9020a7b8b70f))
+* Protocol-aware mixed-source composition for GeoServices, OGC, OData, and tile-backed maps (#honua-sdk-js-22) ([8079649](https://github.com/honua-io/honua-sdk-js/commit/80796494fb337c6940aab932ef8066a0318872ba))
+
 ## [0.0.2-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.1-alpha.0...js-sdk-vv0.0.2-alpha.0) (2026-04-24)
 
 
