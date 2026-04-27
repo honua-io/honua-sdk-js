@@ -27,6 +27,7 @@ import type { OperatorTelemetry } from "../telemetry.js";
 import { type ThemeProvider, createThemeProvider } from "../theming/provider.js";
 import type { OperatorThemeTokens } from "../theming/tokens.js";
 import type { Unsubscribe, WorkspaceEvent } from "./events.js";
+import type { OperatorPlan } from "./types.js";
 
 export interface OperatorWorkspaceOptions {
   client: OperatorClient;
@@ -121,6 +122,8 @@ export class OperatorWorkspace {
             if (event.intent.clarifications && event.intent.clarifications.length > 0) {
               this.clarification.load(event.intent);
               this.#bag.emit({ kind: "clarification-needed", intent: event.intent });
+            } else {
+              this.#advanceToPlan(event.intent.id);
             }
             break;
           case "error":
@@ -142,6 +145,8 @@ export class OperatorWorkspace {
             this.#bag.emit({ kind: "clarification-answered", intent: event.intent });
             if (event.intent.clarifications && event.intent.clarifications.length > 0) {
               this.#bag.emit({ kind: "clarification-needed", intent: event.intent });
+            } else {
+              this.#advanceToPlan(event.intent.id);
             }
             break;
           case "error":
@@ -166,6 +171,7 @@ export class OperatorWorkspace {
             break;
           case "plan-accepted":
             this.#bag.emit({ kind: "plan-accepted", plan: event.plan });
+            this.#advanceToExecution(event.plan);
             break;
           case "plan-revising":
             // Intermediate; embedder watches the controller event stream.
@@ -216,9 +222,27 @@ export class OperatorWorkspace {
           case "dismissed":
             this.#bag.emit({ kind: "execution-dismissed", executionId: event.executionId });
             break;
+          case "error":
+            this.#emitError(event.error);
+            break;
         }
       }),
     );
+  }
+
+  // Cross-surface hand-offs. The workspace orchestrates the documented
+  // state machine — chat/clarification → plan-load → execution-start —
+  // so embedders observe a single event stream rather than wiring each
+  // controller transition by hand. Async failures surface through the
+  // controllers' own `error` events, which `#wirePlanReview` /
+  // `#wireExecution` route to `#emitError`; the trailing `.catch` here
+  // only suppresses the unhandled-rejection warning.
+  #advanceToPlan(intentId: string): void {
+    void this.planReview.load(intentId).catch(() => {});
+  }
+
+  #advanceToExecution(plan: OperatorPlan): void {
+    void this.execution.start(plan).catch(() => {});
   }
 
   #wireMap(): void {

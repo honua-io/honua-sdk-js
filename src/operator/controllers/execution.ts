@@ -24,7 +24,8 @@ export type ExecutionEvent =
   | { kind: "progress"; executionId: string; progress: JobProgress }
   | { kind: "successful"; executionId: string; result: ExecutionResult }
   | { kind: "failed"; executionId: string; error: HonuaOperatorExecutionError }
-  | { kind: "dismissed"; executionId: string };
+  | { kind: "dismissed"; executionId: string }
+  | { kind: "error"; error: HonuaOperatorExecutionError };
 
 export interface ExecutionControllerOptions {
   client: OperatorClient;
@@ -63,13 +64,23 @@ export class ExecutionController {
    */
   public async start(plan: OperatorPlan, signal?: AbortSignal): Promise<IJobRun<ExecutionResult>> {
     this.dispose();
-    const run = await withTelemetrySpan(
-      this.#telemetry,
-      "execution-start",
-      plan.intentId,
-      () => this.#client.operator.submitPlan(plan, signal),
-      { planId: plan.id, planKind: plan.kind },
-    );
+    let run: IJobRun<ExecutionResult>;
+    try {
+      run = await withTelemetrySpan(
+        this.#telemetry,
+        "execution-start",
+        plan.intentId,
+        () => this.#client.operator.submitPlan(plan, signal),
+        { planId: plan.id, planKind: plan.kind },
+      );
+    } catch (error) {
+      const wrapped = wrapExecutionError(error, "plan submission failed", {
+        intentId: plan.intentId,
+        detail: { planId: plan.id, planKind: plan.kind },
+      });
+      this.#bag.emit({ kind: "error", error: wrapped });
+      throw wrapped;
+    }
     this.#activeRun = run;
     this.#activePlan = plan;
     this.#bag.emit({ kind: "started", executionId: run.id });
@@ -82,12 +93,41 @@ export class ExecutionController {
       if (!isJobTerminal(snapshot.status)) return;
       this.#emitTerminal(run.id, snapshot);
     });
+
+    // The shared `IJobRun` contract permits passive `watch()` implementations
+    // (the OGC adapter only registers listeners; polling is driven by
+    // `results()`). Kick off the polling path so snapshots actually flow.
+    // `results()` rejects with `HonuaJobFailedError` on failed/dismissed
+    // terminals — those are already surfaced by the watcher above, so we
+    // suppress them when the watcher already observed a terminal snapshot.
+    // Any other rejection (poll-side network failure that prevents reaching
+    // a terminal state) routes through the error event surface.
+    void run.results().catch((error: unknown) => {
+      if (this.#activeRun !== run) return;
+      if (this.#lastSnapshot && isJobTerminal(this.#lastSnapshot.status)) return;
+      const wrapped = wrapExecutionError(error, "execution polling failed", {
+        intentId: plan.intentId,
+        executionId: run.id,
+      });
+      this.#bag.emit({ kind: "error", error: wrapped });
+    });
     return run;
   }
 
   public async cancel(): Promise<void> {
     if (!this.#activeRun) return;
-    await this.#activeRun.cancel();
+    const run = this.#activeRun;
+    try {
+      await run.cancel();
+    } catch (error) {
+      if (this.#activeRun !== run) return;
+      const wrapped = wrapExecutionError(error, "execution cancel failed", {
+        intentId: this.#activePlan?.intentId,
+        executionId: run.id,
+      });
+      this.#bag.emit({ kind: "error", error: wrapped });
+      throw wrapped;
+    }
   }
 
   public dispose(): void {
@@ -177,5 +217,18 @@ function jobErrorToExecutionError(
     executionId,
     failureKind,
     detail: jobError.details ? { details: jobError.details } : undefined,
+  });
+}
+
+function wrapExecutionError(
+  error: unknown,
+  fallbackMessage: string,
+  context: { intentId?: string; executionId?: string; detail?: Record<string, unknown> },
+): HonuaOperatorExecutionError {
+  if (error instanceof HonuaOperatorExecutionError) return error;
+  return new HonuaOperatorExecutionError(fallbackMessage, {
+    ...context,
+    failureKind: "ExecutionFailed",
+    cause: error,
   });
 }

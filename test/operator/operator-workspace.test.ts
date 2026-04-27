@@ -15,6 +15,7 @@ import {
   type ApprovalDecision,
   type ChatChunk,
   type ExecutionResult,
+  HonuaOperatorExecutionError,
   OPERATOR_EXECUTION_OUTPUT_KEY,
   type OperatorClient,
   OperatorWorkspace,
@@ -254,6 +255,18 @@ async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();
 }
 
+async function waitForEvent(
+  events: ReadonlyArray<WorkspaceEvent>,
+  kind: WorkspaceEvent["kind"],
+  maxTicks = 50,
+): Promise<void> {
+  for (let i = 0; i < maxTicks; i += 1) {
+    if (events.some((event) => event.kind === kind)) return;
+    await Promise.resolve();
+  }
+  throw new Error(`event "${kind}" not observed within ${maxTicks} ticks`);
+}
+
 class DismissingJobRun implements IJobRun<ExecutionResult> {
   public readonly id = "op-dismiss";
   public readonly type = "operator-plan";
@@ -347,10 +360,13 @@ describe("OperatorWorkspace", () => {
     expect(clarified.clarifications).toEqual([]);
     expect(events.some((event) => event.kind === "clarification-answered")).toBe(true);
 
-    const plan = await workspace.planReview.load(clarified.id);
+    // Workspace orchestrates the documented chat → clarification →
+    // plan-load → execution-start chain; the test must not call
+    // planReview.load or execution.start manually or the orchestration
+    // path goes untested.
+    await waitForEvent(events, "plan-loaded");
     workspace.planReview.accept();
-    await workspace.execution.start(plan);
-    await flushMicrotasks();
+    await waitForEvent(events, "execution-terminal");
 
     const pending = await workspace.approval.load("op-1");
     const granted = await workspace.approval.confirm("op-1");
@@ -393,4 +409,219 @@ describe("OperatorWorkspace", () => {
 
     workspace.dispose();
   });
+
+  it("drives passive IJobRun polling so watch-only adapters reach a terminal snapshot", async () => {
+    const result: ExecutionResult = { kind: "analysis", summary: "passive" };
+    const run = new PassiveJobRun(result);
+    const workspace = new OperatorWorkspace({ client: makeClientWithRun(run) });
+    const events: WorkspaceEvent[] = [];
+    workspace.on((event) => events.push(event));
+
+    await workspace.execution.start(makePlan("intent-passive"));
+    await waitForEvent(events, "execution-terminal");
+
+    expect(run.resultsCalls).toBe(1);
+    expect(workspace.execution.snapshot?.status).toBe("successful");
+
+    workspace.dispose();
+  });
+
+  it("wraps submitPlan failures in HonuaOperatorExecutionError and routes them through the workspace error stream", async () => {
+    const failure = new Error("transport down");
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({ client: makeFailingSubmitClient(failure) });
+    workspace.on((event) => events.push(event));
+
+    await expect(workspace.execution.start(makePlan("intent-3"))).rejects.toBeInstanceOf(HonuaOperatorExecutionError);
+
+    const errorEvent = events.find((event) => event.kind === "error");
+    expect(errorEvent).toBeDefined();
+    if (errorEvent?.kind !== "error") throw new Error("expected error event");
+    expect(errorEvent.error).toBeInstanceOf(HonuaOperatorExecutionError);
+    expect(errorEvent.error.cause).toBe(failure);
+
+    workspace.dispose();
+  });
+
+  it("recreates ExplorationContext on map refinement when datasetId or sourceIds change", async () => {
+    const map = makeMockMap();
+    const refined: HonuaMapPackage = {
+      mapPackageId: "operator-map-v2",
+      format: HONUA_MAP_PACKAGE_FORMAT_V1,
+      sourceBindings: [
+        {
+          sourceId: "vector-tiles",
+          protocol: "raster_tile",
+          locator: { url: "https://tiles.example.test/v2/{z}/{x}/{y}.png" },
+        },
+      ],
+      mapSpec: {
+        version: 8,
+        sources: {},
+        layers: [{ id: "vector-tiles", type: "raster", source: "vector-tiles" }],
+      },
+      initialView: { center: [-157.85, 21.3], zoom: 9 },
+    };
+    const workspace = new OperatorWorkspace({
+      client: makeRefiningClient(refined),
+      mapFactory: () => ({ map }),
+      mapLoadOptions: {
+        client: new HonuaClient({
+          baseUrl: "https://honua.example.test",
+          fetchFn: async () => new Response("not used", { status: 200 }),
+        }),
+        skipCompatibilityCheck: true,
+      },
+    });
+
+    workspace.map?.bindIntent("intent-refine");
+    await workspace.map!.loadPackage(makeMapPackage());
+    expect(workspace.map?.exploration?.datasetId).toBe("operator-map");
+    expect(workspace.map?.exploration?.sourceIds).toEqual(["tiles"]);
+
+    await workspace.map!.refine("switch source");
+    expect(workspace.map?.exploration?.datasetId).toBe("operator-map-v2");
+    expect(workspace.map?.exploration?.sourceIds).toEqual(["vector-tiles"]);
+
+    workspace.dispose();
+  });
 });
+
+class PassiveJobRun implements IJobRun<ExecutionResult> {
+  public readonly id = "op-passive";
+  public readonly type = "operator-plan";
+  public status: JobStatus = "accepted";
+  public progress: JobProgress | undefined;
+  public resultsCalls = 0;
+
+  readonly #terminal: ExecutionResult;
+  readonly #listeners = new Set<JobSnapshotListener<ExecutionResult>>();
+
+  public constructor(terminal: ExecutionResult) {
+    this.#terminal = terminal;
+  }
+
+  public async poll(): Promise<JobSnapshot<ExecutionResult>> {
+    return { status: this.status, progress: this.progress };
+  }
+
+  // Passive: registers the listener but never drives snapshots on its own.
+  // Mirrors `HonuaOgcProcessJobRun.watch`, which only adds the listener and
+  // relies on `results()` / `runUntilTerminal` to perform the polling loop.
+  public watch(listener: JobSnapshotListener<ExecutionResult>): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+
+  public async results(): Promise<{ outputs: Record<string, ExecutionResult> }> {
+    this.resultsCalls += 1;
+    this.status = "running";
+    for (const listener of [...this.#listeners]) {
+      listener({ status: this.status, progress: { percent: 25 } });
+    }
+    this.status = "successful";
+    const outputs = { [OPERATOR_EXECUTION_OUTPUT_KEY]: this.#terminal };
+    for (const listener of [...this.#listeners]) {
+      listener({ status: this.status, result: { outputs } });
+    }
+    return { outputs };
+  }
+
+  public async cancel(): Promise<JobStatus> {
+    this.status = "dismissed";
+    return this.status;
+  }
+}
+
+function makeClientWithRun(run: IJobRun<ExecutionResult>): OperatorClient {
+  return {
+    operator: {
+      async *chat(): AsyncIterable<ChatChunk> {
+        yield { turnId: "agent-1", delta: "ok", done: true };
+      },
+      async clarify() {
+        return makeIntent(false);
+      },
+      async getPlan(intentId) {
+        return makePlan(intentId);
+      },
+      async submitPlan() {
+        return run;
+      },
+      async refineMap() {
+        return makeMapPackage();
+      },
+      async refineApp() {
+        return makeAppPackage();
+      },
+      async getApproval() {
+        return makeDecision("pending");
+      },
+      async confirmApproval() {
+        return makeDecision("granted");
+      },
+    },
+  };
+}
+
+function makeFailingSubmitClient(failure: Error): OperatorClient {
+  return {
+    operator: {
+      async *chat(): AsyncIterable<ChatChunk> {
+        yield { turnId: "agent-1", delta: "ok", done: true };
+      },
+      async clarify() {
+        return makeIntent(false);
+      },
+      async getPlan(intentId) {
+        return makePlan(intentId);
+      },
+      async submitPlan() {
+        throw failure;
+      },
+      async refineMap() {
+        return makeMapPackage();
+      },
+      async refineApp() {
+        return makeAppPackage();
+      },
+      async getApproval() {
+        return makeDecision("pending");
+      },
+      async confirmApproval() {
+        return makeDecision("granted");
+      },
+    },
+  };
+}
+
+function makeRefiningClient(refined: HonuaMapPackage): OperatorClient {
+  return {
+    operator: {
+      async *chat(): AsyncIterable<ChatChunk> {
+        yield { turnId: "agent-1", delta: "ok", done: true };
+      },
+      async clarify() {
+        return makeIntent(false);
+      },
+      async getPlan(intentId) {
+        return makePlan(intentId);
+      },
+      async submitPlan() {
+        return new FakeJobRun({ kind: "analysis" });
+      },
+      async refineMap() {
+        return refined;
+      },
+      async refineApp() {
+        return makeAppPackage();
+      },
+      async getApproval() {
+        return makeDecision("pending");
+      },
+      async confirmApproval() {
+        return makeDecision("granted");
+      },
+    },
+  };
+}

@@ -175,6 +175,7 @@ export class MapWorkspaceController {
         try {
           const next = await this.#client.operator.refineMap(intentId, prompt, signal);
           await this.#runtime!.updatePackage(next);
+          this.#syncExplorationContext(next);
           this.#bag.emit({ kind: "package-refined", pkg: next });
           return next;
         } catch (error) {
@@ -225,6 +226,38 @@ export class MapWorkspaceController {
     return this.#runtime;
   }
 
+  /**
+   * `ExplorationContext` exposes immutable `datasetId` / `sourceIds`,
+   * so a refined package that changes either leaves linked views bound
+   * to stale metadata. Rebuild the context (and the primary view
+   * binding) on those transitions; otherwise leave it intact so
+   * subscribers retain their current state.
+   */
+  #syncExplorationContext(pkg: HonuaMapPackage): void {
+    const nextSourceIds = pkg.sourceBindings.map((binding) => binding.sourceId);
+    if (
+      this.#context &&
+      this.#context.datasetId === pkg.mapPackageId &&
+      sameSourceIds(this.#context.sourceIds, nextSourceIds)
+    ) {
+      return;
+    }
+    if (this.#viewHandle) {
+      this.#viewHandle.unbind();
+      this.#viewHandle = undefined;
+    }
+    if (this.#context) {
+      this.#context.dispose();
+      this.#context = undefined;
+    }
+    this.#context = createExplorationContext({
+      datasetId: pkg.mapPackageId,
+      sourceIds: nextSourceIds,
+      preset: this.#preset,
+    });
+    this.#viewHandle = this.#context.bind({ id: MAP_VIEW_BINDING_ID, role: "map" });
+  }
+
   #tearDown(): void {
     if (this.#viewHandle) {
       this.#viewHandle.unbind();
@@ -253,4 +286,12 @@ export class MapWorkspaceController {
       this.#disposeMap = undefined;
     }
   }
+}
+
+function sameSourceIds(a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
 }
