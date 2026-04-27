@@ -214,9 +214,7 @@ export class OperatorWorkspace {
             this.#emitError(event.error);
             break;
           case "dismissed":
-            // Surfaced through controller event stream; workspace stays
-            // silent because `execution-terminal` already fired with the
-            // result in flight when dismissed mid-run.
+            this.#bag.emit({ kind: "execution-dismissed", executionId: event.executionId });
             break;
         }
       }),

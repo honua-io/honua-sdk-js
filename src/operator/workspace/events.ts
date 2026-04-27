@@ -32,6 +32,7 @@ export type WorkspaceEvent =
   | { kind: "execution-started"; executionId: string }
   | { kind: "execution-progress"; executionId: string; percent?: number; message?: string }
   | { kind: "execution-terminal"; executionId: string; result: ExecutionResult }
+  | { kind: "execution-dismissed"; executionId: string }
   | { kind: "map-loaded"; pkg: HonuaMapPackage }
   | { kind: "map-refined"; pkg: HonuaMapPackage }
   | { kind: "app-loaded"; pkg: AppPackage }

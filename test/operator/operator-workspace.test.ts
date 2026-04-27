@@ -254,6 +254,73 @@ async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();
 }
 
+class DismissingJobRun implements IJobRun<ExecutionResult> {
+  public readonly id = "op-dismiss";
+  public readonly type = "operator-plan";
+  public status: JobStatus = "accepted";
+  public progress: JobProgress | undefined;
+
+  public async poll(): Promise<JobSnapshot<ExecutionResult>> {
+    return { status: this.status, progress: this.progress };
+  }
+
+  public watch(listener: JobSnapshotListener<ExecutionResult>): () => void {
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      this.status = "running";
+      listener({ status: this.status });
+      if (!active) return;
+      this.status = "dismissed";
+      listener({ status: this.status });
+    });
+    return () => {
+      active = false;
+    };
+  }
+
+  public async results(): Promise<{ outputs: Record<string, ExecutionResult> }> {
+    return { outputs: {} };
+  }
+
+  public async cancel(): Promise<JobStatus> {
+    this.status = "dismissed";
+    return this.status;
+  }
+}
+
+function makeDismissingClient(): OperatorClient {
+  const intent = makeIntent(false);
+  return {
+    operator: {
+      async *chat(): AsyncIterable<ChatChunk> {
+        yield { turnId: "agent-1", delta: "ok", done: true, intentDraft: intent };
+      },
+      async clarify() {
+        return intent;
+      },
+      async getPlan(intentId) {
+        return makePlan(intentId);
+      },
+      async submitPlan() {
+        return new DismissingJobRun();
+      },
+      async refineMap() {
+        return makeMapPackage();
+      },
+      async refineApp() {
+        return makeAppPackage();
+      },
+      async getApproval() {
+        return makeDecision("pending");
+      },
+      async confirmApproval() {
+        return makeDecision("granted");
+      },
+    },
+  };
+}
+
 describe("OperatorWorkspace", () => {
   it("assembles the operator flow from composable controllers and package runtime primitives", async () => {
     const map = makeMockMap();
@@ -306,6 +373,23 @@ describe("OperatorWorkspace", () => {
         "approval-resolved",
       ]),
     );
+
+    workspace.dispose();
+  });
+
+  it("emits execution-dismissed on the workspace event stream when a run is cancelled", async () => {
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({ client: makeDismissingClient() });
+    workspace.on((event) => events.push(event));
+
+    const plan = makePlan("intent-2");
+    await workspace.execution.start(plan);
+    await flushMicrotasks();
+
+    const dismissed = events.find((event) => event.kind === "execution-dismissed");
+    expect(dismissed).toBeDefined();
+    expect(dismissed?.kind === "execution-dismissed" && dismissed.executionId).toBe("op-dismiss");
+    expect(events.some((event) => event.kind === "execution-terminal")).toBe(false);
 
     workspace.dispose();
   });
