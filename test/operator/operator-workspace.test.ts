@@ -15,6 +15,7 @@ import {
   type ApprovalDecision,
   type ChatChunk,
   type ExecutionResult,
+  HonuaOperatorApprovalError,
   HonuaOperatorExecutionError,
   OPERATOR_EXECUTION_OUTPUT_KEY,
   type OperatorClient,
@@ -1117,6 +1118,102 @@ describe("OperatorWorkspace", () => {
     expect(workspace.execution.snapshot?.status).toBe("dismissed");
 
     workspace.dispose();
+  });
+
+  it("preserves typed approval errors thrown by the client", async () => {
+    const typedError = new HonuaOperatorApprovalError("policy gate refused the load", {
+      detail: { operationId: "op-typed", reason: "PolicyDenied" },
+    });
+    const client: OperatorClient = {
+      operator: {
+        async *chat(): AsyncIterable<ChatChunk> {
+          yield { turnId: "agent-1", delta: "ok", done: true };
+        },
+        async clarify() {
+          return makeIntent(false);
+        },
+        async getPlan(intentId) {
+          return makePlan(intentId);
+        },
+        async revisePlan(intentId) {
+          return makePlan(intentId);
+        },
+        async submitPlan() {
+          return new FakeJobRun({ kind: "analysis" });
+        },
+        async refineMap() {
+          return makeMapPackage();
+        },
+        async refineApp() {
+          return makeAppPackage();
+        },
+        async getApproval() {
+          throw typedError;
+        },
+        async confirmApproval() {
+          throw typedError;
+        },
+      },
+    };
+    const workspace = new OperatorWorkspace({ client });
+
+    await expect(workspace.approval.load("op-typed")).rejects.toBe(typedError);
+
+    workspace.dispose();
+  });
+
+  it("aborts an in-flight chat stream when the workspace is disposed", async () => {
+    let observedAbort = false;
+    let resolveSlow!: () => void;
+    const slowGate = new Promise<void>((resolve) => {
+      resolveSlow = resolve;
+    });
+    const client: OperatorClient = {
+      operator: {
+        async *chat(_text, signal): AsyncIterable<ChatChunk> {
+          if (signal) {
+            signal.addEventListener("abort", () => {
+              observedAbort = true;
+              resolveSlow();
+            });
+          }
+          await slowGate;
+          if (signal?.aborted) return;
+          yield { turnId: "agent-1", delta: "late", done: true };
+        },
+        async clarify() {
+          return makeIntent(false);
+        },
+        async getPlan(intentId) {
+          return makePlan(intentId);
+        },
+        async revisePlan(intentId) {
+          return makePlan(intentId);
+        },
+        async submitPlan() {
+          return new FakeJobRun({ kind: "analysis" });
+        },
+        async refineMap() {
+          return makeMapPackage();
+        },
+        async refineApp() {
+          return makeAppPackage();
+        },
+        async getApproval() {
+          return makeDecision("pending");
+        },
+        async confirmApproval() {
+          return makeDecision("granted");
+        },
+      },
+    };
+    const workspace = new OperatorWorkspace({ client });
+    const send = workspace.chat.send("hello").catch(() => undefined);
+
+    workspace.dispose();
+    await send;
+
+    expect(observedAbort).toBe(true);
   });
 });
 

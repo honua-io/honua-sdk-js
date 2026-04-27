@@ -76,10 +76,13 @@ export class ApprovalController {
       this.#bag.emit({ kind: "loaded", decision });
       return decision;
     } catch (error) {
-      const wrapped = new HonuaOperatorApprovalError("approval load failed", {
-        cause: error,
-        detail: { operationId },
-      });
+      const wrapped =
+        error instanceof HonuaOperatorApprovalError
+          ? error
+          : new HonuaOperatorApprovalError("approval load failed", {
+              cause: error,
+              detail: { operationId },
+            });
       if (gen === this.#generation) {
         this.#bag.emit({ kind: "error", error: wrapped });
       }
@@ -121,10 +124,13 @@ export class ApprovalController {
       this.#bag.emit({ kind: "confirmed", decision: next });
       return next;
     } catch (error) {
-      const wrapped = new HonuaOperatorApprovalError("approval confirm failed", {
-        cause: error,
-        detail: { operationId },
-      });
+      const wrapped =
+        error instanceof HonuaOperatorApprovalError
+          ? error
+          : new HonuaOperatorApprovalError("approval confirm failed", {
+              cause: error,
+              detail: { operationId },
+            });
       if (gen === this.#generation) {
         this.#bag.emit({ kind: "error", error: wrapped });
       }

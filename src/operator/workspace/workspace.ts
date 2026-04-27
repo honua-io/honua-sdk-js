@@ -98,6 +98,11 @@ export class OperatorWorkspace {
   }
 
   public dispose(): void {
+    // Abort any in-flight chat stream first so its for-await loop
+    // exits before we tear down listeners. Without this a slow chat
+    // network request could keep mutating chat state after the
+    // workspace has been disposed.
+    this.chat.abort();
     for (const off of this.#unsubscribers.splice(0)) off();
     this.execution.dispose();
     this.map?.dispose();
