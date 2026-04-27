@@ -77,6 +77,12 @@ export class BuilderWorkspaceController {
 
   public async loadPackage(pkg: AppPackage): Promise<void> {
     const gen = ++this.#opGeneration;
+    // Clear the prior map binding eagerly so the next preview() call
+    // never returns a previous execution's map. The workspace re-binds
+    // the map within the same execution-success handler when the new
+    // result actually carries one; an app-only result therefore
+    // produces a preview with no `mapPackage`.
+    this.#boundMap = undefined;
     return withTelemetrySpan(
       this.#telemetry,
       "app-load",

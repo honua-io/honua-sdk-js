@@ -937,6 +937,187 @@ describe("OperatorWorkspace", () => {
 
     workspace.dispose();
   });
+
+  it("does not let a slow approval load overwrite the active decision", async () => {
+    let releaseA!: (decision: ApprovalDecision) => void;
+    const aGate = new Promise<ApprovalDecision>((resolve) => {
+      releaseA = resolve;
+    });
+    const decisionA: ApprovalDecision = {
+      operationId: "op-A",
+      state: "denied",
+      scope: "publish-map",
+      reasons: ["policy denied"],
+      requiredRoles: ["operator-admin"],
+      audit: [{ at: 1, actor: "policy", action: "denied" }],
+    };
+    const decisionB: ApprovalDecision = {
+      operationId: "op-B",
+      state: "pending",
+      scope: "publish-map",
+      reasons: [],
+      requiredRoles: ["operator-admin"],
+      audit: [{ at: 2, actor: "policy", action: "pending" }],
+    };
+
+    const client: OperatorClient = {
+      operator: {
+        async *chat(): AsyncIterable<ChatChunk> {
+          yield { turnId: "agent-1", delta: "ok", done: true };
+        },
+        async clarify() {
+          return makeIntent(false);
+        },
+        async getPlan(intentId) {
+          return makePlan(intentId);
+        },
+        async revisePlan(intentId) {
+          return makePlan(intentId);
+        },
+        async submitPlan() {
+          return new FakeJobRun({ kind: "analysis" });
+        },
+        async refineMap() {
+          return makeMapPackage();
+        },
+        async refineApp() {
+          return makeAppPackage();
+        },
+        async getApproval(operationId) {
+          if (operationId === "op-A") return aGate;
+          return decisionB;
+        },
+        async confirmApproval() {
+          return decisionB;
+        },
+      },
+    };
+
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({ client });
+    workspace.on((event) => events.push(event));
+
+    const slowLoad = workspace.approval.load("op-A").catch(() => undefined);
+    const fast = await workspace.approval.load("op-B");
+    expect(fast.operationId).toBe("op-B");
+    expect(workspace.approval.decision?.operationId).toBe("op-B");
+
+    releaseA(decisionA);
+    await slowLoad;
+    await flushMicrotasks();
+
+    expect(workspace.approval.decision?.operationId).toBe("op-B");
+    const approvalEvents = events.filter(
+      (event) => event.kind === "approval-required" || event.kind === "approval-resolved",
+    );
+    for (const event of approvalEvents) {
+      if (event.kind !== "approval-required" && event.kind !== "approval-resolved") {
+        throw new Error("unexpected approval event kind");
+      }
+      expect(event.decision.operationId).toBe("op-B");
+    }
+
+    workspace.dispose();
+  });
+
+  it("clears the bound map when an app-only execution result is loaded", async () => {
+    const map = makeMockMap();
+    const firstResult: ExecutionResult = {
+      kind: "analysis",
+      summary: "first",
+      mapPackage: makeMapPackage(),
+      appPackage: makeAppPackage(),
+    };
+    const secondAppPkg: AppPackage = { ...makeAppPackage(), id: "app-2" };
+    const secondResult: ExecutionResult = {
+      kind: "analysis",
+      summary: "second (app-only)",
+      appPackage: secondAppPkg,
+    };
+    const firstRun = new FakeJobRun(firstResult);
+    const secondRun = new FakeJobRun(secondResult);
+    let runIndex = 0;
+    const client: OperatorClient = {
+      operator: {
+        async *chat(): AsyncIterable<ChatChunk> {
+          yield { turnId: "agent-1", delta: "ok", done: true };
+        },
+        async clarify() {
+          return makeIntent(false);
+        },
+        async getPlan(intentId) {
+          return makePlan(intentId);
+        },
+        async revisePlan(intentId) {
+          return makePlan(intentId);
+        },
+        async submitPlan() {
+          runIndex += 1;
+          return runIndex === 1 ? firstRun : secondRun;
+        },
+        async refineMap() {
+          return makeMapPackage();
+        },
+        async refineApp() {
+          return makeAppPackage();
+        },
+        async getApproval() {
+          return makeDecision("pending");
+        },
+        async confirmApproval() {
+          return makeDecision("granted");
+        },
+      },
+    };
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({
+      client,
+      mapFactory: () => ({ map }),
+      mapLoadOptions: {
+        client: new HonuaClient({
+          baseUrl: "https://honua.example.test",
+          fetchFn: async () => new Response("not used", { status: 200 }),
+        }),
+        skipCompatibilityCheck: true,
+      },
+    });
+    workspace.on((event) => events.push(event));
+    workspace.builder.bindIntent("intent-1");
+    workspace.map?.bindIntent("intent-1");
+
+    await workspace.execution.start(makePlan("intent-1"));
+    await waitForEvent(events, "execution-terminal");
+    await flushMicrotasks();
+    expect(workspace.builder.preview().mapPackage?.mapPackageId).toBe("operator-map");
+
+    await workspace.execution.start(makePlan("intent-1"));
+    await waitForEvent(events.slice(events.findIndex((event) => event.kind === "app-loaded") + 1), "app-loaded");
+    await flushMicrotasks();
+    expect(workspace.builder.appPackage?.id).toBe("app-2");
+    expect(workspace.builder.preview().mapPackage).toBeUndefined();
+
+    workspace.dispose();
+  });
+
+  it("emits execution-dismissed when a passive run reports dismissed only via cancel()", async () => {
+    const passiveRun = new SilentDismissJobRun();
+    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorWorkspace({ client: makeClientWithRun(passiveRun) });
+    workspace.on((event) => events.push(event));
+
+    await workspace.execution.start(makePlan("intent-passive"));
+    await flushMicrotasks();
+
+    await workspace.execution.cancel();
+    await flushMicrotasks();
+
+    const dismissedEvents = events.filter((event) => event.kind === "execution-dismissed");
+    expect(dismissedEvents).toHaveLength(1);
+    if (dismissedEvents[0]?.kind !== "execution-dismissed") throw new Error("expected execution-dismissed");
+    expect(workspace.execution.snapshot?.status).toBe("dismissed");
+
+    workspace.dispose();
+  });
 });
 
 class PassiveJobRun implements IJobRun<ExecutionResult> {
@@ -977,6 +1158,41 @@ class PassiveJobRun implements IJobRun<ExecutionResult> {
       listener({ status: this.status, result: { outputs } });
     }
     return { outputs };
+  }
+
+  public async cancel(): Promise<JobStatus> {
+    this.status = "dismissed";
+    return this.status;
+  }
+}
+
+// Models a conforming `IJobRun` that satisfies the contract minimum:
+// `cancel()` flips status to "dismissed" but `watch()` listeners are
+// never invoked. Lets the cancel-terminal test prove the controller
+// surfaces the dismissed event without relying on watcher delivery.
+class SilentDismissJobRun implements IJobRun<ExecutionResult> {
+  public readonly id = "op-silent-dismiss";
+  public readonly type = "operator-plan";
+  public status: JobStatus = "accepted";
+  public progress: JobProgress | undefined;
+
+  public async poll(): Promise<JobSnapshot<ExecutionResult>> {
+    return { status: this.status, progress: this.progress };
+  }
+
+  public watch(): () => void {
+    // Conforming-but-passive: never delivers a snapshot.
+    return () => {};
+  }
+
+  public async results(): Promise<{ outputs: Record<string, ExecutionResult> }> {
+    // Hold open until cancel() flips us terminal so results() never
+    // resolves on its own; the test drives termination via cancel().
+    await new Promise<void>(() => {
+      // Resolves only when the surrounding test disposes; the unresolved
+      // promise keeps the polling path quiet during the cancel window.
+    });
+    return { outputs: {} };
   }
 
   public async cancel(): Promise<JobStatus> {

@@ -319,6 +319,15 @@ export class OperatorWorkspace {
       this.approval.on((event) => {
         switch (event.kind) {
           case "loaded":
+            // Defence-in-depth: ApprovalController already drops stale
+            // resolutions, but a host that drives approval.load
+            // directly could still queue a decision whose operation is
+            // no longer active. The filter only fires when an active
+            // operation is set, so hosts exercising approval without
+            // an execution still see the events.
+            if (this.#activeOperationId !== undefined && event.decision.operationId !== this.#activeOperationId) {
+              break;
+            }
             if (event.decision.state === "pending") {
               this.#bag.emit({ kind: "approval-required", decision: event.decision });
             } else {
@@ -326,6 +335,9 @@ export class OperatorWorkspace {
             }
             break;
           case "confirmed":
+            if (this.#activeOperationId !== undefined && event.decision.operationId !== this.#activeOperationId) {
+              break;
+            }
             this.#bag.emit({ kind: "approval-resolved", decision: event.decision });
             break;
           case "audit":

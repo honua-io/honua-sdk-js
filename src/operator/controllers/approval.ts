@@ -36,6 +36,11 @@ export class ApprovalController {
   readonly #bag = new ListenerBag<ApprovalEvent>();
   readonly #seenAudit = new Set<string>();
   #decision: ApprovalDecision | undefined;
+  // Bumped on every load() / confirm() entry so a slow approval call
+  // for operation A cannot resolve after the controller has moved on
+  // to operation B and emit a stale `loaded` / `confirmed` for A. The
+  // captured value is checked at resolution time; mismatch ⇒ drop.
+  #generation = 0;
 
   public constructor(options: ApprovalControllerOptions) {
     this.#client = options.client;
@@ -51,6 +56,7 @@ export class ApprovalController {
   }
 
   public async load(operationId: string, signal?: AbortSignal): Promise<ApprovalDecision> {
+    const gen = ++this.#generation;
     try {
       const decision = await withTelemetrySpan(
         this.#telemetry,
@@ -59,6 +65,12 @@ export class ApprovalController {
         () => this.#client.operator.getApproval(operationId, signal),
         { operationId },
       );
+      if (gen !== this.#generation) {
+        // Superseded by a newer load()/confirm(); drop without
+        // committing or emitting so a stale operationId does not
+        // overwrite the active decision.
+        return decision;
+      }
       this.#decision = decision;
       this.#fanOutAudit(decision);
       this.#bag.emit({ kind: "loaded", decision });
@@ -68,7 +80,9 @@ export class ApprovalController {
         cause: error,
         detail: { operationId },
       });
-      this.#bag.emit({ kind: "error", error: wrapped });
+      if (gen === this.#generation) {
+        this.#bag.emit({ kind: "error", error: wrapped });
+      }
       throw wrapped;
     }
   }
@@ -90,6 +104,7 @@ export class ApprovalController {
         detail: { operationId, state: this.#decision.state },
       });
     }
+    const gen = ++this.#generation;
     try {
       const next = await withTelemetrySpan(
         this.#telemetry,
@@ -98,6 +113,9 @@ export class ApprovalController {
         () => this.#client.operator.confirmApproval(operationId, signal),
         { operationId },
       );
+      if (gen !== this.#generation) {
+        return next;
+      }
       this.#decision = next;
       this.#fanOutAudit(next);
       this.#bag.emit({ kind: "confirmed", decision: next });
@@ -107,7 +125,9 @@ export class ApprovalController {
         cause: error,
         detail: { operationId },
       });
-      this.#bag.emit({ kind: "error", error: wrapped });
+      if (gen === this.#generation) {
+        this.#bag.emit({ kind: "error", error: wrapped });
+      }
       throw wrapped;
     }
   }

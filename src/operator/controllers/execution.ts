@@ -11,6 +11,7 @@ import {
   type JobError,
   type JobProgress,
   type JobSnapshot,
+  type JobStatus,
   isJobTerminal,
 } from "../../contract/index.js";
 import { OPERATOR_EXECUTION_OUTPUT_KEY, type OperatorClient } from "../client.js";
@@ -125,11 +126,16 @@ export class ExecutionController {
       // snapshot. `#activeRun !== run` means we are no longer the
       // authoritative run; drop without emitting.
       if (this.#activeRun !== run) return;
+      // Double-emit guard: cancel() may have already synthesized a
+      // terminal snapshot for the same run. Detect via the prior
+      // #lastSnapshot's status before overwriting it.
+      const alreadyTerminal = this.#lastSnapshot !== undefined && isJobTerminal(this.#lastSnapshot.status);
       this.#lastSnapshot = snapshot;
       if (snapshot.progress) {
         this.#bag.emit({ kind: "progress", executionId: run.id, progress: snapshot.progress });
       }
       if (!isJobTerminal(snapshot.status)) return;
+      if (alreadyTerminal) return;
       this.#emitTerminal(run.id, snapshot);
     });
 
@@ -156,8 +162,9 @@ export class ExecutionController {
   public async cancel(): Promise<void> {
     if (!this.#activeRun) return;
     const run = this.#activeRun;
+    let status: JobStatus;
     try {
-      await run.cancel();
+      status = await run.cancel();
     } catch (error) {
       if (this.#activeRun !== run) return;
       const wrapped = wrapExecutionError(error, "execution cancel failed", {
@@ -167,6 +174,32 @@ export class ExecutionController {
       this.#bag.emit({ kind: "error", error: wrapped });
       throw wrapped;
     }
+    if (this.#activeRun !== run) return;
+    if (!isJobTerminal(status)) return;
+    // The IJobRun contract does not require watch() to fire during
+    // cancellation, so a conforming adapter can dismiss the run
+    // without ever delivering a terminal snapshot. Synthesize one when
+    // the watcher has not already produced a terminal. The watcher's
+    // double-emit guard handles the converse race (watcher fires after
+    // we synthesize).
+    if (this.#lastSnapshot !== undefined && isJobTerminal(this.#lastSnapshot.status)) return;
+    let snapshot: JobSnapshot<ExecutionResult> = { status };
+    if (status !== "dismissed") {
+      // The server may have raced cancel to a successful/failed
+      // terminal. poll() carries the authoritative payload; fall back
+      // to the bare status if poll fails so #emitTerminal still routes
+      // to a terminal event rather than silently dropping it.
+      try {
+        const polled = await run.poll();
+        if (this.#activeRun !== run) return;
+        snapshot = polled;
+      } catch {
+        // Best-effort poll; emit the bare status snapshot.
+      }
+    }
+    if (this.#lastSnapshot !== undefined && isJobTerminal(this.#lastSnapshot.status)) return;
+    this.#lastSnapshot = snapshot;
+    this.#emitTerminal(run.id, snapshot);
   }
 
   public dispose(): void {
