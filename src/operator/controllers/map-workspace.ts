@@ -173,6 +173,15 @@ export class MapWorkspaceController {
             // Superseded; the newer load owns teardown. Don't re-tear or emit.
             throw error;
           }
+          // `#disposeMap` is only assigned after `loadMapPackage`
+          // succeeds, so a factory that returned a host map followed
+          // by a `loadMapPackage` failure leaves the map orphaned.
+          // Dispose the locally-captured factoryResult / runtime here
+          // before #tearDown runs (it will be a no-op for those).
+          if (runtime !== undefined) disposeRuntime(runtime);
+          if (factoryResult !== undefined && this.#disposeMap === undefined) {
+            disposeFactoryResult(factoryResult);
+          }
           this.#tearDown();
           const wrapped =
             error instanceof HonuaOperatorMapError

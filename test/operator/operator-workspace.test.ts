@@ -22,6 +22,10 @@ import {
   OperatorWorkspace,
   type WorkspaceEvent,
 } from "@honua/sdk-js/operator";
+// Subpath import — also acts as a regression for the Vitest alias
+// resolving `@honua/sdk-js/operator/i18n` to a file that exists
+// rather than `src/operator/index.ts/i18n`.
+import { DEFAULT_MESSAGES, resolveMessage } from "@honua/sdk-js/operator/i18n";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, type MaplibreMap } from "@honua/sdk-js/runtime";
 
 interface MockCall {
@@ -1160,6 +1164,48 @@ describe("OperatorWorkspace", () => {
     await expect(workspace.approval.load("op-typed")).rejects.toBe(typedError);
 
     workspace.dispose();
+  });
+
+  it("disposes the host map when loadMapPackage rejects after the factory has built it", async () => {
+    const map = makeMockMap();
+    // Sabotage setStyle so loadMapPackage rejects after the factory
+    // already returned a host map. Without the leak fix the
+    // factory's dispose() would never run.
+    map.setStyle = () => {
+      throw new Error("style apply failed");
+    };
+    let factoryDisposed = 0;
+    const workspace = new OperatorWorkspace({
+      client: makeOperatorClient(),
+      mapFactory: () => ({
+        map,
+        dispose: () => {
+          factoryDisposed += 1;
+        },
+      }),
+      mapLoadOptions: {
+        client: new HonuaClient({
+          baseUrl: "https://honua.example.test",
+          fetchFn: async () => new Response("not used", { status: 200 }),
+        }),
+        skipCompatibilityCheck: true,
+      },
+    });
+    workspace.map?.bindIntent("intent-leak");
+
+    await expect(workspace.map!.loadPackage(makeMapPackage())).rejects.toMatchObject({
+      name: "HonuaOperatorMapError",
+    });
+    expect(factoryDisposed).toBe(1);
+
+    workspace.dispose();
+    // dispose() must not double-dispose the already-released factory.
+    expect(factoryDisposed).toBe(1);
+  });
+
+  it("substitutes the {amount} placeholder in plan.estimatedCost", () => {
+    expect(resolveMessage(undefined, "plan.estimatedCost", { amount: "12.50" })).toBe("Estimated cost: 12.50");
+    expect(DEFAULT_MESSAGES["plan.estimatedCost"]).toBe("Estimated cost: {amount}");
   });
 
   it("aborts an in-flight chat stream when the workspace is disposed", async () => {

@@ -52,7 +52,7 @@ export const DEFAULT_MESSAGES: Readonly<Record<MessageId, string>> = {
   "plan.accept": "Run plan",
   "plan.revise": "Revise plan",
   "plan.requiresApproval": "Requires approval",
-  "plan.estimatedCost": "Estimated cost: ${amount}",
+  "plan.estimatedCost": "Estimated cost: {amount}",
   "execution.idle": "Waiting to start.",
   "execution.accepted": "Queued.",
   "execution.running": "Running… {percent}%",
