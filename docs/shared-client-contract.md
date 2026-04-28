@@ -44,6 +44,19 @@ src/contract/
 Public entrypoint: `@honua/sdk-js/contract` (also re-exported from the
 top-level `@honua/sdk-js` and `@honua/sdk-js/honua` barrels).
 
+## Cross-SDK binding policy
+
+This JS contract is also the draft semantic anchor for the Python and .NET SDKs.
+The SDKs should align behavior and vocabulary while keeping language-native
+names and casing. For example, the same operation may surface as `queryAll()`
+in TypeScript, `query_all()` in Python, and `QueryAllAsync()` in .NET.
+
+The binding policy and cross-SDK fixture pack are documented in
+[`sdk-surface-alignment.md`](./sdk-surface-alignment.md). The JSON fixture pack
+lives under `test/fixtures/sdk-contract/`; it is intentionally language-neutral
+so downstream SDKs can consume the same protocol, capability, result,
+unsupported-capability, and degraded-result scenarios.
+
 ## Canonical nouns
 
 | Type | What it is |
