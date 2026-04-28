@@ -206,6 +206,8 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
   presets (`globalLinked`, `mapDriven`, `gridDriven`, `chartDriven`, `decoupled`). Full state model and
   worked example: [`docs/exploration-context.md`](./docs/exploration-context.md).
 - Capability coverage per protocol: [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md).
+- Cross-SDK semantic alignment for JS/Python/.NET language bindings:
+  [`docs/sdk-surface-alignment.md`](./docs/sdk-surface-alignment.md).
 - Round-trip mapping to the server `SourceBinding` / `MapPackage` document:
   [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md).
 
