@@ -264,6 +264,8 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
   [`docs/sdk-surface-alignment.md`](./docs/sdk-surface-alignment.md).
 - Round-trip mapping to the server `SourceBinding` / `MapPackage` document:
   [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md).
+- Live SDK ↔ Honua Server protocol integration lane:
+  [`docs/integration-tests.md`](./docs/integration-tests.md).
 
 ```ts
 import { createDataset } from "@honua/sdk-js/contract";
@@ -410,6 +412,7 @@ npm run test:playwright:25d
 npm run test:playwright
 npm run demo:kepler:smoke
 npm run test:quickstart:staging # requires HONUA_STAGING_* env
+npm run test:integration # connect-only; requires HONUA_INTEGRATION_BASE_URL — see docs/integration-tests.md
 npm run scan:arcgis -- ../../path/to/arcgis-app
 npm run migrate:arcgis -- ../../path/to/arcgis-app --write --report migration-report.json
 npm run report:migration:real-samples

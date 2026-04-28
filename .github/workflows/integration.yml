@@ -1,0 +1,126 @@
+name: SDK Integration
+
+on:
+  push:
+    branches:
+      - trunk
+      - "release/**"
+  workflow_dispatch:
+    inputs:
+      server_image:
+        description: "Honua Server image (default: ghcr.io/honua-io/honua-server:nightly-aot)"
+        required: false
+        default: "ghcr.io/honua-io/honua-server:nightly-aot"
+
+env:
+  NODE_VERSION: "20.19.0"
+  HONUA_SERVER_IMAGE: ${{ github.event.inputs.server_image || 'ghcr.io/honua-io/honua-server:nightly-aot' }}
+  HONUA_INTEGRATION_BASE_URL: http://localhost:8080
+  HONUA_INTEGRATION_SEED_PROFILE: ogc
+
+jobs:
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5-alpine
+        env:
+          POSTGRES_DB: honua_dev
+          POSTGRES_USER: honua_user
+          POSTGRES_PASSWORD: honua_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U honua_user -d honua_dev"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      honua:
+        image: ${{ github.event.inputs.server_image || 'ghcr.io/honua-io/honua-server:nightly-aot' }}
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ASPNETCORE_URLS: "http://+:8080"
+          ConnectionStrings__DefaultConnection: "Host=postgres;Database=honua_dev;Username=honua_user;Password=honua_password"
+        ports:
+          - 8080:8080
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8080/healthz/live || exit 1"
+          --health-interval 15s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for Honua Server health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS "${HONUA_INTEGRATION_BASE_URL}/healthz/live" >/dev/null 2>&1; then
+              echo "Honua Server is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Honua Server did not become healthy in time" >&2
+          exit 1
+
+      - name: Resolve server image digest
+        id: image-meta
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${HONUA_SERVER_IMAGE}" 2>/dev/null || echo "${HONUA_SERVER_IMAGE}")
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Run integration tests
+        env:
+          HONUA_INTEGRATION_SERVER_IMAGE: ${{ steps.image-meta.outputs.digest }}
+          HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.sha }}
+        run: npm run test:integration
+
+      - name: Upload integration metadata
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-meta
+          path: test-results/integration-meta.json
+          if-no-files-found: warn
+
+      - name: Append integration summary
+        if: ${{ always() }}
+        run: |
+          if [ ! -f test-results/integration-meta.json ]; then
+            echo "Integration metadata file not produced." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node --input-type=module <<'EOF'
+          import fs from "node:fs";
+          const meta = JSON.parse(fs.readFileSync("test-results/integration-meta.json", "utf8"));
+          const lines = [
+            "## SDK Integration Summary",
+            "",
+            `- SDK package: \`${meta.sdkPackage}@${meta.sdkVersion}\``,
+            `- Server version: \`${meta.serverVersion ?? "unknown"}\` (channel \`${meta.serverReleaseChannel ?? "unknown"}\`)`,
+            `- Server image: \`${meta.serverImage ?? "unknown"}\``,
+            `- Server commit: \`${meta.serverCommit ?? "unknown"}\``,
+            `- Base URL: \`${meta.baseUrl}\``,
+            `- Seed profile: \`${meta.seedProfile}\``,
+            `- Service / Layer: \`${meta.serviceId}\` / \`${meta.layerId}\``,
+            `- Collection: \`${meta.collectionId}\``,
+            "",
+            "### Surfaces",
+            "",
+            "| Surface | Status | Reason |",
+            "| --- | --- | --- |",
+            ...meta.surfaces.map((entry) => `| \`${entry.surface}\` | ${entry.status} | ${entry.reason ?? ""} |`),
+          ];
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
+          EOF
