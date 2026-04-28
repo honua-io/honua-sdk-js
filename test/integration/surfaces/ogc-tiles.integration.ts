@@ -14,47 +14,53 @@ integrationSuite("OGC API Tiles", "ogc-tiles", ({ client, context, config }) => 
   const tiles = client.ogcTiles();
 
   it("returns the OGC Tiles landing document", async () => {
-    const landing = await runWithDiagnostics(context, "client.ogcTiles().landing", () => tiles.landing());
-    expect(landing).toBeDefined();
-    expect(Array.isArray(landing.links)).toBe(true);
+    await runWithDiagnostics(context, "client.ogcTiles().landing", async () => {
+      const landing = await tiles.landing();
+      expect(landing).toBeDefined();
+      expect(Array.isArray(landing.links)).toBe(true);
+    });
   });
 
   it("declares OGC Tiles conformance classes", async () => {
-    const conformance = await runWithDiagnostics(context, "client.ogcTiles().conformance", () => tiles.conformance());
-    expect(Array.isArray(conformance.conformsTo)).toBe(true);
+    await runWithDiagnostics(context, "client.ogcTiles().conformance", async () => {
+      const conformance = await tiles.conformance();
+      expect(Array.isArray(conformance.conformsTo)).toBe(true);
+    });
   });
 
   it("lists tile-matrix-sets with at least one entry", async () => {
-    const tms = await runWithDiagnostics(context, "client.ogcTiles().tileMatrixSets", () => tiles.tileMatrixSets());
-    expect(Array.isArray(tms.tileMatrixSets)).toBe(true);
-    expect(tms.tileMatrixSets.length).toBeGreaterThan(0);
+    await runWithDiagnostics(context, "client.ogcTiles().tileMatrixSets", async () => {
+      const tms = await tiles.tileMatrixSets();
+      expect(Array.isArray(tms.tileMatrixSets)).toBe(true);
+      expect(tms.tileMatrixSets.length).toBeGreaterThan(0);
+    });
   });
 
   it("returns metadata for the configured tile-matrix-set", async () => {
-    const tms = await runWithDiagnostics(context, "client.ogcTiles().tileMatrixSet", () =>
-      tiles.tileMatrixSet(config.tileMatrixSetId),
-    );
-    expect(String(tms.id ?? config.tileMatrixSetId)).toBe(config.tileMatrixSetId);
+    await runWithDiagnostics(context, "client.ogcTiles().tileMatrixSet", async () => {
+      const tms = await tiles.tileMatrixSet(config.tileMatrixSetId);
+      expect(String(tms.id ?? config.tileMatrixSetId)).toBe(config.tileMatrixSetId);
+    });
   });
 
   it("lists tilesets for the configured collection", async () => {
-    const tilesets = await runWithDiagnostics(context, "client.ogcTiles().tilesets", () =>
-      tiles.tilesets({ collectionId: config.collectionId }),
-    );
-    expect(Array.isArray(tilesets.tilesets)).toBe(true);
+    await runWithDiagnostics(context, "client.ogcTiles().tilesets", async () => {
+      const tilesets = await tiles.tilesets({ collectionId: config.collectionId });
+      expect(Array.isArray(tilesets.tilesets)).toBe(true);
+    });
   });
 
   it("fetches a single tile at zoom 0,0,0", async () => {
-    const tile = await runWithDiagnostics(context, "client.ogcTiles().tile", () =>
-      tiles.tile({
+    await runWithDiagnostics(context, "client.ogcTiles().tile", async () => {
+      const tile = await tiles.tile({
         collectionId: config.collectionId,
         tileMatrixSetId: config.tileMatrixSetId,
         tileMatrix: 0,
         tileRow: 0,
         tileCol: 0,
-      }),
-    );
-    expect(tile.contentType.length).toBeGreaterThan(0);
-    expect(tile.bytes).toBeInstanceOf(Uint8Array);
+      });
+      expect(tile.contentType.length).toBeGreaterThan(0);
+      expect(tile.bytes).toBeInstanceOf(Uint8Array);
+    });
   });
 });

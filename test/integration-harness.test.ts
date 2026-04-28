@@ -59,7 +59,7 @@ describe("integration harness env resolution", () => {
     expect(config?.baseUrl).toBe("http://localhost:5555");
     expect(config?.serviceId).toBe("test_service_gw0");
     expect(config?.layerId).toBe(1000);
-    expect(config?.collectionId).toBe("places");
+    expect(config?.collectionId).toBe("1000");
     expect(config?.tileMatrixSetId).toBe("WebMercatorQuad");
     expect(config?.seedProfile).toBe("places-roads-v1");
     expect(config?.timeoutMs).toBe(30_000);

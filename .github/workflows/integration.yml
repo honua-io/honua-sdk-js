@@ -7,52 +7,63 @@ on:
       - "release/**"
   workflow_dispatch:
     inputs:
-      server_image:
-        description: "Honua Server image (default: ghcr.io/honua-io/honua-server:nightly-aot)"
+      base_url:
+        description: "Honua Server base URL (overrides repo variable). Server must be running and seeded."
         required: false
-        default: "ghcr.io/honua-io/honua-server:nightly-aot"
+      seed_profile:
+        description: "Seed profile label recorded into integration-meta.json (overrides repo variable)."
+        required: false
 
 env:
   NODE_VERSION: "20.19.0"
-  HONUA_SERVER_IMAGE: ${{ github.event.inputs.server_image || 'ghcr.io/honua-io/honua-server:nightly-aot' }}
-  HONUA_INTEGRATION_BASE_URL: http://localhost:8080
-  HONUA_INTEGRATION_SEED_PROFILE: ogc
 
 jobs:
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgis/postgis:17-3.5-alpine
-        env:
-          POSTGRES_DB: honua_dev
-          POSTGRES_USER: honua_user
-          POSTGRES_PASSWORD: honua_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U honua_user -d honua_dev"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-      honua:
-        image: ${{ github.event.inputs.server_image || 'ghcr.io/honua-io/honua-server:nightly-aot' }}
-        env:
-          ASPNETCORE_ENVIRONMENT: Development
-          ASPNETCORE_URLS: "http://+:8080"
-          ConnectionStrings__DefaultConnection: "Host=postgres;Database=honua_dev;Username=honua_user;Password=honua_password"
-        ports:
-          - 8080:8080
-        options: >-
-          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8080/healthz/live || exit 1"
-          --health-interval 15s
-          --health-timeout 5s
-          --health-retries 20
+    env:
+      # Connect-only against an externally-managed seeded Honua Server.
+      # The server must be running and seeded before the workflow runs;
+      # the SDK lane does not own the bootstrap (no public seed image
+      # or admin seed API exists yet — see honua-sdk-js#39 follow-on).
+      HONUA_INTEGRATION_BASE_URL: ${{ github.event.inputs.base_url || vars.HONUA_INTEGRATION_BASE_URL }}
+      HONUA_INTEGRATION_API_KEY: ${{ secrets.HONUA_INTEGRATION_API_KEY }}
+      HONUA_INTEGRATION_SEED_PROFILE: ${{ github.event.inputs.seed_profile || vars.HONUA_INTEGRATION_SEED_PROFILE || 'places-roads-v1' }}
+      HONUA_INTEGRATION_SERVICE_ID: ${{ vars.HONUA_INTEGRATION_SERVICE_ID || 'test_service_gw0' }}
+      HONUA_INTEGRATION_LAYER_ID: ${{ vars.HONUA_INTEGRATION_LAYER_ID || '1000' }}
+      HONUA_INTEGRATION_COLLECTION_ID: ${{ vars.HONUA_INTEGRATION_COLLECTION_ID || '1000' }}
+      HONUA_INTEGRATION_TILE_MATRIX_SET: ${{ vars.HONUA_INTEGRATION_TILE_MATRIX_SET || 'WebMercatorQuad' }}
+      HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE }}
     steps:
       - uses: actions/checkout@v6
 
+      - name: Gate on configured integration target
+        id: gate
+        run: |
+          if [ -z "${HONUA_INTEGRATION_BASE_URL:-}" ]; then
+            {
+              echo "## SDK Integration"
+              echo ""
+              echo "Skipped: \`HONUA_INTEGRATION_BASE_URL\` is not configured."
+              echo ""
+              echo "The integration lane is connect-only and runs against an"
+              echo "externally-managed seeded Honua Server. Configure the repo/org"
+              echo "variable \`HONUA_INTEGRATION_BASE_URL\` and the secret"
+              echo "\`HONUA_INTEGRATION_API_KEY\` (matching the server's"
+              echo "\`HONUA_ADMIN_PASSWORD\`) to enable this workflow."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::HONUA_INTEGRATION_BASE_URL is not configured; skipping integration lane."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "${HONUA_INTEGRATION_API_KEY:-}" ]; then
+            echo "::error::HONUA_INTEGRATION_BASE_URL is set but HONUA_INTEGRATION_API_KEY secret is missing. The lane requires the secret to authenticate the admin capabilities probe; abort to surface the misconfiguration."
+            exit 1
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
       - name: Setup Node.js
+        if: steps.gate.outputs.skip != 'true'
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -60,9 +71,11 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
+        if: steps.gate.outputs.skip != 'true'
         run: npm ci
 
       - name: Wait for Honua Server health
+        if: steps.gate.outputs.skip != 'true'
         run: |
           for i in $(seq 1 60); do
             if curl -fsS "${HONUA_INTEGRATION_BASE_URL}/healthz/live" >/dev/null 2>&1; then
@@ -71,23 +84,17 @@ jobs:
             fi
             sleep 2
           done
-          echo "Honua Server did not become healthy in time" >&2
+          echo "Honua Server at ${HONUA_INTEGRATION_BASE_URL} did not report healthy within timeout" >&2
           exit 1
 
-      - name: Resolve server image digest
-        id: image-meta
-        run: |
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${HONUA_SERVER_IMAGE}" 2>/dev/null || echo "${HONUA_SERVER_IMAGE}")
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
-
       - name: Run integration tests
+        if: steps.gate.outputs.skip != 'true'
         env:
-          HONUA_INTEGRATION_SERVER_IMAGE: ${{ steps.image-meta.outputs.digest }}
           HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.sha }}
         run: npm run test:integration
 
       - name: Upload integration metadata
-        if: ${{ always() }}
+        if: ${{ steps.gate.outputs.skip != 'true' && always() }}
         uses: actions/upload-artifact@v4
         with:
           name: integration-meta
@@ -95,7 +102,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Append integration summary
-        if: ${{ always() }}
+        if: ${{ steps.gate.outputs.skip != 'true' && always() }}
         run: |
           if [ ! -f test-results/integration-meta.json ]; then
             echo "Integration metadata file not produced." >> "$GITHUB_STEP_SUMMARY"

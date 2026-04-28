@@ -12,6 +12,13 @@ server routes, response shapes, errors, and capability negotiation.
   integration lane reads `HONUA_INTEGRATION_BASE_URL` and skips the
   entire suite when that variable is unset, so a clean clone passes
   `npm run test:integration` even with no server running.
+- **Caller owns auth + seeding.** The lane assumes the target server is
+  already running, seeded with the configured service / layer /
+  collection, and reachable. `getCompatibility()` (the global setup
+  health probe) hits `/api/v1/admin/capabilities`, which is gated by
+  the server's admin auth — the harness passes
+  `HONUA_INTEGRATION_API_KEY` as the `X-API-Key` header, and that value
+  must match the server's `HONUA_ADMIN_PASSWORD`.
 - **Public API only.** Tests call methods on `HonuaClient` and its
   factory-returned helpers (`featureLayer`, `mapService`,
   `ogcFeatures`, `ogcTiles`, `ogcMaps`, `ogcProcesses`, `wms`, `wmts`).
@@ -23,17 +30,36 @@ server routes, response shapes, errors, and capability negotiation.
 
 ## Running locally
 
-```bash
-# 1. Start a Honua Server (Docker Compose listens on :8080 by default;
-#    js_test_server.py listens on :5555 with seeded test data).
-cd /path/to/honua-server
-docker compose up -d
-# or, for the JS-targeted seeded fixture:
-python -m tests.python.shared.js_test_server  # prints {"base_url": ...}
+The recommended local fixture is `tests/python/shared/js_test_server.py`
+in `honua-server`, which spins up a seeded PostGIS, applies the test
+catalog (service `test_service_gw0`, layer 1000 named "Test Layer", a
+small set of point features), and runs Honua Server in dev-auth mode on
+`:5555`:
 
-# 2. Run the integration lane against it.
+```bash
+# 1. Start the seeded JS test server (from the honua-server checkout).
+cd /path/to/honua-server
+python -m tests.python.shared.js_test_server  # prints {"base_url": "http://127.0.0.1:5555", ...}
+
+# 2. Run the integration lane against it. The js_test_server fixture
+#    runs the server in dev-auth mode, so HONUA_INTEGRATION_API_KEY can
+#    be any non-empty string (the value is still forwarded as
+#    X-API-Key but the server does not validate it in dev-auth mode).
 cd /path/to/honua-sdk-js
-HONUA_INTEGRATION_BASE_URL=http://localhost:8080 npm run test:integration
+HONUA_INTEGRATION_BASE_URL=http://localhost:5555 \
+  HONUA_INTEGRATION_API_KEY=local-dev \
+  npm run test:integration
+```
+
+If you point the lane at a Docker Compose-launched server (admin auth
+on, default port `:8080`), pass the configured admin password as the
+API key:
+
+```bash
+HONUA_INTEGRATION_BASE_URL=http://localhost:8080 \
+  HONUA_INTEGRATION_API_KEY="$HONUA_ADMIN_PASSWORD" \
+  HONUA_INTEGRATION_COLLECTION_ID=places \
+  npm run test:integration
 ```
 
 ## Environment variables
@@ -43,11 +69,11 @@ HONUA_INTEGRATION_BASE_URL=http://localhost:8080 npm run test:integration
 | `HONUA_INTEGRATION_BASE_URL` | _(required)_ | Server URL the lane connects to. Suite skips when absent. |
 | `HONUA_INTEGRATION_SERVICE_ID` | `test_service_gw0` | GeoServices service ID (FeatureServer / MapServer / WMS / WMTS). |
 | `HONUA_INTEGRATION_LAYER_ID` | `1000` | FeatureServer / MapServer layer ID. |
-| `HONUA_INTEGRATION_COLLECTION_ID` | `places` | OGC API Features / Maps / Tiles collection ID. |
+| `HONUA_INTEGRATION_COLLECTION_ID` | `1000` (numeric layer ID) | OGC API Features / Maps / Tiles collection ID. The default rides the server's layer-id-by-numeric resolution path so it works against the `js_test_server.py` seed; override with the layer name when the target seed exposes a friendlier collection identifier (`places`, `roads`, etc). |
+| `HONUA_INTEGRATION_API_KEY` | _(required)_ | `X-API-Key` header sent on every SDK call, including the `getCompatibility()` health probe against `/api/v1/admin/capabilities`. Must match the server's `HONUA_ADMIN_PASSWORD`. |
 | `HONUA_INTEGRATION_TILE_MATRIX_SET` | `WebMercatorQuad` | OGC Tiles tile-matrix-set ID. |
 | `HONUA_INTEGRATION_SEED_PROFILE` | `places-roads-v1` | Free-form label for the seed configuration; recorded into the metadata file but not sent on the wire. |
-| `HONUA_INTEGRATION_API_KEY` | _(unset)_ | Optional `X-API-Key` header. |
-| `HONUA_INTEGRATION_BEARER_TOKEN` | _(unset)_ | Optional `Authorization: Bearer …` header. |
+| `HONUA_INTEGRATION_BEARER_TOKEN` | _(unset)_ | Optional `Authorization: Bearer …` header (use only against bearer-secured deployments — admin endpoints expect `X-API-Key`). |
 | `HONUA_INTEGRATION_TIMEOUT_MS` | `30000` | Per-request timeout used by the harness `HonuaClient`. |
 | `HONUA_INTEGRATION_SERVER_IMAGE` | _(unset)_ | Recorded into `integration-meta.json` (CI uses the resolved image digest). |
 | `HONUA_INTEGRATION_SERVER_COMMIT` | _(unset)_ | Recorded into `integration-meta.json` (CI uses `${{ github.sha }}`). |
@@ -61,7 +87,7 @@ The lane exercises the following surfaces against the seed profile.
 | FeatureServer | Exercised | metadata, queryFeatures, queryFeatureCount, queryObjectIds |
 | MapServer | Exercised | metadata, mapLayer.queryFeatures, queryFeatureCount, exportMap |
 | OGC API Features | Exercised | landing, conformance, collections, items, item |
-| OGC API Tiles | Exercised | landing, conformance, tileMatrixSets, tilesets, tile |
+| OGC API Tiles | Exercised | landing, conformance, tileMatrixSets (list + by id), tilesets, tile |
 | OGC API Maps | Exercised | landing, conformance, map render |
 | OGC API Processes | Exercised | landing, conformance, list, describe (when registered) |
 | WMS | Exercised | capabilities, GetMap |
@@ -95,17 +121,49 @@ truncated with a `[truncated, original N chars]` suffix.
 ## CI integration
 
 `.github/workflows/integration.yml` runs the lane on `trunk` /
-`release/**` pushes and on manual dispatch. The job:
+`release/**` pushes and on manual dispatch. It is **connect-only**
+against an externally-managed seeded Honua Server — the SDK repo does
+not own the server bootstrap or seed because there is no public
+seed-on-start image or admin seed API in honua-server today (tracked
+as a follow-on, see "Deferred infrastructure" below).
 
-1. Spins up `postgis/postgis:17-3.5-alpine` and the configured
-   `ghcr.io/honua-io/honua-server` image as service containers.
-2. Polls `/healthz/live` until the server reports healthy.
-3. Runs `npm run test:integration` with `HONUA_INTEGRATION_BASE_URL`
-   pinned to the in-job server.
-4. Uploads `test-results/integration-meta.json` as the
+The job:
+
+1. Reads `HONUA_INTEGRATION_BASE_URL` from the workflow input or repo
+   variable. If neither is set, the workflow exits 0 with a notice in
+   the step summary so trunk pushes do not fail before the staging
+   environment is provisioned.
+2. Verifies that `HONUA_INTEGRATION_API_KEY` (repo secret) is present;
+   otherwise it fails fast with an explicit error. The value must
+   match the target server's `HONUA_ADMIN_PASSWORD`.
+3. Polls `${HONUA_INTEGRATION_BASE_URL}/healthz/live` until the server
+   reports healthy.
+4. Runs `npm run test:integration` with the resolved env.
+5. Uploads `test-results/integration-meta.json` as the
    `integration-meta` artifact (always, including on failure).
-5. Renders a summary table into `$GITHUB_STEP_SUMMARY` listing every
+6. Renders a summary table into `$GITHUB_STEP_SUMMARY` listing every
    surface and its status.
+
+### Required repo configuration
+
+| Scope | Name | Purpose |
+| --- | --- | --- |
+| Repository variable | `HONUA_INTEGRATION_BASE_URL` | URL of the staging Honua Server. When unset the workflow skips. |
+| Repository secret | `HONUA_INTEGRATION_API_KEY` | `X-API-Key` (matches server `HONUA_ADMIN_PASSWORD`). Required when the base URL is set. |
+| Repository variable (optional) | `HONUA_INTEGRATION_SERVICE_ID`, `HONUA_INTEGRATION_LAYER_ID`, `HONUA_INTEGRATION_COLLECTION_ID`, `HONUA_INTEGRATION_TILE_MATRIX_SET`, `HONUA_INTEGRATION_SEED_PROFILE`, `HONUA_INTEGRATION_SERVER_IMAGE` | Override the corresponding harness defaults to match the staging seed. |
+
+### Deferred infrastructure
+
+- A `:nightly-seeded` (or equivalent) Honua Server image with the test
+  catalog baked in does not yet exist. Until it does, the workflow
+  cannot bootstrap its own server from inside CI.
+- A public admin seed API (`POST /api/v1/admin/services` /
+  `.../layers` / `.../features`) does not yet exist. Until it does,
+  the SDK repo cannot seed a freshly-started server without sibling-
+  checking out honua-server and reaching into its Python fixture.
+
+These gaps are tracked as honua-server follow-ons and re-enable the
+service-container path in this workflow once either lands.
 
 ### Metadata artifact
 
@@ -119,11 +177,11 @@ truncated with a `[truncated, original N chars]` suffix.
   "serverReleaseChannel": "preview",
   "serverImage": "ghcr.io/honua-io/honua-server@sha256:…",
   "serverCommit": "<github.sha>",
-  "baseUrl": "http://localhost:8080",
-  "seedProfile": "ogc",
+  "baseUrl": "http://localhost:5555",
+  "seedProfile": "places-roads-v1",
   "serviceId": "test_service_gw0",
   "layerId": 1000,
-  "collectionId": "places",
+  "collectionId": "1000",
   "tileMatrixSetId": "WebMercatorQuad",
   "startedAt": "2026-04-28T01:23:45Z",
   "surfaces": [

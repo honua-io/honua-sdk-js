@@ -13,19 +13,25 @@ integrationSuite("WMS", "wms", ({ client, context, config }) => {
   const wms = client.wms(config.serviceId);
 
   it("reads service capabilities", async () => {
-    const capabilities = await runWithDiagnostics(context, "client.wms().capabilities", () => wms.capabilities());
-    expect(capabilities.version.length).toBeGreaterThan(0);
-    expect(capabilities.layers.length).toBeGreaterThan(0);
+    await runWithDiagnostics(context, "client.wms().capabilities", async () => {
+      const capabilities = await wms.capabilities();
+      expect(capabilities.version.length).toBeGreaterThan(0);
+      expect(capabilities.layers.length).toBeGreaterThan(0);
+    });
   });
 
   it("renders a GetMap image for the first advertised layer", async () => {
-    const capabilities = await runWithDiagnostics(context, "client.wms().capabilities", () => wms.capabilities());
+    const capabilities = await runWithDiagnostics(context, "client.wms().capabilities", async () => {
+      const r = await wms.capabilities();
+      expect(r.version.length).toBeGreaterThan(0);
+      return r;
+    });
     const advertised = capabilities.layers.find((layer) => typeof layer.name === "string" && layer.name.length > 0);
     if (!advertised?.name) {
       return; // Server advertised only group layers — skip render.
     }
-    const image = await runWithDiagnostics(context, "client.wms().map", () =>
-      wms.map({
+    await runWithDiagnostics(context, "client.wms().map", async () => {
+      const image = await wms.map({
         layers: [advertised.name],
         bbox: [-180, -85, 180, 85],
         crs: "EPSG:4326",
@@ -33,9 +39,9 @@ integrationSuite("WMS", "wms", ({ client, context, config }) => {
         height: 256,
         format: "image/png",
         transparent: true,
-      }),
-    );
-    expect(image.contentType.startsWith("image/")).toBe(true);
-    expect(image.bytes.byteLength).toBeGreaterThan(0);
+      });
+      expect(image.contentType.startsWith("image/")).toBe(true);
+      expect(image.bytes.byteLength).toBeGreaterThan(0);
+    });
   });
 });

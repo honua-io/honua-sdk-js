@@ -45,9 +45,12 @@ export interface IntegrationConfig {
   serviceId: string;
   layerId: number;
   /**
-   * OGC API Features collection ID for read tests. The seeded `places`
-   * collection is the SDK lane default because every supported server
-   * profile (`core`, `ogc`) seeds it.
+   * OGC API Features collection ID for read tests. Defaults to the
+   * numeric layer ID so it resolves through the server's
+   * `ResourceValidator` numeric-id fallback against any seed that
+   * exposes the configured layer (including the `js_test_server.py`
+   * fixture, which names the layer "Test Layer"). Override when the
+   * target seed exposes a friendlier collection name like `places`.
    */
   collectionId: string;
   /** OGC Tiles tile-matrix-set used for sparse-tile reads. */
@@ -66,7 +69,13 @@ export interface IntegrationConfig {
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_SERVICE_ID = "test_service_gw0";
 const DEFAULT_LAYER_ID = 1000;
-const DEFAULT_COLLECTION_ID = "places";
+// honua-server resolves OGC collection IDs by layer name first and then by
+// numeric layer ID. The js_test_server.py seed gives the layer name
+// "Test Layer" (which contains a space and is not URL-friendly), so we use
+// the numeric layer ID as the default collection ID — that path round-trips
+// through ResourceValidator.ValidateCollectionAsync without depending on the
+// human-readable layer name.
+const DEFAULT_COLLECTION_ID = String(DEFAULT_LAYER_ID);
 const DEFAULT_TILE_MATRIX_SET = "WebMercatorQuad";
 const DEFAULT_SEED_PROFILE = "places-roads-v1";
 
