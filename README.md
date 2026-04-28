@@ -1,5 +1,57 @@
 # Honua JS SDK
 
+## Mental Model: `Dataset` → `Source` → `Query` → `Result`
+
+Every Honua SDK — JavaScript, Python, .NET — speaks the same canonical
+vocabulary. A `Dataset` groups one or more `Source`s. Each `Source` accepts a
+protocol-neutral `Query` and returns a protocol-neutral `Result`. Operations the
+canonical surface does not cover stay reachable through the typed
+`source.protocol(...)` escape hatch. Method casing differs by language
+(`queryAll()` / `query_all()` / `QueryAllAsync()`), the semantics do not.
+
+```bash
+npm install @honua/sdk-js
+```
+
+```ts
+import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({ baseUrl: "https://your-honua-server.example" });
+
+const dataset = createDataset({
+  id: "parcels",
+  client,
+  sources: [
+    {
+      id: "parcels-fs",
+      protocol: "geoservices-feature-service",
+      locator: { url: "https://your-honua-server.example", serviceId: "parcels", layerId: 0 },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+    },
+  ],
+});
+
+const parcels = dataset.source("parcels-fs")!;
+const result = await parcels.queryAll({
+  where: "STATUS = 'ACTIVE'",
+  outFields: ["OBJECTID", "NAME", "STATUS"],
+  returnGeometry: true,
+  pagination: { limit: 500 },
+});
+
+console.log(`Loaded ${result.features.length} features (exceeded=${result.exceededTransferLimit})`);
+```
+
+Cross-language semantics, protocol/capability identifiers, language-binding
+tables, and backwards-compatibility policy live in
+[`docs/sdk-surface-alignment.md`](./docs/sdk-surface-alignment.md). The shared
+contract design and protocol coverage live in
+[`docs/shared-client-contract.md`](./docs/shared-client-contract.md) and
+[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md).
+Capability misses throw `HonuaCapabilityNotSupportedError` (under the default
+`strict` policy) rather than silently returning empty results.
+
 ## Quickstart
 
 Canonical runnable browser quickstart from this repo:
@@ -13,9 +65,11 @@ Use [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) 
 [`docs/quickstart.md`](./docs/quickstart.md) for the guided quickstart flow, and
 [`docs/quickstart-troubleshooting.md`](./docs/quickstart-troubleshooting.md) for common failure modes.
 
-```bash
-npm install @honua/sdk-js
-```
+The browser quickstart and the snippet below demonstrate the protocol escape
+hatch — `HonuaClient.queryFeatures` is the GeoServices FeatureServer call
+backing `Source.query()` and remains the migration-friendly path for code
+already written against the raw client. New cross-protocol code should reach
+for `createDataset` and `Source` first.
 
 ```ts
 import { HonuaClient } from "@honua/sdk-js/honua";

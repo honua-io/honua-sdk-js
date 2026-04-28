@@ -571,6 +571,7 @@
       "protocol": "wmts",
       "operation": "query",
       "requiredCapability": "query",
+      "reason": "WMTS is render-only; tile pixels do not project onto the canonical Query.spatialFilter envelope.",
       "expectedError": {
         "name": "HonuaCapabilityNotSupportedError",
         "capability": "query",
@@ -578,14 +579,75 @@
       }
     },
     {
+      "id": "ogc-tiles-query-unsupported",
+      "protocol": "ogc-tiles",
+      "operation": "query",
+      "requiredCapability": "query",
+      "reason": "OGC API Tiles is a render-only conformance class; feature query is not part of the surface.",
+      "expectedError": {
+        "name": "HonuaCapabilityNotSupportedError",
+        "capability": "query",
+        "protocol": "ogc-tiles"
+      }
+    },
+    {
       "id": "ogc-tiles-apply-edits-unsupported",
       "protocol": "ogc-tiles",
       "operation": "applyEdits",
       "requiredCapability": "applyEdits",
+      "reason": "Render-only adapters do not accept edits; mixed-source apps must surface the limitation explicitly.",
       "expectedError": {
         "name": "HonuaCapabilityNotSupportedError",
         "capability": "applyEdits",
         "protocol": "ogc-tiles"
+      }
+    },
+    {
+      "id": "ogc-maps-query-unsupported",
+      "protocol": "ogc-maps",
+      "operation": "query",
+      "requiredCapability": "query",
+      "reason": "OGC API Maps is render-only; the canonical Query family throws rather than silently returning empty.",
+      "expectedError": {
+        "name": "HonuaCapabilityNotSupportedError",
+        "capability": "query",
+        "protocol": "ogc-maps"
+      }
+    },
+    {
+      "id": "geometry-service-query-unsupported",
+      "protocol": "geoservices-geometry-service",
+      "operation": "query",
+      "requiredCapability": "query",
+      "reason": "Geometry Service is a stateless utility — it hosts no feature table. Operations live behind Source.protocol().",
+      "expectedError": {
+        "name": "HonuaCapabilityNotSupportedError",
+        "capability": "query",
+        "protocol": "geoservices-geometry-service"
+      }
+    },
+    {
+      "id": "gp-service-query-unsupported",
+      "protocol": "geoservices-gp-service",
+      "operation": "query",
+      "requiredCapability": "query",
+      "reason": "GP Service runs async tasks rather than hosting features. Job lifecycle lives behind Source.protocol().",
+      "expectedError": {
+        "name": "HonuaCapabilityNotSupportedError",
+        "capability": "query",
+        "protocol": "geoservices-gp-service"
+      }
+    },
+    {
+      "id": "ogc-features-related-unsupported",
+      "protocol": "ogc-features",
+      "operation": "queryRelated",
+      "requiredCapability": "queryRelated",
+      "reason": "OGC API Features does not model related records; queryRelated must throw rather than silently return an empty group.",
+      "expectedError": {
+        "name": "HonuaCapabilityNotSupportedError",
+        "capability": "queryRelated",
+        "protocol": "ogc-features"
       }
     }
   ]
