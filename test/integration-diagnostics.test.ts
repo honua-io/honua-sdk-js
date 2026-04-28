@@ -47,6 +47,49 @@ describe("integration diagnostics", () => {
     expect(ctx.lastDurationMs).toBe(17.5);
   });
 
+  it("captures a JSON body excerpt for a 200 response so failed assertions carry the payload", async () => {
+    const ctx = context();
+    const interceptor = createDiagnosticsInterceptor(ctx);
+    const body = JSON.stringify({ features: [], exceededTransferLimit: false });
+    await interceptor.after?.({
+      request: { url: "http://server/x", path: "/x", method: "GET", init: {} },
+      response: new Response(body, {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+      durationMs: 4,
+    });
+    expect(ctx.lastBodySummary).toBe(body);
+  });
+
+  it("records a metadata-only summary for binary success responses", async () => {
+    const ctx = context();
+    const interceptor = createDiagnosticsInterceptor(ctx);
+    const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    await interceptor.after?.({
+      request: { url: "http://server/x", path: "/x", method: "GET", init: {} },
+      response: new Response(bytes, {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": "5" },
+      }),
+      durationMs: 6,
+    });
+    expect(ctx.lastBodySummary).toContain("binary body");
+    expect(ctx.lastBodySummary).toContain("image/png");
+    expect(ctx.lastBodySummary).toContain("5 bytes");
+  });
+
+  it("reports an explicit empty-body marker on 204 responses", async () => {
+    const ctx = context();
+    const interceptor = createDiagnosticsInterceptor(ctx);
+    await interceptor.after?.({
+      request: { url: "http://server/x", path: "/x", method: "DELETE", init: {} },
+      response: new Response(null, { status: 204 }),
+      durationMs: 1,
+    });
+    expect(ctx.lastBodySummary).toBe("(empty body)");
+  });
+
   it("records an HttpError body summary on the error interceptor", async () => {
     const ctx = context();
     const interceptor = createDiagnosticsInterceptor(ctx);

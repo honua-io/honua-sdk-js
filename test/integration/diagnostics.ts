@@ -58,6 +58,7 @@ export function createDiagnosticsInterceptor(context: DiagnosticsContext): Honua
     async after(response: HonuaResponseContext) {
       context.lastStatus = response.response.status;
       context.lastDurationMs = response.durationMs;
+      context.lastBodySummary = await summarizeResponse(response.response);
     },
     async error(failure: HonuaErrorContext) {
       context.lastDurationMs = failure.durationMs;
@@ -152,4 +153,45 @@ function summarizeBody(body: unknown): string {
     return `${serialized.slice(0, MAX_BODY_EXCERPT_CHARS)}… [truncated, original ${serialized.length} chars]`;
   }
   return serialized;
+}
+
+/**
+ * Produce a body excerpt for a 2xx/3xx response so a downstream
+ * assertion failure (200 with the wrong shape, empty page, etc.) carries
+ * the same diagnostic block as a thrown SDK error. The interceptor
+ * already receives a cloned response (see `applyAfterInterceptors` in
+ * the client), so consuming the body here does not affect the SDK's
+ * own decode path. Binary responses are summarized with metadata only
+ * to avoid base64-encoding tiles or images into the failure message.
+ */
+async function summarizeResponse(response: Response): Promise<string> {
+  if (response.status === 204) {
+    return "(empty body)";
+  }
+  const contentType = response.headers.get("content-type") ?? "";
+  if (isTextLikeContentType(contentType)) {
+    try {
+      const text = await response.text();
+      if (text.length === 0) return "(empty body)";
+      return summarizeBody(text);
+    } catch (error) {
+      return `(body read failed: ${error instanceof Error ? error.message : String(error)})`;
+    }
+  }
+  const contentLength = response.headers.get("content-length");
+  const sizeHint = contentLength ? `${contentLength} bytes` : "size unknown";
+  const ctHint = contentType.length > 0 ? contentType : "unknown";
+  return `(binary body: content-type=${ctHint}, ${sizeHint})`;
+}
+
+function isTextLikeContentType(contentType: string): boolean {
+  if (!contentType) return false;
+  const lower = contentType.toLowerCase();
+  if (lower.startsWith("text/")) return true;
+  if (lower.startsWith("application/json")) return true;
+  if (lower.includes("+json")) return true;
+  if (lower.startsWith("application/xml")) return true;
+  if (lower.includes("+xml")) return true;
+  if (lower.startsWith("application/x-www-form-urlencoded")) return true;
+  return false;
 }

@@ -13,6 +13,9 @@ on:
       seed_profile:
         description: "Seed profile label recorded into integration-meta.json (overrides repo variable)."
         required: false
+      server_commit:
+        description: "Honua Server commit SHA recorded into integration-meta.json (overrides repo variable). Leave blank when unknown — do not set to the SDK commit."
+        required: false
 
 env:
   NODE_VERSION: "20.19.0"
@@ -34,6 +37,10 @@ jobs:
       HONUA_INTEGRATION_COLLECTION_ID: ${{ vars.HONUA_INTEGRATION_COLLECTION_ID || '1000' }}
       HONUA_INTEGRATION_TILE_MATRIX_SET: ${{ vars.HONUA_INTEGRATION_TILE_MATRIX_SET || 'WebMercatorQuad' }}
       HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE }}
+      # Honua Server commit, sourced from the workflow input or a repo
+      # variable. Never derived from `github.sha` (which is the SDK
+      # repository commit, not the server under test).
+      HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT }}
     steps:
       - uses: actions/checkout@v6
 
@@ -89,8 +96,6 @@ jobs:
 
       - name: Run integration tests
         if: steps.gate.outputs.skip != 'true'
-        env:
-          HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.sha }}
         run: npm run test:integration
 
       - name: Upload integration metadata

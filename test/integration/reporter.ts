@@ -73,9 +73,24 @@ export function initializeMeta(initial: Omit<IntegrationMetaDocument, "surfaces"
  * the same surface keeps the original entry but overwrites the reason
  * (so a skip recorded ahead of time can later be marked as exercised
  * without leaving stale text behind).
+ *
+ * Vitest runs surface test files in worker processes that do not share
+ * module state with the global setup process, so when the worker calls
+ * this function `mutableMeta` is `undefined` even though
+ * `initializeMeta()` already wrote the artifact. Restore from disk in
+ * that case and merge the new surface entry. `vitest.integration.config.ts`
+ * pins `fileParallelism: false` so reads and writes stay serial.
  */
 export function recordSurface(surface: string, skipReason?: string): void {
-  if (!mutableMeta) return;
+  if (!mutableMeta) {
+    const restored = restoreMetaFromDisk();
+    if (!restored) return;
+    mutableMeta = restored;
+    surfaceIndex.clear();
+    for (const entry of mutableMeta.surfaces) {
+      surfaceIndex.set(entry.surface, entry);
+    }
+  }
   const existing = surfaceIndex.get(surface);
   if (existing) {
     if (skipReason) {
@@ -113,4 +128,20 @@ function flushMeta(): void {
   if (!mutableMeta) return;
   fs.mkdirSync(TEST_RESULTS_DIR, { recursive: true });
   fs.writeFileSync(META_FILE, `${JSON.stringify(mutableMeta, null, 2)}\n`);
+}
+
+function restoreMetaFromDisk(): MutableMeta | undefined {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(META_FILE, "utf8");
+  } catch {
+    return undefined;
+  }
+  let parsed: IntegrationMetaDocument;
+  try {
+    parsed = JSON.parse(raw) as IntegrationMetaDocument;
+  } catch {
+    return undefined;
+  }
+  return { ...parsed, surfaces: [...(parsed.surfaces ?? [])] };
 }

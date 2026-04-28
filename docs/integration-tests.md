@@ -76,7 +76,7 @@ HONUA_INTEGRATION_BASE_URL=http://localhost:8080 \
 | `HONUA_INTEGRATION_BEARER_TOKEN` | _(unset)_ | Optional `Authorization: Bearer …` header (use only against bearer-secured deployments — admin endpoints expect `X-API-Key`). |
 | `HONUA_INTEGRATION_TIMEOUT_MS` | `30000` | Per-request timeout used by the harness `HonuaClient`. |
 | `HONUA_INTEGRATION_SERVER_IMAGE` | _(unset)_ | Recorded into `integration-meta.json` (CI uses the resolved image digest). |
-| `HONUA_INTEGRATION_SERVER_COMMIT` | _(unset)_ | Recorded into `integration-meta.json` (CI uses `${{ github.sha }}`). |
+| `HONUA_INTEGRATION_SERVER_COMMIT` | _(unset)_ | Honua Server commit SHA, recorded into `integration-meta.json`. CI reads it from the workflow `server_commit` input or `vars.HONUA_INTEGRATION_SERVER_COMMIT`; it is never derived from `${{ github.sha }}` (which is the SDK repo commit). Leave blank when the server commit is unknown. |
 
 ## Surface coverage
 
@@ -150,7 +150,7 @@ The job:
 | --- | --- | --- |
 | Repository variable | `HONUA_INTEGRATION_BASE_URL` | URL of the staging Honua Server. When unset the workflow skips. |
 | Repository secret | `HONUA_INTEGRATION_API_KEY` | `X-API-Key` (matches server `HONUA_ADMIN_PASSWORD`). Required when the base URL is set. |
-| Repository variable (optional) | `HONUA_INTEGRATION_SERVICE_ID`, `HONUA_INTEGRATION_LAYER_ID`, `HONUA_INTEGRATION_COLLECTION_ID`, `HONUA_INTEGRATION_TILE_MATRIX_SET`, `HONUA_INTEGRATION_SEED_PROFILE`, `HONUA_INTEGRATION_SERVER_IMAGE` | Override the corresponding harness defaults to match the staging seed. |
+| Repository variable (optional) | `HONUA_INTEGRATION_SERVICE_ID`, `HONUA_INTEGRATION_LAYER_ID`, `HONUA_INTEGRATION_COLLECTION_ID`, `HONUA_INTEGRATION_TILE_MATRIX_SET`, `HONUA_INTEGRATION_SEED_PROFILE`, `HONUA_INTEGRATION_SERVER_IMAGE`, `HONUA_INTEGRATION_SERVER_COMMIT` | Override the corresponding harness defaults to match the staging seed. `HONUA_INTEGRATION_SERVER_COMMIT` records the Honua Server commit (not the SDK commit) in `integration-meta.json`; leave unset when it is unknown. |
 
 ### Deferred infrastructure
 
@@ -176,7 +176,7 @@ service-container path in this workflow once either lands.
   "serverVersion": "1.x.y",
   "serverReleaseChannel": "preview",
   "serverImage": "ghcr.io/honua-io/honua-server@sha256:…",
-  "serverCommit": "<github.sha>",
+  "serverCommit": "<honua-server commit SHA, or null when unknown>",
   "baseUrl": "http://localhost:5555",
   "seedProfile": "places-roads-v1",
   "serviceId": "test_service_gw0",
