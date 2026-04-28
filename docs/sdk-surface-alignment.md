@@ -142,9 +142,17 @@ The RFC aligns semantics — it does not delete shipped APIs.
 - **Protocol aliases normalize on read.** Short and legacy protocol names that
   already shipped in any SDK appear in the `protocolAliases` map of
   [`semantic-contract.v1.json`](../test/fixtures/sdk-contract/semantic-contract.v1.json).
-  SDKs accept those aliases as input, but every serialized descriptor — fixture,
-  server `SourceBinding`, telemetry, log line — emits the canonical id.
-  Adding a new alias is backwards-compatible; renaming a canonical id is not.
+  SDKs accept those aliases as input, but every SDK-side serialized
+  descriptor — `SourceDescriptor` JSON, fixture pack, telemetry, log line —
+  emits the canonical kebab-case id. The server `SourceBinding` wire format
+  is independent: it stays on its documented snake_case enum
+  (`geoservices_feature_service`, `ogc_features`, …) per
+  [`source-binding-alignment.md`](./source-binding-alignment.md), and the
+  runtime normalizes server wire values to canonical SDK ids inside
+  `src/runtime/source-bridge.ts` before they reach `createDataset`. A
+  server-side wire-format rename would be a coordinated cross-repo contract
+  change, not a downstream SDK edit. Adding a new alias is backwards-
+  compatible; renaming a canonical id is not.
 - **Capability behavior may not silently change.** Adding a capability to a
   protocol is backwards-compatible. Removing one (or downgrading from
   first-party to client-side fallback) is a breaking change and must ship in a
