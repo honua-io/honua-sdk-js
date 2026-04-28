@@ -14,7 +14,7 @@ import * as queryFeatures from "./tools/query-features.js";
 import * as statistics from "./tools/statistics.js";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RETRIES = 2;
-const DEFAULT_SERVER_VERSION = "0.0.1-alpha.0";
+const DEFAULT_SERVER_VERSION = "0.0.3-alpha.0";
 export const SERVER_VERSION = resolveServerVersion();
 function resolveServerVersion() {
     try {
