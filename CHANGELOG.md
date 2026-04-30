@@ -2,6 +2,14 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.4-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.3-alpha.0...js-sdk-vv0.0.4-alpha.0) (2026-04-28)
+
+
+### Features
+
+* Add integration tests against Honua Server protocol surfaces ([#39](https://github.com/honua-io/honua-sdk-js/issues/39)) ([3c9652e](https://github.com/honua-io/honua-sdk-js/commit/3c9652e4c4bd86972109ac96cf1d56ff903e5f5b))
+* SDK surface alignment RFC: canonical cross-language semantics ([#44](https://github.com/honua-io/honua-sdk-js/issues/44)) ([e7c0be2](https://github.com/honua-io/honua-sdk-js/commit/e7c0be26cf88717ed0b90757b91006be33d9c96e))
+
 ## [0.0.3-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.2-alpha.0...js-sdk-vv0.0.3-alpha.0) (2026-04-27)
 
 
