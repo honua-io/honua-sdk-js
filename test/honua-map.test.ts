@@ -1,16 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  HonuaMap,
-  HonuaClient,
-  HonuaFeatureLayer,
-  HonuaMapService,
-} from "../src/index.js";
 import { HonuaOgcFeatureCollection } from "../src/core/surfaces.js";
-import type {
-  HonuaStyleSpecification,
-  HonuaMapEvent,
-} from "../src/index.js";
+import { HonuaClient, HonuaFeatureLayer, HonuaMap, HonuaMapService } from "../src/index.js";
+import type { HonuaMapEvent, HonuaStyleSpecification } from "../src/index.js";
 
 const client = new HonuaClient({ baseUrl: "https://gis.example.com" });
 
@@ -52,9 +44,7 @@ describe("HonuaMap — source management", () => {
 
     const source = map.getSource("boundaries");
     expect(source).toBeInstanceOf(HonuaOgcFeatureCollection);
-    expect((source as HonuaOgcFeatureCollection).collectionId).toBe(
-      "admin-boundaries",
-    );
+    expect((source as HonuaOgcFeatureCollection).collectionId).toBe("admin-boundaries");
   });
 
   it("adds a native MapLibre source and resolves to null", () => {
@@ -142,9 +132,9 @@ describe("HonuaMap — layer management", () => {
 
   it("throws when referencing a non-existent source", () => {
     const map = new HonuaMap({ client });
-    expect(() =>
-      map.addLayer({ id: "bad", source: "missing", type: "fill" }),
-    ).toThrow('source "missing" does not exist');
+    expect(() => map.addLayer({ id: "bad", source: "missing", type: "fill" })).toThrow(
+      'source "missing" does not exist',
+    );
   });
 
   it("throws when adding a duplicate layer ID", () => {
@@ -154,9 +144,7 @@ describe("HonuaMap — layer management", () => {
       url: "https://gis.example.com/rest/services/s/FeatureServer/0",
     });
     map.addLayer({ id: "l", source: "s", type: "fill" });
-    expect(() => map.addLayer({ id: "l", source: "s", type: "line" })).toThrow(
-      'Layer "l" already exists',
-    );
+    expect(() => map.addLayer({ id: "l", source: "s", type: "line" })).toThrow('Layer "l" already exists');
   });
 
   it("inserts a layer before another", () => {
@@ -178,9 +166,7 @@ describe("HonuaMap — layer management", () => {
       type: "honua-feature-service",
       url: "https://gis.example.com/rest/services/s/FeatureServer/0",
     });
-    expect(() =>
-      map.addLayer({ id: "l", source: "s", type: "fill" }, "ghost"),
-    ).toThrow('Cannot insert before "ghost"');
+    expect(() => map.addLayer({ id: "l", source: "s", type: "fill" }, "ghost")).toThrow('Cannot insert before "ghost"');
   });
 
   it("removes a layer by ID", () => {
@@ -371,9 +357,7 @@ describe("HonuaMap — events", () => {
 
     map.moveLayer("b", "a");
 
-    expect(events).toEqual([
-      { type: "layer-moved", layerId: "b", beforeId: "a" },
-    ]);
+    expect(events).toEqual([{ type: "layer-moved", layerId: "b", beforeId: "a" }]);
   });
 
   it("on() returns a removable handle", () => {

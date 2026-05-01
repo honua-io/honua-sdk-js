@@ -40,7 +40,11 @@ export function buildLegend(
 }
 
 function legendEntryId(entry: HonuaMapPackageLegendEntry, index: number): string {
-  const slug = entry.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const slug = entry.label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   return slug ? `${slug}-${index}` : `legend-${index}`;
 }
 

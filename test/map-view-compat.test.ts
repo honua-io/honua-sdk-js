@@ -326,13 +326,7 @@ describe("MapViewCompat", () => {
     });
     expect(view.center).toEqual({ x: 2, y: 2, spatialReference: undefined });
 
-    await view.goTo(
-      [
-        { geometry: { x: -3, y: 5 } },
-        { geometry: { x: 7, y: 9 } },
-      ],
-      { animate: false, duration: 1200 },
-    );
+    await view.goTo([{ geometry: { x: -3, y: 5 } }, { geometry: { x: 7, y: 9 } }], { animate: false, duration: 1200 });
     expect(view.extent).toEqual({
       xmin: -3,
       ymin: 5,
@@ -346,10 +340,7 @@ describe("MapViewCompat", () => {
     expect(view.center).toEqual([30, 40]);
 
     expect(events).toContainEqual({
-      target: [
-        { geometry: { x: -3, y: 5 } },
-        { geometry: { x: 7, y: 9 } },
-      ],
+      target: [{ geometry: { x: -3, y: 5 } }, { geometry: { x: 7, y: 9 } }],
       options: { animate: false, duration: 1200 },
     });
   });
@@ -676,10 +667,9 @@ describe("MapViewCompat", () => {
     expect(hasAllFeaturesInViewValues).toEqual([false]);
 
     const highlightA = layerViewA.highlight({ attributes: { OBJECTID: 101 } });
-    const highlightB = layerViewA.highlight(
-      [{ attributes: { OBJECTID: 102 } }, { attributes: { OBJECTID: 103 } }],
-      { name: "selection" },
-    );
+    const highlightB = layerViewA.highlight([{ attributes: { OBJECTID: 102 } }, { attributes: { OBJECTID: 103 } }], {
+      name: "selection",
+    });
     expect(layerViewA.highlights).toHaveLength(2);
     highlightA.remove();
     expect(layerViewA.highlights).toHaveLength(1);

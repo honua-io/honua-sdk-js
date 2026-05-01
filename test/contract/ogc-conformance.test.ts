@@ -7,10 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  hasOgcConformanceClass,
-  negotiateOgcCapabilities,
-} from "../../src/core/ogc-conformance.js";
+import { hasOgcConformanceClass, negotiateOgcCapabilities } from "../../src/core/ogc-conformance.js";
 
 describe("ogc-conformance / negotiateOgcCapabilities", () => {
   it("translates OGC API Features 1.0 + Part 3 + Part 4 into canonical capabilities", () => {

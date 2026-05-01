@@ -1,8 +1,4 @@
-import {
-  createHoverHandler,
-  createSelectionHandler,
-  type SelectionHandle,
-} from "@honua/sdk-js/honua";
+import { type SelectionHandle, createHoverHandler, createSelectionHandler } from "@honua/sdk-js/honua";
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from "maplibre-gl";
 
 import {
@@ -12,8 +8,8 @@ import {
   toLineFeature,
   toPointFeature,
 } from "./geometry.js";
-import type { StoryDataset, StoryDemoConfig, StoryFeatureId } from "./types.js";
 import type { StoryTelemetry } from "./telemetry.js";
+import type { StoryDataset, StoryDemoConfig, StoryFeatureId } from "./types.js";
 
 const ASSET_EXTRUSION_LAYER_ID = "story-assets-extrusion";
 const ASSET_OUTLINE_LAYER_ID = "story-assets-outline";
@@ -206,26 +202,11 @@ export async function createStoryMap(options: CreateStoryMapOptions): Promise<St
     type: "circle",
     source: options.config.sourceIds.stops,
     paint: {
-      "circle-radius": [
-        "case",
-        ["boolean", ["feature-state", "active"], false],
-        12,
-        8,
-      ],
+      "circle-radius": ["case", ["boolean", ["feature-state", "active"], false], 12, 8],
       "circle-color": "#f5c76d",
-      "circle-opacity": [
-        "case",
-        ["boolean", ["feature-state", "active"], false],
-        0.75,
-        0,
-      ],
+      "circle-opacity": ["case", ["boolean", ["feature-state", "active"], false], 0.75, 0],
       "circle-stroke-color": "#fff7dd",
-      "circle-stroke-width": [
-        "case",
-        ["boolean", ["feature-state", "active"], false],
-        2,
-        0,
-      ],
+      "circle-stroke-width": ["case", ["boolean", ["feature-state", "active"], false], 2, 0],
     },
   });
 
@@ -236,12 +217,7 @@ export async function createStoryMap(options: CreateStoryMapOptions): Promise<St
     paint: {
       "fill-extrusion-height": ["get", "extrusion_height_m"],
       "fill-extrusion-base": 0,
-      "fill-extrusion-opacity": [
-        "case",
-        ["boolean", ["feature-state", "hover"], false],
-        0.95,
-        0.84,
-      ],
+      "fill-extrusion-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.95, 0.84],
       "fill-extrusion-color": [
         "case",
         ["boolean", ["feature-state", "selected"], false],
@@ -343,7 +319,10 @@ export async function createStoryMap(options: CreateStoryMapOptions): Promise<St
         {
           type: "Feature",
           id: `${options.dataset.routeFeature.id}-progress`,
-          geometry: toLineFeature(sliceRouteAtProgress(routeMetrics, progress), `${options.dataset.routeFeature.id}-progress`),
+          geometry: toLineFeature(
+            sliceRouteAtProgress(routeMetrics, progress),
+            `${options.dataset.routeFeature.id}-progress`,
+          ),
           properties: { story_id: `${options.dataset.routeFeature.id}-progress` },
         },
       ],

@@ -54,9 +54,7 @@ export class BaseControlCompat {
     this.view = options.view;
     this.container = options.container ?? null;
     this.eventBus =
-      options.eventBus ??
-      resolveCompatEventBus(options.view, ...extraEventBusCandidates) ??
-      new CompatEventBus();
+      options.eventBus ?? resolveCompatEventBus(options.view, ...extraEventBusCandidates) ?? new CompatEventBus();
     this.loaded = false;
     this.loadStatus = "not-loaded";
     this.watchListeners = new Map();
@@ -538,10 +536,7 @@ export class AttributionCompat extends BaseControlCompat {
   }
 
   public constructor(options: AttributionCompatOptions = {}) {
-    super(
-      { view: options.view, container: options.container, eventBus: options.eventBus },
-      options.map,
-    );
+    super({ view: options.view, container: options.container, eventBus: options.eventBus }, options.map);
     this.map = options.map ?? extractViewMap(options.view);
     this.itemDelimiter = options.itemDelimiter ?? " | ";
     this.attributions = options.attributions ? [...options.attributions] : [];

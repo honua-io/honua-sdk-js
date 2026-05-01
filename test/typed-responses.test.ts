@@ -1,34 +1,33 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  type HonuaApplyEditsResponse,
+  type HonuaAttachmentListResponse,
   HonuaClient,
+  type HonuaExportMapResponse,
   HonuaFeatureLayer,
+  type HonuaFindResponse,
+  type HonuaIdentifyResponse,
+  type HonuaLayerMetadata,
+  type HonuaLegendResponse,
   HonuaMapLayer,
   HonuaMapService,
   HonuaOgcFeatureCollection,
-  HonuaOgcFeatures,
-  type HonuaQueryResponse,
-  type HonuaApplyEditsResponse,
-  type HonuaLayerMetadata,
-  type HonuaServiceMetadata,
-  type HonuaRelatedRecordsResponse,
-  type HonuaExportMapResponse,
-  type HonuaLegendResponse,
-  type HonuaIdentifyResponse,
-  type HonuaFindResponse,
   type HonuaOgcFeatureCollectionResponse,
   type HonuaOgcFeatureResponse,
-  type HonuaTypedQueryResponse,
-  type HonuaTypedFeature,
-  type HonuaAttachmentListResponse,
+  HonuaOgcFeatures,
   type HonuaQueryAttachmentsResponse,
+  type HonuaQueryResponse,
+  type HonuaRelatedRecordsResponse,
+  type HonuaServiceMetadata,
+  type HonuaTypedFeature,
+  type HonuaTypedQueryResponse,
 } from "../src/index.js";
 
 function createMockClient(responseBody: unknown): HonuaClient {
   return new HonuaClient({
     baseUrl: "https://example.test",
-    fetchFn: async () =>
-      new Response(JSON.stringify(responseBody), { status: 200 }),
+    fetchFn: async () => new Response(JSON.stringify(responseBody), { status: 200 }),
   });
 }
 
@@ -440,9 +439,7 @@ describe("Schema-aware typed collections (Direction 10)", () => {
 
   it("generic layer queryFeaturesAll returns typed features", async () => {
     const body = {
-      features: [
-        { attributes: { parcel_id: "P001", area: 1500, zoning: "R1" } },
-      ],
+      features: [{ attributes: { parcel_id: "P001", area: 1500, zoning: "R1" } }],
     };
     const client = createMockClient(body);
     const parcels = client.featureLayer<ParcelAttributes>("parcels", 0);
@@ -465,9 +462,7 @@ describe("Schema-aware typed collections (Direction 10)", () => {
 
   it("service.featureLayer<T> propagates generic parameter", async () => {
     const body = {
-      features: [
-        { attributes: { parcel_id: "P003", area: 800, zoning: "A1" } },
-      ],
+      features: [{ attributes: { parcel_id: "P003", area: 800, zoning: "A1" } }],
     };
     const client = createMockClient(body);
     const service = client.service("parcels");

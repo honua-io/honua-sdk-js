@@ -39,11 +39,14 @@ jobs:
 
       - name: Build JS SDK dependency
         run: |
-          npm ci --prefix ../js
-          npm run build --prefix ../js
+          npm ci --prefix ..
+          npm run build --prefix ..
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Security audit (npm dependencies)
+        run: npm audit --omit=dev
 
       - name: Validate package
         run: |

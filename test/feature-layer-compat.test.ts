@@ -4,18 +4,14 @@ import { CompatEventBus, FeatureLayerCompat, parseFeatureLayerUrl } from "../src
 
 describe("parseFeatureLayerUrl", () => {
   it("parses canonical feature layer URL", () => {
-    const parsed = parseFeatureLayerUrl(
-      "https://example.test/rest/services/transport/FeatureServer/3",
-    );
+    const parsed = parseFeatureLayerUrl("https://example.test/rest/services/transport/FeatureServer/3");
     expect(parsed.baseUrl).toBe("https://example.test");
     expect(parsed.serviceId).toBe("transport");
     expect(parsed.layerId).toBe(3);
   });
 
   it("parses URL with path prefix", () => {
-    const parsed = parseFeatureLayerUrl(
-      "https://example.test/honua/rest/services/transport/FeatureServer/8",
-    );
+    const parsed = parseFeatureLayerUrl("https://example.test/honua/rest/services/transport/FeatureServer/8");
     expect(parsed.baseUrl).toBe("https://example.test/honua");
     expect(parsed.serviceId).toBe("transport");
     expect(parsed.layerId).toBe(8);
@@ -36,9 +32,7 @@ describe("parseFeatureLayerUrl", () => {
   });
 
   it("throws on invalid URL shape", () => {
-    expect(() =>
-      parseFeatureLayerUrl("https://example.test/rest/services/transport/MapServer"),
-    ).toThrow();
+    expect(() => parseFeatureLayerUrl("https://example.test/rest/services/transport/MapServer")).toThrow();
   });
 });
 
@@ -70,9 +64,9 @@ describe("FeatureLayerCompat", () => {
     });
 
     expect(result).toEqual({ features: [] });
-    expect(requestedUrl).toContain("\"serviceId\":\"default\"");
-    expect(requestedUrl).toContain("\"layerId\":1000");
-    expect(requestedUrl).toContain("\"where\":\"1=1\"");
+    expect(requestedUrl).toContain('"serviceId":"default"');
+    expect(requestedUrl).toContain('"layerId":1000');
+    expect(requestedUrl).toContain('"where":"1=1"');
   });
 
   it("supports relative service URLs with default client requests", async () => {

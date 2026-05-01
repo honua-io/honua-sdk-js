@@ -22,11 +22,11 @@
     "check:fix": "biome check --write src/ test/"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.24.0"
   },
   "peerDependencies": {
-    "@honua/sdk-js": "^0.0.1-alpha.0"
+    "@honua/sdk-js": "^0.0.5-alpha.0"
   },
   "devDependencies": {
     "@honua/sdk-js": "file:..",

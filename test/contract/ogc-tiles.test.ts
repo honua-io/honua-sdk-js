@@ -8,9 +8,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   PROTOCOL_DEFAULT_CAPABILITIES,
+  type SourceDescriptor,
   capabilities,
   createDataset,
-  type SourceDescriptor,
 } from "../../src/contract/index.js";
 import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";
 import { HonuaOgcTiles, HonuaOgcTileset } from "../../src/core/ogc-tiles.js";

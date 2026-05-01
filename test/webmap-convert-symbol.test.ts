@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { esriColorToCss, esriLineStyleToDashArray, convertSymbol } from "../src/webmap/index.js";
+import { convertSymbol, esriColorToCss, esriLineStyleToDashArray } from "../src/webmap/index.js";
 import { createWarningCollector } from "../src/webmap/warnings.js";
 
 describe("WebMap symbol converter", () => {

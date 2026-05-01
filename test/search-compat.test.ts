@@ -263,27 +263,27 @@ describe("SearchCompat", () => {
       queryFeatures: async (options?: unknown) => {
         layerQueries.push(options);
         return {
-        features: [
-          {
-            attributes: {
-              NAME: "Central Park",
-              CITY: "Honolulu",
+          features: [
+            {
+              attributes: {
+                NAME: "Central Park",
+                CITY: "Honolulu",
+              },
+              geometry: {
+                x: -157.858,
+                y: 21.307,
+              },
             },
-            geometry: {
-              x: -157.858,
-              y: 21.307,
+            {
+              attributes: {
+                NAME: "Beach",
+              },
+              geometry: {
+                x: -157.9,
+                y: 21.28,
+              },
             },
-          },
-          {
-            attributes: {
-              NAME: "Beach",
-            },
-            geometry: {
-              x: -157.9,
-              y: 21.28,
-            },
-          },
-        ],
+          ],
         };
       },
     };

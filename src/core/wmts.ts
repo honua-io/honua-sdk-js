@@ -12,14 +12,14 @@
  */
 
 import type { HonuaClient } from "./client.js";
-import type { WmtsCapabilities, WmtsCapabilityLayer, WmtsCapabilityTileMatrixSet } from "./wmts-capabilities.js";
-import { findWmtsLayer, findWmtsTileMatrixSet } from "./wmts-capabilities.js";
 import type {
   HonuaWmtsFeatureInfoResponse,
   HonuaWmtsTileResponse,
   WmtsFeatureInfoRequest,
   WmtsTileRequest,
 } from "./wms-types.js";
+import type { WmtsCapabilities, WmtsCapabilityLayer, WmtsCapabilityTileMatrixSet } from "./wmts-capabilities.js";
+import { findWmtsLayer, findWmtsTileMatrixSet } from "./wmts-capabilities.js";
 
 export interface HonuaWmtsOptions {
   client: HonuaClient;

@@ -9,8 +9,8 @@
  * @module
  */
 
-import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { AggregationSpec } from "../contract/types.js";
+import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { ExplorationIntent, ExplorationSlice, ExplorationState, FilterClause } from "./types.js";
 
 export interface ReducerResult {

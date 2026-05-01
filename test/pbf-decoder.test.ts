@@ -99,10 +99,7 @@ function buildSpatialReference(wkid: number, latestWkid?: number): number[] {
 }
 
 function buildField(name: string, fieldType: number, alias?: string): number[] {
-  const f = [
-    ...stringField(1, name),
-    ...varintField(2, fieldType),
-  ];
+  const f = [...stringField(1, name), ...varintField(2, fieldType)];
   if (alias) f.push(...stringField(3, alias));
   return f;
 }
@@ -140,18 +137,10 @@ function buildPointGeometry(x: number, y: number): number[] {
   ];
 }
 
-function buildTransform(
-  xScale: number,
-  yScale: number,
-  xTranslate: number,
-  yTranslate: number,
-): number[] {
+function buildTransform(xScale: number, yScale: number, xTranslate: number, yTranslate: number): number[] {
   const scale = [...doubleField(1, xScale), ...doubleField(2, yScale)];
   const translate = [...doubleField(1, xTranslate), ...doubleField(2, yTranslate)];
-  return [
-    ...lengthDelimited(2, scale),
-    ...lengthDelimited(3, translate),
-  ];
+  return [...lengthDelimited(2, scale), ...lengthDelimited(3, translate)];
 }
 
 function buildFeature(values: number[][], geometry?: number[]): number[] {
@@ -189,10 +178,7 @@ function buildFeatureResult(opts: {
 
 function buildFeatureCollectionPBuffer(version: string, featureResult: number[]): number[] {
   const queryResult = lengthDelimited(1, featureResult);
-  return [
-    ...stringField(1, version),
-    ...lengthDelimited(2, queryResult),
-  ];
+  return [...stringField(1, version), ...lengthDelimited(2, queryResult)];
 }
 
 function toBuffer(bytes: number[]): Uint8Array {
@@ -254,7 +240,7 @@ describe("decodePbfQueryResponse", () => {
       spatialReference: { wkid: 4326, latestWkid: 4326 },
       features: [],
     });
-    expect((result.fields as unknown[])).toHaveLength(1);
+    expect(result.fields as unknown[]).toHaveLength(1);
   });
 
   it("decodes feature with string attribute", () => {
@@ -289,7 +275,7 @@ describe("decodePbfQueryResponse", () => {
       fields: [
         buildField("OBJECTID", 6),
         buildField("count", 1), // Integer
-        buildField("area", 3),  // Double
+        buildField("area", 3), // Double
       ],
       features: [
         buildFeature([
@@ -312,15 +298,9 @@ describe("decodePbfQueryResponse", () => {
   it("decodes feature with boolean attribute", () => {
     const featureResult = buildFeatureResult({
       objectIdFieldName: "OBJECTID",
-      fields: [
-        buildField("OBJECTID", 6),
-        buildField("active", 4),
-      ],
+      fields: [buildField("OBJECTID", 6), buildField("active", 4)],
       features: [
-        buildFeature([
-          buildValue({ uintValue: 1, fieldIndex: 0 }),
-          buildValue({ boolValue: true, fieldIndex: 1 }),
-        ]),
+        buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 }), buildValue({ boolValue: true, fieldIndex: 1 })]),
       ],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
@@ -334,15 +314,9 @@ describe("decodePbfQueryResponse", () => {
   it("decodes feature with null attribute", () => {
     const featureResult = buildFeatureResult({
       objectIdFieldName: "OBJECTID",
-      fields: [
-        buildField("OBJECTID", 6),
-        buildField("name", 4),
-      ],
+      fields: [buildField("OBJECTID", 6), buildField("name", 4)],
       features: [
-        buildFeature([
-          buildValue({ uintValue: 1, fieldIndex: 0 }),
-          buildValue({ isNull: true, fieldIndex: 1 }),
-        ]),
+        buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 }), buildValue({ isNull: true, fieldIndex: 1 })]),
       ],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
@@ -359,12 +333,7 @@ describe("decodePbfQueryResponse", () => {
       geometryType: 0,
       spatialReference: buildSpatialReference(4326),
       fields: [buildField("OBJECTID", 6)],
-      features: [
-        buildFeature(
-          [buildValue({ uintValue: 1, fieldIndex: 0 })],
-          buildPointGeometry(10, 20),
-        ),
-      ],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], buildPointGeometry(10, 20))],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
     const result = decodePbfQueryResponse(toBuffer(pbf));
@@ -385,12 +354,7 @@ describe("decodePbfQueryResponse", () => {
       spatialReference: buildSpatialReference(4326),
       transform,
       fields: [buildField("OBJECTID", 6)],
-      features: [
-        buildFeature(
-          [buildValue({ uintValue: 1, fieldIndex: 0 })],
-          buildPointGeometry(5000, 3000),
-        ),
-      ],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], buildPointGeometry(5000, 3000))],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
     const result = decodePbfQueryResponse(toBuffer(pbf));
@@ -414,12 +378,7 @@ describe("decodePbfQueryResponse", () => {
       geometryType: 2, // Polyline
       spatialReference: buildSpatialReference(4326),
       fields: [buildField("OBJECTID", 6)],
-      features: [
-        buildFeature(
-          [buildValue({ uintValue: 1, fieldIndex: 0 })],
-          geometry,
-        ),
-      ],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], geometry)],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
     const result = decodePbfQueryResponse(toBuffer(pbf));
@@ -447,12 +406,7 @@ describe("decodePbfQueryResponse", () => {
       geometryType: 3, // Polygon
       spatialReference: buildSpatialReference(4326),
       fields: [buildField("OBJECTID", 6)],
-      features: [
-        buildFeature(
-          [buildValue({ uintValue: 1, fieldIndex: 0 })],
-          geometry,
-        ),
-      ],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], geometry)],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
     const result = decodePbfQueryResponse(toBuffer(pbf));
@@ -480,12 +434,7 @@ describe("decodePbfQueryResponse", () => {
       geometryType: 1,
       spatialReference: buildSpatialReference(4326),
       fields: [buildField("OBJECTID", 6)],
-      features: [
-        buildFeature(
-          [buildValue({ uintValue: 1, fieldIndex: 0 })],
-          geometry,
-        ),
-      ],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], geometry)],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
     const result = decodePbfQueryResponse(toBuffer(pbf));
@@ -528,10 +477,7 @@ describe("decodePbfQueryResponse", () => {
       objectIdFieldName: "OBJECTID",
       geometryType: 0,
       spatialReference: buildSpatialReference(4326),
-      fields: [
-        buildField("OBJECTID", 6),
-        buildField("name", 4),
-      ],
+      fields: [buildField("OBJECTID", 6), buildField("name", 4)],
       features: [
         buildFeature([
           buildValue({ uintValue: 1, fieldIndex: 0 }),
@@ -561,13 +507,13 @@ describe("decodePbfQueryResponse", () => {
     const featureResult = buildFeatureResult({
       objectIdFieldName: "OBJECTID",
       fields: [
-        buildField("oid", 6),        // OID
-        buildField("name", 4),       // String
-        buildField("count", 1),      // Integer
-        buildField("val", 3),        // Double
-        buildField("small", 0),      // SmallInteger
-        buildField("guid", 10),      // GUID
-        buildField("big", 13),       // BigInteger
+        buildField("oid", 6), // OID
+        buildField("name", 4), // String
+        buildField("count", 1), // Integer
+        buildField("val", 3), // Double
+        buildField("small", 0), // SmallInteger
+        buildField("guid", 10), // GUID
+        buildField("big", 13), // BigInteger
       ],
       features: [],
     });
@@ -618,9 +564,7 @@ describe("decodePbfQueryResponse", () => {
     const featureResult = buildFeatureResult({
       objectIdFieldName: "OBJECTID",
       fields: [buildField("OBJECTID", 6)],
-      features: [
-        buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })]),
-      ],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })])],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
     const result = decodePbfQueryResponse(toBuffer(pbf));
@@ -640,14 +584,8 @@ describe("decodePbfQueryResponse", () => {
       transform,
       fields: [buildField("OBJECTID", 6)],
       features: [
-        buildFeature(
-          [buildValue({ uintValue: 1, fieldIndex: 0 })],
-          buildPointGeometry(-1225, 378),
-        ),
-        buildFeature(
-          [buildValue({ uintValue: 2, fieldIndex: 0 })],
-          buildPointGeometry(-734, 211),
-        ),
+        buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], buildPointGeometry(-1225, 378)),
+        buildFeature([buildValue({ uintValue: 2, fieldIndex: 0 })], buildPointGeometry(-734, 211)),
       ],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
@@ -676,12 +614,7 @@ describe("decodePbfQueryResponse", () => {
       geometryType: 2,
       spatialReference: buildSpatialReference(4326),
       fields: [buildField("OBJECTID", 6)],
-      features: [
-        buildFeature(
-          [buildValue({ uintValue: 1, fieldIndex: 0 })],
-          geometry,
-        ),
-      ],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], geometry)],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
     const result = decodePbfQueryResponse(toBuffer(pbf));
@@ -689,8 +622,14 @@ describe("decodePbfQueryResponse", () => {
     const features = result.features as Record<string, unknown>[];
     const paths = (features[0].geometry as Record<string, unknown>).paths as number[][][];
     expect(paths).toHaveLength(2);
-    expect(paths[0]).toEqual([[0, 0], [10, 10]]);
-    expect(paths[1]).toEqual([[20, 20], [30, 30]]);
+    expect(paths[0]).toEqual([
+      [0, 0],
+      [10, 10],
+    ]);
+    expect(paths[1]).toEqual([
+      [20, 20],
+      [30, 30],
+    ]);
   });
 
   it("omits geometryType and spatialReference when not set", () => {
@@ -710,10 +649,7 @@ describe("decodePbfQueryResponse", () => {
   it("decodes int64 attribute values", () => {
     const featureResult = buildFeatureResult({
       objectIdFieldName: "OBJECTID",
-      fields: [
-        buildField("OBJECTID", 6),
-        buildField("bignum", 13),
-      ],
+      fields: [buildField("OBJECTID", 6), buildField("bignum", 13)],
       features: [
         buildFeature([
           buildValue({ uintValue: 1, fieldIndex: 0 }),
@@ -732,10 +668,7 @@ describe("decodePbfQueryResponse", () => {
   it("decodes field alias correctly", () => {
     const featureResult = buildFeatureResult({
       objectIdFieldName: "OBJECTID",
-      fields: [
-        buildField("OBJECTID", 6, "Object ID"),
-        buildField("name", 4, "Park Name"),
-      ],
+      fields: [buildField("OBJECTID", 6, "Object ID"), buildField("name", 4, "Park Name")],
       features: [],
     });
     const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);

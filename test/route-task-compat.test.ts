@@ -25,10 +25,7 @@ describe("RouteTaskCompat", () => {
       callbackTask = resolvedTask;
     });
     await task.solve({
-      stops: [
-        { location: [-157.8583, 21.3069] },
-        { location: [-157.9076, 21.3035] },
-      ],
+      stops: [{ location: [-157.8583, 21.3069] }, { location: [-157.9076, 21.3035] }],
     });
 
     loadStatusHandle.remove();
@@ -38,10 +35,7 @@ describe("RouteTaskCompat", () => {
       results: resultValues.length,
     };
     await task.solve({
-      stops: [
-        { location: [-157.8583, 21.3069] },
-        { location: [-157.9076, 21.3035] },
-      ],
+      stops: [{ location: [-157.8583, 21.3069] }, { location: [-157.9076, 21.3035] }],
     });
 
     expect(widget).toBe(task);
@@ -93,10 +87,7 @@ describe("RouteTaskCompat", () => {
 
     const task = new RouteTaskCompat({ eventBus });
     await task.solve({
-      stops: [
-        { location: [-157.8583, 21.3069] },
-        { location: [-157.9076, 21.3035] },
-      ],
+      stops: [{ location: [-157.8583, 21.3069] }, { location: [-157.9076, 21.3035] }],
     });
 
     expect(seenTypes).toContain("route-task.solve-started");

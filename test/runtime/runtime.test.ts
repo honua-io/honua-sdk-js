@@ -10,18 +10,13 @@ import { describe, expect, test, vi } from "vitest";
 import { HonuaClient } from "../../src/core/client.js";
 import {
   HONUA_MAP_PACKAGE_FORMAT_V1,
-  HonuaMapPackageError,
   type HonuaMapPackage,
+  HonuaMapPackageError,
   type HonuaRuntimeEvent,
   type MaplibreMap,
   loadMapPackage,
 } from "../../src/runtime/index.js";
-import {
-  applyTheme,
-  buildLegend,
-  diffPackages,
-  projectSourceBindings,
-} from "../../src/runtime/index.js";
+import { applyTheme, buildLegend, diffPackages, projectSourceBindings } from "../../src/runtime/index.js";
 import type { PopupFactory, PopupHandle } from "../../src/runtime/popups.js";
 
 // ── Mock map ─────────────────────────────────────────────────
@@ -192,9 +187,7 @@ describe("loadMapPackage", () => {
     expect(runtime.dataset.sourceIds()).toEqual(["parcels"]);
 
     expect(events.some((e) => e.type === "source-ready" && e.sourceId === "parcels")).toBe(true);
-    expect(
-      events.some((e) => e.type === "package-loaded" && e.packageId === pkg.mapPackageId),
-    ).toBe(true);
+    expect(events.some((e) => e.type === "package-loaded" && e.packageId === pkg.mapPackageId)).toBe(true);
   });
 
   test("rejects unsupported package format via HonuaMapPackageError", async () => {
@@ -318,7 +311,9 @@ describe("HonuaMapRuntime", () => {
     const setStyle = map._calls.find((c) => c.method === "setStyle");
     expect(setStyle, "minzoom cannot be patched through paint/layout/filter setters").toBeDefined();
     expect(
-      map._calls.some((c) => c.method === "setPaintProperty" || c.method === "setLayoutProperty" || c.method === "setFilter"),
+      map._calls.some(
+        (c) => c.method === "setPaintProperty" || c.method === "setLayoutProperty" || c.method === "setFilter",
+      ),
     ).toBe(false);
     expect((setStyle?.args[0] as { layers?: Array<{ minzoom?: number }> }).layers?.[0]?.minzoom).toBe(7);
   });
@@ -454,9 +449,7 @@ describe("composeStyle: applyTheme", () => {
       {
         version: 8,
         sources: {},
-        layers: [
-          { id: "x", type: "fill", paint: { "fill-color": "{theme:primary}", "fill-opacity": 0.5 } },
-        ],
+        layers: [{ id: "x", type: "fill", paint: { "fill-color": "{theme:primary}", "fill-opacity": 0.5 } }],
       },
       { tokens: { primary: "#112233" } },
     );
@@ -483,14 +476,11 @@ describe("buildLegend", () => {
   });
 
   test("honors explicit color over style fallback", () => {
-    const entries = buildLegend(
-      [{ label: "Highlighted", color: "#ff00ff" }],
-      {
-        version: 8,
-        sources: {},
-        layers: [{ id: "l", type: "fill", paint: { "fill-color": "#ffffff" } }],
-      },
-    );
+    const entries = buildLegend([{ label: "Highlighted", color: "#ff00ff" }], {
+      version: 8,
+      sources: {},
+      layers: [{ id: "l", type: "fill", paint: { "fill-color": "#ffffff" } }],
+    });
     expect(entries[0].color).toBe("#ff00ff");
   });
 });
@@ -591,9 +581,7 @@ describe("#patchLayer: paint/layout key removal", () => {
     });
     await runtime.updatePackage(next);
 
-    const removedPaint = map._calls.find(
-      (c) => c.method === "setPaintProperty" && c.args[1] === "fill-opacity",
-    );
+    const removedPaint = map._calls.find((c) => c.method === "setPaintProperty" && c.args[1] === "fill-opacity");
     expect(removedPaint, "setPaintProperty should be called for removed fill-opacity").toBeDefined();
     expect(removedPaint?.args[2]).toBeUndefined();
   });
@@ -639,9 +627,7 @@ describe("#patchLayer: paint/layout key removal", () => {
     });
     await runtime.updatePackage(next);
 
-    const removedLayout = map._calls.find(
-      (c) => c.method === "setLayoutProperty" && c.args[1] === "fill-sort-key",
-    );
+    const removedLayout = map._calls.find((c) => c.method === "setLayoutProperty" && c.args[1] === "fill-sort-key");
     expect(removedLayout, "setLayoutProperty should be called for removed fill-sort-key").toBeDefined();
     expect(removedLayout?.args[2]).toBeUndefined();
   });
@@ -731,9 +717,7 @@ describe("loadMapPackage: onEvent captures initial lifecycle events", () => {
     });
 
     expect(captured.some((e) => e.type === "source-ready" && e.sourceId === "parcels")).toBe(true);
-    expect(
-      captured.some((e) => e.type === "package-loaded" && e.packageId === pkg.mapPackageId),
-    ).toBe(true);
+    expect(captured.some((e) => e.type === "package-loaded" && e.packageId === pkg.mapPackageId)).toBe(true);
   });
 });
 
@@ -785,9 +769,7 @@ describe("updatePackage: structural fallback error paths and popup reaping", () 
     });
 
     runtime.bindPopup("parcels-fill");
-    expect(
-      map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill"),
-    ).toBeDefined();
+    expect(map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill")).toBeDefined();
 
     // Remove the bound layer in the next package so the diff goes
     // structural (layer set changed) and the popup binding should be
@@ -808,9 +790,7 @@ describe("updatePackage: structural fallback error paths and popup reaping", () 
     });
     await runtime.updatePackage(next);
 
-    expect(
-      map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill"),
-    ).toBeUndefined();
+    expect(map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill")).toBeUndefined();
   });
 
   test("changing a package popup binding tears down the active package-resolved listener", async () => {
@@ -824,9 +804,7 @@ describe("updatePackage: structural fallback error paths and popup reaping", () 
     });
 
     runtime.bindPopup("parcels-fill");
-    expect(
-      map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill"),
-    ).toBeDefined();
+    expect(map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill")).toBeDefined();
 
     const next = makePackage({
       popupBindings: [{ sourceId: "parcels", fieldName: "OWNER", title: "Owner" }],
@@ -834,9 +812,7 @@ describe("updatePackage: structural fallback error paths and popup reaping", () 
 
     await runtime.updatePackage(next);
 
-    expect(
-      map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill"),
-    ).toBeUndefined();
+    expect(map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill")).toBeUndefined();
   });
 });
 

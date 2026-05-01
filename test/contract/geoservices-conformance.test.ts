@@ -32,6 +32,7 @@ import {
 } from "../../src/core/surfaces.js";
 
 import {
+  type ParcelAttrs,
   geometryBufferResponse,
   geometryProjectResponse,
   geoservicesAddAttachmentResponse,
@@ -49,11 +50,12 @@ import {
   imageServerIdentifyResponse,
   jsonResponse,
   makeMockClient,
-  type ParcelAttrs,
 } from "./shared.js";
 
 describe("contract / GeoServices FeatureServer parity", () => {
-  function buildFeatureDataset(routes: Array<[string | RegExp, (url: URL, init: RequestInit | undefined) => Response | Promise<Response>]>) {
+  function buildFeatureDataset(
+    routes: Array<[string | RegExp, (url: URL, init: RequestInit | undefined) => Response | Promise<Response>]>,
+  ) {
     const client = makeMockClient({ routes });
     return createDataset({
       id: "parcels",
@@ -243,18 +245,31 @@ describe("contract / GeoServices FeatureServer parity", () => {
 
   it("attachments.list/add/update/delete/query route through the FeatureServer attachments endpoints", async () => {
     const dataset = buildFeatureDataset([
-      ["/rest/services/Parcels/FeatureServer/0/queryAttachments", () => jsonResponse(geoservicesQueryAttachmentsResponse())],
-      ["/rest/services/Parcels/FeatureServer/0/1/attachments", () => jsonResponse(geoservicesAttachmentInfosResponse())],
-      ["/rest/services/Parcels/FeatureServer/0/1/addAttachment", () => jsonResponse(geoservicesAddAttachmentResponse())],
-      ["/rest/services/Parcels/FeatureServer/0/1/updateAttachment", () => jsonResponse(geoservicesUpdateAttachmentResponse())],
-      ["/rest/services/Parcels/FeatureServer/0/1/deleteAttachments", () => jsonResponse(geoservicesDeleteAttachmentsResponse())],
+      [
+        "/rest/services/Parcels/FeatureServer/0/queryAttachments",
+        () => jsonResponse(geoservicesQueryAttachmentsResponse()),
+      ],
+      [
+        "/rest/services/Parcels/FeatureServer/0/1/attachments",
+        () => jsonResponse(geoservicesAttachmentInfosResponse()),
+      ],
+      [
+        "/rest/services/Parcels/FeatureServer/0/1/addAttachment",
+        () => jsonResponse(geoservicesAddAttachmentResponse()),
+      ],
+      [
+        "/rest/services/Parcels/FeatureServer/0/1/updateAttachment",
+        () => jsonResponse(geoservicesUpdateAttachmentResponse()),
+      ],
+      [
+        "/rest/services/Parcels/FeatureServer/0/1/deleteAttachments",
+        () => jsonResponse(geoservicesDeleteAttachmentsResponse()),
+      ],
     ]);
     const source = dataset.source<ParcelAttrs>("parcels-fs")!;
 
     const list = await source.attachments.list(1);
-    expect(list).toEqual([
-      { id: 7, parentId: 1, name: "deed.pdf", contentType: "application/pdf", size: 1024 },
-    ]);
+    expect(list).toEqual([{ id: 7, parentId: 1, name: "deed.pdf", contentType: "application/pdf", size: 1024 }]);
 
     const queryGroups = await source.attachments.query({ parentIds: [1] });
     expect(queryGroups).toHaveLength(1);
@@ -307,17 +322,21 @@ describe("contract / GeoServices FeatureServer parity", () => {
       ],
     });
     const source = dataset.source<ParcelAttrs>("parcels-fs")!;
-    await expect(
-      source.applyEdits({ adds: [{ attributes: { OBJECTID: 0, STATE: "WA", ACRES: 5 } }] }),
-    ).rejects.toThrow(HonuaCapabilityNotSupportedError);
-    await expect(source.queryRelated({ relationshipId: 0, sourceIds: [1] })).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    await expect(source.applyEdits({ adds: [{ attributes: { OBJECTID: 0, STATE: "WA", ACRES: 5 } }] })).rejects.toThrow(
+      HonuaCapabilityNotSupportedError,
+    );
+    await expect(source.queryRelated({ relationshipId: 0, sourceIds: [1] })).rejects.toThrow(
+      HonuaCapabilityNotSupportedError,
+    );
     await expect(source.queryObjectIds()).rejects.toThrow(HonuaCapabilityNotSupportedError);
     await expect(source.attachments.list(1)).rejects.toThrow(HonuaCapabilityNotSupportedError);
   });
 });
 
 describe("contract / GeoServices MapServer parity (read-only)", () => {
-  function buildMapDataset(routes: Array<[string | RegExp, (url: URL, init: RequestInit | undefined) => Response | Promise<Response>]>) {
+  function buildMapDataset(
+    routes: Array<[string | RegExp, (url: URL, init: RequestInit | undefined) => Response | Promise<Response>]>,
+  ) {
     const client = makeMockClient({ routes });
     return createDataset({
       id: "parcels",
@@ -339,7 +358,10 @@ describe("contract / GeoServices MapServer parity (read-only)", () => {
     // more specific `/queryRelatedRecords` matcher must come first or both
     // routes map to the ids-only fixture.
     const dataset = buildMapDataset([
-      ["/rest/services/Parcels/MapServer/0/queryRelatedRecords", () => jsonResponse(geoservicesRelatedRecordsResponse())],
+      [
+        "/rest/services/Parcels/MapServer/0/queryRelatedRecords",
+        () => jsonResponse(geoservicesRelatedRecordsResponse()),
+      ],
       ["/rest/services/Parcels/MapServer/0/query", () => jsonResponse(geoservicesObjectIdsResponse())],
     ]);
     const source = dataset.source<ParcelAttrs>("parcels-ms")!;
@@ -347,15 +369,17 @@ describe("contract / GeoServices MapServer parity (read-only)", () => {
     expect(await source.queryObjectIds()).toEqual([1, 2, 3]);
     const related = await source.queryRelated({ relationshipId: 0, sourceIds: [1] });
     expect(related.groups).toHaveLength(1);
-    await expect(
-      source.applyEdits({ adds: [{ attributes: { OBJECTID: 0, STATE: "WA", ACRES: 5 } }] }),
-    ).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    await expect(source.applyEdits({ adds: [{ attributes: { OBJECTID: 0, STATE: "WA", ACRES: 5 } }] })).rejects.toThrow(
+      HonuaCapabilityNotSupportedError,
+    );
     await expect(source.attachments.list(1)).rejects.toThrow(HonuaCapabilityNotSupportedError);
   });
 });
 
 describe("contract / GeoServices ImageServer parity", () => {
-  function buildImageDataset(routes: Array<[string | RegExp, (url: URL, init: RequestInit | undefined) => Response | Promise<Response>]>) {
+  function buildImageDataset(
+    routes: Array<[string | RegExp, (url: URL, init: RequestInit | undefined) => Response | Promise<Response>]>,
+  ) {
     const client = makeMockClient({ routes });
     return createDataset({
       id: "imagery",
@@ -505,7 +529,17 @@ describe("contract / GeoServices ImageServer parity", () => {
 
     const spatialFilter = {
       geometryType: "esriGeometryPolygon" as const,
-      geometry: { rings: [[[-120, 38], [-119, 38], [-119, 39], [-120, 39], [-120, 38]]] },
+      geometry: {
+        rings: [
+          [
+            [-120, 38],
+            [-119, 38],
+            [-119, 39],
+            [-120, 39],
+            [-120, 38],
+          ],
+        ],
+      },
     };
     await expect(source.query({ spatialFilter })).rejects.toThrow(/spatialFilter is not supported/);
     await expect(source.queryAll({ spatialFilter })).rejects.toThrow(/spatialFilter is not supported/);
@@ -741,12 +775,7 @@ describe("contract / GeoServices Geometry Service parity", () => {
         },
       ] as [string, (url: URL, init: RequestInit | undefined) => Promise<Response>];
     const client = makeMockClient({
-      routes: [
-        captureRoute("intersect"),
-        captureRoute("union"),
-        captureRoute("clip"),
-        captureRoute("difference"),
-      ],
+      routes: [captureRoute("intersect"), captureRoute("union"), captureRoute("clip"), captureRoute("difference")],
     });
     const dataset = createDataset({
       id: "geom",
@@ -765,9 +794,31 @@ describe("contract / GeoServices Geometry Service parity", () => {
 
     const inputGeoms = {
       geometryType: "esriGeometryPolygon",
-      geometries: [{ rings: [[[-120, 38], [-119, 38], [-119, 39], [-120, 39], [-120, 38]]] }],
+      geometries: [
+        {
+          rings: [
+            [
+              [-120, 38],
+              [-119, 38],
+              [-119, 39],
+              [-120, 39],
+              [-120, 38],
+            ],
+          ],
+        },
+      ],
     } as const;
-    const operatorGeom = { rings: [[[-120, 38], [-119.5, 38], [-119.5, 39], [-120, 39], [-120, 38]]] };
+    const operatorGeom = {
+      rings: [
+        [
+          [-120, 38],
+          [-119.5, 38],
+          [-119.5, 39],
+          [-120, 39],
+          [-120, 38],
+        ],
+      ],
+    };
 
     // Binary ops (intersect / clip / difference) all carry geometries, geometry, sr.
     await adapter.intersect({ geometries: inputGeoms, geometry: operatorGeom, sr: 4326 });
@@ -835,7 +886,7 @@ describe("contract / GeoServices Geometry Service parity", () => {
     });
     expect(observedMethod).toBe("GET");
     expect(observedBody).toBeUndefined();
-    expect(observedGeometryParam).toContain("\"x\":-119");
+    expect(observedGeometryParam).toContain('"x":-119');
     expect(observedSr).toBe("4326");
   });
 
@@ -885,8 +936,14 @@ describe("contract / GeoServices GP Service parity", () => {
   it("GP source lifecycle (submitJob -> jobStatus) routes through HonuaGeoprocessingService", async () => {
     const client = makeMockClient({
       routes: [
-        ["/rest/services/Print/GPServer/Export%20Web%20Map%20Task/submitJob", () => jsonResponse(gpSubmitJobResponse())],
-        ["/rest/services/Print/GPServer/Export%20Web%20Map%20Task/jobs/job-001", () => jsonResponse(gpJobStatusResponse())],
+        [
+          "/rest/services/Print/GPServer/Export%20Web%20Map%20Task/submitJob",
+          () => jsonResponse(gpSubmitJobResponse()),
+        ],
+        [
+          "/rest/services/Print/GPServer/Export%20Web%20Map%20Task/jobs/job-001",
+          () => jsonResponse(gpJobStatusResponse()),
+        ],
       ],
     });
     const dataset = createDataset({
@@ -974,7 +1031,8 @@ describe("contract / OGC Features applyEdits via createItem/replaceItem/deleteIt
             const method = init?.method ?? "GET";
             if (method === "PUT") {
               const rawBody = init?.body;
-              const body = typeof rawBody === "string" ? rawBody : rawBody !== undefined ? await (rawBody as Blob).text() : "";
+              const body =
+                typeof rawBody === "string" ? rawBody : rawBody !== undefined ? await (rawBody as Blob).text() : "";
               replaced = { id, body: body ? JSON.parse(body) : null };
               return jsonResponse({ id, type: "Feature", properties: {}, geometry: null });
             }
@@ -989,7 +1047,8 @@ describe("contract / OGC Features applyEdits via createItem/replaceItem/deleteIt
           "/ogc/features/collections/parcels/items",
           async (_url, init) => {
             const rawBody = init?.body;
-            const body = typeof rawBody === "string" ? rawBody : rawBody !== undefined ? await (rawBody as Blob).text() : "";
+            const body =
+              typeof rawBody === "string" ? rawBody : rawBody !== undefined ? await (rawBody as Blob).text() : "";
             const parsed = body ? JSON.parse(body) : {};
             created.push(parsed);
             return jsonResponse({ ...parsed, id: 99 });
@@ -1013,8 +1072,16 @@ describe("contract / OGC Features applyEdits via createItem/replaceItem/deleteIt
     });
     const source = dataset.source<ParcelAttrs>("parcels-ogc")!;
     const result = await source.applyEdits({
-      adds: [{ attributes: { OBJECTID: 0, STATE: "WA", ACRES: 50 }, geometry: { type: "Point", coordinates: [-122, 47] } }],
-      updates: [{ id: 1, attributes: { OBJECTID: 1, STATE: "CA", ACRES: 99 }, geometry: { type: "Point", coordinates: [-120, 38] } }],
+      adds: [
+        { attributes: { OBJECTID: 0, STATE: "WA", ACRES: 50 }, geometry: { type: "Point", coordinates: [-122, 47] } },
+      ],
+      updates: [
+        {
+          id: 1,
+          attributes: { OBJECTID: 1, STATE: "CA", ACRES: 99 },
+          geometry: { type: "Point", coordinates: [-120, 38] },
+        },
+      ],
       deletes: [3],
     });
     expect(result.added[0]).toEqual({ id: 99, success: true });

@@ -376,11 +376,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
 
       // Failed source absent from composedStyle.sources and from
       // composedStyle.layers; the rest of the composition keeps rendering.
-      expect(Object.keys(runtime.composedStyle.sources).sort()).toEqual([
-        "basemap-tiles",
-        "imagery",
-        "ogc-overlay",
-      ]);
+      expect(Object.keys(runtime.composedStyle.sources).sort()).toEqual(["basemap-tiles", "imagery", "ogc-overlay"]);
       const layerIds = runtime.composedStyle.layers.map((l) => l.id).sort();
       expect(layerIds).not.toContain("parcels-fill");
       expect(layerIds).toEqual(["background", "basemap-line", "imagery-raster", "ogc-circle"]);

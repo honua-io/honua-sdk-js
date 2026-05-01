@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { WebMapPopupInfo, WebMapFieldInfo, WebMapMediaInfo } from "./types.js";
-import { warnUnknownProperties, type WarningCollector } from "./warnings.js";
+import type { WebMapFieldInfo, WebMapMediaInfo, WebMapPopupInfo } from "./types.js";
+import { type WarningCollector, warnUnknownProperties } from "./warnings.js";
 
 export interface HonuaPopupFieldInfo {
   fieldName: string;

@@ -137,9 +137,7 @@ function normalizeServerUrl(value: string): string | undefined {
 
 function isCredentialExpired(credential: IdentityCredentialCompat): boolean {
   return (
-    typeof credential.expires === "number" &&
-    Number.isFinite(credential.expires) &&
-    credential.expires <= Date.now()
+    typeof credential.expires === "number" && Number.isFinite(credential.expires) && credential.expires <= Date.now()
   );
 }
 

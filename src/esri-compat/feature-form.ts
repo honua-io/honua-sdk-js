@@ -26,10 +26,7 @@ export interface FeatureFormFieldErrorCompat {
   type: "required" | "range" | "pattern" | "custom";
 }
 
-export type FeatureFormValidationFn = (
-  fieldName: string,
-  value: unknown,
-) => FeatureFormFieldErrorCompat | undefined;
+export type FeatureFormValidationFn = (fieldName: string, value: unknown) => FeatureFormFieldErrorCompat | undefined;
 
 export type FeatureFormLoadStatusCompat = "not-loaded" | "loading" | "loaded";
 
@@ -132,9 +129,7 @@ export class FeatureFormCompat {
    * Runs validation against the provided values (or empty object)
    * and returns any field errors.
    */
-  public validate(
-    values: Readonly<Record<string, unknown>> = {},
-  ): readonly FeatureFormFieldErrorCompat[] {
+  public validate(values: Readonly<Record<string, unknown>> = {}): readonly FeatureFormFieldErrorCompat[] {
     if (!this.validationFunction) {
       return [];
     }

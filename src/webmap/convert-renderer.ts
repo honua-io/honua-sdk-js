@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { WebMapRenderer, WebMapSymbol, WebMapUniqueValueRenderer, WebMapClassBreaksRenderer } from "./types.js";
-import { convertSymbol, esriColorToCss, type SymbolConversionResult } from "./convert-symbol.js";
+import { type SymbolConversionResult, convertSymbol, esriColorToCss } from "./convert-symbol.js";
+import type { WebMapClassBreaksRenderer, WebMapRenderer, WebMapSymbol, WebMapUniqueValueRenderer } from "./types.js";
 import type { WarningCollector } from "./warnings.js";
 
 export interface RendererConversionResult {

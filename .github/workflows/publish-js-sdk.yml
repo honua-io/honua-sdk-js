@@ -40,10 +40,7 @@ jobs:
         run: npm ci
 
       - name: Security audit (npm dependencies)
-        run: |
-          npm audit --omit=dev || {
-            echo "::warning::npm audit found vulnerabilities. Review before publishing."
-          }
+        run: npm audit --omit=dev
 
       - name: Validate package
         run: |

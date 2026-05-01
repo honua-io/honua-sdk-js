@@ -8,12 +8,7 @@
  * @module
  */
 
-import type {
-  ExplorationSlice,
-  LinkedViewPolicy,
-  LinkedViewPresetName,
-  ViewRole,
-} from "./types.js";
+import type { ExplorationSlice, LinkedViewPolicy, LinkedViewPresetName, ViewRole } from "./types.js";
 
 const ALL_SLICES: ReadonlyArray<ExplorationSlice> = [
   "filters",
@@ -96,9 +91,7 @@ export const LINKED_VIEW_PRESETS: Readonly<Record<LinkedViewPresetName, LinkedVi
   },
 };
 
-function roleRules(
-  table: Record<ViewRole, ReadonlyArray<ExplorationSlice>>,
-): LinkedViewPolicy["rules"] {
+function roleRules(table: Record<ViewRole, ReadonlyArray<ExplorationSlice>>): LinkedViewPolicy["rules"] {
   return [
     { role: "map", propagatesSlices: table.map },
     { role: "grid", propagatesSlices: table.grid },
@@ -109,10 +102,7 @@ function roleRules(
 }
 
 /** Lookup the slices a role propagates under a given preset. */
-export function propagationFor(
-  preset: LinkedViewPresetName,
-  role: ViewRole,
-): ReadonlySet<ExplorationSlice> {
+export function propagationFor(preset: LinkedViewPresetName, role: ViewRole): ReadonlySet<ExplorationSlice> {
   const policy = LINKED_VIEW_PRESETS[preset];
   const rule = policy.rules.find((r) => r.role === role);
   return new Set(rule?.propagatesSlices ?? NO_SLICES);

@@ -5,17 +5,17 @@
  */
 
 import type { HonuaStyleSpecification } from "../style/specification.js";
-import type { WebMapJson, WebMapBookmark, WebMapOperationalLayer } from "./types.js";
-import {
-  createWarningCollector,
-  type WarningCollector,
-  type WebMapWarning,
-  warnUnknownProperties,
-} from "./warnings.js";
 import { convertBasemap } from "./convert-basemap.js";
 import { convertExtent, convertInitialViewpoint } from "./convert-extent.js";
 import { convertOperationalLayer } from "./convert-layer.js";
 import type { HonuaPopupConfig } from "./convert-popup.js";
+import type { WebMapBookmark, WebMapJson, WebMapOperationalLayer } from "./types.js";
+import {
+  type WarningCollector,
+  type WebMapWarning,
+  createWarningCollector,
+  warnUnknownProperties,
+} from "./warnings.js";
 
 export interface ParseWebMapOptions {
   /** If true, include basemap layers. Defaults to true. */

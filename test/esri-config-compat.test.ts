@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  esriConfig,
-  getEsriConfigHonuaInterceptors,
-  resetEsriConfig,
-} from "../src/index.js";
+import { esriConfig, getEsriConfigHonuaInterceptors, resetEsriConfig } from "../src/index.js";
 
 afterEach(() => {
   resetEsriConfig();

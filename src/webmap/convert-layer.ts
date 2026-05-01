@@ -13,11 +13,11 @@ import type {
   HonuaMapServiceSourceSpecification,
   HonuaSourceSpecification,
 } from "../style/specification.js";
-import type { WebMapOperationalLayer } from "./types.js";
-import { convertRenderer } from "./convert-renderer.js";
-import { convertPopupInfo, type HonuaPopupConfig } from "./convert-popup.js";
 import { convertLabelingInfo } from "./convert-label.js";
-import { warnUnknownProperties, type WarningCollector } from "./warnings.js";
+import { type HonuaPopupConfig, convertPopupInfo } from "./convert-popup.js";
+import { convertRenderer } from "./convert-renderer.js";
+import type { WebMapOperationalLayer } from "./types.js";
+import { type WarningCollector, warnUnknownProperties } from "./warnings.js";
 
 export interface LayerConversionResult {
   sources: Record<string, HonuaSourceSpecification | { type: string; [key: string]: unknown }>;

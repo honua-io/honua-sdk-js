@@ -93,7 +93,9 @@ export class HonuaStacSearch {
     return items;
   }
 
-  public async *searchStream(request: HonuaStacSearchAllRequest = {}): AsyncGenerator<HonuaStacItemResponse[], void, undefined> {
+  public async *searchStream(
+    request: HonuaStacSearchAllRequest = {},
+  ): AsyncGenerator<HonuaStacItemResponse[], void, undefined> {
     const pageSize = request.pageSize ?? request.limit ?? DEFAULT_STAC_PAGE_SIZE;
     const maxPages = request.maxPages ?? DEFAULT_STAC_MAX_PAGES;
     let cursor: StacPageCursor = { offset: request.offset, next: request.next };
@@ -126,9 +128,7 @@ interface StacPageCursor {
  * link carries it, otherwise fall back to `next`. When the server omits
  * a usable `rel=next` link, return an empty cursor so the caller stops.
  */
-function nextStacCursor(
-  links: HonuaStacItemCollectionResponse["links"] | undefined,
-): StacPageCursor {
+function nextStacCursor(links: HonuaStacItemCollectionResponse["links"] | undefined): StacPageCursor {
   if (!links) return {};
   for (const link of links) {
     if (link.rel !== "next" || typeof link.href !== "string") continue;

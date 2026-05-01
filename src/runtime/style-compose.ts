@@ -78,10 +78,11 @@ export async function applyStyleRefs(
   for (const ref of refs) {
     const body = ref.body ?? (resolve ? await resolve(ref.styleId, ref.presetId) : undefined);
     if (!body) {
-      throw new HonuaMapPackageError(
-        `StyleRef "${ref.styleId}" has no inline body and no resolver was provided`,
-        { packageId: pkg.mapPackageId, stage: "style-compose", detail: { styleId: ref.styleId } },
-      );
+      throw new HonuaMapPackageError(`StyleRef "${ref.styleId}" has no inline body and no resolver was provided`, {
+        packageId: pkg.mapPackageId,
+        stage: "style-compose",
+        detail: { styleId: ref.styleId },
+      });
     }
     for (const [layerId, override] of Object.entries(body)) {
       const idx = nextLayers.findIndex((layer) => layer.id === layerId);
@@ -125,7 +126,10 @@ async function resolveTheme(
   }
 }
 
-function mergeLayerOverride(layer: HonuaLayerSpecification, override: HonuaStyleRefLayerOverride): HonuaLayerSpecification {
+function mergeLayerOverride(
+  layer: HonuaLayerSpecification,
+  override: HonuaStyleRefLayerOverride,
+): HonuaLayerSpecification {
   return {
     ...layer,
     ...(override.filter !== undefined ? { filter: override.filter } : {}),
@@ -146,7 +150,10 @@ function cloneLayer(layer: HonuaLayerSpecification): HonuaLayerSpecification {
   };
 }
 
-function substituteLayerTokens(layer: HonuaLayerSpecification, tokens: Record<string, string | number>): HonuaLayerSpecification {
+function substituteLayerTokens(
+  layer: HonuaLayerSpecification,
+  tokens: Record<string, string | number>,
+): HonuaLayerSpecification {
   return {
     ...layer,
     paint: layer.paint ? substituteTokens(layer.paint, tokens) : layer.paint,
@@ -154,7 +161,10 @@ function substituteLayerTokens(layer: HonuaLayerSpecification, tokens: Record<st
   };
 }
 
-function substituteTokens(obj: Record<string, unknown>, tokens: Record<string, string | number>): Record<string, unknown> {
+function substituteTokens(
+  obj: Record<string, unknown>,
+  tokens: Record<string, string | number>,
+): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     out[key] = substituteTokenValue(value, tokens);

@@ -6,7 +6,7 @@
 
 import type { HonuaLayerSpecification, HonuaMapServiceSourceSpecification } from "../style/specification.js";
 import type { WebMapBaseMap, WebMapBaseMapLayer } from "./types.js";
-import { warnUnknownProperties, type WarningCollector } from "./warnings.js";
+import { type WarningCollector, warnUnknownProperties } from "./warnings.js";
 
 export interface BasemapConversionResult {
   sources: Record<string, HonuaMapServiceSourceSpecification | { type: string; [key: string]: unknown }>;

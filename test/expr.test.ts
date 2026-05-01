@@ -2,80 +2,80 @@ import { describe, expect, it } from "vitest";
 
 import {
   Expr,
-  expr,
-  get,
-  has,
-  at,
-  contains,
-  indexOf,
-  slice,
-  length,
-  id,
-  geometryType,
-  properties,
-  featureState,
-  literal,
-  toBoolean,
-  toNumber,
-  exprToString,
-  toColor,
-  typeOf,
-  eq,
-  neq,
-  lt,
-  lte,
-  gt,
-  gte,
-  not,
+  abs,
+  acos,
+  add,
   all,
   any,
-  switchCase,
-  matchExpr,
-  coalesce,
-  add,
-  subtract,
-  multiply,
-  divide,
-  mod,
-  pow,
-  abs,
-  ceil,
-  floor,
-  round,
-  sqrt,
-  ln,
-  log2,
-  log10,
-  sin,
-  cos,
-  tan,
   asin,
-  acos,
+  at,
   atan,
-  min,
-  max,
-  e,
-  pi,
-  ln2Const,
+  ceil,
+  coalesce,
   concat,
-  upcase,
+  contains,
+  cos,
+  cubicBezier,
+  distance,
+  divide,
   downcase,
-  rgb,
-  rgba,
-  step,
+  e,
+  eq,
+  exponential,
+  expr,
+  exprToString,
+  featureState,
+  floor,
+  geometryType,
+  get,
+  gt,
+  gte,
+  has,
+  id,
+  image,
+  indexOf,
   interpolate,
   interpolateHcl,
   interpolateLab,
-  linear,
-  exponential,
-  cubicBezier,
-  zoom,
-  letExpr,
-  varExpr,
-  image,
-  distance,
-  within,
   intersects,
+  length,
+  letExpr,
+  linear,
+  literal,
+  ln,
+  ln2Const,
+  log2,
+  log10,
+  lt,
+  lte,
+  matchExpr,
+  max,
+  min,
+  mod,
+  multiply,
+  neq,
+  not,
+  pi,
+  pow,
+  properties,
+  rgb,
+  rgba,
+  round,
+  sin,
+  slice,
+  sqrt,
+  step,
+  subtract,
+  switchCase,
+  tan,
+  toBoolean,
+  toColor,
+  toNumber,
+  typeOf,
+  upcase,
+  varExpr,
+  within,
+  zoom,
 } from "../src/index.js";
 import type { GeoJsonGeometry } from "../src/index.js";
 
@@ -111,11 +111,7 @@ describe("Lookup expressions", () => {
   });
 
   it("get() with object serializes two-arg form", () => {
-    expect(get("key", properties()).toJSON()).toEqual([
-      "get",
-      "key",
-      ["properties"],
-    ]);
+    expect(get("key", properties()).toJSON()).toEqual(["get", "key", ["properties"]]);
   });
 
   it("has() serializes to property existence test", () => {
@@ -123,47 +119,21 @@ describe("Lookup expressions", () => {
   });
 
   it("at() serializes to array index access", () => {
-    expect(at(0, literal([1, 2, 3])).toJSON()).toEqual([
-      "at",
-      0,
-      ["literal", [1, 2, 3]],
-    ]);
+    expect(at(0, literal([1, 2, 3])).toJSON()).toEqual(["at", 0, ["literal", [1, 2, 3]]]);
   });
 
   it("contains() serializes to 'in' expression", () => {
-    expect(contains("a", get("tags")).toJSON()).toEqual([
-      "in",
-      "a",
-      ["get", "tags"],
-    ]);
+    expect(contains("a", get("tags")).toJSON()).toEqual(["in", "a", ["get", "tags"]]);
   });
 
   it("indexOf() serializes with optional fromIndex", () => {
-    expect(indexOf("x", get("name")).toJSON()).toEqual([
-      "index-of",
-      "x",
-      ["get", "name"],
-    ]);
-    expect(indexOf("x", get("name"), 2).toJSON()).toEqual([
-      "index-of",
-      "x",
-      ["get", "name"],
-      2,
-    ]);
+    expect(indexOf("x", get("name")).toJSON()).toEqual(["index-of", "x", ["get", "name"]]);
+    expect(indexOf("x", get("name"), 2).toJSON()).toEqual(["index-of", "x", ["get", "name"], 2]);
   });
 
   it("slice() serializes with optional end", () => {
-    expect(slice(get("name"), 0, 3).toJSON()).toEqual([
-      "slice",
-      ["get", "name"],
-      0,
-      3,
-    ]);
-    expect(slice(get("name"), 1).toJSON()).toEqual([
-      "slice",
-      ["get", "name"],
-      1,
-    ]);
+    expect(slice(get("name"), 0, 3).toJSON()).toEqual(["slice", ["get", "name"], 0, 3]);
+    expect(slice(get("name"), 1).toJSON()).toEqual(["slice", ["get", "name"], 1]);
   });
 
   it("length() serializes to length expression", () => {
@@ -196,33 +166,19 @@ describe("Type coercion expressions", () => {
   });
 
   it("toBoolean() serializes to to-boolean", () => {
-    expect(toBoolean(get("active")).toJSON()).toEqual([
-      "to-boolean",
-      ["get", "active"],
-    ]);
+    expect(toBoolean(get("active")).toJSON()).toEqual(["to-boolean", ["get", "active"]]);
   });
 
   it("toNumber() accepts variadic fallbacks", () => {
-    expect(toNumber(get("val"), 0).toJSON()).toEqual([
-      "to-number",
-      ["get", "val"],
-      0,
-    ]);
+    expect(toNumber(get("val"), 0).toJSON()).toEqual(["to-number", ["get", "val"], 0]);
   });
 
   it("exprToString() serializes to to-string", () => {
-    expect(exprToString(get("id")).toJSON()).toEqual([
-      "to-string",
-      ["get", "id"],
-    ]);
+    expect(exprToString(get("id")).toJSON()).toEqual(["to-string", ["get", "id"]]);
   });
 
   it("toColor() accepts variadic fallbacks", () => {
-    expect(toColor(get("color"), "#000").toJSON()).toEqual([
-      "to-color",
-      ["get", "color"],
-      "#000",
-    ]);
+    expect(toColor(get("color"), "#000").toJSON()).toEqual(["to-color", ["get", "color"], "#000"]);
   });
 
   it("typeOf() serializes to typeof", () => {
@@ -232,39 +188,15 @@ describe("Type coercion expressions", () => {
 
 describe("Comparison expressions", () => {
   it("eq/neq serialize to ==/!=", () => {
-    expect(eq(get("type"), "park").toJSON()).toEqual([
-      "==",
-      ["get", "type"],
-      "park",
-    ]);
-    expect(neq(get("type"), "park").toJSON()).toEqual([
-      "!=",
-      ["get", "type"],
-      "park",
-    ]);
+    expect(eq(get("type"), "park").toJSON()).toEqual(["==", ["get", "type"], "park"]);
+    expect(neq(get("type"), "park").toJSON()).toEqual(["!=", ["get", "type"], "park"]);
   });
 
   it("lt/lte/gt/gte serialize to comparison operators", () => {
-    expect(lt(get("pop"), 1000).toJSON()).toEqual([
-      "<",
-      ["get", "pop"],
-      1000,
-    ]);
-    expect(lte(get("pop"), 1000).toJSON()).toEqual([
-      "<=",
-      ["get", "pop"],
-      1000,
-    ]);
-    expect(gt(get("pop"), 1000).toJSON()).toEqual([
-      ">",
-      ["get", "pop"],
-      1000,
-    ]);
-    expect(gte(get("pop"), 1000).toJSON()).toEqual([
-      ">=",
-      ["get", "pop"],
-      1000,
-    ]);
+    expect(lt(get("pop"), 1000).toJSON()).toEqual(["<", ["get", "pop"], 1000]);
+    expect(lte(get("pop"), 1000).toJSON()).toEqual(["<=", ["get", "pop"], 1000]);
+    expect(gt(get("pop"), 1000).toJSON()).toEqual([">", ["get", "pop"], 1000]);
+    expect(gte(get("pop"), 1000).toJSON()).toEqual([">=", ["get", "pop"], 1000]);
   });
 });
 
@@ -274,15 +206,11 @@ describe("Logic expressions", () => {
   });
 
   it("all() serializes variadic boolean inputs", () => {
-    expect(
-      all(has("name"), gt(get("pop"), 0)).toJSON(),
-    ).toEqual(["all", ["has", "name"], [">", ["get", "pop"], 0]]);
+    expect(all(has("name"), gt(get("pop"), 0)).toJSON()).toEqual(["all", ["has", "name"], [">", ["get", "pop"], 0]]);
   });
 
   it("any() serializes variadic boolean inputs", () => {
-    expect(
-      any(eq(get("type"), "park"), eq(get("type"), "garden")).toJSON(),
-    ).toEqual([
+    expect(any(eq(get("type"), "park"), eq(get("type"), "garden")).toJSON()).toEqual([
       "any",
       ["==", ["get", "type"], "park"],
       ["==", ["get", "type"], "garden"],
@@ -292,11 +220,7 @@ describe("Logic expressions", () => {
 
 describe("Decision expressions", () => {
   it("switchCase() serializes branches and fallback", () => {
-    const result = switchCase(
-      [gt(get("pop"), 1_000_000), "large"],
-      [gt(get("pop"), 100_000), "medium"],
-      "small",
-    );
+    const result = switchCase([gt(get("pop"), 1_000_000), "large"], [gt(get("pop"), 100_000), "medium"], "small");
     expect(result.toJSON()).toEqual([
       "case",
       [">", ["get", "pop"], 1000000],
@@ -308,12 +232,7 @@ describe("Decision expressions", () => {
   });
 
   it("matchExpr() serializes scalar and array labels", () => {
-    const result = matchExpr(
-      get("type"),
-      ["residential", "#0f0"],
-      [["commercial", "retail"], "#00f"],
-      "#888",
-    );
+    const result = matchExpr(get("type"), ["residential", "#0f0"], [["commercial", "retail"], "#00f"], "#888");
     expect(result.toJSON()).toEqual([
       "match",
       ["get", "type"],
@@ -326,20 +245,14 @@ describe("Decision expressions", () => {
   });
 
   it("coalesce() serializes variadic expressions", () => {
-    expect(
-      coalesce(get("name_en"), get("name")).toJSON(),
-    ).toEqual(["coalesce", ["get", "name_en"], ["get", "name"]]);
+    expect(coalesce(get("name_en"), get("name")).toJSON()).toEqual(["coalesce", ["get", "name_en"], ["get", "name"]]);
   });
 });
 
 describe("Math expressions", () => {
   it("add/multiply accept variadic inputs", () => {
     expect(add(1, 2, 3).toJSON()).toEqual(["+", 1, 2, 3]);
-    expect(multiply(get("a"), get("b")).toJSON()).toEqual([
-      "*",
-      ["get", "a"],
-      ["get", "b"],
-    ]);
+    expect(multiply(get("a"), get("b")).toJSON()).toEqual(["*", ["get", "a"], ["get", "b"]]);
   });
 
   it("subtract() supports negation (1 arg) and subtraction (2 args)", () => {
@@ -387,11 +300,7 @@ describe("Math expressions", () => {
 
 describe("String expressions", () => {
   it("concat() serializes variadic inputs", () => {
-    expect(concat("Hello ", get("name")).toJSON()).toEqual([
-      "concat",
-      "Hello ",
-      ["get", "name"],
-    ]);
+    expect(concat("Hello ", get("name")).toJSON()).toEqual(["concat", "Hello ", ["get", "name"]]);
   });
 
   it("upcase/downcase serialize correctly", () => {
@@ -406,121 +315,39 @@ describe("Color expressions", () => {
   });
 
   it("rgba() serializes to four-component color", () => {
-    expect(rgba(255, 0, 128, 0.5).toJSON()).toEqual([
-      "rgba",
-      255,
-      0,
-      128,
-      0.5,
-    ]);
+    expect(rgba(255, 0, 128, 0.5).toJSON()).toEqual(["rgba", 255, 0, 128, 0.5]);
   });
 });
 
 describe("Interpolation", () => {
   it("step() serializes with default and stops", () => {
-    const result = step(
-      get("population"),
-      "#f7fbff",
-      [10_000, "#6baed6"],
-      [100_000, "#08306b"],
-    );
-    expect(result.toJSON()).toEqual([
-      "step",
-      ["get", "population"],
-      "#f7fbff",
-      10000,
-      "#6baed6",
-      100000,
-      "#08306b",
-    ]);
+    const result = step(get("population"), "#f7fbff", [10_000, "#6baed6"], [100_000, "#08306b"]);
+    expect(result.toJSON()).toEqual(["step", ["get", "population"], "#f7fbff", 10000, "#6baed6", 100000, "#08306b"]);
   });
 
   it("interpolate() serializes with method, input, and stops", () => {
-    const result = interpolate(
-      linear(),
-      zoom(),
-      [0, 0],
-      [10, 1],
-      [20, 5],
-    );
-    expect(result.toJSON()).toEqual([
-      "interpolate",
-      ["linear"],
-      ["zoom"],
-      0,
-      0,
-      10,
-      1,
-      20,
-      5,
-    ]);
+    const result = interpolate(linear(), zoom(), [0, 0], [10, 1], [20, 5]);
+    expect(result.toJSON()).toEqual(["interpolate", ["linear"], ["zoom"], 0, 0, 10, 1, 20, 5]);
   });
 
   it("interpolate() with exponential method", () => {
     const result = interpolate(exponential(1.5), zoom(), [5, 1], [18, 20]);
-    expect(result.toJSON()).toEqual([
-      "interpolate",
-      ["exponential", 1.5],
-      ["zoom"],
-      5,
-      1,
-      18,
-      20,
-    ]);
+    expect(result.toJSON()).toEqual(["interpolate", ["exponential", 1.5], ["zoom"], 5, 1, 18, 20]);
   });
 
   it("interpolate() with cubic-bezier method", () => {
-    const result = interpolate(
-      cubicBezier(0.42, 0, 0.58, 1),
-      zoom(),
-      [0, 0],
-      [22, 100],
-    );
-    expect(result.toJSON()).toEqual([
-      "interpolate",
-      ["cubic-bezier", 0.42, 0, 0.58, 1],
-      ["zoom"],
-      0,
-      0,
-      22,
-      100,
-    ]);
+    const result = interpolate(cubicBezier(0.42, 0, 0.58, 1), zoom(), [0, 0], [22, 100]);
+    expect(result.toJSON()).toEqual(["interpolate", ["cubic-bezier", 0.42, 0, 0.58, 1], ["zoom"], 0, 0, 22, 100]);
   });
 
   it("interpolateHcl() serializes with interpolate-hcl operator", () => {
-    const result = interpolateHcl(
-      linear(),
-      get("value"),
-      [0, "#ff0000"],
-      [100, "#0000ff"],
-    );
-    expect(result.toJSON()).toEqual([
-      "interpolate-hcl",
-      ["linear"],
-      ["get", "value"],
-      0,
-      "#ff0000",
-      100,
-      "#0000ff",
-    ]);
+    const result = interpolateHcl(linear(), get("value"), [0, "#ff0000"], [100, "#0000ff"]);
+    expect(result.toJSON()).toEqual(["interpolate-hcl", ["linear"], ["get", "value"], 0, "#ff0000", 100, "#0000ff"]);
   });
 
   it("interpolateLab() serializes with interpolate-lab operator", () => {
-    const result = interpolateLab(
-      linear(),
-      get("value"),
-      [0, "#ff0000"],
-      [100, "#0000ff"],
-    );
-    expect(result.toJSON()).toEqual([
-      "interpolate-lab",
-      ["linear"],
-      ["get", "value"],
-      0,
-      "#ff0000",
-      100,
-      "#0000ff",
-    ]);
+    const result = interpolateLab(linear(), get("value"), [0, "#ff0000"], [100, "#0000ff"]);
+    expect(result.toJSON()).toEqual(["interpolate-lab", ["linear"], ["get", "value"], 0, "#ff0000", 100, "#0000ff"]);
   });
 });
 
@@ -532,10 +359,7 @@ describe("Zoom expression", () => {
 
 describe("Variable binding", () => {
   it("let/var serialize to variable binding", () => {
-    const result = letExpr(
-      { x: get("population"), y: 1000 },
-      multiply(varExpr("x"), varExpr("y")),
-    );
+    const result = letExpr({ x: get("population"), y: 1000 }, multiply(varExpr("x"), varExpr("y")));
     const json = result.toJSON() as unknown[];
     expect(json[0]).toBe("let");
     expect(json).toContain("x");
@@ -574,10 +398,7 @@ describe("Spatial expressions", () => {
   };
 
   it("distance() serializes with GeoJSON geometry", () => {
-    expect(distance(point).toJSON()).toEqual([
-      "distance",
-      { type: "Point", coordinates: [-122.4194, 37.7749] },
-    ]);
+    expect(distance(point).toJSON()).toEqual(["distance", { type: "Point", coordinates: [-122.4194, 37.7749] }]);
   });
 
   it("within() serializes with GeoJSON polygon", () => {
@@ -617,10 +438,7 @@ describe("Spatial expressions", () => {
   });
 
   it("distance() accepts an expression input", () => {
-    expect(distance(get("target_geom")).toJSON()).toEqual([
-      "distance",
-      ["get", "target_geom"],
-    ]);
+    expect(distance(get("target_geom")).toJSON()).toEqual(["distance", ["get", "target_geom"]]);
   });
 
   it("spatial operators are accessible on expr namespace", () => {
@@ -643,31 +461,15 @@ describe("Spatial expressions", () => {
 
 describe("Composition (design doc examples)", () => {
   it("reproduces the step + featureState hover pattern from the design doc", () => {
-    const fillColor = expr.step(
-      expr.get("assessed_value"),
-      "#f7fbff",
-      [100_000, "#6baed6"],
-      [500_000, "#08306b"],
-    );
+    const fillColor = expr.step(expr.get("assessed_value"), "#f7fbff", [100_000, "#6baed6"], [500_000, "#08306b"]);
 
-    const hoverColor = expr.case(
-      [expr.featureState("hover"), "#ff0"],
-      fillColor,
-    );
+    const hoverColor = expr.case([expr.featureState("hover"), "#ff0"], fillColor);
 
     expect(hoverColor.toJSON()).toEqual([
       "case",
       ["feature-state", "hover"],
       "#ff0",
-      [
-        "step",
-        ["get", "assessed_value"],
-        "#f7fbff",
-        100000,
-        "#6baed6",
-        500000,
-        "#08306b",
-      ],
+      ["step", ["get", "assessed_value"], "#f7fbff", 100000, "#6baed6", 500000, "#08306b"],
     ]);
   });
 

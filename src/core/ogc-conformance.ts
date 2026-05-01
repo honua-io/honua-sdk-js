@@ -92,7 +92,9 @@ const CONFORMANCE_TABLES: Record<OgcConformanceProtocol, ReadonlyArray<readonly 
 };
 
 /** Subset of `Protocol` for which OGC-style conformance applies. */
-export type OgcConformanceProtocol = Extract<Protocol, "ogc-features" | "ogc-tiles" | "ogc-maps" | "stac"> | "ogc-processes";
+export type OgcConformanceProtocol =
+  | Extract<Protocol, "ogc-features" | "ogc-tiles" | "ogc-maps" | "stac">
+  | "ogc-processes";
 
 /**
  * Translate the server-advertised `conformsTo[]` list into a canonical

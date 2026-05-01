@@ -1314,11 +1314,11 @@ export class HonuaImageService {
   }
 
   public async queryRasterCatalogObjectIds(request: HonuaImageServiceQueryRequest = {}): Promise<number[]> {
-    const response = await this.dispatch<{ objectIds?: Array<number | string> }>(
-      "query",
-      request,
-      { ...imageQueryParams(request), where: request.where ?? "1=1", returnIdsOnly: true },
-    );
+    const response = await this.dispatch<{ objectIds?: Array<number | string> }>("query", request, {
+      ...imageQueryParams(request),
+      where: request.where ?? "1=1",
+      returnIdsOnly: true,
+    });
     if (!Array.isArray(response.objectIds)) return [];
     return response.objectIds.map((v) => Number(v)).filter((v) => Number.isFinite(v));
   }
@@ -1358,7 +1358,12 @@ export class HonuaImageService {
     });
   }
 
-  public tileUrl(level: number, row: number, col: number, format: "png" | "jpg" | "jpeg" | "tif" | "tiff" = "png"): string {
+  public tileUrl(
+    level: number,
+    row: number,
+    col: number,
+    format: "png" | "jpg" | "jpeg" | "tif" | "tiff" = "png",
+  ): string {
     const path = `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/tile/${level}/${row}/${col}`;
     return `${this.client.serverBaseUrl}${path}?f=${format}`;
   }
@@ -1409,10 +1414,12 @@ function imageExportParams(request: HonuaImageServiceExportRequest): Record<stri
     params.bandIds = Array.isArray(request.bandIds) ? request.bandIds.join(",") : String(request.bandIds);
   }
   if (request.mosaicRule !== undefined) {
-    params.mosaicRule = typeof request.mosaicRule === "string" ? request.mosaicRule : JSON.stringify(request.mosaicRule);
+    params.mosaicRule =
+      typeof request.mosaicRule === "string" ? request.mosaicRule : JSON.stringify(request.mosaicRule);
   }
   if (request.renderingRule !== undefined) {
-    params.renderingRule = typeof request.renderingRule === "string" ? request.renderingRule : JSON.stringify(request.renderingRule);
+    params.renderingRule =
+      typeof request.renderingRule === "string" ? request.renderingRule : JSON.stringify(request.renderingRule);
   }
   if (request.imageSr !== undefined) params.imageSR = String(request.imageSr);
   if (request.bboxSr !== undefined) params.bboxSR = String(request.bboxSr);
@@ -1426,10 +1433,12 @@ function imageIdentifyParams(request: HonuaImageServiceIdentifyRequest): Record<
   if (request.geometryType !== undefined) params.geometryType = request.geometryType;
   if (request.sr !== undefined) params.sr = String(request.sr);
   if (request.mosaicRule !== undefined) {
-    params.mosaicRule = typeof request.mosaicRule === "string" ? request.mosaicRule : JSON.stringify(request.mosaicRule);
+    params.mosaicRule =
+      typeof request.mosaicRule === "string" ? request.mosaicRule : JSON.stringify(request.mosaicRule);
   }
   if (request.renderingRule !== undefined) {
-    params.renderingRule = typeof request.renderingRule === "string" ? request.renderingRule : JSON.stringify(request.renderingRule);
+    params.renderingRule =
+      typeof request.renderingRule === "string" ? request.renderingRule : JSON.stringify(request.renderingRule);
   }
   if (request.pixelSize !== undefined) {
     params.pixelSize = Array.isArray(request.pixelSize) ? request.pixelSize.join(",") : request.pixelSize;
@@ -1590,8 +1599,14 @@ export class HonuaGeometryService {
 function geometryProjectParams(request: HonuaGeometryProjectRequest): Record<string, string | number | boolean> {
   const params: Record<string, string | number | boolean> = {
     geometries: typeof request.geometries === "string" ? request.geometries : JSON.stringify(request.geometries),
-    inSR: typeof request.inSr === "string" || typeof request.inSr === "number" ? String(request.inSr) : JSON.stringify(request.inSr),
-    outSR: typeof request.outSr === "string" || typeof request.outSr === "number" ? String(request.outSr) : JSON.stringify(request.outSr),
+    inSR:
+      typeof request.inSr === "string" || typeof request.inSr === "number"
+        ? String(request.inSr)
+        : JSON.stringify(request.inSr),
+    outSR:
+      typeof request.outSr === "string" || typeof request.outSr === "number"
+        ? String(request.outSr)
+        : JSON.stringify(request.outSr),
   };
   Object.assign(params, request.extraParams ?? {});
   return params;
@@ -1603,9 +1618,13 @@ function geometryBufferParams(request: HonuaGeometryBufferRequest): Record<strin
     distances: Array.isArray(request.distances) ? request.distances.join(",") : String(request.distances),
   };
   if (request.unit !== undefined) params.unit = request.unit;
-  if (request.inSr !== undefined) params.inSR = typeof request.inSr === "object" ? JSON.stringify(request.inSr) : String(request.inSr);
-  if (request.outSr !== undefined) params.outSR = typeof request.outSr === "object" ? JSON.stringify(request.outSr) : String(request.outSr);
-  if (request.bufferSr !== undefined) params.bufferSR = typeof request.bufferSr === "object" ? JSON.stringify(request.bufferSr) : String(request.bufferSr);
+  if (request.inSr !== undefined)
+    params.inSR = typeof request.inSr === "object" ? JSON.stringify(request.inSr) : String(request.inSr);
+  if (request.outSr !== undefined)
+    params.outSR = typeof request.outSr === "object" ? JSON.stringify(request.outSr) : String(request.outSr);
+  if (request.bufferSr !== undefined)
+    params.bufferSR =
+      typeof request.bufferSr === "object" ? JSON.stringify(request.bufferSr) : String(request.bufferSr);
   if (request.unionResults !== undefined) params.unionResults = request.unionResults;
   if (request.geodesic !== undefined) params.geodesic = request.geodesic;
   Object.assign(params, request.extraParams ?? {});
@@ -1616,7 +1635,8 @@ function geometrySimplifyParams(request: HonuaGeometrySimplifyRequest): Record<s
   const params: Record<string, string | number | boolean> = {
     geometries: typeof request.geometries === "string" ? request.geometries : JSON.stringify(request.geometries),
   };
-  if (request.sr !== undefined) params.sr = typeof request.sr === "object" ? JSON.stringify(request.sr) : String(request.sr);
+  if (request.sr !== undefined)
+    params.sr = typeof request.sr === "object" ? JSON.stringify(request.sr) : String(request.sr);
   Object.assign(params, request.extraParams ?? {});
   return params;
 }
@@ -1731,7 +1751,10 @@ export class HonuaGeoprocessingService {
 function gpSubmitParams(request: HonuaGeoprocessingSubmitRequest): Record<string, string | number | boolean> {
   const params: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(request.parameters)) {
-    params[key] = typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value : JSON.stringify(value);
+    params[key] =
+      typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+        ? value
+        : JSON.stringify(value);
   }
   Object.assign(params, request.extraParams ?? {});
   return params;

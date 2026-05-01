@@ -129,9 +129,7 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
     this.id = options.jobId;
     this.type = options.processId ?? options.initialStatus?.processID ?? "unknown";
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-    this.pollFn =
-      options.pollFn ??
-      ((jobId, signal) => options.client.getOgcProcessJob({ jobId, signal }));
+    this.pollFn = options.pollFn ?? ((jobId, signal) => options.client.getOgcProcessJob({ jobId, signal }));
     const initial = options.initialStatus;
     this.currentStatus = (initial?.status as JobStatus) ?? "accepted";
     this.currentProgress = progressFromOgcStatus(initial);
@@ -335,10 +333,7 @@ function isCompletedJobConflict(error: unknown): boolean {
   return false;
 }
 
-function terminalJobError(
-  status: JobStatus,
-  ogcStatus: HonuaOgcProcessJobStatus,
-): JobError | undefined {
+function terminalJobError(status: JobStatus, ogcStatus: HonuaOgcProcessJobStatus): JobError | undefined {
   if (ogcStatus.exception) {
     return { ...ogcStatus.exception };
   }

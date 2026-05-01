@@ -1,6 +1,7 @@
 import { HonuaClient, type HonuaOgcFeatureCollectionResponse, type HonuaOgcFeatureResponse } from "@honua/sdk-js/honua";
 
-import { getBoundsForGeometry, flattenRouteCoordinates, buildRouteMetrics, mergeBounds } from "./geometry.js";
+import { buildRouteMetrics, flattenRouteCoordinates, getBoundsForGeometry, mergeBounds } from "./geometry.js";
+import type { StoryTelemetry } from "./telemetry.js";
 import type {
   StoryAssetFeature,
   StoryAssetProperties,
@@ -14,7 +15,6 @@ import type {
   StoryStopFeature,
   StoryStopProperties,
 } from "./types.js";
-import type { StoryTelemetry } from "./telemetry.js";
 
 const RISK_FIELDS = ["risk_score", "riskScore", "risk", "severity", "priority_score"];
 const HEIGHT_FIELDS = ["extrusion_height_m", "height_m", "height", "heightMeters", "elevation_m", "elevation"];
@@ -93,9 +93,10 @@ function resolveFeatureId(
   return candidate ?? `${fallbackPrefix}-${index + 1}`;
 }
 
-export function normalizeAssets(
-  collection: HonuaOgcFeatureCollectionResponse,
-): { collection: StoryFeatureCollection<StoryAssetFeature>; views: StoryAssetView[] } {
+export function normalizeAssets(collection: HonuaOgcFeatureCollectionResponse): {
+  collection: StoryFeatureCollection<StoryAssetFeature>;
+  views: StoryAssetView[];
+} {
   const features: StoryAssetFeature[] = [];
   const views: StoryAssetView[] = [];
 
@@ -187,7 +188,9 @@ export function normalizeRoute(collection: HonuaOgcFeatureCollectionResponse): S
   };
 }
 
-export function normalizeStops(collection: HonuaOgcFeatureCollectionResponse): StoryFeatureCollection<StoryStopFeature> {
+export function normalizeStops(
+  collection: HonuaOgcFeatureCollectionResponse,
+): StoryFeatureCollection<StoryStopFeature> {
   const features = collection.features
     .map((feature, index) => {
       if (feature.geometry?.type !== "Point") {
@@ -243,9 +246,11 @@ export function buildStoryDataset(
   const priorityCandidates = [...assetViews]
     .sort((left, right) => right.feature.properties.risk_score - left.feature.properties.risk_score)
     .filter((entry) => entry.feature.properties.risk_score >= config.priorityRiskThreshold);
-  const priorityViews = (priorityCandidates.length > 0 ? priorityCandidates : [...assetViews].sort(
-    (left, right) => right.feature.properties.risk_score - left.feature.properties.risk_score,
-  )).slice(0, Math.min(3, assetViews.length));
+  const priorityViews = (
+    priorityCandidates.length > 0
+      ? priorityCandidates
+      : [...assetViews].sort((left, right) => right.feature.properties.risk_score - left.feature.properties.risk_score)
+  ).slice(0, Math.min(3, assetViews.length));
 
   priorityViews.forEach((entry, index) => {
     entry.feature.properties.priority_rank = index + 1;

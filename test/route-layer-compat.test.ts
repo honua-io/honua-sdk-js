@@ -5,10 +5,7 @@ import { CompatEventBus, RouteLayerCompat } from "../src/index.js";
 describe("RouteLayerCompat", () => {
   it("supports lifecycle loading and watch handles", async () => {
     const layer = new RouteLayerCompat({
-      stops: [
-        { location: [0, 0] },
-        { location: [1, 1] },
-      ],
+      stops: [{ location: [0, 0] }, { location: [1, 1] }],
     });
 
     const loadStatusValues: unknown[] = [];
