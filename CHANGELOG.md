@@ -2,6 +2,13 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.5-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.4-alpha.0...js-sdk-vv0.0.5-alpha.0) (2026-05-01)
+
+
+### Features
+
+* add auth credential lifecycle provider ([#50](https://github.com/honua-io/honua-sdk-js/issues/50)) ([ed4df24](https://github.com/honua-io/honua-sdk-js/commit/ed4df244dc3d2274e50d2417e5deef302443bd20))
+
 ## [0.0.4-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.3-alpha.0...js-sdk-vv0.0.4-alpha.0) (2026-04-28)
 
 
