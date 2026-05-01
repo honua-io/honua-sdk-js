@@ -23,7 +23,7 @@ jobs:
       HONUA_STAGING_RESULT_RECORD_COUNT: ${{ vars.HONUA_STAGING_RESULT_RECORD_COUNT }}
       HONUA_STAGING_API_KEY: ${{ secrets.HONUA_STAGING_API_KEY }}
       HONUA_STAGING_BEARER_TOKEN: ${{ secrets.HONUA_STAGING_BEARER_TOKEN }}
-      HONUA_QUICKSTART_STAGING_SUMMARY_FILE: ${{ runner.temp }}/quickstart-staging-summary.json
+      HONUA_QUICKSTART_STAGING_SUMMARY_FILE: test-results/quickstart-staging-summary.json
     steps:
       - uses: actions/checkout@v6
 
