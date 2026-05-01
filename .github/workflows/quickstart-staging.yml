@@ -34,20 +34,39 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Validate staging configuration
+      - name: Gate on configured staging target
+        id: gate
         run: |
-          test -n "$HONUA_STAGING_BASE_URL" || { echo "Missing HONUA_STAGING_BASE_URL"; exit 1; }
-          test -n "$HONUA_STAGING_SERVICE_ID" || { echo "Missing HONUA_STAGING_SERVICE_ID"; exit 1; }
-          test -n "$HONUA_STAGING_LAYER_ID" || { echo "Missing HONUA_STAGING_LAYER_ID"; exit 1; }
+          missing=()
+          test -n "$HONUA_STAGING_BASE_URL" || missing+=("HONUA_STAGING_BASE_URL")
+          test -n "$HONUA_STAGING_SERVICE_ID" || missing+=("HONUA_STAGING_SERVICE_ID")
+          test -n "$HONUA_STAGING_LAYER_ID" || missing+=("HONUA_STAGING_LAYER_ID")
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            {
+              echo "## Quickstart Staging"
+              echo ""
+              echo "Skipped: staging target is not configured."
+              echo ""
+              echo "Missing variables: \`${missing[*]}\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::Quickstart staging skipped; missing variables: ${missing[*]}"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
+        if: steps.gate.outputs.skip != 'true'
         run: npm ci
 
       - name: Run quickstart staging integration
+        if: steps.gate.outputs.skip != 'true'
         run: npm run test:quickstart:staging
 
       - name: Publish staging summary
-        if: ${{ always() }}
+        if: ${{ steps.gate.outputs.skip != 'true' && always() }}
         run: |
           if [ ! -f "$HONUA_QUICKSTART_STAGING_SUMMARY_FILE" ]; then
             echo "Quickstart staging summary file was not produced." >> "$GITHUB_STEP_SUMMARY"
