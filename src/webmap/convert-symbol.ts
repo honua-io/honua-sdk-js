@@ -7,12 +7,12 @@
 import type { HonuaLayerSpecification } from "../style/specification.js";
 import type {
   EsriColor,
+  WebMapPictureMarkerSymbol,
   WebMapSimpleFillSymbol,
   WebMapSimpleLineSymbol,
   WebMapSimpleMarkerSymbol,
-  WebMapPictureMarkerSymbol,
-  WebMapTextSymbol,
   WebMapSymbol,
+  WebMapTextSymbol,
 } from "./types.js";
 import type { WarningCollector } from "./warnings.js";
 

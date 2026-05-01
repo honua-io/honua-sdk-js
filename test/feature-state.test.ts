@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  setFeatureState,
-  getFeatureState,
-  removeFeatureState,
   createHoverHandler,
   createSelectionHandler,
+  getFeatureState,
+  removeFeatureState,
+  setFeatureState,
 } from "../src/index.js";
 import type { InteractiveMap } from "../src/index.js";
 
@@ -59,7 +59,11 @@ function createMockMap(): InteractiveMap & {
       }
     },
 
-    off(event: string, layerOrHandler: string | ((...args: unknown[]) => void), handler?: (...args: unknown[]) => void) {
+    off(
+      event: string,
+      layerOrHandler: string | ((...args: unknown[]) => void),
+      handler?: (...args: unknown[]) => void,
+    ) {
       if (typeof layerOrHandler === "string" && handler) {
         const key = `${event}:${layerOrHandler}`;
         const list = handlers.get(key);

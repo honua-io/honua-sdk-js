@@ -76,9 +76,7 @@ describe("HonuaClient server compatibility helpers", () => {
     const status = await client.checkCompatibility();
 
     expect(status.supported).toBe(false);
-    expect(status.reasons).toContain(
-      "Server release channel 'alpha' is below the minimum supported 'preview'.",
-    );
+    expect(status.reasons).toContain("Server release channel 'alpha' is below the minimum supported 'preview'.");
   });
 
   it("reports unsupported when the server does not expose the compatibility contract", async () => {
@@ -131,11 +129,10 @@ function createCapabilitiesEnvelope(
           basePath: overrides.controlPlaneApi?.basePath ?? "/api/v1/admin",
           deprecated: overrides.controlPlaneApi?.deprecated ?? false,
         },
-        metadataSchemas:
-          overrides.metadataSchemas ?? [
-            { version: "honua.io/v1alpha1", deprecated: false },
-            { version: "honua.io/v1alpha0", deprecated: true },
-          ],
+        metadataSchemas: overrides.metadataSchemas ?? [
+          { version: "honua.io/v1alpha1", deprecated: false },
+          { version: "honua.io/v1alpha0", deprecated: true },
+        ],
         features: overrides.features ?? {
           metadataResources: true,
           manifestExport: true,

@@ -63,11 +63,7 @@ export function diffPackages(previous: HonuaMapPackage, next: HonuaMapPackage): 
   }
 
   const styleStructuralReason = detectStructuralChange(previous.mapSpec, next.mapSpec);
-  const sourceStructuralReason = detectSourceBindingChange(
-    addedSourceBindings,
-    removedSourceIds,
-    changedSourceIds,
-  );
+  const sourceStructuralReason = detectSourceBindingChange(addedSourceBindings, removedSourceIds, changedSourceIds);
   const structuralReason = styleStructuralReason ?? sourceStructuralReason;
 
   return {

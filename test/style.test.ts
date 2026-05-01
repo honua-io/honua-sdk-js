@@ -50,9 +50,7 @@ describe("Type guards", () => {
 describe("URL parsing", () => {
   describe("parseFeatureLayerUrl (re-exported from esri-compat)", () => {
     it("parses a standard Feature Service URL", () => {
-      const result = parseFeatureLayerUrl(
-        "https://gis.example.com/rest/services/parcels/FeatureServer/0",
-      );
+      const result = parseFeatureLayerUrl("https://gis.example.com/rest/services/parcels/FeatureServer/0");
       expect(result).toEqual({
         baseUrl: "https://gis.example.com",
         serviceId: "parcels",
@@ -61,9 +59,7 @@ describe("URL parsing", () => {
     });
 
     it("parses a URL with a path prefix (e.g. /arcgis)", () => {
-      const result = parseFeatureLayerUrl(
-        "https://gis.example.com/arcgis/rest/services/parcels/FeatureServer/3",
-      );
+      const result = parseFeatureLayerUrl("https://gis.example.com/arcgis/rest/services/parcels/FeatureServer/3");
       expect(result).toEqual({
         baseUrl: "https://gis.example.com/arcgis",
         serviceId: "parcels",
@@ -72,17 +68,13 @@ describe("URL parsing", () => {
     });
 
     it("throws on invalid URL", () => {
-      expect(() =>
-        parseFeatureLayerUrl("https://example.com/not-a-service"),
-      ).toThrow("Invalid FeatureLayer URL");
+      expect(() => parseFeatureLayerUrl("https://example.com/not-a-service")).toThrow("Invalid FeatureLayer URL");
     });
   });
 
   describe("parseMapServiceUrl (re-exported from esri-compat)", () => {
     it("parses a standard Map Service URL", () => {
-      const result = parseMapServiceUrl(
-        "https://gis.example.com/rest/services/imagery/MapServer",
-      );
+      const result = parseMapServiceUrl("https://gis.example.com/rest/services/imagery/MapServer");
       expect(result).toEqual({
         baseUrl: "https://gis.example.com",
         serviceId: "imagery",
@@ -90,17 +82,13 @@ describe("URL parsing", () => {
     });
 
     it("throws on invalid URL", () => {
-      expect(() =>
-        parseMapServiceUrl("https://example.com/not-a-service"),
-      ).toThrow("Invalid MapServer URL");
+      expect(() => parseMapServiceUrl("https://example.com/not-a-service")).toThrow("Invalid MapServer URL");
     });
   });
 
   describe("parseOgcFeaturesUrl", () => {
     it("parses a URL with a collection path", () => {
-      const result = parseOgcFeaturesUrl(
-        "https://gis.example.com/ogc/collections/admin-boundaries",
-      );
+      const result = parseOgcFeaturesUrl("https://gis.example.com/ogc/collections/admin-boundaries");
       expect(result).toEqual({
         baseUrl: "https://gis.example.com/ogc",
         collectionId: "admin-boundaries",
@@ -151,9 +139,7 @@ describe("validateHonuaStyle", () => {
           url: "https://gis.example.com/rest/services/parcels/FeatureServer/0",
         },
       },
-      layers: [
-        { id: "parcel-fill", type: "fill", source: "parcels" },
-      ],
+      layers: [{ id: "parcel-fill", type: "fill", source: "parcels" }],
     };
     expect(validateHonuaStyle(style)).toEqual([]);
   });
@@ -255,9 +241,7 @@ describe("createSources", () => {
     const sources = createSources(client, style);
     const boundaries = sources.get("boundaries");
     expect(boundaries).toBeInstanceOf(HonuaOgcFeatureCollection);
-    expect((boundaries as HonuaOgcFeatureCollection).collectionId).toBe(
-      "admin-boundaries",
-    );
+    expect((boundaries as HonuaOgcFeatureCollection).collectionId).toBe("admin-boundaries");
   });
 
   it("uses explicit collectionId over URL-parsed one", () => {
@@ -274,9 +258,7 @@ describe("createSources", () => {
     };
 
     const sources = createSources(client, style);
-    expect(
-      (sources.get("data") as HonuaOgcFeatureCollection).collectionId,
-    ).toBe("new-name");
+    expect((sources.get("data") as HonuaOgcFeatureCollection).collectionId).toBe("new-name");
   });
 
   it("creates HonuaWms (service-level) for honua-wms sources without LAYERS", () => {
@@ -470,15 +452,7 @@ describe("HonuaStyleSpecification (design doc example)", () => {
           source: "parcels",
           type: "fill",
           paint: {
-            "fill-color": [
-              "step",
-              ["get", "assessed_value"],
-              "#f7fbff",
-              100000,
-              "#6baed6",
-              500000,
-              "#08306b",
-            ],
+            "fill-color": ["step", ["get", "assessed_value"], "#f7fbff", 100000, "#6baed6", 500000, "#08306b"],
             "fill-opacity": 0.7,
           },
         },

@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  ClassBreaksRendererCompat,
-  SimpleRendererCompat,
-  UniqueValueRendererCompat,
-} from "../src/index.js";
+import { ClassBreaksRendererCompat, SimpleRendererCompat, UniqueValueRendererCompat } from "../src/index.js";
 
 describe("renderer compat", () => {
   it("supports simple renderer payloads", async () => {

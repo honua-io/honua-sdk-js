@@ -49,7 +49,10 @@ export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],
-    fileParallelism: !ci,
+    // Several migration CLI tests rebuild and execute the shared dist CLI.
+    // Keep file execution serialized locally as well as in CI so those tests
+    // do not contend for the same generated artifacts.
+    fileParallelism: false,
     maxWorkers: ci ? 1 : undefined,
   },
 });

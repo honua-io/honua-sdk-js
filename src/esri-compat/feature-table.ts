@@ -445,10 +445,7 @@ export class FeatureTableCompat {
    * Sorts current rows by the given field name and direction.
    * Returns a new sorted snapshot (does not re-fetch from the server).
    */
-  public sortRows(
-    fieldName: string,
-    direction: "asc" | "desc" = "asc",
-  ): readonly FeatureTableRowCompat[] {
+  public sortRows(fieldName: string, direction: "asc" | "desc" = "asc"): readonly FeatureTableRowCompat[] {
     const sorted = [...this.rows].sort((a, b) => {
       const aVal = a.attributes[fieldName];
       const bVal = b.attributes[fieldName];
@@ -457,11 +454,7 @@ export class FeatureTableCompat {
     });
     (this as { rows: readonly FeatureTableRowCompat[] }).rows = sorted;
     this.notifyWatchers("rows", this.rows);
-    this.eventBus.emit(
-      "feature-table.sorted",
-      { fieldName, direction, rowCount: this.rows.length },
-      this,
-    );
+    this.eventBus.emit("feature-table.sorted", { fieldName, direction, rowCount: this.rows.length }, this);
     return this.rows;
   }
 
@@ -469,9 +462,7 @@ export class FeatureTableCompat {
    * Exports current rows as a JSON-serializable array of attribute records.
    * Optionally accepts a list of field names to include.
    */
-  public exportRows(
-    fieldNames?: readonly string[],
-  ): readonly Record<string, unknown>[] {
+  public exportRows(fieldNames?: readonly string[]): readonly Record<string, unknown>[] {
     return this.rows.map((row) => {
       if (!fieldNames || fieldNames.length === 0) {
         return { ...row.attributes };

@@ -419,11 +419,7 @@ export class MapImageLayerCompat {
       deletes: options.deletes,
       rollbackOnFailure: options.rollbackOnFailure,
     });
-    this.eventBus.emit(
-      "map-image-layer.edits",
-      { result, layerId: this.id, sublayerId: options.layerId },
-      this,
-    );
+    this.eventBus.emit("map-image-layer.edits", { result, layerId: this.id, sublayerId: options.layerId }, this);
     return result;
   }
 

@@ -132,7 +132,11 @@ describe("LayerListCompat", () => {
 
     const layerA = { id: "a", title: "A", visible: true };
     const layerB = { id: "b", title: "B", visible: true };
-    const nested = new GroupLayerCompat({ id: "group", eventBus, layers: [{ id: "nested", title: "Nested", visible: true }] });
+    const nested = new GroupLayerCompat({
+      id: "group",
+      eventBus,
+      layers: [{ id: "nested", title: "Nested", visible: true }],
+    });
 
     map.addMany([layerA, nested]);
 

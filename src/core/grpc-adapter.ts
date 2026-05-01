@@ -3,6 +3,7 @@ import {
   type AttributeValue,
   CoordinateSchema,
   CoordinateSequenceSchema,
+  DistanceUnit,
   type FeaturePage,
   FieldType,
   GeometrySchema,
@@ -15,7 +16,6 @@ import {
   type FieldDefinition as ProtoFieldDefinition,
   QueryFeaturesRequestSchema,
   type QueryFeaturesResponse,
-  DistanceUnit,
   SpatialFilterSchema,
   SpatialReferenceSchema,
   SpatialRelationship,
@@ -206,9 +206,7 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
       filter.returnDistance = returnDistance;
     }
 
-    const unit =
-      request.units ??
-      parseExtraString(request.extraParams ?? {}, "units");
+    const unit = request.units ?? parseExtraString(request.extraParams ?? {}, "units");
     if (unit !== undefined) {
       const mappedUnit = ESRI_TO_PROTO_DISTANCE_UNIT_MAP[unit.trim().toLowerCase()];
       if (!mappedUnit) {
@@ -328,10 +326,7 @@ function isIdsOnlyResponse(response: QueryFeaturesResponse): boolean {
   );
 }
 
-function parseExtraBoolean(
-  params: Record<string, string | number | boolean>,
-  key: string,
-): boolean | undefined {
+function parseExtraBoolean(params: Record<string, string | number | boolean>, key: string): boolean | undefined {
   const value = params[key];
   if (value === undefined) {
     return undefined;
@@ -352,10 +347,7 @@ function parseExtraBoolean(
   return undefined;
 }
 
-function parseExtraNumber(
-  params: Record<string, string | number | boolean>,
-  key: string,
-): number | undefined {
+function parseExtraNumber(params: Record<string, string | number | boolean>, key: string): number | undefined {
   const value = params[key];
   if (value === undefined || typeof value === "boolean") {
     return undefined;
@@ -364,10 +356,7 @@ function parseExtraNumber(
   return Number.isFinite(n) ? n : undefined;
 }
 
-function parseExtraString(
-  params: Record<string, string | number | boolean>,
-  key: string,
-): string | undefined {
+function parseExtraString(params: Record<string, string | number | boolean>, key: string): string | undefined {
   const value = params[key];
   if (value === undefined || typeof value === "boolean") {
     return undefined;
@@ -379,8 +368,7 @@ function parseExtraString(
 function toProtoStatistics(
   value: string | readonly Record<string, unknown>[],
 ): ReturnType<typeof create<typeof StatisticDefinitionSchema>>[] {
-  const raw: readonly Record<string, unknown>[] =
-    typeof value === "string" ? parseStatisticsString(value) : value;
+  const raw: readonly Record<string, unknown>[] = typeof value === "string" ? parseStatisticsString(value) : value;
 
   return raw.map((item, index) => {
     const statisticTypeValue = item.statisticType;
@@ -426,9 +414,7 @@ function parseStatisticsString(value: string): readonly Record<string, unknown>[
   return parsed as readonly Record<string, unknown>[];
 }
 
-function toProtoGeometry(
-  geometryValue: string | Record<string, unknown>,
-): {
+function toProtoGeometry(geometryValue: string | Record<string, unknown>): {
   geometry: ReturnType<typeof create<typeof GeometrySchema>>;
   spatialReference?: ReturnType<typeof create<typeof SpatialReferenceSchema>>;
 } {
@@ -496,9 +482,7 @@ function parseGeometryValue(value: string | Record<string, unknown>): Record<str
   return value;
 }
 
-function toProtoSpatialReference(
-  value: unknown,
-): ReturnType<typeof create<typeof SpatialReferenceSchema>> | undefined {
+function toProtoSpatialReference(value: unknown): ReturnType<typeof create<typeof SpatialReferenceSchema>> | undefined {
   if (value === undefined || value === null) {
     return undefined;
   }
@@ -561,7 +545,10 @@ function toProtoSpatialReference(
   return spatialReference;
 }
 
-function toPointGeometryFromArray(value: unknown, context: string): ReturnType<typeof create<typeof PointGeometrySchema>> {
+function toPointGeometryFromArray(
+  value: unknown,
+  context: string,
+): ReturnType<typeof create<typeof PointGeometrySchema>> {
   if (!Array.isArray(value) || value.length < 2) {
     throw new Error(`Invalid coordinate array at ${context}`);
   }
@@ -625,7 +612,9 @@ function isPoint(value: Record<string, unknown>): value is { x: number; y: numbe
   return typeof value.x === "number" && typeof value.y === "number";
 }
 
-function isEnvelope(value: Record<string, unknown>): value is { xmin: number; ymin: number; xmax: number; ymax: number } {
+function isEnvelope(
+  value: Record<string, unknown>,
+): value is { xmin: number; ymin: number; xmax: number; ymax: number } {
   return (
     typeof value.xmin === "number" &&
     typeof value.ymin === "number" &&

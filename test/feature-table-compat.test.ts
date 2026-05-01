@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, FeatureTableCompat } from "../src/index.js";
 import type { FeatureLayerCompat } from "../src/esri-compat/feature-layer.js";
+import { CompatEventBus, FeatureTableCompat } from "../src/index.js";
 
 describe("FeatureTableCompat", () => {
   it("supports when() and watch() for state/rows/filter changes", async () => {
@@ -70,8 +70,8 @@ describe("FeatureTableCompat", () => {
     const layer = {
       queryFeatures: async () => ({
         features: [
-          { attributes: { OBJECTID: 1, name: "A" }, geometry: { x: -157.85, y: 21.30 } },
-          { attributes: { OBJECTID: 2, name: "B" }, geometry: { x: -157.90, y: 21.31 } },
+          { attributes: { OBJECTID: 1, name: "A" }, geometry: { x: -157.85, y: 21.3 } },
+          { attributes: { OBJECTID: 2, name: "B" }, geometry: { x: -157.9, y: 21.31 } },
         ],
       }),
     } as unknown as FeatureLayerCompat;
@@ -165,9 +165,7 @@ describe("FeatureTableCompat", () => {
       queryRelatedFeatures: async (options: unknown) => {
         calls.push(options);
         return {
-          relatedRecordGroups: [
-            { objectId: 1, relatedRecords: [{ attributes: { OBJECTID: 101 } }] },
-          ],
+          relatedRecordGroups: [{ objectId: 1, relatedRecords: [{ attributes: { OBJECTID: 101 } }] }],
         };
       },
     } as unknown as FeatureLayerCompat;
@@ -422,9 +420,7 @@ describe("FeatureTableCompat", () => {
   it("exportRows filters to specified field names", async () => {
     const layer = {
       queryFeatures: async () => ({
-        features: [
-          { attributes: { OBJECTID: 1, name: "Alpha", status: "active", score: 100 }, geometry: null },
-        ],
+        features: [{ attributes: { OBJECTID: 1, name: "Alpha", status: "active", score: 100 }, geometry: null }],
       }),
     } as unknown as FeatureLayerCompat;
 

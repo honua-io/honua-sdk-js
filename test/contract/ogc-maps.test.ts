@@ -6,11 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  PROTOCOL_DEFAULT_CAPABILITIES,
-  createDataset,
-  type SourceDescriptor,
-} from "../../src/contract/index.js";
+import { PROTOCOL_DEFAULT_CAPABILITIES, type SourceDescriptor, createDataset } from "../../src/contract/index.js";
 import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";
 import { HonuaOgcCollectionMap, HonuaOgcMaps } from "../../src/core/ogc-maps.js";
 

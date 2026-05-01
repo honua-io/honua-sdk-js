@@ -3,11 +3,11 @@ import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  type RoutePlaybackManifest,
   createExampleConfig,
   createLiveQueryRequest,
   loadRouteSource,
   normalizeRoutePlaybackSource,
-  type RoutePlaybackManifest,
 } from "../docs/examples/cesium-route-playback/data-path.mjs";
 
 function readJson<T>(relativePath: string): T {
@@ -326,7 +326,9 @@ describe("Cesium route playback example helpers", () => {
       secondsFromStart: 0,
     });
     expect(normalized.playbackSamples.at(-1)?.distanceMeters).toBeGreaterThan(0);
-    expect(normalized.preprocessingSteps).toContain("Loaded a checked-in Honua FeatureServer/query fixture for deterministic playback.");
+    expect(normalized.preprocessingSteps).toContain(
+      "Loaded a checked-in Honua FeatureServer/query fixture for deterministic playback.",
+    );
   });
 
   it("matches an explicit routeId in live multi-feature responses", async () => {
@@ -426,7 +428,9 @@ describe("Cesium route playback example helpers", () => {
   });
 
   it("throws instead of guessing across multiple live polyline features without routeId", async () => {
-    const config = createExampleConfig("?mode=live&baseUrl=/mock-honua&serviceId=transport&layerId=0&resultRecordCount=2");
+    const config = createExampleConfig(
+      "?mode=live&baseUrl=/mock-honua&serviceId=transport&layerId=0&resultRecordCount=2",
+    );
     const source = await loadRouteSource(config, {
       HonuaClient: createMockHonuaClient(MULTI_FEATURE_QUERY_RESPONSE),
     });

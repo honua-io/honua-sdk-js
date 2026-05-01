@@ -1,9 +1,4 @@
-import {
-  HonuaAbortError,
-  HonuaHttpError,
-  HonuaNetworkError,
-  HonuaTimeoutError,
-} from "../core/errors.js";
+import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "../core/errors.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -100,9 +95,7 @@ function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
-function stringifyAttributes(
-  attrs: Record<string, unknown>,
-): Record<string, string | null> {
+function stringifyAttributes(attrs: Record<string, unknown>): Record<string, string | null> {
   const result: Record<string, string | null> = {};
   for (const [key, value] of Object.entries(attrs)) {
     if (value === null || value === undefined) {
@@ -149,10 +142,7 @@ export class HonuaGeocodingClient {
    * Forward-geocode a single-line address string into one or more candidate
    * locations.
    */
-  public async forwardGeocode(
-    address: string,
-    options?: ForwardGeocodeOptions,
-  ): Promise<GeocodeResult[]> {
+  public async forwardGeocode(address: string, options?: ForwardGeocodeOptions): Promise<GeocodeResult[]> {
     const params = new URLSearchParams();
     params.set("singleLine", address);
     params.set("f", "json");
@@ -171,11 +161,7 @@ export class HonuaGeocodingClient {
     const data = await this.request<FindAddressCandidatesResponse>(url);
 
     if (data.error) {
-      throw new HonuaHttpError(
-        data.error.code,
-        `Geocode server error: ${data.error.message}`,
-        data.error,
-      );
+      throw new HonuaHttpError(data.error.code, `Geocode server error: ${data.error.message}`, data.error);
     }
 
     return (data.candidates ?? []).map((c) => ({
@@ -223,11 +209,7 @@ export class HonuaGeocodingClient {
       if (data.error.code === 400) {
         return null;
       }
-      throw new HonuaHttpError(
-        data.error.code,
-        `Reverse geocode server error: ${data.error.message}`,
-        data.error,
-      );
+      throw new HonuaHttpError(data.error.code, `Reverse geocode server error: ${data.error.message}`, data.error);
     }
 
     if (!data.address || !data.location) {
@@ -249,10 +231,7 @@ export class HonuaGeocodingClient {
   /**
    * Retrieve type-ahead suggestions for a partial address string.
    */
-  public async suggest(
-    text: string,
-    options?: SuggestOptions,
-  ): Promise<GeocodeSuggestion[]> {
+  public async suggest(text: string, options?: SuggestOptions): Promise<GeocodeSuggestion[]> {
     const params = new URLSearchParams();
     params.set("text", text);
     params.set("f", "json");
@@ -268,11 +247,7 @@ export class HonuaGeocodingClient {
     const data = await this.request<SuggestResponse>(url);
 
     if (data.error) {
-      throw new HonuaHttpError(
-        data.error.code,
-        `Suggest server error: ${data.error.message}`,
-        data.error,
-      );
+      throw new HonuaHttpError(data.error.code, `Suggest server error: ${data.error.message}`, data.error);
     }
 
     return (data.suggestions ?? []).map((s) => ({
@@ -334,11 +309,7 @@ export class HonuaGeocodingClient {
       } catch {
         body = await response.text().catch(() => null);
       }
-      throw new HonuaHttpError(
-        response.status,
-        `Geocoding request failed with status ${response.status}`,
-        body,
-      );
+      throw new HonuaHttpError(response.status, `Geocoding request failed with status ${response.status}`, body);
     }
 
     return (await response.json()) as T;

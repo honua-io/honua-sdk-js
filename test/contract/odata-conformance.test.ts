@@ -1426,9 +1426,7 @@ describe("odata / geometry-field resolution honors descriptor.schema (review fix
         () =>
           jsonResponse({
             "@odata.context": "https://mock/odata/$metadata#Places",
-            value: [
-              { OBJECTID: 1, STATE: "CA", Location: { type: "Point", coordinates: [-120, 38] } },
-            ],
+            value: [{ OBJECTID: 1, STATE: "CA", Location: { type: "Point", coordinates: [-120, 38] } }],
           }),
       ],
     ]);

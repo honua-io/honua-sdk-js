@@ -31,4 +31,3 @@ describe("compat watcher safety", () => {
     expect(violations).toEqual([]);
   });
 });
-

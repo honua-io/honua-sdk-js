@@ -62,17 +62,21 @@ export interface PopupBindingHandle {
  * (all MapLibre `Map` instances do).
  */
 export function bindPopup(
-  map: MapEventTarget & { /* passed through to popup.addTo */ },
+  map: MapEventTarget & {
+    /* passed through to popup.addTo */
+  },
   options: BindPopupOptions,
 ): PopupBindingHandle {
   const { binding, layerId, popupFactory, render = defaultPopupRenderer } = options;
   let current: PopupHandle | undefined;
 
   function onClick(...args: unknown[]): void {
-    const event = args[0] as {
-      lngLat?: { lng: number; lat: number };
-      features?: PopupFeature[];
-    } | undefined;
+    const event = args[0] as
+      | {
+          lngLat?: { lng: number; lat: number };
+          features?: PopupFeature[];
+        }
+      | undefined;
     if (!event?.lngLat || !event.features || event.features.length === 0) return;
 
     const lngLat: [number, number] = [event.lngLat.lng, event.lngLat.lat];

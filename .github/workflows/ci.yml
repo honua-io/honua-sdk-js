@@ -33,8 +33,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Code style
+        run: npm run check
+
       - name: Build
         run: npm run build
+
+      - name: Split package verification
+        run: npm run verify:split-packages
 
       - name: Quickstart example typecheck
         run: npm run demo:quickstart:typecheck
@@ -77,6 +83,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Code style
+        run: npm run check
 
       - name: Build
         run: npm run build

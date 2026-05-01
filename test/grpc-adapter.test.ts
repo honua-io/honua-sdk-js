@@ -1,30 +1,26 @@
-import { describe, expect, it } from "vitest";
 import { create } from "@bufbuild/protobuf";
+import { describe, expect, it } from "vitest";
+import { fromProtoQueryResponse, streamProtoPages, toProtoQueryRequest } from "../src/core/grpc-adapter.js";
 import {
-  toProtoQueryRequest,
-  fromProtoQueryResponse,
-  streamProtoPages,
-} from "../src/core/grpc-adapter.js";
-import {
-  QueryFeaturesResponseSchema,
+  AttributeValueSchema,
+  CoordinateSchema,
+  CoordinateSequenceSchema,
+  DistanceUnit,
+  ExtentSchema,
   FeaturePageSchema,
   FeatureSchema,
-  AttributeValueSchema,
-  GeometrySchema,
-  PointGeometrySchema,
-  PolylineGeometrySchema,
-  PolygonGeometrySchema,
-  MultiPointGeometrySchema,
-  CoordinateSequenceSchema,
-  CoordinateSchema,
-  SpatialReferenceSchema,
   FieldDefinitionSchema,
-  ExtentSchema,
   FieldType,
+  GeometrySchema,
   GeometryType,
+  MultiPointGeometrySchema,
   NullValue,
+  PointGeometrySchema,
+  PolygonGeometrySchema,
+  PolylineGeometrySchema,
+  QueryFeaturesResponseSchema,
+  SpatialReferenceSchema,
   SpatialRelationship,
-  DistanceUnit,
   StatisticType,
 } from "../src/gen/honua/v1/feature_service_pb.js";
 
@@ -446,7 +442,12 @@ describe("fromProtoQueryResponse", () => {
     const result = fromProtoQueryResponse(response) as any;
 
     expect(result.features[0].geometry).toEqual({
-      paths: [[[0, 0], [10, 10]]],
+      paths: [
+        [
+          [0, 0],
+          [10, 10],
+        ],
+      ],
     });
   });
 
@@ -458,7 +459,11 @@ describe("fromProtoQueryResponse", () => {
     const polygon = create(PolygonGeometrySchema);
     const ring = create(CoordinateSequenceSchema);
     const coords = [
-      [0, 0], [10, 0], [10, 10], [0, 10], [0, 0],
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [0, 10],
+      [0, 0],
     ].map(([x, y]) => {
       const c = create(CoordinateSchema);
       c.x = x;
@@ -478,7 +483,15 @@ describe("fromProtoQueryResponse", () => {
     const result = fromProtoQueryResponse(response) as any;
 
     expect(result.features[0].geometry).toEqual({
-      rings: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]],
+      rings: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+      ],
     });
   });
 
@@ -506,7 +519,10 @@ describe("fromProtoQueryResponse", () => {
     const result = fromProtoQueryResponse(response) as any;
 
     expect(result.features[0].geometry).toEqual({
-      points: [[1, 2], [3, 4]],
+      points: [
+        [1, 2],
+        [3, 4],
+      ],
     });
   });
 

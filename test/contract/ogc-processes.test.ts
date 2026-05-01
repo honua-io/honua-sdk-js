@@ -8,11 +8,8 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { isJobTerminal, type IJobRun, type JobSnapshot } from "../../src/contract/index.js";
-import {
-  HonuaJobFailedError,
-  HonuaOgcProcessJobRun,
-} from "../../src/core/ogc-processes.js";
+import { type IJobRun, type JobSnapshot, isJobTerminal } from "../../src/contract/index.js";
+import { HonuaJobFailedError, HonuaOgcProcessJobRun } from "../../src/core/ogc-processes.js";
 import type { HonuaOgcProcessJobStatus } from "../../src/core/types.js";
 
 import { jsonResponse, makeMockClient } from "./shared.js";
@@ -229,10 +226,10 @@ describe("ogc-processes / IJobRun lifecycle", () => {
           (_url, init) => {
             if (init?.method === "DELETE") {
               cancelCalls += 1;
-              return new Response(
-                JSON.stringify({ title: "Cannot dismiss completed job", status: 409 }),
-                { status: 409, headers: { "Content-Type": "application/json" } },
-              );
+              return new Response(JSON.stringify({ title: "Cannot dismiss completed job", status: 409 }), {
+                status: 409,
+                headers: { "Content-Type": "application/json" },
+              });
             }
             statusCalls += 1;
             return jsonResponse({ jobID: "job-race", status: "successful" });
@@ -341,10 +338,10 @@ describe("ogc-processes / IJobRun lifecycle", () => {
           "/ogc/processes/jobs/job-stale",
           (_url, init) => {
             if (init?.method === "DELETE") {
-              return new Response(
-                JSON.stringify({ title: "Cannot dismiss completed job", status: 409 }),
-                { status: 409, headers: { "Content-Type": "application/json" } },
-              );
+              return new Response(JSON.stringify({ title: "Cannot dismiss completed job", status: 409 }), {
+                status: 409,
+                headers: { "Content-Type": "application/json" },
+              });
             }
             return jsonResponse({ jobID: "job-stale", status: "running" });
           },
@@ -371,10 +368,10 @@ describe("ogc-processes / IJobRun lifecycle", () => {
           "/ogc/processes/jobs/job-pollfail",
           (_url, init) => {
             if (init?.method === "DELETE") {
-              return new Response(
-                JSON.stringify({ title: "Cannot dismiss completed job", status: 409 }),
-                { status: 409, headers: { "Content-Type": "application/json" } },
-              );
+              return new Response(JSON.stringify({ title: "Cannot dismiss completed job", status: 409 }), {
+                status: 409,
+                headers: { "Content-Type": "application/json" },
+              });
             }
             return new Response("upstream unavailable", { status: 502 });
           },
@@ -397,14 +394,8 @@ describe("ogc-processes / IJobRun lifecycle", () => {
           "/ogc/processes/processes/buffer/execution",
           () => jsonResponse({ jobID: "job-empty", status: "running", processID: "buffer" }),
         ],
-        [
-          "/ogc/processes/jobs/job-empty/results",
-          () => jsonResponse({}),
-        ],
-        [
-          "/ogc/processes/jobs/job-empty",
-          () => jsonResponse({ jobID: "job-empty", status: "successful" }),
-        ],
+        ["/ogc/processes/jobs/job-empty/results", () => jsonResponse({})],
+        ["/ogc/processes/jobs/job-empty", () => jsonResponse({ jobID: "job-empty", status: "successful" })],
       ],
     });
     const job = await client.ogcProcesses().execute({ processId: "buffer", inputs: {}, mode: "async" });

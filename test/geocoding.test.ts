@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "../src/core/errors.js";
 import {
-  HonuaGeocodingClient,
-  type GeocodeSuggestion,
   type GeocodeResult,
+  type GeocodeSuggestion,
+  HonuaGeocodingClient,
   type ReverseGeocodeResult,
-} from "./index.js";
-import { HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "../core/errors.js";
+} from "../src/geocoding/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,7 +1,7 @@
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -68,20 +68,14 @@ describe("honua dual protocol runtime", () => {
     const entryPath = path.join(workingCopy, "src", "main.js");
     const source = fs.readFileSync(entryPath, "utf8");
     const honuaEntryHref = pathToFileURL(honuaDistEntry()).href;
-    fs.writeFileSync(
-      entryPath,
-      source.replace("__HONUA_ENTRY__", honuaEntryHref),
-      "utf8",
-    );
+    fs.writeFileSync(entryPath, source.replace("__HONUA_ENTRY__", honuaEntryHref), "utf8");
 
     const requests: Array<{ url: string; method: string; body?: string }> = [];
     (globalThis as Record<string, unknown>).__honuaFetchFn = async (
       input: string | URL | Request,
       init?: RequestInit,
     ): Promise<Response> => {
-      const requestUrl = new URL(
-        typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
-      );
+      const requestUrl = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
       const method = String(init?.method ?? "GET").toUpperCase();
       requests.push({
         url: requestUrl.href,
@@ -197,22 +191,14 @@ describe("honua dual protocol runtime", () => {
       ogcDeleteStatus: "deleted",
     });
 
-    expect(
-      requests.some((request) =>
-        request.url.includes("/rest/services/transport/FeatureServer/0/query"),
-      ),
-    ).toBe(true);
-    expect(
-      requests.some((request) => request.url.includes("/rest/services/transport/MapServer/legend")),
-    ).toBe(true);
-    expect(
-      requests.some((request) => request.url.includes("/ogc/features/collections/parcels/items?")),
-    ).toBe(true);
+    expect(requests.some((request) => request.url.includes("/rest/services/transport/FeatureServer/0/query"))).toBe(
+      true,
+    );
+    expect(requests.some((request) => request.url.includes("/rest/services/transport/MapServer/legend"))).toBe(true);
+    expect(requests.some((request) => request.url.includes("/ogc/features/collections/parcels/items?"))).toBe(true);
 
     const createCall = requests.find(
-      (request) =>
-        request.method === "POST" &&
-        request.url.includes("/ogc/features/collections/parcels/items"),
+      (request) => request.method === "POST" && request.url.includes("/ogc/features/collections/parcels/items"),
     );
     expect(createCall).toBeDefined();
     expect(createCall?.body).toContain('"source":"dual-protocol-fixture"');
@@ -220,8 +206,7 @@ describe("honua dual protocol runtime", () => {
     expect(
       requests.some(
         (request) =>
-          request.method === "DELETE" &&
-          request.url.includes("/ogc/features/collections/parcels/items/parcel-3"),
+          request.method === "DELETE" && request.url.includes("/ogc/features/collections/parcels/items/parcel-3"),
       ),
     ).toBe(true);
   });

@@ -119,9 +119,7 @@ describe("TileLayerCompat", () => {
       eventBus,
     });
 
-    expect(layer.getTileUrl(3, 4, 5)).toBe(
-      "https://example.test/rest/services/tiles/MapServer/tile/3/4/5",
-    );
+    expect(layer.getTileUrl(3, 4, 5)).toBe("https://example.test/rest/services/tiles/MapServer/tile/3/4/5");
 
     layer.setVisibility(false);
     layer.setOpacity(0.6);

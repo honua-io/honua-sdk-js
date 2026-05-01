@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { identityManager, OAuthInfoCompat } from "../src/index.js";
+import { OAuthInfoCompat, identityManager } from "../src/index.js";
 
 afterEach(() => {
   identityManager.reset();
@@ -70,9 +70,7 @@ describe("OAuth/Identity compat", () => {
       userId: "user-1",
     });
 
-    const credential = await identityManager.checkSignInStatus(
-      "https://portal.example.test/sharing/rest",
-    );
+    const credential = await identityManager.checkSignInStatus("https://portal.example.test/sharing/rest");
 
     expect(credential.token).toBe("token-abc");
     expect(credential.userId).toBe("user-1");
@@ -88,9 +86,7 @@ describe("OAuth/Identity compat", () => {
       token: "token-new",
     });
 
-    const credential = await identityManager.checkSignInStatus(
-      "https://portal.example.test/sharing/rest",
-    );
+    const credential = await identityManager.checkSignInStatus("https://portal.example.test/sharing/rest");
 
     expect(credential.token).toBe("token-new");
     expect(identityManager.credentials).toHaveLength(1);
@@ -103,9 +99,9 @@ describe("OAuth/Identity compat", () => {
       expires: Date.now() - 1_000,
     });
 
-    await expect(
-      identityManager.checkSignInStatus("https://portal.example.test/sharing/rest"),
-    ).rejects.toThrow("expired");
+    await expect(identityManager.checkSignInStatus("https://portal.example.test/sharing/rest")).rejects.toThrow(
+      "expired",
+    );
     expect(identityManager.findCredential("https://portal.example.test/sharing/rest")).toBeUndefined();
   });
 

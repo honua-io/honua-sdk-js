@@ -8,8 +8,8 @@
  */
 
 import type { HonuaLayerSpecification } from "../style/specification.js";
-import type { WebMapLabelClass, WebMapTextSymbol } from "./types.js";
 import { esriColorToCss } from "./convert-symbol.js";
+import type { WebMapLabelClass, WebMapTextSymbol } from "./types.js";
 import type { WarningCollector } from "./warnings.js";
 
 export function convertLabelingInfo(

@@ -1,17 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  PointCompat,
-  SimpleFillSymbolCompat,
-  SimpleLineSymbolCompat,
-  SimpleMarkerSymbolCompat,
-} from "../src/index.js";
+import { PointCompat, SimpleFillSymbolCompat, SimpleLineSymbolCompat, SimpleMarkerSymbolCompat } from "../src/index.js";
 
 describe("geometry/symbol compat", () => {
   it("creates point geometry payloads", async () => {
     const point = new PointCompat({
       x: -157.81,
-      y: 21.30,
+      y: 21.3,
       spatialReference: { wkid: 4326 },
     });
     const xValues: unknown[] = [];

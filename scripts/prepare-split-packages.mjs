@@ -117,6 +117,7 @@ function createCompatPackage() {
   const packageRoot = path.join(OUTPUT_ROOT, "honua-sdk-esri-compat");
   fs.mkdirSync(packageRoot, { recursive: true });
 
+  copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));

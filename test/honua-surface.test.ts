@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  createHonuaOgcFeatures,
-  createHonuaService,
   HonuaClient,
   HonuaFeatureLayer,
   HonuaMapLayer,
@@ -10,6 +8,8 @@ import {
   HonuaOgcFeatureCollection,
   HonuaOgcFeatures,
   HonuaService,
+  createHonuaOgcFeatures,
+  createHonuaService,
 } from "../src/index.js";
 
 describe("Honua native API surfaces", () => {
@@ -122,16 +122,10 @@ describe("Honua native API surfaces", () => {
         requestedOffsets.push(offset);
 
         if (offset === 0) {
-          return new Response(
-            JSON.stringify({ features: [{ id: 1 }, { id: 2 }] }),
-            { status: 200 },
-          );
+          return new Response(JSON.stringify({ features: [{ id: 1 }, { id: 2 }] }), { status: 200 });
         }
         if (offset === 2) {
-          return new Response(
-            JSON.stringify({ features: [{ id: 3 }] }),
-            { status: 200 },
-          );
+          return new Response(JSON.stringify({ features: [{ id: 3 }] }), { status: 200 });
         }
         return new Response(JSON.stringify({ features: [] }), { status: 200 });
       },
@@ -247,10 +241,9 @@ describe("Honua native API surfaces", () => {
           return new Response(JSON.stringify({ objectIds: [3, "4", "bad", 5] }), { status: 200 });
         }
         if (parsed.searchParams.get("returnExtentOnly") === "true") {
-          return new Response(
-            JSON.stringify({ extent: { xmin: 0, ymin: 0, xmax: 5, ymax: 5 }, count: 6 }),
-            { status: 200 },
-          );
+          return new Response(JSON.stringify({ extent: { xmin: 0, ymin: 0, xmax: 5, ymax: 5 }, count: 6 }), {
+            status: 200,
+          });
         }
         return new Response(JSON.stringify({ features: [] }), { status: 200 });
       },
@@ -317,10 +310,9 @@ describe("Honua native API surfaces", () => {
       baseUrl: "https://example.test",
       fetchFn: async (input) => {
         requestedUrls.push(String(input));
-        return new Response(
-          JSON.stringify({ relatedRecordGroups: [{ objectId: 1, relatedRecords: [] }] }),
-          { status: 200 },
-        );
+        return new Response(JSON.stringify({ relatedRecordGroups: [{ objectId: 1, relatedRecords: [] }] }), {
+          status: 200,
+        });
       },
     });
 
@@ -366,10 +358,7 @@ describe("Honua native API surfaces", () => {
     const client = new HonuaClient({
       baseUrl: "https://example.test",
       fetchFn: async () =>
-        new Response(
-          JSON.stringify({ layers: [{ id: 0 }, { id: "1" }, { id: "bad" }] }),
-          { status: 200 },
-        ),
+        new Response(JSON.stringify({ layers: [{ id: 0 }, { id: "1" }, { id: "bad" }] }), { status: 200 }),
     });
 
     const mapService = client.mapService("basemap");
@@ -392,16 +381,10 @@ describe("Honua native API surfaces", () => {
         const url = String(input);
         requests.push(url);
         if (url.includes("/FeatureServer?")) {
-          return new Response(
-            JSON.stringify({ layers: [{ id: 0 }, { id: "1" }, { id: "bad" }] }),
-            { status: 200 },
-          );
+          return new Response(JSON.stringify({ layers: [{ id: 0 }, { id: "1" }, { id: "bad" }] }), { status: 200 });
         }
         if (url.includes("/MapServer?")) {
-          return new Response(
-            JSON.stringify({ layers: [{ id: 4 }, { id: "5" }, { id: "bad" }] }),
-            { status: 200 },
-          );
+          return new Response(JSON.stringify({ layers: [{ id: 4 }, { id: "5" }, { id: "bad" }] }), { status: 200 });
         }
         return new Response(JSON.stringify({ layers: [] }), { status: 200 });
       },
@@ -445,10 +428,9 @@ describe("Honua native API surfaces", () => {
           return new Response(JSON.stringify({ objectIds: [10, "11", "bad"] }), { status: 200 });
         }
         if (parsed.searchParams.get("returnExtentOnly") === "true") {
-          return new Response(
-            JSON.stringify({ extent: { xmin: 1, ymin: 2, xmax: 3, ymax: 4 }, count: 9 }),
-            { status: 200 },
-          );
+          return new Response(JSON.stringify({ extent: { xmin: 1, ymin: 2, xmax: 3, ymax: 4 }, count: 9 }), {
+            status: 200,
+          });
         }
         return new Response(JSON.stringify({ features: [{ id: 1 }] }), { status: 200 });
       },
@@ -688,9 +670,7 @@ describe("Honua native API surfaces", () => {
         const limit = Number.parseInt(url.searchParams.get("limit") ?? "10", 10);
         const offset = Number.parseInt(url.searchParams.get("offset") ?? "0", 10);
         const data =
-          collectionId === "3"
-            ? [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }]
-            : [{ id: "a" }, { id: "b" }, { id: "c" }];
+          collectionId === "3" ? [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }] : [{ id: "a" }, { id: "b" }, { id: "c" }];
         const page = data.slice(offset, offset + limit);
         return new Response(JSON.stringify({ features: page }), { status: 200 });
       },
@@ -762,14 +742,16 @@ describe("Honua native API surfaces", () => {
     const seenRequests: unknown[] = [];
     const signal = new AbortController().signal;
 
-    (client as unknown as {
-      queryFeaturesStream: (request: unknown) => AsyncGenerator<unknown[], void, undefined>;
-    }).queryFeaturesStream = (async function* (request: unknown) {
+    (
+      client as unknown as {
+        queryFeaturesStream: (request: unknown) => AsyncGenerator<unknown[], void, undefined>;
+      }
+    ).queryFeaturesStream = async function* (request: unknown) {
       seenRequests.push(request);
       yield [{ id: 1 }];
       yield [{ id: 2 }];
       yield [{ id: 3 }];
-    }) as (request: unknown) => AsyncGenerator<unknown[], void, undefined>;
+    } as (request: unknown) => AsyncGenerator<unknown[], void, undefined>;
 
     const layer = client.featureLayer("transport", 4);
     const pages: unknown[][] = [];
@@ -837,8 +819,7 @@ describe("Honua native API surfaces", () => {
   it("queryFeaturesStream stops on empty page", async () => {
     const client = new HonuaClient({
       baseUrl: "https://example.test",
-      fetchFn: async () =>
-        new Response(JSON.stringify({ features: [] }), { status: 200 }),
+      fetchFn: async () => new Response(JSON.stringify({ features: [] }), { status: 200 }),
     });
 
     const layer = client.featureLayer("transport", 4);
@@ -853,8 +834,7 @@ describe("Honua native API surfaces", () => {
   it("queryFeaturesStream stops on partial page", async () => {
     const client = new HonuaClient({
       baseUrl: "https://example.test",
-      fetchFn: async () =>
-        new Response(JSON.stringify({ features: [{ id: 1 }] }), { status: 200 }),
+      fetchFn: async () => new Response(JSON.stringify({ features: [{ id: 1 }] }), { status: 200 }),
     });
 
     const layer = client.featureLayer("transport", 4);
@@ -869,8 +849,7 @@ describe("Honua native API surfaces", () => {
   it("queryFeaturesStream stops at maxPages limit", async () => {
     const client = new HonuaClient({
       baseUrl: "https://example.test",
-      fetchFn: async () =>
-        new Response(JSON.stringify({ features: [{ id: 1 }, { id: 2 }] }), { status: 200 }),
+      fetchFn: async () => new Response(JSON.stringify({ features: [{ id: 1 }, { id: 2 }] }), { status: 200 }),
     });
 
     const layer = client.featureLayer("transport", 4);
@@ -947,10 +926,7 @@ describe("Honua native API surfaces", () => {
       pages.push(page);
     }
 
-    expect(pages).toEqual([
-      [{ id: 10 }, { id: 11 }],
-      [{ id: 12 }],
-    ]);
+    expect(pages).toEqual([[{ id: 10 }, { id: 11 }], [{ id: 12 }]]);
   });
 
   it("OGC collection itemsStream yields pages", async () => {
@@ -975,9 +951,6 @@ describe("Honua native API surfaces", () => {
       pages.push(page);
     }
 
-    expect(pages).toEqual([
-      [{ id: "a" }, { id: "b" }],
-      [{ id: "c" }],
-    ]);
+    expect(pages).toEqual([[{ id: "a" }, { id: "b" }], [{ id: "c" }]]);
   });
 });

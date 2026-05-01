@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { buildStoryDataset, loadStoryDataset, normalizeAssets } from "../examples/storytelling-25d-map/src/data.js";
 import { resolveStoryDemoConfig } from "../examples/storytelling-25d-map/src/config.js";
+import { buildStoryDataset, loadStoryDataset, normalizeAssets } from "../examples/storytelling-25d-map/src/data.js";
 
 const fixtureRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "honua-25d-demo");
 

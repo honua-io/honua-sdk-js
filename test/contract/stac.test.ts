@@ -7,11 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  PROTOCOL_DEFAULT_CAPABILITIES,
-  createDataset,
-  type SourceDescriptor,
-} from "../../src/contract/index.js";
+import { PROTOCOL_DEFAULT_CAPABILITIES, type SourceDescriptor, createDataset } from "../../src/contract/index.js";
 import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";
 import { HonuaStacSearch } from "../../src/core/stac.js";
 
@@ -88,7 +84,15 @@ describe("stac / wire", () => {
     });
     const intersects = {
       type: "Polygon",
-      coordinates: [[[-122, 37], [-120, 37], [-120, 38], [-122, 38], [-122, 37]]],
+      coordinates: [
+        [
+          [-122, 37],
+          [-120, 37],
+          [-120, 38],
+          [-122, 38],
+          [-122, 37],
+        ],
+      ],
     };
     await client.stac().search({
       intersects,
@@ -277,9 +281,7 @@ describe("stac / paging", () => {
               ],
               numberMatched: 2,
               numberReturned: 1,
-              links: last
-                ? []
-                : [{ rel: "next", href: "https://mock/stac/search?next=opaque-token" }],
+              links: last ? [] : [{ rel: "next", href: "https://mock/stac/search?next=opaque-token" }],
             });
           },
         ],
@@ -352,9 +354,9 @@ describe("stac / Source adapter", () => {
       ],
     });
     const source = dataset.source("sentinel-stac")!;
-    await expect(
-      source.query({ aggregation: { metrics: [{ fn: "sum", field: "cloud_cover" }] } }),
-    ).rejects.toThrow(HonuaCapabilityNotSupportedError);
+    await expect(source.query({ aggregation: { metrics: [{ fn: "sum", field: "cloud_cover" }] } })).rejects.toThrow(
+      HonuaCapabilityNotSupportedError,
+    );
   });
 
   it("stream() yields paged Result envelopes", async () => {

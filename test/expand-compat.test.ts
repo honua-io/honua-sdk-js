@@ -65,12 +65,7 @@ describe("ExpandCompat", () => {
     expect(expand.expanded).toBe(false);
     expect(expand.toggle()).toBe(true);
     expect(expand.toggle(false)).toBe(false);
-    expect(events).toEqual([
-      "expand.changed",
-      "expand.changed",
-      "expand.changed",
-      "expand.changed",
-    ]);
+    expect(events).toEqual(["expand.changed", "expand.changed", "expand.changed", "expand.changed"]);
 
     expand.destroy();
   });

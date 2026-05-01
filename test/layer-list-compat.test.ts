@@ -107,9 +107,7 @@ describe("LayerListCompat", () => {
     layerList.on("trigger-action", (event) => {
       actionEvents.push(event);
     });
-    expect(
-      layerList.setItemActions(1, [[{ id: "zoom-to", title: "Zoom To Layer" }]]),
-    ).toBe(true);
+    expect(layerList.setItemActions(1, [[{ id: "zoom-to", title: "Zoom To Layer" }]])).toBe(true);
     expect(layerList.triggerAction("zoom-to", 1)).toBe(true);
     expect(layerList.toggle(1, false)).toBe(true);
     expect(mapImage.sublayer(1)?.visible).toBe(false);
