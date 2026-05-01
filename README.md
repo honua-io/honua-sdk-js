@@ -479,6 +479,44 @@ const client = new HonuaClient({
 });
 ```
 
+For first-party Honua auth, prefer an auth provider over storing long-lived
+secrets in SDK configuration. The provider owns secure storage, refresh, and
+revocation; the SDK keeps only an in-memory cache and refreshes before
+`expiresAt` enters the configured skew window.
+
+```ts
+const client = new HonuaClient({
+  baseUrl: "https://example.test",
+  authRefreshSkewMs: 60_000,
+  auth: {
+    async getCredentials({ reason }) {
+      const session = await authStore.getFreshSession({ force: reason !== "initial" });
+      return {
+        bearerToken: session.accessToken,
+        expiresAt: session.expiresAt,
+      };
+    },
+    async revokeCredentials(credentials) {
+      if (credentials.bearerToken) {
+        await authStore.revoke(credentials.bearerToken);
+      }
+    },
+  },
+});
+
+await client.refreshAuthCredentials(); // force a key/token rotation probe
+await client.revokeAuthCredentials(); // revoke cached credentials and clear SDK memory
+```
+
+Do not persist bearer tokens, API keys, or refresh tokens inside the SDK
+instance. Store them in the platform credential store or your server-side
+session layer, return short-lived credentials from `auth.getCredentials`, and
+use `clearAuthCredentials()` on logout or account switch. If a request fails
+with `401`/`403`, call `refreshAuthCredentials("unauthorized")` after your app
+has handled any sign-in prompt, then retry the failed operation explicitly.
+Network, timeout, and retry behavior still flows through the same
+`timeoutMs`, `retry`, and interceptor pipeline.
+
 ## OGC API Features (Honua-first)
 
 ```ts

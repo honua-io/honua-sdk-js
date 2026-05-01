@@ -3,6 +3,85 @@ import { describe, expect, it } from "vitest";
 import { HonuaAbortError, HonuaClient, HonuaHttpError } from "../src/index.js";
 
 describe("HonuaClient", () => {
+  it("refreshes provider credentials before expiry and applies rotated auth headers", async () => {
+    const requestedHeaders: HeadersInit[] = [];
+    let issue = 0;
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      authRefreshSkewMs: 1_000,
+      auth: ({ reason }) => {
+        issue += 1;
+        return {
+          apiKey: `key-${issue}`,
+          bearerToken: `token-${issue}`,
+          expiresAt: Date.now() + (reason === "initial" ? 10 : 60_000),
+        };
+      },
+      fetchFn: async (_input, init) => {
+        requestedHeaders.push(init?.headers ?? {});
+        return new Response(JSON.stringify({ services: [] }), { status: 200 });
+      },
+    });
+
+    await client.listServices();
+    await client.listServices();
+
+    expect(requestedHeaders[0]).toMatchObject({
+      "X-API-Key": "key-1",
+      Authorization: "Bearer token-1",
+    });
+    expect(requestedHeaders[1]).toMatchObject({
+      "X-API-Key": "key-2",
+      Authorization: "Bearer token-2",
+    });
+    expect(issue).toBe(2);
+  });
+
+  it("caches provider credentials and revokes the cached credential set explicitly", async () => {
+    const requestedHeaders: HeadersInit[] = [];
+    const revoked: Array<{ token: string | undefined; reason: string }> = [];
+    const reasons: string[] = [];
+    let issue = 0;
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      auth: {
+        getCredentials: ({ reason }) => {
+          reasons.push(reason);
+          issue += 1;
+          return {
+            bearerToken: `token-${issue}`,
+            expiresAt: Date.now() + 120_000,
+          };
+        },
+        revokeCredentials: (credentials, context) => {
+          revoked.push({ token: credentials.bearerToken, reason: context.reason });
+        },
+      },
+      fetchFn: async (_input, init) => {
+        requestedHeaders.push(init?.headers ?? {});
+        return new Response(JSON.stringify({ services: [] }), { status: 200 });
+      },
+    });
+
+    await client.listServices();
+    await client.listServices();
+    expect(issue).toBe(1);
+    expect(requestedHeaders[1]).toMatchObject({ Authorization: "Bearer token-1" });
+
+    await client.refreshAuthCredentials();
+    await client.listServices();
+    expect(requestedHeaders[2]).toMatchObject({ Authorization: "Bearer token-2" });
+
+    await client.revokeAuthCredentials();
+    await client.listServices();
+
+    expect(revoked).toEqual([{ token: "token-2", reason: "manual" }]);
+    expect(requestedHeaders[3]).toMatchObject({ Authorization: "Bearer token-3" });
+    expect(reasons).toEqual(["initial", "manual", "initial"]);
+  });
+
   it("queries features using GET params", async () => {
     let requestedUrl: string | undefined;
     let requestedInit: RequestInit | undefined;
@@ -555,13 +634,10 @@ describe("HonuaClient", () => {
   it("throws HonuaHttpError for non-2xx responses", async () => {
     const client = new HonuaClient({
       baseUrl: "https://example.test",
-      fetchFn: async () =>
-        new Response(JSON.stringify({ error: { message: "Layer not found" } }), { status: 404 }),
+      fetchFn: async () => new Response(JSON.stringify({ error: { message: "Layer not found" } }), { status: 404 }),
     });
 
-    await expect(
-      client.getLayerMetadata("default", 999),
-    ).rejects.toMatchObject({
+    await expect(client.getLayerMetadata("default", 999)).rejects.toMatchObject({
       name: "HonuaHttpError",
       statusCode: 404,
       message: "HTTP 404: Layer not found",
@@ -652,16 +728,11 @@ describe("HonuaClient", () => {
       layerId: 0,
     });
 
-    expect(requestedUrl).toContain(
-      "/rest/services/Public%20Works%2FUtilities%20%26%20More/FeatureServer/0/query?",
-    );
+    expect(requestedUrl).toContain("/rest/services/Public%20Works%2FUtilities%20%26%20More/FeatureServer/0/query?");
   });
 
   it("returns empty object for empty responses and raw text for non-JSON responses", async () => {
-    const responses = [
-      new Response("", { status: 200 }),
-      new Response("plain text", { status: 200 }),
-    ];
+    const responses = [new Response("", { status: 200 }), new Response("plain text", { status: 200 })];
     let responseIndex = 0;
 
     const client = new HonuaClient({
@@ -911,8 +982,7 @@ describe("HonuaClient", () => {
           },
         },
       ],
-      fetchFn: async () =>
-        new Response(JSON.stringify({ services: [{ id: "default" }] }), { status: 200 }),
+      fetchFn: async () => new Response(JSON.stringify({ services: [{ id: "default" }] }), { status: 200 }),
     });
 
     const response = await client.listServices();
@@ -934,8 +1004,7 @@ describe("HonuaClient", () => {
           },
         },
       ],
-      fetchFn: async () =>
-        new Response(JSON.stringify({ error: { message: "missing" } }), { status: 404 }),
+      fetchFn: async () => new Response(JSON.stringify({ error: { message: "missing" } }), { status: 404 }),
     });
 
     await expect(client.listServices()).rejects.toMatchObject({
@@ -1156,13 +1225,13 @@ describe("HonuaClient", () => {
       method: "GET",
       objectIds: "1,2,3",
       geometry: "-180,-90,180,90",
-      outStatistics: "[{\"statisticType\":\"count\"}]",
+      outStatistics: '[{"statisticType":"count"}]',
     });
 
     const url = new URL(requestedUrl ?? "https://example.test");
     expect(url.searchParams.get("objectIds")).toBe("1,2,3");
     expect(url.searchParams.get("geometry")).toBe("-180,-90,180,90");
-    expect(url.searchParams.get("outStatistics")).toBe("[{\"statisticType\":\"count\"}]");
+    expect(url.searchParams.get("outStatistics")).toBe('[{"statisticType":"count"}]');
   });
 
   it("serializes first-class query parameters on queryMapLayer", async () => {
@@ -1352,8 +1421,12 @@ function buildMinimalPbf(): Uint8Array {
     bytes.push(v & 0x7f);
     return bytes;
   }
-  function tg(field: number, wire: number) { return vi((field << 3) | wire); }
-  function ld(field: number, data: number[]) { return [...tg(field, 2), ...vi(data.length), ...data]; }
+  function tg(field: number, wire: number) {
+    return vi((field << 3) | wire);
+  }
+  function ld(field: number, data: number[]) {
+    return [...tg(field, 2), ...vi(data.length), ...data];
+  }
   function sf(field: number, str: string) {
     return ld(field, Array.from(new TextEncoder().encode(str)));
   }
