@@ -12,6 +12,11 @@ import type {
   ExportMapRequest,
   HonuaApiEnvelope,
   HonuaApplyEditsResponse,
+  HonuaAuthCredentials,
+  HonuaAuthCredentialsProvider,
+  HonuaAuthProvider,
+  HonuaAuthRefreshReason,
+  HonuaAuthRevocationContext,
   HonuaClientOptions,
   HonuaCompatibilityRequest,
   HonuaErrorContext,
@@ -212,11 +217,22 @@ interface NormalizedRetryOptions {
 
 const DEFAULT_RETRY_STATUSES: ReadonlySet<number> = new Set([429, 502, 503, 504]);
 const DEFAULT_RETRY_METHODS: ReadonlySet<QueryMethod> = new Set(["GET", "PUT", "DELETE"]);
+const DEFAULT_AUTH_REFRESH_SKEW_MS = 60_000;
 const SUPPORTED_CONTROL_PLANE_API_MAJOR = 1;
 const SUPPORTED_CONTROL_PLANE_API_BASE_PATH = "/api/v1/admin";
 const MINIMUM_SUPPORTED_SERVER_RELEASE_CHANNEL = "preview";
 
 export const HONUA_MINIMUM_SUPPORTED_SERVER_VERSION = "1.0.0";
+
+interface NormalizedAuthProvider {
+  getCredentials: HonuaAuthCredentialsProvider;
+  revokeCredentials?: HonuaAuthProvider["revokeCredentials"];
+}
+
+interface CachedAuthCredentials {
+  credentials: HonuaAuthCredentials;
+  expiresAtMs: number | undefined;
+}
 
 export class HonuaClient {
   public static readonly minimumSupportedServerVersion = HONUA_MINIMUM_SUPPORTED_SERVER_VERSION;
@@ -225,12 +241,16 @@ export class HonuaClient {
   private readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
   private readonly defaultHeaders: HeadersInit;
+  private readonly authProvider: NormalizedAuthProvider | undefined;
+  private readonly authRefreshSkewMs: number;
   private readonly interceptors: readonly HonuaRequestInterceptor[];
   private readonly timeoutMs: number | undefined;
   private readonly retryOptions: NormalizedRetryOptions | undefined;
   private readonly preferBinary: boolean;
   private readonly transport: HonuaTransport;
   private serverCompatibilityCache: HonuaServerCompatibility | undefined;
+  private authCredentialsCache: CachedAuthCredentials | undefined;
+  private authRefreshPromise: Promise<CachedAuthCredentials | undefined> | undefined;
   private connectClient: Client<typeof FeatureService> | undefined;
 
   public constructor(options: HonuaClientOptions) {
@@ -245,6 +265,8 @@ export class HonuaClient {
       headers.Authorization = `Bearer ${options.bearerToken}`;
     }
     this.defaultHeaders = headers;
+    this.authProvider = normalizeAuthProvider(options.auth);
+    this.authRefreshSkewMs = normalizeAuthRefreshSkewMs(options.authRefreshSkewMs);
     this.interceptors = options.interceptors ?? [];
     this.timeoutMs = normalizeTimeoutMs(options.timeoutMs);
     this.retryOptions = normalizeRetryOptions(options.retry);
@@ -305,6 +327,37 @@ export class HonuaClient {
    */
   public get serverBaseUrl(): string {
     return this.baseUrl;
+  }
+
+  /**
+   * Force-refresh credentials from the configured auth provider. The SDK
+   * keeps the result in memory only; callers own durable and secure storage.
+   */
+  public async refreshAuthCredentials(
+    reason: HonuaAuthRefreshReason = "manual",
+  ): Promise<HonuaAuthCredentials | undefined> {
+    const cached = await this.resolveAuthCredentials({
+      forceRefresh: true,
+      reason,
+    });
+    return cached?.credentials;
+  }
+
+  /** Drop cached provider credentials without calling a revocation endpoint. */
+  public clearAuthCredentials(): void {
+    this.authCredentialsCache = undefined;
+  }
+
+  /**
+   * Revoke the currently cached credentials through the provider, when it
+   * exposes a revocation hook, then clear the SDK's in-memory cache.
+   */
+  public async revokeAuthCredentials(context: HonuaAuthRevocationContext = { reason: "manual" }): Promise<void> {
+    const cached = this.authCredentialsCache;
+    this.authCredentialsCache = undefined;
+    if (cached && this.authProvider?.revokeCredentials) {
+      await this.authProvider.revokeCredentials(cached.credentials, context);
+    }
   }
 
   public async *queryFeaturesStream(request: QueryFeaturesRequest): AsyncGenerator<HonuaFeature[], void, undefined> {
@@ -467,6 +520,69 @@ export class HonuaClient {
     return this.requestJson(method, path, init, signal) as Promise<T>;
   }
 
+  private async composeHeaders(...headersList: Array<HeadersInit | undefined>): Promise<Record<string, string>> {
+    const authHeaders = await this.resolveAuthHeaders();
+    return mergeHeaders(this.defaultHeaders, authHeaders, ...headersList);
+  }
+
+  private async resolveAuthHeaders(): Promise<Record<string, string> | undefined> {
+    const cached = await this.resolveAuthCredentials({ forceRefresh: false });
+    if (!cached) return undefined;
+    return authHeadersFromCredentials(cached.credentials);
+  }
+
+  private async resolveAuthCredentials(options: {
+    forceRefresh: boolean;
+    reason?: HonuaAuthRefreshReason;
+  }): Promise<CachedAuthCredentials | undefined> {
+    if (!this.authProvider) {
+      return undefined;
+    }
+
+    const cached = this.authCredentialsCache;
+    if (!options.forceRefresh && cached && !isAuthCredentialsExpiring(cached, this.authRefreshSkewMs)) {
+      return cached;
+    }
+
+    if (this.authRefreshPromise) {
+      return this.authRefreshPromise;
+    }
+
+    const reason = options.reason ?? resolveAuthRefreshReason(cached);
+    this.authRefreshPromise = this.loadAuthCredentials(reason, options.forceRefresh, cached?.credentials);
+    try {
+      return await this.authRefreshPromise;
+    } finally {
+      this.authRefreshPromise = undefined;
+    }
+  }
+
+  private async loadAuthCredentials(
+    reason: HonuaAuthRefreshReason,
+    forceRefresh: boolean,
+    previousCredentials: HonuaAuthCredentials | undefined,
+  ): Promise<CachedAuthCredentials | undefined> {
+    const credentials = normalizeAuthCredentials(
+      await this.authProvider?.getCredentials({
+        reason,
+        forceRefresh,
+        ...(previousCredentials ? { previousCredentials } : {}),
+      }),
+    );
+
+    if (!credentials) {
+      this.authCredentialsCache = undefined;
+      return undefined;
+    }
+
+    const cached = {
+      credentials,
+      expiresAtMs: normalizeAuthExpiresAtMs(credentials.expiresAt),
+    } satisfies CachedAuthCredentials;
+    this.authCredentialsCache = cached;
+    return cached;
+  }
+
   /**
    * Pipeline-aware request that returns the raw `Response` after the
    * shared auth / retry / timeout / interceptor pipeline finishes
@@ -491,7 +607,7 @@ export class HonuaClient {
       method,
       init: {
         method,
-        headers: mergeHeaders(this.defaultHeaders, init?.headers),
+        headers: await this.composeHeaders(init?.headers),
         body: init?.body ?? null,
         ...(init?.signal ? { signal: init.signal } : {}),
       },
@@ -1573,7 +1689,7 @@ export class HonuaClient {
       method,
       init: {
         method,
-        headers: mergeHeaders(this.defaultHeaders, { Accept: "application/json" }, init?.headers),
+        headers: await this.composeHeaders({ Accept: "application/json" }, init?.headers),
         body: init?.body,
       },
     };
@@ -1647,7 +1763,7 @@ export class HonuaClient {
       method,
       init: {
         method,
-        headers: mergeHeaders(this.defaultHeaders, { Accept: "application/x-protobuf, application/json;q=0.9" }),
+        headers: await this.composeHeaders({ Accept: "application/x-protobuf, application/json;q=0.9" }),
       },
     };
 
@@ -1742,7 +1858,7 @@ export class HonuaClient {
       method,
       init: {
         method,
-        headers: mergeHeaders(this.defaultHeaders, headers),
+        headers: await this.composeHeaders(headers),
         ...(options?.body !== undefined ? { body: options.body } : {}),
       },
     };
@@ -1822,7 +1938,7 @@ export class HonuaClient {
       method,
       init: {
         method,
-        headers: mergeHeaders(this.defaultHeaders, { Accept: acceptHeader }, init?.headers),
+        headers: await this.composeHeaders({ Accept: acceptHeader }, init?.headers),
         body: init?.body,
       },
     };
@@ -2349,6 +2465,92 @@ function mergeHeaders(...headersList: Array<HeadersInit | undefined>): Record<st
     }
   }
   return merged;
+}
+
+function normalizeAuthProvider(auth: HonuaClientOptions["auth"] | undefined): NormalizedAuthProvider | undefined {
+  if (!auth) {
+    return undefined;
+  }
+  if (typeof auth === "function") {
+    return { getCredentials: auth };
+  }
+  return {
+    getCredentials: (context) => auth.getCredentials(context),
+    ...(auth.revokeCredentials ? { revokeCredentials: auth.revokeCredentials.bind(auth) } : {}),
+  };
+}
+
+function normalizeAuthRefreshSkewMs(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_AUTH_REFRESH_SKEW_MS;
+  }
+  return Math.max(0, Math.trunc(value));
+}
+
+function normalizeAuthCredentials(
+  value: HonuaAuthCredentials | string | null | undefined,
+): HonuaAuthCredentials | undefined {
+  if (typeof value === "string") {
+    return value.length > 0 ? { bearerToken: value } : undefined;
+  }
+  if (!value) {
+    return undefined;
+  }
+  const credentials: HonuaAuthCredentials = {};
+  if (typeof value.apiKey === "string" && value.apiKey.length > 0) {
+    credentials.apiKey = value.apiKey;
+  }
+  if (typeof value.bearerToken === "string" && value.bearerToken.length > 0) {
+    credentials.bearerToken = value.bearerToken;
+  }
+  if (typeof value.authorization === "string" && value.authorization.length > 0) {
+    credentials.authorization = value.authorization;
+  }
+  if (value.expiresAt !== undefined) {
+    credentials.expiresAt = value.expiresAt;
+  }
+  if (!credentials.apiKey && !credentials.bearerToken && !credentials.authorization) {
+    return undefined;
+  }
+  return credentials;
+}
+
+function normalizeAuthExpiresAtMs(expiresAt: HonuaAuthCredentials["expiresAt"]): number | undefined {
+  if (expiresAt === undefined) {
+    return undefined;
+  }
+  if (expiresAt instanceof Date) {
+    return Number.isFinite(expiresAt.getTime()) ? expiresAt.getTime() : undefined;
+  }
+  if (typeof expiresAt === "number") {
+    return Number.isFinite(expiresAt) ? expiresAt : undefined;
+  }
+  const parsed = Date.parse(expiresAt);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function isAuthCredentialsExpiring(cached: CachedAuthCredentials, skewMs: number): boolean {
+  if (cached.expiresAtMs === undefined) {
+    return false;
+  }
+  return cached.expiresAtMs - Date.now() <= skewMs;
+}
+
+function resolveAuthRefreshReason(cached: CachedAuthCredentials | undefined): HonuaAuthRefreshReason {
+  return cached ? "expired" : "initial";
+}
+
+function authHeadersFromCredentials(credentials: HonuaAuthCredentials): Record<string, string> | undefined {
+  const headers: Record<string, string> = {};
+  if (credentials.apiKey) {
+    headers["X-API-Key"] = credentials.apiKey;
+  }
+  if (credentials.authorization) {
+    headers.Authorization = credentials.authorization;
+  } else if (credentials.bearerToken) {
+    headers.Authorization = `Bearer ${credentials.bearerToken}`;
+  }
+  return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
 function normalizeTimeoutMs(timeoutMs: number | undefined): number | undefined {

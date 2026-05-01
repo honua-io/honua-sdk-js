@@ -33,6 +33,43 @@ export interface HonuaRequestInterceptor {
   error?(context: HonuaErrorContext): void | Promise<void>;
 }
 
+export type HonuaAuthRefreshReason = "initial" | "expired" | "unauthorized" | "manual";
+
+export interface HonuaAuthCredentials {
+  /** API key sent as `X-API-Key`. Useful for server key rotation. */
+  apiKey?: string;
+  /** Bearer token sent as `Authorization: Bearer <token>`. */
+  bearerToken?: string;
+  /** Full Authorization header value for non-bearer schemes. */
+  authorization?: string;
+  /** Expiry time. Number values are epoch milliseconds. */
+  expiresAt?: number | string | Date;
+}
+
+export interface HonuaAuthProviderContext {
+  reason: HonuaAuthRefreshReason;
+  forceRefresh: boolean;
+  previousCredentials?: HonuaAuthCredentials;
+}
+
+export interface HonuaAuthRevocationContext {
+  reason: "manual" | "unauthorized";
+}
+
+export type HonuaAuthProviderResult =
+  | HonuaAuthCredentials
+  | string
+  | null
+  | undefined
+  | Promise<HonuaAuthCredentials | string | null | undefined>;
+
+export type HonuaAuthCredentialsProvider = (context: HonuaAuthProviderContext) => HonuaAuthProviderResult;
+
+export interface HonuaAuthProvider {
+  getCredentials(context: HonuaAuthProviderContext): HonuaAuthProviderResult;
+  revokeCredentials?(credentials: HonuaAuthCredentials, context: HonuaAuthRevocationContext): void | Promise<void>;
+}
+
 /** Parameters for querying features from a feature layer. */
 export interface QueryFeaturesRequest {
   serviceId: string;
@@ -213,6 +250,14 @@ export interface HonuaClientOptions {
   baseUrl: string;
   apiKey?: string;
   bearerToken?: string;
+  /**
+   * Optional credential provider. The SDK calls it lazily, caches returned
+   * credentials until `expiresAt` nears, and never persists secrets itself.
+   * Returning a string is shorthand for `{ bearerToken: string }`.
+   */
+  auth?: HonuaAuthProvider | HonuaAuthCredentialsProvider;
+  /** Milliseconds before `expiresAt` when credentials should be refreshed. Default: 60 seconds. */
+  authRefreshSkewMs?: number;
   fetchFn?: typeof fetch;
   interceptors?: readonly HonuaRequestInterceptor[];
   timeoutMs?: number;
