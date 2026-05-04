@@ -49,6 +49,22 @@ export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      include: [
+        "src/**/*.ts",
+        "examples/maplibre-quickstart/src/**/*.ts",
+        "examples/storytelling-25d-map/src/**/*.ts",
+      ],
+      exclude: ["dist/**", "src/gen/**", "src/**/index.ts", "src/*-entry.ts"],
+      thresholds: {
+        lines: 75,
+        functions: 75,
+        branches: 60,
+        statements: 75,
+      },
+    },
     // Several migration CLI tests rebuild and execute the shared dist CLI.
     // Keep file execution serialized locally as well as in CI so those tests
     // do not contend for the same generated artifacts.

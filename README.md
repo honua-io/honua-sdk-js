@@ -447,7 +447,8 @@ npm run pack:split-packages
 
 CI publish workflow:
 - manual dry-run or publish via `Publish JS SDK Packages` workflow
-- tag-triggered publish uses tags in form `js-sdk-v<version>` and enforces tag/version match
+- tag-triggered publish uses Release Please tags in form `js-sdk-<version>`; the workflow also accepts `js-sdk-v<version>` and enforces tag/version match
+- Release Please dispatches the JS SDK and MCP publish workflows after creating releases; package publishes skip versions that already exist on npm.
 
 ## Request/Auth Bridge
 

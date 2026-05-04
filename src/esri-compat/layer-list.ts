@@ -59,7 +59,7 @@ interface LayerListEventPayloadByType {
 }
 
 type LayerListEventTypeCompat = keyof LayerListEventPayloadByType;
-type LayerListListenerCompat = (event: any) => void;
+type LayerListListenerCompat = (event: unknown) => void;
 
 export class LayerListCompat {
   public readonly view: unknown;

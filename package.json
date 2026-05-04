@@ -7,7 +7,7 @@
   "homepage": "https://github.com/honua-io",
   "repository": {
     "type": "git",
-    "url": "https://github.com/honua-io/honua-sdk-js.git"
+    "url": "git+https://github.com/honua-io/honua-sdk-js.git"
   },
   "keywords": [
     "geospatial",
@@ -157,7 +157,6 @@
   },
   "files": [
     "dist/src",
-    "dist/packages",
     "README.md",
     "CHANGELOG.md"
   ],

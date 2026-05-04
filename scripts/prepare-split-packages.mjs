@@ -170,7 +170,7 @@ function createMigrationPackage() {
     main: "./index.js",
     types: "./index.d.ts",
     bin: {
-      "honua-migrate": "./migration/cli.js",
+      "honua-migrate": "migration/cli.js",
     },
     exports: {
       ".": {

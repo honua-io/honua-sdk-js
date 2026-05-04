@@ -10,7 +10,7 @@ on:
         type: boolean
   push:
     tags:
-      - "mcp-server-v*"
+      - "mcp-server-*"
 
 jobs:
   publish-mcp-server:
@@ -57,7 +57,10 @@ jobs:
         if: github.event_name == 'push'
         run: |
           package_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
-          tag_version="${GITHUB_REF_NAME#mcp-server-v}"
+          tag_version="${GITHUB_REF_NAME#mcp-server-}"
+          while [[ "$tag_version" == v* ]]; do
+            tag_version="${tag_version#v}"
+          done
           if [[ "$tag_version" != "$package_version" ]]; then
             echo "Tag version ($tag_version) does not match mcp/package.json version ($package_version)."
             exit 1
@@ -65,14 +68,28 @@ jobs:
 
       - name: Publish package
         run: |
-          if [[ "${DRY_RUN}" != "true" && -z "${NODE_AUTH_TOKEN}" ]]; then
-            echo "NPM_TOKEN secret is required for publishing."
-            exit 1
-          fi
-
           flags=""
           if [[ "${DRY_RUN}" == "true" ]]; then
             flags="--dry-run"
           fi
 
-          npm publish --access public $flags
+          package_name="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).name")"
+          package_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          if [[ "$package_version" == *-* ]]; then
+            prerelease="${package_version#*-}"
+            dist_tag="${prerelease%%.*}"
+          else
+            dist_tag="latest"
+          fi
+
+          if [[ "${DRY_RUN}" != "true" ]] && npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+            echo "${package_name}@${package_version} is already published; skipping."
+            exit 0
+          fi
+
+          if [[ "${DRY_RUN}" != "true" && -z "${NODE_AUTH_TOKEN}" ]]; then
+            echo "NPM_TOKEN secret is required for publishing ${package_name}@${package_version}."
+            exit 1
+          fi
+
+          npm publish --access public --tag "$dist_tag" $flags

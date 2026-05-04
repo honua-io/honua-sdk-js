@@ -1,9 +1,4 @@
-import {
-  addDataToMap,
-  setAnimationConfig,
-  setFilter,
-  wrapTo,
-} from "@kepler.gl/actions";
+import { addDataToMap, setAnimationConfig, setFilter, wrapTo } from "@kepler.gl/actions";
 import { KeplerGl } from "@kepler.gl/components";
 import { processGeojson } from "@kepler.gl/processors";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -17,10 +12,8 @@ const DEFAULT_STYLE_URL = "https://demotiles.maplibre.org/style.json";
 const REPLAY_FILTER_ID = "replay-window-filter";
 const REPLAY_FILTER_DATASETS = ["incidents", "unit-tracks"] as const;
 const REPLAY_TIME_FIELD = "replay_at";
-const STYLE_ICON =
-  "data:image/svg+xml," +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 90">
+const STYLE_ICON = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 90">
       <defs>
         <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stop-color="#11243d" />
@@ -32,7 +25,7 @@ const STYLE_ICON =
       <circle cx="54" cy="42" r="7" fill="#ffa65b" />
       <circle cx="107" cy="29" r="7" fill="#ff5d5d" />
     </svg>`,
-  );
+)}`;
 
 interface FixtureMetadata {
   storyId: string;
@@ -220,9 +213,7 @@ function useElementSize<T extends HTMLElement>() {
     const updateSize = () => {
       const width = Math.max(360, Math.round(node.clientWidth));
       const height = Math.max(420, Math.round(node.clientHeight));
-      setSize((current) =>
-        current.width === width && current.height === height ? current : { width, height },
-      );
+      setSize((current) => (current.width === width && current.height === height ? current : { width, height }));
     };
 
     updateSize();
@@ -397,8 +388,7 @@ function getReplayHarnessState(): ReplayHarnessState | null {
   const replayStatus = {} as Record<ReplayDatasetId, string | null>;
   for (const dataId of REPLAY_FILTER_DATASETS) {
     filteredCounts[dataId] = getDatasetFilteredCount(demoState, dataId);
-    replayStatus[dataId] =
-      demoState.visState.datasets[dataId]?.changedFilters?.fixedDomain?.[REPLAY_FILTER_ID] ?? null;
+    replayStatus[dataId] = demoState.visState.datasets[dataId]?.changedFilters?.fixedDomain?.[REPLAY_FILTER_ID] ?? null;
   }
 
   const dataIds = Array.isArray(replayFilter.dataId) ? replayFilter.dataId : [replayFilter.dataId];
@@ -467,7 +457,7 @@ export function App() {
               icon: STYLE_ICON,
             },
           ],
-    [publicStyleUrl, useMapboxDefaults],
+    [publicStyleUrl],
   );
 
   useEffect(() => {
@@ -505,7 +495,7 @@ export function App() {
         setStatus("error");
       }
     })();
-  }, [useMapboxDefaults]);
+  }, []);
 
   useEffect(() => {
     const windowState = window as KeplerAnalyticsWindow;

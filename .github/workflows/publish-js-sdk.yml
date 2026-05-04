@@ -10,7 +10,7 @@ on:
         type: boolean
   push:
     tags:
-      - "js-sdk-v*"
+      - "js-sdk-*"
 
 jobs:
   publish-js-packages:
@@ -53,7 +53,10 @@ jobs:
         if: github.event_name == 'push'
         run: |
           package_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
-          tag_version="${GITHUB_REF_NAME#js-sdk-v}"
+          tag_version="${GITHUB_REF_NAME#js-sdk-}"
+          while [[ "$tag_version" == v* ]]; do
+            tag_version="${tag_version#v}"
+          done
           if [[ "$tag_version" != "$package_version" ]]; then
             echo "Tag version ($tag_version) does not match package.json version ($package_version)."
             exit 1
@@ -61,21 +64,44 @@ jobs:
 
       - name: Publish split packages
         run: |
-          if [[ "${DRY_RUN}" != "true" && -z "${NODE_AUTH_TOKEN}" ]]; then
-            echo "NPM_TOKEN secret is required for publishing."
-            exit 1
-          fi
-
           flags=""
           if [[ "${DRY_RUN}" == "true" ]]; then
             flags="--dry-run"
           fi
 
-          publish_package() {
-            local package_dir="$1"
-            npm publish "$package_dir" --access public $flags
+          resolve_dist_tag() {
+            local version="$1"
+            if [[ "$version" == *-* ]]; then
+              local prerelease="${version#*-}"
+              echo "${prerelease%%.*}"
+              return
+            fi
+            echo "latest"
           }
 
+          publish_package() {
+            local package_dir="$1"
+            local package_name
+            local package_version
+            local dist_tag
+            package_name="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).name")"
+            package_version="$(PACKAGE_DIR="$package_dir" node -p "const fs=require('fs'); const path=require('path'); JSON.parse(fs.readFileSync(path.join(process.env.PACKAGE_DIR, 'package.json'), 'utf8')).version")"
+            dist_tag="$(resolve_dist_tag "$package_version")"
+
+            if [[ "${DRY_RUN}" != "true" ]] && npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+              echo "${package_name}@${package_version} is already published; skipping."
+              return
+            fi
+
+            if [[ "${DRY_RUN}" != "true" && -z "${NODE_AUTH_TOKEN}" ]]; then
+              echo "NPM_TOKEN secret is required for publishing ${package_name}@${package_version}."
+              exit 1
+            fi
+
+            npm publish "$package_dir" --access public --tag "$dist_tag" $flags
+          }
+
+          publish_package "."
           publish_package "./dist/packages/honua-sdk"
           publish_package "./dist/packages/honua-sdk-esri-compat"
           publish_package "./dist/packages/honua-migrate"

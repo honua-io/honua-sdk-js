@@ -20,7 +20,7 @@ const DATASET_SPECS = [
     layerEnv: "HONUA_DEMO_INCIDENTS_LAYER_ID",
     defaultServiceId: "ops-analytics",
     defaultLayerId: 0,
-    timeField: "replay_at"
+    timeField: "replay_at",
   },
   {
     id: "unit-tracks",
@@ -32,7 +32,7 @@ const DATASET_SPECS = [
     layerEnv: "HONUA_DEMO_UNIT_TRACKS_LAYER_ID",
     defaultServiceId: "ops-analytics",
     defaultLayerId: 1,
-    timeField: "replay_at"
+    timeField: "replay_at",
   },
   {
     id: "coverage-zones",
@@ -44,8 +44,8 @@ const DATASET_SPECS = [
     layerEnv: "HONUA_DEMO_COVERAGE_ZONES_LAYER_ID",
     defaultServiceId: "ops-analytics",
     defaultLayerId: 2,
-    timeField: null
-  }
+    timeField: null,
+  },
 ];
 
 function env(name, fallback = "") {
@@ -66,7 +66,7 @@ async function ensureBuiltSdk() {
     await fs.access(builtSdkEntry);
   } catch {
     throw new Error(
-      "Built SDK not found. Run `npm run build` from the repo root before refreshing the kepler fixture."
+      "Built SDK not found. Run `npm run build` from the repo root before refreshing the kepler fixture.",
     );
   }
 }
@@ -96,13 +96,13 @@ function formatTimeWindowLabel(startIso, endIso) {
     timeZone: "Pacific/Honolulu",
     month: "long",
     day: "numeric",
-    year: "numeric"
+    year: "numeric",
   });
   const timeFormatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "Pacific/Honolulu",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false
+    hour12: false,
   });
   return `${dateFormatter.format(new Date(startIso))} · ${timeFormatter.format(new Date(startIso))}-${timeFormatter.format(new Date(endIso))} HST`;
 }
@@ -135,14 +135,14 @@ function geometryToGeoJson(geometry) {
   if ("x" in geometry && "y" in geometry) {
     return {
       type: "Point",
-      coordinates: [geometry.x, geometry.y]
+      coordinates: [geometry.x, geometry.y],
     };
   }
 
   if ("points" in geometry && Array.isArray(geometry.points)) {
     return {
       type: "MultiPoint",
-      coordinates: geometry.points
+      coordinates: geometry.points,
     };
   }
 
@@ -150,31 +150,33 @@ function geometryToGeoJson(geometry) {
     return geometry.paths.length === 1
       ? {
           type: "LineString",
-          coordinates: geometry.paths[0]
+          coordinates: geometry.paths[0],
         }
       : {
           type: "MultiLineString",
-          coordinates: geometry.paths
+          coordinates: geometry.paths,
         };
   }
 
   if ("rings" in geometry && Array.isArray(geometry.rings)) {
     return {
       type: "Polygon",
-      coordinates: geometry.rings
+      coordinates: geometry.rings,
     };
   }
 
   if ("xmin" in geometry && "ymin" in geometry && "xmax" in geometry && "ymax" in geometry) {
     return {
       type: "Polygon",
-      coordinates: [[
-        [geometry.xmin, geometry.ymin],
-        [geometry.xmax, geometry.ymin],
-        [geometry.xmax, geometry.ymax],
-        [geometry.xmin, geometry.ymax],
-        [geometry.xmin, geometry.ymin]
-      ]]
+      coordinates: [
+        [
+          [geometry.xmin, geometry.ymin],
+          [geometry.xmax, geometry.ymin],
+          [geometry.xmax, geometry.ymax],
+          [geometry.xmin, geometry.ymax],
+          [geometry.xmin, geometry.ymin],
+        ],
+      ],
     };
   }
 
@@ -199,8 +201,8 @@ export function toFeatureCollection(features, timeField) {
     features: sortFeatures(features, timeField).map((feature) => ({
       type: "Feature",
       properties: getFeatureProperties(feature),
-      geometry: geometryToGeoJson(feature.geometry)
-    }))
+      geometry: geometryToGeoJson(feature.geometry),
+    })),
   };
 }
 
@@ -233,7 +235,7 @@ function collectReplayWindow(featureCollections) {
     return {
       start: now,
       end: now,
-      label: formatTimeWindowLabel(now, now)
+      label: formatTimeWindowLabel(now, now),
     };
   }
 
@@ -243,7 +245,7 @@ function collectReplayWindow(featureCollections) {
   return {
     start,
     end,
-    label: formatTimeWindowLabel(start, end)
+    label: formatTimeWindowLabel(start, end),
   };
 }
 
@@ -264,7 +266,7 @@ function buildKpis({ incidents, unitTracks, coverageZones }) {
     .filter((value) => Number.isFinite(value));
 
   const unitIds = new Set(
-    unitFeatures.map((feature) => String(normalizeFeatureProperties(feature.properties).unit_id ?? "")).filter(Boolean)
+    unitFeatures.map((feature) => String(normalizeFeatureProperties(feature.properties).unit_id ?? "")).filter(Boolean),
   );
 
   const zonesAtRisk = zoneFeatures.filter((feature) => {
@@ -277,26 +279,26 @@ function buildKpis({ incidents, unitTracks, coverageZones }) {
       id: "active-incidents",
       label: "Active incidents",
       value: String(activeIncidents),
-      detail: "Incidents still active or in monitoring during the exported replay window."
+      detail: "Incidents still active or in monitoring during the exported replay window.",
     },
     {
       id: "median-response",
       label: "Median first unit",
       value: `${Math.round(median(responseMinutes))} min`,
-      detail: "Median first-unit response derived from the incident export."
+      detail: "Median first-unit response derived from the incident export.",
     },
     {
       id: "units-engaged",
       label: "Units engaged",
       value: String(unitIds.size),
-      detail: "Named units represented in the unit replay layer."
+      detail: "Named units represented in the unit replay layer.",
     },
     {
       id: "zones-at-risk",
       label: "Zones at risk",
       value: String(zonesAtRisk),
-      detail: "Coverage zones at or above the SLA-gap threshold."
-    }
+      detail: "Coverage zones at or above the SLA-gap threshold.",
+    },
   ];
 }
 
@@ -325,35 +327,35 @@ function createMetadata(datasetResults, replayWindow, environmentLabel) {
         description: spec.description,
         envServiceId: spec.serviceEnv,
         envLayerId: spec.layerEnv,
-        ...(spec.timeField ? { timeField: spec.timeField } : {})
-      }
+        ...(spec.timeField ? { timeField: spec.timeField } : {}),
+      },
     })),
     walkthrough: [
       {
         title: "Play the first response wave",
         detail:
-          "Use the time slider to replay the response window and watch active incidents stay in view while unit pings converge on the harbor and Waikiki corridors."
+          "Use the time slider to replay the response window and watch active incidents stay in view while unit pings converge on the harbor and Waikiki corridors.",
       },
       {
         title: "Switch from events to coverage risk",
         detail:
-          "Leave the coverage polygons on to show which zones drifted past the SLA threshold even when the raw incident count looked manageable."
+          "Leave the coverage polygons on to show which zones drifted past the SLA threshold even when the raw incident count looked manageable.",
       },
       {
         title: "Connect the replay to Honua exports",
         detail:
-          "Use the provenance panel to show the exact Honua service and layer IDs that produced the committed fixture and the maintainer refresh command."
+          "Use the provenance panel to show the exact Honua service and layer IDs that produced the committed fixture and the maintainer refresh command.",
       },
       {
         title: "Tell the ETL-to-insight story",
         detail:
-          "Use the KPI cards as the punch line: ETL precomputes the gap metrics, the SDK refreshes the fixture, and kepler.gl turns it into a briefing."
-      }
+          "Use the KPI cards as the punch line: ETL precomputes the gap metrics, the SDK refreshes the fixture, and kepler.gl turns it into a briefing.",
+      },
     ],
     kpis: buildKpis({
       incidents: byId.incidents,
       unitTracks: byId["unit-tracks"],
-      coverageZones: byId["coverage-zones"]
+      coverageZones: byId["coverage-zones"],
     }),
     provenance: {
       badge: "Honua export fixture",
@@ -362,10 +364,10 @@ function createMetadata(datasetResults, replayWindow, environmentLabel) {
       derivationNotes: [
         "Coverage polygons already include SLA-gap percentages and median response minutes from the ETL pipeline; the browser does not recompute them on load.",
         "The replay window is anchored to the shared replay_at timestamp field so incidents and unit pings scrub together during playback.",
-        "Maintainers can refresh the fixture from a live Honua environment with the documented script when the demo contract changes."
+        "Maintainers can refresh the fixture from a live Honua environment with the documented script when the demo contract changes.",
       ],
-      refreshCommand: "npm run demo:kepler:refresh-fixture"
-    }
+      refreshCommand: "npm run demo:kepler:refresh-fixture",
+    },
   };
 }
 
@@ -394,7 +396,7 @@ export async function main() {
           telemetry.push({
             path: request.path,
             status: response.status,
-            durationMs
+            durationMs,
           });
         },
         error({ request, error, durationMs }) {
@@ -402,17 +404,17 @@ export async function main() {
             path: request.path,
             status: "error",
             durationMs: durationMs ?? null,
-            error: formatHonuaError(error)
+            error: formatHonuaError(error),
           });
-        }
-      }
-    ]
+        },
+      },
+    ],
   });
 
   const compatibility = await client.checkCompatibility();
   if (!compatibility.supported) {
     throw new Error(
-      `Honua environment is not compatible with this demo refresh. Reasons: ${compatibility.reasons.join("; ")}`
+      `Honua environment is not compatible with this demo refresh. Reasons: ${compatibility.reasons.join("; ")}`,
     );
   }
 
@@ -425,14 +427,14 @@ export async function main() {
         outFields: ["*"],
         returnGeometry: true,
         pageSize: 2000,
-        maxPages: 25
+        maxPages: 25,
       });
 
       return {
         spec,
-        collection: toFeatureCollection(features, spec.timeField)
+        collection: toFeatureCollection(features, spec.timeField),
       };
-    })
+    }),
   );
 
   const replayWindow = collectReplayWindow(datasetResults.map((result) => result.collection));
@@ -442,8 +444,8 @@ export async function main() {
 
   await Promise.all(
     datasetResults.map(({ spec, collection }) =>
-      fs.writeFile(path.join(dataRoot, spec.filename), `${JSON.stringify(collection, null, 2)}\n`, "utf8")
-    )
+      fs.writeFile(path.join(dataRoot, spec.filename), `${JSON.stringify(collection, null, 2)}\n`, "utf8"),
+    ),
   );
   await fs.writeFile(path.join(dataRoot, "fixture-metadata.json"), `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
 
@@ -451,15 +453,13 @@ export async function main() {
     `${JSON.stringify(
       {
         refreshed: true,
-        datasetCounts: Object.fromEntries(
-          metadata.datasets.map((dataset) => [dataset.id, dataset.recordCount])
-        ),
+        datasetCounts: Object.fromEntries(metadata.datasets.map((dataset) => [dataset.id, dataset.recordCount])),
         replayWindow: metadata.timeWindow,
-        telemetry
+        telemetry,
       },
       null,
-      2
-    )}\n`
+      2,
+    )}\n`,
   );
 
   return { isHonuaError };

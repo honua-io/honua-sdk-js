@@ -34,8 +34,27 @@
     "indentWidth": 2,
     "lineWidth": 120
   },
+  "overrides": [
+    {
+      "include": ["test/**/*.ts", "examples/kepler-analytics/src/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    }
+  ],
   "files": {
-    "include": ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts"],
+    "include": [
+      "src/**/*.ts",
+      "test/**/*.ts",
+      "examples/**/*.ts",
+      "examples/**/*.tsx",
+      "examples/**/*.mjs",
+      "examples/**/*.json"
+    ],
     "ignore": ["dist", "node_modules", "src/gen", "test/fixtures"]
   }
 }

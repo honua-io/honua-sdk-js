@@ -825,7 +825,6 @@ describe("wfs / canonical Source", () => {
     ]);
     const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
     const result = await source.applyEdits({
-      // biome-ignore lint/suspicious/noExplicitAny: deliberately exercising an id-less update on the canonical envelope shape
       updates: [{ attributes: { OBJECTID: 1, STATE: "CA", ACRES: 8 } } as any],
     });
     // Per-item failure for the malformed update; transaction is never sent
@@ -857,7 +856,6 @@ describe("wfs / canonical Source", () => {
     const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
     const result = await source.applyEdits({
       updates: [
-        // biome-ignore lint/suspicious/noExplicitAny: deliberately mixing a malformed update with a valid one
         { attributes: { OBJECTID: 1, STATE: "CA", ACRES: 8 } } as any,
         { id: 2, attributes: { OBJECTID: 2, STATE: "CA", ACRES: 11 } },
       ],

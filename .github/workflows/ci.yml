@@ -48,6 +48,15 @@ jobs:
       - name: Quickstart example build
         run: npm run demo:quickstart:build
 
+      - name: Kepler example install
+        run: npm run demo:kepler:install
+
+      - name: Kepler example audit
+        run: npm audit --prefix examples/kepler-analytics
+
+      - name: Kepler example build
+        run: npm run demo:kepler:build
+
       - name: Unit tests with coverage
         run: npm run test:coverage
 

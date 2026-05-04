@@ -200,17 +200,17 @@ export class MapImageLayerCompat {
     listener: (value: MapImageLayerLoadStatusCompat) => void,
   ): MapImageLayerHandleCompat;
   public watch(propertyName: string, listener: (value: unknown) => void): MapImageLayerHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): MapImageLayerHandleCompat {
+  public watch(propertyName: string, listener: (value: never) => void): MapImageLayerHandleCompat {
     let listeners = this.watchListeners.get(propertyName);
     if (!listeners) {
       listeners = new Set();
       this.watchListeners.set(propertyName, listeners);
     }
-    listeners.add(listener);
+    listeners.add(listener as (value: unknown) => void);
 
     return {
       remove: () => {
-        listeners?.delete(listener);
+        listeners?.delete(listener as (value: unknown) => void);
       },
     };
   }
