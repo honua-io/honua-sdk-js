@@ -2,6 +2,13 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.6-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.5-alpha.0...js-sdk-vv0.0.6-alpha.0) (2026-05-04)
+
+
+### Documentation
+
+* add source-backed feature map ([bd0708f](https://github.com/honua-io/honua-sdk-js/commit/bd0708fa6f7011a32d758585d8f061aacf0f30e0))
+
 ## [0.0.5-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.4-alpha.0...js-sdk-vv0.0.5-alpha.0) (2026-05-01)
 
 
