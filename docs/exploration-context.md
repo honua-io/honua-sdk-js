@@ -162,6 +162,30 @@ filter, and detail components. Component adapters publish semantic intents
 slices they can render. They do not need to imperatively keep peer widgets in
 sync or remember which `viewId` to pass with each intent.
 
+`@honua/sdk-js/interactions` includes thin bindings for common map/table/detail
+selection flows:
+
+```ts
+import {
+  bindDetailToSelection,
+  bindMapSelectionToExploration,
+  bindTableSelectionToExploration,
+  syncFeatureStateSelection,
+} from "@honua/sdk-js";
+
+bindMapSelectionToExploration(maplibreMap, mapView, {
+  source: "incidents",
+  layer: "incident-points",
+});
+
+syncFeatureStateSelection(maplibreMap, mapView, { source: "incidents" });
+
+const table = bindTableSelectionToExploration(gridView);
+table.select([sourceFeatureSelectionTarget("incidents", 101)], { replace: true });
+
+bindDetailToSelection(detailView, ([selected]) => renderDetail(selected));
+```
+
 ## Selection targets
 
 Single-source apps can keep using raw feature ids:
