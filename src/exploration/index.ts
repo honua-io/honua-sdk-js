@@ -28,6 +28,7 @@ export type {
   ExplorationViewListener,
   ExplorationViewSubscribeOptions,
   ExplorationViewSubscription,
+  FeatureSelectionTarget,
   FilterClause,
   FilterOperator,
   LinkedViewPolicy,
@@ -44,6 +45,7 @@ export type {
   SetSpatialFilterIntent,
   SetVisibleFieldsIntent,
   SnapshotRestoreIntent,
+  SourceQualifiedFeatureSelectionTarget,
   Unsubscribe,
   ViewBinding,
   ViewHandle,
@@ -53,3 +55,4 @@ export type {
 export { LINKED_VIEW_PRESETS, propagationFor } from "./presets.js";
 export { reduce, type ReducerResult } from "./reducer.js";
 export { createExplorationContext } from "./context.js";
+export { featureSelectionKey, isSourceQualifiedSelectionTarget, sourceFeatureSelectionTarget } from "./selection.js";

@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createHoverHandler,
   createSelectionHandler,
+  featureSelectionKey,
   getFeatureState,
   removeFeatureState,
   setFeatureState,
+  sourceFeatureSelectionTarget,
 } from "../src/index.js";
 import type { InteractiveMap } from "../src/index.js";
 
@@ -260,6 +262,28 @@ describe("createSelectionHandler", () => {
     map._fire("click", "parcel-fill", { features: [{ id: 1 }] });
     expect(onChange).toHaveBeenCalledTimes(2);
     expect(onChange.mock.calls[1][0].size).toBe(0);
+  });
+
+  it("exposes source-qualified selection targets for exploration sync", () => {
+    const onSelectionTargetsChange = vi.fn();
+    const map = createMockMap();
+    const selection = createSelectionHandler(map, {
+      source: "parcels",
+      layer: "parcel-fill",
+      sourceLayer: "parcel-polygons",
+      multiSelect: true,
+      onSelectionTargetsChange,
+    });
+
+    map._fire("click", "parcel-fill", { features: [{ id: 1 }] });
+    map._fire("click", "parcel-fill", { features: [{ id: "2" }] });
+
+    expect(selection.selectedTargets).toEqual([
+      sourceFeatureSelectionTarget("parcels", 1, { sourceLayer: "parcel-polygons" }),
+      sourceFeatureSelectionTarget("parcels", "2", { sourceLayer: "parcel-polygons" }),
+    ]);
+    expect(onSelectionTargetsChange).toHaveBeenLastCalledWith(selection.selectedTargets);
+    expect(new Set(selection.selectedTargets.map((target) => featureSelectionKey(target))).size).toBe(2);
   });
 
   it("programmatic select/deselect/clearSelection", () => {

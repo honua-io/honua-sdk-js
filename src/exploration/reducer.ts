@@ -11,7 +11,14 @@
 
 import type { AggregationSpec } from "../contract/types.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
-import type { ExplorationIntent, ExplorationSlice, ExplorationState, FilterClause } from "./types.js";
+import { featureSelectionKey } from "./selection.js";
+import type {
+  ExplorationIntent,
+  ExplorationSlice,
+  ExplorationState,
+  FeatureSelectionTarget,
+  FilterClause,
+} from "./types.js";
 
 export interface ReducerResult {
   readonly state: ExplorationState;
@@ -60,17 +67,17 @@ export function reduce(state: ExplorationState, intent: ExplorationIntent): Redu
     }
     case "select": {
       const incoming = intent.ids;
-      let selection: ReadonlyArray<unknown>;
+      let selection: ReadonlyArray<FeatureSelectionTarget>;
       if (intent.replace === true) {
-        selection = dedupe(incoming);
+        selection = dedupeSelection(incoming);
       } else {
-        selection = dedupe([...state.selection, ...incoming]);
+        selection = dedupeSelection([...state.selection, ...incoming]);
       }
-      if (sequenceEqual(state.selection, selection as ReadonlyArray<(typeof state.selection)[number]>)) {
+      if (selectionEqual(state.selection, selection)) {
         return { state, changedSlices: EMPTY };
       }
       return {
-        state: { ...state, selection: selection as typeof state.selection },
+        state: { ...state, selection },
         changedSlices: only("selection"),
       };
     }
@@ -79,8 +86,8 @@ export function reduce(state: ExplorationState, intent: ExplorationIntent): Redu
         if (state.selection.length === 0) return { state, changedSlices: EMPTY };
         return { state: { ...state, selection: [] }, changedSlices: only("selection") };
       }
-      const removeSet = new Set<unknown>(intent.ids);
-      const selection = state.selection.filter((id) => !removeSet.has(id));
+      const removeSet = new Set(intent.ids.map((target) => featureSelectionKey(target)));
+      const selection = state.selection.filter((target) => !removeSet.has(featureSelectionKey(target)));
       if (selection.length === state.selection.length) {
         return { state, changedSlices: EMPTY };
       }
@@ -238,12 +245,22 @@ function sequenceEqual<T>(a: ReadonlyArray<T>, b: ReadonlyArray<T>): boolean {
   return true;
 }
 
-function dedupe<T>(values: ReadonlyArray<T>): T[] {
-  const seen = new Set<T>();
-  const out: T[] = [];
+function selectionEqual(a: ReadonlyArray<FeatureSelectionTarget>, b: ReadonlyArray<FeatureSelectionTarget>): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (featureSelectionKey(a[i]) !== featureSelectionKey(b[i])) return false;
+  }
+  return true;
+}
+
+function dedupeSelection(values: ReadonlyArray<FeatureSelectionTarget>): FeatureSelectionTarget[] {
+  const seen = new Set<string>();
+  const out: FeatureSelectionTarget[] = [];
   for (const v of values) {
-    if (seen.has(v)) continue;
-    seen.add(v);
+    const key = featureSelectionKey(v);
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push(v);
   }
   return out;
@@ -271,7 +288,7 @@ function diffSlices(prev: ExplorationState, next: ExplorationState): Set<Explora
   if (!filterMapsEqual(prev.filters, next.filters)) changed.add("filters");
   if (!spatialFiltersEqual(prev.spatialFilter, next.spatialFilter)) changed.add("spatialFilter");
   if (!extentsEqual(prev.extent, next.extent)) changed.add("extent");
-  if (!sequenceEqual(prev.selection, next.selection)) changed.add("selection");
+  if (!selectionEqual(prev.selection, next.selection)) changed.add("selection");
   if (!sortEqual(prev.sort, next.sort)) changed.add("sort");
   if (!pageEqual(prev.page, next.page)) changed.add("page");
   if (!sequenceEqual(prev.visibleFields, next.visibleFields)) changed.add("visibleFields");

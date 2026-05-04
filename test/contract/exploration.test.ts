@@ -19,8 +19,10 @@ import {
   LINKED_VIEW_PRESETS,
   SLICES,
   createExplorationContext,
+  featureSelectionKey,
   propagationFor,
   reduce,
+  sourceFeatureSelectionTarget,
 } from "../../src/exploration/index.js";
 
 async function flush(): Promise<void> {
@@ -75,6 +77,44 @@ describe("exploration / reduce", () => {
     expect(more.state.selection).toEqual([1, 2, 3]);
     const replaced = reduce(more.state, { kind: "select", ids: [99], replace: true });
     expect(replaced.state.selection).toEqual([99]);
+  });
+
+  it("select distinguishes source-qualified targets that share the same feature id", () => {
+    const sourceA = sourceFeatureSelectionTarget("source-a", 101);
+    const sourceADuplicate = sourceFeatureSelectionTarget("source-a", 101);
+    const sourceB = sourceFeatureSelectionTarget("source-b", 101);
+
+    const selectedA = reduce(EMPTY_STATE, { kind: "select", ids: [sourceA] });
+    const selectedADuplicate = reduce(selectedA.state, { kind: "select", ids: [sourceADuplicate] });
+    expect(selectedADuplicate.changedSlices.size).toBe(0);
+    expect(selectedADuplicate.state.selection).toEqual([sourceA]);
+
+    const selectedB = reduce(selectedA.state, { kind: "select", ids: [sourceB] });
+    expect(selectedB.state.selection).toEqual([sourceA, sourceB]);
+    expect(featureSelectionKey(sourceA)).not.toBe(featureSelectionKey(sourceB));
+  });
+
+  it("deselect removes only the matching source-qualified target", () => {
+    const sourceA = sourceFeatureSelectionTarget("source-a", 101);
+    const sourceB = sourceFeatureSelectionTarget("source-b", 101);
+    const seeded = reduce(EMPTY_STATE, { kind: "select", ids: [sourceA, sourceB] });
+    const deselected = reduce(seeded.state, {
+      kind: "deselect",
+      ids: [sourceFeatureSelectionTarget("source-a", 101)],
+    });
+
+    expect(deselected.state.selection).toEqual([sourceB]);
+    expect(deselected.changedSlices).toEqual(new Set(["selection"]));
+  });
+
+  it("source-qualified selection keeps raw id type and source layer distinct", () => {
+    const numeric = sourceFeatureSelectionTarget("tiles", 101, { sourceLayer: "parcels" });
+    const stringy = sourceFeatureSelectionTarget("tiles", "101", { sourceLayer: "parcels" });
+    const buildings = sourceFeatureSelectionTarget("tiles", 101, { sourceLayer: "buildings" });
+    const selected = reduce(EMPTY_STATE, { kind: "select", ids: [numeric, stringy, buildings] });
+
+    expect(selected.state.selection).toEqual([numeric, stringy, buildings]);
+    expect(new Set(selected.state.selection.map((target) => featureSelectionKey(target))).size).toBe(3);
   });
 
   it("deselect without ids clears the selection", () => {
@@ -214,6 +254,26 @@ describe("exploration / reduce", () => {
     });
     expect(restored.changedSlices.has("selection")).toBe(true);
     expect(restored.changedSlices.has("sort")).toBe(true);
+  });
+
+  it("snapshot-restore treats structurally equal source-qualified selections as unchanged", () => {
+    const seeded = reduce(EMPTY_STATE, {
+      kind: "select",
+      ids: [sourceFeatureSelectionTarget("source-a", 101)],
+    });
+    const restored = reduce(seeded.state, {
+      kind: "snapshot-restore",
+      snapshot: {
+        version: 1,
+        state: {
+          ...seeded.state,
+          selection: [sourceFeatureSelectionTarget("source-a", 101)],
+        },
+      },
+    });
+
+    expect(restored.changedSlices.has("selection")).toBe(false);
+    expect(restored.changedSlices.size).toBe(0);
   });
 });
 
@@ -419,6 +479,24 @@ describe("exploration / createExplorationContext", () => {
     ctx.dispose();
   });
 
+  it("connectView propagates source-qualified selection targets to peers", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["source-a", "source-b"] });
+    const map = ctx.connectView({ id: "map", role: "map" });
+    const grid = ctx.connectView({ id: "grid", role: "grid" });
+    const events: ExplorationViewChangeEvent[] = [];
+    grid.subscribe("selection", (event) => events.push(event));
+
+    const target = sourceFeatureSelectionTarget("source-a", 101);
+    map.select([target], { replace: true });
+    await flush();
+
+    expect(events.length).toBe(1);
+    expect(events[0].origin?.viewId).toBe("map");
+    expect(events[0].changedSlices).toEqual(new Set(["selection"]));
+    expect(events[0].state.selection).toEqual([target]);
+    ctx.dispose();
+  });
+
   it("connectView unbind disposes owned subscriptions and rejects later view dispatch", async () => {
     const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
     const map = ctx.connectView({ id: "map", role: "map" });
@@ -489,6 +567,39 @@ describe("exploration / createExplorationContext", () => {
     // state must not alias it and must therefore stay at [10].
     (snap.state.selection as Array<number>).push(42);
     expect(ctx.state.selection).toEqual([10]);
+    ctx.dispose();
+  });
+
+  it("snapshot / restore isolates source-qualified selection target objects", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["source-a"] });
+    ctx.dispatch({
+      kind: "select",
+      ids: [sourceFeatureSelectionTarget("source-a", 101)],
+      replace: true,
+    });
+    await flush();
+
+    const snap = ctx.snapshot();
+    const target = snap.state.selection[0];
+    if (typeof target === "object") {
+      (target as { sourceId: string }).sourceId = "mutated";
+    }
+
+    expect(ctx.state.selection).toEqual([sourceFeatureSelectionTarget("source-a", 101)]);
+
+    ctx.dispatch({ kind: "deselect" });
+    await flush();
+    ctx.restore({
+      version: 1,
+      state: {
+        ...snap.state,
+        selection: [sourceFeatureSelectionTarget("source-a", 101)],
+      },
+    });
+    await flush();
+    (snap.state.selection as Array<unknown>).push(sourceFeatureSelectionTarget("source-b", 101));
+
+    expect(ctx.state.selection).toEqual([sourceFeatureSelectionTarget("source-a", 101)]);
     ctx.dispose();
   });
 
