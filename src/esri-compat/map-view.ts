@@ -347,17 +347,17 @@ export class MapViewLayerViewCompat {
     listener: (value: readonly MapViewLayerViewHighlightRecord[]) => void,
   ): MapViewHandle;
   public watch(propertyName: string, listener: (value: unknown) => void): MapViewHandle;
-  public watch(propertyName: string, listener: (value: any) => void): MapViewHandle {
+  public watch(propertyName: string, listener: (value: never) => void): MapViewHandle {
     let listeners = this.watchListeners.get(propertyName);
     if (!listeners) {
       listeners = new Set();
       this.watchListeners.set(propertyName, listeners);
     }
-    listeners.add(listener);
+    listeners.add(listener as (value: unknown) => void);
 
     return {
       remove: () => {
-        listeners?.delete(listener);
+        listeners?.delete(listener as (value: unknown) => void);
       },
     };
   }
@@ -983,17 +983,17 @@ export class MapViewCompat {
     listener: (event: { layer: unknown; layerView: MapViewLayerViewCompat }) => void,
   ): MapViewHandle;
   public on(eventName: string, listener: (event: unknown) => void): MapViewHandle;
-  public on(eventName: string, listener: (event: any) => void): MapViewHandle {
+  public on(eventName: string, listener: (event: never) => void): MapViewHandle {
     let listeners = this.eventListeners.get(eventName);
     if (!listeners) {
       listeners = new Set();
       this.eventListeners.set(eventName, listeners);
     }
-    listeners.add(listener);
+    listeners.add(listener as (event: unknown) => void);
 
     return {
       remove: () => {
-        listeners?.delete(listener);
+        listeners?.delete(listener as (event: unknown) => void);
       },
     };
   }
@@ -1030,17 +1030,17 @@ export class MapViewCompat {
   public watch(propertyName: "popup.viewModel.active", listener: (value: boolean) => void): MapViewHandle;
   public watch(propertyName: "popup.selectedFeatureIndex", listener: (value: number) => void): MapViewHandle;
   public watch(propertyName: string, listener: (value: unknown) => void): MapViewHandle;
-  public watch(propertyName: string, listener: (value: any) => void): MapViewHandle {
+  public watch(propertyName: string, listener: (value: never) => void): MapViewHandle {
     let listeners = this.watchListeners.get(propertyName);
     if (!listeners) {
       listeners = new Set();
       this.watchListeners.set(propertyName, listeners);
     }
-    listeners.add(listener);
+    listeners.add(listener as (value: unknown) => void);
 
     return {
       remove: () => {
-        listeners?.delete(listener);
+        listeners?.delete(listener as (value: unknown) => void);
       },
     };
   }
@@ -1331,11 +1331,11 @@ function collectBounds(value: unknown, visited: Set<object> = new Set()): MapVie
   return bounds;
 }
 
-function hasCoordinateSequences(value: Record<string, any>): boolean {
+function hasCoordinateSequences(value: Record<string, unknown>): boolean {
   return GEOMETRY_SEQUENCE_KEYS.some((key) => key in value && Array.isArray(value[key]));
 }
 
-function extractPointCenterFromRecord(value: Record<string, any>): MapViewMapPoint | undefined {
+function extractPointCenterFromRecord(value: Record<string, unknown>): MapViewMapPoint | undefined {
   const point = extractPointFromRecord(value);
   if (point === undefined) {
     return undefined;
@@ -1348,7 +1348,7 @@ function extractPointCenterFromRecord(value: Record<string, any>): MapViewMapPoi
 }
 
 function extractPointFromRecord(
-  value: Record<string, any>,
+  value: Record<string, unknown>,
 ): { x: number; y: number; spatialReference?: MapViewSpatialReferenceLike } | undefined {
   const x = normalizeFiniteNumber(value.x);
   const y = normalizeFiniteNumber(value.y);
@@ -1356,7 +1356,7 @@ function extractPointFromRecord(
     return {
       x,
       y,
-      spatialReference: value.spatialReference,
+      spatialReference: asSpatialReferenceLike(value.spatialReference),
     };
   }
 
@@ -1366,11 +1366,15 @@ function extractPointFromRecord(
     return {
       x: longitude,
       y: latitude,
-      spatialReference: value.spatialReference,
+      spatialReference: asSpatialReferenceLike(value.spatialReference),
     };
   }
 
   return undefined;
+}
+
+function asSpatialReferenceLike(value: unknown): MapViewSpatialReferenceLike | undefined {
+  return isRecord(value) ? value : undefined;
 }
 
 function normalizeFiniteNumber(value: unknown): number | undefined {

@@ -91,8 +91,8 @@ export class SceneViewCompat extends MapViewCompat {
   public watch(propertyName: "viewingMode", listener: (value: "global" | "local") => void): SceneViewHandleCompat;
   public watch(propertyName: "camera", listener: (value: unknown) => void): SceneViewHandleCompat;
   public watch(propertyName: string, listener: (value: unknown) => void): SceneViewHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): SceneViewHandleCompat {
-    return super.watch(propertyName, listener);
+  public watch(propertyName: string, listener: (value: never) => void): SceneViewHandleCompat {
+    return super.watch(propertyName, listener as (value: unknown) => void);
   }
 
   public setViewingMode(viewingMode: "global" | "local"): void {

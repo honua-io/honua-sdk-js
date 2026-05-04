@@ -1,10 +1,32 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "plugins": [
+    {
+      "type": "node-workspace",
+      "updatePeerDependencies": true
+    }
+  ],
   "packages": {
     ".": {
       "release-type": "node",
       "component": "js-sdk",
-      "tag-separator": "-v",
+      "tag-separator": "-",
+      "include-component-in-tag": true,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Bug Fixes" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "deps", "section": "Dependencies" },
+        { "type": "docs", "section": "Documentation" },
+        { "type": "chore", "section": "Miscellaneous", "hidden": true }
+      ]
+    },
+    "mcp": {
+      "release-type": "node",
+      "component": "mcp-server",
+      "tag-separator": "-",
       "include-component-in-tag": true,
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,

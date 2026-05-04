@@ -147,7 +147,6 @@ describe("HonuaClient gRPC streaming", () => {
       }
     }
 
-    // biome-ignore lint/suspicious/noExplicitAny: mock FeaturePage shape for testing
     const batches: unknown[] = [];
     for await (const batch of streamProtoPages(fakeStream() as any)) {
       batches.push(batch);
@@ -174,7 +173,6 @@ describe("HonuaClient gRPC streaming", () => {
       yield { features: [], isLastPage: true };
     }
 
-    // biome-ignore lint/suspicious/noExplicitAny: mock FeaturePage shape for testing
     const batches: unknown[] = [];
     for await (const batch of streamProtoPages(fakeStream() as any)) {
       batches.push(batch);

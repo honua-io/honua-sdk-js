@@ -8,28 +8,15 @@
           "dataId": "incidents",
           "name": "status",
           "type": "multiSelect",
-          "value": [
-            "active",
-            "contained",
-            "monitoring"
-          ],
+          "value": ["active", "contained", "monitoring"],
           "enlarged": false
         },
         {
           "id": "replay-window-filter",
-          "dataId": [
-            "incidents",
-            "unit-tracks"
-          ],
-          "name": [
-            "replay_at",
-            "replay_at"
-          ],
+          "dataId": ["incidents", "unit-tracks"],
+          "name": ["replay_at", "replay_at"],
           "type": "timeRange",
-          "value": [
-            1777651200000,
-            1777656360000
-          ],
+          "value": [1777651200000, 1777656360000],
           "enlarged": true,
           "plotType": "histogram",
           "yAxis": null
@@ -42,17 +29,8 @@
           "config": {
             "dataId": "coverage-zones",
             "label": "Coverage gap zones",
-            "color": [
-              27,
-              107,
-              98
-            ],
-            "highlightColor": [
-              252,
-              242,
-              26,
-              255
-            ],
+            "color": [27, 107, 98],
+            "highlightColor": [252, 242, 26, 255],
             "columns": {
               "geojson": "_geojson"
             },
@@ -61,41 +39,20 @@
               "opacity": 0.48,
               "strokeOpacity": 0.72,
               "thickness": 2,
-              "strokeColor": [
-                17,
-                36,
-                61
-              ],
+              "strokeColor": [17, 36, 61],
               "colorRange": {
                 "name": "Sunrise",
                 "type": "sequential",
                 "category": "Uber",
-                "colors": [
-                  "#fdf5d0",
-                  "#f7d38d",
-                  "#f2a65a",
-                  "#ea6b56",
-                  "#c9404a",
-                  "#8c1d40"
-                ]
+                "colors": ["#fdf5d0", "#f7d38d", "#f2a65a", "#ea6b56", "#c9404a", "#8c1d40"]
               },
               "strokeColorRange": {
                 "name": "Global Warming",
                 "type": "sequential",
                 "category": "Uber",
-                "colors": [
-                  "#5A1846",
-                  "#900C3F",
-                  "#C70039",
-                  "#E3611C",
-                  "#F1920E",
-                  "#FFC300"
-                ]
+                "colors": ["#5A1846", "#900C3F", "#C70039", "#E3611C", "#F1920E", "#FFC300"]
               },
-              "radiusRange": [
-                0,
-                50
-              ],
+              "radiusRange": [0, 50],
               "filled": true,
               "stroked": true,
               "enable3d": false,
@@ -122,17 +79,8 @@
           "config": {
             "dataId": "incidents",
             "label": "Incident escalations",
-            "color": [
-              239,
-              141,
-              76
-            ],
-            "highlightColor": [
-              252,
-              242,
-              26,
-              255
-            ],
+            "color": [239, 141, 76],
+            "highlightColor": [252, 242, 26, 255],
             "columns": {
               "geojson": "_geojson"
             },
@@ -143,41 +91,20 @@
               "opacity": 0.96,
               "outline": true,
               "thickness": 2,
-              "strokeColor": [
-                17,
-                36,
-                61
-              ],
+              "strokeColor": [17, 36, 61],
               "colorRange": {
                 "name": "Global Warming",
                 "type": "sequential",
                 "category": "Uber",
-                "colors": [
-                  "#5A1846",
-                  "#900C3F",
-                  "#C70039",
-                  "#E3611C",
-                  "#F1920E",
-                  "#FFC300"
-                ]
+                "colors": ["#5A1846", "#900C3F", "#C70039", "#E3611C", "#F1920E", "#FFC300"]
               },
               "strokeColorRange": {
                 "name": "Mint",
                 "type": "sequential",
                 "category": "Uber",
-                "colors": [
-                  "#0A3A35",
-                  "#0F5D56",
-                  "#1B6B62",
-                  "#2B9487",
-                  "#7AC6BD",
-                  "#B9ECE6"
-                ]
+                "colors": ["#0A3A35", "#0F5D56", "#1B6B62", "#2B9487", "#7AC6BD", "#B9ECE6"]
               },
-              "radiusRange": [
-                8,
-                38
-              ],
+              "radiusRange": [8, 38],
               "filled": true
             },
             "hidden": false,
@@ -204,17 +131,8 @@
           "config": {
             "dataId": "unit-tracks",
             "label": "Unit pings",
-            "color": [
-              27,
-              107,
-              98
-            ],
-            "highlightColor": [
-              252,
-              242,
-              26,
-              255
-            ],
+            "color": [27, 107, 98],
+            "highlightColor": [252, 242, 26, 255],
             "columns": {
               "geojson": "_geojson"
             },
@@ -225,41 +143,20 @@
               "opacity": 0.82,
               "outline": false,
               "thickness": 1,
-              "strokeColor": [
-                17,
-                36,
-                61
-              ],
+              "strokeColor": [17, 36, 61],
               "colorRange": {
                 "name": "Custom Palette",
                 "type": "qualitative",
                 "category": "Custom",
-                "colors": [
-                  "#1B6B62",
-                  "#2D7DD2",
-                  "#E88B4A",
-                  "#D9485F",
-                  "#7A3B69",
-                  "#5E936C"
-                ]
+                "colors": ["#1B6B62", "#2D7DD2", "#E88B4A", "#D9485F", "#7A3B69", "#5E936C"]
               },
               "strokeColorRange": {
                 "name": "Pink Wine",
                 "type": "sequential",
                 "category": "Uber",
-                "colors": [
-                  "#1C0C3A",
-                  "#4E1D4C",
-                  "#7E2553",
-                  "#A73A5C",
-                  "#C95C66",
-                  "#F9B8A8"
-                ]
+                "colors": ["#1C0C3A", "#4E1D4C", "#7E2553", "#A73A5C", "#C95C66", "#F9B8A8"]
               },
-              "radiusRange": [
-                4,
-                18
-              ],
+              "radiusRange": [4, 18],
               "filled": true
             },
             "hidden": false,
@@ -381,11 +278,7 @@
         "land": true,
         "3d building": false
       },
-      "threeDBuildingColor": [
-        17,
-        36,
-        61
-      ]
+      "threeDBuildingColor": [17, 36, 61]
     }
   }
 }

@@ -72,17 +72,17 @@ export class GraphicCompat {
   public watch(propertyName: "symbol", listener: (value: CompatSymbolLike | null) => void): GraphicHandleCompat;
   public watch(propertyName: "attributes", listener: (value: Record<string, unknown>) => void): GraphicHandleCompat;
   public watch(propertyName: string, listener: (value: unknown) => void): GraphicHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): GraphicHandleCompat {
+  public watch(propertyName: string, listener: (value: never) => void): GraphicHandleCompat {
     let listeners = this.watchListeners.get(propertyName);
     if (!listeners) {
       listeners = new Set();
       this.watchListeners.set(propertyName, listeners);
     }
-    listeners.add(listener);
+    listeners.add(listener as (value: unknown) => void);
 
     return {
       remove: () => {
-        listeners?.delete(listener);
+        listeners?.delete(listener as (value: unknown) => void);
       },
     };
   }

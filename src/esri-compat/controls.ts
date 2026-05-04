@@ -48,7 +48,7 @@ export class BaseControlCompat {
   public loadStatus: ControlLoadStatusCompat;
 
   protected readonly subscriptions: CompatEventSubscription[];
-  private readonly watchListeners: Map<string, Set<(value: any) => void>>;
+  private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
 
   protected constructor(options: BaseControlCompatOptions, ...extraEventBusCandidates: unknown[]) {
     this.view = options.view;
@@ -104,17 +104,17 @@ export class BaseControlCompat {
   public watch(propertyName: "loaded", listener: (value: boolean) => void): ControlHandleCompat;
   public watch(propertyName: "loadStatus", listener: (value: ControlLoadStatusCompat) => void): ControlHandleCompat;
   public watch(propertyName: string, listener: (value: unknown) => void): ControlHandleCompat;
-  public watch(propertyName: string, listener: (value: any) => void): ControlHandleCompat {
+  public watch(propertyName: string, listener: (value: never) => void): ControlHandleCompat {
     let listeners = this.watchListeners.get(propertyName);
     if (!listeners) {
       listeners = new Set();
       this.watchListeners.set(propertyName, listeners);
     }
-    listeners.add(listener);
+    listeners.add(listener as (value: unknown) => void);
 
     return {
       remove: () => {
-        listeners?.delete(listener);
+        listeners?.delete(listener as (value: unknown) => void);
       },
     };
   }
