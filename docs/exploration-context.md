@@ -24,7 +24,7 @@ src/exploration/
 ├── types.ts        # state, intents, slices, linked-view types, ExplorationContext interface
 ├── reducer.ts      # pure reduce(state, intent) → { state, changedSlices }
 ├── presets.ts      # LINKED_VIEW_PRESETS table + propagationFor()
-└── context.ts      # createExplorationContext factory (microtask coalescing, listener bus)
+└── context.ts      # createExplorationContext factory (microtask coalescing, listener bus, view controllers)
 ```
 
 ## State model
@@ -121,6 +121,47 @@ handle.unbind();
 binding to consult the linked-view preset; intents without a `viewId` are
 treated as external (everything propagates).
 
+`bind()` is intentionally minimal: it registers the view role for policy
+lookups and `unbind()` releases that registration. Raw `ctx.subscribe(...)`
+listeners remain registered until their unsubscribe function is called.
+
+## View controllers
+
+Most applications should use `connectView()` instead of pairing `bind()` and
+`subscribe()` manually. A view controller stamps its `viewId` onto every
+intent, suppresses self-origin callbacks by default to avoid UI feedback
+loops, and owns its subscriptions so `unbind()` tears down the component
+cleanly.
+
+```ts
+const map = ctx.connectView({ id: "map", role: "map" });
+const grid = ctx.connectView({ id: "grid", role: "grid" });
+
+grid.subscribe(["extent", "selection", "filters"], async ({ state }) => {
+  const result = await dataset.source("incidents")!.query({
+    spatialFilter: state.spatialFilter,
+    where: assembleWhere(state.filters),
+  });
+  renderGrid(result, state.selection);
+});
+
+map.setExtent(nextExtent);
+map.select([incidentId], { replace: true });
+```
+
+Self-origin callbacks can be enabled for components that need a local echo:
+
+```ts
+grid.subscribe("sort", ({ state }) => renderSort(state.sort), { includeSelf: true });
+grid.setSort([{ field: "severity", direction: "desc" }]);
+```
+
+This API is the intended synchronization layer for map, table, graph,
+filter, and detail components. Component adapters publish semantic intents
+(`setExtent`, `setFilter`, `select`, `setAggregation`) and subscribe to the
+slices they can render. They do not need to imperatively keep peer widgets in
+sync or remember which `viewId` to pass with each intent.
+
 ## Snapshots
 
 ```ts
@@ -157,10 +198,10 @@ const ctx = createExplorationContext({
   preset: "mapDriven",
 });
 
-const mapView = ctx.bind({ id: "map", role: "map" });
-const gridView = ctx.bind({ id: "grid", role: "grid" });
+const mapView = ctx.connectView({ id: "map", role: "map" });
+const gridView = ctx.connectView({ id: "grid", role: "grid" });
 
-ctx.subscribe("extent", async ({ state }) => {
+gridView.subscribe("extent", async ({ state }) => {
   // Only the map propagates extent in mapDriven; this fires for map-origin extent intents.
   const result = await dataset.source("parcels-fs")!.query({
     spatialFilter: state.spatialFilter,
@@ -169,7 +210,7 @@ ctx.subscribe("extent", async ({ state }) => {
   renderGrid(result);
 });
 
-ctx.dispatch({ kind: "set-extent", extent: nextExtent, viewId: "map" });
+mapView.setExtent(nextExtent);
 ```
 
 ## Errors

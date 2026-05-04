@@ -285,7 +285,7 @@ export interface ViewBinding {
 /** Handle returned from `ExplorationContext.bind`. */
 export interface ViewHandle {
   readonly id: string;
-  /** Releases the binding. After unbinding, callbacks no longer fire. */
+  /** Releases the binding. Raw context subscriptions must still be unsubscribed separately. */
   unbind(): void;
 }
 
@@ -300,6 +300,67 @@ export interface ChangeEvent {
 
 export type Listener = (event: ChangeEvent) => void;
 export type Unsubscribe = () => void;
+
+// ── View controllers ──────────────────────────────────────────
+
+type WithoutViewId<T> = T extends ExplorationIntent ? Omit<T, "viewId"> & { readonly viewId?: never } : never;
+
+/**
+ * Intent shape accepted by a bound view controller. The controller injects
+ * its own `viewId`, so component code cannot accidentally publish as a peer.
+ */
+export type ExplorationViewIntent = WithoutViewId<ExplorationIntent>;
+
+export interface ExplorationViewChangeEvent extends ChangeEvent {
+  readonly view: ViewBinding;
+  /** True when the notification originated from the same bound view. */
+  readonly selfOrigin: boolean;
+}
+
+export type ExplorationViewListener = (event: ExplorationViewChangeEvent) => void;
+
+export interface ExplorationViewSubscribeOptions {
+  /**
+   * Bound views ignore their own notifications by default to avoid feedback
+   * loops between imperative UI callbacks and synced context updates.
+   */
+  readonly includeSelf?: boolean;
+}
+
+export type ExplorationViewSubscription = ExplorationSlice | ReadonlyArray<ExplorationSlice>;
+
+/**
+ * Ergonomic facade for one map, table, chart, filter panel, or custom view.
+ * It binds the view, injects `viewId` on every intent, and owns subscriptions
+ * so component teardown does not leak listeners.
+ */
+export interface ExplorationViewController extends ViewHandle {
+  readonly role: ViewRole;
+  readonly state: ExplorationState;
+  readonly policy: LinkedViewPolicy;
+
+  dispatch(intent: ExplorationViewIntent): void;
+  subscribe(
+    slice: ExplorationViewSubscription,
+    fn: ExplorationViewListener,
+    options?: ExplorationViewSubscribeOptions,
+  ): Unsubscribe;
+
+  setFilter(id: string, clause: FilterClause): void;
+  clearFilter(id: string): void;
+  setSpatialFilter(spatialFilter: SpatialFilter | undefined): void;
+  setExtent(extent: HonuaExtent | undefined): void;
+  select(ids: ReadonlyArray<FeatureId>, options?: { readonly replace?: boolean }): void;
+  deselect(ids?: ReadonlyArray<FeatureId>): void;
+  setSort(sort: ReadonlyArray<SortSpec>): void;
+  setPage(page: PaginationSpec): void;
+  setVisibleFields(fields: ReadonlyArray<string>): void;
+  setGrouping(grouping: ReadonlyArray<string>): void;
+  setAggregation(aggregation: AggregationSpec | undefined): void;
+  applyPreset(preset: LinkedViewPresetName): void;
+  snapshot(): ExplorationStateSnapshot;
+  restore(snapshot: ExplorationStateSnapshot): void;
+}
 
 // ── ExplorationContext ────────────────────────────────────────
 
@@ -317,6 +378,7 @@ export interface ExplorationContext {
   readonly policy: LinkedViewPolicy;
 
   bind(view: ViewBinding): ViewHandle;
+  connectView(view: ViewBinding): ExplorationViewController;
   dispatch(intent: ExplorationIntent): void;
   subscribe(slice: ExplorationSlice, fn: Listener): Unsubscribe;
   snapshot(): ExplorationStateSnapshot;

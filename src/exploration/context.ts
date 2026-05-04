@@ -26,6 +26,12 @@ import {
   type ExplorationSlice,
   type ExplorationState,
   type ExplorationStateSnapshot,
+  type ExplorationViewChangeEvent,
+  type ExplorationViewController,
+  type ExplorationViewIntent,
+  type ExplorationViewListener,
+  type ExplorationViewSubscribeOptions,
+  type ExplorationViewSubscription,
   type LinkedViewPolicy,
   type Listener,
   type Unsubscribe,
@@ -128,22 +134,169 @@ export function createExplorationContext(options: CreateExplorationContextOption
 
     bind(view: ViewBinding): ViewHandle {
       ensureLive("bind");
-      if (bindings.has(view.id)) {
+      const binding: ViewBinding = { id: view.id, role: view.role };
+      if (bindings.has(binding.id)) {
         throw new HonuaExplorationContextError(
           "duplicate-binding",
-          `ExplorationContext("${datasetId}"): a view is already bound with id "${view.id}"`,
+          `ExplorationContext("${datasetId}"): a view is already bound with id "${binding.id}"`,
         );
       }
-      bindings.set(view.id, view);
+      bindings.set(binding.id, binding);
       let unbound = false;
       return {
-        id: view.id,
+        id: binding.id,
         unbind(): void {
           if (unbound) return;
           unbound = true;
-          bindings.delete(view.id);
+          bindings.delete(binding.id);
         },
       };
+    },
+
+    connectView(view: ViewBinding): ExplorationViewController {
+      ensureLive("connectView");
+      const context = this;
+      const handle = context.bind(view);
+      const binding = bindings.get(handle.id) ?? { id: handle.id, role: view.role };
+      const subscriptions = new Set<Unsubscribe>();
+      let unbound = false;
+
+      function ensureBound(op: string): void {
+        ensureLive(op);
+        if (unbound) {
+          throw new HonuaExplorationContextError(
+            "unbound-view",
+            `ExplorationContext("${datasetId}"): view "${binding.id}" cannot ${op} after unbind()`,
+          );
+        }
+      }
+
+      function dispatchFromView(intent: ExplorationViewIntent): void {
+        ensureBound("dispatch");
+        context.dispatch(withViewId(intent, binding.id));
+      }
+
+      function subscribeFromView(
+        slice: ExplorationViewSubscription,
+        fn: ExplorationViewListener,
+        options: ExplorationViewSubscribeOptions = {},
+      ): Unsubscribe {
+        ensureBound("subscribe");
+        const slices = normalizeSubscription(slice);
+        if (slices.length === 0) return () => {};
+
+        let active = true;
+        let pendingFlush = false;
+        let pendingEvent: ChangeEvent | undefined;
+        const pendingChangedSlices = new Set<ExplorationSlice>();
+
+        function flushViewEvent(): void {
+          pendingFlush = false;
+          if (!active || !pendingEvent || pendingChangedSlices.size === 0) return;
+          const base = pendingEvent;
+          const changedSlices = new Set(pendingChangedSlices);
+          pendingEvent = undefined;
+          pendingChangedSlices.clear();
+
+          const event: ExplorationViewChangeEvent = {
+            state: base.state,
+            previous: base.previous,
+            changedSlices,
+            origin: base.origin,
+            view: binding,
+            selfOrigin: base.origin?.viewId === binding.id,
+          };
+          fn(event);
+        }
+
+        function receive(event: ChangeEvent): void {
+          if (!active) return;
+          const selfOrigin = event.origin?.viewId === binding.id;
+          if (selfOrigin && !options.includeSelf) return;
+
+          pendingEvent = event;
+          for (const changed of event.changedSlices) pendingChangedSlices.add(changed);
+          if (pendingFlush) return;
+          pendingFlush = true;
+          queueMicrotask(flushViewEvent);
+        }
+
+        const unsubs = slices.map((entry) => context.subscribe(entry, receive));
+        const unsubscribe = (): void => {
+          if (!active) return;
+          active = false;
+          for (const unsub of unsubs) unsub();
+          subscriptions.delete(unsubscribe);
+        };
+        subscriptions.add(unsubscribe);
+        return unsubscribe;
+      }
+
+      const controller: ExplorationViewController = {
+        id: binding.id,
+        role: binding.role,
+        get state(): ExplorationState {
+          return context.state;
+        },
+        get policy(): LinkedViewPolicy {
+          return context.policy;
+        },
+        dispatch: dispatchFromView,
+        subscribe: subscribeFromView,
+        setFilter(id, clause): void {
+          dispatchFromView({ kind: "set-filter", id, clause });
+        },
+        clearFilter(id): void {
+          dispatchFromView({ kind: "clear-filter", id });
+        },
+        setSpatialFilter(spatialFilter): void {
+          dispatchFromView({ kind: "set-spatial-filter", spatialFilter });
+        },
+        setExtent(extent): void {
+          dispatchFromView({ kind: "set-extent", extent });
+        },
+        select(ids, options): void {
+          dispatchFromView({ kind: "select", ids, replace: options?.replace });
+        },
+        deselect(ids): void {
+          dispatchFromView({ kind: "deselect", ids });
+        },
+        setSort(sort): void {
+          dispatchFromView({ kind: "set-sort", sort });
+        },
+        setPage(page): void {
+          dispatchFromView({ kind: "set-page", page });
+        },
+        setVisibleFields(fields): void {
+          dispatchFromView({ kind: "set-visible-fields", fields });
+        },
+        setGrouping(grouping): void {
+          dispatchFromView({ kind: "set-grouping", grouping });
+        },
+        setAggregation(aggregation): void {
+          dispatchFromView({ kind: "set-aggregation", aggregation });
+        },
+        applyPreset(preset): void {
+          dispatchFromView({ kind: "apply-preset", preset });
+        },
+        snapshot(): ExplorationStateSnapshot {
+          ensureBound("snapshot");
+          return context.snapshot();
+        },
+        restore(snapshot): void {
+          ensureBound("restore");
+          context.restore(snapshot);
+        },
+        unbind(): void {
+          if (unbound) return;
+          unbound = true;
+          for (const unsub of [...subscriptions]) unsub();
+          subscriptions.clear();
+          handle.unbind();
+        },
+      };
+
+      return controller;
     },
 
     dispatch(intent: ExplorationIntent): void {
@@ -281,4 +434,13 @@ function filterByPolicy(
     if (allowed.has(slice)) out.add(slice);
   }
   return out;
+}
+
+function withViewId(intent: ExplorationViewIntent, viewId: string): ExplorationIntent {
+  return { ...intent, viewId } as ExplorationIntent;
+}
+
+function normalizeSubscription(slice: ExplorationViewSubscription): ReadonlyArray<ExplorationSlice> {
+  const values = Array.isArray(slice) ? slice : [slice];
+  return [...new Set(values)];
 }

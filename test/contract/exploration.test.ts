@@ -15,6 +15,7 @@ import {
   EMPTY_STATE,
   type ExplorationIntent,
   type ExplorationState,
+  type ExplorationViewChangeEvent,
   LINKED_VIEW_PRESETS,
   SLICES,
   createExplorationContext,
@@ -342,6 +343,95 @@ describe("exploration / createExplorationContext", () => {
     expect(ctx.state.sort).toHaveLength(1);
     expect(ctx.state.extent).toBeDefined();
 
+    ctx.dispose();
+  });
+
+  it("connectView injects the origin viewId and suppresses self-origin callbacks by default", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
+    const map = ctx.connectView({ id: "map", role: "map" });
+    const grid = ctx.connectView({ id: "grid", role: "grid" });
+    const mapEvents: ExplorationViewChangeEvent[] = [];
+    const gridEvents: ExplorationViewChangeEvent[] = [];
+    map.subscribe("extent", (event) => mapEvents.push(event));
+    grid.subscribe("extent", (event) => gridEvents.push(event));
+
+    map.setExtent({ xmin: 0, ymin: 0, xmax: 1, ymax: 1 });
+    await flush();
+
+    expect(mapEvents.length).toBe(0);
+    expect(gridEvents.length).toBe(1);
+    expect(gridEvents[0].origin?.viewId).toBe("map");
+    expect(gridEvents[0].selfOrigin).toBe(false);
+    expect(gridEvents[0].view.id).toBe("grid");
+    expect(ctx.state.extent).toEqual({ xmin: 0, ymin: 0, xmax: 1, ymax: 1 });
+    ctx.dispose();
+  });
+
+  it("connectView can include self-origin callbacks when a component needs local echo", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
+    const grid = ctx.connectView({ id: "grid", role: "grid" });
+    const events: ExplorationViewChangeEvent[] = [];
+    grid.subscribe("sort", (event) => events.push(event), { includeSelf: true });
+
+    grid.setSort([{ field: "A", direction: "asc" }]);
+    await flush();
+
+    expect(events.length).toBe(1);
+    expect(events[0].selfOrigin).toBe(true);
+    expect(events[0].origin?.viewId).toBe("grid");
+    ctx.dispose();
+  });
+
+  it("connectView keeps policy filtering for peer subscriptions", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"], preset: "mapDriven" });
+    const map = ctx.connectView({ id: "map", role: "map" });
+    const grid = ctx.connectView({ id: "grid", role: "grid" });
+    const sortEvents: ExplorationViewChangeEvent[] = [];
+    const extentEvents: ExplorationViewChangeEvent[] = [];
+    map.subscribe("sort", (event) => sortEvents.push(event));
+    grid.subscribe("extent", (event) => extentEvents.push(event));
+
+    grid.setSort([{ field: "A" }]);
+    map.setExtent({ xmin: 0, ymin: 0, xmax: 1, ymax: 1 });
+    await flush();
+
+    expect(sortEvents.length).toBe(0);
+    expect(extentEvents.length).toBe(1);
+    expect(ctx.state.sort).toEqual([{ field: "A" }]);
+    expect(ctx.state.extent).toEqual({ xmin: 0, ymin: 0, xmax: 1, ymax: 1 });
+    ctx.dispose();
+  });
+
+  it("connectView can subscribe to multiple slices with one coalesced callback", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
+    const map = ctx.connectView({ id: "map", role: "map" });
+    const grid = ctx.connectView({ id: "grid", role: "grid" });
+    const events: ExplorationViewChangeEvent[] = [];
+    grid.subscribe(["extent", "selection"], (event) => events.push(event));
+
+    map.setExtent({ xmin: 0, ymin: 0, xmax: 1, ymax: 1 });
+    map.select([1, 2], { replace: true });
+    await flush();
+
+    expect(events.length).toBe(1);
+    expect(events[0].changedSlices).toEqual(new Set(["extent", "selection"]));
+    expect(events[0].origin?.viewId).toBe("map");
+    ctx.dispose();
+  });
+
+  it("connectView unbind disposes owned subscriptions and rejects later view dispatch", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["s"] });
+    const map = ctx.connectView({ id: "map", role: "map" });
+    const grid = ctx.connectView({ id: "grid", role: "grid" });
+    const events: ExplorationViewChangeEvent[] = [];
+    grid.subscribe("extent", (event) => events.push(event));
+
+    grid.unbind();
+    map.setExtent({ xmin: 0, ymin: 0, xmax: 1, ymax: 1 });
+    await flush();
+
+    expect(events.length).toBe(0);
+    expect(() => grid.setSort([{ field: "A" }])).toThrow(HonuaExplorationContextError);
     ctx.dispose();
   });
 
