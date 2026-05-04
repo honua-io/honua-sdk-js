@@ -1,5 +1,7 @@
 # Honua JS SDK
 
+Current SDK capabilities are summarized in [docs/features/README.md](docs/features/README.md).
+
 ## Mental Model: `Dataset` → `Source` → `Query` → `Result`
 
 Every Honua SDK — JavaScript, Python, .NET — speaks the same canonical
