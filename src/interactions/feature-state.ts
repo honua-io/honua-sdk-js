@@ -8,6 +8,9 @@
  * @module
  */
 
+import { sourceFeatureSelectionTarget } from "../exploration/selection.js";
+import type { SourceQualifiedFeatureSelectionTarget } from "../exploration/types.js";
+
 // ── Duck-typed map interfaces ─────────────────────────────────
 
 /** Minimal subset of a MapLibre `Map` needed for feature-state operations. */
@@ -184,6 +187,8 @@ export interface SelectionHandlerOptions {
   sourceLayer?: string;
   /** Called whenever the selection changes. */
   onChange?: (selectedIds: ReadonlySet<string | number>) => void;
+  /** Called whenever the source-qualified selection changes. */
+  onSelectionTargetsChange?: (selectedTargets: ReadonlyArray<SourceQualifiedFeatureSelectionTarget>) => void;
 }
 
 /** Handle returned by {@link createSelectionHandler} for cleanup. */
@@ -192,6 +197,8 @@ export interface SelectionHandle {
   remove(): void;
   /** The set of currently selected feature IDs. */
   readonly selectedIds: ReadonlySet<string | number>;
+  /** The current source-qualified selection targets. */
+  readonly selectedTargets: ReadonlyArray<SourceQualifiedFeatureSelectionTarget>;
   /** Programmatically clear the selection. */
   clearSelection(): void;
   /** Programmatically select a feature by ID. */
@@ -217,7 +224,15 @@ export interface SelectionHandle {
  * ```
  */
 export function createSelectionHandler(map: InteractiveMap, options: SelectionHandlerOptions): SelectionHandle {
-  const { source, layer, stateKey = "selected", multiSelect = false, sourceLayer, onChange } = options;
+  const {
+    source,
+    layer,
+    stateKey = "selected",
+    multiSelect = false,
+    sourceLayer,
+    onChange,
+    onSelectionTargetsChange,
+  } = options;
 
   const selected = new Set<string | number>();
 
@@ -230,6 +245,11 @@ export function createSelectionHandler(map: InteractiveMap, options: SelectionHa
 
   function notifyChange(): void {
     onChange?.(selected);
+    onSelectionTargetsChange?.(selectionTargets());
+  }
+
+  function selectionTargets(): SourceQualifiedFeatureSelectionTarget[] {
+    return [...selected].map((id) => sourceFeatureSelectionTarget(source, id, { sourceLayer }));
   }
 
   function onClick(...args: unknown[]): void {
@@ -261,6 +281,9 @@ export function createSelectionHandler(map: InteractiveMap, options: SelectionHa
     },
     get selectedIds() {
       return selected;
+    },
+    get selectedTargets() {
+      return selectionTargets();
     },
     clearSelection() {
       clearAll();

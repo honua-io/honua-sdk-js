@@ -106,7 +106,10 @@ import {
   LINKED_VIEW_PRESETS,
   SLICES,
   createExplorationContext,
+  featureSelectionKey,
+  isSourceQualifiedSelectionTarget,
   reduce,
+  sourceFeatureSelectionTarget,
 } from "../src/exploration/index.js";
 import {
   HonuaClient,
@@ -123,8 +126,12 @@ import {
   HonuaWfsExceptionError,
   createHonuaOgcFeatures,
   createHonuaService,
+  sourceFeatureSelectionTarget as honuaSourceFeatureSelectionTarget,
 } from "../src/honua.js";
-import { HonuaWfsExceptionError as HonuaWfsExceptionErrorRoot } from "../src/index.js";
+import {
+  HonuaWfsExceptionError as HonuaWfsExceptionErrorRoot,
+  sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
+} from "../src/index.js";
 import {
   buildJsMigrationReport,
   evaluateMigrationGates,
@@ -276,6 +283,11 @@ describe("entrypoint modules", () => {
     expect(SLICES[0]).toBe("all");
     expect(reduce).toBeTypeOf("function");
     expect(createExplorationContext).toBeTypeOf("function");
+    const target = sourceFeatureSelectionTarget("parcels", 101);
+    expect(isSourceQualifiedSelectionTarget(target)).toBe(true);
+    expect(featureSelectionKey(target)).toContain("parcels");
+    expect(rootSourceFeatureSelectionTarget("parcels", 101)).toEqual(target);
+    expect(honuaSourceFeatureSelectionTarget("parcels", 101)).toEqual(target);
     expect(Object.keys(LINKED_VIEW_PRESETS)).toEqual([
       "globalLinked",
       "mapDriven",

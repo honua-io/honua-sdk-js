@@ -34,7 +34,7 @@ interface ExplorationState {
   readonly filters: Readonly<Record<string, FilterClause>>;
   readonly spatialFilter?: SpatialFilter;
   readonly extent?: HonuaExtent;
-  readonly selection: ReadonlyArray<FeatureId>;
+  readonly selection: ReadonlyArray<FeatureSelectionTarget>;
   readonly sort: ReadonlyArray<SortSpec>;
   readonly page: PaginationSpec;
   readonly visibleFields: ReadonlyArray<string>;
@@ -60,7 +60,7 @@ the linked-view preset table.
 | `set-filter` / `clear-filter` | `filters` | Add or remove a global filter clause keyed by id. |
 | `set-spatial-filter` | `spatialFilter` | Replace the geometry+relationship that constrains all sources. |
 | `set-extent` | `extent` | Update the viewport extent (typically driven by the map view). |
-| `select` / `deselect` | `selection` | Mutate the cross-view selection set. `select` is additive by default; `deselect` without ids clears the entire selection. |
+| `select` / `deselect` | `selection` | Mutate the cross-view selection set. `select` is additive by default; `deselect` without ids clears the entire selection. Single-source apps may select raw feature ids; multi-source apps should select source-qualified targets. |
 | `set-sort` | `sort` | Apply a sort order shared across grid + chart views. |
 | `set-page` | `page` | Update offset / limit. |
 | `set-visible-fields` | `visibleFields` | Drives field visibility in tables and forms. Empty = "all". |
@@ -161,6 +161,35 @@ filter, and detail components. Component adapters publish semantic intents
 (`setExtent`, `setFilter`, `select`, `setAggregation`) and subscribe to the
 slices they can render. They do not need to imperatively keep peer widgets in
 sync or remember which `viewId` to pass with each intent.
+
+## Selection targets
+
+Single-source apps can keep using raw feature ids:
+
+```ts
+map.select([incidentId], { replace: true });
+```
+
+Multi-source apps should use source-qualified targets so overlapping object
+ids do not collide across map, table, detail, realtime, and MCP handoff:
+
+```ts
+import { sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
+
+map.select(
+  [
+    sourceFeatureSelectionTarget("incidents", 101),
+    sourceFeatureSelectionTarget("assets", 101),
+    sourceFeatureSelectionTarget("vector-tiles", 101, { sourceLayer: "hydrants" }),
+  ],
+  { replace: true },
+);
+```
+
+The reducer de-duplicates and deselects source-qualified targets by
+`sourceId`, optional `sourceLayer`, raw id type, and id value. That keeps
+`incidents:101`, `assets:101`, `"101"`, and vector-tile sublayers distinct
+while preserving the old raw-id path for simpler apps.
 
 ## Snapshots
 

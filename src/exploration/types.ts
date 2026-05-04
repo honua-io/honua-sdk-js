@@ -64,8 +64,11 @@ export interface ExplorationState {
   readonly spatialFilter?: SpatialFilter;
   /** Current viewport extent. */
   readonly extent?: HonuaExtent;
-  /** Currently selected feature ids. */
-  readonly selection: ReadonlyArray<FeatureId>;
+  /**
+   * Currently selected features. Raw ids are supported for single-source apps;
+   * multi-source apps should use source-qualified targets.
+   */
+  readonly selection: ReadonlyArray<FeatureSelectionTarget>;
   /** Sort order shared across linked views. */
   readonly sort: ReadonlyArray<SortSpec>;
   /** Pagination offset / limit. */
@@ -178,7 +181,7 @@ export interface SetExtentIntent extends IntentBase {
 
 export interface SelectIntent extends IntentBase {
   readonly kind: "select";
-  readonly ids: ReadonlyArray<FeatureId>;
+  readonly ids: ReadonlyArray<FeatureSelectionTarget>;
   /** When `true`, replaces the selection. Default = additive. */
   readonly replace?: boolean;
 }
@@ -186,7 +189,7 @@ export interface SelectIntent extends IntentBase {
 export interface DeselectIntent extends IntentBase {
   readonly kind: "deselect";
   /** Omit `ids` to clear the entire selection. */
-  readonly ids?: ReadonlyArray<FeatureId>;
+  readonly ids?: ReadonlyArray<FeatureSelectionTarget>;
 }
 
 export interface SetSortIntent extends IntentBase {
@@ -350,8 +353,8 @@ export interface ExplorationViewController extends ViewHandle {
   clearFilter(id: string): void;
   setSpatialFilter(spatialFilter: SpatialFilter | undefined): void;
   setExtent(extent: HonuaExtent | undefined): void;
-  select(ids: ReadonlyArray<FeatureId>, options?: { readonly replace?: boolean }): void;
-  deselect(ids?: ReadonlyArray<FeatureId>): void;
+  select(ids: ReadonlyArray<FeatureSelectionTarget>, options?: { readonly replace?: boolean }): void;
+  deselect(ids?: ReadonlyArray<FeatureSelectionTarget>): void;
   setSort(sort: ReadonlyArray<SortSpec>): void;
   setPage(page: PaginationSpec): void;
   setVisibleFields(fields: ReadonlyArray<string>): void;
@@ -393,3 +396,14 @@ export interface CreateExplorationContextOptions {
   initialState?: Partial<ExplorationState>;
   preset?: LinkedViewPresetName;
 }
+
+// ── Selection targets ─────────────────────────────────────────
+
+export interface SourceQualifiedFeatureSelectionTarget {
+  readonly sourceId: SourceId;
+  readonly id: FeatureId;
+  /** Source layer for vector-tile sources or other layered source identities. */
+  readonly sourceLayer?: string;
+}
+
+export type FeatureSelectionTarget = FeatureId | SourceQualifiedFeatureSelectionTarget;

@@ -1229,8 +1229,11 @@ export {
   LINKED_VIEW_PRESETS,
   SLICES,
   createExplorationContext,
+  featureSelectionKey,
+  isSourceQualifiedSelectionTarget,
   propagationFor,
   reduce,
+  sourceFeatureSelectionTarget,
 } from "./exploration/index.js";
 export type {
   ApplyPresetIntent,
@@ -1249,6 +1252,7 @@ export type {
   ExplorationViewListener,
   ExplorationViewSubscribeOptions,
   ExplorationViewSubscription,
+  FeatureSelectionTarget,
   FilterClause,
   FilterOperator,
   LinkedViewPolicy,
@@ -1266,6 +1270,7 @@ export type {
   SetSpatialFilterIntent,
   SetVisibleFieldsIntent,
   SnapshotRestoreIntent,
+  SourceQualifiedFeatureSelectionTarget,
   Unsubscribe as ExplorationUnsubscribe,
   ViewBinding,
   ViewHandle,
