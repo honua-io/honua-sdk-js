@@ -130,7 +130,9 @@ import {
 } from "../src/honua.js";
 import {
   HonuaWfsExceptionError as HonuaWfsExceptionErrorRoot,
+  bindMapSelectionToExploration,
   sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
+  syncFeatureStateSelection,
 } from "../src/index.js";
 import {
   buildJsMigrationReport,
@@ -288,6 +290,8 @@ describe("entrypoint modules", () => {
     expect(featureSelectionKey(target)).toContain("parcels");
     expect(rootSourceFeatureSelectionTarget("parcels", 101)).toEqual(target);
     expect(honuaSourceFeatureSelectionTarget("parcels", 101)).toEqual(target);
+    expect(bindMapSelectionToExploration).toBeTypeOf("function");
+    expect(syncFeatureStateSelection).toBeTypeOf("function");
     expect(Object.keys(LINKED_VIEW_PRESETS)).toEqual([
       "globalLinked",
       "mapDriven",

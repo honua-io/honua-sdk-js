@@ -168,6 +168,10 @@ export {
   removeFeatureState,
   createHoverHandler,
   createSelectionHandler,
+  bindDetailToSelection,
+  bindMapSelectionToExploration,
+  bindTableSelectionToExploration,
+  syncFeatureStateSelection,
 } from "./interactions/index.js";
 export type {
   FeatureStateMap,
@@ -178,6 +182,11 @@ export type {
   HoverHandle,
   SelectionHandlerOptions,
   SelectionHandle,
+  FeatureStateSelectionSyncOptions,
+  InteractionBindingHandle,
+  MapSelectionExplorationBindingOptions,
+  SelectionDetailListener,
+  TableSelectionExplorationBinding,
 } from "./interactions/index.js";
 export { HonuaMap } from "./map/index.js";
 export type {
