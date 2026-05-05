@@ -1,3 +1,4 @@
+import type { HonuaMetadataRequestOptions } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
 import type {
   ApplyEditsRequest,
@@ -194,12 +195,12 @@ export class HonuaService {
     return this.featureLayer<T>(layerId);
   }
 
-  public async featureServiceMetadata(): Promise<HonuaServiceMetadata> {
-    return this.client.getFeatureServiceMetadata(this.serviceId);
+  public async featureServiceMetadata(options: HonuaMetadataRequestOptions = {}): Promise<HonuaServiceMetadata> {
+    return this.client.getFeatureServiceMetadata(this.serviceId, options);
   }
 
-  public async mapServiceMetadata(): Promise<HonuaServiceMetadata> {
-    return this.client.getMapServiceMetadata(this.serviceId);
+  public async mapServiceMetadata(options: HonuaMetadataRequestOptions = {}): Promise<HonuaServiceMetadata> {
+    return this.client.getMapServiceMetadata(this.serviceId, options);
   }
 
   public async featureLayerIds(): Promise<number[]> {
@@ -276,8 +277,8 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     this.layerId = options.layerId;
   }
 
-  public async metadata(): Promise<HonuaLayerMetadata> {
-    return this.client.getLayerMetadata(this.serviceId, this.layerId);
+  public async metadata(options: HonuaMetadataRequestOptions = {}): Promise<HonuaLayerMetadata> {
+    return this.client.getLayerMetadata(this.serviceId, this.layerId, options);
   }
 
   public createQuery(): HonuaFeatureLayerQueryRequest {
@@ -604,8 +605,8 @@ export class HonuaMapService {
     this.serviceId = options.serviceId;
   }
 
-  public async metadata(): Promise<HonuaServiceMetadata> {
-    return this.client.getMapServiceMetadata(this.serviceId);
+  public async metadata(options: HonuaMetadataRequestOptions = {}): Promise<HonuaServiceMetadata> {
+    return this.client.getMapServiceMetadata(this.serviceId, options);
   }
 
   public layer(layerId: number): HonuaMapLayer {
@@ -831,11 +832,8 @@ export class HonuaMapLayer {
     this.layerId = options.layerId;
   }
 
-  public async metadata(): Promise<HonuaLayerMetadata> {
-    return this.client.request({
-      method: "GET",
-      path: `/rest/services/${encodeURIComponent(this.serviceId)}` + `/MapServer/${this.layerId}`,
-    }) as Promise<HonuaLayerMetadata>;
+  public async metadata(options: HonuaMetadataRequestOptions = {}): Promise<HonuaLayerMetadata> {
+    return this.client.getMapLayerMetadata(this.serviceId, this.layerId, options);
   }
 
   public createQuery(): HonuaMapLayerQueryRequest {

@@ -1,4 +1,21 @@
 export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
+export {
+  createHonuaCacheState,
+  honuaCacheValidatorFromHeaders,
+  honuaMetadataRequestHeaders,
+  isHonuaCacheStatus,
+  normalizeHonuaMetadataRequestOptions,
+} from "./core/cache-state.js";
+export type {
+  HonuaCacheReadMode,
+  HonuaCacheScope,
+  HonuaCacheState,
+  HonuaCacheStateInit,
+  HonuaCacheStatus,
+  HonuaCacheValidator,
+  HonuaMetadataRequestOptions,
+  NormalizedHonuaMetadataRequestOptions,
+} from "./core/cache-state.js";
 export { parseWebMap } from "./webmap/index.js";
 export type { ParseWebMapOptions, ParseWebMapResult } from "./webmap/index.js";
 export {

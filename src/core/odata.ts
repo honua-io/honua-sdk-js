@@ -15,6 +15,17 @@
  * @module
  */
 
+import {
+  type HonuaCacheState,
+  type HonuaCacheValidator,
+  type HonuaMetadataRequestOptions,
+  createHonuaCacheState,
+  honuaCacheValidatorFromHeaders,
+  honuaMetadataRequestHeaders,
+  normalizeHonuaMetadataRequestOptions,
+  withHonuaCacheState,
+  withoutHonuaCacheState,
+} from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
 import type { HonuaFieldInfo } from "./types.js";
 
@@ -119,6 +130,7 @@ export interface HonuaOdataMetadata {
   fields: Readonly<Record<string, readonly HonuaOdataFieldInfo[]>>;
   /** Entity-set name → coarse capability flags advertised by `Capabilities.*` annotations. */
   capabilities: Readonly<Record<string, HonuaOdataAdvertisedCapabilities>>;
+  cache?: HonuaCacheState;
 }
 
 /** Per-field metadata carried by {@link HonuaOdataMetadata.fields}. */
@@ -150,6 +162,15 @@ export interface HonuaOdataAdvertisedCapabilities {
   search?: boolean;
   delta?: boolean;
   count?: boolean;
+}
+
+interface OdataMetadataCacheEntry {
+  metadata: HonuaOdataMetadata;
+  cachedAtMs: number;
+  keyFingerprint: string;
+  status: "miss" | "refreshed" | "bypass";
+  validator?: HonuaCacheValidator;
+  sourceUpdatedAt?: string;
 }
 
 /** Single page of an OData `$apply` aggregation response. */
@@ -187,7 +208,7 @@ export class HonuaOdataEntitySet {
    */
   public readonly entitySetName: string;
   public readonly basePath: string;
-  private cachedMetadata: HonuaOdataMetadata | undefined;
+  private cachedMetadata: OdataMetadataCacheEntry | undefined;
   private inflightMetadata: Promise<HonuaOdataMetadata> | undefined;
 
   public constructor(options: HonuaOdataEntitySetOptions) {
@@ -202,17 +223,48 @@ export class HonuaOdataEntitySet {
    * `HonuaOdataEntitySet` instance so callers can pin a metadata snapshot
    * to a long-lived `Source` without re-parsing on every request.
    */
-  public async metadata(options: { signal?: AbortSignal; refresh?: boolean } = {}): Promise<HonuaOdataMetadata> {
-    if (!options.refresh && this.cachedMetadata) return this.cachedMetadata;
-    if (!options.refresh && this.inflightMetadata) return this.inflightMetadata;
-    const promise = this.fetchMetadata(options.signal).then((meta) => {
-      this.cachedMetadata = meta;
-      return meta;
+  public async metadata(options: HonuaMetadataRequestOptions = {}): Promise<HonuaOdataMetadata> {
+    const metadataOptions = normalizeHonuaMetadataRequestOptions(options);
+    const bypass = metadataOptions.cache === "bypass";
+    if (!bypass && !metadataOptions.refresh && this.cachedMetadata) {
+      return withOdataMetadataCacheState(this.cachedMetadata, "hit", {
+        now: Date.now(),
+        ttlMs: metadataOptions.ttlMs,
+        staleIfErrorMs: metadataOptions.staleIfErrorMs,
+      });
+    }
+    if (!bypass && !metadataOptions.refresh && this.inflightMetadata) return this.inflightMetadata;
+    const previous = this.cachedMetadata;
+    const promise = this.fetchMetadata(metadataOptions, previous).then((entry) => {
+      if (!bypass) {
+        this.cachedMetadata = entry;
+      }
+      const status = bypass ? "bypass" : entry.status;
+      return withOdataMetadataCacheState(entry, status, {
+        now: Date.now(),
+        ttlMs: metadataOptions.ttlMs,
+        staleIfErrorMs: metadataOptions.staleIfErrorMs,
+        ...(status === "refreshed" ? { revalidatedAt: new Date().toISOString() } : {}),
+      });
     });
-    this.inflightMetadata = promise.finally(() => {
-      if (this.inflightMetadata === promise) this.inflightMetadata = undefined;
-    });
-    return promise;
+    if (!bypass && !metadataOptions.refresh) {
+      this.inflightMetadata = promise.finally(() => {
+        if (this.inflightMetadata === promise) this.inflightMetadata = undefined;
+      });
+    }
+    try {
+      return await promise;
+    } catch (error) {
+      if (!bypass && metadataOptions.staleIfError && previous) {
+        return withOdataMetadataCacheState(previous, "stale", {
+          now: Date.now(),
+          ttlMs: metadataOptions.ttlMs,
+          staleIfErrorMs: metadataOptions.staleIfErrorMs,
+          refreshErrorId: odataMetadataRefreshErrorId(error),
+        });
+      }
+      throw error;
+    }
   }
 
   /** Fetch one page of the entity set. */
@@ -426,7 +478,10 @@ export class HonuaOdataEntitySet {
     return `${this.basePath}/${this.entitySet}`;
   }
 
-  private async fetchMetadata(signal?: AbortSignal): Promise<HonuaOdataMetadata> {
+  private async fetchMetadata(
+    options: ReturnType<typeof normalizeHonuaMetadataRequestOptions>,
+    cached: OdataMetadataCacheEntry | undefined,
+  ): Promise<OdataMetadataCacheEntry> {
     // Route through pipelineFetch so auth headers, interceptors, retry,
     // timeout, and normalized error handling all apply. The default
     // pipeline does not impose an `Accept` header — we ask for XML
@@ -434,11 +489,37 @@ export class HonuaOdataEntitySet {
     const response = await this.client.pipelineFetch(
       "GET",
       `${this.basePath}/$metadata`,
-      { headers: { Accept: "application/xml" } },
-      signal,
+      {
+        headers: honuaMetadataRequestHeaders({
+          accept: "application/xml",
+          refresh: options.refresh,
+          bypass: options.cache === "bypass",
+          validator: cached?.validator,
+        }),
+      },
+      options.signal,
+      { okStatuses: [304] },
     );
+    if (response.status === 304 && cached) {
+      const validator = honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator;
+      return {
+        ...cached,
+        cachedAtMs: Date.now(),
+        ...(validator ? { validator } : {}),
+        status: "refreshed",
+      };
+    }
     const xml = await response.text();
-    return parseOdataMetadata(xml);
+    const validator = honuaCacheValidatorFromHeaders(response.headers);
+    const sourceUpdatedAt = response.headers.get("last-modified") ?? undefined;
+    return {
+      metadata: withoutHonuaCacheState(parseOdataMetadata(xml)),
+      cachedAtMs: Date.now(),
+      keyFingerprint: `metadata:odata:${this.basePath}:$metadata`,
+      status: options.cache === "bypass" ? "bypass" : cached ? "refreshed" : "miss",
+      ...(validator ? { validator } : {}),
+      ...(sourceUpdatedAt ? { sourceUpdatedAt } : {}),
+    };
   }
 
   private async followNextLink<T>(nextLink: string, signal?: AbortSignal): Promise<HonuaOdataPage<T>> {
@@ -491,6 +572,41 @@ export class HonuaOdataEntitySet {
 }
 
 // ── Helpers ───────────────────────────────────────────────────
+
+function withOdataMetadataCacheState(
+  entry: OdataMetadataCacheEntry,
+  status: "hit" | "miss" | "stale" | "refreshed" | "bypass",
+  options: {
+    now: number;
+    ttlMs?: number;
+    staleIfErrorMs?: number;
+    revalidatedAt?: string;
+    refreshErrorId?: string;
+  },
+): HonuaOdataMetadata {
+  return withHonuaCacheState(
+    entry.metadata,
+    createHonuaCacheState({
+      scope: "metadata",
+      status,
+      keyFingerprint: entry.keyFingerprint,
+      ageMs: Math.max(0, options.now - entry.cachedAtMs),
+      ...(options.ttlMs !== undefined ? { ttlMs: options.ttlMs } : {}),
+      ...(options.staleIfErrorMs !== undefined ? { staleIfErrorMs: options.staleIfErrorMs } : {}),
+      ...(options.revalidatedAt ? { revalidatedAt: options.revalidatedAt } : {}),
+      ...(entry.sourceUpdatedAt ? { sourceUpdatedAt: entry.sourceUpdatedAt } : {}),
+      ...(entry.validator ? { validator: entry.validator } : {}),
+      ...(options.refreshErrorId ? { refreshErrorId: options.refreshErrorId } : {}),
+    }),
+  );
+}
+
+function odataMetadataRefreshErrorId(error: unknown): string {
+  if (error instanceof Error && error.name) {
+    return error.name;
+  }
+  return "unknown";
+}
 
 interface OdataValueEnvelope<T> {
   value?: T[];

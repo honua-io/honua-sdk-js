@@ -129,6 +129,7 @@ import {
   HonuaOgcFeatures,
   HonuaService,
   HonuaWfsExceptionError,
+  createHonuaCacheState,
   createHonuaOgcFeatures,
   createHonuaService,
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
@@ -189,6 +190,7 @@ describe("entrypoint modules", () => {
     expect(createHonuaOgcFeatures).toBeTypeOf("function");
     expect(HonuaWfsExceptionError).toBeTypeOf("function");
     expect(HonuaWfsExceptionErrorRoot).toBe(HonuaWfsExceptionError);
+    expect(createHonuaCacheState).toBeTypeOf("function");
   });
 
   it("exposes esri-compat entrypoint", () => {

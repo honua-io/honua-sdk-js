@@ -172,10 +172,14 @@ function renderCacheAndDiagnostics(
   const entry = cache.entries[dataset.sourceId];
   const metadata = entry?.metadata ?? dataset.metadata;
 
-  setText("#cache-status", entry?.status ?? metadata.cache.status);
+  const displayStatus = entry?.status === "loading" ? "loading" : metadata.cache.state.status;
+  setText("#cache-status", displayStatus);
   setText("#cache-updated", formatTimestamp(entry?.updatedAt ?? metadata.cache.updatedAt));
   setText("#cache-source", metadata.cache.source === "cloud" ? "Cloud Honua" : "Fixture");
-  setText("#cache-revalidate", `${Math.round(metadata.cache.revalidateAfterMs / 1000)} seconds`);
+  setText(
+    "#cache-revalidate",
+    `${Math.round((metadata.cache.state.ttlMs ?? metadata.cache.revalidateAfterMs) / 1000)} seconds`,
+  );
 
   const jobs = selectHonuaAppWorkspaceJobModel(workspace.workspace.state);
   setText("#job-status", jobs.entries["linked-query-projection"]?.snapshot.status ?? "waiting");
