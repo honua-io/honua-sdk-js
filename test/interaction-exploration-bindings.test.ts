@@ -1,14 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  bindChartToExploration,
   bindDetailToSelection,
+  bindFilterControlsToExploration,
+  bindMapExtentToExploration,
   bindMapSelectionToExploration,
+  bindQueryProjectionToExploration,
   bindTableSelectionToExploration,
   createExplorationContext,
   sourceFeatureSelectionTarget,
   syncFeatureStateSelection,
+  syncMapLayerFilterToExploration,
 } from "../src/index.js";
-import type { FeatureStateMap, InteractiveMap } from "../src/index.js";
+import type { FeatureStateMap, HonuaExtent, InteractiveMap } from "../src/index.js";
 
 function createMockMap(): InteractiveMap & {
   readonly _state: Map<string, Record<string, unknown>>;
@@ -64,6 +69,8 @@ function createMockMap(): InteractiveMap & {
 }
 
 async function flush(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
 }
@@ -141,6 +148,103 @@ describe("interaction exploration bindings", () => {
     await flush();
 
     expect(detailListener).toHaveBeenLastCalledWith([], expect.objectContaining({ selfOrigin: false }));
+    ctx.dispose();
+  });
+
+  it("links map extent changes to table query projections", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["incidents"], preset: "mapDriven" });
+    const mapView = ctx.connectView({ id: "map", role: "map" });
+    const tableView = ctx.connectView({ id: "table", role: "grid" });
+    const extents: Array<{ listener: (extent: HonuaExtent | undefined) => void }> = [];
+    const projections: Array<unknown> = [];
+
+    bindQueryProjectionToExploration(tableView, (projection) => projections.push(projection), {
+      applyInitial: false,
+    });
+    bindMapExtentToExploration(
+      mapView,
+      {
+        subscribe(listener) {
+          extents.push({ listener });
+          return () => {};
+        },
+      },
+      { coalesce: false },
+    );
+
+    extents[0].listener({ xmin: 1, ymin: 2, xmax: 3, ymax: 4 });
+    await flush();
+
+    expect(projections).toHaveLength(1);
+    expect(projections[0]).toMatchObject({
+      extent: { xmin: 1, ymin: 2, xmax: 3, ymax: 4 },
+      spatialFilter: {
+        geometry: { xmin: 1, ymin: 2, xmax: 3, ymax: 4 },
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelIntersects",
+      },
+    });
+    ctx.dispose();
+  });
+
+  it("links filter controls to map layer filters through a query projection", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["incidents"], preset: "mapDriven" });
+    const filterView = ctx.connectView({ id: "filters", role: "filter" });
+    const mapView = ctx.connectView({ id: "map", role: "map" });
+    const filterControls = bindFilterControlsToExploration(filterView);
+    const setFilter = vi.fn();
+
+    syncMapLayerFilterToExploration({ setFilter }, mapView, {
+      layerId: "incident-points",
+      applyInitial: false,
+      translate(projection) {
+        return ["==", ["get", "STATUS"], projection.filters.status.value];
+      },
+    });
+
+    filterControls.setFilter("status", { field: "STATUS", operator: "=", value: "open" });
+    await flush();
+
+    expect(setFilter).toHaveBeenCalledWith("incident-points", ["==", ["get", "STATUS"], "open"]);
+    ctx.dispose();
+  });
+
+  it("lets chart bucket selection drive shared selection under chartDriven", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["incidents"], preset: "chartDriven" });
+    const chartView = ctx.connectView({ id: "chart", role: "chart" });
+    const tableView = ctx.connectView({ id: "table", role: "grid" });
+    const chart = bindChartToExploration(chartView);
+    const target = sourceFeatureSelectionTarget("incidents", 9);
+    const tableEvents: Array<ReadonlyArray<unknown>> = [];
+    tableView.subscribe("selection", (event) => tableEvents.push(event.state.selection));
+
+    chart.selectBucket({
+      targets: [target],
+      filters: {
+        severity: { field: "SEVERITY", operator: "=", value: "high" },
+      },
+    });
+    await flush();
+
+    expect(ctx.state.filters.severity).toEqual({ field: "SEVERITY", operator: "=", value: "high" });
+    expect(tableEvents).toEqual([[target]]);
+    ctx.dispose();
+  });
+
+  it("keeps linked adapters quiet in decoupled mode while central state still moves", async () => {
+    const ctx = createExplorationContext({ datasetId: "d", sourceIds: ["incidents"], preset: "decoupled" });
+    const mapView = ctx.connectView({ id: "map", role: "map" });
+    const tableView = ctx.connectView({ id: "table", role: "grid" });
+    const projections: Array<unknown> = [];
+    bindQueryProjectionToExploration(tableView, (projection) => projections.push(projection), {
+      applyInitial: false,
+    });
+
+    mapView.setExtent({ xmin: 0, ymin: 0, xmax: 1, ymax: 1 });
+    await flush();
+
+    expect(ctx.state.extent).toEqual({ xmin: 0, ymin: 0, xmax: 1, ymax: 1 });
+    expect(projections).toEqual([]);
     ctx.dispose();
   });
 });

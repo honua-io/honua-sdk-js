@@ -24,6 +24,7 @@ src/exploration/
 ├── types.ts        # state, intents, slices, linked-view types, ExplorationContext interface
 ├── reducer.ts      # pure reduce(state, intent) → { state, changedSlices }
 ├── presets.ts      # LINKED_VIEW_PRESETS table + propagationFor()
+├── selectors.ts    # linked-view query projections + selector subscriptions
 └── context.ts      # createExplorationContext factory (microtask coalescing, listener bus, view controllers)
 ```
 
@@ -82,9 +83,9 @@ snapshot writers cannot silently miss a state movement.
 | Preset | What propagates |
 | --- | --- |
 | `globalLinked` (default) | Every slice from every role. The safe default. |
-| `mapDriven` | Only the map's `extent`, `spatialFilter`, `selection`, and `filters`. |
+| `mapDriven` | The map's `extent`, `spatialFilter`, `selection`, and `filters`; filter controls can also publish `filters` and `spatialFilter`. |
 | `gridDriven` | Only the grid's `selection`, `sort`, `page`, `filters`, `visibleFields`. |
-| `chartDriven` | Only the chart's `grouping`, `aggregation`, `filters`. |
+| `chartDriven` | Only the chart's `grouping`, `aggregation`, `filters`, and `selection`; filter controls can also publish `filters`. |
 | `decoupled` | Nothing propagates — each view is independent. |
 
 Custom presets are not exposed in this ticket; if a downstream view needs
@@ -159,8 +160,8 @@ grid.setSort([{ field: "severity", direction: "desc" }]);
 This API is the intended synchronization layer for map, table, graph,
 filter, and detail components. Component adapters publish semantic intents
 (`setExtent`, `setFilter`, `select`, `setAggregation`) and subscribe to the
-slices they can render. They do not need to imperatively keep peer widgets in
-sync or remember which `viewId` to pass with each intent.
+slices or selectors they can render. They do not need to imperatively keep
+peer widgets in sync or remember which `viewId` to pass with each intent.
 
 `@honua/sdk-js/interactions` includes thin bindings for common map/table/detail
 selection flows:
@@ -184,6 +185,70 @@ const table = bindTableSelectionToExploration(gridView);
 table.select([sourceFeatureSelectionTarget("incidents", 101)], { replace: true });
 
 bindDetailToSelection(detailView, ([selected]) => renderDetail(selected));
+```
+
+## Linked Query Selectors
+
+`selectLinkedViewQueryProjection()` converts exploration state into a
+serializable query-facing model that tables, charts, map layer filter
+translators, MCP handoff, and saved workspaces can share:
+
+```ts
+import { bindQueryProjectionToExploration } from "@honua/sdk-js/interactions";
+
+bindQueryProjectionToExploration(gridView, async (projection) => {
+  const result = await dataset.source("incidents")!.query({
+    spatialFilter: projection.spatialFilter,
+    orderBy: projection.orderBy,
+    pagination: projection.pagination,
+    aggregation: projection.aggregation,
+    outFields: projection.outFields,
+  });
+  renderGrid(result, projection.selection);
+});
+```
+
+The projection keeps filter clauses as structured SDK objects instead of
+guessing a SQL/CQL2/OData dialect. Protocol adapters or app-specific
+translators should compile `projection.filters` at the edge where the target
+backend is known.
+
+`bindMapExtentToExploration()` publishes viewport changes into the shared
+context. Query projections derive an envelope `spatialFilter` from the extent
+by default, so a map pan can refresh a table or chart without the table knowing
+about the map:
+
+```ts
+bindMapExtentToExploration(mapView, mapExtentSource, { publishSpatialFilter: false });
+```
+
+`bindFilterControlsToExploration()` and `syncMapLayerFilterToExploration()`
+cover the reverse direction: a filter bar dispatches `setFilter`, and the map
+adapter observes the same projection to translate it into a MapLibre layer
+filter or a server query.
+
+```ts
+const filters = bindFilterControlsToExploration(filterView);
+syncMapLayerFilterToExploration(map, mapView, {
+  layerId: "incident-points",
+  translate: (projection) => compileMapLibreFilter(projection.filters),
+});
+
+filters.setFilter("status", { field: "STATUS", operator: "=", value: "open" });
+```
+
+Charts can publish grouping, aggregation, and selected buckets through the same
+context. Under `chartDriven`, bucket selection propagates to map, table, and
+detail subscribers:
+
+```ts
+const chart = bindChartToExploration(chartView);
+chart.setGrouping(["SEVERITY"]);
+chart.setAggregation({ groupBy: ["SEVERITY"], metrics: [{ fn: "count", field: "OBJECTID" }] });
+chart.selectBucket({
+  targets: [sourceFeatureSelectionTarget("incidents", 101)],
+  filters: { severity: { field: "SEVERITY", operator: "=", value: "high" } },
+});
 ```
 
 ## Selection targets

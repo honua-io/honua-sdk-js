@@ -109,6 +109,7 @@ import {
   featureSelectionKey,
   isSourceQualifiedSelectionTarget,
   reduce,
+  selectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget,
 } from "../src/exploration/index.js";
 import {
@@ -126,14 +127,23 @@ import {
   HonuaWfsExceptionError,
   createHonuaOgcFeatures,
   createHonuaService,
+  bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
+  selectLinkedViewQueryProjection as honuaSelectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget as honuaSourceFeatureSelectionTarget,
 } from "../src/honua.js";
 import {
   HonuaWfsExceptionError as HonuaWfsExceptionErrorRoot,
+  bindChartToExploration,
   bindMapSelectionToExploration,
+  bindQueryProjectionToExploration,
+  selectLinkedViewQueryProjection as rootSelectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
   syncFeatureStateSelection,
 } from "../src/index.js";
+import {
+  bindChartToExploration as interactionsBindChartToExploration,
+  selectLinkedViewQueryProjection as interactionsSelectLinkedViewQueryProjection,
+} from "../src/interactions/index.js";
 import {
   buildJsMigrationReport,
   evaluateMigrationGates,
@@ -292,6 +302,14 @@ describe("entrypoint modules", () => {
     expect(honuaSourceFeatureSelectionTarget("parcels", 101)).toEqual(target);
     expect(bindMapSelectionToExploration).toBeTypeOf("function");
     expect(syncFeatureStateSelection).toBeTypeOf("function");
+    expect(selectLinkedViewQueryProjection).toBeTypeOf("function");
+    expect(rootSelectLinkedViewQueryProjection).toBe(selectLinkedViewQueryProjection);
+    expect(honuaSelectLinkedViewQueryProjection).toBe(selectLinkedViewQueryProjection);
+    expect(interactionsSelectLinkedViewQueryProjection).toBe(selectLinkedViewQueryProjection);
+    expect(bindQueryProjectionToExploration).toBeTypeOf("function");
+    expect(honuaBindQueryProjectionToExploration).toBe(bindQueryProjectionToExploration);
+    expect(bindChartToExploration).toBeTypeOf("function");
+    expect(interactionsBindChartToExploration).toBe(bindChartToExploration);
     expect(Object.keys(LINKED_VIEW_PRESETS)).toEqual([
       "globalLinked",
       "mapDriven",

@@ -290,10 +290,18 @@ describe("exploration / LINKED_VIEW_PRESETS", () => {
       ["extent", "filters", "selection", "spatialFilter"].sort(),
     );
     expect(propagationFor("mapDriven", "grid").size).toBe(0);
+    expect([...propagationFor("mapDriven", "filter")].sort()).toEqual(["filters", "spatialFilter"].sort());
+  });
+
+  it("chartDriven propagates chart grouping / aggregation / filters / selection", () => {
+    expect([...propagationFor("chartDriven", "chart")].sort()).toEqual(
+      ["aggregation", "filters", "grouping", "selection"].sort(),
+    );
+    expect([...propagationFor("chartDriven", "filter")].sort()).toEqual(["filters"]);
   });
 
   it("decoupled propagates nothing", () => {
-    for (const role of ["map", "grid", "chart", "form", "custom"] as const) {
+    for (const role of ["map", "grid", "chart", "filter", "detail", "form", "custom"] as const) {
       expect(propagationFor("decoupled", role).size).toBe(0);
     }
   });
@@ -302,7 +310,7 @@ describe("exploration / LINKED_VIEW_PRESETS", () => {
     for (const name of Object.keys(LINKED_VIEW_PRESETS) as Array<keyof typeof LINKED_VIEW_PRESETS>) {
       const policy = LINKED_VIEW_PRESETS[name];
       const roles = new Set(policy.rules.map((r) => r.role));
-      expect(roles).toEqual(new Set(["map", "grid", "chart", "form", "custom"]));
+      expect(roles).toEqual(new Set(["map", "grid", "chart", "filter", "detail", "form", "custom"]));
     }
   });
 });

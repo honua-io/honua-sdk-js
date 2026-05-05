@@ -59,6 +59,10 @@
       "types": "./dist/src/exploration/index.d.ts",
       "default": "./dist/src/exploration/index.js"
     },
+    "./interactions": {
+      "types": "./dist/src/interactions/index.d.ts",
+      "default": "./dist/src/interactions/index.js"
+    },
     "./runtime": {
       "types": "./dist/src/runtime/index.d.ts",
       "default": "./dist/src/runtime/index.js"

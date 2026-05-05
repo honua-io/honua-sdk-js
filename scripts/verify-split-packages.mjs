@@ -75,7 +75,12 @@ import {
   EMPTY_STATE,
   LINKED_VIEW_PRESETS,
   createExplorationContext,
+  selectLinkedViewQueryProjection,
 } from "@honua/sdk/exploration";
+import {
+  bindChartToExploration,
+  bindQueryProjectionToExploration,
+} from "@honua/sdk/interactions";
 import {
   AttributionCompat,
   BasemapCompat,
@@ -189,6 +194,12 @@ if (typeof LINKED_VIEW_PRESETS !== "object" || LINKED_VIEW_PRESETS === null)
   throw new Error("LINKED_VIEW_PRESETS export missing from @honua/sdk/exploration");
 if (typeof createExplorationContext !== "function")
   throw new Error("createExplorationContext export missing from @honua/sdk/exploration");
+if (typeof selectLinkedViewQueryProjection !== "function")
+  throw new Error("selectLinkedViewQueryProjection export missing from @honua/sdk/exploration");
+if (typeof bindChartToExploration !== "function")
+  throw new Error("bindChartToExploration export missing from @honua/sdk/interactions");
+if (typeof bindQueryProjectionToExploration !== "function")
+  throw new Error("bindQueryProjectionToExploration export missing from @honua/sdk/interactions");
 if (typeof CompatEventBus !== "function") throw new Error("CompatEventBus export missing");
 if (typeof CoordinateConversionCompat !== "function") throw new Error("CoordinateConversionCompat export missing");
 if (typeof createEsriRequestInterceptors !== "function") throw new Error("createEsriRequestInterceptors export missing");
