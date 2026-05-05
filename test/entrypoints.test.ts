@@ -133,6 +133,7 @@ import {
   createHonuaService,
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
   createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
+  createSceneWorkspace as honuaCreateSceneWorkspace,
   selectLinkedViewQueryProjection as honuaSelectLinkedViewQueryProjection,
   selectHonuaAppWorkspaceMetadataCacheModel as honuaSelectMetadataCacheModel,
   sourceFeatureSelectionTarget as honuaSourceFeatureSelectionTarget,
@@ -143,6 +144,7 @@ import {
   bindMapSelectionToExploration,
   bindQueryProjectionToExploration,
   createHonuaAppWorkspace,
+  createSceneWorkspace as rootCreateSceneWorkspace,
   selectLinkedViewQueryProjection as rootSelectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
   selectHonuaAppWorkspaceMetadataCacheModel,
@@ -166,6 +168,7 @@ import {
   emptyRealtimeFeatureState,
   reduceRealtimeFeatureState,
 } from "../src/realtime/index.js";
+import { createSceneWorkspace, sceneWorkspaceIntentFromAdapterEvent } from "../src/scene-workspace/index.js";
 
 describe("entrypoint modules", () => {
   it("exposes honua-first core entrypoint", () => {
@@ -345,5 +348,12 @@ describe("entrypoint modules", () => {
     expect(selectHonuaAppWorkspaceMetadataCacheModel).toBeTypeOf("function");
     expect(appWorkspaceSelectMetadataCacheModel).toBe(selectHonuaAppWorkspaceMetadataCacheModel);
     expect(honuaSelectMetadataCacheModel).toBe(selectHonuaAppWorkspaceMetadataCacheModel);
+  });
+
+  it("exposes the scene workspace entrypoint", () => {
+    expect(createSceneWorkspace).toBeTypeOf("function");
+    expect(sceneWorkspaceIntentFromAdapterEvent).toBeTypeOf("function");
+    expect(rootCreateSceneWorkspace).toBe(createSceneWorkspace);
+    expect(honuaCreateSceneWorkspace).toBe(createSceneWorkspace);
   });
 });

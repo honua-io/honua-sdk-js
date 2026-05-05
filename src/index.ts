@@ -211,6 +211,33 @@ export type {
   SelectionDetailListener,
   TableSelectionExplorationBinding,
 } from "./interactions/index.js";
+export {
+  createSceneWorkspace,
+  emptySceneWorkspaceState,
+  reduceSceneWorkspaceState,
+  sceneWorkspaceIntentFromAdapterEvent,
+  selectSceneEvidenceForFeature,
+  selectSceneVisibleLayers,
+} from "./scene-workspace/index.js";
+export { SCENE_WORKSPACE_SLICES } from "./scene-workspace/index.js";
+export type {
+  SceneBookmark,
+  SceneCameraState,
+  SceneEvidenceReference,
+  SceneLayerState,
+  SceneRealtimeState,
+  SceneTimelineState,
+  SceneWorkspace,
+  SceneWorkspaceAdapterEvent,
+  SceneWorkspaceChangeEvent,
+  SceneWorkspaceHistoryEntry,
+  SceneWorkspaceIntent,
+  SceneWorkspaceListener,
+  SceneWorkspaceSlice,
+  SceneWorkspaceSnapshot,
+  SceneWorkspaceState,
+  SceneWorkspaceUnsubscribe,
+} from "./scene-workspace/index.js";
 export { HonuaMap } from "./map/index.js";
 export type {
   HonuaMapOptions,
