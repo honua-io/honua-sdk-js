@@ -134,6 +134,7 @@ import {
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
   createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
   createSceneWorkspace as honuaCreateSceneWorkspace,
+  preparePrimaryDetailModel as honuaPreparePrimaryDetailModel,
   selectLinkedViewQueryProjection as honuaSelectLinkedViewQueryProjection,
   selectHonuaAppWorkspaceMetadataCacheModel as honuaSelectMetadataCacheModel,
   sourceFeatureSelectionTarget as honuaSourceFeatureSelectionTarget,
@@ -144,6 +145,7 @@ import {
   bindMapSelectionToExploration,
   bindQueryProjectionToExploration,
   createHonuaAppWorkspace,
+  preparePrimaryDetailModel,
   createSceneWorkspace as rootCreateSceneWorkspace,
   selectLinkedViewQueryProjection as rootSelectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
@@ -324,6 +326,8 @@ describe("entrypoint modules", () => {
     expect(interactionsSelectLinkedViewQueryProjection).toBe(selectLinkedViewQueryProjection);
     expect(bindQueryProjectionToExploration).toBeTypeOf("function");
     expect(honuaBindQueryProjectionToExploration).toBe(bindQueryProjectionToExploration);
+    expect(preparePrimaryDetailModel).toBeTypeOf("function");
+    expect(honuaPreparePrimaryDetailModel).toBe(preparePrimaryDetailModel);
     expect(bindChartToExploration).toBeTypeOf("function");
     expect(interactionsBindChartToExploration).toBe(bindChartToExploration);
     expect(Object.keys(LINKED_VIEW_PRESETS)).toEqual([

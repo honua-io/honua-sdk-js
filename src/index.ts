@@ -178,6 +178,13 @@ export {
   selectLinkedViewQueryProjection,
   subscribeExplorationSelector,
   bindTableSelectionToExploration,
+  interactionQueryParamNames,
+  parseInteractionQueryState,
+  parseSelection,
+  preparePrimaryDetailModel,
+  prepareSelectionDetailModels,
+  serializeInteractionQueryState,
+  serializeSelection,
   syncMapLayerFilterToExploration,
   syncFeatureStateSelection,
 } from "./interactions/index.js";
@@ -210,6 +217,14 @@ export type {
   MapSelectionExplorationBindingOptions,
   SelectionDetailListener,
   TableSelectionExplorationBinding,
+  DetailFeatureLike,
+  DetailFieldDefinition,
+  DetailFieldModel,
+  DetailModel,
+  DetailModelOptions,
+  DetailSelectionStatus,
+  ShareableInteractionQueryParams,
+  ShareableInteractionQueryState,
 } from "./interactions/index.js";
 export {
   createSceneWorkspace,

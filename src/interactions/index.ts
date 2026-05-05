@@ -21,6 +21,14 @@ export {
   syncMapLayerFilterToExploration,
   syncFeatureStateSelection,
 } from "./exploration-bindings.js";
+export { preparePrimaryDetailModel, prepareSelectionDetailModels } from "./detail-model.js";
+export {
+  interactionQueryParamNames,
+  parseInteractionQueryState,
+  parseSelection,
+  serializeInteractionQueryState,
+  serializeSelection,
+} from "./share-state.js";
 export type {
   FeatureStateMap,
   MapEventTarget,
@@ -55,3 +63,12 @@ export type {
   SelectionDetailListener,
   TableSelectionExplorationBinding,
 } from "./exploration-bindings.js";
+export type {
+  DetailFeatureLike,
+  DetailFieldDefinition,
+  DetailFieldModel,
+  DetailModel,
+  DetailModelOptions,
+  DetailSelectionStatus,
+} from "./detail-model.js";
+export type { ShareableInteractionQueryParams, ShareableInteractionQueryState } from "./share-state.js";
