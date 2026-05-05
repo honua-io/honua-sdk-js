@@ -15,6 +15,7 @@ import {
   featureSelectionKey,
   isSourceQualifiedSelectionTarget,
   selectLinkedViewQueryProjection,
+  sourceFeatureSelectionTarget,
 } from "../exploration/index.js";
 import type {
   ExplorationContext,
@@ -123,6 +124,198 @@ export interface HonuaAppWorkspaceState<TFeature = unknown, TMetadata = unknown,
 export interface HonuaAppWorkspaceSnapshot<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
   readonly version: 1;
   readonly state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>;
+}
+
+export const HONUA_SAVED_WORKSPACE_DOCUMENT_KIND = "honua.saved-workspace" as const;
+export const HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION = 1 as const;
+
+export type HonuaSavedWorkspaceDocumentKind = typeof HONUA_SAVED_WORKSPACE_DOCUMENT_KIND;
+export type HonuaSavedWorkspaceDocumentVersion = typeof HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION;
+
+export interface HonuaSavedWorkspaceMigrationMetadata {
+  readonly schemaVersion: HonuaSavedWorkspaceDocumentVersion;
+  readonly savedAt: string;
+  readonly createdBy?: string;
+  readonly createdWith?: string;
+  readonly migratedFrom?: ReadonlyArray<string>;
+  readonly migrations?: ReadonlyArray<HonuaSavedWorkspaceMigrationStep>;
+}
+
+export interface HonuaSavedWorkspaceMigrationStep {
+  readonly from: string;
+  readonly to: string;
+  readonly at: string;
+  readonly note?: string;
+}
+
+export interface HonuaWorkspaceProjectState {
+  readonly id: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaWorkspaceSessionState {
+  readonly id?: string;
+  readonly userId?: string;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
+  readonly activeViewId?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaSavedWorkspaceSource {
+  readonly id: string;
+  readonly protocol?: string;
+  readonly title?: string;
+  readonly locator?: Readonly<Record<string, unknown>>;
+  readonly capabilities?: ReadonlyArray<string>;
+  readonly status?: HonuaSourceCacheStatus;
+  readonly metadata?: unknown;
+}
+
+export interface HonuaSavedWorkspaceLayer {
+  readonly id: string;
+  readonly sourceId?: string;
+  readonly title?: string;
+  readonly visible?: boolean;
+  readonly opacity?: number;
+  readonly styleId?: string;
+  readonly filterIds?: ReadonlyArray<string>;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaSavedWorkspaceStyle {
+  readonly id: string;
+  readonly layerId?: string;
+  readonly name?: string;
+  readonly spec?: unknown;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaSavedWorkspaceQuery {
+  readonly id: string;
+  readonly label?: string;
+  readonly sourceIds?: ReadonlyArray<string>;
+  readonly filters: Readonly<Record<string, FilterClause>>;
+  readonly spatialFilter?: ExplorationState["spatialFilter"];
+  readonly sort?: ExplorationState["sort"];
+  readonly page?: ExplorationState["page"];
+  readonly visibleFields?: ExplorationState["visibleFields"];
+  readonly grouping?: ExplorationState["grouping"];
+  readonly aggregation?: ExplorationState["aggregation"];
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaSavedWorkspaceSelectedFeature<TFeature = unknown> {
+  readonly sourceId?: string;
+  readonly id: string | number;
+  readonly feature?: TFeature;
+  readonly selectedAt?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaSavedWorkspaceJob<TResult = unknown> {
+  readonly id: string;
+  readonly type: string;
+  readonly status: JobSnapshot<TResult>["status"];
+  readonly progress?: JobSnapshot<TResult>["progress"];
+  readonly result?: JobSnapshot<TResult>["result"];
+  readonly error?: JobSnapshot<TResult>["error"];
+  readonly outputIds?: ReadonlyArray<string>;
+  readonly updatedAt?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaSavedWorkspaceAnalysisOutput {
+  readonly id: string;
+  readonly jobId?: string;
+  readonly type: string;
+  readonly label?: string;
+  readonly sourceId?: string;
+  readonly layerId?: string;
+  readonly href?: string;
+  readonly mediaType?: string;
+  readonly data?: unknown;
+  readonly createdAt?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaSavedWorkspaceDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+  readonly kind: HonuaSavedWorkspaceDocumentKind;
+  readonly version: HonuaSavedWorkspaceDocumentVersion;
+  readonly migration: HonuaSavedWorkspaceMigrationMetadata;
+  readonly project: HonuaWorkspaceProjectState;
+  readonly session?: HonuaWorkspaceSessionState;
+  readonly sources: ReadonlyArray<HonuaSavedWorkspaceSource>;
+  readonly layers: ReadonlyArray<HonuaSavedWorkspaceLayer>;
+  readonly styles: ReadonlyArray<HonuaSavedWorkspaceStyle>;
+  readonly filters: Readonly<Record<string, FilterClause>>;
+  readonly savedQueries: ReadonlyArray<HonuaSavedWorkspaceQuery>;
+  readonly selectedFeatures: ReadonlyArray<HonuaSavedWorkspaceSelectedFeature<TFeature>>;
+  readonly jobs: ReadonlyArray<HonuaSavedWorkspaceJob<TResult>>;
+  readonly analysisOutputs: ReadonlyArray<HonuaSavedWorkspaceAnalysisOutput>;
+  readonly appSnapshot?: HonuaAppWorkspaceSnapshot<TFeature, TMetadata, TResult>;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaSavedWorkspaceCreateOptions<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+  readonly project: HonuaWorkspaceProjectState;
+  readonly session?: HonuaWorkspaceSessionState;
+  readonly snapshot?: HonuaAppWorkspaceSnapshot<TFeature, TMetadata, TResult>;
+  readonly state?: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>;
+  readonly sources?: ReadonlyArray<HonuaSavedWorkspaceSource>;
+  readonly layers?: ReadonlyArray<HonuaSavedWorkspaceLayer>;
+  readonly styles?: ReadonlyArray<HonuaSavedWorkspaceStyle>;
+  readonly savedQueries?: ReadonlyArray<HonuaSavedWorkspaceQuery>;
+  readonly jobs?: ReadonlyArray<HonuaSavedWorkspaceJob<TResult>>;
+  readonly analysisOutputs?: ReadonlyArray<HonuaSavedWorkspaceAnalysisOutput>;
+  readonly migration?: Partial<HonuaSavedWorkspaceMigrationMetadata>;
+  readonly savedAt?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaSavedWorkspaceValidationError {
+  readonly path: string;
+  readonly message: string;
+}
+
+export type HonuaSavedWorkspaceValidationResult<TFeature = unknown, TMetadata = unknown, TResult = unknown> =
+  | {
+      readonly ok: true;
+      readonly document: HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>;
+    }
+  | {
+      readonly ok: false;
+      readonly errors: ReadonlyArray<HonuaSavedWorkspaceValidationError>;
+    };
+
+export interface HonuaSavedWorkspaceHydrateOptions<TResult = unknown> {
+  readonly jobsById?: Readonly<Record<string, Partial<HonuaSavedWorkspaceJob<TResult>>>>;
+  readonly analysisOutputsById?: Readonly<Record<string, HonuaSavedWorkspaceAnalysisOutput>>;
+}
+
+export interface HonuaSavedWorkspaceMcpSummary {
+  readonly kind: "honua.workspace.summary";
+  readonly workspaceId: string;
+  readonly title?: string;
+  readonly savedAt: string;
+  readonly schemaVersion: HonuaSavedWorkspaceDocumentVersion;
+  readonly sourceCount: number;
+  readonly layerCount: number;
+  readonly savedQueryCount: number;
+  readonly selectedFeatureCount: number;
+  readonly jobCount: number;
+  readonly analysisOutputCount: number;
+  readonly sources: ReadonlyArray<Pick<HonuaSavedWorkspaceSource, "id" | "protocol" | "title" | "status">>;
+  readonly layers: ReadonlyArray<Pick<HonuaSavedWorkspaceLayer, "id" | "sourceId" | "title" | "visible">>;
+  readonly savedQueries: ReadonlyArray<Pick<HonuaSavedWorkspaceQuery, "id" | "label" | "sourceIds">>;
+  readonly jobs: ReadonlyArray<Pick<HonuaSavedWorkspaceJob, "id" | "type" | "status" | "outputIds">>;
+  readonly analysisOutputs: ReadonlyArray<
+    Pick<HonuaSavedWorkspaceAnalysisOutput, "id" | "jobId" | "type" | "label" | "sourceId" | "layerId">
+  >;
 }
 
 export interface HonuaAppWorkspaceOptions<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
@@ -427,6 +620,216 @@ export function createHonuaAppWorkspace<TFeature = unknown, TMetadata = unknown,
   options?: HonuaAppWorkspaceOptions<TFeature, TMetadata, TResult>,
 ): HonuaAppWorkspace<TFeature, TMetadata, TResult> {
   return new HonuaAppWorkspace(options);
+}
+
+export function createHonuaSavedWorkspaceDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  options: HonuaSavedWorkspaceCreateOptions<TFeature, TMetadata, TResult>,
+): HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult> {
+  const snapshot = options.snapshot ?? (options.state ? { version: 1, state: cloneValue(options.state) } : undefined);
+  const state = snapshot?.state;
+  const savedAt = options.savedAt ?? new Date().toISOString();
+  const exploration = state ? selectWorkspaceExplorationState(state) : EMPTY_STATE;
+
+  return {
+    kind: HONUA_SAVED_WORKSPACE_DOCUMENT_KIND,
+    version: HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION,
+    migration: {
+      schemaVersion: HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION,
+      savedAt,
+      ...cloneValue(options.migration ?? {}),
+    },
+    project: cloneValue(options.project),
+    session: options.session
+      ? cloneValue({
+          ...options.session,
+          activeViewId: options.session.activeViewId ?? state?.layout.activeViewId,
+        })
+      : state?.layout.activeViewId
+        ? { activeViewId: state.layout.activeViewId }
+        : undefined,
+    sources: cloneValue(options.sources ?? sourcesFromWorkspaceState(state)),
+    layers: cloneValue(options.layers ?? []),
+    styles: cloneValue(options.styles ?? []),
+    filters: cloneValue(exploration.filters),
+    savedQueries: cloneValue(options.savedQueries ?? []),
+    selectedFeatures: cloneValue(selectedFeaturesFromWorkspaceState(state)),
+    jobs: cloneValue(options.jobs ?? jobsFromWorkspaceState(state)),
+    analysisOutputs: cloneValue(options.analysisOutputs ?? []),
+    appSnapshot: snapshot ? cloneValue(snapshot) : undefined,
+    metadata: options.metadata ? cloneValue(options.metadata) : undefined,
+  };
+}
+
+export function validateHonuaSavedWorkspaceDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  value: unknown,
+): HonuaSavedWorkspaceValidationResult<TFeature, TMetadata, TResult> {
+  const errors: HonuaSavedWorkspaceValidationError[] = [];
+  if (!isRecord(value)) {
+    return { ok: false, errors: [{ path: "$", message: "document must be an object" }] };
+  }
+
+  if (value.kind !== HONUA_SAVED_WORKSPACE_DOCUMENT_KIND) {
+    errors.push({ path: "$.kind", message: `must be ${HONUA_SAVED_WORKSPACE_DOCUMENT_KIND}` });
+  }
+  if (value.version !== HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION) {
+    errors.push({ path: "$.version", message: "unsupported saved workspace document version" });
+  }
+  if (!isRecord(value.migration)) {
+    errors.push({ path: "$.migration", message: "migration metadata is required" });
+  } else {
+    if (value.migration.schemaVersion !== HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION) {
+      errors.push({ path: "$.migration.schemaVersion", message: "unsupported migration schema version" });
+    }
+    if (typeof value.migration.savedAt !== "string") {
+      errors.push({ path: "$.migration.savedAt", message: "savedAt must be a string" });
+    }
+  }
+  if (!isRecord(value.project)) {
+    errors.push({ path: "$.project", message: "project is required" });
+  } else if (typeof value.project.id !== "string" || value.project.id.length === 0) {
+    errors.push({ path: "$.project.id", message: "project id must be a non-empty string" });
+  }
+
+  validateArrayWithIds(value.sources, "$.sources", errors);
+  validateArrayWithIds(value.layers, "$.layers", errors);
+  validateArrayWithIds(value.styles, "$.styles", errors);
+  validateArrayWithIds(value.savedQueries, "$.savedQueries", errors);
+  validateArrayWithIds(value.analysisOutputs, "$.analysisOutputs", errors);
+
+  if (!isRecord(value.filters)) {
+    errors.push({ path: "$.filters", message: "filters must be an object" });
+  }
+  if (!Array.isArray(value.selectedFeatures)) {
+    errors.push({ path: "$.selectedFeatures", message: "selectedFeatures must be an array" });
+  } else {
+    value.selectedFeatures.forEach((entry, index) => {
+      if (!isRecord(entry)) {
+        errors.push({ path: `$.selectedFeatures[${index}]`, message: "selected feature must be an object" });
+      } else if (typeof entry.id !== "string" && typeof entry.id !== "number") {
+        errors.push({
+          path: `$.selectedFeatures[${index}].id`,
+          message: "selected feature id must be string or number",
+        });
+      }
+    });
+  }
+  if (!Array.isArray(value.jobs)) {
+    errors.push({ path: "$.jobs", message: "jobs must be an array" });
+  } else {
+    value.jobs.forEach((entry, index) => {
+      if (!isRecord(entry)) {
+        errors.push({ path: `$.jobs[${index}]`, message: "job must be an object" });
+        return;
+      }
+      if (typeof entry.id !== "string" || entry.id.length === 0) {
+        errors.push({ path: `$.jobs[${index}].id`, message: "job id must be a non-empty string" });
+      }
+      if (typeof entry.type !== "string" || entry.type.length === 0) {
+        errors.push({ path: `$.jobs[${index}].type`, message: "job type must be a non-empty string" });
+      }
+      if (!isSupportedJobStatus(entry.status)) {
+        errors.push({ path: `$.jobs[${index}].status`, message: "job status is not supported" });
+      }
+    });
+  }
+  if (value.appSnapshot !== undefined) {
+    if (!isRecord(value.appSnapshot)) {
+      errors.push({ path: "$.appSnapshot", message: "appSnapshot must be an object" });
+    } else {
+      if (value.appSnapshot.version !== 1) {
+        errors.push({ path: "$.appSnapshot.version", message: "unsupported app workspace snapshot version" });
+      }
+      if (!isRecord(value.appSnapshot.state)) {
+        errors.push({ path: "$.appSnapshot.state", message: "appSnapshot state is required" });
+      }
+    }
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    document: cloneValue(value) as unknown as HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>,
+  };
+}
+
+export function assertHonuaSavedWorkspaceDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  value: unknown,
+): HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult> {
+  const validation = validateHonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>(value);
+  if (validation.ok) return validation.document;
+  const message = validation.errors.map((error) => `${error.path}: ${error.message}`).join("; ");
+  throw new Error(`Invalid Honua saved workspace document: ${message}`);
+}
+
+export function hydrateHonuaSavedWorkspaceState<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  value: unknown,
+  options: HonuaSavedWorkspaceHydrateOptions<TResult> = {},
+): HonuaAppWorkspaceState<TFeature, TMetadata, TResult> {
+  const document = reattachHonuaSavedWorkspaceArtifacts(
+    assertHonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>(value),
+    options,
+  );
+  if (document.appSnapshot) {
+    return applySavedWorkspaceJobsToState(cloneValue(document.appSnapshot.state), document.jobs);
+  }
+  return stateFromSavedWorkspaceDocument(document);
+}
+
+export function createHonuaAppWorkspaceFromSavedDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  value: unknown,
+  options: HonuaSavedWorkspaceHydrateOptions<TResult> = {},
+): HonuaAppWorkspace<TFeature, TMetadata, TResult> {
+  return createHonuaAppWorkspace({
+    initialState: hydrateHonuaSavedWorkspaceState<TFeature, TMetadata, TResult>(value, options),
+  });
+}
+
+export function reattachHonuaSavedWorkspaceArtifacts<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  value: HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>,
+  options: HonuaSavedWorkspaceHydrateOptions<TResult> = {},
+): HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult> {
+  const jobsById = options.jobsById ?? {};
+  const analysisOutputsById = options.analysisOutputsById ?? {};
+  const analysisOutputIds = new Set(value.analysisOutputs.map((output) => output.id));
+  const extraOutputs = Object.values(analysisOutputsById).filter((output) => !analysisOutputIds.has(output.id));
+
+  return {
+    ...cloneValue(value),
+    jobs: value.jobs.map((job) => ({ ...job, ...cloneValue(jobsById[job.id] ?? {}) })),
+    analysisOutputs: [
+      ...value.analysisOutputs.map((output) => cloneValue(analysisOutputsById[output.id] ?? output)),
+      ...cloneValue(extraOutputs),
+    ],
+  };
+}
+
+export function summarizeHonuaSavedWorkspaceForMcp(value: unknown): HonuaSavedWorkspaceMcpSummary {
+  const document = assertHonuaSavedWorkspaceDocument(value);
+  return {
+    kind: "honua.workspace.summary",
+    workspaceId: document.project.id,
+    title: document.project.title,
+    savedAt: document.migration.savedAt,
+    schemaVersion: document.version,
+    sourceCount: document.sources.length,
+    layerCount: document.layers.length,
+    savedQueryCount: document.savedQueries.length,
+    selectedFeatureCount: document.selectedFeatures.length,
+    jobCount: document.jobs.length,
+    analysisOutputCount: document.analysisOutputs.length,
+    sources: document.sources.map(({ id, protocol, title, status }) => ({ id, protocol, title, status })),
+    layers: document.layers.map(({ id, sourceId, title, visible }) => ({ id, sourceId, title, visible })),
+    savedQueries: document.savedQueries.map(({ id, label, sourceIds }) => ({ id, label, sourceIds })),
+    jobs: document.jobs.map(({ id, type, status, outputIds }) => ({ id, type, status, outputIds })),
+    analysisOutputs: document.analysisOutputs.map(({ id, jobId, type, label, sourceId, layerId }) => ({
+      id,
+      jobId,
+      type,
+      label,
+      sourceId,
+      layerId,
+    })),
+  };
 }
 
 export function bindHonuaAppWorkspaceSelector<TSelected, TFeature = unknown, TMetadata = unknown, TResult = unknown>(
@@ -755,6 +1158,149 @@ function selectRealtimeTombstones<TFeature>(
 function realtimeKeyForSelection(target: FeatureSelectionTarget): string {
   if (isSourceQualifiedSelectionTarget(target)) return realtimeFeatureKey(target.sourceId, target.id);
   return realtimeFeatureKey(undefined, target);
+}
+
+function sourcesFromWorkspaceState<TFeature, TMetadata, TResult>(
+  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult> | undefined,
+): HonuaSavedWorkspaceSource[] {
+  if (!state) return [];
+  return Object.values(state.sources.entries).map((entry) => ({
+    id: entry.sourceId,
+    status: entry.status,
+    metadata: entry.metadata,
+  }));
+}
+
+function selectedFeaturesFromWorkspaceState<TFeature, TMetadata, TResult>(
+  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult> | undefined,
+): HonuaSavedWorkspaceSelectedFeature<TFeature>[] {
+  if (!state) return [];
+  return selectWorkspaceExplorationState(state).selection.map((target) => {
+    if (isSourceQualifiedSelectionTarget(target)) {
+      return { sourceId: target.sourceId, id: target.id };
+    }
+    return { id: target };
+  });
+}
+
+function jobsFromWorkspaceState<TFeature, TMetadata, TResult>(
+  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult> | undefined,
+): HonuaSavedWorkspaceJob<TResult>[] {
+  if (!state) return [];
+  return Object.values(state.jobs.entries).map((entry) => ({
+    id: entry.id,
+    type: entry.type,
+    status: entry.snapshot.status,
+    progress: entry.snapshot.progress,
+    result: entry.snapshot.result,
+    error: entry.snapshot.error,
+    outputIds: entry.snapshot.result ? Object.keys(entry.snapshot.result.outputs) : undefined,
+  }));
+}
+
+function stateFromSavedWorkspaceDocument<TFeature, TMetadata, TResult>(
+  document: HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>,
+): HonuaAppWorkspaceState<TFeature, TMetadata, TResult> {
+  const sources: Record<string, HonuaSourceMetadataEntry<TMetadata>> = {};
+  for (const source of document.sources) {
+    sources[source.id] = {
+      sourceId: source.id,
+      status: source.status ?? "idle",
+      metadata: source.metadata as TMetadata,
+    };
+  }
+
+  const jobs: Record<string, HonuaAppWorkspaceJobEntry<TResult>> = {};
+  for (const job of document.jobs) {
+    jobs[job.id] = {
+      id: job.id,
+      type: job.type,
+      snapshot: {
+        status: job.status,
+        progress: job.progress,
+        result: job.result,
+        error: job.error,
+      },
+    };
+  }
+
+  return {
+    exploration: {
+      reference:
+        document.project.id || document.sources.length > 0
+          ? { datasetId: document.project.id, sourceIds: document.sources.map((source) => source.id) }
+          : undefined,
+      snapshot: {
+        version: 1,
+        state: {
+          ...EMPTY_STATE,
+          filters: cloneValue(document.filters),
+          selection: document.selectedFeatures.map((feature) =>
+            feature.sourceId ? sourceFeatureSelectionTarget(feature.sourceId, feature.id) : feature.id,
+          ),
+        },
+      },
+    },
+    sources: { entries: sources },
+    realtime: { features: emptyRealtimeFeatureState<TFeature>() },
+    jobs: { entries: jobs },
+    layout: {
+      activeViewId: document.session?.activeViewId,
+      panels: {},
+      savedState: {
+        id: document.project.id,
+        label: document.project.title,
+        savedAt: Date.parse(document.migration.savedAt),
+        version: String(document.version),
+      },
+    },
+    drafts: { entries: {} },
+  };
+}
+
+function applySavedWorkspaceJobsToState<TFeature, TMetadata, TResult>(
+  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
+  jobs: ReadonlyArray<HonuaSavedWorkspaceJob<TResult>>,
+): HonuaAppWorkspaceState<TFeature, TMetadata, TResult> {
+  if (jobs.length === 0) return state;
+  const entries: Record<string, HonuaAppWorkspaceJobEntry<TResult>> = { ...state.jobs.entries };
+  for (const job of jobs) {
+    entries[job.id] = {
+      id: job.id,
+      type: job.type,
+      snapshot: {
+        status: job.status,
+        progress: job.progress,
+        result: job.result,
+        error: job.error,
+      },
+    };
+  }
+  return { ...state, jobs: { entries } };
+}
+
+function validateArrayWithIds(value: unknown, path: string, errors: HonuaSavedWorkspaceValidationError[]): void {
+  if (!Array.isArray(value)) {
+    errors.push({ path, message: "must be an array" });
+    return;
+  }
+  value.forEach((entry, index) => {
+    if (!isRecord(entry)) {
+      errors.push({ path: `${path}[${index}]`, message: "entry must be an object" });
+    } else if (typeof entry.id !== "string" || entry.id.length === 0) {
+      errors.push({ path: `${path}[${index}].id`, message: "id must be a non-empty string" });
+    }
+  });
+}
+
+function isSupportedJobStatus(value: unknown): value is JobSnapshot["status"] {
+  return (
+    value === "accepted" || value === "running" || value === "successful" || value === "failed" || value === "dismissed"
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function cloneValue<T>(value: T): T {
