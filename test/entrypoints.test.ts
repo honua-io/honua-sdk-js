@@ -153,6 +153,11 @@ import {
   scanArcGisUsage,
   summarizeJsParityMatrix,
 } from "../src/migration-entry.js";
+import {
+  createRealtimeFeatureStore,
+  emptyRealtimeFeatureState,
+  reduceRealtimeFeatureState,
+} from "../src/realtime/index.js";
 
 describe("entrypoint modules", () => {
   it("exposes honua-first core entrypoint", () => {
@@ -317,5 +322,11 @@ describe("entrypoint modules", () => {
       "chartDriven",
       "decoupled",
     ]);
+  });
+
+  it("exposes the realtime entrypoint", () => {
+    expect(emptyRealtimeFeatureState).toBeTypeOf("function");
+    expect(reduceRealtimeFeatureState).toBeTypeOf("function");
+    expect(createRealtimeFeatureStore).toBeTypeOf("function");
   });
 });

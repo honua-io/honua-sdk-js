@@ -1267,6 +1267,39 @@ export {
   reduce,
   sourceFeatureSelectionTarget,
 } from "./exploration/index.js";
+
+export {
+  createRealtimeFeatureStore,
+  emptyRealtimeFeatureState,
+  filterRealtimeSelection,
+  reconcileRealtimeSelection,
+  reconcileRealtimeStaleness,
+  reduceRealtimeFeatureState,
+  realtimeFeatureKey,
+} from "./realtime/index.js";
+export type {
+  RealtimeConnectionStatus,
+  RealtimeDeleteEvent,
+  RealtimeErrorEvent,
+  RealtimeFeatureEvent,
+  RealtimeFeatureEventBase,
+  RealtimeFeatureObserver,
+  RealtimeFeaturePatch,
+  RealtimeFeatureRecord,
+  RealtimeFeatureState,
+  RealtimeFeatureStore,
+  RealtimeFeatureTombstone,
+  RealtimeFeatureTransport,
+  RealtimeHeartbeatEvent,
+  RealtimeReducerOptions,
+  RealtimeSnapshotEvent,
+  RealtimeStateListener,
+  RealtimeStatusEvent,
+  RealtimeStalenessOptions,
+  RealtimeSubscriptionHandle,
+  RealtimeSubscriptionRequest,
+  RealtimeUpsertEvent,
+} from "./realtime/index.js";
 export type {
   ApplyPresetIntent,
   ChangeEvent,
