@@ -1,17 +1,16 @@
 :root {
   font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
-  color: #13201e;
-  background:
-    radial-gradient(circle at top left, rgba(250, 242, 224, 0.9), transparent 32rem),
-    linear-gradient(180deg, #f7f1e2 0%, #efe6d1 100%);
+  color: #162029;
+  background: linear-gradient(180deg, #f6f8fb 0%, #e7edf3 100%);
   color-scheme: light;
-  --card: rgba(255, 250, 241, 0.92);
-  --card-border: rgba(24, 54, 47, 0.12);
-  --ink-soft: #4c615c;
-  --accent: #2f7d6a;
-  --accent-strong: #16433b;
-  --highlight: #b55127;
-  --shadow: 0 20px 50px rgba(39, 36, 24, 0.12);
+  --card: rgba(255, 255, 255, 0.94);
+  --card-border: rgba(31, 42, 55, 0.13);
+  --ink-soft: #526170;
+  --accent: #0f766e;
+  --accent-strong: #134e4a;
+  --highlight: #c2410c;
+  --panel-soft: #eef3f7;
+  --shadow: 0 18px 42px rgba(31, 42, 55, 0.12);
 }
 
 * {
@@ -41,7 +40,7 @@ select {
 .control-panel,
 .map-stage {
   border: 1px solid var(--card-border);
-  border-radius: 1.5rem;
+  border-radius: 8px;
   background: var(--card);
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
@@ -85,10 +84,11 @@ select {
 
 .status-card,
 .selection-card,
-.feature-list {
+.feature-list,
+.linked-context-panel {
   border: 1px solid var(--card-border);
-  border-radius: 1.1rem;
-  background: rgba(255, 255, 255, 0.66);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .status-card {
@@ -112,11 +112,13 @@ select {
 }
 
 .selection-card,
-.feature-list {
+.feature-list,
+.linked-context-panel {
   padding: 1rem;
 }
 
-.selection-card-header {
+.selection-card-header,
+.linked-context-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -124,7 +126,8 @@ select {
 }
 
 .selection-card h2,
-.feature-list h2 {
+.feature-list h2,
+.linked-context-panel h2 {
   margin: 0.2rem 0 0.5rem;
   font-size: 1.25rem;
 }
@@ -142,14 +145,18 @@ select {
 }
 
 .selection-meta div,
-.attribute-list {
-  border-radius: 0.9rem;
-  background: rgba(247, 241, 226, 0.8);
+.attribute-list,
+.linked-context-grid div,
+.query-projection {
+  border-radius: 6px;
+  background: var(--panel-soft);
   padding: 0.85rem;
 }
 
 .selection-meta dt,
-.attribute-row dt {
+.attribute-row dt,
+.linked-context-grid dt,
+.field-control span {
   margin: 0;
   font-size: 0.76rem;
   font-weight: 700;
@@ -159,9 +166,58 @@ select {
 }
 
 .selection-meta dd,
-.attribute-row dd {
+.attribute-row dd,
+.linked-context-grid dd {
   margin: 0.25rem 0 0;
   font-weight: 600;
+}
+
+.field-control {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0 0.9rem;
+}
+
+.field-control select {
+  width: 100%;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #162029;
+  padding: 0.65rem 0.75rem;
+}
+
+.secondary-button {
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--accent-strong);
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+}
+
+.secondary-button:hover {
+  border-color: var(--accent);
+}
+
+.linked-context-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.linked-context-grid div:last-child {
+  grid-column: 1 / -1;
+}
+
+.query-projection {
+  max-height: 10rem;
+  overflow: auto;
+  margin: 0.8rem 0 0;
+  color: #22303c;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .attribute-list {
@@ -190,8 +246,8 @@ select {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.8rem;
   align-items: center;
-  border-radius: 0.95rem;
-  background: rgba(247, 241, 226, 0.8);
+  border-radius: 6px;
+  background: var(--panel-soft);
   padding: 0.9rem;
 }
 
@@ -207,9 +263,9 @@ select {
 
 .feature-inspect-button {
   border: none;
-  border-radius: 999px;
+  border-radius: 6px;
   background: var(--accent-strong);
-  color: #f9f5ea;
+  color: #ffffff;
   padding: 0.7rem 1rem;
   cursor: pointer;
   transition:
@@ -249,9 +305,9 @@ select {
   gap: 1rem;
   align-items: center;
   padding: 0.95rem 1rem;
-  border-radius: 1rem;
-  background: rgba(21, 41, 38, 0.78);
-  color: #f8f2e5;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #f8fafc;
 }
 
 .map-stage-header h2 {
@@ -266,8 +322,8 @@ select {
 
 .map-status span {
   padding: 0.45rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(248, 242, 229, 0.14);
+  border-radius: 6px;
+  background: rgba(248, 250, 252, 0.14);
   font-size: 0.84rem;
 }
 
@@ -282,18 +338,18 @@ select {
   z-index: 2;
   max-width: 26rem;
   padding: 0.95rem 1rem;
-  border-radius: 1rem;
-  border: 1px solid rgba(248, 242, 229, 0.2);
-  background: rgba(21, 41, 38, 0.86);
-  color: #f8f2e5;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 250, 252, 0.2);
+  background: rgba(15, 23, 42, 0.88);
+  color: #f8fafc;
 }
 
 .map-overlay[data-state="ready"] {
-  background: rgba(20, 67, 59, 0.82);
+  background: rgba(19, 78, 74, 0.86);
 }
 
 .map-overlay[data-state="error"] {
-  background: rgba(115, 41, 24, 0.9);
+  background: rgba(124, 45, 18, 0.92);
 }
 
 .map-overlay-title {
@@ -303,7 +359,7 @@ select {
 
 .map-overlay-body {
   margin: 0;
-  color: rgba(248, 242, 229, 0.88);
+  color: rgba(248, 250, 252, 0.88);
   line-height: 1.45;
 }
 
@@ -339,7 +395,7 @@ select {
 }
 
 .maplibregl-popup-content {
-  border-radius: 1rem;
+  border-radius: 8px;
   padding: 1rem;
 }
 
@@ -358,8 +414,13 @@ select {
   }
 
   .status-grid,
-  .selection-meta {
+  .selection-meta,
+  .linked-context-grid {
     grid-template-columns: 1fr;
+  }
+
+  .linked-context-grid div:last-child {
+    grid-column: auto;
   }
 
   .feature-list-item {

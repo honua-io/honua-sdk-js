@@ -12,6 +12,8 @@
     "types": ["vite/client"],
     "paths": {
       "@honua/sdk-js": ["../../src/index.ts"],
+      "@honua/sdk-js/exploration": ["../../src/exploration/index.ts"],
+      "@honua/sdk-js/interactions": ["../../src/interactions/index.ts"],
       "@honua/sdk-js/honua": ["../../src/honua.ts"]
     }
   },
