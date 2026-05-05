@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Honua Realtime Incident Operations</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="ops-panel" aria-label="Incident operations controls">
+        <header class="ops-header">
+          <div>
+            <p class="eyebrow">Honua Cloud / Realtime Operations</p>
+            <h1>Incident command</h1>
+          </div>
+          <strong id="connection-status" class="status-badge" data-status="idle">Idle</strong>
+        </header>
+
+        <section class="summary-grid" aria-label="Incident summary">
+          <article>
+            <span>Active</span>
+            <strong id="summary-active">0</strong>
+          </article>
+          <article>
+            <span>Critical</span>
+            <strong id="summary-critical">0</strong>
+          </article>
+          <article>
+            <span>Visible</span>
+            <strong id="summary-visible">0</strong>
+          </article>
+          <article>
+            <span>Avg ETA</span>
+            <strong id="summary-eta">0 min</strong>
+          </article>
+        </section>
+
+        <section class="stream-panel" aria-label="Realtime stream state">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Stream</p>
+              <h2>Delta feed</h2>
+            </div>
+            <span id="last-scenario-step">Snapshot pending</span>
+          </div>
+          <dl class="stream-grid">
+            <div><dt>Cursor</dt><dd id="stream-cursor">-</dd></div>
+            <div><dt>Records</dt><dd id="stream-records">0</dd></div>
+            <div><dt>Tombstones</dt><dd id="stream-tombstones">0</dd></div>
+            <div><dt>Ignored</dt><dd id="stream-ignored">0</dd></div>
+            <div><dt>Watermark</dt><dd id="stream-watermark">-</dd></div>
+            <div><dt>Stale Since</dt><dd id="stream-stale-since">-</dd></div>
+          </dl>
+          <div class="button-row">
+            <button id="step-event" type="button">Step Event</button>
+            <button id="reconnect-stream" type="button">Reconnect</button>
+            <button id="resume-stream" type="button">Resume</button>
+            <button id="mark-stale" type="button">Mark Stale</button>
+            <button id="manual-refresh" type="button">Refresh</button>
+          </div>
+        </section>
+
+        <section class="filter-panel" aria-label="Incident filters">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Linked context</p>
+              <h2>Filters</h2>
+            </div>
+          </div>
+          <div class="filter-grid">
+            <label>
+              <span>Severity</span>
+              <select id="severity-filter">
+                <option value="">All</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+            <label>
+              <span>Status</span>
+              <select id="status-filter">
+                <option value="">All</option>
+                <option value="open">Open</option>
+                <option value="assigned">Assigned</option>
+                <option value="monitoring">Monitoring</option>
+                <option value="resolved">Resolved</option>
+              </select>
+            </label>
+            <label>
+              <span>Type</span>
+              <select id="type-filter">
+                <option value="">All</option>
+                <option value="Environmental">Environmental</option>
+                <option value="Utilities">Utilities</option>
+                <option value="Traffic">Traffic</option>
+                <option value="Flooding">Flooding</option>
+                <option value="Logistics">Logistics</option>
+                <option value="Fire">Fire</option>
+              </select>
+            </label>
+          </div>
+          <dl class="projection-grid">
+            <div><dt>Rows</dt><dd id="projection-visible-count">0</dd></div>
+            <div><dt>Filters</dt><dd id="projection-filter-count">0</dd></div>
+            <div><dt>Selection</dt><dd id="projection-selection-count">0</dd></div>
+            <div><dt>Extent</dt><dd id="projection-extent">No map extent</dd></div>
+          </dl>
+          <pre id="query-projection" class="query-projection">{}</pre>
+        </section>
+
+        <section class="incident-table" aria-label="Incident table">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Operations queue</p>
+              <h2>Incidents</h2>
+            </div>
+          </div>
+          <div id="incident-list" class="incident-list">
+            <div class="empty-state">Loading incidents.</div>
+          </div>
+        </section>
+      </section>
+
+      <section class="map-stage" aria-label="Incident map">
+        <div id="map" class="map-canvas"></div>
+        <div id="map-overlay" class="map-overlay" data-state="loading">Connecting live incident stream</div>
+      </section>
+
+      <aside class="detail-panel" aria-label="Incident detail">
+        <section class="detail-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Selected incident</p>
+              <h2 id="detail-title">No selected incident</h2>
+            </div>
+          </div>
+          <p id="detail-subtitle">Selection is empty.</p>
+          <dl class="detail-grid">
+            <div><dt>ID</dt><dd id="detail-id">-</dd></div>
+            <div><dt>Status</dt><dd id="detail-status">-</dd></div>
+            <div><dt>Severity</dt><dd id="detail-severity">-</dd></div>
+            <div><dt>Updated</dt><dd id="detail-updated">-</dd></div>
+          </dl>
+          <p id="detail-summary" class="detail-summary"></p>
+        </section>
+
+        <section class="detail-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Related records</p>
+              <h2>Case context</h2>
+            </div>
+          </div>
+          <div id="related-records" class="linked-record-list">
+            <div class="empty-state">No related records.</div>
+          </div>
+        </section>
+
+        <section class="detail-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Attachments</p>
+              <h2>Evidence</h2>
+            </div>
+          </div>
+          <div id="attachments" class="linked-record-list">
+            <div class="empty-state">No attachments.</div>
+          </div>
+        </section>
+
+        <section class="detail-card event-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Activity</p>
+              <h2>Realtime log</h2>
+            </div>
+          </div>
+          <ol id="event-log" class="event-log"></ol>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
