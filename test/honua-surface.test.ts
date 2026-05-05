@@ -446,7 +446,14 @@ describe("Honua native API surfaces", () => {
     await mapLayer.request({ path: "queryDomains" });
 
     expect(query).toEqual({ where: "1=1", outFields: ["*"], returnGeometry: true });
-    expect(metadata).toEqual({ id: 4, name: "Roads" });
+    expect(metadata).toMatchObject({
+      id: 4,
+      name: "Roads",
+      cache: {
+        scope: "metadata",
+        status: "miss",
+      },
+    });
     expect(features).toEqual({ features: [{ id: 1 }] });
     expect(count).toBe(9);
     expect(objectIds).toEqual([10, 11]);
@@ -649,8 +656,8 @@ describe("Honua native API surfaces", () => {
     expect(calls[8]).toMatchObject({ method: "PUT" });
     expect(calls[9]).toMatchObject({ method: "PATCH" });
     expect(calls[10]).toMatchObject({ method: "DELETE" });
-    expect(calls[11]?.url).toContain("/ogc/features/collections/3?f=json");
-    expect(calls[18]).toMatchObject({ method: "DELETE" });
+    expect(calls[11]?.url).toContain("/ogc/features/collections/3/queryables?f=json");
+    expect(calls[17]).toMatchObject({ method: "DELETE" });
   });
 
   it("supports OGC itemsAll pagination helpers", async () => {
