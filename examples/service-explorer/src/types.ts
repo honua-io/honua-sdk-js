@@ -1,6 +1,7 @@
 import type { HonuaSourceCacheStatus } from "@honua/sdk-js/app-workspace";
 import type {
   EsriGeometryType,
+  HonuaCacheState,
   HonuaExtent,
   HonuaFeature,
   HonuaFieldInfo,
@@ -66,6 +67,7 @@ export interface ServiceExplorerCatalog {
 
 export interface ServiceExplorerCacheInfo {
   readonly status: HonuaSourceCacheStatus;
+  readonly state: HonuaCacheState;
   readonly source: ServiceExplorerDataSource;
   readonly updatedAt: number;
   readonly revalidateAfterMs: number;

@@ -25,7 +25,7 @@ describe("HonuaClient", () => {
     });
 
     await client.listServices();
-    await client.listServices();
+    await client.listServices({ refresh: true });
 
     expect(requestedHeaders[0]).toMatchObject({
       "X-API-Key": "key-1",
@@ -66,16 +66,16 @@ describe("HonuaClient", () => {
     });
 
     await client.listServices();
-    await client.listServices();
+    await client.listServices({ refresh: true });
     expect(issue).toBe(1);
     expect(requestedHeaders[1]).toMatchObject({ Authorization: "Bearer token-1" });
 
     await client.refreshAuthCredentials();
-    await client.listServices();
+    await client.listServices({ refresh: true });
     expect(requestedHeaders[2]).toMatchObject({ Authorization: "Bearer token-2" });
 
     await client.revokeAuthCredentials();
-    await client.listServices();
+    await client.listServices({ refresh: true });
 
     expect(revoked).toEqual([{ token: "token-2", reason: "manual" }]);
     expect(requestedHeaders[3]).toMatchObject({ Authorization: "Bearer token-3" });
@@ -240,7 +240,13 @@ describe("HonuaClient", () => {
     });
 
     const response = await client.getMapServiceMetadata("default");
-    expect(response).toEqual({ mapName: "default" });
+    expect(response).toMatchObject({
+      mapName: "default",
+      cache: {
+        scope: "metadata",
+        status: "miss",
+      },
+    });
     expect(requestedUrl).toContain("/rest/services/default/MapServer?f=json");
   });
 
@@ -744,8 +750,19 @@ describe("HonuaClient", () => {
       },
     });
 
-    await expect(client.listServices()).resolves.toEqual({});
-    await expect(client.listServices()).resolves.toEqual({ raw: "plain text" });
+    await expect(client.listServices({ cache: "bypass" })).resolves.toMatchObject({
+      cache: {
+        scope: "metadata",
+        status: "bypass",
+      },
+    });
+    await expect(client.listServices({ cache: "bypass" })).resolves.toMatchObject({
+      raw: "plain text",
+      cache: {
+        scope: "metadata",
+        status: "bypass",
+      },
+    });
   });
 
   it("uses fallback HTTP error message for array response bodies", async () => {
@@ -801,7 +818,7 @@ describe("HonuaClient", () => {
       },
     });
 
-    await expect(client.listServices()).resolves.toEqual({ services: [] });
+    await expect(client.listServices()).resolves.toMatchObject({ services: [] });
     expect(attempts).toBe(3);
   });
 
@@ -824,7 +841,7 @@ describe("HonuaClient", () => {
       },
     });
 
-    await expect(client.listServices()).resolves.toEqual({ services: [{ id: "ok" }] });
+    await expect(client.listServices()).resolves.toMatchObject({ services: [{ id: "ok" }] });
     expect(attempts).toBe(3);
   });
 
@@ -987,7 +1004,7 @@ describe("HonuaClient", () => {
 
     const response = await client.listServices();
     expect(afterPayload).toEqual({ services: [{ id: "default" }] });
-    expect(response).toEqual({ services: [{ id: "default" }] });
+    expect(response).toMatchObject({ services: [{ id: "default" }] });
   });
 
   it("invokes only error interceptors for HTTP error responses", async () => {

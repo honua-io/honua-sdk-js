@@ -1,3 +1,5 @@
+import type { HonuaCacheState, HonuaMetadataRequestOptions } from "./cache-state.js";
+
 export type QueryMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface HonuaRequestContext {
@@ -341,7 +343,7 @@ export interface HonuaServerCompatibilityStatus {
 
 export type OgcResponseFormat = "json" | "html" | "geojson" | "gml" | "csv" | "schemajson" | "schema+json";
 
-export interface OgcMetadataRequest {
+export interface OgcMetadataRequest extends HonuaMetadataRequestOptions {
   responseFormat?: OgcResponseFormat | string;
   extraParams?: Record<string, string | number | boolean>;
 }
@@ -721,6 +723,7 @@ export interface HonuaLayerMetadata {
   maxRecordCount?: number;
   supportsAttachments?: boolean;
   relationships?: HonuaRelationshipInfo[];
+  cache?: HonuaCacheState;
 }
 
 /** Top-level metadata for a FeatureServer or MapServer service. */
@@ -731,6 +734,7 @@ export interface HonuaServiceMetadata {
   spatialReference?: HonuaSpatialReference;
   fullExtent?: HonuaExtent;
   maxRecordCount?: number;
+  cache?: HonuaCacheState;
 }
 
 /** Response from `listServices()` — the REST services directory. */
@@ -738,6 +742,7 @@ export interface HonuaServicesResponse {
   currentVersion?: number;
   folders?: string[];
   services?: Array<{ name: string; type: string }>;
+  cache?: HonuaCacheState;
 }
 
 // ── OGC Responses ─────────────────────────────
@@ -775,11 +780,13 @@ export interface HonuaOgcLandingResponse {
   title?: string;
   description?: string;
   links?: HonuaOgcLink[];
+  cache?: HonuaCacheState;
 }
 
 /** Response from OGC API conformance (`/ogc/features/conformance`). */
 export interface HonuaOgcConformanceResponse {
   conformsTo: string[];
+  cache?: HonuaCacheState;
 }
 
 /** A single collection summary in an OGC collections listing. */
@@ -800,10 +807,13 @@ export interface HonuaOgcCollectionSummary {
 export interface HonuaOgcCollectionsResponse {
   collections: HonuaOgcCollectionSummary[];
   links?: HonuaOgcLink[];
+  cache?: HonuaCacheState;
 }
 
 /** Response from a single OGC API collection (`/ogc/features/collections/{id}`). */
-export interface HonuaOgcCollectionMetadata extends HonuaOgcCollectionSummary {}
+export interface HonuaOgcCollectionMetadata extends HonuaOgcCollectionSummary {
+  cache?: HonuaCacheState;
+}
 
 /** A single queryable property definition. */
 export interface HonuaOgcQueryableProperty {
@@ -819,6 +829,7 @@ export interface HonuaOgcQueryablesResponse {
   title?: string;
   description?: string;
   properties?: Record<string, HonuaOgcQueryableProperty>;
+  cache?: HonuaCacheState;
 }
 
 // ── OGC API Tiles ─────────────────────────────
@@ -852,12 +863,14 @@ export interface HonuaOgcTileMatrixSet {
   orderedAxes?: readonly string[];
   tileMatrices?: readonly HonuaOgcTileMatrix[];
   links?: HonuaOgcLink[];
+  cache?: HonuaCacheState;
 }
 
 /** Response from `/tileMatrixSets`. */
 export interface HonuaOgcTileMatrixSetsResponse {
   tileMatrixSets: HonuaOgcTileMatrixSet[];
   links?: HonuaOgcLink[];
+  cache?: HonuaCacheState;
 }
 
 /** Metadata for a single tileset (a tile-matrix-set bound to a collection). */
@@ -871,12 +884,14 @@ export interface HonuaOgcTilesetMetadata {
   boundingBox?: { lowerLeft?: readonly number[]; upperRight?: readonly number[]; crs?: string };
   /** Pre-baked styles available on the tileset (for styled-tile access). */
   styles?: Array<{ id: string; title?: string }>;
+  cache?: HonuaCacheState;
 }
 
 /** Response from `/collections/{id}/tiles` (list of tilesets). */
 export interface HonuaOgcTilesetsResponse {
   tilesets: HonuaOgcTilesetMetadata[];
   links?: HonuaOgcLink[];
+  cache?: HonuaCacheState;
 }
 
 /** Request envelope for tileset-discovery operations. */
@@ -983,12 +998,14 @@ export interface HonuaOgcProcessSummary {
 export interface HonuaOgcProcessDescription extends HonuaOgcProcessSummary {
   inputs?: Record<string, Record<string, unknown>>;
   outputs?: Record<string, Record<string, unknown>>;
+  cache?: HonuaCacheState;
 }
 
 /** Response from `/processes`. */
 export interface HonuaOgcProcessesResponse {
   processes: HonuaOgcProcessSummary[];
   links?: HonuaOgcLink[];
+  cache?: HonuaCacheState;
 }
 
 /** OGC API Processes 1.0 status values. */

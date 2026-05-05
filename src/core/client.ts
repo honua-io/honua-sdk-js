@@ -1,5 +1,15 @@
 import type { Client } from "@connectrpc/connect";
 import type { FeatureService } from "../gen/honua/v1/feature_service_pb.js";
+import {
+  type HonuaCacheValidator,
+  type HonuaMetadataRequestOptions,
+  createHonuaCacheState,
+  honuaCacheValidatorFromHeaders,
+  honuaMetadataRequestHeaders,
+  normalizeHonuaMetadataRequestOptions,
+  withHonuaCacheState,
+  withoutHonuaCacheState,
+} from "./cache-state.js";
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
 import { HonuaOgcMaps } from "./ogc-maps.js";
 import { HonuaOgcProcesses } from "./ogc-processes.js";
@@ -234,6 +244,14 @@ interface CachedAuthCredentials {
   expiresAtMs: number | undefined;
 }
 
+interface MetadataCacheEntry<T = unknown> {
+  body: T;
+  cachedAtMs: number;
+  keyFingerprint: string;
+  validator?: HonuaCacheValidator;
+  sourceUpdatedAt?: string;
+}
+
 export class HonuaClient {
   public static readonly minimumSupportedServerVersion = HONUA_MINIMUM_SUPPORTED_SERVER_VERSION;
   public static readonly minimumSupportedServerReleaseChannel = MINIMUM_SUPPORTED_SERVER_RELEASE_CHANNEL;
@@ -252,6 +270,7 @@ export class HonuaClient {
   private authCredentialsCache: CachedAuthCredentials | undefined;
   private authRefreshPromise: Promise<CachedAuthCredentials | undefined> | undefined;
   private connectClient: Client<typeof FeatureService> | undefined;
+  private readonly metadataCache = new Map<string, MetadataCacheEntry>();
 
   public constructor(options: HonuaClientOptions) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
@@ -427,9 +446,32 @@ export class HonuaClient {
     return new HonuaStacSearch({ client: this });
   }
 
-  public async listServices(format: "json" | "pjson" = "json"): Promise<HonuaServicesResponse> {
+  public clearMetadataCache(options: { keyPrefix?: string } = {}): void {
+    if (!options.keyPrefix) {
+      this.metadataCache.clear();
+      return;
+    }
+    const prefix = `metadata:${options.keyPrefix}`;
+    for (const key of this.metadataCache.keys()) {
+      if (key.startsWith(prefix)) {
+        this.metadataCache.delete(key);
+      }
+    }
+  }
+
+  public async listServices(
+    formatOrOptions: "json" | "pjson" | HonuaMetadataRequestOptions = "json",
+    options: HonuaMetadataRequestOptions = {},
+  ): Promise<HonuaServicesResponse> {
+    const format = typeof formatOrOptions === "string" ? formatOrOptions : "json";
+    const metadataOptions = typeof formatOrOptions === "string" ? options : formatOrOptions;
     const query = new URLSearchParams({ f: format });
-    return this.requestJson("GET", `/rest/services?${query.toString()}`) as Promise<HonuaServicesResponse>;
+    const path = `/rest/services?${query.toString()}`;
+    return this.requestCachedMetadataJson<HonuaServicesResponse>(
+      `geoservices:services:${format}`,
+      path,
+      metadataOptions,
+    );
   }
 
   public async getCompatibility(options: HonuaCompatibilityRequest = {}): Promise<HonuaServerCompatibility> {
@@ -600,6 +642,7 @@ export class HonuaClient {
     path: string,
     init?: RequestInit,
     callerSignal?: AbortSignal,
+    options: { okStatuses?: readonly number[] } = {},
   ): Promise<Response> {
     let request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
@@ -645,7 +688,7 @@ export class HonuaClient {
       }
       const durationMs = performance.now() - startTime;
 
-      if (!response.ok) {
+      if (!response.ok && !options.okStatuses?.includes(response.status)) {
         const body = await parseResponseBody(response.clone());
         const httpError = this.toHttpError(response.status, body);
         if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
@@ -667,53 +710,241 @@ export class HonuaClient {
     }
   }
 
-  public async getLayerMetadata(serviceId: string, layerId: number): Promise<HonuaLayerMetadata> {
-    const query = new URLSearchParams({ f: "json" });
-    return this.requestJson(
-      "GET",
-      `/rest/services/${encodeURIComponent(serviceId)}/FeatureServer/${layerId}?${query.toString()}`,
-    ) as Promise<HonuaLayerMetadata>;
+  private async requestCachedMetadataJson<T>(
+    cacheKey: string,
+    path: string,
+    options: HonuaMetadataRequestOptions = {},
+  ): Promise<T> {
+    const metadataOptions = normalizeHonuaMetadataRequestOptions(options);
+    const keyFingerprint = `metadata:${cacheKey}`;
+    const cached = this.metadataCache.get(keyFingerprint) as MetadataCacheEntry<T> | undefined;
+    const bypass = metadataOptions.cache === "bypass";
+
+    if (!bypass && !metadataOptions.refresh && cached) {
+      return withHonuaCacheState(
+        cached.body,
+        createMetadataCacheState(cached, "hit", {
+          now: Date.now(),
+          ttlMs: metadataOptions.ttlMs,
+          staleIfErrorMs: metadataOptions.staleIfErrorMs,
+        }),
+      );
+    }
+
+    let request: HonuaRequestContext = {
+      url: resolveRequestUrl(this.baseUrl, path),
+      path,
+      method: "GET",
+      init: {
+        method: "GET",
+        headers: await this.composeHeaders(
+          honuaMetadataRequestHeaders({
+            accept: "application/json",
+            refresh: metadataOptions.refresh,
+            bypass,
+            validator: cached?.validator,
+          }),
+        ),
+      },
+    };
+
+    request = await this.applyBeforeInterceptors(request);
+
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
+      const timeout = createTimeoutSignal(metadataOptions.signal ?? request.init.signal, this.timeoutMs);
+      const startTime = performance.now();
+      try {
+        response = await this.fetchFn(request.url, {
+          ...request.init,
+          method: request.method,
+          signal: timeout.signal,
+        });
+      } catch (error) {
+        const durationMs = performance.now() - startTime;
+        const normalizedError = timeout.didTimeout
+          ? new HonuaTimeoutError(this.timeoutMs ?? 0)
+          : normalizeNetworkError(error);
+        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
+          await sleep(this.resolveRetryDelayMs(attempt));
+          continue;
+        }
+        const stale = this.staleMetadataFallback(cached, metadataOptions, normalizedError);
+        if (stale) return stale;
+        await this.applyErrorInterceptors({
+          request: cloneRequestContext(request),
+          error: normalizedError,
+          durationMs,
+        });
+        throw normalizedError;
+      } finally {
+        timeout.dispose();
+      }
+      const durationMs = performance.now() - startTime;
+
+      if (response.status === 304 && cached && !bypass) {
+        try {
+          await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
+        } catch (error) {
+          await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
+          throw error;
+        }
+        const updatedEntry: MetadataCacheEntry<T> = {
+          ...cached,
+          cachedAtMs: Date.now(),
+          ...((honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator)
+            ? { validator: honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator }
+            : {}),
+        };
+        this.metadataCache.set(keyFingerprint, updatedEntry);
+        return withHonuaCacheState(
+          updatedEntry.body,
+          createMetadataCacheState(updatedEntry, "refreshed", {
+            now: Date.now(),
+            ttlMs: metadataOptions.ttlMs,
+            staleIfErrorMs: metadataOptions.staleIfErrorMs,
+            revalidatedAt: new Date().toISOString(),
+          }),
+        );
+      }
+
+      const body = await parseResponseBody(response.clone());
+      if (!response.ok) {
+        const httpError = this.toHttpError(response.status, body);
+        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
+          await sleep(this.resolveRetryDelayMs(attempt, response));
+          continue;
+        }
+        const stale = this.staleMetadataFallback(cached, metadataOptions, httpError);
+        if (stale) return stale;
+        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
+        throw httpError;
+      }
+
+      try {
+        await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
+      } catch (error) {
+        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
+        throw error;
+      }
+
+      const cleanBody = withoutHonuaCacheState(body) as T;
+      const validator = honuaCacheValidatorFromHeaders(response.headers);
+      const sourceUpdatedAt = response.headers.get("last-modified") ?? undefined;
+      const entry: MetadataCacheEntry<T> = {
+        body: cleanBody,
+        cachedAtMs: Date.now(),
+        keyFingerprint,
+        ...(validator ? { validator } : {}),
+        ...(sourceUpdatedAt ? { sourceUpdatedAt } : {}),
+      };
+      const status = bypass ? "bypass" : cached ? "refreshed" : "miss";
+      if (!bypass) {
+        this.metadataCache.set(keyFingerprint, entry);
+      }
+      return withHonuaCacheState(
+        cleanBody,
+        createMetadataCacheState(entry, status, {
+          now: Date.now(),
+          ttlMs: metadataOptions.ttlMs,
+          staleIfErrorMs: metadataOptions.staleIfErrorMs,
+          ...(status === "refreshed" ? { revalidatedAt: new Date().toISOString() } : {}),
+        }),
+      );
+    }
   }
 
-  public async getFeatureServiceMetadata(serviceId: string): Promise<HonuaServiceMetadata> {
+  private staleMetadataFallback<T>(
+    cached: MetadataCacheEntry<T> | undefined,
+    options: ReturnType<typeof normalizeHonuaMetadataRequestOptions>,
+    error: unknown,
+  ): T | undefined {
+    if (!cached || options.cache === "bypass" || !options.staleIfError) {
+      return undefined;
+    }
+    return withHonuaCacheState(
+      cached.body,
+      createMetadataCacheState(cached, "stale", {
+        now: Date.now(),
+        ttlMs: options.ttlMs,
+        staleIfErrorMs: options.staleIfErrorMs,
+        refreshErrorId: metadataRefreshErrorId(error),
+      }),
+    );
+  }
+
+  public async getLayerMetadata(
+    serviceId: string,
+    layerId: number,
+    options: HonuaMetadataRequestOptions = {},
+  ): Promise<HonuaLayerMetadata> {
     const query = new URLSearchParams({ f: "json" });
-    return this.requestJson(
-      "GET",
-      `/rest/services/${encodeURIComponent(serviceId)}/FeatureServer?${query.toString()}`,
-    ) as Promise<HonuaServiceMetadata>;
+    const path = `/rest/services/${encodeURIComponent(serviceId)}/FeatureServer/${layerId}?${query.toString()}`;
+    return this.requestCachedMetadataJson<HonuaLayerMetadata>(
+      `geoservices-feature:${serviceId}:${layerId}`,
+      path,
+      options,
+    );
+  }
+
+  public async getFeatureServiceMetadata(
+    serviceId: string,
+    options: HonuaMetadataRequestOptions = {},
+  ): Promise<HonuaServiceMetadata> {
+    const query = new URLSearchParams({ f: "json" });
+    const path = `/rest/services/${encodeURIComponent(serviceId)}/FeatureServer?${query.toString()}`;
+    return this.requestCachedMetadataJson<HonuaServiceMetadata>(
+      `geoservices-feature:${serviceId}:service`,
+      path,
+      options,
+    );
   }
 
   public async getOgcFeaturesLanding(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson("GET", `/ogc/features?${params.toString()}`) as Promise<HonuaOgcLandingResponse>;
+    return this.requestCachedMetadataJson<HonuaOgcLandingResponse>(
+      `ogc-features:landing:${params.toString()}`,
+      `/ogc/features?${params.toString()}`,
+      request,
+    );
   }
 
   public async getOgcFeaturesConformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
+    return this.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
+      `ogc-features:conformance:${params.toString()}`,
       `/ogc/features/conformance?${params.toString()}`,
-    ) as Promise<HonuaOgcConformanceResponse>;
+      request,
+    );
   }
 
   public async listOgcCollections(request: OgcMetadataRequest = {}): Promise<HonuaOgcCollectionsResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
+    return this.requestCachedMetadataJson<HonuaOgcCollectionsResponse>(
+      `ogc-features:collections:${params.toString()}`,
       `/ogc/features/collections?${params.toString()}`,
-    ) as Promise<HonuaOgcCollectionsResponse>;
+      request,
+    );
   }
 
   public async getOgcCollection(request: OgcCollectionRequest): Promise<HonuaOgcCollectionMetadata> {
     const params = createOgcMetadataParams(request);
     const path = `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}`;
-    return this.requestJson("GET", `${path}?${params.toString()}`) as Promise<HonuaOgcCollectionMetadata>;
+    return this.requestCachedMetadataJson<HonuaOgcCollectionMetadata>(
+      `ogc-features:collection:${request.collectionId}:${params.toString()}`,
+      `${path}?${params.toString()}`,
+      request,
+    );
   }
 
   public async getOgcQueryables(request: OgcCollectionRequest): Promise<HonuaOgcQueryablesResponse> {
     const params = createOgcMetadataParams(request);
     const path = `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}/queryables`;
-    return this.requestJson("GET", `${path}?${params.toString()}`) as Promise<HonuaOgcQueryablesResponse>;
+    return this.requestCachedMetadataJson<HonuaOgcQueryablesResponse>(
+      `ogc-features:queryables:${request.collectionId}:${params.toString()}`,
+      `${path}?${params.toString()}`,
+      request,
+    );
   }
 
   public async listOgcItems(request: OgcItemsRequest): Promise<HonuaOgcFeatureCollectionResponse> {
@@ -837,41 +1068,54 @@ export class HonuaClient {
 
   public async getOgcTilesLanding(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson("GET", `/ogc/tiles?${params.toString()}`) as Promise<HonuaOgcLandingResponse>;
+    return this.requestCachedMetadataJson<HonuaOgcLandingResponse>(
+      `ogc-tiles:landing:${params.toString()}`,
+      `/ogc/tiles?${params.toString()}`,
+      request,
+    );
   }
 
   public async getOgcTilesConformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
+    return this.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
+      `ogc-tiles:conformance:${params.toString()}`,
       `/ogc/tiles/conformance?${params.toString()}`,
-    ) as Promise<HonuaOgcConformanceResponse>;
+      request,
+    );
   }
 
   public async listOgcTileMatrixSets(request: OgcMetadataRequest = {}): Promise<HonuaOgcTileMatrixSetsResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
+    return this.requestCachedMetadataJson<HonuaOgcTileMatrixSetsResponse>(
+      `ogc-tiles:tile-matrix-sets:${params.toString()}`,
       `/ogc/tiles/tileMatrixSets?${params.toString()}`,
-    ) as Promise<HonuaOgcTileMatrixSetsResponse>;
+      request,
+    );
   }
 
-  public async getOgcTileMatrixSet(request: {
-    tileMatrixSetId: string;
-    responseFormat?: string;
-    extraParams?: Record<string, string | number | boolean>;
-  }): Promise<HonuaOgcTileMatrixSet> {
+  public async getOgcTileMatrixSet(
+    request: {
+      tileMatrixSetId: string;
+      responseFormat?: string;
+      extraParams?: Record<string, string | number | boolean>;
+    } & HonuaMetadataRequestOptions,
+  ): Promise<HonuaOgcTileMatrixSet> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
+    return this.requestCachedMetadataJson<HonuaOgcTileMatrixSet>(
+      `ogc-tiles:tile-matrix-set:${request.tileMatrixSetId}:${params.toString()}`,
       `/ogc/tiles/tileMatrixSets/${encodeURIComponent(request.tileMatrixSetId)}?${params.toString()}`,
-    ) as Promise<HonuaOgcTileMatrixSet>;
+      request,
+    );
   }
 
   public async listOgcCollectionTilesets(request: OgcTilesetsRequest): Promise<HonuaOgcTilesetsResponse> {
     const params = createOgcMetadataParams(request);
     const path = `/ogc/tiles/collections/${encodeURIComponent(String(request.collectionId))}/tiles`;
-    return this.requestJson("GET", `${path}?${params.toString()}`) as Promise<HonuaOgcTilesetsResponse>;
+    return this.requestCachedMetadataJson<HonuaOgcTilesetsResponse>(
+      `ogc-tiles:tilesets:${request.collectionId}:${params.toString()}`,
+      `${path}?${params.toString()}`,
+      request,
+    );
   }
 
   public async getOgcCollectionTileset(request: OgcTilesetRequest): Promise<HonuaOgcTilesetMetadata> {
@@ -879,7 +1123,11 @@ export class HonuaClient {
     const path =
       `/ogc/tiles/collections/${encodeURIComponent(String(request.collectionId))}` +
       `/tiles/${encodeURIComponent(request.tileMatrixSetId)}`;
-    return this.requestJson("GET", `${path}?${params.toString()}`) as Promise<HonuaOgcTilesetMetadata>;
+    return this.requestCachedMetadataJson<HonuaOgcTilesetMetadata>(
+      `ogc-tiles:tileset:${request.collectionId}:${request.tileMatrixSetId}:${params.toString()}`,
+      `${path}?${params.toString()}`,
+      request,
+    );
   }
 
   public async fetchOgcTile(request: OgcTileRequest): Promise<HonuaOgcTileResponse> {
@@ -901,15 +1149,20 @@ export class HonuaClient {
 
   public async getOgcMapsLanding(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson("GET", `/ogc/maps?${params.toString()}`) as Promise<HonuaOgcLandingResponse>;
+    return this.requestCachedMetadataJson<HonuaOgcLandingResponse>(
+      `ogc-maps:landing:${params.toString()}`,
+      `/ogc/maps?${params.toString()}`,
+      request,
+    );
   }
 
   public async getOgcMapsConformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
+    return this.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
+      `ogc-maps:conformance:${params.toString()}`,
       `/ogc/maps/conformance?${params.toString()}`,
-    ) as Promise<HonuaOgcConformanceResponse>;
+      request,
+    );
   }
 
   public async getOgcMapImage(request: OgcMapImageRequest): Promise<HonuaOgcMapImageResponse> {
@@ -1135,31 +1388,38 @@ export class HonuaClient {
 
   public async getOgcProcessesLanding(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson("GET", `/ogc/processes?${params.toString()}`) as Promise<HonuaOgcLandingResponse>;
+    return this.requestCachedMetadataJson<HonuaOgcLandingResponse>(
+      `ogc-processes:landing:${params.toString()}`,
+      `/ogc/processes?${params.toString()}`,
+      request,
+    );
   }
 
   public async getOgcProcessesConformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
+    return this.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
+      `ogc-processes:conformance:${params.toString()}`,
       `/ogc/processes/conformance?${params.toString()}`,
-    ) as Promise<HonuaOgcConformanceResponse>;
+      request,
+    );
   }
 
   public async listOgcProcesses(request: OgcMetadataRequest = {}): Promise<HonuaOgcProcessesResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
+    return this.requestCachedMetadataJson<HonuaOgcProcessesResponse>(
+      `ogc-processes:processes:${params.toString()}`,
       `/ogc/processes/processes?${params.toString()}`,
-    ) as Promise<HonuaOgcProcessesResponse>;
+      request,
+    );
   }
 
   public async getOgcProcess(request: { processId: string } & OgcMetadataRequest): Promise<HonuaOgcProcessDescription> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
+    return this.requestCachedMetadataJson<HonuaOgcProcessDescription>(
+      `ogc-processes:process:${request.processId}:${params.toString()}`,
       `/ogc/processes/processes/${encodeURIComponent(request.processId)}?${params.toString()}`,
-    ) as Promise<HonuaOgcProcessDescription>;
+      request,
+    );
   }
 
   public async executeOgcProcess(request: OgcProcessExecuteRequest): Promise<HonuaOgcProcessJobAccepted> {
@@ -1228,20 +1488,29 @@ export class HonuaClient {
 
   public async getStacLanding(request: OgcMetadataRequest = {}): Promise<HonuaStacLandingResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson("GET", `/stac?${params.toString()}`) as Promise<HonuaStacLandingResponse>;
+    return this.requestCachedMetadataJson<HonuaStacLandingResponse>(
+      `stac:landing:${params.toString()}`,
+      `/stac?${params.toString()}`,
+      request,
+    );
   }
 
   public async listStacCollections(request: OgcMetadataRequest = {}): Promise<HonuaOgcCollectionsResponse> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson("GET", `/stac/collections?${params.toString()}`) as Promise<HonuaOgcCollectionsResponse>;
+    return this.requestCachedMetadataJson<HonuaOgcCollectionsResponse>(
+      `stac:collections:${params.toString()}`,
+      `/stac/collections?${params.toString()}`,
+      request,
+    );
   }
 
   public async getStacCollection(request: OgcCollectionRequest): Promise<HonuaOgcCollectionMetadata> {
     const params = createOgcMetadataParams(request);
-    return this.requestJson(
-      "GET",
+    return this.requestCachedMetadataJson<HonuaOgcCollectionMetadata>(
+      `stac:collection:${request.collectionId}:${params.toString()}`,
       `/stac/collections/${encodeURIComponent(String(request.collectionId))}?${params.toString()}`,
-    ) as Promise<HonuaOgcCollectionMetadata>;
+      request,
+    );
   }
 
   public async getStacItem(request: {
@@ -1284,12 +1553,23 @@ export class HonuaClient {
     ) as Promise<HonuaStacItemCollectionResponse>;
   }
 
-  public async getMapServiceMetadata(serviceId: string): Promise<HonuaServiceMetadata> {
+  public async getMapServiceMetadata(
+    serviceId: string,
+    options: HonuaMetadataRequestOptions = {},
+  ): Promise<HonuaServiceMetadata> {
     const query = new URLSearchParams({ f: "json" });
-    return this.requestJson(
-      "GET",
-      `/rest/services/${encodeURIComponent(serviceId)}/MapServer?${query.toString()}`,
-    ) as Promise<HonuaServiceMetadata>;
+    const path = `/rest/services/${encodeURIComponent(serviceId)}/MapServer?${query.toString()}`;
+    return this.requestCachedMetadataJson<HonuaServiceMetadata>(`geoservices-map:${serviceId}:service`, path, options);
+  }
+
+  public async getMapLayerMetadata(
+    serviceId: string,
+    layerId: number,
+    options: HonuaMetadataRequestOptions = {},
+  ): Promise<HonuaLayerMetadata> {
+    const query = new URLSearchParams({ f: "json" });
+    const path = `/rest/services/${encodeURIComponent(serviceId)}/MapServer/${layerId}?${query.toString()}`;
+    return this.requestCachedMetadataJson<HonuaLayerMetadata>(`geoservices-map:${serviceId}:${layerId}`, path, options);
   }
 
   public async queryFeatures(request: QueryFeaturesRequest): Promise<HonuaQueryResponse> {
@@ -2701,6 +2981,47 @@ function createOgcMetadataParams(request: OgcMetadataRequest): URLSearchParams {
     }
   }
   return params;
+}
+
+function createMetadataCacheState(
+  entry: MetadataCacheEntry,
+  status: "hit" | "miss" | "stale" | "refreshed" | "bypass",
+  options: {
+    now: number;
+    ttlMs?: number;
+    staleIfErrorMs?: number;
+    revalidatedAt?: string;
+    refreshErrorId?: string;
+  },
+) {
+  return createHonuaCacheState({
+    scope: "metadata",
+    status,
+    keyFingerprint: entry.keyFingerprint,
+    ageMs: Math.max(0, options.now - entry.cachedAtMs),
+    ...(options.ttlMs !== undefined ? { ttlMs: options.ttlMs } : {}),
+    ...(options.staleIfErrorMs !== undefined ? { staleIfErrorMs: options.staleIfErrorMs } : {}),
+    ...(options.revalidatedAt ? { revalidatedAt: options.revalidatedAt } : {}),
+    ...(entry.sourceUpdatedAt ? { sourceUpdatedAt: entry.sourceUpdatedAt } : {}),
+    ...(entry.validator ? { validator: entry.validator } : {}),
+    ...(options.refreshErrorId ? { refreshErrorId: options.refreshErrorId } : {}),
+  });
+}
+
+function metadataRefreshErrorId(error: unknown): string {
+  if (error instanceof HonuaHttpError) {
+    return `http-${error.statusCode}`;
+  }
+  if (error instanceof HonuaTimeoutError) {
+    return "timeout";
+  }
+  if (error instanceof HonuaNetworkError) {
+    return "network";
+  }
+  if (error instanceof Error && error.name) {
+    return error.name;
+  }
+  return "unknown";
 }
 
 function mergePathWithQueryParams(path: string, additionalParams: URLSearchParams): string {

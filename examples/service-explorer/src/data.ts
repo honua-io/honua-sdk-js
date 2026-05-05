@@ -1,5 +1,6 @@
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { HonuaClient, createHonuaCacheState } from "@honua/sdk-js/honua";
 import type {
+  HonuaCacheState,
   HonuaFeature,
   HonuaLayerMetadata,
   HonuaServiceMetadata,
@@ -80,6 +81,10 @@ export function createFixtureServiceExplorerDataset(
     ...FIXTURE_SOURCE_METADATA,
     cache: {
       ...FIXTURE_SOURCE_METADATA.cache,
+      state: {
+        ...FIXTURE_SOURCE_METADATA.cache.state,
+        ageMs: Math.max(0, now - FIXTURE_SOURCE_METADATA.cache.updatedAt),
+      },
       updatedAt: FIXTURE_SOURCE_METADATA.cache.updatedAt || now,
     },
     diagnostics,
@@ -176,6 +181,11 @@ async function loadCloudServiceExplorerDataset(
     capabilities,
     cache: {
       status: "ready",
+      state:
+        layerMetadata.cache ??
+        serviceMetadata.cache ??
+        servicesResponse.cache ??
+        createServiceExplorerCacheState(sourceId),
       source: "cloud",
       updatedAt: now,
       revalidateAfterMs: FIXTURE_REVALIDATE_AFTER_MS,
@@ -201,6 +211,14 @@ async function loadCloudServiceExplorerDataset(
     diagnostics,
     queryDurationMs,
   };
+}
+
+function createServiceExplorerCacheState(sourceId: string): HonuaCacheState {
+  return createHonuaCacheState({
+    scope: "metadata",
+    status: "miss",
+    keyFingerprint: `metadata:service-explorer:${sourceId}`,
+  });
 }
 
 function servicesFromResponse(

@@ -221,11 +221,25 @@ function withCacheStatus(
   status: HonuaSourceCacheStatus,
   now: number,
 ): ServiceExplorerSourceMetadata {
+  const cacheStateStatus =
+    status === "stale" || status === "error"
+      ? "stale"
+      : status === "loading"
+        ? metadata.cache.state.status
+        : metadata.cache.state.status === "hit"
+          ? "refreshed"
+          : metadata.cache.state.status;
   return {
     ...metadata,
     cache: {
       ...metadata.cache,
       status,
+      state: {
+        ...metadata.cache.state,
+        status: cacheStateStatus,
+        ageMs: Math.max(0, now - metadata.cache.updatedAt),
+        ...(status === "ready" ? { revalidatedAt: new Date(now).toISOString() } : {}),
+      },
       updatedAt: now,
       lastRevalidatedAt: status === "ready" ? now : metadata.cache.lastRevalidatedAt,
     },

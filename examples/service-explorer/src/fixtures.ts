@@ -275,6 +275,14 @@ export const FIXTURE_SOURCE_METADATA: ServiceExplorerSourceMetadata = {
   capabilities: FIXTURE_CAPABILITIES,
   cache: {
     status: "ready",
+    state: {
+      scope: "metadata",
+      status: "hit",
+      keyFingerprint: `metadata:fixture:${FIXTURE_SOURCE_ID}`,
+      ageMs: 0,
+      ttlMs: FIXTURE_REVALIDATE_AFTER_MS,
+      sourceUpdatedAt: new Date(FIXTURE_UPDATED_AT).toISOString(),
+    },
     source: "fixture",
     updatedAt: FIXTURE_UPDATED_AT,
     revalidateAfterMs: FIXTURE_REVALIDATE_AFTER_MS,

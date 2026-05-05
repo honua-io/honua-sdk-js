@@ -39,7 +39,13 @@ describe("HonuaClient request interceptors", () => {
     });
 
     const response = await client.listServices();
-    expect(response).toEqual({ services: [] });
+    expect(response).toMatchObject({
+      services: [],
+      cache: {
+        scope: "metadata",
+        status: "miss",
+      },
+    });
     expect(requestedUrl).toContain("/rest/services?f=json&traceId=abc123");
     expect(requestedHeaders).toMatchObject({
       Accept: "application/json",
@@ -118,7 +124,7 @@ describe("HonuaClient request interceptors", () => {
 
     const response = await client.listServices();
     expect(afterBodies).toEqual([{ services: [{ name: "demo" }] }]);
-    expect(response).toEqual({ services: [{ name: "demo" }] });
+    expect(response).toMatchObject({ services: [{ name: "demo" }] });
   });
 
   it("clones responses so multiple after interceptors can read body streams", async () => {
@@ -147,7 +153,7 @@ describe("HonuaClient request interceptors", () => {
 
     const response = await client.listServices();
     expect(afterTexts).toEqual(['{"services":[]}', '{"services":[]}']);
-    expect(response).toEqual({ services: [] });
+    expect(response).toMatchObject({ services: [] });
   });
 });
 

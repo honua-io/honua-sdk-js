@@ -26,6 +26,23 @@ export { batchQuery } from "./core/batch.js";
 export type { BatchQueryItem, BatchQueryOptions, BatchQueryResult } from "./core/batch.js";
 export { decodePbfQueryResponse, isPbfResponse } from "./core/pbf-decoder.js";
 export {
+  createHonuaCacheState,
+  honuaCacheValidatorFromHeaders,
+  honuaMetadataRequestHeaders,
+  isHonuaCacheStatus,
+  normalizeHonuaMetadataRequestOptions,
+} from "./core/cache-state.js";
+export type {
+  HonuaCacheReadMode,
+  HonuaCacheScope,
+  HonuaCacheState,
+  HonuaCacheStateInit,
+  HonuaCacheStatus,
+  HonuaCacheValidator,
+  HonuaMetadataRequestOptions,
+  NormalizedHonuaMetadataRequestOptions,
+} from "./core/cache-state.js";
+export {
   isHonuaSource,
   isFeatureServiceSource,
   isMapServiceSource,

@@ -162,6 +162,30 @@ Cache-state visibility requirements:
 - A caller-forced bypass returns `status: "bypass"` and must not populate a
   shared cache unless the caller also opts into write-through.
 
+### JavaScript SDK Surface
+
+`@honua/sdk-js` exports the transport-neutral `HonuaCacheState`,
+`HonuaCacheStatus`, `HonuaCacheScope`, `HonuaCacheValidator`, and
+`HonuaMetadataRequestOptions` types from both the root and `/honua`
+entrypoints. Metadata and discovery helpers accept:
+
+```ts
+await client.getLayerMetadata("civic-services", 0);
+await client.getLayerMetadata("civic-services", 0, { refresh: true });
+await client.getLayerMetadata("civic-services", 0, { cache: "bypass" });
+```
+
+Default metadata reads reuse the SDK-local metadata entry when present and
+return `cache.status: "hit"`. `refresh: true` skips that fresh-cache shortcut,
+sends `ETag` / `Last-Modified` validators when the adapter has them, and
+reports `refreshed` for successful revalidation. `cache: "bypass"` skips cache
+lookup and write-through for that call.
+
+Feature rows, object ids, counts, statistics, spatial queries, STAC searches,
+tiles, and process/job results remain uncached by default. Those result reads
+should expose `scope: "materialized-result"` only when a separate
+materialization workflow explicitly owns the persisted result.
+
 ## Feature, Query, And Result Caching
 
 Feature/query/result caching is opt-in materialization only. Default SDK and
