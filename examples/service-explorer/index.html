@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Universal GIS Service Explorer</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Service discovery">
+        <header>
+          <p class="eyebrow">Universal GIS Service Explorer</p>
+          <h1>Cloud Honua Service Explorer</h1>
+        </header>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Discovery</h2>
+            <span id="data-source">-</span>
+          </div>
+          <dl class="metric-list">
+            <div>
+              <dt>Service</dt>
+              <dd id="active-service">-</dd>
+            </div>
+            <div>
+              <dt>Layer</dt>
+              <dd id="active-layer">-</dd>
+            </div>
+            <div>
+              <dt>Query</dt>
+              <dd id="query-duration">-</dd>
+            </div>
+          </dl>
+          <h3>Services</h3>
+          <ul id="service-list" class="stack-list"></ul>
+          <h3>Layers</h3>
+          <ul id="layer-list" class="stack-list"></ul>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Metadata Cache</h2>
+            <span id="cache-status">-</span>
+          </div>
+          <dl class="metric-list compact">
+            <div>
+              <dt>Updated</dt>
+              <dd id="cache-updated">-</dd>
+            </div>
+            <div>
+              <dt>Source</dt>
+              <dd id="cache-source">-</dd>
+            </div>
+            <div>
+              <dt>TTL</dt>
+              <dd id="cache-revalidate">-</dd>
+            </div>
+          </dl>
+          <div class="button-row">
+            <button id="revalidate-cache-button" type="button">Revalidate</button>
+            <button id="mark-stale-button" type="button">Mark stale</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="map-area" aria-label="Linked map">
+        <div id="map"></div>
+        <div id="map-overlay" class="map-overlay" data-state="loading">
+          <strong id="overlay-title">Loading</strong>
+          <span id="overlay-detail">Preparing explorer.</span>
+        </div>
+      </section>
+
+      <aside class="workspace" aria-label="Linked workspace">
+        <section class="panel controls-panel">
+          <div class="panel-heading">
+            <h2>Filters</h2>
+            <span><strong id="filter-count">0</strong> active</span>
+          </div>
+          <label class="field-label" for="attribute-filter">Attribute</label>
+          <div class="select-row">
+            <select id="attribute-filter"></select>
+            <button id="clear-filter-button" type="button">Clear</button>
+          </div>
+          <dl class="metric-grid">
+            <div>
+              <dt>Visible</dt>
+              <dd id="visible-count">0</dd>
+            </div>
+            <div>
+              <dt>Matched</dt>
+              <dd id="matched-count">0</dd>
+            </div>
+            <div>
+              <dt>Selection</dt>
+              <dd id="selection-count">0</dd>
+            </div>
+          </dl>
+          <p id="map-extent" class="extent-copy">No map extent</p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Chart Query</h2>
+            <span id="chart-field">status</span>
+          </div>
+          <div id="chart-buckets" class="chart-buckets"></div>
+        </section>
+
+        <section class="panel table-panel">
+          <div class="panel-heading">
+            <h2>Table</h2>
+            <span>linked projection</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Status</th>
+                  <th>Category</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="result-table-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel detail-panel">
+          <div class="panel-heading">
+            <h2>Details</h2>
+            <span>shared selection</span>
+          </div>
+          <h3 id="detail-title">No selected feature</h3>
+          <p id="detail-subtitle">Select a map point or table row.</p>
+          <dl id="detail-attributes" class="attribute-list"></dl>
+        </section>
+
+        <section class="panel metadata-panel">
+          <div class="panel-heading">
+            <h2>Schema</h2>
+            <span id="schema-title">-</span>
+          </div>
+          <p id="layer-extent" class="extent-copy">-</p>
+          <ul id="schema-list" class="stack-list"></ul>
+          <div class="panel-heading subheading">
+            <h2>Capabilities</h2>
+          </div>
+          <ul id="capability-list" class="capability-list"></ul>
+        </section>
+
+        <section class="panel diagnostics-panel">
+          <div class="panel-heading">
+            <h2>Diagnostics</h2>
+            <span id="job-status">waiting</span>
+          </div>
+          <ul id="diagnostic-list" class="diagnostic-list"></ul>
+          <pre id="query-json"></pre>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
