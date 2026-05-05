@@ -29,6 +29,14 @@ import {
 
 import { HONOLULU_CENTER, INCIDENT_LAYER_ID, INCIDENT_SOURCE_ID, INITIAL_INCIDENTS } from "./fixtures.js";
 import {
+  INCIDENT_METADATA_CACHE_STATE,
+  type IncidentLiveStateAuthority,
+  evaluateIncidentLiveStateAuthority,
+  formatIncidentAuthorityLabel,
+  formatIncidentFeatureProvenance,
+  formatIncidentMetadataCacheState,
+} from "./live-state.js";
+import {
   applyIncidentProjection,
   createIncidentLayerFilter,
   formatIncidentExtent,
@@ -55,6 +63,9 @@ interface IncidentRuntime {
   resume(): void;
   markStale(): void;
   refresh(): void;
+  authoritative: boolean;
+  featureProvenance: string;
+  metadataCacheStatus: string;
 }
 
 declare global {
@@ -237,10 +248,13 @@ function updateMapSource(map: maplibregl.Map, state: RealtimeFeatureState<Incide
   source?.setData(incidentFeatureCollection(incidentRecords(state)) as never);
 }
 
-function renderConnection(state: RealtimeFeatureState<IncidentFeature>): void {
+function renderConnection(state: RealtimeFeatureState<IncidentFeature>, authority: IncidentLiveStateAuthority): void {
   const badge = getElement<HTMLElement>("#connection-status");
   badge.dataset.status = state.status;
   badge.textContent = statusLabel(state.status);
+  const authorityBadge = getElement<HTMLElement>("#live-authority");
+  authorityBadge.dataset.authoritative = String(authority.authoritative);
+  authorityBadge.textContent = formatIncidentAuthorityLabel(authority);
   setText("#stream-cursor", state.cursor ?? "-");
   setText("#stream-ignored", String(state.ignoredEventCount));
   setText("#stream-records", String(Object.keys(state.records).length));
@@ -250,6 +264,8 @@ function renderConnection(state: RealtimeFeatureState<IncidentFeature>): void {
     state.watermark ?? formatTimestamp(new Date(state.lastEventAt ?? Date.now()).toISOString()),
   );
   setText("#stream-stale-since", state.staleSince ? formatTimestamp(new Date(state.staleSince).toISOString()) : "-");
+  setText("#feature-provenance", formatIncidentFeatureProvenance(authority.featureProvenance));
+  setText("#metadata-cache", formatIncidentMetadataCacheState(authority.metadataCache));
 }
 
 function renderSummary(summary: IncidentSummary, visibleCount: number): void {
@@ -271,6 +287,9 @@ function renderProjectionState(projection: LinkedViewQueryProjection, visibleCou
       spatialFilter: projection.spatialFilter,
       selection: projection.selection,
       cursor: window.__HONUA_INCIDENT_RUNTIME__?.cursor,
+      authoritative: window.__HONUA_INCIDENT_RUNTIME__?.authoritative,
+      featureProvenance: window.__HONUA_INCIDENT_RUNTIME__?.featureProvenance,
+      metadataCache: window.__HONUA_INCIDENT_RUNTIME__?.metadataCacheStatus,
     },
     null,
     2,
@@ -289,6 +308,7 @@ function readSelectedIncidentId(selection: ReadonlyArray<FeatureSelectionTarget>
 function renderIncidentList(
   incidents: readonly IncidentFeature[],
   selectedIncidentId: string | undefined,
+  authority: IncidentLiveStateAuthority,
   onSelect: (incident: IncidentFeature) => void,
 ): void {
   const list = getElement<HTMLElement>("#incident-list");
@@ -325,6 +345,8 @@ function renderIncidentList(
     button.textContent = "Open";
     button.dataset.testid = `select-${incident.id}`;
     button.setAttribute("aria-label", `Open ${incident.title}`);
+    button.disabled = !authority.actionsEnabled;
+    button.title = authority.actionsEnabled ? `Open ${incident.title}` : authority.reason;
     button.addEventListener("click", () => onSelect(incident));
     row.append(button);
     list.append(row);
@@ -503,6 +525,9 @@ async function bootstrap(): Promise<void> {
     resume: () => undefined,
     markStale: () => undefined,
     refresh: () => undefined,
+    authoritative: false,
+    featureProvenance: "Unknown feature provenance",
+    metadataCacheStatus: "Metadata cache not used",
   };
   window.__HONUA_INCIDENT_RUNTIME__ = runtime;
 
@@ -559,6 +584,9 @@ async function bootstrap(): Promise<void> {
     let latestProjection: LinkedViewQueryProjection | undefined;
     let selectedIncidentId: string | undefined;
     let activePopup: maplibregl.Popup | undefined;
+    let latestAuthority = evaluateIncidentLiveStateAuthority(store.state, {
+      metadataCache: INCIDENT_METADATA_CACHE_STATE,
+    });
 
     function currentIncidentById(id: string | undefined): IncidentFeature | undefined {
       if (!id) return undefined;
@@ -570,7 +598,7 @@ async function bootstrap(): Promise<void> {
       const projected = applyIncidentProjection(store.state, projection);
       renderSummary(projected.summary, projected.incidents.length);
       renderProjectionState(projection, projected.incidents.length);
-      renderIncidentList(projected.incidents, selectedIncidentId, (incident) => {
+      renderIncidentList(projected.incidents, selectedIncidentId, latestAuthority, (incident) => {
         tableSelection.select([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, incident.id)], { replace: true });
       });
       runtime.visibleIncidentCount = projected.incidents.length;
@@ -598,13 +626,19 @@ async function bootstrap(): Promise<void> {
 
     store.subscribe(
       (state, event) => {
-        renderConnection(state);
+        latestAuthority = evaluateIncidentLiveStateAuthority(state, {
+          metadataCache: INCIDENT_METADATA_CACHE_STATE,
+        });
+        renderConnection(state, latestAuthority);
         updateMapSource(map, state);
         pushEventLog(event);
         renderEventLog();
         reconcileRealtimeSelection(tableView, state, { requireLiveRecord: false });
         runtime.status = state.status;
         runtime.cursor = state.cursor ?? null;
+        runtime.authoritative = latestAuthority.authoritative;
+        runtime.featureProvenance = formatIncidentFeatureProvenance(latestAuthority.featureProvenance);
+        runtime.metadataCacheStatus = formatIncidentMetadataCacheState(latestAuthority.metadataCache);
         if (latestProjection) renderProjectedIncidents(latestProjection);
         renderSelectedIncident(selectedIncidentId);
       },

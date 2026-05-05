@@ -228,6 +228,15 @@ button:hover {
   background: rgba(15, 118, 110, 0.08);
 }
 
+button:disabled,
+button:disabled:hover {
+  border-color: var(--border);
+  background: #f3f5f7;
+  color: #6b7280;
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -366,6 +375,14 @@ select {
 
 .map-overlay[data-state="error"] {
   background: rgba(185, 28, 28, 0.9);
+}
+
+#live-authority {
+  color: var(--red);
+}
+
+#live-authority[data-authoritative="true"] {
+  color: var(--green);
 }
 
 .detail-card p {
