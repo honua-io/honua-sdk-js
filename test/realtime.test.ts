@@ -6,9 +6,16 @@ import {
   emptyRealtimeFeatureState,
   filterRealtimeSelection,
   realtimeFeatureKey,
+  realtimeResumeCheckpoint,
+  realtimeSubscriptionKey,
   reconcileRealtimeSelection,
   reconcileRealtimeStaleness,
   reduceRealtimeFeatureState,
+  selectRealtimeDetail,
+  selectRealtimeFeatureRecordMap,
+  selectRealtimeFeatureRecords,
+  selectRealtimeFeatureTombstones,
+  selectRealtimeFeatures,
 } from "../src/realtime/index.js";
 import type {
   RealtimeFeatureObserver,
@@ -60,6 +67,55 @@ describe("realtime feature state", () => {
     expect(state.cursor).toBe("c4");
   });
 
+  it("applies delta batches and exposes cursor, watermark, timestamp, and delta-token checkpoints", () => {
+    let state = reduceRealtimeFeatureState(emptyRealtimeFeatureState<{ status: string }>(), {
+      type: "snapshot",
+      eventId: "snapshot-1",
+      checkpoint: {
+        cursor: "c1",
+        watermark: "w1",
+        timestamp: "2026-05-05T10:00:00.000Z",
+        sequence: 1,
+      },
+      features: [
+        { sourceId: "incidents", id: 1, feature: { status: "open" } },
+        { sourceId: "incidents", id: 2, feature: { status: "monitoring" } },
+      ],
+    });
+
+    state = reduceRealtimeFeatureState(state, {
+      type: "delta",
+      eventId: "delta-2",
+      sequence: 2,
+      checkpoint: {
+        cursor: "c2",
+        watermark: "w2",
+        timestamp: "2026-05-05T10:00:05.000Z",
+        deltaToken: "dt2",
+      },
+      upserts: [
+        { sourceId: "incidents", id: 1, feature: { status: "assigned" }, version: 2 },
+        { sourceId: "incidents", id: 3, feature: { status: "open" }, version: 1 },
+      ],
+      deletes: [{ sourceId: "incidents", id: 2, version: 3, updatedAt: "2026-05-05T10:00:05.000Z" }],
+    });
+
+    expect(state.records["incidents:1"]?.feature.status).toBe("assigned");
+    expect(state.records["incidents:3"]?.feature.status).toBe("open");
+    expect(state.records["incidents:2"]).toBeUndefined();
+    expect(state.tombstones["incidents:2"]).toMatchObject({
+      version: 3,
+      updatedAt: "2026-05-05T10:00:05.000Z",
+    });
+    expect(realtimeResumeCheckpoint(state)).toEqual({
+      cursor: "c2",
+      watermark: "w2",
+      timestamp: "2026-05-05T10:00:05.000Z",
+      sequence: 2,
+      deltaToken: "dt2",
+    });
+  });
+
   it("ignores duplicate event ids and out-of-order sequences", () => {
     let state = emptyRealtimeFeatureState<{ status: string }>();
     state = reduceRealtimeFeatureState(state, {
@@ -105,11 +161,19 @@ describe("realtime feature state", () => {
     });
   });
 
-  it("bridges mock transports into a subscribable realtime store", () => {
+  it("bridges mock transports and lifecycle events into a subscribable realtime store", () => {
     let observer: RealtimeFeatureObserver<{ status: string }> | undefined;
     const close = vi.fn();
+    const requests: RealtimeSubscriptionRequest[] = [];
     const transport: RealtimeFeatureTransport<{ status: string }> = {
-      subscribe(_request: RealtimeSubscriptionRequest, nextObserver) {
+      capabilities: {
+        kind: "mock",
+        resumeModes: ["cursor", "watermark", "timestamp", "delta-token"],
+        emitsHeartbeats: true,
+        emitsWatermarks: true,
+      },
+      subscribe(request: RealtimeSubscriptionRequest, nextObserver) {
+        requests.push(request);
         observer = nextObserver;
         return { close };
       },
@@ -124,15 +188,108 @@ describe("realtime feature state", () => {
       cursor: "c1",
       feature: { sourceId: "incidents", id: 7, feature: { status: "open" } },
     });
-    observer?.next({ type: "status", status: "reconnecting" });
+    observer?.next({ type: "status", status: "reconnecting", reconnectAttempt: 1, retryAfterMs: 250 });
     observer?.next({ type: "heartbeat", receivedAt: 50 });
+    observer?.next({ type: "status", status: "offline", reason: "browser-offline", receivedAt: 60 });
+    observer?.next({ type: "error", error: new Error("permission denied"), terminal: true, code: "AUTH" });
+
+    expect(requests).toEqual([{ sourceId: "incidents" }]);
+    expect(store.state.status).toBe("error");
+    expect(store.state.statusReason).toBe("AUTH");
+    expect(store.state.terminalError).toBe(true);
+    expect(store.state.records[realtimeFeatureKey("incidents", 7)]?.feature.status).toBe("open");
+
     observer?.complete();
 
-    expect(store.state.records[realtimeFeatureKey("incidents", 7)]?.feature.status).toBe("open");
     expect(store.state.status).toBe("closed");
     expect(listener).toHaveBeenCalled();
     handle.close();
     expect(close).toHaveBeenCalled();
+  });
+
+  it("passes stable request identity and resume checkpoints to transport adapters", () => {
+    const resumeFrom = {
+      cursor: "c7",
+      watermark: "w7",
+      timestamp: "2026-05-05T11:00:00.000Z",
+      deltaToken: "dt7",
+    };
+    const request: RealtimeSubscriptionRequest = {
+      requestId: "incident-ops",
+      sourceId: "incidents",
+      layerId: "active-incidents",
+      fields: ["id", "status"],
+      where: "status <> 'resolved'",
+      spatialFilter: { relationship: "intersects", geometry: { y: 21.31, x: -157.86 } },
+      mode: "snapshot-then-delta",
+      resumeFrom,
+    };
+    const sameLogicalRequest = {
+      ...request,
+      spatialFilter: { geometry: { x: -157.86, y: 21.31 }, relationship: "intersects" },
+      metadata: { traceId: "request-1" },
+    };
+    const changedFilter = { ...request, where: "severity = 'critical'" };
+
+    expect(realtimeSubscriptionKey(request)).toBe(realtimeSubscriptionKey(sameLogicalRequest));
+    expect(realtimeSubscriptionKey(request)).not.toBe(realtimeSubscriptionKey(changedFilter));
+
+    let connectedRequest: RealtimeSubscriptionRequest | undefined;
+    const transport: RealtimeFeatureTransport<{ status: string }> = {
+      capabilities: {
+        kind: "polling",
+        resumeModes: ["cursor", "timestamp", "delta-token"],
+      },
+      subscribe(nextRequest, _observer) {
+        connectedRequest = nextRequest;
+        return { close: vi.fn() };
+      },
+    };
+
+    createRealtimeFeatureStore<{ status: string }>().connect(transport, request);
+    expect(connectedRequest).toMatchObject({
+      sourceId: "incidents",
+      layerId: "active-incidents",
+      mode: "snapshot-then-delta",
+      resumeFrom,
+    });
+  });
+
+  it("projects realtime state for map, table, tombstone, and detail synchronization", () => {
+    let state = reduceRealtimeFeatureState(emptyRealtimeFeatureState<{ label: string; sort: number }>(), {
+      type: "snapshot",
+      features: [
+        { sourceId: "incidents", id: "A", feature: { label: "Alpha", sort: 2 } },
+        { sourceId: "incidents", id: "B", feature: { label: "Bravo", sort: 1 } },
+        { sourceId: "units", id: "A", feature: { label: "Unit", sort: 3 } },
+      ],
+    });
+    state = reduceRealtimeFeatureState(state, {
+      type: "delete",
+      sourceId: "incidents",
+      id: "A",
+    });
+
+    expect(
+      selectRealtimeFeatureRecords(state, {
+        sourceId: "incidents",
+        sort: (left, right) => left.feature.sort - right.feature.sort,
+      }).map((record) => record.id),
+    ).toEqual(["B"]);
+    expect(selectRealtimeFeatures(state, { sourceId: "incidents" })).toEqual([{ label: "Bravo", sort: 1 }]);
+    expect(Object.keys(selectRealtimeFeatureRecordMap(state, { sourceId: "units" }))).toEqual(["units:A"]);
+    expect(selectRealtimeFeatureTombstones(state, { sourceId: "incidents" }).map((tombstone) => tombstone.id)).toEqual([
+      "A",
+    ]);
+    expect(selectRealtimeDetail(state, "B", { sourceId: "incidents" })).toMatchObject({
+      status: "present",
+      record: { key: "incidents:B" },
+    });
+    expect(selectRealtimeDetail(state, { sourceId: "incidents", id: "A" })).toMatchObject({
+      status: "deleted",
+      tombstone: { key: "incidents:A" },
+    });
+    expect(selectRealtimeDetail(state, "missing", { sourceId: "incidents" })).toEqual({ status: "missing" });
   });
 
   it("filters linked exploration selection against deletes and missing live records", () => {
