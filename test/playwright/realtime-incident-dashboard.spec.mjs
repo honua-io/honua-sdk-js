@@ -20,6 +20,7 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
       .toBe(true);
 
     await expect(page.locator("#connection-status")).toHaveText("Live");
+    await expect(page.locator("#live-authority")).toHaveText("Authoritative");
     await expect(page.locator("#summary-active")).toHaveText("5");
     await expect(page.locator("#summary-critical")).toHaveText("1");
     await expect(page.locator("#projection-visible-count")).toHaveText("5");
@@ -50,14 +51,20 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await expect(page.locator("#detail-title")).toHaveText("No selected incident");
     await expect(page.locator("#stream-tombstones")).toHaveText("1");
 
+    await expect(page.getByRole("button", { name: "Open Harbor fuel sheen" })).toBeEnabled();
+
     await page.getByRole("button", { name: "Mark Stale" }).click();
     await expect(page.locator("#connection-status")).toHaveText("Stale");
+    await expect(page.locator("#live-authority")).toHaveText("Read-only");
+    await expect(page.getByRole("button", { name: "Open Harbor fuel sheen" })).toBeDisabled();
 
     await page.getByRole("button", { name: "Reconnect" }).click();
     await expect(page.locator("#connection-status")).toHaveText("Reconnecting");
 
     await page.getByRole("button", { name: "Resume" }).click();
     await expect(page.locator("#connection-status")).toHaveText("Live");
+    await expect(page.locator("#live-authority")).toHaveText("Authoritative");
+    await expect(page.getByRole("button", { name: "Open Harbor fuel sheen" })).toBeEnabled();
 
     const recordCount = await page.locator("#stream-records").textContent();
     await page.getByRole("button", { name: "Refresh" }).click();
