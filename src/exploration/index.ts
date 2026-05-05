@@ -56,3 +56,16 @@ export { LINKED_VIEW_PRESETS, propagationFor } from "./presets.js";
 export { reduce, type ReducerResult } from "./reducer.js";
 export { createExplorationContext } from "./context.js";
 export { featureSelectionKey, isSourceQualifiedSelectionTarget, sourceFeatureSelectionTarget } from "./selection.js";
+export {
+  extentToSpatialFilter,
+  selectLinkedViewQueryProjection,
+  subscribeExplorationSelector,
+} from "./selectors.js";
+export type {
+  ExplorationSelector,
+  ExplorationSelectorListener,
+  ExplorationSelectorSubscribeOptions,
+  LinkedViewQueryProjection,
+  LinkedViewQueryProjectionOptions,
+  LinkedViewSpatialMode,
+} from "./selectors.js";

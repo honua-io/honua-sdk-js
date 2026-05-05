@@ -1,6 +1,6 @@
 /**
  * `ExplorationContext` types — the canonical, protocol-neutral exploration
- * state shared across linked views (map, grid, chart, etc.).
+ * state shared across linked views (map, grid, chart, filters, detail, etc.).
  *
  * The runtime in `./context.ts` is a thin reducer + microtask coalescer
  * over these types; the full design lives in `docs/exploration-context.md`.
@@ -246,10 +246,10 @@ export interface ExplorationStateSnapshot {
  * from the originating view to its peers.
  *
  * - `globalLinked`: every view sees every change. Default.
- * - `mapDriven`: only the map's extent / spatial filter / selection
- *   propagates outward; other views' changes stay local.
+ * - `mapDriven`: the map's extent / spatial filter / selection propagates
+ *   outward; filter controls can still contribute filter state.
  * - `gridDriven`: only the grid's selection / sort / page propagates outward.
- * - `chartDriven`: only the chart's grouping / aggregation propagates outward.
+ * - `chartDriven`: only the chart's grouping / aggregation / selection propagates outward.
  * - `decoupled`: nothing propagates — each view is independent.
  */
 export type LinkedViewPresetName = "globalLinked" | "mapDriven" | "gridDriven" | "chartDriven" | "decoupled";
@@ -264,8 +264,14 @@ export interface LinkedViewRule {
   readonly propagatesSlices: ReadonlyArray<ExplorationSlice>;
 }
 
-/** Coarse role that informs the linked-view policy. */
-export type ViewRole = "map" | "grid" | "chart" | "form" | "custom";
+/**
+ * Coarse role that informs the linked-view policy.
+ *
+ * `form` remains for compatibility with older detail/filter integrations.
+ * New linked-workspace code should prefer the more precise `filter` and
+ * `detail` roles when a component is not a general form surface.
+ */
+export type ViewRole = "map" | "grid" | "chart" | "filter" | "detail" | "form" | "custom";
 
 export interface LinkedViewPolicy {
   readonly preset: LinkedViewPresetName;
