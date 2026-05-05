@@ -9,6 +9,7 @@ What it exercises:
 - one read-only `queryFeatures()` call against a configured FeatureServer layer
 - Esri JSON to GeoJSON conversion inside the example
 - MapLibre rendering and popup-backed feature inspection
+- `ExplorationContext` plus interaction bindings for map, result list, filters, query projection, and details
 
 ## Fast Local Run
 
@@ -82,6 +83,13 @@ Query shape:
 - `resultRecordCount`: bounded by env, default `25`
 
 MapLibre then fetches the configured basemap style and any dependent assets separately from the Honua API calls above.
+After the initial bounded query, the browser app wires the returned features into a linked exploration context:
+
+- map `moveend` events update the shared extent and spatial filter
+- attribute filter controls update the shared filter slice
+- map clicks and result-list buttons update one shared source-qualified selection
+- the result list and diagnostics panel render from `LinkedViewQueryProjection`
+- MapLibre layer filters are translated from the same projection used by the result list
 
 Response handling:
 
@@ -114,6 +122,8 @@ Expected event types:
 - `query-finished`
 - `map-ready`
 - `feature-selected`
+- `linked-filter-changed`
+- `linked-query-updated`
 - `error`
 
 Runtime state includes:
@@ -123,6 +133,7 @@ Runtime state includes:
 - `featureCount`, `renderableFeatureCount`, and `geometryTypes`
 - `queryDurationMs`
 - `layerIds`, `mapReady`, `selectedFeatureId`, `popupOpen`, and `lastError`
+- `linkedVisibleFeatureCount`, `linkedFilterCount`, and `linkedExtent`
 
 Startup failures are surfaced in the overlay and the inline status panel. For common fixes, use the troubleshooting
 guide at [`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md).
@@ -131,7 +142,7 @@ guide at [`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troublesho
 
 ```bash
 npm run demo:quickstart:typecheck
-npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts
+npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts test/quickstart-linked-exploration.test.ts
 npm run test:playwright:quickstart
 ```
 

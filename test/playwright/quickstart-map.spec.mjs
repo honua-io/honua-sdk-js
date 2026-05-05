@@ -26,6 +26,15 @@ test("quickstart app loads fixture-backed data and opens an inspection popup", a
     const layerIds = await page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.layerIds ?? []);
     expect(layerIds).toContain("quickstart-fill");
 
+    await expect(page.locator("#linked-visible-count")).toHaveText("3");
+    await page.locator("#attribute-filter").selectOption({ label: "STATUS: Ready" });
+    await expect(page.locator("#linked-visible-count")).toHaveText("1");
+    await expect(page.locator("#feature-list")).toContainText("Kakaako utility corridor");
+    await expect(page.locator("#feature-list")).not.toContainText("Harbor response district");
+    await expect(page.locator("#linked-query-projection")).toContainText('"STATUS"');
+    await page.locator("#clear-filter-button").click();
+    await expect(page.locator("#linked-visible-count")).toHaveText("3");
+
     await page.getByRole("button", { name: "Inspect Harbor response district" }).click();
 
     await expect(page.locator("#selected-feature-title")).toHaveText("Harbor response district");

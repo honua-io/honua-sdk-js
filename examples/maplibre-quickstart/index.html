@@ -44,6 +44,41 @@
           </article>
         </section>
 
+        <section class="linked-context-panel" aria-label="Linked exploration context">
+          <div class="linked-context-header">
+            <div>
+              <p class="eyebrow">Linked context</p>
+              <h2>Explorer controls</h2>
+            </div>
+            <button id="clear-filter-button" class="secondary-button" type="button">Clear</button>
+          </div>
+          <label class="field-control" for="attribute-filter">
+            <span>Attribute filter</span>
+            <select id="attribute-filter" disabled>
+              <option value="">All rendered features</option>
+            </select>
+          </label>
+          <dl class="linked-context-grid">
+            <div>
+              <dt>Visible Rows</dt>
+              <dd id="linked-visible-count">0</dd>
+            </div>
+            <div>
+              <dt>Filters</dt>
+              <dd id="linked-filter-state">None</dd>
+            </div>
+            <div>
+              <dt>Selection</dt>
+              <dd id="linked-selection-count">0</dd>
+            </div>
+            <div>
+              <dt>Extent</dt>
+              <dd id="linked-extent">No viewport</dd>
+            </div>
+          </dl>
+          <pre id="linked-query-projection" class="query-projection">{}</pre>
+        </section>
+
         <article class="selection-card" aria-label="Selected feature">
           <div class="selection-card-header">
             <div>

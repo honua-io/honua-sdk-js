@@ -1,7 +1,16 @@
 import type { QuickstartRenderableGeometryType } from "./esri-geojson.js";
 
 export interface QuickstartTelemetryEvent {
-  type: "init" | "compatibility-ok" | "query-started" | "query-finished" | "map-ready" | "feature-selected" | "error";
+  type:
+    | "init"
+    | "compatibility-ok"
+    | "query-started"
+    | "query-finished"
+    | "map-ready"
+    | "feature-selected"
+    | "linked-filter-changed"
+    | "linked-query-updated"
+    | "error";
   payload: Record<string, unknown>;
   timestamp: string;
 }
@@ -21,6 +30,9 @@ export interface QuickstartRuntimeState {
   lastError?: string | null;
   layerIds?: string[];
   popupOpen?: boolean;
+  linkedVisibleFeatureCount?: number;
+  linkedFilterCount?: number;
+  linkedExtent?: string | null;
 }
 
 declare global {

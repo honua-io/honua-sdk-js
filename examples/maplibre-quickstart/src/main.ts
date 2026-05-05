@@ -1,10 +1,35 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import maplibregl, { type LngLatLike } from "maplibre-gl";
+import maplibregl from "maplibre-gl";
+
+import {
+  createExplorationContext,
+  isSourceQualifiedSelectionTarget,
+  sourceFeatureSelectionTarget,
+} from "@honua/sdk-js/exploration";
+import type { FeatureSelectionTarget } from "@honua/sdk-js/exploration";
+import type { HonuaExtent } from "@honua/sdk-js/honua";
+import {
+  bindDetailToSelection,
+  bindFilterControlsToExploration,
+  bindMapExtentToExploration,
+  bindMapSelectionToExploration,
+  bindQueryProjectionToExploration,
+  bindTableSelectionToExploration,
+  syncFeatureStateSelection,
+  syncMapLayerFilterToExploration,
+} from "@honua/sdk-js/interactions";
+import type { FeatureStateMap, InteractiveMap, LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
 
 import { resolveQuickstartConfig } from "./config.js";
 import { type QuickstartDataset, type QuickstartFeatureSummary, loadQuickstartDataset } from "./data.js";
-import { toMapLibreBounds } from "./esri-geojson.js";
+import { type QuickstartRenderableGeometryType, toMapLibreBounds } from "./esri-geojson.js";
+import {
+  applyQuickstartProjection,
+  createMapLibreLayerFilter,
+  createQuickstartFilterOptions,
+  formatProjectionExtent,
+} from "./linked-exploration.js";
 import { createQuickstartTelemetry } from "./telemetry.js";
 
 import "./styles.css";
@@ -12,6 +37,12 @@ import "./styles.css";
 interface MapHandle {
   map: maplibregl.Map;
   layerIds: string[];
+  layerFilterBindings: LayerFilterBinding[];
+}
+
+interface LayerFilterBinding {
+  layerId: string;
+  geometryType: QuickstartRenderableGeometryType;
 }
 
 function getElement<T extends Element>(selector: string): T {
@@ -73,6 +104,145 @@ function renderSelection(summary: QuickstartFeatureSummary): void {
     attributes.length > 0 ? attributes : '<div class="empty-copy">No attributes available.</div>';
 }
 
+function renderEmptySelection(): void {
+  setText("#selected-feature-title", "No linked selection");
+  setText("#selected-feature-subtitle", "Select a feature from the map or results list.");
+  setText("#selected-feature-id", "-");
+  setText("#selected-feature-geometry", "-");
+  getElement<HTMLElement>("#selected-feature-attributes").innerHTML =
+    '<div class="empty-copy">Attributes will appear after a linked selection.</div>';
+}
+
+function renderLinkedProjection(projection: LinkedViewQueryProjection, visibleFeatureCount: number): void {
+  const filterIds = Object.keys(projection.filters);
+  setText("#linked-visible-count", String(visibleFeatureCount));
+  setText("#linked-filter-state", filterIds.length > 0 ? filterIds.join(", ") : "None");
+  setText("#linked-extent", formatProjectionExtent(projection.extent));
+  getElement<HTMLElement>("#linked-query-projection").textContent = JSON.stringify(
+    {
+      filters: projection.filters,
+      extent: projection.extent,
+      spatialFilter: projection.spatialFilter,
+      orderBy: projection.orderBy,
+      pagination: projection.pagination,
+    },
+    null,
+    2,
+  );
+}
+
+function renderFilterOptions(select: HTMLSelectElement, dataset: QuickstartDataset): void {
+  const options = createQuickstartFilterOptions(dataset.featureSummaries);
+  select.innerHTML = '<option value="">All rendered features</option>';
+
+  for (const option of options) {
+    const group = document.createElement("optgroup");
+    group.label = option.field;
+    for (const value of option.values) {
+      const item = document.createElement("option");
+      item.value = `${option.field}\u001f${value}`;
+      item.textContent = `${option.field}: ${value}`;
+      group.append(item);
+    }
+    select.append(group);
+  }
+
+  select.disabled = options.length === 0;
+}
+
+function renderFeatureList(
+  summaries: readonly QuickstartFeatureSummary[],
+  selectedFeatureId: string | undefined,
+  onInspect: (summary: QuickstartFeatureSummary) => void,
+): void {
+  const featureList = getElement<HTMLElement>("#feature-list");
+  featureList.innerHTML = "";
+
+  if (summaries.length === 0) {
+    featureList.innerHTML = '<div class="empty-copy">No features match the linked context.</div>';
+    return;
+  }
+
+  for (const summary of summaries) {
+    const item = document.createElement("article");
+    item.className = "feature-list-item";
+    item.innerHTML = `
+      <div>
+        <p class="feature-list-kicker">${escapeHtml(summary.geometryKind ?? "feature")}</p>
+        <h3>${escapeHtml(summary.title)}</h3>
+        <p>${escapeHtml(summary.subtitle)}</p>
+      </div>
+    `;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "feature-inspect-button";
+    button.dataset.featureId = summary.id;
+    button.dataset.selected = summary.id === selectedFeatureId ? "true" : "false";
+    button.dataset.testid = `inspect-feature-${summary.id}`;
+    button.setAttribute("aria-pressed", summary.id === selectedFeatureId ? "true" : "false");
+    button.textContent = `Inspect ${summary.title}`;
+    button.addEventListener("click", () => onInspect(summary));
+    item.append(button);
+    featureList.append(item);
+  }
+}
+
+function mapBoundsToHonuaExtent(bounds: maplibregl.LngLatBounds): HonuaExtent {
+  const west = bounds.getWest();
+  const east = bounds.getEast();
+  const south = bounds.getSouth();
+  const north = bounds.getNorth();
+  return {
+    xmin: Math.min(west, east),
+    ymin: Math.min(south, north),
+    xmax: Math.max(west, east),
+    ymax: Math.max(south, north),
+    spatialReference: { wkid: 4326 },
+  };
+}
+
+function createMapExtentSource(map: maplibregl.Map) {
+  return {
+    current(): HonuaExtent | undefined {
+      return mapBoundsToHonuaExtent(map.getBounds());
+    },
+    subscribe(listener: (extent: HonuaExtent | undefined) => void) {
+      const emit = () => listener(mapBoundsToHonuaExtent(map.getBounds()));
+      map.on("moveend", emit);
+      return {
+        remove() {
+          map.off("moveend", emit);
+        },
+      };
+    },
+  };
+}
+
+function readSelectedFeatureId(selection: ReadonlyArray<FeatureSelectionTarget>, sourceId: string): string | undefined {
+  const [target] = selection;
+  if (target === undefined) return undefined;
+  if (isSourceQualifiedSelectionTarget(target)) {
+    return target.sourceId === sourceId ? String(target.id) : undefined;
+  }
+  return String(target);
+}
+
+function setFeatureListSelection(featureId: string | undefined): void {
+  document.querySelectorAll<HTMLButtonElement>(".feature-inspect-button").forEach((button) => {
+    const selected = button.dataset.featureId === featureId;
+    button.dataset.selected = selected ? "true" : "false";
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
+}
+
+function parseFilterValue(value: string): { field: string; value: string } | undefined {
+  if (!value) return undefined;
+  const [field, filterValue] = value.split("\u001f", 2);
+  if (!field || filterValue === undefined) return undefined;
+  return { field, value: filterValue };
+}
+
 function createPopupHtml(summary: QuickstartFeatureSummary): string {
   const attributeRows = Object.entries(summary.feature.properties)
     .slice(0, 5)
@@ -107,6 +277,7 @@ async function createMap(
     const onLoad = () => {
       try {
         const layerIds: string[] = [];
+        const layerFilterBindings: LayerFilterBinding[] = [];
 
         map.addSource(config.sourceId, {
           type: "geojson",
@@ -120,8 +291,8 @@ async function createMap(
             type: "fill",
             filter: ["==", "$type", "Polygon"],
             paint: {
-              "fill-color": "#2f7d6a",
-              "fill-opacity": 0.44,
+              "fill-color": ["case", ["boolean", ["feature-state", "selected"], false], "#c2410c", "#0f766e"],
+              "fill-opacity": ["case", ["boolean", ["feature-state", "selected"], false], 0.68, 0.42],
             },
           });
           map.addLayer({
@@ -130,11 +301,15 @@ async function createMap(
             type: "line",
             filter: ["==", "$type", "Polygon"],
             paint: {
-              "line-color": "#16433b",
-              "line-width": 2,
+              "line-color": ["case", ["boolean", ["feature-state", "selected"], false], "#7c2d12", "#134e4a"],
+              "line-width": ["case", ["boolean", ["feature-state", "selected"], false], 3, 2],
             },
           });
           layerIds.push(config.layerIds.fill, config.layerIds.outline);
+          layerFilterBindings.push(
+            { layerId: config.layerIds.fill, geometryType: "polygon" },
+            { layerId: config.layerIds.outline, geometryType: "polygon" },
+          );
         }
 
         if (dataset.geometryTypes.includes("line")) {
@@ -144,11 +319,12 @@ async function createMap(
             type: "line",
             filter: ["==", "$type", "LineString"],
             paint: {
-              "line-color": "#b55127",
-              "line-width": 3,
+              "line-color": ["case", ["boolean", ["feature-state", "selected"], false], "#c2410c", "#2563eb"],
+              "line-width": ["case", ["boolean", ["feature-state", "selected"], false], 5, 3],
             },
           });
           layerIds.push(config.layerIds.line);
+          layerFilterBindings.push({ layerId: config.layerIds.line, geometryType: "line" });
         }
 
         if (dataset.geometryTypes.includes("point")) {
@@ -158,13 +334,14 @@ async function createMap(
             type: "circle",
             filter: ["==", "$type", "Point"],
             paint: {
-              "circle-radius": 7,
-              "circle-color": "#b55127",
+              "circle-radius": ["case", ["boolean", ["feature-state", "selected"], false], 9, 7],
+              "circle-color": ["case", ["boolean", ["feature-state", "selected"], false], "#c2410c", "#2563eb"],
               "circle-stroke-width": 2,
-              "circle-stroke-color": "#fff7ed",
+              "circle-stroke-color": "#ffffff",
             },
           });
           layerIds.push(config.layerIds.circle);
+          layerFilterBindings.push({ layerId: config.layerIds.circle, geometryType: "point" });
         }
 
         if (dataset.bounds) {
@@ -185,7 +362,7 @@ async function createMap(
         }
 
         cleanup();
-        resolve({ map, layerIds });
+        resolve({ map, layerIds, layerFilterBindings });
       } catch (error) {
         cleanup();
         reject(error);
@@ -218,7 +395,8 @@ async function bootstrap(): Promise<void> {
   const overlay = getElement<HTMLElement>("#map-overlay");
   const overlayTitle = getElement<HTMLElement>(".map-overlay-title");
   const overlayBody = getElement<HTMLElement>(".map-overlay-body");
-  const featureList = getElement<HTMLElement>("#feature-list");
+  const filterSelect = getElement<HTMLSelectElement>("#attribute-filter");
+  const clearFilterButton = getElement<HTMLButtonElement>("#clear-filter-button");
 
   telemetry.patchRuntime({
     baseUrl: config.honuaBaseUrl || "same-origin",
@@ -241,6 +419,7 @@ async function bootstrap(): Promise<void> {
 
     const dataset = await loadQuickstartDataset(config, { telemetry });
     renderStatus(config, dataset);
+    renderFilterOptions(filterSelect, dataset);
     const firstFeature = dataset.featureSummaries[0];
     if (firstFeature) {
       renderSelection(firstFeature);
@@ -249,22 +428,65 @@ async function bootstrap(): Promise<void> {
     overlayTitle.textContent = "Loading the map";
     overlayBody.textContent = "Adding a GeoJSON source, creating render layers, and fitting to the queried features.";
 
-    const { map, layerIds } = await createMap(config, dataset);
+    const { map, layerIds, layerFilterBindings } = await createMap(config, dataset);
     const featureById = new Map(dataset.featureSummaries.map((summary) => [summary.id, summary]));
+    const context = createExplorationContext({
+      datasetId: `${config.serviceId}/${config.layerId}`,
+      sourceIds: [config.sourceId],
+      preset: "globalLinked",
+    });
+    const mapView = context.connectView({ id: "quickstart-map", role: "map" });
+    const tableView = context.connectView({ id: "quickstart-results", role: "grid" });
+    const detailView = context.connectView({ id: "quickstart-detail", role: "form" });
+    const filterView = context.connectView({ id: "quickstart-filter", role: "filter" });
+    const filterControls = bindFilterControlsToExploration(filterView);
+    const tableSelection = bindTableSelectionToExploration(tableView);
+    const removableHandles: Array<{ remove(): void }> = [
+      syncFeatureStateSelection(map as unknown as FeatureStateMap, mapView, { source: config.sourceId }),
+    ];
+    const unsubscribeHandles: Array<() => void> = [];
+    let selectedFeatureId: string | undefined;
+    let latestProjection: LinkedViewQueryProjection | undefined;
 
-    const selectFeature = (featureId: string, popupLngLat?: LngLatLike) => {
-      const summary = featureById.get(featureId);
-      if (!summary) {
+    function renderProjectedResults(projection: LinkedViewQueryProjection): void {
+      latestProjection = projection;
+      const projectedSummaries = applyQuickstartProjection(dataset.featureSummaries, projection);
+      renderLinkedProjection(projection, projectedSummaries.length);
+      renderFeatureList(projectedSummaries, selectedFeatureId, (summary) => {
+        tableSelection.select([sourceFeatureSelectionTarget(config.sourceId, summary.id)], { replace: true });
+      });
+      telemetry.patchRuntime({
+        linkedVisibleFeatureCount: projectedSummaries.length,
+        linkedFilterCount: Object.keys(projection.filters).length,
+        linkedExtent: projection.extent ? formatProjectionExtent(projection.extent) : null,
+      });
+      telemetry.emit("linked-query-updated", {
+        visibleFeatureCount: projectedSummaries.length,
+        filterCount: Object.keys(projection.filters).length,
+        hasExtent: Boolean(projection.extent),
+      });
+    }
+
+    function renderSelectedFeature(featureId: string | undefined): void {
+      selectedFeatureId = featureId;
+      setText("#linked-selection-count", featureId ? "1" : "0");
+      setFeatureListSelection(featureId);
+
+      if (!featureId) {
+        activePopup?.remove();
+        activePopup = null;
+        renderEmptySelection();
+        telemetry.patchRuntime({
+          selectedFeatureId: null,
+          popupOpen: false,
+        });
         return;
       }
 
-      renderSelection(summary);
-      document.querySelectorAll<HTMLButtonElement>(".feature-inspect-button").forEach((button) => {
-        const selected = button.dataset.featureId === featureId;
-        button.dataset.selected = selected ? "true" : "false";
-        button.setAttribute("aria-pressed", selected ? "true" : "false");
-      });
+      const summary = featureById.get(featureId);
+      if (!summary) return;
 
+      renderSelection(summary);
       if (summary.center) {
         activePopup?.remove();
         activePopup = new maplibregl.Popup({
@@ -272,7 +494,7 @@ async function bootstrap(): Promise<void> {
           closeOnClick: false,
           maxWidth: "320px",
         })
-          .setLngLat(popupLngLat ?? summary.center)
+          .setLngLat(summary.center)
           .setHTML(createPopupHtml(summary))
           .addTo(map);
 
@@ -293,7 +515,7 @@ async function bootstrap(): Promise<void> {
         featureId,
         geometryType: summary.geometryKind ?? "unknown",
       });
-    };
+    }
 
     const interactiveLayerIds = [config.layerIds.fill, config.layerIds.line, config.layerIds.circle].filter((id) =>
       layerIds.includes(id),
@@ -306,39 +528,77 @@ async function bootstrap(): Promise<void> {
       map.on("mouseleave", layerId, () => {
         map.getCanvas().style.cursor = "";
       });
-      map.on("click", layerId, (event) => {
-        const clickedFeatureId = event.features?.[0]?.id;
-        if (typeof clickedFeatureId === "string" || typeof clickedFeatureId === "number") {
-          selectFeature(String(clickedFeatureId), event.lngLat);
-        }
+      removableHandles.push(
+        bindMapSelectionToExploration(map as unknown as InteractiveMap, mapView, {
+          source: config.sourceId,
+          layer: layerId,
+        }),
+      );
+    }
+
+    for (const binding of layerFilterBindings) {
+      removableHandles.push(
+        syncMapLayerFilterToExploration(
+          {
+            setFilter(layerId, filter) {
+              map.setFilter(layerId, filter as never);
+            },
+          },
+          mapView,
+          {
+            layerId: binding.layerId,
+            translate(projection) {
+              return createMapLibreLayerFilter(binding.geometryType, projection);
+            },
+          },
+        ),
+      );
+    }
+
+    removableHandles.push(
+      bindMapExtentToExploration(mapView, createMapExtentSource(map), {
+        publishSpatialFilter: true,
+      }),
+    );
+    unsubscribeHandles.push(
+      bindDetailToSelection(detailView, (selection) => {
+        renderSelectedFeature(readSelectedFeatureId(selection, config.sourceId));
+      }),
+      bindQueryProjectionToExploration(tableView, renderProjectedResults, {
+        sourceId: config.sourceId,
+      }),
+    );
+
+    filterSelect.addEventListener("change", () => {
+      const selected = parseFilterValue(filterSelect.value);
+      if (!selected) {
+        filterControls.clearFilter("attribute");
+        telemetry.emit("linked-filter-changed", { active: false });
+        return;
+      }
+      filterControls.setFilter("attribute", {
+        field: selected.field,
+        operator: "=",
+        value: selected.value,
+        appliesTo: [config.sourceId],
       });
+      telemetry.emit("linked-filter-changed", {
+        active: true,
+        field: selected.field,
+        value: selected.value,
+      });
+    });
+    clearFilterButton.addEventListener("click", () => {
+      filterSelect.value = "";
+      filterControls.clearFilter("attribute");
+      telemetry.emit("linked-filter-changed", { active: false });
+    });
+
+    if (latestProjection) {
+      renderProjectedResults(latestProjection);
     }
-
-    featureList.innerHTML = "";
-    for (const summary of dataset.featureSummaries) {
-      const item = document.createElement("article");
-      item.className = "feature-list-item";
-      item.innerHTML = `
-        <div>
-          <p class="feature-list-kicker">${escapeHtml(summary.geometryKind ?? "feature")}</p>
-          <h3>${escapeHtml(summary.title)}</h3>
-          <p>${escapeHtml(summary.subtitle)}</p>
-        </div>
-      `;
-
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "feature-inspect-button";
-      button.dataset.featureId = summary.id;
-      button.dataset.testid = `inspect-feature-${summary.id}`;
-      button.textContent = `Inspect ${summary.title}`;
-      button.addEventListener("click", () => selectFeature(summary.id));
-      item.append(button);
-      featureList.append(item);
-    }
-
     if (firstFeature) {
-      selectFeature(firstFeature.id);
+      tableSelection.select([sourceFeatureSelectionTarget(config.sourceId, firstFeature.id)], { replace: true });
     }
 
     telemetry.patchRuntime({
@@ -352,9 +612,12 @@ async function bootstrap(): Promise<void> {
 
     overlay.dataset.state = "ready";
     overlayTitle.textContent = "Map ready";
-    overlayBody.textContent = "Use the inspect buttons or click a rendered feature to open the popup and inspect data.";
+    overlayBody.textContent = "Linked map, filter, result, and detail context is ready.";
 
     window.addEventListener("beforeunload", () => {
+      for (const unsubscribe of unsubscribeHandles) unsubscribe();
+      for (const handle of removableHandles) handle.remove();
+      context.dispose();
       activePopup?.remove();
       map.remove();
     });
