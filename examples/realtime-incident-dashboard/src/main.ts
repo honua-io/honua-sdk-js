@@ -431,6 +431,8 @@ function eventTitle(event: RealtimeFeatureEvent<IncidentFeature>): string {
       return "Live upsert";
     case "delete":
       return "Archive";
+    case "delta":
+      return "Delta";
     case "heartbeat":
       return "Heartbeat";
     case "status":
@@ -448,6 +450,8 @@ function eventDetail(event: RealtimeFeatureEvent<IncidentFeature>): string {
       return `${event.feature.feature.id} ${statusLabel(event.feature.feature.status)}`;
     case "delete":
       return String(event.id);
+    case "delta":
+      return `${event.upserts?.length ?? 0} upsert(s), ${event.deletes?.length ?? 0} delete(s)`;
     case "heartbeat":
       return event.cursor ?? "No cursor";
     case "status":
