@@ -63,6 +63,10 @@
       "types": "./dist/src/interactions/index.d.ts",
       "default": "./dist/src/interactions/index.js"
     },
+    "./realtime": {
+      "types": "./dist/src/realtime/index.d.ts",
+      "default": "./dist/src/realtime/index.js"
+    },
     "./runtime": {
       "types": "./dist/src/runtime/index.d.ts",
       "default": "./dist/src/runtime/index.js"

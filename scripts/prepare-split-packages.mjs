@@ -50,6 +50,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "realtime"), path.join(packageRoot, "realtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));
@@ -80,6 +81,10 @@ function createSdkPackage() {
       "./interactions": {
         types: "./interactions/index.d.ts",
         default: "./interactions/index.js",
+      },
+      "./realtime": {
+        types: "./realtime/index.d.ts",
+        default: "./realtime/index.js",
       },
       "./map": {
         types: "./map/index.d.ts",
