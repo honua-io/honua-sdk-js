@@ -13,6 +13,10 @@ import {
   HonuaAppWorkspace,
   bindHonuaAppWorkspaceSelector,
   createHonuaAppWorkspace,
+  createHonuaAppWorkspaceFromSavedDocument,
+  createHonuaSavedWorkspaceDocument,
+  hydrateHonuaSavedWorkspaceState,
+  reattachHonuaSavedWorkspaceArtifacts,
   selectHonuaAppWorkspaceChartModel,
   selectHonuaAppWorkspaceDetailModel,
   selectHonuaAppWorkspaceDrafts,
@@ -22,6 +26,8 @@ import {
   selectHonuaAppWorkspaceMetadataCacheModel,
   selectHonuaAppWorkspaceRealtimeModel,
   selectHonuaAppWorkspaceTableModel,
+  summarizeHonuaSavedWorkspaceForMcp,
+  validateHonuaSavedWorkspaceDocument,
 } from "../src/index.js";
 
 describe("HonuaAppWorkspace", () => {
@@ -78,6 +84,182 @@ describe("HonuaAppWorkspace", () => {
 
     workspace.dispatch({ kind: "update-panel", panelId: "table", panel: { size: 480 } });
     expect(saved.state.layout.panels.table).toEqual({ visible: true, size: 320 });
+  });
+
+  it("serializes and reloads a framework-neutral saved workspace document", () => {
+    const workspace = createHonuaAppWorkspace<{ status: string }, { title: string }, { count: number }>();
+    const exploration = createExplorationContext({ datasetId: "ops", sourceIds: ["incidents"] });
+
+    exploration.dispatch({
+      kind: "set-filter",
+      id: "status",
+      clause: { field: "STATUS", operator: "=", value: "open", appliesTo: ["incidents"] },
+    });
+    exploration.dispatch({
+      kind: "select",
+      replace: true,
+      ids: [sourceFeatureSelectionTarget("incidents", 7)],
+    });
+    workspace.dispatch({
+      kind: "set-exploration",
+      reference: { datasetId: exploration.datasetId, sourceIds: exploration.sourceIds },
+      snapshot: exploration.snapshot(),
+    });
+    workspace.dispatch({
+      kind: "set-source-metadata",
+      sourceId: "incidents",
+      status: "ready",
+      metadata: { title: "Incidents" },
+    });
+    workspace.dispatch({
+      kind: "set-job-snapshot",
+      jobId: "job-1",
+      type: "summarize",
+      snapshot: { status: "successful", result: { outputs: { total: { count: 1 } } } },
+    });
+
+    const saved = createHonuaSavedWorkspaceDocument({
+      project: { id: "ops", title: "Operations" },
+      session: { id: "session-1", activeViewId: "map" },
+      snapshot: workspace.snapshot(),
+      savedAt: "2026-05-05T00:00:00.000Z",
+      sources: [
+        {
+          id: "incidents",
+          protocol: "ogc-features",
+          title: "Incidents",
+          status: "ready",
+          metadata: { title: "Incidents" },
+        },
+      ],
+      layers: [{ id: "incident-layer", sourceId: "incidents", title: "Incidents", visible: true, styleId: "open" }],
+      styles: [{ id: "open", layerId: "incident-layer", name: "Open incidents", spec: { color: "#d33" } }],
+      savedQueries: [
+        {
+          id: "open-incidents",
+          label: "Open incidents",
+          sourceIds: ["incidents"],
+          filters: { status: { field: "STATUS", operator: "=", value: "open", appliesTo: ["incidents"] } },
+        },
+      ],
+      analysisOutputs: [{ id: "total", jobId: "job-1", type: "metric", label: "Incident total", data: { count: 1 } }],
+    });
+
+    const wireFixture = JSON.parse(JSON.stringify(saved)) as unknown;
+    const validation = validateHonuaSavedWorkspaceDocument(wireFixture);
+    expect(validation.ok).toBe(true);
+
+    const reloaded = createHonuaAppWorkspaceFromSavedDocument<{ status: string }, { title: string }, { count: number }>(
+      wireFixture,
+    );
+    expect(reloaded.state.sources.entries.incidents?.metadata).toEqual({ title: "Incidents" });
+    expect(selectHonuaAppWorkspaceFilterModel(reloaded.state).filters.status?.value).toBe("open");
+    expect(selectHonuaAppWorkspaceDetailModel(reloaded.state).selection).toEqual([
+      sourceFeatureSelectionTarget("incidents", 7),
+    ]);
+    expect(reloaded.state.jobs.entries["job-1"]?.snapshot.result?.outputs.total).toEqual({ count: 1 });
+  });
+
+  it("validates saved workspace documents before hydration", () => {
+    const invalid = {
+      kind: "honua.saved-workspace",
+      version: 99,
+      migration: { schemaVersion: 99 },
+      project: {},
+      sources: [{ id: "" }],
+      layers: [],
+      styles: [],
+      filters: {},
+      savedQueries: [],
+      selectedFeatures: [{ id: null }],
+      jobs: [{ id: "job-1", type: "summarize", status: "waiting" }],
+      analysisOutputs: [],
+    };
+
+    const validation = validateHonuaSavedWorkspaceDocument(invalid);
+    expect(validation.ok).toBe(false);
+    if (!validation.ok) {
+      expect(validation.errors.map((error) => error.path)).toContain("$.version");
+      expect(validation.errors.map((error) => error.path)).toContain("$.project.id");
+      expect(validation.errors.map((error) => error.path)).toContain("$.jobs[0].status");
+    }
+    expect(() => hydrateHonuaSavedWorkspaceState(invalid)).toThrow(/Invalid Honua saved workspace document/);
+  });
+
+  it("reattaches jobs and materialized analysis outputs by id", () => {
+    const workspace = createHonuaAppWorkspace<unknown, unknown, { href: string }>();
+    workspace.dispatch({
+      kind: "set-job-snapshot",
+      jobId: "job-1",
+      type: "hotspots",
+      snapshot: { status: "running" },
+    });
+    const saved = createHonuaSavedWorkspaceDocument({
+      project: { id: "ops" },
+      savedAt: "2026-05-05T00:00:00.000Z",
+      snapshot: workspace.snapshot(),
+      sources: [],
+      layers: [],
+      styles: [],
+      savedQueries: [],
+      jobs: [{ id: "job-1", type: "hotspots", status: "running" }],
+      analysisOutputs: [{ id: "heatmap", jobId: "job-1", type: "geojson", href: "honua://old" }],
+    });
+
+    const reattached = reattachHonuaSavedWorkspaceArtifacts(saved, {
+      jobsById: {
+        "job-1": {
+          status: "successful",
+          result: { outputs: { heatmap: { href: "honua://workspace/artifacts/heatmap" } } },
+        },
+      },
+      analysisOutputsById: {
+        heatmap: {
+          id: "heatmap",
+          jobId: "job-1",
+          type: "geojson",
+          href: "honua://workspace/artifacts/heatmap",
+        },
+      },
+    });
+    const state = hydrateHonuaSavedWorkspaceState<unknown, unknown, { href: string }>(reattached);
+
+    expect(reattached.jobs[0]?.status).toBe("successful");
+    expect(reattached.analysisOutputs[0]?.href).toBe("honua://workspace/artifacts/heatmap");
+    expect(state.jobs.entries["job-1"]?.snapshot.result?.outputs.heatmap).toEqual({
+      href: "honua://workspace/artifacts/heatmap",
+    });
+  });
+
+  it("projects saved workspaces into MCP-readable summaries", () => {
+    const saved = createHonuaSavedWorkspaceDocument({
+      project: { id: "ops", title: "Operations" },
+      savedAt: "2026-05-05T00:00:00.000Z",
+      sources: [{ id: "incidents", protocol: "ogc-features", title: "Incidents", status: "ready" }],
+      layers: [{ id: "incident-layer", sourceId: "incidents", visible: true }],
+      styles: [],
+      savedQueries: [{ id: "open", sourceIds: ["incidents"], filters: {} }],
+      jobs: [{ id: "job-1", type: "summarize", status: "successful", outputIds: ["summary"] }],
+      analysisOutputs: [{ id: "summary", jobId: "job-1", type: "markdown", label: "Summary" }],
+    });
+
+    const summary = summarizeHonuaSavedWorkspaceForMcp(saved);
+
+    expect(summary).toMatchObject({
+      kind: "honua.workspace.summary",
+      workspaceId: "ops",
+      sourceCount: 1,
+      layerCount: 1,
+      savedQueryCount: 1,
+      analysisOutputCount: 1,
+    });
+    expect(summary.sources[0]).toEqual({
+      id: "incidents",
+      protocol: "ogc-features",
+      title: "Incidents",
+      status: "ready",
+    });
+    expect(summary.jobs[0]?.outputIds).toEqual(["summary"]);
   });
 
   it("updates realtime, job, and source cache state through typed intents", () => {
