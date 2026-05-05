@@ -82,6 +82,10 @@ import {
   bindQueryProjectionToExploration,
 } from "@honua/sdk/interactions";
 import {
+  createHonuaAppWorkspace,
+  selectHonuaAppWorkspaceMetadataCacheModel,
+} from "@honua/sdk/app-workspace";
+import {
   AttributionCompat,
   BasemapCompat,
   BasemapToggleCompat,
@@ -200,6 +204,10 @@ if (typeof bindChartToExploration !== "function")
   throw new Error("bindChartToExploration export missing from @honua/sdk/interactions");
 if (typeof bindQueryProjectionToExploration !== "function")
   throw new Error("bindQueryProjectionToExploration export missing from @honua/sdk/interactions");
+if (typeof createHonuaAppWorkspace !== "function")
+  throw new Error("createHonuaAppWorkspace export missing from @honua/sdk/app-workspace");
+if (typeof selectHonuaAppWorkspaceMetadataCacheModel !== "function")
+  throw new Error("selectHonuaAppWorkspaceMetadataCacheModel export missing from @honua/sdk/app-workspace");
 if (typeof CompatEventBus !== "function") throw new Error("CompatEventBus export missing");
 if (typeof CoordinateConversionCompat !== "function") throw new Error("CoordinateConversionCompat export missing");
 if (typeof createEsriRequestInterceptors !== "function") throw new Error("createEsriRequestInterceptors export missing");

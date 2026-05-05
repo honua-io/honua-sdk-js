@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createHonuaAppWorkspace as appWorkspaceCreateHonuaAppWorkspace,
+  selectHonuaAppWorkspaceMetadataCacheModel as appWorkspaceSelectMetadataCacheModel,
+} from "../src/app-workspace/index.js";
+import {
   CAPABILITIES,
   PROTOCOLS,
   PROTOCOL_DEFAULT_CAPABILITIES,
@@ -128,7 +132,9 @@ import {
   createHonuaOgcFeatures,
   createHonuaService,
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
+  createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
   selectLinkedViewQueryProjection as honuaSelectLinkedViewQueryProjection,
+  selectHonuaAppWorkspaceMetadataCacheModel as honuaSelectMetadataCacheModel,
   sourceFeatureSelectionTarget as honuaSourceFeatureSelectionTarget,
 } from "../src/honua.js";
 import {
@@ -136,8 +142,10 @@ import {
   bindChartToExploration,
   bindMapSelectionToExploration,
   bindQueryProjectionToExploration,
+  createHonuaAppWorkspace,
   selectLinkedViewQueryProjection as rootSelectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
+  selectHonuaAppWorkspaceMetadataCacheModel,
   syncFeatureStateSelection,
 } from "../src/index.js";
 import {
@@ -328,5 +336,14 @@ describe("entrypoint modules", () => {
     expect(emptyRealtimeFeatureState).toBeTypeOf("function");
     expect(reduceRealtimeFeatureState).toBeTypeOf("function");
     expect(createRealtimeFeatureStore).toBeTypeOf("function");
+  });
+
+  it("exposes the app workspace entrypoint", () => {
+    expect(createHonuaAppWorkspace).toBeTypeOf("function");
+    expect(appWorkspaceCreateHonuaAppWorkspace).toBe(createHonuaAppWorkspace);
+    expect(honuaCreateHonuaAppWorkspace).toBe(createHonuaAppWorkspace);
+    expect(selectHonuaAppWorkspaceMetadataCacheModel).toBeTypeOf("function");
+    expect(appWorkspaceSelectMetadataCacheModel).toBe(selectHonuaAppWorkspaceMetadataCacheModel);
+    expect(honuaSelectMetadataCacheModel).toBe(selectHonuaAppWorkspaceMetadataCacheModel);
   });
 });
