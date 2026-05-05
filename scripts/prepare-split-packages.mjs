@@ -52,6 +52,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "app-workspace"), path.join(packageRoot, "app-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
   copyDirectory(path.join(DIST_SRC_ROOT, "realtime"), path.join(packageRoot, "realtime"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "scene-workspace"), path.join(packageRoot, "scene-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));
@@ -90,6 +91,10 @@ function createSdkPackage() {
       "./realtime": {
         types: "./realtime/index.d.ts",
         default: "./realtime/index.js",
+      },
+      "./scene-workspace": {
+        types: "./scene-workspace/index.d.ts",
+        default: "./scene-workspace/index.js",
       },
       "./map": {
         types: "./map/index.d.ts",

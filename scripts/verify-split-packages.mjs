@@ -86,6 +86,10 @@ import {
   selectHonuaAppWorkspaceMetadataCacheModel,
 } from "@honua/sdk/app-workspace";
 import {
+  createSceneWorkspace,
+  sceneWorkspaceIntentFromAdapterEvent,
+} from "@honua/sdk/scene-workspace";
+import {
   AttributionCompat,
   BasemapCompat,
   BasemapToggleCompat,
@@ -208,6 +212,10 @@ if (typeof createHonuaAppWorkspace !== "function")
   throw new Error("createHonuaAppWorkspace export missing from @honua/sdk/app-workspace");
 if (typeof selectHonuaAppWorkspaceMetadataCacheModel !== "function")
   throw new Error("selectHonuaAppWorkspaceMetadataCacheModel export missing from @honua/sdk/app-workspace");
+if (typeof createSceneWorkspace !== "function")
+  throw new Error("createSceneWorkspace export missing from @honua/sdk/scene-workspace");
+if (typeof sceneWorkspaceIntentFromAdapterEvent !== "function")
+  throw new Error("sceneWorkspaceIntentFromAdapterEvent export missing from @honua/sdk/scene-workspace");
 if (typeof CompatEventBus !== "function") throw new Error("CompatEventBus export missing");
 if (typeof CoordinateConversionCompat !== "function") throw new Error("CoordinateConversionCompat export missing");
 if (typeof createEsriRequestInterceptors !== "function") throw new Error("createEsriRequestInterceptors export missing");
