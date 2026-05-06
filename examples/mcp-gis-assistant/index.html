@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua MCP GIS Assistant</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header>
+        <div>
+          <h1>Honua MCP GIS Assistant</h1>
+          <p>Fixture-backed assistant interaction patterns for Cloud Honua service discovery and query review.</p>
+        </div>
+        <div class="status-strip">
+          <span id="credential-state"></span>
+          <span id="cache-state"></span>
+          <span id="capability-state"></span>
+          <span>limit <strong id="result-limit"></strong></span>
+        </div>
+      </header>
+      <main>
+        <aside class="stack">
+          <section class="panel">
+            <h2>Services</h2>
+            <ul id="service-list"></ul>
+          </section>
+          <section class="panel">
+            <h2>Layers</h2>
+            <ul id="layer-list"></ul>
+          </section>
+          <section class="panel">
+            <h2>Schema</h2>
+            <ul id="schema-list"></ul>
+          </section>
+        </aside>
+        <section class="stack">
+          <section class="panel answer">
+            <form id="assistant-form">
+              <input id="assistant-input" value="Find open critical tasks" aria-label="Assistant prompt" />
+              <button type="submit">Ask</button>
+            </form>
+            <div class="prompt-row">
+              <button class="secondary" type="button" data-prompt="List services, layers, and schema">Discover</button>
+              <button class="secondary" type="button" data-prompt="Find open critical tasks">Draft Filter</button>
+              <button class="secondary" type="button" data-prompt="Show unsupported capabilities">Capabilities</button>
+              <button class="secondary" type="button" data-prompt="Can I connect without credentials?">Credentials</button>
+            </div>
+            <p id="assistant-answer"></p>
+            <div class="summary-line">
+              <span>Bounded result summary</span>
+              <strong id="bounded-summary"></strong>
+            </div>
+          </section>
+          <section class="panel">
+            <h2>Visible Features <span id="feature-count"></span></h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                </tr>
+              </thead>
+              <tbody id="feature-table"></tbody>
+            </table>
+          </section>
+        </section>
+        <aside class="stack">
+          <section id="draft-review" class="panel"></section>
+          <section class="panel">
+            <h2>Raw Tool Calls</h2>
+            <div id="tool-calls"></div>
+          </section>
+          <section class="panel">
+            <h2>Diagnostics</h2>
+            <ul id="diagnostics"></ul>
+          </section>
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
