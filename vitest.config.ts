@@ -53,6 +53,10 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/interactions/index.ts"),
       },
       {
+        find: "@honua/sdk-js/realtime",
+        replacement: path.resolve(import.meta.dirname, "src/realtime/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/operator",
         replacement: path.resolve(import.meta.dirname, "src/operator/index.ts"),
       },

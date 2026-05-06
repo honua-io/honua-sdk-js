@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unified Operational Intelligence Workspace</title>
+  </head>
+  <body>
+    <main class="workspace-shell">
+      <aside class="left-rail" aria-label="Workspace controls">
+        <header class="app-header">
+          <p class="eyebrow">Honua Operations</p>
+          <h1>Unified Operational Intelligence</h1>
+        </header>
+
+        <nav class="module-switcher" aria-label="Workspace modules">
+          <button type="button" data-module="incident-command" aria-pressed="true">Incident Command</button>
+          <button type="button" data-module="analysis-review" aria-pressed="false">Analysis Review</button>
+        </nav>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Sources</h2>
+            <span id="active-source-count">0 active</span>
+          </div>
+          <label class="source-toggle">
+            <input id="source-incident-ops" type="checkbox" checked />
+            <span>
+              <strong>Incident operations</strong>
+              <em id="incident-source-status">ready</em>
+            </span>
+          </label>
+          <label class="source-toggle">
+            <input id="source-response-crews" type="checkbox" checked />
+            <span>
+              <strong>Response crews</strong>
+              <em id="crew-source-status">ready</em>
+            </span>
+          </label>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Filters</h2>
+            <span><strong id="filter-count">0</strong> active</span>
+          </div>
+          <label class="field-label" for="status-filter">Status</label>
+          <select id="status-filter">
+            <option value="">Any</option>
+            <option value="open">Open</option>
+            <option value="assigned">Assigned</option>
+            <option value="monitoring">Monitoring</option>
+            <option value="resolved">Resolved</option>
+          </select>
+          <label class="field-label" for="severity-filter">Severity</label>
+          <select id="severity-filter">
+            <option value="">Any</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <button id="clear-filters" type="button">Clear Filters</button>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Extent</h2>
+            <span id="extent-label">Island</span>
+          </div>
+          <div id="map-presets" class="button-grid"></div>
+          <p id="extent-readout" class="readout">-</p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Realtime</h2>
+            <span id="realtime-status">Idle</span>
+          </div>
+          <dl class="metric-list">
+            <div>
+              <dt>Records</dt>
+              <dd id="realtime-record-count">0</dd>
+            </div>
+            <div>
+              <dt>Cursor</dt>
+              <dd id="realtime-cursor">-</dd>
+            </div>
+            <div>
+              <dt>Last Step</dt>
+              <dd id="last-step">-</dd>
+            </div>
+          </dl>
+          <button id="step-realtime" type="button">Step Live Event</button>
+        </section>
+      </aside>
+
+      <section class="module-stage" aria-live="polite">
+        <section id="incident-command-module" class="module-view" data-active="true">
+          <div class="stage-heading">
+            <div>
+              <p class="eyebrow">Incident Command</p>
+              <h2>Live Map, Queue, and Detail</h2>
+            </div>
+            <dl class="summary-strip">
+              <div>
+                <dt>Visible</dt>
+                <dd id="visible-count">0</dd>
+              </div>
+              <div>
+                <dt>Critical</dt>
+                <dd id="critical-count">0</dd>
+              </div>
+              <div>
+                <dt>ETA</dt>
+                <dd id="eta-average">0m</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="map-workspace">
+            <div id="ops-map" class="ops-map" aria-label="Linked operational map"></div>
+            <div class="queue-panel">
+              <div class="panel-heading">
+                <h3>Incident Queue</h3>
+                <span id="selection-count">0 selected</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Incident</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="incident-table-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="analysis-review-module" class="module-view" data-active="false">
+          <div class="stage-heading">
+            <div>
+              <p class="eyebrow">Analysis Review</p>
+              <h2>Charts, Drafts, and Snapshot Diagnostics</h2>
+            </div>
+            <dl class="summary-strip">
+              <div>
+                <dt>Drafts</dt>
+                <dd id="draft-count">0</dd>
+              </div>
+              <div>
+                <dt>Jobs</dt>
+                <dd id="job-count">0</dd>
+              </div>
+              <div>
+                <dt>Snapshot</dt>
+                <dd id="snapshot-id">-</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="analysis-grid">
+            <section class="panel chart-panel">
+              <div class="panel-heading">
+                <h3>Severity Buckets</h3>
+                <span id="chart-selection">shared context</span>
+              </div>
+              <div id="severity-chart" class="severity-chart"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Review Drafts</h3>
+                <span id="active-draft">-</span>
+              </div>
+              <div class="button-row">
+                <button id="stage-ai-draft" type="button">Stage AI Action</button>
+                <button id="stage-mcp-draft" type="button">Stage MCP Action</button>
+                <button id="apply-draft" type="button">Apply Draft</button>
+              </div>
+              <ul id="draft-list" class="stack-list"></ul>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Snapshot</h3>
+                <span id="snapshot-status">not saved</span>
+              </div>
+              <div class="button-row">
+                <button id="save-snapshot" type="button">Save Snapshot</button>
+                <button id="restore-snapshot" type="button">Restore Snapshot</button>
+              </div>
+              <ul id="diagnostic-list" class="stack-list"></ul>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Jobs</h3>
+                <span id="terminal-job-count">0 terminal</span>
+              </div>
+              <ul id="job-list" class="stack-list"></ul>
+            </section>
+          </div>
+        </section>
+      </section>
+
+      <aside class="detail-rail" aria-label="Shared detail">
+        <section class="panel detail-panel">
+          <div class="panel-heading">
+            <h2>Detail</h2>
+            <span id="detail-source">-</span>
+          </div>
+          <h3 id="detail-title">No selected feature</h3>
+          <p id="detail-summary">-</p>
+          <dl id="detail-attributes" class="metric-list"></dl>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Linked Context</h2>
+            <span id="context-active-view">incident-command</span>
+          </div>
+          <pre id="context-json"></pre>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
