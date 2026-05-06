@@ -872,6 +872,39 @@ node dist/src/migration/cli.js content reconcile --source ./export --report ./co
 node dist/src/migration/cli.js content-webmap --input ./export/webmap.json --output ./export/webmap.honua.json --source-url-prefix https://org.maps.arcgis.com --target-url-prefix https://honua.example.com --report ./export/webmap.report.json
 ```
 
+## Migration Admin Scanner
+
+`HonuaClient.scanMigrationSource()` wraps the stable admin scan endpoint for
+source-system migration planning:
+
+```ts
+import { HonuaClient } from "@honua/sdk-js/honua";
+import type { MigrationSourceInventoryArtifact } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({
+  baseUrl: "https://honua.example.com",
+  apiKey: process.env.HONUA_ADMIN_API_KEY,
+});
+
+const inventory: MigrationSourceInventoryArtifact = await client.scanMigrationSource({
+  sourceKind: "geoservices",
+  sourceUrl: "https://source.example.com/arcgis/rest/services/Parcels/FeatureServer",
+  timeoutSeconds: 30,
+});
+
+if (inventory.scanCompleteness.status === "failed") {
+  // HTTP 200 means Honua produced an artifact; completeness is the planning gate.
+}
+```
+
+Set `exportJson: true` to request
+`POST /api/v1/admin/import/scan?export=json`; the SDK still parses the JSON
+artifact. The SDK also exports public artifact constants and TypeScript shapes
+for source inventory, migration manifest, parity evidence pack, cutover
+readiness, and readiness attestations. Manifest, parity, and readiness artifacts
+are modeled for client-side review workflows only; the SDK does not assume
+server routes for those artifacts.
+
 ## FeatureTable Demo Lane (#327)
 
 Primary target:

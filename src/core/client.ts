@@ -77,6 +77,8 @@ import type {
   MapLayerQueryRequest,
   MapLegendRequest,
   MapRelatedRecordsRequest,
+  MigrationInventoryScanRequest,
+  MigrationSourceInventoryArtifact,
   OgcCollectionRequest,
   OgcCreateItemRequest,
   OgcDeleteItemRequest,
@@ -516,6 +518,27 @@ export class HonuaClient {
   ): Promise<boolean> {
     const compatibility = await this.getCompatibility(options);
     return compatibility.features[feature];
+  }
+
+  /**
+   * Scan a supported migration source through the admin import scanner.
+   *
+   * A successful HTTP response means the server returned a deterministic
+   * inventory artifact; callers still need to inspect
+   * `scanCompleteness.status`, which can be `"failed"` on `200 OK`.
+   */
+  public async scanMigrationSource(request: MigrationInventoryScanRequest): Promise<MigrationSourceInventoryArtifact> {
+    const { signal, exportJson, ...body } = request;
+    const path = `/api/v1/admin/import/scan${exportJson ? "?export=json" : ""}`;
+    return this.requestJson(
+      "POST",
+      path,
+      {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      signal,
+    ) as Promise<MigrationSourceInventoryArtifact>;
   }
 
   public async request<T = unknown>(request: HonuaRawRequest): Promise<T> {
