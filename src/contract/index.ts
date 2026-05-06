@@ -113,6 +113,34 @@ export {
   unionCapabilities,
 } from "./types.js";
 
+export { EditWorkflowSession, createEditSession, normalizeEditWorkflowFailures } from "./edit-session.js";
+export type {
+  CreateEditSessionOptions,
+  EditAttachmentMutation,
+  EditAttachmentMutationOutcome,
+  EditFieldDomain,
+  EditFieldDomainCodedValue,
+  EditWorkflowCapabilityState,
+  EditWorkflowCapabilitySummary,
+  EditWorkflowConflictInfo,
+  EditWorkflowConflictState,
+  EditWorkflowFailure,
+  EditWorkflowFailureKind,
+  EditWorkflowField,
+  EditWorkflowKind,
+  EditWorkflowMetadata,
+  EditWorkflowMetadataOptions,
+  EditWorkflowOperation,
+  EditWorkflowOptimisticHooks,
+  EditWorkflowRelationship,
+  EditWorkflowSnapshot,
+  EditWorkflowStatus,
+  EditWorkflowSubmitResult,
+  EditWorkflowValidationError,
+  EditWorkflowValidationResult,
+  NormalizeEditWorkflowFailuresOptions,
+} from "./edit-session.js";
+
 export {
   SPATIAL_AGGREGATION_CAPABILITY,
   SPATIAL_AGGREGATION_METADATA_SCHEMA_VERSION,

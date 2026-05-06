@@ -74,6 +74,7 @@ unsupported-capability, and degraded-result scenarios.
 | `SpatialAggregationRequest` / `SpatialAggregationResult` | Indexed spatial aggregation contract for large result sets. Requests carry `where`, `spatialFilter`, `viewport`, zoom/index-resolution hints, opaque index selection, summary specs (`category`, `histogram`, `range`, `count`, `sum`, `avg`, `min`, `max`), and optional `groupBy`. Results carry opaque indexed cells, grouped/totals summaries, backend index metadata, widget metadata, and progressive loading state. |
 | `EditEnvelope<T>` | `{ adds?, updates?, deletes?, rollbackOnFailure?, signal? }`. Each add / update is a `CanonicalFeature<T>` (attributes + optional geometry + optional id). |
 | `EditResult` | `{ added, updated, deleted, degraded? }` — one `EditOutcome` per requested operation. |
+| `EditWorkflowSession<T>` | Form/edit session over one `Source`: projects field metadata and domains, exposes relationship / attachment capability states, stages feature and attachment edits, runs optimistic hooks, and returns a normalized `EditWorkflowSubmitResult`. |
 | `RelatedQuery` / `RelatedResult<T>` | Canonical related-records request and response. Adapters that lack relationships (OGC, OData, ImageServer) throw rather than return empty groups. |
 | `AttachmentApi` | Namespace returned by `Source.attachments`. Methods: `query`, `list`, `add`, `update`, `delete`. Adapters that do not advertise `attachments` throw `HonuaCapabilityNotSupportedError` from each method so the namespace property is always present and capability negotiation stays uniform. |
 | `MapBinding` | `{ sourceId, layerIds, style?, minzoom?, maxzoom? }`. Maps onto `MapPackage.sourceBindings` + `MapPackage.mapSpec` server-side. The `@honua/sdk-js/runtime` module consumes a full `MapPackage` on the client — see [`maplibre-runtime.md`](./maplibre-runtime.md). |
@@ -214,6 +215,34 @@ surface:
   see [`protocol-capability-matrix.md`](./protocol-capability-matrix.md)
   for the precedent and [`decisions/odata-library-selection.md`](./decisions/odata-library-selection.md)
   for the runtime-library posture.
+
+## Edit Workflow Sessions
+
+`createEditSession({ source, kind, feature, metadata, optimistic })`
+is the SDK-level workflow contract for form and editor surfaces. It is
+intentionally layered over `Source.applyEdits`, `Source.queryRelated`,
+and `Source.attachments` rather than replacing the protocol adapters.
+
+The session resolves fields from `source.descriptor.schema.fields` plus
+caller-supplied domains, validates required / read-only / length /
+coded-value / range constraints before submit, and exposes
+`capabilities()` so unsupported `applyEdits`, `attachments`, and
+`queryRelated` states are explicit and testable. Relationship reads use
+`session.queryRelated(...)`; attachment reads and staged add / update /
+delete mutations use the same source attachment namespace.
+
+`submit()` sends the feature edit envelope first, then applies staged
+attachment mutations against the committed feature id when the backend
+returns one. Optimistic hooks run in this order: `optimistic.apply`
+before the remote edit, `optimistic.commit` on full success, and
+`optimistic.rollback` for failed or partial feature / attachment
+results. `EditWorkflowSubmitResult.failures` normalizes per-row errors
+from GeoServices, OGC Features, WFS, and OData into `validation`,
+`conflict`, `capability`, `transport`, `server`, or `partial-failure`.
+When a version / ETag / updated-at field is present (or supplied in
+`metadata.conflict`), conflict failures carry that information so hosts
+can present reload / merge / overwrite workflows without parsing
+protocol-specific error text.
 
 `Source.queryAll()` and `Source.stream()` drain every page the server
 returns — the built-in adapters override the core helpers' 100-page

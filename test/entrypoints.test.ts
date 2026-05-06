@@ -10,11 +10,13 @@ import {
   PROTOCOL_DEFAULT_CAPABILITIES,
   capabilities,
   createDataset,
+  createEditSession,
   geoServicesFeatureSource,
   geoServicesGPServiceSource,
   geoServicesGeometryServiceSource,
   geoServicesImageSource,
   geoServicesMapServiceSource,
+  normalizeEditWorkflowFailures,
   odataSource,
   ogcFeaturesSource,
   ogcMapsSource,
@@ -133,6 +135,7 @@ import {
   createHonuaOgcFeatures,
   createHonuaService,
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
+  createEditSession as honuaCreateEditSession,
   createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
   createSceneWorkspace as honuaCreateSceneWorkspace,
   preparePrimaryDetailModel as honuaPreparePrimaryDetailModel,
@@ -147,6 +150,7 @@ import {
   bindQueryProjectionToExploration,
   createHonuaAppWorkspace,
   preparePrimaryDetailModel,
+  createEditSession as rootCreateEditSession,
   createSceneWorkspace as rootCreateSceneWorkspace,
   selectLinkedViewQueryProjection as rootSelectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
@@ -298,6 +302,10 @@ describe("entrypoint modules", () => {
     expect(Object.keys(PROTOCOL_DEFAULT_CAPABILITIES)).toEqual([...PROTOCOLS]);
     expect(capabilities).toBeTypeOf("function");
     expect(createDataset).toBeTypeOf("function");
+    expect(createEditSession).toBeTypeOf("function");
+    expect(rootCreateEditSession).toBe(createEditSession);
+    expect(honuaCreateEditSession).toBe(createEditSession);
+    expect(normalizeEditWorkflowFailures).toBeTypeOf("function");
     expect(geoServicesFeatureSource).toBeTypeOf("function");
     expect(geoServicesMapServiceSource).toBeTypeOf("function");
     expect(geoServicesImageSource).toBeTypeOf("function");
