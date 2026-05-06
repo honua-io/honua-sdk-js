@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { createExplorationContext, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 import {
   createRealtimeFeatureStore,
+  createRealtimeServerSentEventsTransport,
+  decodeRealtimeServerSentEvent,
   emptyRealtimeFeatureState,
+  encodeDefaultRealtimeRequest,
   filterRealtimeSelection,
   realtimeFeatureKey,
   realtimeResumeCheckpoint,
@@ -20,8 +23,50 @@ import {
 import type {
   RealtimeFeatureObserver,
   RealtimeFeatureTransport,
+  RealtimeServerSentEventSource,
   RealtimeSubscriptionRequest,
 } from "../src/realtime/index.js";
+
+class MockRealtimeEventSource implements RealtimeServerSentEventSource {
+  public onopen: ((event: Event) => void) | null = null;
+  public onmessage: ((event: MessageEvent<string>) => void) | null = null;
+  public onerror: ((event: Event) => void) | null = null;
+  public readyState = 0;
+  public closed = false;
+  private readonly listeners = new Map<string, Array<(event: MessageEvent<string>) => void>>();
+
+  public constructor(public readonly url: string) {}
+
+  public addEventListener(type: string, listener: (event: MessageEvent<string>) => void): void {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+  }
+
+  public removeEventListener(type: string, listener: (event: MessageEvent<string>) => void): void {
+    this.listeners.set(
+      type,
+      (this.listeners.get(type) ?? []).filter((candidate) => candidate !== listener),
+    );
+  }
+
+  public close(): void {
+    this.closed = true;
+    this.readyState = 2;
+  }
+
+  public open(): void {
+    this.readyState = 1;
+    this.onopen?.(new Event("open"));
+  }
+
+  public message(payload: unknown): void {
+    this.onmessage?.(new MessageEvent("message", { data: JSON.stringify(payload) }));
+  }
+
+  public namedMessage(type: string, payload: unknown): void {
+    const event = new MessageEvent(type, { data: JSON.stringify(payload) });
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
+  }
+}
 
 describe("realtime feature state", () => {
   it("applies snapshot, upsert, delete, cursor, and heartbeat events", () => {
@@ -253,6 +298,110 @@ describe("realtime feature state", () => {
       mode: "snapshot-then-delta",
       resumeFrom,
     });
+  });
+
+  it("encodes server-sent event subscription requests for cloud realtime streams", () => {
+    const url = encodeDefaultRealtimeRequest(new URL("https://honua.example/realtime/events"), {
+      requestId: "incident-ops",
+      sourceId: "incidents",
+      layerId: "active",
+      fields: ["id", "status"],
+      where: "status <> 'resolved'",
+      mode: "snapshot-then-delta",
+      resumeFrom: {
+        cursor: "c7",
+        watermark: "w7",
+        timestamp: "2026-05-05T11:00:00.000Z",
+        sequence: 12,
+        deltaToken: "dt7",
+      },
+      spatialFilter: { relationship: "intersects", geometry: { x: -157.86, y: 21.31 } },
+      metadata: { demo: "incident-dashboard" },
+    });
+
+    expect(url.searchParams.get("requestId")).toBe("incident-ops");
+    expect(url.searchParams.get("sourceId")).toBe("incidents");
+    expect(url.searchParams.get("layerId")).toBe("active");
+    expect(url.searchParams.get("mode")).toBe("snapshot-then-delta");
+    expect(url.searchParams.get("cursor")).toBe("c7");
+    expect(url.searchParams.get("sequence")).toBe("12");
+    expect(JSON.parse(url.searchParams.get("spatialFilter") ?? "{}")).toEqual({
+      relationship: "intersects",
+      geometry: { x: -157.86, y: 21.31 },
+    });
+  });
+
+  it("decodes direct and enveloped server-sent event payloads", () => {
+    expect(
+      decodeRealtimeServerSentEvent<{ status: string }>({
+        type: "upsert",
+        feature: { sourceId: "incidents", id: 1, feature: { status: "open" } },
+      }),
+    ).toMatchObject({
+      type: "upsert",
+      feature: { id: 1 },
+    });
+    expect(
+      decodeRealtimeServerSentEvent<{ status: string }>({
+        event: {
+          type: "heartbeat",
+          cursor: "c9",
+        },
+      }),
+    ).toEqual({
+      type: "heartbeat",
+      cursor: "c9",
+    });
+    expect(() => decodeRealtimeServerSentEvent({ event: "missing-type" })).toThrow(/missing an event type/);
+  });
+
+  it("bridges server-sent events into the realtime store without live cloud calls", () => {
+    const sources: MockRealtimeEventSource[] = [];
+    const transport = createRealtimeServerSentEventsTransport<{ status: string }>({
+      url: "https://honua.example/api/v1/realtime/events",
+      eventSourceFactory(url) {
+        const source = new MockRealtimeEventSource(url);
+        sources.push(source);
+        return source;
+      },
+    });
+    const store = createRealtimeFeatureStore<{ status: string }>();
+    const listener = vi.fn();
+    store.subscribe(listener);
+
+    const handle = store.connect(transport, {
+      sourceId: "incidents",
+      layerId: "active",
+      mode: "snapshot-then-delta",
+      resumeFrom: { cursor: "c1" },
+    });
+    const [source] = sources;
+    expect(source?.url).toContain("/api/v1/realtime/events?");
+    expect(source?.url).toContain("sourceId=incidents");
+    expect(source?.url).toContain("cursor=c1");
+
+    source?.open();
+    source?.message({
+      type: "delta",
+      cursor: "c2",
+      sequence: 2,
+      upserts: [{ sourceId: "incidents", id: 7, feature: { status: "open" } }],
+    });
+    source?.namedMessage("heartbeat", {
+      type: "heartbeat",
+      cursor: "c3",
+      receivedAt: 500,
+    });
+
+    expect(store.state.status).toBe("live");
+    expect(store.state.cursor).toBe("c3");
+    expect(store.state.records[realtimeFeatureKey("incidents", 7)]?.feature.status).toBe("open");
+    expect(store.state.lastHeartbeatAt).toBe(500);
+
+    handle.close();
+    expect(source?.closed).toBe(true);
+    expect(store.state.status).toBe("closed");
+    expect(listener).toHaveBeenCalled();
   });
 
   it("projects realtime state for map, table, tombstone, and detail synchronization", () => {

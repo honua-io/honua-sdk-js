@@ -22,6 +22,18 @@ read-only context and disables actions that require authoritative live state.
 npm run demo:incident
 ```
 
+The fixture transport is the default. To exercise a Honua cloud/server
+realtime endpoint that emits SDK `RealtimeFeatureEvent` JSON over SSE, start the
+demo with either:
+
+```sh
+VITE_HONUA_INCIDENT_TRANSPORT=cloud \
+VITE_HONUA_INCIDENT_STREAM_URL=https://honua.example/api/v1/realtime/events \
+npm run demo:incident
+```
+
+or append `?transport=cloud&streamUrl=<sse-url>` in the browser.
+
 ## Validate
 
 ```sh
