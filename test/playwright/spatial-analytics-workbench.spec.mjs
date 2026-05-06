@@ -4,7 +4,7 @@ import { startSpatialAnalyticsWorkbenchFixtureServer } from "../../examples/spat
 
 test.setTimeout(90_000);
 
-test("spatial analytics workbench runs an AOI job and surfaces capability gaps", async ({ page }) => {
+test("spatial analytics workbench runs jobs and renders indexed aggregation widgets", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => {
     pageErrors.push(error.message);
@@ -18,7 +18,7 @@ test("spatial analytics workbench runs an AOI job and surfaces capability gaps",
       .toBe(true);
 
     await expect(page.locator("#cache-state")).toContainText("ready");
-    await expect(page.locator("#capability-state")).toContainText("gap");
+    await expect(page.locator("#capability-state")).toContainText("degraded");
     await expect(page.locator("#result-count")).toHaveText("0");
 
     await page.getByRole("button", { name: "Run Analysis" }).click();
@@ -45,10 +45,13 @@ test("spatial analytics workbench runs an AOI job and surfaces capability gaps",
     await expect(page.locator("#workspace-export")).toContainText("honua.saved-workspace");
     await expect(page.locator("#workspace-export")).toContainText("materialized-result");
 
-    await page.getByRole("button", { name: "Simulate Missing #66" }).click();
-    await expect(page.locator("#job-state")).toHaveText("Failed");
-    await expect(page.locator("#job-diagnostics")).toContainText("HonuaCapabilityNotSupported");
-    await expect(page.locator("#job-diagnostics")).toContainText("#66");
+    await page.getByRole("button", { name: "Run Indexed Aggregation" }).click();
+    await expect(page.locator("#job-state")).toHaveText("Successful");
+    await expect(page.locator("#result-count")).toHaveText("2");
+    await expect(page.locator(".aggregation-cell")).toHaveCount(2);
+    await expect(page.locator("#aggregation-widgets")).toContainText("Severity");
+    await expect(page.locator("#aggregation-widgets")).toContainText("Response time");
+    await expect(page.locator("#job-diagnostics")).toContainText("No failed-job diagnostics");
 
     expect(pageErrors).toEqual([]);
   } finally {
