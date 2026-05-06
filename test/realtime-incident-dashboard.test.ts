@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { INCIDENT_SOURCE_ID, INITIAL_INCIDENTS } from "../examples/realtime-incident-dashboard/src/fixtures.js";
+import {
+  INCIDENT_LAYER_ID,
+  INCIDENT_SOURCE_ID,
+  INITIAL_INCIDENTS,
+} from "../examples/realtime-incident-dashboard/src/fixtures.js";
 import {
   INCIDENT_METADATA_CACHE_STATE,
   evaluateIncidentLiveStateAuthority,
@@ -8,6 +12,10 @@ import {
 } from "../examples/realtime-incident-dashboard/src/live-state.js";
 import { applyIncidentProjection, incidentRecords } from "../examples/realtime-incident-dashboard/src/projection.js";
 import { createFixtureIncidentTransport } from "../examples/realtime-incident-dashboard/src/realtime-fixture.js";
+import {
+  createIncidentDashboardTransport,
+  readIncidentTransportConfig,
+} from "../examples/realtime-incident-dashboard/src/realtime-transport.js";
 import type { IncidentFeature } from "../examples/realtime-incident-dashboard/src/types.js";
 import {
   createExplorationContext,
@@ -23,6 +31,40 @@ import {
 } from "../src/realtime/index.js";
 
 describe("realtime incident dashboard fixture", () => {
+  it("keeps fixture transport as the default and opts into cloud SSE by config", () => {
+    const fixtureLocation = { search: "" } as Location;
+    const cloudLocation = {
+      search: "?transport=cloud&streamUrl=https%3A%2F%2Fhonua.example%2Fapi%2Fv1%2Frealtime%2Fevents",
+    } as Location;
+
+    expect(readIncidentTransportConfig(fixtureLocation)).toEqual({
+      mode: "fixture",
+      streamUrl: undefined,
+    });
+    expect(readIncidentTransportConfig(cloudLocation)).toEqual({
+      mode: "cloud",
+      streamUrl: "https://honua.example/api/v1/realtime/events",
+    });
+
+    const fixture = createIncidentDashboardTransport(fixtureLocation);
+    const cloud = createIncidentDashboardTransport(cloudLocation);
+
+    expect(fixture.controls.mode).toBe("fixture");
+    expect(fixture.transport.capabilities?.kind).toBeUndefined();
+    expect(fixture.request).toMatchObject({
+      requestId: "realtime-incident-dashboard",
+      sourceId: INCIDENT_SOURCE_ID,
+      layerId: INCIDENT_LAYER_ID,
+      mode: "snapshot-then-delta",
+      metadata: {
+        channel: "fixture",
+      },
+    });
+    expect(cloud.controls.mode).toBe("cloud");
+    expect(cloud.transport.capabilities?.kind).toBe("sse");
+    expect(cloud.request.metadata).toMatchObject({ channel: "cloud" });
+  });
+
   it("projects live incident deltas through the linked exploration context", () => {
     let clock = 1_000;
     const store = createRealtimeFeatureStore<IncidentFeature>();

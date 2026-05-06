@@ -1,4 +1,14 @@
 export {
+  createRealtimeServerSentEventsTransport,
+  decodeRealtimeServerSentEvent,
+  encodeDefaultRealtimeRequest,
+} from "./sse.js";
+export type {
+  RealtimeServerSentEventSource,
+  RealtimeServerSentEventSourceFactory,
+  RealtimeServerSentEventsTransportOptions,
+} from "./sse.js";
+export {
   emptyRealtimeFeatureState,
   reconcileRealtimeStaleness,
   reduceRealtimeFeatureState,

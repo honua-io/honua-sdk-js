@@ -45,7 +45,7 @@ import {
   incidentRecords,
   statusLabel,
 } from "./projection.js";
-import { createFixtureIncidentTransport } from "./realtime-fixture.js";
+import { createIncidentDashboardTransport } from "./realtime-transport.js";
 import type { IncidentFeature, IncidentSummary } from "./types.js";
 
 import "./styles.css";
@@ -534,7 +534,7 @@ async function bootstrap(): Promise<void> {
   try {
     const { map, layerIds } = await createMap();
     const store = createRealtimeFeatureStore<IncidentFeature>();
-    const transport = createFixtureIncidentTransport();
+    const incidentTransport = createIncidentDashboardTransport();
     const context = createExplorationContext({
       datasetId: "honua-cloud-incident-operations",
       sourceIds: [INCIDENT_SOURCE_ID],
@@ -665,31 +665,31 @@ async function bootstrap(): Promise<void> {
       setFieldFilter(filterControls, "type", "type", typeFilter.value);
     });
     stepButton.addEventListener("click", () => {
-      const step = transport.step();
+      const step = incidentTransport.controls.step();
       runtime.lastStep = step?.label ?? null;
       setText("#last-scenario-step", step ? step.label : "No live step");
     });
-    reconnectButton.addEventListener("click", () => transport.reconnect());
-    resumeButton.addEventListener("click", () => transport.resume());
+    reconnectButton.addEventListener("click", () => incidentTransport.controls.reconnect());
+    resumeButton.addEventListener("click", () => incidentTransport.controls.resume());
     staleButton.addEventListener("click", () => {
       const lastLiveAt = store.state.lastHeartbeatAt ?? store.state.lastEventAt ?? Date.now();
       store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });
     });
-    refreshButton.addEventListener("click", () => transport.refresh());
+    refreshButton.addEventListener("click", () => incidentTransport.controls.refresh());
 
     runtime.step = () => {
-      const step = transport.step();
+      const step = incidentTransport.controls.step();
       runtime.lastStep = step?.label ?? null;
       setText("#last-scenario-step", step ? step.label : "No live step");
       return runtime.lastStep;
     };
-    runtime.reconnect = () => transport.reconnect();
-    runtime.resume = () => transport.resume();
+    runtime.reconnect = () => incidentTransport.controls.reconnect();
+    runtime.resume = () => incidentTransport.controls.resume();
     runtime.markStale = () => {
       const lastLiveAt = store.state.lastHeartbeatAt ?? store.state.lastEventAt ?? Date.now();
       store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });
     };
-    runtime.refresh = () => transport.refresh();
+    runtime.refresh = () => incidentTransport.controls.refresh();
 
     for (const layerId of layerIds) {
       map.on("mouseenter", layerId, () => {
@@ -700,14 +700,7 @@ async function bootstrap(): Promise<void> {
       });
     }
 
-    store.connect(transport, {
-      sourceId: INCIDENT_SOURCE_ID,
-      layerId: INCIDENT_LAYER_ID,
-      metadata: {
-        demo: "realtime-incident-dashboard",
-        channel: "fixture-backed-honua-cloud",
-      },
-    });
+    store.connect(incidentTransport.transport, incidentTransport.request);
 
     tableSelection.select([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, INITIAL_INCIDENTS[0].id)], {
       replace: true,
