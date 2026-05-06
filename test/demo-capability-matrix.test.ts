@@ -35,6 +35,7 @@ const requiredCapabilities = [
   "Metadata caching",
   "Realtime/live data",
   "Materialized outputs",
+  "Indexed spatial aggregation",
   "Uncached ad hoc spatial requests",
 ] as const;
 
@@ -130,7 +131,7 @@ describe("demo capability matrix", () => {
     expect(weakRows.length).toBeGreaterThan(0);
     for (const row of weakRows) {
       expect(row.notes, `${row.capability} should reference a follow-up issue`).toMatch(
-        /#(?:55|56|57|58|59|60|62|63|64|65|70|73|74)\b/,
+        /#(?:55|56|57|58|59|60|62|63|64|65|66|70|73|74)\b/,
       );
     }
   });

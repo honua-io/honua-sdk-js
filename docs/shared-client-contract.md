@@ -36,9 +36,10 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
 
 ```
 src/contract/
-├── index.ts        # barrel — re-exports types and source factories
-├── types.ts        # protocol, capability, source, dataset, query, result
-└── source.ts       # createDataset + built-in adapters
+├── index.ts                 # barrel — re-exports types and source factories
+├── spatial-aggregation.ts   # indexed aggregation request/response metadata
+├── types.ts                 # protocol, capability, source, dataset, query, result
+└── source.ts                # createDataset + built-in adapters
 ```
 
 Public entrypoint: `@honua/sdk-js/contract` (also re-exported from the
@@ -62,7 +63,7 @@ unsupported-capability, and degraded-result scenarios.
 | Type | What it is |
 | --- | --- |
 | `Protocol` | One of sixteen identifiers — five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), four OGC API + STAC adapters (`ogc-features`, `ogc-tiles`, `ogc-maps`, `stac`), `wfs`, `wms`, `wmts`, `odata`, plus three MapLibre-native (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
-| `Capability` | A coarse-grained protocol capability (`query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `connect`, `image`, `geometry`, `geoprocess`, `processes`). The canonical `Source` surface standardizes the query / edit / related / attachment / object-id subset today; `image` / `geometry` / `geoprocess` / `processes` are negotiated for `Source.protocol()` escape hatches and for the `IJobRun`-based OGC API Processes runner because their request shapes are too protocol-specific to belong on the unified envelope. |
+| `Capability` | A coarse-grained protocol capability (`query`, `queryAggregate`, `spatialAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `connect`, `image`, `geometry`, `geoprocess`, `processes`). The canonical `Source` surface standardizes the query / edit / related / attachment / object-id subset today; `spatialAggregate`, `image` / `geometry` / `geoprocess` / `processes` are negotiated for indexed analytics, `Source.protocol()` escape hatches, and for the `IJobRun`-based OGC API Processes runner because their request shapes are too protocol-specific to belong on the unified query envelope. |
 | `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party protocol support, whether the caller consumes it through a canonical `Source` method or the typed protocol escape hatch. Under `strict` (default) a missing capability throws `HonuaCapabilityNotSupportedError`. Under `degraded` only call sites with a defined fallback proceed (today: OGC `queryAggregate` and `queryExtent`); every other missing capability still throws. |
 | `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `tileMatrixSetId`, `styleId`, `typeName`, `entitySet`, `taskName`). Field-compatible with the server `SourceBinding.locator`; `tileMatrixSetId` / `styleId` carry OGC API Tiles / Maps route hints for downstream `SourceBinding` work tracked in [`source-binding-alignment.md`](./source-binding-alignment.md). |
 | `SourceDescriptor` | `{ id, protocol, locator, capabilities, schema?, attribution? }`. The serializable identity of one source. |
@@ -70,6 +71,7 @@ unsupported-capability, and degraded-result scenarios.
 | `Dataset` | Logical grouping of sources sharing identity. Methods: `source(id)`, `sourceIds()`, `isCompatible()`, `supportsFeature()`. |
 | `Query<T>` | `{ where?, spatialFilter?, outFields?, orderBy?, pagination?, aggregation?, returnGeometry?, outSr?, signal? }`. |
 | `Result<T>` | `{ features, exceededTransferLimit, totalCount?, aggregateRows?, extent?, fields?, degraded? }`. |
+| `SpatialAggregationRequest` / `SpatialAggregationResult` | Indexed spatial aggregation contract for large result sets. Requests carry `where`, `spatialFilter`, `viewport`, zoom/index-resolution hints, opaque index selection, summary specs (`category`, `histogram`, `range`, `count`, `sum`, `avg`, `min`, `max`), and optional `groupBy`. Results carry opaque indexed cells, grouped/totals summaries, backend index metadata, widget metadata, and progressive loading state. |
 | `EditEnvelope<T>` | `{ adds?, updates?, deletes?, rollbackOnFailure?, signal? }`. Each add / update is a `CanonicalFeature<T>` (attributes + optional geometry + optional id). |
 | `EditResult` | `{ added, updated, deleted, degraded? }` — one `EditOutcome` per requested operation. |
 | `RelatedQuery` / `RelatedResult<T>` | Canonical related-records request and response. Adapters that lack relationships (OGC, OData, ImageServer) throw rather than return empty groups. |
@@ -106,7 +108,12 @@ follow-up work.
 
 The registry is intentionally broader than the current `Source` method list so
 downstream adapter tickets can negotiate `render` / `tiles` / `sql` /
-`queryObjectIds` / etc. without inventing a second capability vocabulary.
+`queryObjectIds` / `spatialAggregate` / etc. without inventing a second
+capability vocabulary. `spatialAggregate` has no default protocol support
+today; sources should advertise it only when source-specific metadata confirms
+an indexed aggregation backend. Apps must treat returned cell ids and
+`index.model.id` as opaque, so H3, Quadbin, or a provider-specific grid can
+drive the same widgets.
 
 For multi-source compositions, use `intersectCapabilities` from
 `@honua/sdk-js/contract` to compute the **weakest** capability set
