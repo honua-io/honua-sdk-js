@@ -111,6 +111,7 @@ polygon geometry buckets.
 - [`examples/imagery-cog-quickstart/`](./examples/imagery-cog-quickstart/README.md): MapLibre imagery proof for WMS `GetMap`, COG-backed ImageServer tiles, `exportImage` previews, legends, and metadata cache state through one Honua client configuration.
 - [`examples/geocoding-quickstart/`](./examples/geocoding-quickstart/README.md): MapLibre geocoding sample for forward geocoding, reverse lookup from a clicked point, typeahead suggestions, and GeocodeServer audit mapping through `HonuaGeocodingClient`.
 - [`examples/terrain-rgb-elevation/`](./examples/terrain-rgb-elevation/README.md): MapLibre Terrain-RGB elevation proof with fixture-safe DEM tiles, clicked point elevation lookup, drawn line profile queries, and explicit SDK gap notes for untyped terrain value/profile endpoints.
+- [`examples/unified-ops-workspace/`](./examples/unified-ops-workspace/README.md): fixture-backed operational workspace shell that composes incident command and analysis review modules over one shared app workspace, linked-view context, realtime state, review drafts, and saved snapshot diagnostics.
 - [`docs/examples/cesium-route-playback/README.md`](./docs/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
 Each example README documents its own env surface, network contract, browser telemetry hooks, run lanes, accepted data
@@ -427,12 +428,15 @@ npm run build
 npm run demo:quickstart:typecheck
 npm run demo:25d:typecheck
 npm run demo:node-backend:typecheck
+npm run demo:unified-ops:typecheck
 npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts
 npx vitest run test/node-backend-quickstart.test.ts
+npx vitest run test/unified-ops-workspace.test.ts
 npx vitest run test/cesium-route-playback.test.ts
 npx vitest run test/storytelling-25d-config.test.ts test/storytelling-25d-data.test.ts
 npm test
 npm run test:playwright:quickstart
+npm run test:playwright:unified-ops
 npx playwright test test/playwright/cesium-route-playback.spec.mjs
 npm run test:playwright:25d
 npm run test:playwright
