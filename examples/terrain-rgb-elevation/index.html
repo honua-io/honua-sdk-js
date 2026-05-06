@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua Terrain-RGB Elevation Demo</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="control-panel" aria-label="Terrain controls">
+        <header class="panel-header">
+          <p class="eyebrow">Terrain proof asset</p>
+          <h1>Terrain-RGB Elevation</h1>
+          <p>Render a Terrain-RGB DEM, inspect clicked elevations, and query a profile from a drawn line.</p>
+        </header>
+
+        <section class="status-grid" aria-label="Demo status">
+          <div>
+            <span>Mode</span>
+            <strong id="mode-state">Loading</strong>
+          </div>
+          <div>
+            <span>Capability</span>
+            <strong id="capability-state">Loading</strong>
+          </div>
+          <div>
+            <span>Cache</span>
+            <strong id="cache-state">Loading</strong>
+          </div>
+          <div>
+            <span>Metadata</span>
+            <strong id="metadata-state">Loading</strong>
+          </div>
+        </section>
+
+        <section class="tool-panel" aria-label="Terrain tools">
+          <div class="section-heading">
+            <h2>Tools</h2>
+            <button id="zoom-extent" type="button">Zoom Extent</button>
+          </div>
+          <div class="button-row">
+            <button id="start-profile" type="button">Start Line</button>
+            <button id="finish-profile" type="button" disabled>Run Profile</button>
+            <button id="fixture-profile" type="button">Fixture Line</button>
+            <button id="clear-profile" type="button">Clear</button>
+          </div>
+          <p id="draw-state" class="draw-state">0 vertices</p>
+        </section>
+
+        <section class="inspector-panel" aria-label="Point elevation">
+          <div class="section-heading">
+            <h2>Point Lookup</h2>
+            <strong id="point-elevation">-</strong>
+          </div>
+          <dl class="metadata-list">
+            <div><dt>Location</dt><dd id="point-location">-</dd></div>
+            <div><dt>Endpoint</dt><dd id="point-source">Waiting</dd></div>
+          </dl>
+        </section>
+
+        <section class="profile-panel" aria-label="Elevation profile">
+          <div class="section-heading">
+            <h2>Profile</h2>
+          </div>
+          <p id="profile-summary" class="profile-summary">No line profile queried.</p>
+          <div id="profile-chart" class="profile-chart"></div>
+        </section>
+
+        <section class="audit-panel" aria-label="Capability audit mapping">
+          <h2>Audit Mapping</h2>
+          <div id="audit-table" class="audit-table"></div>
+        </section>
+      </section>
+
+      <section class="map-stage" aria-label="Terrain map">
+        <div id="map"></div>
+        <div class="map-overlay">
+          <span id="endpoint-state">Waiting for Honua endpoints</span>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
