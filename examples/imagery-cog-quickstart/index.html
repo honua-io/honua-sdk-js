@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua Imagery and COG Quickstart</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="control-panel" aria-label="Imagery controls">
+        <header class="panel-header">
+          <p class="eyebrow">Cloud Honua imagery proof</p>
+          <h1>Imagery and COG Rendering</h1>
+          <p>
+            Validate COG-backed ImageServer tiles, WMS GetMap, export previews, legends, and metadata cache state from
+            one Honua client configuration.
+          </p>
+        </header>
+
+        <section class="status-grid" aria-label="Demo status">
+          <div>
+            <span>Mode</span>
+            <strong id="mode-state">Loading</strong>
+          </div>
+          <div>
+            <span>Capability</span>
+            <strong id="capability-state">Loading</strong>
+          </div>
+          <div>
+            <span>Cache</span>
+            <strong id="cache-state">Loading</strong>
+          </div>
+          <div>
+            <span>Layers</span>
+            <strong id="active-layer-count">0 active</strong>
+          </div>
+        </section>
+
+        <section class="layer-panel" aria-label="Imagery layer list">
+          <div class="section-heading">
+            <h2>Render Paths</h2>
+            <button id="zoom-extent" type="button">Zoom Extent</button>
+          </div>
+          <div id="layer-list" class="layer-list"></div>
+        </section>
+
+        <section class="inspector-panel" aria-label="Selected layer details">
+          <div class="section-heading">
+            <h2>Layer Inspector</h2>
+            <span id="selected-kind">-</span>
+          </div>
+          <dl id="selected-metadata" class="metadata-list"></dl>
+          <div class="legend-strip" id="legend-strip"></div>
+          <p id="export-state" class="export-state">No export preview loaded.</p>
+        </section>
+
+        <section class="audit-panel" aria-label="Capability audit mapping">
+          <h2>Audit Mapping</h2>
+          <div id="audit-table" class="audit-table"></div>
+        </section>
+      </section>
+
+      <section class="map-stage" aria-label="Imagery map">
+        <div id="map"></div>
+        <div class="map-overlay">
+          <span id="endpoint-state">Waiting for Honua endpoints</span>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

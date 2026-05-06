@@ -108,6 +108,7 @@ polygon geometry buckets.
 - [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md): committed MapLibre quickstart app with a deterministic fixture-backed mock lane, one compatibility check, one read-only feature query, popup inspection, browser telemetry, and a matching staging integration suite that reuses the same compatibility-plus-query data-loading path.
 - [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, same-origin fixture mocking, OGC collection overlays, polygon extrusions, and route replay.
 - [`examples/kepler-analytics/`](./examples/kepler-analytics/README.md): fixture-first kepler.gl analytics demo for an `operations replay` workflow with committed GeoJSON plus metadata, KPI cards, walkthrough copy, and focused browser smoke coverage.
+- [`examples/imagery-cog-quickstart/`](./examples/imagery-cog-quickstart/README.md): MapLibre imagery proof for WMS `GetMap`, COG-backed ImageServer tiles, `exportImage` previews, legends, and metadata cache state through one Honua client configuration.
 - [`docs/examples/cesium-route-playback/README.md`](./docs/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
 Each example README documents its own env surface, network contract, browser telemetry hooks, run lanes, accepted data
@@ -396,6 +397,14 @@ npm run demo:kepler:refresh-fixture
 ```
 
 The repo-root refresh wrapper builds the SDK before delegating to the example-local script. Set `HONUA_DEMO_BASE_URL` and any optional auth or service override env vars described in the example README before running it.
+
+Imagery and COG demo loop:
+
+```bash
+npm run demo:imagery-cog:mock
+# or, with examples/imagery-cog-quickstart/.env configured:
+npm run demo:imagery-cog
+```
 
 ## Verify
 
