@@ -109,6 +109,7 @@ polygon geometry buckets.
 - [`examples/storytelling-25d-map/`](./examples/storytelling-25d-map/README.md): pitched `2.5D` MapLibre demo with Honua compatibility gating, same-origin fixture mocking, OGC collection overlays, polygon extrusions, and route replay.
 - [`examples/kepler-analytics/`](./examples/kepler-analytics/README.md): fixture-first kepler.gl analytics demo for an `operations replay` workflow with committed GeoJSON plus metadata, KPI cards, walkthrough copy, and focused browser smoke coverage.
 - [`examples/imagery-cog-quickstart/`](./examples/imagery-cog-quickstart/README.md): MapLibre imagery proof for WMS `GetMap`, COG-backed ImageServer tiles, `exportImage` previews, legends, and metadata cache state through one Honua client configuration.
+- [`examples/geocoding-quickstart/`](./examples/geocoding-quickstart/README.md): MapLibre geocoding sample for forward geocoding, reverse lookup from a clicked point, typeahead suggestions, and GeocodeServer audit mapping through `HonuaGeocodingClient`.
 - [`docs/examples/cesium-route-playback/README.md`](./docs/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
 
 Each example README documents its own env surface, network contract, browser telemetry hooks, run lanes, accepted data
@@ -136,10 +137,13 @@ npm install
 npm run demo:quickstart:mock
 # or
 npm run demo:25d:mock
+# or
+npm run demo:geocoding:mock
 ```
 
-The quickstart command prints `quickstartMockUrl=http://127.0.0.1:PORT`. The 2.5D command prints
-`story25dMockUrl=http://127.0.0.1:PORT`.
+The quickstart command prints `quickstartMockUrl=http://127.0.0.1:PORT`, the 2.5D command prints
+`story25dMockUrl=http://127.0.0.1:PORT`, and the geocoding command prints
+`geocodingMockUrl=http://127.0.0.1:PORT`.
 
 Live Honua flow for the `2.5D` demo:
 

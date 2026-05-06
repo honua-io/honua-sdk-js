@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua Geocoding Quickstart</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="control-panel" aria-label="Geocoding controls">
+        <header class="panel-header">
+          <p class="eyebrow">Honua GeocodeServer</p>
+          <h1>Geocoding Service Demo</h1>
+          <p>Forward search, typeahead suggestions, reverse lookup, and capability audit rows through the Honua JS SDK.</p>
+        </header>
+
+        <section class="status-grid" aria-label="Demo status">
+          <div>
+            <span>Mode</span>
+            <strong id="mode-state">Loading</strong>
+          </div>
+          <div>
+            <span>Locator</span>
+            <strong id="locator-state">Loading</strong>
+          </div>
+          <div>
+            <span>Endpoint</span>
+            <strong id="endpoint-state">Loading</strong>
+          </div>
+          <div>
+            <span>Last Operation</span>
+            <strong id="operation-state">Loading</strong>
+          </div>
+        </section>
+
+        <section class="tool-panel" aria-label="Forward geocoding">
+          <form id="forward-form">
+            <label class="field-label" for="address-input">Forward Geocode</label>
+            <div class="search-row">
+              <input id="address-input" name="address" autocomplete="off" />
+              <button id="forward-submit" type="submit">Search</button>
+            </div>
+          </form>
+          <div id="suggestion-list" class="suggestion-list" aria-label="Typeahead suggestions"></div>
+        </section>
+
+        <section class="results-panel" aria-label="Forward geocode results">
+          <div class="section-heading">
+            <h2>Candidates</h2>
+            <span id="forward-count">0 candidates</span>
+          </div>
+          <div id="forward-results" class="result-list"></div>
+        </section>
+
+        <section class="reverse-panel" aria-label="Reverse geocode result">
+          <div class="section-heading">
+            <h2>Clicked Point</h2>
+            <span id="map-coordinate">-</span>
+          </div>
+          <div class="reverse-card">
+            <span>Reverse Geocode</span>
+            <strong id="reverse-address">No address selected</strong>
+            <p id="reverse-detail">-</p>
+          </div>
+        </section>
+
+        <section class="audit-panel" aria-label="Capability audit mapping">
+          <h2>Audit Mapping</h2>
+          <div id="audit-table" class="audit-table"></div>
+        </section>
+
+        <section class="status-grid" aria-label="Error status">
+          <div>
+            <span>Error</span>
+            <strong id="error-state">None</strong>
+          </div>
+        </section>
+      </section>
+
+      <section class="map-stage" aria-label="Geocoding map">
+        <div id="map"></div>
+        <div class="map-overlay">
+          <span>SDK endpoint base</span>
+          <strong id="map-endpoint-state">/rest/services/World/GeocodeServer</strong>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
