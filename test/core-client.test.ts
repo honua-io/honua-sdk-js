@@ -611,6 +611,74 @@ describe("HonuaClient", () => {
     expect(requestedInit?.body).toBe("where=1%3D1");
   });
 
+  it("scans migration sources through the admin import scanner", async () => {
+    let requestedUrl: string | undefined;
+    let requestedInit: RequestInit | undefined;
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async (input, init) => {
+        requestedUrl = String(input);
+        requestedInit = init;
+        return new Response(
+          JSON.stringify({
+            artifactKind: "honua.migration.source-inventory",
+            artifactVersion: "1.0",
+            sourceKind: "arcgis-geoservices-rest",
+            source: { displayName: "Parcels", baseUrl: "https://source.example/FeatureServer" },
+            authPosture: {
+              mode: "anonymous",
+              credentialsSupplied: false,
+              accessConfirmed: true,
+              notes: [],
+            },
+            scanCompleteness: { status: "failed", warnings: ["source reported an error"], missingArtifacts: [] },
+            summary: {
+              containerCount: 1,
+              resourceCount: 1,
+              styleCount: 0,
+              externalDependencyCount: 0,
+              compatibleCount: 0,
+              partiallyCompatibleCount: 0,
+              incompatibleCount: 1,
+            },
+            overallCompatibility: {
+              level: "incompatible",
+              reason: "Discovery failed",
+              warnings: [],
+              manualSteps: ["Review source access"],
+            },
+            containers: [],
+            resources: [],
+            styles: [],
+            externalDependencies: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    });
+
+    const response = await client.scanMigrationSource({
+      sourceKind: "geoservices",
+      sourceUrl: "https://source.example/FeatureServer",
+      timeoutSeconds: 10,
+      exportJson: true,
+    });
+
+    expect(response.scanCompleteness.status).toBe("failed");
+    expect(requestedUrl).toBe("https://example.test/api/v1/admin/import/scan?export=json");
+    expect(requestedInit?.method).toBe("POST");
+    expect(requestedInit?.headers).toMatchObject({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    });
+    expect(JSON.parse(String(requestedInit?.body))).toEqual({
+      sourceKind: "geoservices",
+      sourceUrl: "https://source.example/FeatureServer",
+      timeoutSeconds: 10,
+    });
+  });
+
   it("merges request helper query params with existing path params", async () => {
     let requestedUrl: string | undefined;
     const client = new HonuaClient({

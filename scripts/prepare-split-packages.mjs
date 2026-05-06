@@ -175,6 +175,7 @@ function createMigrationPackage() {
 
   copyDirectory(path.join(DIST_SRC_ROOT, "migration"), path.join(packageRoot, "migration"));
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
+  copyMigrationCoreTypeSupport(packageRoot);
   copyFile(path.join(DIST_SRC_ROOT, "migration-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "migration-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
   fs.chmodSync(path.join(packageRoot, "migration", "cli.js"), 0o755);
@@ -219,6 +220,14 @@ function createMigrationPackage() {
       "This package is generated from `@honua/sdk-js` build artifacts.",
     ].join("\n"),
   );
+}
+
+function copyMigrationCoreTypeSupport(packageRoot) {
+  const coreRoot = path.join(packageRoot, "core");
+  copyFile(path.join(DIST_SRC_ROOT, "core", "types.js"), path.join(coreRoot, "types.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "core", "types.d.ts"), path.join(coreRoot, "types.d.ts"));
+  copyFile(path.join(DIST_SRC_ROOT, "core", "cache-state.js"), path.join(coreRoot, "cache-state.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "core", "cache-state.d.ts"), path.join(coreRoot, "cache-state.d.ts"));
 }
 
 function writePackageJson(packageRoot, overrides) {
