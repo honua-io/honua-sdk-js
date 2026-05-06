@@ -89,6 +89,7 @@ export const PROTOCOLS: readonly Protocol[] = [
 export type Capability =
   | "query"
   | "queryAggregate"
+  | "spatialAggregate"
   | "queryExtent"
   | "queryObjectIds"
   | "queryRelated"
@@ -109,6 +110,7 @@ export type Capability =
 export const CAPABILITIES: readonly Capability[] = [
   "query",
   "queryAggregate",
+  "spatialAggregate",
   "queryExtent",
   "queryObjectIds",
   "queryRelated",

@@ -31,6 +31,7 @@ without a canonical `Source` method today are negotiated for
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | `query` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | ✓ |
 | `queryAggregate` | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — |
+| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `queryExtent` | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | ✓ | — | — | — |
 | `queryObjectIds` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ |
 | `queryRelated` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
@@ -51,6 +52,15 @@ MapLibre-native sources (`maplibre-vector`, `maplibre-raster`,
 `maplibre-geojson`) are render-only and contribute `render` and (where
 applicable) `tiles`. They are excluded from the table above because they
 do not flow through the `Source.query` path.
+
+`spatialAggregate` is an indexed analytics capability rather than the
+field-statistics `queryAggregate` path. This SDK slice defines the
+contract in `src/contract/spatial-aggregation.ts` without assigning
+first-party default support to any protocol. A source may advertise
+`spatialAggregate` only after backend metadata confirms an indexed
+aggregation implementation for that source; the request/response shapes
+keep the index model opaque so H3, Quadbin, or provider-specific grids
+can all satisfy the same app contract.
 
 ## Notes by protocol
 

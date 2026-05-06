@@ -1,0 +1,787 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "schemaVersion": "honua.spatial-aggregation.v1",
+    "requestId": "agg-honolulu-risk-viewport-001",
+    "sourceId": "honolulu-incidents",
+    "where": "status <> 'closed'",
+    "spatialFilter": {
+      "geometry": {
+        "xmin": -157.872,
+        "ymin": 21.286,
+        "xmax": -157.812,
+        "ymax": 21.331,
+        "spatialReference": {
+          "wkid": 4326
+        }
+      },
+      "geometryType": "esriGeometryEnvelope",
+      "spatialRel": "esriSpatialRelIntersects"
+    },
+    "viewport": {
+      "extent": {
+        "xmin": -157.872,
+        "ymin": 21.286,
+        "xmax": -157.812,
+        "ymax": 21.331,
+        "spatialReference": {
+          "wkid": 4326
+        }
+      },
+      "zoom": 11,
+      "width": 1280,
+      "height": 720,
+      "devicePixelRatio": 2
+    },
+    "resolution": {
+      "zoom": 11,
+      "indexResolution": 8,
+      "targetCellCount": 700,
+      "maxCellCount": 1000,
+      "strategy": "fit-viewport"
+    },
+    "index": {
+      "geometry": "boundary",
+      "allowApproximate": true
+    },
+    "summaries": [
+      {
+        "id": "totalIncidents",
+        "kind": "count",
+        "field": "incident_id",
+        "title": "Incidents"
+      },
+      {
+        "id": "bySeverity",
+        "kind": "category",
+        "field": "severity",
+        "title": "Severity",
+        "limit": 5,
+        "includeOther": true,
+        "orderBy": "count-desc"
+      },
+      {
+        "id": "responseTimeHistogram",
+        "kind": "histogram",
+        "field": "response_minutes",
+        "title": "Response time",
+        "bins": 4,
+        "min": 0,
+        "max": 60,
+        "method": "equal-interval",
+        "unit": "minutes"
+      },
+      {
+        "id": "populationExposureRange",
+        "kind": "range",
+        "field": "exposed_population",
+        "title": "Population exposure",
+        "ranges": [
+          {
+            "id": "low",
+            "label": "0-999",
+            "min": 0,
+            "max": 1000,
+            "includeMin": true
+          },
+          {
+            "id": "medium",
+            "label": "1,000-4,999",
+            "min": 1000,
+            "max": 5000,
+            "includeMin": true
+          },
+          {
+            "id": "high",
+            "label": "5,000+",
+            "min": 5000,
+            "includeMin": true
+          }
+        ]
+      },
+      {
+        "id": "populationSum",
+        "kind": "sum",
+        "field": "exposed_population",
+        "title": "Exposed population"
+      },
+      {
+        "id": "averageRisk",
+        "kind": "avg",
+        "field": "risk_score",
+        "title": "Average risk"
+      },
+      {
+        "id": "minResponseTime",
+        "kind": "min",
+        "field": "response_minutes",
+        "title": "Fastest response",
+        "unit": "minutes"
+      },
+      {
+        "id": "maxResponseTime",
+        "kind": "max",
+        "field": "response_minutes",
+        "title": "Slowest response",
+        "unit": "minutes"
+      }
+    ],
+    "groupBy": [
+      {
+        "field": "severity",
+        "alias": "severity",
+        "label": "Severity",
+        "limit": 5
+      },
+      {
+        "field": "land_use",
+        "alias": "landUse",
+        "label": "Land use"
+      }
+    ],
+    "include": {
+      "cells": true,
+      "totals": true,
+      "emptyCells": false,
+      "metadata": true
+    },
+    "page": {
+      "limit": 2
+    },
+    "metadata": {
+      "scenario": "fixture-only indexed aggregation contract"
+    }
+  },
+  "response": {
+    "schemaVersion": "honua.spatial-aggregation.v1",
+    "requestId": "agg-honolulu-risk-viewport-001",
+    "sourceId": "honolulu-incidents",
+    "generatedAt": "2026-05-06T12:00:00.000Z",
+    "index": {
+      "model": {
+        "id": "h3",
+        "title": "Backend H3 grid",
+        "family": "discrete-global-grid",
+        "cellIdEncoding": "string",
+        "minResolution": 0,
+        "maxResolution": 15,
+        "supportedGeometry": ["centroid", "extent", "boundary"],
+        "hierarchy": "parent-child",
+        "spatialReference": {
+          "wkid": 4326
+        }
+      },
+      "resolution": 8,
+      "requestedResolution": {
+        "zoom": 11,
+        "indexResolution": 8,
+        "targetCellCount": 700,
+        "maxCellCount": 1000,
+        "strategy": "fit-viewport"
+      },
+      "cellCount": 96,
+      "extent": {
+        "xmin": -157.872,
+        "ymin": 21.286,
+        "xmax": -157.812,
+        "ymax": 21.331,
+        "spatialReference": {
+          "wkid": 4326
+        }
+      }
+    },
+    "metadata": {
+      "schemaVersion": "honua.spatial-aggregation.metadata.v1",
+      "sourceId": "honolulu-incidents",
+      "indexModels": [
+        {
+          "id": "h3",
+          "title": "Backend H3 grid",
+          "family": "discrete-global-grid",
+          "cellIdEncoding": "string",
+          "minResolution": 0,
+          "maxResolution": 15,
+          "supportedGeometry": ["centroid", "extent", "boundary"],
+          "hierarchy": "parent-child",
+          "spatialReference": {
+            "wkid": 4326
+          }
+        },
+        {
+          "id": "quadbin",
+          "title": "Backend Quadbin grid",
+          "family": "quadtree",
+          "cellIdEncoding": "bigint",
+          "minResolution": 0,
+          "maxResolution": 26,
+          "supportedGeometry": ["centroid", "extent", "boundary"],
+          "hierarchy": "parent-child",
+          "spatialReference": {
+            "wkid": 3857
+          }
+        }
+      ],
+      "summaries": [
+        {
+          "id": "totalIncidents",
+          "kind": "count",
+          "title": "Incidents",
+          "field": "incident_id",
+          "valueType": "number"
+        },
+        {
+          "id": "bySeverity",
+          "kind": "category",
+          "title": "Severity",
+          "field": "severity",
+          "valueType": "string",
+          "domain": [
+            {
+              "value": "critical",
+              "label": "Critical",
+              "color": "#b42318"
+            },
+            {
+              "value": "high",
+              "label": "High",
+              "color": "#dc6803"
+            },
+            {
+              "value": "moderate",
+              "label": "Moderate",
+              "color": "#ca8504"
+            }
+          ]
+        },
+        {
+          "id": "responseTimeHistogram",
+          "kind": "histogram",
+          "title": "Response time",
+          "field": "response_minutes",
+          "valueType": "number",
+          "unit": "minutes",
+          "histogram": {
+            "bins": 4,
+            "min": 0,
+            "max": 60,
+            "method": "equal-interval"
+          }
+        },
+        {
+          "id": "populationExposureRange",
+          "kind": "range",
+          "title": "Population exposure",
+          "field": "exposed_population",
+          "valueType": "number",
+          "ranges": [
+            {
+              "id": "low",
+              "label": "0-999",
+              "min": 0,
+              "max": 1000,
+              "includeMin": true
+            },
+            {
+              "id": "medium",
+              "label": "1,000-4,999",
+              "min": 1000,
+              "max": 5000,
+              "includeMin": true
+            },
+            {
+              "id": "high",
+              "label": "5,000+",
+              "min": 5000,
+              "includeMin": true
+            }
+          ]
+        },
+        {
+          "id": "populationSum",
+          "kind": "sum",
+          "title": "Exposed population",
+          "field": "exposed_population",
+          "valueType": "number"
+        },
+        {
+          "id": "averageRisk",
+          "kind": "avg",
+          "title": "Average risk",
+          "field": "risk_score",
+          "valueType": "number"
+        },
+        {
+          "id": "minResponseTime",
+          "kind": "min",
+          "title": "Fastest response",
+          "field": "response_minutes",
+          "valueType": "number",
+          "unit": "minutes"
+        },
+        {
+          "id": "maxResponseTime",
+          "kind": "max",
+          "title": "Slowest response",
+          "field": "response_minutes",
+          "valueType": "number",
+          "unit": "minutes"
+        }
+      ],
+      "groupBy": [
+        {
+          "field": "severity",
+          "alias": "severity",
+          "title": "Severity",
+          "valueType": "string",
+          "domain": [
+            {
+              "value": "critical",
+              "label": "Critical",
+              "color": "#b42318"
+            },
+            {
+              "value": "high",
+              "label": "High",
+              "color": "#dc6803"
+            },
+            {
+              "value": "moderate",
+              "label": "Moderate",
+              "color": "#ca8504"
+            }
+          ]
+        },
+        {
+          "field": "land_use",
+          "alias": "landUse",
+          "title": "Land use",
+          "valueType": "string"
+        }
+      ],
+      "widgets": [
+        {
+          "id": "incident-count",
+          "kind": "stat",
+          "title": "Incidents",
+          "summaryId": "totalIncidents",
+          "field": "incident_id",
+          "valueType": "number",
+          "interactions": ["highlight"],
+          "progressive": {
+            "stableAcrossPages": false,
+            "partialValueSemantics": "refine"
+          }
+        },
+        {
+          "id": "severity-list",
+          "kind": "category-list",
+          "title": "Severity",
+          "summaryId": "bySeverity",
+          "field": "severity",
+          "valueType": "string",
+          "interactions": ["filter", "highlight"],
+          "progressive": {
+            "stableAcrossPages": false,
+            "partialValueSemantics": "refine"
+          }
+        },
+        {
+          "id": "response-histogram",
+          "kind": "histogram",
+          "title": "Response time",
+          "summaryId": "responseTimeHistogram",
+          "field": "response_minutes",
+          "valueType": "number",
+          "unit": "minutes",
+          "interactions": ["filter", "highlight"],
+          "progressive": {
+            "stableAcrossPages": false,
+            "partialValueSemantics": "refine"
+          }
+        },
+        {
+          "id": "grouped-risk-table",
+          "kind": "grouped-table",
+          "title": "Severity by land use",
+          "summaryIds": ["totalIncidents", "averageRisk", "populationSum"],
+          "groupBy": ["severity", "landUse"],
+          "interactions": ["filter", "drilldown", "highlight"],
+          "progressive": {
+            "stableAcrossPages": false,
+            "partialValueSemantics": "refine"
+          }
+        }
+      ],
+      "progressive": {
+        "status": "partial",
+        "refinement": "append",
+        "nextCursor": "page-2",
+        "loadedCellCount": 2,
+        "totalCellCount": 96,
+        "loadedSummaryCount": 16,
+        "estimatedSummaryCount": 768
+      },
+      "cache": {
+        "metadataCacheable": true,
+        "resultCacheable": false,
+        "cacheKeyParts": ["sourceId", "where", "spatialFilter", "viewport", "resolution", "summaries", "groupBy"],
+        "ttlMs": 900000
+      }
+    },
+    "cells": [
+      {
+        "id": "8828308281fffff",
+        "resolution": 8,
+        "extent": {
+          "xmin": -157.865,
+          "ymin": 21.296,
+          "xmax": -157.849,
+          "ymax": 21.31,
+          "spatialReference": {
+            "wkid": 4326
+          }
+        },
+        "centroid": [-157.857, 21.303],
+        "summaries": {
+          "totalIncidents": {
+            "kind": "count",
+            "value": 42,
+            "approximate": true
+          },
+          "bySeverity": {
+            "kind": "category",
+            "buckets": [
+              {
+                "value": "critical",
+                "label": "Critical",
+                "count": 8,
+                "color": "#b42318"
+              },
+              {
+                "value": "high",
+                "label": "High",
+                "count": 21,
+                "color": "#dc6803"
+              },
+              {
+                "value": "moderate",
+                "label": "Moderate",
+                "count": 13,
+                "color": "#ca8504"
+              }
+            ],
+            "approximate": true
+          },
+          "responseTimeHistogram": {
+            "kind": "histogram",
+            "buckets": [
+              {
+                "min": 0,
+                "max": 15,
+                "count": 10,
+                "includeMin": true
+              },
+              {
+                "min": 15,
+                "max": 30,
+                "count": 18
+              },
+              {
+                "min": 30,
+                "max": 45,
+                "count": 11
+              },
+              {
+                "min": 45,
+                "max": 60,
+                "count": 3,
+                "includeMax": true
+              }
+            ],
+            "approximate": true
+          },
+          "populationExposureRange": {
+            "kind": "range",
+            "buckets": [
+              {
+                "id": "low",
+                "label": "0-999",
+                "min": 0,
+                "max": 1000,
+                "includeMin": true,
+                "count": 12
+              },
+              {
+                "id": "medium",
+                "label": "1,000-4,999",
+                "min": 1000,
+                "max": 5000,
+                "includeMin": true,
+                "count": 19
+              },
+              {
+                "id": "high",
+                "label": "5,000+",
+                "min": 5000,
+                "includeMin": true,
+                "count": 11
+              }
+            ],
+            "approximate": true
+          },
+          "populationSum": {
+            "kind": "sum",
+            "value": 15340,
+            "approximate": true
+          },
+          "averageRisk": {
+            "kind": "avg",
+            "value": 82.6,
+            "approximate": true
+          },
+          "minResponseTime": {
+            "kind": "min",
+            "value": 6,
+            "unit": "minutes",
+            "approximate": true
+          },
+          "maxResponseTime": {
+            "kind": "max",
+            "value": 54,
+            "unit": "minutes",
+            "approximate": true
+          }
+        },
+        "groups": [
+          {
+            "key": {
+              "severity": "critical",
+              "landUse": "industrial"
+            },
+            "label": "Critical / industrial",
+            "summaries": {
+              "totalIncidents": {
+                "kind": "count",
+                "value": 6
+              },
+              "averageRisk": {
+                "kind": "avg",
+                "value": 91.4
+              },
+              "populationSum": {
+                "kind": "sum",
+                "value": 6120
+              }
+            }
+          }
+        ],
+        "partial": true
+      },
+      {
+        "id": "8828308285fffff",
+        "resolution": 8,
+        "extent": {
+          "xmin": -157.849,
+          "ymin": 21.296,
+          "xmax": -157.833,
+          "ymax": 21.31,
+          "spatialReference": {
+            "wkid": 4326
+          }
+        },
+        "centroid": [-157.841, 21.303],
+        "summaries": {
+          "totalIncidents": {
+            "kind": "count",
+            "value": 28,
+            "approximate": true
+          },
+          "bySeverity": {
+            "kind": "category",
+            "buckets": [
+              {
+                "value": "critical",
+                "label": "Critical",
+                "count": 3,
+                "color": "#b42318"
+              },
+              {
+                "value": "high",
+                "label": "High",
+                "count": 11,
+                "color": "#dc6803"
+              },
+              {
+                "value": "moderate",
+                "label": "Moderate",
+                "count": 14,
+                "color": "#ca8504"
+              }
+            ],
+            "approximate": true
+          },
+          "responseTimeHistogram": {
+            "kind": "histogram",
+            "buckets": [
+              {
+                "min": 0,
+                "max": 15,
+                "count": 7,
+                "includeMin": true
+              },
+              {
+                "min": 15,
+                "max": 30,
+                "count": 13
+              },
+              {
+                "min": 30,
+                "max": 45,
+                "count": 6
+              },
+              {
+                "min": 45,
+                "max": 60,
+                "count": 2,
+                "includeMax": true
+              }
+            ],
+            "approximate": true
+          },
+          "populationExposureRange": {
+            "kind": "range",
+            "buckets": [
+              {
+                "id": "low",
+                "label": "0-999",
+                "min": 0,
+                "max": 1000,
+                "includeMin": true,
+                "count": 9
+              },
+              {
+                "id": "medium",
+                "label": "1,000-4,999",
+                "min": 1000,
+                "max": 5000,
+                "includeMin": true,
+                "count": 15
+              },
+              {
+                "id": "high",
+                "label": "5,000+",
+                "min": 5000,
+                "includeMin": true,
+                "count": 4
+              }
+            ],
+            "approximate": true
+          },
+          "populationSum": {
+            "kind": "sum",
+            "value": 8210,
+            "approximate": true
+          },
+          "averageRisk": {
+            "kind": "avg",
+            "value": 74.1,
+            "approximate": true
+          },
+          "minResponseTime": {
+            "kind": "min",
+            "value": 8,
+            "unit": "minutes",
+            "approximate": true
+          },
+          "maxResponseTime": {
+            "kind": "max",
+            "value": 51,
+            "unit": "minutes",
+            "approximate": true
+          }
+        },
+        "groups": [
+          {
+            "key": {
+              "severity": "high",
+              "landUse": "mixed-use"
+            },
+            "label": "High / mixed-use",
+            "summaries": {
+              "totalIncidents": {
+                "kind": "count",
+                "value": 9
+              },
+              "averageRisk": {
+                "kind": "avg",
+                "value": 80.2
+              },
+              "populationSum": {
+                "kind": "sum",
+                "value": 4100
+              }
+            }
+          }
+        ],
+        "partial": true
+      }
+    ],
+    "totals": {
+      "totalIncidents": {
+        "kind": "count",
+        "value": 231,
+        "approximate": true
+      },
+      "populationSum": {
+        "kind": "sum",
+        "value": 68420,
+        "approximate": true
+      },
+      "averageRisk": {
+        "kind": "avg",
+        "value": 77.4,
+        "approximate": true
+      },
+      "minResponseTime": {
+        "kind": "min",
+        "value": 3,
+        "unit": "minutes",
+        "approximate": true
+      },
+      "maxResponseTime": {
+        "kind": "max",
+        "value": 58,
+        "unit": "minutes",
+        "approximate": true
+      }
+    },
+    "groups": [
+      {
+        "key": {
+          "severity": "critical",
+          "landUse": "industrial"
+        },
+        "label": "Critical / industrial",
+        "summaries": {
+          "totalIncidents": {
+            "kind": "count",
+            "value": 19
+          },
+          "averageRisk": {
+            "kind": "avg",
+            "value": 89.9
+          },
+          "populationSum": {
+            "kind": "sum",
+            "value": 12440
+          }
+        }
+      }
+    ],
+    "page": {
+      "nextCursor": "page-2",
+      "loadedCellCount": 2,
+      "totalCellCount": 96
+    }
+  }
+}
