@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@honua/sdk-js": ["../../src/index.ts"],
+      "@honua/sdk-js/honua": ["../../src/honua.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

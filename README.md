@@ -410,6 +410,14 @@ npm run demo:imagery-cog:mock
 npm run demo:imagery-cog
 ```
 
+Node backend quickstart loop:
+
+```bash
+npm run demo:node-backend:mock
+# in another terminal:
+npm run demo:node-backend
+```
+
 ## Verify
 
 ```bash
@@ -417,7 +425,9 @@ npm run typecheck
 npm run build
 npm run demo:quickstart:typecheck
 npm run demo:25d:typecheck
+npm run demo:node-backend:typecheck
 npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts
+npx vitest run test/node-backend-quickstart.test.ts
 npx vitest run test/cesium-route-playback.test.ts
 npx vitest run test/storytelling-25d-config.test.ts test/storytelling-25d-data.test.ts
 npm test
