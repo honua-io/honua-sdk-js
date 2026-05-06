@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua AI Spatial App Builder</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header>
+        <div>
+          <h1>AI Spatial App Builder and Query Studio</h1>
+          <p>Fixture-backed natural-language spatial draft, plan, apply, and linked mini-app workflow.</p>
+        </div>
+        <div class="status-strip">
+          <span id="fixture-state"></span>
+          <span id="cache-state"></span>
+          <span id="capability-state"></span>
+          <span>job <strong id="job-state"></strong></span>
+        </div>
+      </header>
+      <main>
+        <aside class="stack">
+          <section class="panel">
+            <h2>Prompt</h2>
+            <form id="builder-form">
+              <input
+                id="builder-input"
+                aria-label="Spatial app request"
+                value="Show parcels within 500m of fire stations built before 1970, grouped by flood zone, with a map, table, and chart."
+              />
+              <button type="submit">Draft</button>
+            </form>
+          </section>
+          <section class="panel">
+            <h2>Fixtures</h2>
+            <div id="prompt-fixtures"></div>
+          </section>
+          <section id="clarification" class="panel"></section>
+        </aside>
+        <section class="stack">
+          <section class="panel">
+            <h2>Assistant</h2>
+            <p id="assistant-answer"></p>
+          </section>
+          <section id="draft-review" class="panel"></section>
+          <section id="plan-preview" class="panel"></section>
+        </section>
+        <aside class="stack">
+          <section class="panel">
+            <h2 id="generated-app-title"></h2>
+            <p>Status: <strong id="generated-app-state"></strong>; rows: <strong id="result-count"></strong></p>
+            <div class="mini-map">Linked map extent and filter context</div>
+          </section>
+          <section class="panel">
+            <h2>Chart</h2>
+            <div id="chart-buckets"></div>
+          </section>
+          <section class="panel">
+            <h2>Table</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Feature</th>
+                  <th>Use</th>
+                  <th>Zone</th>
+                  <th>Year</th>
+                  <th>Meters</th>
+                </tr>
+              </thead>
+              <tbody id="result-table"></tbody>
+            </table>
+          </section>
+          <section class="panel">
+            <h2>Detail</h2>
+            <p id="feature-detail"></p>
+          </section>
+          <section class="panel">
+            <h2>Serialized State</h2>
+            <pre id="workspace-export"></pre>
+          </section>
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
