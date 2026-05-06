@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua Cloud Spatial Analytics Workbench</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header>
+        <div>
+          <h1>Cloud Spatial Analytics Workbench</h1>
+          <p>Honua Cloud process jobs, materialized outputs, linked map/table/chart state, and cache-aware metadata.</p>
+        </div>
+        <div class="status-strip">
+          <span>Cache <strong id="cache-state"></strong></span>
+          <span>Capability <strong id="capability-state"></strong></span>
+          <span>Job <strong id="job-state"></strong></span>
+          <span>Results <strong id="result-count"></strong></span>
+        </div>
+      </header>
+      <main>
+        <aside class="stack">
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Analysis</h2>
+            </div>
+            <div class="control-grid">
+              <label>
+                Area of interest
+                <select id="aoi-select"></select>
+              </label>
+              <div class="button-row">
+                <span class="meta-chip" id="aoi-area"></span>
+                <span class="meta-chip" id="aoi-geometry"></span>
+              </div>
+              <label>
+                Workflow
+                <select id="plan-select"></select>
+              </label>
+              <div class="button-row">
+                <span class="meta-chip" id="plan-cost"></span>
+                <span class="meta-chip" id="plan-duration"></span>
+              </div>
+              <label>
+                Risk filter
+                <select id="risk-filter">
+                  <option value="all">All risks</option>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="low">Low</option>
+                </select>
+              </label>
+              <div class="button-row">
+                <button id="run-analysis" class="primary" type="button">Run Analysis</button>
+                <button id="advance-job" type="button">Advance Job</button>
+                <button id="retry-job" type="button">Retry</button>
+              </div>
+              <button id="simulate-gap" class="danger" type="button">Simulate Missing #66</button>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Layers</h2>
+            </div>
+            <div id="layer-list"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Processes</h2>
+            </div>
+            <div id="capability-list"></div>
+          </section>
+        </aside>
+        <section class="stack">
+          <section class="panel map-panel">
+            <div class="panel-header">
+              <h2>AOI Map</h2>
+              <span class="meta-chip">extent-linked table</span>
+            </div>
+            <div id="map-surface"></div>
+          </section>
+          <section class="metric-grid" id="metric-list"></section>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Materialized Results</h2>
+              <span class="meta-chip" id="materialized-layer"></span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Feature</th>
+                  <th>Risk</th>
+                  <th>Category</th>
+                  <th>Zone</th>
+                  <th>Score</th>
+                </tr>
+              </thead>
+              <tbody id="result-table"></tbody>
+            </table>
+          </section>
+        </section>
+        <aside class="stack">
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Risk Chart</h2>
+            </div>
+            <div id="risk-chart"></div>
+          </section>
+          <section class="panel" id="feature-detail"></section>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Jobs</h2>
+            </div>
+            <div id="job-list"></div>
+            <p id="job-diagnostics"></p>
+          </section>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Lineage</h2>
+              <button id="export-workspace" type="button">Export</button>
+            </div>
+            <p id="lineage"></p>
+            <pre id="workspace-export"></pre>
+          </section>
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
