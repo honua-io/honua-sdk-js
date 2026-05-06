@@ -326,6 +326,34 @@ select {
   background: #17644c;
 }
 
+.aggregation-cell {
+  position: absolute;
+  min-width: 54px;
+  min-height: 42px;
+  overflow: hidden;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  border: 1px solid rgba(126, 54, 37, 0.85);
+  border-radius: 6px;
+  background: rgba(207, 88, 51, var(--cell-opacity, 0.45));
+  color: #ffffff;
+  padding: 6px;
+  box-shadow: 0 8px 18px rgba(23, 32, 38, 0.16);
+}
+
+.aggregation-cell strong {
+  font-size: 1rem;
+}
+
+.aggregation-cell span {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.62rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .map-caption {
   position: absolute;
   left: 12px;
@@ -432,6 +460,68 @@ td button {
 
 #risk-chart button small {
   grid-column: 1 / -1;
+}
+
+#aggregation-widgets {
+  display: grid;
+  gap: 10px;
+}
+
+.empty-state {
+  border: 1px dashed #cbd4d0;
+  border-radius: 8px;
+  padding: 12px;
+  color: #5f6966;
+  font-size: 0.84rem;
+}
+
+.aggregation-widget {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #edf1ef;
+  padding-top: 10px;
+}
+
+.aggregation-widget:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.aggregation-widget > strong {
+  font-size: 1.4rem;
+}
+
+.widget-row,
+.histogram-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+}
+
+.widget-row span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.widget-row i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.histogram-row {
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+}
+
+.histogram-row i {
+  height: 8px;
+  border-radius: 999px;
+  background: #5a7d9a;
 }
 
 #feature-detail dl {

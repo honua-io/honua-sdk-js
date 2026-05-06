@@ -1,4 +1,10 @@
 import type { HonuaAppWorkspace } from "@honua/sdk-js/app-workspace";
+import type {
+  SpatialAggregationCell,
+  SpatialAggregationRequest,
+  SpatialAggregationResult,
+  SpatialAggregationWidgetMetadata,
+} from "@honua/sdk-js/contract";
 import type { ExplorationContext, ExplorationViewController } from "@honua/sdk-js/exploration";
 import type { HonuaCacheState, HonuaExtent, JobSnapshot } from "@honua/sdk-js/honua";
 import type { LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
@@ -48,7 +54,7 @@ export interface AnalyticsPlan {
   readonly estimatedCost: string;
   readonly materializes: boolean;
   readonly requiresCapabilities: ReadonlyArray<string>;
-  readonly fixtureMode: "supported" | "missing-platform-capability";
+  readonly fixtureMode: "supported" | "fixture-indexed-aggregation" | "missing-platform-capability";
 }
 
 export interface AnalyticsFeature {
@@ -90,6 +96,7 @@ export interface AnalyticsJobOutput {
   readonly resultLayer: AnalyticsResultLayer;
   readonly metrics: ReadonlyArray<AnalyticsMetric>;
   readonly features: ReadonlyArray<AnalyticsFeature>;
+  readonly aggregation?: SpatialAggregationResult;
   readonly warnings: ReadonlyArray<string>;
   readonly report: AnalyticsReport;
 }
@@ -103,7 +110,21 @@ export interface AnalyticsReport {
   readonly query: LinkedViewQueryProjection;
   readonly metrics: ReadonlyArray<AnalyticsMetric>;
   readonly resultLayer?: AnalyticsResultLayer;
+  readonly aggregation?: AnalyticsAggregationReport;
   readonly warnings: ReadonlyArray<string>;
+}
+
+export interface AnalyticsAggregationReport {
+  readonly requestId?: string;
+  readonly sourceId: string;
+  readonly indexModel: string;
+  readonly indexResolution?: number;
+  readonly visibleCellCount: number;
+  readonly loadedCellCount?: number;
+  readonly totalCellCount?: number;
+  readonly widgetIds: ReadonlyArray<string>;
+  readonly metadataCacheable: boolean;
+  readonly resultCacheable: boolean;
 }
 
 export interface AnalyticsCapabilityGap {
@@ -149,6 +170,7 @@ export interface HonuaCloudAnalysisRequest {
     readonly filters: LinkedViewQueryProjection["filters"];
     readonly grouping: LinkedViewQueryProjection["grouping"];
     readonly aggregation: LinkedViewQueryProjection["aggregation"];
+    readonly indexedAggregation?: SpatialAggregationRequest;
     readonly materialize: boolean;
   };
   readonly metadata: {
@@ -186,6 +208,9 @@ export interface SpatialAnalyticsWorkbenchSession {
   retryJob(jobId?: string): string;
   visibleFeatures(): AnalyticsFeature[];
   chartBuckets(): ReadonlyArray<{ readonly risk: AnalyticsRisk; readonly count: number; readonly score: number }>;
+  aggregationCells(): readonly SpatialAggregationCell[];
+  aggregationWidgets(): readonly SpatialAggregationWidgetMetadata[];
+  latestAggregation(): SpatialAggregationResult | undefined;
   latestOutput(): AnalyticsJobOutput | undefined;
   createReport(): AnalyticsReport;
   exportWorkspace(): string;

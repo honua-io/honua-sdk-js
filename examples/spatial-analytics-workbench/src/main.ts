@@ -1,3 +1,8 @@
+import type {
+  SpatialAggregationCell,
+  SpatialAggregationHistogramValue,
+  SpatialAggregationSummaryValue,
+} from "@honua/sdk-js/contract";
 import { createSpatialAnalyticsWorkbenchSession, selectAnalyticsUiModels } from "./model.js";
 import type { AnalyticsFeature, AnalyticsPlanId, AnalyticsRisk, SpatialAnalyticsWorkbenchSession } from "./types.js";
 
@@ -55,6 +60,7 @@ function render(): void {
   renderMap();
   renderTable();
   renderChart();
+  renderAggregationWidgets();
   renderMetrics();
   renderDetail();
   renderJobs();
@@ -93,11 +99,15 @@ function renderStatus(): void {
   const cacheStale = models.cache.stale.length;
   const activeJob = session.activeJobId ? models.jobs.entries[session.activeJobId] : undefined;
   const latestStatus = activeJob?.snapshot.status ?? "idle";
-  const gapCount = session.dataset.capabilityGaps.length;
+  const missingCount = session.dataset.processes.filter((process) => process.capabilityState === "missing").length;
+  const degradedCount = session.dataset.processes.filter((process) => process.capabilityState === "degraded").length;
 
   setText("#cache-state", `${cacheReady} ready / ${cacheStale} stale`);
   setText("#job-state", titleCase(latestStatus));
-  setText("#capability-state", gapCount === 0 ? "Ready" : `${gapCount} gap(s)`);
+  setText(
+    "#capability-state",
+    missingCount > 0 ? `${missingCount} missing` : degradedCount > 0 ? `${degradedCount} degraded` : "Ready",
+  );
   getElement<HTMLElement>("#job-state").dataset.status = latestStatus;
 
   const runButton = getElement<HTMLButtonElement>("#run-analysis");
@@ -141,6 +151,12 @@ function renderCapabilities(): void {
 }
 
 function renderMap(): void {
+  const aggregation = session.latestAggregation();
+  if (aggregation && session.activePlan.id === "indexed-aggregation") {
+    renderAggregationMap(aggregation.cells);
+    return;
+  }
+
   const visible = session.visibleFeatures();
   const map = getElement<HTMLElement>("#map-surface");
   const markers = visible
@@ -179,6 +195,42 @@ function renderMap(): void {
     });
   }
   setText("#result-count", String(visible.length));
+}
+
+function renderAggregationMap(cells: readonly SpatialAggregationCell[]): void {
+  const map = getElement<HTMLElement>("#map-surface");
+  const maxCount = Math.max(1, ...cells.map((cell) => countValue(cell.summaries.totalIncidents)));
+  map.innerHTML = `
+    <div class="aoi-frame"></div>
+    <div class="grid-lines"></div>
+    ${cells.map((cell) => renderAggregationCell(cell, maxCount)).join("")}
+    <div class="map-caption">
+      <strong>${escapeHtml(session.activeAoi.title)}</strong>
+      <span>${escapeHtml(String(cells.length))} indexed cell(s) loaded; ${escapeHtml(String(session.latestAggregation()?.page?.totalCellCount ?? cells.length))} available</span>
+    </div>
+  `;
+  setText("#result-count", String(cells.length));
+}
+
+function renderAggregationCell(cell: SpatialAggregationCell, maxCount: number): string {
+  const extent = cell.extent;
+  const aoi = session.activeAoi.extent;
+  const count = countValue(cell.summaries.totalIncidents);
+  const opacity = 0.28 + Math.min(0.62, count / maxCount / 1.6);
+  if (!extent) return "";
+  const left = ((extent.xmin - aoi.xmin) / (aoi.xmax - aoi.xmin)) * 100;
+  const top = (1 - (extent.ymax - aoi.ymin) / (aoi.ymax - aoi.ymin)) * 100;
+  const width = ((extent.xmax - extent.xmin) / (aoi.xmax - aoi.xmin)) * 100;
+  const height = ((extent.ymax - extent.ymin) / (aoi.ymax - aoi.ymin)) * 100;
+  return `
+    <article
+      class="aggregation-cell"
+      style="left:${clamp(left, 0, 100)}%; top:${clamp(top, 0, 100)}%; width:${clamp(width, 4, 100)}%; height:${clamp(height, 4, 100)}%; --cell-opacity:${opacity}"
+    >
+      <strong>${escapeHtml(count)}</strong>
+      <span>${escapeHtml(cell.id)}</span>
+    </article>
+  `;
 }
 
 function renderTable(): void {
@@ -234,6 +286,90 @@ function renderChart(): void {
       render();
     });
   }
+}
+
+function renderAggregationWidgets(): void {
+  const panel = getElement<HTMLElement>("#aggregation-widgets");
+  const aggregation = session.latestAggregation();
+  if (!aggregation) {
+    panel.innerHTML = `<article class="empty-state">Run indexed aggregation to render SDK widget metadata.</article>`;
+    return;
+  }
+
+  const widgets = session.aggregationWidgets();
+  panel.innerHTML = widgets
+    .map((widget) => {
+      const summary = widget.summaryId
+        ? (aggregation.totals?.[widget.summaryId] ?? aggregation.cells[0]?.summaries[widget.summaryId])
+        : undefined;
+      if (widget.kind === "category-list" && summary?.kind === "category") {
+        return `
+          <article class="aggregation-widget" data-kind="category">
+            <h3>${escapeHtml(widget.title ?? "Category")}</h3>
+            ${summary.buckets
+              .map(
+                (bucket) => `
+                  <div class="widget-row">
+                    <span><i style="background:${escapeHtml(bucket.color ?? "#5a7d9a")}"></i>${escapeHtml(bucket.label ?? bucket.value ?? "null")}</span>
+                    <strong>${escapeHtml(bucket.count)}</strong>
+                  </div>
+                `,
+              )
+              .join("")}
+          </article>
+        `;
+      }
+      if (widget.kind === "histogram" && summary?.kind === "histogram") {
+        return renderHistogramWidget(widget.title ?? "Histogram", summary);
+      }
+      if (widget.kind === "grouped-table") {
+        return `
+          <article class="aggregation-widget" data-kind="grouped">
+            <h3>${escapeHtml(widget.title ?? "Grouped summaries")}</h3>
+            ${
+              aggregation.groups
+                ?.map(
+                  (group) => `
+                  <div class="widget-row">
+                    <span>${escapeHtml(group.label ?? Object.values(group.key).join(" / "))}</span>
+                    <strong>${escapeHtml(formatNumber(countValue(group.summaries.totalIncidents)))}</strong>
+                  </div>
+                `,
+                )
+                .join("") ?? ""
+            }
+          </article>
+        `;
+      }
+      return `
+        <article class="aggregation-widget" data-kind="stat">
+          <h3>${escapeHtml(widget.title ?? "Statistic")}</h3>
+          <strong>${escapeHtml(formatSummaryValue(summary))}</strong>
+          <small>${escapeHtml(widget.id)}</small>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderHistogramWidget(title: string, summary: SpatialAggregationHistogramValue): string {
+  const maxCount = Math.max(1, ...summary.buckets.map((bucket) => bucket.count));
+  return `
+    <article class="aggregation-widget" data-kind="histogram">
+      <h3>${escapeHtml(title)}</h3>
+      ${summary.buckets
+        .map(
+          (bucket) => `
+            <div class="histogram-row">
+              <span>${escapeHtml(bucket.min)}-${escapeHtml(bucket.max)}</span>
+              <i style="width:${Math.max(8, (bucket.count / maxCount) * 100)}%"></i>
+              <strong>${escapeHtml(bucket.count)}</strong>
+            </div>
+          `,
+        )
+        .join("")}
+    </article>
+  `;
 }
 
 function renderMetrics(): void {
@@ -393,3 +529,19 @@ window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__ = {
     return workspaceExport;
   },
 };
+
+function countValue(summary: SpatialAggregationSummaryValue | undefined): number {
+  return summary && "value" in summary && typeof summary.value === "number" ? summary.value : 0;
+}
+
+function formatSummaryValue(summary: SpatialAggregationSummaryValue | undefined): string {
+  if (!summary) return "0";
+  if ("value" in summary) return formatNumber(Number(summary.value ?? 0));
+  if (summary.kind === "category") return `${summary.buckets.length} bucket(s)`;
+  if (summary.kind === "histogram" || summary.kind === "range") return `${summary.buckets.length} bucket(s)`;
+  return "0";
+}
+
+function formatNumber(value: number): string {
+  return Number.isFinite(value) ? value.toLocaleString() : "0";
+}

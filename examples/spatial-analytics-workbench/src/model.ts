@@ -8,6 +8,19 @@ import {
   selectHonuaAppWorkspaceMetadataCacheModel,
   selectHonuaAppWorkspaceTableModel,
 } from "@honua/sdk-js/app-workspace";
+import {
+  assertValidSpatialAggregationRequest,
+  isSpatialAggregationComplete,
+  spatialAggregationProgress,
+  spatialAggregationWidgets,
+} from "@honua/sdk-js/contract";
+import type {
+  SpatialAggregationCell,
+  SpatialAggregationRequest,
+  SpatialAggregationResult,
+  SpatialAggregationSummaryValue,
+  SpatialAggregationWidgetMetadata,
+} from "@honua/sdk-js/contract";
 import { createExplorationContext, sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
 import type { FilterClause } from "@honua/sdk-js/exploration";
 import { createHonuaCacheState, envelope } from "@honua/sdk-js/honua";
@@ -15,8 +28,9 @@ import type { HonuaExtent, JobSnapshot } from "@honua/sdk-js/honua";
 import { selectLinkedViewQueryProjection } from "@honua/sdk-js/interactions";
 import type { LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
 
-import { createFixtureSpatialAnalyticsDataset } from "./fixtures.js";
+import { ANALYTICS_INDEXED_AGGREGATION_FIXTURE, createFixtureSpatialAnalyticsDataset } from "./fixtures.js";
 import type {
+  AnalyticsAggregationReport,
   AnalyticsAoi,
   AnalyticsDataset,
   AnalyticsFeature,
@@ -200,30 +214,13 @@ export function createSpatialAnalyticsWorkbenchSession(
         return snapshot;
       }
 
-      latestOutput = materializeOutput(dataset, plan, aoi, session.currentProjection(), jobId);
+      latestOutput =
+        plan.fixtureMode === "fixture-indexed-aggregation"
+          ? materializeAggregationOutput(dataset, plan, aoi, session.currentProjection(), jobId)
+          : materializeOutput(dataset, plan, aoi, session.currentProjection(), jobId);
       const snapshot = successfulSnapshot(latestOutput);
       workspace.dispatch({ kind: "set-job-snapshot", jobId, type: plan.processIds.join("+"), snapshot });
-      workspace.dispatch({
-        kind: "set-source-metadata",
-        sourceId: dataset.resultSourceId,
-        status: "ready",
-        metadata: resultSourceMetadata(dataset, latestOutput.resultLayer),
-        updatedAt: Date.parse(dataset.generatedAt),
-      });
-      workspace.dispatch({
-        kind: "apply-realtime-event",
-        event: {
-          type: "snapshot",
-          eventId: `${jobId}:materialized`,
-          cursor: `job:${jobId}`,
-          receivedAt: Date.parse(dataset.generatedAt) + record.step,
-          features: latestOutput.features.map((feature) => ({
-            id: feature.id,
-            sourceId: dataset.resultSourceId,
-            feature,
-          })),
-        },
-      });
+      publishOutput(dataset, workspace, latestOutput, jobId, record.step);
       return snapshot;
     },
     retryJob(jobId: string = requireActiveJobId(activeJobId)): string {
@@ -238,6 +235,9 @@ export function createSpatialAnalyticsWorkbenchSession(
       return applyProjection(records, session.currentProjection());
     },
     chartBuckets(): ReadonlyArray<{ readonly risk: AnalyticsRisk; readonly count: number; readonly score: number }> {
+      const aggregation = this.latestAggregation();
+      if (aggregation) return aggregationSeverityBuckets(aggregation);
+
       const visible = this.visibleFeatures();
       return RISK_ORDER.map((risk) => {
         const rows = visible.filter((feature) => feature.risk === risk);
@@ -247,6 +247,16 @@ export function createSpatialAnalyticsWorkbenchSession(
           score: rows.length === 0 ? 0 : Math.round(rows.reduce((sum, row) => sum + row.score, 0) / rows.length),
         };
       });
+    },
+    aggregationCells(): readonly SpatialAggregationCell[] {
+      return latestOutput?.aggregation?.cells ?? [];
+    },
+    aggregationWidgets(): readonly SpatialAggregationWidgetMetadata[] {
+      const aggregation = this.latestAggregation();
+      return aggregation ? spatialAggregationWidgets(aggregation) : [];
+    },
+    latestAggregation(): SpatialAggregationResult | undefined {
+      return latestOutput?.aggregation;
     },
     latestOutput(): AnalyticsJobOutput | undefined {
       return latestOutput;
@@ -358,6 +368,8 @@ export function buildHonuaCloudAnalysisRequest(
       filters: projection.filters,
       grouping: projection.grouping,
       aggregation: projection.aggregation,
+      indexedAggregation:
+        plan.fixtureMode === "fixture-indexed-aggregation" ? buildIndexedAggregationRequest(aoi) : undefined,
       materialize: plan.materializes,
     },
     metadata: {
@@ -499,11 +511,14 @@ function failedCapabilitySnapshot(plan: AnalyticsPlan): JobSnapshot<AnalyticsJob
 }
 
 function successfulSnapshot(output: AnalyticsJobOutput): JobSnapshot<AnalyticsJobOutput> {
+  const aggregation = output.aggregation;
   return {
     status: "successful",
     progress: {
       percent: 100,
-      message: `Materialized ${output.features.length} result feature(s)`,
+      message: aggregation
+        ? `Loaded ${aggregation.cells.length} indexed cell(s); ${aggregation.page?.totalCellCount ?? aggregation.index.cellCount ?? aggregation.cells.length} available through paging`
+        : `Materialized ${output.features.length} result feature(s)`,
     },
     result: {
       outputs: {
@@ -511,6 +526,36 @@ function successfulSnapshot(output: AnalyticsJobOutput): JobSnapshot<AnalyticsJo
       },
     },
   };
+}
+
+function publishOutput(
+  dataset: AnalyticsDataset,
+  workspace: ReturnType<typeof createHonuaAppWorkspace<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>>,
+  output: AnalyticsJobOutput,
+  jobId: string,
+  step: number,
+): void {
+  workspace.dispatch({
+    kind: "set-source-metadata",
+    sourceId: dataset.resultSourceId,
+    status: "ready",
+    metadata: resultSourceMetadata(dataset, output.resultLayer, output.aggregation),
+    updatedAt: Date.parse(dataset.generatedAt),
+  });
+  workspace.dispatch({
+    kind: "apply-realtime-event",
+    event: {
+      type: "snapshot",
+      eventId: `${jobId}:materialized`,
+      cursor: `job:${jobId}`,
+      receivedAt: Date.parse(dataset.generatedAt) + step,
+      features: output.features.map((feature) => ({
+        id: feature.id,
+        sourceId: dataset.resultSourceId,
+        feature,
+      })),
+    },
+  });
 }
 
 function materializeOutput(
@@ -561,12 +606,74 @@ function materializeOutput(
   };
 }
 
+function materializeAggregationOutput(
+  dataset: AnalyticsDataset,
+  plan: AnalyticsPlan,
+  aoi: AnalyticsAoi,
+  projection: LinkedViewQueryProjection,
+  jobId: string,
+): AnalyticsJobOutput {
+  const request = buildIndexedAggregationRequest(aoi, projection);
+  assertValidSpatialAggregationRequest(request);
+  const fixture = ANALYTICS_INDEXED_AGGREGATION_FIXTURE.response;
+  const aggregation: SpatialAggregationResult = {
+    ...fixture,
+    requestId: request.requestId,
+    generatedAt: dataset.generatedAt,
+    index: {
+      ...fixture.index,
+      extent: aoi.extent,
+      requestedResolution: request.resolution,
+    },
+    metadata: {
+      ...fixture.metadata,
+      sourceId: request.sourceId,
+    },
+  };
+  const resultLayer: AnalyticsResultLayer = {
+    id: `aggregation-${jobId}`,
+    title: `${aoi.title} indexed aggregation`,
+    sourceId: aggregation.sourceId,
+    featureIds: [],
+    materialized: false,
+    href: `/workspaces/${dataset.workspaceId}/aggregation/${jobId}.json`,
+    cache: createHonuaCacheState({
+      scope: "metadata",
+      status: "stale",
+      keyFingerprint: `aggregation:${aggregation.requestId}:aoi:${aoi.id}`,
+      revalidatedAt: dataset.generatedAt,
+      invalidationReason: "fixture result is viewport-specific and not cached as a reusable feature result",
+    }),
+    lineage: [aoi.id, ...plan.layerIds, ...plan.processIds, aggregation.index.model.id],
+  };
+  const metrics = metricsForAggregation(aggregation);
+  const report = createAnalyticsReport(dataset, plan, aoi, projection, {
+    metrics,
+    resultLayer,
+    aggregation,
+  });
+  return {
+    planId: plan.id,
+    aoiId: aoi.id,
+    resultLayer,
+    metrics,
+    features: [],
+    aggregation,
+    warnings: [
+      "Aggregation metadata and widget definitions are cacheable.",
+      "Viewport-specific indexed cells are treated as ad hoc spatial results and are not reused as metadata.",
+      `Progressive status is ${spatialAggregationProgress(aggregation).status}; complete=${isSpatialAggregationComplete(aggregation)}`,
+    ],
+    report,
+  };
+}
+
 function createAnalyticsReport(
   dataset: AnalyticsDataset,
   plan: AnalyticsPlan,
   aoi: AnalyticsAoi,
   projection: LinkedViewQueryProjection,
-  output: Pick<AnalyticsJobOutput, "metrics" | "resultLayer"> | undefined,
+  output: Pick<AnalyticsJobOutput, "metrics" | "resultLayer" | "aggregation"> | undefined,
 ): AnalyticsReport {
   return {
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -578,11 +685,33 @@ function createAnalyticsReport(
     metrics:
       output?.metrics ?? metricsForFeatures(dataset.features.filter((feature) => feature.aoiIds.includes(aoi.id))),
     resultLayer: output?.resultLayer,
+    aggregation: output?.aggregation ? aggregationReport(output.aggregation) : undefined,
     warnings: [
       "Metadata cache entries are reusable across AOIs.",
       "Spatial analysis result reuse requires a materialized job artifact.",
       ...dataset.capabilityGaps.map((gap) => `${gap.ticket}: ${gap.title}`),
     ],
+  };
+}
+
+function buildIndexedAggregationRequest(
+  aoi: AnalyticsAoi,
+  projection?: LinkedViewQueryProjection,
+): SpatialAggregationRequest {
+  const fixtureRequest = ANALYTICS_INDEXED_AGGREGATION_FIXTURE.request;
+  return {
+    ...fixtureRequest,
+    requestId: `agg-${aoi.id}-viewport`,
+    spatialFilter: projection?.spatialFilter ?? envelopeFromExtent(aoi.extent),
+    viewport: {
+      ...fixtureRequest.viewport,
+      extent: aoi.extent,
+    },
+    metadata: {
+      ...fixtureRequest.metadata,
+      aoiId: aoi.id,
+      filters: projection?.filters ?? {},
+    },
   };
 }
 
@@ -605,13 +734,83 @@ function metricsForFeatures(features: readonly AnalyticsFeature[]): readonly Ana
   ];
 }
 
-function resultSourceMetadata(dataset: AnalyticsDataset, resultLayer: AnalyticsResultLayer): AnalyticsSourceMetadata {
+function metricsForAggregation(aggregation: SpatialAggregationResult): readonly AnalyticsMetric[] {
+  return [
+    {
+      label: "Indexed cells",
+      value: `${aggregation.cells.length}/${aggregation.page?.totalCellCount ?? aggregation.index.cellCount ?? aggregation.cells.length}`,
+      tone: "neutral",
+    },
+    {
+      label: "Incidents",
+      value: formatSummaryValue(aggregation.totals?.totalIncidents),
+      tone: "warn",
+    },
+    {
+      label: "Exposed population",
+      value: formatSummaryValue(aggregation.totals?.populationSum),
+      tone: "warn",
+    },
+    {
+      label: "Average risk",
+      value: formatSummaryValue(aggregation.totals?.averageRisk),
+      tone: "danger",
+    },
+    {
+      label: "Progress",
+      value: spatialAggregationProgress(aggregation).status,
+      tone: isSpatialAggregationComplete(aggregation) ? "good" : "warn",
+    },
+  ];
+}
+
+function aggregationSeverityBuckets(
+  aggregation: SpatialAggregationResult,
+): ReadonlyArray<{ readonly risk: AnalyticsRisk; readonly count: number; readonly score: number }> {
+  const category = aggregation.cells[0]?.summaries.bySeverity;
+  const buckets = category?.kind === "category" ? category.buckets : [];
+  const averageRisk = aggregation.totals?.averageRisk;
+  const score = averageRisk && "value" in averageRisk ? Math.round(Number(averageRisk.value ?? 0)) : 0;
+  return RISK_ORDER.map((risk) => {
+    const bucket = buckets.find((entry) => entry.value === risk);
+    return { risk, count: bucket?.count ?? 0, score };
+  });
+}
+
+function aggregationReport(aggregation: SpatialAggregationResult): AnalyticsAggregationReport {
+  return {
+    requestId: aggregation.requestId,
+    sourceId: aggregation.sourceId,
+    indexModel: aggregation.index.model.id,
+    indexResolution: aggregation.index.resolution,
+    visibleCellCount: aggregation.cells.length,
+    loadedCellCount: aggregation.page?.loadedCellCount ?? aggregation.cells.length,
+    totalCellCount: aggregation.page?.totalCellCount ?? aggregation.index.cellCount,
+    widgetIds: spatialAggregationWidgets(aggregation).map((widget) => widget.id),
+    metadataCacheable: aggregation.metadata.cache?.metadataCacheable ?? false,
+    resultCacheable: aggregation.metadata.cache?.resultCacheable ?? false,
+  };
+}
+
+function formatSummaryValue(summary: SpatialAggregationSummaryValue | undefined): string {
+  if (!summary || !("value" in summary)) return "0";
+  const value = summary.value;
+  return typeof value === "number" ? value.toLocaleString() : String(value ?? "0");
+}
+
+function resultSourceMetadata(
+  dataset: AnalyticsDataset,
+  resultLayer: AnalyticsResultLayer,
+  aggregation?: SpatialAggregationResult,
+): AnalyticsSourceMetadata {
   return {
     id: dataset.resultSourceId,
     title: resultLayer.title,
     type: "materialized-result",
     cache: resultLayer.cache,
-    capabilities: ["bbox", "query", "download", "workspace-handoff"],
+    capabilities: aggregation
+      ? ["spatialAggregate", "widgets", "progressive-loading", "workspace-handoff"]
+      : ["bbox", "query", "download", "workspace-handoff"],
   };
 }
 

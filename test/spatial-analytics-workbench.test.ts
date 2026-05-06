@@ -49,17 +49,25 @@ describe("Spatial Analytics Workbench sample", () => {
     session.dispose();
   });
 
-  it("represents missing indexed aggregation as a failed job with #66 diagnostics", () => {
+  it("renders indexed aggregation cells and SDK widget metadata from the fixture contract", () => {
     const session = createSpatialAnalyticsWorkbenchSession();
     session.selectPlan("indexed-aggregation");
     const jobId = session.startAnalysis();
 
     expect(session.advanceJob(jobId).status).toBe("running");
-    const failed = session.advanceJob(jobId);
+    const completed = session.advanceJob(jobId);
 
-    expect(failed.status).toBe("failed");
-    expect(failed.error?.code).toBe("HonuaCapabilityNotSupported");
-    expect(JSON.stringify(failed.error?.details)).toContain("#66");
+    expect(completed.status).toBe("successful");
+    expect(session.aggregationCells()).toHaveLength(2);
+    expect(session.aggregationWidgets().map((widget) => widget.kind)).toEqual([
+      "stat",
+      "category-list",
+      "histogram",
+      "grouped-table",
+    ]);
+    expect(session.latestAggregation()?.metadata.cache?.metadataCacheable).toBe(true);
+    expect(session.latestAggregation()?.metadata.cache?.resultCacheable).toBe(false);
+    expect(session.latestOutput()?.features).toHaveLength(0);
     expect(session.dataset.capabilityGaps.map((gap) => gap.ticket)).toContain("#66");
 
     session.dispose();
@@ -84,5 +92,7 @@ describe("Spatial Analytics Workbench sample", () => {
     expect(request.inputs.materialize).toBe(false);
     expect(request.metadata.cachePolicy).toBe("metadata-only");
     expect(request.inputs.aggregation?.groupBy).toEqual(["risk"]);
+    expect(request.inputs.indexedAggregation?.summaries.map((summary) => summary.id)).toContain("bySeverity");
+    expect(request.inputs.indexedAggregation?.resolution?.strategy).toBe("fit-viewport");
   });
 });
