@@ -504,6 +504,7 @@ export type {
   HonuaFeatureLayerQueryRelatedRecordsRequest,
   HonuaFeatureLayerQueryRequest,
   HonuaFeatureLayerRequest,
+  HonuaFeatureLayerSpatialAggregationRequest,
   HonuaFeatureLayerUpdateAttachmentRequest,
   HonuaGeometryBinaryOperationRequest,
   HonuaGeometryBufferRequest,
@@ -577,6 +578,7 @@ export type {
 
 export {
   CAPABILITIES,
+  FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID,
   PROTOCOL_DEFAULT_CAPABILITIES,
   PROTOCOLS,
   SPATIAL_AGGREGATION_CAPABILITY,
@@ -584,6 +586,7 @@ export {
   SPATIAL_AGGREGATION_SCHEMA_VERSION,
   ALL_CAPABILITIES,
   FIRST_PARTY_PROTOCOLS,
+  assertFeatureServerH3SpatialAggregationRequest,
   assertValidSpatialAggregationRequest,
   capabilities,
   createEditSession,
@@ -603,10 +606,12 @@ export {
   ogcMapsSource,
   ogcTilesSource,
   spatialAggregationProgress,
+  spatialAggregationSummaryKindSupportedByFeatureServerH3,
   spatialAggregationSummaryKindRequiresField,
   spatialAggregationWidgets,
   stacSearchSource,
   unionCapabilities,
+  validateFeatureServerH3SpatialAggregationRequest,
   validateSpatialAggregationRequest,
 } from "./contract/index.js";
 export type {
