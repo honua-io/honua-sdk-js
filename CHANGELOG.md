@@ -2,6 +2,48 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.6-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.5-alpha.0...js-sdk-v0.0.6-alpha.0) (2026-05-07)
+
+
+### Features
+
+* **#23:** canonical shared client and exploration semantics across GeoServices, OGC, WFS, WMS, OData adapters ([#30](https://github.com/honua-io/honua-sdk-js/issues/30)) ([6195277](https://github.com/honua-io/honua-sdk-js/commit/6195277f93d5c712b60a96a68a8153978bb9ce2d))
+* **#24:** first-party GeoServices REST client on the shared JS client contract ([#33](https://github.com/honua-io/honua-sdk-js/issues/33)) ([61c8c7f](https://github.com/honua-io/honua-sdk-js/commit/61c8c7f4c3a9dfd2d46628aaf3e6626998425990))
+* add auth credential lifecycle provider ([#50](https://github.com/honua-io/honua-sdk-js/issues/50)) ([ed4df24](https://github.com/honua-io/honua-sdk-js/commit/ed4df244dc3d2274e50d2417e5deef302443bd20))
+* Add integration tests against Honua Server protocol surfaces ([#39](https://github.com/honua-io/honua-sdk-js/issues/39)) ([3c9652e](https://github.com/honua-io/honua-sdk-js/commit/3c9652e4c4bd86972109ac96cf1d56ff903e5f5b))
+* add JS compatibility baseline ([#10](https://github.com/honua-io/honua-sdk-js/issues/10)) ([#13](https://github.com/honua-io/honua-sdk-js/issues/13)) ([404242d](https://github.com/honua-io/honua-sdk-js/commit/404242df3cbf10f707ee9137405bf93b3de0012d))
+* add migration admin scan contracts ([#107](https://github.com/honua-io/honua-sdk-js/issues/107)) ([667f38f](https://github.com/honua-io/honua-sdk-js/commit/667f38f774f2a1c02f745693d0fd8b1948239edb))
+* add WebMap JSON compatibility contract and parser ([#385](https://github.com/honua-io/honua-sdk-js/issues/385)) ([3d03350](https://github.com/honua-io/honua-sdk-js/commit/3d03350198cf09090568f87853c65af3e457da4a))
+* comprehensive JavaScript SDK enhancements for mobile integration ([094efb2](https://github.com/honua-io/honua-sdk-js/commit/094efb2831f6a3aa51479888138a0df576678e69)), closes [#359](https://github.com/honua-io/honua-sdk-js/issues/359)
+* Demo Spike: Cesium 3D workflow and feasibility assessment ([#15](https://github.com/honua-io/honua-sdk-js/issues/15)) ([958f824](https://github.com/honua-io/honua-sdk-js/commit/958f8246fa7e6ad9408157d3f0cd684c047558f5))
+* Demo: 2.5D web map with extrusions, tilt, and animated spatial storytelling ([#16](https://github.com/honua-io/honua-sdk-js/issues/16)) ([3f693d3](https://github.com/honua-io/honua-sdk-js/commit/3f693d3886c13cca771ecb708bdc5f9c5ebe971e))
+* Demo: kepler.gl analytics app for ETL-to-insight workflows (#honua-sdk-js-14) ([edbd8a4](https://github.com/honua-io/honua-sdk-js/commit/edbd8a44a789a617d279d9466ba4d2fbc5b14374))
+* First-party OGC API client on the shared JS client contract ([#25](https://github.com/honua-io/honua-sdk-js/issues/25)) ([#35](https://github.com/honua-io/honua-sdk-js/issues/35)) ([1eadbec](https://github.com/honua-io/honua-sdk-js/commit/1eadbeca9851b3bd85a6b331840d28101888b827))
+* First-party WFS client on the shared JS client contract ([#27](https://github.com/honua-io/honua-sdk-js/issues/27)) ([a1bafdd](https://github.com/honua-io/honua-sdk-js/commit/a1bafdd4dd3429ae42a5dc82f1c782c02b152684))
+* First-party WMS client on the shared JS client contract ([#28](https://github.com/honua-io/honua-sdk-js/issues/28)) ([514b4ef](https://github.com/honua-io/honua-sdk-js/commit/514b4ef09965543fe06b7231576badf1da836ab3))
+* JS SDK quickstart app and staging integration test suite (#honua-sdk-js-3) ([e2e20a9](https://github.com/honua-io/honua-sdk-js/commit/e2e20a9190337fe9398621a208572a34760685e1))
+* MapLibre GL JS-first runtime for HonuaMapSpec and operator map packages ([#21](https://github.com/honua-io/honua-sdk-js/issues/21)) ([a9e161a](https://github.com/honua-io/honua-sdk-js/commit/a9e161aa2e37b7e6d446a56876a8389e53af390d))
+* OData adapter integration behind the shared JS client contract ([#26](https://github.com/honua-io/honua-sdk-js/issues/26)) ([8841be4](https://github.com/honua-io/honua-sdk-js/commit/8841be45cbe4acd0a21ba31ead0f79799e88e52a))
+* Operator-native component architecture on the shared JS client and MapPackage runtime ([#29](https://github.com/honua-io/honua-sdk-js/issues/29)) ([3416b28](https://github.com/honua-io/honua-sdk-js/commit/3416b28b43eddc40bb007c84e6ca9020a7b8b70f))
+* Protocol-aware mixed-source composition for GeoServices, OGC, OData, and tile-backed maps (#honua-sdk-js-22) ([8079649](https://github.com/honua-io/honua-sdk-js/commit/80796494fb337c6940aab932ef8066a0318872ba))
+* SDK publishing, geocoding client, and developer docs ([#7](https://github.com/honua-io/honua-sdk-js/issues/7)) ([9ceca23](https://github.com/honua-io/honua-sdk-js/commit/9ceca23c8eb59903846334eb7301044b27db66be))
+* SDK surface alignment RFC: canonical cross-language semantics ([#44](https://github.com/honua-io/honua-sdk-js/issues/44)) ([e7c0be2](https://github.com/honua-io/honua-sdk-js/commit/e7c0be26cf88717ed0b90757b91006be33d9c96e))
+
+
+### Bug Fixes
+
+* align JS SDK publishing baseline ([b8d421d](https://github.com/honua-io/honua-sdk-js/commit/b8d421de74882f00e76285f0f8ea7d52d0a3afb3))
+* close JS SDK audit and demo gaps ([a820bd7](https://github.com/honua-io/honua-sdk-js/commit/a820bd7ab6460226ea457dd82cbae578ad1b2051))
+* **deps:** refresh mcp lockfile for security patches ([81cf79d](https://github.com/honua-io/honua-sdk-js/commit/81cf79d6119218b6daeb6c9b6cdf28f578989be9))
+* harden client adapters and interceptor safety ([c357140](https://github.com/honua-io/honua-sdk-js/commit/c357140af183522d0ca5044e59b740e6d40a74c2))
+* stabilize sdk coverage CI ([1a65335](https://github.com/honua-io/honua-sdk-js/commit/1a65335f0a99ddbcb5d7986a8b6c18613bc1d2d9))
+
+
+### Documentation
+
+* add source-backed feature map ([bd0708f](https://github.com/honua-io/honua-sdk-js/commit/bd0708fa6f7011a32d758585d8f061aacf0f30e0))
+* fix package scope in install and quickstart docs ([b2b2add](https://github.com/honua-io/honua-sdk-js/commit/b2b2add1d076c63f6c980abb1cf0ff454674c2f9))
+
 ## [0.0.5-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.4-alpha.0...js-sdk-vv0.0.5-alpha.0) (2026-05-01)
 
 
