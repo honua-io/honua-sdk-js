@@ -16,6 +16,7 @@
         <nav class="module-switcher" aria-label="Workspace modules">
           <button type="button" data-module="incident-command" aria-pressed="true">Incident Command</button>
           <button type="button" data-module="analysis-review" aria-pressed="false">Analysis Review</button>
+          <button type="button" data-module="field-editing" aria-pressed="false">Field Editing</button>
         </nav>
 
         <section class="panel">
@@ -35,6 +36,13 @@
             <span>
               <strong>Response crews</strong>
               <em id="crew-source-status">ready</em>
+            </span>
+          </label>
+          <label class="source-toggle">
+            <input id="source-field-inspections" type="checkbox" checked />
+            <span>
+              <strong>Field inspections</strong>
+              <em id="field-source-status">ready</em>
             </span>
           </label>
         </section>
@@ -204,6 +212,76 @@
                 <span id="terminal-job-count">0 terminal</span>
               </div>
               <ul id="job-list" class="stack-list"></ul>
+            </section>
+          </div>
+        </section>
+
+        <section id="field-editing-module" class="module-view" data-active="false">
+          <div class="stage-heading">
+            <div>
+              <p class="eyebrow">Field Editing</p>
+              <h2>Shared Context Edit Workflow</h2>
+            </div>
+            <dl class="summary-strip">
+              <div>
+                <dt>Visible</dt>
+                <dd id="edit-visible-count">0</dd>
+              </div>
+              <div>
+                <dt>Pending</dt>
+                <dd id="edit-pending-count">0</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd id="edit-status-readout">Ready</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="field-edit-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Editable Inspections</h3>
+                <span id="edit-form-source">-</span>
+              </div>
+              <ul id="editable-inspection-list" class="stack-list edit-list"></ul>
+            </section>
+
+            <section class="panel edit-form-panel">
+              <div class="panel-heading">
+                <h3>Feature Form</h3>
+                <span id="edit-feature-id">-</span>
+              </div>
+              <label class="field-label" for="edit-status-field">Status</label>
+              <select id="edit-status-field">
+                <option value="open">Open</option>
+                <option value="in-progress">In progress</option>
+                <option value="closed">Closed</option>
+              </select>
+              <label class="field-label" for="edit-priority-field">Priority</label>
+              <select id="edit-priority-field">
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+              <label class="field-label" for="edit-score-field">Inspection Score</label>
+              <input id="edit-score-field" type="number" min="0" max="100" step="1" />
+              <label class="field-label" for="edit-notes-field">Notes</label>
+              <textarea id="edit-notes-field" rows="5"></textarea>
+              <div class="button-row">
+                <button id="stage-edit-attachment" type="button">Stage Attachment</button>
+                <button id="force-edit-conflict" type="button">Force Conflict</button>
+                <button id="save-edit-workflow" type="button">Save Edit</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Capability Readiness</h3>
+                <span id="edit-capability-state">-</span>
+              </div>
+              <ul id="edit-readiness-list" class="stack-list"></ul>
             </section>
           </div>
         </section>

@@ -498,6 +498,9 @@ export function createEditWorkflowDemoSession(
     metadataFields() {
       return EDIT_WORKFLOW_FIELDS;
     },
+    allFeatures() {
+      return source.features();
+    },
     draft() {
       return cloneDraft(draft);
     },

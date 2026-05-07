@@ -1,7 +1,7 @@
 # Unified Operational Intelligence Workspace
 
-Fixture-backed shell for issue `#73`. It composes an incident command module and
-an analysis review module over one `HonuaAppWorkspace` plus one linked
+Fixture-backed shell for issue `#73`. It composes incident command, analysis
+review, and field editing modules over one `HonuaAppWorkspace` plus one linked
 `ExplorationContext`.
 
 ## Commands
@@ -20,4 +20,6 @@ npm run test:playwright:unified-ops
 - Realtime fixture deltas reconciled into app workspace state.
 - AI/MCP proposals staged as reviewable drafts before applying linked-context
   changes.
+- Field inspection edits staged through the edit-workflow demo and reconciled
+  back into the shared realtime/detail context.
 - Saved workspace document round trip with snapshot diagnostics.

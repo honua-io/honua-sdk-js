@@ -144,6 +144,7 @@ export interface EditWorkflowDemoSession {
   activeProjection(): LinkedViewQueryProjection;
   capabilities(): EditWorkflowCapabilitySummary;
   metadataFields(): readonly EditWorkflowField[];
+  allFeatures(): readonly InspectionFeature[];
   draft(): EditWorkflowDraft;
   pendingAttachments(): readonly EditAttachmentMutation[];
   attachmentList(featureId?: FeatureId): Promise<readonly AttachmentInfo[]>;

@@ -3,13 +3,23 @@ import type { HonuaExtent } from "@honua/sdk-js/honua";
 
 export const INCIDENT_SOURCE_ID = "incident-ops";
 export const CREW_SOURCE_ID = "response-crews";
+export const FIELD_INSPECTION_SOURCE_ID = "honua-cloud:field-inspections";
 export const OPS_LAYER_ID = "unified-ops-features";
 
-export type UnifiedOpsSourceId = typeof INCIDENT_SOURCE_ID | typeof CREW_SOURCE_ID;
-export type UnifiedOpsModuleId = "incident-command" | "analysis-review";
-export type UnifiedOpsRecordKind = "incident" | "crew";
+export type UnifiedOpsSourceId = typeof INCIDENT_SOURCE_ID | typeof CREW_SOURCE_ID | typeof FIELD_INSPECTION_SOURCE_ID;
+export type UnifiedOpsModuleId = "incident-command" | "analysis-review" | "field-editing";
+export type UnifiedOpsRecordKind = "incident" | "crew" | "inspection";
 export type UnifiedOpsSeverity = "critical" | "high" | "medium" | "low";
-export type UnifiedOpsStatus = "open" | "assigned" | "monitoring" | "resolved" | "available" | "enroute" | "staged";
+export type UnifiedOpsStatus =
+  | "open"
+  | "assigned"
+  | "monitoring"
+  | "resolved"
+  | "available"
+  | "enroute"
+  | "staged"
+  | "in-progress"
+  | "closed";
 
 export interface UnifiedOpsFeature {
   readonly id: string;

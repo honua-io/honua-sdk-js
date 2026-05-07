@@ -21,12 +21,15 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
 button,
-select {
+input,
+select,
+textarea {
   min-height: 34px;
   border: 1px solid #a9b4ad;
   border-radius: 6px;
@@ -53,6 +56,16 @@ button:disabled {
 select {
   inline-size: 100%;
   padding: 0 10px;
+}
+
+input,
+textarea {
+  inline-size: 100%;
+  padding: 7px 10px;
+}
+
+textarea {
+  resize: vertical;
 }
 
 h1,
@@ -318,6 +331,10 @@ dd {
   background: #0f766e;
 }
 
+.map-pin[data-kind="inspection"] {
+  background: #7c3aed;
+}
+
 .map-pin[data-severity="critical"] {
   background: #b91c1c;
 }
@@ -378,6 +395,22 @@ td span {
   display: grid;
   grid-template-columns: repeat(2, minmax(260px, 1fr));
   gap: 14px;
+}
+
+.field-edit-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(300px, 1fr) minmax(260px, 0.76fr);
+  gap: 14px;
+}
+
+.edit-form-panel {
+  display: grid;
+  align-content: start;
+}
+
+.edit-form-panel .button-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
 }
 
 .severity-chart {
@@ -444,6 +477,24 @@ td span {
   background: #fff8e6;
 }
 
+.edit-list li {
+  padding: 0;
+}
+
+.edit-list button {
+  display: grid;
+  gap: 3px;
+  inline-size: 100%;
+  min-height: 56px;
+  padding: 8px;
+  text-align: left;
+}
+
+.edit-list button span {
+  color: #596860;
+  font-size: 0.78rem;
+}
+
 .detail-panel {
   display: grid;
   gap: 10px;
@@ -469,7 +520,12 @@ td span {
   }
 
   .map-workspace,
-  .analysis-grid {
+  .analysis-grid,
+  .field-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .edit-form-panel .button-row {
     grid-template-columns: 1fr;
   }
 

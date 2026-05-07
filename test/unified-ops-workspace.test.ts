@@ -9,11 +9,16 @@ import {
   moveUnifiedOpsMap,
   restoreUnifiedOpsSnapshot,
   saveUnifiedOpsSnapshot,
+  selectUnifiedOpsEditFeature,
   setUnifiedOpsActiveModule,
   setUnifiedOpsActiveSource,
   stageUnifiedOpsAiDraft,
+  stageUnifiedOpsEditAttachment,
+  submitUnifiedOpsEditDraft,
+  updateUnifiedOpsEditDraftValue,
+  visibleUnifiedOpsEditFeatures,
 } from "../examples/unified-ops-workspace/src/model.js";
-import { INCIDENT_SOURCE_ID } from "../examples/unified-ops-workspace/src/types.js";
+import { FIELD_INSPECTION_SOURCE_ID, INCIDENT_SOURCE_ID } from "../examples/unified-ops-workspace/src/types.js";
 import { selectLinkedViewQueryProjection, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 import { selectHonuaAppWorkspaceDetailModel, selectHonuaAppWorkspaceFilterModel } from "../src/index.js";
 
@@ -156,6 +161,61 @@ describe("unified ops workspace", () => {
     shell.dispose();
   });
 
+  it("bridges field edit workflow saves into the shared linked context", async () => {
+    const shell = createUnifiedOpsWorkspace({ now: () => 4_800 });
+
+    shell.controllers.filters.setFilter("status", {
+      field: "status",
+      operator: "=",
+      value: "open",
+      appliesTo: [INCIDENT_SOURCE_ID],
+    });
+    moveUnifiedOpsMap(shell, URBAN_CORE_EXTENT);
+    shell.controllers.table.select([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, "INC-2001")], { replace: true });
+    setUnifiedOpsActiveModule(shell, "field-editing");
+    await flush();
+
+    expect(shell.workspace.state.layout.activeViewId).toBe("field-editing");
+    expect(selectHonuaAppWorkspaceDetailModel(shell.workspace.state).selectedRecords[0]?.feature.id).toBe("INC-2001");
+    expect(visibleUnifiedOpsEditFeatures(shell).map((feature) => feature.id)).toEqual(["4101", "4103"]);
+
+    selectUnifiedOpsEditFeature(shell, 4101);
+    updateUnifiedOpsEditDraftValue(shell, "status", "closed");
+    updateUnifiedOpsEditDraftValue(shell, "inspection_score", 95);
+    stageUnifiedOpsEditAttachment(shell, "workspace-closeout.png");
+    await flush();
+
+    expect(shell.exploration.state.selection).toEqual([
+      sourceFeatureSelectionTarget(FIELD_INSPECTION_SOURCE_ID, "4101"),
+    ]);
+    expect(shell.editWorkflow.pendingAttachments()).toHaveLength(1);
+
+    const result = await submitUnifiedOpsEditDraft(shell);
+    await flush();
+
+    const projection = selectLinkedViewQueryProjection(shell.exploration.state);
+    const fieldRows = applyUnifiedOpsProjection(shell.workspace.state, projection, {
+      sourceId: FIELD_INSPECTION_SOURCE_ID,
+    }).rows;
+
+    expect(result.status).toBe("succeeded");
+    expect(shell.workspace.state.layout.activeViewId).toBe("field-editing");
+    expect(shell.exploration.state.filters.status?.value).toBe("open");
+    expect(shell.exploration.state.extent).toEqual(URBAN_CORE_EXTENT);
+    expect(fieldRows.find((feature) => feature.id === "4101")).toMatchObject({
+      status: "closed",
+      impactScore: 95,
+    });
+    expect(selectHonuaAppWorkspaceDetailModel(shell.workspace.state).selectedRecords[0]?.feature).toMatchObject({
+      id: "4101",
+      sourceId: FIELD_INSPECTION_SOURCE_ID,
+      status: "closed",
+    });
+    expect(shell.editWorkflow.pendingAttachments()).toHaveLength(0);
+
+    shell.dispose();
+  });
+
   it("saves and restores snapshots with diagnostics", async () => {
     const shell = createUnifiedOpsWorkspace({ now: () => 5_000 });
     setUnifiedOpsActiveModule(shell, "analysis-review");
@@ -174,7 +234,7 @@ describe("unified ops workspace", () => {
       savedAt: "2026-05-06T00:00:00.000Z",
     });
     expect(saved.diagnostics).toMatchObject({
-      activeSourceCount: 1,
+      activeSourceCount: 2,
       filterCount: 1,
       selectedFeatureCount: 1,
       activeViewId: "analysis-review",
@@ -194,8 +254,8 @@ describe("unified ops workspace", () => {
     expect(shell.exploration.state.filters.status?.value).toBe("open");
     expect(shell.exploration.state.selection).toEqual([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, "INC-2001")]);
     expect(saved.document.metadata?.diagnostics).toMatchObject({
-      realtimeRecordCount: 7,
-      modulePanelCount: 4,
+      realtimeRecordCount: 10,
+      modulePanelCount: 5,
     });
 
     shell.dispose();
