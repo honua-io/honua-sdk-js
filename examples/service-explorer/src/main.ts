@@ -47,6 +47,20 @@ import type {
 
 import "./styles.css";
 
+declare global {
+  interface Window {
+    __HONUA_SERVICE_EXPLORER_RUNTIME__?: {
+      readonly ready: boolean;
+      readonly sourceId: string;
+      readonly protocol: string;
+      readonly mode: string;
+      readonly queryable: boolean;
+      readonly visibleCount: number;
+      readonly filterCount: number;
+    };
+  }
+}
+
 const MAP_LAYER_ID = "service-explorer-points";
 const MAP_LABEL_LAYER_ID = "service-explorer-labels";
 
@@ -91,6 +105,17 @@ function setOverlay(state: "loading" | "ready" | "error", title: string, detail:
 }
 
 function renderDiscovery(dataset: ServiceExplorerDataset): void {
+  const sourcePicker = getElement<HTMLSelectElement>("#source-picker");
+  sourcePicker.innerHTML = "";
+  for (const source of dataset.catalog.sources) {
+    const option = document.createElement("option");
+    option.value = source.id;
+    option.textContent = `${source.protocol} / ${source.name}`;
+    option.dataset.mode = source.mode;
+    option.selected = source.id === dataset.sourceOption.id;
+    sourcePicker.append(option);
+  }
+
   const services = getElement<HTMLElement>("#service-list");
   services.innerHTML = dataset.catalog.services
     .map(
@@ -117,6 +142,9 @@ function renderDiscovery(dataset: ServiceExplorerDataset): void {
 
   setText("#active-service", dataset.metadata.service.name);
   setText("#active-layer", `${dataset.metadata.layer.name} (${dataset.metadata.layer.id})`);
+  setText("#source-kind", `${dataset.sourceOption.protocol} / ${dataset.sourceOption.mode}`);
+  setText("#source-description", dataset.sourceOption.description);
+  setText("#source-cache-policy", dataset.sourceOption.cachePolicy);
   setText("#data-source", dataset.source === "cloud" ? "Cloud Honua" : "Fixture fallback");
   setText("#query-duration", `${dataset.queryDurationMs} ms`);
 }
@@ -150,7 +178,13 @@ function renderMetadata(dataset: ServiceExplorerDataset): void {
 
 function renderFilterOptions(dataset: ServiceExplorerDataset): void {
   const select = getElement<HTMLSelectElement>("#attribute-filter");
-  select.innerHTML = '<option value="">All linked features</option>';
+  const queryable = isQueryableSource(dataset);
+  select.disabled = !queryable;
+  select.innerHTML = queryable
+    ? '<option value="">All linked features</option>'
+    : '<option value="">Table/query unavailable for this source</option>';
+  if (!queryable) return;
+
   for (const option of createServiceExplorerFilterOptions(dataset.featureSummaries)) {
     const group = document.createElement("optgroup");
     group.label = option.field;
@@ -197,12 +231,19 @@ function renderCacheAndDiagnostics(
 }
 
 function renderTable(
+  dataset: ServiceExplorerDataset,
   result: ServiceExplorerProjectionResult,
   selectedFeatureId: string | undefined,
   selectRow: (summary: ServiceExplorerFeatureSummary) => void,
 ): void {
   const body = getElement<HTMLElement>("#result-table-body");
   body.innerHTML = "";
+
+  if (!isQueryableSource(dataset)) {
+    body.innerHTML =
+      '<tr><td colspan="5">Table/query controls are disabled for this render-only standards source.</td></tr>';
+    return;
+  }
 
   if (result.rows.length === 0) {
     body.innerHTML = '<tr><td colspan="5">No features match the linked map and filter state.</td></tr>';
@@ -231,10 +272,18 @@ function renderTable(
 }
 
 function renderChart(
+  dataset: ServiceExplorerDataset,
   result: ServiceExplorerProjectionResult,
   projection: LinkedViewQueryProjection,
   selectBucket: (field: string, value: string) => void,
 ): void {
+  if (!isQueryableSource(dataset)) {
+    setText("#chart-field", "render-only");
+    getElement<HTMLElement>("#chart-buckets").innerHTML =
+      '<p class="disabled-copy">Chart buckets require a queryable feature source.</p>';
+    return;
+  }
+
   const chart = createServiceExplorerChartModel(result, projection);
   setText("#chart-field", chart.field);
   const max = Math.max(1, ...chart.buckets.map((bucket) => bucket.count));
@@ -302,6 +351,21 @@ function renderQuery(result: ServiceExplorerProjectionResult): void {
   setText("#filter-count", String(Object.keys(result.projection.filters).length));
   setText("#map-extent", formatExtent(result.projection.extent));
   getElement<HTMLElement>("#query-json").textContent = JSON.stringify(diagnostics, null, 2);
+}
+
+function isQueryableSource(dataset: ServiceExplorerDataset): boolean {
+  return dataset.metadata.capabilities.query !== "unsupported" && dataset.metadata.capabilities.table !== "unsupported";
+}
+
+function selectedSourceIdFromLocation(configSourceId: string | undefined): string | undefined {
+  const selected = new URLSearchParams(window.location.search).get("source")?.trim();
+  return selected && selected.length > 0 ? selected : configSourceId;
+}
+
+function updateSourceLocation(sourceId: string): void {
+  const url = new URL(window.location.href);
+  url.searchParams.set("source", sourceId);
+  window.location.href = url.toString();
 }
 
 function selectedFeatureIdFromProjection(projection: LinkedViewQueryProjection, sourceId: string): string | undefined {
@@ -413,7 +477,11 @@ async function createMap(dataset: ServiceExplorerDataset): Promise<maplibregl.Ma
 }
 
 async function bootstrap(): Promise<void> {
-  const config = resolveServiceExplorerConfig(import.meta.env as Record<string, string | undefined>);
+  const resolvedConfig = resolveServiceExplorerConfig(import.meta.env as Record<string, string | undefined>);
+  const config = {
+    ...resolvedConfig,
+    selectedSourceId: selectedSourceIdFromLocation(resolvedConfig.selectedSourceId),
+  };
   setOverlay("loading", "Loading service explorer", "Resolving cloud Honua configuration and local fixture fallback.");
 
   try {
@@ -426,6 +494,7 @@ async function bootstrap(): Promise<void> {
 
     setOverlay("loading", "Loading map", "Binding map, table, chart, filter, detail, cache, and diagnostics views.");
     const map = await createMap(dataset);
+    const sourcePicker = getElement<HTMLSelectElement>("#source-picker");
     const filterSelect = getElement<HTMLSelectElement>("#attribute-filter");
     const clearFilterButton = getElement<HTMLButtonElement>("#clear-filter-button");
     const revalidateButton = getElement<HTMLButtonElement>("#revalidate-cache-button");
@@ -464,6 +533,7 @@ async function bootstrap(): Promise<void> {
         },
       ),
     ];
+    clearFilterButton.disabled = !isQueryableSource(dataset);
     const unsubscribeHandles = [
       bindDetailToSelection(workspace.views.detail, () => renderDetail(workspace)),
       bindQueryProjectionToExploration(
@@ -475,7 +545,7 @@ async function bootstrap(): Promise<void> {
           });
           latestResult = result;
           recordServiceExplorerQueryProjection(workspace.workspace, result);
-          renderTable(result, selectedFeatureId, (summary) => {
+          renderTable(dataset, result, selectedFeatureId, (summary) => {
             workspace.controllers.table.select([sourceFeatureSelectionTarget(dataset.sourceId, summary.id)], {
               replace: true,
             });
@@ -491,7 +561,7 @@ async function bootstrap(): Promise<void> {
             latestResult?.projection === projection
               ? latestResult
               : applyServiceExplorerProjection(dataset.featureSummaries, projection, { sourceId: dataset.sourceId });
-          renderChart(result, projection, (field, value) => {
+          renderChart(dataset, result, projection, (field, value) => {
             workspace.controllers.chart.selectBucket({
               filters: {
                 [`chart-${field}`]: { field, operator: "=", value, appliesTo: [dataset.sourceId] },
@@ -527,6 +597,9 @@ async function bootstrap(): Promise<void> {
         appliesTo: [dataset.sourceId],
       });
     });
+    sourcePicker.addEventListener("change", () => {
+      updateSourceLocation(sourcePicker.value);
+    });
     clearFilterButton.addEventListener("click", () => {
       filterSelect.value = "";
       workspace.controllers.filters.clearFilter("attribute");
@@ -547,8 +620,24 @@ async function bootstrap(): Promise<void> {
     setOverlay(
       "ready",
       "Explorer ready",
-      "Linked service discovery, metadata, map, table, chart, detail, and diagnostics are synchronized.",
+      isQueryableSource(dataset)
+        ? "Linked service discovery, metadata, map, table, chart, detail, and diagnostics are synchronized."
+        : "Render-only source selected; metadata, cache, map, and diagnostics stay visible while table/query controls are disabled.",
     );
+
+    window.__HONUA_SERVICE_EXPLORER_RUNTIME__ = {
+      ready: true,
+      sourceId: dataset.sourceOption.id,
+      protocol: dataset.sourceOption.protocol,
+      mode: dataset.sourceOption.mode,
+      queryable: isQueryableSource(dataset),
+      get visibleCount() {
+        return latestResult?.visibleCount ?? 0;
+      },
+      get filterCount() {
+        return latestResult ? Object.keys(latestResult.projection.filters).length : 0;
+      },
+    };
 
     window.addEventListener("beforeunload", () => {
       for (const unsubscribe of unsubscribeHandles) unsubscribe();

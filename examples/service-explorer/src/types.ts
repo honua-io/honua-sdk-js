@@ -13,6 +13,9 @@ import type { LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
 export type ServiceExplorerDataMode = "auto" | "cloud" | "fixture";
 export type ServiceExplorerDataSource = "cloud" | "fixture";
 export type ServiceExplorerDiagnosticLevel = "info" | "warning" | "error";
+export type ServiceExplorerProtocol = "FeatureServer" | "MapServer" | "WFS" | "WMTS" | "OGC Maps" | "OData";
+export type ServiceExplorerCapabilityStatus = "supported" | "degraded" | "unsupported";
+export type ServiceExplorerSourceMode = "queryable" | "render-only" | "degraded";
 
 export interface ServiceExplorerConfig {
   readonly honuaBaseUrl: string;
@@ -24,6 +27,7 @@ export interface ServiceExplorerConfig {
   readonly where: string;
   readonly resultRecordCount: number;
   readonly mapMoveDebounceMs: number;
+  readonly selectedSourceId?: string;
 }
 
 export interface ServiceExplorerDiagnostic {
@@ -35,11 +39,14 @@ export interface ServiceExplorerDiagnostic {
 }
 
 export interface ServiceExplorerCapabilitySummary {
-  readonly query: "supported" | "degraded" | "unsupported";
-  readonly metadata: "supported" | "degraded" | "unsupported";
-  readonly extent: "supported" | "degraded" | "unsupported";
-  readonly statistics: "supported" | "degraded" | "unsupported";
-  readonly attachments: "supported" | "degraded" | "unsupported";
+  readonly query: ServiceExplorerCapabilityStatus;
+  readonly render: ServiceExplorerCapabilityStatus;
+  readonly table: ServiceExplorerCapabilityStatus;
+  readonly metadata: ServiceExplorerCapabilityStatus;
+  readonly extent: ServiceExplorerCapabilityStatus;
+  readonly statistics: ServiceExplorerCapabilityStatus;
+  readonly attachments: ServiceExplorerCapabilityStatus;
+  readonly find: ServiceExplorerCapabilityStatus;
 }
 
 export interface ServiceExplorerServiceSummary {
@@ -49,18 +56,33 @@ export interface ServiceExplorerServiceSummary {
   readonly layerCount?: number;
   readonly description?: string;
   readonly status?: "available" | "degraded" | "unsupported";
+  readonly protocol?: ServiceExplorerProtocol;
 }
 
 export interface ServiceExplorerLayerSummary {
   readonly id: number;
   readonly name: string;
   readonly serviceId: string;
-  readonly serviceType: string;
+  readonly serviceType: ServiceExplorerProtocol;
   readonly geometryType?: EsriGeometryType;
   readonly sourceId: string;
 }
 
+export interface ServiceExplorerSourceOption {
+  readonly id: string;
+  readonly name: string;
+  readonly protocol: ServiceExplorerProtocol;
+  readonly mode: ServiceExplorerSourceMode;
+  readonly serviceId: string;
+  readonly layerId?: number;
+  readonly sourceId: string;
+  readonly description: string;
+  readonly cachePolicy: string;
+  readonly capabilities: ServiceExplorerCapabilitySummary;
+}
+
 export interface ServiceExplorerCatalog {
+  readonly sources: readonly ServiceExplorerSourceOption[];
   readonly services: readonly ServiceExplorerServiceSummary[];
   readonly layersByServiceId: Readonly<Record<string, readonly ServiceExplorerLayerSummary[]>>;
 }
@@ -87,6 +109,7 @@ export interface ServiceExplorerSourceMetadata {
 export interface ServiceExplorerDataset {
   readonly catalog: ServiceExplorerCatalog;
   readonly sourceId: string;
+  readonly sourceOption: ServiceExplorerSourceOption;
   readonly source: ServiceExplorerDataSource;
   readonly metadata: ServiceExplorerSourceMetadata;
   readonly features: readonly HonuaFeature[];

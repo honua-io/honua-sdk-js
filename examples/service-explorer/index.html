@@ -18,6 +18,12 @@
             <h2>Discovery</h2>
             <span id="data-source">-</span>
           </div>
+          <label class="field-label" for="source-picker">Source</label>
+          <select id="source-picker"></select>
+          <div class="source-summary">
+            <strong id="source-kind">-</strong>
+            <span id="source-description">-</span>
+          </div>
           <dl class="metric-list">
             <div>
               <dt>Service</dt>
@@ -30,6 +36,10 @@
             <div>
               <dt>Query</dt>
               <dd id="query-duration">-</dd>
+            </div>
+            <div>
+              <dt>Cache</dt>
+              <dd id="source-cache-policy">-</dd>
             </div>
           </dl>
           <h3>Services</h3>

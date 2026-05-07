@@ -13,8 +13,8 @@ import {
   FIXTURE_DIAGNOSTICS,
   FIXTURE_FEATURES,
   FIXTURE_REVALIDATE_AFTER_MS,
-  FIXTURE_SOURCE_ID,
-  FIXTURE_SOURCE_METADATA,
+  createFixtureServiceExplorerSourceMetadata,
+  findFixtureServiceExplorerSourceOption,
 } from "./fixtures.js";
 import { createServiceExplorerFeatureSummaries } from "./projection.js";
 import type {
@@ -40,8 +40,10 @@ export async function loadServiceExplorerDataset(
   if (shouldUseFixtureData(config)) {
     return createFixtureServiceExplorerDataset({
       now: options.now,
+      sourceOptionId: config.selectedSourceId,
       diagnostics: [
-        ...FIXTURE_DIAGNOSTICS,
+        ...createFixtureServiceExplorerSourceMetadata(findFixtureServiceExplorerSourceOption(config.selectedSourceId))
+          .diagnostics,
         {
           level: "info",
           code: "cloud-target",
@@ -59,8 +61,10 @@ export async function loadServiceExplorerDataset(
     const message = error instanceof Error ? error.message : String(error);
     return createFixtureServiceExplorerDataset({
       now: options.now,
+      sourceOptionId: config.selectedSourceId,
       diagnostics: [
-        ...FIXTURE_DIAGNOSTICS,
+        ...createFixtureServiceExplorerSourceMetadata(findFixtureServiceExplorerSourceOption(config.selectedSourceId))
+          .diagnostics,
         {
           level: "warning",
           code: "cloud-fallback",
@@ -73,30 +77,38 @@ export async function loadServiceExplorerDataset(
 }
 
 export function createFixtureServiceExplorerDataset(
-  options: { readonly now?: number; readonly diagnostics?: readonly ServiceExplorerDiagnostic[] } = {},
+  options: {
+    readonly now?: number;
+    readonly diagnostics?: readonly ServiceExplorerDiagnostic[];
+    readonly sourceOptionId?: string;
+  } = {},
 ): ServiceExplorerDataset {
   const now = options.now ?? Date.now();
-  const diagnostics = options.diagnostics ?? FIXTURE_DIAGNOSTICS;
+  const sourceOption = findFixtureServiceExplorerSourceOption(options.sourceOptionId);
+  const sourceMetadata = createFixtureServiceExplorerSourceMetadata(sourceOption);
+  const diagnostics = options.diagnostics ?? sourceMetadata.diagnostics ?? FIXTURE_DIAGNOSTICS;
   const metadata: ServiceExplorerSourceMetadata = {
-    ...FIXTURE_SOURCE_METADATA,
+    ...sourceMetadata,
     cache: {
-      ...FIXTURE_SOURCE_METADATA.cache,
+      ...sourceMetadata.cache,
       state: {
-        ...FIXTURE_SOURCE_METADATA.cache.state,
-        ageMs: Math.max(0, now - FIXTURE_SOURCE_METADATA.cache.updatedAt),
+        ...sourceMetadata.cache.state,
+        ageMs: Math.max(0, now - sourceMetadata.cache.updatedAt),
       },
-      updatedAt: FIXTURE_SOURCE_METADATA.cache.updatedAt || now,
+      updatedAt: sourceMetadata.cache.updatedAt || now,
     },
     diagnostics,
   };
-  const featureSummaries = createServiceExplorerFeatureSummaries(FIXTURE_FEATURES, metadata.schema);
+  const features = sourceOption.capabilities.table === "supported" ? FIXTURE_FEATURES : [];
+  const featureSummaries = createServiceExplorerFeatureSummaries(features, metadata.schema);
 
   return {
     catalog: FIXTURE_CATALOG,
-    sourceId: FIXTURE_SOURCE_ID,
+    sourceId: sourceOption.sourceId,
+    sourceOption,
     source: "fixture",
     metadata,
-    features: FIXTURE_FEATURES,
+    features,
     featureSummaries,
     diagnostics,
     queryDurationMs: 0,
@@ -198,12 +210,38 @@ async function loadCloudServiceExplorerDataset(
 
   return {
     catalog: {
+      sources: [
+        {
+          id: sourceId,
+          name: activeLayer.name,
+          protocol: "FeatureServer",
+          mode: "queryable",
+          serviceId: config.serviceId,
+          layerId: config.layerId,
+          sourceId,
+          description: activeService.description ?? "Cloud Honua FeatureServer source.",
+          cachePolicy: "Cache service, layer, schema, domains, and capability metadata by service/layer version.",
+          capabilities,
+        },
+      ],
       services,
       layersByServiceId: {
         [config.serviceId]: layers,
       },
     },
     sourceId,
+    sourceOption: {
+      id: sourceId,
+      name: activeLayer.name,
+      protocol: "FeatureServer",
+      mode: "queryable",
+      serviceId: config.serviceId,
+      layerId: config.layerId,
+      sourceId,
+      description: activeService.description ?? "Cloud Honua FeatureServer source.",
+      cachePolicy: "Cache service, layer, schema, domains, and capability metadata by service/layer version.",
+      capabilities,
+    },
     source: "cloud",
     metadata,
     features,
@@ -244,7 +282,7 @@ function layersFromServiceMetadata(
   serviceMetadata: HonuaServiceMetadata,
   selectedLayerMetadata: HonuaLayerMetadata,
 ): ServiceExplorerLayerSummary[] {
-  const layers = (serviceMetadata.layers ?? []).map((layer) => ({
+  const layers: ServiceExplorerLayerSummary[] = (serviceMetadata.layers ?? []).map((layer) => ({
     id: layer.id,
     name: layer.name,
     serviceId,
@@ -286,9 +324,12 @@ function createLayerSummary(serviceId: string, metadata: HonuaLayerMetadata): Se
 function capabilitiesFromLayerMetadata(metadata: HonuaLayerMetadata): ServiceExplorerCapabilitySummary {
   return {
     query: "supported",
+    render: "supported",
+    table: "supported",
     metadata: "supported",
     extent: metadata.extent ? "supported" : "degraded",
     statistics: "degraded",
     attachments: metadata.supportsAttachments ? "supported" : "unsupported",
+    find: "degraded",
   };
 }
