@@ -150,6 +150,24 @@ Server publishes the lifecycle routes only under
 advertise only `connect` (service-root metadata probe) may omit the
 task name.
 
+GeoServices GPServer also participates in the unified process runner:
+`client.geoprocessingRunner(serviceId, taskName)` returns a
+`HonuaProcessRunner` that submits GP parameters and exposes the same
+`IJobRun` lifecycle as OGC API Processes and geospatial-grpc
+ProcessService clients.
+
+### Geospatial gRPC Process Service
+The open `honua-io/geospatial-grpc` protocol defines
+`geospatial.v1.ProcessService` with `ValidatePlan`, `DryRunPlan`,
+`ExecutePlan`, `ExecutePlanStream`, `SubmitJob`, `GetJob`,
+`GetJobResult`, and `CancelJob`. The JS SDK keeps the adapter structural
+because generated process proto lives outside this package today:
+`client.geospatialGrpcProcessRunner(processServiceClient)` accepts a
+generated Connect client and normalizes `JobState` values onto
+`IJobRun`. `JOB_STATE_COMPLETED` maps to `successful`,
+`JOB_STATE_FAILED` to `failed`, `JOB_STATE_CANCELLED` to `dismissed`,
+and draft/clarification/validated/approval states map to `accepted`.
+
 ### OGC API Tiles
 Render-only adapter. `tiles` and `render` are the first-party capabilities; the
 canonical `Source.query*` family throws `HonuaCapabilityNotSupportedError`

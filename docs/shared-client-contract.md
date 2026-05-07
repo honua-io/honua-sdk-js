@@ -325,9 +325,10 @@ reachable through `Source.protocol("wfs").root`.
 
 ## Async operations: `IJobRun`
 
-Long-running server-side operations (OGC API Processes execution today;
-future GeoServices async exports, OData function imports, etc.) surface
-through the canonical `IJobRun<T>` interface in `@honua/sdk-js/contract`:
+Long-running server-side operations surface through the canonical
+`IJobRun<T>` interface in `@honua/sdk-js/contract`. OGC API Processes,
+GeoServices REST GPServer, and the open `honua-io/geospatial-grpc`
+`ProcessService` all normalize onto the same lifecycle vocabulary:
 
 ```ts
 import type { IJobRun } from "@honua/sdk-js/contract";
@@ -345,14 +346,39 @@ const { outputs } = await job.results();
 unwatch();
 ```
 
+For app code that should not know which protocol is behind a workflow,
+use `HonuaProcessRunner`:
+
+```ts
+const ogc = client.ogcProcessRunner();
+const gp = client.geoprocessingRunner("Analysis", "OverlayFacilities");
+const grpc = client.geospatialGrpcProcessRunner(processServiceClient);
+
+await ogc.execute({ processId: "buffer", inputs });
+await gp.execute({ inputs: gpParameters, resultNames: ["outputLayer"] });
+await grpc.execute({ plan: executionPlan, context: executionContext });
+```
+
+`createOgcProcessesAdapter`, `createGeoServicesGpAdapter`, and
+`createGeospatialGrpcProcessAdapter` expose the same adapter contract for
+callers that construct protocol handles outside `HonuaClient`. The
+geospatial-grpc adapter is structural: it expects a generated
+`ProcessService` client with `validatePlan`, `dryRunPlan`, `submitJob`,
+`getJob`, `getJobResult`, and `cancelJob`, but this package does not
+vendor the `honua-io/geospatial-grpc` generated process proto directly.
+
 `IJobRun` exposes `id`, `type`, `status`, `progress`, `poll()`,
 `watch()`, `results()`, and `cancel()`. The OGC API Processes 1.0
 status vocabulary (`accepted`, `running`, `successful`, `failed`,
-`dismissed`) is canonical; adapters for other protocols translate onto
-it. Failed runs reject `results()` with `HonuaJobFailedError`, whose
-`message` is populated from the server's `statusInfo.exception.message`
-when present and falls back to `statusInfo.message` otherwise (to match
-honua-server's `StatusInfo` DTO, which exposes only `message`).
+`dismissed`) is canonical. GeoServices `esriJobSubmitted` /
+`esriJobExecuting` / `esriJobSucceeded` / `esriJobFailed` /
+`esriJobCancelled` and geospatial-grpc `JobState` values
+(`JOB_STATE_RUNNING`, `JOB_STATE_COMPLETED`, `JOB_STATE_FAILED`,
+`JOB_STATE_CANCELLED`, etc.) translate onto it. Failed OGC runs reject
+`results()` with `HonuaJobFailedError`, whose `message` is populated
+from the server's `statusInfo.exception.message` when present and falls
+back to `statusInfo.message` otherwise (to match honua-server's
+`StatusInfo` DTO, which exposes only `message`).
 `cancel()` is idempotent against the two documented benign paths:
 "job gone" (404) returns the cached status, and the terminal race
 (409 "Cannot dismiss completed job" from honua-server) triggers a

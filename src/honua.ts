@@ -257,6 +257,7 @@ export {
   createHonuaService,
   HonuaFeatureLayer,
   HonuaGeometryService,
+  HonuaGeoprocessingJobRun,
   HonuaGeoprocessingService,
   HonuaImageService,
   HonuaMapLayer,
@@ -287,6 +288,26 @@ export type {
   HonuaOgcCollectionMapOptions,
   HonuaOgcMapsOptions,
 } from "./core/ogc-maps.js";
+export {
+  createGeoServicesGpAdapter,
+  createGeospatialGrpcProcessAdapter,
+  createHonuaProcessRunner,
+  createOgcProcessesAdapter,
+  HonuaProcessRunner,
+} from "./core/process-runner.js";
+export type {
+  GeospatialGrpcCancelJobResponse,
+  GeospatialGrpcErrorDetail,
+  GeospatialGrpcGetJobResponse,
+  GeospatialGrpcGetJobResultResponse,
+  GeospatialGrpcJobProgress,
+  GeospatialGrpcProcessClient,
+  GeospatialGrpcSubmitJobResponse,
+  HonuaProcessAdapter,
+  HonuaProcessExecuteRequest,
+  HonuaProcessJobOptions,
+  HonuaProcessProtocol,
+} from "./core/process-runner.js";
 export {
   createHonuaOgcProcesses,
   HonuaJobFailedError,
@@ -527,6 +548,8 @@ export type {
   HonuaGeometrySimplifyRequest,
   HonuaGeometryUnionRequest,
   HonuaGeoprocessingJob,
+  HonuaGeoprocessingJobRunOptions,
+  HonuaGeoprocessingJobRunRequestOptions,
   HonuaGeoprocessingServiceOptions,
   HonuaGeoprocessingSubmitRequest,
   HonuaImageServiceExportRequest,

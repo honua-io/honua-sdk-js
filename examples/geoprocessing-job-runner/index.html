@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua Geometry and Geoprocessing Job Runner</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="top-bar" aria-label="Process controls">
+        <div class="control-group">
+          <label for="aoi-select">AOI</label>
+          <select id="aoi-select"></select>
+        </div>
+        <div class="control-group">
+          <label for="plan-select">Process</label>
+          <select id="plan-select"></select>
+        </div>
+        <div class="control-group">
+          <label for="category-filter">Category</label>
+          <select id="category-filter">
+            <option value="all">All</option>
+            <option value="facility">Facility</option>
+            <option value="route">Route</option>
+            <option value="shelter">Shelter</option>
+            <option value="asset">Asset</option>
+          </select>
+        </div>
+        <button id="run-job" type="button">Run Job</button>
+        <button id="poll-job" type="button">Poll</button>
+        <button id="cancel-job" type="button">Cancel</button>
+        <button id="export-workspace" type="button">Export</button>
+      </section>
+
+      <section class="status-strip" aria-label="Job status">
+        <article>
+          <span>Job</span>
+          <strong id="job-state">Idle</strong>
+        </article>
+        <article>
+          <span>Cache</span>
+          <strong id="cache-state">0 ready</strong>
+        </article>
+        <article>
+          <span>Capability</span>
+          <strong id="capability-state">available</strong>
+        </article>
+        <article>
+          <span>Results</span>
+          <strong id="result-count">0</strong>
+        </article>
+      </section>
+
+      <section class="workspace-grid">
+        <aside class="side-panel" aria-label="Process catalog">
+          <div class="meta-list">
+            <div><span>AOI area</span><strong id="aoi-area"></strong></div>
+            <div><span>Geometry</span><strong id="aoi-geometry"></strong></div>
+            <div><span>Duration</span><strong id="plan-duration"></strong></div>
+            <div><span>Layer</span><strong id="materialized-layer"></strong></div>
+          </div>
+          <div id="process-list" class="process-list"></div>
+          <div id="job-diagnostics" class="diagnostics">No failed-job diagnostics</div>
+        </aside>
+
+        <section class="map-panel" aria-label="Linked map">
+          <div id="map-surface" class="map-surface"></div>
+        </section>
+
+        <section class="analytics-panel" aria-label="Linked results">
+          <div class="metrics">
+            <div><span>Features</span><strong id="metric-count">0</strong></div>
+            <div><span>Critical</span><strong id="metric-critical">0</strong></div>
+            <div><span>People</span><strong id="metric-population">0</strong></div>
+          </div>
+          <div id="risk-chart" class="risk-chart"></div>
+          <div id="result-table" class="result-table"></div>
+          <div id="feature-detail" class="feature-detail"></div>
+        </section>
+      </section>
+
+      <textarea id="workspace-export" aria-label="Workspace export" spellcheck="false"></textarea>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

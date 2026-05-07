@@ -1,3 +1,13 @@
+import { isJobTerminal } from "../contract/jobs.js";
+import type {
+  IJobRun,
+  JobError,
+  JobProgress,
+  JobResult,
+  JobSnapshot,
+  JobSnapshotListener,
+  JobStatus,
+} from "../contract/jobs.js";
 import {
   FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID,
   SPATIAL_AGGREGATION_METADATA_SCHEMA_VERSION,
@@ -1733,11 +1743,29 @@ export interface HonuaGeoprocessingSubmitRequest {
   signal?: AbortSignal;
 }
 
+export interface HonuaGeoprocessingJobRunRequestOptions {
+  /** Result parameter ids to fetch when the job succeeds. */
+  resultNames?: readonly string[];
+  /** Default `pollIntervalMs` for `IJobRun.results()`. */
+  pollIntervalMs?: number;
+}
+
 export interface HonuaGeoprocessingJob {
   jobId: string;
   jobStatus: string;
   results?: Record<string, unknown>;
   messages?: ReadonlyArray<{ type: string; description: string }>;
+}
+
+export interface HonuaGeoprocessingJobRunOptions extends HonuaGeoprocessingJobRunRequestOptions {
+  client: HonuaClient;
+  serviceId: string;
+  taskName?: string;
+  jobId: string;
+  initialJob?: HonuaGeoprocessingJob;
+  pollFn?: (jobId: string, signal?: AbortSignal) => Promise<HonuaGeoprocessingJob>;
+  resultFn?: (jobId: string, resultName: string, signal?: AbortSignal) => Promise<Record<string, unknown>>;
+  cancelFn?: (jobId: string, signal?: AbortSignal) => Promise<HonuaGeoprocessingJob>;
 }
 
 /**
@@ -1765,6 +1793,40 @@ export class HonuaGeoprocessingService {
       responseFormat: request.responseFormat ?? "json",
       query: gpSubmitParams(request),
       signal: request.signal,
+    });
+  }
+
+  /**
+   * Submit a GeoServices GP job and expose it through the canonical
+   * async-operation surface. This keeps GPServer tasks interoperable with
+   * OGC Processes jobs, app-workspace job state, and any future job-aware
+   * UI components.
+   */
+  public async submit<T = unknown>(
+    request: HonuaGeoprocessingSubmitRequest,
+    options: HonuaGeoprocessingJobRunRequestOptions = {},
+  ): Promise<IJobRun<T>> {
+    const accepted = await this.submitJob(request);
+    return new HonuaGeoprocessingJobRun<T>({
+      client: this.client,
+      serviceId: this.serviceId,
+      taskName: this.taskName,
+      jobId: accepted.jobId,
+      initialJob: accepted,
+      resultNames: options.resultNames,
+      pollIntervalMs: options.pollIntervalMs,
+    });
+  }
+
+  /** Adopt an existing GP job by id after navigation or reconnect. */
+  public job<T = unknown>(jobId: string, options: HonuaGeoprocessingJobRunRequestOptions = {}): IJobRun<T> {
+    return new HonuaGeoprocessingJobRun<T>({
+      client: this.client,
+      serviceId: this.serviceId,
+      taskName: this.taskName,
+      jobId,
+      resultNames: options.resultNames,
+      pollIntervalMs: options.pollIntervalMs,
     });
   }
 
@@ -1805,6 +1867,167 @@ export class HonuaGeoprocessingService {
   }
 }
 
+const DEFAULT_GP_POLL_INTERVAL_MS = 1_000;
+
+export class HonuaGeoprocessingJobRun<T = unknown> implements IJobRun<T> {
+  public readonly id: string;
+  public readonly type: string;
+
+  private readonly client: HonuaClient;
+  private readonly serviceId: string;
+  private readonly taskName: string | undefined;
+  private readonly resultNames: readonly string[];
+  private readonly pollIntervalMs: number;
+  private readonly pollFn: (jobId: string, signal?: AbortSignal) => Promise<HonuaGeoprocessingJob>;
+  private readonly resultFn: (
+    jobId: string,
+    resultName: string,
+    signal?: AbortSignal,
+  ) => Promise<Record<string, unknown>>;
+  private readonly cancelFn: (jobId: string, signal?: AbortSignal) => Promise<HonuaGeoprocessingJob>;
+  private currentStatus: JobStatus;
+  private currentProgress: JobProgress | undefined;
+  private terminalSnapshot: JobSnapshot<T> | undefined;
+  private terminalPromise: Promise<JobResult<T>> | undefined;
+  private readonly listeners = new Set<JobSnapshotListener<T>>();
+
+  public constructor(options: HonuaGeoprocessingJobRunOptions) {
+    this.client = options.client;
+    this.serviceId = options.serviceId;
+    this.taskName = options.taskName;
+    this.id = options.jobId;
+    this.type = options.taskName ? `${options.serviceId}/${options.taskName}` : options.serviceId;
+    this.resultNames = options.resultNames ?? [];
+    this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_GP_POLL_INTERVAL_MS;
+    this.pollFn =
+      options.pollFn ??
+      ((jobId, signal) =>
+        new HonuaGeoprocessingService({
+          client: this.client,
+          serviceId: this.serviceId,
+          taskName: this.taskName,
+        }).jobStatus(jobId, { signal }));
+    this.resultFn =
+      options.resultFn ??
+      ((jobId, resultName, signal) =>
+        new HonuaGeoprocessingService({
+          client: this.client,
+          serviceId: this.serviceId,
+          taskName: this.taskName,
+        }).jobResult(jobId, resultName, { signal }));
+    this.cancelFn =
+      options.cancelFn ??
+      ((jobId, signal) =>
+        new HonuaGeoprocessingService({
+          client: this.client,
+          serviceId: this.serviceId,
+          taskName: this.taskName,
+        }).cancelJob(jobId, { signal }));
+    this.currentStatus = geoprocessingStatusToJobStatus(options.initialJob?.jobStatus);
+    this.currentProgress = progressFromGeoprocessingJob(options.initialJob);
+  }
+
+  public get status(): JobStatus {
+    return this.currentStatus;
+  }
+
+  public get progress(): JobProgress | undefined {
+    return this.currentProgress;
+  }
+
+  public async poll(): Promise<JobSnapshot<T>> {
+    if (this.terminalSnapshot) return this.terminalSnapshot;
+    const job = await this.pollFn(this.id);
+    return this.handleGeoprocessingJob(job);
+  }
+
+  public watch(listener: JobSnapshotListener<T>): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  public async results(): Promise<JobResult<T>> {
+    if (!this.terminalPromise) {
+      this.terminalPromise = this.runUntilTerminal();
+    }
+    return this.terminalPromise;
+  }
+
+  public async cancel(): Promise<JobStatus> {
+    if (this.terminalSnapshot) return this.currentStatus;
+    const cancelled = await this.cancelFn(this.id);
+    const snapshot = await this.handleGeoprocessingJob(cancelled);
+    return snapshot.status;
+  }
+
+  private async runUntilTerminal(): Promise<JobResult<T>> {
+    while (!this.terminalSnapshot) {
+      const job = await this.pollFn(this.id);
+      await this.handleGeoprocessingJob(job);
+      if (this.terminalSnapshot) break;
+      if (this.pollIntervalMs > 0) await gpDelay(this.pollIntervalMs);
+    }
+    if (this.terminalSnapshot.status === "successful" && this.terminalSnapshot.result) {
+      return this.terminalSnapshot.result;
+    }
+    const error = this.terminalSnapshot.error;
+    throw new Error(error?.message ?? `GeoServices GP job ended in ${this.terminalSnapshot.status}`);
+  }
+
+  private async handleGeoprocessingJob(job: HonuaGeoprocessingJob | undefined): Promise<JobSnapshot<T>> {
+    const status = geoprocessingStatusToJobStatus(job?.jobStatus);
+    const progress = progressFromGeoprocessingJob(job);
+    this.currentStatus = status;
+    this.currentProgress = progress;
+
+    if (status === "successful") {
+      const outputs = await this.resolveOutputs(job);
+      const snapshot: JobSnapshot<T> = {
+        status,
+        progress,
+        result: { outputs },
+      };
+      this.terminalSnapshot = snapshot;
+      this.notify(snapshot);
+      return snapshot;
+    }
+
+    if (status === "failed" || status === "dismissed") {
+      const error = geoprocessingJobError(status, job);
+      const snapshot: JobSnapshot<T> = {
+        status,
+        progress,
+        ...(error ? { error } : {}),
+      };
+      this.terminalSnapshot = snapshot;
+      this.notify(snapshot);
+      return snapshot;
+    }
+
+    const snapshot: JobSnapshot<T> = { status, progress };
+    this.notify(snapshot);
+    return snapshot;
+  }
+
+  private async resolveOutputs(job: HonuaGeoprocessingJob | undefined): Promise<Record<string, T>> {
+    if (this.resultNames.length === 0) {
+      return (job?.results ?? {}) as Record<string, T>;
+    }
+
+    const outputs: Record<string, T> = {};
+    for (const resultName of this.resultNames) {
+      outputs[resultName] = (await this.resultFn(this.id, resultName)) as T;
+    }
+    return outputs;
+  }
+
+  private notify(snapshot: JobSnapshot<T>): void {
+    for (const listener of this.listeners) {
+      listener(snapshot);
+    }
+  }
+}
+
 function gpSubmitParams(request: HonuaGeoprocessingSubmitRequest): Record<string, string | number | boolean> {
   const params: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(request.parameters)) {
@@ -1815,6 +2038,52 @@ function gpSubmitParams(request: HonuaGeoprocessingSubmitRequest): Record<string
   }
   Object.assign(params, request.extraParams ?? {});
   return params;
+}
+
+function geoprocessingStatusToJobStatus(value: string | undefined): JobStatus {
+  const normalized = (value ?? "esriJobSubmitted").toLowerCase();
+  if (normalized.includes("succeeded") || normalized === "successful") return "successful";
+  if (normalized.includes("cancelled") || normalized.includes("canceled") || normalized.includes("dismissed")) {
+    return "dismissed";
+  }
+  if (normalized.includes("failed") || normalized.includes("timedout") || normalized.includes("timed out")) {
+    return "failed";
+  }
+  if (normalized.includes("submitted") || normalized.includes("waiting") || normalized.includes("accepted")) {
+    return "accepted";
+  }
+  if (isJobTerminal(normalized as JobStatus)) return normalized as JobStatus;
+  return "running";
+}
+
+function progressFromGeoprocessingJob(job: HonuaGeoprocessingJob | undefined): JobProgress | undefined {
+  if (!job) return undefined;
+  const message = job.messages?.at(-1)?.description;
+  const status = geoprocessingStatusToJobStatus(job.jobStatus);
+  const percent = status === "successful" ? 100 : status === "accepted" ? 5 : status === "running" ? 50 : undefined;
+  if (percent === undefined && message === undefined) return undefined;
+  return { ...(percent !== undefined ? { percent } : {}), ...(message !== undefined ? { message } : {}) };
+}
+
+function geoprocessingJobError(status: JobStatus, job: HonuaGeoprocessingJob | undefined): JobError | undefined {
+  const message =
+    job?.messages?.find((entry) => /error|failed|cancel/i.test(entry.type))?.description ??
+    job?.messages?.at(-1)?.description;
+  if (!message) {
+    return status === "dismissed"
+      ? { code: "GeoServicesJobDismissed", message: "GeoServices GP job was dismissed." }
+      : { code: "GeoServicesJobFailed", message: "GeoServices GP job failed." };
+  }
+  return {
+    code: status === "dismissed" ? "GeoServicesJobDismissed" : "GeoServicesJobFailed",
+    message,
+  };
+}
+
+function gpDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
