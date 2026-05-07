@@ -23,7 +23,8 @@ import type { HonuaExtent, HonuaFieldInfo, HonuaServerCompatibilityFeature, Honu
 
 /**
  * Canonical protocol identifiers. Spatial / tabular protocols served
- * behind a `Source` come first, then the render-only OGC tile and map
+ * behind a `Source` come first, with the shared canonical gRPC
+ * FeatureService transport leading the list. Render-only OGC tile and map
  * adapters (reachable through `Source.protocol()`), then the STAC API
  * search adapter, the WFS / WMS / OData adapters, and finally the
  * MapLibre-native sources composed alongside protocol sources by
@@ -37,6 +38,7 @@ import type { HonuaExtent, HonuaFieldInfo, HonuaServerCompatibilityFeature, Honu
  * vocabulary even when the underlying protocol is utility-only.
  */
 export type Protocol =
+  | "grpc"
   | "geoservices-feature-service"
   | "geoservices-map-service"
   | "geoservices-image-service"
@@ -56,6 +58,7 @@ export type Protocol =
 
 /** All protocol identifiers, in declaration order. */
 export const PROTOCOLS: readonly Protocol[] = [
+  "grpc",
   "geoservices-feature-service",
   "geoservices-map-service",
   "geoservices-image-service",
@@ -206,6 +209,7 @@ export function unionCapabilities(participants: ReadonlyArray<{ readonly capabil
  * Update both together.
  */
 export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabilities>> = {
+  grpc: capabilities(["query", "queryAggregate", "queryExtent", "queryObjectIds", "applyEdits", "stream"]),
   "geoservices-feature-service": capabilities([
     "query",
     "queryAggregate",

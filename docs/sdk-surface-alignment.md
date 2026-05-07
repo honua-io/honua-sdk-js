@@ -60,6 +60,7 @@ prefer the canonical identifiers; SDKs may accept short or legacy aliases for
 already-shipped public names by normalizing on read through the
 `protocolAliases` map in the fixture pack:
 
+- `grpc`
 - `geoservices-feature-service`
 - `geoservices-map-service`
 - `geoservices-image-service`
