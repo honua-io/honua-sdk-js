@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua Edit Workflow Demo</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p>Honua Cloud</p>
+          <h1>Field Inspection Editing</h1>
+        </div>
+        <dl class="status-strip">
+          <div>
+            <dt>Cache</dt>
+            <dd id="cache-state">loading</dd>
+          </div>
+          <div>
+            <dt>Visible</dt>
+            <dd id="visible-count">0</dd>
+          </div>
+          <div>
+            <dt>Pending</dt>
+            <dd id="pending-count">0</dd>
+          </div>
+          <div>
+            <dt>Submit</dt>
+            <dd id="submit-status">Ready</dd>
+          </div>
+          <div>
+            <dt>Optimistic</dt>
+            <dd id="rollback-state">Idle</dd>
+          </div>
+        </dl>
+      </header>
+
+      <section class="toolbar" aria-label="Linked context controls">
+        <label>
+          <span>Map area</span>
+          <select id="area-select"></select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="status-filter">
+            <option value="all">All</option>
+            <option value="open">Open</option>
+            <option value="in-progress">In progress</option>
+            <option value="closed">Closed</option>
+          </select>
+        </label>
+        <label>
+          <span>Priority</span>
+          <select id="priority-filter">
+            <option value="all">All</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </label>
+        <div class="toolbar-meta">
+          <span id="area-cache-key"></span>
+          <span id="capability-summary"></span>
+        </div>
+      </section>
+
+      <section class="workspace-grid">
+        <section class="map-panel" aria-label="Inspection map">
+          <div id="map-surface" class="map-surface"></div>
+        </section>
+
+        <section class="table-panel" aria-label="Inspection table">
+          <div class="panel-heading">
+            <h2>Records</h2>
+            <div id="status-buckets" class="bucket-row"></div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Score</th>
+                <th>Version</th>
+              </tr>
+            </thead>
+            <tbody id="feature-table"></tbody>
+          </table>
+        </section>
+
+        <aside class="edit-panel" aria-label="Edit workflow">
+          <div class="panel-heading">
+            <div>
+              <p id="form-mode">Update</p>
+              <h2>Feature <span id="form-feature-id">new</span></h2>
+            </div>
+            <div class="action-row">
+              <button id="new-feature" type="button">New</button>
+              <button id="save-edit" type="button">Save</button>
+              <button id="delete-feature" type="button">Delete</button>
+            </div>
+          </div>
+          <div id="feature-form" class="feature-form"></div>
+          <div class="attachment-actions">
+            <button id="stage-attachment" type="button">Add Photo</button>
+            <button id="stage-large-attachment" type="button">Add Oversize</button>
+            <button id="stage-delete-attachment" type="button">Delete File</button>
+          </div>
+          <div class="attachment-grid">
+            <section>
+              <h3>Attachments</h3>
+              <ul id="attachment-list"></ul>
+            </section>
+            <section>
+              <h3>Staged</h3>
+              <ul id="pending-attachments"></ul>
+            </section>
+          </div>
+        </aside>
+
+        <section class="diagnostics-panel" aria-label="Workflow diagnostics">
+          <div id="feature-detail" class="feature-detail"></div>
+          <div class="action-row">
+            <button id="force-conflict" type="button">Force Conflict</button>
+            <button id="unsupported-check" type="button">Read-only Check</button>
+            <button id="export-workspace" type="button">Export</button>
+          </div>
+          <div id="source-readiness" class="readiness-list"></div>
+          <div id="operation-log" class="operation-log"></div>
+          <ul id="failure-list" class="failure-list"></ul>
+          <pre id="workspace-export" class="workspace-export"></pre>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
