@@ -67,6 +67,30 @@ test("unified ops workspace preserves linked context across modules, drafts, rea
     await expect(page.locator("#detail-title")).toHaveText("Harbor fuel sheen");
     await expect.poll(async () => page.evaluate(() => window.__HONUA_UNIFIED_OPS_RUNTIME__?.filterCount)).toBe(2);
 
+    await page.getByRole("button", { name: "Field Editing" }).click();
+    await expect(page.getByRole("button", { name: "Field Editing" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#filter-count")).toHaveText("2");
+    await expect(page.locator("#detail-title")).toHaveText("Harbor fuel sheen");
+    await expect(page.locator("#edit-visible-count")).toHaveText("3");
+
+    await page.getByRole("button", { name: /Pier 2 pump station/ }).click();
+    await expect(page.locator("#detail-title")).toHaveText("Pier 2 pump station");
+    await page.locator("#edit-status-field").selectOption("closed");
+    await page.locator("#edit-score-field").fill("95");
+    await page.getByRole("button", { name: "Stage Attachment" }).click();
+    await expect(page.locator("#edit-pending-count")).toHaveText("1");
+    await page.getByRole("button", { name: "Save Edit" }).click();
+    await expect(page.locator("#edit-status-readout")).toHaveText("Succeeded");
+    await expect(page.locator("#edit-pending-count")).toHaveText("0");
+    await expect(page.locator("#detail-attributes")).toContainText("Closed");
+
+    await page.getByRole("button", { name: "Analysis Review" }).click();
+    await expect(page.locator("#filter-count")).toHaveText("2");
+    await expect(page.locator("#detail-title")).toHaveText("Pier 2 pump station");
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_UNIFIED_OPS_RUNTIME__?.editStatus)).toBe(
+      "succeeded",
+    );
+
     expect(pageErrors).toEqual([]);
   } finally {
     await fixtureServer.close();

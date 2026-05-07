@@ -1,6 +1,8 @@
 import type { HonuaExtent } from "@honua/sdk-js/honua";
 
-import { CREW_SOURCE_ID, INCIDENT_SOURCE_ID } from "./types.js";
+import { createEditWorkflowDataset } from "../../edit-workflow-demo/src/fixtures.js";
+import type { InspectionFeature, InspectionPriority } from "../../edit-workflow-demo/src/types.js";
+import { CREW_SOURCE_ID, FIELD_INSPECTION_SOURCE_ID, INCIDENT_SOURCE_ID } from "./types.js";
 import type {
   UnifiedOpsFeature,
   UnifiedOpsMapPreset,
@@ -8,7 +10,7 @@ import type {
   UnifiedOpsSourceMetadata,
 } from "./types.js";
 
-export const OPS_SOURCE_IDS = [INCIDENT_SOURCE_ID, CREW_SOURCE_ID] as const;
+export const OPS_SOURCE_IDS = [INCIDENT_SOURCE_ID, CREW_SOURCE_ID, FIELD_INSPECTION_SOURCE_ID] as const;
 
 export const DEFAULT_WORKSPACE_EXTENT: HonuaExtent = {
   xmin: -157.93,
@@ -40,7 +42,9 @@ export const MAP_PRESETS: readonly UnifiedOpsMapPreset[] = [
   { id: "airport", label: "Airport", extent: AIRPORT_EXTENT },
 ];
 
-export const INITIAL_UNIFIED_OPS_FEATURES: readonly UnifiedOpsFeature[] = [
+const EDIT_WORKFLOW_DATASET = createEditWorkflowDataset();
+
+export const INITIAL_OPERATIONAL_FEATURES: readonly UnifiedOpsFeature[] = [
   {
     id: "INC-2001",
     sourceId: INCIDENT_SOURCE_ID,
@@ -165,6 +169,15 @@ export const INITIAL_UNIFIED_OPS_FEATURES: readonly UnifiedOpsFeature[] = [
   },
 ];
 
+export const INITIAL_EDIT_WORKFLOW_FEATURES: readonly UnifiedOpsFeature[] = EDIT_WORKFLOW_DATASET.features.map(
+  editWorkflowFeatureToUnifiedOpsFeature,
+);
+
+export const INITIAL_UNIFIED_OPS_FEATURES: readonly UnifiedOpsFeature[] = [
+  ...INITIAL_OPERATIONAL_FEATURES,
+  ...INITIAL_EDIT_WORKFLOW_FEATURES,
+];
+
 export const INITIAL_SOURCE_METADATA: Record<string, UnifiedOpsSourceMetadata> = {
   [INCIDENT_SOURCE_ID]: {
     title: "Incident operations",
@@ -187,6 +200,17 @@ export const INITIAL_SOURCE_METADATA: Record<string, UnifiedOpsSourceMetadata> =
       ttlMs: 900_000,
     },
     diagnostics: ["Layer metadata cache hit", "Domain cache hit", "Crew assignment index warmed"],
+  },
+  [FIELD_INSPECTION_SOURCE_ID]: {
+    title: "Field inspections",
+    protocol: "geoservices-feature-service",
+    active: true,
+    cache: {
+      status: "hit",
+      updatedAt: Date.parse("2026-05-06T18:00:00.000Z"),
+      ttlMs: 900_000,
+    },
+    diagnostics: ["Form metadata cache hit", "Domain cache hit", "Attachment capability supported"],
   },
 };
 
@@ -260,3 +284,37 @@ export const UNIFIED_OPS_SCENARIO_STEPS: readonly UnifiedOpsScenarioStep[] = [
     },
   },
 ];
+
+export function editWorkflowFeatureToUnifiedOpsFeature(feature: InspectionFeature): UnifiedOpsFeature {
+  return {
+    id: String(feature.id),
+    sourceId: FIELD_INSPECTION_SOURCE_ID,
+    kind: "inspection",
+    title: feature.title,
+    type: "Field Inspection",
+    severity: priorityToSeverity(feature.attributes.priority),
+    status: feature.attributes.status,
+    district: titleCase(feature.areaId),
+    coordinate: [feature.geometry.x, feature.geometry.y],
+    updatedAt: feature.attributes.last_edited_date,
+    impactScore: feature.attributes.inspection_score,
+    assignment: feature.attributes.assigned_to,
+    summary: feature.attributes.notes,
+    relatedIds: [feature.attributes.asset_id],
+    attachments:
+      EDIT_WORKFLOW_DATASET.attachments[String(feature.id)]?.map(
+        (attachment) => attachment.name ?? String(attachment.id),
+      ) ?? [],
+  };
+}
+
+function priorityToSeverity(priority: InspectionPriority): UnifiedOpsFeature["severity"] {
+  if (priority === "critical") return "critical";
+  if (priority === "high") return "high";
+  if (priority === "medium") return "medium";
+  return "low";
+}
+
+function titleCase(value: string): string {
+  return value.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}

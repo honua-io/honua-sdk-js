@@ -12,16 +12,22 @@ import {
   applyUnifiedOpsProjection,
   createUnifiedOpsSnapshotDiagnostics,
   createUnifiedOpsWorkspace,
+  forceUnifiedOpsEditConflict,
   formatExtent,
   moveUnifiedOpsMap,
   restoreUnifiedOpsSnapshot,
   saveUnifiedOpsSnapshot,
+  selectUnifiedOpsEditFeature,
   selectedFeatureId,
   setUnifiedOpsActiveModule,
   setUnifiedOpsActiveSource,
   stageUnifiedOpsAiDraft,
+  stageUnifiedOpsEditAttachment,
+  submitUnifiedOpsEditDraft,
+  updateUnifiedOpsEditDraftValue,
+  visibleUnifiedOpsEditFeatures,
 } from "./model.js";
-import { CREW_SOURCE_ID, INCIDENT_SOURCE_ID, OPS_LAYER_ID } from "./types.js";
+import { CREW_SOURCE_ID, FIELD_INSPECTION_SOURCE_ID, INCIDENT_SOURCE_ID, OPS_LAYER_ID } from "./types.js";
 import type {
   UnifiedOpsFeature,
   UnifiedOpsModuleId,
@@ -41,6 +47,9 @@ interface UnifiedOpsRuntime {
   stagedDraftCount: number;
   appliedDraftCount: number;
   realtimeStatus: string;
+  editStatus: string;
+  editFeatureId: string | null;
+  pendingAttachmentCount: number;
   snapshotId: string | null;
   lastStep: string | null;
   step(): string | null;
@@ -71,6 +80,7 @@ let lastStep: string | null = null;
 let lastSavedDocument: unknown;
 let lastSnapshot: UnifiedOpsSavedSnapshot | undefined;
 let appliedDraftCount = 0;
+let lastEditStatus = "ready";
 
 const runtime: UnifiedOpsRuntime = {
   ready: false,
@@ -81,6 +91,9 @@ const runtime: UnifiedOpsRuntime = {
   stagedDraftCount: 0,
   appliedDraftCount: 0,
   realtimeStatus: "idle",
+  editStatus: lastEditStatus,
+  editFeatureId: null,
+  pendingAttachmentCount: 0,
   snapshotId: null,
   lastStep: null,
   step() {
@@ -120,6 +133,12 @@ function setText(selector: string, value: string): void {
   getElement<HTMLElement>(selector).textContent = value;
 }
 
+function setInputValue(selector: string, value: string): void {
+  const element = getElement<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(selector);
+  if (document.activeElement === element) return;
+  element.value = value;
+}
+
 function escapeHtml(value: unknown): string {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -151,6 +170,7 @@ function renderAll(): void {
   renderMap(mapResult);
   renderIncidentTable(incidentResult);
   renderChart(incidentResult);
+  renderFieldEditing();
   renderDetail();
   renderDrafts();
   renderJobs();
@@ -166,6 +186,7 @@ function renderModules(): void {
   });
   getElement<HTMLElement>("#incident-command-module").dataset.active = String(activeModule === "incident-command");
   getElement<HTMLElement>("#analysis-review-module").dataset.active = String(activeModule === "analysis-review");
+  getElement<HTMLElement>("#field-editing-module").dataset.active = String(activeModule === "field-editing");
   setText("#context-active-view", activeModule);
 }
 
@@ -175,10 +196,13 @@ function renderSourceToggles(): void {
   setText("#active-source-count", `${active.length} active`);
   const incidentEntry = state.sources.entries[INCIDENT_SOURCE_ID];
   const crewEntry = state.sources.entries[CREW_SOURCE_ID];
+  const fieldEntry = state.sources.entries[FIELD_INSPECTION_SOURCE_ID];
   getElement<HTMLInputElement>("#source-incident-ops").checked = incidentEntry?.metadata?.active !== false;
   getElement<HTMLInputElement>("#source-response-crews").checked = crewEntry?.metadata?.active !== false;
+  getElement<HTMLInputElement>("#source-field-inspections").checked = fieldEntry?.metadata?.active !== false;
   setText("#incident-source-status", incidentEntry?.status ?? "missing");
   setText("#crew-source-status", crewEntry?.status ?? "missing");
+  setText("#field-source-status", fieldEntry?.status ?? "missing");
 }
 
 function renderFilters(): void {
@@ -213,8 +237,14 @@ function renderMap(result: UnifiedOpsProjectionResult): void {
   `;
   map.querySelectorAll<HTMLButtonElement>(".map-pin").forEach((pin) => {
     pin.addEventListener("click", () => {
-      const sourceId = pin.dataset.sourceId === CREW_SOURCE_ID ? CREW_SOURCE_ID : INCIDENT_SOURCE_ID;
+      const sourceId = sourceIdFromPin(pin.dataset.sourceId);
       const id = pin.dataset.id ?? "";
+      if (sourceId === FIELD_INSPECTION_SOURCE_ID) {
+        selectUnifiedOpsEditFeature(shell, id);
+        lastEditStatus = "ready";
+        scheduleRender();
+        return;
+      }
       shell.controllers.table.select([sourceFeatureSelectionTarget(sourceId, id)], { replace: true });
       scheduleRender();
     });
@@ -239,7 +269,7 @@ function renderMapPin(feature: UnifiedOpsFeature, extent = latestProjection.exte
       aria-label="Open ${escapeHtml(feature.title)}"
       title="${escapeHtml(feature.title)}"
     >
-      <span>${feature.kind === "crew" ? "C" : "I"}</span>
+      <span>${pinLabel(feature)}</span>
     </button>
   `;
 }
@@ -317,6 +347,64 @@ function renderChart(result: UnifiedOpsProjectionResult): void {
       scheduleRender();
     });
   });
+}
+
+function renderFieldEditing(): void {
+  const draft = shell.editWorkflow.draft();
+  const visibleFeatures = visibleUnifiedOpsEditFeatures(shell);
+  const pendingAttachments = shell.editWorkflow.pendingAttachments();
+  const capability = shell.editWorkflow.capabilities();
+  const readiness = shell.editWorkflow.readiness();
+
+  setText("#edit-visible-count", String(visibleFeatures.length));
+  setText("#edit-pending-count", String(pendingAttachments.length));
+  setText("#edit-status-readout", titleCase(lastEditStatus));
+  setText("#edit-feature-id", draft.featureId === undefined ? "new" : String(draft.featureId));
+  setText(
+    "#edit-capability-state",
+    `Edits ${capability.applyEdits}; attachments ${capability.attachments}; conflicts ${capability.conflicts}`,
+  );
+  setText("#edit-form-source", FIELD_INSPECTION_SOURCE_ID);
+
+  setInputValue("#edit-status-field", String(draft.values.status));
+  setInputValue("#edit-priority-field", String(draft.values.priority));
+  setInputValue("#edit-score-field", String(draft.values.inspection_score));
+  setInputValue("#edit-notes-field", String(draft.values.notes));
+
+  const list = getElement<HTMLElement>("#editable-inspection-list");
+  list.innerHTML =
+    visibleFeatures.length === 0
+      ? "<li><strong>No inspections match the shared context</strong><span>-</span></li>"
+      : visibleFeatures
+          .map(
+            (feature) => `
+              <li data-active="${String(String(draft.featureId) === feature.id)}">
+                <button type="button" data-edit-feature="${escapeHtml(feature.id)}">
+                  <strong>${escapeHtml(feature.title)}</strong>
+                  <span>${escapeHtml(titleCase(feature.status))} / ${escapeHtml(titleCase(feature.severity))}</span>
+                </button>
+              </li>
+            `,
+          )
+          .join("");
+  list.querySelectorAll<HTMLButtonElement>("[data-edit-feature]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectUnifiedOpsEditFeature(shell, button.dataset.editFeature ?? "");
+      lastEditStatus = "ready";
+      scheduleRender();
+    });
+  });
+
+  getElement<HTMLElement>("#edit-readiness-list").innerHTML = readiness
+    .map(
+      (entry) => `
+        <li>
+          <strong>${escapeHtml(titleCase(entry.capability))}</strong>
+          <span>${escapeHtml(titleCase(entry.state))} / ${escapeHtml(entry.note)}</span>
+        </li>
+      `,
+    )
+    .join("");
 }
 
 function renderDetail(): void {
@@ -436,6 +524,11 @@ function renderContext(): void {
       selection: latestProjection.selection,
       jobs: Object.keys(state.jobs.entries),
       drafts: Object.keys(state.drafts.entries),
+      edit: {
+        featureId: shell.editWorkflow.draft().featureId ?? null,
+        pendingAttachments: shell.editWorkflow.pendingAttachments().length,
+        status: lastEditStatus,
+      },
       layerFilter: shell.mapLayerFilters.filters[OPS_LAYER_ID],
     },
     null,
@@ -453,6 +546,10 @@ function updateRuntime(result: UnifiedOpsProjectionResult): void {
   runtime.stagedDraftCount = Object.keys(state.drafts.entries).length;
   runtime.appliedDraftCount = appliedDraftCount;
   runtime.realtimeStatus = state.realtime.features.status;
+  runtime.editStatus = lastEditStatus;
+  runtime.editFeatureId =
+    shell.editWorkflow.draft().featureId === undefined ? null : String(shell.editWorkflow.draft().featureId);
+  runtime.pendingAttachmentCount = shell.editWorkflow.pendingAttachments().length;
   runtime.snapshotId = lastSnapshot?.id ?? null;
   runtime.lastStep = lastStep;
 }
@@ -470,6 +567,10 @@ function bindControls(): void {
   });
   getElement<HTMLInputElement>("#source-response-crews").addEventListener("change", (event) => {
     setUnifiedOpsActiveSource(shell, CREW_SOURCE_ID, (event.target as HTMLInputElement).checked);
+    scheduleRender();
+  });
+  getElement<HTMLInputElement>("#source-field-inspections").addEventListener("change", (event) => {
+    setUnifiedOpsActiveSource(shell, FIELD_INSPECTION_SOURCE_ID, (event.target as HTMLInputElement).checked);
     scheduleRender();
   });
   getElement<HTMLSelectElement>("#status-filter").addEventListener("change", (event) => {
@@ -504,6 +605,42 @@ function bindControls(): void {
   });
   getElement<HTMLButtonElement>("#restore-snapshot").addEventListener("click", () => {
     runtime.restoreSnapshot();
+  });
+  getElement<HTMLSelectElement>("#edit-status-field").addEventListener("change", (event) => {
+    updateUnifiedOpsEditDraftValue(shell, "status", (event.target as HTMLSelectElement).value);
+    lastEditStatus = "ready";
+    scheduleRender();
+  });
+  getElement<HTMLSelectElement>("#edit-priority-field").addEventListener("change", (event) => {
+    updateUnifiedOpsEditDraftValue(shell, "priority", (event.target as HTMLSelectElement).value);
+    lastEditStatus = "ready";
+    scheduleRender();
+  });
+  getElement<HTMLInputElement>("#edit-score-field").addEventListener("input", (event) => {
+    updateUnifiedOpsEditDraftValue(shell, "inspection_score", (event.target as HTMLInputElement).value);
+    lastEditStatus = "ready";
+    scheduleRender();
+  });
+  getElement<HTMLTextAreaElement>("#edit-notes-field").addEventListener("input", (event) => {
+    updateUnifiedOpsEditDraftValue(shell, "notes", (event.target as HTMLTextAreaElement).value);
+    lastEditStatus = "ready";
+    scheduleRender();
+  });
+  getElement<HTMLButtonElement>("#stage-edit-attachment").addEventListener("click", () => {
+    stageUnifiedOpsEditAttachment(shell);
+    lastEditStatus = "ready";
+    scheduleRender();
+  });
+  getElement<HTMLButtonElement>("#force-edit-conflict").addEventListener("click", () => {
+    forceUnifiedOpsEditConflict(shell);
+    lastEditStatus = "ready";
+    scheduleRender();
+  });
+  getElement<HTMLButtonElement>("#save-edit-workflow").addEventListener("click", () => {
+    void submitUnifiedOpsEditDraft(shell).then((result) => {
+      lastEditStatus = result.status;
+      scheduleRender();
+    });
   });
   renderMapPresetButtons();
 }
@@ -570,6 +707,18 @@ function sourceSelectionKey(selection: (typeof latestProjection.selection)[numbe
     return `${selection.sourceId}:${selection.id}`;
   }
   return `${INCIDENT_SOURCE_ID}:${selection}`;
+}
+
+function sourceIdFromPin(sourceId: string | undefined) {
+  if (sourceId === CREW_SOURCE_ID) return CREW_SOURCE_ID;
+  if (sourceId === FIELD_INSPECTION_SOURCE_ID) return FIELD_INSPECTION_SOURCE_ID;
+  return INCIDENT_SOURCE_ID;
+}
+
+function pinLabel(feature: UnifiedOpsFeature): string {
+  if (feature.kind === "crew") return "C";
+  if (feature.kind === "inspection") return "E";
+  return "I";
 }
 
 function titleCase(value: string): string {

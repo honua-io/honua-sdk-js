@@ -38,14 +38,17 @@ import {
   reconcileRealtimeSelection,
 } from "@honua/sdk-js/realtime";
 
+import { createEditWorkflowDemoSession } from "../../edit-workflow-demo/src/model.js";
+import type { EditWorkflowDemoSession, InspectionAttributes } from "../../edit-workflow-demo/src/types.js";
 import {
   DEFAULT_WORKSPACE_EXTENT,
   INITIAL_SOURCE_METADATA,
   INITIAL_UNIFIED_OPS_FEATURES,
   OPS_SOURCE_IDS,
   UNIFIED_OPS_SCENARIO_STEPS,
+  editWorkflowFeatureToUnifiedOpsFeature,
 } from "./fixtures.js";
-import { INCIDENT_SOURCE_ID, OPS_LAYER_ID } from "./types.js";
+import { FIELD_INSPECTION_SOURCE_ID, INCIDENT_SOURCE_ID, OPS_LAYER_ID } from "./types.js";
 import type {
   UnifiedOpsChartBucket,
   UnifiedOpsFeature,
@@ -91,6 +94,7 @@ export interface UnifiedOpsWorkspace {
   readonly controllers: UnifiedOpsWorkspaceControllers;
   readonly mapExtentSource: ManualMapExtentSource;
   readonly mapLayerFilters: MemoryMapLayerFilterTarget;
+  readonly editWorkflow: EditWorkflowDemoSession;
   readonly sourceIds: ReadonlyArray<UnifiedOpsSourceId>;
   readonly currentScenarioStepIndex: number;
   stepRealtimeScenario(): string | undefined;
@@ -132,10 +136,12 @@ const STATUS_RANK: Record<string, number> = {
   open: 0,
   assigned: 1,
   enroute: 2,
-  monitoring: 3,
-  staged: 4,
-  available: 5,
-  resolved: 6,
+  "in-progress": 3,
+  monitoring: 4,
+  staged: 5,
+  available: 6,
+  resolved: 7,
+  closed: 8,
 };
 
 export class ManualMapExtentSource implements MapExtentExplorationSource {
@@ -172,6 +178,7 @@ export class MemoryMapLayerFilterTarget {
 export function createUnifiedOpsWorkspace(options: CreateUnifiedOpsWorkspaceOptions = {}): UnifiedOpsWorkspace {
   const now = options.now ?? (() => Date.now());
   const workspace = createHonuaAppWorkspace<UnifiedOpsFeature, UnifiedOpsSourceMetadata, UnifiedOpsJobResult>();
+  const editWorkflow = createEditWorkflowDemoSession();
   const exploration = createExplorationContext({
     datasetId: "unified-operational-intelligence",
     sourceIds: OPS_SOURCE_IDS,
@@ -207,8 +214,9 @@ export function createUnifiedOpsWorkspace(options: CreateUnifiedOpsWorkspaceOpti
       panels: {
         "incident-command": { visible: true, order: 1, size: 620 },
         "analysis-review": { visible: false, order: 2, size: 520 },
-        "detail-panel": { visible: true, order: 3, size: 360 },
-        "diagnostics-panel": { visible: true, order: 4, size: 320 },
+        "field-editing": { visible: false, order: 3, size: 520 },
+        "detail-panel": { visible: true, order: 4, size: 360 },
+        "diagnostics-panel": { visible: true, order: 5, size: 320 },
       },
     },
   });
@@ -229,6 +237,7 @@ export function createUnifiedOpsWorkspace(options: CreateUnifiedOpsWorkspaceOpti
     },
     mapExtentSource,
     mapLayerFilters,
+    editWorkflow,
     sourceIds: OPS_SOURCE_IDS,
     get currentScenarioStepIndex() {
       return scenarioStepIndex;
@@ -241,6 +250,7 @@ export function createUnifiedOpsWorkspace(options: CreateUnifiedOpsWorkspaceOpti
     },
     dispose(): void {
       for (const handle of bindingHandles) handle.remove();
+      editWorkflow.dispose();
       workspace.dispose();
       exploration.dispose();
     },
@@ -259,6 +269,56 @@ export function setUnifiedOpsActiveModule(shell: UnifiedOpsWorkspace, moduleId: 
     panelId: "analysis-review",
     panel: { visible: moduleId === "analysis-review" },
   });
+  shell.workspace.dispatch({
+    kind: "update-panel",
+    panelId: "field-editing",
+    panel: { visible: moduleId === "field-editing" },
+  });
+}
+
+export function visibleUnifiedOpsEditFeatures(shell: UnifiedOpsWorkspace): readonly UnifiedOpsFeature[] {
+  const active = shell.workspace.state.sources.entries[FIELD_INSPECTION_SOURCE_ID]?.metadata?.active !== false;
+  if (!active) return [];
+  return applyUnifiedOpsProjection(shell.workspace.state, selectProjectionFromState(shell.workspace.state), {
+    sourceId: FIELD_INSPECTION_SOURCE_ID,
+  }).rows;
+}
+
+export function selectUnifiedOpsEditFeature(shell: UnifiedOpsWorkspace, featureId: string | number): void {
+  shell.editWorkflow.selectFeature(Number(featureId));
+  shell.views.table.select([sourceFeatureSelectionTarget(FIELD_INSPECTION_SOURCE_ID, String(featureId))], {
+    replace: true,
+  });
+  syncUnifiedOpsExplorationSnapshot(shell.workspace, shell.exploration);
+}
+
+export function updateUnifiedOpsEditDraftValue(
+  shell: UnifiedOpsWorkspace,
+  fieldName: keyof InspectionAttributes,
+  value: unknown,
+): void {
+  shell.editWorkflow.updateDraftValue(fieldName, value);
+}
+
+export function stageUnifiedOpsEditAttachment(shell: UnifiedOpsWorkspace, name = "workspace-after-action.png"): void {
+  shell.editWorkflow.stageAttachmentAdd(name);
+}
+
+export function forceUnifiedOpsEditConflict(shell: UnifiedOpsWorkspace): void {
+  shell.editWorkflow.forceNextConflict();
+}
+
+export async function submitUnifiedOpsEditDraft(shell: UnifiedOpsWorkspace) {
+  const result = await shell.editWorkflow.submitDraft();
+  syncUnifiedOpsEditWorkflowFeatures(shell);
+  const committedId = result.committedFeatureId ?? shell.editWorkflow.draft().featureId;
+  if (committedId !== undefined) {
+    shell.views.table.select([sourceFeatureSelectionTarget(FIELD_INSPECTION_SOURCE_ID, String(committedId))], {
+      replace: true,
+    });
+    syncUnifiedOpsExplorationSnapshot(shell.workspace, shell.exploration);
+  }
+  return result;
 }
 
 export function setUnifiedOpsActiveSource(
@@ -622,6 +682,20 @@ function seedUnifiedOpsRealtime(workspace: UnifiedOpsAppWorkspace, now: number):
       replace: true,
     },
   });
+}
+
+function syncUnifiedOpsEditWorkflowFeatures(shell: UnifiedOpsWorkspace): void {
+  for (const feature of shell.editWorkflow.allFeatures()) {
+    shell.workspace.dispatch({
+      kind: "apply-realtime-event",
+      event: {
+        type: "upsert",
+        eventId: `edit-workflow-sync-${String(feature.id)}-${String(feature.attributes.version)}`,
+        receivedAt: Date.parse(feature.attributes.last_edited_date),
+        feature: featureToPatch(editWorkflowFeatureToUnifiedOpsFeature(feature)),
+      },
+    });
+  }
 }
 
 function scenarioStepToRealtimeEvent(

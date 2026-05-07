@@ -16,6 +16,10 @@ export default defineConfig({
         replacement: path.resolve(repoRoot, "src/app-workspace/index.ts"),
       },
       {
+        find: "@honua/sdk-js/contract",
+        replacement: path.resolve(repoRoot, "src/contract/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/exploration",
         replacement: path.resolve(repoRoot, "src/exploration/index.ts"),
       },
