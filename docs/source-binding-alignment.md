@@ -41,10 +41,14 @@ locator fields until the server schema exposes them explicitly.
 | `style` | Merged into the corresponding `mapSpec.layers[].paint` / `.layout` blocks. |
 | `minzoom` / `maxzoom` | `mapSpec.layers[].minzoom` / `.maxzoom`. |
 
-The SDK does not own `MapPackage.metadata` or `AppPackage` shapes — those
-are server-side concepts. An SDK ticket exporting an `AppPackage` should
-construct one server-side document that wraps the canonical
-`SourceDescriptor` + `MapBinding` arrays produced here.
+The SDK does not own `MapPackage.metadata` or the canonical `AppPackage`
+wire shape — those are server-side concepts. The generated-app proof subpath
+does consume the browser-safe `AppPackage.manifest_artifact` projection; see
+[`generated-app-runtime.md`](./generated-app-runtime.md) for the
+`BuildSpec` / `AppPackage` / `MapPackage` mapping table. Server-side package
+writers should still construct one canonical package document and place the
+SDK manifest projection in `manifest_artifact` rather than inventing a second
+client-only package contract.
 
 ## What changes when you add a protocol
 

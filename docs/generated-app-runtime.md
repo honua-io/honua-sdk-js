@@ -1,0 +1,124 @@
+# Generated App Runtime (`@honua/sdk-js/generated-app`)
+
+Status: implemented for ticket `honua-sdk-js#140`.
+
+The generated-app subpath is the SDK browser projection for the first
+AI-generated operations dashboard proof. It consumes a versioned manifest from
+`AppPackage.manifest_artifact`, hydrates the referenced `MapPackage` through
+`@honua/sdk-js/runtime`, and binds map, table/list, count, chart, and filter
+widgets through one `ExplorationContext`.
+
+The subpath is intentionally separate from the root barrel and
+`@honua/sdk-js/runtime`:
+
+```ts
+import {
+  HONUA_GENERATED_APP_MANIFEST_FORMAT_V1,
+  previewGeneratedApp,
+} from "@honua/sdk-js/generated-app";
+```
+
+## Manifest Profile
+
+| Export | Value | Purpose |
+| --- | --- | --- |
+| `HONUA_GENERATED_APP_MANIFEST_FORMAT_V1` | `honua_generated_app_manifest.v1` | Version gate for the browser manifest shape. |
+| `HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1` | `operations-dashboard.v1` | Narrow proof profile. Other generated-app profiles are rejected with `HonuaGeneratedAppError { code: "unsupported-profile" }`. |
+| `HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND` | `honua.generated-app.manifest` | `AppPackage.manifest_artifact.artifactKind`. |
+| `HONUA_GENERATED_APP_MANIFEST_ARTIFACT_VERSION` | `1` | `AppPackage.manifest_artifact.artifactVersion`. |
+
+The proof profile requires these widget kinds:
+
+- `map` backed by a `MapPackage` and the MapLibre runtime.
+- `table` or `list` backed by the manifest source binding.
+- `count` over the current linked result set.
+- `chart` grouped by a categorical field.
+- `filter` over the same or another categorical field.
+
+Unsupported widgets and missing required widgets produce structured preview
+diagnostics instead of a blank host surface.
+
+## Canonical Mapping
+
+The SDK does not define a competing canonical builder contract. The manifest is
+the browser-safe projection of canonical builder/package output.
+
+| Canonical source | Generated-app manifest/runtime field | Notes |
+| --- | --- | --- |
+| `BuildSpec.profile` / `BuildSpec.appProfile` | `manifest.profile` | Must project to `operations-dashboard.v1` for this slice. |
+| `BuildSpec.appId` / `BuildSpec.id` | `manifest.appId` | Stable browser runtime identity and `ExplorationContext.datasetId`. |
+| `BuildSpec.sourceId` / `BuildSpec.primarySourceId` | `manifest.data.sourceId` | Primary source used by table, count, chart, and filter widgets. |
+| `BuildSpec.layout.widgets` / `BuildSpec.widgets` | `manifest.layout.widgets` | Widget ids and bindings consumed by `loadGeneratedAppRuntime`. |
+| `BuildSpec.bindings` | `manifest.bindings` | Field bindings such as `primaryKey`, `titleField`, `categoryField`, `filterField`, `tableFields`, `searchFields`, and `layerId`. |
+| `BuildSpec.initialState` | `manifest.initialState` | Optional initial `ExplorationState` seed. |
+| `AppPackage.id` / `AppPackage.version` | `manifest.appId` / `manifest.version` fallback | `projectAppPackageToGeneratedAppManifest` fills these when the artifact omits them. |
+| `AppPackage.manifest_artifact` | `HonuaGeneratedAppManifestArtifact` | Inline artifact with kind/version plus `manifest`. This is the preferred Portal handoff. |
+| `MapPackage.mapPackageId` | `manifest.mapPackageId` | Used to verify the map asset referenced by the app package. |
+| `MapPackage.sourceBindings[]` | `manifest.data.sourceId` plus runtime source ids | The generated runtime reuses `loadMapPackage`; source/protocol logic stays in `@honua/sdk-js/runtime`. |
+| `MapPackage.mapSpec`, `legend`, `popupBindings`, `initialView` | map widget model / `HonuaMapRuntime` | The generated runtime does not duplicate map style, legend, popup, or view logic. |
+
+## Preview Host
+
+Portal can consume an app package without duplicating widget or protocol logic:
+
+```ts
+const preview = await previewGeneratedApp(
+  { appPackage, mapPackage },
+  {
+    mapFactory: () => ({ map: maplibreMap, dispose: () => maplibreMap.remove() }),
+    mapLoadOptions: {
+      client: honuaClient,
+      popupFactory: () => new maplibregl.Popup(),
+    },
+  },
+);
+
+if (preview.status === "error") {
+  renderPreviewErrors(preview.errors);
+} else {
+  renderDashboard(preview.model);
+}
+```
+
+For deterministic drafts or tests, pass `initialFeatures`. For live hosts,
+the default loader queries the `HonuaMapRuntime.dataset` source with a bounded
+`previewLimit` and applies categorical filters client-side. Hosts that need
+realtime or larger server-side result windows should pass `featureLoader` and
+still return `HonuaGeneratedAppFeatureInput[]`; the SDK continues to own linked
+filtering, chart buckets, count values, table selection, and map feature-state
+sync.
+
+## Runtime Interactions
+
+`HonuaGeneratedAppRuntime` exposes:
+
+- `render()` for the current widget models.
+- `refresh()` to reload feature records.
+- `setFilter(widgetId, value)` for filter widgets.
+- `selectChartBucket(widgetId, value)` for categorical chart selection.
+- `selectRecord(widgetId, id)` for table/list selection.
+- `snapshot()` / `restore(snapshot)` over the underlying `ExplorationContext`.
+- `dispose()` for map/runtime teardown.
+
+Filter, chart, table, and map bindings all dispatch through the shared
+`ExplorationContext`. The map path uses `syncMapLayerFilterToExploration` and
+`syncFeatureStateSelection` when the host map exposes the relevant MapLibre
+methods.
+
+## Errors
+
+`previewGeneratedApp` catches runtime/projection failures and returns
+serializable diagnostics:
+
+```ts
+{
+  name: "HonuaGeneratedAppError",
+  code: "missing-manifest-artifact",
+  stage: "projection",
+  message: "AppPackage is missing manifest_artifact for generated-app preview",
+  detail: { path: "AppPackage.manifest_artifact" }
+}
+```
+
+Call `loadGeneratedAppRuntime` directly when the host wants exceptions instead
+of preview diagnostics.

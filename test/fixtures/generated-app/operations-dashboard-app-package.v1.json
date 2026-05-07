@@ -1,0 +1,100 @@
+{
+  "id": "app-ops-dashboard-v1",
+  "version": "1.0.0",
+  "assets": [
+    {
+      "id": "map-ops-dashboard-v1",
+      "kind": "map-package",
+      "mediaType": "application/vnd.honua.map-package+json"
+    }
+  ],
+  "manifest_artifact": {
+    "artifactKind": "honua.generated-app.manifest",
+    "artifactVersion": 1,
+    "createdAt": "2026-05-07T00:00:00.000Z",
+    "source": "fixture",
+    "manifest": {
+      "format": "honua_generated_app_manifest.v1",
+      "profile": "operations-dashboard.v1",
+      "appId": "app-ops-dashboard-v1",
+      "title": "Incident Operations Dashboard",
+      "version": "1.0.0",
+      "data": {
+        "sourceId": "incidents",
+        "previewLimit": 50
+      },
+      "mapPackageId": "map-ops-dashboard-v1",
+      "linkedViewPreset": "globalLinked",
+      "bindings": {
+        "sourceId": "incidents",
+        "primaryKey": "OBJECTID",
+        "titleField": "title",
+        "subtitleField": "status",
+        "categoryField": "district",
+        "filterField": "district",
+        "tableFields": ["title", "status", "district", "severity"],
+        "searchFields": ["title", "district"],
+        "layerId": "incident-points"
+      },
+      "layout": {
+        "kind": "operations-dashboard",
+        "widgets": [
+          {
+            "id": "map",
+            "kind": "map",
+            "title": "Incident Map",
+            "sourceId": "incidents",
+            "layerId": "incident-points",
+            "showLegend": true,
+            "showSearch": true
+          },
+          {
+            "id": "incident-table",
+            "kind": "table",
+            "title": "Incident Queue",
+            "sourceId": "incidents",
+            "fields": ["title", "status", "district", "severity"],
+            "primaryKey": "OBJECTID",
+            "titleField": "title",
+            "subtitleField": "status"
+          },
+          {
+            "id": "incident-count",
+            "kind": "count",
+            "title": "Visible Incidents",
+            "sourceId": "incidents",
+            "label": "Visible incidents"
+          },
+          {
+            "id": "district-chart",
+            "kind": "chart",
+            "title": "Incidents by District",
+            "sourceId": "incidents",
+            "groupBy": "district"
+          },
+          {
+            "id": "district-filter",
+            "kind": "filter",
+            "title": "District Filter",
+            "sourceId": "incidents",
+            "field": "district",
+            "options": [
+              {
+                "value": "Downtown",
+                "label": "Downtown"
+              },
+              {
+                "value": "Harbor",
+                "label": "Harbor"
+              },
+              {
+                "value": "Windward",
+                "label": "Windward"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

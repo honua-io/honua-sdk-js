@@ -79,6 +79,10 @@
       "types": "./dist/src/runtime/index.d.ts",
       "default": "./dist/src/runtime/index.js"
     },
+    "./generated-app": {
+      "types": "./dist/src/generated-app/index.d.ts",
+      "default": "./dist/src/generated-app/index.js"
+    },
     "./operator": {
       "types": "./dist/src/operator/index.d.ts",
       "default": "./dist/src/operator/index.js"

@@ -1,0 +1,46 @@
+{
+  "mapPackageId": "map-ops-dashboard-v1",
+  "format": "honua_map_package.v1",
+  "status": "Ready",
+  "sourceBindings": [
+    {
+      "sourceId": "incidents",
+      "protocol": "geoservices_feature_service",
+      "locator": {
+        "url": "https://services.example.test/arcgis/rest/services/Incidents/FeatureServer/0"
+      },
+      "attribution": "Fixture incident operations feed"
+    }
+  ],
+  "mapSpec": {
+    "version": 8,
+    "sources": {},
+    "layers": [
+      {
+        "id": "incident-points",
+        "type": "circle",
+        "source": "incidents",
+        "paint": {
+          "circle-color": "#d33f49",
+          "circle-radius": 7
+        }
+      }
+    ]
+  },
+  "legend": [
+    {
+      "label": "Incidents",
+      "color": "#d33f49"
+    }
+  ],
+  "initialView": {
+    "bbox": [-158.0, 21.2, -157.7, 21.4]
+  },
+  "popupBindings": [
+    {
+      "sourceId": "incidents",
+      "fieldName": "title",
+      "title": "Incident"
+    }
+  ]
+}
