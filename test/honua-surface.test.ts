@@ -3,11 +3,17 @@ import { describe, expect, it } from "vitest";
 import {
   HonuaClient,
   HonuaFeatureLayer,
+  HonuaGeometryService,
+  HonuaGeoprocessingService,
+  HonuaImageService,
   HonuaMapLayer,
   HonuaMapService,
+  HonuaOdataEntitySet,
   HonuaOgcFeatureCollection,
   HonuaOgcFeatures,
   HonuaService,
+  HonuaStacSearch,
+  HonuaWfs,
   createHonuaOgcFeatures,
   createHonuaService,
 } from "../src/index.js";
@@ -29,6 +35,12 @@ describe("Honua native API surfaces", () => {
     const ogc = client.ogcFeatures();
     const ogcViaFactory = createHonuaOgcFeatures(client);
     const ogcCollection = ogc.collection(0);
+    const stac = client.stac();
+    const image = client.imageService("imagery");
+    const geometry = client.geometryService();
+    const gp = client.geoprocessing("analysis", "buffer");
+    const wfs = client.wfs("/wfs");
+    const odata = client.odata("Layers(5)/Features");
     const helperService = createHonuaService(client, "transport");
 
     expect(service).toBeInstanceOf(HonuaService);
@@ -40,6 +52,12 @@ describe("Honua native API surfaces", () => {
     expect(ogc).toBeInstanceOf(HonuaOgcFeatures);
     expect(ogcViaFactory).toBeInstanceOf(HonuaOgcFeatures);
     expect(ogcCollection).toBeInstanceOf(HonuaOgcFeatureCollection);
+    expect(stac).toBeInstanceOf(HonuaStacSearch);
+    expect(image).toBeInstanceOf(HonuaImageService);
+    expect(geometry).toBeInstanceOf(HonuaGeometryService);
+    expect(gp).toBeInstanceOf(HonuaGeoprocessingService);
+    expect(wfs).toBeInstanceOf(HonuaWfs);
+    expect(odata).toBeInstanceOf(HonuaOdataEntitySet);
     expect(helperService).toBeInstanceOf(HonuaService);
     expect(layer.serviceId).toBe("transport");
     expect(layer.layerId).toBe(5);
@@ -49,6 +67,11 @@ describe("Honua native API surfaces", () => {
     expect(mapLayer.layerId).toBe(7);
     expect(mapLayerViaService.layerId).toBe(8);
     expect(ogcCollection.collectionId).toBe(0);
+    expect(image.serviceId).toBe("imagery");
+    expect(gp.serviceId).toBe("analysis");
+    expect(gp.taskName).toBe("buffer");
+    expect(wfs.endpointUrl).toBe("/wfs");
+    expect(odata.entitySet).toBe("Layers(5)/Features");
   });
 
   it("queries features and related records through fluent layer wrapper", async () => {

@@ -55,6 +55,26 @@ export interface IntegrationConfig {
   collectionId: string;
   /** OGC Tiles tile-matrix-set used for sparse-tile reads. */
   tileMatrixSetId: string;
+  /** Optional ImageServer service ID for raster catalog / export coverage. */
+  imageServiceId: string | undefined;
+  /** Optional GPServer service ID for submit / job status coverage. */
+  gpServiceId: string | undefined;
+  /** Optional GPServer task name when the seed registers task-scoped jobs. */
+  gpTaskName: string | undefined;
+  /** STAC collection ID used for collection/item probes. Defaults to `collectionId`. */
+  stacCollectionId: string;
+  /** Optional WFS endpoint URL; set with `HONUA_INTEGRATION_WFS_ENDPOINT_URL`. */
+  wfsEndpointUrl: string | undefined;
+  /** Optional WFS feature type; set with `HONUA_INTEGRATION_WFS_TYPE_NAME`. */
+  wfsTypeName: string | undefined;
+  /** OData service root path. Defaults to Honua Server's `/odata`. */
+  odataBasePath: string;
+  /** OData entity set / navigation path. Defaults to the configured layer's features. */
+  odataEntitySet: string;
+  /** Optional GeocodeServer locator name; set when the seed exposes a locator. */
+  geocodingLocatorName: string | undefined;
+  /** Probe text used by geocoding coverage when a locator is configured. */
+  geocodingProbeText: string;
   /**
    * Free-form label tying the run to a server seed configuration.
    * Recorded into `integration-meta.json` for telemetry; not sent on
@@ -78,6 +98,8 @@ const DEFAULT_LAYER_ID = 1000;
 const DEFAULT_COLLECTION_ID = String(DEFAULT_LAYER_ID);
 const DEFAULT_TILE_MATRIX_SET = "WebMercatorQuad";
 const DEFAULT_SEED_PROFILE = "places-roads-v1";
+const DEFAULT_ODATA_BASE_PATH = "/odata";
+const DEFAULT_GEOCODING_PROBE_TEXT = "Honolulu";
 
 let cachedConfig: IntegrationConfig | undefined;
 
@@ -91,12 +113,24 @@ export function tryResolveIntegrationConfig(): IntegrationConfig | undefined {
   if (cachedConfig) return cachedConfig;
   const baseUrl = process.env[INTEGRATION_BASE_URL_ENV]?.trim();
   if (!baseUrl) return undefined;
+  const layerId = parseIntOrDefault(process.env.HONUA_INTEGRATION_LAYER_ID, DEFAULT_LAYER_ID);
+  const collectionId = process.env.HONUA_INTEGRATION_COLLECTION_ID?.trim() || DEFAULT_COLLECTION_ID;
   cachedConfig = {
     baseUrl,
     serviceId: process.env.HONUA_INTEGRATION_SERVICE_ID?.trim() || DEFAULT_SERVICE_ID,
-    layerId: parseIntOrDefault(process.env.HONUA_INTEGRATION_LAYER_ID, DEFAULT_LAYER_ID),
-    collectionId: process.env.HONUA_INTEGRATION_COLLECTION_ID?.trim() || DEFAULT_COLLECTION_ID,
+    layerId,
+    collectionId,
     tileMatrixSetId: process.env.HONUA_INTEGRATION_TILE_MATRIX_SET?.trim() || DEFAULT_TILE_MATRIX_SET,
+    imageServiceId: trimToUndefined(process.env.HONUA_INTEGRATION_IMAGE_SERVICE_ID),
+    gpServiceId: trimToUndefined(process.env.HONUA_INTEGRATION_GP_SERVICE_ID),
+    gpTaskName: trimToUndefined(process.env.HONUA_INTEGRATION_GP_TASK_NAME),
+    stacCollectionId: process.env.HONUA_INTEGRATION_STAC_COLLECTION_ID?.trim() || collectionId,
+    wfsEndpointUrl: trimToUndefined(process.env.HONUA_INTEGRATION_WFS_ENDPOINT_URL),
+    wfsTypeName: trimToUndefined(process.env.HONUA_INTEGRATION_WFS_TYPE_NAME),
+    odataBasePath: process.env.HONUA_INTEGRATION_ODATA_BASE_PATH?.trim() || DEFAULT_ODATA_BASE_PATH,
+    odataEntitySet: process.env.HONUA_INTEGRATION_ODATA_ENTITY_SET?.trim() || `Layers(${String(layerId)})/Features`,
+    geocodingLocatorName: trimToUndefined(process.env.HONUA_INTEGRATION_GEOCODING_LOCATOR),
+    geocodingProbeText: process.env.HONUA_INTEGRATION_GEOCODING_PROBE_TEXT?.trim() || DEFAULT_GEOCODING_PROBE_TEXT,
     seedProfile: process.env.HONUA_INTEGRATION_SEED_PROFILE?.trim() || DEFAULT_SEED_PROFILE,
     apiKey: trimToUndefined(process.env.HONUA_INTEGRATION_API_KEY),
     bearerToken: trimToUndefined(process.env.HONUA_INTEGRATION_BEARER_TOKEN),

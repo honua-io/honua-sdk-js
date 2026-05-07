@@ -11,12 +11,22 @@ import {
   withoutHonuaCacheState,
 } from "./cache-state.js";
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
+import { HonuaOdataEntitySet } from "./odata.js";
 import { HonuaOgcMaps } from "./ogc-maps.js";
 import { HonuaOgcProcesses } from "./ogc-processes.js";
 import { HonuaOgcTiles } from "./ogc-tiles.js";
 import { decodePbfQueryResponse, isPbfResponse } from "./pbf-decoder.js";
 import { HonuaStacSearch } from "./stac.js";
-import { HonuaFeatureLayer, HonuaMapLayer, HonuaMapService, HonuaOgcFeatures, HonuaService } from "./surfaces.js";
+import {
+  HonuaFeatureLayer,
+  HonuaGeometryService,
+  HonuaGeoprocessingService,
+  HonuaImageService,
+  HonuaMapLayer,
+  HonuaMapService,
+  HonuaOgcFeatures,
+  HonuaService,
+} from "./surfaces.js";
 import type {
   ApplyEditsRequest,
   ExportMapRequest,
@@ -97,6 +107,7 @@ import type {
   QueryRelatedRecordsRequest,
   StacSearchRequest,
 } from "./types.js";
+import { HonuaWfs } from "./wfs.js";
 import { type WmsCapabilities, parseWmsCapabilities } from "./wms-capabilities.js";
 import {
   type HonuaWmsFeatureInfoResponse,
@@ -446,6 +457,26 @@ export class HonuaClient {
 
   public stac(): HonuaStacSearch {
     return new HonuaStacSearch({ client: this });
+  }
+
+  public imageService(serviceId: string): HonuaImageService {
+    return new HonuaImageService({ client: this, serviceId });
+  }
+
+  public geometryService(): HonuaGeometryService {
+    return new HonuaGeometryService({ client: this });
+  }
+
+  public geoprocessing(serviceId: string, taskName?: string): HonuaGeoprocessingService {
+    return new HonuaGeoprocessingService({ client: this, serviceId, taskName });
+  }
+
+  public wfs(endpointUrl = "/wfs", options: { version?: string } = {}): HonuaWfs {
+    return new HonuaWfs({ client: this, endpointUrl, version: options.version });
+  }
+
+  public odata(entitySet: string, options: { basePath?: string } = {}): HonuaOdataEntitySet {
+    return new HonuaOdataEntitySet({ client: this, entitySet, basePath: options.basePath });
   }
 
   public clearMetadataCache(options: { keyPrefix?: string } = {}): void {
