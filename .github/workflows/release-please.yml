@@ -30,5 +30,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           release_ref="${GITHUB_SHA}"
-          gh workflow run publish-js-sdk.yml --ref "${release_ref}" -f dry_run=false
-          gh workflow run publish-mcp-server.yml --ref "${release_ref}" -f dry_run=false
+          gh workflow run publish-js-sdk.yml --repo "${GITHUB_REPOSITORY}" --ref "${release_ref}" -f dry_run=false
+          gh workflow run publish-mcp-server.yml --repo "${GITHUB_REPOSITORY}" --ref "${release_ref}" -f dry_run=false
