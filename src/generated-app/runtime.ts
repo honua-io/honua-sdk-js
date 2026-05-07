@@ -291,11 +291,12 @@ export async function loadGeneratedAppRuntime<TAttributes extends Record<string,
     switch (widget.kind) {
       case "map": {
         mapView = context.connectView({ id: widget.id, role: "map" });
-        if (mapRuntime && widget.layerId && mapRuntime.map.setFilter) {
+        const layerId = mapLayerIdForWidget(widget, manifest);
+        if (mapRuntime && layerId && mapRuntime.map.setFilter) {
           const setFilter = mapRuntime.map.setFilter.bind(mapRuntime.map);
           handles.push(
             syncMapLayerFilterToExploration({ setFilter }, mapView, {
-              layerId: widget.layerId,
+              layerId,
               sourceId,
               translate: (projection) => compileMapLibreFilters(projection.filters, sourceId),
             }),
@@ -346,7 +347,12 @@ export async function loadGeneratedAppRuntime<TAttributes extends Record<string,
     featureLoader: options.featureLoader,
     onEvent: options.onEvent,
   });
-  await runtime.refresh();
+  try {
+    await runtime.refresh();
+  } catch (error) {
+    runtime.dispose();
+    throw error;
+  }
   options.onEvent?.({ type: "loaded", appId: manifest.appId });
   return runtime;
 }
@@ -583,7 +589,7 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
           ...(widget.title ? { title: widget.title } : {}),
           loaded: Boolean(this.mapRuntime),
           mapPackageId: this.mapRuntime?.mapPackage.mapPackageId ?? this.manifest.mapPackageId,
-          layerId: widget.layerId ?? this.manifest.bindings?.layerId,
+          layerId: mapLayerIdForWidget(widget, this.manifest),
           legend: widget.showLegend === false ? [] : (this.mapRuntime?.getLegend() ?? []),
           searchFields: widget.showSearch === false ? [] : (this.manifest.bindings?.searchFields ?? []),
         };
@@ -742,6 +748,13 @@ function findWidget<TWidget extends HonuaGeneratedAppWidget>(
   kind: TWidget["kind"],
 ): TWidget | undefined {
   return manifest.layout.widgets.find((widget) => widget.kind === kind) as TWidget | undefined;
+}
+
+function mapLayerIdForWidget(
+  widget: HonuaGeneratedAppMapWidget,
+  manifest: HonuaGeneratedAppManifest,
+): string | undefined {
+  return widget.layerId ?? manifest.bindings?.layerId;
 }
 
 function missingWidgetBinding(appId: string, widgetId: string, widgetKind: string): HonuaGeneratedAppError {

@@ -87,6 +87,12 @@ function makeMockMap(): MockMap {
     fitBounds(bounds, options) {
       calls.push({ method: "fitBounds", args: [bounds, options] });
     },
+    removeLayer(id) {
+      calls.push({ method: "removeLayer", args: [id] });
+    },
+    removeSource(id) {
+      calls.push({ method: "removeSource", args: [id] });
+    },
   };
 }
 
@@ -230,6 +236,79 @@ describe("@honua/sdk-js/generated-app", () => {
     expect(map._state.get("incidents::1005")).toEqual({ selected: true });
 
     runtime.dispose();
+  });
+
+  it("uses the manifest-level layerId fallback for map filter bindings", async () => {
+    const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
+    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>("operations-dashboard-features.v1.json");
+    const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
+    const map = makeMockMap();
+    const withoutWidgetLayerId: HonuaGeneratedAppManifest = {
+      ...manifest,
+      layout: {
+        ...manifest.layout,
+        widgets: manifest.layout.widgets.map((entry) => {
+          if (entry.kind !== "map") return entry;
+          const { layerId: _layerId, ...widgetWithoutLayerId } = entry;
+          return widgetWithoutLayerId;
+        }),
+      },
+    };
+
+    const result = await previewGeneratedApp(
+      { manifest: withoutWidgetLayerId, mapPackage },
+      {
+        mapFactory: () => ({ map }),
+        mapLoadOptions: { client: makeClient(), skipCompatibilityCheck: true, applyInitialView: false },
+        initialFeatures: features,
+      },
+    );
+    if (result.status === "error") throw new Error(result.errors.map((error) => error.message).join("; "));
+
+    expect(widget(result.model, "map", "map").layerId).toBe("incident-points");
+    result.runtime.setFilter("district-filter", "Downtown");
+    await flush();
+
+    expect(map._calls.filter((call) => call.method === "setFilter").at(-1)?.args).toEqual([
+      "incident-points",
+      ["all", ["==", "district", "Downtown"]],
+    ]);
+    result.runtime.dispose();
+  });
+
+  it("disposes partially loaded map resources when initial feature refresh fails", async () => {
+    const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
+    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
+    const map = makeMockMap();
+    let disposedHostMap = false;
+
+    const result = await previewGeneratedApp(
+      { manifest, mapPackage },
+      {
+        mapFactory: () => ({
+          map,
+          dispose: () => {
+            disposedHostMap = true;
+          },
+        }),
+        mapLoadOptions: { client: makeClient(), skipCompatibilityCheck: true, applyInitialView: false },
+        featureLoader: async () => {
+          throw new Error("fixture loader failed");
+        },
+      },
+    );
+
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.errors[0]).toMatchObject({
+        code: "data-load-failed",
+        stage: "load",
+      });
+    }
+    expect(disposedHostMap).toBe(true);
+    expect(map._calls.some((call) => call.method === "removeLayer" && call.args[0] === "incident-points")).toBe(true);
   });
 
   it("restores generated app linked state snapshots", async () => {

@@ -234,8 +234,10 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
+- Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`
 
-The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export for compatibility.
+The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export for compatibility. Surfaces documented
+as subpath-only, including `@honua/sdk-js/generated-app`, should be imported from their named subpath.
 
 ## Shared Client Contract And Exploration
 
@@ -363,6 +365,36 @@ layer in one map), use `intersectCapabilities` from `@honua/sdk-js/contract` to 
 capability set across participating sources before fanning a call out, and rely on `Result.degraded[]`
 entries (now carrying optional `sourceId`) for per-source attribution. Full composition guide:
 [`docs/composition.md`](./docs/composition.md).
+
+## Generated App Preview Runtime
+
+`@honua/sdk-js/generated-app` is the browser-safe proof slice for generated operations dashboards. It projects
+canonical `BuildSpec`, `AppPackage.manifest_artifact`, and `MapPackage` inputs into a versioned
+`honua_generated_app_manifest.v1` manifest with the `operations-dashboard.v1` profile, then binds the generated
+map/table or list/count/chart/filter widgets through `@honua/sdk-js/runtime` and the shared `ExplorationContext`.
+
+```ts
+import { previewGeneratedApp } from "@honua/sdk-js/generated-app";
+
+const preview = await previewGeneratedApp(
+  { appPackage, mapPackage },
+  {
+    mapFactory: () => ({ map }),
+    mapLoadOptions: { client },
+  },
+);
+
+if (preview.status === "ready") {
+  renderDashboard(preview.model);
+} else {
+  renderPreviewErrors(preview.errors);
+}
+```
+
+The preview response is a discriminated union: ready responses include the resolved manifest, runtime handle,
+render model, and `errors: []`; error responses include serializable `HonuaGeneratedAppDiagnostic` objects and never
+throw from `previewGeneratedApp`. Call `loadGeneratedAppRuntime` directly when the host wants exceptions. Full
+contract reference: [`docs/generated-app-runtime.md`](./docs/generated-app-runtime.md).
 
 ## Install
 

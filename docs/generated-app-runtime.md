@@ -82,11 +82,45 @@ if (preview.status === "error") {
 
 For deterministic drafts or tests, pass `initialFeatures`. For live hosts,
 the default loader queries the `HonuaMapRuntime.dataset` source with a bounded
-`previewLimit` and applies categorical filters client-side. Hosts that need
-realtime or larger server-side result windows should pass `featureLoader` and
-still return `HonuaGeneratedAppFeatureInput[]`; the SDK continues to own linked
-filtering, chart buckets, count values, table selection, and map feature-state
-sync.
+`previewLimit` (`250` when unset) and applies categorical filters client-side.
+Hosts that need realtime or larger server-side result windows should pass
+`featureLoader` and still return `HonuaGeneratedAppFeatureInput[]`; the SDK
+continues to own linked filtering, chart buckets, count values, table
+selection, and map feature-state sync.
+
+## Preview Response Contract
+
+`previewGeneratedApp(input, options)` is the safest host entrypoint. It catches
+projection, load, and render failures and returns a discriminated union:
+
+| Status | Shape | Notes |
+| --- | --- | --- |
+| `ready` | `{ status, manifest, runtime, model, errors: [] }` | `manifest` is the resolved `HonuaGeneratedAppManifest`; `runtime` is the live `HonuaGeneratedAppRuntime`; `model` is the first rendered dashboard model. |
+| `error` | `{ status, manifest?, errors }` | `errors` contains serializable `HonuaGeneratedAppDiagnostic` objects. `manifest` is present only when projection got far enough to resolve one. |
+
+The ready `model` has stable top-level fields:
+
+| Field | Meaning |
+| --- | --- |
+| `status` | Always `ready`. |
+| `appId`, `title`, `sourceId` | Runtime identity and primary source binding. |
+| `visibleCount`, `totalCount` | Filtered count and loaded-record count. |
+| `widgets` | Ordered widget models matching `manifest.layout.widgets`. |
+| `snapshot` | `ExplorationContext` snapshot for save/restore. |
+
+Widget models are framework-neutral render data, not DOM instructions:
+
+| Widget kind | Model fields |
+| --- | --- |
+| `map` | `loaded`, `mapPackageId`, `layerId`, `legend`, and `searchFields`. |
+| `table` / `list` | `sourceId`, rendered `rows`, and visible `fields`. |
+| `count` | `label` and numeric `value`. |
+| `chart` | `sourceId`, `groupBy`, and selected/count-bearing `buckets`. |
+| `filter` | `sourceId`, `field`, and selected/count-bearing `options`. |
+
+Use `HonuaGeneratedAppLoadOptions.onEvent` or `runtime.on(...)` to observe the
+preview lifecycle. Events are `widget-bound`, `rendered`, `loaded`, `error`,
+and `disposed`; they are intended for host telemetry and preview diagnostics.
 
 ## Runtime Interactions
 

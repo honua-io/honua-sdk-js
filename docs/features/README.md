@@ -19,6 +19,7 @@ This repository owns the JavaScript/TypeScript SDK, browser runtime helpers, mig
 - SDK source: `src/`
 - MCP package: `mcp/src/`
 - Examples: `examples/`, `docs/examples/`
+- Generated app runtime contract: `docs/generated-app-runtime.md`
 - Protocol and compatibility docs: `docs/protocol-capability-matrix.md`, `docs/sdk-surface-alignment.md`, `docs/webmap-json-compatibility.md`
 
 ## 3D Status
