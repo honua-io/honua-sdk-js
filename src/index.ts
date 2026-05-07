@@ -1092,6 +1092,16 @@ export type {
   OdataSpatialFilterContext,
 } from "./core/odata.js";
 export {
+  HonuaWfs,
+  HonuaWfsFeatureType,
+  HonuaWfsStoredQuery,
+  rethrowAsWfsExceptionIfPossible,
+} from "./core/wfs.js";
+export type {
+  HonuaWfsOptions,
+  OutputFormatChoice,
+} from "./core/wfs.js";
+export {
   hasOgcConformanceClass,
   negotiateOgcCapabilities,
 } from "./core/ogc-conformance.js";

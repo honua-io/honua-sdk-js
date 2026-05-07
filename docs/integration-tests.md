@@ -19,10 +19,13 @@ server routes, response shapes, errors, and capability negotiation.
   the server's admin auth — the harness passes
   `HONUA_INTEGRATION_API_KEY` as the `X-API-Key` header, and that value
   must match the server's `HONUA_ADMIN_PASSWORD`.
-- **Public API only.** Tests call methods on `HonuaClient` and its
+- **Public API only.** Tests call methods on `HonuaClient`, its
   factory-returned helpers (`featureLayer`, `mapService`,
-  `ogcFeatures`, `ogcTiles`, `ogcMaps`, `ogcProcesses`, `wms`, `wmts`).
-  Private HTTP helpers from `honua-server/tests/` are not used.
+  `imageService`, `geometryService`, `geoprocessing`, `ogcFeatures`,
+  `ogcTiles`, `ogcMaps`, `ogcProcesses`, `stac`, `wfs`, `wms`, `wmts`,
+  `odata`), and standalone public clients such as
+  `HonuaGeocodingClient`. Private HTTP helpers from
+  `honua-server/tests/` are not used.
 - **One file per protocol surface.** `test/integration/surfaces/`
   contains one `*.integration.ts` per surface; each file calls
   `integrationSuite("<friendly>", "<surface-tag>", () => …)` so the
@@ -77,6 +80,17 @@ HONUA_INTEGRATION_BASE_URL=http://localhost:8080 \
 | `HONUA_INTEGRATION_TIMEOUT_MS` | `30000` | Per-request timeout used by the harness `HonuaClient`. |
 | `HONUA_INTEGRATION_SERVER_IMAGE` | _(unset)_ | Recorded into `integration-meta.json` (CI uses the resolved image digest). |
 | `HONUA_INTEGRATION_SERVER_COMMIT` | _(unset)_ | Honua Server commit SHA, recorded into `integration-meta.json`. CI reads it from the workflow `server_commit` input or `vars.HONUA_INTEGRATION_SERVER_COMMIT`; it is never derived from `${{ github.sha }}` (which is the SDK repo commit). Leave blank when the server commit is unknown. |
+| `HONUA_INTEGRATION_STAC_COLLECTION_ID` | `HONUA_INTEGRATION_COLLECTION_ID` | STAC collection ID used for optional collection/item probes. |
+| `HONUA_INTEGRATION_ODATA_BASE_PATH` | `/odata` | OData service root path. |
+| `HONUA_INTEGRATION_ODATA_ENTITY_SET` | `Layers(<layerId>)/Features` | OData entity set or navigation path for the configured layer. |
+| `HONUA_INTEGRATION_IMAGE_SERVICE_ID` | _(unset)_ | Enables ImageServer live coverage against a seeded raster service. |
+| `HONUA_INTEGRATION_GP_SERVICE_ID` | _(unset)_ | Enables GPServer live coverage against a seeded job service. |
+| `HONUA_INTEGRATION_GP_TASK_NAME` | _(unset)_ | Optional GPServer task segment for task-scoped services. |
+| `HONUA_INTEGRATION_GP_PARAMETERS_JSON` | `{}` | JSON object submitted to the configured GPServer task. |
+| `HONUA_INTEGRATION_WFS_ENDPOINT_URL` | _(unset)_ | Enables WFS live coverage against a seeded WFS endpoint. |
+| `HONUA_INTEGRATION_WFS_TYPE_NAME` | _(unset)_ | WFS feature type used by the live WFS probe. |
+| `HONUA_INTEGRATION_GEOCODING_LOCATOR` | _(unset)_ | Enables GeocodeServer live coverage against a seeded locator. |
+| `HONUA_INTEGRATION_GEOCODING_PROBE_TEXT` | `Honolulu` | Forward-geocode text used when geocoding coverage is enabled. |
 
 ## Surface coverage
 
@@ -86,14 +100,19 @@ The lane exercises the following surfaces against the seed profile.
 | --- | --- | --- |
 | FeatureServer | Exercised | metadata, queryFeatures, queryFeatureCount, queryObjectIds |
 | MapServer | Exercised | metadata, mapLayer.queryFeatures, queryFeatureCount, exportMap |
+| ImageServer | Configured | `client.imageService().metadata` when `HONUA_INTEGRATION_IMAGE_SERVICE_ID` is set; otherwise recorded skipped because the default seed is vector-only |
+| GeometryServer | Exercised | `client.geometryService().project`, `buffer` |
+| GPServer | Configured | submitJob and jobStatus when `HONUA_INTEGRATION_GP_SERVICE_ID` is set; otherwise recorded skipped because the default seed has no runnable GP task |
 | OGC API Features | Exercised | landing, conformance, collections, items, item |
 | OGC API Tiles | Exercised | landing, conformance, tileMatrixSets (list + by id), tilesets, tile |
 | OGC API Maps | Exercised | landing, conformance, map render |
 | OGC API Processes | Exercised | landing, conformance, list, describe (when registered) |
+| STAC | Exercised | landing, collections, search, collection when advertised |
+| WFS | Configured | capabilities and bounded GetFeature when WFS endpoint/type env vars are set; otherwise recorded skipped |
 | WMS | Exercised | capabilities, GetMap |
 | WMTS | Exercised | capabilities, GetTile |
-| ImageServer | Skipped | No first-party `client.imageService(...)` entry yet (tracked by honua-sdk-js#39). |
-| GPServer | Skipped | No first-party `client.geoprocessing(...)` entry yet (tracked by honua-sdk-js#39). |
+| OData | Exercised | metadata, bounded entity query |
+| Geocoding | Configured | forwardGeocode when `HONUA_INTEGRATION_GEOCODING_LOCATOR` is set; otherwise recorded skipped |
 
 Skipped surfaces are recorded in `test-results/integration-meta.json`
 with a `reason` field so the gap is visible in CI artifacts; this keeps
