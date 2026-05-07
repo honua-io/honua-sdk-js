@@ -7,7 +7,8 @@ The matrix below is the **default** capability set per protocol. Callers
 that need a narrower surface for a specific source (for example a Feature
 Service whose metadata reports `supportsStatistics: false`) must intersect
 the default set themselves and pass the result on
-`SourceDescriptor.capabilities`. The GeoServices, OGC, STAC, WFS, and WMS
+`SourceDescriptor.capabilities`. The gRPC default is shared by the canonical
+FeatureService transport, and the GeoServices, OGC, STAC, WFS, and WMS
 adapter constructors do not read service metadata today, so per-source
 downgrades for those protocols stay caller-side. **OData is the
 exception**: the `odataSource` adapter lazily fetches `$metadata` on the
@@ -27,26 +28,26 @@ without a canonical `Source` method today are negotiated for
 `◐` = supported only under `degraded` capability policy (client-side fallback).
 `—` = not supported.
 
-| Capability | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | STAC | WFS | WMS | WMTS | OData |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `query` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | ✓ |
-| `queryAggregate` | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — |
-| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `queryExtent` | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | ✓ | — | — | — |
-| `queryObjectIds` | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ |
-| `queryRelated` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `applyEdits` | ✓ | — | — | — | — | ✓ | — | — | — | ✓ | — | — | ✓ |
-| `attachments` | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
-| `render` | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | ✓ | ✓ | — |
-| `tiles` | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | ✓ | ✓ | — |
-| `sql` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `stream` | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ |
-| `pbf` | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
-| `connect` | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — |
-| `image` | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
-| `geometry` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — |
-| `geoprocess` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | STAC | WFS | WMS | WMTS | OData |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | ✓ |
+| `queryAggregate` | ✓ | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — |
+| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | ✓ | — | — | — |
+| `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ |
+| `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | ✓ | — | — | ✓ |
+| `attachments` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | ✓ | ✓ | — |
+| `tiles` | — | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | ✓ | ✓ | — |
+| `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | — | — | ✓ |
+| `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| `connect` | — | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — |
+| `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
+| `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — |
+| `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
+| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 MapLibre-native sources (`maplibre-vector`, `maplibre-raster`,
 `maplibre-geojson`) are render-only and contribute `render` and (where
@@ -63,6 +64,14 @@ keep the index model opaque so H3, Quadbin, or provider-specific grids
 can all satisfy the same app contract.
 
 ## Notes by protocol
+
+### gRPC FeatureService
+Canonical transport shared across the SDKs and generated from the
+`geospatial-grpc` FeatureService definitions. The default capability set is
+`query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `applyEdits`, and
+`stream`. In JS, gRPC-Web is selected on `HonuaClient` with
+`transport: "grpc-web"`; it is not exposed as a `Source.protocol("grpc")`
+adapter handle.
 
 ### GeoServices Feature Service
 First-class. Aggregations set `outStatistics`, `groupByFieldsForStatistics`,
