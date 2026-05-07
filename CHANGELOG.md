@@ -2,6 +2,19 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.7-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.6-alpha.0...js-sdk-v0.0.7-alpha.0) (2026-05-07)
+
+
+### Features
+
+* add geoprocessing job runner demo ([#137](https://github.com/honua-io/honua-sdk-js/issues/137)) ([a435f5b](https://github.com/honua-io/honua-sdk-js/commit/a435f5b27ca10971df9ae066a62a9587405c64ed))
+* add standards source picker demo ([#133](https://github.com/honua-io/honua-sdk-js/issues/133)) ([08c7519](https://github.com/honua-io/honua-sdk-js/commit/08c751936b5765fcf6abde6863a4e614ce17da28))
+
+
+### Bug Fixes
+
+* make grpc a canonical contract protocol ([#136](https://github.com/honua-io/honua-sdk-js/issues/136)) ([54ced61](https://github.com/honua-io/honua-sdk-js/commit/54ced61899cbb4c3a02fae959efbd8bd02970511))
+
 ## [0.0.6-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.5-alpha.0...js-sdk-v0.0.6-alpha.0) (2026-05-07)
 
 
