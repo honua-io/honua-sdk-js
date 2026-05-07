@@ -38,6 +38,14 @@ button:hover {
   border-color: #2563eb;
 }
 
+button:disabled,
+select:disabled {
+  color: #71807a;
+  border-color: #cad4cf;
+  background: #eef3f0;
+  cursor: not-allowed;
+}
+
 select {
   min-width: 0;
   inline-size: 100%;
@@ -146,6 +154,26 @@ h3 {
 .metric-list {
   display: grid;
   gap: 7px;
+}
+
+.source-summary {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0 10px;
+  border: 1px solid #dce4df;
+  border-radius: 6px;
+  padding: 8px;
+  background: #fbfcfc;
+}
+
+.source-summary strong {
+  font-size: 0.82rem;
+}
+
+.source-summary span,
+.disabled-copy {
+  color: #52615a;
+  font-size: 0.78rem;
 }
 
 .metric-list div,

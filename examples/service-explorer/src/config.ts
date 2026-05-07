@@ -89,5 +89,6 @@ export function resolveServiceExplorerConfig(env: Record<string, string | undefi
       DEFAULT_SERVICE_EXPLORER_MAP_MOVE_DEBOUNCE_MS,
       "A service explorer map movement debounce",
     ),
+    selectedSourceId: readOptional(env, "VITE_HONUA_SERVICE_EXPLORER_SOURCE_ID"),
   };
 }

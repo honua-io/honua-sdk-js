@@ -194,6 +194,42 @@ describe("service explorer workspace", () => {
     explorer.dispose();
   });
 
+  it("normalizes standards source picker capabilities for queryable and render-only sources", () => {
+    const wfs = createFixtureServiceExplorerDataset({ sourceOptionId: "wfs-service-requests", now: 6_000 });
+    expect(wfs.sourceOption.protocol).toBe("WFS");
+    expect(wfs.metadata.capabilities).toMatchObject({
+      query: "supported",
+      table: "supported",
+      render: "degraded",
+    });
+    expect(wfs.featureSummaries.length).toBeGreaterThan(0);
+
+    const wfsResult = applyServiceExplorerProjection(wfs.featureSummaries, {
+      filters: {
+        status: { field: "status", operator: "=", value: "open", appliesTo: [wfs.sourceId] },
+      },
+      spatialFilter: undefined,
+      extent: undefined,
+      orderBy: [],
+      pagination: {},
+      outFields: ["*"],
+      grouping: [],
+      aggregation: undefined,
+      selection: [],
+    });
+    expect(wfsResult.rows.map((row) => row.id)).toEqual(["1001", "1003", "1007"]);
+
+    const wmts = createFixtureServiceExplorerDataset({ sourceOptionId: "wmts-basemap", now: 7_000 });
+    expect(wmts.sourceOption.protocol).toBe("WMTS");
+    expect(wmts.metadata.capabilities).toMatchObject({
+      query: "unsupported",
+      render: "supported",
+      table: "unsupported",
+    });
+    expect(wmts.featureSummaries).toEqual([]);
+    expect(wmts.diagnostics.some((diagnostic) => diagnostic.code === "table-query-disabled")).toBe(true);
+  });
+
   it("debounces high-frequency map movement before publishing extent", () => {
     vi.useFakeTimers();
     const map = new FakeMoveMap();
