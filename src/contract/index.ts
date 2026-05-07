@@ -142,14 +142,18 @@ export type {
 } from "./edit-session.js";
 
 export {
+  FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID,
   SPATIAL_AGGREGATION_CAPABILITY,
   SPATIAL_AGGREGATION_METADATA_SCHEMA_VERSION,
   SPATIAL_AGGREGATION_SCHEMA_VERSION,
+  assertFeatureServerH3SpatialAggregationRequest,
   assertValidSpatialAggregationRequest,
   isSpatialAggregationComplete,
   spatialAggregationProgress,
+  spatialAggregationSummaryKindSupportedByFeatureServerH3,
   spatialAggregationSummaryKindRequiresField,
   spatialAggregationWidgets,
+  validateFeatureServerH3SpatialAggregationRequest,
   validateSpatialAggregationRequest,
 } from "./spatial-aggregation.js";
 

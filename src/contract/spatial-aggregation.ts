@@ -18,6 +18,7 @@ import type { DegradedReason, SourceId } from "./types.js";
 export const SPATIAL_AGGREGATION_SCHEMA_VERSION = "honua.spatial-aggregation.v1" as const;
 export const SPATIAL_AGGREGATION_METADATA_SCHEMA_VERSION = "honua.spatial-aggregation.metadata.v1" as const;
 export const SPATIAL_AGGREGATION_CAPABILITY = "spatialAggregate" as const;
+export const FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID = "h3" as const;
 
 export type SpatialAggregationSummaryKind =
   | "category"
@@ -479,6 +480,114 @@ export function assertValidSpatialAggregationRequest(request: SpatialAggregation
   if (issues.length > 0) {
     const details = issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ");
     throw new Error(`Invalid spatial aggregation request: ${details}`);
+  }
+}
+
+export function spatialAggregationSummaryKindSupportedByFeatureServerH3(
+  kind: SpatialAggregationSummaryKind,
+): kind is SpatialAggregationMetricKind {
+  return kind === "count" || kind === "sum" || kind === "avg" || kind === "min" || kind === "max";
+}
+
+export function validateFeatureServerH3SpatialAggregationRequest(
+  request: SpatialAggregationRequest,
+): readonly SpatialAggregationValidationIssue[] {
+  const issues = [...validateSpatialAggregationRequest(request)];
+
+  const indexResolution = request.resolution?.indexResolution;
+  if (indexResolution === undefined) {
+    issues.push({
+      path: "resolution.indexResolution",
+      message: "FeatureServer queryH3 requires an explicit indexResolution",
+    });
+  } else if (!Number.isInteger(indexResolution) || indexResolution < 0 || indexResolution > 15) {
+    issues.push({
+      path: "resolution.indexResolution",
+      message: "FeatureServer queryH3 indexResolution must be an integer between 0 and 15",
+    });
+  }
+
+  if (
+    request.index?.modelId !== undefined &&
+    request.index.modelId !== FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID
+  ) {
+    issues.push({
+      path: "index.modelId",
+      message: "FeatureServer queryH3 only supports the H3 index model",
+    });
+  }
+
+  if (request.index?.geometry === "centroid") {
+    issues.push({
+      path: "index.geometry",
+      message: "FeatureServer queryH3 does not currently return cell centroids",
+    });
+  }
+
+  if (request.spatialFilter !== undefined) {
+    issues.push({
+      path: "spatialFilter",
+      message: "FeatureServer queryH3 does not currently accept spatialFilter input",
+    });
+  }
+
+  if (request.viewport !== undefined) {
+    issues.push({
+      path: "viewport",
+      message: "FeatureServer queryH3 does not currently accept viewport input",
+    });
+  }
+
+  if (request.groupBy !== undefined && request.groupBy.length > 0) {
+    issues.push({
+      path: "groupBy",
+      message: "FeatureServer queryH3 does not currently support grouped summaries",
+    });
+  }
+
+  if (request.page !== undefined) {
+    issues.push({
+      path: "page",
+      message: "FeatureServer queryH3 does not currently support cursor paging",
+    });
+  }
+
+  const metricSummaries = request.summaries.filter((summary) =>
+    spatialAggregationSummaryKindSupportedByFeatureServerH3(summary.kind),
+  );
+  request.summaries.forEach((summary, index) => {
+    const path = `summaries[${index}]`;
+    if (!spatialAggregationSummaryKindSupportedByFeatureServerH3(summary.kind)) {
+      issues.push({
+        path: `${path}.kind`,
+        message: `${summary.kind} summaries are not supported by FeatureServer queryH3`,
+      });
+      return;
+    }
+
+    if (summary.kind === "count" && summary.countDistinct === true) {
+      issues.push({
+        path: `${path}.countDistinct`,
+        message: "FeatureServer queryH3 does not currently support countDistinct summaries",
+      });
+    }
+
+    if (summary.kind === "count" && summary.field === undefined && metricSummaries.length > 1) {
+      issues.push({
+        path: `${path}.field`,
+        message: "count summaries require a field when combined with other queryH3 metrics",
+      });
+    }
+  });
+
+  return issues;
+}
+
+export function assertFeatureServerH3SpatialAggregationRequest(request: SpatialAggregationRequest): void {
+  const issues = validateFeatureServerH3SpatialAggregationRequest(request);
+  if (issues.length > 0) {
+    const details = issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ");
+    throw new Error(`Invalid FeatureServer queryH3 spatial aggregation request: ${details}`);
   }
 }
 

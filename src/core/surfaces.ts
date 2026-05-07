@@ -1,3 +1,20 @@
+import {
+  FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID,
+  SPATIAL_AGGREGATION_METADATA_SCHEMA_VERSION,
+  SPATIAL_AGGREGATION_SCHEMA_VERSION,
+  assertFeatureServerH3SpatialAggregationRequest,
+  spatialAggregationWidgets,
+} from "../contract/spatial-aggregation.js";
+import type {
+  SpatialAggregationCell,
+  SpatialAggregationRequest,
+  SpatialAggregationResult,
+  SpatialAggregationSummaryBag,
+  SpatialAggregationSummaryMetadata,
+  SpatialAggregationSummarySpec,
+  SpatialAggregationSummaryValue,
+} from "../contract/spatial-aggregation.js";
+import type { SourceId } from "../contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
 import type {
@@ -66,6 +83,12 @@ export type HonuaFeatureLayerQueryCountRequest = Pick<QueryFeaturesRequest, "whe
 };
 export type HonuaFeatureLayerQueryObjectIdsRequest = HonuaFeatureLayerQueryRequest;
 export type HonuaFeatureLayerQueryExtentRequest = HonuaFeatureLayerQueryCountRequest;
+export type HonuaFeatureLayerSpatialAggregationRequest = Omit<SpatialAggregationRequest, "sourceId"> & {
+  sourceId?: SourceId;
+  method?: Extract<QueryMethod, "GET" | "POST">;
+  responseFormat?: "json" | "pjson";
+  kRingDistance?: number;
+};
 export type HonuaFeatureLayerQueryRelatedRecordsRequest = Omit<QueryRelatedRecordsRequest, "serviceId" | "layerId">;
 export type HonuaFeatureLayerApplyEditsRequest = Omit<ApplyEditsRequest, "serviceId" | "layerId">;
 export interface HonuaFeatureLayerQueryExtentResponse {
@@ -450,6 +473,42 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     });
 
     return extractExtentFromResponse(response);
+  }
+
+  public async querySpatialAggregation(
+    request: HonuaFeatureLayerSpatialAggregationRequest,
+  ): Promise<SpatialAggregationResult> {
+    const sourceId = request.sourceId ?? defaultFeatureLayerSourceId(this.serviceId, this.layerId);
+    const normalizedRequest: SpatialAggregationRequest = {
+      ...request,
+      sourceId,
+    };
+    assertFeatureServerH3SpatialAggregationRequest(normalizedRequest);
+
+    const plan = createFeatureServerH3AggregationPlan(normalizedRequest, request.kRingDistance);
+    const path = `/rest/services/${encodeURIComponent(this.serviceId)}/FeatureServer/${this.layerId}/queryH3`;
+    const method = request.method ?? "POST";
+    const response =
+      method === "GET"
+        ? await this.client.request<HonuaQueryResponse>({
+            method,
+            path,
+            responseFormat: request.responseFormat ?? "json",
+            query: plan.params,
+            signal: request.signal,
+          })
+        : await this.client.request<HonuaQueryResponse>({
+            method,
+            path,
+            responseFormat: request.responseFormat ?? "json",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: toFormBody(plan.params),
+            signal: request.signal,
+          });
+
+    return featureServerH3AggregationResultFromResponse(response, normalizedRequest, plan);
   }
 
   public async queryRelatedRecords(
@@ -1764,6 +1823,371 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+interface FeatureServerH3AggregationSummaryBinding {
+  readonly summary: SpatialAggregationSummarySpec;
+  readonly responseField: string;
+}
+
+interface FeatureServerH3AggregationPlan {
+  readonly params: Record<string, string | number | boolean>;
+  readonly resolution: number;
+  readonly summaryBindings: readonly FeatureServerH3AggregationSummaryBinding[];
+}
+
+function defaultFeatureLayerSourceId(serviceId: string, layerId: number): SourceId {
+  return `geoservices-feature-service:${serviceId}/${layerId}`;
+}
+
+function createFeatureServerH3AggregationPlan(
+  request: SpatialAggregationRequest,
+  kRingDistance: number | undefined,
+): FeatureServerH3AggregationPlan {
+  const resolution = request.resolution?.indexResolution;
+  if (resolution === undefined) {
+    throw new Error("FeatureServer queryH3 requires resolution.indexResolution");
+  }
+
+  const params: Record<string, string | number | boolean> = {
+    resolution,
+  };
+  if (request.where !== undefined) {
+    params.where = request.where;
+  }
+
+  const normalizedKRingDistance = normalizeH3KRingDistance(kRingDistance);
+  if (normalizedKRingDistance !== undefined) {
+    params.kRingDistance = normalizedKRingDistance;
+  }
+
+  const firstSummary = request.summaries[0];
+  const usesServerDefaultCount =
+    request.summaries.length === 1 && firstSummary?.kind === "count" && firstSummary.field === undefined;
+
+  if (usesServerDefaultCount) {
+    return {
+      params,
+      resolution,
+      summaryBindings: [{ summary: firstSummary, responseField: "count" }],
+    };
+  }
+
+  const outStatistics: Array<Record<string, string>> = [];
+  const summaryBindings = request.summaries.map((summary, index) => {
+    const responseField = outStatisticFieldName(summary, index);
+    const onStatisticField = statisticInputField(summary);
+    outStatistics.push({
+      statisticType: summary.kind,
+      onStatisticField,
+      outStatisticFieldName: responseField,
+    });
+    return { summary, responseField };
+  });
+
+  params.outStatistics = JSON.stringify(outStatistics);
+  return {
+    params,
+    resolution,
+    summaryBindings,
+  };
+}
+
+function featureServerH3AggregationResultFromResponse(
+  response: HonuaQueryResponse,
+  request: SpatialAggregationRequest,
+  plan: FeatureServerH3AggregationPlan,
+): SpatialAggregationResult {
+  const cells = extractFeaturesFromResponse(response).map((feature) =>
+    featureServerH3CellFromFeature(feature, request, plan),
+  );
+  const extent = mergeExtents(
+    cells.map((cell) => cell.extent).filter((value): value is HonuaExtent => value !== undefined),
+  );
+  const indexModel = {
+    id: request.index?.modelId ?? FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID,
+    title: "FeatureServer indexed cells",
+    family: FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID,
+    cellIdEncoding: "string" as const,
+    minResolution: 0,
+    maxResolution: 15,
+    supportedGeometry: ["none", "extent", "boundary"] as const,
+    hierarchy: "parent-child" as const,
+    spatialReference: response.spatialReference ?? extent?.spatialReference ?? { wkid: 4326 },
+  };
+  const summaries = request.summaries.map(spatialAggregationSummaryMetadataFromSpec);
+  const progressive = {
+    status: response.exceededTransferLimit === true ? ("partial" as const) : ("complete" as const),
+    refinement: response.exceededTransferLimit === true ? ("append" as const) : undefined,
+    loadedCellCount: cells.length,
+  };
+  const metadata = {
+    schemaVersion: SPATIAL_AGGREGATION_METADATA_SCHEMA_VERSION,
+    sourceId: request.sourceId,
+    indexModels: [indexModel],
+    summaries,
+    progressive,
+    cache: {
+      metadataCacheable: true,
+      resultCacheable: false,
+      cacheKeyParts: [
+        "geoservices-feature-service",
+        request.sourceId,
+        "queryH3",
+        `resolution=${plan.resolution}`,
+        `where=${request.where ?? ""}`,
+      ],
+    },
+  };
+
+  return {
+    schemaVersion: SPATIAL_AGGREGATION_SCHEMA_VERSION,
+    requestId: request.requestId,
+    sourceId: request.sourceId,
+    index: {
+      model: indexModel,
+      resolution: plan.resolution,
+      requestedResolution: request.resolution,
+      cellCount: cells.length,
+      extent,
+    },
+    metadata: {
+      ...metadata,
+      widgets: spatialAggregationWidgets(metadata),
+    },
+    cells,
+    page:
+      response.exceededTransferLimit === true
+        ? {
+            loadedCellCount: cells.length,
+          }
+        : undefined,
+    degraded:
+      response.exceededTransferLimit === true
+        ? [
+            {
+              capability: "spatialAggregate",
+              protocol: "geoservices-feature-service",
+              sourceId: request.sourceId,
+              reason:
+                "FeatureServer queryH3 response exceeded the server transfer limit; returned cells may be partial.",
+            },
+          ]
+        : undefined,
+  };
+}
+
+function featureServerH3CellFromFeature(
+  feature: HonuaFeature,
+  request: SpatialAggregationRequest,
+  plan: FeatureServerH3AggregationPlan,
+): SpatialAggregationCell {
+  const attributes = feature.attributes ?? {};
+  const id = cellIdFromAttributes(attributes);
+  const extent = extentFromGeometry(feature.geometry);
+  const geometryMode = request.index?.geometry ?? "boundary";
+  const cell: SpatialAggregationCell = {
+    id,
+    resolution: plan.resolution,
+    extent,
+    summaries: spatialAggregationSummariesFromAttributes(attributes, plan),
+  };
+
+  if (geometryMode === "boundary" && isObject(feature.geometry)) {
+    return {
+      ...cell,
+      geometry: feature.geometry,
+    };
+  }
+
+  return cell;
+}
+
+function spatialAggregationSummariesFromAttributes(
+  attributes: Record<string, unknown>,
+  plan: FeatureServerH3AggregationPlan,
+): SpatialAggregationSummaryBag {
+  const summaries: Record<string, SpatialAggregationSummaryValue> = {};
+  for (const binding of plan.summaryBindings) {
+    summaries[binding.summary.id] = spatialAggregationSummaryValueFromAttribute(
+      binding.summary,
+      attributes[binding.responseField],
+    );
+  }
+  return summaries;
+}
+
+function spatialAggregationSummaryValueFromAttribute(
+  summary: SpatialAggregationSummarySpec,
+  value: unknown,
+): SpatialAggregationSummaryValue {
+  if (summary.kind === "count") {
+    return {
+      kind: "count",
+      value: Math.max(0, finiteNumberOr(value, 0)),
+    };
+  }
+
+  if (summary.kind === "sum" || summary.kind === "avg" || summary.kind === "min" || summary.kind === "max") {
+    return {
+      kind: summary.kind,
+      value: finiteNumberOrNull(value),
+      unit: summary.unit,
+    };
+  }
+
+  throw new Error(`FeatureServer queryH3 does not support ${summary.kind} summaries.`);
+}
+
+function spatialAggregationSummaryMetadataFromSpec(
+  summary: SpatialAggregationSummarySpec,
+): SpatialAggregationSummaryMetadata {
+  return {
+    id: summary.id,
+    kind: summary.kind,
+    title: summary.title,
+    field: summary.field,
+    valueType: summary.valueType ?? (summary.kind === "count" ? "number" : undefined),
+    unit: summary.unit,
+  };
+}
+
+function statisticInputField(summary: SpatialAggregationSummarySpec): string {
+  if (summary.kind === "count") {
+    if (summary.field === undefined) {
+      throw new Error("count summaries require a field when queryH3 uses outStatistics.");
+    }
+    return summary.field;
+  }
+  if (summary.kind === "sum" || summary.kind === "avg" || summary.kind === "min" || summary.kind === "max") {
+    return summary.field;
+  }
+  throw new Error(`FeatureServer queryH3 does not support ${summary.kind} summaries.`);
+}
+
+function outStatisticFieldName(summary: SpatialAggregationSummarySpec, index: number): string {
+  const safeId = summary.id.replace(/[^A-Za-z0-9_]/g, "_").replace(/^([^A-Za-z_])/, "_$1");
+  return `honua_${index + 1}_${safeId || "summary"}`.slice(0, 63);
+}
+
+function normalizeH3KRingDistance(value: number | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Number.isInteger(value) || value < 0 || value > 20) {
+    throw new Error("FeatureServer queryH3 kRingDistance must be an integer between 0 and 20.");
+  }
+  return value;
+}
+
+function cellIdFromAttributes(attributes: Record<string, unknown>): string {
+  for (const key of ["cellIndex", "cell_index", "h3Index", "h3_index"]) {
+    const value = attributes[key];
+    if (typeof value === "string" || typeof value === "number" || typeof value === "bigint") {
+      return String(value);
+    }
+  }
+  throw new Error("FeatureServer queryH3 response is missing a cellIndex attribute.");
+}
+
+function extentFromGeometry(geometry: unknown): HonuaExtent | undefined {
+  if (!isObject(geometry)) {
+    return undefined;
+  }
+  if (
+    isFiniteNumber(geometry.xmin) &&
+    isFiniteNumber(geometry.ymin) &&
+    isFiniteNumber(geometry.xmax) &&
+    isFiniteNumber(geometry.ymax)
+  ) {
+    return {
+      xmin: geometry.xmin,
+      ymin: geometry.ymin,
+      xmax: geometry.xmax,
+      ymax: geometry.ymax,
+      spatialReference: isObject(geometry.spatialReference)
+        ? (geometry.spatialReference as HonuaExtent["spatialReference"])
+        : undefined,
+    };
+  }
+
+  const coordinates: Array<readonly [number, number]> = [];
+  collectCoordinatePairs(geometry.rings, coordinates);
+  collectCoordinatePairs(geometry.paths, coordinates);
+  collectCoordinatePairs(geometry.points, coordinates);
+  if (isFiniteNumber(geometry.x) && isFiniteNumber(geometry.y)) {
+    coordinates.push([geometry.x, geometry.y]);
+  }
+  if (coordinates.length === 0) {
+    return undefined;
+  }
+
+  let xmin = Number.POSITIVE_INFINITY;
+  let ymin = Number.POSITIVE_INFINITY;
+  let xmax = Number.NEGATIVE_INFINITY;
+  let ymax = Number.NEGATIVE_INFINITY;
+  for (const [x, y] of coordinates) {
+    xmin = Math.min(xmin, x);
+    ymin = Math.min(ymin, y);
+    xmax = Math.max(xmax, x);
+    ymax = Math.max(ymax, y);
+  }
+
+  return {
+    xmin,
+    ymin,
+    xmax,
+    ymax,
+    spatialReference: isObject(geometry.spatialReference)
+      ? (geometry.spatialReference as HonuaExtent["spatialReference"])
+      : undefined,
+  };
+}
+
+function collectCoordinatePairs(value: unknown, coordinates: Array<readonly [number, number]>): void {
+  if (!Array.isArray(value)) {
+    return;
+  }
+  if (isFiniteNumber(value[0]) && isFiniteNumber(value[1])) {
+    coordinates.push([value[0], value[1]]);
+    return;
+  }
+  for (const child of value) {
+    collectCoordinatePairs(child, coordinates);
+  }
+}
+
+function mergeExtents(extents: readonly HonuaExtent[]): HonuaExtent | undefined {
+  if (extents.length === 0) {
+    return undefined;
+  }
+  const [first, ...rest] = extents;
+  return rest.reduce<HonuaExtent>(
+    (merged, extent) => ({
+      xmin: Math.min(merged.xmin, extent.xmin),
+      ymin: Math.min(merged.ymin, extent.ymin),
+      xmax: Math.max(merged.xmax, extent.xmax),
+      ymax: Math.max(merged.ymax, extent.ymax),
+      spatialReference: merged.spatialReference ?? extent.spatialReference,
+    }),
+    first,
+  );
+}
+
+function finiteNumberOr(value: unknown, fallback: number): number {
+  const numeric = finiteNumberOrNull(value);
+  return numeric ?? fallback;
+}
+
+function finiteNumberOrNull(value: unknown): number | null {
+  if (isFiniteNumber(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function extractFeatureCountFromResponse(response: unknown): number {
