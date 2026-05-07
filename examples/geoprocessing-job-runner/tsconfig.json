@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@honua/sdk-js/app-workspace": ["../../src/app-workspace/index.ts"],
+      "@honua/sdk-js/contract": ["../../src/contract/index.ts"],
+      "@honua/sdk-js/exploration": ["../../src/exploration/index.ts"],
+      "@honua/sdk-js/interactions": ["../../src/interactions/index.ts"],
+      "@honua/sdk-js/honua": ["../../src/honua.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "vite.config.ts"]
+}

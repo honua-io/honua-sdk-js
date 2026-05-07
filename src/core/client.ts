@@ -16,6 +16,14 @@ import { HonuaOgcMaps } from "./ogc-maps.js";
 import { HonuaOgcProcesses } from "./ogc-processes.js";
 import { HonuaOgcTiles } from "./ogc-tiles.js";
 import { decodePbfQueryResponse, isPbfResponse } from "./pbf-decoder.js";
+import {
+  type HonuaProcessRunner,
+  createGeoServicesGpAdapter,
+  createGeospatialGrpcProcessAdapter,
+  createHonuaProcessRunner,
+  createOgcProcessesAdapter,
+} from "./process-runner.js";
+import type { GeospatialGrpcProcessClient, HonuaProcessAdapter } from "./process-runner.js";
 import { HonuaStacSearch } from "./stac.js";
 import {
   HonuaFeatureLayer,
@@ -469,6 +477,22 @@ export class HonuaClient {
 
   public geoprocessing(serviceId: string, taskName?: string): HonuaGeoprocessingService {
     return new HonuaGeoprocessingService({ client: this, serviceId, taskName });
+  }
+
+  public processRunner(adapter: HonuaProcessAdapter): HonuaProcessRunner {
+    return createHonuaProcessRunner(adapter);
+  }
+
+  public ogcProcessRunner(): HonuaProcessRunner {
+    return createHonuaProcessRunner(createOgcProcessesAdapter(this.ogcProcesses()));
+  }
+
+  public geoprocessingRunner(serviceId: string, taskName?: string): HonuaProcessRunner {
+    return createHonuaProcessRunner(createGeoServicesGpAdapter(this.geoprocessing(serviceId, taskName)));
+  }
+
+  public geospatialGrpcProcessRunner(processClient: GeospatialGrpcProcessClient): HonuaProcessRunner {
+    return createHonuaProcessRunner(createGeospatialGrpcProcessAdapter(processClient));
   }
 
   public wfs(endpointUrl = "/wfs", options: { version?: string } = {}): HonuaWfs {

@@ -129,10 +129,12 @@ import {
   HonuaMapService,
   HonuaOgcFeatureCollection,
   HonuaOgcFeatures,
+  HonuaProcessRunner,
   HonuaService,
   HonuaWfsExceptionError,
   createHonuaCacheState,
   createHonuaOgcFeatures,
+  createHonuaProcessRunner,
   createHonuaService,
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
   createEditSession as honuaCreateEditSession,
@@ -190,7 +192,9 @@ describe("entrypoint modules", () => {
     expect(HonuaImageService).toBeTypeOf("function");
     expect(HonuaGeometryService).toBeTypeOf("function");
     expect(HonuaGeoprocessingService).toBeTypeOf("function");
+    expect(HonuaProcessRunner).toBeTypeOf("function");
     expect(createHonuaService).toBeTypeOf("function");
+    expect(createHonuaProcessRunner).toBeTypeOf("function");
     expect(createHonuaOgcFeatures).toBeTypeOf("function");
     expect(HonuaWfsExceptionError).toBeTypeOf("function");
     expect(HonuaWfsExceptionErrorRoot).toBe(HonuaWfsExceptionError);
