@@ -652,6 +652,48 @@ export interface OgcItemRequest extends OgcCollectionRequest {
   signal?: AbortSignal;
 }
 
+/** Query parameters for OGC API Records `/collections/{catalogId}/items`. */
+export interface OgcRecordsSearchRequest extends OgcCollectionRequest {
+  limit?: number;
+  offset?: number;
+  bbox?: string | readonly [number, number, number, number];
+  datetime?: string;
+  /** Free-text record search terms. Arrays serialize as OGC form-style CSV. */
+  q?: string | readonly string[];
+  ids?: string | readonly (string | number)[];
+  /** Record resource type filter, e.g. `dataset`, `service`, `map`, `collection`. */
+  type?: string | readonly string[];
+  /** External resource identifiers associated with the record. */
+  externalIds?: string | readonly string[];
+  /** Optional CQL2 filter when the server advertises the Records filtering class. */
+  filter?: string;
+  filterLang?: "cql2-text" | "cql2-json" | (string & {});
+  filterCrs?: string;
+  properties?: string | readonly string[];
+  sortby?: string;
+  profile?: string | readonly string[];
+  signal?: AbortSignal;
+}
+
+/** Request envelope for one OGC API Records record. */
+export interface OgcRecordItemRequest extends OgcCollectionRequest {
+  recordId: string | number;
+  profile?: string | readonly string[];
+  signal?: AbortSignal;
+}
+
+/** Raw response access for record searches. */
+export interface OgcRecordsRawSearchRequest extends OgcRecordsSearchRequest {
+  accept?: string;
+  headers?: HeadersInit;
+}
+
+/** Raw response access for one record. */
+export interface OgcRecordRawItemRequest extends OgcRecordItemRequest {
+  accept?: string;
+  headers?: HeadersInit;
+}
+
 export interface OgcCreateItemRequest extends OgcCollectionRequest {
   feature: GeoJsonFeature | Record<string, unknown>;
   headers?: HeadersInit;
@@ -1044,6 +1086,39 @@ export interface HonuaOgcFeatureResponse {
   geometry: import("../expr/expression.js").GeoJsonGeometry | null;
   properties: Record<string, unknown> | null;
   links?: HonuaOgcLink[];
+}
+
+/** Core record metadata carried in an OGC API Records GeoJSON feature. */
+export interface HonuaOgcRecordProperties extends Record<string, unknown> {
+  type?: string;
+  title?: string;
+  description?: string;
+  keywords?: readonly string[];
+  themes?: readonly unknown[];
+  language?: string;
+  languages?: readonly string[];
+  contacts?: readonly unknown[];
+  formats?: readonly string[];
+  license?: string;
+  created?: string;
+  updated?: string;
+  externalIds?: readonly string[];
+  links?: HonuaOgcLink[];
+}
+
+/** A single OGC API Records record (GeoJSON Feature with record metadata). */
+export interface HonuaOgcRecordResponse extends Omit<HonuaOgcFeatureResponse, "properties"> {
+  properties: HonuaOgcRecordProperties | null;
+}
+
+/** Response from OGC API Records `/collections/{catalogId}/items`. */
+export interface HonuaOgcRecordsResponse {
+  type: "FeatureCollection";
+  features: HonuaOgcRecordResponse[];
+  numberMatched?: number;
+  numberReturned?: number;
+  links?: HonuaOgcLink[];
+  timeStamp?: string;
 }
 
 /** A hypermedia link in an OGC API response. */

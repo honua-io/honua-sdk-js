@@ -71,6 +71,19 @@ const PROCESS_CONFORMANCE_MAP: ReadonlyArray<readonly [string, readonly Capabili
   ["processes-1/1.0/conf/callback", ["processes"]],
 ];
 
+const RECORDS_CONFORMANCE_MAP: ReadonlyArray<readonly [string, readonly Capability[]]> = [
+  ["ogcapi-records-1/1.0/conf/records-api", ["query", "queryObjectIds"]],
+  ["ogcapi-records-1/1.0/conf/searchable-catalog", ["query", "queryObjectIds"]],
+  ["ogcapi-records-1/1.0/conf/record-core-query-parameters", ["query"]],
+  ["ogcapi-records-1/1.0/conf/cql-filter", ["query"]],
+  ["ogcapi-records-1/1.0/conf/searchable-catalog-filtering", ["query"]],
+  ["ogcapi-records-1/1.0/conf/sorting", ["query"]],
+  ["ogcapi-records-1/1.0/conf/searchable-catalog/sorting", ["query"]],
+  ["ogcapi-records-1/1.0/conf/json", []],
+  ["ogcapi-records-1/1.0/conf/html", []],
+  ["ogcapi-records-1/1.0/conf/oas30", []],
+];
+
 const STAC_CONFORMANCE_MAP: ReadonlyArray<readonly [string, readonly Capability[]]> = [
   ["stac-spec.org", ["query", "queryObjectIds"]],
   ["api.stacspec.org/v1.0.0/core", ["query"]],
@@ -88,12 +101,13 @@ const CONFORMANCE_TABLES: Record<OgcConformanceProtocol, ReadonlyArray<readonly 
   "ogc-tiles": TILE_CONFORMANCE_MAP,
   "ogc-maps": MAP_CONFORMANCE_MAP,
   "ogc-processes": PROCESS_CONFORMANCE_MAP,
+  "ogc-records": RECORDS_CONFORMANCE_MAP,
   stac: STAC_CONFORMANCE_MAP,
 };
 
 /** Subset of `Protocol` for which OGC-style conformance applies. */
 export type OgcConformanceProtocol =
-  | Extract<Protocol, "ogc-features" | "ogc-tiles" | "ogc-maps" | "stac">
+  | Extract<Protocol, "ogc-features" | "ogc-tiles" | "ogc-maps" | "ogc-records" | "stac">
   | "ogc-processes";
 
 /**

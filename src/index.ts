@@ -342,6 +342,9 @@ export type {
   HonuaOgcCollectionMetadata,
   HonuaOgcQueryableProperty,
   HonuaOgcQueryablesResponse,
+  HonuaOgcRecordProperties,
+  HonuaOgcRecordResponse,
+  HonuaOgcRecordsResponse,
   HonuaErrorContext,
   HonuaRequestContext,
   HonuaRequestInterceptor,
@@ -989,6 +992,21 @@ export type {
   HonuaOgcMapsOptions,
 } from "./core/ogc-maps.js";
 export {
+  createHonuaOgcRecords,
+  HonuaOgcRecordCollection,
+  HonuaOgcRecords,
+} from "./core/ogc-records.js";
+export type {
+  HonuaOgcRecordCollectionItemRequest,
+  HonuaOgcRecordCollectionOptions,
+  HonuaOgcRecordCollectionRawItemRequest,
+  HonuaOgcRecordCollectionRawSearchRequest,
+  HonuaOgcRecordCollectionSearchAllRequest,
+  HonuaOgcRecordCollectionSearchRequest,
+  HonuaOgcRecordsOptions,
+  HonuaOgcRecordsSearchAllRequest,
+} from "./core/ogc-records.js";
+export {
   createGeoServicesGpAdapter,
   createGeospatialGrpcProcessAdapter,
   createHonuaProcessRunner,
@@ -1144,6 +1162,10 @@ export type {
   HonuaStacItemCollectionResponse,
   HonuaStacItemResponse,
   HonuaStacLandingResponse,
+  OgcRecordItemRequest,
+  OgcRecordRawItemRequest,
+  OgcRecordsRawSearchRequest,
+  OgcRecordsSearchRequest,
   OgcMapImageRequest,
   OgcMapFormat,
   OgcProcessExecuteRequest,

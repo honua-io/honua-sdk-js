@@ -69,6 +69,7 @@
     "ogc-features",
     "ogc-tiles",
     "ogc-maps",
+    "ogc-records",
     "stac",
     "wfs",
     "wms",
@@ -92,6 +93,7 @@
     "gp-server": "geoservices-gp-service",
     "gpserver": "geoservices-gp-service",
     "ogc-api-features": "ogc-features",
+    "ogc-api-records": "ogc-records",
     "ogc_features": "ogc-features",
     "odata-v4": "odata",
     "wfs-2.0": "wfs",
@@ -180,6 +182,11 @@
     ],
     "ogc-maps": [
       "render"
+    ],
+    "ogc-records": [
+      "query",
+      "queryObjectIds",
+      "stream"
     ],
     "stac": [
       "query",

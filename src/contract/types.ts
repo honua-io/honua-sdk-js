@@ -25,8 +25,9 @@ import type { HonuaExtent, HonuaFieldInfo, HonuaServerCompatibilityFeature, Honu
  * Canonical protocol identifiers. Spatial / tabular protocols served
  * behind a `Source` come first, with the shared canonical gRPC
  * FeatureService transport leading the list. Render-only OGC tile and map
- * adapters (reachable through `Source.protocol()`), then the STAC API
- * search adapter, the WFS / WMS / OData adapters, and finally the
+ * adapters (reachable through `Source.protocol()`), then OGC Records and
+ * STAC catalog/search adapters, the WFS / WMS / WMTS / OData adapters, and
+ * finally the
  * MapLibre-native sources composed alongside protocol sources by
  * `HonuaMap` and `MapBinding`.
  *
@@ -47,6 +48,7 @@ export type Protocol =
   | "ogc-features"
   | "ogc-tiles"
   | "ogc-maps"
+  | "ogc-records"
   | "stac"
   | "wfs"
   | "wms"
@@ -67,6 +69,7 @@ export const PROTOCOLS: readonly Protocol[] = [
   "ogc-features",
   "ogc-tiles",
   "ogc-maps",
+  "ogc-records",
   "stac",
   "wfs",
   "wms",
@@ -248,6 +251,7 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   "ogc-features": capabilities(["query", "queryObjectIds", "applyEdits", "stream"]),
   "ogc-tiles": capabilities(["render", "tiles"]),
   "ogc-maps": capabilities(["render"]),
+  "ogc-records": capabilities(["query", "queryObjectIds", "stream"]),
   stac: capabilities(["query", "queryObjectIds", "stream"]),
   wfs: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits", "stream"]),
   wms: capabilities(["render", "tiles", "query"]),
@@ -277,7 +281,7 @@ export interface SourceLocator {
   serviceId?: string;
   /** GeoServices layer identifier within the service. */
   layerId?: number;
-  /** OGC API Features / Tiles / Maps collection identifier. */
+  /** OGC API Features / Tiles / Maps collection identifier, or Records catalog id. */
   collectionId?: string | number;
   /** OGC API Tiles tile-matrix-set identifier (e.g. `WebMercatorQuad`). */
   tileMatrixSetId?: string;
@@ -606,6 +610,7 @@ export type AdapterKind =
   | "ogc-features"
   | "ogc-tiles"
   | "ogc-maps"
+  | "ogc-records"
   | "ogc-processes"
   | "stac"
   | "wfs"
@@ -745,9 +750,8 @@ export interface CreateDatasetOptions {
   skipCompatibilityCheck?: boolean;
   /**
    * Resolver invoked for descriptors the built-in resolvers do not know how
-   * to handle. Built-in coverage today is `geoservices-feature-service`,
-   * `geoservices-map-service`, `ogc-features`. Downstream WFS / WMS / OData
-   * tickets supply their adapter here.
+   * to handle. Built-in coverage includes GeoServices, OGC API
+   * Features/Tiles/Maps/Records, STAC, WFS, WMS, WMTS, and OData.
    */
   resolveSource?: SourceResolver;
 }

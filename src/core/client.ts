@@ -14,6 +14,7 @@ import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError }
 import { HonuaOdataEntitySet } from "./odata.js";
 import { HonuaOgcMaps } from "./ogc-maps.js";
 import { HonuaOgcProcesses } from "./ogc-processes.js";
+import { HonuaOgcRecords } from "./ogc-records.js";
 import { HonuaOgcTiles } from "./ogc-tiles.js";
 import { decodePbfQueryResponse, isPbfResponse } from "./pbf-decoder.js";
 import {
@@ -67,6 +68,8 @@ import type {
   HonuaOgcProcessJobStatus,
   HonuaOgcProcessesResponse,
   HonuaOgcQueryablesResponse,
+  HonuaOgcRecordResponse,
+  HonuaOgcRecordsResponse,
   HonuaOgcTileMatrixSet,
   HonuaOgcTileMatrixSetsResponse,
   HonuaOgcTileResponse,
@@ -106,6 +109,10 @@ import type {
   OgcMetadataRequest,
   OgcPatchItemRequest,
   OgcProcessExecuteRequest,
+  OgcRecordItemRequest,
+  OgcRecordRawItemRequest,
+  OgcRecordsRawSearchRequest,
+  OgcRecordsSearchRequest,
   OgcReplaceItemRequest,
   OgcTileRequest,
   OgcTilesetRequest,
@@ -449,6 +456,10 @@ export class HonuaClient {
 
   public ogcMaps(): HonuaOgcMaps {
     return new HonuaOgcMaps({ client: this });
+  }
+
+  public ogcRecords(): HonuaOgcRecords {
+    return new HonuaOgcRecords({ client: this });
   }
 
   public wms(serviceId: string): HonuaWms {
@@ -1252,6 +1263,91 @@ export class HonuaClient {
     const accept = ogcMapAcceptHeader(request.format) ?? "image/png";
     const response = await this.requestBytes("GET", path, accept, undefined, request.signal);
     return { bytes: response.bytes, contentType: response.contentType };
+  }
+
+  // ── OGC API Records ────────────────────────────────────────
+
+  public async getOgcRecordsLanding(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestCachedMetadataJson<HonuaOgcLandingResponse>(
+      `ogc-records:landing:${params.toString()}`,
+      `/ogc/records?${params.toString()}`,
+      request,
+    );
+  }
+
+  public async getOgcRecordsConformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
+      `ogc-records:conformance:${params.toString()}`,
+      `/ogc/records/conformance?${params.toString()}`,
+      request,
+    );
+  }
+
+  public async listOgcRecordCollections(request: OgcMetadataRequest = {}): Promise<HonuaOgcCollectionsResponse> {
+    const params = createOgcMetadataParams(request);
+    return this.requestCachedMetadataJson<HonuaOgcCollectionsResponse>(
+      `ogc-records:collections:${params.toString()}`,
+      `/ogc/records/collections?${params.toString()}`,
+      request,
+    );
+  }
+
+  public async getOgcRecordCollection(request: OgcCollectionRequest): Promise<HonuaOgcCollectionMetadata> {
+    const params = createOgcMetadataParams(request);
+    const path = `/ogc/records/collections/${encodeURIComponent(String(request.collectionId))}`;
+    return this.requestCachedMetadataJson<HonuaOgcCollectionMetadata>(
+      `ogc-records:collection:${request.collectionId}:${params.toString()}`,
+      `${path}?${params.toString()}`,
+      request,
+    );
+  }
+
+  public async searchOgcRecords(request: OgcRecordsSearchRequest): Promise<HonuaOgcRecordsResponse> {
+    return this.requestJson(
+      "GET",
+      buildOgcRecordsSearchPath(request),
+      undefined,
+      request.signal,
+    ) as Promise<HonuaOgcRecordsResponse>;
+  }
+
+  public async getOgcRecord(request: OgcRecordItemRequest): Promise<HonuaOgcRecordResponse> {
+    return this.requestJson(
+      "GET",
+      buildOgcRecordPath(request),
+      undefined,
+      request.signal,
+    ) as Promise<HonuaOgcRecordResponse>;
+  }
+
+  public async fetchOgcRecordsRaw(request: OgcRecordsRawSearchRequest): Promise<Response> {
+    return this.pipelineFetch(
+      "GET",
+      buildOgcRecordsSearchPath(request),
+      {
+        headers: mergeHeaders(
+          { Accept: request.accept ?? "application/geo+json, application/json;q=0.9" },
+          request.headers,
+        ),
+      },
+      request.signal,
+    );
+  }
+
+  public async fetchOgcRecordRaw(request: OgcRecordRawItemRequest): Promise<Response> {
+    return this.pipelineFetch(
+      "GET",
+      buildOgcRecordPath(request),
+      {
+        headers: mergeHeaders(
+          { Accept: request.accept ?? "application/geo+json, application/json;q=0.9" },
+          request.headers,
+        ),
+      },
+      request.signal,
+    );
   }
 
   // ── WMS 1.3 ─────────────────────────────────────────────────
@@ -3197,6 +3293,47 @@ function normalizeCsv(value: string | readonly (string | number)[]): string {
     return value;
   }
   return Array.from(value).join(",");
+}
+
+function normalizeStringCsv(value: string | readonly string[]): string {
+  return typeof value === "string" ? value : value.join(",");
+}
+
+function normalizeRecordsBbox(value: OgcRecordsSearchRequest["bbox"]): string {
+  return Array.isArray(value) ? value.join(",") : String(value);
+}
+
+function buildOgcRecordsSearchPath(request: OgcRecordsSearchRequest): string {
+  const collection = encodeURIComponent(String(request.collectionId));
+  const params = serializeOgcRecordsSearchParams(request);
+  return `/ogc/records/collections/${collection}/items?${params.toString()}`;
+}
+
+function buildOgcRecordPath(request: OgcRecordItemRequest): string {
+  const collection = encodeURIComponent(String(request.collectionId));
+  const record = encodeURIComponent(String(request.recordId));
+  const params = createOgcMetadataParams(request);
+  if (request.profile !== undefined) params.set("profile", normalizeStringCsv(request.profile));
+  return `/ogc/records/collections/${collection}/items/${record}?${params.toString()}`;
+}
+
+function serializeOgcRecordsSearchParams(request: OgcRecordsSearchRequest): URLSearchParams {
+  const params = createOgcMetadataParams(request);
+  if (request.limit !== undefined) params.set("limit", String(request.limit));
+  if (request.offset !== undefined) params.set("offset", String(request.offset));
+  if (request.bbox !== undefined) params.set("bbox", normalizeRecordsBbox(request.bbox));
+  if (request.datetime !== undefined) params.set("datetime", request.datetime);
+  if (request.q !== undefined) params.set("q", normalizeStringCsv(request.q));
+  if (request.ids !== undefined) params.set("ids", normalizeCsv(request.ids));
+  if (request.type !== undefined) params.set("type", normalizeStringCsv(request.type));
+  if (request.externalIds !== undefined) params.set("externalIds", normalizeStringCsv(request.externalIds));
+  if (request.filter !== undefined) params.set("filter", request.filter);
+  if (request.filterLang !== undefined) params.set("filter-lang", request.filterLang);
+  if (request.filterCrs !== undefined) params.set("filter-crs", request.filterCrs);
+  if (request.properties !== undefined) params.set("properties", normalizeStringCsv(request.properties));
+  if (request.sortby !== undefined) params.set("sortby", request.sortby);
+  if (request.profile !== undefined) params.set("profile", normalizeStringCsv(request.profile));
+  return params;
 }
 
 function serializeOgcMapImageParams(request: OgcMapImageRequest): URLSearchParams {

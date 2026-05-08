@@ -20,6 +20,7 @@ import {
   odataSource,
   ogcFeaturesSource,
   ogcMapsSource,
+  ogcRecordsSource,
   ogcTilesSource,
   stacSearchSource,
 } from "../src/contract/index.js";
@@ -129,11 +130,14 @@ import {
   HonuaMapService,
   HonuaOgcFeatureCollection,
   HonuaOgcFeatures,
+  HonuaOgcRecordCollection,
+  HonuaOgcRecords,
   HonuaProcessRunner,
   HonuaService,
   HonuaWfsExceptionError,
   createHonuaCacheState,
   createHonuaOgcFeatures,
+  createHonuaOgcRecords,
   createHonuaProcessRunner,
   createHonuaService,
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
@@ -189,6 +193,8 @@ describe("entrypoint modules", () => {
     expect(HonuaMapService).toBeTypeOf("function");
     expect(HonuaOgcFeatures).toBeTypeOf("function");
     expect(HonuaOgcFeatureCollection).toBeTypeOf("function");
+    expect(HonuaOgcRecords).toBeTypeOf("function");
+    expect(HonuaOgcRecordCollection).toBeTypeOf("function");
     expect(HonuaImageService).toBeTypeOf("function");
     expect(HonuaGeometryService).toBeTypeOf("function");
     expect(HonuaGeoprocessingService).toBeTypeOf("function");
@@ -196,6 +202,7 @@ describe("entrypoint modules", () => {
     expect(createHonuaService).toBeTypeOf("function");
     expect(createHonuaProcessRunner).toBeTypeOf("function");
     expect(createHonuaOgcFeatures).toBeTypeOf("function");
+    expect(createHonuaOgcRecords).toBeTypeOf("function");
     expect(HonuaWfsExceptionError).toBeTypeOf("function");
     expect(HonuaWfsExceptionErrorRoot).toBe(HonuaWfsExceptionError);
     expect(createHonuaCacheState).toBeTypeOf("function");
@@ -297,11 +304,11 @@ describe("entrypoint modules", () => {
   });
 
   it("exposes the canonical contract entrypoint", () => {
-    // Seventeen canonical protocols: gRPC, five GeoServices service
+    // Eighteen canonical protocols: gRPC, five GeoServices service
     // types (FeatureServer, MapServer, ImageServer, Geometry, GP), OGC
-    // API Features / Tiles / Maps, STAC, WFS / WMS / WMTS / OData, and
-    // three MapLibre-native sources.
-    expect(PROTOCOLS).toHaveLength(17);
+    // API Features / Tiles / Maps / Records, STAC, WFS / WMS / WMTS /
+    // OData, and three MapLibre-native sources.
+    expect(PROTOCOLS).toHaveLength(18);
     expect(CAPABILITIES.length).toBeGreaterThan(0);
     expect(Object.keys(PROTOCOL_DEFAULT_CAPABILITIES)).toEqual([...PROTOCOLS]);
     expect(capabilities).toBeTypeOf("function");
@@ -318,6 +325,7 @@ describe("entrypoint modules", () => {
     expect(ogcFeaturesSource).toBeTypeOf("function");
     expect(ogcTilesSource).toBeTypeOf("function");
     expect(ogcMapsSource).toBeTypeOf("function");
+    expect(ogcRecordsSource).toBeTypeOf("function");
     expect(stacSearchSource).toBeTypeOf("function");
     expect(odataSource).toBeTypeOf("function");
   });
