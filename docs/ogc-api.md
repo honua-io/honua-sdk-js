@@ -1,8 +1,8 @@
 # OGC API Client
 
 Status: implemented in `src/core/ogc-tiles.ts`, `src/core/ogc-maps.ts`,
-`src/core/ogc-processes.ts`, `src/core/stac.ts`, and (for OGC API
-Features) `src/core/surfaces.ts`.
+`src/core/ogc-processes.ts`, `src/core/ogc-records.ts`,
+`src/core/stac.ts`, and (for OGC API Features) `src/core/surfaces.ts`.
 
 This document is the developer reference for the first-party OGC API
 adapter. It complements the design notes in
@@ -17,6 +17,7 @@ capability matrix in [`protocol-capability-matrix.md`](./protocol-capability-mat
 | OGC API Tiles | `client.ogcTiles()` | `ogc-tiles` | tileset discovery, vector + raster tiles on the canonical `/collections/{id}/tiles/{tms}/…` route (styled tiles deferred — see below) |
 | OGC API Maps | `client.ogcMaps()` | `ogc-maps` | dataset / collection map renders, styled access |
 | OGC API Processes | `client.ogcProcesses()` | (none — job runner) | discovery, async execution, `IJobRun<T>` surface |
+| OGC API Records | `client.ogcRecords()` | `ogc-records` | metadata/catalog discovery, record search, record detail, raw response access |
 | STAC API | `client.stac()` | `stac` | landing, collections, items, cross-collection search |
 
 OGC conformance class identifiers (e.g.
@@ -187,6 +188,51 @@ token instead. `intersects` and `fields` are serialized onto the GET
 query (intersects as JSON; fields as `id,properties.datetime,-assets.thumbnail`)
 in addition to the POST body.
 
+### OGC API Records
+
+```ts
+const records = client.ogcRecords();
+
+// Discover available metadata catalogs.
+const catalogs = await records.collections();
+
+// Search one catalog. Records query parameters are catalog metadata
+// filters, not STAC item-search filters.
+const page = await records.collection("catalog").search({
+  q: ["roads", "parcels"],
+  type: ["service", "collection"],
+  externalIds: ["FeatureServer:transportation"],
+  bbox: [-158, 21, -157, 22],
+  datetime: "2025-01-01/2025-12-31",
+  limit: 25,
+  offset: 0,
+});
+
+const detail = await records.collection("catalog").record({ recordId: "service-transportation" });
+
+// Raw response access keeps the shared auth/interceptor/retry pipeline but
+// leaves body decoding to the caller.
+const html = await records.collection("catalog").rawRecord({
+  recordId: "service-transportation",
+  responseFormat: "html",
+  accept: "text/html",
+});
+```
+
+Records and STAC are intentionally separate surfaces. STAC describes
+spatiotemporal assets and collection/item search for imagery/data assets.
+Records describes metadata about resources: services, layers,
+collections, maps, scenes, styles, STAC collections, source descriptors,
+and other catalog entries. Honua admin metadata and migration inventory
+remain Honua-specific control-plane/read-model APIs; Records is the
+standards-facing public catalog view over stable metadata.
+
+`OgcRecordsSearchRequest` supports the Records core search parameters
+`bbox`, `datetime`, `limit`, `q`, `ids`, `type`, and `externalIds`, plus
+optional `filter` / `filter-lang` / `filter-crs` when the server
+advertises the Records filtering conformance class. `searchAll` and
+`searchStream` follow `rel=next` links that carry `?offset=N`.
+
 ## Canonical Source registration
 
 Source-shaped OGC adapters register through the shared client contract
@@ -224,13 +270,21 @@ const dataset = createDataset({
       locator: { url: baseUrl, collectionId: "parcels" },
       capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
     },
+    {
+      id: "catalog-records",
+      protocol: "ogc-records",
+      locator: { url: baseUrl, collectionId: "catalog" },
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-records"],
+    },
   ],
 });
 
 const features = await dataset.source("parcels-ogc")!.query({ where: "STATUS = 'ACTIVE'" });
 const stacItems = await dataset.source("parcels-stac")!.query({ where: "cloud_cover < 10" });
+const catalogRecords = await dataset.source("catalog-records")!.query({ where: "type = 'service'" });
 const tileset = dataset.source("parcels-tiles")!.adapter("ogc-tiles"); // HonuaOgcTileset
 const map = dataset.source("parcels-map")!.adapter("ogc-maps"); // HonuaOgcCollectionMap
+const recordsCatalog = dataset.source("catalog-records")!.adapter("ogc-records"); // HonuaOgcRecordCollection
 ```
 
 OGC API Tiles and OGC API Maps are render-only; their `Source.query*`
@@ -269,6 +323,7 @@ The repo ships parametrized conformance suites under `test/contract/`:
 - `ogc-tiles.test.ts` — tileset discovery + tile fetch + Source adapter
 - `ogc-maps.test.ts` — dataset / collection / styled map renders
 - `ogc-processes.test.ts` — `IJobRun` lifecycle, cancel, error paths
+- `ogc-records.test.ts` — Records query params, paging, raw access, Source adapter
 - `stac.test.ts` — GET / POST search + Source adapter
 - `ogc-conformance.test.ts` — conformance-class negotiation
 

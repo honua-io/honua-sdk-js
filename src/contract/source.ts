@@ -29,6 +29,7 @@ import {
 } from "../core/odata.js";
 import { HonuaOgcCollectionMap, HonuaOgcMaps } from "../core/ogc-maps.js";
 import type { HonuaOgcProcesses } from "../core/ogc-processes.js";
+import { HonuaOgcRecordCollection } from "../core/ogc-records.js";
 import { HonuaOgcTiles, HonuaOgcTileset } from "../core/ogc-tiles.js";
 import { HonuaStacSearch } from "../core/stac.js";
 import {
@@ -50,6 +51,7 @@ import type {
   HonuaStacItemResponse,
   HonuaTypedFeature,
   HonuaTypedQueryResponse,
+  OgcRecordsSearchRequest,
   StacSearchRequest,
 } from "../core/types.js";
 import {
@@ -183,6 +185,8 @@ function buildBuiltInSource<T>(
       return ogcTilesSource<T>(descriptor, client, policy);
     case "ogc-maps":
       return ogcMapsSource<T>(descriptor, client, policy);
+    case "ogc-records":
+      return ogcRecordsSource<T>(descriptor, client, policy);
     case "wms":
       return wmsSource<T>(descriptor, client, policy);
     case "wmts":
@@ -773,6 +777,107 @@ export function ogcMapsSource<T>(
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["ogc-maps"];
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
+}
+
+// ── OGC API Records ───────────────────────────────────────────
+
+/**
+ * Metadata-catalog Source adapter for OGC API Records. The canonical query
+ * family searches one catalog (`locator.collectionId`, the Records
+ * collection/catalog id) and returns record documents as typed features.
+ * Records-specific search affordances (`q`, `type`, `externalIds`,
+ * `profile`, raw HTML/JSON access) live on `Source.protocol("ogc-records")`.
+ */
+export function ogcRecordsSource<T>(
+  descriptor: SourceDescriptor,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+): Source<T> {
+  const { collectionId } = requireOgcRecordsLocator(descriptor);
+  const collection = new HonuaOgcRecordCollection({ client, collectionId });
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["ogc-records"];
+
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
+    "ogc-records": collection,
+  };
+
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
+    async query(request) {
+      ensureCapability(descriptor, caps, "query");
+      if (request?.aggregation) {
+        throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+      }
+      const response = await collection.search(toOgcRecordsRequest(request));
+      const features = (response.features ?? []).map(toTypedFeatureFromOgcRecord<T>);
+      const totalCount = response.numberMatched;
+      return {
+        features,
+        exceededTransferLimit: totalCount !== undefined && features.length < totalCount,
+        ...(totalCount !== undefined ? { totalCount } : {}),
+      } satisfies Result<T>;
+    },
+    async queryAll(request) {
+      ensureCapability(descriptor, caps, "query");
+      const limit = request?.pagination?.limit;
+      const records = await collection.searchAll({
+        ...toOgcRecordsRequest(request),
+        ...withPagingBounds({}, limit),
+      });
+      const typed = records.map(toTypedFeatureFromOgcRecord<T>);
+      const { features, exceededTransferLimit } = applyQueryAllLimit(typed, limit);
+      return {
+        features,
+        exceededTransferLimit,
+        totalCount: features.length,
+      } satisfies Result<T>;
+    },
+    async queryAggregate() {
+      throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+    },
+    async queryExtent() {
+      throw new HonuaCapabilityNotSupportedError("queryExtent", descriptor.protocol, descriptor.id);
+    },
+    async *stream(request) {
+      ensureCapability(descriptor, caps, "stream");
+      const limit = request?.pagination?.limit;
+      const stream = collection.searchStream({
+        ...toOgcRecordsRequest(request),
+        pageSize: limit !== undefined ? Math.max(1, limit) : undefined,
+        maxPages: Number.MAX_SAFE_INTEGER,
+      });
+      for await (const page of stream) {
+        yield {
+          features: page.map(toTypedFeatureFromOgcRecord<T>),
+          exceededTransferLimit: false,
+        } satisfies Result<T>;
+      }
+    },
+    async queryObjectIds(request) {
+      ensureCapability(descriptor, caps, "queryObjectIds");
+      const limit = request?.pagination?.limit;
+      const records = await collection.searchAll({
+        ...toOgcRecordsRequest(request),
+        ...withPagingBounds({}, limit),
+      });
+      const ids: FeatureId[] = [];
+      for (const record of records) {
+        if (record.id !== undefined && record.id !== null) {
+          ids.push(record.id as FeatureId);
+        }
+      }
+      if (typeof limit === "number" && limit >= 0 && ids.length > limit) {
+        return ids.slice(0, limit);
+      }
+      return ids;
+    },
+    async applyEdits() {
+      throw new HonuaCapabilityNotSupportedError("applyEdits", descriptor.protocol, descriptor.id);
+    },
+    async queryRelated() {
+      throw new HonuaCapabilityNotSupportedError("queryRelated", descriptor.protocol, descriptor.id);
+    },
+    attachments: unsupportedAttachmentApi(descriptor),
+  });
 }
 
 // ── WMS 1.3 ───────────────────────────────────────────────────
@@ -2840,6 +2945,14 @@ function requireOgcLocator(descriptor: SourceDescriptor): { collectionId: string
   return { collectionId };
 }
 
+function requireOgcRecordsLocator(descriptor: SourceDescriptor): { collectionId: string | number } {
+  const { collectionId } = descriptor.locator;
+  if (collectionId === undefined || collectionId === null || collectionId === "") {
+    throw new Error(`createDataset: source "${descriptor.id}" (ogc-records) requires locator.collectionId`);
+  }
+  return { collectionId };
+}
+
 function requireImageServiceLocator(descriptor: SourceDescriptor): { serviceId: string } {
   const { serviceId } = descriptor.locator;
   if (typeof serviceId !== "string") {
@@ -3088,6 +3201,56 @@ function toStacRequest<T>(
 }
 
 function toTypedFeatureFromStac<T>(feature: HonuaStacItemResponse): HonuaTypedFeature<T> {
+  return {
+    attributes: (feature.properties ?? {}) as T,
+    geometry: feature.geometry as Record<string, unknown> | null,
+  };
+}
+
+function toOgcRecordsRequest<T>(request?: Query<T>): Omit<OgcRecordsSearchRequest, "collectionId"> {
+  if (!request) return {};
+  const out: Omit<OgcRecordsSearchRequest, "collectionId"> = {};
+  if (request.where !== undefined) {
+    out.filter = request.where;
+    out.filterLang = "cql2-text";
+  }
+  if (request.outFields && request.outFields.length > 0) out.properties = [...request.outFields];
+  if (request.pagination) {
+    if (request.pagination.limit !== undefined) out.limit = request.pagination.limit;
+    if (request.pagination.offset !== undefined) out.offset = request.pagination.offset;
+  }
+  if (request.orderBy && request.orderBy.length > 0) {
+    out.sortby = request.orderBy.map((s) => `${s.direction === "desc" ? "-" : ""}${s.field}`).join(",");
+  }
+  if (request.spatialFilter) {
+    if (request.spatialFilter.geometryType !== "esriGeometryEnvelope") {
+      throw new Error(
+        `ogc-records: spatialFilter.geometryType "${request.spatialFilter.geometryType}" is not supported; only "esriGeometryEnvelope" translates to Records bbox.`,
+      );
+    }
+    const rel = request.spatialFilter.spatialRel;
+    if (rel !== undefined && rel !== "esriSpatialRelIntersects" && rel !== "esriSpatialRelEnvelopeIntersects") {
+      throw new Error(
+        `ogc-records: spatialFilter.spatialRel "${rel}" is not supported; the Records bbox parameter only expresses envelope-intersects.`,
+      );
+    }
+    const env = request.spatialFilter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
+    if (
+      typeof env.xmin === "number" &&
+      typeof env.ymin === "number" &&
+      typeof env.xmax === "number" &&
+      typeof env.ymax === "number"
+    ) {
+      out.bbox = [env.xmin, env.ymin, env.xmax, env.ymax];
+    }
+  }
+  if (request.signal) out.signal = request.signal;
+  return out;
+}
+
+function toTypedFeatureFromOgcRecord<T>(
+  feature: import("../core/types.js").HonuaOgcRecordResponse,
+): HonuaTypedFeature<T> {
   return {
     attributes: (feature.properties ?? {}) as T,
     geometry: feature.geometry as Record<string, unknown> | null,
@@ -3839,6 +4002,7 @@ declare module "./types.js" {
     "ogc-features": HonuaOgcFeatureCollection;
     "ogc-tiles": HonuaOgcTileset | HonuaOgcTiles;
     "ogc-maps": HonuaOgcMaps | HonuaOgcCollectionMap;
+    "ogc-records": HonuaOgcRecordCollection;
     "ogc-processes": HonuaOgcProcesses;
     stac: HonuaStacSearch;
     wfs: HonuaWfsFeatureType;
@@ -3866,6 +4030,7 @@ export const FIRST_PARTY_PROTOCOLS: ReadonlySet<Protocol> = new Set([
   "ogc-features",
   "ogc-tiles",
   "ogc-maps",
+  "ogc-records",
   "stac",
   "wfs",
   "wms",

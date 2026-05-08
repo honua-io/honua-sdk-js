@@ -170,6 +170,7 @@ export {
   ogcFeaturesSource,
   ogcTilesSource,
   ogcMapsSource,
+  ogcRecordsSource,
   stacSearchSource,
   wfsSource,
   wmsSource,

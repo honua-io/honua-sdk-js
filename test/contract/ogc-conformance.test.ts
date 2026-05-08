@@ -62,6 +62,21 @@ describe("ogc-conformance / negotiateOgcCapabilities", () => {
     expect(caps.has("processes")).toBe(true);
   });
 
+  it("translates OGC API Records searchable catalog classes to query capabilities", () => {
+    const caps = negotiateOgcCapabilities("ogc-records", {
+      conformsTo: [
+        "http://www.opengis.net/spec/ogcapi-records-1/1.0/conf/records-api",
+        "http://www.opengis.net/spec/ogcapi-records-1/1.0/conf/record-core-query-parameters",
+        "http://www.opengis.net/spec/ogcapi-records-1/1.0/conf/cql-filter",
+        "http://www.opengis.net/spec/ogcapi-records-1/1.0/conf/json",
+      ],
+    });
+    expect(caps.has("query")).toBe(true);
+    expect(caps.has("queryObjectIds")).toBe(true);
+    expect(caps.has("queryAggregate")).toBe(false);
+    expect(caps.has("applyEdits")).toBe(false);
+  });
+
   it("translates STAC item-search to query + queryObjectIds and does not advertise queryAggregate for filter", () => {
     // STAC's `filter` extension is CQL2 query-side filtering, not server-side
     // aggregation. The STAC source adapter has no aggregation implementation

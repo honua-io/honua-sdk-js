@@ -215,7 +215,7 @@ const harnesses: Harness[] = [
 ];
 
 describe("contract / Protocol enum", () => {
-  it("includes all canonical protocols (gRPC, five GeoServices service types, OGC Features/Tiles/Maps, STAC, WFS/WMS/WMTS/OData, MapLibre-native)", () => {
+  it("includes all canonical protocols (gRPC, five GeoServices service types, OGC Features/Tiles/Maps/Records, STAC, WFS/WMS/WMTS/OData, MapLibre-native)", () => {
     expect(PROTOCOLS).toEqual([
       "grpc",
       "geoservices-feature-service",
@@ -226,6 +226,7 @@ describe("contract / Protocol enum", () => {
       "ogc-features",
       "ogc-tiles",
       "ogc-maps",
+      "ogc-records",
       "stac",
       "wfs",
       "wms",

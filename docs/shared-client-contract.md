@@ -62,7 +62,7 @@ unsupported-capability, and degraded-result scenarios.
 
 | Type | What it is |
 | --- | --- |
-| `Protocol` | One of seventeen identifiers — shared canonical gRPC FeatureService transport (`grpc`), five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), four OGC API + STAC adapters (`ogc-features`, `ogc-tiles`, `ogc-maps`, `stac`), `wfs`, `wms`, `wmts`, `odata`, plus three MapLibre-native (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
+| `Protocol` | One of eighteen identifiers — shared canonical gRPC FeatureService transport (`grpc`), five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), OGC API + STAC adapters (`ogc-features`, `ogc-tiles`, `ogc-maps`, `ogc-records`, `stac`), `wfs`, `wms`, `wmts`, `odata`, plus three MapLibre-native (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
 | `Capability` | A coarse-grained protocol capability (`query`, `queryAggregate`, `spatialAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `connect`, `image`, `geometry`, `geoprocess`, `processes`). The canonical `Source` surface standardizes the query / edit / related / attachment / object-id subset today; `spatialAggregate`, `image` / `geometry` / `geoprocess` / `processes` are negotiated for indexed analytics, `Source.protocol()` escape hatches, and for the `IJobRun`-based OGC API Processes runner because their request shapes are too protocol-specific to belong on the unified query envelope. |
 | `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party protocol support, whether the caller consumes it through a canonical `Source` method or the typed protocol escape hatch. Under `strict` (default) a missing capability throws `HonuaCapabilityNotSupportedError`. Under `degraded` only call sites with a defined fallback proceed (today: OGC `queryAggregate` and `queryExtent`); every other missing capability still throws. |
 | `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `tileMatrixSetId`, `styleId`, `typeName`, `entitySet`, `taskName`). Field-compatible with the server `SourceBinding.locator`; `tileMatrixSetId` / `styleId` carry OGC API Tiles / Maps route hints for downstream `SourceBinding` work tracked in [`source-binding-alignment.md`](./source-binding-alignment.md). |
@@ -180,6 +180,9 @@ The OGC API and STAC factories cover `docs/ogc-api.md`:
 - `ogcTilesSource` — OGC API Tiles (render-only; query family throws,
   `HonuaOgcTileset` / `HonuaOgcTiles` reachable via `protocol()`).
 - `ogcMapsSource` — OGC API Maps (render-only; same shape as Tiles).
+- `ogcRecordsSource` — OGC API Records metadata catalog search
+  (`/collections/{catalogId}/items`, queryObjectIds, stream; Records-specific
+  `q` / `type` / `externalIds` and raw response access via `protocol()`).
 - `stacSearchSource` — STAC API search (`/search` query, queryObjectIds,
   stream; cross-collection scope via `locator.collectionId`).
 
@@ -394,7 +397,7 @@ seeing a fabricated success. Submitted processes are typed as
 `IJobRun<T>`; `HonuaOgcProcessJobRun` is the implementation behind that
 interface and should not be the caller-facing contract.
 
-## OGC API Tiles / Maps / Processes / STAC
+## OGC API Tiles / Maps / Records / Processes / STAC
 
 The first-party OGC adapters live alongside `HonuaOgcFeatures`:
 
@@ -403,15 +406,16 @@ The first-party OGC adapters live alongside `HonuaOgcFeatures`:
 | OGC API Features | `client.ogcFeatures()` / `HonuaOgcFeatures` | `ogc-features` | `query`, `queryObjectIds`, `applyEdits`, `stream` |
 | OGC API Tiles | `client.ogcTiles()` / `HonuaOgcTiles`, `HonuaOgcTileset` | `ogc-tiles` | `render`, `tiles` (tileset-bound when locator includes `tileMatrixSetId`; root discovery handle otherwise) |
 | OGC API Maps | `client.ogcMaps()` / `HonuaOgcMaps`, `HonuaOgcCollectionMap` | `ogc-maps` | `render` |
+| OGC API Records | `client.ogcRecords()` / `HonuaOgcRecords`, `HonuaOgcRecordCollection` | `ogc-records` | `query`, `queryObjectIds`, `stream` |
 | OGC API Processes | `client.ogcProcesses()` / `HonuaOgcProcesses` | (no source — job runner) | `processes` from conformance negotiation, not `PROTOCOL_DEFAULT_CAPABILITIES` |
 | STAC API | `client.stac()` / `HonuaStacSearch` | `stac` | `query`, `queryObjectIds`, `stream` |
 
 OGC API Tiles and OGC API Maps are render-only — their `Source.query*`
 methods throw, and renderers reach the underlying class through
-`Source.adapter("ogc-tiles")` / `Source.adapter("ogc-maps")`. STAC
-search flows through the canonical `Source.query()` like every other
-tabular protocol. OGC API Processes does not register as a `Source`
-because its inputs are not queryable; it produces `IJobRun<T>` from
+`Source.adapter("ogc-tiles")` / `Source.adapter("ogc-maps")`. OGC API
+Records and STAC both flow through the canonical `Source.query()` path,
+but Records is metadata catalog search and STAC is asset/item search. OGC
+API Processes does not register as a `Source` because its inputs are not queryable; it produces `IJobRun<T>` from
 `execute(...)`.
 
 ## WMS / WMTS web-map services
