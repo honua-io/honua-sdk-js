@@ -388,6 +388,22 @@ export const ANALYTICS_INDEXED_AGGREGATION_FIXTURE: SpatialAggregationContractFi
         },
         { id: "populationSum", kind: "sum", title: "Exposed population", field: "exposed_population" },
         { id: "averageRisk", kind: "avg", title: "Average risk", field: "risk_score" },
+        {
+          id: "minResponseTime",
+          kind: "min",
+          title: "Fastest response",
+          field: "response_minutes",
+          valueType: "number",
+          unit: "minutes",
+        },
+        {
+          id: "maxResponseTime",
+          kind: "max",
+          title: "Slowest response",
+          field: "response_minutes",
+          valueType: "number",
+          unit: "minutes",
+        },
       ],
       groupBy: [
         {
@@ -412,6 +428,12 @@ export const ANALYTICS_INDEXED_AGGREGATION_FIXTURE: SpatialAggregationContractFi
           title: "Response time",
           summaryId: "responseTimeHistogram",
           unit: "minutes",
+        },
+        {
+          id: "population-range",
+          kind: "range-list",
+          title: "Population exposure",
+          summaryId: "populationExposureRange",
         },
         {
           id: "grouped-risk-table",
@@ -464,8 +486,19 @@ export const ANALYTICS_INDEXED_AGGREGATION_FIXTURE: SpatialAggregationContractFi
               { min: 45, max: 60, count: 3, includeMax: true },
             ],
           },
+          populationExposureRange: {
+            kind: "range",
+            approximate: true,
+            buckets: [
+              { id: "low", label: "0-999", min: 0, max: 1000, includeMin: true, count: 12 },
+              { id: "medium", label: "1,000-4,999", min: 1000, max: 5000, includeMin: true, count: 19 },
+              { id: "high", label: "5,000+", min: 5000, includeMin: true, count: 11 },
+            ],
+          },
           populationSum: { kind: "sum", value: 15340, approximate: true },
           averageRisk: { kind: "avg", value: 82.6, approximate: true },
+          minResponseTime: { kind: "min", value: 6, unit: "minutes", approximate: true },
+          maxResponseTime: { kind: "max", value: 54, unit: "minutes", approximate: true },
         },
         groups: [
           {
@@ -506,8 +539,19 @@ export const ANALYTICS_INDEXED_AGGREGATION_FIXTURE: SpatialAggregationContractFi
               { min: 45, max: 60, count: 2, includeMax: true },
             ],
           },
+          populationExposureRange: {
+            kind: "range",
+            approximate: true,
+            buckets: [
+              { id: "low", label: "0-999", min: 0, max: 1000, includeMin: true, count: 9 },
+              { id: "medium", label: "1,000-4,999", min: 1000, max: 5000, includeMin: true, count: 15 },
+              { id: "high", label: "5,000+", min: 5000, includeMin: true, count: 4 },
+            ],
+          },
           populationSum: { kind: "sum", value: 8210, approximate: true },
           averageRisk: { kind: "avg", value: 74.1, approximate: true },
+          minResponseTime: { kind: "min", value: 8, unit: "minutes", approximate: true },
+          maxResponseTime: { kind: "max", value: 51, unit: "minutes", approximate: true },
         },
         groups: [
           {
@@ -525,8 +569,38 @@ export const ANALYTICS_INDEXED_AGGREGATION_FIXTURE: SpatialAggregationContractFi
     ],
     totals: {
       totalIncidents: { kind: "count", value: 231, approximate: true },
+      bySeverity: {
+        kind: "category",
+        approximate: true,
+        buckets: [
+          { value: "critical", label: "Critical", count: 62, color: "#b42318" },
+          { value: "high", label: "High", count: 104, color: "#dc6803" },
+          { value: "moderate", label: "Moderate", count: 65, color: "#ca8504" },
+        ],
+      },
+      responseTimeHistogram: {
+        kind: "histogram",
+        approximate: true,
+        buckets: [
+          { min: 0, max: 15, count: 54, includeMin: true },
+          { min: 15, max: 30, count: 91 },
+          { min: 30, max: 45, count: 66 },
+          { min: 45, max: 60, count: 20, includeMax: true },
+        ],
+      },
+      populationExposureRange: {
+        kind: "range",
+        approximate: true,
+        buckets: [
+          { id: "low", label: "0-999", min: 0, max: 1000, includeMin: true, count: 74 },
+          { id: "medium", label: "1,000-4,999", min: 1000, max: 5000, includeMin: true, count: 101 },
+          { id: "high", label: "5,000+", min: 5000, includeMin: true, count: 56 },
+        ],
+      },
       populationSum: { kind: "sum", value: 68420, approximate: true },
       averageRisk: { kind: "avg", value: 77.4, approximate: true },
+      minResponseTime: { kind: "min", value: 3, unit: "minutes", approximate: true },
+      maxResponseTime: { kind: "max", value: 58, unit: "minutes", approximate: true },
     },
     groups: [
       {

@@ -51,6 +51,7 @@ test("spatial analytics workbench runs jobs and renders indexed aggregation widg
     await expect(page.locator(".aggregation-cell")).toHaveCount(2);
     await expect(page.locator("#aggregation-widgets")).toContainText("Severity");
     await expect(page.locator("#aggregation-widgets")).toContainText("Response time");
+    await expect(page.locator("#aggregation-widgets")).toContainText("Population exposure");
     await expect(page.locator("#job-diagnostics")).toContainText("No failed-job diagnostics");
 
     expect(pageErrors).toEqual([]);

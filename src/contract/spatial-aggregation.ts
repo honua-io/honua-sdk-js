@@ -267,6 +267,15 @@ export interface SpatialAggregationWidgetMetadata {
   };
 }
 
+export type SpatialAggregationWidgetSummarySource = "totals" | "cell";
+
+export interface SpatialAggregationResolvedWidgetSummary {
+  readonly summaryId: string;
+  readonly summary: SpatialAggregationSummaryValue;
+  readonly source: SpatialAggregationWidgetSummarySource;
+  readonly cellId?: string;
+}
+
 export interface SpatialAggregationResult {
   readonly schemaVersion: typeof SPATIAL_AGGREGATION_SCHEMA_VERSION;
   readonly requestId?: string;
@@ -613,6 +622,24 @@ export function spatialAggregationWidgets(
     });
   }
   return widgets;
+}
+
+export function resolveSpatialAggregationWidgetSummary(
+  input: SpatialAggregationResult,
+  widgetOrSummaryId: SpatialAggregationWidgetMetadata | string,
+): SpatialAggregationResolvedWidgetSummary | undefined {
+  const summaryId = typeof widgetOrSummaryId === "string" ? widgetOrSummaryId : widgetOrSummaryId.summaryId;
+  if (!summaryId) return undefined;
+
+  const total = input.totals?.[summaryId];
+  if (total) return { summaryId, summary: total, source: "totals" };
+
+  for (const cell of input.cells) {
+    const summary = cell.summaries[summaryId];
+    if (summary) return { summaryId, summary, source: "cell", cellId: cell.id };
+  }
+
+  return undefined;
 }
 
 export function spatialAggregationProgress(

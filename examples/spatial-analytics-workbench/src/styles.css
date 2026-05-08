@@ -492,7 +492,8 @@ td button {
 }
 
 .widget-row,
-.histogram-row {
+.histogram-row,
+.range-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -514,14 +515,24 @@ td button {
   flex: 0 0 auto;
 }
 
-.histogram-row {
+.histogram-row,
+.range-row {
   grid-template-columns: 58px minmax(0, 1fr) auto;
 }
 
-.histogram-row i {
+.histogram-row i,
+.range-row i {
   height: 8px;
   border-radius: 999px;
   background: #5a7d9a;
+}
+
+.range-row {
+  grid-template-columns: 86px minmax(0, 1fr) auto;
+}
+
+.range-row i {
+  background: #97762d;
 }
 
 #feature-detail dl {
