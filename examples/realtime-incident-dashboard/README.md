@@ -34,6 +34,12 @@ npm run demo:incident
 
 or append `?transport=cloud&streamUrl=<sse-url>` in the browser.
 
+The seeded Honua Cloud demo stream contract, including the
+`incident-realtime-stream` profile and `VITE_HONUA_INCIDENT_STREAM_URL`, is
+tracked in [`docs/honua-cloud-demo-services.md`](../../docs/honua-cloud-demo-services.md).
+The stream is the authority for incident feature state; metadata cache state is
+only startup context.
+
 ## Validate
 
 ```sh

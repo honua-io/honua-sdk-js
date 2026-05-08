@@ -1,0 +1,331 @@
+{
+  "format": "honua.cloud-demo-services.v1",
+  "issue": 128,
+  "ownerRepo": "honua-io/honua-sdk-js",
+  "description": "Shared seeded Honua Cloud demo service contract for fixture-backed sample promotion.",
+  "defaultBaseUrl": "https://cloud.honua.io",
+  "globalEnv": {
+    "baseUrl": "HONUA_CLOUD_DEMO_BASE_URL",
+    "apiKey": "HONUA_CLOUD_DEMO_API_KEY",
+    "bearerToken": "HONUA_CLOUD_DEMO_BEARER_TOKEN",
+    "metadataTtlMs": "HONUA_CLOUD_DEMO_METADATA_TTL_MS",
+    "summaryFile": "HONUA_CLOUD_DEMO_SUMMARY_FILE"
+  },
+  "fixtureFallback": {
+    "state": "fixture-degraded",
+    "label": "Local fixture fallback",
+    "requiredSignal": "Samples must identify fixture/degraded mode separately from live Honua Cloud data.",
+    "description": "When cloud env or credentials are absent, samples keep using committed fixtures and must not imply live service freshness."
+  },
+  "cachePolicy": {
+    "metadata": {
+      "cacheable": true,
+      "resources": ["service lists", "layer descriptors", "fields", "domains", "renderers", "legends", "capabilities"],
+      "defaultTtlMs": 900000
+    },
+    "uncached": [
+      "realtime incident state, cursors, watermarks, and deltas",
+      "edit submissions, attachment mutations, and writable reset calls",
+      "ad hoc spatial queries driven by viewport, drawn geometry, or user filters"
+    ],
+    "materialized": ["kepler analytics exports and coverage metrics", "precomputed sample fixtures with provenance"]
+  },
+  "profiles": [
+    {
+      "id": "quickstart-feature-readonly",
+      "title": "MapLibre quickstart read-only FeatureServer",
+      "sampleDir": "examples/maplibre-quickstart",
+      "mode": "readonly",
+      "capabilities": ["metadata", "query", "feature-render"],
+      "cloud": {
+        "baseUrlEnv": "VITE_HONUA_QUICKSTART_BASE_URL",
+        "authEnv": {
+          "apiKey": "VITE_HONUA_QUICKSTART_API_KEY",
+          "bearerToken": "VITE_HONUA_QUICKSTART_BEARER_TOKEN"
+        },
+        "service": {
+          "kind": "FeatureServer",
+          "serviceId": "natural-earth",
+          "serviceIdEnv": "VITE_HONUA_QUICKSTART_SERVICE_ID",
+          "layerId": 0,
+          "layerIdEnv": "VITE_HONUA_QUICKSTART_LAYER_ID"
+        },
+        "query": {
+          "where": "1=1",
+          "whereEnv": "VITE_HONUA_QUICKSTART_WHERE",
+          "resultRecordCount": 25,
+          "resultRecordCountEnv": "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT"
+        }
+      },
+      "fixtureFallback": {
+        "state": "fixture-degraded",
+        "mode": "same-origin-fixture",
+        "command": "npm run demo:quickstart:mock"
+      },
+      "smoke": {
+        "fixtureCommand": "npm run test:playwright:quickstart",
+        "cloudCommand": "npm run test:cloud-demo:staging",
+        "requiresEnv": [
+          "HONUA_CLOUD_DEMO_BASE_URL",
+          "VITE_HONUA_QUICKSTART_SERVICE_ID",
+          "VITE_HONUA_QUICKSTART_LAYER_ID"
+        ]
+      },
+      "cacheNotes": {
+        "metadata": "cacheable-metadata",
+        "featureState": "uncached-query"
+      }
+    },
+    {
+      "id": "service-explorer-feature-readonly",
+      "title": "Service Explorer seeded FeatureServer source",
+      "sampleDir": "examples/service-explorer",
+      "mode": "readonly",
+      "capabilities": ["metadata", "source-discovery", "query", "linked-exploration"],
+      "cloud": {
+        "baseUrlEnv": "VITE_HONUA_SERVICE_EXPLORER_BASE_URL",
+        "modeEnv": "VITE_HONUA_SERVICE_EXPLORER_MODE",
+        "authEnv": {
+          "apiKey": "VITE_HONUA_SERVICE_EXPLORER_API_KEY",
+          "bearerToken": "VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN"
+        },
+        "service": {
+          "kind": "FeatureServer",
+          "serviceId": "natural-earth",
+          "serviceIdEnv": "VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID",
+          "layerId": 0,
+          "layerIdEnv": "VITE_HONUA_SERVICE_EXPLORER_LAYER_ID"
+        },
+        "query": {
+          "where": "1=1",
+          "whereEnv": "VITE_HONUA_SERVICE_EXPLORER_WHERE",
+          "resultRecordCount": 100,
+          "resultRecordCountEnv": "VITE_HONUA_SERVICE_EXPLORER_RESULT_RECORD_COUNT"
+        }
+      },
+      "fixtureFallback": {
+        "state": "fixture-degraded",
+        "mode": "auto-without-credentials",
+        "command": "npm run demo:service-explorer:mock"
+      },
+      "smoke": {
+        "fixtureCommand": "npm run test:playwright:service-explorer",
+        "cloudCommand": "npm run test:cloud-demo:staging",
+        "requiresEnv": [
+          "HONUA_CLOUD_DEMO_BASE_URL",
+          "VITE_HONUA_SERVICE_EXPLORER_API_KEY",
+          "VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID",
+          "VITE_HONUA_SERVICE_EXPLORER_LAYER_ID"
+        ]
+      },
+      "cacheNotes": {
+        "metadata": "cacheable-metadata",
+        "featureState": "uncached-query"
+      }
+    },
+    {
+      "id": "storytelling-25d-readonly",
+      "title": "2.5D storytelling OGC collections",
+      "sampleDir": "examples/storytelling-25d-map",
+      "mode": "readonly",
+      "capabilities": ["metadata", "ogc-collections", "route-replay", "feature-render"],
+      "cloud": {
+        "baseUrlEnv": "VITE_HONUA_25D_BASE_URL",
+        "authEnv": {
+          "apiKey": "VITE_HONUA_25D_API_KEY"
+        },
+        "service": {
+          "kind": "OGCCollections",
+          "collections": [
+            {
+              "id": "story-25d-assets",
+              "idEnv": "VITE_HONUA_25D_ASSETS_COLLECTION"
+            },
+            {
+              "id": "story-25d-route",
+              "idEnv": "VITE_HONUA_25D_ROUTE_COLLECTION"
+            },
+            {
+              "id": "story-25d-stops",
+              "idEnv": "VITE_HONUA_25D_STOPS_COLLECTION"
+            }
+          ]
+        }
+      },
+      "fixtureFallback": {
+        "state": "fixture-degraded",
+        "mode": "same-origin-fixture",
+        "command": "npm run demo:25d:mock"
+      },
+      "smoke": {
+        "fixtureCommand": "npm run test:playwright:25d",
+        "cloudCommand": "npm run test:cloud-demo:staging",
+        "requiresEnv": [
+          "HONUA_CLOUD_DEMO_BASE_URL",
+          "VITE_HONUA_25D_ASSETS_COLLECTION",
+          "VITE_HONUA_25D_ROUTE_COLLECTION",
+          "VITE_HONUA_25D_STOPS_COLLECTION"
+        ]
+      },
+      "cacheNotes": {
+        "metadata": "cacheable-metadata",
+        "featureState": "uncached-query"
+      }
+    },
+    {
+      "id": "kepler-analytics-materialized",
+      "title": "kepler analytics seeded materialized export",
+      "sampleDir": "examples/kepler-analytics",
+      "mode": "readonly",
+      "capabilities": ["metadata", "materialized-export", "feature-query"],
+      "cloud": {
+        "baseUrlEnv": "HONUA_DEMO_BASE_URL",
+        "authEnv": {
+          "apiKey": "HONUA_DEMO_API_KEY",
+          "bearerToken": "HONUA_DEMO_BEARER_TOKEN"
+        },
+        "service": {
+          "kind": "FeatureServer",
+          "serviceId": "ops-analytics",
+          "layers": [
+            {
+              "role": "incidents",
+              "layerId": 0,
+              "serviceIdEnv": "HONUA_DEMO_INCIDENTS_SERVICE_ID",
+              "layerIdEnv": "HONUA_DEMO_INCIDENTS_LAYER_ID"
+            },
+            {
+              "role": "unit-tracks",
+              "layerId": 1,
+              "serviceIdEnv": "HONUA_DEMO_UNIT_TRACKS_SERVICE_ID",
+              "layerIdEnv": "HONUA_DEMO_UNIT_TRACKS_LAYER_ID"
+            },
+            {
+              "role": "coverage-zones",
+              "layerId": 2,
+              "serviceIdEnv": "HONUA_DEMO_COVERAGE_ZONES_SERVICE_ID",
+              "layerIdEnv": "HONUA_DEMO_COVERAGE_ZONES_LAYER_ID"
+            }
+          ]
+        }
+      },
+      "fixtureFallback": {
+        "state": "fixture-degraded",
+        "mode": "committed-geojson-export",
+        "command": "npm run demo:kepler:smoke"
+      },
+      "smoke": {
+        "fixtureCommand": "npm run demo:kepler:smoke",
+        "cloudCommand": "npm run test:cloud-demo:staging",
+        "requiresEnv": [
+          "HONUA_DEMO_BASE_URL",
+          "HONUA_DEMO_INCIDENTS_SERVICE_ID",
+          "HONUA_DEMO_INCIDENTS_LAYER_ID",
+          "HONUA_DEMO_UNIT_TRACKS_SERVICE_ID",
+          "HONUA_DEMO_UNIT_TRACKS_LAYER_ID",
+          "HONUA_DEMO_COVERAGE_ZONES_SERVICE_ID",
+          "HONUA_DEMO_COVERAGE_ZONES_LAYER_ID"
+        ]
+      },
+      "cacheNotes": {
+        "metadata": "cacheable-metadata",
+        "featureState": "materialized-result"
+      }
+    },
+    {
+      "id": "incident-realtime-stream",
+      "title": "Realtime incident stream",
+      "sampleDir": "examples/realtime-incident-dashboard",
+      "mode": "realtime",
+      "capabilities": ["metadata", "realtime-stream", "snapshot-then-delta"],
+      "cloud": {
+        "authEnv": {
+          "apiKey": "HONUA_CLOUD_DEMO_API_KEY",
+          "bearerToken": "HONUA_CLOUD_DEMO_BEARER_TOKEN"
+        },
+        "transportEnv": "VITE_HONUA_INCIDENT_TRANSPORT",
+        "stream": {
+          "kind": "sse",
+          "url": "https://cloud.honua.io/api/v1/realtime/incidents/sse",
+          "urlEnv": "VITE_HONUA_INCIDENT_STREAM_URL",
+          "authority": "realtime-stream",
+          "sourceId": "honua-cloud:incidents",
+          "layerId": "incidents"
+        }
+      },
+      "fixtureFallback": {
+        "state": "fixture-degraded",
+        "mode": "scripted-realtime-fixture",
+        "command": "npm run demo:incident:mock"
+      },
+      "smoke": {
+        "fixtureCommand": "npm run test:playwright:incident",
+        "cloudCommand": "npm run test:cloud-demo:staging",
+        "requiresEnv": ["HONUA_CLOUD_DEMO_BASE_URL", "VITE_HONUA_INCIDENT_TRANSPORT", "VITE_HONUA_INCIDENT_STREAM_URL"]
+      },
+      "cacheNotes": {
+        "metadata": "cacheable-metadata",
+        "featureState": "uncached-realtime"
+      }
+    },
+    {
+      "id": "edit-workflow-writable-guarded",
+      "title": "Guarded writable field inspection service",
+      "sampleDir": "examples/edit-workflow-demo",
+      "mode": "writable-guarded",
+      "capabilities": ["metadata", "apply-edits", "attachments", "reset"],
+      "cloud": {
+        "baseUrlEnv": "VITE_HONUA_EDIT_WORKFLOW_BASE_URL",
+        "authEnv": {
+          "apiKey": "VITE_HONUA_EDIT_WORKFLOW_API_KEY",
+          "bearerToken": "VITE_HONUA_EDIT_WORKFLOW_BEARER_TOKEN"
+        },
+        "service": {
+          "kind": "FeatureServer",
+          "serviceId": "field-inspections-demo-writable",
+          "serviceIdEnv": "VITE_HONUA_EDIT_WORKFLOW_SERVICE_ID",
+          "layerId": 0,
+          "layerIdEnv": "VITE_HONUA_EDIT_WORKFLOW_LAYER_ID",
+          "readonlyServiceId": "field-inspections-demo-readonly",
+          "readonlyServiceIdEnv": "VITE_HONUA_EDIT_WORKFLOW_READONLY_SERVICE_ID"
+        }
+      },
+      "writeSafeguards": {
+        "allowWritesEnv": "HONUA_CLOUD_DEMO_ALLOW_WRITES",
+        "requiredAllowWritesValue": "true",
+        "writeTokenEnv": "HONUA_CLOUD_DEMO_WRITE_TOKEN",
+        "resetTokenEnv": "HONUA_CLOUD_DEMO_RESET_TOKEN",
+        "resetUrlEnv": "HONUA_CLOUD_DEMO_RESET_URL",
+        "resetCadence": "before-and-after-smoke",
+        "requiredResetState": "seeded-clean",
+        "notes": [
+          "Writable smoke must fail closed unless HONUA_CLOUD_DEMO_ALLOW_WRITES=true.",
+          "Reset token must be separate from the browser API key or bearer token.",
+          "Reset calls are uncached and must run before and after any scheduled writable smoke."
+        ]
+      },
+      "fixtureFallback": {
+        "state": "fixture-degraded",
+        "mode": "local-edit-session-fixture",
+        "command": "npm run test:playwright:edit-workflow"
+      },
+      "smoke": {
+        "fixtureCommand": "npm run test:playwright:edit-workflow",
+        "cloudCommand": "npm run test:cloud-demo:staging",
+        "requiresEnv": [
+          "HONUA_CLOUD_DEMO_BASE_URL",
+          "HONUA_CLOUD_DEMO_ALLOW_WRITES",
+          "HONUA_CLOUD_DEMO_WRITE_TOKEN",
+          "HONUA_CLOUD_DEMO_RESET_TOKEN",
+          "HONUA_CLOUD_DEMO_RESET_URL",
+          "VITE_HONUA_EDIT_WORKFLOW_SERVICE_ID",
+          "VITE_HONUA_EDIT_WORKFLOW_LAYER_ID"
+        ]
+      },
+      "cacheNotes": {
+        "metadata": "cacheable-metadata",
+        "featureState": "uncached-edits"
+      }
+    }
+  ]
+}

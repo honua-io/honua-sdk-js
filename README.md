@@ -118,6 +118,12 @@ polygon geometry buckets.
 
 Each example README documents its own env surface, network contract, browser telemetry hooks, run lanes, accepted data
 contracts, live-query narrowing rules, preprocessing rules, and browser diagnostics.
+The shared seeded Honua Cloud demo contract lives in
+[`docs/honua-cloud-demo-services.md`](./docs/honua-cloud-demo-services.md), with the machine-readable manifest at
+[`examples/cloud-demo-services.json`](./examples/cloud-demo-services.json) and env template at
+[`examples/cloud-demo.env.example`](./examples/cloud-demo.env.example). Use `npm run test:cloud-demo:config` to
+validate the config/docs shape without live credentials, and `npm run test:cloud-demo:staging` for the credential-gated
+cloud smoke scaffold.
 For the Cesium spike specifically, `window.__cesiumRoutePlaybackDone` is the completion signal on both success and
 failure, `window.__cesiumRoutePlaybackError` is failure-only, and `window.__cesiumRoutePlaybackResult` is populated
 only on success.
