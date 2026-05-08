@@ -38,6 +38,10 @@ The proof profile requires these widget kinds:
 Unsupported widgets and missing required widgets produce structured preview
 diagnostics instead of a blank host surface.
 
+Map widgets bind feature-state and filter synchronization to
+`widget.layerId` first, then `manifest.bindings.layerId`. The map widget's
+`sourceLayer` is passed through to MapLibre feature-state calls when present.
+
 ## Canonical Mapping
 
 The SDK does not define a competing canonical builder contract. The manifest is
@@ -52,10 +56,14 @@ the browser-safe projection of canonical builder/package output.
 | `BuildSpec.bindings` | `manifest.bindings` | Field bindings such as `primaryKey`, `titleField`, `categoryField`, `filterField`, `tableFields`, `searchFields`, and `layerId`. |
 | `BuildSpec.initialState` | `manifest.initialState` | Optional initial `ExplorationState` seed. |
 | `AppPackage.id` / `AppPackage.version` | `manifest.appId` / `manifest.version` fallback | `projectAppPackageToGeneratedAppManifest` fills these when the artifact omits them. |
-| `AppPackage.manifest_artifact` | `HonuaGeneratedAppManifestArtifact` | Inline artifact with kind/version plus `manifest`. This is the preferred Portal handoff. |
+| `AppPackage.manifest_artifact` / `AppPackage.manifestArtifact` | `HonuaGeneratedAppManifestArtifact` | Inline artifact with kind/version plus `manifest`. `manifest_artifact` is the preferred Portal handoff; the SDK also accepts a bare manifest for draft/test callers. |
 | `MapPackage.mapPackageId` | `manifest.mapPackageId` | Used to verify the map asset referenced by the app package. |
 | `MapPackage.sourceBindings[]` | `manifest.data.sourceId` plus runtime source ids | The generated runtime reuses `loadMapPackage`; source/protocol logic stays in `@honua/sdk-js/runtime`. |
 | `MapPackage.mapSpec`, `legend`, `popupBindings`, `initialView` | map widget model / `HonuaMapRuntime` | The generated runtime does not duplicate map style, legend, popup, or view logic. |
+
+When a `BuildSpec` or `MapPackage` projection omits widgets, the SDK creates
+the proof dashboard's default map, table, count, chart, and filter widgets from
+the supplied field bindings.
 
 ## Preview Host
 
@@ -79,6 +87,14 @@ if (preview.status === "error") {
   renderDashboard(preview.model);
 }
 ```
+
+Manifests with a `map` widget require a `MapPackage`, `mapFactory`, and
+`mapLoadOptions`. When `manifest.mapPackageId` is present, the resolved
+`MapPackage.mapPackageId` must match before the SDK constructs the host map;
+mismatches return a `map-package-mismatch` diagnostic. `mapFactory` returns the
+host-owned MapLibre map plus an optional `dispose` callback. The SDK calls that
+callback during normal runtime teardown and if the map loads but the initial
+feature refresh fails.
 
 For deterministic drafts or tests, pass `initialFeatures`. For live hosts,
 the default loader queries the `HonuaMapRuntime.dataset` source with a bounded
@@ -112,15 +128,18 @@ Widget models are framework-neutral render data, not DOM instructions:
 
 | Widget kind | Model fields |
 | --- | --- |
-| `map` | `loaded`, `mapPackageId`, `layerId`, `legend`, and `searchFields`. |
-| `table` / `list` | `sourceId`, rendered `rows`, and visible `fields`. |
+| `map` | `loaded`, `mapPackageId`, `layerId`, `legend`, and `searchFields`; `layerId` uses the widget value with a manifest binding fallback. |
+| `table` / `list` | `sourceId`, rendered `rows`, and visible `fields`; fields come from the widget, manifest table binding, or first-record inference. |
 | `count` | `label` and numeric `value`. |
-| `chart` | `sourceId`, `groupBy`, and selected/count-bearing `buckets`. |
-| `filter` | `sourceId`, `field`, and selected/count-bearing `options`. |
+| `chart` | `sourceId`, `groupBy`, and selected/count-bearing `buckets` with source-qualified selection targets. |
+| `filter` | `sourceId`, `field`, and selected/count-bearing `options`; explicit manifest option labels are preserved while observed values add counts. |
 
 Use `HonuaGeneratedAppLoadOptions.onEvent` or `runtime.on(...)` to observe the
 preview lifecycle. Events are `widget-bound`, `rendered`, `loaded`, `error`,
 and `disposed`; they are intended for host telemetry and preview diagnostics.
+Load-time failures can only reach `onEvent`, because no runtime handle exists
+yet. Runtime events include stable payloads such as `appId`, `widgetId`,
+`widgetKind`, `visibleCount`, or the structured `HonuaGeneratedAppError`.
 
 ## Runtime Interactions
 
@@ -155,4 +174,7 @@ serializable diagnostics:
 ```
 
 Call `loadGeneratedAppRuntime` directly when the host wants exceptions instead
-of preview diagnostics.
+of preview diagnostics. If map hydration succeeds and the initial feature load
+then fails, the loader disposes the partially loaded `HonuaMapRuntime`, calls
+the host map `dispose` callback, and `previewGeneratedApp` returns a
+`data-load-failed` diagnostic.

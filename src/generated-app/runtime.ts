@@ -232,6 +232,7 @@ export async function loadGeneratedAppRuntime<TAttributes extends Record<string,
   const sourceId = manifest.data.sourceId;
   const mapWidget = findWidget<HonuaGeneratedAppMapWidget>(manifest, "map");
   const mapPackage = manifest.mapPackage ?? options.mapPackage;
+  assertMapPackageMatchesManifest(manifest, mapPackage);
   let mapRuntime: HonuaMapRuntime | undefined;
   let disposeMap: (() => void) | undefined;
 
@@ -755,6 +756,26 @@ function mapLayerIdForWidget(
   manifest: HonuaGeneratedAppManifest,
 ): string | undefined {
   return widget.layerId ?? manifest.bindings?.layerId;
+}
+
+function assertMapPackageMatchesManifest(
+  manifest: HonuaGeneratedAppManifest,
+  mapPackage: HonuaMapPackage | undefined,
+): void {
+  if (!manifest.mapPackageId || !mapPackage || manifest.mapPackageId === mapPackage.mapPackageId) return;
+  throw new HonuaGeneratedAppError(
+    "map-package-mismatch",
+    `generated-app MapPackage "${mapPackage.mapPackageId}" does not match manifest mapPackageId "${manifest.mapPackageId}"`,
+    {
+      stage: "load",
+      detail: {
+        appId: manifest.appId,
+        path: "GeneratedAppManifest.mapPackageId",
+        expected: manifest.mapPackageId,
+        received: mapPackage.mapPackageId,
+      },
+    },
+  );
 }
 
 function missingWidgetBinding(appId: string, widgetId: string, widgetKind: string): HonuaGeneratedAppError {

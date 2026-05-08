@@ -394,7 +394,11 @@ if (preview.status === "ready") {
 The preview response is a discriminated union: ready responses include the resolved manifest, runtime handle,
 render model, and `errors: []`; error responses include serializable `HonuaGeneratedAppDiagnostic` objects and never
 throw from `previewGeneratedApp`. Call `loadGeneratedAppRuntime` directly when the host wants exceptions. Full
-contract reference: [`docs/generated-app-runtime.md`](./docs/generated-app-runtime.md).
+contract reference: [`docs/generated-app-runtime.md`](./docs/generated-app-runtime.md). For map-backed manifests,
+the host must provide a `MapPackage`, `mapFactory`, and `mapLoadOptions`; when `manifest.mapPackageId` is present,
+the supplied `MapPackage.mapPackageId` must match before map construction. Map filter bindings use the widget
+`layerId` with `manifest.bindings.layerId` as fallback, and failed initial feature loads dispose partially loaded map
+resources before returning an error result.
 
 ## Install
 

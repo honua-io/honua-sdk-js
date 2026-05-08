@@ -13,6 +13,7 @@ export type HonuaGeneratedAppErrorCode =
   | "missing-manifest"
   | "missing-manifest-artifact"
   | "missing-map-package"
+  | "map-package-mismatch"
   | "missing-widget"
   | "missing-binding"
   | "map-load-failed"

@@ -277,6 +277,42 @@ describe("@honua/sdk-js/generated-app", () => {
     result.runtime.dispose();
   });
 
+  it("rejects a MapPackage whose id does not match the manifest contract", async () => {
+    const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
+    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mismatchedMapPackage: HonuaMapPackage = {
+      ...mapPackage,
+      mapPackageId: "map-ops-dashboard-v2",
+    };
+    let mapFactoryCalled = false;
+
+    const result = await previewGeneratedApp(
+      { appPackage, mapPackage: mismatchedMapPackage },
+      {
+        mapFactory: () => {
+          mapFactoryCalled = true;
+          return { map: makeMockMap() };
+        },
+        mapLoadOptions: { client: makeClient(), skipCompatibilityCheck: true, applyInitialView: false },
+        initialFeatures: [],
+      },
+    );
+
+    expect(result.status).toBe("error");
+    if (result.status === "error") {
+      expect(result.errors[0]).toMatchObject({
+        code: "map-package-mismatch",
+        stage: "load",
+        detail: {
+          appId: "app-ops-dashboard-v1",
+          expected: "map-ops-dashboard-v1",
+          received: "map-ops-dashboard-v2",
+        },
+      });
+    }
+    expect(mapFactoryCalled).toBe(false);
+  });
+
   it("disposes partially loaded map resources when initial feature refresh fails", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
     const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
