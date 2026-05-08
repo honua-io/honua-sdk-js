@@ -1,6 +1,8 @@
+import { resolveSpatialAggregationWidgetSummary } from "@honua/sdk-js/contract";
 import type {
   SpatialAggregationCell,
   SpatialAggregationHistogramValue,
+  SpatialAggregationRangeValue,
   SpatialAggregationSummaryValue,
 } from "@honua/sdk-js/contract";
 import { createSpatialAnalyticsWorkbenchSession, selectAnalyticsUiModels } from "./model.js";
@@ -299,9 +301,7 @@ function renderAggregationWidgets(): void {
   const widgets = session.aggregationWidgets();
   panel.innerHTML = widgets
     .map((widget) => {
-      const summary = widget.summaryId
-        ? (aggregation.totals?.[widget.summaryId] ?? aggregation.cells[0]?.summaries[widget.summaryId])
-        : undefined;
+      const summary = resolveSpatialAggregationWidgetSummary(aggregation, widget)?.summary;
       if (widget.kind === "category-list" && summary?.kind === "category") {
         return `
           <article class="aggregation-widget" data-kind="category">
@@ -321,6 +321,9 @@ function renderAggregationWidgets(): void {
       }
       if (widget.kind === "histogram" && summary?.kind === "histogram") {
         return renderHistogramWidget(widget.title ?? "Histogram", summary);
+      }
+      if (widget.kind === "range-list" && summary?.kind === "range") {
+        return renderRangeWidget(widget.title ?? "Range", summary);
       }
       if (widget.kind === "grouped-table") {
         return `
@@ -362,6 +365,26 @@ function renderHistogramWidget(title: string, summary: SpatialAggregationHistogr
           (bucket) => `
             <div class="histogram-row">
               <span>${escapeHtml(bucket.min)}-${escapeHtml(bucket.max)}</span>
+              <i style="width:${Math.max(8, (bucket.count / maxCount) * 100)}%"></i>
+              <strong>${escapeHtml(bucket.count)}</strong>
+            </div>
+          `,
+        )
+        .join("")}
+    </article>
+  `;
+}
+
+function renderRangeWidget(title: string, summary: SpatialAggregationRangeValue): string {
+  const maxCount = Math.max(1, ...summary.buckets.map((bucket) => bucket.count));
+  return `
+    <article class="aggregation-widget" data-kind="range">
+      <h3>${escapeHtml(title)}</h3>
+      ${summary.buckets
+        .map(
+          (bucket) => `
+            <div class="range-row">
+              <span>${escapeHtml(bucket.label ?? bucket.id)}</span>
               <i style="width:${Math.max(8, (bucket.count / maxCount) * 100)}%"></i>
               <strong>${escapeHtml(bucket.count)}</strong>
             </div>

@@ -9,6 +9,7 @@ import {
   SPATIAL_AGGREGATION_CAPABILITY,
   assertValidSpatialAggregationRequest,
   isSpatialAggregationComplete,
+  resolveSpatialAggregationWidgetSummary,
   spatialAggregationProgress,
   spatialAggregationWidgets,
   validateSpatialAggregationRequest,
@@ -80,6 +81,13 @@ describe("spatial aggregation contract", () => {
     );
     expect(widgets).toContainEqual(
       expect.objectContaining({
+        id: "population-range",
+        kind: "range-list",
+        summaryId: "populationExposureRange",
+      }),
+    );
+    expect(widgets).toContainEqual(
+      expect.objectContaining({
         id: "grouped-risk-table",
         kind: "grouped-table",
         groupBy: ["severity", "landUse"],
@@ -107,6 +115,66 @@ describe("spatial aggregation contract", () => {
       id: "grouped-summaries",
       groupBy: ["severity", "landUse"],
     });
+  });
+
+  it("resolves widget summaries from server totals before visible cell pages", () => {
+    const widgets = spatialAggregationWidgets(fixture.response);
+    const severityWidget = widgets.find((widget) => widget.id === "severity-list");
+    const histogramWidget = widgets.find((widget) => widget.id === "response-histogram");
+    const rangeWidget = widgets.find((widget) => widget.id === "population-range");
+    const groupedWidget = widgets.find((widget) => widget.id === "grouped-risk-table");
+    if (!severityWidget || !histogramWidget || !rangeWidget || !groupedWidget) {
+      throw new Error("fixture is missing expected aggregation widgets");
+    }
+
+    const severity = resolveSpatialAggregationWidgetSummary(fixture.response, severityWidget);
+    const histogram = resolveSpatialAggregationWidgetSummary(fixture.response, histogramWidget);
+    const range = resolveSpatialAggregationWidgetSummary(fixture.response, rangeWidget);
+
+    expect(severity).toMatchObject({
+      source: "totals",
+      summaryId: "bySeverity",
+      summary: {
+        kind: "category",
+        buckets: [
+          { value: "critical", count: 62 },
+          { value: "high", count: 104 },
+          { value: "moderate", count: 65 },
+        ],
+      },
+    });
+    expect(histogram).toMatchObject({
+      source: "totals",
+      summary: {
+        kind: "histogram",
+        buckets: [{ count: 54 }, { count: 91 }, { count: 66 }, { count: 20 }],
+      },
+    });
+    expect(range).toMatchObject({
+      source: "totals",
+      summary: {
+        kind: "range",
+        buckets: [
+          { id: "low", count: 74 },
+          { id: "medium", count: 101 },
+          { id: "high", count: 56 },
+        ],
+      },
+    });
+    expect(resolveSpatialAggregationWidgetSummary(fixture.response, groupedWidget)).toBeUndefined();
+
+    const cellFallback: SpatialAggregationResult = {
+      ...fixture.response,
+      totals: undefined,
+    };
+    const fallbackSeverity = resolveSpatialAggregationWidgetSummary(cellFallback, severityWidget);
+    expect(fallbackSeverity).toMatchObject({
+      source: "cell",
+      cellId: fixture.response.cells[0]?.id,
+      summary: { kind: "category" },
+    });
+    if (fallbackSeverity?.summary.kind !== "category") throw new Error("expected category fallback summary");
+    expect(fallbackSeverity.summary.buckets[0]).toMatchObject({ value: "critical", count: 8 });
   });
 
   it("reports progressive loading state separately from the cell payload", () => {

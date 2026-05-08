@@ -63,8 +63,23 @@ describe("Spatial Analytics Workbench sample", () => {
       "stat",
       "category-list",
       "histogram",
+      "range-list",
       "grouped-table",
     ]);
+    expect(session.chartBuckets().map((bucket) => [bucket.risk, bucket.count])).toEqual([
+      ["critical", 62],
+      ["high", 104],
+      ["moderate", 65],
+      ["low", 0],
+    ]);
+    expect(session.latestAggregation()?.totals?.populationExposureRange).toMatchObject({
+      kind: "range",
+      buckets: [
+        { id: "low", count: 74 },
+        { id: "medium", count: 101 },
+        { id: "high", count: 56 },
+      ],
+    });
     expect(session.latestAggregation()?.metadata.cache?.metadataCacheable).toBe(true);
     expect(session.latestAggregation()?.metadata.cache?.resultCacheable).toBe(false);
     expect(session.latestOutput()?.features).toHaveLength(0);

@@ -767,7 +767,7 @@ function metricsForAggregation(aggregation: SpatialAggregationResult): readonly 
 function aggregationSeverityBuckets(
   aggregation: SpatialAggregationResult,
 ): ReadonlyArray<{ readonly risk: AnalyticsRisk; readonly count: number; readonly score: number }> {
-  const category = aggregation.cells[0]?.summaries.bySeverity;
+  const category = aggregation.totals?.bySeverity ?? aggregation.cells[0]?.summaries.bySeverity;
   const buckets = category?.kind === "category" ? category.buckets : [];
   const averageRisk = aggregation.totals?.averageRisk;
   const score = averageRisk && "value" in averageRisk ? Math.round(Number(averageRisk.value ?? 0)) : 0;

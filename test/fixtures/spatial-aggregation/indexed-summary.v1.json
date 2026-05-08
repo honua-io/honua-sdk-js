@@ -400,6 +400,19 @@
           }
         },
         {
+          "id": "population-range",
+          "kind": "range-list",
+          "title": "Population exposure",
+          "summaryId": "populationExposureRange",
+          "field": "exposed_population",
+          "valueType": "number",
+          "interactions": ["filter", "highlight"],
+          "progressive": {
+            "stableAcrossPages": false,
+            "partialValueSemantics": "refine"
+          }
+        },
+        {
           "id": "grouped-risk-table",
           "kind": "grouped-table",
           "title": "Severity by land use",
@@ -730,6 +743,87 @@
       "totalIncidents": {
         "kind": "count",
         "value": 231,
+        "approximate": true
+      },
+      "bySeverity": {
+        "kind": "category",
+        "buckets": [
+          {
+            "value": "critical",
+            "label": "Critical",
+            "count": 62,
+            "color": "#b42318"
+          },
+          {
+            "value": "high",
+            "label": "High",
+            "count": 104,
+            "color": "#dc6803"
+          },
+          {
+            "value": "moderate",
+            "label": "Moderate",
+            "count": 65,
+            "color": "#ca8504"
+          }
+        ],
+        "approximate": true
+      },
+      "responseTimeHistogram": {
+        "kind": "histogram",
+        "buckets": [
+          {
+            "min": 0,
+            "max": 15,
+            "count": 54,
+            "includeMin": true
+          },
+          {
+            "min": 15,
+            "max": 30,
+            "count": 91
+          },
+          {
+            "min": 30,
+            "max": 45,
+            "count": 66
+          },
+          {
+            "min": 45,
+            "max": 60,
+            "count": 20,
+            "includeMax": true
+          }
+        ],
+        "approximate": true
+      },
+      "populationExposureRange": {
+        "kind": "range",
+        "buckets": [
+          {
+            "id": "low",
+            "label": "0-999",
+            "min": 0,
+            "max": 1000,
+            "includeMin": true,
+            "count": 74
+          },
+          {
+            "id": "medium",
+            "label": "1,000-4,999",
+            "min": 1000,
+            "max": 5000,
+            "includeMin": true,
+            "count": 101
+          },
+          {
+            "id": "high",
+            "label": "5,000+",
+            "min": 5000,
+            "includeMin": true,
+            "count": 56
+          }
+        ],
         "approximate": true
       },
       "populationSum": {

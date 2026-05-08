@@ -91,6 +91,7 @@ export type {
   SpatialAggregationRequest,
   SpatialAggregationResolutionInput,
   SpatialAggregationResult,
+  SpatialAggregationResolvedWidgetSummary,
   SpatialAggregationSummaryBag,
   SpatialAggregationSummaryBase,
   SpatialAggregationSummaryKind,
@@ -102,6 +103,7 @@ export type {
   SpatialAggregationViewport,
   SpatialAggregationWidgetKind,
   SpatialAggregationWidgetMetadata,
+  SpatialAggregationWidgetSummarySource,
 } from "./spatial-aggregation.js";
 
 export {
@@ -149,6 +151,7 @@ export {
   assertFeatureServerH3SpatialAggregationRequest,
   assertValidSpatialAggregationRequest,
   isSpatialAggregationComplete,
+  resolveSpatialAggregationWidgetSummary,
   spatialAggregationProgress,
   spatialAggregationSummaryKindSupportedByFeatureServerH3,
   spatialAggregationSummaryKindRequiresField,
