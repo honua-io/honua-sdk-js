@@ -186,6 +186,8 @@
     "demo:edit-workflow:mock": "node examples/edit-workflow-demo/mock-server.mjs",
     "demo:edit-workflow:typecheck": "tsc -p examples/edit-workflow-demo/tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:cloud-demo:config": "vitest run test/cloud-demo-services.test.ts test/demo-capability-matrix.test.ts",
+    "test:cloud-demo:staging": "vitest run --config vitest.cloud-demo.config.ts",
     "test:playwright:quickstart": "playwright test test/playwright/quickstart-map.spec.mjs",
     "test:playwright:incident": "playwright test test/playwright/realtime-incident-dashboard.spec.mjs",
     "test:playwright:unified-ops": "playwright test test/playwright/unified-ops-workspace.spec.mjs",

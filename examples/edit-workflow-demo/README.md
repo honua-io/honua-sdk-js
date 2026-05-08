@@ -22,3 +22,9 @@ npm run test:playwright:edit-workflow
 The sample uses only deterministic fixtures. Metadata is treated as cacheable
 per source/config version, while edit submissions and attachment mutations are
 uncached user actions.
+
+The seeded Honua Cloud writable service contract is documented as the
+`edit-workflow-writable-guarded` profile in
+[`docs/honua-cloud-demo-services.md`](../../docs/honua-cloud-demo-services.md).
+Live writable smoke must remain fail-closed unless the allow-writes flag, write
+token, reset token, and reset URL are all present.
