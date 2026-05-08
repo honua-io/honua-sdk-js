@@ -1,0 +1,77 @@
+[
+  {
+    "id": 1001,
+    "sourceId": "incidents",
+    "attributes": {
+      "OBJECTID": 1001,
+      "title": "Harbor fuel sheen",
+      "status": "open",
+      "district": "Harbor",
+      "severity": "critical"
+    },
+    "geometry": {
+      "x": -157.8722,
+      "y": 21.3074
+    }
+  },
+  {
+    "id": 1002,
+    "sourceId": "incidents",
+    "attributes": {
+      "OBJECTID": 1002,
+      "title": "Kakaako grid outage",
+      "status": "assigned",
+      "district": "Downtown",
+      "severity": "high"
+    },
+    "geometry": {
+      "x": -157.8558,
+      "y": 21.2994
+    }
+  },
+  {
+    "id": 1003,
+    "sourceId": "incidents",
+    "attributes": {
+      "OBJECTID": 1003,
+      "title": "Ala Moana signal failure",
+      "status": "monitoring",
+      "district": "Downtown",
+      "severity": "medium"
+    },
+    "geometry": {
+      "x": -157.8444,
+      "y": 21.2917
+    }
+  },
+  {
+    "id": 1004,
+    "sourceId": "incidents",
+    "attributes": {
+      "OBJECTID": 1004,
+      "title": "Kailua flood report",
+      "status": "open",
+      "district": "Windward",
+      "severity": "high"
+    },
+    "geometry": {
+      "x": -157.7395,
+      "y": 21.4022
+    }
+  },
+  {
+    "id": 1005,
+    "sourceId": "incidents",
+    "attributes": {
+      "OBJECTID": 1005,
+      "title": "Pier logistics delay",
+      "status": "assigned",
+      "district": "Harbor",
+      "severity": "low"
+    },
+    "geometry": {
+      "x": -157.9211,
+      "y": 21.3187
+    }
+  }
+]
