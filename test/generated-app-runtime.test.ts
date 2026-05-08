@@ -206,6 +206,94 @@ describe("@honua/sdk-js/generated-app", () => {
     ]);
   });
 
+  it("requests every bound field needed by the default map-backed loader", async () => {
+    const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
+    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
+    const sourceAttributes: Record<string, unknown> = {
+      incident_id: "INC-1001",
+      title: "Pump alarm",
+      status: "Open",
+      district: "Harbor",
+      severity: 3,
+    };
+    const requestedOutFields: string[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://mock.honua.test",
+      fetchFn: async (input) => {
+        const url = new URL(String(input));
+        if (url.pathname !== "/rest/services/Incidents/FeatureServer/0/query") {
+          return new Response("not found", { status: 404 });
+        }
+
+        const outFields = url.searchParams.get("outFields") ?? "";
+        requestedOutFields.push(outFields);
+        const requestedFields = outFields === "*" ? Object.keys(sourceAttributes) : outFields.split(",");
+        const attributes = Object.fromEntries(requestedFields.map((field) => [field, sourceAttributes[field]]));
+        return new Response(JSON.stringify({ features: [{ attributes, geometry: null }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+    const sparseDisplayManifest: HonuaGeneratedAppManifest = {
+      ...manifest,
+      bindings: {
+        ...manifest.bindings,
+        primaryKey: "incident_id",
+        titleField: "title",
+        subtitleField: "status",
+        tableFields: ["title"],
+        searchFields: ["district"],
+      },
+      layout: {
+        ...manifest.layout,
+        widgets: manifest.layout.widgets.map((entry) => {
+          if (entry.kind === "table" || entry.kind === "list") {
+            return {
+              ...entry,
+              fields: ["title"],
+              primaryKey: "incident_id",
+              titleField: "title",
+              subtitleField: "status",
+            };
+          }
+          if (entry.kind === "chart") return { ...entry, groupBy: "district" };
+          if (entry.kind === "filter") {
+            const { options: _options, ...filterWithoutOptions } = entry;
+            return { ...filterWithoutOptions, field: "severity" };
+          }
+          return entry;
+        }),
+      },
+    };
+
+    const result = await previewGeneratedApp(
+      { manifest: sparseDisplayManifest, mapPackage },
+      {
+        mapFactory: () => ({ map: makeMockMap() }),
+        mapLoadOptions: { client, skipCompatibilityCheck: true, applyInitialView: false },
+      },
+    );
+
+    expect(result.status).toBe("ready");
+    expect(requestedOutFields[0]?.split(",")).toEqual(["incident_id", "title", "status", "district", "severity"]);
+    if (result.status === "ready") {
+      expect(tableWidget(result.model, "incident-table").rows[0]).toMatchObject({
+        id: "INC-1001",
+        title: "Pump alarm",
+        subtitle: "Open",
+      });
+      expect(
+        widget(result.model, "district-chart", "chart").buckets.map((bucket) => [bucket.value, bucket.count]),
+      ).toEqual([["Harbor", 1]]);
+      expect(
+        widget(result.model, "district-filter", "filter").options.map((option) => [option.value, option.count]),
+      ).toEqual([[3, 1]]);
+      result.runtime.dispose();
+    }
+  });
+
   it("routes filter, chart, and table interactions through ExplorationContext", async () => {
     const { runtime, map } = await loadFixtureRuntime();
     const selections: unknown[] = [];

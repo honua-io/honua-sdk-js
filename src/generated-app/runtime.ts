@@ -703,7 +703,7 @@ async function loadFeaturesFromMapRuntime(
   }
   const query: Query = {
     returnGeometry: true,
-    outFields: manifest.bindings?.tableFields,
+    outFields: generatedAppQueryFields(manifest),
     orderBy: projection.orderBy,
     pagination: projection.pagination.limit
       ? projection.pagination
@@ -756,6 +756,48 @@ function mapLayerIdForWidget(
   manifest: HonuaGeneratedAppManifest,
 ): string | undefined {
   return widget.layerId ?? manifest.bindings?.layerId;
+}
+
+function generatedAppQueryFields(manifest: HonuaGeneratedAppManifest): ReadonlyArray<string> | undefined {
+  const fields: string[] = [];
+  const add = (field: string | undefined): void => {
+    if (field && !fields.includes(field)) fields.push(field);
+  };
+  const addMany = (values: ReadonlyArray<string> | undefined): void => {
+    for (const field of values ?? []) add(field);
+  };
+
+  add(manifest.bindings?.primaryKey ?? "OBJECTID");
+  add(manifest.bindings?.titleField);
+  add(manifest.bindings?.subtitleField);
+  add(manifest.bindings?.categoryField);
+  add(manifest.bindings?.filterField);
+  addMany(manifest.bindings?.tableFields);
+  addMany(manifest.bindings?.searchFields);
+
+  for (const widget of manifest.layout.widgets) {
+    switch (widget.kind) {
+      case "table":
+      case "list":
+        add(widget.primaryKey);
+        add(widget.titleField);
+        add(widget.subtitleField);
+        addMany(widget.fields);
+        break;
+      case "chart":
+        add(widget.groupBy);
+        if (widget.metric?.field !== "*") add(widget.metric?.field);
+        break;
+      case "filter":
+        add(widget.field);
+        break;
+      case "map":
+      case "count":
+        break;
+    }
+  }
+
+  return fields.length > 0 ? fields : undefined;
 }
 
 function assertMapPackageMatchesManifest(

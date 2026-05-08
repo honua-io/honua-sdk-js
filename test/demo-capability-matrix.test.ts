@@ -29,6 +29,7 @@ const requiredCapabilities = [
   "Related records",
   "Edits",
   "Style/runtime",
+  "Generated app preview runtime",
   "Webmap conversion",
   "Geocoding",
   "Telemetry/diagnostics",
