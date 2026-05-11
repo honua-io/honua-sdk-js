@@ -152,6 +152,12 @@ same-origin URL, a `honua://map-packages/{id}` locator, or an object with
 `/api/v1/map-packages/{id}`; pass `resolvePath` when a deployment uses a
 different hosted package route.
 
+For low-latency hosted package updates, `watchMapPackage` can use a configured
+or package-advertised realtime channel and fall back to polling when the
+channel is unavailable. See [`map-package-realtime-watch.md`](./map-package-realtime-watch.md)
+for the message schema, lifecycle events, reconnect behavior, auth notes, and
+fallback contract.
+
 Fetch results include:
 
 - `mapPackage`: the validated package, with missing style-ref bodies
