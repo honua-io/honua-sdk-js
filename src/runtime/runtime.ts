@@ -10,7 +10,19 @@
  */
 
 import type { Dataset } from "../contract/index.js";
-import type { FeatureStateMap, MapEventTarget } from "../interactions/feature-state.js";
+import type { FeatureId } from "../contract/types.js";
+import type { ExplorationViewController, SourceQualifiedFeatureSelectionTarget } from "../exploration/types.js";
+import {
+  bindMapSelectionToExploration,
+  syncFeatureStateSelection,
+} from "../interactions/exploration-bindings.js";
+import { createHoverHandler, createSelectionHandler } from "../interactions/feature-state.js";
+import type {
+  FeatureStateMap,
+  HoverHandle,
+  MapEventTarget,
+  SelectionHandle,
+} from "../interactions/feature-state.js";
 import type { HonuaMap } from "../map/honua-map.js";
 import type { HonuaStyleSpecification } from "../style/specification.js";
 import { type MapPackageDiff, diffPackages } from "./diff.js";
@@ -18,6 +30,38 @@ import { HonuaMapPackageError } from "./errors.js";
 import { type LegendEntry, buildLegend } from "./legend.js";
 import type { HonuaMapPackage, HonuaMapPackageInitialView, HonuaMapPackagePopupBinding } from "./map-package.js";
 import { type PopupBindingHandle, type PopupFactory, type PopupRenderer, bindPopup } from "./popups.js";
+import {
+  featureStateTargetFromSelection,
+  materializeRuntimeLayer,
+  materializeRuntimeSource,
+  materializeStyleValue,
+  rendererRuntimeDiagnosticError,
+  resolveFeatureIdFromEventFeature,
+  resolveRuntimeBeforeId,
+  selectionTargetForLayer,
+  sourceContextForLayer,
+  throwRuntimeDiagnostics,
+  validateRuntimeFilterExpression,
+  validateRuntimeLayer,
+  validateRuntimeSource,
+  validateRuntimeStyleExpression,
+} from "./style-interactions.js";
+import type {
+  HonuaRuntimeDiagnostic,
+  RuntimeClickInteractionHandler,
+  RuntimeClickInteractionOptions,
+  RuntimeExplorationSelectionOptions,
+  RuntimeFeatureStateTarget,
+  RuntimeFilterExpression,
+  RuntimeHoverInteractionOptions,
+  RuntimeLayerOrder,
+  RuntimeLayerSpecification,
+  RuntimeLayerUpdate,
+  RuntimeLayoutSpecification,
+  RuntimePaintSpecification,
+  RuntimeSelectionInteractionOptions,
+  RuntimeSourceSpecification,
+} from "./style-interactions.js";
 
 /**
  * Minimal subset of `maplibre-gl.Map` required by the runtime. Mirrors
@@ -32,6 +76,7 @@ export interface MaplibreMap extends FeatureStateMap, MapEventTarget {
   removeSource?(id: string): void;
   addLayer?(layer: unknown, beforeId?: string): void;
   removeLayer?(id: string): void;
+  moveLayer?(id: string, beforeId?: string): void;
   getLayer?(id: string): unknown;
   setLayoutProperty?(layerId: string, name: string, value: unknown): void;
   setPaintProperty?(layerId: string, name: string, value: unknown): void;
@@ -200,6 +245,516 @@ export class HonuaMapRuntime {
   public setLayerVisibility(layerId: string, visible: boolean): void {
     this.#assertLive();
     this.map.setLayoutProperty?.(layerId, "visibility", visible ? "visible" : "none");
+  }
+
+  public validateStyleExpression(value: unknown): HonuaRuntimeDiagnostic[] {
+    return validateRuntimeStyleExpression(value);
+  }
+
+  public validateFilterExpression(filter: unknown, layerId?: string): HonuaRuntimeDiagnostic[] {
+    const layerContext = layerId ? sourceContextForLayer(this.#composedStyle, this.#packageRef.current, layerId) : undefined;
+    return validateRuntimeFilterExpression(filter, {
+      ...(layerId ? { layerId, path: `layers.${layerId}.filter` } : {}),
+      ...(layerContext
+        ? {
+            sourceId: layerContext.sourceId,
+            protocol: layerContext.protocol,
+          }
+        : {}),
+    });
+  }
+
+  public addSource(sourceId: string, source: RuntimeSourceSpecification): void {
+    this.#assertLive();
+    const spec = materializeRuntimeSource(source);
+    const diagnostics = [
+      ...(Object.hasOwn(this.#composedStyle.sources, sourceId)
+        ? [
+            {
+              code: "source-duplicate",
+              severity: "error" as const,
+              message: `Source "${sourceId}" already exists.`,
+              path: `sources.${sourceId}`,
+              sourceId,
+              protocol: spec.type,
+            },
+          ]
+        : []),
+      ...validateRuntimeSource(sourceId, spec, {
+        style: this.#composedStyle,
+        mapPackage: this.#packageRef.current,
+        operation: "addSource",
+      }),
+    ];
+    throwRuntimeDiagnostics(diagnostics, `Cannot add source "${sourceId}".`);
+
+    const nextStyle = {
+      ...this.#composedStyle,
+      sources: { ...this.#composedStyle.sources, [sourceId]: spec },
+    };
+
+    try {
+      this.#honuaMap.addSource(sourceId, spec);
+      try {
+        this.#applyRendererSourceAdd(sourceId, spec, nextStyle);
+      } catch (error) {
+        this.#honuaMap.removeSource(sourceId);
+        throw error;
+      }
+      this.#composedStyle = nextStyle;
+    } catch (error) {
+      if (error instanceof Error && error.name === "HonuaRuntimeDiagnosticError") throw error;
+      throw rendererRuntimeDiagnosticError(
+        `addSource("${sourceId}") failed`,
+        {
+          code: "source-add-failed",
+          message: errorMessage(error),
+          path: `sources.${sourceId}`,
+          sourceId,
+          protocol: spec.type,
+        },
+        error,
+      );
+    }
+  }
+
+  public updateSource(sourceId: string, source: RuntimeSourceSpecification): void {
+    this.#assertLive();
+    const previous = this.#composedStyle.sources[sourceId];
+    const spec = materializeRuntimeSource(source);
+    const diagnostics = [
+      ...(!previous
+        ? [
+            {
+              code: "source-not-found",
+              severity: "error" as const,
+              message: `Source "${sourceId}" does not exist.`,
+              path: `sources.${sourceId}`,
+              sourceId,
+              protocol: spec.type,
+            },
+          ]
+        : []),
+      ...validateRuntimeSource(sourceId, spec, {
+        style: this.#composedStyle,
+        mapPackage: this.#packageRef.current,
+        operation: "updateSource",
+      }),
+    ];
+    throwRuntimeDiagnostics(diagnostics, `Cannot update source "${sourceId}".`);
+
+    const nextStyle = {
+      ...this.#composedStyle,
+      sources: { ...this.#composedStyle.sources, [sourceId]: spec },
+    };
+
+    try {
+      this.#honuaMap.updateSource(sourceId, spec);
+      try {
+        this.map.setStyle(nextStyle, { diff: true });
+      } catch (error) {
+        if (previous) this.#honuaMap.updateSource(sourceId, previous);
+        throw error;
+      }
+      this.#composedStyle = nextStyle;
+    } catch (error) {
+      throw rendererRuntimeDiagnosticError(
+        `updateSource("${sourceId}") failed`,
+        {
+          code: "source-update-failed",
+          message: errorMessage(error),
+          path: `sources.${sourceId}`,
+          sourceId,
+          protocol: spec.type,
+        },
+        error,
+      );
+    }
+  }
+
+  public removeSource(sourceId: string): string[] {
+    this.#assertLive();
+    if (!Object.hasOwn(this.#composedStyle.sources, sourceId)) {
+      return [];
+    }
+
+    const removedLayerIds = this.#composedStyle.layers
+      .filter((layer) => layer.source === sourceId)
+      .map((layer) => layer.id);
+    const nextSources = { ...this.#composedStyle.sources };
+    delete nextSources[sourceId];
+    const nextStyle = {
+      ...this.#composedStyle,
+      sources: nextSources,
+      layers: this.#composedStyle.layers.filter((layer) => layer.source !== sourceId),
+    };
+
+    try {
+      this.#applyRendererSourceRemove(sourceId, removedLayerIds, nextStyle);
+      this.#honuaMap.removeSource(sourceId);
+      this.#composedStyle = nextStyle;
+      return removedLayerIds;
+    } catch (error) {
+      throw rendererRuntimeDiagnosticError(
+        `removeSource("${sourceId}") failed`,
+        {
+          code: "source-remove-failed",
+          message: errorMessage(error),
+          path: `sources.${sourceId}`,
+          sourceId,
+        },
+        error,
+      );
+    }
+  }
+
+  public addLayer(layer: RuntimeLayerSpecification, order?: RuntimeLayerOrder): void {
+    this.#assertLive();
+    const spec = materializeRuntimeLayer(layer);
+    const orderResult = resolveRuntimeBeforeId(this.#composedStyle, order);
+    const diagnostics = [
+      ...(this.#composedStyle.layers.some((entry) => entry.id === spec.id)
+        ? [
+            {
+              code: "layer-duplicate",
+              severity: "error" as const,
+              message: `Layer "${spec.id}" already exists.`,
+              path: `layers.${spec.id}`,
+              layerId: spec.id,
+              sourceId: spec.source,
+            },
+          ]
+        : []),
+      ...orderResult.diagnostics,
+      ...validateRuntimeLayer(spec, {
+        style: this.#composedStyle,
+        mapPackage: this.#packageRef.current,
+        operation: "addLayer",
+      }),
+    ];
+    throwRuntimeDiagnostics(diagnostics, `Cannot add layer "${spec.id}".`);
+
+    const nextStyle = insertLayer(this.#composedStyle, spec, orderResult.beforeId);
+    try {
+      this.#honuaMap.addLayer(spec, orderResult.beforeId);
+      try {
+        this.#applyRendererLayerAdd(spec, orderResult.beforeId, nextStyle);
+      } catch (error) {
+        this.#honuaMap.removeLayer(spec.id);
+        throw error;
+      }
+      this.#composedStyle = nextStyle;
+    } catch (error) {
+      throw rendererRuntimeDiagnosticError(
+        `addLayer("${spec.id}") failed`,
+        {
+          code: "layer-add-failed",
+          message: errorMessage(error),
+          path: `layers.${spec.id}`,
+          sourceId: spec.source,
+          layerId: spec.id,
+          protocol: sourceContextForLayer(nextStyle, this.#packageRef.current, spec.id)?.protocol,
+        },
+        error,
+      );
+    }
+  }
+
+  public updateLayer(layerId: string, update: RuntimeLayerUpdate): void {
+    this.#assertLive();
+    const previous = this.#composedStyle.layers.find((layer) => layer.id === layerId);
+    if (!previous) {
+      throwRuntimeDiagnostics(
+        [
+          {
+            code: "layer-not-found",
+            severity: "error",
+            message: `Layer "${layerId}" does not exist.`,
+            path: `layers.${layerId}`,
+            layerId,
+          },
+        ],
+        `Cannot update layer "${layerId}".`,
+      );
+      return;
+    }
+
+    const { order, ...rawPatch } = update;
+    const patch = materializeStyleValue(rawPatch) as Partial<Omit<RuntimeLayerSpecification, "id">>;
+    const nextLayer: HonuaStyleSpecification["layers"][number] = { ...previous, ...patch, id: layerId };
+    const orderResult = resolveRuntimeBeforeId(this.#composedStyle, order, layerId);
+    const diagnostics = [
+      ...orderResult.diagnostics,
+      ...validateRuntimeLayer(nextLayer, {
+        style: this.#composedStyle,
+        mapPackage: this.#packageRef.current,
+        operation: "updateLayer",
+      }),
+    ];
+    throwRuntimeDiagnostics(diagnostics, `Cannot update layer "${layerId}".`);
+
+    const nextStyle = replaceLayer(
+      this.#composedStyle,
+      nextLayer,
+      order === undefined ? undefined : orderResult.beforeId,
+      order === undefined,
+    );
+    const incremental = order === undefined && canPatchLayerWithMap(this.map, previous, nextLayer);
+    try {
+      if (incremental) {
+        this.#patchLayer(layerId, previous, nextLayer);
+      } else {
+        this.map.setStyle(nextStyle, { diff: true });
+      }
+      this.#honuaMap.updateLayer(layerId, patch as Partial<Omit<HonuaStyleSpecification["layers"][number], "id">>);
+      if (order !== undefined) {
+        this.#honuaMap.moveLayer(layerId, orderResult.beforeId);
+      }
+      this.#composedStyle = nextStyle;
+    } catch (error) {
+      throw rendererRuntimeDiagnosticError(
+        `updateLayer("${layerId}") failed`,
+        {
+          code: "layer-update-failed",
+          message: errorMessage(error),
+          path: `layers.${layerId}`,
+          sourceId: nextLayer.source,
+          layerId,
+          protocol: sourceContextForLayer(nextStyle, this.#packageRef.current, layerId)?.protocol,
+        },
+        error,
+      );
+    }
+  }
+
+  public removeLayer(layerId: string): boolean {
+    this.#assertLive();
+    const existing = this.#composedStyle.layers.find((layer) => layer.id === layerId);
+    if (!existing) return false;
+
+    const nextStyle = {
+      ...this.#composedStyle,
+      layers: this.#composedStyle.layers.filter((layer) => layer.id !== layerId),
+    };
+    try {
+      if (this.map.removeLayer) {
+        this.map.removeLayer(layerId);
+      } else {
+        this.map.setStyle(nextStyle, { diff: true });
+      }
+      this.#honuaMap.removeLayer(layerId);
+      this.#composedStyle = nextStyle;
+      return true;
+    } catch (error) {
+      throw rendererRuntimeDiagnosticError(
+        `removeLayer("${layerId}") failed`,
+        {
+          code: "layer-remove-failed",
+          message: errorMessage(error),
+          path: `layers.${layerId}`,
+          sourceId: existing.source,
+          layerId,
+          protocol: sourceContextForLayer(this.#composedStyle, this.#packageRef.current, layerId)?.protocol,
+        },
+        error,
+      );
+    }
+  }
+
+  public moveLayer(layerId: string, order?: RuntimeLayerOrder): void {
+    this.#assertLive();
+    const existing = this.#composedStyle.layers.find((layer) => layer.id === layerId);
+    if (!existing) {
+      throwRuntimeDiagnostics(
+        [
+          {
+            code: "layer-not-found",
+            severity: "error",
+            message: `Layer "${layerId}" does not exist.`,
+            path: `layers.${layerId}`,
+            layerId,
+          },
+        ],
+        `Cannot move layer "${layerId}".`,
+      );
+      return;
+    }
+
+    const orderResult = resolveRuntimeBeforeId(this.#composedStyle, order, layerId);
+    throwRuntimeDiagnostics(orderResult.diagnostics, `Cannot move layer "${layerId}".`);
+    const nextStyle = replaceLayer(this.#composedStyle, existing, orderResult.beforeId, false);
+    try {
+      if (this.map.moveLayer) {
+        this.map.moveLayer(layerId, orderResult.beforeId);
+      } else {
+        this.map.setStyle(nextStyle, { diff: true });
+      }
+      this.#honuaMap.moveLayer(layerId, orderResult.beforeId);
+      this.#composedStyle = nextStyle;
+    } catch (error) {
+      throw rendererRuntimeDiagnosticError(
+        `moveLayer("${layerId}") failed`,
+        {
+          code: "layer-move-failed",
+          message: errorMessage(error),
+          path: `layers.${layerId}`,
+          sourceId: existing.source,
+          layerId,
+          protocol: sourceContextForLayer(this.#composedStyle, this.#packageRef.current, layerId)?.protocol,
+        },
+        error,
+      );
+    }
+  }
+
+  public setLayerPaint(layerId: string, paint: RuntimePaintSpecification): void {
+    this.updateLayer(layerId, { paint });
+  }
+
+  public setLayerLayout(layerId: string, layout: RuntimeLayoutSpecification): void {
+    this.updateLayer(layerId, { layout });
+  }
+
+  public setLayerFilter(layerId: string, filter: RuntimeFilterExpression | undefined): void {
+    this.updateLayer(layerId, { filter });
+  }
+
+  public layerSelectionTarget(layerId: string, id: FeatureId): SourceQualifiedFeatureSelectionTarget {
+    const target = selectionTargetForLayer(this.#composedStyle, layerId, id);
+    if (!target) {
+      throwRuntimeDiagnostics(
+        [
+          {
+            code: "layer-source-missing",
+            severity: "error",
+            message: `Layer "${layerId}" does not have a source for feature selection.`,
+            path: `layers.${layerId}.source`,
+            layerId,
+          },
+        ],
+        `Cannot build a source-qualified selection target for layer "${layerId}".`,
+      );
+      throw new Error("unreachable");
+    }
+    return target;
+  }
+
+  public setFeatureStateForTarget(
+    target: RuntimeFeatureStateTarget | SourceQualifiedFeatureSelectionTarget,
+    state: Record<string, unknown>,
+  ): void {
+    this.#assertLive();
+    this.map.setFeatureState(normalizeFeatureStateTarget(target), state);
+  }
+
+  public getFeatureStateForTarget(
+    target: RuntimeFeatureStateTarget | SourceQualifiedFeatureSelectionTarget,
+  ): Record<string, unknown> {
+    this.#assertLive();
+    return this.map.getFeatureState(normalizeFeatureStateTarget(target));
+  }
+
+  public removeFeatureStateForTarget(
+    target: RuntimeFeatureStateTarget | SourceQualifiedFeatureSelectionTarget,
+    key?: string,
+  ): void {
+    this.#assertLive();
+    this.map.removeFeatureState(normalizeFeatureStateTarget(target), key);
+  }
+
+  public bindHover(layerId: string, options: RuntimeHoverInteractionOptions = {}): HoverHandle {
+    this.#assertLive();
+    const context = this.#interactionContext(layerId, options.sourceId, options.sourceLayer);
+    return createHoverHandler(this.map, {
+      source: context.sourceId,
+      sourceLayer: context.sourceLayer,
+      layer: layerId,
+      stateKey: options.stateKey,
+    });
+  }
+
+  public bindClick(
+    layerId: string,
+    handler: RuntimeClickInteractionHandler,
+    options: RuntimeClickInteractionOptions = {},
+  ): { remove(): void } {
+    this.#assertLive();
+    const context = this.#interactionContext(layerId, options.sourceId, options.sourceLayer);
+
+    const onClick = (event: unknown): void => {
+      const feature = firstEventFeature(event);
+      const featureId = feature ? resolveFeatureIdFromEventFeature(feature, event, options) : undefined;
+      handler({
+        type: "click",
+        layerId,
+        sourceId: context.sourceId,
+        sourceLayer: context.sourceLayer,
+        feature,
+        featureId,
+        ...(featureId !== undefined
+          ? {
+              selectionTarget: {
+                sourceId: context.sourceId,
+                id: featureId,
+                ...(context.sourceLayer !== undefined ? { sourceLayer: context.sourceLayer } : {}),
+              },
+            }
+          : {}),
+        originalEvent: event,
+      });
+    };
+
+    this.map.on("click", layerId, onClick);
+    return {
+      remove: () => this.map.off("click", layerId, onClick),
+    };
+  }
+
+  public bindSelect(layerId: string, options: RuntimeSelectionInteractionOptions = {}): SelectionHandle {
+    this.#assertLive();
+    const context = this.#interactionContext(layerId, options.sourceId, options.sourceLayer);
+    return createSelectionHandler(this.map, {
+      source: context.sourceId,
+      sourceLayer: context.sourceLayer,
+      layer: layerId,
+      stateKey: options.stateKey,
+      multiSelect: options.multiSelect,
+      onChange: options.onChange,
+      onSelectionTargetsChange: options.onSelectionTargetsChange,
+    });
+  }
+
+  public bindSelectionToExploration(
+    layerId: string,
+    view: ExplorationViewController,
+    options: RuntimeExplorationSelectionOptions = {},
+  ): SelectionHandle {
+    this.#assertLive();
+    const context = this.#interactionContext(layerId, options.sourceId, options.sourceLayer);
+    return bindMapSelectionToExploration(this.map, view, {
+      source: context.sourceId,
+      sourceLayer: context.sourceLayer,
+      layer: layerId,
+      stateKey: options.stateKey,
+      multiSelect: options.multiSelect,
+      onChange: options.onChange,
+      onSelectionTargetsChange: options.onSelectionTargetsChange,
+      replaceSelection: options.replaceSelection,
+    });
+  }
+
+  public syncSelectionFromExploration(
+    layerId: string,
+    view: ExplorationViewController,
+    options: Omit<RuntimeExplorationSelectionOptions, "multiSelect" | "onChange" | "onSelectionTargetsChange"> = {},
+  ): { remove(): void } {
+    this.#assertLive();
+    const context = this.#interactionContext(layerId, options.sourceId, options.sourceLayer);
+    return syncFeatureStateSelection(this.map, view, {
+      source: context.sourceId,
+      sourceLayer: context.sourceLayer,
+      stateKey: options.stateKey,
+    });
   }
 
   public bindPopup(layerId: string, binding?: HonuaMapPackagePopupBinding): { remove(): void } {
@@ -420,6 +975,74 @@ export class HonuaMapRuntime {
 
   // ── Private helpers ─────────────────────────────────────────
 
+  #applyRendererSourceAdd(
+    sourceId: string,
+    source: RuntimeSourceSpecification,
+    nextStyle: HonuaStyleSpecification,
+  ): void {
+    if (this.map.addSource) {
+      this.map.addSource(sourceId, source);
+      return;
+    }
+    this.map.setStyle(nextStyle, { diff: true });
+  }
+
+  #applyRendererSourceRemove(
+    sourceId: string,
+    removedLayerIds: readonly string[],
+    nextStyle: HonuaStyleSpecification,
+  ): void {
+    if (!this.map.removeLayer || !this.map.removeSource) {
+      this.map.setStyle(nextStyle, { diff: true });
+      return;
+    }
+    for (const layerId of [...removedLayerIds].reverse()) {
+      this.map.removeLayer(layerId);
+    }
+    this.map.removeSource(sourceId);
+  }
+
+  #applyRendererLayerAdd(
+    layer: HonuaStyleSpecification["layers"][number],
+    beforeId: string | undefined,
+    nextStyle: HonuaStyleSpecification,
+  ): void {
+    if (this.map.addLayer) {
+      this.map.addLayer(layer, beforeId);
+      return;
+    }
+    this.map.setStyle(nextStyle, { diff: true });
+  }
+
+  #interactionContext(
+    layerId: string,
+    sourceIdOverride: string | undefined,
+    sourceLayerOverride: string | undefined,
+  ): { sourceId: string; sourceLayer: string | undefined; protocol: string | undefined } {
+    const context = sourceContextForLayer(this.#composedStyle, this.#packageRef.current, layerId);
+    const sourceId = sourceIdOverride ?? context?.sourceId;
+    if (!sourceId) {
+      throwRuntimeDiagnostics(
+        [
+          {
+            code: "layer-source-missing",
+            severity: "error",
+            message: `Layer "${layerId}" does not have a source for interactions.`,
+            path: `layers.${layerId}.source`,
+            layerId,
+          },
+        ],
+        `Cannot bind interactions for layer "${layerId}".`,
+      );
+      throw new Error("unreachable");
+    }
+    return {
+      sourceId,
+      sourceLayer: sourceLayerOverride ?? context?.sourceLayer,
+      protocol: context?.protocol,
+    };
+  }
+
   #applyIncremental(composed: HonuaStyleSpecification, diff: MapPackageDiff): void {
     const prevStyle = this.#composedStyle;
 
@@ -544,6 +1167,71 @@ export class HonuaMapRuntime {
 
 // ── Helpers ──────────────────────────────────────────────────
 
+function insertLayer(
+  style: HonuaStyleSpecification,
+  layer: HonuaStyleSpecification["layers"][number],
+  beforeId: string | undefined,
+): HonuaStyleSpecification {
+  const layers = [...style.layers];
+  if (beforeId) {
+    const index = layers.findIndex((entry) => entry.id === beforeId);
+    if (index >= 0) {
+      layers.splice(index, 0, layer);
+    } else {
+      layers.push(layer);
+    }
+  } else {
+    layers.push(layer);
+  }
+  return { ...style, layers };
+}
+
+function replaceLayer(
+  style: HonuaStyleSpecification,
+  layer: HonuaStyleSpecification["layers"][number],
+  beforeId: string | undefined,
+  preserveIndexWhenNoBefore = true,
+): HonuaStyleSpecification {
+  const layers = style.layers.filter((entry) => entry.id !== layer.id);
+  if (beforeId) {
+    const index = layers.findIndex((entry) => entry.id === beforeId);
+    if (index >= 0) {
+      layers.splice(index, 0, layer);
+    } else {
+      layers.push(layer);
+    }
+  } else {
+    const previousIndex = style.layers.findIndex((entry) => entry.id === layer.id);
+    if (preserveIndexWhenNoBefore && previousIndex >= 0 && previousIndex < layers.length) {
+      layers.splice(previousIndex, 0, layer);
+    } else {
+      layers.push(layer);
+    }
+  }
+  return { ...style, layers };
+}
+
+function normalizeFeatureStateTarget(
+  target: RuntimeFeatureStateTarget | SourceQualifiedFeatureSelectionTarget,
+): RuntimeFeatureStateTarget {
+  if ("sourceId" in target) {
+    return featureStateTargetFromSelection(target);
+  }
+  return target;
+}
+
+function firstEventFeature(event: unknown): unknown {
+  if (typeof event !== "object" || event === null || !("features" in event)) {
+    return undefined;
+  }
+  const features = (event as { features?: unknown }).features;
+  return Array.isArray(features) ? features[0] : undefined;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function layerIdToSource(style: HonuaStyleSpecification, layerId: string): string | undefined {
   return style.layers.find((l) => l.id === layerId)?.source;
 }
@@ -610,6 +1298,18 @@ function patchableLayerShapeEqual(
     a.maxzoom === b.maxzoom &&
     sameJson(a.metadata, b.metadata)
   );
+}
+
+function canPatchLayerWithMap(
+  map: MaplibreMap,
+  previous: HonuaStyleSpecification["layers"][number],
+  next: HonuaStyleSpecification["layers"][number],
+): boolean {
+  if (!patchableLayerShapeEqual(previous, next)) return false;
+  if (!sameJson(previous.paint ?? {}, next.paint ?? {}) && !map.setPaintProperty) return false;
+  if (!sameJson(previous.layout ?? {}, next.layout ?? {}) && !map.setLayoutProperty) return false;
+  if (!sameJson(previous.filter, next.filter) && !map.setFilter) return false;
+  return true;
 }
 
 function shallowPaintLayoutEqual(

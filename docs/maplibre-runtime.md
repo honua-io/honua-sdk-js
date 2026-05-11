@@ -247,9 +247,20 @@ Theme application recurses into nested arrays / objects inside
 
 | Method | Behavior |
 | --- | --- |
+| `addSource(sourceId, source)` | Adds a Honua custom source or MapLibre-native source to `runtime.honuaMap`, `runtime.composedStyle`, and the host map via `map.addSource()` when available. Falls back to `setStyle(..., { diff: true })` for renderer adapters that only expose full style application. |
+| `updateSource(sourceId, source)` | Replaces a source spec and reapplies the composed style while preserving layer ids. Use for locator/data/source-option changes; paint/layout/filter-only updates should use layer helpers to avoid source reloads. |
+| `removeSource(sourceId)` | Removes the source and any dependent layers from the runtime style, `HonuaMap`, and host map. Returns the removed layer ids. |
+| `addLayer(layer, order?)` | Adds a typed layer spec, validates paint/layout/filter expressions first, and supports MapLibre `beforeId` as a string or `{ beforeId }`, `{ afterId }`, `{ position: "top" | "bottom" }`. |
+| `updateLayer(layerId, patch)` | Patches layer paint/layout/filter in place with `setPaintProperty` / `setLayoutProperty` / `setFilter` when the layer shape is stable. Structural layer changes or explicit reordering use a diffed `setStyle` path. |
+| `removeLayer(layerId)` / `moveLayer(layerId, order?)` | Removes or reorders runtime-owned layers while keeping `runtime.composedStyle` and `runtime.honuaMap` aligned with the renderer. |
+| `setLayerPaint(layerId, paint)` / `setLayerLayout(layerId, layout)` / `setLayerFilter(layerId, filter)` | Convenience wrappers around `updateLayer` for common Mapbox-style style changes. |
 | `setLayerVisibility(layerId, visible)` | `map.setLayoutProperty(layerId, "visibility", …)`. |
+| `validateStyleExpression(value)` / `validateFilterExpression(filter, layerId?)` | Runs Honua's lightweight expression validator and returns typed diagnostics with path, layer id, source id, protocol, and severity context. Mutating helpers throw `HonuaRuntimeDiagnosticError` before touching the renderer when diagnostics contain errors. |
 | `getLegend()` | Runs `buildLegend` against the current package and composed style; backfills missing swatches from the first `fill-color` / `circle-color` / `line-color` paint property when it is a string literal. |
 | `bindPopup(layerId, binding?)` | Requires `opts.popupFactory`. When `binding` is omitted the runtime looks up `pkg.popupBindings[]` by the layer's source id. The default renderer emits an unstyled `<dl>` of the first feature's properties (or a `{field}` template when `binding.template` is set). Returns a `{ remove() }` handle; re-binding on the same layer tears down the prior handle. |
+| `bindHover(layerId, options?)` / `bindClick(layerId, handler, options?)` / `bindSelect(layerId, options?)` | Infers source and source-layer from the runtime layer, binds MapLibre layer events, and manages hover/click/select feature-state without requiring app code to pass MapLibre types. `bindClick` emits a source-qualified selection target when a feature id is available. |
+| `bindSelectionToExploration(layerId, view, options?)` / `syncSelectionFromExploration(layerId, view, options?)` | Bridges runtime layer interactions to `ExplorationContext` selection and reflects source-qualified shared selection back into MapLibre feature-state. |
+| `layerSelectionTarget(layerId, id)` / `setFeatureStateForTarget(target, state)` / `getFeatureStateForTarget(target)` / `removeFeatureStateForTarget(target, key?)` | Converts layer + feature id pairs into source-qualified targets and applies feature-state using either runtime targets or `ExplorationContext` source-qualified targets. |
 | `setViewState(view)` | If `view.bbox` is supplied and `map.fitBounds` exists, fits the bounds (`animate: false` by default). Otherwise falls back to `map.jumpTo` for `center` / `zoom` / `pitch` / `bearing`. A final fallback applies `pkg.initialView.bbox` when no input is given. |
 | `updatePackage(next)` | See the Update lifecycle section. |
 | `on(listener)` | Subscribes to `HonuaRuntimeEvent`. Returns a `{ remove() }` handle. |
@@ -257,9 +268,10 @@ Theme application recurses into nested arrays / objects inside
 
 `runtime.map`, `runtime.honuaMap`, `runtime.dataset`,
 `runtime.mapPackage`, and `runtime.composedStyle` are readable at any
-time. Feature-state interactions continue to flow through
-`src/interactions/feature-state` — the runtime does not replicate
-them.
+time. The runtime helpers delegate to the lower-level
+`src/interactions/feature-state` and
+`src/interactions/exploration-bindings` modules, so apps can still use
+those lower-level primitives directly when they need custom behavior.
 
 ## Update lifecycle
 

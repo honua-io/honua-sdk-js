@@ -85,3 +85,45 @@ export type { NativeMapLibreSourceEntry, SourceBridgeProjection } from "./source
 
 export { diffPackages } from "./diff.js";
 export type { MapPackageDiff } from "./diff.js";
+
+export {
+  HonuaRuntimeDiagnosticError,
+  featureStateTargetFromSelection,
+  featureStateTargetKey,
+  featureTargetForLayer,
+  materializeRuntimeLayer,
+  materializeRuntimeSource,
+  materializeStyleValue,
+  protocolForSource,
+  rendererRuntimeDiagnosticError,
+  resolveFeatureIdFromEventFeature,
+  resolveRuntimeBeforeId,
+  selectionTargetForLayer,
+  sourceContextForLayer,
+  throwRuntimeDiagnostics,
+  validateRuntimeFilterExpression,
+  validateRuntimeLayer,
+  validateRuntimeSource,
+  validateRuntimeStyleExpression,
+} from "./style-interactions.js";
+export type {
+  HonuaRuntimeDiagnostic,
+  HonuaRuntimeDiagnosticSeverity,
+  NativeMapLibreSourceSpecification,
+  RuntimeClickInteractionHandler,
+  RuntimeClickInteractionOptions,
+  RuntimeExplorationSelectionOptions,
+  RuntimeFeatureInteractionEvent,
+  RuntimeFeatureStateTarget,
+  RuntimeFilterExpression,
+  RuntimeHoverInteractionOptions,
+  RuntimeLayerOrder,
+  RuntimeLayerOrderOptions,
+  RuntimeLayerSpecification,
+  RuntimeLayerUpdate,
+  RuntimeLayoutSpecification,
+  RuntimePaintSpecification,
+  RuntimeSelectionInteractionOptions,
+  RuntimeSourceSpecification,
+  RuntimeStyleValue,
+} from "./style-interactions.js";
