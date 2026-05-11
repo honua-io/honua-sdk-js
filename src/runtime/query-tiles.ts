@@ -9,6 +9,7 @@
  * @module
  */
 
+import { assessAnalyticsSourcePushdown } from "../contract/analytics-sources.js";
 import {
   type QueryTileCacheKeyOptions,
   type QueryTileCachePolicy,
@@ -146,6 +147,9 @@ export type QueryTileDiagnosticCode =
   | "fallback-enabled"
   | "fallback-disabled"
   | "unsupported-protocol"
+  | "analytics-tile-pushdown-supported"
+  | "analytics-tile-pushdown-unavailable"
+  | "client-materialization-disabled"
   | "missing-tile-endpoint"
   | "missing-cache-scope"
   | "unbounded-cache";
@@ -518,12 +522,38 @@ export function diagnoseQueryTileSourceSupport<T = Record<string, unknown>>(
   }
 
   if (!protocol) {
-    diagnostics.push({
-      ...base,
-      severity: "warning",
-      code: "unsupported-protocol",
-      message: "query tile source has no protocol metadata; server pushdown cannot be inferred",
-    });
+    if (normalized.analyticsSource) {
+      const assessment = assessAnalyticsSourcePushdown(normalized.analyticsSource, "tiles", {
+        operation: "tiles",
+        cache: normalized.analyticsSource.cache?.key,
+      });
+      diagnostics.push({
+        ...base,
+        severity: assessment.supported ? "info" : "warning",
+        code: assessment.supported ? "analytics-tile-pushdown-supported" : "analytics-tile-pushdown-unavailable",
+        capability: "tiles",
+        message: assessment.supported
+          ? `analytics source "${normalized.analyticsSource.id}" advertises tile pushdown`
+          : (assessment.degraded?.[0]?.reason ??
+            `analytics source "${normalized.analyticsSource.id}" lacks tile pushdown`),
+      });
+      if (normalized.analyticsSource.fallback?.mode === "disabled") {
+        diagnostics.push({
+          ...base,
+          severity: "info",
+          code: "client-materialization-disabled",
+          capability: "query",
+          message: "analytics source disables unbounded browser materialization",
+        });
+      }
+    } else {
+      diagnostics.push({
+        ...base,
+        severity: "warning",
+        code: "unsupported-protocol",
+        message: "query tile source has no protocol metadata; server pushdown cannot be inferred",
+      });
+    }
   } else if (TILE_PUSHDOWN_PROTOCOLS.has(protocol)) {
     diagnostics.push({
       ...base,

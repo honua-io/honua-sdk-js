@@ -13,6 +13,8 @@
 import { rewriteWhereToOdataFilter } from "../core/odata.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { HonuaExtent, HonuaTypedFeature } from "../core/types.js";
+import { buildAnalyticsSourceCacheKey, normalizeAnalyticsSourceDescriptor } from "./analytics-sources.js";
+import type { AnalyticsSourceDescriptor } from "./analytics-sources.js";
 import type {
   AggregationFn,
   AggregationHistogramBucketSpec,
@@ -65,6 +67,8 @@ export interface WidgetSourceOptions {
   /** Freshness contract that permits cache reuse for realtime result widgets. */
   readonly freshness?: WidgetSourceFreshnessContract;
   readonly cache?: WidgetSourceCacheHints;
+  /** Optional warehouse/indexed descriptor used for cache identity and degradation reporting. */
+  readonly analyticsSource?: AnalyticsSourceDescriptor;
 }
 
 export interface WidgetSourceCacheHints {
@@ -109,6 +113,8 @@ export interface WidgetSourceRequestBase<T = Record<string, unknown>> {
   readonly query?: Query<T>;
   /** Structural match for `selectLinkedViewQueryProjection(...)`. */
   readonly projection?: WidgetSourceProjection;
+  /** Request-level warehouse/indexed descriptor override for cache identity. */
+  readonly analyticsSource?: AnalyticsSourceDescriptor;
   readonly signal?: AbortSignal;
   readonly cache?: WidgetSourceCacheHints;
   readonly maxClientRows?: number;
@@ -2079,13 +2085,28 @@ function cacheMetadata<T>(
   options: WidgetSourceOptions,
 ): WidgetSourceCacheMetadata {
   const hints = { ...(options.cache ?? {}), ...(request.cache ?? {}) };
+  const analyticsSource = request.analyticsSource ?? options.analyticsSource;
   const ttlMs = hints.ttlMs ?? options.ttlMs;
   const freshness = hints.freshness ?? options.freshness ?? source.descriptor.analytics?.freshness;
+  const normalizedAnalyticsSource = analyticsSource ? normalizeAnalyticsSourceDescriptor(analyticsSource) : undefined;
   const keyParts = [
     WIDGET_SOURCE_SCHEMA_VERSION,
     source.descriptor.id,
     source.descriptor.protocol,
     kind,
+    ...(normalizedAnalyticsSource
+      ? [
+          buildAnalyticsSourceCacheKey(normalizedAnalyticsSource, {
+            operation: "widget",
+            cache: {
+              ...(normalizedAnalyticsSource.cache?.key ?? {}),
+              filters: resolved.query.where,
+              projection: sanitizeQuery(resolved.query),
+              widgetProjection: sanitizeRequest(request),
+            },
+          }),
+        ]
+      : []),
     stableStringify({
       query: sanitizeQuery(resolved.query),
       request: sanitizeRequest(request),
@@ -2110,10 +2131,17 @@ function sanitizeQuery(query: Query): Record<string, unknown> {
 }
 
 function sanitizeRequest(request: WidgetSourceRequestBase): Record<string, unknown> {
-  const { signal: _signal, query: _query, projection: _projection, ...rest } = request;
+  const {
+    signal: _signal,
+    query: _query,
+    projection: _projection,
+    analyticsSource: _analyticsSource,
+    ...rest
+  } = request;
   void _signal;
   void _query;
   void _projection;
+  void _analyticsSource;
   return rest as Record<string, unknown>;
 }
 

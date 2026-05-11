@@ -40,7 +40,8 @@ map.addSource("incidents-query-tiles", buildMapLibreQueryTileSourceSpec(tiledInc
 
 - `id`: runtime / MapLibre source id.
 - `sourceId`: canonical source id used by selection and detail lookup.
-- `source` or `protocol`: source descriptor metadata used for diagnostics.
+- `source`, `analyticsSource`, or `protocol`: source descriptor metadata used
+  for diagnostics and cache identity.
 - `endpoint`: `urlTemplate`, `tilejsonUrl`, or `baseUrl` + optional `path`.
 - `query` and `projection`: filter and styling fields that affect tile content.
 - `cache.key`: `sourceVersion`, `authorizationScope`, `styleFilters`, and
@@ -50,7 +51,32 @@ map.addSource("incidents-query-tiles", buildMapLibreQueryTileSourceSpec(tiledInc
 
 `buildQueryTileCacheKey()` normalizes `{z,x,y}` tile keys, wraps X, clamps Y,
 and includes source id, protocol, tile matrix set, query, projection, style
-filters, source version, and authorization scope.
+filters, source version, and authorization scope. When the descriptor is backed
+by a warehouse/indexed analytics source, the key also includes the analytics
+source cache identity: table/query/tileset id, SQL text, index model and
+resolution, auth scope, filters, and style projection.
+
+Warehouse and indexed descriptors can be passed directly as `source`:
+
+```ts
+import { defineIndexedSpatialSource, defineQueryTileSource } from "@honua/sdk-js/contract";
+
+const cells = defineIndexedSpatialSource({
+  id: "warehouse.incidents.h3",
+  provider: "carto",
+  sql: { text: "select h3_cell, severity from incidents" },
+  index: { modelId: "h3", cellIdField: "h3_cell", resolution: 8 },
+  cache: { key: { sourceVersion: "mv-17", authorizationScope: "role:ops" } },
+  fallback: { mode: "disabled" },
+});
+
+const tiledCells = defineQueryTileSource({
+  id: "incident-h3-tiles",
+  source: cells,
+  endpoint: { baseUrl: "https://honua.example.com/query-tiles" },
+  projection: { fields: ["severity"] },
+});
+```
 
 ## MapLibre Helpers
 

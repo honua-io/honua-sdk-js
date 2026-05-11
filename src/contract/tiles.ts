@@ -10,6 +10,13 @@
  */
 
 import type { HonuaTypedFeature } from "../core/types.js";
+import {
+  analyticsSourceId,
+  buildAnalyticsSourceCacheKey,
+  isAnalyticsSourceDescriptor,
+  normalizeAnalyticsSourceDescriptor,
+} from "./analytics-sources.js";
+import type { AnalyticsSourceDescriptor } from "./analytics-sources.js";
 import type { FeatureId, Protocol, Query, Result, Source, SourceDescriptor, SourceId } from "./types.js";
 
 export type QueryTileFormat = "mvt" | "geojson";
@@ -314,6 +321,8 @@ export interface QueryTileSourceDescriptor<T = Record<string, unknown>> {
   sourceId: SourceId;
   /** Optional canonical source descriptor this tiled source is derived from. */
   source?: SourceDescriptor;
+  /** Optional warehouse/indexed analytics descriptor this tiled source is derived from. */
+  analyticsSource?: AnalyticsSourceDescriptor;
   /** Protocol override when `source` is not provided. */
   protocol?: Protocol;
   endpoint?: QueryTileEndpointDescriptor;
@@ -360,9 +369,9 @@ export interface QueryTileJson {
 }
 
 export interface DefineQueryTileSourceOptions<T = Record<string, unknown>>
-  extends Omit<QueryTileSourceDescriptor<T>, "kind" | "sourceId" | "source" | "protocol"> {
+  extends Omit<QueryTileSourceDescriptor<T>, "kind" | "sourceId" | "source" | "analyticsSource" | "protocol"> {
   /** Source id, source descriptor, or live Source handle to tile. */
-  source: SourceId | SourceDescriptor | Source<T>;
+  source: SourceId | SourceDescriptor | AnalyticsSourceDescriptor | Source<T>;
   /** Override the canonical source id inferred from `source`. */
   sourceId?: SourceId;
   /** Protocol override when `source` is a bare source id. */
@@ -518,7 +527,11 @@ export function defineQueryTileSource<T = Record<string, unknown>>(
   options: DefineQueryTileSourceOptions<T>,
 ): QueryTileSourceDescriptor<T> {
   const sourceDescriptor = resolveSourceDescriptor(options.source);
-  const sourceId = options.sourceId ?? sourceDescriptor?.id ?? String(options.source);
+  const analyticsSource = resolveAnalyticsSourceDescriptor(options.source);
+  const sourceId =
+    options.sourceId ??
+    sourceDescriptor?.id ??
+    (analyticsSource ? analyticsSourceId(analyticsSource) : String(options.source));
   const protocol = options.protocol ?? sourceDescriptor?.protocol;
   return normalizeQueryTileSourceDescriptor({
     ...options,
@@ -526,6 +539,7 @@ export function defineQueryTileSource<T = Record<string, unknown>>(
     id: options.id,
     sourceId,
     source: sourceDescriptor,
+    analyticsSource,
     protocol,
   });
 }
@@ -541,10 +555,14 @@ export function normalizeQueryTileSourceDescriptor<T = Record<string, unknown>>(
     throw new Error("QueryTileSourceDescriptor.sourceId is required");
   }
   const protocol = descriptor.protocol ?? descriptor.source?.protocol;
+  const analyticsSource = descriptor.analyticsSource
+    ? normalizeAnalyticsSourceDescriptor(descriptor.analyticsSource)
+    : undefined;
   return {
     ...descriptor,
     kind: "query-vector-tile",
     protocol,
+    ...(analyticsSource ? { analyticsSource } : {}),
     format: descriptor.format ?? "mvt",
     scheme: descriptor.scheme ?? "xyz",
     tileMatrixSet: descriptor.tileMatrixSet ?? descriptor.source?.locator.tileMatrixSetId,
@@ -591,6 +609,23 @@ export function buildQueryTileCacheKey<T = Record<string, unknown>>(
     descriptorId: normalizedDescriptor.id,
     sourceId: normalizedDescriptor.sourceId,
     protocol: normalizedDescriptor.protocol,
+    analyticsSource: normalizedDescriptor.analyticsSource
+      ? buildAnalyticsSourceCacheKey(normalizedDescriptor.analyticsSource, {
+          cache: {
+            sourceVersion: cacheIdentity.sourceVersion,
+            authorizationScope: cacheIdentity.authorizationScope,
+            filters: normalizedDescriptor.query?.where,
+            indexResolution:
+              typeof cacheIdentity.extra?.indexResolution === "number"
+                ? cacheIdentity.extra.indexResolution
+                : undefined,
+            projection: normalizeProjection(normalizedDescriptor.projection),
+            styleProjection: cacheIdentity.styleFilters,
+            extra: cacheIdentity.extra,
+          },
+          operation: "tiles",
+        })
+      : undefined,
     tileMatrixSet: normalizedDescriptor.tileMatrixSet,
     format: normalizedDescriptor.format,
     tile: key,
@@ -674,8 +709,11 @@ export function stableJson(value: unknown): string {
   return JSON.stringify(sortJson(value));
 }
 
-function resolveSourceDescriptor<T>(source: SourceId | SourceDescriptor | Source<T>): SourceDescriptor | undefined {
+function resolveSourceDescriptor<T>(
+  source: SourceId | SourceDescriptor | AnalyticsSourceDescriptor | Source<T>,
+): SourceDescriptor | undefined {
   if (typeof source === "string") return undefined;
+  if (isAnalyticsSourceDescriptor(source)) return undefined;
   const maybeSource = source as Partial<Source<T>>;
   if (maybeSource.descriptor) return maybeSource.descriptor;
   const maybeDescriptor = source as Partial<SourceDescriptor>;
@@ -683,6 +721,10 @@ function resolveSourceDescriptor<T>(source: SourceId | SourceDescriptor | Source
     return maybeDescriptor as SourceDescriptor;
   }
   return undefined;
+}
+
+function resolveAnalyticsSourceDescriptor(source: unknown): AnalyticsSourceDescriptor | undefined {
+  return isAnalyticsSourceDescriptor(source) ? normalizeAnalyticsSourceDescriptor(source) : undefined;
 }
 
 function queryTileServerRequestParamsFromOptions<T = Record<string, unknown>>(

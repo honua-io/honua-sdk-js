@@ -35,6 +35,7 @@ const requiredCapabilities = [
   "Telemetry/diagnostics",
   "Metadata caching",
   "Realtime/live data",
+  "Warehouse analytics sources",
   "Unified operational workspace",
   "Materialized outputs",
   "Indexed spatial aggregation",

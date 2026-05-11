@@ -4,6 +4,33 @@
     "schemaVersion": "honua.spatial-aggregation.v1",
     "requestId": "agg-honolulu-risk-viewport-001",
     "sourceId": "honolulu-incidents",
+    "analyticsSource": {
+      "schemaVersion": "honua.analytics-source.v1",
+      "kind": "h3-index",
+      "id": "warehouse.honolulu-incidents.h3",
+      "provider": "honua",
+      "sql": {
+        "text": "select h3_cell, severity, response_minutes, exposed_population from honolulu_incidents where status <> 'closed'",
+        "dialect": "honua-sql"
+      },
+      "index": {
+        "modelId": "h3",
+        "cellIdField": "h3_cell",
+        "resolution": 8,
+        "hierarchy": "parent-child",
+        "coverage": {
+          "kind": "bounded",
+          "cellCount": 96,
+          "complete": false
+        }
+      },
+      "cache": {
+        "key": {
+          "sourceVersion": "snapshot-2026-05-06T12:00:00Z",
+          "authorizationScope": "demo:ops"
+        }
+      }
+    },
     "where": "status <> 'closed'",
     "spatialFilter": {
       "geometry": {
@@ -167,11 +194,22 @@
         "maxResolution": 15,
         "supportedGeometry": ["centroid", "extent", "boundary"],
         "hierarchy": "parent-child",
+        "coverage": {
+          "kind": "bounded",
+          "cellCount": 96,
+          "complete": false
+        },
         "spatialReference": {
           "wkid": 4326
         }
       },
       "resolution": 8,
+      "hierarchy": "parent-child",
+      "coverage": {
+        "kind": "bounded",
+        "cellCount": 96,
+        "complete": false
+      },
       "requestedResolution": {
         "zoom": 11,
         "indexResolution": 8,
@@ -203,6 +241,11 @@
           "maxResolution": 15,
           "supportedGeometry": ["centroid", "extent", "boundary"],
           "hierarchy": "parent-child",
+          "coverage": {
+            "kind": "bounded",
+            "cellCount": 96,
+            "complete": false
+          },
           "spatialReference": {
             "wkid": 4326
           }
@@ -216,6 +259,10 @@
           "maxResolution": 26,
           "supportedGeometry": ["centroid", "extent", "boundary"],
           "hierarchy": "parent-child",
+          "coverage": {
+            "kind": "global",
+            "complete": true
+          },
           "spatialReference": {
             "wkid": 3857
           }

@@ -9,6 +9,7 @@ import {
   type QueryTileServerContractFixture,
   type SourceDescriptor,
   capabilities,
+  defineIndexedSpatialSource,
   defineQueryTileSource,
 } from "../../src/contract/index.js";
 import {
@@ -432,5 +433,29 @@ describe("query tile runtime helpers", () => {
 
     expect(unsupported.some((diagnostic) => diagnostic.code === "unsupported-protocol")).toBe(true);
     expect(unsupported.some((diagnostic) => diagnostic.code === "missing-cache-scope")).toBe(true);
+  });
+
+  it("diagnoses warehouse/indexed analytics tile descriptors without protocol metadata", () => {
+    const analyticsSource = defineIndexedSpatialSource({
+      id: "warehouse.incidents.h3",
+      provider: "carto",
+      sql: { text: "select h3_cell, severity from incidents" },
+      index: { modelId: "h3", cellIdField: "h3_cell", resolution: 8 },
+      cache: { key: { sourceVersion: "mv-42", authorizationScope: "ops-role" } },
+      fallback: { mode: "disabled" },
+    });
+    const queryTiles = defineQueryTileSource({
+      id: "warehouse-h3-tiles",
+      source: analyticsSource,
+      endpoint: { baseUrl: "https://tiles.example.test/query" },
+      cache: { maxEntries: 8 },
+    });
+
+    const diagnostics = diagnoseQueryTileSourceSupport(queryTiles);
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual(
+      expect.arrayContaining(["analytics-tile-pushdown-supported", "client-materialization-disabled"]),
+    );
+    expect(diagnostics.some((diagnostic) => diagnostic.code === "unsupported-protocol")).toBe(false);
   });
 });

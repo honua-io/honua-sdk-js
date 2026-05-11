@@ -13,6 +13,7 @@
 
 import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { HonuaExtent } from "../core/types.js";
+import type { AnalyticsSourceDescriptor } from "./analytics-sources.js";
 import type { DegradedReason, SourceId } from "./types.js";
 
 export const SPATIAL_AGGREGATION_SCHEMA_VERSION = "honua.spatial-aggregation.v1" as const;
@@ -84,6 +85,7 @@ export interface SpatialAggregationRequest {
   readonly schemaVersion?: typeof SPATIAL_AGGREGATION_SCHEMA_VERSION;
   readonly requestId?: string;
   readonly sourceId: SourceId;
+  readonly analyticsSource?: AnalyticsSourceDescriptor;
   readonly where?: string;
   readonly spatialFilter?: SpatialFilter;
   readonly viewport?: SpatialAggregationViewport;
@@ -174,13 +176,23 @@ export interface SpatialAggregationIndexModelMetadata {
   readonly maxResolution?: number;
   readonly supportedGeometry?: readonly SpatialAggregationCellGeometry[];
   readonly hierarchy?: "parent-child" | "flat" | "unknown";
+  readonly coverage?: SpatialAggregationIndexCoverageMetadata;
   readonly spatialReference?: HonuaExtent["spatialReference"];
+}
+
+export interface SpatialAggregationIndexCoverageMetadata {
+  readonly kind: "global" | "bounded" | "sparse" | "viewport";
+  readonly extent?: HonuaExtent;
+  readonly cellCount?: number;
+  readonly complete?: boolean;
 }
 
 export interface SpatialAggregationIndexState {
   readonly model: SpatialAggregationIndexModelMetadata;
   readonly resolution?: number;
   readonly requestedResolution?: SpatialAggregationResolutionInput;
+  readonly hierarchy?: "parent-child" | "flat" | "unknown";
+  readonly coverage?: SpatialAggregationIndexCoverageMetadata;
   readonly cellCount?: number;
   readonly extent?: HonuaExtent;
 }
@@ -210,6 +222,7 @@ export interface SpatialAggregationMetadata {
   readonly widgets?: readonly SpatialAggregationWidgetMetadata[];
   readonly progressive?: SpatialAggregationProgressiveState;
   readonly cache?: SpatialAggregationCacheMetadata;
+  readonly analyticsSource?: AnalyticsSourceDescriptor;
 }
 
 export interface SpatialAggregationCacheMetadata {
