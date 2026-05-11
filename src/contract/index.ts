@@ -161,6 +161,40 @@ export {
 } from "./spatial-aggregation.js";
 
 export {
+  buildQueryTileCacheKey,
+  buildQueryTileFeatureDetailQuery,
+  defineQueryTileSource,
+  loadQueryTileFeatureDetail,
+  mapQueryTileFeatureIdentity,
+  normalizeQueryTileKey,
+  normalizeQueryTileSourceDescriptor,
+  queryTileKeyString,
+  stableJson,
+} from "./tiles.js";
+export type {
+  DefineQueryTileSourceOptions,
+  QueryTileCacheIdentityDescriptor,
+  QueryTileCacheKeyOptions,
+  QueryTileCachePolicy,
+  QueryTileEndpointDescriptor,
+  QueryTileFallbackMode,
+  QueryTileFallbackPolicy,
+  QueryTileFeatureDetailOptions,
+  QueryTileFeatureIdentityContext,
+  QueryTileFeatureIdentityDescriptor,
+  QueryTileFeatureIdentityMapper,
+  QueryTileFeatureIdentityTarget,
+  QueryTileFormat,
+  QueryTileJson,
+  QueryTileJsonVectorLayer,
+  QueryTileKey,
+  QueryTileKeyInput,
+  QueryTileProjectionDescriptor,
+  QueryTileScheme,
+  QueryTileSourceDescriptor,
+} from "./tiles.js";
+
+export {
   ALL_CAPABILITIES,
   FIRST_PARTY_PROTOCOLS,
   createDataset,
