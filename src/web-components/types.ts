@@ -175,6 +175,7 @@ export interface HonuaWebComponentController<T = Record<string, unknown>> {
   search(query: string, options?: HonuaSearchOptions): Promise<readonly HonuaSearchResult<T>[]>;
   applyEdit?(request: HonuaEditRequest<T>): Promise<HonuaEditorModel>;
   updateFeatures?(sourceId: string, features: readonly HonuaFeatureRecord<T>[]): void;
+  destroy?(): void;
 }
 
 export interface CreateHonuaWebComponentControllerOptions<T = Record<string, unknown>> {

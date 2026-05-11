@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua App Bootstrap</title>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="map-region" aria-label="Honolulu incident response map">
+        <div id="map"></div>
+        <aside class="panel">
+          <header>
+            <p>Bootstrap state</p>
+            <strong id="status">Starting</strong>
+          </header>
+          <div>
+            <h1>Incident response</h1>
+            <p id="summary">Loading inline MapPackage</p>
+          </div>
+          <ul id="events"></ul>
+        </aside>
+      </section>
+    </main>
+  </body>
+</html>
