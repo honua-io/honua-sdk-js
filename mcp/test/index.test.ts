@@ -7,6 +7,7 @@ import * as layerSchemaResource from "../src/resources/layer-schema.js";
 import * as servicesResource from "../src/resources/services.js";
 import * as countFeatures from "../src/tools/count-features.js";
 import * as describeLayer from "../src/tools/describe-layer.js";
+import * as explainCapabilityGap from "../src/tools/explain-capability-gap.js";
 import * as getExtent from "../src/tools/get-extent.js";
 import * as listServices from "../src/tools/list-services.js";
 import * as queryFeatures from "../src/tools/query-features.js";
@@ -45,6 +46,9 @@ describe("MCP server setup", () => {
     const countSpy = vi.spyOn(countFeatures, "execute").mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
     const extentSpy = vi.spyOn(getExtent, "execute").mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
     const statsSpy = vi.spyOn(statistics, "execute").mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
+    const explainSpy = vi
+      .spyOn(explainCapabilityGap, "execute")
+      .mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
     const servicesReadSpy = vi.spyOn(servicesResource, "read").mockResolvedValue({ contents: [] });
     const layerReadSpy = vi.spyOn(layerSchemaResource, "read").mockResolvedValue({ contents: [] });
 
@@ -58,6 +62,7 @@ describe("MCP server setup", () => {
       "honua_count_features",
       "honua_get_extent",
       "honua_statistics",
+      "honua_explain_capability_gap",
     ]);
     expect(resourceSpy.mock.calls.map((call) => call[0])).toEqual(["services-catalog", "layer-schema"]);
 
@@ -68,6 +73,7 @@ describe("MCP server setup", () => {
       honua_count_features: { serviceId: "Parks", layerId: 0 },
       honua_get_extent: { serviceId: "Parks", layerId: 0 },
       honua_statistics: { serviceId: "Parks", layerId: 0, statisticType: "count", onField: "OBJECTID" },
+      honua_explain_capability_gap: { protocol: "wmts", capability: "query" },
     };
 
     for (const [name, args] of Object.entries(toolInputs)) {
@@ -87,6 +93,7 @@ describe("MCP server setup", () => {
       statisticType: "count",
       onField: "OBJECTID",
     });
+    expect(explainSpy).toHaveBeenCalledWith(client, { protocol: "wmts", capability: "query" });
 
     const servicesRegistration = resourceSpy.mock.calls.find((call) => call[0] === "services-catalog");
     const servicesHandler = servicesRegistration?.[2] as (uri: URL) => Promise<unknown>;

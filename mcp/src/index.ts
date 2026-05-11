@@ -10,6 +10,7 @@ import * as layerSchemaResource from "./resources/layer-schema.js";
 import * as servicesResource from "./resources/services.js";
 import * as countFeatures from "./tools/count-features.js";
 import * as describeLayer from "./tools/describe-layer.js";
+import * as explainCapabilityGap from "./tools/explain-capability-gap.js";
 import * as getExtent from "./tools/get-extent.js";
 import * as listServices from "./tools/list-services.js";
 import * as queryFeatures from "./tools/query-features.js";
@@ -195,6 +196,13 @@ export function createServer(client: HonuaClient) {
     "Compute aggregate statistics (count, sum, avg, min, max, stddev) on a field, optionally grouped.",
     statistics.schema.shape,
     async (args) => statistics.execute(client, statistics.schema.parse(args)),
+  );
+
+  server.tool(
+    "honua_explain_capability_gap",
+    "Explain whether a Honua source/protocol supports a capability and suggest a safe fallback when it does not.",
+    explainCapabilityGap.schema.shape,
+    async (args) => explainCapabilityGap.execute(client, explainCapabilityGap.schema.parse(args)),
   );
 
   // ── Resources ──────────────────────────────────────────────────

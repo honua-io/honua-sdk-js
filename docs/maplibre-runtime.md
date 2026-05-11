@@ -24,9 +24,13 @@ through the contract's `Source` handles.
 src/runtime/
 ├── index.ts           # barrel — public surface
 ├── map-package.ts     # HonuaMapPackage type (mirrors honua-server#731)
+├── map-package-fetch.ts # hosted fetch + load-from-id helpers
+├── map-package-validation.ts # typed validation diagnostics
+├── map-package-watch.ts # disposable polling watcher
 ├── load-package.ts    # loadMapPackage(pkg, map, opts) → HonuaMapRuntime
 ├── runtime.ts         # HonuaMapRuntime class + event/telemetry types
 ├── source-bridge.ts   # SourceBinding[] → SourceDescriptor[] + native sources
+├── query-tiles.ts     # dynamic query tile MapLibre helpers + request lifecycle
 ├── style-compose.ts   # applyStyleRefs + applyTheme
 ├── diff.ts            # MapPackageDiff primitives for updatePackage
 ├── popups.ts          # bindPopup + default unstyled DOM renderer
@@ -55,7 +59,11 @@ runtime.dispose();
 
 | Export | Shape | Notes |
 | --- | --- | --- |
-| `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | The only async entry point. Throws `HonuaMapPackageError` for binding failures under `sourceErrorPolicy: "fail-fast"`; under the default `"tolerant"` policy a single per-source binding failure does not abort the load — see *Tolerant binding* below. Query-time adapter failures surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient` interceptor chain; consumers can broadcast them through `runtime.reportSourceError(sourceId, error)` to convert query-time rejections into the canonical `source-error` event. |
+| `loadMapPackage(pkg, map, opts)` | `Promise<HonuaMapRuntime>` | Inline-package load entry point. Throws `HonuaMapPackageError` for binding failures under `sourceErrorPolicy: "fail-fast"`; under the default `"tolerant"` policy a single per-source binding failure does not abort the load — see *Tolerant binding* below. Query-time adapter failures surface on the per-`Source` promises from `runtime.dataset` and through the shared `HonuaClient` interceptor chain; consumers can broadcast them through `runtime.reportSourceError(sourceId, error)` to convert query-time rejections into the canonical `source-error` event. |
+| `fetchMapPackage(idOrLocator, opts)` | `Promise<FetchMapPackageResult>` | Fetches a hosted package through `HonuaClient.pipelineFetch`, validates it, resolves style refs when a resolver is supplied, and uses ETag / Last-Modified validators from the server when available. |
+| `loadMapPackageFromId(idOrLocator, map, opts)` | `Promise<LoadMapPackageFromIdResult>` | Builder-style helper: fetches a hosted package, then delegates to `loadMapPackage`. The result includes the runtime plus fetch diagnostics/cache state. |
+| `watchMapPackage(idOrLocator, opts)` | `MapPackageWatchHandle` | Opt-in polling watcher with `dispose()` and `refresh()`. It reuses `fetchMapPackage`, reports structural updates that require full style reload, and can apply updates to an existing `HonuaMapRuntime`. |
+| `validateMapPackage(pkg, opts)` | `ValidateMapPackageResult` | Returns typed diagnostics for format/version, missing sources, unsupported protocols, stale/expired packages, and style-ref target mismatches. |
 | `HonuaMapRuntime` | class | `map`, `honuaMap`, `dataset`, `mapPackage`, `composedStyle`, `getLegend`, `setLayerVisibility`, `bindPopup`, `setViewState`, `updatePackage`, `on`, `reportSourceError`, `dispose`. |
 | `HonuaMapPackage` | type | v1 package shape. `format` is gated against `HONUA_MAP_PACKAGE_FORMAT_V1` (`"honua_map_package.v1"`). |
 | `HONUA_MAP_PACKAGE_FORMAT_V1` | const | Canonical format tag. |
@@ -67,6 +75,8 @@ runtime.dispose();
 | `applyStyleRefs`, `applyTheme`, `composeStyle` | functions | Pure helpers — safe to call outside a runtime for testing / SSR composition. |
 | `projectSourceBindings`, `toHonuaSourceSpec` | functions | Exposed for `#22` and adapter tickets that need the bridge without loading a package. |
 | `buildWmsRasterSourceSpec`, `buildWmtsRasterSourceSpec` | functions | Pre-bake a MapLibre `raster` source spec from a WMS / WMTS `SourceDescriptor`. Used by callers that compose a map outside `loadMapPackage`. See the source-binding projection table for the URL templates emitted on each protocol. |
+| `buildMapLibreQueryTileSourceSpec`, `buildQueryTileJson`, `buildQueryTileUrlTemplate`, `buildQueryTileUrl` | functions | Build TileJSON and MapLibre `vector` source specs from `QueryTileSourceDescriptor`. See [`dynamic-query-tiles.md`](./dynamic-query-tiles.md). |
+| `QueryTileRequestController`, `queryTilesForViewport`, `diagnoseQueryTileSourceSupport` | class / functions | Opt-in viewport tile lifecycle helper with abortable requests, bounded cache, diagnostics, and unsupported-protocol/fallback reporting. |
 | `diffPackages`, `MapPackageDiff` | function / type | Stable-id diff used by `updatePackage`. |
 | `buildLegend`, `LegendEntry` | function / type | Shared with operator components. |
 | `bindPopup`, `defaultPopupRenderer`, `PopupFactory`, `PopupRenderer` | function / types | The default DOM renderer is intentionally unstyled — rich popups belong in `#29`. |
@@ -100,6 +110,65 @@ observe the initial lifecycle without racing against `loadMapPackage`'s
 return must use this hook instead of calling `runtime.on(...)` after
 `await`. Subsequent events (`package-updated`, `disposed`, ...) also
 flow through the same listener.
+
+## Hosted MapPackage Fetch
+
+Builder-style usage starts from a package id instead of an inline
+`MapPackage`:
+
+```ts
+import { HonuaClient } from "@honua/sdk-js";
+import { loadMapPackageFromId, watchMapPackage } from "@honua/sdk-js/runtime";
+
+const client = new HonuaClient({ baseUrl: "https://honua.example.com" });
+const { runtime, diagnostics } = await loadMapPackageFromId("map_123", map, {
+  client,
+  popupFactory: () => new maplibregl.Popup(),
+  resolveStyleRef: (styleId, presetId) => fetchStyleBody(styleId, presetId),
+});
+
+for (const diagnostic of diagnostics) {
+  console.warn(diagnostic.code, diagnostic.message);
+}
+
+const watcher = watchMapPackage("map_123", {
+  client,
+  runtime,
+  intervalMs: 30_000,
+  onEvent: (event) => {
+    if (event.type === "reload-required") {
+      console.info(event.reason);
+    }
+  },
+});
+
+// Later, when the host tears down the map:
+watcher.dispose();
+```
+
+`fetchMapPackage` accepts either an id (`"map_123"`), a direct path or
+same-origin URL, a `honua://map-packages/{id}` locator, or an object with
+`id`, `packageId`, `path`, `url`, or `href`. Id locators default to
+`/api/v1/map-packages/{id}`; pass `resolvePath` when a deployment uses a
+different hosted package route.
+
+Fetch results include:
+
+- `mapPackage`: the validated package, with missing style-ref bodies
+  inlined when `resolveStyleRef` succeeds.
+- `diagnostics`: typed warnings/errors for unsupported formats,
+  missing source bindings, unsupported protocols, stale packages
+  (`maxAgeMs`), expired packages (`status: "Expired"` or `expiresAt`),
+  missing layer sources, and style-ref resolution failures.
+- `cache`: SDK fetch cache state. The helper stores validators in a
+  per-client in-memory cache by default. On later fetches it sends
+  `If-None-Match` / `If-Modified-Since` when the server supplied ETag or
+  Last-Modified. Pass `cache: false` to bypass the SDK cache, or pass a
+  `MapPackageFetchCache` to share cache state across clients/tests.
+
+Validation errors throw `HonuaMapPackageError { stage: "validate" }`
+with `{ diagnostics }` in `detail`. Pass `allowInvalid: true` when a
+host wants to display diagnostics without rejecting the fetch.
 
 ### Tolerant binding (`sourceErrorPolicy`)
 

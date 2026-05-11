@@ -13,7 +13,9 @@
  * error class itself.
  */
 export type HonuaMapPackageErrorStage =
+  | "fetch"
   | "load"
+  | "validate"
   | "update"
   | "style-compose"
   | "source-bind"

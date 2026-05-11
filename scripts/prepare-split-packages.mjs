@@ -43,6 +43,7 @@ function createSdkPackage() {
 
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
@@ -71,6 +72,10 @@ function createSdkPackage() {
       "./contract": {
         types: "./contract/index.d.ts",
         default: "./contract/index.js",
+      },
+      "./agent-tools": {
+        types: "./agent-tools/index.d.ts",
+        default: "./agent-tools/index.js",
       },
       "./exploration": {
         types: "./exploration/index.d.ts",
