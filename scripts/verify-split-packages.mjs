@@ -87,6 +87,10 @@ import {
   bindQueryProjectionToExploration,
 } from "@honua/sdk/interactions";
 import {
+  HONUA_CONTROLLER_SNAPSHOT_VERSION,
+  createHonuaController,
+} from "@honua/sdk/app-controller";
+import {
   createHonuaAppWorkspace,
   selectHonuaAppWorkspaceMetadataCacheModel,
 } from "@honua/sdk/app-workspace";
@@ -219,6 +223,10 @@ if (typeof bindChartToExploration !== "function")
   throw new Error("bindChartToExploration export missing from @honua/sdk/interactions");
 if (typeof bindQueryProjectionToExploration !== "function")
   throw new Error("bindQueryProjectionToExploration export missing from @honua/sdk/interactions");
+if (typeof createHonuaController !== "function")
+  throw new Error("createHonuaController export missing from @honua/sdk/app-controller");
+if (HONUA_CONTROLLER_SNAPSHOT_VERSION !== 1)
+  throw new Error("HONUA_CONTROLLER_SNAPSHOT_VERSION export missing from @honua/sdk/app-controller");
 if (typeof createHonuaAppWorkspace !== "function")
   throw new Error("createHonuaAppWorkspace export missing from @honua/sdk/app-workspace");
 if (typeof selectHonuaAppWorkspaceMetadataCacheModel !== "function")
