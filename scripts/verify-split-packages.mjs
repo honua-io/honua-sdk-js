@@ -77,6 +77,10 @@ import {
   explainHonuaCapabilityGap,
 } from "@honua/sdk/agent-tools";
 import {
+  createHonuaApp,
+  normalizeHonuaAppOptions,
+} from "@honua/sdk/app";
+import {
   EMPTY_STATE,
   LINKED_VIEW_PRESETS,
   createExplorationContext,
@@ -203,6 +207,10 @@ if (!Array.isArray(HONUA_AGENT_TOOL_NAMES) || !HONUA_AGENT_TOOL_NAMES.includes("
   throw new Error("agent tool exports missing from @honua/sdk/agent-tools");
 if (explainHonuaCapabilityGap({ protocol: "wmts", capability: "query" }).supported)
   throw new Error("agent tool capability explanation failed to flag unsupported WMTS query");
+if (typeof createHonuaApp !== "function")
+  throw new Error("createHonuaApp export missing from @honua/sdk/app");
+if (typeof normalizeHonuaAppOptions !== "function")
+  throw new Error("normalizeHonuaAppOptions export missing from @honua/sdk/app");
 if (!Array.isArray(CAPABILITIES) || CAPABILITIES.length === 0)
   throw new Error("CAPABILITIES export missing from @honua/sdk/contract");
 if (!Array.isArray(PROTOCOLS) || PROTOCOLS.length === 0)
