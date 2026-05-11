@@ -1,7 +1,8 @@
 # Dynamic Query Tiles
 
-Status: implemented in `src/contract/tiles.ts` and
-`src/runtime/query-tiles.ts` (issue `honua-sdk-js#152`).
+Status: client descriptor/runtime implemented in `src/contract/tiles.ts` and
+`src/runtime/query-tiles.ts` (issue `honua-sdk-js#152`); server contract
+helpers and fixtures added for `honua-sdk-js#164`.
 
 Dynamic query tiles let SDK consumers describe large operational sources as
 viewport-scoped vector tiles while preserving the canonical `Source` identity
@@ -63,7 +64,150 @@ inline `tiles` template with `{z}/{x}/{y}` placeholders. `featureIdentity`
 drives MapLibre `promoteId` so feature-state calls can use canonical ids.
 
 `buildQueryTileUrlTemplate()` and `buildQueryTileUrl()` are pure URL helpers
-for adapters and tests.
+for adapters and tests. When `endpoint.baseUrl` is set, the default tile path
+is the canonical source route under that service root:
+`sources/{sourceId}/tiles/{z}/{x}/{y}.mvt`.
+
+## Server HTTP Contract
+
+Dynamic query tile servers expose one route prefix, normally `/query-tiles`.
+SDK descriptors should point `endpoint.baseUrl` at that prefix, for example
+`https://honua.example.com/query-tiles`.
+
+| Route | Method | Purpose |
+| --- | --- | --- |
+| `/query-tiles/sources/{sourceId}/tilejson.json` | `GET` | TileJSON discovery for a query-backed source. |
+| `/query-tiles/sources/{sourceId}/tiles/{z}/{x}/{y}.mvt` | `GET` | Mapbox Vector Tile payload for one XYZ tile. |
+| `/query-tiles/sources/{sourceId}/features/{featureId}` | `GET` | Source-qualified detail lookup for a rendered tile feature. |
+
+Canonical request parameters are shared across TileJSON and tile requests:
+
+| Parameter | Meaning |
+| --- | --- |
+| `where` | Server-side source filter. SQL-92, CQL2, or adapter-native expression as negotiated by the source. |
+| `outFields` | Comma-separated detail fields needed by styles/interactions. |
+| `returnGeometry` | Whether detail responses should include geometry. Tile payloads always include render geometry. |
+| `outSr` | Output spatial reference for feature detail geometry. |
+| `tileMatrixSet` | Tile matrix set id. `WebMercatorQuad` is the default for web maps. |
+| `extent` / `extentSr` | Optional source extent constraint and its spatial reference. |
+| `projection` | Comma-separated tile attribute projection. |
+| `projectionReturnGeometry` | Whether the source projection includes geometry before tile clipping. |
+| `simplifyTolerance` | Server simplification tolerance hint in output units. Servers may lower it but must report degradation if they raise it. |
+| `maxFeatures` | Maximum features allowed in a tile or detail response before degradation/error behavior applies. |
+| `cacheKey` / `cacheBust` | Optional cache partition or explicit invalidation token. Do not put secrets here. |
+
+SDK route helpers are exported from `@honua/sdk-js/contract`:
+
+```ts
+import { buildQueryTileServerPath, buildQueryTileServerUrl } from "@honua/sdk-js/contract";
+
+buildQueryTileServerPath("tile", { sourceId: "incidents" });
+// /query-tiles/sources/incidents/tiles/{z}/{x}/{y}.mvt
+
+buildQueryTileServerUrl("tilejson", {
+  baseUrl: "https://honua.example.com",
+  sourceId: "incidents",
+});
+// https://honua.example.com/query-tiles/sources/incidents/tilejson.json
+```
+
+## Response Schemas
+
+TileJSON responses use TileJSON v3 and carry Honua metadata in the
+`honua:queryTiles` extension field. Required metadata:
+
+- `contractVersion`: currently `1`.
+- `sourceId`: canonical source id used by selection and detail lookup.
+- `tileMatrixSet`, `format`, `spatialReference`, and optional `extent`.
+- `featureIdentity`: source id, id property, optional source layer, `promoteId`,
+  and detail URL template.
+- `detailUrlTemplate`: URL template containing `{featureId}`.
+- `cache`: validator policy (`etag`, `last-modified`), `Cache-Control`, `Vary`,
+  and source version when known.
+- `limits`: max-feature and simplification settings.
+- `degraded`: optional non-fatal warnings such as geometry simplification.
+
+MVT tile responses return `application/vnd.mapbox-vector-tile`. Binary tile
+responses cannot carry a JSON envelope, so servers report metadata through
+headers: `ETag`, `Last-Modified`, `Cache-Control`, `Vary`,
+`X-Honua-Source-Version`, `X-Honua-Feature-Count`,
+`X-Honua-Max-Features`, and optional `X-Honua-Degraded` JSON.
+
+Feature detail responses are JSON:
+
+```json
+{
+  "contractVersion": 1,
+  "identity": { "sourceId": "incidents", "id": "incident-42", "sourceLayer": "incidents" },
+  "found": true,
+  "feature": { "attributes": { "id": "incident-42" }, "geometry": null },
+  "cache": { "etag": "\"incident-42-v7\"", "sourceVersion": "stream-42" },
+  "degraded": []
+}
+```
+
+Errors use one JSON shape on every route:
+
+```json
+{
+  "contractVersion": 1,
+  "error": {
+    "code": "max-features-exceeded",
+    "message": "The tile exceeded maxFeatures=500.",
+    "status": 422,
+    "requestId": "req-123",
+    "degraded": []
+  }
+}
+```
+
+Known error codes include `bad-request`, `unauthorized`, `forbidden`,
+`not-found`, `not-acceptable`, `unsupported-sr`, `tile-out-of-range`,
+`max-features-exceeded`, `timeout`, `rate-limited`, `server-error`, and
+`unavailable`.
+
+## Auth, Cache, And Limits
+
+Auth is transport-level. Clients send `Authorization`, `X-API-Key`, cookies, or
+other configured auth headers through the SDK fetch helpers. Servers must vary
+cacheable responses by the auth partition that changes visible data, normally
+with `Vary: Authorization` plus a non-secret `authorizationScope` in the SDK
+descriptor cache key.
+
+TileJSON, tile, and detail routes should emit `ETag` and/or `Last-Modified`.
+Clients may send `If-None-Match` and `If-Modified-Since`; servers answer `304`
+when the cached representation is still valid. Use `X-Honua-Source-Version`
+for source data versioning and `cacheBust` only when a caller explicitly needs
+to bypass validators.
+
+Servers should serve tiles in `WebMercatorQuad` / EPSG:3857 unless the
+TileJSON metadata declares another tile matrix set and spatial reference.
+`extent` must state its spatial reference when it is not WGS84 bounds.
+
+Simplification must preserve topology enough for display and hit-testing. If a
+server increases simplification beyond the requested tolerance, drops
+attributes, applies authorization filters, returns stale cache, or truncates
+features, it must include a `degraded[]` entry. If `maxFeatures` would make a
+tile misleading, prefer an error response over a silent partial tile.
+
+## Runtime Fetch Helpers
+
+`@honua/sdk-js/runtime` exports:
+
+- `fetchQueryTileJson(descriptor, options)` for TileJSON discovery, validator
+  headers, `304` handling, and metadata degradation parsing.
+- `fetchQueryTileFeatureDetail(descriptor, target, options)` for source
+  qualified detail lookup and canonical error parsing.
+- `QueryTileServerResponseError` for structured HTTP failures.
+
+The reusable fixture pack lives at
+`test/fixtures/sdk-contract/query-tile-server.v1.json`. It defines the routes,
+request params, TileJSON metadata, detail response, and degradation/error
+envelopes that server implementations can import into their own contract tests.
+
+Affected server implementation repos are a dependency for production support:
+they must implement the `/query-tiles` route prefix and pass the fixture shape.
+This SDK issue only defines the client helpers, docs, and reusable fixtures.
 
 ## Viewport Lifecycle
 

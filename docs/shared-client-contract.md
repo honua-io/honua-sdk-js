@@ -79,7 +79,22 @@ unsupported-capability, and degraded-result scenarios.
 | `RelatedQuery` / `RelatedResult<T>` | Canonical related-records request and response. Adapters that lack relationships (OGC, OData, ImageServer) throw rather than return empty groups. |
 | `AttachmentApi` | Namespace returned by `Source.attachments`. Methods: `query`, `list`, `add`, `update`, `delete`. Adapters that do not advertise `attachments` throw `HonuaCapabilityNotSupportedError` from each method so the namespace property is always present and capability negotiation stays uniform. |
 | `MapBinding` | `{ sourceId, layerIds, style?, minzoom?, maxzoom? }`. Maps onto `MapPackage.sourceBindings` + `MapPackage.mapSpec` server-side. The `@honua/sdk-js/runtime` module consumes a full `MapPackage` on the client — see [`maplibre-runtime.md`](./maplibre-runtime.md). |
-| `QueryTileSourceDescriptor` | Typed dynamic vector/query tile descriptor. It binds a canonical `Source` or source id to tile endpoint metadata, query/projection cache identity, fallback policy, and feature identity hooks. Runtime MapLibre helpers live in [`dynamic-query-tiles.md`](./dynamic-query-tiles.md). |
+| `QueryTileSourceDescriptor` | Typed dynamic vector/query tile descriptor. It binds a canonical `Source` or source id to tile endpoint metadata, query/projection cache identity, fallback policy, and feature identity hooks. Runtime MapLibre helpers and the canonical `/query-tiles` server contract live in [`dynamic-query-tiles.md`](./dynamic-query-tiles.md). |
+
+## Dynamic query tile server contract
+
+Dynamic query tiles have a server-side contract in addition to the client
+descriptor. The canonical route prefix is `/query-tiles`, with TileJSON,
+vector tile, and feature-detail routes under
+`/query-tiles/sources/{sourceId}`. The contract defines request parameters for
+filters, projection fields, output spatial reference, tile matrix set, extent,
+simplification tolerance, max features, cache partitioning, and cache busting.
+
+`@honua/sdk-js/contract` exports route builders, parser helpers, response
+types, and the `QUERY_TILE_SERVER_CONTRACT_VERSION` constant. The reusable
+fixture lives at `test/fixtures/sdk-contract/query-tile-server.v1.json` and is
+intended for Honua server implementation repos to consume in their own
+conformance tests.
 
 ## Capability negotiation
 
