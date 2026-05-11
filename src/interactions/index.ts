@@ -1,4 +1,11 @@
 export {
+  createQueryTileDetailLoader,
+  hitTestMap,
+  normalizeHitFeature,
+  normalizeHitTestFeatures,
+  normalizePointerEvent,
+} from "./hit-test.js";
+export {
   extentToSpatialFilter,
   selectLinkedViewQueryProjection,
   subscribeExplorationSelector,
@@ -29,6 +36,25 @@ export {
   serializeInteractionQueryState,
   serializeSelection,
 } from "./share-state.js";
+export type {
+  HonuaHitFeature,
+  HonuaHitTestDegradedReason,
+  HonuaHitTestDegradedState,
+  HonuaHitTestDetailContext,
+  HonuaHitTestDetailLoader,
+  HonuaHitTestFeatureOptions,
+  HonuaHitTestMap,
+  HonuaHitTestOptions,
+  HonuaHitTestRasterSample,
+  HonuaHitTestResult,
+  HonuaLngLat,
+  HonuaNormalizeHitTestOptions,
+  HonuaPointerEvent,
+  HonuaPointerEventType,
+  HonuaPointerInput,
+  HonuaRenderedFeatureContext,
+  HonuaScreenPoint,
+} from "./hit-test.js";
 export type {
   FeatureStateMap,
   MapEventTarget,

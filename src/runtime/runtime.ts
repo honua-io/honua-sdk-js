@@ -9,12 +9,21 @@
  * @module
  */
 
-import type { Dataset } from "../contract/index.js";
+import { type Dataset, loadQueryTileFeatureDetail } from "../contract/index.js";
 import type { FeatureId } from "../contract/types.js";
 import type { ExplorationViewController, SourceQualifiedFeatureSelectionTarget } from "../exploration/types.js";
 import { bindMapSelectionToExploration, syncFeatureStateSelection } from "../interactions/exploration-bindings.js";
 import { createHoverHandler, createSelectionHandler } from "../interactions/feature-state.js";
 import type { FeatureStateMap, HoverHandle, MapEventTarget, SelectionHandle } from "../interactions/feature-state.js";
+import { hitTestMap } from "../interactions/hit-test.js";
+import type {
+  HonuaHitTestDetailContext,
+  HonuaHitTestOptions,
+  HonuaHitTestResult,
+  HonuaPointerEvent,
+  HonuaPointerInput,
+  HonuaRenderedFeatureContext,
+} from "../interactions/hit-test.js";
 import type { HonuaMap } from "../map/honua-map.js";
 import type { HonuaStyleSpecification } from "../style/specification.js";
 import { type MapPackageDiff, diffPackages } from "./diff.js";
@@ -76,6 +85,8 @@ export interface MaplibreMap extends FeatureStateMap, MapEventTarget {
   setPaintProperty?(layerId: string, name: string, value: unknown): void;
   setFilter?(layerId: string, filter: unknown): void;
   getSource?(id: string): unknown;
+  queryRenderedFeatures?(geometry?: unknown, options?: unknown): readonly unknown[];
+  unproject?(point: unknown): { lng: number; lat: number } | readonly [number, number];
 
   fitBounds?(
     bounds: [[number, number], [number, number]] | [number, number, number, number],
@@ -162,6 +173,17 @@ export interface SetViewStateInput {
   bearing?: number;
   padding?: number | { top?: number; right?: number; bottom?: number; left?: number };
   animate?: boolean;
+}
+
+export type RuntimeHitTestOptions = HonuaHitTestOptions;
+
+export type RuntimePointerInteractionHandler = (
+  event: HonuaPointerEvent,
+  hit: HonuaHitTestResult,
+) => void | Promise<void>;
+
+export interface RuntimePointerInteractionOptions extends RuntimeHitTestOptions {
+  readonly event?: "click" | "dblclick" | "mousemove";
 }
 
 interface ActivePopupBinding {
@@ -755,6 +777,43 @@ export class HonuaMapRuntime {
     };
   }
 
+  public async hitTest(
+    input: HonuaPointerInput | unknown,
+    options: RuntimeHitTestOptions = {},
+  ): Promise<HonuaHitTestResult> {
+    this.#assertLive();
+    return hitTestMap(this.map, input as HonuaPointerInput, {
+      ...options,
+      featureContexts: this.#hitFeatureContexts(options.layers),
+      detailLoader: options.loadDetails
+        ? (context, detailOptions) => this.#loadHitDetail(context, detailOptions, options)
+        : undefined,
+    });
+  }
+
+  public onPointer(
+    handler: RuntimePointerInteractionHandler,
+    options: RuntimePointerInteractionOptions = {},
+  ): { remove(): void } {
+    this.#assertLive();
+    const eventName = options.event ?? "click";
+    const onPointer = (event: unknown): void => {
+      void this.hitTest(event, options).then((hit) => {
+        const pointer: HonuaPointerEvent = {
+          type: eventName,
+          point: hit.point,
+          ...(hit.lngLat ? { lngLat: hit.lngLat } : {}),
+          originalEvent: event,
+        };
+        return handler(pointer, hit);
+      });
+    };
+    this.map.on(eventName, onPointer);
+    return {
+      remove: () => this.map.off(eventName, onPointer),
+    };
+  }
+
   public bindSelect(layerId: string, options: RuntimeSelectionInteractionOptions = {}): SelectionHandle {
     this.#assertLive();
     const context = this.#interactionContext(layerId, options.sourceId, options.sourceLayer);
@@ -1088,6 +1147,63 @@ export class HonuaMapRuntime {
     };
   }
 
+  #hitFeatureContexts(layerIds: readonly string[] | undefined): Readonly<Record<string, HonuaRenderedFeatureContext>> {
+    const contexts: Record<string, HonuaRenderedFeatureContext> = {};
+    const layers = layerIds
+      ? this.#composedStyle.layers.filter((layer) => layerIds.includes(layer.id))
+      : this.#composedStyle.layers;
+    for (const layer of layers) {
+      const context = sourceContextForLayer(this.#composedStyle, this.#packageRef.current, layer.id);
+      contexts[layer.id] = {
+        layerId: layer.id,
+        layerType: layer.type,
+        sourceId: context?.sourceId,
+        sourceLayer: context?.sourceLayer,
+        protocol: context?.protocol,
+      };
+    }
+    return contexts;
+  }
+
+  async #loadHitDetail(
+    context: HonuaHitTestDetailContext,
+    options: { readonly signal?: AbortSignal },
+    hitTestOptions: RuntimeHitTestOptions,
+  ): Promise<unknown> {
+    const source = this.#dataset.source(context.target.sourceId);
+    if (!source) return undefined;
+    const descriptor = hitTestOptions.queryTileSources?.[context.target.sourceId];
+    if (descriptor) {
+      return loadQueryTileFeatureDetail({
+        source,
+        descriptor,
+        target: context.target,
+        signal: options.signal,
+      });
+    }
+
+    const idField = firstString(
+      hitTestOptions.featureIdProperty,
+      context.hit.properties.OBJECTID !== undefined
+        ? "OBJECTID"
+        : context.hit.properties.objectid !== undefined
+          ? "objectid"
+          : context.hit.properties.ObjectID !== undefined
+            ? "ObjectID"
+            : context.hit.properties.id !== undefined
+              ? "id"
+              : undefined,
+    );
+    if (!idField) return undefined;
+    const result = await source.query({
+      where: `${idField} = ${sqlLiteral(context.target.id)}`,
+      returnGeometry: true,
+      pagination: { limit: 1 },
+      signal: options.signal,
+    });
+    return result.features[0];
+  }
+
   #applyIncremental(composed: HonuaStyleSpecification, diff: MapPackageDiff): void {
     const prevStyle = this.#composedStyle;
 
@@ -1275,6 +1391,14 @@ function firstEventFeature(event: unknown): unknown {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function firstString(...values: readonly unknown[]): string | undefined {
+  return values.find((value): value is string => typeof value === "string" && value.length > 0);
+}
+
+function sqlLiteral(value: FeatureId): string {
+  return typeof value === "number" ? String(value) : `'${value.replaceAll("'", "''")}'`;
 }
 
 function layerIdToSource(style: HonuaStyleSpecification, layerId: string): string | undefined {

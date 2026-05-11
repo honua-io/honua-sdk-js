@@ -1,5 +1,6 @@
 import type { FeatureId, Query } from "../contract/index.js";
 import type { HonuaTypedFeature } from "../core/types.js";
+import type { HonuaHitTestOptions, HonuaHitTestResult, HonuaPointerInput } from "../interactions/index.js";
 import type { HonuaMapPackage, HonuaMapPackageLegendEntry } from "../runtime/index.js";
 import type { HonuaLayerSpecification } from "../style/index.js";
 
@@ -173,6 +174,11 @@ export interface HonuaWebComponentController<T = Record<string, unknown>> {
   removeFeatureState(target: HonuaFeatureStateTarget, key?: string): void;
   queryFeatures(sourceId?: string, options?: HonuaQueryFeaturesOptions): Promise<HonuaFeatureTableModel<T>>;
   search(query: string, options?: HonuaSearchOptions): Promise<readonly HonuaSearchResult<T>[]>;
+  hitTest?(input: HonuaPointerInput | unknown, options?: HonuaHitTestOptions): Promise<HonuaHitTestResult>;
+  onPointer?(
+    handler: (hit: HonuaHitTestResult) => void | Promise<void>,
+    options?: HonuaHitTestOptions & { readonly event?: "click" | "dblclick" | "mousemove" },
+  ): HonuaControllerSubscription;
   applyEdit?(request: HonuaEditRequest<T>): Promise<HonuaEditorModel>;
   updateFeatures?(sourceId: string, features: readonly HonuaFeatureRecord<T>[]): void;
 }
