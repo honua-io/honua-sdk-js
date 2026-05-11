@@ -5,10 +5,13 @@ import { createExplorationContext, sourceFeatureSelectionTarget } from "../src/e
 import {
   HONUA_MAP_PACKAGE_FORMAT_V1,
   type HonuaMapPackage,
+  type HonuaRuntimeDiagnostic,
   HonuaRuntimeDiagnosticError,
+  type LoadMapPackageOptions,
   type MaplibreMap,
   loadMapPackage,
   validateRuntimeFilterExpression,
+  validateRuntimeStyleSpec,
 } from "../src/runtime/index.js";
 
 interface MockCall {
@@ -167,11 +170,15 @@ function makePackage(): HonuaMapPackage {
   };
 }
 
-async function loadRuntime(map = makeMockMap()) {
+async function loadRuntime(
+  map = makeMockMap(),
+  options: Partial<Pick<LoadMapPackageOptions, "styleSpecValidationMode">> = {},
+) {
   const runtime = await loadMapPackage(makePackage(), map, {
     client: makeClient(),
     skipCompatibilityCheck: true,
     applyInitialView: false,
+    ...options,
   });
   map._calls.length = 0;
   return { runtime, map };
@@ -180,6 +187,16 @@ async function loadRuntime(map = makeMockMap()) {
 async function flush(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
+}
+
+function captureRuntimeDiagnostics(action: () => void): readonly HonuaRuntimeDiagnostic[] {
+  try {
+    action();
+  } catch (error) {
+    expect(error).toBeInstanceOf(HonuaRuntimeDiagnosticError);
+    return (error as HonuaRuntimeDiagnosticError).diagnostics;
+  }
+  throw new Error("Expected HonuaRuntimeDiagnosticError.");
 }
 
 describe("runtime source/layer helpers", () => {
@@ -270,6 +287,135 @@ describe("runtime source/layer helpers", () => {
 
     expect(validateRuntimeFilterExpression("status = 'open'")).toContainEqual(
       expect.objectContaining({ code: "filter-invalid", severity: "error" }),
+    );
+  });
+
+  test("validates runtime sources and layer style values with MapLibre style-spec diagnostics", async () => {
+    const { runtime, map } = await loadRuntime();
+
+    const sourceDiagnostics = captureRuntimeDiagnostics(() => {
+      runtime.addSource("bad-source", { type: "geojson" });
+    });
+    expect(sourceDiagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "style-spec-invalid",
+        severity: "error",
+        path: "sources.bad-source",
+        sourceId: "bad-source",
+        context: expect.objectContaining({
+          mapLibreCode: "validation-error",
+          mapLibrePath: "sources.bad-source",
+        }),
+      }),
+    );
+
+    map._calls.length = 0;
+    const paintDiagnostics = captureRuntimeDiagnostics(() => {
+      runtime.setLayerPaint("parcels-fill", { "fill-opacity": "opaque" });
+    });
+    expect(paintDiagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "style-spec-invalid",
+        severity: "error",
+        path: "layers.parcels-fill.paint.fill-opacity",
+        layerId: "parcels-fill",
+        sourceId: "parcels",
+        protocol: "geoservices_feature_service",
+        context: expect.objectContaining({
+          mapLibreCode: "validation-error",
+          mapLibrePath: "layers[0].paint.fill-opacity",
+        }),
+      }),
+    );
+    expect(map._calls).toEqual([]);
+
+    const layoutDiagnostics = captureRuntimeDiagnostics(() => {
+      runtime.setLayerLayout("parcels-fill", { visibility: "sometimes" });
+    });
+    expect(layoutDiagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "style-spec-invalid",
+        path: "layers.parcels-fill.layout.visibility",
+      }),
+    );
+
+    const filterDiagnostics = runtime.validateFilterExpression(["==", ["get"]], "parcels-fill");
+    expect(filterDiagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "style-spec-invalid",
+        path: "layers.parcels-fill.filter",
+        layerId: "parcels-fill",
+      }),
+    );
+  });
+
+  test("supports warning-only and renderer-deferred style-spec validation modes", async () => {
+    const warningMap = makeMockMap();
+    const { runtime: warningRuntime } = await loadRuntime(warningMap, {
+      styleSpecValidationMode: "warning-only",
+    });
+    expect(() => warningRuntime.setLayerPaint("parcels-fill", { "fill-opacity": "opaque" })).not.toThrow();
+    expect(warningMap._calls).toContainEqual({
+      method: "setPaintProperty",
+      args: ["parcels-fill", "fill-opacity", "opaque"],
+    });
+
+    const deferredMap = makeMockMap();
+    const { runtime: deferredRuntime } = await loadRuntime(deferredMap, {
+      styleSpecValidationMode: "renderer-deferred",
+    });
+    expect(() => deferredRuntime.setLayerLayout("parcels-fill", { visibility: "sometimes" })).not.toThrow();
+    expect(deferredMap._calls).toContainEqual({
+      method: "setLayoutProperty",
+      args: ["parcels-fill", "visibility", "sometimes"],
+    });
+  });
+
+  test("validates full styles without initializing a MapLibre map", async () => {
+    await expect(
+      validateRuntimeStyleSpec({
+        version: 8,
+        sources: {
+          incidents: {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          },
+        },
+        layers: [
+          {
+            id: "incidents",
+            type: "circle",
+            source: "incidents",
+            paint: { "circle-color": "#d33", "circle-radius": 6 },
+          },
+        ],
+      }),
+    ).resolves.toEqual([]);
+
+    await expect(
+      validateRuntimeStyleSpec({
+        version: 8,
+        sources: {
+          incidents: {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          },
+        },
+        layers: [
+          {
+            id: "incidents",
+            type: "circle",
+            source: "incidents",
+            paint: { "circle-radius": "large" },
+          },
+        ],
+      }),
+    ).resolves.toContainEqual(
+      expect.objectContaining({
+        code: "style-spec-invalid",
+        severity: "error",
+        path: "layers[0].paint.circle-radius",
+      }),
     );
   });
 });

@@ -21,6 +21,13 @@ import type {
 } from "../style/specification.js";
 import { isHonuaSource } from "../style/specification.js";
 import type { HonuaMapPackage } from "./map-package.js";
+import {
+  validateRuntimeFilterStyleSpecSync,
+  validateRuntimeLayerStyleSpecSync,
+  validateRuntimeSourceStyleSpecSync,
+  validateRuntimeStyleExpressionStyleSpecSync,
+} from "./style-spec-validation.js";
+import type { RuntimeStyleSpecValidationMode } from "./style-spec-validation.js";
 
 export type HonuaRuntimeDiagnosticSeverity = "error" | "warning";
 
@@ -89,12 +96,14 @@ export interface RuntimeExpressionValidationOptions {
   readonly context?: Readonly<Record<string, unknown>>;
   readonly requireExpression?: boolean;
   readonly strictUnknownOperators?: boolean;
+  readonly styleSpecValidationMode?: RuntimeStyleSpecValidationMode;
 }
 
 export interface RuntimeStyleValidationContext {
   readonly style?: HonuaStyleSpecification;
   readonly mapPackage?: HonuaMapPackage;
   readonly operation?: string;
+  readonly styleSpecValidationMode?: RuntimeStyleSpecValidationMode;
 }
 
 export interface RuntimeFeatureStateTarget {
@@ -316,6 +325,14 @@ export function validateRuntimeSource(
     });
   }
 
+  diagnostics.push(
+    ...validateRuntimeSourceStyleSpecSync(sourceId, source, {
+      mode: context.styleSpecValidationMode,
+      path: `sources.${sourceId}`,
+      ...sourceContext,
+    }),
+  );
+
   return diagnostics;
 }
 
@@ -407,6 +424,15 @@ export function validateRuntimeLayer(
     );
   }
 
+  diagnostics.push(
+    ...validateRuntimeLayerStyleSpecSync(materialized, {
+      mode: context.styleSpecValidationMode,
+      style: context.style,
+      path: `layers.${materialized.id}`,
+      ...sourceContext,
+    }),
+  );
+
   return diagnostics;
 }
 
@@ -427,7 +453,10 @@ export function validateRuntimeStyleExpression(
         ]
       : [];
   }
-  return validateExpressionArray(materialized, options);
+  return [
+    ...validateExpressionArray(materialized, options),
+    ...validateRuntimeStyleExpressionStyleSpecSync(materialized, styleSpecOptions(options)),
+  ];
 }
 
 export function validateRuntimeFilterExpression(
@@ -444,11 +473,15 @@ export function validateRuntimeFilterExpression(
       }),
     ];
   }
-  return validateRuntimeStyleExpression(materialized, {
-    kind: "filter",
+  const expressionOptions = {
+    kind: "filter" as const,
     requireExpression: true,
     ...options,
-  });
+  };
+  return [
+    ...validateRuntimeStyleExpression(materialized, expressionOptions),
+    ...validateRuntimeFilterStyleSpecSync(materialized, styleSpecOptions(expressionOptions)),
+  ];
 }
 
 export function throwRuntimeDiagnostics(
@@ -817,6 +850,24 @@ function diagnostic(
     ...(options.layerId ? { layerId: options.layerId } : {}),
     ...(options.protocol ? { protocol: options.protocol } : {}),
     ...(options.context ? { context: options.context } : {}),
+  };
+}
+
+function styleSpecOptions(options: RuntimeExpressionValidationOptions): {
+  mode: RuntimeStyleSpecValidationMode | undefined;
+  path: string | undefined;
+  sourceId: string | undefined;
+  layerId: string | undefined;
+  protocol: string | undefined;
+  context: Readonly<Record<string, unknown>> | undefined;
+} {
+  return {
+    mode: options.styleSpecValidationMode,
+    path: options.path,
+    sourceId: options.sourceId,
+    layerId: options.layerId,
+    protocol: options.protocol,
+    context: options.context,
   };
 }
 
