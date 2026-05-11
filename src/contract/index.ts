@@ -115,6 +115,38 @@ export {
   unionCapabilities,
 } from "./types.js";
 
+export type {
+  WidgetCategoriesRequest,
+  WidgetCategoriesResult,
+  WidgetCategoryBucket,
+  WidgetCountRequest,
+  WidgetCountResult,
+  WidgetFormulaRequest,
+  WidgetFormulaResult,
+  WidgetHistogramBin,
+  WidgetHistogramRequest,
+  WidgetHistogramResult,
+  WidgetRangeRequest,
+  WidgetRangeResult,
+  WidgetSource,
+  WidgetSourceCacheHints,
+  WidgetSourceCacheMetadata,
+  WidgetSourceExecutionMode,
+  WidgetSourceFilterClause,
+  WidgetSourceModelKind,
+  WidgetSourceOptions,
+  WidgetSourceOrderBy,
+  WidgetSourceProjection,
+  WidgetSourceRequestBase,
+  WidgetSourceResponseBase,
+  WidgetSourceSchemaVersion,
+  WidgetSourceValue,
+  WidgetTopValueBucket,
+  WidgetTopValuesRequest,
+  WidgetTopValuesResult,
+} from "./widget-source.js";
+export { WIDGET_SOURCE_SCHEMA_VERSION, createWidgetSource, widgetSource } from "./widget-source.js";
+
 export { EditWorkflowSession, createEditSession, normalizeEditWorkflowFailures } from "./edit-session.js";
 export type {
   CreateEditSessionOptions,

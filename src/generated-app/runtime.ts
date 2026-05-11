@@ -10,7 +10,7 @@
  * @module
  */
 
-import type { FeatureId, Query } from "../contract/index.js";
+import type { FeatureId, Query, WidgetCategoriesResult, WidgetCountResult, WidgetSource } from "../contract/index.js";
 import {
   type ExplorationContext,
   type ExplorationStateSnapshot,
@@ -93,6 +93,7 @@ export interface HonuaGeneratedAppLoadOptions<TAttributes extends Record<string,
   readonly mapLoadOptions?: Omit<LoadMapPackageOptions, "telemetry">;
   readonly initialFeatures?: ReadonlyArray<HonuaGeneratedAppFeatureInput<TAttributes>>;
   readonly featureLoader?: HonuaGeneratedAppFeatureLoader<TAttributes>;
+  readonly widgetSource?: WidgetSource<TAttributes>;
   readonly onEvent?: HonuaGeneratedAppRuntimeEventListener;
 }
 
@@ -219,7 +220,14 @@ interface RuntimeInternals<TAttributes extends Record<string, unknown> = Record<
   readonly handles: ReadonlyArray<InteractionBindingHandle>;
   readonly initialFeatures?: ReadonlyArray<HonuaGeneratedAppFeatureInput<TAttributes>>;
   readonly featureLoader?: HonuaGeneratedAppFeatureLoader<TAttributes>;
+  readonly widgetSource?: WidgetSource<TAttributes>;
   readonly onEvent?: HonuaGeneratedAppRuntimeEventListener;
+}
+
+interface RuntimeWidgetSourceModels {
+  readonly projectionKey: string;
+  readonly count: Readonly<Record<string, WidgetCountResult>>;
+  readonly categories: Readonly<Record<string, WidgetCategoriesResult>>;
 }
 
 export async function loadGeneratedAppRuntime<TAttributes extends Record<string, unknown> = Record<string, unknown>>(
@@ -346,6 +354,7 @@ export async function loadGeneratedAppRuntime<TAttributes extends Record<string,
     handles,
     initialFeatures: options.initialFeatures,
     featureLoader: options.featureLoader,
+    widgetSource: options.widgetSource,
     onEvent: options.onEvent,
   });
   try {
@@ -407,8 +416,10 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
   readonly #handles: ReadonlyArray<InteractionBindingHandle>;
   readonly #initialFeatures: ReadonlyArray<HonuaGeneratedAppFeatureInput<TAttributes>> | undefined;
   readonly #featureLoader: HonuaGeneratedAppFeatureLoader<TAttributes> | undefined;
+  readonly #widgetSource: WidgetSource<TAttributes> | undefined;
   readonly #listeners = new Set<HonuaGeneratedAppRuntimeEventListener>();
   #records: ReadonlyArray<HonuaGeneratedAppFeatureRecord<Record<string, unknown>>> = [];
+  #widgetModels: RuntimeWidgetSourceModels | undefined;
   #disposed = false;
 
   public constructor(internals: RuntimeInternals<TAttributes>) {
@@ -420,6 +431,7 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
     this.#handles = internals.handles;
     this.#initialFeatures = internals.initialFeatures;
     this.#featureLoader = internals.featureLoader;
+    this.#widgetSource = internals.widgetSource;
     if (internals.onEvent) this.#listeners.add(internals.onEvent);
   }
 
@@ -436,6 +448,7 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
     this.#assertLive("refresh");
     try {
       this.#records = await this.#loadFeatureRecords();
+      this.#widgetModels = await this.#loadWidgetSourceModels();
       return this.render();
     } catch (cause) {
       const error = new HonuaGeneratedAppError("data-load-failed", "generated-app feature data failed to load", {
@@ -454,7 +467,11 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
     const projection = selectLinkedViewQueryProjection(this.context.state, { sourceId });
     const filtered = applyProjection(this.#records, projection.filters, projection.selection, sourceId);
     const paged = applySortAndPagination(filtered, this.context.state.sort, this.context.state.page);
-    const widgets = this.manifest.layout.widgets.map((widget) => this.#renderWidget(widget, paged, filtered));
+    const widgetModels =
+      this.#widgetModels?.projectionKey === stableWidgetProjectionKey(projection) ? this.#widgetModels : undefined;
+    const widgets = this.manifest.layout.widgets.map((widget) =>
+      this.#renderWidget(widget, paged, filtered, widgetModels),
+    );
     const model: HonuaGeneratedAppRenderModel = {
       status: "ready",
       appId: this.manifest.appId,
@@ -576,10 +593,47 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
     );
   }
 
+  async #loadWidgetSourceModels(): Promise<RuntimeWidgetSourceModels | undefined> {
+    if (!this.#widgetSource) return undefined;
+    const sourceId = this.manifest.data.sourceId;
+    const projection = selectLinkedViewQueryProjection(this.context.state, { sourceId });
+    const count: Record<string, WidgetCountResult> = {};
+    const categories: Record<string, WidgetCategoriesResult> = {};
+    await Promise.all(
+      this.manifest.layout.widgets.map(async (widget) => {
+        switch (widget.kind) {
+          case "count":
+            count[widget.id] = await this.#widgetSource!.count({ projection });
+            break;
+          case "chart":
+            categories[widget.id] = await this.#widgetSource!.categories({
+              projection,
+              field: widget.groupBy,
+              metric: widget.metric,
+            });
+            break;
+          case "filter":
+            categories[widget.id] = await this.#widgetSource!.categories({
+              projection,
+              field: widget.field,
+              limit: Math.max(widget.options?.length ?? 0, 25),
+            });
+            break;
+          case "map":
+          case "table":
+          case "list":
+            break;
+        }
+      }),
+    );
+    return { projectionKey: stableWidgetProjectionKey(projection), count, categories };
+  }
+
   #renderWidget(
     widget: HonuaGeneratedAppWidget,
     pagedRecords: ReadonlyArray<HonuaGeneratedAppFeatureRecord<Record<string, unknown>>>,
     filteredRecords: ReadonlyArray<HonuaGeneratedAppFeatureRecord<Record<string, unknown>>>,
+    widgetModels: RuntimeWidgetSourceModels | undefined,
   ): HonuaGeneratedAppWidgetModel {
     const sourceId = widget.sourceId ?? this.manifest.data.sourceId;
     switch (widget.kind) {
@@ -612,7 +666,7 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
           kind: "count",
           ...(widget.title ? { title: widget.title } : {}),
           label: widget.label ?? widget.title ?? "Records",
-          value: filteredRecords.length,
+          value: widgetModels?.count[widget.id]?.value ?? filteredRecords.length,
         };
       case "chart":
         return {
@@ -621,7 +675,10 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
           ...(widget.title ? { title: widget.title } : {}),
           sourceId,
           groupBy: widget.groupBy,
-          buckets: chartBuckets(filteredRecords, widget, sourceId, this.context.state.filters),
+          buckets:
+            widgetModels?.categories[widget.id] !== undefined
+              ? chartBucketsFromWidgetSource(widgetModels.categories[widget.id], widget, this.context.state.filters)
+              : chartBuckets(filteredRecords, widget, sourceId, this.context.state.filters),
         };
       case "filter":
         return {
@@ -630,7 +687,10 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
           ...(widget.title ? { title: widget.title } : {}),
           sourceId,
           field: widget.field,
-          options: filterOptions(this.#records, this.context.state.filters, widget, sourceId),
+          options:
+            widgetModels?.categories[widget.id] !== undefined
+              ? filterOptionsFromWidgetSource(widgetModels.categories[widget.id], widget, this.context.state.filters)
+              : filterOptions(this.#records, this.context.state.filters, widget, sourceId),
         };
     }
   }
@@ -1026,6 +1086,53 @@ function filterOptions(
     });
 }
 
+function chartBucketsFromWidgetSource(
+  result: WidgetCategoriesResult,
+  widget: HonuaGeneratedAppChartWidget,
+  filters: Readonly<Record<string, FilterClause>>,
+): ReadonlyArray<HonuaGeneratedAppChartBucket> {
+  const active = filters[widget.id]?.value;
+  return result.buckets
+    .filter((bucket) => scalarBucketValue(bucket.value) !== undefined)
+    .map((bucket) => ({
+      value: bucket.value as string | number | boolean,
+      label: bucket.label,
+      count: bucket.count,
+      selected: active === bucket.value,
+      targets: [],
+    }));
+}
+
+function filterOptionsFromWidgetSource(
+  result: WidgetCategoriesResult,
+  widget: HonuaGeneratedAppFilterWidget,
+  filters: Readonly<Record<string, FilterClause>>,
+): ReadonlyArray<HonuaGeneratedAppFilterOptionModel> {
+  const active = filters[widget.id]?.value;
+  const byValue = new Map(result.buckets.map((bucket) => [String(bucket.value), bucket]));
+  const explicit = widget.options ?? [];
+  const buckets =
+    explicit.length > 0
+      ? explicit.map((option) => ({
+          value: option.value,
+          label: option.label ?? stringValue(option.value),
+          count: byValue.get(String(option.value))?.count ?? 0,
+        }))
+      : result.buckets
+          .filter((bucket) => scalarBucketValue(bucket.value) !== undefined)
+          .map((bucket) => ({
+            value: bucket.value as string | number | boolean,
+            label: bucket.label,
+            count: bucket.count,
+          }));
+  return buckets.map((bucket) => ({
+    value: bucket.value,
+    label: bucket.label,
+    count: bucket.count,
+    selected: active === bucket.value,
+  }));
+}
+
 function selectionContains(
   selection: ReadonlyArray<FeatureSelectionTarget>,
   record: HonuaGeneratedAppFeatureRecord<Record<string, unknown>>,
@@ -1057,6 +1164,30 @@ function scalarBucketValue(value: unknown): string | number | boolean | undefine
 
 function stringValue(value: unknown): string {
   return value === undefined || value === null ? "" : String(value);
+}
+
+function stableWidgetProjectionKey(projection: ReturnType<typeof selectLinkedViewQueryProjection>): string {
+  return stableStringify({
+    filters: projection.filters,
+    spatialFilter: projection.spatialFilter,
+    extent: projection.extent,
+    orderBy: projection.orderBy,
+    pagination: projection.pagination,
+    outFields: projection.outFields,
+    grouping: projection.grouping,
+    aggregation: projection.aggregation,
+    selection: projection.selection,
+  });
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`)
+    .join(",")}}`;
 }
 
 function unique(values: ReadonlyArray<string>): string[] {
