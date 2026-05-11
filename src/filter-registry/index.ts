@@ -8,8 +8,6 @@
  * @module
  */
 
-import type { SpatialFilter } from "../core/spatial-filter.js";
-import type { HonuaExtent } from "../core/types.js";
 import type {
   Capability,
   DegradedReason,
@@ -21,12 +19,14 @@ import type {
   SourceId,
 } from "../contract/types.js";
 import type { WidgetSourceProjection } from "../contract/widget-source.js";
+import type { SpatialFilter } from "../core/spatial-filter.js";
+import type { HonuaExtent } from "../core/types.js";
+import type { LinkedViewQueryProjection } from "../exploration/selectors.js";
 import type {
-  FeatureSelectionTarget,
   FilterClause as ExplorationFilterClause,
+  FeatureSelectionTarget,
   FilterOperator,
 } from "../exploration/types.js";
-import type { LinkedViewQueryProjection } from "../exploration/selectors.js";
 
 export type FilterRegistryOwner =
   | { readonly kind: "map"; readonly id: string }
@@ -191,7 +191,9 @@ export function createFilterRegistry(options: CreateFilterRegistryOptions = {}):
       );
     },
     clearSource(sourceId) {
-      const changed = clauses.filter((clause) => appliesExplicitlyToSource(clause, sourceId)).map((clause) => clause.id);
+      const changed = clauses
+        .filter((clause) => appliesExplicitlyToSource(clause, sourceId))
+        .map((clause) => clause.id);
       if (changed.length === 0) return;
       commit(
         clauses.filter((clause) => !appliesExplicitlyToSource(clause, sourceId)),
@@ -208,7 +210,8 @@ export function createFilterRegistry(options: CreateFilterRegistryOptions = {}):
       if (changed) commit(next, new Set([id]));
     },
     replace(nextSnapshot) {
-      if (nextSnapshot.version !== 1) throw new Error(`Unsupported filter registry snapshot version ${nextSnapshot.version}`);
+      if (nextSnapshot.version !== 1)
+        throw new Error(`Unsupported filter registry snapshot version ${nextSnapshot.version}`);
       const next = normalizeClauses(nextSnapshot.clauses);
       if (valuesEqual(clauses, next)) return;
       const ids = new Set([...clauses.map((clause) => clause.id), ...next.map((clause) => clause.id)]);
@@ -238,7 +241,9 @@ export function selectActiveFilterClauses(
   options: FilterRegistryProjectionOptions = {},
 ): readonly FilterClause[] {
   return snapshot.clauses
-    .filter((clause) => (options.includeDisabled || (clause.enabled ?? true)) && appliesToSource(clause, options.sourceId))
+    .filter(
+      (clause) => (options.includeDisabled || (clause.enabled ?? true)) && appliesToSource(clause, options.sourceId),
+    )
     .sort(compareClause);
 }
 
@@ -255,7 +260,7 @@ export function projectFilterRegistryToQuery(
   const query: Query = {
     ...(options.baseQuery ?? {}),
     ...(combineWhere(options.baseQuery?.where, where) ? { where: combineWhere(options.baseQuery?.where, where) } : {}),
-    ...(options.baseQuery?.spatialFilter ?? spatialFilter
+    ...((options.baseQuery?.spatialFilter ?? spatialFilter)
       ? { spatialFilter: options.baseQuery?.spatialFilter ?? spatialFilter }
       : {}),
   };
@@ -304,9 +309,7 @@ export function projectFilterRegistryToLinkedView(
 }
 
 /** Compile active field clauses into a MapLibre-compatible expression tree. */
-export function compileRuntimeStyleFilter(
-  clauses: readonly FilterClause[],
-): RuntimeStyleFilterExpression | undefined {
+export function compileRuntimeStyleFilter(clauses: readonly FilterClause[]): RuntimeStyleFilterExpression | undefined {
   const parts = clauses
     .filter((clause) => (clause.enabled ?? true) && clause.field && clause.operator)
     .map(compileRuntimeClause)
