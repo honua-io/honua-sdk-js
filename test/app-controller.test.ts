@@ -13,8 +13,8 @@ import type { HonuaControllerAdapter, HonuaControllerRuntimeLike, HonuaViewport 
 import { createExplorationContext } from "../src/exploration/index.js";
 import {
   HONUA_MAP_PACKAGE_FORMAT_V1,
-  HonuaRuntimeDiagnosticError,
   type HonuaMapPackage,
+  HonuaRuntimeDiagnosticError,
   type MaplibreMap,
 } from "../src/runtime/index.js";
 
