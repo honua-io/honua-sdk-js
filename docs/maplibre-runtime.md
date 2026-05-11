@@ -65,6 +65,8 @@ runtime.dispose();
 | `watchMapPackage(idOrLocator, opts)` | `MapPackageWatchHandle` | Opt-in polling watcher with `dispose()` and `refresh()`. It reuses `fetchMapPackage`, reports structural updates that require full style reload, and can apply updates to an existing `HonuaMapRuntime`. |
 | `validateMapPackage(pkg, opts)` | `ValidateMapPackageResult` | Returns typed diagnostics for format/version, missing sources, unsupported protocols, stale/expired packages, and style-ref target mismatches. |
 | `HonuaMapRuntime` | class | `map`, `honuaMap`, `dataset`, `mapPackage`, `composedStyle`, `getLegend`, `setLayerVisibility`, `bindPopup`, `setViewState`, `updatePackage`, `on`, `reportSourceError`, `dispose`. |
+| `runtime.hitTest(input, opts)` | `Promise<HonuaHitTestResult>` | Renderer-neutral hit-test wrapper over MapLibre `queryRenderedFeatures`. Returns normalized pointer location, source-qualified feature identities, raw rendered features, geometry/properties when supplied by the renderer, optional detail payloads, and typed degraded states for unsupported or partial renderer data. |
+| `runtime.onPointer(handler, opts)` | `{ remove() }` | Subscribes to `"click"`, `"dblclick"`, or `"mousemove"` and invokes `hitTest` for each pointer event. |
 | `HonuaMapPackage` | type | v1 package shape. `format` is gated against `HONUA_MAP_PACKAGE_FORMAT_V1` (`"honua_map_package.v1"`). |
 | `HONUA_MAP_PACKAGE_FORMAT_V1` | const | Canonical format tag. |
 | `HonuaMapPackageError` / `HonuaMapPackageErrorStage` | class / union | Stage union: `"load" \| "update" \| "style-compose" \| "source-bind" \| "view" \| "popup" \| "dispose"`. |
@@ -77,6 +79,7 @@ runtime.dispose();
 | `buildWmsRasterSourceSpec`, `buildWmtsRasterSourceSpec` | functions | Pre-bake a MapLibre `raster` source spec from a WMS / WMTS `SourceDescriptor`. Used by callers that compose a map outside `loadMapPackage`. See the source-binding projection table for the URL templates emitted on each protocol. |
 | `buildMapLibreQueryTileSourceSpec`, `buildQueryTileJson`, `buildQueryTileUrlTemplate`, `buildQueryTileUrl` | functions | Build TileJSON and MapLibre `vector` source specs from `QueryTileSourceDescriptor`. See [`dynamic-query-tiles.md`](./dynamic-query-tiles.md). |
 | `QueryTileRequestController`, `queryTilesForViewport`, `diagnoseQueryTileSourceSupport` | class / functions | Opt-in viewport tile lifecycle helper with abortable requests, bounded cache, diagnostics, and unsupported-protocol/fallback reporting. |
+| `hitTestMap`, `normalizePointerEvent`, `normalizeHitTestFeatures`, `createQueryTileDetailLoader` | functions | Framework-neutral interaction helpers exported from `@honua/sdk-js/interactions`; useful for apps that do not load a full `HonuaMapRuntime`. |
 | `diffPackages`, `MapPackageDiff` | function / type | Stable-id diff used by `updatePackage`. |
 | `buildLegend`, `LegendEntry` | function / type | Shared with operator components. |
 | `bindPopup`, `defaultPopupRenderer`, `PopupFactory`, `PopupRenderer` | function / types | The default DOM renderer is intentionally unstyled — rich popups belong in `#29`. |
@@ -119,6 +122,51 @@ Runtime source/layer mutation helpers lazily use
 `"warning-only"` preserves the diagnostics as warnings, and
 `"renderer-deferred"` skips SDK style-spec checks so the host renderer
 reports invalid values.
+
+## Source and Layer Mutation
+
+`HonuaMapRuntime` owns the renderer-specific implementation used by
+`HonuaController`'s app-level CRUD surface. The API follows Mapbox GL source
+and layer concepts:
+
+```ts
+runtime.addSource("dispatch", {
+  type: "geojson",
+  data: { type: "FeatureCollection", features: [] },
+});
+
+runtime.addLayer(
+  {
+    id: "dispatch-points",
+    type: "circle",
+    source: "dispatch",
+    paint: { "circle-color": "#00a884", "circle-radius": 6 },
+  },
+  { beforeId: "parcels-fill" },
+);
+
+runtime.updateLayer("dispatch-points", {
+  paint: { "circle-color": "#006f5f" },
+  metadata: { editedBy: "operator" },
+});
+runtime.moveLayer("dispatch-points", { position: "top" });
+runtime.refreshSource("dispatch");
+runtime.removeLayer("dispatch-points");
+runtime.removeSource("dispatch");
+```
+
+Supported source inputs include common native MapLibre source entries and Honua
+custom source entries for GeoServices, OGC Features, WMS, and WMTS. Query-tile
+sources can be created with `buildMapLibreQueryTileSourceSpec()`, while hosted
+MapPackage source bindings should continue to flow through `loadMapPackage()`
+or `updatePackage()` when server state is the source of truth.
+
+The mutation helpers validate source specs, layer specs, style expressions,
+filters, layer ordering, and duplicate/missing IDs before mutating the map.
+Renderer failures are wrapped as `HonuaRuntimeDiagnosticError` diagnostics. For
+incremental paint/layout/filter patches the runtime uses MapLibre's property
+setters when available; structural updates fall back to `setStyle(..., { diff:
+true })`.
 
 ## Hosted MapPackage Fetch
 
@@ -212,6 +260,70 @@ same `source-error` event and pipes the failure through the
 `source-bind` telemetry span, so observers see one consistent
 per-source error channel for both bind-time and query-time
 failures. The full guide lives in [`composition.md`](./composition.md).
+
+## Hit Testing and Pointer Events
+
+`hitTest` accepts a MapLibre-style event, `{ point, lngLat }`, or a raw
+DOM pointer event. It returns screen point, optional longitude/latitude,
+and a feature stack normalized to Honua source identity:
+
+```ts
+const hit = await runtime.hitTest(event, {
+  layers: ["incidents-symbol", "incidents-fill"],
+  sourceIds: ["incidents"],
+  featureIdProperty: "incident_id",
+  tolerance: 4,
+  maxResults: 5,
+});
+
+const first = hit.features[0];
+if (first?.selectionTarget) {
+  view.select([first.selectionTarget], { replace: true });
+}
+```
+
+Every `HonuaHitFeature` includes `layerId`, `sourceId`, `sourceLayer`,
+`featureId`, `selectionTarget`, `properties`, `geometry`, `rawFeature`,
+and `degraded[]` when the renderer omits a field. The top-level result
+also has `degraded[]`; for example, non-MapLibre renderers without
+`queryRenderedFeatures` return an empty feature list plus
+`{ reason: "renderer-unsupported" }`.
+
+Optional detail loading is bounded by the caller's `AbortSignal`:
+
+```ts
+const controller = new AbortController();
+const hit = await runtime.hitTest(event, {
+  layers: ["incidents-symbol"],
+  queryTileSources: { incidents: incidentsQueryTileDescriptor },
+  loadDetails: true,
+  signal: controller.signal,
+});
+```
+
+When `queryTileSources` includes a descriptor for the hit source, the
+runtime composes with the existing query-tile detail path and
+`runtime.dataset.source(sourceId)`. Without a descriptor it falls back
+to a single-feature source query when an id field is available. Failed,
+aborted, or unavailable detail reads are reported in `feature.degraded`
+instead of rejecting the whole hit-test result.
+
+Apps that do not use `HonuaMapRuntime` can use the neutral helpers
+directly:
+
+```ts
+import { hitTestMap } from "@honua/sdk-js/interactions";
+
+map.on("click", async (event) => {
+  const hit = await hitTestMap(map, event, {
+    layers: interactiveLayerIds,
+    sourceIds: ["incidents"],
+    featureIdProperty: "incident_id",
+    maxResults: 1,
+  });
+  openInspector(hit.features[0]);
+});
+```
 
 ## `MapPackage` version gate
 

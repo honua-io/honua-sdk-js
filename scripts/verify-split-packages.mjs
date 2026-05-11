@@ -65,6 +65,10 @@ import {
 } from "@honua/sdk";
 import { HonuaGeocodingClient } from "@honua/sdk/geocoding";
 import {
+  HONUA_CONTROL_PLANE_BASE_PATH,
+  createHonuaControlPlane,
+} from "@honua/sdk/control-plane";
+import {
   CAPABILITIES,
   PROTOCOLS,
   createDataset,
@@ -77,11 +81,19 @@ import {
   explainHonuaCapabilityGap,
 } from "@honua/sdk/agent-tools";
 import {
+  createHonuaApp,
+  normalizeHonuaAppOptions,
+} from "@honua/sdk/app";
+import {
   EMPTY_STATE,
   LINKED_VIEW_PRESETS,
   createExplorationContext,
   selectLinkedViewQueryProjection,
 } from "@honua/sdk/exploration";
+import {
+  createFilterRegistry,
+  projectFilterRegistryToQuery,
+} from "@honua/sdk/filter-registry";
 import {
   bindChartToExploration,
   bindQueryProjectionToExploration,
@@ -195,10 +207,18 @@ if (typeof HonuaGeoprocessingService !== "function")
   throw new Error("HonuaGeoprocessingService export missing from @honua/sdk");
 if (typeof HonuaGeocodingClient !== "function")
   throw new Error("HonuaGeocodingClient export missing from @honua/sdk/geocoding");
+if (HONUA_CONTROL_PLANE_BASE_PATH !== "/api/v1/admin")
+  throw new Error("HONUA_CONTROL_PLANE_BASE_PATH export missing from @honua/sdk/control-plane");
+if (typeof createHonuaControlPlane !== "function")
+  throw new Error("createHonuaControlPlane export missing from @honua/sdk/control-plane");
 if (!Array.isArray(HONUA_AGENT_TOOL_NAMES) || !HONUA_AGENT_TOOL_NAMES.includes("explainCapabilityGap"))
   throw new Error("agent tool exports missing from @honua/sdk/agent-tools");
 if (explainHonuaCapabilityGap({ protocol: "wmts", capability: "query" }).supported)
   throw new Error("agent tool capability explanation failed to flag unsupported WMTS query");
+if (typeof createHonuaApp !== "function")
+  throw new Error("createHonuaApp export missing from @honua/sdk/app");
+if (typeof normalizeHonuaAppOptions !== "function")
+  throw new Error("normalizeHonuaAppOptions export missing from @honua/sdk/app");
 if (!Array.isArray(CAPABILITIES) || CAPABILITIES.length === 0)
   throw new Error("CAPABILITIES export missing from @honua/sdk/contract");
 if (!Array.isArray(PROTOCOLS) || PROTOCOLS.length === 0)
@@ -219,6 +239,10 @@ if (typeof createExplorationContext !== "function")
   throw new Error("createExplorationContext export missing from @honua/sdk/exploration");
 if (typeof selectLinkedViewQueryProjection !== "function")
   throw new Error("selectLinkedViewQueryProjection export missing from @honua/sdk/exploration");
+if (typeof createFilterRegistry !== "function")
+  throw new Error("createFilterRegistry export missing from @honua/sdk/filter-registry");
+if (typeof projectFilterRegistryToQuery !== "function")
+  throw new Error("projectFilterRegistryToQuery export missing from @honua/sdk/filter-registry");
 if (typeof bindChartToExploration !== "function")
   throw new Error("bindChartToExploration export missing from @honua/sdk/interactions");
 if (typeof bindQueryProjectionToExploration !== "function")

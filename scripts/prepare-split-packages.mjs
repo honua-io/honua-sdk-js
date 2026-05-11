@@ -42,11 +42,14 @@ function createSdkPackage() {
   fs.mkdirSync(packageRoot, { recursive: true });
 
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "control-plane"), path.join(packageRoot, "control-plane"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "app"), path.join(packageRoot, "app"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "filter-registry"), path.join(packageRoot, "filter-registry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
@@ -54,8 +57,10 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "app-workspace"), path.join(packageRoot, "app-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
   copyDirectory(path.join(DIST_SRC_ROOT, "realtime"), path.join(packageRoot, "realtime"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "runtime"), path.join(packageRoot, "runtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "scene-workspace"), path.join(packageRoot, "scene-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "web-components"), path.join(packageRoot, "web-components"));
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.d.ts"), path.join(packageRoot, "index.d.ts"));
@@ -74,13 +79,25 @@ function createSdkPackage() {
         types: "./contract/index.d.ts",
         default: "./contract/index.js",
       },
+      "./control-plane": {
+        types: "./control-plane/index.d.ts",
+        default: "./control-plane/index.js",
+      },
       "./agent-tools": {
         types: "./agent-tools/index.d.ts",
         default: "./agent-tools/index.js",
       },
+      "./app": {
+        types: "./app/index.d.ts",
+        default: "./app/index.js",
+      },
       "./exploration": {
         types: "./exploration/index.d.ts",
         default: "./exploration/index.js",
+      },
+      "./filter-registry": {
+        types: "./filter-registry/index.d.ts",
+        default: "./filter-registry/index.js",
       },
       "./expr": {
         types: "./expr/index.d.ts",
@@ -105,6 +122,10 @@ function createSdkPackage() {
       "./realtime": {
         types: "./realtime/index.d.ts",
         default: "./realtime/index.js",
+      },
+      "./runtime": {
+        types: "./runtime/index.d.ts",
+        default: "./runtime/index.js",
       },
       "./scene-workspace": {
         types: "./scene-workspace/index.d.ts",

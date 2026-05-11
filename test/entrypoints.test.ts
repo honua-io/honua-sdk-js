@@ -28,6 +28,11 @@ import {
   stacSearchSource,
 } from "../src/contract/index.js";
 import {
+  HONUA_CONTROL_PLANE_BASE_PATH,
+  HonuaControlPlaneClient,
+  createHonuaControlPlane,
+} from "../src/control-plane/index.js";
+import {
   AreaMeasurement2DCompat,
   AttributionCompat,
   BasemapCompat,
@@ -122,6 +127,7 @@ import {
   selectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget,
 } from "../src/exploration/index.js";
+import { createFilterRegistry, projectFilterRegistryToQuery } from "../src/filter-registry/index.js";
 import {
   HonuaClient,
   HonuaFeatureLayer,
@@ -145,18 +151,22 @@ import {
   createHonuaService,
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
   createEditSession as honuaCreateEditSession,
+  createFilterRegistry as honuaCreateFilterRegistry,
   createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
+  createHonuaControlPlane as honuaCreateHonuaControlPlane,
   createHonuaController as honuaCreateHonuaController,
   createMapLibreSceneAdapter as honuaCreateMapLibreSceneAdapter,
   createSceneWorkspace as honuaCreateSceneWorkspace,
   createWidgetSource as honuaCreateWidgetSource,
   preparePrimaryDetailModel as honuaPreparePrimaryDetailModel,
+  projectFilterRegistryToQuery as honuaProjectFilterRegistryToQuery,
   selectLinkedViewQueryProjection as honuaSelectLinkedViewQueryProjection,
   selectHonuaAppWorkspaceMetadataCacheModel as honuaSelectMetadataCacheModel,
   sourceFeatureSelectionTarget as honuaSourceFeatureSelectionTarget,
 } from "../src/honua.js";
 import {
   HonuaWfsExceptionError as HonuaWfsExceptionErrorRoot,
+  HonuaControlPlaneClient as RootHonuaControlPlaneClient,
   bindChartToExploration,
   bindMapSelectionToExploration,
   bindQueryProjectionToExploration,
@@ -164,9 +174,11 @@ import {
   createHonuaController,
   preparePrimaryDetailModel,
   createEditSession as rootCreateEditSession,
+  createFilterRegistry as rootCreateFilterRegistry,
   createMapLibreSceneAdapter as rootCreateMapLibreSceneAdapter,
   createSceneWorkspace as rootCreateSceneWorkspace,
   createWidgetSource as rootCreateWidgetSource,
+  projectFilterRegistryToQuery as rootProjectFilterRegistryToQuery,
   selectLinkedViewQueryProjection as rootSelectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
   selectHonuaAppWorkspaceMetadataCacheModel,
@@ -224,8 +236,16 @@ describe("entrypoint modules", () => {
     expect(HonuaWfsExceptionError).toBeTypeOf("function");
     expect(HonuaWfsExceptionErrorRoot).toBe(HonuaWfsExceptionError);
     expect(createHonuaCacheState).toBeTypeOf("function");
+    expect(RootHonuaControlPlaneClient).toBe(HonuaControlPlaneClient);
+    expect(honuaCreateHonuaControlPlane).toBe(createHonuaControlPlane);
     expect(honuaCreateHonuaController).toBe(appControllerCreateHonuaController);
     expect(createHonuaController).toBe(appControllerCreateHonuaController);
+  });
+
+  it("exposes the experimental control-plane subpath", () => {
+    expect(HONUA_CONTROL_PLANE_BASE_PATH).toBe("/api/v1/admin");
+    expect(HonuaControlPlaneClient).toBeTypeOf("function");
+    expect(createHonuaControlPlane).toBeTypeOf("function");
   });
 
   it("exposes esri-compat entrypoint", () => {
@@ -383,6 +403,15 @@ describe("entrypoint modules", () => {
       "chartDriven",
       "decoupled",
     ]);
+  });
+
+  it("exposes the filter registry entrypoint", () => {
+    expect(createFilterRegistry).toBeTypeOf("function");
+    expect(projectFilterRegistryToQuery).toBeTypeOf("function");
+    expect(rootCreateFilterRegistry).toBe(createFilterRegistry);
+    expect(rootProjectFilterRegistryToQuery).toBe(projectFilterRegistryToQuery);
+    expect(honuaCreateFilterRegistry).toBe(createFilterRegistry);
+    expect(honuaProjectFilterRegistryToQuery).toBe(projectFilterRegistryToQuery);
   });
 
   it("exposes the realtime entrypoint", () => {

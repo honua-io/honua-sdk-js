@@ -33,6 +33,10 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/app-workspace/index.ts"),
       },
       {
+        find: "@honua/sdk-js/agent-tools",
+        replacement: path.resolve(import.meta.dirname, "src/agent-tools/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/contract",
         replacement: path.resolve(import.meta.dirname, "src/contract/index.ts"),
       },

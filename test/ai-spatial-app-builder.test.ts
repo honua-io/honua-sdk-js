@@ -58,6 +58,38 @@ describe("AI Spatial App Builder sample", () => {
     session.dispose();
   });
 
+  it("exposes AI map kit tools for inspect, filter, select, widget query, and dry-run layer actions", async () => {
+    const session = createAiSpatialAppBuilderSession();
+    session.submitPrompt("Join parcels to nearby fire stations and summarize count by flood zone.");
+    session.previewPlan();
+    const jobId = session.applyPlan();
+    session.advanceJob(jobId);
+    session.advanceJob(jobId);
+
+    const results = await session.runAiMapKitDemo();
+
+    expect(session.aiMapKit.mcpTools.map((tool) => tool.name)).toEqual([
+      "inspectMap",
+      "listSources",
+      "listCapabilities",
+      "addLayer",
+      "setFilter",
+      "selectFeature",
+      "runWidgetQuery",
+    ]);
+    expect(results.map((result) => (result as { status: string }).status)).toEqual(["ok", "ok", "ok", "ok", "dry-run"]);
+    expect(session.agentAudit.map((event) => [event.tool, event.outcome, event.dryRun])).toEqual([
+      ["inspectMap", "allowed", false],
+      ["runWidgetQuery", "allowed", false],
+      ["setFilter", "allowed", false],
+      ["selectFeature", "allowed", false],
+      ["addLayer", "dry-run", true],
+    ]);
+    expect(session.visibleFeatures().map((feature) => feature.id)).toEqual(["parcel-1006", "parcel-1002"]);
+
+    session.dispose();
+  });
+
   it("covers five fixture prompt patterns and unsupported/degraded cloud capability notes", () => {
     const session = createAiSpatialAppBuilderSession();
 

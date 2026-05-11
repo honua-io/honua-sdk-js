@@ -26,7 +26,7 @@ body {
 
 .bottom-panel {
   align-items: start;
-  grid-template-columns: minmax(420px, 1fr) minmax(220px, 280px) minmax(220px, 280px);
+  grid-template-columns: minmax(420px, 1fr) repeat(3, minmax(190px, 260px));
 }
 
 honua-map {

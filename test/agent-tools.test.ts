@@ -5,9 +5,14 @@ import {
   type HonuaAgentAuditEvent,
   type HonuaAgentRuntime,
   type HonuaAgentViewport,
+  convertHonuaAgentToolDefinitions,
+  createHonuaAgentMapContext,
   createHonuaAgentToolExecutor,
+  createHonuaAiMapKit,
   executeHonuaAgentTool,
   explainHonuaCapabilityGap,
+  toHonuaMcpToolDefinitions,
+  toHonuaOpenAiToolDefinitions,
 } from "../src/agent-tools/index.js";
 import { type FeatureSelectionTarget, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 
@@ -50,6 +55,83 @@ describe("@honua/sdk-js/agent-tools", () => {
         capabilities: ["query", "queryAggregate", "queryExtent", "queryObjectIds"],
       },
     ]);
+  });
+
+  it("converts definitions to provider-neutral MCP and OpenAI tool shapes", () => {
+    const mcpTools = toHonuaMcpToolDefinitions();
+    const openAiTools = toHonuaOpenAiToolDefinitions();
+
+    expect(mcpTools).toHaveLength(HONUA_AGENT_TOOL_NAMES.length);
+    expect(mcpTools[0]).toMatchObject({
+      name: "inspectMap",
+      inputSchema: { type: "object", additionalProperties: false },
+    });
+    expect(openAiTools[0]).toMatchObject({
+      type: "function",
+      function: { name: "inspectMap", parameters: { type: "object" } },
+    });
+    expect(convertHonuaAgentToolDefinitions(undefined, "mcp")).toEqual(mcpTools);
+  });
+
+  it("creates an AI map kit with policy guards, provider tools, bounded context, and audits", async () => {
+    const runtime = makeRuntime();
+    const audit: HonuaAgentAuditEvent[] = [];
+    const kit = createHonuaAiMapKit({
+      runtime,
+      providerFormat: "openai",
+      tools: ["inspectMap", "setFilter", "runWidgetQuery", "selectFeature"],
+      policy: {
+        actor: "kit-agent",
+        allowActions: true,
+        allowedSourceIds: ["incidents"],
+        maxResults: 2,
+        now: () => "2026-05-11T00:00:00.000Z",
+        onAudit: (event) => audit.push(event),
+      },
+      context: { now: () => "2026-05-11T00:00:00.000Z" },
+    });
+
+    expect(kit.providerTools[0]).toMatchObject({ type: "function" });
+    expect(kit.mcpTools.map((tool) => tool.name)).toEqual([
+      "inspectMap",
+      "setFilter",
+      "selectFeature",
+      "runWidgetQuery",
+    ]);
+
+    const denied = await kit.execute({
+      name: "selectFeature",
+      args: { sourceId: "restricted", id: "blocked" },
+    });
+    const widget = await kit.execute({
+      name: "runWidgetQuery",
+      args: { sourceId: "incidents", kind: "count", limit: 50 },
+    });
+    const selected = await kit.execute({
+      name: "selectFeature",
+      args: { sourceId: "incidents", id: 1008 },
+    });
+    const context = await kit.context({ maxSources: 1, maxLayers: 1, maxSelectionTargets: 1 });
+    const prompt = await kit.systemPrompt({ maxSources: 1, maxLayers: 1, maxSelectionTargets: 1 });
+
+    expect(denied.status).toBe("denied");
+    expect(widget.status).toBe("ok");
+    expect(widget.audit.parameters.limit).toBe(2);
+    expect(selected.audit).toMatchObject({
+      actor: "kit-agent",
+      action: true,
+      sourceId: "incidents",
+      targetIds: ["1008", "incidents"],
+      outcome: "allowed",
+    });
+    expect(context).toMatchObject({
+      appId: "ops",
+      snapshotTimestamp: "2026-05-11T00:00:00.000Z",
+      omitted: { sources: 0, layers: 0, selection: 0 },
+    });
+    expect(JSON.stringify(context)).not.toContain("secret");
+    expect(prompt).toContain("Semantic map context");
+    expect(audit.map((event) => event.outcome)).toEqual(["denied", "allowed", "allowed"]);
   });
 
   it("denies mutating tools by default but allows dry-run", async () => {
@@ -96,6 +178,7 @@ describe("@honua/sdk-js/agent-tools", () => {
       ["setViewport", "ok", "planner"],
       ["selectFeature", "ok", "planner"],
     ]);
+    expect(audit[1]).toMatchObject({ action: true, targetIds: ["1005", "incidents"], outcome: "allowed" });
   });
 
   it("summarizes source-qualified and unqualified selections", async () => {
@@ -134,6 +217,17 @@ describe("@honua/sdk-js/agent-tools", () => {
       capabilities: ["query", "queryExtent"],
     });
   });
+
+  it("builds semantic map context without secret metadata", async () => {
+    const context = await createHonuaAgentMapContext(makeRuntime(), {
+      now: () => "2026-05-11T00:00:00.000Z",
+    });
+
+    expect(context.capabilities[0]?.sourceId).toBe("incidents");
+    expect(context.capabilities[0]?.capabilities).toContain("query");
+    expect(context.staleState).toContain("Snapshot timestamp");
+    expect(JSON.stringify(context.sources)).not.toContain("apiKey");
+  });
 });
 
 function makeRuntime(
@@ -147,16 +241,20 @@ function makeRuntime(
     id: "ops",
     snapshot: () => ({
       appId: "ops",
+      snapshotTimestamp: "2026-05-11T00:00:00.000Z",
+      sourceVersion: "fixture:v1",
       viewport,
       sources: [
         {
           id: "incidents",
           protocol: "geoservices-feature-service",
           capabilities: ["query", "queryAggregate", "queryExtent", "queryObjectIds"],
+          metadata: { apiKey: "secret", owner: "ops" },
         },
       ],
       layers: [{ id: "incident-points", sourceId: "incidents", type: "circle", visible: true }],
       selection,
+      realtime: { mode: "snapshot" },
     }),
     getViewport: () => viewport,
     setViewport: (next) => {
@@ -166,5 +264,10 @@ function makeRuntime(
       selection = options?.replace === false ? [...selection, target] : [target];
       return selection;
     },
+    runWidgetQuery: (request) => ({
+      sourceId: request.sourceId,
+      kind: request.kind,
+      data: { limit: request.limit ?? null },
+    }),
   };
 }

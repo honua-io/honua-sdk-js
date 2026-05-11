@@ -1,4 +1,13 @@
 import {
+  type HonuaAgentAuditEvent,
+  type HonuaAgentRuntime,
+  type HonuaAgentToolResult,
+  type HonuaAgentViewport,
+  type HonuaAgentWidgetQueryRequest,
+  type HonuaAgentWidgetQueryResult,
+  createHonuaAiMapKit,
+} from "@honua/sdk-js/agent-tools";
+import {
   createHonuaAppWorkspace,
   createHonuaSavedWorkspaceDocument,
   selectHonuaAppWorkspaceDetailModel,
@@ -26,6 +35,7 @@ import type {
   BuilderPromptFixture,
   BuilderSourceMetadata,
   BuilderTurn,
+  BuilderViewControllers,
 } from "./types.js";
 
 const RESULT_MEDIA_TYPE = "application/vnd.honua.generated-app+json";
@@ -62,6 +72,7 @@ export function createAiSpatialAppBuilderSession(
   let activePlan: BuilderPlan | undefined;
   let activeJobId: string | undefined;
   let generatedApp: BuilderGeneratedApp | undefined;
+  const agentAudit: HonuaAgentAuditEvent[] = [];
   const jobs = new Map<string, JobRecord>();
 
   workspace.dispatch({ kind: "attach-exploration-context", context: exploration });
@@ -98,12 +109,38 @@ export function createAiSpatialAppBuilderSession(
   });
   views.table.setVisibleFields(["title", "parcelUse", "floodZone", "builtYear", "distanceMeters"]);
   syncWorkspace(workspace, exploration);
+  const aiMapKit = createHonuaAiMapKit({
+    runtime: createBuilderAgentRuntime(dataset, views, () => generatedApp),
+    providerFormat: "mcp",
+    tools: [
+      "inspectMap",
+      "listSources",
+      "listCapabilities",
+      "setFilter",
+      "selectFeature",
+      "runWidgetQuery",
+      "addLayer",
+    ],
+    policy: {
+      actor: "fixture-ai-map-kit",
+      allowActions: true,
+      allowedSourceIds: [dataset.resultSourceId],
+      maxResults: 5,
+      now: () => dataset.generatedAt,
+      onAudit: (event) => agentAudit.push(event),
+    },
+    context: { actor: "fixture-ai-map-kit", now: () => dataset.generatedAt, maxPromptChars: 5000 },
+  });
 
   const session: AiSpatialAppBuilderSession = {
     dataset,
     workspace,
     exploration,
     views,
+    aiMapKit,
+    get agentAudit() {
+      return agentAudit;
+    },
     get lastTurn() {
       return lastTurn;
     },
@@ -225,6 +262,41 @@ export function createAiSpatialAppBuilderSession(
       else views.chart.setFilter("floodZone", { field: "floodZone", operator: "=", value: zone });
       syncWorkspace(workspace, exploration);
     },
+    async runAiMapKitDemo(): Promise<unknown[]> {
+      const results: HonuaAgentToolResult[] = [];
+      results.push(await aiMapKit.execute({ name: "inspectMap", args: { includeSelection: true } }));
+      results.push(
+        await aiMapKit.execute({
+          name: "runWidgetQuery",
+          args: { sourceId: dataset.resultSourceId, kind: "count", limit: 50 },
+        }),
+      );
+      results.push(
+        await aiMapKit.execute({
+          name: "setFilter",
+          args: {
+            id: "floodZone",
+            clause: { field: "floodZone", operator: "=", value: "X", appliesTo: [dataset.resultSourceId] },
+          },
+        }),
+      );
+      results.push(
+        await aiMapKit.execute({
+          name: "selectFeature",
+          args: { sourceId: dataset.resultSourceId, id: "parcel-1006" },
+        }),
+      );
+      results.push(
+        await aiMapKit.execute({
+          name: "addLayer",
+          args: {
+            layer: { id: "ai-reviewed-parcels", source: dataset.resultSourceId, type: "circle" },
+            dryRun: true,
+          },
+        }),
+      );
+      return results;
+    },
     currentProjection(): LinkedViewQueryProjection {
       return selectLinkedViewQueryProjection(exploration.state, { sourceId: dataset.resultSourceId });
     },
@@ -315,6 +387,84 @@ export function createAiSpatialAppBuilderSession(
   };
 
   return session;
+}
+
+function createBuilderAgentRuntime(
+  dataset: BuilderDataset,
+  views: BuilderViewControllers,
+  generatedApp: () => BuilderGeneratedApp | undefined,
+): HonuaAgentRuntime {
+  let viewport: HonuaAgentViewport = {
+    bbox: extentToBbox(dataset.prompts[0]?.draft.extent),
+    crs: "EPSG:4326",
+  };
+  return {
+    id: dataset.workspaceId,
+    snapshot: () => ({
+      appId: dataset.workspaceId,
+      snapshotTimestamp: dataset.generatedAt,
+      sourceVersion: `fixture:${dataset.workspaceId}`,
+      viewport,
+      sources: dataset.sources.map((source) => ({
+        id: source.id,
+        title: source.title,
+        capabilities: source.capabilities.filter((capability): capability is "query" => capability === "query"),
+        metadata: { cache: source.cache, capabilityState: source.capabilityState },
+      })),
+      layers: [
+        {
+          id: generatedApp()?.id ?? "ai-builder-results",
+          sourceId: dataset.resultSourceId,
+          title: generatedApp()?.title ?? "AI builder result layer",
+          type: "feature",
+          visible: true,
+        },
+      ],
+      selection: views.table.state.selection,
+      filters: views.filters.state.filters,
+      realtime: {
+        mode: "fixture",
+        snapshotTimestamp: dataset.generatedAt,
+        sourceVersion: `fixture:${dataset.workspaceId}`,
+      },
+    }),
+    getViewport: () => viewport,
+    setViewport: (next) => {
+      viewport = next;
+    },
+    getSelection: () => views.table.state.selection,
+    setFilter: (id, clause) => {
+      if (clause) views.filters.setFilter(id, clause);
+      else views.filters.clearFilter(id);
+    },
+    selectFeature: (target, options) => {
+      views.table.select([target], { replace: options?.replace ?? true });
+      return views.table.state.selection;
+    },
+    runWidgetQuery: (request) => runBuilderWidgetQuery(dataset, views, request),
+  };
+}
+
+function extentToBbox(extent: HonuaExtent | undefined): readonly [number, number, number, number] | undefined {
+  return extent ? [extent.xmin, extent.ymin, extent.xmax, extent.ymax] : undefined;
+}
+
+function runBuilderWidgetQuery(
+  dataset: BuilderDataset,
+  views: BuilderViewControllers,
+  request: HonuaAgentWidgetQueryRequest,
+): HonuaAgentWidgetQueryResult {
+  const projection = selectLinkedViewQueryProjection(views.table.state, { sourceId: dataset.resultSourceId });
+  const rows = applyProjection(dataset.features, projection).slice(0, request.limit ?? 25);
+  return {
+    sourceId: request.sourceId,
+    kind: request.kind,
+    data:
+      request.kind === "count"
+        ? { count: rows.length }
+        : rows.map((feature) => ({ id: feature.id, title: feature.title, attributes: feature.attributes })),
+    cache: { status: dataset.sources[0]?.cache.status, snapshotTimestamp: dataset.generatedAt },
+  };
 }
 
 export function buildPlan(dataset: BuilderDataset, draft: BuilderDraftSpec): BuilderPlan {

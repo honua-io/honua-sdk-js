@@ -1,5 +1,6 @@
 import type { FeatureId, Query } from "../contract/index.js";
 import type { HonuaTypedFeature } from "../core/types.js";
+import type { HonuaHitTestOptions, HonuaHitTestResult, HonuaPointerInput } from "../interactions/index.js";
 import type { HonuaMapPackage, HonuaMapPackageLegendEntry } from "../runtime/index.js";
 import type { HonuaLayerSpecification } from "../style/index.js";
 
@@ -173,8 +174,14 @@ export interface HonuaWebComponentController<T = Record<string, unknown>> {
   removeFeatureState(target: HonuaFeatureStateTarget, key?: string): void;
   queryFeatures(sourceId?: string, options?: HonuaQueryFeaturesOptions): Promise<HonuaFeatureTableModel<T>>;
   search(query: string, options?: HonuaSearchOptions): Promise<readonly HonuaSearchResult<T>[]>;
+  hitTest?(input: HonuaPointerInput | unknown, options?: HonuaHitTestOptions): Promise<HonuaHitTestResult>;
+  onPointer?(
+    handler: (hit: HonuaHitTestResult) => void | Promise<void>,
+    options?: HonuaHitTestOptions & { readonly event?: "click" | "dblclick" | "mousemove" },
+  ): HonuaControllerSubscription;
   applyEdit?(request: HonuaEditRequest<T>): Promise<HonuaEditorModel>;
   updateFeatures?(sourceId: string, features: readonly HonuaFeatureRecord<T>[]): void;
+  destroy?(): void;
 }
 
 export interface CreateHonuaWebComponentControllerOptions<T = Record<string, unknown>> {
@@ -271,4 +278,66 @@ export interface HonuaEditChangeDetail<T = Record<string, unknown>> {
 
 export interface HonuaControllerReadyDetail<T = Record<string, unknown>> {
   controller: HonuaWebComponentController<T>;
+}
+
+export interface HonuaBasemapChangeDetail {
+  basemapId: string;
+  previousBasemapId?: string;
+  status: HonuaComponentStatus;
+}
+
+export interface HonuaBookmark {
+  id: string;
+  label: string;
+  viewport: HonuaViewportState;
+}
+
+export interface HonuaBookmarkChangeDetail extends HonuaBookmark {
+  status: HonuaComponentStatus;
+}
+
+export interface HonuaLocateChangeDetail {
+  status: HonuaComponentStatus;
+  viewport?: HonuaViewportState;
+  error?: unknown;
+  message?: string;
+}
+
+export type HonuaMeasureMode = "off" | "distance" | "area";
+
+export interface HonuaMeasureChangeDetail {
+  mode: HonuaMeasureMode;
+  status: HonuaComponentStatus;
+  message?: string;
+}
+
+export type HonuaSketchMode = "off" | "point" | "line" | "polygon";
+
+export interface HonuaSketchChangeDetail {
+  mode: HonuaSketchMode;
+  status: HonuaComponentStatus;
+  message?: string;
+}
+
+export interface HonuaExportDetail {
+  format: "print" | "png" | "json";
+  status: HonuaComponentStatus;
+  title?: string;
+  message?: string;
+}
+
+export interface HonuaFullscreenChangeDetail {
+  fullscreen: boolean;
+  status: HonuaComponentStatus;
+  message?: string;
+}
+
+export interface HonuaActionPanelAction {
+  id: string;
+  label: string;
+  disabled?: boolean;
+}
+
+export interface HonuaActionDetail extends HonuaActionPanelAction {
+  status: HonuaComponentStatus;
 }

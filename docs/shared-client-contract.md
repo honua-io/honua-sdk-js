@@ -264,6 +264,15 @@ When a version / ETag / updated-at field is present (or supplied in
 can present reload / merge / overwrite workflows without parsing
 protocol-specific error text.
 
+`createEditSketchWorkflow(...)` wraps the same session contract with
+UI-independent sketch state. It exposes explicit support for point,
+line, polygon, rectangle, circle, and buffer tools; dirty state;
+undo / redo / discard; attachment staging; validation; submit; and an
+optional annotation persistence hook that runs only after a successful
+edit commit. Unsupported sketch, attachment, relationship, conflict, or
+annotation persistence capabilities remain visible in the returned
+snapshot instead of being hidden by component state.
+
 `Source.queryAll()` and `Source.stream()` drain every page the server
 returns — the built-in adapters override the core helpers' 100-page
 default so a large `queryAll()` is not silently truncated. Callers who

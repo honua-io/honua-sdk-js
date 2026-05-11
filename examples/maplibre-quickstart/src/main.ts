@@ -13,13 +13,13 @@ import {
   bindDetailToSelection,
   bindFilterControlsToExploration,
   bindMapExtentToExploration,
-  bindMapSelectionToExploration,
   bindQueryProjectionToExploration,
   bindTableSelectionToExploration,
+  hitTestMap,
   syncFeatureStateSelection,
   syncMapLayerFilterToExploration,
 } from "@honua/sdk-js/interactions";
-import type { FeatureStateMap, InteractiveMap, LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
+import type { FeatureStateMap, HonuaHitTestMap, LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
 
 import { resolveQuickstartConfig } from "./config.js";
 import { type QuickstartDataset, type QuickstartFeatureSummary, loadQuickstartDataset } from "./data.js";
@@ -528,13 +528,20 @@ async function bootstrap(): Promise<void> {
       map.on("mouseleave", layerId, () => {
         map.getCanvas().style.cursor = "";
       });
-      removableHandles.push(
-        bindMapSelectionToExploration(map as unknown as InteractiveMap, mapView, {
-          source: config.sourceId,
-          layer: layerId,
-        }),
-      );
     }
+    const onMapClick = async (event: maplibregl.MapMouseEvent) => {
+      const hit = await hitTestMap(map as unknown as HonuaHitTestMap, event, {
+        layers: interactiveLayerIds,
+        sourceIds: [config.sourceId],
+        featureIdProperty: "id",
+        maxResults: 1,
+        tolerance: 3,
+      });
+      const target = hit.features[0]?.selectionTarget;
+      if (target) mapView.select([target], { replace: true });
+    };
+    map.on("click", onMapClick);
+    removableHandles.push({ remove: () => map.off("click", onMapClick) });
 
     for (const binding of layerFilterBindings) {
       removableHandles.push(

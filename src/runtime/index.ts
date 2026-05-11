@@ -102,6 +102,9 @@ export type {
   HonuaRuntimeTelemetrySpan,
   HonuaRuntimeTelemetrySpanResult,
   MaplibreMap,
+  RuntimeHitTestOptions,
+  RuntimePointerInteractionHandler,
+  RuntimePointerInteractionOptions,
   SetViewStateInput,
 } from "./runtime.js";
 

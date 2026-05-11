@@ -55,6 +55,10 @@
       "types": "./dist/src/contract/index.d.ts",
       "default": "./dist/src/contract/index.js"
     },
+    "./control-plane": {
+      "types": "./dist/src/control-plane/index.d.ts",
+      "default": "./dist/src/control-plane/index.js"
+    },
     "./exploration": {
       "types": "./dist/src/exploration/index.d.ts",
       "default": "./dist/src/exploration/index.js"
@@ -62,6 +66,10 @@
     "./interactions": {
       "types": "./dist/src/interactions/index.d.ts",
       "default": "./dist/src/interactions/index.js"
+    },
+    "./filter-registry": {
+      "types": "./dist/src/filter-registry/index.d.ts",
+      "default": "./dist/src/filter-registry/index.js"
     },
     "./realtime": {
       "types": "./dist/src/realtime/index.d.ts",
@@ -82,6 +90,10 @@
     "./runtime": {
       "types": "./dist/src/runtime/index.d.ts",
       "default": "./dist/src/runtime/index.js"
+    },
+    "./app": {
+      "types": "./dist/src/app/index.d.ts",
+      "default": "./dist/src/app/index.js"
     },
     "./web-components": {
       "types": "./dist/src/web-components/index.d.ts",
@@ -203,6 +215,10 @@
     "demo:web-components:preview": "vite preview --config examples/web-components-basic/vite.config.ts --host 127.0.0.1",
     "demo:web-components:mock": "node examples/web-components-basic/mock-server.mjs",
     "demo:web-components:typecheck": "tsc -p examples/web-components-basic/tsconfig.json --noEmit",
+    "demo:app-bootstrap": "vite --config examples/app-bootstrap-basic/vite.config.ts",
+    "demo:app-bootstrap:build": "vite build --config examples/app-bootstrap-basic/vite.config.ts",
+    "demo:app-bootstrap:preview": "vite preview --config examples/app-bootstrap-basic/vite.config.ts --host 127.0.0.1",
+    "demo:app-bootstrap:typecheck": "tsc -p examples/app-bootstrap-basic/tsconfig.json --noEmit",
     "demo:runtime-parity": "vite --config examples/runtime-parity-showcase/vite.config.ts",
     "demo:runtime-parity:build": "vite build --config examples/runtime-parity-showcase/vite.config.ts",
     "demo:runtime-parity:preview": "vite preview --config examples/runtime-parity-showcase/vite.config.ts --host 127.0.0.1",
@@ -228,6 +244,7 @@
     "test:playwright:terrain-elevation": "playwright test test/playwright/terrain-rgb-elevation.spec.mjs",
     "test:playwright:edit-workflow": "playwright test test/playwright/edit-workflow-demo.spec.mjs",
     "test:playwright:web-components": "playwright test test/playwright/web-components-basic.spec.mjs",
+    "test:playwright:app-bootstrap": "playwright test test/playwright/app-bootstrap-basic.spec.mjs",
     "test:playwright:runtime-parity": "playwright test test/playwright/runtime-parity-showcase.spec.mjs",
     "test:quickstart:staging": "vitest run --config vitest.staging.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
