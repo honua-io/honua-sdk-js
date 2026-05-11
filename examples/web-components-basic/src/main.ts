@@ -100,8 +100,15 @@ const controller = createHonuaWebComponentController({
         {
           id: "basemap-background",
           type: "background",
-          metadata: { title: "Map background" },
+          metadata: { title: "Blue basemap", basemap: true },
           paint: { "background-color": "#e8eef7" },
+        },
+        {
+          id: "basemap-dark",
+          type: "background",
+          metadata: { title: "Dark basemap", basemap: true },
+          layout: { visibility: "none" },
+          paint: { "background-color": "#203040" },
         },
         {
           id: "incident-halos",
@@ -251,6 +258,54 @@ document.addEventListener("honua-search", (event) => {
 document.addEventListener("honua-filter-change", (event) => {
   const detail = (event as CustomEvent<{ sourceId?: string; text?: string }>).detail;
   eventLog.push(`filter:${detail.sourceId ?? ""}:${detail.text ?? ""}`);
+  writeEventLog();
+});
+
+document.addEventListener("honua-basemap-change", (event) => {
+  const detail = (event as CustomEvent<{ basemapId: string }>).detail;
+  eventLog.push(`basemap:${detail.basemapId}`);
+  writeEventLog();
+});
+
+document.addEventListener("honua-bookmark-change", (event) => {
+  const detail = (event as CustomEvent<{ id: string }>).detail;
+  eventLog.push(`bookmark:${detail.id}`);
+  writeEventLog();
+});
+
+document.addEventListener("honua-locate-change", (event) => {
+  const detail = (event as CustomEvent<{ status: string }>).detail;
+  eventLog.push(`locate:${detail.status}`);
+  writeEventLog();
+});
+
+document.addEventListener("honua-measure-change", (event) => {
+  const detail = (event as CustomEvent<{ mode: string; status: string }>).detail;
+  eventLog.push(`measure:${detail.mode}:${detail.status}`);
+  writeEventLog();
+});
+
+document.addEventListener("honua-sketch-change", (event) => {
+  const detail = (event as CustomEvent<{ mode: string; status: string }>).detail;
+  eventLog.push(`sketch:${detail.mode}:${detail.status}`);
+  writeEventLog();
+});
+
+document.addEventListener("honua-export", (event) => {
+  const detail = (event as CustomEvent<{ format: string; status: string }>).detail;
+  eventLog.push(`export:${detail.format}:${detail.status}`);
+  writeEventLog();
+});
+
+document.addEventListener("honua-fullscreen-change", (event) => {
+  const detail = (event as CustomEvent<{ status: string }>).detail;
+  eventLog.push(`fullscreen:${detail.status}`);
+  writeEventLog();
+});
+
+document.addEventListener("honua-action", (event) => {
+  const detail = (event as CustomEvent<{ id: string; status: string }>).detail;
+  eventLog.push(`action:${detail.id}:${detail.status}`);
   writeEventLog();
 });
 

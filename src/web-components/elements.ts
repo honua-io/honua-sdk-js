@@ -4,22 +4,36 @@ import { createHonuaWebComponentController } from "./controller.js";
 import { HonuaMapLibreRenderer } from "./maplibre-renderer.js";
 import type {
   CreateHonuaWebComponentControllerOptions,
+  HonuaActionDetail,
+  HonuaActionPanelAction,
+  HonuaBasemapChangeDetail,
+  HonuaBookmark,
+  HonuaBookmarkChangeDetail,
   HonuaChartModel,
+  HonuaComponentStatus,
   HonuaControllerReadyDetail,
   HonuaEditChangeDetail,
   HonuaEditorModel,
+  HonuaExportDetail,
   HonuaFeatureRecord,
   HonuaFeatureTableModel,
   HonuaFilterChangeDetail,
+  HonuaFullscreenChangeDetail,
   HonuaLayerVisibilityChangeDetail,
+  HonuaLocateChangeDetail,
   HonuaMapClickDetail,
   HonuaMapErrorDetail,
   HonuaMapHoverDetail,
   HonuaMapReadyDetail,
+  HonuaMeasureChangeDetail,
+  HonuaMeasureMode,
   HonuaSearchDetail,
   HonuaSearchResult,
   HonuaSelectionChangeDetail,
+  HonuaSketchChangeDetail,
+  HonuaSketchMode,
   HonuaViewportChangeDetail,
+  HonuaViewportState,
   HonuaWebComponentController,
   HonuaWebComponentState,
 } from "./types.js";
@@ -765,6 +779,483 @@ export class HonuaChartElement<T = Record<string, unknown>> extends HonuaElement
   }
 }
 
+export class HonuaBasemapControlElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
+  static get observedAttributes(): string[] {
+    return ["for", "label"];
+  }
+
+  #activeBasemapId: string | undefined;
+
+  public attributeChangedCallback(): void {
+    this.resolveControllerFromContext();
+    this.render();
+  }
+
+  protected render(): void {
+    const label = this.getAttribute("label") ?? "Basemaps";
+    const basemaps = basemapsFromState(this.state);
+    const active = this.#activeBasemapId ?? basemaps.find((basemap) => basemap.visible)?.id ?? basemaps[0]?.id;
+    this.setShadowHtml(`
+      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
+        <div class="control-panel__bar">
+          <h2>${escapeHtml(label)}</h2>
+          <span>${escapeHtml(basemaps.length >= 2 ? "ready" : "unsupported")}</span>
+        </div>
+        ${
+          basemaps.length < 2
+            ? `<p class="empty" role="status">At least two basemap layers are required.</p>`
+            : `<div class="segmented" role="group" aria-label="${escapeAttribute(label)}">
+              ${basemaps
+                .map(
+                  (basemap) => `
+                <button type="button" data-basemap-id="${escapeAttribute(basemap.id)}" aria-pressed="${String(
+                  basemap.id === active,
+                )}">${escapeHtml(basemap.title)}</button>
+              `,
+                )
+                .join("")}
+            </div>`
+        }
+      </section>
+    `);
+    this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-basemap-id]").forEach((button) => {
+      button.addEventListener("click", () => this.selectBasemap(button.dataset.basemapId));
+    });
+  }
+
+  private selectBasemap(basemapId: string | undefined): void {
+    if (!basemapId) return;
+    const previousBasemapId = this.#activeBasemapId;
+    this.#activeBasemapId = basemapId;
+    for (const basemap of basemapsFromState(this.state)) {
+      this.controller?.setLayerVisibility(basemap.id, basemap.id === basemapId);
+    }
+    this.dispatchTypedEvent<HonuaBasemapChangeDetail>("honua-basemap-change", {
+      basemapId,
+      ...(previousBasemapId ? { previousBasemapId } : {}),
+      status: "ready",
+    });
+    this.render();
+  }
+}
+
+export class HonuaBookmarksElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
+  static get observedAttributes(): string[] {
+    return ["for", "label", "bookmarks"];
+  }
+
+  public attributeChangedCallback(): void {
+    this.resolveControllerFromContext();
+    this.render();
+  }
+
+  protected render(): void {
+    const label = this.getAttribute("label") ?? "Bookmarks";
+    const bookmarks = this.bookmarks();
+    this.setShadowHtml(`
+      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
+        <div class="control-panel__bar">
+          <h2>${escapeHtml(label)}</h2>
+          <span>${escapeHtml(bookmarks.length > 0 ? "ready" : "unsupported")}</span>
+        </div>
+        ${
+          bookmarks.length === 0
+            ? `<p class="empty" role="status">No initial view or bookmarks are available.</p>`
+            : `<div class="button-stack">
+              ${bookmarks
+                .map(
+                  (bookmark) => `
+                <button type="button" data-bookmark-id="${escapeAttribute(bookmark.id)}">${escapeHtml(
+                  bookmark.label,
+                )}</button>
+              `,
+                )
+                .join("")}
+            </div>`
+        }
+      </section>
+    `);
+    this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-bookmark-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const bookmark = this.bookmarks().find((candidate) => candidate.id === button.dataset.bookmarkId);
+        if (bookmark) this.goToBookmark(bookmark);
+      });
+    });
+  }
+
+  private bookmarks(): readonly HonuaBookmark[] {
+    const configured = parseBookmarks(this.getAttribute("bookmarks"));
+    const home = this.state?.mapPackage?.initialView;
+    return [...(home ? [{ id: "home", label: "Home", viewport: home } satisfies HonuaBookmark] : []), ...configured];
+  }
+
+  private goToBookmark(bookmark: HonuaBookmark): void {
+    this.controller?.setViewport(bookmark.viewport);
+    this.dispatchTypedEvent<HonuaBookmarkChangeDetail>("honua-bookmark-change", {
+      ...bookmark,
+      status: "ready",
+    });
+    this.dispatchTypedEvent<HonuaViewportChangeDetail>("honua-viewport-change", bookmark.viewport);
+  }
+}
+
+export class HonuaLocateControlElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
+  static get observedAttributes(): string[] {
+    return ["for", "label", "latitude", "longitude", "zoom"];
+  }
+
+  #status: HonuaComponentStatus = "idle";
+  #message = "";
+
+  public attributeChangedCallback(): void {
+    this.resolveControllerFromContext();
+    this.render();
+  }
+
+  protected render(): void {
+    const label = this.getAttribute("label") ?? "Locate";
+    const supported = this.hasConfiguredLocation() || Boolean(globalThis.navigator?.geolocation);
+    const status = supported ? this.#status : "unsupported";
+    this.setShadowHtml(`
+      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
+        <div class="control-panel__bar">
+          <h2>${escapeHtml(label)}</h2>
+          <span>${escapeHtml(status)}</span>
+        </div>
+        <button type="button" data-locate ${supported ? "" : "disabled"}>Use location</button>
+        <p class="empty" role="status">${escapeHtml(
+          supported ? this.#message || "Centers the shared map controller." : "Geolocation is unavailable.",
+        )}</p>
+      </section>
+    `);
+    this.shadowRoot?.querySelector<HTMLButtonElement>("button[data-locate]")?.addEventListener("click", () => {
+      void this.locate();
+    });
+  }
+
+  private async locate(): Promise<void> {
+    const configured = this.configuredViewport();
+    if (configured) {
+      this.applyLocation(configured);
+      return;
+    }
+    const geolocation = globalThis.navigator?.geolocation;
+    if (!geolocation) {
+      this.#status = "unsupported";
+      this.#message = "Geolocation is unavailable.";
+      this.dispatchTypedEvent<HonuaLocateChangeDetail>("honua-locate-change", {
+        status: "unsupported",
+        message: this.#message,
+      });
+      this.render();
+      return;
+    }
+    this.#status = "loading";
+    this.#message = "Requesting location.";
+    this.render();
+    geolocation.getCurrentPosition(
+      (position) => {
+        this.applyLocation({
+          center: [position.coords.longitude, position.coords.latitude],
+          zoom: this.zoom(),
+        });
+      },
+      (error) => {
+        this.#status = "error";
+        this.#message = error.message;
+        this.dispatchTypedEvent<HonuaLocateChangeDetail>("honua-locate-change", {
+          status: "error",
+          error,
+          message: error.message,
+        });
+        this.render();
+      },
+    );
+  }
+
+  private applyLocation(viewport: HonuaViewportState): void {
+    this.#status = "ready";
+    this.#message = "Location applied.";
+    this.controller?.setViewport(viewport);
+    this.dispatchTypedEvent<HonuaLocateChangeDetail>("honua-locate-change", { status: "ready", viewport });
+    this.dispatchTypedEvent<HonuaViewportChangeDetail>("honua-viewport-change", viewport);
+    this.render();
+  }
+
+  private hasConfiguredLocation(): boolean {
+    return this.configuredViewport() !== undefined;
+  }
+
+  private configuredViewport(): HonuaViewportState | undefined {
+    const latitude = Number(this.getAttribute("latitude"));
+    const longitude = Number(this.getAttribute("longitude"));
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return undefined;
+    return { center: [longitude, latitude], zoom: this.zoom() };
+  }
+
+  private zoom(): number {
+    const zoom = Number(this.getAttribute("zoom"));
+    return Number.isFinite(zoom) ? zoom : 14;
+  }
+}
+
+export class HonuaMeasureControlElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
+  static get observedAttributes(): string[] {
+    return ["for", "label"];
+  }
+
+  #mode: HonuaMeasureMode = "off";
+
+  public attributeChangedCallback(): void {
+    this.resolveControllerFromContext();
+    this.render();
+  }
+
+  protected render(): void {
+    const label = this.getAttribute("label") ?? "Measure";
+    this.setShadowHtml(`
+      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
+        <div class="control-panel__bar">
+          <h2>${escapeHtml(label)}</h2>
+          <span>unsupported</span>
+        </div>
+        <div class="segmented" role="group" aria-label="${escapeAttribute(label)}">
+          ${(["off", "distance", "area"] as const)
+            .map(
+              (mode) => `
+            <button type="button" data-measure-mode="${mode}" aria-pressed="${String(this.#mode === mode)}">${escapeHtml(
+              modeLabel(mode),
+            )}</button>
+          `,
+            )
+            .join("")}
+        </div>
+        <p class="empty" role="status">Measurement geometry is not available from the current controller.</p>
+      </section>
+    `);
+    this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-measure-mode]").forEach((button) => {
+      button.addEventListener("click", () => this.setMode((button.dataset.measureMode ?? "off") as HonuaMeasureMode));
+    });
+  }
+
+  private setMode(mode: HonuaMeasureMode): void {
+    this.#mode = mode;
+    this.dispatchTypedEvent<HonuaMeasureChangeDetail>("honua-measure-change", {
+      mode,
+      status: "unsupported",
+      message: "Measurement geometry is not available from the current controller.",
+    });
+    this.render();
+  }
+}
+
+export class HonuaSketchControlElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
+  static get observedAttributes(): string[] {
+    return ["for", "label"];
+  }
+
+  #mode: HonuaSketchMode = "off";
+
+  public attributeChangedCallback(): void {
+    this.resolveControllerFromContext();
+    this.render();
+  }
+
+  protected render(): void {
+    const label = this.getAttribute("label") ?? "Sketch";
+    this.setShadowHtml(`
+      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
+        <div class="control-panel__bar">
+          <h2>${escapeHtml(label)}</h2>
+          <span>unsupported</span>
+        </div>
+        <div class="segmented" role="group" aria-label="${escapeAttribute(label)}">
+          ${(["off", "point", "line", "polygon"] as const)
+            .map(
+              (mode) => `
+            <button type="button" data-sketch-mode="${mode}" aria-pressed="${String(this.#mode === mode)}">${escapeHtml(
+              modeLabel(mode),
+            )}</button>
+          `,
+            )
+            .join("")}
+        </div>
+        <p class="empty" role="status">Sketch editing is not available from the current controller.</p>
+      </section>
+    `);
+    this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-sketch-mode]").forEach((button) => {
+      button.addEventListener("click", () => this.setMode((button.dataset.sketchMode ?? "off") as HonuaSketchMode));
+    });
+  }
+
+  private setMode(mode: HonuaSketchMode): void {
+    this.#mode = mode;
+    this.dispatchTypedEvent<HonuaSketchChangeDetail>("honua-sketch-change", {
+      mode,
+      status: "unsupported",
+      message: "Sketch editing is not available from the current controller.",
+    });
+    this.render();
+  }
+}
+
+export class HonuaPrintExportElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
+  static get observedAttributes(): string[] {
+    return ["for", "label", "title"];
+  }
+
+  public attributeChangedCallback(): void {
+    this.resolveControllerFromContext();
+    this.render();
+  }
+
+  protected render(): void {
+    const label = this.getAttribute("label") ?? "Print and export";
+    this.setShadowHtml(`
+      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
+        <div class="control-panel__bar">
+          <h2>${escapeHtml(label)}</h2>
+          <span>${escapeHtml(typeof window !== "undefined" && typeof window.print === "function" ? "ready" : "unsupported")}</span>
+        </div>
+        <div class="button-stack">
+          <button type="button" data-export-format="print">Print</button>
+          <button type="button" data-export-format="png">Snapshot</button>
+          <button type="button" data-export-format="json">State JSON</button>
+        </div>
+      </section>
+    `);
+    this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-export-format]").forEach((button) => {
+      button.addEventListener("click", () => this.export(button.dataset.exportFormat as HonuaExportDetail["format"]));
+    });
+  }
+
+  private export(format: HonuaExportDetail["format"]): void {
+    const title = this.getAttribute("title") ?? this.state?.packageId ?? undefined;
+    if (format === "print" && typeof window !== "undefined" && typeof window.print === "function") {
+      this.dispatchTypedEvent<HonuaExportDetail>("honua-export", {
+        format,
+        status: "ready",
+        ...(title ? { title } : {}),
+      });
+      window.print();
+      return;
+    }
+    const message =
+      format === "print"
+        ? "Window printing is unavailable."
+        : "Snapshot export requires an application adapter to avoid leaking private map credentials.";
+    this.dispatchTypedEvent<HonuaExportDetail>("honua-export", {
+      format,
+      status: "unsupported",
+      ...(title ? { title } : {}),
+      message,
+    });
+  }
+}
+
+export class HonuaMapStatusElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
+  static get observedAttributes(): string[] {
+    return ["for", "label", "attribution"];
+  }
+
+  public attributeChangedCallback(): void {
+    this.resolveControllerFromContext();
+    this.render();
+  }
+
+  protected render(): void {
+    const label = this.getAttribute("label") ?? "Map status";
+    const attribution = this.getAttribute("attribution") ?? this.state?.mapPackage?.mapPackageId ?? "Honua";
+    this.setShadowHtml(`
+      <style>${baseStyles()}${mapStatusStyles()}</style>
+      <section class="map-status" part="panel" aria-label="${escapeHtml(label)}">
+        <span aria-label="Approximate scale">${escapeHtml(approximateScale(this.state?.viewport))}</span>
+        <span aria-label="Attribution">${escapeHtml(attribution)}</span>
+        <button type="button" data-fullscreen>Fullscreen</button>
+      </section>
+    `);
+    this.shadowRoot?.querySelector<HTMLButtonElement>("button[data-fullscreen]")?.addEventListener("click", () => {
+      void this.toggleFullscreen();
+    });
+  }
+
+  private async toggleFullscreen(): Promise<void> {
+    const root = this.getRootNode?.() as Document | ShadowRoot | undefined;
+    const mapId = this.getAttribute("for");
+    const target = mapId ? getElementById(root, mapId) : this;
+    const requestFullscreen = (target as { requestFullscreen?: () => Promise<void> } | null)?.requestFullscreen;
+    if (!requestFullscreen) {
+      this.dispatchTypedEvent<HonuaFullscreenChangeDetail>("honua-fullscreen-change", {
+        fullscreen: false,
+        status: "unsupported",
+        message: "Fullscreen is unavailable.",
+      });
+      return;
+    }
+    await requestFullscreen.call(target);
+    this.dispatchTypedEvent<HonuaFullscreenChangeDetail>("honua-fullscreen-change", {
+      fullscreen: true,
+      status: "ready",
+    });
+  }
+}
+
+export class HonuaActionPanelElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
+  static get observedAttributes(): string[] {
+    return ["for", "label", "actions"];
+  }
+
+  public attributeChangedCallback(): void {
+    this.resolveControllerFromContext();
+    this.render();
+  }
+
+  protected render(): void {
+    const label = this.getAttribute("label") ?? "Actions";
+    const actions = parseActions(this.getAttribute("actions"));
+    this.setShadowHtml(`
+      <style>${baseStyles()}${controlPanelStyles()}</style>
+      <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
+        <div class="control-panel__bar">
+          <h2>${escapeHtml(label)}</h2>
+          <span>${escapeHtml(actions.length > 0 ? "ready" : "unsupported")}</span>
+        </div>
+        ${
+          actions.length === 0
+            ? `<p class="empty" role="status">No actions are configured.</p>`
+            : `<div class="button-stack">
+              ${actions
+                .map(
+                  (action) => `
+                <button type="button" data-action-id="${escapeAttribute(action.id)}" ${action.disabled ? "disabled" : ""}>${escapeHtml(
+                  action.label,
+                )}</button>
+              `,
+                )
+                .join("")}
+            </div>`
+        }
+      </section>
+    `);
+    this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-action-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = actions.find((candidate) => candidate.id === button.dataset.actionId);
+        if (!action) return;
+        this.dispatchTypedEvent<HonuaActionDetail>("honua-action", {
+          ...action,
+          status: action.disabled ? "unsupported" : "ready",
+        });
+      });
+    });
+  }
+}
+
 export function defineHonuaWebComponents(registry = globalDom.customElements): void {
   if (!registry) return;
   defineIfMissing(registry, "honua-map", HonuaMapElement);
@@ -774,6 +1265,14 @@ export function defineHonuaWebComponents(registry = globalDom.customElements): v
   defineIfMissing(registry, "honua-search", HonuaSearchElement);
   defineIfMissing(registry, "honua-editor", HonuaEditorElement);
   defineIfMissing(registry, "honua-chart", HonuaChartElement);
+  defineIfMissing(registry, "honua-basemap-control", HonuaBasemapControlElement);
+  defineIfMissing(registry, "honua-bookmarks", HonuaBookmarksElement);
+  defineIfMissing(registry, "honua-locate-control", HonuaLocateControlElement);
+  defineIfMissing(registry, "honua-measure-control", HonuaMeasureControlElement);
+  defineIfMissing(registry, "honua-sketch-control", HonuaSketchControlElement);
+  defineIfMissing(registry, "honua-print-export", HonuaPrintExportElement);
+  defineIfMissing(registry, "honua-map-status", HonuaMapStatusElement);
+  defineIfMissing(registry, "honua-action-panel", HonuaActionPanelElement);
 }
 
 function defineIfMissing(registry: CustomElementRegistry, tagName: string, ctor: CustomElementConstructor): void {
@@ -826,6 +1325,52 @@ function defaultChartModel(title: string): HonuaChartModel {
   };
 }
 
+function basemapsFromState<T>(
+  state: HonuaWebComponentState<T> | undefined,
+): readonly { id: string; title: string; visible: boolean }[] {
+  return (state?.layers ?? [])
+    .filter((layer) => layer.type === "background" || layer.metadata?.basemap === true)
+    .map((layer) => ({ id: layer.id, title: layer.title, visible: layer.visible }));
+}
+
+function parseBookmarks(value: string | null): readonly HonuaBookmark[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item): HonuaBookmark[] => {
+      if (!item || typeof item !== "object") return [];
+      const candidate = item as Partial<HonuaBookmark>;
+      if (!candidate.id || !candidate.label || !candidate.viewport) return [];
+      return [{ id: String(candidate.id), label: String(candidate.label), viewport: candidate.viewport }];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function parseActions(value: string | null): readonly HonuaActionPanelAction[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item): HonuaActionPanelAction[] => {
+      if (!item || typeof item !== "object") return [];
+      const candidate = item as Partial<HonuaActionPanelAction>;
+      if (!candidate.id || !candidate.label) return [];
+      return [
+        {
+          id: String(candidate.id),
+          label: String(candidate.label),
+          ...(candidate.disabled ? { disabled: true } : {}),
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
 function inferFields<T>(rows: readonly HonuaFeatureRecord<T>[]): string[] {
   const fields = new Set<string>();
   for (const row of rows) {
@@ -843,6 +1388,19 @@ function formatCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+function modeLabel(mode: string): string {
+  return mode.charAt(0).toUpperCase() + mode.slice(1);
+}
+
+function approximateScale(viewport: HonuaViewportState | undefined): string {
+  const zoom = viewport?.zoom;
+  if (!Number.isFinite(zoom)) return "Scale unavailable";
+  const latitude = viewport?.center?.[1] ?? 0;
+  const metersPerPixel = (156543.03392 * Math.cos((latitude * Math.PI) / 180)) / 2 ** Number(zoom);
+  const scale = Math.max(1, Math.round(metersPerPixel * 96 * 39.37));
+  return `1:${scale.toLocaleString("en-US")}`;
 }
 
 function setText(element: Element | null | undefined, value: string): void {
@@ -1088,6 +1646,76 @@ function chartStyles(): string {
   `;
 }
 
+function controlPanelStyles(): string {
+  return `
+    .control-panel {
+      background: var(--honua-ui-bg);
+      border: 1px solid var(--honua-ui-border);
+      border-radius: 8px;
+      display: grid;
+      gap: 10px;
+      min-width: 180px;
+      padding: 10px;
+    }
+    .control-panel__bar {
+      align-items: center;
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+    }
+    .control-panel__bar span {
+      color: var(--honua-ui-muted);
+      font-size: 12px;
+    }
+    .button-stack {
+      display: grid;
+      gap: 6px;
+    }
+    .button-stack button {
+      justify-content: flex-start;
+      text-align: left;
+    }
+    .segmented {
+      display: grid;
+      gap: 6px;
+      grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    }
+    .segmented button {
+      min-width: 0;
+      padding: 0 8px;
+    }
+    button[aria-pressed="true"] {
+      background: var(--honua-ui-accent);
+      border-color: var(--honua-ui-accent);
+      color: var(--honua-ui-accent-fg);
+    }
+    p {
+      margin: 0;
+    }
+  `;
+}
+
+function mapStatusStyles(): string {
+  return `
+    .map-status {
+      align-items: center;
+      background: var(--honua-ui-bg);
+      border: 1px solid var(--honua-ui-border);
+      border-radius: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: space-between;
+      min-height: 42px;
+      padding: 6px 8px;
+    }
+    span {
+      color: var(--honua-ui-muted);
+      min-width: 0;
+    }
+  `;
+}
+
 declare global {
   interface HTMLElementTagNameMap {
     "honua-map": HonuaMapElement;
@@ -1097,6 +1725,14 @@ declare global {
     "honua-search": HonuaSearchElement;
     "honua-editor": HonuaEditorElement;
     "honua-chart": HonuaChartElement;
+    "honua-basemap-control": HonuaBasemapControlElement;
+    "honua-bookmarks": HonuaBookmarksElement;
+    "honua-locate-control": HonuaLocateControlElement;
+    "honua-measure-control": HonuaMeasureControlElement;
+    "honua-sketch-control": HonuaSketchControlElement;
+    "honua-print-export": HonuaPrintExportElement;
+    "honua-map-status": HonuaMapStatusElement;
+    "honua-action-panel": HonuaActionPanelElement;
   }
 
   interface HTMLElementEventMap {
@@ -1111,5 +1747,13 @@ declare global {
     "honua-filter-change": CustomEvent<HonuaFilterChangeDetail>;
     "honua-search": CustomEvent<HonuaSearchDetail>;
     "honua-edit-change": CustomEvent<HonuaEditChangeDetail>;
+    "honua-basemap-change": CustomEvent<HonuaBasemapChangeDetail>;
+    "honua-bookmark-change": CustomEvent<HonuaBookmarkChangeDetail>;
+    "honua-locate-change": CustomEvent<HonuaLocateChangeDetail>;
+    "honua-measure-change": CustomEvent<HonuaMeasureChangeDetail>;
+    "honua-sketch-change": CustomEvent<HonuaSketchChangeDetail>;
+    "honua-export": CustomEvent<HonuaExportDetail>;
+    "honua-fullscreen-change": CustomEvent<HonuaFullscreenChangeDetail>;
+    "honua-action": CustomEvent<HonuaActionDetail>;
   }
 }

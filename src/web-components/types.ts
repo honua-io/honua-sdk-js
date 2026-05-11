@@ -272,3 +272,65 @@ export interface HonuaEditChangeDetail<T = Record<string, unknown>> {
 export interface HonuaControllerReadyDetail<T = Record<string, unknown>> {
   controller: HonuaWebComponentController<T>;
 }
+
+export interface HonuaBasemapChangeDetail {
+  basemapId: string;
+  previousBasemapId?: string;
+  status: HonuaComponentStatus;
+}
+
+export interface HonuaBookmark {
+  id: string;
+  label: string;
+  viewport: HonuaViewportState;
+}
+
+export interface HonuaBookmarkChangeDetail extends HonuaBookmark {
+  status: HonuaComponentStatus;
+}
+
+export interface HonuaLocateChangeDetail {
+  status: HonuaComponentStatus;
+  viewport?: HonuaViewportState;
+  error?: unknown;
+  message?: string;
+}
+
+export type HonuaMeasureMode = "off" | "distance" | "area";
+
+export interface HonuaMeasureChangeDetail {
+  mode: HonuaMeasureMode;
+  status: HonuaComponentStatus;
+  message?: string;
+}
+
+export type HonuaSketchMode = "off" | "point" | "line" | "polygon";
+
+export interface HonuaSketchChangeDetail {
+  mode: HonuaSketchMode;
+  status: HonuaComponentStatus;
+  message?: string;
+}
+
+export interface HonuaExportDetail {
+  format: "print" | "png" | "json";
+  status: HonuaComponentStatus;
+  title?: string;
+  message?: string;
+}
+
+export interface HonuaFullscreenChangeDetail {
+  fullscreen: boolean;
+  status: HonuaComponentStatus;
+  message?: string;
+}
+
+export interface HonuaActionPanelAction {
+  id: string;
+  label: string;
+  disabled?: boolean;
+}
+
+export interface HonuaActionDetail extends HonuaActionPanelAction {
+  status: HonuaComponentStatus;
+}
