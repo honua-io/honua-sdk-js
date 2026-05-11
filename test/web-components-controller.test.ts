@@ -104,6 +104,29 @@ describe("Honua web component controller", () => {
     expect((await controller.queryFeatures("incidents")).rows.map((row) => row.id)).toEqual([2, 3]);
   });
 
+  it("tracks source-qualified feature-state patches for renderers", () => {
+    const controller = createHonuaWebComponentController({
+      mapPackage: mapPackage(),
+      featuresBySource: { incidents: features },
+    });
+
+    controller.setFeatureState({ sourceId: "incidents", featureId: 1 }, { selected: true });
+    controller.setFeatureState({ sourceId: "incidents", featureId: 1 }, { hover: true });
+    controller.setFeatureState({ sourceId: "incidents", featureId: 2, sourceLayer: "events" }, { selected: true });
+
+    expect(controller.getState().featureStates).toEqual([
+      { sourceId: "incidents", featureId: 1, state: { selected: true, hover: true } },
+      { sourceId: "incidents", featureId: 2, sourceLayer: "events", state: { selected: true } },
+    ]);
+
+    controller.removeFeatureState({ sourceId: "incidents", featureId: 1 }, "hover");
+    controller.removeFeatureState({ sourceId: "incidents", featureId: 2, sourceLayer: "events" });
+
+    expect(controller.getState().featureStates).toEqual([
+      { sourceId: "incidents", featureId: 1, state: { selected: true } },
+    ]);
+  });
+
   it("adapts an existing runtime without taking over controller internals", async () => {
     const setLayerVisibility = vi.fn();
     const setViewState = vi.fn();

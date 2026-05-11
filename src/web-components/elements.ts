@@ -1,4 +1,7 @@
+import type { HonuaClient } from "../core/client.js";
+import type { MapPackageLocator } from "../runtime/index.js";
 import { createHonuaWebComponentController } from "./controller.js";
+import { HonuaMapLibreRenderer } from "./maplibre-renderer.js";
 import type {
   CreateHonuaWebComponentControllerOptions,
   HonuaChartModel,
@@ -9,6 +12,10 @@ import type {
   HonuaFeatureTableModel,
   HonuaFilterChangeDetail,
   HonuaLayerVisibilityChangeDetail,
+  HonuaMapClickDetail,
+  HonuaMapErrorDetail,
+  HonuaMapHoverDetail,
+  HonuaMapReadyDetail,
   HonuaSearchDetail,
   HonuaSearchResult,
   HonuaSelectionChangeDetail,
@@ -128,10 +135,40 @@ abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElement
 
 export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
-    return ["map-package", "label"];
+    return ["map-package", "package-url", "src", "label"];
   }
 
   #options: CreateHonuaWebComponentControllerOptions<T> = {};
+  #client: HonuaClient | undefined;
+  #packageUrl: string | undefined;
+  #renderer: HonuaMapLibreRenderer<T> | undefined;
+  #packageLoadToken = 0;
+
+  public get map(): unknown | undefined {
+    return this.#renderer?.map;
+  }
+
+  public get runtime(): unknown | undefined {
+    return this.#renderer?.runtime;
+  }
+
+  public get client(): HonuaClient | undefined {
+    return this.#client;
+  }
+
+  public set client(client: HonuaClient | undefined) {
+    this.#client = client;
+    void this.syncRenderer();
+  }
+
+  public get packageUrl(): string | undefined {
+    return this.#packageUrl;
+  }
+
+  public set packageUrl(value: string | undefined) {
+    this.#packageUrl = value?.trim() || undefined;
+    if (this.#packageUrl) void this.loadPackageFromUrl(this.#packageUrl);
+  }
 
   public get mapPackage(): CreateHonuaWebComponentControllerOptions<T>["mapPackage"] {
     return this.#options.mapPackage;
@@ -139,7 +176,12 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
 
   public set mapPackage(mapPackage: CreateHonuaWebComponentControllerOptions<T>["mapPackage"]) {
     this.#options = { ...this.#options, ...(mapPackage ? { mapPackage } : { mapPackage: undefined }) };
-    if (!this.controller) this.ensureController();
+    if (mapPackage) {
+      this.controller = createHonuaWebComponentController(this.#options);
+    } else if (!this.controller) {
+      this.ensureController();
+    }
+    void this.syncRenderer();
     this.render();
   }
 
@@ -167,8 +209,14 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
       try {
         this.mapPackage = JSON.parse(newValue) as CreateHonuaWebComponentControllerOptions<T>["mapPackage"];
       } catch {
-        // Invalid inline JSON is surfaced visually by the empty component state.
+        this.dispatchTypedEvent<HonuaMapErrorDetail>("honua-map-error", {
+          error: new Error("Invalid map-package JSON."),
+          message: "Invalid map-package JSON.",
+        });
       }
+    }
+    if ((name === "package-url" || name === "src") && newValue !== null) {
+      this.packageUrl = newValue;
     }
     this.render();
   }
@@ -176,12 +224,26 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   public connectedCallback(): void {
     super.connectedCallback();
     this.ensureController();
+    if (this.#packageUrl && !this.state?.mapPackage) void this.loadPackageFromUrl(this.#packageUrl);
+    void this.syncRenderer();
+  }
+
+  public disconnectedCallback(): void {
+    this.#packageLoadToken += 1;
+    this.#renderer?.disconnect();
+    this.#renderer = undefined;
+    super.disconnectedCallback();
   }
 
   protected controllerChanged(controller: HonuaWebComponentController<T> | undefined): void {
     if (controller) {
       this.dispatchTypedEvent<HonuaControllerReadyDetail<T>>("honua-controller-ready", { controller });
     }
+    void this.syncRenderer();
+  }
+
+  protected stateChanged(state: HonuaWebComponentState<T>): void {
+    void this.#renderer?.applyState(state);
   }
 
   protected render(): void {
@@ -190,26 +252,51 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     const viewport = state?.viewport ?? {};
     const visibleLayers = layers.filter((layer) => layer.visible);
     const label = this.getAttribute("label") ?? state?.mapPackage?.mapPackageId ?? "Honua map";
-    this.setShadowHtml(`
-      <style>${baseStyles()}${mapStyles()}</style>
-      <section part="map" class="map" role="region" aria-label="${escapeHtml(label)}" tabindex="0">
-        <div class="map__chrome">
-          <div class="map__title">${escapeHtml(label)}</div>
-          <div class="map__controls" aria-label="Map controls">
-            <button type="button" class="icon-button" data-zoom="out" aria-label="Zoom out">-</button>
-            <output class="zoom" aria-label="Zoom">${escapeHtml(String(viewport.zoom ?? 0))}</output>
-            <button type="button" class="icon-button" data-zoom="in" aria-label="Zoom in">+</button>
+    const root = this.shadowRoot ?? this;
+    if (!root.querySelector?.(".map")) {
+      this.setShadowHtml(`
+        <style>${baseStyles()}${mapStyles()}</style>
+        <section part="map" class="map" role="region" aria-label="${escapeHtml(label)}" tabindex="0">
+          <div class="map__chrome">
+            <div class="map__title"></div>
+            <div class="map__controls" aria-label="Map controls">
+              <button type="button" class="icon-button" data-zoom="out" aria-label="Zoom out">-</button>
+              <output class="zoom" aria-label="Zoom">0</output>
+              <button type="button" class="icon-button" data-zoom="in" aria-label="Zoom in">+</button>
+            </div>
           </div>
-        </div>
-        <div class="map__canvas" part="canvas">
-          ${visibleLayers.map((layer, index) => layerBackdrop(layer.title, index, visibleLayers.length)).join("")}
-        </div>
-        <div class="map__footer">
-          <span>${escapeHtml(String(visibleLayers.length))} visible</span>
-          <span>${viewport.center ? escapeHtml(viewport.center.join(", ")) : "No center"}</span>
-        </div>
-      </section>
-    `);
+          <div class="map__canvas" part="canvas">
+            <div class="map__renderer" part="renderer"></div>
+            <div class="map__status" aria-live="polite"></div>
+          </div>
+          <div class="map__footer">
+            <span data-visible-layers>0 visible</span>
+            <span data-center>No center</span>
+          </div>
+        </section>
+      `);
+      this.bindMapChrome();
+    }
+
+    const nextRoot = this.shadowRoot ?? this;
+    nextRoot.querySelector(".map")?.setAttribute("aria-label", label);
+    setText(nextRoot.querySelector(".map__title"), label);
+    setText(nextRoot.querySelector(".zoom"), String(viewport.zoom?.toFixed?.(1) ?? viewport.zoom ?? 0));
+    setText(nextRoot.querySelector("[data-visible-layers]"), `${String(visibleLayers.length)} visible`);
+    setText(nextRoot.querySelector("[data-center]"), viewport.center ? viewport.center.join(", ") : "No center");
+    setText(
+      nextRoot.querySelector(".map__status"),
+      state?.mapPackage ? "" : this.#packageUrl ? "Loading map package" : "No map package",
+    );
+    void this.syncRenderer();
+  }
+
+  private ensureController(): void {
+    if (this.controller) return;
+    this.controller = createHonuaWebComponentController(this.#options);
+  }
+
+  private bindMapChrome(): void {
     this.shadowRoot?.querySelectorAll<HTMLButtonElement>("[data-zoom]").forEach((button) => {
       button.addEventListener("click", () => {
         const direction = button.dataset.zoom === "in" ? 1 : -1;
@@ -220,9 +307,63 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     });
   }
 
-  private ensureController(): void {
-    if (this.controller) return;
-    this.controller = createHonuaWebComponentController(this.#options);
+  private async syncRenderer(): Promise<void> {
+    if (!this.isConnected || !this.controller) return;
+    const container = this.shadowRoot?.querySelector<HTMLElement>(".map__renderer");
+    if (!container) return;
+    if (!this.#renderer) {
+      this.#renderer = new HonuaMapLibreRenderer<T>({
+        container,
+        getClient: () => this.#client,
+        getController: () => this.controller,
+        onReady: (detail) => {
+          this.dispatchTypedEvent<HonuaMapReadyDetail<T>>("honua-map-ready", detail);
+          this.render();
+        },
+        onError: (detail) => {
+          this.dispatchTypedEvent<HonuaMapErrorDetail>("honua-map-error", detail);
+          setText(this.shadowRoot?.querySelector(".map__status"), detail.message);
+        },
+        onViewport: (detail) => {
+          this.dispatchTypedEvent<HonuaViewportChangeDetail>("honua-viewport-change", detail);
+          this.render();
+        },
+        onClick: (detail) => this.dispatchTypedEvent<HonuaMapClickDetail<T>>("honua-map-click", detail),
+        onHover: (detail) => this.dispatchTypedEvent<HonuaMapHoverDetail<T>>("honua-map-hover", detail),
+        onSelection: (detail) =>
+          this.dispatchTypedEvent<HonuaSelectionChangeDetail<T>>("honua-selection-change", detail),
+      });
+    }
+    const state = this.controller.getState();
+    this.state = state;
+    await this.#renderer.applyState(state);
+  }
+
+  private async loadPackageFromUrl(locator: MapPackageLocator): Promise<void> {
+    const token = ++this.#packageLoadToken;
+    try {
+      const [{ fetchMapPackage }, { HonuaClient }] = await Promise.all([
+        import("../runtime/index.js"),
+        import("../core/client.js"),
+      ]);
+      if (token !== this.#packageLoadToken) return;
+      const client = this.#client ?? new HonuaClient({ baseUrl: browserOrigin() });
+      const result = await fetchMapPackage(locator, {
+        client,
+        requireStyleRefResolution: false,
+        allowInvalid: false,
+      });
+      if (token !== this.#packageLoadToken) return;
+      this.mapPackage = result.mapPackage;
+      await this.syncRenderer();
+      this.render();
+    } catch (error) {
+      if (token !== this.#packageLoadToken) return;
+      this.dispatchTypedEvent<HonuaMapErrorDetail>("honua-map-error", {
+        error,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
 
@@ -698,18 +839,18 @@ function getElementById(root: Document | ShadowRoot | undefined, id: string): El
   return typeof document !== "undefined" ? document.getElementById(id) : null;
 }
 
-function layerBackdrop(title: string, index: number, total: number): string {
-  const top = 18 + index * 12;
-  const height = Math.max(18, 72 - total * 4);
-  return `<div class="layer-plane" style="--top:${top}px;--height:${height}px;--shade:${index}" aria-hidden="true"></div><span class="layer-label" style="--top:${
-    top + height + 4
-  }px">${escapeHtml(title)}</span>`;
-}
-
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+function setText(element: Element | null | undefined, value: string): void {
+  if (element) element.textContent = value;
+}
+
+function browserOrigin(): string {
+  return typeof window !== "undefined" && window.location?.origin ? window.location.origin : "http://localhost";
 }
 
 function escapeHtml(value: string): string {
@@ -791,26 +932,46 @@ function mapStyles(): string {
         #bfdbfe;
       background-size: 40px 40px;
       min-height: 220px;
+      overflow: hidden;
       position: relative;
     }
-    .layer-plane {
-      background: color-mix(in srgb, #2563eb calc(25% + var(--shade) * 10%), #16a34a);
-      border: 1px solid rgba(15, 23, 42, 0.18);
-      border-radius: 8px;
-      height: var(--height);
-      left: calc(18px + var(--shade) * 24px);
-      opacity: 0.74;
+    .map__renderer {
+      height: 100%;
+      inset: 0;
+      min-height: inherit;
       position: absolute;
-      right: calc(24px + var(--shade) * 18px);
-      top: var(--top);
+      width: 100%;
     }
-    .layer-label {
-      background: rgba(255,255,255,0.82);
-      border-radius: 4px;
-      left: calc(22px + var(--shade, 0) * 24px);
-      padding: 2px 6px;
+    .map__renderer.maplibregl-map,
+    .map__renderer .maplibregl-map,
+    .map__renderer .maplibregl-canvas-container,
+    .map__renderer .maplibregl-canvas {
+      height: 100%;
+      width: 100%;
+    }
+    .map__renderer .maplibregl-canvas-container {
+      inset: 0;
       position: absolute;
-      top: var(--top);
+    }
+    .map__renderer .maplibregl-canvas {
+      left: 0;
+      position: absolute;
+      top: 0;
+    }
+    .map__status {
+      background: rgba(255,255,255,0.86);
+      border-radius: 6px;
+      color: var(--honua-ui-muted);
+      left: 10px;
+      padding: 4px 7px;
+      position: absolute;
+      top: 10px;
+      z-index: 1;
+    }
+    .map__status:empty { display: none; }
+    .maplibregl-ctrl-attrib,
+    .maplibregl-control-container {
+      display: none;
     }
   `;
 }
@@ -940,6 +1101,10 @@ declare global {
 
   interface HTMLElementEventMap {
     "honua-controller-ready": CustomEvent<HonuaControllerReadyDetail>;
+    "honua-map-ready": CustomEvent<HonuaMapReadyDetail>;
+    "honua-map-error": CustomEvent<HonuaMapErrorDetail>;
+    "honua-map-click": CustomEvent<HonuaMapClickDetail>;
+    "honua-map-hover": CustomEvent<HonuaMapHoverDetail>;
     "honua-layer-visibility-change": CustomEvent<HonuaLayerVisibilityChangeDetail>;
     "honua-selection-change": CustomEvent<HonuaSelectionChangeDetail>;
     "honua-viewport-change": CustomEvent<HonuaViewportChangeDetail>;

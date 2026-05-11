@@ -8,6 +8,8 @@ import type {
   HonuaControllerStateListener,
   HonuaEditorModel,
   HonuaFeatureRecord,
+  HonuaFeatureStateEntry,
+  HonuaFeatureStateTarget,
   HonuaFeatureTableModel,
   HonuaFilterState,
   HonuaLayerModel,
@@ -63,6 +65,7 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
       viewport: { ...(options.viewport ?? options.mapPackage?.initialView ?? {}) },
       featuresBySource,
       filters: {},
+      featureStates: [],
       ...(options.editor || options.mapPackage
         ? { editor: normalizeEditor(options.editor, firstSourceId(featuresBySource, layers)) }
         : {}),
@@ -162,6 +165,49 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
             },
           }
         : {}),
+    };
+    this.#notify();
+  }
+
+  public setFeatureState(target: HonuaFeatureStateTarget, state: Record<string, unknown>): void {
+    const key = featureStateKey(target);
+    const previous = this.#state.featureStates.find((entry) => featureStateKey(entry) === key);
+    const nextEntry: HonuaFeatureStateEntry = {
+      sourceId: target.sourceId,
+      featureId: target.featureId,
+      ...(target.sourceLayer !== undefined ? { sourceLayer: target.sourceLayer } : {}),
+      state: { ...(previous?.state ?? {}), ...state },
+    };
+    this.#state = {
+      ...this.#state,
+      featureStates: [
+        ...this.#state.featureStates.filter((entry) => featureStateKey(entry) !== key).map(copyFeatureStateEntry),
+        nextEntry,
+      ],
+    };
+    this.#notify();
+  }
+
+  public removeFeatureState(target: HonuaFeatureStateTarget, key?: string): void {
+    const targetKey = featureStateKey(target);
+    this.#state = {
+      ...this.#state,
+      featureStates: this.#state.featureStates.flatMap((entry) => {
+        if (featureStateKey(entry) !== targetKey) return [copyFeatureStateEntry(entry)];
+        if (key === undefined) return [];
+        const nextState = { ...entry.state };
+        delete nextState[key];
+        return Object.keys(nextState).length > 0
+          ? [
+              {
+                sourceId: entry.sourceId,
+                featureId: entry.featureId,
+                ...(entry.sourceLayer !== undefined ? { sourceLayer: entry.sourceLayer } : {}),
+                state: nextState,
+              },
+            ]
+          : [];
+      }),
     };
     this.#notify();
   }
@@ -461,6 +507,7 @@ function copyState<T>(state: HonuaWebComponentState<T>): HonuaWebComponentState<
     legend: state.legend.map(copyLegendItem),
     viewport: { ...state.viewport },
     featuresBySource,
+    featureStates: state.featureStates.map(copyFeatureStateEntry),
     filters: Object.fromEntries(Object.entries(state.filters).map(([sourceId, filter]) => [sourceId, { ...filter }])),
     ...(state.selection ? { selection: copySelection(state.selection) } : { selection: undefined }),
     ...(state.editor ? { editor: copyEditorModel(state.editor) } : {}),
@@ -474,6 +521,21 @@ function copySelection<T>(selection: HonuaSelectionState<T>): HonuaSelectionStat
     ...(selection.featureId !== undefined ? { featureId: selection.featureId } : {}),
     ...(selection.feature ? { feature: copyFeature(selection.feature) } : {}),
   };
+}
+
+function copyFeatureStateEntry(entry: HonuaFeatureStateEntry): HonuaFeatureStateEntry {
+  return {
+    sourceId: entry.sourceId,
+    featureId: entry.featureId,
+    ...(entry.sourceLayer !== undefined ? { sourceLayer: entry.sourceLayer } : {}),
+    state: { ...entry.state },
+  };
+}
+
+function featureStateKey(target: HonuaFeatureStateTarget): string {
+  return `${target.sourceId}\u0000${target.sourceLayer ?? ""}\u0000${typeof target.featureId}:${String(
+    target.featureId,
+  )}`;
 }
 
 function copyLayerModel(layer: HonuaLayerModel): HonuaLayerModel {

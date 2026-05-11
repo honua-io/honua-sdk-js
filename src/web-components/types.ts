@@ -67,6 +67,16 @@ export interface HonuaSelectionState<T = Record<string, unknown>> {
   feature?: HonuaFeatureRecord<T>;
 }
 
+export interface HonuaFeatureStateTarget {
+  sourceId: string;
+  featureId: FeatureId;
+  sourceLayer?: string;
+}
+
+export interface HonuaFeatureStateEntry extends HonuaFeatureStateTarget {
+  state: Readonly<Record<string, unknown>>;
+}
+
 export interface HonuaFilterState {
   sourceId?: string;
   expression?: string;
@@ -115,6 +125,7 @@ export interface HonuaWebComponentState<T = Record<string, unknown>> {
   viewport: HonuaViewportState;
   featuresBySource: Readonly<Record<string, readonly HonuaFeatureRecord<T>[]>>;
   selection?: HonuaSelectionState<T>;
+  featureStates: readonly HonuaFeatureStateEntry[];
   filters: Readonly<Record<string, HonuaFilterState>>;
   editor?: HonuaEditorModel;
   chart?: HonuaChartModel;
@@ -158,6 +169,8 @@ export interface HonuaWebComponentController<T = Record<string, unknown>> {
   setFilter(filter: HonuaFilterState): void;
   selectFeature(selection: HonuaSelectionState<T>): void;
   clearSelection(): void;
+  setFeatureState(target: HonuaFeatureStateTarget, state: Record<string, unknown>): void;
+  removeFeatureState(target: HonuaFeatureStateTarget, key?: string): void;
   queryFeatures(sourceId?: string, options?: HonuaQueryFeaturesOptions): Promise<HonuaFeatureTableModel<T>>;
   search(query: string, options?: HonuaSearchOptions): Promise<readonly HonuaSearchResult<T>[]>;
   applyEdit?(request: HonuaEditRequest<T>): Promise<HonuaEditorModel>;
@@ -208,6 +221,42 @@ export interface HonuaLayerVisibilityChangeDetail {
 export interface HonuaViewportChangeDetail extends HonuaViewportState {}
 
 export interface HonuaFilterChangeDetail extends HonuaFilterState {}
+
+export interface HonuaMapReadyDetail<T = Record<string, unknown>> {
+  map: unknown;
+  runtime?: HonuaWebComponentRuntimeLike<T>;
+  controller?: HonuaWebComponentController<T>;
+  mapPackage?: HonuaMapPackage;
+}
+
+export interface HonuaMapErrorDetail {
+  error: unknown;
+  message: string;
+  sourceId?: string;
+}
+
+export interface HonuaMapInteractionPoint {
+  x: number;
+  y: number;
+}
+
+export interface HonuaMapInteractionDetail<T = Record<string, unknown>> {
+  layerId?: string;
+  sourceId?: string;
+  sourceLayer?: string;
+  featureId?: FeatureId;
+  feature?: HonuaFeatureRecord<T>;
+  mapFeature?: unknown;
+  point?: HonuaMapInteractionPoint;
+  lngLat?: readonly [number, number];
+  originalEvent?: unknown;
+}
+
+export interface HonuaMapClickDetail<T = Record<string, unknown>> extends HonuaMapInteractionDetail<T> {}
+
+export interface HonuaMapHoverDetail<T = Record<string, unknown>> extends HonuaMapInteractionDetail<T> {
+  hovering: boolean;
+}
 
 export interface HonuaSearchDetail<T = Record<string, unknown>> {
   query: string;
