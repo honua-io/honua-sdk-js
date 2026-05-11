@@ -2,6 +2,32 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.8-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.7-alpha.0...js-sdk-v0.0.8-alpha.0) (2026-05-11)
+
+
+### Features
+
+* **#139:** add OGC API Records SDK surface ([6790422](https://github.com/honua-io/honua-sdk-js/commit/6790422792955e6cd95610fb16cf883bbb99755c))
+* **#139:** add OGC Records SDK surface ([fbb0eab](https://github.com/honua-io/honua-sdk-js/commit/fbb0eab23e9a3c0afdf3a5bba46a9e30a6c69f48))
+* **#140:** apply implement pass changes ([2ea443c](https://github.com/honua-io/honua-sdk-js/commit/2ea443cca1c9c2a44ddd8ec6f832407ba8357bdc))
+* **#154:** add agentic map tool schemas ([#155](https://github.com/honua-io/honua-sdk-js/issues/155)) ([e734267](https://github.com/honua-io/honua-sdk-js/commit/e7342675d9a384d462c15a5b5a671f4ef06d077d))
+* **#66:** add spatial aggregation widget totals ([9c502bc](https://github.com/honua-io/honua-sdk-js/commit/9c502bc3ee82b71d1eeb721449ccaf727ab95af9))
+* **#66:** add spatial aggregation widget totals ([5dd25b9](https://github.com/honua-io/honua-sdk-js/commit/5dd25b9c51a37bf25e5650881bc14d1185b8d75e))
+* GTM proof: SDK app manifest projection and generated-app runtime ([#140](https://github.com/honua-io/honua-sdk-js/issues/140)) ([e779655](https://github.com/honua-io/honua-sdk-js/commit/e7796556eaa576d67d3bca474dd9db75fdcd1b59))
+
+
+### Bug Fixes
+
+* **#140:** apply fix pass changes ([d7ac175](https://github.com/honua-io/honua-sdk-js/commit/d7ac175ad0f6a02cfb70748a59030e2517cbb6af))
+* **#140:** apply fix pass changes ([8bc89ea](https://github.com/honua-io/honua-sdk-js/commit/8bc89ea957de62908dc58eeaac3f627b1cbcb037))
+* **#140:** include generated app query bindings ([8975440](https://github.com/honua-io/honua-sdk-js/commit/89754409921ca399896601798a62419f12d555b4))
+
+
+### Documentation
+
+* **#128:** add cloud demo service contract ([1761a64](https://github.com/honua-io/honua-sdk-js/commit/1761a648f2a1e6c5628e2b560e07572a8d44acb2))
+* **#128:** add cloud demo service contract ([9c9f527](https://github.com/honua-io/honua-sdk-js/commit/9c9f527795a2e01f5bb11b853f6bdebca4550ac8))
+
 ## [0.0.7-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.6-alpha.0...js-sdk-v0.0.7-alpha.0) (2026-05-07)
 
 
