@@ -21,7 +21,7 @@ test("runtime parity showcase loads package, surface, widgets, selection, and la
     await expect(page.locator("#map-status")).toHaveText("Ready");
     await expect(page.locator("honua-layer-list").getByText("Incident points")).toBeVisible();
     await expect(page.locator("honua-feature-table").getByText("Harbor fuel sheen")).toBeVisible();
-    await expect(page.locator("#widget-count")).toHaveText("6");
+    await expect(page.locator("#widget-count")).toHaveText("4");
 
     const firstRefreshCount = Number(await page.locator("#widget-refresh-count").textContent());
     await page.getByRole("button", { name: "Refresh widgets" }).click();
@@ -31,8 +31,8 @@ test("runtime parity showcase loads package, surface, widgets, selection, and la
     await expect(page.locator("#event-log")).toContainText("widget:manual");
 
     await page.locator("#status-filter").selectOption("Open");
-    await expect(page.locator("#widget-count")).toHaveText("3");
-    await expect(page.locator("#visible-feature-count")).toHaveText("3");
+    await expect(page.locator("#widget-count")).toHaveText("2");
+    await expect(page.locator("#visible-feature-count")).toHaveText("2");
     await expect(page.locator("honua-feature-table").getByText("Airport logistics delay")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Kakaako utility corridor" }).click();
