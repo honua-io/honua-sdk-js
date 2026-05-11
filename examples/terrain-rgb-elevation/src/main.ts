@@ -1,6 +1,6 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { HonuaClient, type MapLibreSceneRuntimeTarget, applyMapLibreScenePrimitives } from "@honua/sdk-js/honua";
 import maplibregl from "maplibre-gl";
 
 import { clientOptionsFromTerrainConfig, resolveTerrainElevationConfig, terrainRequestHeaders } from "./config.js";
@@ -8,6 +8,7 @@ import {
   createDefaultTerrainDataset,
   createFixtureElevationProfile,
   createTerrainRenderPlan,
+  createTerrainScenePrimitives,
   formatElevationMeters,
   hydrateTerrainRenderPlan,
   lookupTerrainElevation,
@@ -220,17 +221,7 @@ function createProfileChart(elevationProfile: TerrainElevationProfile): string {
 }
 
 function addMapLayers(plan: TerrainRenderPlan): void {
-  if (!map.getSource(plan.sourceId)) {
-    map.addSource(plan.sourceId, {
-      type: "raster-dem",
-      tiles: [...plan.sourceSpec.tiles],
-      tileSize: plan.sourceSpec.tileSize,
-      encoding: plan.sourceSpec.encoding,
-      minzoom: plan.sourceSpec.minzoom,
-      maxzoom: plan.sourceSpec.maxzoom,
-      attribution: plan.sourceSpec.attribution,
-    });
-  }
+  applyMapLibreScenePrimitives(mapLibreSceneTarget(), createTerrainScenePrimitives(plan));
 
   if (!map.getLayer(plan.hillshadeLayerId)) {
     map.addLayer({
@@ -244,11 +235,6 @@ function addMapLayers(plan: TerrainRenderPlan): void {
       },
     });
   }
-
-  map.setTerrain({
-    source: plan.sourceId,
-    exaggeration: plan.terrainExaggeration,
-  });
 
   map.addSource(plan.profileSourceId, { type: "geojson", data: lineFeatureCollection(profileLine) as never });
   map.addSource(plan.profileVertexSourceId, { type: "geojson", data: pointFeatureCollection(profileLine) as never });
@@ -286,6 +272,26 @@ function addMapLayers(plan: TerrainRenderPlan): void {
       "circle-stroke-width": 2,
     },
   });
+}
+
+function mapLibreSceneTarget(): MapLibreSceneRuntimeTarget {
+  return {
+    getSource(id) {
+      return map.getSource(id);
+    },
+    addSource(id, source) {
+      map.addSource(id, source as never);
+    },
+    getLayer(id) {
+      return map.getLayer(id);
+    },
+    addLayer(layer) {
+      map.addLayer(layer as never);
+    },
+    setTerrain(options) {
+      map.setTerrain(options);
+    },
+  };
 }
 
 function fitDatasetExtent(): void {

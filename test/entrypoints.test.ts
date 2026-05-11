@@ -155,6 +155,7 @@ import {
   createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
   createHonuaControlPlane as honuaCreateHonuaControlPlane,
   createHonuaController as honuaCreateHonuaController,
+  createMapLibreSceneAdapter as honuaCreateMapLibreSceneAdapter,
   createSceneWorkspace as honuaCreateSceneWorkspace,
   createWidgetSource as honuaCreateWidgetSource,
   preparePrimaryDetailModel as honuaPreparePrimaryDetailModel,
@@ -174,6 +175,7 @@ import {
   preparePrimaryDetailModel,
   createEditSession as rootCreateEditSession,
   createFilterRegistry as rootCreateFilterRegistry,
+  createMapLibreSceneAdapter as rootCreateMapLibreSceneAdapter,
   createSceneWorkspace as rootCreateSceneWorkspace,
   createWidgetSource as rootCreateWidgetSource,
   projectFilterRegistryToQuery as rootProjectFilterRegistryToQuery,
@@ -205,7 +207,11 @@ import {
   validateRuntimeFilterExpression,
   validateRuntimeStyleExpression,
 } from "../src/runtime/index.js";
-import { createSceneWorkspace, sceneWorkspaceIntentFromAdapterEvent } from "../src/scene-workspace/index.js";
+import {
+  createMapLibreSceneAdapter,
+  createSceneWorkspace,
+  sceneWorkspaceIntentFromAdapterEvent,
+} from "../src/scene-workspace/index.js";
 
 describe("entrypoint modules", () => {
   it("exposes honua-first core entrypoint", () => {
@@ -431,8 +437,11 @@ describe("entrypoint modules", () => {
 
   it("exposes the scene workspace entrypoint", () => {
     expect(createSceneWorkspace).toBeTypeOf("function");
+    expect(createMapLibreSceneAdapter).toBeTypeOf("function");
     expect(sceneWorkspaceIntentFromAdapterEvent).toBeTypeOf("function");
     expect(rootCreateSceneWorkspace).toBe(createSceneWorkspace);
     expect(honuaCreateSceneWorkspace).toBe(createSceneWorkspace);
+    expect(rootCreateMapLibreSceneAdapter).toBe(createMapLibreSceneAdapter);
+    expect(honuaCreateMapLibreSceneAdapter).toBe(createMapLibreSceneAdapter);
   });
 });

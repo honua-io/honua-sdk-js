@@ -1,4 +1,5 @@
 import { featureSelectionKey } from "../exploration/index.js";
+import type { ScenePrimitiveDiagnostic, SceneRuntimePrimitive } from "./primitives.js";
 import type {
   SceneEvidenceReference,
   SceneLayerState,
@@ -16,6 +17,10 @@ import type {
 export function emptySceneWorkspaceState(): SceneWorkspaceState {
   return {
     layers: {},
+    primitives: {},
+    diagnostics: [],
+    filters: {},
+    detail: {},
     bookmarks: {},
     selection: [],
     timeline: {},
@@ -102,8 +107,27 @@ export function sceneWorkspaceIntentFromAdapterEvent(
         source,
         historyLabel: "Scene layer visibility changed",
       };
+    case "primitive-diagnostics":
+      return {
+        kind: "set-diagnostics",
+        diagnostics: event.diagnostics,
+        source,
+        historyLabel: "Scene primitive diagnostics changed",
+      };
+    case "filter-change":
+      return event.clause
+        ? {
+            kind: "set-filter",
+            id: event.id,
+            clause: event.clause,
+            source,
+            historyLabel: "Scene filter changed",
+          }
+        : { kind: "clear-filter", id: event.id, source, historyLabel: "Scene filter cleared" };
     case "selection-change":
       return { kind: "set-selection", selection: event.selection, source, historyLabel: "Scene selection changed" };
+    case "detail-change":
+      return { kind: "set-detail", detail: event.detail, source, historyLabel: "Scene detail changed" };
     case "timeline-change":
       return { kind: "set-timeline", timeline: event.timeline, source, historyLabel: "Scene timeline changed" };
     case "evidence-add":
@@ -119,6 +143,22 @@ export function sceneWorkspaceIntentFromAdapterEvent(
 
 export function selectSceneVisibleLayers(state: SceneWorkspaceState): SceneLayerState[] {
   return Object.values(state.layers).filter((layer) => layer.visible);
+}
+
+export function selectScenePrimitivesByKind<K extends SceneRuntimePrimitive["kind"]>(
+  state: SceneWorkspaceState,
+  kind: K,
+): Array<Extract<SceneRuntimePrimitive, { readonly kind: K }>> {
+  return Object.values(state.primitives).filter(
+    (primitive): primitive is Extract<SceneRuntimePrimitive, { readonly kind: K }> => primitive.kind === kind,
+  );
+}
+
+export function selectSceneDiagnosticsByStatus(
+  state: SceneWorkspaceState,
+  status: ScenePrimitiveDiagnostic["status"],
+): ScenePrimitiveDiagnostic[] {
+  return state.diagnostics.filter((diagnostic) => diagnostic.status === status);
 }
 
 export function selectSceneEvidenceForFeature(
@@ -141,6 +181,16 @@ function applyIntent(state: SceneWorkspaceState, intent: SceneWorkspaceIntent): 
       return {
         ...state,
         layers: Object.fromEntries(intent.layers.map((layer) => [layer.id, { ...layer }])),
+      };
+    case "set-primitives":
+      return {
+        ...state,
+        primitives: Object.fromEntries(intent.primitives.map((primitive) => [primitive.id, clonePrimitive(primitive)])),
+      };
+    case "set-diagnostics":
+      return {
+        ...state,
+        diagnostics: intent.diagnostics.map(cloneDiagnostic),
       };
     case "set-layer-visibility": {
       const existing = state.layers[intent.layerId];
@@ -170,6 +220,19 @@ function applyIntent(state: SceneWorkspaceState, intent: SceneWorkspaceIntent): 
           [intent.bookmark.id]: { ...intent.bookmark, camera: { ...intent.bookmark.camera } },
         },
       };
+    case "set-filter":
+      return {
+        ...state,
+        filters: {
+          ...state.filters,
+          [intent.id]: cloneValue(intent.clause),
+        },
+      };
+    case "clear-filter": {
+      const filters = { ...state.filters };
+      delete filters[intent.id];
+      return { ...state, filters };
+    }
     case "set-selection":
       return {
         ...state,
@@ -179,6 +242,11 @@ function applyIntent(state: SceneWorkspaceState, intent: SceneWorkspaceIntent): 
       return {
         ...state,
         selection: [],
+      };
+    case "set-detail":
+      return {
+        ...state,
+        detail: cloneDetail(intent.detail),
       };
     case "set-active-asset":
       return {
@@ -237,6 +305,10 @@ function changedSceneWorkspaceSlices(
   if (previous.sceneId !== next.sceneId || previous.title !== next.title) changed.add("scene");
   if (previous.camera !== next.camera) changed.add("camera");
   if (previous.layers !== next.layers) changed.add("layers");
+  if (previous.primitives !== next.primitives) changed.add("primitives");
+  if (previous.diagnostics !== next.diagnostics) changed.add("diagnostics");
+  if (previous.filters !== next.filters) changed.add("filters");
+  if (previous.detail !== next.detail) changed.add("detail");
   if (previous.selection !== next.selection) changed.add("selection");
   if (previous.timeline !== next.timeline) changed.add("timeline");
   if (previous.evidence !== next.evidence) changed.add("evidence");
@@ -253,6 +325,18 @@ function mergeState(base: SceneWorkspaceState, initial: Partial<SceneWorkspaceSt
       ...base.layers,
       ...Object.fromEntries(Object.entries(initial.layers ?? {}).map(([id, layer]) => [id, cloneLayer(layer)])),
     },
+    primitives: {
+      ...base.primitives,
+      ...Object.fromEntries(
+        Object.entries(initial.primitives ?? {}).map(([id, primitive]) => [id, clonePrimitive(primitive)]),
+      ),
+    },
+    diagnostics: initial.diagnostics ? initial.diagnostics.map(cloneDiagnostic) : base.diagnostics,
+    filters: {
+      ...base.filters,
+      ...cloneValue(initial.filters ?? {}),
+    },
+    detail: cloneDetail({ ...base.detail, ...initial.detail }),
     bookmarks: {
       ...base.bookmarks,
       ...Object.fromEntries(
@@ -276,6 +360,12 @@ function cloneSceneWorkspaceState(state: SceneWorkspaceState): SceneWorkspaceSta
   return {
     ...state,
     layers: Object.fromEntries(Object.entries(state.layers).map(([id, layer]) => [id, cloneLayer(layer)])),
+    primitives: Object.fromEntries(
+      Object.entries(state.primitives).map(([id, primitive]) => [id, clonePrimitive(primitive)]),
+    ),
+    diagnostics: state.diagnostics.map(cloneDiagnostic),
+    filters: cloneValue(state.filters),
+    detail: cloneDetail(state.detail),
     bookmarks: Object.fromEntries(
       Object.entries(state.bookmarks).map(([id, bookmark]) => [id, cloneBookmark(bookmark)]),
     ),
@@ -290,6 +380,22 @@ function cloneSceneWorkspaceState(state: SceneWorkspaceState): SceneWorkspaceSta
 
 function cloneLayer(layer: SceneLayerState): SceneLayerState {
   return { ...layer };
+}
+
+function clonePrimitive(primitive: SceneRuntimePrimitive): SceneRuntimePrimitive {
+  return cloneValue(primitive);
+}
+
+function cloneDiagnostic(diagnostic: ScenePrimitiveDiagnostic): ScenePrimitiveDiagnostic {
+  return cloneValue(diagnostic);
+}
+
+function cloneDetail(detail: SceneWorkspaceState["detail"]): SceneWorkspaceState["detail"] {
+  return {
+    ...detail,
+    target: detail.target ? cloneSelectionTarget(detail.target) : undefined,
+    attributes: detail.attributes ? cloneValue(detail.attributes) : undefined,
+  };
 }
 
 function cloneCamera(camera: NonNullable<SceneWorkspaceState["camera"]>): NonNullable<SceneWorkspaceState["camera"]> {

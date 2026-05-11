@@ -4,11 +4,18 @@ import { describe, expect, it, vi } from "vitest";
 
 import { sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 import {
+  type SceneRuntimePrimitive,
+  applyMapLibreScenePrimitives,
   createSceneWorkspace,
+  diagnoseScenePrimitives,
   emptySceneWorkspaceState,
   sceneWorkspaceIntentFromAdapterEvent,
+  selectSceneDiagnosticsByStatus,
   selectSceneEvidenceForFeature,
+  selectScenePrimitivesByKind,
   selectSceneVisibleLayers,
+  toMapLibreExtrusionLayer,
+  toMapLibreTerrainPatch,
 } from "../src/scene-workspace/index.js";
 
 describe("scene workspace", () => {
@@ -95,6 +102,174 @@ describe("scene workspace", () => {
     });
 
     expect(workspace.state.selection).toEqual([sceneTarget, mapTarget]);
+  });
+
+  it("keeps primitive, filter, selection, and detail state synchronized for scene-linked views", () => {
+    const workspace = createSceneWorkspace();
+    const selected = sourceFeatureSelectionTarget("scene-assets", "asset-101");
+
+    workspace.dispatch({
+      kind: "set-primitives",
+      primitives: [
+        {
+          kind: "elevation-source",
+          id: "oahu-dem",
+          sourceId: "oahu-dem-source",
+          protocol: "terrain-rgb",
+          tiles: ["/terrain/{z}/{y}/{x}.png"],
+          encoding: "mapbox",
+          tileSize: 512,
+          exaggeration: 1.35,
+          cache: { status: "ready", scope: "tiles", ttlMs: 86_400_000 },
+        },
+        {
+          kind: "extrusion",
+          id: "asset-extrusions",
+          sourceId: "scene-assets",
+          height: ["get", "extrusion_height_m"],
+        },
+      ],
+    });
+    workspace.dispatch({
+      kind: "set-filter",
+      id: "asset-status",
+      clause: { field: "status", operator: "=", value: "active", appliesTo: ["scene-assets"] },
+      source: "map",
+    });
+    workspace.dispatch({ kind: "set-selection", selection: [selected], source: "table" });
+    workspace.dispatch({
+      kind: "set-detail",
+      detail: {
+        target: selected,
+        sourceId: "scene-assets",
+        featureId: "asset-101",
+        title: "Asset 101",
+        status: "ready",
+        attributes: { status: "active" },
+      },
+      source: "detail",
+    });
+
+    expect(selectScenePrimitivesByKind(workspace.state, "elevation-source")[0]?.sourceId).toBe("oahu-dem-source");
+    expect(workspace.state.filters["asset-status"]?.value).toBe("active");
+    expect(workspace.state.selection).toEqual([selected]);
+    expect(workspace.state.detail).toMatchObject({ sourceId: "scene-assets", featureId: "asset-101" });
+
+    const snapshot = workspace.snapshot();
+    (snapshot.state.detail.attributes as { status: string }).status = "mutated";
+    expect(workspace.state.detail.attributes).toEqual({ status: "active" });
+  });
+
+  it("serializes primitive diagnostics and MapLibre terrain/extrusion patches without renderer imports", () => {
+    const primitives: SceneRuntimePrimitive[] = [
+      {
+        kind: "elevation-source" as const,
+        id: "oahu-dem",
+        sourceId: "oahu-dem-source",
+        protocol: "terrain-rgb" as const,
+        tiles: ["/terrain/{z}/{y}/{x}.png"],
+        encoding: "mapbox" as const,
+        tileSize: 512,
+        exaggeration: 1.35,
+      },
+      {
+        kind: "model-layer" as const,
+        id: "field-command-model",
+        uri: "/models/command.glb",
+        format: "glb" as const,
+      },
+      {
+        kind: "extrusion" as const,
+        id: "asset-extrusions",
+        sourceId: "scene-assets",
+        height: ["get", "extrusion_height_m"],
+        color: "#4d8a87",
+      },
+    ];
+
+    const diagnostics = diagnoseScenePrimitives(primitives, {
+      renderer: "maplibre",
+      camera: true,
+      ground: true,
+      terrain: { protocols: ["terrain-rgb"], supportsExaggeration: true },
+      extrusion: true,
+      modelLayer: { formats: [] },
+      sceneLayerMetadata: true,
+    });
+
+    expect(diagnostics.map((diagnostic) => diagnostic.status)).toEqual(["supported", "unsupported", "supported"]);
+    expect(diagnostics[1]).toMatchObject({
+      primitiveId: "field-command-model",
+      fallback: "Preserve model metadata and route to a 3D renderer adapter.",
+    });
+
+    const terrainPrimitive = primitives.find((primitive) => primitive.kind === "elevation-source");
+    if (!terrainPrimitive) throw new Error("missing terrain primitive");
+    const terrainPatch = toMapLibreTerrainPatch(terrainPrimitive);
+    expect(terrainPatch).toMatchObject({
+      sourceId: "oahu-dem-source",
+      source: { type: "raster-dem", tileSize: 512 },
+      terrain: { source: "oahu-dem-source", exaggeration: 1.35 },
+    });
+
+    const extrusionPrimitive = primitives.find((primitive) => primitive.kind === "extrusion");
+    if (!extrusionPrimitive) throw new Error("missing extrusion primitive");
+    expect(toMapLibreExtrusionLayer(extrusionPrimitive)).toMatchObject({
+      id: "asset-extrusions",
+      type: "fill-extrusion",
+      source: "scene-assets",
+      paint: { "fill-extrusion-height": ["get", "extrusion_height_m"] },
+    });
+  });
+
+  it("applies supported MapLibre scene primitives and reports degraded runtime state", () => {
+    const calls: Array<{ method: string; args: unknown[] }> = [];
+    const sources = new Set<string>();
+    const layers = new Set<string>();
+    const target = {
+      getSource(id: string) {
+        return sources.has(id) ? {} : undefined;
+      },
+      addSource(id: string, source: unknown) {
+        calls.push({ method: "addSource", args: [id, source] });
+        sources.add(id);
+      },
+      getLayer(id: string) {
+        return layers.has(id) ? {} : undefined;
+      },
+      addLayer(layer: { id: string }) {
+        calls.push({ method: "addLayer", args: [layer] });
+        layers.add(layer.id);
+      },
+      setTerrain(options: unknown) {
+        calls.push({ method: "setTerrain", args: [options] });
+      },
+    };
+
+    const result = applyMapLibreScenePrimitives(target, [
+      {
+        kind: "elevation-source",
+        id: "terrain",
+        sourceId: "terrain-source",
+        protocol: "terrain-rgb",
+        tiles: ["/terrain/{z}/{y}/{x}.png"],
+      },
+      {
+        kind: "scene-layer-metadata",
+        id: "buildings-scene",
+        layer: { id: "buildings", visible: true, kind: "scene" },
+        serviceType: "SceneServer",
+      },
+    ]);
+
+    expect(calls.map((call) => call.method)).toEqual(["addSource", "setTerrain"]);
+    expect(result.status).toBe("degraded");
+
+    const workspace = createSceneWorkspace();
+    workspace.dispatch(
+      sceneWorkspaceIntentFromAdapterEvent({ type: "primitive-diagnostics", diagnostics: result.diagnostics }),
+    );
+    expect(selectSceneDiagnosticsByStatus(workspace.state, "degraded")).toHaveLength(1);
   });
 
   it("translates renderer adapter events into workspace intents", () => {

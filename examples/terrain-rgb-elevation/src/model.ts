@@ -1,4 +1,4 @@
-import { type HonuaClient, HonuaImageService } from "@honua/sdk-js/honua";
+import { type HonuaClient, HonuaImageService, type SceneRuntimePrimitive } from "@honua/sdk-js/honua";
 
 import { createFixtureTerrainElevationDataset } from "./fixtures.js";
 import type {
@@ -43,6 +43,42 @@ export function createTerrainRenderPlan(dataset: TerrainElevationDataset, client
     },
     auditRows: createTerrainAuditRows(dataset.tileset),
   };
+}
+
+export function createTerrainScenePrimitives(plan: TerrainRenderPlan): readonly SceneRuntimePrimitive[] {
+  return [
+    {
+      kind: "elevation-source",
+      id: `${plan.dataset.tileset.id}-terrain`,
+      title: plan.dataset.tileset.title,
+      sourceId: plan.sourceId,
+      protocol: "terrain-rgb",
+      tiles: plan.sourceSpec.tiles,
+      encoding: plan.sourceSpec.encoding,
+      tileSize: plan.sourceSpec.tileSize,
+      minzoom: plan.sourceSpec.minzoom,
+      maxzoom: plan.sourceSpec.maxzoom,
+      exaggeration: plan.terrainExaggeration,
+      attribution: plan.sourceSpec.attribution,
+      cache: {
+        status: plan.dataset.tileset.cache.status === "ready" ? "ready" : "bypass",
+        scope: "tiles",
+        updatedAt: plan.dataset.tileset.cache.updatedAt,
+        ttlMs: plan.dataset.tileset.cache.ttlMs,
+      },
+      metadata: {
+        sourceAsset: plan.dataset.tileset.sourceAsset,
+        elevationValueEndpoint: plan.dataset.tileset.endpointPaths.elevationValue,
+        elevationProfileEndpoint: plan.dataset.tileset.endpointPaths.elevationProfile,
+      },
+    },
+    {
+      kind: "ground",
+      id: `${plan.dataset.tileset.id}-ground`,
+      terrainId: `${plan.dataset.tileset.id}-terrain`,
+      title: "Terrain ground",
+    },
+  ];
 }
 
 export async function hydrateTerrainRenderPlan(

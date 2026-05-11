@@ -204,12 +204,24 @@ const LAYER_3D_PROPERTIES = ["elevationInfo", "heightInfo", "sceneProperties"] a
 function detectUnsupported3DLayerProperties(opLayer: WebMapOperationalLayer, warn: WarningCollector): void {
   const layerType = typeof opLayer.layerType === "string" ? opLayer.layerType : "";
   if (layerType.toLowerCase().includes("scene")) {
-    warn.warn("unsupported-3d-property", `Layer type '${layerType}' is 3D and not supported`, { layerType });
+    warn.warn("unsupported-3d-property", `Layer type '${layerType}' requires a scene renderer adapter`, {
+      layerType,
+      status: "unsupported",
+      fallback:
+        "Preserve the service URL as scene-layer metadata or model-layer primitives; omit it from the 2D style.",
+    });
   }
 
   for (const key of LAYER_3D_PROPERTIES) {
     if (Object.prototype.hasOwnProperty.call(opLayer, key)) {
-      warn.warn("unsupported-3d-property", `Layer property '${key}' is not supported`, { property: key });
+      warn.warn("unsupported-3d-property", `Layer property '${key}' is not supported by the 2D WebMap style path`, {
+        property: key,
+        status: key === "elevationInfo" || key === "heightInfo" ? "degraded" : "unsupported",
+        fallback:
+          key === "elevationInfo" || key === "heightInfo"
+            ? "MapLibre extrusion/terrain primitives can represent simple height and elevation behavior."
+            : "Preserve this property for a scene renderer adapter.",
+      });
     }
   }
 }

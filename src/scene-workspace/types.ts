@@ -8,14 +8,19 @@
  */
 
 import type { FeatureId, SourceId } from "../contract/types.js";
-import type { FeatureSelectionTarget } from "../exploration/index.js";
+import type { FeatureSelectionTarget, FilterClause } from "../exploration/index.js";
 import type { RealtimeConnectionStatus } from "../realtime/index.js";
+import type { ScenePrimitiveDiagnostic, SceneRuntimePrimitive } from "./primitives.js";
 
 export type SceneWorkspaceSlice =
   | "all"
   | "scene"
   | "camera"
   | "layers"
+  | "primitives"
+  | "diagnostics"
+  | "filters"
+  | "detail"
   | "selection"
   | "timeline"
   | "evidence"
@@ -27,6 +32,10 @@ export const SCENE_WORKSPACE_SLICES: readonly SceneWorkspaceSlice[] = [
   "scene",
   "camera",
   "layers",
+  "primitives",
+  "diagnostics",
+  "filters",
+  "detail",
   "selection",
   "timeline",
   "evidence",
@@ -82,10 +91,23 @@ export interface SceneRealtimeState {
   readonly staleSince?: number;
 }
 
+export interface SceneDetailState {
+  readonly target?: FeatureSelectionTarget;
+  readonly sourceId?: SourceId;
+  readonly featureId?: FeatureId;
+  readonly title?: string;
+  readonly status?: "empty" | "loading" | "ready" | "stale" | "error";
+  readonly attributes?: Readonly<Record<string, unknown>>;
+}
+
 export interface SceneWorkspaceState {
   readonly sceneId?: string;
   readonly title?: string;
   readonly layers: Readonly<Record<string, SceneLayerState>>;
+  readonly primitives: Readonly<Record<string, SceneRuntimePrimitive>>;
+  readonly diagnostics: ReadonlyArray<ScenePrimitiveDiagnostic>;
+  readonly filters: Readonly<Record<string, FilterClause>>;
+  readonly detail: SceneDetailState;
   readonly camera?: SceneCameraState;
   readonly bookmarks: Readonly<Record<string, SceneBookmark>>;
   readonly selection: ReadonlyArray<FeatureSelectionTarget>;
@@ -111,11 +133,16 @@ export interface SceneWorkspaceSnapshot {
 export type SceneWorkspaceIntent =
   | SetSceneIntent
   | SetSceneLayersIntent
+  | SetScenePrimitivesIntent
+  | SetSceneDiagnosticsIntent
   | SetLayerVisibilityIntent
   | SetCameraIntent
   | ApplyBookmarkIntent
+  | SetSceneFilterIntent
+  | ClearSceneFilterIntent
   | SetSelectionIntent
   | ClearSelectionIntent
+  | SetSceneDetailIntent
   | SetActiveAssetIntent
   | SetTimelineIntent
   | AddEvidenceIntent
@@ -140,6 +167,16 @@ export interface SetSceneLayersIntent extends IntentBase {
   readonly layers: ReadonlyArray<SceneLayerState>;
 }
 
+export interface SetScenePrimitivesIntent extends IntentBase {
+  readonly kind: "set-primitives";
+  readonly primitives: ReadonlyArray<SceneRuntimePrimitive>;
+}
+
+export interface SetSceneDiagnosticsIntent extends IntentBase {
+  readonly kind: "set-diagnostics";
+  readonly diagnostics: ReadonlyArray<ScenePrimitiveDiagnostic>;
+}
+
 export interface SetLayerVisibilityIntent extends IntentBase {
   readonly kind: "set-layer-visibility";
   readonly layerId: string;
@@ -156,6 +193,17 @@ export interface ApplyBookmarkIntent extends IntentBase {
   readonly bookmark: SceneBookmark;
 }
 
+export interface SetSceneFilterIntent extends IntentBase {
+  readonly kind: "set-filter";
+  readonly id: string;
+  readonly clause: FilterClause;
+}
+
+export interface ClearSceneFilterIntent extends IntentBase {
+  readonly kind: "clear-filter";
+  readonly id: string;
+}
+
 export interface SetSelectionIntent extends IntentBase {
   readonly kind: "set-selection";
   readonly selection: ReadonlyArray<FeatureSelectionTarget>;
@@ -163,6 +211,11 @@ export interface SetSelectionIntent extends IntentBase {
 
 export interface ClearSelectionIntent extends IntentBase {
   readonly kind: "clear-selection";
+}
+
+export interface SetSceneDetailIntent extends IntentBase {
+  readonly kind: "set-detail";
+  readonly detail: SceneDetailState;
 }
 
 export interface SetActiveAssetIntent extends IntentBase {
@@ -198,7 +251,10 @@ export interface RestoreSceneWorkspaceIntent extends IntentBase {
 export type SceneWorkspaceAdapterEvent =
   | SceneWorkspaceCameraEvent
   | SceneWorkspaceLayerVisibilityEvent
+  | SceneWorkspacePrimitiveDiagnosticsEvent
+  | SceneWorkspaceFilterEvent
   | SceneWorkspaceSelectionEvent
+  | SceneWorkspaceDetailEvent
   | SceneWorkspaceTimelineEvent
   | SceneWorkspaceEvidenceEvent
   | SceneWorkspaceRealtimeEvent;
@@ -214,9 +270,25 @@ export interface SceneWorkspaceLayerVisibilityEvent {
   readonly visible: boolean;
 }
 
+export interface SceneWorkspacePrimitiveDiagnosticsEvent {
+  readonly type: "primitive-diagnostics";
+  readonly diagnostics: ReadonlyArray<ScenePrimitiveDiagnostic>;
+}
+
+export interface SceneWorkspaceFilterEvent {
+  readonly type: "filter-change";
+  readonly id: string;
+  readonly clause: FilterClause | undefined;
+}
+
 export interface SceneWorkspaceSelectionEvent {
   readonly type: "selection-change";
   readonly selection: ReadonlyArray<FeatureSelectionTarget>;
+}
+
+export interface SceneWorkspaceDetailEvent {
+  readonly type: "detail-change";
+  readonly detail: SceneDetailState;
 }
 
 export interface SceneWorkspaceTimelineEvent {

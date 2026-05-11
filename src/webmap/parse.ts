@@ -116,7 +116,18 @@ function detectVersionWarnings(input: WebMapJson, warn: WarningCollector): void 
 function detectUnsupported3DProperties(input: WebMapJson, warn: WarningCollector): void {
   for (const key of THREE_D_TOP_LEVEL_PROPERTIES) {
     if (Object.prototype.hasOwnProperty.call(input, key)) {
-      warn.warn("unsupported-3d-property", `Top-level 3D property '${key}' is not supported`, { property: key });
+      warn.warn(
+        "unsupported-3d-property",
+        `Top-level 3D property '${key}' is not supported by the 2D WebMap style path`,
+        {
+          property: key,
+          status: key === "ground" || key === "camera" ? "degraded" : "unsupported",
+          fallback:
+            key === "ground"
+              ? "Convert ground/elevation metadata into scene workspace terrain primitives for MapLibre 2.5D."
+              : "Preserve the property for a scene renderer adapter; the generated 2D style will ignore it.",
+        },
+      );
     }
   }
 }
