@@ -24,6 +24,9 @@ import {
 } from "./runtime.js";
 import { projectSourceBindings, toHonuaSourceSpec } from "./source-bridge.js";
 import { type StyleRefResolver, type ThemeResolver, composeStyle } from "./style-compose.js";
+import { throwRuntimeDiagnostics } from "./style-interactions.js";
+import { prepareRuntimeStyleSpecValidation } from "./style-spec-validation.js";
+import type { RuntimeStyleSpecValidationMode } from "./style-spec-validation.js";
 
 /**
  * How `loadMapPackage` reacts when a single protocol-backed source
@@ -94,6 +97,13 @@ export interface LoadMapPackageOptions {
    * binding failure (the historical single-source behaviour).
    */
   sourceErrorPolicy?: SourceErrorPolicy;
+  /**
+   * MapLibre style-spec validation mode used by runtime source/layer
+   * mutation helpers. Defaults to `"strict"`; pass `"warning-only"` to
+   * keep diagnostics non-fatal, or `"renderer-deferred"` to skip SDK
+   * style-spec checks and let the renderer report invalid style values.
+   */
+  styleSpecValidationMode?: RuntimeStyleSpecValidationMode;
 }
 
 /**
@@ -128,6 +138,11 @@ export async function loadMapPackage(
   });
 
   const sourceErrorPolicy: SourceErrorPolicy = options.sourceErrorPolicy ?? "tolerant";
+  const styleSpecValidationMode: RuntimeStyleSpecValidationMode = options.styleSpecValidationMode ?? "strict";
+  throwRuntimeDiagnostics(
+    await prepareRuntimeStyleSpecValidation(styleSpecValidationMode),
+    "Cannot initialize MapLibre style-spec validation.",
+  );
 
   const compose = async (
     target: HonuaMapPackage,
@@ -230,6 +245,7 @@ export async function loadMapPackage(
       telemetry: options.telemetry,
       popupFactory: options.popupFactory,
       popupRenderer: options.popupRenderer,
+      styleSpecValidationMode,
       reload: async (next): Promise<HonuaMapRuntimeReload> => {
         const result = await compose(next);
         for (const failed of result.failedSources) {

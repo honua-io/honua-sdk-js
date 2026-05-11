@@ -109,6 +109,16 @@ export { applyStyleRefs, applyTheme, composeStyle } from "./style-compose.js";
 export type { StyleComposeOptions, StyleRefResolver, ThemeResolver } from "./style-compose.js";
 
 export {
+  prepareRuntimeStyleSpecValidation,
+  validateRuntimeFilterStyleSpec,
+  validateRuntimeLayerStyleSpec,
+  validateRuntimeSourceStyleSpec,
+  validateRuntimeStyleExpressionStyleSpec,
+  validateRuntimeStyleSpec,
+} from "./style-spec-validation.js";
+export type { RuntimeStyleSpecValidationMode, RuntimeStyleSpecValidationOptions } from "./style-spec-validation.js";
+
+export {
   buildWmsRasterSourceSpec,
   buildWmtsRasterSourceSpec,
   projectSourceBindings,

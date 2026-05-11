@@ -275,6 +275,18 @@ async function waitForEvent(
   throw new Error(`event "${kind}" not observed within ${maxTicks} ticks`);
 }
 
+async function waitForAsyncEvent(
+  events: ReadonlyArray<WorkspaceEvent>,
+  kind: WorkspaceEvent["kind"],
+  maxTicks = 50,
+): Promise<void> {
+  for (let i = 0; i < maxTicks; i += 1) {
+    if (events.some((event) => event.kind === kind)) return;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(`event "${kind}" not observed within ${maxTicks} event-loop ticks`);
+}
+
 class DismissingJobRun implements IJobRun<ExecutionResult> {
   public readonly id = "op-dismiss";
   public readonly type = "operator-plan";
@@ -378,6 +390,7 @@ describe("OperatorWorkspace", () => {
     await waitForEvent(events, "plan-loaded");
     workspace.planReview.accept();
     await waitForEvent(events, "execution-terminal");
+    await waitForAsyncEvent(events, "map-loaded");
 
     const pending = await workspace.approval.load("op-1");
     const granted = await workspace.approval.confirm("op-1");

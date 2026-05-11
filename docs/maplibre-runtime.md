@@ -96,6 +96,7 @@ interface LoadMapPackageOptions {
   applyInitialView?: boolean;              // default true
   onEvent?: HonuaRuntimeEventListener;     // subscribed BEFORE initial emissions
   sourceErrorPolicy?: "tolerant" | "fail-fast"; // default "tolerant" — see Tolerant binding
+  styleSpecValidationMode?: "strict" | "warning-only" | "renderer-deferred"; // default "strict"
 }
 ```
 
@@ -110,6 +111,14 @@ observe the initial lifecycle without racing against `loadMapPackage`'s
 return must use this hook instead of calling `runtime.on(...)` after
 `await`. Subsequent events (`package-updated`, `disposed`, ...) also
 flow through the same listener.
+
+Runtime source/layer mutation helpers lazily use
+`@maplibre/maplibre-gl-style-spec` without constructing a MapLibre map.
+`"strict"` reports style-spec errors as fatal
+`HonuaRuntimeDiagnosticError` entries before renderer mutation,
+`"warning-only"` preserves the diagnostics as warnings, and
+`"renderer-deferred"` skips SDK style-spec checks so the host renderer
+reports invalid values.
 
 ## Hosted MapPackage Fetch
 
@@ -324,7 +333,7 @@ Theme application recurses into nested arrays / objects inside
 | `removeLayer(layerId)` / `moveLayer(layerId, order?)` | Removes or reorders runtime-owned layers while keeping `runtime.composedStyle` and `runtime.honuaMap` aligned with the renderer. |
 | `setLayerPaint(layerId, paint)` / `setLayerLayout(layerId, layout)` / `setLayerFilter(layerId, filter)` | Convenience wrappers around `updateLayer` for common Mapbox-style style changes. |
 | `setLayerVisibility(layerId, visible)` | `map.setLayoutProperty(layerId, "visibility", …)`. |
-| `validateStyleExpression(value)` / `validateFilterExpression(filter, layerId?)` | Runs Honua's lightweight expression validator and returns typed diagnostics with path, layer id, source id, protocol, and severity context. Mutating helpers throw `HonuaRuntimeDiagnosticError` before touching the renderer when diagnostics contain errors. |
+| `validateStyleExpression(value)` / `validateFilterExpression(filter, layerId?)` | Runs Honua expression checks plus MapLibre style-spec validation when enabled, returning typed diagnostics with path, layer id, source id, protocol, severity, and MapLibre validation context. Mutating helpers throw `HonuaRuntimeDiagnosticError` before touching the renderer when diagnostics contain errors. |
 | `getLegend()` | Runs `buildLegend` against the current package and composed style; backfills missing swatches from the first `fill-color` / `circle-color` / `line-color` paint property when it is a string literal. |
 | `bindPopup(layerId, binding?)` | Requires `opts.popupFactory`. When `binding` is omitted the runtime looks up `pkg.popupBindings[]` by the layer's source id. The default renderer emits an unstyled `<dl>` of the first feature's properties (or a `{field}` template when `binding.template` is set). Returns a `{ remove() }` handle; re-binding on the same layer tears down the prior handle. |
 | `bindHover(layerId, options?)` / `bindClick(layerId, handler, options?)` / `bindSelect(layerId, options?)` | Infers source and source-layer from the runtime layer, binds MapLibre layer events, and manages hover/click/select feature-state without requiring app code to pass MapLibre types. `bindClick` emits a source-qualified selection target when a feature id is available. |

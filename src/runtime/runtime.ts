@@ -54,6 +54,7 @@ import type {
   RuntimeSelectionInteractionOptions,
   RuntimeSourceSpecification,
 } from "./style-interactions.js";
+import type { RuntimeStyleSpecValidationMode } from "./style-spec-validation.js";
 
 /**
  * Minimal subset of `maplibre-gl.Map` required by the runtime. Mirrors
@@ -148,6 +149,7 @@ export interface HonuaMapRuntimeInternals {
   telemetry?: HonuaRuntimeTelemetry;
   popupFactory?: PopupFactory;
   popupRenderer?: PopupRenderer;
+  styleSpecValidationMode: RuntimeStyleSpecValidationMode;
   reload: (next: HonuaMapPackage) => Promise<HonuaMapRuntimeReload>;
 }
 
@@ -178,6 +180,7 @@ export class HonuaMapRuntime {
   readonly #telemetry: HonuaRuntimeTelemetry | undefined;
   readonly #popupFactory: PopupFactory | undefined;
   readonly #popupRenderer: PopupRenderer | undefined;
+  readonly #styleSpecValidationMode: RuntimeStyleSpecValidationMode;
   readonly #popupBindings = new Map<string, ActivePopupBinding>();
   readonly #reload: (next: HonuaMapPackage) => Promise<HonuaMapRuntimeReload>;
   #honuaMap: HonuaMap;
@@ -195,6 +198,7 @@ export class HonuaMapRuntime {
     this.#telemetry = internals.telemetry;
     this.#popupFactory = internals.popupFactory;
     this.#popupRenderer = internals.popupRenderer;
+    this.#styleSpecValidationMode = internals.styleSpecValidationMode;
     this.#reload = internals.reload;
   }
 
@@ -240,7 +244,9 @@ export class HonuaMapRuntime {
   }
 
   public validateStyleExpression(value: unknown): HonuaRuntimeDiagnostic[] {
-    return validateRuntimeStyleExpression(value);
+    return validateRuntimeStyleExpression(value, {
+      styleSpecValidationMode: this.#styleSpecValidationMode,
+    });
   }
 
   public validateFilterExpression(filter: unknown, layerId?: string): HonuaRuntimeDiagnostic[] {
@@ -255,6 +261,7 @@ export class HonuaMapRuntime {
             protocol: layerContext.protocol,
           }
         : {}),
+      styleSpecValidationMode: this.#styleSpecValidationMode,
     });
   }
 
@@ -278,6 +285,7 @@ export class HonuaMapRuntime {
         style: this.#composedStyle,
         mapPackage: this.#packageRef.current,
         operation: "addSource",
+        styleSpecValidationMode: this.#styleSpecValidationMode,
       }),
     ];
     throwRuntimeDiagnostics(diagnostics, `Cannot add source "${sourceId}".`);
@@ -333,6 +341,7 @@ export class HonuaMapRuntime {
         style: this.#composedStyle,
         mapPackage: this.#packageRef.current,
         operation: "updateSource",
+        styleSpecValidationMode: this.#styleSpecValidationMode,
       }),
     ];
     throwRuntimeDiagnostics(diagnostics, `Cannot update source "${sourceId}".`);
@@ -424,6 +433,7 @@ export class HonuaMapRuntime {
         style: this.#composedStyle,
         mapPackage: this.#packageRef.current,
         operation: "addLayer",
+        styleSpecValidationMode: this.#styleSpecValidationMode,
       }),
     ];
     throwRuntimeDiagnostics(diagnostics, `Cannot add layer "${spec.id}".`);
@@ -483,6 +493,7 @@ export class HonuaMapRuntime {
         style: this.#composedStyle,
         mapPackage: this.#packageRef.current,
         operation: "updateLayer",
+        styleSpecValidationMode: this.#styleSpecValidationMode,
       }),
     ];
     throwRuntimeDiagnostics(diagnostics, `Cannot update layer "${layerId}".`);
