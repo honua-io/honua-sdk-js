@@ -45,6 +45,9 @@ jobs:
       - name: Example typechecks
         run: npm run demo:examples:typecheck
 
+      - name: Primitive demo matrix
+        run: npm run demo:primitive-matrix
+
       - name: Kepler example audit
         run: npm audit --prefix examples/kepler-analytics
 
