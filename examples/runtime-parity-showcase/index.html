@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua Runtime Parity Showcase</title>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="status-strip" aria-label="Runtime status">
+        <div class="status-item">
+          <span>Package</span>
+          <strong id="package-status">Idle</strong>
+        </div>
+        <div class="status-item">
+          <span>Map</span>
+          <strong id="map-status">Idle</strong>
+        </div>
+        <div class="status-item">
+          <span>Cache</span>
+          <strong id="package-cache">-</strong>
+        </div>
+        <div class="status-item">
+          <span>Style diagnostics</span>
+          <strong id="style-diagnostics">0</strong>
+        </div>
+        <div class="status-item">
+          <span>Visible features</span>
+          <strong id="visible-feature-count">0</strong>
+        </div>
+        <output id="event-log" aria-live="polite"></output>
+      </section>
+
+      <section class="workspace" aria-label="Runtime application workspace">
+        <div class="map-column">
+          <section class="map-frame" aria-label="Map runtime surface">
+            <div class="map-toolbar">
+              <h1>Runtime parity operations</h1>
+              <div class="map-actions">
+                <button type="button" id="fit-downtown">Fit Downtown</button>
+                <button type="button" id="fit-east">Fit East</button>
+                <button type="button" id="reset-view">Reset View</button>
+              </div>
+            </div>
+            <div id="map"></div>
+          </section>
+        </div>
+
+        <div class="side-column">
+          <section class="panel" aria-label="Linked controls">
+            <div class="filter-row">
+              <label>
+                <span>Status filter</span>
+                <select id="status-filter">
+                  <option value="">All statuses</option>
+                  <option value="Open">Open</option>
+                  <option value="Monitoring">Monitoring</option>
+                  <option value="Resolved">Resolved</option>
+                </select>
+              </label>
+              <button type="button" id="refresh-widgets">Refresh widgets</button>
+            </div>
+            <div class="metric-grid">
+              <div class="metric">
+                <span>Widget count</span>
+                <strong id="widget-count">0</strong>
+              </div>
+              <div class="metric">
+                <span>Refreshes</span>
+                <strong id="widget-refresh-count">0</strong>
+              </div>
+              <div class="metric">
+                <span>Response range</span>
+                <strong id="widget-latency">-</strong>
+              </div>
+            </div>
+            <div id="widget-buckets"></div>
+            <div class="status-item">
+              <span>Widget state</span>
+              <strong id="widget-state">Idle</strong>
+            </div>
+            <div class="status-item">
+              <span>Widget execution</span>
+              <strong id="widget-mode">-</strong>
+            </div>
+            <div class="status-item">
+              <span>Widget cache key</span>
+              <strong id="widget-cache">-</strong>
+            </div>
+          </section>
+
+          <section class="panel" aria-label="Selection detail">
+            <div class="panel-header">
+              <h2 id="selected-title">No selected incident</h2>
+            </div>
+            <p id="selected-meta" class="muted">Select a row, search result, feature card, or map point.</p>
+            <div class="status-item">
+              <span>Viewport</span>
+              <strong id="viewport-state">Initial</strong>
+            </div>
+            <div class="status-item">
+              <span>Layer visibility</span>
+              <strong id="visible-layer-state">All visible</strong>
+            </div>
+          </section>
+
+          <section class="panel" aria-label="Runtime state">
+            <label>
+              <span class="muted">Shareable state</span>
+              <input id="share-state" class="share-input" readonly value="/" />
+            </label>
+          </section>
+
+          <section class="panel" aria-label="Feature cards">
+            <div class="panel-header">
+              <h2>Linked result cards</h2>
+            </div>
+            <div id="feature-cards" class="feature-cards"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="component-grid" aria-label="Honua web component surface">
+        <honua-map id="component-surface" label="Component runtime surface"></honua-map>
+        <div class="side-column">
+          <honua-search for="component-surface" source="ops-incidents" placeholder="Find incidents"></honua-search>
+          <honua-layer-list for="component-surface" label="Runtime layers"></honua-layer-list>
+          <honua-legend for="component-surface" label="Runtime legend"></honua-legend>
+        </div>
+        <honua-feature-table
+          for="component-surface"
+          source="ops-incidents"
+          fields="name,status,priority,district,team,responseMinutes"
+          page-size="8"
+          label="Linked incidents"
+        ></honua-feature-table>
+        <honua-chart id="status-chart" for="component-surface" label="Status by linked view"></honua-chart>
+      </section>
+    </main>
+  </body>
+</html>

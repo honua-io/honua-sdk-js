@@ -1,0 +1,100 @@
+{
+  "sourceId": "ops-incidents",
+  "generatedAt": "2026-05-01T12:00:00.000Z",
+  "fields": ["name", "status", "priority", "district", "team", "responseMinutes", "updatedAt"],
+  "features": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "inc-101",
+        "properties": {
+          "id": "inc-101",
+          "name": "Harbor fuel sheen",
+          "status": "Open",
+          "priority": "Critical",
+          "district": "Harbor",
+          "team": "Marine response",
+          "responseMinutes": 14,
+          "updatedAt": "2026-05-01T11:52:00.000Z"
+        },
+        "geometry": { "type": "Point", "coordinates": [-157.8678, 21.3069] }
+      },
+      {
+        "type": "Feature",
+        "id": "inc-102",
+        "properties": {
+          "id": "inc-102",
+          "name": "Airport logistics delay",
+          "status": "Monitoring",
+          "priority": "High",
+          "district": "Airport",
+          "team": "Logistics",
+          "responseMinutes": 28,
+          "updatedAt": "2026-05-01T11:44:00.000Z"
+        },
+        "geometry": { "type": "Point", "coordinates": [-157.9186, 21.3187] }
+      },
+      {
+        "type": "Feature",
+        "id": "inc-103",
+        "properties": {
+          "id": "inc-103",
+          "name": "Kakaako utility corridor",
+          "status": "Open",
+          "priority": "High",
+          "district": "Kakaako",
+          "team": "Utilities",
+          "responseMinutes": 22,
+          "updatedAt": "2026-05-01T11:36:00.000Z"
+        },
+        "geometry": { "type": "Point", "coordinates": [-157.8587, 21.2948] }
+      },
+      {
+        "type": "Feature",
+        "id": "inc-104",
+        "properties": {
+          "id": "inc-104",
+          "name": "Ala Moana signal failure",
+          "status": "Resolved",
+          "priority": "Medium",
+          "district": "Ala Moana",
+          "team": "Traffic",
+          "responseMinutes": 35,
+          "updatedAt": "2026-05-01T11:18:00.000Z"
+        },
+        "geometry": { "type": "Point", "coordinates": [-157.8461, 21.2911] }
+      },
+      {
+        "type": "Feature",
+        "id": "inc-105",
+        "properties": {
+          "id": "inc-105",
+          "name": "Waikiki beach access",
+          "status": "Open",
+          "priority": "Medium",
+          "district": "Waikiki",
+          "team": "Field ops",
+          "responseMinutes": 18,
+          "updatedAt": "2026-05-01T11:05:00.000Z"
+        },
+        "geometry": { "type": "Point", "coordinates": [-157.8253, 21.2766] }
+      },
+      {
+        "type": "Feature",
+        "id": "inc-106",
+        "properties": {
+          "id": "inc-106",
+          "name": "Downtown shelter route",
+          "status": "Monitoring",
+          "priority": "Low",
+          "district": "Downtown",
+          "team": "Shelter coordination",
+          "responseMinutes": 47,
+          "updatedAt": "2026-05-01T10:54:00.000Z"
+        },
+        "geometry": { "type": "Point", "coordinates": [-157.8615, 21.3132] }
+      }
+    ]
+  }
+}
