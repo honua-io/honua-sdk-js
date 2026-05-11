@@ -225,7 +225,8 @@ test("Cesium route playback example exercises the live Honua query path", async 
     expect(requestLog).toHaveLength(2);
     expect(requestLog[0]?.path).toBe("/mock-honua/api/v1/admin/capabilities");
     expect(requestLog[1]?.path).toBe("/mock-honua/rest/services/transport/FeatureServer/0/query");
-    expect(requestLog[1]?.search).toContain("outSr=4326");
+    const query = new URLSearchParams(requestLog[1]?.search ?? "");
+    expect(query.get("outSR") ?? query.get("outSr")).toBe("4326");
     expect(requestLog[1]?.search).toContain("returnGeometry=true");
     expect(requestLog[1]?.search).toContain("returnZ=true");
   } finally {

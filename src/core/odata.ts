@@ -22,6 +22,7 @@ import {
   createHonuaCacheState,
   honuaCacheValidatorFromHeaders,
   honuaMetadataRequestHeaders,
+  isHonuaCacheEntryFresh,
   normalizeHonuaMetadataRequestOptions,
   withHonuaCacheState,
   withoutHonuaCacheState,
@@ -226,9 +227,13 @@ export class HonuaOdataEntitySet {
   public async metadata(options: HonuaMetadataRequestOptions = {}): Promise<HonuaOdataMetadata> {
     const metadataOptions = normalizeHonuaMetadataRequestOptions(options);
     const bypass = metadataOptions.cache === "bypass";
-    if (!bypass && !metadataOptions.refresh && this.cachedMetadata) {
+    const now = Date.now();
+    const freshCachedMetadata = this.cachedMetadata
+      ? isHonuaCacheEntryFresh(this.cachedMetadata.cachedAtMs, now, metadataOptions.ttlMs)
+      : false;
+    if (!bypass && !metadataOptions.refresh && this.cachedMetadata && freshCachedMetadata) {
       return withOdataMetadataCacheState(this.cachedMetadata, "hit", {
-        now: Date.now(),
+        now,
         ttlMs: metadataOptions.ttlMs,
         staleIfErrorMs: metadataOptions.staleIfErrorMs,
       });
@@ -247,14 +252,8 @@ export class HonuaOdataEntitySet {
         ...(status === "refreshed" ? { revalidatedAt: new Date().toISOString() } : {}),
       });
     });
-    if (!bypass && !metadataOptions.refresh) {
-      this.inflightMetadata = promise.finally(() => {
-        if (this.inflightMetadata === promise) this.inflightMetadata = undefined;
-      });
-    }
-    try {
-      return await promise;
-    } catch (error) {
+
+    const staleFallback = (error: unknown): HonuaOdataMetadata => {
       if (!bypass && metadataOptions.staleIfError && previous) {
         return withOdataMetadataCacheState(previous, "stale", {
           now: Date.now(),
@@ -264,6 +263,20 @@ export class HonuaOdataEntitySet {
         });
       }
       throw error;
+    };
+
+    if (!bypass && !metadataOptions.refresh) {
+      const trackedPromise = promise.catch(staleFallback).finally(() => {
+        if (this.inflightMetadata === trackedPromise) this.inflightMetadata = undefined;
+      });
+      this.inflightMetadata = trackedPromise;
+      return trackedPromise;
+    }
+
+    try {
+      return await promise;
+    } catch (error) {
+      return staleFallback(error);
     }
   }
 
@@ -492,7 +505,7 @@ export class HonuaOdataEntitySet {
       {
         headers: honuaMetadataRequestHeaders({
           accept: "application/xml",
-          refresh: options.refresh,
+          refresh: options.refresh || Boolean(cached),
           bypass: options.cache === "bypass",
           validator: cached?.validator,
         }),

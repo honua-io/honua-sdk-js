@@ -42,20 +42,14 @@ jobs:
       - name: Split package verification
         run: npm run verify:split-packages
 
-      - name: Quickstart example typecheck
-        run: npm run demo:quickstart:typecheck
-
-      - name: Quickstart example build
-        run: npm run demo:quickstart:build
-
-      - name: Kepler example install
-        run: npm run demo:kepler:install
+      - name: Example typechecks
+        run: npm run demo:examples:typecheck
 
       - name: Kepler example audit
         run: npm audit --prefix examples/kepler-analytics
 
-      - name: Kepler example build
-        run: npm run demo:kepler:build
+      - name: Example builds
+        run: npm run demo:examples:build
 
       - name: Unit tests with coverage
         run: npm run test:coverage
@@ -63,8 +57,8 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      - name: Quickstart browser smoke
-        run: npm run test:playwright:quickstart
+      - name: Browser smoke suite
+        run: npm run test:playwright
 
   mcp-sdk:
     name: MCP SDK
@@ -89,6 +83,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Security audit
+        run: npm audit --omit=dev
 
       - name: Typecheck
         run: npm run typecheck

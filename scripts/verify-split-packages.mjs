@@ -63,6 +63,7 @@ import {
   HonuaImageService,
   HonuaMapLayer,
 } from "@honua/sdk";
+import { HonuaGeocodingClient } from "@honua/sdk/geocoding";
 import {
   CAPABILITIES,
   PROTOCOLS,
@@ -184,6 +185,8 @@ if (typeof HonuaGeometryService !== "function")
   throw new Error("HonuaGeometryService export missing from @honua/sdk");
 if (typeof HonuaGeoprocessingService !== "function")
   throw new Error("HonuaGeoprocessingService export missing from @honua/sdk");
+if (typeof HonuaGeocodingClient !== "function")
+  throw new Error("HonuaGeocodingClient export missing from @honua/sdk/geocoding");
 if (!Array.isArray(CAPABILITIES) || CAPABILITIES.length === 0)
   throw new Error("CAPABILITIES export missing from @honua/sdk/contract");
 if (!Array.isArray(PROTOCOLS) || PROTOCOLS.length === 0)

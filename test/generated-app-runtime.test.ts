@@ -326,6 +326,83 @@ describe("@honua/sdk-js/generated-app", () => {
     runtime.dispose();
   });
 
+  it("uses table widget sourceId when selecting generated app records", async () => {
+    const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
+    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
+    const tableSourceId = "inspection-records";
+    const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>(
+      "operations-dashboard-features.v1.json",
+    ).map((feature) => ({ ...feature, sourceId: tableSourceId }));
+    const multiSourceTableManifest: HonuaGeneratedAppManifest = {
+      ...manifest,
+      layout: {
+        ...manifest.layout,
+        widgets: manifest.layout.widgets.map((entry) =>
+          entry.id === "incident-table" ? { ...entry, sourceId: tableSourceId } : entry,
+        ),
+      },
+    };
+    const result = await previewGeneratedApp(
+      { manifest: multiSourceTableManifest, mapPackage },
+      {
+        mapFactory: () => ({ map: makeMockMap() }),
+        mapLoadOptions: { client: makeClient(), skipCompatibilityCheck: true, applyInitialView: false },
+        initialFeatures: features,
+      },
+    );
+    if (result.status === "error") throw new Error(result.errors.map((error) => error.message).join("; "));
+
+    const model = result.runtime.selectRecord("incident-table", 1005);
+
+    expect(result.runtime.context.state.selection).toEqual([{ sourceId: tableSourceId, id: 1005 }]);
+    expect(tableWidget(model, "incident-table").rows.find((row) => row.id === 1005)).toMatchObject({
+      sourceId: tableSourceId,
+      selected: true,
+    });
+    result.runtime.dispose();
+  });
+
+  it("keeps unqualified generated app records selectable when a table declares sourceId", async () => {
+    const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
+    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
+    const tableSourceId = "inspection-records";
+    const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>(
+      "operations-dashboard-features.v1.json",
+    ).map((feature) => {
+      const { sourceId: _sourceId, ...unqualified } = feature;
+      return unqualified;
+    });
+    const multiSourceTableManifest: HonuaGeneratedAppManifest = {
+      ...manifest,
+      layout: {
+        ...manifest.layout,
+        widgets: manifest.layout.widgets.map((entry) =>
+          entry.id === "incident-table" ? { ...entry, sourceId: tableSourceId } : entry,
+        ),
+      },
+    };
+    const result = await previewGeneratedApp(
+      { manifest: multiSourceTableManifest, mapPackage },
+      {
+        mapFactory: () => ({ map: makeMockMap() }),
+        mapLoadOptions: { client: makeClient(), skipCompatibilityCheck: true, applyInitialView: false },
+        initialFeatures: features,
+      },
+    );
+    if (result.status === "error") throw new Error(result.errors.map((error) => error.message).join("; "));
+
+    const model = result.runtime.selectRecord("incident-table", 1005);
+
+    expect(result.runtime.context.state.selection).toEqual([{ sourceId: manifest.data.sourceId, id: 1005 }]);
+    expect(tableWidget(model, "incident-table").rows.find((row) => row.id === 1005)).toMatchObject({
+      sourceId: manifest.data.sourceId,
+      selected: true,
+    });
+    result.runtime.dispose();
+  });
+
   it("uses the manifest-level layerId fallback for map filter bindings", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
     const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");

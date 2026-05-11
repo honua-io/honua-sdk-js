@@ -556,6 +556,64 @@ describe("odata / typed escape hatch (HonuaOdataEntitySet)", () => {
     expect(calls).toBe(1);
   });
 
+  it("metadata() revalidates per entity-set cache when the requested TTL has expired", async () => {
+    let calls = 0;
+    const entity = buildEntity([
+      [
+        "/odata/$metadata",
+        (_url, init) => {
+          calls += 1;
+          if (calls === 1) {
+            return new Response(odataMetadataDocument(), {
+              status: 200,
+              headers: { "Content-Type": "application/xml", etag: '"odata-ttl-v1"' },
+            });
+          }
+
+          expect(new Headers(init?.headers).get("If-None-Match")).toBe('"odata-ttl-v1"');
+          return new Response(odataMetadataDocument(), {
+            status: 200,
+            headers: { "Content-Type": "application/xml", etag: '"odata-ttl-v2"' },
+          });
+        },
+      ],
+    ]);
+
+    const miss = await entity.metadata({ ttlMs: 0 });
+    const refreshed = await entity.metadata({ ttlMs: 0 });
+
+    expect(miss.cache?.status).toBe("miss");
+    expect(refreshed.cache?.status).toBe("refreshed");
+    expect(calls).toBe(2);
+  });
+
+  it("metadata() shares stale-if-error fallback across concurrent expired-cache revalidations", async () => {
+    let calls = 0;
+    const entity = buildEntity([
+      [
+        "/odata/$metadata",
+        () => {
+          calls += 1;
+          if (calls === 1) {
+            return new Response(odataMetadataDocument(), {
+              status: 200,
+              headers: { "Content-Type": "application/xml", etag: '"odata-stale-v1"' },
+            });
+          }
+
+          return jsonResponse({ error: { message: "upstream unavailable" } }, { status: 503 });
+        },
+      ],
+    ]);
+
+    await entity.metadata({ ttlMs: 0 });
+    const [first, second] = await Promise.all([entity.metadata({ ttlMs: 0 }), entity.metadata({ ttlMs: 0 })]);
+
+    expect(first.cache?.status).toBe("stale");
+    expect(second.cache?.status).toBe("stale");
+    expect(calls).toBe(2);
+  });
+
   it("batch() submits the OData JSON batch envelope with per-request atomicityGroup for atomic groups", async () => {
     let body: unknown;
     const entity = buildEntity([

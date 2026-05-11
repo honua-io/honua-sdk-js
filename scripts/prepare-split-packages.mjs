@@ -80,6 +80,10 @@ function createSdkPackage() {
         types: "./expr/index.d.ts",
         default: "./expr/index.js",
       },
+      "./geocoding": {
+        types: "./geocoding/index.d.ts",
+        default: "./geocoding/index.js",
+      },
       "./interactions": {
         types: "./interactions/index.d.ts",
         default: "./interactions/index.js",

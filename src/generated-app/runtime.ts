@@ -530,12 +530,12 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
     options: { readonly replace?: boolean } = {},
   ): HonuaGeneratedAppRenderModel {
     this.#assertLive("selectRecord");
-    this.#requireWidget<HonuaGeneratedAppTableWidget>(widgetId, ["table", "list"]);
+    const widget = this.#requireWidget<HonuaGeneratedAppTableWidget>(widgetId, ["table", "list"]);
     const binding = this.#bindings.table[widgetId];
     if (!binding) {
       throw missingWidgetBinding(this.manifest.appId, widgetId, "table");
     }
-    binding.select([sourceFeatureSelectionTarget(this.manifest.data.sourceId, id)], {
+    binding.select([sourceFeatureSelectionTarget(this.#recordSourceIdForSelection(widget, id), id)], {
       replace: options.replace ?? true,
     });
     return this.render();
@@ -642,14 +642,27 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
   ): HonuaGeneratedAppRenderedRow {
     const titleField = widget.titleField ?? this.manifest.bindings?.titleField ?? this.#primaryKey();
     const subtitleField = widget.subtitleField ?? this.manifest.bindings?.subtitleField;
+    const sourceId = record.sourceId ?? widget.sourceId ?? this.manifest.data.sourceId;
     return {
       id: record.id,
-      sourceId: record.sourceId ?? this.manifest.data.sourceId,
+      sourceId,
       title: stringValue(record.attributes[titleField] ?? record.id),
       ...(subtitleField ? { subtitle: stringValue(record.attributes[subtitleField] ?? "") } : {}),
-      selected: selectionContains(this.context.state.selection, record, this.manifest.data.sourceId),
+      selected: selectionContains(this.context.state.selection, record, sourceId),
       values: Object.fromEntries(fields.map((field) => [field, record.attributes[field]])),
     };
+  }
+
+  #recordSourceIdForSelection(widget: HonuaGeneratedAppTableWidget, id: FeatureId): string {
+    const widgetSourceId = widget.sourceId ?? this.manifest.data.sourceId;
+    const exactRecord = this.#records.find(
+      (record) => record.id === id && (record.sourceId ?? widgetSourceId) === widgetSourceId,
+    );
+    if (exactRecord) return exactRecord.sourceId ?? widgetSourceId;
+
+    const matchingRecords = this.#records.filter((record) => record.id === id);
+    if (matchingRecords.length === 1) return matchingRecords[0].sourceId ?? widgetSourceId;
+    return widgetSourceId;
   }
 
   #primaryKey(): string {
