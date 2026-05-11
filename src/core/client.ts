@@ -6,6 +6,7 @@ import {
   createHonuaCacheState,
   honuaCacheValidatorFromHeaders,
   honuaMetadataRequestHeaders,
+  isHonuaCacheEntryFresh,
   normalizeHonuaMetadataRequestOptions,
   withHonuaCacheState,
   withoutHonuaCacheState,
@@ -808,12 +809,14 @@ export class HonuaClient {
     const keyFingerprint = `metadata:${cacheKey}`;
     const cached = this.metadataCache.get(keyFingerprint) as MetadataCacheEntry<T> | undefined;
     const bypass = metadataOptions.cache === "bypass";
+    const now = Date.now();
+    const freshCachedEntry = cached ? isHonuaCacheEntryFresh(cached.cachedAtMs, now, metadataOptions.ttlMs) : false;
 
-    if (!bypass && !metadataOptions.refresh && cached) {
+    if (!bypass && !metadataOptions.refresh && cached && freshCachedEntry) {
       return withHonuaCacheState(
         cached.body,
         createMetadataCacheState(cached, "hit", {
-          now: Date.now(),
+          now,
           ttlMs: metadataOptions.ttlMs,
           staleIfErrorMs: metadataOptions.staleIfErrorMs,
         }),
@@ -829,7 +832,7 @@ export class HonuaClient {
         headers: await this.composeHeaders(
           honuaMetadataRequestHeaders({
             accept: "application/json",
-            refresh: metadataOptions.refresh,
+            refresh: metadataOptions.refresh || Boolean(cached),
             bypass,
             validator: cached?.validator,
           }),

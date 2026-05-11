@@ -73,6 +73,30 @@ describe("Honua cache state", () => {
     expect(requestCount).toBe(4);
     expect(requestedHeaders[3]).toMatchObject({ "Cache-Control": "no-store", Pragma: "no-cache" });
   });
+
+  it("revalidates cached metadata when the requested TTL has expired", async () => {
+    let requestCount = 0;
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async (_input, init) => {
+        requestCount += 1;
+        if (requestCount === 1) {
+          return json(layerFixture, 200, { etag: '"ttl-v1"' });
+        }
+
+        expect(new Headers(init?.headers).get("If-None-Match")).toBe('"ttl-v1"');
+        return json({ ...layerFixture, name: "TTL refreshed layer" }, 200, { etag: '"ttl-v2"' });
+      },
+    });
+
+    const miss = await client.getLayerMetadata("ttl-service", 0, { ttlMs: 0 });
+    const refreshed = await client.getLayerMetadata("ttl-service", 0, { ttlMs: 0 });
+
+    expect(miss.cache?.status).toBe("miss");
+    expect(refreshed.cache?.status).toBe("refreshed");
+    expect(refreshed.name).toBe("TTL refreshed layer");
+    expect(requestCount).toBe(2);
+  });
 });
 
 function json(body: unknown, status: number, headers: HeadersInit = {}): Response {

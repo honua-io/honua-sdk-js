@@ -102,6 +102,10 @@ export function normalizeHonuaMetadataRequestOptions(
   };
 }
 
+export function isHonuaCacheEntryFresh(cachedAtMs: number, now: number, ttlMs: number | undefined): boolean {
+  return ttlMs === undefined || Math.max(0, now - cachedAtMs) < ttlMs;
+}
+
 export function isHonuaCacheStatus(value: unknown): value is HonuaCacheStatus {
   return value === "hit" || value === "miss" || value === "stale" || value === "refreshed" || value === "bypass";
 }

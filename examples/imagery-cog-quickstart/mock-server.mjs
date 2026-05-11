@@ -184,7 +184,10 @@ export async function startImageryCogFixtureServer({ build = true } = {}) {
   return {
     url: `http://127.0.0.1:${address.port}`,
     async close() {
-      await new Promise((resolve) => server.close(resolve));
+      await new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve(undefined)));
+        server.closeAllConnections?.();
+      });
     },
   };
 }
