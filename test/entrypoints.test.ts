@@ -123,6 +123,10 @@ import {
   sourceFeatureSelectionTarget,
 } from "../src/exploration/index.js";
 import {
+  createFilterRegistry,
+  projectFilterRegistryToQuery,
+} from "../src/filter-registry/index.js";
+import {
   HonuaClient,
   HonuaFeatureLayer,
   HonuaGeometryService,
@@ -139,6 +143,7 @@ import {
   HonuaService,
   HonuaWfsExceptionError,
   createHonuaCacheState,
+  createFilterRegistry as honuaCreateFilterRegistry,
   createHonuaOgcFeatures,
   createHonuaOgcRecords,
   createHonuaProcessRunner,
@@ -149,6 +154,7 @@ import {
   createHonuaController as honuaCreateHonuaController,
   createSceneWorkspace as honuaCreateSceneWorkspace,
   createWidgetSource as honuaCreateWidgetSource,
+  projectFilterRegistryToQuery as honuaProjectFilterRegistryToQuery,
   preparePrimaryDetailModel as honuaPreparePrimaryDetailModel,
   selectLinkedViewQueryProjection as honuaSelectLinkedViewQueryProjection,
   selectHonuaAppWorkspaceMetadataCacheModel as honuaSelectMetadataCacheModel,
@@ -159,12 +165,14 @@ import {
   bindChartToExploration,
   bindMapSelectionToExploration,
   bindQueryProjectionToExploration,
+  createFilterRegistry as rootCreateFilterRegistry,
   createHonuaAppWorkspace,
   createHonuaController,
   preparePrimaryDetailModel,
   createEditSession as rootCreateEditSession,
   createSceneWorkspace as rootCreateSceneWorkspace,
   createWidgetSource as rootCreateWidgetSource,
+  projectFilterRegistryToQuery as rootProjectFilterRegistryToQuery,
   selectLinkedViewQueryProjection as rootSelectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
   selectHonuaAppWorkspaceMetadataCacheModel,
@@ -377,6 +385,15 @@ describe("entrypoint modules", () => {
       "chartDriven",
       "decoupled",
     ]);
+  });
+
+  it("exposes the filter registry entrypoint", () => {
+    expect(createFilterRegistry).toBeTypeOf("function");
+    expect(projectFilterRegistryToQuery).toBeTypeOf("function");
+    expect(rootCreateFilterRegistry).toBe(createFilterRegistry);
+    expect(rootProjectFilterRegistryToQuery).toBe(projectFilterRegistryToQuery);
+    expect(honuaCreateFilterRegistry).toBe(createFilterRegistry);
+    expect(honuaProjectFilterRegistryToQuery).toBe(projectFilterRegistryToQuery);
   });
 
   it("exposes the realtime entrypoint", () => {
