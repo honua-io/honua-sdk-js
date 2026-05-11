@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua Web Components</title>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <honua-map id="ops-map" label="Response map"></honua-map>
+        <div class="side-panel">
+          <honua-search for="ops-map" source="incidents" placeholder="Find incidents"></honua-search>
+          <honua-layer-list for="ops-map"></honua-layer-list>
+          <honua-legend for="ops-map"></honua-legend>
+        </div>
+      </section>
+      <section class="bottom-panel">
+        <honua-feature-table
+          for="ops-map"
+          source="incidents"
+          fields="name,status,priority"
+          page-size="6"
+          label="Incident features"
+        ></honua-feature-table>
+        <honua-editor for="ops-map" source="incidents" label="Incident editor"></honua-editor>
+        <honua-chart for="ops-map" label="Priority summary"></honua-chart>
+      </section>
+      <output id="event-log" aria-live="polite"></output>
+    </main>
+  </body>
+</html>

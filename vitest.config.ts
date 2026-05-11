@@ -69,6 +69,10 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/runtime/index.ts"),
       },
       {
+        find: "@honua/sdk-js/web-components",
+        replacement: path.resolve(import.meta.dirname, "src/web-components/index.ts"),
+      },
+      {
         find: "@honua/sdk-js",
         replacement: path.resolve(import.meta.dirname, "src/index.ts"),
       },
