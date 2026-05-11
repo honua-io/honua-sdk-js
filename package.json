@@ -83,6 +83,10 @@
       "types": "./dist/src/runtime/index.d.ts",
       "default": "./dist/src/runtime/index.js"
     },
+    "./web-components": {
+      "types": "./dist/src/web-components/index.d.ts",
+      "default": "./dist/src/web-components/index.js"
+    },
     "./generated-app": {
       "types": "./dist/src/generated-app/index.d.ts",
       "default": "./dist/src/generated-app/index.js"
@@ -194,8 +198,13 @@
     "demo:edit-workflow:preview": "vite preview --config examples/edit-workflow-demo/vite.config.ts --host 127.0.0.1",
     "demo:edit-workflow:mock": "node examples/edit-workflow-demo/mock-server.mjs",
     "demo:edit-workflow:typecheck": "tsc -p examples/edit-workflow-demo/tsconfig.json --noEmit",
-    "demo:examples:typecheck": "npm run demo:quickstart:typecheck && npm run demo:incident:typecheck && npm run demo:unified-ops:typecheck && npm run demo:25d:typecheck && npm run demo:service-explorer:typecheck && npm run demo:migration-workbench:typecheck && npm run demo:mcp-gis-assistant:typecheck && npm run demo:ai-spatial-builder:typecheck && npm run demo:spatial-analytics:typecheck && npm run demo:gp-runner:typecheck && npm run demo:stac-browser:typecheck && npm run demo:imagery-cog:typecheck && npm run demo:geocoding:typecheck && npm run demo:node-backend:typecheck && npm run demo:terrain-elevation:typecheck && npm run demo:edit-workflow:typecheck && node scripts/ensure-kepler-demo-deps.mjs && npm --prefix examples/kepler-analytics run typecheck",
-    "demo:examples:build": "node scripts/ensure-kepler-demo-deps.mjs && npm run demo:quickstart:build && npm run demo:incident:build && npm run demo:unified-ops:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:kepler:build",
+    "demo:web-components": "vite --config examples/web-components-basic/vite.config.ts",
+    "demo:web-components:build": "vite build --config examples/web-components-basic/vite.config.ts",
+    "demo:web-components:preview": "vite preview --config examples/web-components-basic/vite.config.ts --host 127.0.0.1",
+    "demo:web-components:mock": "node examples/web-components-basic/mock-server.mjs",
+    "demo:web-components:typecheck": "tsc -p examples/web-components-basic/tsconfig.json --noEmit",
+    "demo:examples:typecheck": "npm run demo:quickstart:typecheck && npm run demo:incident:typecheck && npm run demo:unified-ops:typecheck && npm run demo:25d:typecheck && npm run demo:service-explorer:typecheck && npm run demo:migration-workbench:typecheck && npm run demo:mcp-gis-assistant:typecheck && npm run demo:ai-spatial-builder:typecheck && npm run demo:spatial-analytics:typecheck && npm run demo:gp-runner:typecheck && npm run demo:stac-browser:typecheck && npm run demo:imagery-cog:typecheck && npm run demo:geocoding:typecheck && npm run demo:node-backend:typecheck && npm run demo:terrain-elevation:typecheck && npm run demo:edit-workflow:typecheck && npm run demo:web-components:typecheck && node scripts/ensure-kepler-demo-deps.mjs && npm --prefix examples/kepler-analytics run typecheck",
+    "demo:examples:build": "node scripts/ensure-kepler-demo-deps.mjs && npm run demo:quickstart:build && npm run demo:incident:build && npm run demo:unified-ops:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:web-components:build && npm run demo:kepler:build",
     "test": "vitest run",
     "test:cloud-demo:config": "vitest run test/cloud-demo-services.test.ts test/demo-capability-matrix.test.ts",
     "test:cloud-demo:staging": "vitest run --config vitest.cloud-demo.config.ts",
@@ -212,6 +221,7 @@
     "test:playwright:geocoding": "playwright test test/playwright/geocoding-quickstart.spec.mjs",
     "test:playwright:terrain-elevation": "playwright test test/playwright/terrain-rgb-elevation.spec.mjs",
     "test:playwright:edit-workflow": "playwright test test/playwright/edit-workflow-demo.spec.mjs",
+    "test:playwright:web-components": "playwright test test/playwright/web-components-basic.spec.mjs",
     "test:quickstart:staging": "vitest run --config vitest.staging.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:migration:real-samples": "vitest run test/migration-real-sample-runtime.test.ts test/migration-feature-table-demo-runtime.test.ts",
@@ -277,7 +287,12 @@
       "optional": true
     }
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/web-components/index.ts",
+    "./src/web-components/elements.ts",
+    "./dist/src/web-components/index.js",
+    "./dist/src/web-components/elements.js"
+  ],
   "engines": {
     "node": ">=20.0.0"
   }
