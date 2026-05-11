@@ -11,9 +11,9 @@
  */
 
 import type { FeatureId } from "../contract/types.js";
-import { Expr } from "../expr/index.js";
 import { sourceFeatureSelectionTarget } from "../exploration/selection.js";
 import type { SourceQualifiedFeatureSelectionTarget } from "../exploration/types.js";
+import { Expr } from "../expr/index.js";
 import type {
   HonuaLayerSpecification,
   HonuaSourceSpecification,
@@ -59,8 +59,7 @@ export type RuntimePaintSpecification = Record<string, RuntimeStyleValue>;
 export type RuntimeLayoutSpecification = Record<string, RuntimeStyleValue>;
 export type RuntimeFilterExpression = unknown;
 
-export interface RuntimeLayerSpecification
-  extends Omit<HonuaLayerSpecification, "paint" | "layout" | "filter"> {
+export interface RuntimeLayerSpecification extends Omit<HonuaLayerSpecification, "paint" | "layout" | "filter"> {
   readonly paint?: RuntimePaintSpecification;
   readonly layout?: RuntimeLayoutSpecification;
   readonly filter?: RuntimeFilterExpression;
@@ -647,7 +646,9 @@ function validateExpressionArray(
 
   const operator = expr[0];
   if (typeof operator !== "string") {
-    return [diagnostic("expression-operator-invalid", "Expression arrays must start with an operator string.", options)];
+    return [
+      diagnostic("expression-operator-invalid", "Expression arrays must start with an operator string.", options),
+    ];
   }
 
   const rule = EXPRESSION_OPERATORS[operator];

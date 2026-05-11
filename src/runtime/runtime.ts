@@ -12,17 +12,9 @@
 import type { Dataset } from "../contract/index.js";
 import type { FeatureId } from "../contract/types.js";
 import type { ExplorationViewController, SourceQualifiedFeatureSelectionTarget } from "../exploration/types.js";
-import {
-  bindMapSelectionToExploration,
-  syncFeatureStateSelection,
-} from "../interactions/exploration-bindings.js";
+import { bindMapSelectionToExploration, syncFeatureStateSelection } from "../interactions/exploration-bindings.js";
 import { createHoverHandler, createSelectionHandler } from "../interactions/feature-state.js";
-import type {
-  FeatureStateMap,
-  HoverHandle,
-  MapEventTarget,
-  SelectionHandle,
-} from "../interactions/feature-state.js";
+import type { FeatureStateMap, HoverHandle, MapEventTarget, SelectionHandle } from "../interactions/feature-state.js";
 import type { HonuaMap } from "../map/honua-map.js";
 import type { HonuaStyleSpecification } from "../style/specification.js";
 import { type MapPackageDiff, diffPackages } from "./diff.js";
@@ -252,7 +244,9 @@ export class HonuaMapRuntime {
   }
 
   public validateFilterExpression(filter: unknown, layerId?: string): HonuaRuntimeDiagnostic[] {
-    const layerContext = layerId ? sourceContextForLayer(this.#composedStyle, this.#packageRef.current, layerId) : undefined;
+    const layerContext = layerId
+      ? sourceContextForLayer(this.#composedStyle, this.#packageRef.current, layerId)
+      : undefined;
     return validateRuntimeFilterExpression(filter, {
       ...(layerId ? { layerId, path: `layers.${layerId}.filter` } : {}),
       ...(layerContext

@@ -4,8 +4,8 @@ import { HonuaClient } from "../src/core/client.js";
 import { createExplorationContext, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 import {
   HONUA_MAP_PACKAGE_FORMAT_V1,
-  HonuaRuntimeDiagnosticError,
   type HonuaMapPackage,
+  HonuaRuntimeDiagnosticError,
   type MaplibreMap,
   loadMapPackage,
   validateRuntimeFilterExpression,
