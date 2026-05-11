@@ -1,5 +1,5 @@
+import type { HonuaAgentAuditEvent, HonuaAiMapKit } from "@honua/sdk-js/agent-tools";
 import type { HonuaAppWorkspace } from "@honua/sdk-js/app-workspace";
-import type { HonuaAiMapKit, HonuaAgentAuditEvent } from "@honua/sdk-js/agent-tools";
 import type { ExplorationContext, ExplorationViewController, FilterClause } from "@honua/sdk-js/exploration";
 import type { HonuaCacheState, HonuaExtent, JobSnapshot } from "@honua/sdk-js/honua";
 import type { LinkedViewQueryProjection } from "@honua/sdk-js/interactions";

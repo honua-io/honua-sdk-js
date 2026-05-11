@@ -77,13 +77,7 @@ describe("AI Spatial App Builder sample", () => {
       "selectFeature",
       "runWidgetQuery",
     ]);
-    expect(results.map((result) => (result as { status: string }).status)).toEqual([
-      "ok",
-      "ok",
-      "ok",
-      "ok",
-      "dry-run",
-    ]);
+    expect(results.map((result) => (result as { status: string }).status)).toEqual(["ok", "ok", "ok", "ok", "dry-run"]);
     expect(session.agentAudit.map((event) => [event.tool, event.outcome, event.dryRun])).toEqual([
       ["inspectMap", "allowed", false],
       ["runWidgetQuery", "allowed", false],

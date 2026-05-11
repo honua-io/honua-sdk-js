@@ -630,9 +630,14 @@ export function createHonuaAiMapKit(options: HonuaAiMapKitOptions): HonuaAiMapKi
   const runtime =
     options.runtime ??
     (options.controller ? adaptHonuaControllerToAgentRuntime(options.controller) : undefined) ??
-    (options.generatedAppRuntime ? adaptHonuaGeneratedAppRuntimeToAgentRuntime(options.generatedAppRuntime) : undefined);
+    (options.generatedAppRuntime
+      ? adaptHonuaGeneratedAppRuntimeToAgentRuntime(options.generatedAppRuntime)
+      : undefined);
   if (!runtime) {
-    throw new HonuaAgentToolError("missing-runtime", "createHonuaAiMapKit requires a runtime, controller, or generated-app runtime.");
+    throw new HonuaAgentToolError(
+      "missing-runtime",
+      "createHonuaAiMapKit requires a runtime, controller, or generated-app runtime.",
+    );
   }
 
   const policy = normalizeAiMapKitPolicy(options.policy);
@@ -768,7 +773,10 @@ export async function createHonuaAgentSystemPrompt(
 
 export function adaptHonuaControllerToAgentRuntime(
   controller: HonuaControllerLike,
-  options: { readonly sources?: ReadonlyArray<HonuaAgentSourceSummary>; readonly layers?: ReadonlyArray<HonuaAgentLayerSummary> } = {},
+  options: {
+    readonly sources?: ReadonlyArray<HonuaAgentSourceSummary>;
+    readonly layers?: ReadonlyArray<HonuaAgentLayerSummary>;
+  } = {},
 ): HonuaAgentRuntime {
   return {
     id: controller.id,
@@ -790,12 +798,17 @@ export function adaptHonuaControllerToAgentRuntime(
     getViewport: () => controller.getViewport?.(),
     setViewport: (viewport) => controller.setViewport?.(viewport),
     getSelection: () => controller.getSelection?.() ?? controller.context?.state?.selection ?? [],
-    setFilter: (id, clause) => controller.context?.dispatch?.(clause ? { kind: "set-filter", id, clause } : { kind: "clear-filter", id }),
+    setFilter: (id, clause) =>
+      controller.context?.dispatch?.(clause ? { kind: "set-filter", id, clause } : { kind: "clear-filter", id }),
     selectFeature: (target, selectOptions) => {
       if (!isSourceQualifiedSelectionTarget(target)) {
-        throw new HonuaAgentToolError("unqualified-selection", "Controller adapter requires source-qualified selections.", {
-          tool: "selectFeature",
-        });
+        throw new HonuaAgentToolError(
+          "unqualified-selection",
+          "Controller adapter requires source-qualified selections.",
+          {
+            tool: "selectFeature",
+          },
+        );
       }
       if (!controller.selectFeature) {
         controller.context?.dispatch?.({ kind: "select", ids: [target], replace: selectOptions?.replace ?? true });
@@ -816,9 +829,7 @@ export function adaptHonuaGeneratedAppRuntimeToAgentRuntime(
     snapshot: () => ({
       appId: runtime.manifest?.appId,
       mapPackageId: runtime.mapRuntime?.mapPackage?.id,
-      sources: sourceId
-        ? [{ id: sourceId, title: runtime.manifest?.title, capabilities: ["query"] }]
-        : [],
+      sources: sourceId ? [{ id: sourceId, title: runtime.manifest?.title, capabilities: ["query"] }] : [],
       layers:
         runtime.mapRuntime?.composedStyle?.layers?.map((layer) => ({
           id: typeof layer.id === "string" ? layer.id : String(layer.id ?? "layer"),
@@ -837,13 +848,18 @@ export function adaptHonuaGeneratedAppRuntimeToAgentRuntime(
     setFilter: (id, clause) => {
       const value = clause?.value as string | number | boolean | undefined;
       runtime.setFilter?.(id, value);
-      if (!runtime.setFilter) runtime.context?.dispatch?.(clause ? { kind: "set-filter", id, clause } : { kind: "clear-filter", id });
+      if (!runtime.setFilter)
+        runtime.context?.dispatch?.(clause ? { kind: "set-filter", id, clause } : { kind: "clear-filter", id });
     },
     selectFeature: (target, selectOptions) => {
       if (!isSourceQualifiedSelectionTarget(target)) {
-        throw new HonuaAgentToolError("unqualified-selection", "Generated app adapter requires source-qualified selections.", {
-          tool: "selectFeature",
-        });
+        throw new HonuaAgentToolError(
+          "unqualified-selection",
+          "Generated app adapter requires source-qualified selections.",
+          {
+            tool: "selectFeature",
+          },
+        );
       }
       const widgetId = firstWidgetId(runtime, "table") ?? firstWidgetId(runtime, "list") ?? "table";
       runtime.selectRecord?.(widgetId, target.id, selectOptions);
@@ -889,14 +905,24 @@ export async function executeHonuaAgentTool(
         return result(call.name, "ok", args, options, { data: await listCapabilities(runtime, call.args) });
       case "setViewport":
         if (dryRun)
-          return result(call.name, "dry-run", args, options, { data: { viewport: viewportFromArgs(args as SetViewportArgs) } });
+          return result(call.name, "dry-run", args, options, {
+            data: { viewport: viewportFromArgs(args as SetViewportArgs) },
+          });
         requireRuntimeMethod(runtime.setViewport, call.name);
-        return result(call.name, "ok", args, options, { data: await runtime.setViewport(viewportFromArgs(args as SetViewportArgs)) });
+        return result(call.name, "ok", args, options, {
+          data: await runtime.setViewport(viewportFromArgs(args as SetViewportArgs)),
+        });
       case "addLayer":
-        if (dryRun) return result(call.name, "dry-run", args, options, { data: { layer: (args as unknown as AddLayerArgs).layer } });
+        if (dryRun)
+          return result(call.name, "dry-run", args, options, {
+            data: { layer: (args as unknown as AddLayerArgs).layer },
+          });
         requireRuntimeMethod(runtime.addLayer, call.name);
         return result(call.name, "ok", args, options, {
-          data: await runtime.addLayer((args as unknown as AddLayerArgs).layer, (args as unknown as AddLayerArgs).beforeId),
+          data: await runtime.addLayer(
+            (args as unknown as AddLayerArgs).layer,
+            (args as unknown as AddLayerArgs).beforeId,
+          ),
         });
       case "setFilter":
         if (dryRun)
@@ -905,7 +931,10 @@ export async function executeHonuaAgentTool(
           });
         requireRuntimeMethod(runtime.setFilter, call.name);
         return result(call.name, "ok", args, options, {
-          data: await runtime.setFilter((args as unknown as SetFilterArgs).id, (args as unknown as SetFilterArgs).clause),
+          data: await runtime.setFilter(
+            (args as unknown as SetFilterArgs).id,
+            (args as unknown as SetFilterArgs).clause,
+          ),
         });
       case "selectFeature": {
         const selectArgs = args as unknown as SelectFeatureArgs;
@@ -1257,11 +1286,20 @@ function safeToolExamples(
   const sourceId = sources[0]?.id ?? "source-id";
   const layerId = layers[0]?.id ?? "layer-id";
   return [
-    { user: "What sources and capabilities are available?", toolCall: { name: "listCapabilities", args: { sourceId } } },
-    { user: "Preview a map move without changing state.", toolCall: { name: "setViewport", args: { zoom: 12, dryRun: true } } },
+    {
+      user: "What sources and capabilities are available?",
+      toolCall: { name: "listCapabilities", args: { sourceId } },
+    },
+    {
+      user: "Preview a map move without changing state.",
+      toolCall: { name: "setViewport", args: { zoom: 12, dryRun: true } },
+    },
     {
       user: "Apply a source-scoped equality filter after approval.",
-      toolCall: { name: "setFilter", args: { id: layerId, clause: { field: "status", operator: "=", value: "open", appliesTo: [sourceId] } } },
+      toolCall: {
+        name: "setFilter",
+        args: { id: layerId, clause: { field: "status", operator: "=", value: "open", appliesTo: [sourceId] } },
+      },
     },
   ];
 }

@@ -7,8 +7,8 @@ import {
   type HonuaAgentViewport,
   convertHonuaAgentToolDefinitions,
   createHonuaAgentMapContext,
-  createHonuaAiMapKit,
   createHonuaAgentToolExecutor,
+  createHonuaAiMapKit,
   executeHonuaAgentTool,
   explainHonuaCapabilityGap,
   toHonuaMcpToolDefinitions,
@@ -92,7 +92,12 @@ describe("@honua/sdk-js/agent-tools", () => {
     });
 
     expect(kit.providerTools[0]).toMatchObject({ type: "function" });
-    expect(kit.mcpTools.map((tool) => tool.name)).toEqual(["inspectMap", "setFilter", "selectFeature", "runWidgetQuery"]);
+    expect(kit.mcpTools.map((tool) => tool.name)).toEqual([
+      "inspectMap",
+      "setFilter",
+      "selectFeature",
+      "runWidgetQuery",
+    ]);
 
     const denied = await kit.execute({
       name: "selectFeature",

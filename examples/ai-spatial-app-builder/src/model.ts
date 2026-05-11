@@ -1,11 +1,11 @@
 import {
-  createHonuaAiMapKit,
   type HonuaAgentAuditEvent,
   type HonuaAgentRuntime,
   type HonuaAgentToolResult,
   type HonuaAgentViewport,
   type HonuaAgentWidgetQueryRequest,
   type HonuaAgentWidgetQueryResult,
+  createHonuaAiMapKit,
 } from "@honua/sdk-js/agent-tools";
 import {
   createHonuaAppWorkspace,
@@ -112,7 +112,15 @@ export function createAiSpatialAppBuilderSession(
   const aiMapKit = createHonuaAiMapKit({
     runtime: createBuilderAgentRuntime(dataset, views, () => generatedApp),
     providerFormat: "mcp",
-    tools: ["inspectMap", "listSources", "listCapabilities", "setFilter", "selectFeature", "runWidgetQuery", "addLayer"],
+    tools: [
+      "inspectMap",
+      "listSources",
+      "listCapabilities",
+      "setFilter",
+      "selectFeature",
+      "runWidgetQuery",
+      "addLayer",
+    ],
     policy: {
       actor: "fixture-ai-map-kit",
       allowActions: true,
