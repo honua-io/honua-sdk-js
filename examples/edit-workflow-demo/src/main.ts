@@ -78,6 +78,7 @@ function renderStatus(): void {
   const caps = session.capabilities();
   const visible = session.visibleFeatures();
   const pending = session.pendingAttachments();
+  const sketch = session.sketchSnapshot();
 
   setText("#cache-state", `${cacheReady} ready / ${cacheStale} stale`);
   setText("#visible-count", String(visible.length));
@@ -91,7 +92,13 @@ function renderStatus(): void {
     "#capability-summary",
     `applyEdits ${caps.applyEdits} / attachments ${caps.attachments} / conflicts ${caps.conflicts}`,
   );
+  setText(
+    "#sketch-state",
+    `${titleCase(sketch.sketch.status)} / undo ${sketch.undo.undoDepth} / redo ${sketch.undo.redoDepth}`,
+  );
   getElement<HTMLElement>("#submit-status").dataset.status = result?.status ?? "ready";
+  getElement<HTMLButtonElement>("#undo-sketch").disabled = !sketch.undo.canUndo;
+  getElement<HTMLButtonElement>("#redo-sketch").disabled = !sketch.undo.canRedo;
 }
 
 function renderControls(): void {
@@ -378,6 +385,28 @@ function wireEvents(): void {
   });
   getElement<HTMLButtonElement>("#stage-attachment").addEventListener("click", () => {
     session.stageAttachmentAdd("after-action.png");
+    render();
+  });
+  getElement<HTMLButtonElement>("#sketch-point").addEventListener("click", () => {
+    const geometry = session.draft().geometry;
+    session.applySketchGeometry("point", { ...geometry, x: geometry.x + 0.001, y: geometry.y + 0.001 });
+    render();
+  });
+  getElement<HTMLButtonElement>("#sketch-rectangle").addEventListener("click", () => {
+    const geometry = session.draft().geometry;
+    session.applySketchGeometry("rectangle", { ...geometry, x: geometry.x + 0.002, y: geometry.y - 0.001 });
+    render();
+  });
+  getElement<HTMLButtonElement>("#sketch-circle").addEventListener("click", () => {
+    session.applySketchGeometry("circle", session.draft().geometry);
+    render();
+  });
+  getElement<HTMLButtonElement>("#undo-sketch").addEventListener("click", () => {
+    session.undoSketchEdit();
+    render();
+  });
+  getElement<HTMLButtonElement>("#redo-sketch").addEventListener("click", () => {
+    session.redoSketchEdit();
     render();
   });
   getElement<HTMLButtonElement>("#stage-large-attachment").addEventListener("click", () => {

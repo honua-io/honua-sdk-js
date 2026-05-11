@@ -27,6 +27,13 @@ describe("Edit Workflow demo", () => {
     session.selectFeature(4101);
     session.updateDraftValue("status", "closed");
     session.updateDraftValue("inspection_score", 88);
+    session.applySketchGeometry("point", {
+      type: "point",
+      x: -157.874,
+      y: 21.312,
+      spatialReference: { wkid: 4326 },
+    });
+    expect(session.sketchSnapshot().dirty).toBe(true);
     session.stageAttachmentAdd("after-action.png");
     await session.stageAttachmentDelete(9101);
 
@@ -36,6 +43,7 @@ describe("Edit Workflow demo", () => {
     expect(result.attachmentResults.map((entry) => entry.operation)).toEqual(["add", "delete"]);
     expect(session.detailFeature()?.attributes.status).toBe("closed");
     expect(session.detailFeature()?.attributes.version).toBe(5);
+    expect(session.sketchSnapshot().dirty).toBe(false);
     await expect(session.attachmentList(4101)).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "after-action.png" })]),
     );
@@ -91,6 +99,11 @@ describe("Edit Workflow demo", () => {
     session.startCreateDraft();
     session.updateDraftValue("asset_name", "Ala Moana temporary generator");
     session.updateDraftValue("priority", "high");
+    session.applySketchGeometry("circle", session.draft().geometry);
+    expect(session.sketchSnapshot().sketch.status).toBe("unsupported");
+    session.applySketchGeometry("rectangle", { ...session.draft().geometry, x: -157.872 });
+    expect(session.undoSketchEdit()).toBe(true);
+    expect(session.redoSketchEdit()).toBe(true);
 
     const created = await session.submitDraft();
     expect(created.status).toBe("succeeded");
@@ -103,6 +116,8 @@ describe("Edit Workflow demo", () => {
     const exported = JSON.parse(session.exportWorkspace());
     expect(exported.kind).toBe("honua.saved-workspace");
     expect(exported.metadata.demo).toBe("edit-workflow");
+    expect(exported.metadata.sketchDirty).toBe(false);
+    expect(exported.project.metadata.persistedAnnotations).toContain("annotation:4104:create");
     expect(exported.sources.map((source: { id: string }) => source.id)).toContain(session.sourceId);
 
     session.dispose();
