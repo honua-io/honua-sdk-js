@@ -27,6 +27,7 @@ import {
   materializeRuntimeLayer,
   materializeRuntimeSource,
   materializeStyleValue,
+  protocolForSource,
   rendererRuntimeDiagnosticError,
   resolveFeatureIdFromEventFeature,
   resolveRuntimeBeforeId,
@@ -622,6 +623,45 @@ export class HonuaMapRuntime {
 
   public setLayerFilter(layerId: string, filter: RuntimeFilterExpression | undefined): void {
     this.updateLayer(layerId, { filter });
+  }
+
+  public refreshSource(sourceId: string): boolean {
+    this.#assertLive();
+    if (!Object.hasOwn(this.#composedStyle.sources, sourceId)) {
+      throwRuntimeDiagnostics(
+        [
+          {
+            code: "source-not-found",
+            severity: "error",
+            message: `Source "${sourceId}" does not exist.`,
+            path: `sources.${sourceId}`,
+            sourceId,
+          },
+        ],
+        `Cannot refresh source "${sourceId}".`,
+      );
+      return false;
+    }
+
+    const source = this.map.getSource?.(sourceId) as { reload?: () => void } | undefined;
+    if (typeof source?.reload !== "function") return false;
+    try {
+      source.reload();
+      this.#emit({ type: "source-ready", sourceId });
+      return true;
+    } catch (error) {
+      throw rendererRuntimeDiagnosticError(
+        `refreshSource("${sourceId}") failed`,
+        {
+          code: "source-refresh-failed",
+          message: errorMessage(error),
+          path: `sources.${sourceId}`,
+          sourceId,
+          protocol: protocolForSource(this.#composedStyle, this.#packageRef.current, sourceId),
+        },
+        error,
+      );
+    }
   }
 
   public layerSelectionTarget(layerId: string, id: FeatureId): SourceQualifiedFeatureSelectionTarget {

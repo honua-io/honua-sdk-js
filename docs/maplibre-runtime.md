@@ -120,6 +120,51 @@ Runtime source/layer mutation helpers lazily use
 `"renderer-deferred"` skips SDK style-spec checks so the host renderer
 reports invalid values.
 
+## Source and Layer Mutation
+
+`HonuaMapRuntime` owns the renderer-specific implementation used by
+`HonuaController`'s app-level CRUD surface. The API follows Mapbox GL source
+and layer concepts:
+
+```ts
+runtime.addSource("dispatch", {
+  type: "geojson",
+  data: { type: "FeatureCollection", features: [] },
+});
+
+runtime.addLayer(
+  {
+    id: "dispatch-points",
+    type: "circle",
+    source: "dispatch",
+    paint: { "circle-color": "#00a884", "circle-radius": 6 },
+  },
+  { beforeId: "parcels-fill" },
+);
+
+runtime.updateLayer("dispatch-points", {
+  paint: { "circle-color": "#006f5f" },
+  metadata: { editedBy: "operator" },
+});
+runtime.moveLayer("dispatch-points", { position: "top" });
+runtime.refreshSource("dispatch");
+runtime.removeLayer("dispatch-points");
+runtime.removeSource("dispatch");
+```
+
+Supported source inputs include common native MapLibre source entries and Honua
+custom source entries for GeoServices, OGC Features, WMS, and WMTS. Query-tile
+sources can be created with `buildMapLibreQueryTileSourceSpec()`, while hosted
+MapPackage source bindings should continue to flow through `loadMapPackage()`
+or `updatePackage()` when server state is the source of truth.
+
+The mutation helpers validate source specs, layer specs, style expressions,
+filters, layer ordering, and duplicate/missing IDs before mutating the map.
+Renderer failures are wrapped as `HonuaRuntimeDiagnosticError` diagnostics. For
+incremental paint/layout/filter patches the runtime uses MapLibre's property
+setters when available; structural updates fall back to `setStyle(..., { diff:
+true })`.
+
 ## Hosted MapPackage Fetch
 
 Builder-style usage starts from a package id instead of an inline

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { HonuaClient } from "../src/core/client.js";
 import { createExplorationContext, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
@@ -24,6 +24,7 @@ interface MockMap extends MaplibreMap {
   _style: unknown;
   _listeners: Array<{ event: string; layer?: string; handler: (...args: unknown[]) => void }>;
   _featureState: Map<string, Record<string, unknown>>;
+  _sourceHandles: Map<string, { reload?: () => void }>;
   _fire(event: string, layer: string, payload: unknown): void;
 }
 
@@ -31,6 +32,7 @@ function makeMockMap(): MockMap {
   const calls: MockCall[] = [];
   const listeners: MockMap["_listeners"] = [];
   const featureState = new Map<string, Record<string, unknown>>();
+  const sourceHandles = new Map<string, { reload?: () => void }>();
   let style: unknown = {};
 
   function record(method: string, args: unknown[]): void {
@@ -46,6 +48,7 @@ function makeMockMap(): MockMap {
     _style: style,
     _listeners: listeners,
     _featureState: featureState,
+    _sourceHandles: sourceHandles,
     setStyle(next, options) {
       record("setStyle", [next, options]);
       style = next;
@@ -84,7 +87,7 @@ function makeMockMap(): MockMap {
     },
     getSource(id) {
       record("getSource", [id]);
-      return undefined;
+      return sourceHandles.get(id);
     },
     fitBounds(bounds, options) {
       record("fitBounds", [bounds, options]);
@@ -249,6 +252,11 @@ describe("runtime source/layer helpers", () => {
 
     runtime.moveLayer("assets-points", { afterId: "parcels-fill" });
     expect(runtime.composedStyle.layers.map((layer) => layer.id)).toEqual(["parcels-fill", "assets-points"]);
+
+    const reload = vi.fn();
+    map._sourceHandles.set("assets", { reload });
+    expect(runtime.refreshSource("assets")).toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
 
     expect(runtime.removeLayer("assets-points")).toBe(true);
     expect(runtime.removeSource("assets")).toEqual([]);
