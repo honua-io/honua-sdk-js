@@ -45,6 +45,41 @@ export type {
   MapPackagePathResolver,
 } from "./map-package-fetch.js";
 
+export {
+  MAP_PACKAGE_REALTIME_CHANNEL_V1,
+  createMapPackageServerSentEventsTransport,
+  decodeMapPackageRealtimeMessage,
+  encodeMapPackageRealtimeUrl,
+  readMapPackageRealtimeAdvertisement,
+} from "./map-package-realtime.js";
+export type {
+  MapPackageRealtimeAdvertisement,
+  MapPackageRealtimeAuth,
+  MapPackageRealtimeChannel,
+  MapPackageRealtimeCheckpoint,
+  MapPackageRealtimeDisconnectedMessage,
+  MapPackageRealtimeErrorMessage,
+  MapPackageRealtimeEventSource,
+  MapPackageRealtimeEventSourceFactory,
+  MapPackageRealtimeFallbackMode,
+  MapPackageRealtimeHeartbeatMessage,
+  MapPackageRealtimeMessage,
+  MapPackageRealtimeMessageBase,
+  MapPackageRealtimeObserver,
+  MapPackageRealtimeReadyMessage,
+  MapPackageRealtimeReconnectOptions,
+  MapPackageRealtimeRefetchRequiredMessage,
+  MapPackageRealtimeReloadRequiredMessage,
+  MapPackageRealtimeStaleMessage,
+  MapPackageRealtimeSubscribeRequest,
+  MapPackageRealtimeSubscriptionHandle,
+  MapPackageRealtimeTransport,
+  MapPackageRealtimeTransportKind,
+  MapPackageRealtimeUpdate,
+  MapPackageRealtimeUpdatedMessage,
+  MapPackageRealtimeWatchOptions,
+  MapPackageServerSentEventsTransportOptions,
+} from "./map-package-realtime.js";
 export { watchMapPackage } from "./map-package-watch.js";
 export type { MapPackageWatchEvent, MapPackageWatchHandle, WatchMapPackageOptions } from "./map-package-watch.js";
 
