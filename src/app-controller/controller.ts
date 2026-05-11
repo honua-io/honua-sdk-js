@@ -12,7 +12,20 @@ import type {
   SourceQualifiedFeatureSelectionTarget,
   Unsubscribe,
 } from "../exploration/index.js";
-import type { HonuaMapPackage, LegendEntry, MaplibreMap, SetViewStateInput } from "../runtime/index.js";
+import type {
+  HonuaMapPackage,
+  HonuaRuntimeDiagnostic,
+  LegendEntry,
+  MaplibreMap,
+  RuntimeFilterExpression,
+  RuntimeLayerOrder,
+  RuntimeLayerSpecification,
+  RuntimeLayerUpdate,
+  RuntimeLayoutSpecification,
+  RuntimePaintSpecification,
+  RuntimeSourceSpecification,
+  SetViewStateInput,
+} from "../runtime/index.js";
 import type { HonuaStyleSpecification } from "../style/index.js";
 
 export const HONUA_CONTROLLER_SNAPSHOT_VERSION = 1 as const;
@@ -24,7 +37,9 @@ export type HonuaControllerErrorCode =
   | "invalid-selection"
   | "invalid-overlay"
   | "invalid-annotation"
-  | "invalid-snapshot";
+  | "invalid-snapshot"
+  | "invalid-layer-source"
+  | "persistence-failed";
 
 export class HonuaControllerError extends Error {
   public readonly code: HonuaControllerErrorCode;
@@ -247,6 +262,35 @@ export interface HonuaControllerAnnotationChangeEvent extends HonuaControllerEve
   readonly annotationId?: string;
 }
 
+export type HonuaLayerSourceMutationAction =
+  | "source-added"
+  | "source-updated"
+  | "source-removed"
+  | "layer-added"
+  | "layer-updated"
+  | "layer-moved"
+  | "layer-removed"
+  | "source-refreshed";
+
+export interface HonuaLayerSourceMutation {
+  readonly action: HonuaLayerSourceMutationAction;
+  readonly sourceId?: string;
+  readonly layerId?: string;
+  readonly removedLayerIds?: ReadonlyArray<string>;
+  readonly order?: RuntimeLayerOrder;
+  readonly timestamp: string;
+}
+
+export interface HonuaControllerLayerSourceChangeEvent extends HonuaControllerEventBase {
+  readonly type: "layer-source-change";
+  readonly action: HonuaLayerSourceMutationAction;
+  readonly sourceId?: string;
+  readonly layerId?: string;
+  readonly removedLayerIds?: ReadonlyArray<string>;
+  readonly mutation: HonuaLayerSourceMutation;
+  readonly pendingMutations: ReadonlyArray<HonuaLayerSourceMutation>;
+}
+
 export interface HonuaControllerDisposedEvent {
   readonly type: "disposed";
 }
@@ -258,6 +302,7 @@ export type HonuaControllerEvent =
   | HonuaControllerVisibilityChangeEvent
   | HonuaControllerOverlayChangeEvent
   | HonuaControllerAnnotationChangeEvent
+  | HonuaControllerLayerSourceChangeEvent
   | HonuaControllerDisposedEvent;
 
 export type HonuaControllerEventType = HonuaControllerEvent["type"];
@@ -289,10 +334,24 @@ export interface HonuaControllerAdapterSubscription {
 
 export interface HonuaControllerAdapter {
   readonly id?: string;
+  getStyle?(): HonuaStyleSpecification | undefined;
   getViewport?(): HonuaViewport | undefined;
   setViewport?(viewport: HonuaViewport, options?: HonuaViewportOptions): void;
   fitBounds?(bounds: HonuaBounds, options?: HonuaFitBoundsOptions): void;
   setLayerVisibility?(layerId: string, visible: boolean): void;
+  addSource?(sourceId: string, source: RuntimeSourceSpecification): void;
+  updateSource?(sourceId: string, source: RuntimeSourceSpecification): void;
+  removeSource?(sourceId: string): ReadonlyArray<string>;
+  addLayer?(layer: RuntimeLayerSpecification, order?: RuntimeLayerOrder): void;
+  updateLayer?(layerId: string, update: RuntimeLayerUpdate): void;
+  moveLayer?(layerId: string, order?: RuntimeLayerOrder): void;
+  removeLayer?(layerId: string): boolean;
+  setLayerPaint?(layerId: string, paint: RuntimePaintSpecification): void;
+  setLayerLayout?(layerId: string, layout: RuntimeLayoutSpecification): void;
+  setLayerFilter?(layerId: string, filter: RuntimeFilterExpression | undefined): void;
+  refreshSource?(sourceId: string): boolean;
+  validateStyleExpression?(value: unknown): HonuaRuntimeDiagnostic[];
+  validateFilterExpression?(filter: unknown, layerId?: string): HonuaRuntimeDiagnostic[];
   addOverlay?(overlay: HonuaTemporaryOverlay): void;
   removeOverlay?(overlayId: string): void;
   addAnnotation?(annotation: HonuaTemporaryAnnotation): void;
@@ -313,6 +372,19 @@ export interface HonuaControllerRuntimeLike {
   readonly composedStyle: HonuaStyleSpecification;
   setViewState(view: SetViewStateInput): void;
   setLayerVisibility(layerId: string, visible: boolean): void;
+  addSource?(sourceId: string, source: RuntimeSourceSpecification): void;
+  updateSource?(sourceId: string, source: RuntimeSourceSpecification): void;
+  removeSource?(sourceId: string): string[];
+  addLayer?(layer: RuntimeLayerSpecification, order?: RuntimeLayerOrder): void;
+  updateLayer?(layerId: string, update: RuntimeLayerUpdate): void;
+  moveLayer?(layerId: string, order?: RuntimeLayerOrder): void;
+  removeLayer?(layerId: string): boolean;
+  setLayerPaint?(layerId: string, paint: RuntimePaintSpecification): void;
+  setLayerLayout?(layerId: string, layout: RuntimeLayoutSpecification): void;
+  setLayerFilter?(layerId: string, filter: RuntimeFilterExpression | undefined): void;
+  refreshSource?(sourceId: string): boolean;
+  validateStyleExpression?(value: unknown): HonuaRuntimeDiagnostic[];
+  validateFilterExpression?(filter: unknown, layerId?: string): HonuaRuntimeDiagnostic[];
   getLegend?(): LegendEntry[];
   dispose?(): void;
 }
@@ -326,6 +398,47 @@ export interface HonuaGeneratedAppRuntimeLike {
 
 export type HonuaControllerRuntime = HonuaControllerRuntimeLike | HonuaGeneratedAppRuntimeLike;
 
+export interface HonuaLayerSourcePersistencePayload {
+  readonly mutations: ReadonlyArray<HonuaLayerSourceMutation>;
+  readonly style: HonuaStyleSpecification | undefined;
+  readonly mapPackage: HonuaMapPackage | undefined;
+  readonly baseVersion?: string;
+  readonly concurrencyToken?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaLayerSourcePersistenceResult {
+  readonly saved?: boolean;
+  readonly version?: string;
+  readonly concurrencyToken?: string;
+  readonly conflict?: boolean;
+  readonly detail?: unknown;
+}
+
+export interface HonuaLayerSourcePersistenceHooks {
+  readonly save?: (
+    payload: HonuaLayerSourcePersistencePayload,
+  ) => HonuaLayerSourcePersistenceResult | void | Promise<HonuaLayerSourcePersistenceResult | void>;
+  readonly discard?: (
+    payload: HonuaLayerSourcePersistencePayload,
+  ) => HonuaLayerSourcePersistenceResult | void | Promise<HonuaLayerSourcePersistenceResult | void>;
+}
+
+export interface HonuaLayerSourcePersistenceOptions {
+  readonly baseVersion?: string;
+  readonly concurrencyToken?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface HonuaLayerSourcePersistenceOutcome {
+  readonly mutationCount: number;
+  readonly persisted: boolean;
+  readonly conflict: boolean;
+  readonly version?: string;
+  readonly concurrencyToken?: string;
+  readonly detail?: unknown;
+}
+
 export interface HonuaControllerOptions {
   readonly runtime?: HonuaControllerRuntime;
   readonly explorationContext?: ExplorationContext;
@@ -338,6 +451,7 @@ export interface HonuaControllerOptions {
   readonly legendItemLayers?: Readonly<Record<string, ReadonlyArray<string>>>;
   readonly disposeRuntime?: boolean;
   readonly disposeAdapter?: boolean;
+  readonly layerSourcePersistence?: HonuaLayerSourcePersistenceHooks;
 }
 
 interface ControllerInternals {
@@ -349,6 +463,7 @@ interface ControllerInternals {
   readonly disposeAdapter: boolean;
   readonly initialViewport: HonuaViewport;
   readonly initialVisibility: HonuaVisibilitySnapshot;
+  readonly layerSourcePersistence?: HonuaLayerSourcePersistenceHooks;
 }
 
 type ControllerListener = (event: HonuaControllerEvent) => void;
@@ -371,6 +486,7 @@ export class HonuaController {
   readonly #ownsContext: boolean;
   readonly #disposeRuntime: boolean;
   readonly #disposeAdapter: boolean;
+  readonly #layerSourcePersistence: HonuaLayerSourcePersistenceHooks | undefined;
   readonly #listeners: ListenerMap = new Map();
   readonly #subscriptions: Unsubscribe[] = [];
   readonly #layerGroups: Readonly<Record<string, ReadonlyArray<string>>>;
@@ -379,6 +495,9 @@ export class HonuaController {
   #viewport: HonuaViewport;
   #overlays = new Map<string, HonuaTemporaryOverlay>();
   #annotations = new Map<string, HonuaTemporaryAnnotation>();
+  #layerSourceMutations: HonuaLayerSourceMutation[] = [];
+  #layerSourceVersion: string | undefined;
+  #layerSourceConcurrencyToken: string | undefined;
   #disposed = false;
   #suppressExtentEvent = false;
 
@@ -390,6 +509,7 @@ export class HonuaController {
     this.#ownsContext = internals.ownsContext;
     this.#disposeRuntime = internals.disposeRuntime;
     this.#disposeAdapter = internals.disposeAdapter;
+    this.#layerSourcePersistence = internals.layerSourcePersistence;
     this.#layerGroups = structuredClone(options.layerGroups ?? {});
     this.#legendItemLayers = structuredClone(options.legendItemLayers ?? {});
     this.#visibility = cloneVisibility(internals.initialVisibility);
@@ -588,6 +708,156 @@ export class HonuaController {
     return this.on("visibility-change", listener);
   }
 
+  public getSource(sourceId: string): RuntimeSourceSpecification | undefined {
+    this.#assertLive("getSource");
+    return cloneStyleValue(this.#currentStyle()?.sources[sourceId]) as RuntimeSourceSpecification | undefined;
+  }
+
+  public listSources(): Readonly<Record<string, RuntimeSourceSpecification>> {
+    this.#assertLive("listSources");
+    return cloneStyleValue(this.#currentStyle()?.sources ?? {}) as Record<string, RuntimeSourceSpecification>;
+  }
+
+  public getLayer(layerId: string): RuntimeLayerSpecification | undefined {
+    this.#assertLive("getLayer");
+    return cloneStyleValue(this.#currentStyle()?.layers.find((layer) => layer.id === layerId)) as
+      | RuntimeLayerSpecification
+      | undefined;
+  }
+
+  public listLayers(): ReadonlyArray<RuntimeLayerSpecification> {
+    this.#assertLive("listLayers");
+    return cloneStyleValue(this.#currentStyle()?.layers ?? []) as RuntimeLayerSpecification[];
+  }
+
+  public addSource(sourceId: string, source: RuntimeSourceSpecification): void {
+    this.#assertLive("addSource");
+    this.#requireLayerSourceAdapter("addSource").addSource?.(sourceId, source);
+    this.#recordLayerSourceMutation({ action: "source-added", sourceId });
+  }
+
+  public updateSource(sourceId: string, source: RuntimeSourceSpecification): void {
+    this.#assertLive("updateSource");
+    this.#requireLayerSourceAdapter("updateSource").updateSource?.(sourceId, source);
+    this.#recordLayerSourceMutation({ action: "source-updated", sourceId });
+  }
+
+  public removeSource(sourceId: string): ReadonlyArray<string> {
+    this.#assertLive("removeSource");
+    const removedLayerIds = [...(this.#requireLayerSourceAdapter("removeSource").removeSource?.(sourceId) ?? [])];
+    this.#recordLayerSourceMutation({ action: "source-removed", sourceId, removedLayerIds });
+    return removedLayerIds;
+  }
+
+  public addLayer(layer: RuntimeLayerSpecification, order?: RuntimeLayerOrder): void {
+    this.#assertLive("addLayer");
+    this.#requireLayerSourceAdapter("addLayer").addLayer?.(layer, order);
+    this.#recordLayerSourceMutation({ action: "layer-added", layerId: layer.id, sourceId: layer.source, order });
+  }
+
+  public updateLayer(layerId: string, update: RuntimeLayerUpdate): void {
+    this.#assertLive("updateLayer");
+    this.#requireLayerSourceAdapter("updateLayer").updateLayer?.(layerId, update);
+    this.#recordLayerSourceMutation({ action: "layer-updated", layerId, sourceId: this.getLayer(layerId)?.source });
+  }
+
+  public moveLayer(layerId: string, order?: RuntimeLayerOrder): void {
+    this.#assertLive("moveLayer");
+    this.#requireLayerSourceAdapter("moveLayer").moveLayer?.(layerId, order);
+    this.#recordLayerSourceMutation({
+      action: "layer-moved",
+      layerId,
+      sourceId: this.getLayer(layerId)?.source,
+      order,
+    });
+  }
+
+  public removeLayer(layerId: string): boolean {
+    this.#assertLive("removeLayer");
+    const sourceId = this.getLayer(layerId)?.source;
+    const removed = this.#requireLayerSourceAdapter("removeLayer").removeLayer?.(layerId) ?? false;
+    if (removed) this.#recordLayerSourceMutation({ action: "layer-removed", layerId, sourceId });
+    return removed;
+  }
+
+  public setLayerPaint(layerId: string, paint: RuntimePaintSpecification): void {
+    this.#assertLive("setLayerPaint");
+    this.#requireLayerSourceAdapter("setLayerPaint").setLayerPaint?.(layerId, paint);
+    this.#recordLayerSourceMutation({ action: "layer-updated", layerId, sourceId: this.getLayer(layerId)?.source });
+  }
+
+  public setLayerLayout(layerId: string, layout: RuntimeLayoutSpecification): void {
+    this.#assertLive("setLayerLayout");
+    this.#requireLayerSourceAdapter("setLayerLayout").setLayerLayout?.(layerId, layout);
+    this.#recordLayerSourceMutation({ action: "layer-updated", layerId, sourceId: this.getLayer(layerId)?.source });
+  }
+
+  public setLayerFilter(layerId: string, filter: RuntimeFilterExpression | undefined): void {
+    this.#assertLive("setLayerFilter");
+    this.#requireLayerSourceAdapter("setLayerFilter").setLayerFilter?.(layerId, filter);
+    this.#recordLayerSourceMutation({ action: "layer-updated", layerId, sourceId: this.getLayer(layerId)?.source });
+  }
+
+  public refreshSource(sourceId: string): boolean {
+    this.#assertLive("refreshSource");
+    const refreshed = this.#requireLayerSourceAdapter("refreshSource").refreshSource?.(sourceId) ?? false;
+    this.#emitLayerSourceMutation({ action: "source-refreshed", sourceId });
+    return refreshed;
+  }
+
+  public validateStyleExpression(value: unknown): HonuaRuntimeDiagnostic[] {
+    this.#assertLive("validateStyleExpression");
+    return [...(this.#requireLayerSourceAdapter("validateStyleExpression").validateStyleExpression?.(value) ?? [])];
+  }
+
+  public validateFilterExpression(filter: unknown, layerId?: string): HonuaRuntimeDiagnostic[] {
+    this.#assertLive("validateFilterExpression");
+    return [
+      ...(this.#requireLayerSourceAdapter("validateFilterExpression").validateFilterExpression?.(filter, layerId) ??
+        []),
+    ];
+  }
+
+  public getPendingLayerSourceMutations(): ReadonlyArray<HonuaLayerSourceMutation> {
+    this.#assertLive("getPendingLayerSourceMutations");
+    return structuredClone(this.#layerSourceMutations) as HonuaLayerSourceMutation[];
+  }
+
+  public hasPendingLayerSourceMutations(): boolean {
+    this.#assertLive("hasPendingLayerSourceMutations");
+    return this.#layerSourceMutations.length > 0;
+  }
+
+  public async saveLayerSourceChanges(
+    options: HonuaLayerSourcePersistenceOptions = {},
+  ): Promise<HonuaLayerSourcePersistenceOutcome> {
+    this.#assertLive("saveLayerSourceChanges");
+    const payload = this.#layerSourcePersistencePayload(options);
+    const result = await this.#invokeLayerSourcePersistence("save", payload);
+    const conflict = result?.conflict ?? false;
+    if (!conflict) {
+      this.#layerSourceMutations = [];
+      this.#layerSourceVersion = result?.version ?? options.baseVersion ?? this.#layerSourceVersion;
+      this.#layerSourceConcurrencyToken =
+        result?.concurrencyToken ?? options.concurrencyToken ?? this.#layerSourceConcurrencyToken;
+    }
+    return persistenceOutcome(payload.mutations.length, Boolean(this.#layerSourcePersistence?.save), result);
+  }
+
+  public async discardLayerSourceChanges(
+    options: HonuaLayerSourcePersistenceOptions = {},
+  ): Promise<HonuaLayerSourcePersistenceOutcome> {
+    this.#assertLive("discardLayerSourceChanges");
+    const payload = this.#layerSourcePersistencePayload(options);
+    const result = await this.#invokeLayerSourcePersistence("discard", payload);
+    if (!result?.conflict) this.#layerSourceMutations = [];
+    return persistenceOutcome(payload.mutations.length, Boolean(this.#layerSourcePersistence?.discard), result);
+  }
+
+  public onLayerSourceChange(listener: HonuaControllerEventListener<"layer-source-change">): Unsubscribe {
+    return this.on("layer-source-change", listener);
+  }
+
   public addOverlay(input: HonuaTemporaryOverlayInput): HonuaTemporaryOverlay {
     this.#assertLive("addOverlay");
     const overlay = normalizeOverlay(input);
@@ -767,6 +1037,65 @@ export class HonuaController {
     this.#listeners.clear();
   }
 
+  #currentStyle(): HonuaStyleSpecification | undefined {
+    return this.#adapter?.getStyle?.() ?? this.#runtime?.composedStyle ?? this.#runtime?.mapPackage.mapSpec;
+  }
+
+  #requireLayerSourceAdapter(operation: keyof HonuaControllerAdapter): HonuaControllerAdapter {
+    const adapter = this.#adapter;
+    if (!adapter || typeof adapter[operation] !== "function") {
+      throw new HonuaControllerError(
+        "invalid-layer-source",
+        `HonuaController cannot ${String(operation)} without a layer/source adapter method`,
+      );
+    }
+    return adapter;
+  }
+
+  #recordLayerSourceMutation(input: Omit<HonuaLayerSourceMutation, "timestamp">): void {
+    this.#emitLayerSourceMutation(input, true);
+  }
+
+  #emitLayerSourceMutation(input: Omit<HonuaLayerSourceMutation, "timestamp">, pending = false): void {
+    const mutation: HonuaLayerSourceMutation = { ...input, timestamp: new Date().toISOString() };
+    if (pending) this.#layerSourceMutations.push(mutation);
+    this.#emit({
+      type: "layer-source-change",
+      action: mutation.action,
+      sourceId: mutation.sourceId,
+      layerId: mutation.layerId,
+      removedLayerIds: mutation.removedLayerIds,
+      mutation,
+      pendingMutations: structuredClone(this.#layerSourceMutations) as HonuaLayerSourceMutation[],
+      source: "controller",
+    });
+  }
+
+  #layerSourcePersistencePayload(options: HonuaLayerSourcePersistenceOptions): HonuaLayerSourcePersistencePayload {
+    return {
+      mutations: structuredClone(this.#layerSourceMutations) as HonuaLayerSourceMutation[],
+      style: cloneStyleValue(this.#currentStyle()) as HonuaStyleSpecification | undefined,
+      mapPackage: cloneStyleValue(this.#runtime?.mapPackage) as HonuaMapPackage | undefined,
+      baseVersion: options.baseVersion ?? this.#layerSourceVersion,
+      concurrencyToken: options.concurrencyToken ?? this.#layerSourceConcurrencyToken,
+      metadata: options.metadata,
+    };
+  }
+
+  async #invokeLayerSourcePersistence(
+    operation: keyof HonuaLayerSourcePersistenceHooks,
+    payload: HonuaLayerSourcePersistencePayload,
+  ): Promise<HonuaLayerSourcePersistenceResult | undefined> {
+    try {
+      return (await this.#layerSourcePersistence?.[operation]?.(payload)) ?? undefined;
+    } catch (error) {
+      throw new HonuaControllerError(
+        "persistence-failed",
+        `HonuaController ${operation}LayerSourceChanges persistence hook failed: ${errorMessage(error)}`,
+      );
+    }
+  }
+
   #commitViewport(
     viewport: HonuaViewport,
     source: HonuaControllerEventSource,
@@ -897,6 +1226,7 @@ function resolveInternals(options: HonuaControllerOptions): ControllerInternals 
       disposeAdapter: options.disposeAdapter ?? false,
       initialViewport: normalizeViewport(initialViewport),
       initialVisibility: visibility,
+      layerSourcePersistence: options.layerSourcePersistence,
     };
   }
 
@@ -920,6 +1250,7 @@ function resolveInternals(options: HonuaControllerOptions): ControllerInternals 
     disposeAdapter: options.disposeAdapter ?? false,
     initialViewport: normalizeViewport(initialViewport),
     initialVisibility: visibility,
+    layerSourcePersistence: options.layerSourcePersistence,
   };
 }
 
@@ -973,6 +1304,9 @@ function createMapRuntimeControllerAdapter(runtime: HonuaControllerRuntimeLike):
 
   const adapter: HonuaControllerAdapter = {
     id: `map-runtime:${runtime.mapPackage.mapPackageId}`,
+    getStyle(): HonuaStyleSpecification | undefined {
+      return runtime.composedStyle;
+    },
     getViewport(): HonuaViewport | undefined {
       return readMapViewport(map) ?? normalizeViewport(runtime.mapPackage.initialView ?? {});
     },
@@ -995,6 +1329,58 @@ function createMapRuntimeControllerAdapter(runtime: HonuaControllerRuntimeLike):
     },
     setLayerVisibility(layerId, visible): void {
       runtime.setLayerVisibility(layerId, visible);
+    },
+    addSource(sourceId, source): void {
+      assertRuntimeCrud(runtime, "addSource");
+      runtime.addSource(sourceId, source);
+    },
+    updateSource(sourceId, source): void {
+      assertRuntimeCrud(runtime, "updateSource");
+      runtime.updateSource(sourceId, source);
+    },
+    removeSource(sourceId): ReadonlyArray<string> {
+      assertRuntimeCrud(runtime, "removeSource");
+      return runtime.removeSource(sourceId);
+    },
+    addLayer(layer, order): void {
+      assertRuntimeCrud(runtime, "addLayer");
+      runtime.addLayer(layer, order);
+    },
+    updateLayer(layerId, update): void {
+      assertRuntimeCrud(runtime, "updateLayer");
+      runtime.updateLayer(layerId, update);
+    },
+    moveLayer(layerId, order): void {
+      assertRuntimeCrud(runtime, "moveLayer");
+      runtime.moveLayer(layerId, order);
+    },
+    removeLayer(layerId): boolean {
+      assertRuntimeCrud(runtime, "removeLayer");
+      return runtime.removeLayer(layerId);
+    },
+    setLayerPaint(layerId, paint): void {
+      assertRuntimeCrud(runtime, "setLayerPaint");
+      runtime.setLayerPaint(layerId, paint);
+    },
+    setLayerLayout(layerId, layout): void {
+      assertRuntimeCrud(runtime, "setLayerLayout");
+      runtime.setLayerLayout(layerId, layout);
+    },
+    setLayerFilter(layerId, filter): void {
+      assertRuntimeCrud(runtime, "setLayerFilter");
+      runtime.setLayerFilter(layerId, filter);
+    },
+    refreshSource(sourceId): boolean {
+      assertRuntimeCrud(runtime, "refreshSource");
+      return runtime.refreshSource(sourceId);
+    },
+    validateStyleExpression(value): HonuaRuntimeDiagnostic[] {
+      assertRuntimeCrud(runtime, "validateStyleExpression");
+      return runtime.validateStyleExpression(value);
+    },
+    validateFilterExpression(filter, layerId): HonuaRuntimeDiagnostic[] {
+      assertRuntimeCrud(runtime, "validateFilterExpression");
+      return runtime.validateFilterExpression(filter, layerId);
     },
     onViewportMove(listener): Unsubscribe {
       return subscribeMapEvent(map, "move", () => listener(readMapViewport(map)));
@@ -1083,6 +1469,19 @@ function subscribeMapEvent(map: RuntimeMap, event: string, listener: () => void)
   return () => map.off?.(event, listener);
 }
 
+function assertRuntimeCrud<TOperation extends keyof HonuaControllerRuntimeLike>(
+  runtime: HonuaControllerRuntimeLike,
+  operation: TOperation,
+): asserts runtime is HonuaControllerRuntimeLike &
+  Record<TOperation, NonNullable<HonuaControllerRuntimeLike[TOperation]>> {
+  if (typeof runtime[operation] !== "function") {
+    throw new HonuaControllerError(
+      "invalid-layer-source",
+      `HonuaController runtime does not implement ${String(operation)}`,
+    );
+  }
+}
+
 function removeAdapterSubscription(subscription: Unsubscribe | HonuaControllerAdapterSubscription): Unsubscribe {
   if (typeof subscription === "function") return subscription;
   return () => subscription.remove();
@@ -1145,6 +1544,29 @@ function extentToViewport(extent: HonuaExtent | undefined): HonuaViewport {
 
 function cloneViewport(viewport: HonuaViewport): HonuaViewport {
   return structuredClone(viewport) as HonuaViewport;
+}
+
+function cloneStyleValue<T>(value: T): T {
+  return value === undefined ? value : (structuredClone(value) as T);
+}
+
+function persistenceOutcome(
+  mutationCount: number,
+  persisted: boolean,
+  result: HonuaLayerSourcePersistenceResult | undefined,
+): HonuaLayerSourcePersistenceOutcome {
+  return {
+    mutationCount,
+    persisted,
+    conflict: result?.conflict ?? false,
+    version: result?.version,
+    concurrencyToken: result?.concurrencyToken,
+    detail: result?.detail,
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function viewportsEqual(a: HonuaViewport | undefined, b: HonuaViewport | undefined): boolean {
