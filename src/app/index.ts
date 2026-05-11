@@ -9,11 +9,11 @@
  * @module
  */
 
+import { createHonuaController } from "../app-controller/index.js";
+import type { HonuaController, HonuaControllerOptions } from "../app-controller/index.js";
 import type { SourceDescriptor } from "../contract/index.js";
 import { HonuaClient } from "../core/client.js";
 import type { HonuaClientOptions } from "../core/types.js";
-import { createHonuaController } from "../app-controller/index.js";
-import type { HonuaController, HonuaControllerOptions } from "../app-controller/index.js";
 import {
   HONUA_MAP_PACKAGE_FORMAT_V1,
   HonuaMapPackageError,
@@ -42,10 +42,7 @@ import {
   createHonuaWebComponentController,
   createHonuaWebComponentControllerFromRuntime,
 } from "../web-components/controller.js";
-import type {
-  CreateHonuaWebComponentControllerOptions,
-  HonuaWebComponentController,
-} from "../web-components/types.js";
+import type { CreateHonuaWebComponentControllerOptions, HonuaWebComponentController } from "../web-components/types.js";
 
 export type HonuaAppLifecycleStage =
   | "initialize"
@@ -115,10 +112,7 @@ export interface HonuaAppMapFactoryContext {
 export type HonuaAppMapFactory = (context: HonuaAppMapFactoryContext) => MaplibreMap | Promise<MaplibreMap>;
 
 export interface HonuaAppWatchOptions
-  extends Omit<
-    WatchMapPackageOptions,
-    "client" | "runtime" | "initialPackage" | "onEvent" | "onError" | "onUpdate"
-  > {
+  extends Omit<WatchMapPackageOptions, "client" | "runtime" | "initialPackage" | "onEvent" | "onError" | "onUpdate"> {
   readonly onEvent?: (event: MapPackageWatchEvent) => void | Promise<void>;
 }
 
@@ -216,7 +210,11 @@ export async function createHonuaApp<T = Record<string, unknown>>(
     const packageResult = await resolvePackage(normalized, emit);
     const mapPackage = packageResult.mapPackage;
 
-    const map = normalized.map ?? (normalized.mapFactory ? await normalized.mapFactory({ container: normalized.mapContainer, mapPackage }) : undefined);
+    const map =
+      normalized.map ??
+      (normalized.mapFactory
+        ? await normalized.mapFactory({ container: normalized.mapContainer, mapPackage })
+        : undefined);
     let runtime = normalized.runtime;
     if (!runtime && map) {
       emit({ type: "status", status: "loading", stage: "render" });
@@ -267,7 +265,12 @@ export async function createHonuaApp<T = Record<string, unknown>>(
           emit({ type: "watch", event });
           await activeWatch.onEvent?.(event);
           if (event.type === "error") {
-            emit({ type: "degraded", stage: "watch", reason: "MapPackage watch reported an error.", error: event.error });
+            emit({
+              type: "degraded",
+              stage: "watch",
+              reason: "MapPackage watch reported an error.",
+              error: event.error,
+            });
           }
         },
       });
@@ -326,7 +329,9 @@ export function normalizeHonuaAppOptions<T = Record<string, unknown>>(
     packageSource: normalizePackageSource(options),
     ...(options.map ? { map: options.map } : {}),
     ...(options.mapFactory ? { mapFactory: options.mapFactory } : {}),
-    ...(options.mapContainer ?? options.mapElement ? { mapContainer: options.mapContainer ?? options.mapElement } : {}),
+    ...((options.mapContainer ?? options.mapElement)
+      ? { mapContainer: options.mapContainer ?? options.mapElement }
+      : {}),
     ...(options.runtime ? { runtime: options.runtime } : {}),
     ...(options.controller ? { controller: options.controller } : {}),
     ...(options.webComponentController ? { webComponentController: options.webComponentController } : {}),
@@ -386,17 +391,18 @@ async function resolvePackage<T>(
   }
 }
 
-function normalizePackageSource<T>(
-  options: CreateHonuaAppOptions<T>,
-): NormalizedHonuaAppOptions<T>["packageSource"] {
+function normalizePackageSource<T>(options: CreateHonuaAppOptions<T>): NormalizedHonuaAppOptions<T>["packageSource"] {
   if (options.runtime) return { kind: "runtime" };
   if (options.mapPackage) return { kind: "inline", mapPackage: options.mapPackage };
   if (options.source) return { kind: "source", source: options.source };
   const locator = options.locator ?? options.packageUrl ?? options.src ?? options.packageId;
   if (locator) return { kind: "locator", locator };
-  throw new HonuaMapPackageError("createHonuaApp requires mapPackage, packageId, packageUrl, locator, source, or runtime", {
-    stage: "load",
-  });
+  throw new HonuaMapPackageError(
+    "createHonuaApp requires mapPackage, packageId, packageUrl, locator, source, or runtime",
+    {
+      stage: "load",
+    },
+  );
 }
 
 function normalizeWatchOptions(watch: CreateHonuaAppOptions["watch"]): false | HonuaAppWatchOptions {
@@ -406,7 +412,7 @@ function normalizeWatchOptions(watch: CreateHonuaAppOptions["watch"]): false | H
 }
 
 function mapPackageFromSource(source: HonuaAppSourceInput): HonuaMapPackage {
-  const layer = source.layer === false ? undefined : source.layer ?? {};
+  const layer = source.layer === false ? undefined : (source.layer ?? {});
   const layerId = layer?.id ?? `${source.id}-layer`;
   return {
     mapPackageId: source.id,
@@ -488,9 +494,9 @@ function stageFromError(error: unknown): HonuaAppLifecycleStage {
 }
 
 function isAuthLikeError(error: unknown): boolean {
-  const status = typeof error === "object" && error ? (error as { status?: unknown; code?: unknown }).status : undefined;
-  const statusCode =
-    typeof error === "object" && error ? (error as { statusCode?: unknown }).statusCode : undefined;
+  const status =
+    typeof error === "object" && error ? (error as { status?: unknown; code?: unknown }).status : undefined;
+  const statusCode = typeof error === "object" && error ? (error as { statusCode?: unknown }).statusCode : undefined;
   const code = typeof error === "object" && error ? (error as { code?: unknown }).code : undefined;
   return (
     status === 401 ||

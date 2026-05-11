@@ -3,12 +3,8 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { type HonuaAppLifecycleEvent, createHonuaApp, normalizeHonuaAppOptions } from "../src/app/index.js";
 import { HonuaClient } from "../src/core/client.js";
-import {
-  createHonuaApp,
-  normalizeHonuaAppOptions,
-  type HonuaAppLifecycleEvent,
-} from "../src/app/index.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, type MaplibreMap } from "../src/runtime/index.js";
 
 interface MockMap extends MaplibreMap {
