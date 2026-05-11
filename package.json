@@ -63,6 +63,10 @@
       "types": "./dist/src/interactions/index.d.ts",
       "default": "./dist/src/interactions/index.js"
     },
+    "./filter-registry": {
+      "types": "./dist/src/filter-registry/index.d.ts",
+      "default": "./dist/src/filter-registry/index.js"
+    },
     "./realtime": {
       "types": "./dist/src/realtime/index.d.ts",
       "default": "./dist/src/realtime/index.js"

@@ -26,6 +26,40 @@ export { batchQuery } from "./core/batch.js";
 export type { BatchQueryItem, BatchQueryOptions, BatchQueryResult } from "./core/batch.js";
 export { decodePbfQueryResponse, isPbfResponse } from "./core/pbf-decoder.js";
 export {
+  compileRuntimeStyleFilter,
+  createFilterRegistry,
+  parseFilterRegistry,
+  projectFilterRegistryToLinkedView,
+  projectFilterRegistryToQuery,
+  projectFilterRegistryToWidgetProjection,
+  selectActiveFilterClauses,
+  serializeFilterRegistry,
+} from "./filter-registry/index.js";
+export type {
+  CreateFilterRegistryOptions,
+  FilterClause as RegistryFilterClause,
+  FilterEffect,
+  FilterLifecycle,
+  FilterRegistry,
+  FilterRegistryChangeEvent,
+  FilterRegistryListener,
+  FilterRegistryOwner,
+  FilterRegistryProjectionOptions,
+  FilterRegistryQueryProjection,
+  FilterRegistryQueryProjectionOptions,
+  FilterRegistrySelector,
+  FilterRegistrySelectorListener,
+  FilterRegistrySelectorOptions,
+  FilterRegistrySnapshot,
+  FilterRegistryUnsubscribe,
+  FilterRuntimeApplyMode,
+  FilterSourceScope,
+  FilterValuePolicy,
+  RegistrySpatialScope,
+  RuntimeStyleFilterExpression,
+  ShareableFilterRegistryState,
+} from "./filter-registry/index.js";
+export {
   MIGRATION_EVIDENCE_STATES,
   MIGRATION_MANIFEST_ARTIFACT_KIND,
   MIGRATION_MANIFEST_ARTIFACT_VERSION,
