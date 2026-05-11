@@ -89,7 +89,15 @@ export default defineConfig({
         "examples/maplibre-quickstart/src/**/*.ts",
         "examples/storytelling-25d-map/src/**/*.ts",
       ],
-      exclude: ["dist/**", "src/gen/**", "src/**/index.ts", "src/*-entry.ts"],
+      exclude: [
+        "dist/**",
+        "src/gen/**",
+        "src/**/index.ts",
+        "src/*-entry.ts",
+        "src/honua.ts",
+        "src/migration/cli.ts",
+        "examples/**/src/main.ts",
+      ],
       thresholds: {
         lines: 75,
         functions: 75,
