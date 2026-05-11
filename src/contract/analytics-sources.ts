@@ -204,7 +204,8 @@ export function defineIndexedSpatialSource(
   },
 ): IndexedSpatialSourceDescriptor {
   const modelId = descriptor.index.modelId;
-  const kind = descriptor.kind ?? (modelId === "h3" ? "h3-index" : modelId === "quadbin" ? "quadbin-index" : "indexed-spatial");
+  const kind =
+    descriptor.kind ?? (modelId === "h3" ? "h3-index" : modelId === "quadbin" ? "quadbin-index" : "indexed-spatial");
   return normalizeAnalyticsSourceDescriptor({ ...descriptor, kind });
 }
 
@@ -234,7 +235,9 @@ export function normalizeAnalyticsSourceDescriptor<T extends AnalyticsSourceDesc
     capabilities: {
       pushdown: descriptor.capabilities?.pushdown ?? defaultPushdown(descriptor),
       ...(descriptor.capabilities?.unsupported ? { unsupported: descriptor.capabilities.unsupported } : {}),
-      ...(descriptor.capabilities?.maxClientRows !== undefined ? { maxClientRows: descriptor.capabilities.maxClientRows } : {}),
+      ...(descriptor.capabilities?.maxClientRows !== undefined
+        ? { maxClientRows: descriptor.capabilities.maxClientRows }
+        : {}),
       ...(descriptor.capabilities?.realtime !== undefined ? { realtime: descriptor.capabilities.realtime } : {}),
       ...(descriptor.capabilities?.freshness ? { freshness: descriptor.capabilities.freshness } : {}),
     },

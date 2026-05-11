@@ -9,6 +9,7 @@
  * @module
  */
 
+import { assessAnalyticsSourcePushdown } from "../contract/analytics-sources.js";
 import {
   type QueryTileCacheKeyOptions,
   type QueryTileCachePolicy,
@@ -35,7 +36,6 @@ import {
   queryTileServerRequestParamsFromDescriptor,
   stableJson,
 } from "../contract/tiles.js";
-import { assessAnalyticsSourcePushdown } from "../contract/analytics-sources.js";
 import type { Capability, Protocol } from "../contract/types.js";
 
 export interface MapLibreQueryTileSourceSpec {
@@ -534,7 +534,8 @@ export function diagnoseQueryTileSourceSupport<T = Record<string, unknown>>(
         capability: "tiles",
         message: assessment.supported
           ? `analytics source "${normalized.analyticsSource.id}" advertises tile pushdown`
-          : assessment.degraded?.[0]?.reason ?? `analytics source "${normalized.analyticsSource.id}" lacks tile pushdown`,
+          : (assessment.degraded?.[0]?.reason ??
+            `analytics source "${normalized.analyticsSource.id}" lacks tile pushdown`),
       });
       if (normalized.analyticsSource.fallback?.mode === "disabled") {
         diagnostics.push({

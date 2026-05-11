@@ -2131,7 +2131,13 @@ function sanitizeQuery(query: Query): Record<string, unknown> {
 }
 
 function sanitizeRequest(request: WidgetSourceRequestBase): Record<string, unknown> {
-  const { signal: _signal, query: _query, projection: _projection, analyticsSource: _analyticsSource, ...rest } = request;
+  const {
+    signal: _signal,
+    query: _query,
+    projection: _projection,
+    analyticsSource: _analyticsSource,
+    ...rest
+  } = request;
   void _signal;
   void _query;
   void _projection;

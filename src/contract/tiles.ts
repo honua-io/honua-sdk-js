@@ -528,7 +528,10 @@ export function defineQueryTileSource<T = Record<string, unknown>>(
 ): QueryTileSourceDescriptor<T> {
   const sourceDescriptor = resolveSourceDescriptor(options.source);
   const analyticsSource = resolveAnalyticsSourceDescriptor(options.source);
-  const sourceId = options.sourceId ?? sourceDescriptor?.id ?? (analyticsSource ? analyticsSourceId(analyticsSource) : String(options.source));
+  const sourceId =
+    options.sourceId ??
+    sourceDescriptor?.id ??
+    (analyticsSource ? analyticsSourceId(analyticsSource) : String(options.source));
   const protocol = options.protocol ?? sourceDescriptor?.protocol;
   return normalizeQueryTileSourceDescriptor({
     ...options,
@@ -613,7 +616,9 @@ export function buildQueryTileCacheKey<T = Record<string, unknown>>(
             authorizationScope: cacheIdentity.authorizationScope,
             filters: normalizedDescriptor.query?.where,
             indexResolution:
-              typeof cacheIdentity.extra?.indexResolution === "number" ? cacheIdentity.extra.indexResolution : undefined,
+              typeof cacheIdentity.extra?.indexResolution === "number"
+                ? cacheIdentity.extra.indexResolution
+                : undefined,
             projection: normalizeProjection(normalizedDescriptor.projection),
             styleProjection: cacheIdentity.styleFilters,
             extra: cacheIdentity.extra,
@@ -704,7 +709,9 @@ export function stableJson(value: unknown): string {
   return JSON.stringify(sortJson(value));
 }
 
-function resolveSourceDescriptor<T>(source: SourceId | SourceDescriptor | AnalyticsSourceDescriptor | Source<T>): SourceDescriptor | undefined {
+function resolveSourceDescriptor<T>(
+  source: SourceId | SourceDescriptor | AnalyticsSourceDescriptor | Source<T>,
+): SourceDescriptor | undefined {
   if (typeof source === "string") return undefined;
   if (isAnalyticsSourceDescriptor(source)) return undefined;
   const maybeSource = source as Partial<Source<T>>;
