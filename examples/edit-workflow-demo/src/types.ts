@@ -10,10 +10,10 @@ import type {
 import type {
   AttachmentInfo,
   EditAttachmentMutation,
-  EditWorkflowCapabilitySummary,
-  EditWorkflowField,
   EditSketchTool,
   EditSketchWorkflowSnapshot,
+  EditWorkflowCapabilitySummary,
+  EditWorkflowField,
   EditWorkflowSubmitResult,
   FeatureId,
   Source,

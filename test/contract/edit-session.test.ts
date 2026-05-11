@@ -11,8 +11,8 @@ import {
   type Source,
   type SourceDescriptor,
   capabilities,
-  createEditSketchWorkflow,
   createEditSession,
+  createEditSketchWorkflow,
   normalizeEditWorkflowFailures,
 } from "../../src/contract/index.js";
 import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";

@@ -1,4 +1,3 @@
-import type { CanonicalFeature, FeatureId, Protocol, Source, SourceId } from "./types.js";
 import {
   type CreateEditSessionOptions,
   type EditAttachmentMutation,
@@ -10,6 +9,7 @@ import {
   type EditWorkflowValidationResult,
   createEditSession,
 } from "./edit-session.js";
+import type { CanonicalFeature, FeatureId, Protocol, Source, SourceId } from "./types.js";
 
 export type EditSketchTool = "point" | "line" | "polygon" | "rectangle" | "circle" | "buffer";
 export type EditSketchCapabilityState = "supported" | "unsupported";

@@ -31,8 +31,8 @@ import {
   type Source,
   type SourceDescriptor,
   capabilities,
-  createEditSketchWorkflow,
   createEditSession,
+  createEditSketchWorkflow,
 } from "@honua/sdk-js/contract";
 import { createExplorationContext, sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
 import { HonuaCapabilityNotSupportedError, type HonuaExtent, envelope } from "@honua/sdk-js/honua";
@@ -167,9 +167,7 @@ export function createEditWorkflowDemoSession(
     return selectHonuaAppWorkspaceTableModel(workspace.state, { sourceId: dataset.sourceId }).query;
   }
 
-  function createDraftSketchWorkflow(
-    draft: EditWorkflowDraft,
-  ): EditSketchWorkflowModel<InspectionAttributes> {
+  function createDraftSketchWorkflow(draft: EditWorkflowDraft): EditSketchWorkflowModel<InspectionAttributes> {
     return createEditSketchWorkflow<InspectionAttributes>({
       source,
       kind: draft.mode === "create" ? "create" : "update",
