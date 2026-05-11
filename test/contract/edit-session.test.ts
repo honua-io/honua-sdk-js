@@ -11,6 +11,7 @@ import {
   type Source,
   type SourceDescriptor,
   capabilities,
+  createEditSketchWorkflow,
   createEditSession,
   normalizeEditWorkflowFailures,
 } from "../../src/contract/index.js";
@@ -181,6 +182,99 @@ describe("contract / edit workflow session", () => {
     expect(result.failures).toHaveLength(2);
     expect(result.failures.every((failure) => failure.kind === "capability")).toBe(true);
     expect(optimisticApply).not.toHaveBeenCalled();
+  });
+
+  it("tracks reusable sketch geometry, dirty state, undo, redo, and unsupported tools outside UI", () => {
+    const workflow = createEditSketchWorkflow<ParcelDraft>({
+      source: makeSource(),
+      kind: "update",
+      feature: {
+        id: 10,
+        attributes: { OBJECTID: 10, status: "open", version: 1 },
+        geometry: { type: "point", x: 0, y: 0 },
+      },
+      metadata: { domains: { status: STATUS_DOMAIN } },
+      sketchTools: {
+        rectangle: { state: "supported" },
+        circle: { state: "unsupported", reason: "renderer does not expose circle handles" },
+      },
+    });
+
+    workflow.setSketchGeometry("rectangle", {
+      type: "polygon",
+      rings: [
+        [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 1],
+          [0, 0],
+        ],
+      ],
+    });
+    workflow.setValue("status", "closed");
+
+    expect(workflow.snapshot()).toMatchObject({
+      dirty: true,
+      sketch: { status: "ready", tool: "rectangle" },
+      undo: { canUndo: true, canRedo: false, undoDepth: 2 },
+    });
+    expect(workflow.snapshot().feature.geometry).toMatchObject({ type: "polygon" });
+
+    expect(workflow.undo()).toBe(true);
+    expect(workflow.snapshot().feature.attributes.status).toBe("open");
+    expect(workflow.snapshot().undo).toMatchObject({ canUndo: true, canRedo: true });
+
+    expect(workflow.redo()).toBe(true);
+    expect(workflow.snapshot().feature.attributes.status).toBe("closed");
+
+    workflow.setSketchGeometry("circle", { type: "circle", x: 0, y: 0, radius: 10 });
+    expect(workflow.snapshot().sketch).toMatchObject({ status: "unsupported", tool: "circle" });
+    expect(workflow.snapshot().feature.geometry).toMatchObject({ type: "polygon" });
+
+    workflow.discard();
+    expect(workflow.snapshot()).toMatchObject({ dirty: false, undo: { canUndo: false, canRedo: false } });
+    expect(workflow.snapshot().feature.geometry).toMatchObject({ type: "point", x: 0, y: 0 });
+  });
+
+  it("persists configured annotations only after successful sketch workflow commits", async () => {
+    const persisted = vi.fn();
+    const failing = createEditSketchWorkflow<ParcelDraft>({
+      source: makeSource({
+        applyEdits: async () => ({
+          added: [],
+          updated: [{ id: 10, success: false, error: { code: 409, description: "version conflict" } }],
+          deleted: [],
+        }),
+      }),
+      kind: "update",
+      feature: { id: 10, attributes: { OBJECTID: 10, status: "closed", version: 1 } },
+      metadata: { domains: { status: STATUS_DOMAIN } },
+      annotationPersistence: { persist: persisted },
+    });
+
+    const failed = await failing.submit();
+    expect(failed.status).toBe("failed");
+    expect(persisted).not.toHaveBeenCalled();
+    expect(failing.snapshot().annotations).toEqual({ state: "supported" });
+
+    const successful = createEditSketchWorkflow<ParcelDraft>({
+      source: makeSource(),
+      kind: "update",
+      feature: { id: 10, attributes: { OBJECTID: 10, status: "closed", version: 1 } },
+      metadata: { domains: { status: STATUS_DOMAIN } },
+      annotationPersistence: { persist: persisted },
+    });
+    successful.setSketchGeometry("point", { type: "point", x: 1, y: 2 });
+
+    const result = await successful.submit();
+
+    expect(result.status).toBe("succeeded");
+    expect(persisted).toHaveBeenCalledTimes(1);
+    expect(successful.snapshot()).toMatchObject({
+      dirty: false,
+      annotations: { state: "supported" },
+    });
   });
 
   it("normalizes protocol edit failures across GeoServices, OGC Features, WFS, and OData", () => {

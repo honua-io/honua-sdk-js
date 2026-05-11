@@ -190,6 +190,20 @@ export type {
   EditWorkflowValidationResult,
   NormalizeEditWorkflowFailuresOptions,
 } from "./edit-session.js";
+export { EditSketchWorkflowModel, createEditSketchWorkflow } from "./edit-sketch.js";
+export type {
+  EditAnnotationPersistenceHook,
+  EditAnnotationPersistenceSnapshot,
+  EditAnnotationPersistenceState,
+  EditSketchCapabilityState,
+  EditSketchStatus,
+  EditSketchTool,
+  EditSketchToolCapability,
+  EditSketchToolCapabilityInput,
+  EditSketchUndoSnapshot,
+  EditSketchWorkflowOptions,
+  EditSketchWorkflowSnapshot,
+} from "./edit-sketch.js";
 
 export {
   FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID,

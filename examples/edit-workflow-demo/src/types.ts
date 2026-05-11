@@ -12,6 +12,8 @@ import type {
   EditAttachmentMutation,
   EditWorkflowCapabilitySummary,
   EditWorkflowField,
+  EditSketchTool,
+  EditSketchWorkflowSnapshot,
   EditWorkflowSubmitResult,
   FeatureId,
   Source,
@@ -147,6 +149,7 @@ export interface EditWorkflowDemoSession {
   allFeatures(): readonly InspectionFeature[];
   draft(): EditWorkflowDraft;
   pendingAttachments(): readonly EditAttachmentMutation[];
+  sketchSnapshot(): EditSketchWorkflowSnapshot<InspectionAttributes>;
   attachmentList(featureId?: FeatureId): Promise<readonly AttachmentInfo[]>;
   visibleFeatures(): readonly InspectionFeature[];
   detailFeature(): InspectionFeature | undefined;
@@ -156,6 +159,9 @@ export interface EditWorkflowDemoSession {
   selectFeature(featureId: FeatureId): void;
   startCreateDraft(): void;
   updateDraftValue(fieldName: keyof InspectionAttributes, value: unknown): void;
+  applySketchGeometry(tool: EditSketchTool, geometry: EditWorkflowDraft["geometry"]): void;
+  undoSketchEdit(): boolean;
+  redoSketchEdit(): boolean;
   stageAttachmentAdd(name?: string): void;
   stageAttachmentDelete(attachmentId?: FeatureId): Promise<void>;
   submitDraft(): Promise<EditWorkflowSubmitResult<InspectionAttributes>>;

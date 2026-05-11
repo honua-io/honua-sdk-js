@@ -19,6 +19,8 @@ import {
   type EditAttachmentMutation,
   type EditEnvelope,
   type EditResult,
+  type EditSketchTool,
+  type EditSketchWorkflowModel,
   type EditWorkflowCapabilitySummary,
   type EditWorkflowSubmitResult,
   type FeatureId,
@@ -29,6 +31,7 @@ import {
   type Source,
   type SourceDescriptor,
   capabilities,
+  createEditSketchWorkflow,
   createEditSession,
 } from "@honua/sdk-js/contract";
 import { createExplorationContext, sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
@@ -93,10 +96,12 @@ export function createEditWorkflowDemoSession(
 
   let activeAreaId: MapAreaId = dataset.mapAreas[0]?.id ?? "honolulu-harbor";
   let draft = draftFromFeature(source.features()[0] ?? dataset.features[0]);
+  let sketchWorkflow = createDraftSketchWorkflow(draft);
   let pendingAttachments: EditAttachmentMutation[] = [];
   let conflictNext = false;
   let logCounter = 0;
   let latestResult: EditWorkflowSubmitResult<InspectionAttributes> | undefined;
+  const persistedAnnotations: string[] = [];
   const logEntries: EditWorkflowOperationLogEntry[] = [
     {
       id: "ready",
@@ -162,6 +167,18 @@ export function createEditWorkflowDemoSession(
     return selectHonuaAppWorkspaceTableModel(workspace.state, { sourceId: dataset.sourceId }).query;
   }
 
+  function createDraftSketchWorkflow(
+    draft: EditWorkflowDraft,
+  ): EditSketchWorkflowModel<InspectionAttributes> {
+    return createEditSketchWorkflow<InspectionAttributes>({
+      source,
+      kind: draft.mode === "create" ? "create" : "update",
+      feature: canonicalFeatureFromDraft(draft),
+      metadata: metadataOptions(),
+      sketchTools: editWorkflowSketchTools(),
+    });
+  }
+
   function visibleFeatures(): readonly InspectionFeature[] {
     const table = selectHonuaAppWorkspaceTableModel(workspace.state, { sourceId: dataset.sourceId });
     return applyProjection(
@@ -180,6 +197,7 @@ export function createEditWorkflowDemoSession(
     if (!feature) throw new Error(`Unknown inspection feature: ${String(featureId)}`);
     views.table.select([sourceFeatureSelectionTarget(dataset.sourceId, featureId)], { replace: true });
     draft = draftFromFeature(feature);
+    sketchWorkflow = createDraftSketchWorkflow(draft);
     pendingAttachments = [];
     syncWorkspaceExploration(workspace, exploration);
   }
@@ -242,18 +260,40 @@ export function createEditWorkflowDemoSession(
       },
       geometry: { type: "point", x, y, spatialReference: SPATIAL_REFERENCE },
     };
+    sketchWorkflow = createDraftSketchWorkflow(draft);
     pendingAttachments = [];
     views.table.deselect();
     syncWorkspaceExploration(workspace, exploration);
   }
 
   function updateDraftValue(fieldName: keyof InspectionAttributes, value: unknown): void {
+    sketchWorkflow.setValue(String(fieldName), coerceDraftValue(fieldName, value));
+    syncDraftFromSketch();
+  }
+
+  function applySketchGeometry(tool: EditSketchTool, geometry: EditWorkflowDraft["geometry"]): void {
+    sketchWorkflow.setSketchGeometry(tool, geometry);
+    syncDraftFromSketch();
+  }
+
+  function undoSketchEdit(): boolean {
+    const changed = sketchWorkflow.undo();
+    if (changed) syncDraftFromSketch();
+    return changed;
+  }
+
+  function redoSketchEdit(): boolean {
+    const changed = sketchWorkflow.redo();
+    if (changed) syncDraftFromSketch();
+    return changed;
+  }
+
+  function syncDraftFromSketch(): void {
+    const snapshot = sketchWorkflow.snapshot();
     draft = {
       ...draft,
-      values: {
-        ...draft.values,
-        [fieldName]: coerceDraftValue(fieldName, value),
-      },
+      values: { ...draft.values, ...(snapshot.feature.attributes as Partial<InspectionAttributes>) },
+      geometry: isPointGeometry(snapshot.feature.geometry) ? { ...snapshot.feature.geometry } : draft.geometry,
     };
   }
 
@@ -293,12 +333,21 @@ export function createEditWorkflowDemoSession(
     source.failNextUpdateConflict = conflictNext;
     conflictNext = false;
 
-    const session = createEditSession<InspectionAttributes>({
+    const session = createEditSketchWorkflow<InspectionAttributes>({
       source,
       kind,
       feature: canonicalFeatureFromDraft(draft),
       metadata: metadataOptions(),
       rollbackOnFailure: true,
+      sketchTools: editWorkflowSketchTools(),
+      annotationPersistence: {
+        persist(snapshot, result) {
+          if (snapshot.feature.geometry === undefined) return;
+          persistedAnnotations.push(
+            `annotation:${String(result.committedFeatureId ?? snapshot.feature.id ?? "new")}:${snapshot.kind}`,
+          );
+        },
+      },
       optimistic: {
         apply(snapshot) {
           pushLog(
@@ -507,6 +556,9 @@ export function createEditWorkflowDemoSession(
     pendingAttachments() {
       return pendingAttachments.map(cloneAttachmentMutation);
     },
+    sketchSnapshot() {
+      return sketchWorkflow.snapshot();
+    },
     attachmentList(featureId) {
       const resolvedId = featureId ?? draft.featureId;
       return resolvedId === undefined ? Promise.resolve([]) : source.attachments.list(resolvedId);
@@ -519,6 +571,9 @@ export function createEditWorkflowDemoSession(
     selectFeature,
     startCreateDraft,
     updateDraftValue,
+    applySketchGeometry,
+    undoSketchEdit,
+    redoSketchEdit,
     stageAttachmentAdd,
     stageAttachmentDelete,
     submitDraft,
@@ -542,6 +597,8 @@ export function createEditWorkflowDemoSession(
             workflow: "edit-session",
             sourceId: dataset.sourceId,
             cachePolicy: "metadata-only",
+            sketchTools: sketchWorkflow.snapshot().sketch.tools,
+            persistedAnnotations,
           },
         },
         snapshot: workspace.snapshot(),
@@ -550,6 +607,7 @@ export function createEditWorkflowDemoSession(
           demo: "edit-workflow",
           selectedArea: activeArea().id,
           pendingAttachmentCount: pendingAttachments.length,
+          sketchDirty: sketchWorkflow.snapshot().dirty,
         },
       });
       return JSON.stringify(doc, null, 2);
@@ -909,6 +967,17 @@ function metadataOptions() {
   };
 }
 
+function editWorkflowSketchTools() {
+  return {
+    point: { state: "supported" as const },
+    line: { state: "supported" as const },
+    polygon: { state: "supported" as const },
+    rectangle: { state: "supported" as const },
+    circle: { state: "unsupported" as const, reason: "fixture renderer exposes rectangle handles but not circles" },
+    buffer: { state: "unsupported" as const, reason: "fixture does not call a geometry service for buffers" },
+  };
+}
+
 function publishSnapshot(
   features: readonly InspectionFeature[],
   workspace: ReturnType<typeof createHonuaAppWorkspace<InspectionFeature, EditWorkflowSourceMetadata>>,
@@ -1082,7 +1151,7 @@ function emptyAttributes(id: number): InspectionAttributes {
 }
 
 function stageAttachment(
-  session: ReturnType<typeof createEditSession<InspectionAttributes>>,
+  session: ReturnType<typeof createEditSession<InspectionAttributes>> | EditSketchWorkflowModel<InspectionAttributes>,
   mutation: EditAttachmentMutation,
 ): void {
   if (mutation.operation === "add") {
