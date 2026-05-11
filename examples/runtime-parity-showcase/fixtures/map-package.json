@@ -1,0 +1,226 @@
+{
+  "mapPackageId": "runtime-parity-showcase",
+  "format": "honua_map_package.v1",
+  "status": "Ready",
+  "createdAt": "2026-05-01T12:00:00.000Z",
+  "updatedAt": "2026-05-01T12:00:00.000Z",
+  "themeId": "runtime-parity-theme",
+  "theme": {
+    "themeId": "runtime-parity-theme",
+    "tokens": {
+      "incidentStroke": "#ffffff",
+      "zoneOutline": "#31505f"
+    }
+  },
+  "sourceBindings": [
+    {
+      "sourceId": "basemap-grid",
+      "protocol": "raster_tile",
+      "locator": {
+        "url": "/__runtime-parity-showcase__/tiles/{z}/{x}/{y}.png"
+      },
+      "attribution": "Fixture raster tile lane"
+    },
+    {
+      "sourceId": "ops-zones",
+      "protocol": "vector_tile",
+      "locator": {
+        "url": "/__runtime-parity-showcase__/vector-tiles/zones/{z}/{x}/{y}.pbf"
+      },
+      "attribution": "Fixture operations zones"
+    },
+    {
+      "sourceId": "ops-incidents",
+      "protocol": "vector_tile",
+      "locator": {
+        "url": "/__runtime-parity-showcase__/vector-tiles/incidents/{z}/{x}/{y}.pbf"
+      },
+      "attribution": "Fixture incident points"
+    }
+  ],
+  "styleRefs": [
+    {
+      "styleId": "runtime-parity-status-ramp",
+      "label": "Runtime status ramp",
+      "body": {
+        "incident-points": {
+          "paint": {
+            "circle-stroke-color": "{theme:incidentStroke}",
+            "circle-stroke-width": 2
+          }
+        },
+        "zone-outline": {
+          "paint": {
+            "line-color": "{theme:zoneOutline}"
+          }
+        }
+      }
+    }
+  ],
+  "initialView": {
+    "center": [
+      -157.865,
+      21.302
+    ],
+    "zoom": 11.4,
+    "pitch": 0,
+    "bearing": 0,
+    "crs": "EPSG:4326"
+  },
+  "legend": [
+    {
+      "label": "Open",
+      "color": "#d93f3f"
+    },
+    {
+      "label": "Monitoring",
+      "color": "#d9902f"
+    },
+    {
+      "label": "Resolved",
+      "color": "#2f8f75"
+    },
+    {
+      "label": "Operations zone",
+      "color": "#72a7b8"
+    }
+  ],
+  "popupBindings": [
+    {
+      "sourceId": "ops-incidents",
+      "fieldName": "name",
+      "title": "Incident"
+    }
+  ],
+  "mapSpec": {
+    "version": 8,
+    "sources": {
+      "basemap-grid": {
+        "type": "raster",
+        "tiles": [
+          "/__runtime-parity-showcase__/tiles/{z}/{x}/{y}.png"
+        ],
+        "tileSize": 256
+      },
+      "ops-zones": {
+        "type": "vector",
+        "tiles": [
+          "/__runtime-parity-showcase__/vector-tiles/zones/{z}/{x}/{y}.pbf"
+        ]
+      },
+      "ops-incidents": {
+        "type": "vector",
+        "tiles": [
+          "/__runtime-parity-showcase__/vector-tiles/incidents/{z}/{x}/{y}.pbf"
+        ]
+      }
+    },
+    "layers": [
+      {
+        "id": "basemap-raster",
+        "type": "raster",
+        "source": "basemap-grid",
+        "metadata": {
+          "title": "Fixture raster lane"
+        },
+        "paint": {
+          "raster-opacity": 0.08
+        }
+      },
+      {
+        "id": "zone-fill",
+        "type": "fill",
+        "source": "ops-zones",
+        "metadata": {
+          "title": "Operations zones"
+        },
+        "paint": {
+          "fill-color": "#72a7b8",
+          "fill-opacity": 0.22
+        },
+        "source-layer": "zones"
+      },
+      {
+        "id": "zone-outline",
+        "type": "line",
+        "source": "ops-zones",
+        "metadata": {
+          "title": "Operations zone outline"
+        },
+        "paint": {
+          "line-color": "#31505f",
+          "line-width": 2,
+          "line-opacity": 0.75
+        },
+        "source-layer": "zones"
+      },
+      {
+        "id": "incident-halo",
+        "type": "circle",
+        "source": "ops-incidents",
+        "metadata": {
+          "title": "Selected incident halo"
+        },
+        "paint": {
+          "circle-radius": [
+            "case",
+            [
+              "boolean",
+              [
+                "feature-state",
+                "selected"
+              ],
+              false
+            ],
+            18,
+            0
+          ],
+          "circle-color": "#f7d267",
+          "circle-opacity": 0.42
+        },
+        "source-layer": "incidents"
+      },
+      {
+        "id": "incident-points",
+        "type": "circle",
+        "source": "ops-incidents",
+        "metadata": {
+          "title": "Incident points"
+        },
+        "paint": {
+          "circle-radius": [
+            "case",
+            [
+              "boolean",
+              [
+                "feature-state",
+                "selected"
+              ],
+              false
+            ],
+            9,
+            7
+          ],
+          "circle-color": [
+            "match",
+            [
+              "get",
+              "status"
+            ],
+            "Open",
+            "#d93f3f",
+            "Monitoring",
+            "#d9902f",
+            "Resolved",
+            "#2f8f75",
+            "#64748b"
+          ],
+          "circle-opacity": 0.95,
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 2
+        },
+        "source-layer": "incidents"
+      }
+    ]
+  }
+}
