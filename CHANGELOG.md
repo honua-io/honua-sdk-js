@@ -2,6 +2,13 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.9-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.8-alpha.0...js-sdk-v0.0.9-alpha.0) (2026-05-11)
+
+
+### Bug Fixes
+
+* dispatch release publish workflows by branch ([#168](https://github.com/honua-io/honua-sdk-js/issues/168)) ([ff72b90](https://github.com/honua-io/honua-sdk-js/commit/ff72b90aa6dfb3ad1f8e7c62d98b58ba224c44a7))
+
 ## [0.0.8-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.7-alpha.0...js-sdk-v0.0.8-alpha.0) (2026-05-11)
 
 
