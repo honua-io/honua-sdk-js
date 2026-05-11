@@ -83,6 +83,10 @@ import {
   selectLinkedViewQueryProjection,
 } from "@honua/sdk/exploration";
 import {
+  createFilterRegistry,
+  projectFilterRegistryToQuery,
+} from "@honua/sdk/filter-registry";
+import {
   bindChartToExploration,
   bindQueryProjectionToExploration,
 } from "@honua/sdk/interactions";
@@ -219,6 +223,10 @@ if (typeof createExplorationContext !== "function")
   throw new Error("createExplorationContext export missing from @honua/sdk/exploration");
 if (typeof selectLinkedViewQueryProjection !== "function")
   throw new Error("selectLinkedViewQueryProjection export missing from @honua/sdk/exploration");
+if (typeof createFilterRegistry !== "function")
+  throw new Error("createFilterRegistry export missing from @honua/sdk/filter-registry");
+if (typeof projectFilterRegistryToQuery !== "function")
+  throw new Error("projectFilterRegistryToQuery export missing from @honua/sdk/filter-registry");
 if (typeof bindChartToExploration !== "function")
   throw new Error("bindChartToExploration export missing from @honua/sdk/interactions");
 if (typeof bindQueryProjectionToExploration !== "function")

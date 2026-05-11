@@ -47,6 +47,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "filter-registry"), path.join(packageRoot, "filter-registry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
@@ -81,6 +82,10 @@ function createSdkPackage() {
       "./exploration": {
         types: "./exploration/index.d.ts",
         default: "./exploration/index.js",
+      },
+      "./filter-registry": {
+        types: "./filter-registry/index.d.ts",
+        default: "./filter-registry/index.js",
       },
       "./expr": {
         types: "./expr/index.d.ts",
