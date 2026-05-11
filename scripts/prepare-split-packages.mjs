@@ -49,6 +49,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "app-controller"), path.join(packageRoot, "app-controller"));
   copyDirectory(path.join(DIST_SRC_ROOT, "app-workspace"), path.join(packageRoot, "app-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
   copyDirectory(path.join(DIST_SRC_ROOT, "realtime"), path.join(packageRoot, "realtime"));
@@ -87,6 +88,10 @@ function createSdkPackage() {
       "./interactions": {
         types: "./interactions/index.d.ts",
         default: "./interactions/index.js",
+      },
+      "./app-controller": {
+        types: "./app-controller/index.d.ts",
+        default: "./app-controller/index.js",
       },
       "./app-workspace": {
         types: "./app-workspace/index.d.ts",
