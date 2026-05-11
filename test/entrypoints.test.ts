@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createHonuaController as appControllerCreateHonuaController } from "../src/app-controller/index.js";
 import {
   createHonuaAppWorkspace as appWorkspaceCreateHonuaAppWorkspace,
   selectHonuaAppWorkspaceMetadataCacheModel as appWorkspaceSelectMetadataCacheModel,
@@ -143,6 +144,7 @@ import {
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
   createEditSession as honuaCreateEditSession,
   createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
+  createHonuaController as honuaCreateHonuaController,
   createSceneWorkspace as honuaCreateSceneWorkspace,
   preparePrimaryDetailModel as honuaPreparePrimaryDetailModel,
   selectLinkedViewQueryProjection as honuaSelectLinkedViewQueryProjection,
@@ -155,6 +157,7 @@ import {
   bindMapSelectionToExploration,
   bindQueryProjectionToExploration,
   createHonuaAppWorkspace,
+  createHonuaController,
   preparePrimaryDetailModel,
   createEditSession as rootCreateEditSession,
   createSceneWorkspace as rootCreateSceneWorkspace,
@@ -206,6 +209,8 @@ describe("entrypoint modules", () => {
     expect(HonuaWfsExceptionError).toBeTypeOf("function");
     expect(HonuaWfsExceptionErrorRoot).toBe(HonuaWfsExceptionError);
     expect(createHonuaCacheState).toBeTypeOf("function");
+    expect(honuaCreateHonuaController).toBe(appControllerCreateHonuaController);
+    expect(createHonuaController).toBe(appControllerCreateHonuaController);
   });
 
   it("exposes esri-compat entrypoint", () => {

@@ -67,6 +67,10 @@
       "types": "./dist/src/realtime/index.d.ts",
       "default": "./dist/src/realtime/index.js"
     },
+    "./app-controller": {
+      "types": "./dist/src/app-controller/index.d.ts",
+      "default": "./dist/src/app-controller/index.js"
+    },
     "./app-workspace": {
       "types": "./dist/src/app-workspace/index.d.ts",
       "default": "./dist/src/app-workspace/index.js"
