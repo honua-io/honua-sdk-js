@@ -171,6 +171,161 @@ describe("contract / widget source", () => {
     expect(observedFilter).toBe("(STATE eq 'CA')");
   });
 
+  it("pushes histograms through canonical aggregation when source analytics metadata advertises support", async () => {
+    let observedAggregation: Query<ParcelAttrs>["aggregation"] | undefined;
+    const base = stubSource({
+      queryAggregate: async (request) => {
+        observedAggregation = request.aggregation;
+        return {
+          features: [],
+          exceededTransferLimit: false,
+          aggregateRows: [
+            { bucket: 0, bucketMin: 0, bucketMax: 10, count: 2 },
+            { bucket: 1, bucketMin: 10, bucketMax: 20, count: 1 },
+          ],
+        };
+      },
+    });
+    const source: Source<ParcelAttrs> = {
+      ...base,
+      descriptor: {
+        ...base.descriptor,
+        analytics: { histogram: { fields: ["ACRES"], maxBins: 4 } },
+      },
+    };
+
+    const result = await createWidgetSource(source).histogram({ field: "ACRES", bins: 2, min: 0, max: 20 });
+
+    expect(result).toMatchObject({ kind: "histogram", execution: "server", serverPushdown: true });
+    expect(observedAggregation?.histogram).toMatchObject({ field: "ACRES", bins: 2, min: 0, max: 20 });
+    expect(result.bins.map((bin) => [bin.min, bin.max, bin.count])).toEqual([
+      [0, 10, 2],
+      [10, 20, 1],
+    ]);
+    expect(result.degraded).toBeUndefined();
+  });
+
+  it("uses OData $apply for histogram and time-series pushdown when ApplySupported is advertised", async () => {
+    const observedApply: string[] = [];
+    const metadata = odataMetadataDocument().replace(
+      "</EntitySet>",
+      '<Annotation Term="Org.OData.Capabilities.V1.ApplySupported" Bool="true"/></EntitySet>',
+    );
+    const client = makeMockClient({
+      routes: [
+        [
+          "/odata/$metadata",
+          () => new Response(metadata, { status: 200, headers: { "Content-Type": "application/xml" } }),
+        ],
+        [
+          "/odata/Parcels",
+          (url) => {
+            const apply = url.searchParams.get("$apply") ?? "";
+            observedApply.push(apply);
+            if (apply.includes("with min")) {
+              return jsonResponse({ value: [{ histogram_min: 0, histogram_max: 20 }] });
+            }
+            if (apply.includes("floor")) {
+              return jsonResponse({
+                value: [
+                  { bucket: 0, count: 2 },
+                  { bucket: 1, count: 1 },
+                ],
+              });
+            }
+            if (apply.includes("honua.timeBucket")) {
+              return jsonResponse({
+                value: [
+                  { intervalStart: "2026-01-01T00:00:00.000Z", count: 2 },
+                  { intervalStart: "2026-01-02T00:00:00.000Z", count: 1 },
+                ],
+              });
+            }
+            return jsonResponse({ value: [] });
+          },
+        ],
+      ],
+    });
+    const dataset = createDataset({
+      id: "parcels",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "parcels-odata",
+          protocol: "odata",
+          locator: { url: "https://mock/odata", entitySet: "Parcels" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+        } satisfies SourceDescriptor,
+      ],
+    });
+    const widgets = createWidgetSource(dataset.source<ParcelAttrs>("parcels-odata")!);
+
+    const histogram = await widgets.histogram({ field: "ACRES", bins: 2 });
+    const series = await widgets.timeSeries({ field: "UPDATED_AT", interval: "day" });
+
+    expect(histogram).toMatchObject({ execution: "server", serverPushdown: true, min: 0, max: 20 });
+    expect(histogram.bins.map((bin) => bin.count)).toEqual([2, 1]);
+    expect(series).toMatchObject({
+      execution: "server",
+      serverPushdown: true,
+      interval: { unit: "day", step: 1, timezone: "UTC" },
+      totalCount: 3,
+    });
+    expect(series.buckets.map((bucket) => [bucket.start, bucket.count])).toEqual([
+      ["2026-01-01T00:00:00.000Z", 2],
+      ["2026-01-02T00:00:00.000Z", 1],
+    ]);
+    expect(observedApply.some((entry) => entry.includes("floor"))).toBe(true);
+    expect(observedApply.some((entry) => entry.includes("honua.timeBucket(UPDATED_AT,'day',1,'UTC')"))).toBe(true);
+  });
+
+  it("uses protocol-specific time-series pushdown only when adapter metadata advertises support", async () => {
+    let observedAggregation: Query<ParcelAttrs>["aggregation"] | undefined;
+    const adapter = {
+      metadata: async () => ({
+        capabilities: {
+          widgets: {
+            timeSeries: { fields: ["OBSERVED_AT"], intervals: ["hour" as const] },
+          },
+        },
+      }),
+      timeSeries: async (
+        request: Query<ParcelAttrs> & { aggregation: NonNullable<Query<ParcelAttrs>["aggregation"]> },
+      ) => {
+        observedAggregation = request.aggregation;
+        return {
+          rows: [
+            { intervalStart: "2026-01-01T00:00:00.000Z", count: 4, metric_avg_ACRES: 12.5 },
+            { intervalStart: "2026-01-01T01:00:00.000Z", count: 2, metric_avg_ACRES: 8 },
+          ],
+        };
+      },
+    };
+    const base = stubSource();
+    const source: Source<ParcelAttrs> = {
+      ...base,
+      protocol: (kind) => (kind === "geoservices-feature-service" ? (adapter as never) : undefined),
+      adapter: (kind) => (kind === "geoservices-feature-service" ? (adapter as never) : undefined),
+    };
+
+    const result = await createWidgetSource(source).timeSeries({
+      field: "OBSERVED_AT",
+      interval: { unit: "hour", timezone: "UTC" },
+      metric: { fn: "avg", field: "ACRES" },
+    });
+
+    expect(result).toMatchObject({ kind: "time-series", execution: "server", serverPushdown: true });
+    expect(observedAggregation?.timeSeries).toMatchObject({
+      field: "OBSERVED_AT",
+      interval: { unit: "hour", step: 1, timezone: "UTC" },
+    });
+    expect(result.buckets.map((bucket) => [bucket.start, bucket.count, bucket.metric])).toEqual([
+      ["2026-01-01T00:00:00.000Z", 4, 12.5],
+      ["2026-01-01T01:00:00.000Z", 2, 8],
+    ]);
+  });
+
   it("returns degraded, bounded, cache-aware chart models for client histogram fallback", async () => {
     const client = makeMockClient({
       routes: [
@@ -206,6 +361,25 @@ describe("contract / widget source", () => {
     expect(result.bins.reduce((sum, bin) => sum + bin.count, 0)).toBe(2);
     expect(result.degraded?.map((reason) => reason.capability)).toContain("queryAggregate");
     expect(result.degraded?.some((reason) => reason.reason.includes("bounded at 2 rows"))).toBe(true);
+  });
+
+  it("keeps realtime result caches disabled unless a freshness contract is present", async () => {
+    const base = stubSource();
+    const realtime = await createWidgetSource(base, { realtime: true }).count();
+    const freshSource: Source<ParcelAttrs> = {
+      ...base,
+      descriptor: {
+        ...base.descriptor,
+        analytics: { freshness: { mode: "watermark", watermarkField: "UPDATED_AT", ttlMs: 5_000 } },
+      },
+    };
+    const fresh = await createWidgetSource(freshSource, { realtime: true }).count();
+
+    expect(realtime.cache.resultCacheable).toBe(false);
+    expect(fresh.cache).toMatchObject({
+      resultCacheable: true,
+      freshness: { mode: "watermark", watermarkField: "UPDATED_AT", ttlMs: 5_000 },
+    });
   });
 
   it("passes abort signals through server pushdown and refuses pre-aborted requests", async () => {

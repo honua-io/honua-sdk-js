@@ -14,6 +14,7 @@ export {
 export type {
   HonuaGeneratedAppAssetRef,
   HonuaGeneratedAppBuildSpec,
+  HonuaGeneratedAppChartKind,
   HonuaGeneratedAppChartWidget,
   HonuaGeneratedAppCountWidget,
   HonuaGeneratedAppDataBinding,
@@ -64,6 +65,7 @@ export type {
   HonuaGeneratedAppFeatureLoader,
   HonuaGeneratedAppFeatureLoaderContext,
   HonuaGeneratedAppFilterOptionModel,
+  HonuaGeneratedAppHistogramBin,
   HonuaGeneratedAppLoadOptions,
   HonuaGeneratedAppMapFactory,
   HonuaGeneratedAppMapFactoryResult,
@@ -73,5 +75,6 @@ export type {
   HonuaGeneratedAppRenderedRow,
   HonuaGeneratedAppRuntimeEvent,
   HonuaGeneratedAppRuntimeEventListener,
+  HonuaGeneratedAppTimeSeriesBucket,
   HonuaGeneratedAppWidgetModel,
 } from "./runtime.js";

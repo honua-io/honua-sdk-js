@@ -260,6 +260,9 @@ describe("@honua/sdk-js/generated-app", () => {
       histogram: async () => {
         throw new Error("not used");
       },
+      timeSeries: async () => {
+        throw new Error("not used");
+      },
       range: async () => {
         throw new Error("not used");
       },
@@ -295,6 +298,120 @@ describe("@honua/sdk-js/generated-app", () => {
         ["Windward", 0],
       ]);
       expect(requestedFields).toEqual(["count", "district", "district"]);
+      result.runtime.dispose();
+    }
+  });
+
+  it("can consume widgetSource histogram and time-series chart models", async () => {
+    const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
+    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>("operations-dashboard-features.v1.json");
+    const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
+    const analyticsManifest: HonuaGeneratedAppManifest = {
+      ...manifest,
+      layout: {
+        ...manifest.layout,
+        widgets: manifest.layout.widgets.flatMap((entry) =>
+          entry.id === "district-chart"
+            ? [
+                { ...entry, id: "severity-histogram", chartKind: "histogram" as const, field: "severity", bins: 2 },
+                {
+                  ...entry,
+                  id: "incident-series",
+                  chartKind: "time-series" as const,
+                  field: "reported_at",
+                  interval: { unit: "hour" as const, timezone: "UTC" },
+                },
+              ]
+            : [entry],
+        ),
+      },
+    };
+    const requested: string[] = [];
+    const widgetSource: WidgetSource = {
+      source: undefined as never,
+      count: async () => ({ ...widgetResultBase(), kind: "count", value: 5, label: "Incidents" }),
+      categories: async (request) => {
+        requested.push(`categories:${request.field}`);
+        return { ...widgetResultBase(), kind: "categories", field: request.field, buckets: [] };
+      },
+      histogram: async (request) => {
+        requested.push(`histogram:${request.field}:${request.bins}`);
+        return {
+          ...widgetResultBase(),
+          kind: "histogram",
+          field: request.field,
+          min: 0,
+          max: 10,
+          bins: [
+            { id: "0", min: 0, max: 5, label: "0 - 5", count: 3, percent: 0.6 },
+            { id: "1", min: 5, max: 10, label: "5 - 10", count: 2, percent: 0.4 },
+          ],
+        };
+      },
+      timeSeries: async (request) => {
+        requested.push(
+          `timeSeries:${request.field}:${request.interval && typeof request.interval === "object" ? request.interval.unit : request.interval}`,
+        );
+        return {
+          ...widgetResultBase(),
+          kind: "time-series",
+          field: request.field,
+          interval: { unit: "hour", step: 1, timezone: "UTC" },
+          totalCount: 5,
+          buckets: [
+            {
+              id: "2026-01-01T00:00:00.000Z",
+              start: "2026-01-01T00:00:00.000Z",
+              end: "2026-01-01T01:00:00.000Z",
+              label: "2026-01-01T00:00Z",
+              count: 5,
+              percent: 1,
+            },
+          ],
+        };
+      },
+      formula: async () => {
+        throw new Error("not used");
+      },
+      range: async () => {
+        throw new Error("not used");
+      },
+      topValues: async () => {
+        throw new Error("not used");
+      },
+    };
+
+    const result = await previewGeneratedApp(
+      { manifest: analyticsManifest, mapPackage },
+      {
+        mapFactory: () => ({ map: makeMockMap() }),
+        mapLoadOptions: { client: makeClient(), skipCompatibilityCheck: true, applyInitialView: false },
+        initialFeatures: features,
+        widgetSource,
+      },
+    );
+
+    expect(result.status).toBe("ready");
+    if (result.status === "ready") {
+      expect(widget(result.model, "severity-histogram", "chart")).toMatchObject({
+        chartKind: "histogram",
+        field: "severity",
+        histogramBins: [
+          { id: "0", count: 3 },
+          { id: "1", count: 2 },
+        ],
+      });
+      expect(widget(result.model, "incident-series", "chart")).toMatchObject({
+        chartKind: "time-series",
+        field: "reported_at",
+        interval: { unit: "hour", step: 1, timezone: "UTC" },
+        timeSeriesBuckets: [{ id: "2026-01-01T00:00:00.000Z", count: 5 }],
+      });
+      expect(requested).toHaveLength(3);
+      expect(requested).toEqual(
+        expect.arrayContaining(["histogram:severity:2", "timeSeries:reported_at:hour", "categories:district"]),
+      );
       result.runtime.dispose();
     }
   });

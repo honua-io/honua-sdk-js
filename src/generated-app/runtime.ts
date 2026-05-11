@@ -10,7 +10,16 @@
  * @module
  */
 
-import type { FeatureId, Query, WidgetCategoriesResult, WidgetCountResult, WidgetSource } from "../contract/index.js";
+import type {
+  FeatureId,
+  Query,
+  WidgetCategoriesResult,
+  WidgetCountResult,
+  WidgetHistogramResult,
+  WidgetSource,
+  WidgetTimeSeriesInterval,
+  WidgetTimeSeriesResult,
+} from "../contract/index.js";
 import {
   type ExplorationContext,
   type ExplorationStateSnapshot,
@@ -129,6 +138,25 @@ export interface HonuaGeneratedAppChartBucket {
   readonly targets: ReadonlyArray<FeatureSelectionTarget>;
 }
 
+export interface HonuaGeneratedAppHistogramBin {
+  readonly id: string;
+  readonly min: number;
+  readonly max: number;
+  readonly label: string;
+  readonly count: number;
+  readonly percent: number;
+}
+
+export interface HonuaGeneratedAppTimeSeriesBucket {
+  readonly id: string;
+  readonly start: string;
+  readonly end: string;
+  readonly label: string;
+  readonly count: number;
+  readonly percent: number;
+  readonly metric?: number | null;
+}
+
 export interface HonuaGeneratedAppFilterOptionModel {
   readonly value: string | number | boolean;
   readonly label: string;
@@ -165,10 +193,15 @@ export type HonuaGeneratedAppWidgetModel =
   | {
       readonly id: string;
       readonly kind: "chart";
+      readonly chartKind: "categories" | "histogram" | "time-series";
       readonly title?: string;
       readonly sourceId: string;
-      readonly groupBy: string;
+      readonly groupBy?: string;
+      readonly field?: string;
       readonly buckets: ReadonlyArray<HonuaGeneratedAppChartBucket>;
+      readonly histogramBins?: ReadonlyArray<HonuaGeneratedAppHistogramBin>;
+      readonly timeSeriesBuckets?: ReadonlyArray<HonuaGeneratedAppTimeSeriesBucket>;
+      readonly interval?: Required<WidgetTimeSeriesInterval>;
     }
   | {
       readonly id: string;
@@ -228,6 +261,8 @@ interface RuntimeWidgetSourceModels {
   readonly projectionKey: string;
   readonly count: Readonly<Record<string, WidgetCountResult>>;
   readonly categories: Readonly<Record<string, WidgetCategoriesResult>>;
+  readonly histogram: Readonly<Record<string, WidgetHistogramResult>>;
+  readonly timeSeries: Readonly<Record<string, WidgetTimeSeriesResult>>;
 }
 
 export async function loadGeneratedAppRuntime<TAttributes extends Record<string, unknown> = Record<string, unknown>>(
@@ -329,8 +364,11 @@ export async function loadGeneratedAppRuntime<TAttributes extends Record<string,
       case "chart": {
         const view = context.connectView({ id: widget.id, role: "chart" });
         const binding = bindChartToExploration(view);
-        binding.setGrouping([widget.groupBy]);
-        binding.setAggregation({ groupBy: [widget.groupBy], metrics: [widget.metric ?? { fn: "count", field: "*" }] });
+        const groupBy = chartCategoryField(widget);
+        if (groupBy) {
+          binding.setGrouping([groupBy]);
+          binding.setAggregation({ groupBy: [groupBy], metrics: [widget.metric ?? { fn: "count", field: "*" }] });
+        }
         chart[widget.id] = binding;
         break;
       }
@@ -517,10 +555,14 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
       throw missingWidgetBinding(this.manifest.appId, widgetId, "chart");
     }
     const sourceId = widget.sourceId ?? this.manifest.data.sourceId;
-    binding.setGrouping([widget.groupBy]);
-    binding.setAggregation({ groupBy: [widget.groupBy], metrics: [widget.metric ?? { fn: "count", field: "*" }] });
+    const groupBy = chartCategoryField(widget);
+    if (!groupBy) {
+      throw missingWidgetBinding(this.manifest.appId, widgetId, "chart");
+    }
+    binding.setGrouping([groupBy]);
+    binding.setAggregation({ groupBy: [groupBy], metrics: [widget.metric ?? { fn: "count", field: "*" }] });
     for (const [id, clause] of Object.entries(this.context.state.filters)) {
-      if (id !== widget.id && clause.field === widget.groupBy) {
+      if (id !== widget.id && clause.field === groupBy) {
         this.context.dispatch({ kind: "clear-filter", id, viewId: widget.id });
       }
     }
@@ -530,7 +572,7 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
       binding.selectBucket({
         filters: {
           [widget.id]: {
-            field: widget.groupBy,
+            field: groupBy,
             operator: "=",
             value,
             appliesTo: [sourceId],
@@ -599,19 +641,46 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
     const projection = selectLinkedViewQueryProjection(this.context.state, { sourceId });
     const count: Record<string, WidgetCountResult> = {};
     const categories: Record<string, WidgetCategoriesResult> = {};
+    const histogram: Record<string, WidgetHistogramResult> = {};
+    const timeSeries: Record<string, WidgetTimeSeriesResult> = {};
     await Promise.all(
       this.manifest.layout.widgets.map(async (widget) => {
         switch (widget.kind) {
           case "count":
             count[widget.id] = await this.#widgetSource!.count({ projection });
             break;
-          case "chart":
-            categories[widget.id] = await this.#widgetSource!.categories({
-              projection,
-              field: widget.groupBy,
-              metric: widget.metric,
-            });
+          case "chart": {
+            const chartKind = generatedChartKind(widget);
+            if (chartKind === "histogram") {
+              histogram[widget.id] = await this.#widgetSource!.histogram({
+                projection,
+                field: chartMeasureField(widget),
+                bins: widget.bins,
+                min: widget.min,
+                max: widget.max,
+              });
+            } else if (chartKind === "time-series") {
+              timeSeries[widget.id] = await this.#widgetSource!.timeSeries({
+                projection,
+                field: chartMeasureField(widget),
+                interval: widget.interval,
+                metric: widget.metric,
+                start: widget.start,
+                end: widget.end,
+                fillMissing: widget.fillMissing,
+              });
+            } else {
+              const groupBy = chartCategoryField(widget);
+              if (groupBy) {
+                categories[widget.id] = await this.#widgetSource!.categories({
+                  projection,
+                  field: groupBy,
+                  metric: widget.metric,
+                });
+              }
+            }
             break;
+          }
           case "filter":
             categories[widget.id] = await this.#widgetSource!.categories({
               projection,
@@ -626,7 +695,7 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
         }
       }),
     );
-    return { projectionKey: stableWidgetProjectionKey(projection), count, categories };
+    return { projectionKey: stableWidgetProjectionKey(projection), count, categories, histogram, timeSeries };
   }
 
   #renderWidget(
@@ -669,17 +738,7 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
           value: widgetModels?.count[widget.id]?.value ?? filteredRecords.length,
         };
       case "chart":
-        return {
-          id: widget.id,
-          kind: "chart",
-          ...(widget.title ? { title: widget.title } : {}),
-          sourceId,
-          groupBy: widget.groupBy,
-          buckets:
-            widgetModels?.categories[widget.id] !== undefined
-              ? chartBucketsFromWidgetSource(widgetModels.categories[widget.id], widget, this.context.state.filters)
-              : chartBuckets(filteredRecords, widget, sourceId, this.context.state.filters),
-        };
+        return chartModel(widget, filteredRecords, sourceId, this.context.state.filters, widgetModels);
       case "filter":
         return {
           id: widget.id,
@@ -859,6 +918,7 @@ function generatedAppQueryFields(manifest: HonuaGeneratedAppManifest): ReadonlyA
         break;
       case "chart":
         add(widget.groupBy);
+        add(widget.field);
         if (widget.metric?.field !== "*") add(widget.metric?.field);
         break;
       case "filter":
@@ -1025,12 +1085,14 @@ function chartBuckets(
   sourceId: string,
   filters: Readonly<Record<string, FilterClause>>,
 ): ReadonlyArray<HonuaGeneratedAppChartBucket> {
+  const groupBy = chartCategoryField(widget);
+  if (!groupBy) return [];
   const buckets = new Map<
     string,
     { value: string | number | boolean; count: number; targets: FeatureSelectionTarget[] }
   >();
   for (const record of records) {
-    const value = scalarBucketValue(record.attributes[widget.groupBy]);
+    const value = scalarBucketValue(record.attributes[groupBy]);
     if (value === undefined) continue;
     const key = String(value);
     const bucket = buckets.get(key) ?? { value, count: 0, targets: [] };
@@ -1086,6 +1148,57 @@ function filterOptions(
     });
 }
 
+function chartModel(
+  widget: HonuaGeneratedAppChartWidget,
+  filteredRecords: ReadonlyArray<HonuaGeneratedAppFeatureRecord<Record<string, unknown>>>,
+  sourceId: string,
+  filters: Readonly<Record<string, FilterClause>>,
+  widgetModels: RuntimeWidgetSourceModels | undefined,
+): HonuaGeneratedAppWidgetModel {
+  const chartKind = generatedChartKind(widget);
+  const base = {
+    id: widget.id,
+    kind: "chart" as const,
+    chartKind,
+    ...(widget.title ? { title: widget.title } : {}),
+    sourceId,
+  };
+  if (chartKind === "histogram") {
+    const histogram =
+      widgetModels?.histogram[widget.id] !== undefined
+        ? histogramBinsFromWidgetSource(widgetModels.histogram[widget.id])
+        : histogramBins(filteredRecords, chartMeasureField(widget), widget.bins, widget.min, widget.max);
+    return {
+      ...base,
+      field: chartMeasureField(widget),
+      buckets: [],
+      histogramBins: histogram,
+    };
+  }
+  if (chartKind === "time-series") {
+    const series =
+      widgetModels?.timeSeries[widget.id] !== undefined
+        ? timeSeriesBucketsFromWidgetSource(widgetModels.timeSeries[widget.id])
+        : timeSeriesBuckets(filteredRecords, widget);
+    return {
+      ...base,
+      field: chartMeasureField(widget),
+      buckets: [],
+      timeSeriesBuckets: series.buckets,
+      interval: series.interval,
+    };
+  }
+  const groupBy = chartCategoryField(widget);
+  return {
+    ...base,
+    groupBy,
+    buckets:
+      widgetModels?.categories[widget.id] !== undefined
+        ? chartBucketsFromWidgetSource(widgetModels.categories[widget.id], widget, filters)
+        : chartBuckets(filteredRecords, widget, sourceId, filters),
+  };
+}
+
 function chartBucketsFromWidgetSource(
   result: WidgetCategoriesResult,
   widget: HonuaGeneratedAppChartWidget,
@@ -1101,6 +1214,159 @@ function chartBucketsFromWidgetSource(
       selected: active === bucket.value,
       targets: [],
     }));
+}
+
+function histogramBinsFromWidgetSource(result: WidgetHistogramResult): ReadonlyArray<HonuaGeneratedAppHistogramBin> {
+  return result.bins.map((bin) => ({
+    id: bin.id,
+    min: bin.min,
+    max: bin.max,
+    label: bin.label,
+    count: bin.count,
+    percent: bin.percent,
+  }));
+}
+
+function timeSeriesBucketsFromWidgetSource(result: WidgetTimeSeriesResult): {
+  readonly buckets: ReadonlyArray<HonuaGeneratedAppTimeSeriesBucket>;
+  readonly interval: Required<WidgetTimeSeriesInterval>;
+} {
+  return {
+    interval: result.interval,
+    buckets: result.buckets.map((bucket) => ({
+      id: bucket.id,
+      start: bucket.start,
+      end: bucket.end,
+      label: bucket.label,
+      count: bucket.count,
+      percent: bucket.percent,
+      ...(bucket.metric !== undefined ? { metric: bucket.metric } : {}),
+    })),
+  };
+}
+
+function generatedChartKind(widget: HonuaGeneratedAppChartWidget): "categories" | "histogram" | "time-series" {
+  return widget.chartKind === "histogram" || widget.chartKind === "time-series" ? widget.chartKind : "categories";
+}
+
+function chartCategoryField(widget: HonuaGeneratedAppChartWidget): string | undefined {
+  if (generatedChartKind(widget) !== "categories") return undefined;
+  return widget.groupBy ?? widget.field;
+}
+
+function chartMeasureField(widget: HonuaGeneratedAppChartWidget): string {
+  return widget.field ?? widget.groupBy ?? widget.metric?.field ?? "OBJECTID";
+}
+
+function histogramBins(
+  records: ReadonlyArray<HonuaGeneratedAppFeatureRecord<Record<string, unknown>>>,
+  field: string,
+  requestedBins: number | undefined,
+  requestedMin: number | undefined,
+  requestedMax: number | undefined,
+): ReadonlyArray<HonuaGeneratedAppHistogramBin> {
+  const values = records.map((record) => numericValue(record.attributes[field])).filter(isNumber);
+  const min = requestedMin ?? (values.length > 0 ? Math.min(...values) : undefined);
+  const max = requestedMax ?? (values.length > 0 ? Math.max(...values) : undefined);
+  if (min === undefined || max === undefined) return [];
+  const count = clampInteger(requestedBins ?? 10, 1, 200);
+  const width = max === min ? 1 : (max - min) / count;
+  const bins = Array.from({ length: count }, (_, index) => {
+    const binMin = min + index * width;
+    const binMax = index === count - 1 ? max : min + (index + 1) * width;
+    return {
+      id: `${index}`,
+      min: binMin,
+      max: binMax,
+      label: `${formatNumber(binMin)} - ${formatNumber(binMax)}`,
+      count: 0,
+      percent: 0,
+    };
+  });
+  for (const value of values) {
+    if (value < min || value > max) continue;
+    const index = max === min ? 0 : Math.min(count - 1, Math.floor((value - min) / width));
+    bins[index] = { ...bins[index], count: bins[index].count + 1 };
+  }
+  const total = bins.reduce((sum, bin) => sum + bin.count, 0);
+  return bins.map((bin) => ({ ...bin, percent: total > 0 ? bin.count / total : 0 }));
+}
+
+function timeSeriesBuckets(
+  records: ReadonlyArray<HonuaGeneratedAppFeatureRecord<Record<string, unknown>>>,
+  widget: HonuaGeneratedAppChartWidget,
+): {
+  readonly buckets: ReadonlyArray<HonuaGeneratedAppTimeSeriesBucket>;
+  readonly interval: Required<WidgetTimeSeriesInterval>;
+} {
+  const interval = normalizeWidgetInterval(widget.interval);
+  const field = chartMeasureField(widget);
+  const startLimit = dateValue(widget.start);
+  const endLimit = dateValue(widget.end);
+  const byStart = new Map<string, { start: Date; end: Date; count: number; values: number[] }>();
+  for (const record of records) {
+    const date = dateValue(record.attributes[field]);
+    if (!date) continue;
+    if (startLimit && date < startLimit) continue;
+    if (endLimit && date >= endLimit) continue;
+    const start = truncateWidgetDate(date, interval);
+    const key = start.toISOString();
+    const entry = byStart.get(key) ?? { start, end: addWidgetInterval(start, interval), count: 0, values: [] };
+    entry.count += 1;
+    if (widget.metric && widget.metric.fn !== "count") {
+      const value = numericValue(record.attributes[widget.metric.field]);
+      if (value !== undefined) entry.values.push(value);
+    }
+    byStart.set(key, entry);
+  }
+  const working = [...byStart.values()].sort((a, b) => a.start.getTime() - b.start.getTime());
+  const filled = widget.fillMissing
+    ? fillMissingWidgetTimeBuckets(working, interval, widget.start, widget.end)
+    : working;
+  const total = filled.reduce((sum, bucket) => sum + bucket.count, 0);
+  return {
+    interval,
+    buckets: filled.map((bucket) => ({
+      id: bucket.start.toISOString(),
+      start: bucket.start.toISOString(),
+      end: bucket.end.toISOString(),
+      label: formatWidgetTimeLabel(bucket.start, interval),
+      count: bucket.count,
+      percent: total > 0 ? bucket.count / total : 0,
+      ...(widget.metric
+        ? {
+            metric: widget.metric.fn === "count" ? bucket.count : computeWidgetMetric(bucket.values, widget.metric.fn),
+          }
+        : {}),
+    })),
+  };
+}
+
+function fillMissingWidgetTimeBuckets(
+  buckets: ReadonlyArray<{ start: Date; end: Date; count: number; values: number[] }>,
+  interval: Required<WidgetTimeSeriesInterval>,
+  startValue: string | number | undefined,
+  endValue: string | number | undefined,
+): ReadonlyArray<{ start: Date; end: Date; count: number; values: number[] }> {
+  if (buckets.length === 0 && (startValue === undefined || endValue === undefined)) return buckets;
+  const first = dateValue(startValue) ?? buckets[0]?.start;
+  const lastEnd = dateValue(endValue) ?? buckets.at(-1)?.end;
+  if (!first || !lastEnd || first >= lastEnd) return buckets;
+  const byStart = new Map(buckets.map((bucket) => [bucket.start.toISOString(), bucket]));
+  const out: Array<{ start: Date; end: Date; count: number; values: number[] }> = [];
+  let cursor = truncateWidgetDate(first, interval);
+  while (cursor < lastEnd && out.length < 500) {
+    out.push(
+      byStart.get(cursor.toISOString()) ?? {
+        start: new Date(cursor.getTime()),
+        end: addWidgetInterval(cursor, interval),
+        count: 0,
+        values: [],
+      },
+    );
+    cursor = addWidgetInterval(cursor, interval);
+  }
+  return out;
 }
 
 function filterOptionsFromWidgetSource(
@@ -1150,6 +1416,137 @@ function inferFields(
 ): ReadonlyArray<string> {
   const first = records[0];
   return first ? Object.keys(first.attributes).slice(0, 6) : [];
+}
+
+function normalizeWidgetInterval(interval: WidgetTimeSeriesInterval | undefined): Required<WidgetTimeSeriesInterval> {
+  return {
+    unit: interval?.unit ?? "day",
+    step: clampInteger(interval?.step ?? 1, 1, 10_000),
+    timezone: interval?.timezone ?? "UTC",
+  };
+}
+
+function dateValue(value: unknown): Date | undefined {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return new Date(value.getTime());
+  if (typeof value !== "string" && typeof value !== "number") return undefined;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : undefined;
+}
+
+function truncateWidgetDate(date: Date, interval: Required<WidgetTimeSeriesInterval>): Date {
+  const out = new Date(date.getTime());
+  const step = interval.step;
+  switch (interval.unit) {
+    case "minute":
+      out.setUTCSeconds(0, 0);
+      out.setUTCMinutes(Math.floor(out.getUTCMinutes() / step) * step);
+      return out;
+    case "hour":
+      out.setUTCMinutes(0, 0, 0);
+      out.setUTCHours(Math.floor(out.getUTCHours() / step) * step);
+      return out;
+    case "day":
+      return new Date(Date.UTC(out.getUTCFullYear(), out.getUTCMonth(), out.getUTCDate()));
+    case "week": {
+      const day = out.getUTCDay();
+      const mondayOffset = day === 0 ? 6 : day - 1;
+      return new Date(Date.UTC(out.getUTCFullYear(), out.getUTCMonth(), out.getUTCDate() - mondayOffset));
+    }
+    case "month":
+      return new Date(Date.UTC(out.getUTCFullYear(), Math.floor(out.getUTCMonth() / step) * step, 1));
+    case "quarter": {
+      const months = step * 3;
+      return new Date(Date.UTC(out.getUTCFullYear(), Math.floor(out.getUTCMonth() / months) * months, 1));
+    }
+    case "year":
+      return new Date(Date.UTC(Math.floor(out.getUTCFullYear() / step) * step, 0, 1));
+  }
+}
+
+function addWidgetInterval(date: Date, interval: Required<WidgetTimeSeriesInterval>): Date {
+  const out = new Date(date.getTime());
+  switch (interval.unit) {
+    case "minute":
+      out.setUTCMinutes(out.getUTCMinutes() + interval.step);
+      return out;
+    case "hour":
+      out.setUTCHours(out.getUTCHours() + interval.step);
+      return out;
+    case "day":
+      out.setUTCDate(out.getUTCDate() + interval.step);
+      return out;
+    case "week":
+      out.setUTCDate(out.getUTCDate() + interval.step * 7);
+      return out;
+    case "month":
+      out.setUTCMonth(out.getUTCMonth() + interval.step);
+      return out;
+    case "quarter":
+      out.setUTCMonth(out.getUTCMonth() + interval.step * 3);
+      return out;
+    case "year":
+      out.setUTCFullYear(out.getUTCFullYear() + interval.step);
+      return out;
+  }
+}
+
+function formatWidgetTimeLabel(date: Date, interval: Required<WidgetTimeSeriesInterval>): string {
+  const iso = date.toISOString();
+  if (interval.unit === "year") return iso.slice(0, 4);
+  if (interval.unit === "quarter") return `${iso.slice(0, 4)} Q${Math.floor(date.getUTCMonth() / 3) + 1}`;
+  if (interval.unit === "month") return iso.slice(0, 7);
+  if (interval.unit === "day" || interval.unit === "week") return iso.slice(0, 10);
+  if (interval.unit === "hour") return `${iso.slice(0, 13)}:00Z`;
+  return `${iso.slice(0, 16)}Z`;
+}
+
+function numericValue(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+function isNumber(value: number | undefined): value is number {
+  return value !== undefined;
+}
+
+function computeWidgetMetric(
+  values: readonly number[],
+  fn: NonNullable<HonuaGeneratedAppChartWidget["metric"]>["fn"],
+): number | null {
+  if (fn === "count") return values.length;
+  if (values.length === 0) return null;
+  switch (fn) {
+    case "sum":
+      return values.reduce((sum, value) => sum + value, 0);
+    case "avg":
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    case "min":
+      return Math.min(...values);
+    case "max":
+      return Math.max(...values);
+    case "stddev": {
+      const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+      const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+      return Math.sqrt(variance);
+    }
+    case "var": {
+      const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+      return values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+    }
+  }
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, Math.trunc(value)));
+}
+
+function formatNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function compareValues(a: unknown, b: unknown, direction: "asc" | "desc" = "asc"): number {
