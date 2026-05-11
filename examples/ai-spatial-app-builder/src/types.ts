@@ -1,4 +1,5 @@
 import type { HonuaAppWorkspace } from "@honua/sdk-js/app-workspace";
+import type { HonuaAiMapKit, HonuaAgentAuditEvent } from "@honua/sdk-js/agent-tools";
 import type { ExplorationContext, ExplorationViewController, FilterClause } from "@honua/sdk-js/exploration";
 import type { HonuaCacheState, HonuaExtent, JobSnapshot } from "@honua/sdk-js/honua";
 import type { LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
@@ -138,6 +139,8 @@ export interface AiSpatialAppBuilderSession {
   readonly workspace: HonuaAppWorkspace<BuilderFeature, BuilderSourceMetadata, BuilderJobOutput>;
   readonly exploration: ExplorationContext;
   readonly views: BuilderViewControllers;
+  readonly aiMapKit: HonuaAiMapKit;
+  readonly agentAudit: readonly HonuaAgentAuditEvent[];
   readonly lastTurn?: BuilderTurn;
   readonly activeDraft?: BuilderDraftSpec;
   readonly activePlan?: BuilderPlan;
@@ -150,6 +153,7 @@ export interface AiSpatialAppBuilderSession {
   selectFeature(featureId: string): void;
   setFloodZoneFilter(zone: string | "all"): void;
   selectChartBucket(zone: string | "all"): void;
+  runAiMapKitDemo(): Promise<unknown[]>;
   currentProjection(): LinkedViewQueryProjection;
   visibleFeatures(): BuilderFeature[];
   chartBuckets(): ReadonlyArray<{ readonly floodZone: string; readonly count: number; readonly value: number }>;

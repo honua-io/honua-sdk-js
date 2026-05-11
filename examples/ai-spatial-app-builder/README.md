@@ -7,3 +7,4 @@ Fixture-backed sample for issue #74. It demonstrates a bounded natural-language 
 - Plan/apply job status with warnings, degraded capabilities, and cache notes.
 - Generated map/table/chart/filter/detail mini-app state synchronized through Honua exploration linked context.
 - Serializable workspace export for saved-state and MCP inspection flows.
+- AI map kit integration using `createHonuaAiMapKit` for inspect, bounded widget query, filter, select, and dry-run layer actions with audit events.

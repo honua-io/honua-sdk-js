@@ -44,6 +44,7 @@ export const HONUA_AGENT_TOOL_NAMES = [
 export type HonuaAgentToolName = (typeof HONUA_AGENT_TOOL_NAMES)[number];
 export type HonuaAgentToolMode = "read" | "action";
 export type HonuaAgentToolStatus = "ok" | "dry-run" | "denied" | "error";
+export type HonuaAgentProviderToolFormat = "honua" | "mcp" | "openai";
 
 export interface HonuaAgentJsonSchema {
   readonly type?: string | readonly string[];
@@ -96,6 +97,8 @@ export interface HonuaAgentLayerSummary {
 export interface HonuaAgentMapSnapshot {
   readonly appId?: string;
   readonly mapPackageId?: string;
+  readonly snapshotTimestamp?: string;
+  readonly sourceVersion?: string;
   readonly viewport?: HonuaAgentViewport;
   readonly sources: ReadonlyArray<HonuaAgentSourceSummary>;
   readonly layers: ReadonlyArray<HonuaAgentLayerSummary>;
@@ -222,10 +225,13 @@ export interface HonuaAgentAuditEvent {
   readonly actor?: string;
   readonly status: HonuaAgentToolStatus;
   readonly dryRun: boolean;
+  readonly action: boolean;
   readonly sourceId?: SourceId;
   readonly layerId?: string;
+  readonly targetIds?: ReadonlyArray<string>;
   readonly capability?: Capability;
   readonly protocol?: Protocol;
+  readonly outcome: "allowed" | "denied" | "dry-run" | "error";
   readonly parameters: Readonly<Record<string, unknown>>;
   readonly message?: string;
   readonly timestamp: string;
@@ -245,8 +251,145 @@ export interface HonuaAgentToolExecutorOptions {
   readonly allowActions?: boolean;
   readonly dryRun?: boolean;
   readonly allowedTools?: ReadonlyArray<HonuaAgentToolName>;
+  readonly allowedSourceIds?: ReadonlyArray<SourceId>;
+  readonly allowedLayerIds?: ReadonlyArray<string>;
+  readonly maxResults?: number;
   readonly now?: () => string;
   readonly onAudit?: (event: HonuaAgentAuditEvent) => void;
+}
+
+export interface HonuaAiMapKitPolicy extends HonuaAgentToolExecutorOptions {
+  readonly readOnly?: boolean;
+}
+
+export interface HonuaAgentContextOptions {
+  readonly actor?: string;
+  readonly maxSources?: number;
+  readonly maxLayers?: number;
+  readonly maxSelectionTargets?: number;
+  readonly maxPromptChars?: number;
+  readonly includeSafeExamples?: boolean;
+  readonly now?: () => string;
+}
+
+export interface HonuaAgentSemanticMapContext {
+  readonly generatedAt: string;
+  readonly actor?: string;
+  readonly appId?: string;
+  readonly mapPackageId?: string;
+  readonly snapshotTimestamp?: string;
+  readonly sourceVersion?: string;
+  readonly visibleExtent?: HonuaAgentViewport;
+  readonly sources: ReadonlyArray<HonuaAgentSourceSummary>;
+  readonly layers: ReadonlyArray<HonuaAgentLayerSummary>;
+  readonly capabilities: ReadonlyArray<{
+    readonly sourceId: SourceId;
+    readonly protocol?: Protocol;
+    readonly capabilities: ReadonlyArray<Capability>;
+  }>;
+  readonly filters: Readonly<Record<string, FilterClause>>;
+  readonly selection: ReadonlyArray<FeatureSelectionTarget>;
+  readonly realtime?: Readonly<Record<string, unknown>>;
+  readonly staleState?: string;
+  readonly safeExamples: ReadonlyArray<{
+    readonly user: string;
+    readonly toolCall: HonuaAgentToolCall;
+  }>;
+  readonly omitted: Readonly<Record<string, number>>;
+}
+
+export interface HonuaMcpCompatibleToolDefinition {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: HonuaAgentJsonSchema;
+}
+
+export interface HonuaOpenAiToolDefinition {
+  readonly type: "function";
+  readonly function: {
+    readonly name: string;
+    readonly description: string;
+    readonly parameters: HonuaAgentJsonSchema;
+  };
+}
+
+export type HonuaProviderToolDefinition =
+  | HonuaAgentToolDefinition
+  | HonuaMcpCompatibleToolDefinition
+  | HonuaOpenAiToolDefinition;
+
+export interface HonuaAiMapKitOptions {
+  readonly runtime?: HonuaAgentRuntime;
+  readonly controller?: HonuaControllerLike;
+  readonly generatedAppRuntime?: HonuaGeneratedAppRuntimeLikeForAgents;
+  readonly policy?: HonuaAiMapKitPolicy;
+  readonly context?: HonuaAgentContextOptions;
+  readonly tools?: ReadonlyArray<HonuaAgentToolName>;
+  readonly providerFormat?: HonuaAgentProviderToolFormat;
+}
+
+export interface HonuaAiMapKit {
+  readonly runtime: HonuaAgentRuntime;
+  readonly policy: HonuaAgentToolExecutorOptions;
+  readonly tools: ReadonlyArray<HonuaAgentToolDefinition>;
+  readonly providerTools: ReadonlyArray<HonuaProviderToolDefinition>;
+  readonly mcpTools: ReadonlyArray<HonuaMcpCompatibleToolDefinition>;
+  execute(call: HonuaAgentToolCall): Promise<HonuaAgentToolResult>;
+  context(options?: HonuaAgentContextOptions): Promise<HonuaAgentSemanticMapContext>;
+  systemPrompt(options?: HonuaAgentContextOptions): Promise<string>;
+}
+
+export interface HonuaControllerLike {
+  readonly id?: string;
+  readonly context?: {
+    readonly state?: {
+      readonly filters?: Readonly<Record<string, FilterClause>>;
+      readonly selection?: ReadonlyArray<FeatureSelectionTarget>;
+      readonly extent?: HonuaExtent;
+      readonly page?: { readonly limit?: number };
+    };
+    dispatch?(intent: unknown): void;
+  };
+  getViewport?(): HonuaAgentViewport;
+  setViewport?(viewport: HonuaAgentViewport): void;
+  getSelection?(options?: { readonly sourceId?: SourceId }): ReadonlyArray<FeatureSelectionTarget>;
+  selectFeature?(
+    sourceId: SourceId | { readonly sourceId: SourceId; readonly id: FeatureId },
+    idOrOptions?: FeatureId | { readonly replace?: boolean },
+    options?: { readonly replace?: boolean },
+  ): void;
+  snapshot?(): {
+    readonly viewport?: HonuaAgentViewport;
+    readonly exploration?: {
+      readonly state?: {
+        readonly filters?: Readonly<Record<string, FilterClause>>;
+        readonly selection?: ReadonlyArray<FeatureSelectionTarget>;
+        readonly extent?: HonuaExtent;
+      };
+    };
+    readonly visibility?: Readonly<Record<string, unknown>>;
+  };
+}
+
+export interface HonuaGeneratedAppRuntimeLikeForAgents {
+  readonly context?: HonuaControllerLike["context"];
+  readonly manifest?: {
+    readonly appId?: string;
+    readonly title?: string;
+    readonly data?: { readonly sourceId?: SourceId };
+    readonly layout?: { readonly widgets?: ReadonlyArray<Readonly<Record<string, unknown>>> };
+  };
+  readonly mapRuntime?: {
+    readonly mapPackage?: { readonly id?: string };
+    readonly composedStyle?: {
+      readonly sources?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+      readonly layers?: ReadonlyArray<Readonly<Record<string, unknown>>>;
+    };
+  };
+  snapshot?(): unknown;
+  render?(): { readonly visibleCount?: number; readonly totalCount?: number; readonly snapshot?: unknown };
+  setFilter?(widgetId: string, value: string | number | boolean | undefined): unknown;
+  selectRecord?(widgetId: string, id: FeatureId, options?: { readonly replace?: boolean }): unknown;
 }
 
 type MaybePromise<T> = T | Promise<T>;
@@ -483,6 +626,235 @@ export function getHonuaAgentToolDefinition(name: HonuaAgentToolName): HonuaAgen
   return definition;
 }
 
+export function createHonuaAiMapKit(options: HonuaAiMapKitOptions): HonuaAiMapKit {
+  const runtime =
+    options.runtime ??
+    (options.controller ? adaptHonuaControllerToAgentRuntime(options.controller) : undefined) ??
+    (options.generatedAppRuntime ? adaptHonuaGeneratedAppRuntimeToAgentRuntime(options.generatedAppRuntime) : undefined);
+  if (!runtime) {
+    throw new HonuaAgentToolError("missing-runtime", "createHonuaAiMapKit requires a runtime, controller, or generated-app runtime.");
+  }
+
+  const policy = normalizeAiMapKitPolicy(options.policy);
+  const tools = HONUA_AGENT_TOOL_DEFINITIONS.filter(
+    (definition) =>
+      (!options.tools || options.tools.includes(definition.name)) &&
+      (!policy.allowedTools || policy.allowedTools.includes(definition.name)),
+  );
+  const execute = createHonuaAgentToolExecutor(runtime, policy);
+  return {
+    runtime,
+    policy,
+    tools,
+    providerTools: convertHonuaAgentToolDefinitions(tools, options.providerFormat ?? "honua"),
+    mcpTools: toHonuaMcpToolDefinitions(tools),
+    execute,
+    context(contextOptions = {}) {
+      return createHonuaAgentMapContext(runtime, { ...options.context, ...contextOptions });
+    },
+    systemPrompt(contextOptions = {}) {
+      return createHonuaAgentSystemPrompt(runtime, { ...options.context, ...contextOptions });
+    },
+  };
+}
+
+export function normalizeAiMapKitPolicy(policy: HonuaAiMapKitPolicy = {}): HonuaAgentToolExecutorOptions {
+  const readOnly = policy.readOnly === true;
+  return {
+    ...(policy.actor ? { actor: policy.actor } : {}),
+    allowActions: readOnly ? false : policy.allowActions === true,
+    dryRun: readOnly ? true : policy.dryRun,
+    ...(policy.allowedTools ? { allowedTools: [...policy.allowedTools] } : {}),
+    ...(policy.allowedSourceIds ? { allowedSourceIds: [...policy.allowedSourceIds] } : {}),
+    ...(policy.allowedLayerIds ? { allowedLayerIds: [...policy.allowedLayerIds] } : {}),
+    ...(policy.maxResults !== undefined ? { maxResults: policy.maxResults } : {}),
+    ...(policy.now ? { now: policy.now } : {}),
+    ...(policy.onAudit ? { onAudit: policy.onAudit } : {}),
+  };
+}
+
+export function convertHonuaAgentToolDefinitions(
+  definitions: ReadonlyArray<HonuaAgentToolDefinition> = HONUA_AGENT_TOOL_DEFINITIONS,
+  format: HonuaAgentProviderToolFormat = "honua",
+): ReadonlyArray<HonuaProviderToolDefinition> {
+  switch (format) {
+    case "honua":
+      return definitions.map((definition) => ({ ...definition }));
+    case "mcp":
+      return toHonuaMcpToolDefinitions(definitions);
+    case "openai":
+      return toHonuaOpenAiToolDefinitions(definitions);
+  }
+}
+
+export function toHonuaMcpToolDefinitions(
+  definitions: ReadonlyArray<HonuaAgentToolDefinition> = HONUA_AGENT_TOOL_DEFINITIONS,
+): ReadonlyArray<HonuaMcpCompatibleToolDefinition> {
+  return definitions.map((definition) => ({
+    name: definition.name,
+    description: definition.description,
+    inputSchema: definition.inputSchema,
+  }));
+}
+
+export function toHonuaOpenAiToolDefinitions(
+  definitions: ReadonlyArray<HonuaAgentToolDefinition> = HONUA_AGENT_TOOL_DEFINITIONS,
+): ReadonlyArray<HonuaOpenAiToolDefinition> {
+  return definitions.map((definition) => ({
+    type: "function",
+    function: {
+      name: definition.name,
+      description: definition.description,
+      parameters: definition.inputSchema,
+    },
+  }));
+}
+
+export async function createHonuaAgentMapContext(
+  runtime: HonuaAgentRuntime,
+  options: HonuaAgentContextOptions = {},
+): Promise<HonuaAgentSemanticMapContext> {
+  const snapshot = await inspectMap(runtime);
+  const maxSources = positiveLimit(options.maxSources, 12);
+  const maxLayers = positiveLimit(options.maxLayers, 24);
+  const maxSelectionTargets = positiveLimit(options.maxSelectionTargets, 25);
+  const sources = snapshot.sources.slice(0, maxSources).map(sanitizeSourceSummary);
+  const layers = snapshot.layers.slice(0, maxLayers).map(sanitizeLayerSummary);
+  const selection = snapshot.selection.slice(0, maxSelectionTargets);
+  const context: HonuaAgentSemanticMapContext = {
+    generatedAt: options.now?.() ?? new Date().toISOString(),
+    ...(options.actor ? { actor: options.actor } : {}),
+    ...(snapshot.appId ? { appId: snapshot.appId } : {}),
+    ...(snapshot.mapPackageId ? { mapPackageId: snapshot.mapPackageId } : {}),
+    ...(snapshot.snapshotTimestamp ? { snapshotTimestamp: snapshot.snapshotTimestamp } : {}),
+    ...(snapshot.sourceVersion ? { sourceVersion: snapshot.sourceVersion } : {}),
+    ...(snapshot.viewport ? { visibleExtent: snapshot.viewport } : {}),
+    sources,
+    layers,
+    capabilities: sources.map((source) => ({
+      sourceId: source.id,
+      ...(source.protocol ? { protocol: source.protocol } : {}),
+      capabilities: capabilitiesFor(source),
+    })),
+    filters: snapshot.filters ?? {},
+    selection,
+    ...(snapshot.realtime ? { realtime: sanitizeRecord(snapshot.realtime) } : {}),
+    ...(realtimeStateNote(snapshot) ? { staleState: realtimeStateNote(snapshot) } : {}),
+    safeExamples: options.includeSafeExamples === false ? [] : safeToolExamples(sources, layers),
+    omitted: {
+      sources: Math.max(0, snapshot.sources.length - sources.length),
+      layers: Math.max(0, snapshot.layers.length - layers.length),
+      selection: Math.max(0, snapshot.selection.length - selection.length),
+    },
+  };
+  const maxPromptChars = positiveLimit(options.maxPromptChars, 12_000);
+  if (JSON.stringify(context).length <= maxPromptChars) return context;
+  return { ...context, safeExamples: [], selection: context.selection.slice(0, Math.min(5, context.selection.length)) };
+}
+
+export async function createHonuaAgentSystemPrompt(
+  runtime: HonuaAgentRuntime,
+  options: HonuaAgentContextOptions = {},
+): Promise<string> {
+  const context = await createHonuaAgentMapContext(runtime, options);
+  return [
+    "You are operating a Honua map through bounded SDK tools.",
+    "Use read tools for inspection first. Action tools require explicit opt-in or dry-run.",
+    "Do not assume stale or realtime snapshots are current unless snapshotTimestamp/sourceVersion indicate freshness.",
+    "Semantic map context:",
+    JSON.stringify(context, null, 2),
+  ].join("\n");
+}
+
+export function adaptHonuaControllerToAgentRuntime(
+  controller: HonuaControllerLike,
+  options: { readonly sources?: ReadonlyArray<HonuaAgentSourceSummary>; readonly layers?: ReadonlyArray<HonuaAgentLayerSummary> } = {},
+): HonuaAgentRuntime {
+  return {
+    id: controller.id,
+    snapshot: () => {
+      const snapshot = controller.snapshot?.();
+      const state = snapshot?.exploration?.state ?? controller.context?.state;
+      const viewport: HonuaAgentViewport | undefined = state?.extent
+        ? { ...(snapshot?.viewport ?? controller.getViewport?.()), bbox: bboxFromExtent(state.extent) }
+        : (snapshot?.viewport ?? controller.getViewport?.());
+      return {
+        appId: controller.id,
+        ...(viewport ? { viewport } : {}),
+        sources: options.sources ?? [],
+        layers: options.layers ?? [],
+        selection: state?.selection ?? controller.getSelection?.() ?? [],
+        ...(state?.filters ? { filters: state.filters } : {}),
+      };
+    },
+    getViewport: () => controller.getViewport?.(),
+    setViewport: (viewport) => controller.setViewport?.(viewport),
+    getSelection: () => controller.getSelection?.() ?? controller.context?.state?.selection ?? [],
+    setFilter: (id, clause) => controller.context?.dispatch?.(clause ? { kind: "set-filter", id, clause } : { kind: "clear-filter", id }),
+    selectFeature: (target, selectOptions) => {
+      if (!isSourceQualifiedSelectionTarget(target)) {
+        throw new HonuaAgentToolError("unqualified-selection", "Controller adapter requires source-qualified selections.", {
+          tool: "selectFeature",
+        });
+      }
+      if (!controller.selectFeature) {
+        controller.context?.dispatch?.({ kind: "select", ids: [target], replace: selectOptions?.replace ?? true });
+        return controller.context?.state?.selection ?? [target];
+      }
+      controller.selectFeature(target.sourceId, target.id, selectOptions);
+      return controller.getSelection?.() ?? controller.context?.state?.selection;
+    },
+  };
+}
+
+export function adaptHonuaGeneratedAppRuntimeToAgentRuntime(
+  runtime: HonuaGeneratedAppRuntimeLikeForAgents,
+): HonuaAgentRuntime {
+  const sourceId = runtime.manifest?.data?.sourceId;
+  return {
+    id: runtime.manifest?.appId,
+    snapshot: () => ({
+      appId: runtime.manifest?.appId,
+      mapPackageId: runtime.mapRuntime?.mapPackage?.id,
+      sources: sourceId
+        ? [{ id: sourceId, title: runtime.manifest?.title, capabilities: ["query"] }]
+        : [],
+      layers:
+        runtime.mapRuntime?.composedStyle?.layers?.map((layer) => ({
+          id: typeof layer.id === "string" ? layer.id : String(layer.id ?? "layer"),
+          sourceId: typeof layer.source === "string" ? layer.source : undefined,
+          type: typeof layer.type === "string" ? layer.type : undefined,
+        })) ?? [],
+      selection: runtime.context?.state?.selection ?? [],
+      filters: runtime.context?.state?.filters ?? {},
+      ...(runtime.context?.state?.extent ? { viewport: { bbox: bboxFromExtent(runtime.context.state.extent) } } : {}),
+      metadata: {
+        visibleCount: runtime.render?.().visibleCount,
+        totalCount: runtime.render?.().totalCount,
+      },
+    }),
+    getSelection: () => runtime.context?.state?.selection ?? [],
+    setFilter: (id, clause) => {
+      const value = clause?.value as string | number | boolean | undefined;
+      runtime.setFilter?.(id, value);
+      if (!runtime.setFilter) runtime.context?.dispatch?.(clause ? { kind: "set-filter", id, clause } : { kind: "clear-filter", id });
+    },
+    selectFeature: (target, selectOptions) => {
+      if (!isSourceQualifiedSelectionTarget(target)) {
+        throw new HonuaAgentToolError("unqualified-selection", "Generated app adapter requires source-qualified selections.", {
+          tool: "selectFeature",
+        });
+      }
+      const widgetId = firstWidgetId(runtime, "table") ?? firstWidgetId(runtime, "list") ?? "table";
+      runtime.selectRecord?.(widgetId, target.id, selectOptions);
+      if (!runtime.selectRecord) {
+        runtime.context?.dispatch?.({ kind: "select", ids: [target], replace: selectOptions?.replace ?? true });
+      }
+      return runtime.context?.state?.selection ?? [target];
+    },
+  };
+}
+
 export function createHonuaAgentToolExecutor(
   runtime: HonuaAgentRuntime,
   options: HonuaAgentToolExecutorOptions = {},
@@ -496,7 +868,11 @@ export async function executeHonuaAgentTool(
   options: HonuaAgentToolExecutorOptions = {},
 ): Promise<HonuaAgentToolResult> {
   const definition = getHonuaAgentToolDefinition(call.name);
-  const args = ((call as { readonly args?: unknown }).args ?? {}) as Readonly<Record<string, unknown>>;
+  const args = enforceMaxResults(
+    call.name,
+    ((call as { readonly args?: unknown }).args ?? {}) as Readonly<Record<string, unknown>>,
+    options,
+  );
   const deniedReason = deniedToolReason(definition, args, options);
   if (deniedReason) {
     return result(call.name, "denied", args, options, { deniedReason });
@@ -513,35 +889,40 @@ export async function executeHonuaAgentTool(
         return result(call.name, "ok", args, options, { data: await listCapabilities(runtime, call.args) });
       case "setViewport":
         if (dryRun)
-          return result(call.name, "dry-run", args, options, { data: { viewport: viewportFromArgs(call.args) } });
+          return result(call.name, "dry-run", args, options, { data: { viewport: viewportFromArgs(args as SetViewportArgs) } });
         requireRuntimeMethod(runtime.setViewport, call.name);
-        return result(call.name, "ok", args, options, { data: await runtime.setViewport(viewportFromArgs(call.args)) });
+        return result(call.name, "ok", args, options, { data: await runtime.setViewport(viewportFromArgs(args as SetViewportArgs)) });
       case "addLayer":
-        if (dryRun) return result(call.name, "dry-run", args, options, { data: { layer: call.args.layer } });
+        if (dryRun) return result(call.name, "dry-run", args, options, { data: { layer: (args as unknown as AddLayerArgs).layer } });
         requireRuntimeMethod(runtime.addLayer, call.name);
         return result(call.name, "ok", args, options, {
-          data: await runtime.addLayer(call.args.layer, call.args.beforeId),
+          data: await runtime.addLayer((args as unknown as AddLayerArgs).layer, (args as unknown as AddLayerArgs).beforeId),
         });
       case "setFilter":
         if (dryRun)
-          return result(call.name, "dry-run", args, options, { data: { id: call.args.id, clause: call.args.clause } });
+          return result(call.name, "dry-run", args, options, {
+            data: { id: (args as unknown as SetFilterArgs).id, clause: (args as unknown as SetFilterArgs).clause },
+          });
         requireRuntimeMethod(runtime.setFilter, call.name);
         return result(call.name, "ok", args, options, {
-          data: await runtime.setFilter(call.args.id, call.args.clause),
+          data: await runtime.setFilter((args as unknown as SetFilterArgs).id, (args as unknown as SetFilterArgs).clause),
         });
       case "selectFeature": {
-        const target = sourceFeatureSelectionTarget(call.args.sourceId, call.args.id);
+        const selectArgs = args as unknown as SelectFeatureArgs;
+        const target = sourceFeatureSelectionTarget(selectArgs.sourceId, selectArgs.id);
         if (dryRun) return result(call.name, "dry-run", args, options, { data: { target } });
         requireRuntimeMethod(runtime.selectFeature, call.name);
         return result(call.name, "ok", args, options, {
-          data: await runtime.selectFeature(target, { replace: call.args.replace ?? true }),
+          data: await runtime.selectFeature(target, { replace: selectArgs.replace ?? true }),
         });
       }
       case "summarizeSelection":
         return result(call.name, "ok", args, options, { data: await summarizeSelection(runtime, call.args) });
       case "runWidgetQuery":
         requireRuntimeMethod(runtime.runWidgetQuery, call.name);
-        return result(call.name, "ok", args, options, { data: await runtime.runWidgetQuery(call.args) });
+        return result(call.name, "ok", args, options, {
+          data: await runtime.runWidgetQuery(args as unknown as RunWidgetQueryArgs),
+        });
       case "explainCapabilityGap":
         return result(call.name, "ok", args, options, { data: await explainCapabilityGap(runtime, call.args) });
     }
@@ -599,6 +980,8 @@ async function runtimeSnapshot(runtime: HonuaAgentRuntime): Promise<HonuaAgentMa
   return {
     appId: snapshot.appId ?? runtime.id,
     ...(snapshot.mapPackageId ? { mapPackageId: snapshot.mapPackageId } : {}),
+    ...(snapshot.snapshotTimestamp ? { snapshotTimestamp: snapshot.snapshotTimestamp } : {}),
+    ...(snapshot.sourceVersion ? { sourceVersion: snapshot.sourceVersion } : {}),
     ...(viewport ? { viewport } : {}),
     sources: sources ?? [],
     layers: layers ?? [],
@@ -695,6 +1078,14 @@ function deniedToolReason(
   if (options.allowedTools && !options.allowedTools.includes(definition.name)) {
     return `Tool "${definition.name}" is not in the allowed tool list.`;
   }
+  const sourceId = sourceIdFromParameters(args);
+  if (sourceId && options.allowedSourceIds && !options.allowedSourceIds.includes(sourceId)) {
+    return `Source "${sourceId}" is not in the allowed source list.`;
+  }
+  const layerId = layerIdFromParameters(args, definition.name);
+  if (layerId && options.allowedLayerIds && !options.allowedLayerIds.includes(layerId)) {
+    return `Layer "${layerId}" is not in the allowed layer list.`;
+  }
   if (definition.mode === "action" && !options.allowActions && !isDryRun(args, options)) {
     return `Tool "${definition.name}" mutates runtime state and requires allowActions=true or dryRun=true.`;
   }
@@ -740,27 +1131,27 @@ function auditEvent(
   options: HonuaAgentToolExecutorOptions,
   message?: string,
 ): HonuaAgentAuditEvent {
-  const sourceId = typeof parameters.sourceId === "string" ? parameters.sourceId : undefined;
-  const layerId =
-    typeof parameters.layerId === "string"
-      ? parameters.layerId
-      : asRecord(parameters.layer)?.id && typeof asRecord(parameters.layer)?.id === "string"
-        ? (asRecord(parameters.layer)?.id as string)
-        : undefined;
+  const definition = getHonuaAgentToolDefinition(tool);
+  const sourceId = sourceIdFromParameters(parameters);
+  const layerId = layerIdFromParameters(parameters, tool);
   const protocol =
     typeof parameters.protocol === "string" && PROTOCOLS.includes(parameters.protocol as Protocol)
       ? (parameters.protocol as Protocol)
       : undefined;
   const capability = isCapability(parameters.capability) ? parameters.capability : undefined;
+  const dryRun = options.dryRun === true || parameters.dryRun === true || status === "dry-run";
   return {
     tool,
     ...(options.actor ? { actor: options.actor } : {}),
     status,
-    dryRun: options.dryRun === true || parameters.dryRun === true,
+    dryRun,
+    action: definition.mode === "action",
     ...(sourceId ? { sourceId } : {}),
     ...(layerId ? { layerId } : {}),
+    ...(targetIdsFromParameters(parameters).length > 0 ? { targetIds: targetIdsFromParameters(parameters) } : {}),
     ...(protocol ? { protocol } : {}),
     ...(capability ? { capability } : {}),
+    outcome: auditOutcome(status),
     parameters,
     ...(message ? { message } : {}),
     timestamp: options.now?.() ?? new Date().toISOString(),
@@ -771,4 +1162,115 @@ function asRecord(value: unknown): Readonly<Record<string, unknown>> | undefined
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Readonly<Record<string, unknown>>)
     : undefined;
+}
+
+function enforceMaxResults(
+  tool: HonuaAgentToolName,
+  parameters: Readonly<Record<string, unknown>>,
+  options: HonuaAgentToolExecutorOptions,
+): Readonly<Record<string, unknown>> {
+  if (tool !== "runWidgetQuery" || options.maxResults === undefined) return parameters;
+  const limit = typeof parameters.limit === "number" ? parameters.limit : undefined;
+  if (limit === undefined || limit <= options.maxResults) return parameters;
+  return { ...parameters, limit: options.maxResults };
+}
+
+function sourceIdFromParameters(parameters: Readonly<Record<string, unknown>>): SourceId | undefined {
+  return typeof parameters.sourceId === "string" ? parameters.sourceId : undefined;
+}
+
+function layerIdFromParameters(
+  parameters: Readonly<Record<string, unknown>>,
+  tool?: HonuaAgentToolName,
+): string | undefined {
+  if (typeof parameters.layerId === "string") return parameters.layerId;
+  const layer = asRecord(parameters.layer);
+  if (typeof layer?.id === "string") return layer.id;
+  return tool === "setFilter" && typeof parameters.id === "string" ? parameters.id : undefined;
+}
+
+function targetIdsFromParameters(parameters: Readonly<Record<string, unknown>>): ReadonlyArray<string> {
+  const ids: string[] = [];
+  if (parameters.id !== undefined && (typeof parameters.id === "string" || typeof parameters.id === "number")) {
+    ids.push(String(parameters.id));
+  }
+  const layerId = layerIdFromParameters(parameters);
+  if (layerId) ids.push(layerId);
+  const sourceId = sourceIdFromParameters(parameters);
+  if (sourceId) ids.push(sourceId);
+  return [...new Set(ids)];
+}
+
+function auditOutcome(status: HonuaAgentToolStatus): HonuaAgentAuditEvent["outcome"] {
+  if (status === "denied") return "denied";
+  if (status === "dry-run") return "dry-run";
+  if (status === "error") return "error";
+  return "allowed";
+}
+
+function positiveLimit(value: number | undefined, fallback: number): number {
+  return value && Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
+function sanitizeSourceSummary(source: HonuaAgentSourceSummary): HonuaAgentSourceSummary {
+  return {
+    id: source.id,
+    ...(source.title ? { title: source.title } : {}),
+    ...(source.protocol ? { protocol: source.protocol } : {}),
+    ...(source.capabilities ? { capabilities: [...source.capabilities].filter(isCapability) } : {}),
+    ...(source.metadata ? { metadata: sanitizeRecord(source.metadata) } : {}),
+  };
+}
+
+function sanitizeLayerSummary(layer: HonuaAgentLayerSummary): HonuaAgentLayerSummary {
+  return {
+    id: layer.id,
+    ...(layer.sourceId ? { sourceId: layer.sourceId } : {}),
+    ...(layer.type ? { type: layer.type } : {}),
+    ...(layer.title ? { title: layer.title } : {}),
+    ...(layer.visible !== undefined ? { visible: layer.visible } : {}),
+    ...(layer.metadata ? { metadata: sanitizeRecord(layer.metadata) } : {}),
+  };
+}
+
+function sanitizeRecord(record: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (/token|secret|password|apikey|api_key|authorization/i.test(key)) continue;
+    if (value === undefined || typeof value === "function") continue;
+    sanitized[key] = value;
+  }
+  return sanitized;
+}
+
+function realtimeStateNote(snapshot: HonuaAgentMapSnapshot): string | undefined {
+  if (!snapshot.realtime && !snapshot.snapshotTimestamp && !snapshot.sourceVersion) return undefined;
+  const timestamp = snapshot.snapshotTimestamp ?? "unknown timestamp";
+  const sourceVersion = snapshot.sourceVersion ?? "unknown source version";
+  return `Snapshot timestamp: ${timestamp}; source version: ${sourceVersion}. Treat live state as bounded to this snapshot.`;
+}
+
+function safeToolExamples(
+  sources: ReadonlyArray<HonuaAgentSourceSummary>,
+  layers: ReadonlyArray<HonuaAgentLayerSummary>,
+): HonuaAgentSemanticMapContext["safeExamples"] {
+  const sourceId = sources[0]?.id ?? "source-id";
+  const layerId = layers[0]?.id ?? "layer-id";
+  return [
+    { user: "What sources and capabilities are available?", toolCall: { name: "listCapabilities", args: { sourceId } } },
+    { user: "Preview a map move without changing state.", toolCall: { name: "setViewport", args: { zoom: 12, dryRun: true } } },
+    {
+      user: "Apply a source-scoped equality filter after approval.",
+      toolCall: { name: "setFilter", args: { id: layerId, clause: { field: "status", operator: "=", value: "open", appliesTo: [sourceId] } } },
+    },
+  ];
+}
+
+function firstWidgetId(runtime: HonuaGeneratedAppRuntimeLikeForAgents, kind: string): string | undefined {
+  const widget = runtime.manifest?.layout?.widgets?.find((entry) => entry.kind === kind);
+  return typeof widget?.id === "string" ? widget.id : undefined;
+}
+
+function bboxFromExtent(extent: HonuaExtent): readonly [number, number, number, number] {
+  return [extent.xmin, extent.ymin, extent.xmax, extent.ymax];
 }
