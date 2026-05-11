@@ -73,6 +73,10 @@ import {
   geoServicesImageSource,
 } from "@honua/sdk/contract";
 import {
+  HONUA_AGENT_TOOL_NAMES,
+  explainHonuaCapabilityGap,
+} from "@honua/sdk/agent-tools";
+import {
   EMPTY_STATE,
   LINKED_VIEW_PRESETS,
   createExplorationContext,
@@ -187,6 +191,10 @@ if (typeof HonuaGeoprocessingService !== "function")
   throw new Error("HonuaGeoprocessingService export missing from @honua/sdk");
 if (typeof HonuaGeocodingClient !== "function")
   throw new Error("HonuaGeocodingClient export missing from @honua/sdk/geocoding");
+if (!Array.isArray(HONUA_AGENT_TOOL_NAMES) || !HONUA_AGENT_TOOL_NAMES.includes("explainCapabilityGap"))
+  throw new Error("agent tool exports missing from @honua/sdk/agent-tools");
+if (explainHonuaCapabilityGap({ protocol: "wmts", capability: "query" }).supported)
+  throw new Error("agent tool capability explanation failed to flag unsupported WMTS query");
 if (!Array.isArray(CAPABILITIES) || CAPABILITIES.length === 0)
   throw new Error("CAPABILITIES export missing from @honua/sdk/contract");
 if (!Array.isArray(PROTOCOLS) || PROTOCOLS.length === 0)
