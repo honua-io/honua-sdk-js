@@ -40,6 +40,14 @@ describe("spatial aggregation contract", () => {
       strategy: "fit-viewport",
     });
     expect(fixture.request.index?.modelId).toBeUndefined();
+    expect(fixture.request.analyticsSource).toMatchObject({
+      kind: "h3-index",
+      index: {
+        modelId: "h3",
+        resolution: 8,
+        coverage: { kind: "bounded", cellCount: 96, complete: false },
+      },
+    });
     expect(new Set(fixture.request.summaries.map((summary) => summary.kind))).toEqual(
       new Set(["count", "category", "histogram", "range", "sum", "avg", "min", "max"]),
     );
@@ -65,6 +73,7 @@ describe("spatial aggregation contract", () => {
     };
 
     expect(fixture.response.index.model.id).toBe("h3");
+    expect(fixture.response.index.coverage).toMatchObject({ kind: "bounded", cellCount: 96, complete: false });
     expect(quadbinResult.index.model.id).toBe("quadbin");
     expect(spatialAggregationWidgets(quadbinResult)).toEqual(h3Widgets);
   });
