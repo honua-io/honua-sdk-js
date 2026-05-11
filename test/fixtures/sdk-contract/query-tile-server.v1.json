@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "status": "draft",
+  "tracker": "https://github.com/honua-io/honua-sdk-js/issues/164",
+  "description": "Reusable dynamic query tile server contract fixture for TileJSON discovery, MVT tile URLs, feature detail lookup, cache validators, and degradation/error envelopes.",
+  "routePrefix": "/query-tiles",
+  "routes": {
+    "tilejson": "/query-tiles/sources/{sourceId}/tilejson.json",
+    "tile": "/query-tiles/sources/{sourceId}/tiles/{z}/{x}/{y}.mvt",
+    "feature-detail": "/query-tiles/sources/{sourceId}/features/{featureId}"
+  },
+  "requestParameters": {
+    "where": "severity >= 3",
+    "outFields": ["id", "severity", "status"],
+    "returnGeometry": true,
+    "outSr": 3857,
+    "tileMatrixSet": "WebMercatorQuad",
+    "extent": [-158.3, 21.2, -157.6, 21.8],
+    "extentSr": 4326,
+    "projection": ["id", "severity", "status"],
+    "projectionReturnGeometry": true,
+    "simplifyTolerance": 1.5,
+    "maxFeatures": 500,
+    "cacheBust": "stream-42"
+  },
+  "tilejsonResponse": {
+    "tilejson": "3.0.0",
+    "name": "incidents-query-tiles",
+    "description": "Dynamic incident query tiles",
+    "scheme": "xyz",
+    "minzoom": 0,
+    "maxzoom": 14,
+    "bounds": [-158.3, 21.2, -157.6, 21.8],
+    "center": [-157.95, 21.5, 10],
+    "tiles": [
+      "https://honua.example.test/query-tiles/sources/incidents/tiles/{z}/{x}/{y}.mvt?where=severity+%3E%3D+3&outFields=id%2Cseverity%2Cstatus&returnGeometry=true&outSr=3857&tileMatrixSet=WebMercatorQuad&projection=id%2Cseverity%2Cstatus&projectionReturnGeometry=true&simplifyTolerance=1.5&maxFeatures=500"
+    ],
+    "vector_layers": [
+      {
+        "id": "incidents",
+        "description": "Incident features clipped and simplified for tile display",
+        "minzoom": 0,
+        "maxzoom": 14,
+        "fields": {
+          "id": "String",
+          "severity": "Number",
+          "status": "String"
+        }
+      }
+    ],
+    "honua:queryTiles": {
+      "contractVersion": 1,
+      "sourceId": "incidents",
+      "tileMatrixSet": "WebMercatorQuad",
+      "format": "mvt",
+      "spatialReference": {
+        "wkid": 3857,
+        "latestWkid": 3857
+      },
+      "extent": {
+        "xmin": -158.3,
+        "ymin": 21.2,
+        "xmax": -157.6,
+        "ymax": 21.8,
+        "spatialReference": {
+          "wkid": 4326,
+          "latestWkid": 4326
+        }
+      },
+      "requestParameters": {
+        "where": "severity >= 3",
+        "outFields": ["id", "severity", "status"],
+        "returnGeometry": true,
+        "outSr": 3857,
+        "tileMatrixSet": "WebMercatorQuad",
+        "extent": [-158.3, 21.2, -157.6, 21.8],
+        "extentSr": 4326,
+        "projection": ["id", "severity", "status"],
+        "projectionReturnGeometry": true,
+        "simplifyTolerance": 1.5,
+        "maxFeatures": 500
+      },
+      "featureIdentity": {
+        "sourceId": "incidents",
+        "idProperty": "id",
+        "sourceLayer": "incidents",
+        "promoteId": "id",
+        "detailUrlTemplate": "https://honua.example.test/query-tiles/sources/incidents/features/{featureId}"
+      },
+      "detailUrlTemplate": "https://honua.example.test/query-tiles/sources/incidents/features/{featureId}",
+      "cache": {
+        "validators": ["etag", "last-modified"],
+        "cacheControl": "public, max-age=30, stale-while-revalidate=30",
+        "vary": ["Authorization", "Accept-Encoding"],
+        "sourceVersion": "stream-42"
+      },
+      "limits": {
+        "maxFeaturesPerTile": 500,
+        "maxFeaturesPerDetail": 1,
+        "defaultSimplifyTolerance": 1.5,
+        "maxSimplifyTolerance": 8
+      },
+      "degraded": [
+        {
+          "code": "geometry-simplified",
+          "severity": "info",
+          "message": "Tile geometries may be simplified at high zoom to preserve latency.",
+          "sourceId": "incidents",
+          "simplifyTolerance": 1.5
+        }
+      ]
+    }
+  },
+  "detailResponse": {
+    "contractVersion": 1,
+    "identity": {
+      "sourceId": "incidents",
+      "id": "incident-42",
+      "sourceLayer": "incidents",
+      "properties": {
+        "id": "incident-42"
+      }
+    },
+    "found": true,
+    "feature": {
+      "attributes": {
+        "id": "incident-42",
+        "severity": 4,
+        "status": "open"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-157.8583, 21.3069]
+      }
+    },
+    "cache": {
+      "etag": "\"incident-42-v7\"",
+      "lastModified": "Mon, 11 May 2026 00:00:00 GMT",
+      "cacheControl": "private, max-age=15",
+      "vary": "Authorization",
+      "sourceVersion": "stream-42"
+    },
+    "degraded": []
+  },
+  "errorResponse": {
+    "contractVersion": 1,
+    "error": {
+      "code": "max-features-exceeded",
+      "message": "The tile exceeded maxFeatures=500 before simplification could satisfy the request.",
+      "status": 422,
+      "requestId": "req-query-tile-fixture",
+      "degraded": [
+        {
+          "code": "max-features-exceeded",
+          "severity": "error",
+          "message": "Server refused to emit a misleading partial tile.",
+          "sourceId": "incidents",
+          "maxFeatures": 500,
+          "returnedFeatures": 500,
+          "omittedFeatures": 37
+        }
+      ]
+    }
+  }
+}

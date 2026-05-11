@@ -1,14 +1,27 @@
+import { readFileSync } from "node:fs";
+import { type IncomingMessage, type ServerResponse, createServer } from "node:http";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
-import { type SourceDescriptor, capabilities, defineQueryTileSource } from "../../src/contract/index.js";
+import {
+  type QueryTileServerContractFixture,
+  type SourceDescriptor,
+  capabilities,
+  defineQueryTileSource,
+} from "../../src/contract/index.js";
 import {
   type QueryTileLifecycleEvent,
+  QueryTileServerResponseError,
   buildMapLibreQueryTileSourceSpec,
   buildQueryTileJson,
   buildQueryTileUrl,
   buildQueryTileUrlTemplate,
   createQueryTileRequestController,
   diagnoseQueryTileSourceSupport,
+  fetchQueryTileFeatureDetail,
+  fetchQueryTileJson,
   queryTilesForViewport,
 } from "../../src/runtime/index.js";
 
@@ -21,6 +34,11 @@ const sourceDescriptor: SourceDescriptor = {
   },
   capabilities: capabilities(["query", "queryObjectIds"]),
 };
+
+const fixturesDir = resolve(dirname(fileURLToPath(import.meta.url)), "../fixtures/sdk-contract");
+const queryTileFixture = JSON.parse(
+  readFileSync(resolve(fixturesDir, "query-tile-server.v1.json"), "utf8"),
+) as QueryTileServerContractFixture<{ id: string; severity: number; status: string }>;
 
 function descriptor() {
   return defineQueryTileSource({
@@ -42,15 +60,173 @@ function descriptor() {
   });
 }
 
+interface ObservedQueryTileRequest {
+  method: string;
+  pathname: string;
+  searchParams: Record<string, string>;
+  headers: Record<string, string | undefined>;
+}
+
+async function startQueryTileFixtureServer(): Promise<{
+  baseUrl: string;
+  requests: ObservedQueryTileRequest[];
+  close: () => Promise<void>;
+}> {
+  const requests: ObservedQueryTileRequest[] = [];
+  let baseUrl = "http://127.0.0.1";
+  const server = createServer((request, response) => {
+    handleQueryTileFixtureRequest(baseUrl, requests, request, response);
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        reject(new Error("query tile fixture server did not bind to a TCP port"));
+        return;
+      }
+      baseUrl = `http://127.0.0.1:${address.port}`;
+      resolve();
+    });
+  });
+
+  return {
+    baseUrl,
+    requests,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      }),
+  };
+}
+
+function handleQueryTileFixtureRequest(
+  baseUrl: string,
+  requests: ObservedQueryTileRequest[],
+  request: IncomingMessage,
+  response: ServerResponse,
+): void {
+  const url = new URL(request.url ?? "/", baseUrl);
+  requests.push({
+    method: request.method ?? "GET",
+    pathname: url.pathname,
+    searchParams: Object.fromEntries(url.searchParams.entries()),
+    headers: {
+      authorization: headerValue(request.headers.authorization),
+      ifNoneMatch: headerValue(request.headers["if-none-match"]),
+      ifModifiedSince: headerValue(request.headers["if-modified-since"]),
+    },
+  });
+
+  if (url.pathname === "/query-tiles/sources/incidents/tilejson.json") {
+    if (request.headers["if-none-match"] === '"tilejson-fixture-v1"') {
+      response.writeHead(304, {
+        ETag: '"tilejson-fixture-v1"',
+        "Cache-Control": "public, max-age=30",
+        "X-Honua-Source-Version": "stream-42",
+      });
+      response.end();
+      return;
+    }
+    writeJson(response, localTileJson(baseUrl), {
+      ETag: '"tilejson-fixture-v1"',
+      "Last-Modified": "Mon, 11 May 2026 00:00:00 GMT",
+      "Cache-Control": "public, max-age=30",
+      Vary: "Authorization, Accept-Encoding",
+      "X-Honua-Source-Version": "stream-42",
+    });
+    return;
+  }
+
+  if (url.pathname === "/query-tiles/sources/incidents/tiles/6/9/23.mvt") {
+    response.writeHead(200, {
+      "Content-Type": "application/vnd.mapbox-vector-tile",
+      ETag: '"tile-6-9-23-v1"',
+      "Cache-Control": "public, max-age=15",
+      "X-Honua-Feature-Count": "12",
+      "X-Honua-Max-Features": "500",
+      "X-Honua-Source-Version": "stream-42",
+    });
+    response.end(Buffer.from([0x1a, 0x02, 0x08, 0x01]));
+    return;
+  }
+
+  if (url.pathname === "/query-tiles/sources/incidents/features/incident-42") {
+    writeJson(response, queryTileFixture.detailResponse, {
+      ETag: '"incident-42-v7"',
+      "Cache-Control": "private, max-age=15",
+      Vary: "Authorization",
+      "X-Honua-Source-Version": "stream-42",
+    });
+    return;
+  }
+
+  if (url.pathname === "/query-tiles/sources/incidents/features/too-many") {
+    writeJson(response, queryTileFixture.errorResponse, {
+      status: 422,
+      ETag: '"too-many-error"',
+      "Cache-Control": "no-store",
+      "X-Honua-Source-Version": "stream-42",
+    });
+    return;
+  }
+
+  writeJson(
+    response,
+    {
+      contractVersion: 1,
+      error: { code: "not-found", message: "fixture route not found", status: 404 },
+    },
+    { status: 404 },
+  );
+}
+
+function localTileJson(baseUrl: string) {
+  const metadata = queryTileFixture.tilejsonResponse["honua:queryTiles"]!;
+  const detailUrlTemplate = `${baseUrl}/query-tiles/sources/incidents/features/{featureId}`;
+  return {
+    ...queryTileFixture.tilejsonResponse,
+    tiles: [
+      `${baseUrl}/query-tiles/sources/incidents/tiles/{z}/{x}/{y}.mvt?where=severity+%3E%3D+3&outFields=id%2Cseverity%2Cstatus&returnGeometry=true&outSr=3857&tileMatrixSet=WebMercatorQuad&projection=id%2Cseverity%2Cstatus&projectionReturnGeometry=true&simplifyTolerance=1.5&maxFeatures=500`,
+    ],
+    "honua:queryTiles": {
+      ...metadata,
+      detailUrlTemplate,
+      featureIdentity: {
+        ...metadata.featureIdentity,
+        detailUrlTemplate,
+      },
+    },
+  };
+}
+
+function writeJson(
+  response: ServerResponse,
+  value: unknown,
+  headers: Record<string, string | number | undefined> = {},
+): void {
+  const { status, ...rest } = headers;
+  response.writeHead(typeof status === "number" ? status : 200, {
+    "Content-Type": "application/json",
+    ...rest,
+  });
+  response.end(JSON.stringify(value));
+}
+
+function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value.join(", ") : value;
+}
+
 describe("query tile runtime helpers", () => {
   it("builds tile URLs, TileJSON, and MapLibre vector source specs", () => {
     const queryTiles = descriptor();
     const template = buildQueryTileUrlTemplate(queryTiles);
-    expect(template).toContain("https://tiles.example.test/query/tiles/{z}/{x}/{y}.mvt");
-    expect(template).toContain("sourceId=incidents");
+    expect(template).toContain("https://tiles.example.test/query/sources/incidents/tiles/{z}/{x}/{y}.mvt");
 
     const url = new URL(buildQueryTileUrl(queryTiles, { z: 5, x: 9, y: 12 }));
-    expect(url.pathname).toBe("/query/tiles/5/9/12.mvt");
+    expect(url.pathname).toBe("/query/sources/incidents/tiles/5/9/12.mvt");
     expect(url.searchParams.get("where")).toBe("severity >= 3");
     expect(url.searchParams.get("outFields")).toBe("id,severity");
     expect(url.searchParams.get("projection")).toBe("id,severity");
@@ -65,6 +241,121 @@ describe("query tile runtime helpers", () => {
       promoteId: "id",
     });
     expect(spec.tiles?.[0]).toContain("severity+%3E%3D+3");
+  });
+
+  it("fetches TileJSON, MVT tiles, and feature details from a fixture server", async () => {
+    const fixtureServer = await startQueryTileFixtureServer();
+    try {
+      const queryTiles = defineQueryTileSource({
+        id: "incidents-query-tiles",
+        source: sourceDescriptor,
+        cache: descriptor().cache,
+        fallback: { mode: "query-bbox", reason: "fixture server synthesizes MVT tiles from viewport queries" },
+        featureIdentity: { idProperty: "id" },
+        endpoint: { baseUrl: `${fixtureServer.baseUrl}/query-tiles` },
+        tileMatrixSet: "WebMercatorQuad",
+        query: {
+          where: "severity >= 3",
+          outFields: ["id", "severity", "status"],
+          returnGeometry: true,
+          outSr: 3857,
+        },
+        projection: {
+          fields: ["id", "severity", "status"],
+          returnGeometry: true,
+          simplifyTolerance: 1.5,
+        },
+      });
+
+      const tilejsonResult = await fetchQueryTileJson(queryTiles, {
+        headers: { Authorization: "Bearer fixture-token" },
+        params: { maxFeatures: 500 },
+      });
+      expect(tilejsonResult.notModified).toBe(false);
+      expect(tilejsonResult.validators).toMatchObject({
+        etag: '"tilejson-fixture-v1"',
+        sourceVersion: "stream-42",
+      });
+      expect(tilejsonResult.tilejson?.["honua:queryTiles"]?.detailUrlTemplate).toContain(fixtureServer.baseUrl);
+      expect(tilejsonResult.degraded?.[0]).toMatchObject({ code: "geometry-simplified", severity: "info" });
+
+      const notModified = await fetchQueryTileJson(queryTiles, {
+        headers: { Authorization: "Bearer fixture-token" },
+        validators: tilejsonResult.validators,
+      });
+      expect(notModified).toMatchObject({ status: 304, notModified: true });
+
+      const descriptorWithTileJson = { ...queryTiles, tilejson: tilejsonResult.tilejson };
+      const detailResult = await fetchQueryTileFeatureDetail(
+        descriptorWithTileJson,
+        { sourceId: "incidents", id: "incident-42", sourceLayer: "incidents" },
+        {
+          headers: { Authorization: "Bearer fixture-token" },
+          params: { outFields: ["id", "status"], returnGeometry: false },
+        },
+      );
+      expect(detailResult.detail?.identity).toMatchObject({ sourceId: "incidents", id: "incident-42" });
+      expect(detailResult.detail?.feature?.attributes.status).toBe("open");
+      expect(detailResult.validators).toMatchObject({ etag: '"incident-42-v7"', sourceVersion: "stream-42" });
+
+      const controller = createQueryTileRequestController<ArrayBuffer>(queryTiles, {
+        fetchTile: async (request) => {
+          const response = await fetch(request.url, { headers: { Authorization: "Bearer fixture-token" } });
+          expect(response.ok).toBe(true);
+          return response.arrayBuffer();
+        },
+      });
+      const tilePayload = await controller.requestTile({ z: 6, x: 9, y: 23 });
+      expect(tilePayload.byteLength).toBe(4);
+
+      let detailError: unknown;
+      try {
+        await fetchQueryTileFeatureDetail(
+          descriptorWithTileJson,
+          { sourceId: "incidents", id: "too-many", sourceLayer: "incidents" },
+          { headers: { Authorization: "Bearer fixture-token" } },
+        );
+      } catch (error) {
+        detailError = error;
+      }
+      expect(detailError).toBeInstanceOf(QueryTileServerResponseError);
+      expect(detailError).toMatchObject({
+        name: "QueryTileServerResponseError",
+        status: 422,
+        response: {
+          contractVersion: 1,
+          error: {
+            code: "max-features-exceeded",
+            message: "The tile exceeded maxFeatures=500 before simplification could satisfy the request.",
+            status: 422,
+          },
+        },
+      });
+
+      expect(fixtureServer.requests).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            pathname: "/query-tiles/sources/incidents/tilejson.json",
+            searchParams: expect.objectContaining({ maxFeatures: "500", where: "severity >= 3" }),
+            headers: expect.objectContaining({ authorization: "Bearer fixture-token" }),
+          }),
+          expect.objectContaining({
+            pathname: "/query-tiles/sources/incidents/tilejson.json",
+            headers: expect.objectContaining({ ifNoneMatch: '"tilejson-fixture-v1"' }),
+          }),
+          expect.objectContaining({
+            pathname: "/query-tiles/sources/incidents/tiles/6/9/23.mvt",
+            searchParams: expect.objectContaining({ where: "severity >= 3", tileMatrixSet: "WebMercatorQuad" }),
+          }),
+          expect.objectContaining({
+            pathname: "/query-tiles/sources/incidents/features/incident-42",
+            searchParams: expect.objectContaining({ outFields: "id,status", returnGeometry: "false" }),
+          }),
+        ]),
+      );
+    } finally {
+      await fixtureServer.close();
+    }
   });
 
   it("computes viewport tiles and aborts inflight requests outside the next viewport", async () => {

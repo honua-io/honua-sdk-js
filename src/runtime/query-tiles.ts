@@ -13,15 +13,26 @@ import {
   type QueryTileCacheKeyOptions,
   type QueryTileCachePolicy,
   type QueryTileEndpointDescriptor,
+  type QueryTileFeatureDetailResponse,
   type QueryTileFeatureIdentityDescriptor,
+  type QueryTileFeatureIdentityTarget,
   type QueryTileJson,
   type QueryTileKey,
   type QueryTileKeyInput,
+  type QueryTileServerCacheValidators,
+  type QueryTileServerDegradation,
+  type QueryTileServerErrorResponse,
+  type QueryTileServerRequestParameters,
   type QueryTileSourceDescriptor,
   buildQueryTileCacheKey,
+  buildQueryTileServerPath,
   normalizeQueryTileKey,
   normalizeQueryTileSourceDescriptor,
+  parseQueryTileFeatureDetailResponse,
+  parseQueryTileJson,
+  parseQueryTileServerErrorResponse,
   queryTileKeyString,
+  queryTileServerRequestParamsFromDescriptor,
   stableJson,
 } from "../contract/tiles.js";
 import type { Capability, Protocol } from "../contract/types.js";
@@ -50,6 +61,72 @@ export interface QueryTileUrlTemplateOptions {
 export interface QueryTileSourceSpecOptions extends QueryTileUrlTemplateOptions {
   useTileJsonUrl?: boolean;
   volatile?: boolean;
+}
+
+export type QueryTileServerFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+
+export interface QueryTileServerFetchOptions {
+  fetch?: QueryTileServerFetch;
+  headers?: HeadersInit;
+  signal?: AbortSignal;
+  credentials?: RequestCredentials;
+  validators?: QueryTileServerCacheValidators;
+}
+
+export interface FetchQueryTileJsonOptions extends QueryTileUrlTemplateOptions, QueryTileServerFetchOptions {
+  url?: string;
+  routePrefix?: string;
+  params?: QueryTileServerRequestParameters;
+}
+
+export interface FetchQueryTileFeatureDetailOptions extends QueryTileServerFetchOptions {
+  url?: string;
+  routePrefix?: string;
+  params?: QueryTileServerRequestParameters;
+  extraParams?: Readonly<Record<string, string | number | boolean | undefined>>;
+}
+
+export interface QueryTileJsonFetchResult {
+  url: string;
+  status: number;
+  notModified: boolean;
+  validators: QueryTileServerCacheValidators;
+  tilejson?: QueryTileJson;
+  degraded?: readonly QueryTileServerDegradation[];
+}
+
+export interface QueryTileFeatureDetailFetchResult<T = Record<string, unknown>> {
+  url: string;
+  status: number;
+  notModified: boolean;
+  validators: QueryTileServerCacheValidators;
+  detail?: QueryTileFeatureDetailResponse<T>;
+  degraded?: readonly QueryTileServerDegradation[];
+}
+
+export class QueryTileServerResponseError extends Error {
+  public readonly status: number;
+  public readonly url: string;
+  public readonly response: QueryTileServerErrorResponse | undefined;
+  public readonly body: unknown;
+  public readonly validators: QueryTileServerCacheValidators;
+
+  public constructor(options: {
+    status: number;
+    url: string;
+    message: string;
+    response?: QueryTileServerErrorResponse;
+    body?: unknown;
+    validators?: QueryTileServerCacheValidators;
+  }) {
+    super(options.message);
+    this.name = "QueryTileServerResponseError";
+    this.status = options.status;
+    this.url = options.url;
+    this.response = options.response;
+    this.body = options.body;
+    this.validators = options.validators ?? {};
+  }
 }
 
 export interface QueryTileViewport {
@@ -287,22 +364,20 @@ export function buildQueryTileUrlTemplate<T = Record<string, unknown>>(
   if (!baseUrl) {
     throw new Error(`query tile descriptor "${normalized.id}" is missing endpoint.baseUrl or endpoint.urlTemplate`);
   }
-  const path = endpoint.path ?? `tiles/{z}/{x}/{y}.${normalized.format ?? "mvt"}`;
+  const path =
+    endpoint.path ??
+    buildQueryTileServerPath("tile", {
+      sourceId: normalized.sourceId,
+      routePrefix: "",
+      format: normalized.format ?? "mvt",
+    }).replace(/^\/+/, "");
   const url = joinUrl(baseUrl, path);
-  const params: Record<string, string | number | boolean | undefined> = {
-    sourceId: normalized.sourceId,
-    ...(normalized.protocol ? { protocol: normalized.protocol } : {}),
-    ...(normalized.tileMatrixSet ? { tileMatrixSet: normalized.tileMatrixSet } : {}),
-    ...(normalized.query?.where ? { where: normalized.query.where } : {}),
-    ...(normalized.query?.outFields ? { outFields: normalized.query.outFields.join(",") } : {}),
-    ...(normalized.query?.returnGeometry !== undefined ? { returnGeometry: normalized.query.returnGeometry } : {}),
-    ...(normalized.projection?.fields ? { projection: normalized.projection.fields.join(",") } : {}),
-    ...(normalized.projection?.returnGeometry !== undefined
-      ? { projectionReturnGeometry: normalized.projection.returnGeometry }
-      : {}),
-    ...(options.includeCacheKey
-      ? { cacheKey: buildQueryTileCacheKey(normalized, { z: 0, x: 0, y: 0 }, { cache: options.cache }) }
-      : {}),
+  const params = {
+    ...queryTileServerRequestParamsFromDescriptor(normalized, {
+      params: options.includeCacheKey
+        ? { cacheKey: buildQueryTileCacheKey(normalized, { z: 0, x: 0, y: 0 }, { cache: options.cache }) }
+        : undefined,
+    }),
     ...(options.extraParams ?? {}),
   };
   return appendParams(url, params);
@@ -322,6 +397,75 @@ export function buildQueryTileUrl<T = Record<string, unknown>>(
     .replaceAll("{tileMatrix}", String(key.z))
     .replaceAll("{tileCol}", String(key.x))
     .replaceAll("{tileRow}", String(key.y));
+}
+
+/** Fetch and validate TileJSON from a dynamic query tile server. */
+export async function fetchQueryTileJson<T = Record<string, unknown>>(
+  descriptor: QueryTileSourceDescriptor<T>,
+  options: FetchQueryTileJsonOptions = {},
+): Promise<QueryTileJsonFetchResult> {
+  const normalized = normalizeQueryTileSourceDescriptor(descriptor);
+  const url = options.url ?? buildQueryTileJsonRequestUrl(normalized, options);
+  const response = await queryTileFetch(options)(url, {
+    method: "GET",
+    headers: queryTileRequestHeaders("application/json", options),
+    signal: options.signal,
+    credentials: options.credentials,
+  });
+  const validators = queryTileValidatorsFromHeaders(response.headers);
+  if (response.status === 304) {
+    return { url, status: response.status, notModified: true, validators };
+  }
+
+  const body = await readJsonBody(response);
+  if (!response.ok) {
+    throw queryTileServerResponseError(url, response.status, body, validators);
+  }
+
+  const tilejson = parseQueryTileJson(body);
+  return {
+    url,
+    status: response.status,
+    notModified: false,
+    validators,
+    tilejson,
+    degraded: tilejson["honua:queryTiles"]?.degraded,
+  };
+}
+
+/** Fetch and validate a source-qualified feature-detail response from a query tile server. */
+export async function fetchQueryTileFeatureDetail<T = Record<string, unknown>>(
+  descriptor: QueryTileSourceDescriptor<T>,
+  target: QueryTileFeatureIdentityTarget,
+  options: FetchQueryTileFeatureDetailOptions = {},
+): Promise<QueryTileFeatureDetailFetchResult<T>> {
+  const normalized = normalizeQueryTileSourceDescriptor(descriptor);
+  const url = options.url ?? buildQueryTileFeatureDetailRequestUrl(normalized, target, options);
+  const response = await queryTileFetch(options)(url, {
+    method: "GET",
+    headers: queryTileRequestHeaders("application/json", options),
+    signal: options.signal,
+    credentials: options.credentials,
+  });
+  const validators = queryTileValidatorsFromHeaders(response.headers);
+  if (response.status === 304) {
+    return { url, status: response.status, notModified: true, validators };
+  }
+
+  const body = await readJsonBody(response);
+  if (!response.ok) {
+    throw queryTileServerResponseError(url, response.status, body, validators);
+  }
+
+  const detail = parseQueryTileFeatureDetailResponse<T>(body);
+  return {
+    url,
+    status: response.status,
+    notModified: false,
+    validators,
+    detail,
+    degraded: detail.degraded,
+  };
 }
 
 /** Compute visible XYZ tiles for a WGS84 bounds + zoom viewport. */
@@ -659,21 +803,152 @@ function promoteIdFromIdentity(
   return undefined;
 }
 
+function buildQueryTileJsonRequestUrl<T = Record<string, unknown>>(
+  descriptor: QueryTileSourceDescriptor<T>,
+  options: FetchQueryTileJsonOptions,
+): string {
+  const endpoint = { ...(descriptor.endpoint ?? {}), ...(options.endpoint ?? {}) };
+  if (options.url) return options.url;
+  if (endpoint.tilejsonUrl)
+    return appendParams(endpoint.tilejsonUrl, {
+      ...queryTileServerRequestParamsFromDescriptor(descriptor, { params: options.params }),
+      ...(options.extraParams ?? {}),
+    });
+  const baseUrl = endpoint.baseUrl ?? descriptor.source?.locator.url;
+  if (!baseUrl) {
+    throw new Error(`query tile descriptor "${descriptor.id}" is missing endpoint.baseUrl or endpoint.tilejsonUrl`);
+  }
+  const path = buildQueryTileServerPath("tilejson", {
+    sourceId: descriptor.sourceId,
+    routePrefix: options.routePrefix ?? "",
+  });
+  return appendParams(joinUrl(baseUrl, path), {
+    ...queryTileServerRequestParamsFromDescriptor(descriptor, { params: options.params }),
+    ...(options.extraParams ?? {}),
+  });
+}
+
+function buildQueryTileFeatureDetailRequestUrl<T = Record<string, unknown>>(
+  descriptor: QueryTileSourceDescriptor<T>,
+  target: QueryTileFeatureIdentityTarget,
+  options: FetchQueryTileFeatureDetailOptions,
+): string {
+  const detailTemplate = descriptor.tilejson?.["honua:queryTiles"]?.detailUrlTemplate;
+  const baseUrl = descriptor.endpoint?.baseUrl ?? descriptor.source?.locator.url;
+  const url = detailTemplate
+    ? substituteFeatureDetailTemplate(detailTemplate, target)
+    : baseUrl
+      ? joinUrl(
+          baseUrl,
+          buildQueryTileServerPath("feature-detail", {
+            sourceId: target.sourceId || descriptor.sourceId,
+            featureId: target.id,
+            routePrefix: options.routePrefix ?? "",
+          }),
+        )
+      : undefined;
+  if (!url) {
+    throw new Error(`query tile descriptor "${descriptor.id}" is missing detailUrlTemplate or endpoint.baseUrl`);
+  }
+  return appendParams(url, { ...(options.params ?? {}), ...(options.extraParams ?? {}) });
+}
+
+function substituteFeatureDetailTemplate(template: string, target: QueryTileFeatureIdentityTarget): string {
+  return template
+    .replaceAll("{sourceId}", encodeURIComponent(target.sourceId))
+    .replaceAll("{featureId}", encodeURIComponent(String(target.id)))
+    .replaceAll("{id}", encodeURIComponent(String(target.id)))
+    .replaceAll("{sourceLayer}", encodeURIComponent(target.sourceLayer ?? ""));
+}
+
+function queryTileFetch(options: QueryTileServerFetchOptions): QueryTileServerFetch {
+  const fetchImpl = options.fetch ?? globalThis.fetch?.bind(globalThis);
+  if (!fetchImpl) throw new Error("fetch is required to request query tile server resources");
+  return fetchImpl;
+}
+
+function queryTileRequestHeaders(accept: string, options: QueryTileServerFetchOptions): Headers {
+  const headers = new Headers(options.headers);
+  if (!headers.has("Accept")) headers.set("Accept", accept);
+  if (options.validators?.etag && !headers.has("If-None-Match")) {
+    headers.set("If-None-Match", options.validators.etag);
+  }
+  if (options.validators?.lastModified && !headers.has("If-Modified-Since")) {
+    headers.set("If-Modified-Since", options.validators.lastModified);
+  }
+  return headers;
+}
+
+function queryTileValidatorsFromHeaders(headers: Headers): QueryTileServerCacheValidators {
+  return stripUndefined({
+    etag: headers.get("ETag") ?? undefined,
+    lastModified: headers.get("Last-Modified") ?? undefined,
+    cacheControl: headers.get("Cache-Control") ?? undefined,
+    expires: headers.get("Expires") ?? undefined,
+    vary: headers.get("Vary") ?? undefined,
+    sourceVersion: headers.get("X-Honua-Source-Version") ?? undefined,
+  });
+}
+
+async function readJsonBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (text.length === 0) return undefined;
+  return JSON.parse(text);
+}
+
+function queryTileServerResponseError(
+  url: string,
+  status: number,
+  body: unknown,
+  validators: QueryTileServerCacheValidators,
+): QueryTileServerResponseError {
+  let errorResponse: QueryTileServerErrorResponse | undefined;
+  try {
+    errorResponse = parseQueryTileServerErrorResponse(body);
+  } catch {
+    errorResponse = undefined;
+  }
+  return new QueryTileServerResponseError({
+    status,
+    url,
+    response: errorResponse,
+    body,
+    validators,
+    message: errorResponse?.error.message ?? `query tile server request failed with HTTP ${status}`,
+  });
+}
+
 function joinUrl(baseUrl: string, path: string): string {
   const [basePath, query = ""] = baseUrl.split("?", 2);
   const joined = `${basePath.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
   return query ? `${joined}?${query}` : joined;
 }
 
-function appendParams(url: string, params: Readonly<Record<string, string | number | boolean | undefined>>): string {
+function appendParams(url: string, params: Readonly<Record<string, unknown>>): string {
   const searchParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value === undefined) continue;
-    searchParams.set(key, String(value));
+    const serialized = urlParamValue(value);
+    if (serialized === undefined) continue;
+    searchParams.set(key, serialized);
   }
   const query = searchParams.toString();
   if (!query) return url;
   return `${url}${url.includes("?") ? "&" : "?"}${query}`;
+}
+
+function urlParamValue(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (Array.isArray(value)) return value.join(",");
+  if (typeof value === "object") return stableJson(value);
+  return String(value);
+}
+
+function stripUndefined<T extends Record<string, unknown>>(value: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry !== undefined) out[key] = entry;
+  }
+  return out as T;
 }
 
 function clampZoom(zoom: number, minzoom: number | undefined, maxzoom: number | undefined): number {

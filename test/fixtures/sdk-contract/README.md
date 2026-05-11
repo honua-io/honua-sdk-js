@@ -12,6 +12,9 @@ Current fixture:
 - `semantic-contract.v1.json`: protocol and capability registries, common
   language binding names, result-envelope scenarios, unsupported-capability
   expectations, and degraded-result expectations.
+- `query-tile-server.v1.json`: dynamic query tile server routes, request
+  parameters, TileJSON metadata, feature detail response, cache validators, and
+  degradation/error envelopes.
 
 When this fixture changes, update:
 
