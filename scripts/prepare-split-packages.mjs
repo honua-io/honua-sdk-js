@@ -44,6 +44,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "app"), path.join(packageRoot, "app"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
@@ -54,8 +55,10 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "app-workspace"), path.join(packageRoot, "app-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
   copyDirectory(path.join(DIST_SRC_ROOT, "realtime"), path.join(packageRoot, "realtime"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "runtime"), path.join(packageRoot, "runtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "scene-workspace"), path.join(packageRoot, "scene-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "web-components"), path.join(packageRoot, "web-components"));
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.d.ts"), path.join(packageRoot, "index.d.ts"));
@@ -77,6 +80,10 @@ function createSdkPackage() {
       "./agent-tools": {
         types: "./agent-tools/index.d.ts",
         default: "./agent-tools/index.js",
+      },
+      "./app": {
+        types: "./app/index.d.ts",
+        default: "./app/index.js",
       },
       "./exploration": {
         types: "./exploration/index.d.ts",
@@ -105,6 +112,10 @@ function createSdkPackage() {
       "./realtime": {
         types: "./realtime/index.d.ts",
         default: "./realtime/index.js",
+      },
+      "./runtime": {
+        types: "./runtime/index.d.ts",
+        default: "./runtime/index.js",
       },
       "./scene-workspace": {
         types: "./scene-workspace/index.d.ts",
