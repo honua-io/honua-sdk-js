@@ -71,8 +71,10 @@ export interface LayerSnapshot extends HonuaLayerSpecification {
 /** Events emitted by HonuaMap. */
 export type HonuaMapEvent =
   | { type: "source-added"; sourceId: string }
+  | { type: "source-updated"; sourceId: string }
   | { type: "source-removed"; sourceId: string }
   | { type: "layer-added"; layerId: string }
+  | { type: "layer-updated"; layerId: string }
   | { type: "layer-removed"; layerId: string }
   | { type: "layer-moved"; layerId: string; beforeId: string | undefined };
 
@@ -194,6 +196,24 @@ export class HonuaMap {
     return this.#sources.get(name)?.spec;
   }
 
+  /**
+   * Replace a source specification while preserving layers that reference it.
+   *
+   * This updates the resolved SDK surface for Honua custom source types and
+   * leaves render layers in place so callers can decide how to patch the
+   * renderer.
+   *
+   * @throws If the source does not exist.
+   */
+  updateSource(name: string, spec: HonuaSourceSpecification | { type: string; [key: string]: unknown }): void {
+    if (!this.#sources.has(name)) {
+      throw new Error(`Source "${name}" not found.`);
+    }
+    const resolved = this.#resolveSource(spec);
+    this.#sources.set(name, { spec, resolved });
+    this.#emit({ type: "source-updated", sourceId: name });
+  }
+
   /** Check whether a source with the given name exists. */
   hasSource(name: string): boolean {
     return this.#sources.has(name);
@@ -253,6 +273,26 @@ export class HonuaMap {
   /** Get a layer specification by ID. */
   getLayer(id: string): HonuaLayerSpecification | undefined {
     return this.#layers.find((l) => l.id === id)?.spec;
+  }
+
+  /**
+   * Patch a layer specification by ID. The layer ID remains stable.
+   *
+   * @throws If the layer does not exist.
+   * @throws If the patched source does not exist.
+   */
+  updateLayer(id: string, patch: Partial<Omit<HonuaLayerSpecification, "id">>): HonuaLayerSpecification {
+    const entry = this.#layers.find((l) => l.id === id);
+    if (!entry) {
+      throw new Error(`Layer "${id}" not found.`);
+    }
+    const next: HonuaLayerSpecification = { ...entry.spec, ...patch, id };
+    if (next.source && !this.#sources.has(next.source)) {
+      throw new Error(`Cannot update layer "${id}": source "${next.source}" does not exist.`);
+    }
+    entry.spec = next;
+    this.#emit({ type: "layer-updated", layerId: id });
+    return next;
   }
 
   /** Check whether a layer with the given ID exists. */

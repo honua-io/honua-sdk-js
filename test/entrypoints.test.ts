@@ -184,6 +184,11 @@ import {
   emptyRealtimeFeatureState,
   reduceRealtimeFeatureState,
 } from "../src/realtime/index.js";
+import {
+  HonuaRuntimeDiagnosticError,
+  validateRuntimeFilterExpression,
+  validateRuntimeStyleExpression,
+} from "../src/runtime/index.js";
 import { createSceneWorkspace, sceneWorkspaceIntentFromAdapterEvent } from "../src/scene-workspace/index.js";
 
 describe("entrypoint modules", () => {
@@ -370,6 +375,12 @@ describe("entrypoint modules", () => {
     expect(emptyRealtimeFeatureState).toBeTypeOf("function");
     expect(reduceRealtimeFeatureState).toBeTypeOf("function");
     expect(createRealtimeFeatureStore).toBeTypeOf("function");
+  });
+
+  it("exposes the runtime style and interaction helper entrypoint", () => {
+    expect(HonuaRuntimeDiagnosticError).toBeTypeOf("function");
+    expect(validateRuntimeFilterExpression).toBeTypeOf("function");
+    expect(validateRuntimeStyleExpression).toBeTypeOf("function");
   });
 
   it("exposes the app workspace entrypoint", () => {
