@@ -52,6 +52,22 @@ export type {
   NormalizedHonuaMetadataRequestOptions,
 } from "./core/cache-state.js";
 export {
+  HONUA_CONTROL_PLANE_BASE_PATH,
+  HonuaControlPlaneClient,
+  createHonuaControlPlane,
+} from "./control-plane/index.js";
+export type {
+  HonuaApiToken,
+  HonuaControlPlaneCapability,
+  HonuaControlPlaneJob,
+  HonuaControlPlanePage,
+  HonuaControlPlaneResult,
+  HonuaControlPlaneSourceDescriptor,
+  HonuaHostedMap,
+  HonuaHostedMapSummary,
+  HonuaMapPackageSummary,
+} from "./control-plane/index.js";
+export {
   isHonuaSource,
   isFeatureServiceSource,
   isMapServiceSource,

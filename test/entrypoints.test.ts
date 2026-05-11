@@ -28,6 +28,11 @@ import {
   stacSearchSource,
 } from "../src/contract/index.js";
 import {
+  HONUA_CONTROL_PLANE_BASE_PATH,
+  HonuaControlPlaneClient,
+  createHonuaControlPlane,
+} from "../src/control-plane/index.js";
+import {
   AreaMeasurement2DCompat,
   AttributionCompat,
   BasemapCompat,
@@ -146,6 +151,7 @@ import {
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
   createEditSession as honuaCreateEditSession,
   createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
+  createHonuaControlPlane as honuaCreateHonuaControlPlane,
   createHonuaController as honuaCreateHonuaController,
   createSceneWorkspace as honuaCreateSceneWorkspace,
   createWidgetSource as honuaCreateWidgetSource,
@@ -156,6 +162,7 @@ import {
 } from "../src/honua.js";
 import {
   HonuaWfsExceptionError as HonuaWfsExceptionErrorRoot,
+  HonuaControlPlaneClient as RootHonuaControlPlaneClient,
   bindChartToExploration,
   bindMapSelectionToExploration,
   bindQueryProjectionToExploration,
@@ -218,8 +225,16 @@ describe("entrypoint modules", () => {
     expect(HonuaWfsExceptionError).toBeTypeOf("function");
     expect(HonuaWfsExceptionErrorRoot).toBe(HonuaWfsExceptionError);
     expect(createHonuaCacheState).toBeTypeOf("function");
+    expect(RootHonuaControlPlaneClient).toBe(HonuaControlPlaneClient);
+    expect(honuaCreateHonuaControlPlane).toBe(createHonuaControlPlane);
     expect(honuaCreateHonuaController).toBe(appControllerCreateHonuaController);
     expect(createHonuaController).toBe(appControllerCreateHonuaController);
+  });
+
+  it("exposes the experimental control-plane subpath", () => {
+    expect(HONUA_CONTROL_PLANE_BASE_PATH).toBe("/api/v1/admin");
+    expect(HonuaControlPlaneClient).toBeTypeOf("function");
+    expect(createHonuaControlPlane).toBeTypeOf("function");
   });
 
   it("exposes esri-compat entrypoint", () => {

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/packages",
+    "headers": {
+      "if-match": "\"map-ops-v2\""
+    },
+    "body": {
+      "mapId": "map-ops",
+      "message": "Publish reviewed operations map",
+      "package": {
+        "mapPackageId": "pkg-ops-ready",
+        "format": "honua_map_package.v1",
+        "status": "Ready",
+        "sourceBindings": [],
+        "mapSpec": {
+          "version": 8,
+          "sources": {},
+          "layers": []
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 202,
+    "body": {
+      "packageId": "pkg-ops-ready",
+      "job": {
+        "id": "job-publish-1",
+        "type": "publish",
+        "status": "queued",
+        "links": {
+          "self": "/api/v1/admin/imports/jobs/job-publish-1"
+        }
+      },
+      "links": {
+        "self": "/api/v1/admin/packages/pkg-ops-ready"
+      }
+    }
+  }
+}

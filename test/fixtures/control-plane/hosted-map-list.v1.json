@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/maps?limit=2&workspaceId=workspace-ops"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "etag": "\"maps-v1\"",
+      "last-modified": "Mon, 11 May 2026 10:00:00 GMT"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "map-ops",
+          "title": "Operations Map",
+          "workspaceId": "workspace-ops",
+          "packageId": "pkg-ops-ready",
+          "status": "Ready",
+          "visibility": "workspace",
+          "updatedAt": "2026-05-11T10:00:00Z",
+          "links": {
+            "self": "/api/v1/admin/maps/map-ops",
+            "mapPackage": "/api/v1/admin/maps/map-ops/package"
+          }
+        }
+      ],
+      "pagination": {
+        "nextCursor": "cursor-next",
+        "limit": 2,
+        "total": 1
+      }
+    }
+  }
+}
