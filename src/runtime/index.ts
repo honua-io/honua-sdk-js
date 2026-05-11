@@ -83,5 +83,34 @@ export {
 } from "./source-bridge.js";
 export type { NativeMapLibreSourceEntry, SourceBridgeProjection } from "./source-bridge.js";
 
+export {
+  QueryTileRequestController,
+  buildMapLibreQueryTileSourceSpec,
+  buildQueryTileJson,
+  buildQueryTileUrl,
+  buildQueryTileUrlTemplate,
+  createQueryTileRequestController,
+  diagnoseQueryTileSourceSupport,
+  queryTilesForViewport,
+} from "./query-tiles.js";
+export type {
+  MapLibreQueryTileSourceSpec,
+  QueryTileCacheSnapshot,
+  QueryTileDiagnostic,
+  QueryTileDiagnosticCode,
+  QueryTileDiagnosticSeverity,
+  QueryTileFetcher,
+  QueryTileLifecycleEvent,
+  QueryTileLifecycleListener,
+  QueryTileRequest,
+  QueryTileRequestControllerOptions,
+  QueryTileRequestTileOptions,
+  QueryTileSourceSpecOptions,
+  QueryTileUrlTemplateOptions,
+  QueryTileViewport,
+  QueryTileViewportRequestOptions,
+  QueryTileViewportRequestResult,
+} from "./query-tiles.js";
+
 export { diffPackages } from "./diff.js";
 export type { MapPackageDiff } from "./diff.js";

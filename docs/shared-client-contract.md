@@ -38,6 +38,7 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
 src/contract/
 ├── index.ts                 # barrel — re-exports types and source factories
 ├── spatial-aggregation.ts   # indexed aggregation request/response metadata
+├── tiles.ts                 # dynamic query tile descriptors, cache keys, identity
 ├── types.ts                 # protocol, capability, source, dataset, query, result
 └── source.ts                # createDataset + built-in adapters
 ```
@@ -78,6 +79,7 @@ unsupported-capability, and degraded-result scenarios.
 | `RelatedQuery` / `RelatedResult<T>` | Canonical related-records request and response. Adapters that lack relationships (OGC, OData, ImageServer) throw rather than return empty groups. |
 | `AttachmentApi` | Namespace returned by `Source.attachments`. Methods: `query`, `list`, `add`, `update`, `delete`. Adapters that do not advertise `attachments` throw `HonuaCapabilityNotSupportedError` from each method so the namespace property is always present and capability negotiation stays uniform. |
 | `MapBinding` | `{ sourceId, layerIds, style?, minzoom?, maxzoom? }`. Maps onto `MapPackage.sourceBindings` + `MapPackage.mapSpec` server-side. The `@honua/sdk-js/runtime` module consumes a full `MapPackage` on the client — see [`maplibre-runtime.md`](./maplibre-runtime.md). |
+| `QueryTileSourceDescriptor` | Typed dynamic vector/query tile descriptor. It binds a canonical `Source` or source id to tile endpoint metadata, query/projection cache identity, fallback policy, and feature identity hooks. Runtime MapLibre helpers live in [`dynamic-query-tiles.md`](./dynamic-query-tiles.md). |
 
 ## Capability negotiation
 

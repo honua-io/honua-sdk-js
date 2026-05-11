@@ -27,6 +27,7 @@ src/runtime/
 ├── load-package.ts    # loadMapPackage(pkg, map, opts) → HonuaMapRuntime
 ├── runtime.ts         # HonuaMapRuntime class + event/telemetry types
 ├── source-bridge.ts   # SourceBinding[] → SourceDescriptor[] + native sources
+├── query-tiles.ts     # dynamic query tile MapLibre helpers + request lifecycle
 ├── style-compose.ts   # applyStyleRefs + applyTheme
 ├── diff.ts            # MapPackageDiff primitives for updatePackage
 ├── popups.ts          # bindPopup + default unstyled DOM renderer
@@ -67,6 +68,8 @@ runtime.dispose();
 | `applyStyleRefs`, `applyTheme`, `composeStyle` | functions | Pure helpers — safe to call outside a runtime for testing / SSR composition. |
 | `projectSourceBindings`, `toHonuaSourceSpec` | functions | Exposed for `#22` and adapter tickets that need the bridge without loading a package. |
 | `buildWmsRasterSourceSpec`, `buildWmtsRasterSourceSpec` | functions | Pre-bake a MapLibre `raster` source spec from a WMS / WMTS `SourceDescriptor`. Used by callers that compose a map outside `loadMapPackage`. See the source-binding projection table for the URL templates emitted on each protocol. |
+| `buildMapLibreQueryTileSourceSpec`, `buildQueryTileJson`, `buildQueryTileUrlTemplate`, `buildQueryTileUrl` | functions | Build TileJSON and MapLibre `vector` source specs from `QueryTileSourceDescriptor`. See [`dynamic-query-tiles.md`](./dynamic-query-tiles.md). |
+| `QueryTileRequestController`, `queryTilesForViewport`, `diagnoseQueryTileSourceSupport` | class / functions | Opt-in viewport tile lifecycle helper with abortable requests, bounded cache, diagnostics, and unsupported-protocol/fallback reporting. |
 | `diffPackages`, `MapPackageDiff` | function / type | Stable-id diff used by `updatePackage`. |
 | `buildLegend`, `LegendEntry` | function / type | Shared with operator components. |
 | `bindPopup`, `defaultPopupRenderer`, `PopupFactory`, `PopupRenderer` | function / types | The default DOM renderer is intentionally unstyled — rich popups belong in `#29`. |
