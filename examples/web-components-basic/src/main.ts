@@ -1,3 +1,5 @@
+import "maplibre-gl/dist/maplibre-gl.css";
+
 import {
   type HonuaChartModel,
   type HonuaFeatureRecord,
@@ -13,6 +15,8 @@ declare global {
       events: string[];
       selectedFeatureId?: string | number;
       layerVisible(layerId: string): boolean;
+      mapLayerVisible(layerId: string): boolean;
+      mapNonBlank(): boolean;
     };
   }
 }
@@ -42,6 +46,22 @@ const features: HonuaFeatureRecord[] = [
     geometry: { x: -157.84, y: 21.3 },
   },
 ];
+
+const incidentGeoJson = {
+  type: "FeatureCollection",
+  features: features.map((feature) => {
+    const point = feature.geometry && "x" in feature.geometry ? feature.geometry : undefined;
+    return {
+      type: "Feature",
+      id: feature.id,
+      properties: feature.attributes,
+      geometry: {
+        type: "Point",
+        coordinates: [point?.x ?? -157.86, point?.y ?? 21.3],
+      },
+    };
+  }),
+};
 
 const chart: HonuaChartModel = {
   id: "priority-summary",
@@ -73,23 +93,47 @@ const controller = createHonuaWebComponentController({
       sources: {
         [INCIDENT_SOURCE_ID]: {
           type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
+          data: incidentGeoJson,
         },
       },
       layers: [
+        {
+          id: "basemap-background",
+          type: "background",
+          metadata: { title: "Map background" },
+          paint: { "background-color": "#e8eef7" },
+        },
+        {
+          id: "incident-halos",
+          source: INCIDENT_SOURCE_ID,
+          type: "circle",
+          metadata: { title: "Incident response halos" },
+          paint: {
+            "circle-radius": ["case", ["boolean", ["feature-state", "selected"], false], 22, 16],
+            "circle-color": "#2563eb",
+            "circle-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.34, 0.18],
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 1,
+          },
+        },
         {
           id: "incident-points",
           source: INCIDENT_SOURCE_ID,
           type: "circle",
           metadata: { title: "Public safety incidents" },
-          paint: { "circle-color": "#dc2626" },
-        },
-        {
-          id: "incident-labels",
-          source: INCIDENT_SOURCE_ID,
-          type: "symbol",
-          metadata: { title: "Incident labels" },
-          paint: { "text-color": "#172033" },
+          paint: {
+            "circle-radius": ["case", ["boolean", ["feature-state", "selected"], false], 9, 6],
+            "circle-color": [
+              "case",
+              ["boolean", ["feature-state", "selected"], false],
+              "#f97316",
+              ["boolean", ["feature-state", "hover"], false],
+              "#1d4ed8",
+              "#dc2626",
+            ],
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 2,
+          },
         },
       ],
     },
@@ -123,13 +167,67 @@ const runtime = {
   layerVisible(layerId: string): boolean {
     return controller.getState().layers.find((layer) => layer.id === layerId)?.visible ?? false;
   },
+  mapLayerVisible(layerId: string): boolean {
+    const mapElement = document.querySelector("honua-map") as
+      | (HTMLElement & { map?: { getLayoutProperty?(layerId: string, name: string): unknown } })
+      | null;
+    return mapElement?.map?.getLayoutProperty?.(layerId, "visibility") !== "none";
+  },
+  mapNonBlank(): boolean {
+    const mapElement = document.querySelector("honua-map") as
+      | (HTMLElement & {
+          map?: {
+            loaded?(): boolean;
+            queryRenderedFeatures?(): readonly unknown[];
+          };
+        })
+      | null;
+    const canvas = mapElement?.shadowRoot?.querySelector("canvas");
+    return Boolean(
+      mapElement?.map?.loaded?.() &&
+        canvas &&
+        canvas.width > 0 &&
+        canvas.height > 0 &&
+        (mapElement.map.queryRenderedFeatures?.().length ?? 0) > 0,
+    );
+  },
 };
 
 window.__HONUA_WEB_COMPONENTS_DEMO__ = runtime;
 
 const map = document.querySelector("honua-map");
 if (!map) throw new Error("Missing honua-map");
-map.controller = controller;
+
+map.addEventListener("honua-map-ready", () => {
+  runtime.ready = true;
+  eventLog.push("ready");
+  writeEventLog();
+});
+
+map.addEventListener("honua-map-error", (event) => {
+  const detail = (event as CustomEvent<{ message: string }>).detail;
+  eventLog.push(`error:${detail.message}`);
+  writeEventLog();
+});
+
+map.addEventListener("honua-map-click", (event) => {
+  const detail = (event as CustomEvent<{ featureId?: string | number }>).detail;
+  eventLog.push(`click:${String(detail.featureId ?? "")}`);
+  writeEventLog();
+});
+
+map.addEventListener("honua-map-hover", (event) => {
+  const detail = (event as CustomEvent<{ hovering: boolean; featureId?: string | number }>).detail;
+  if (!detail.hovering) return;
+  eventLog.push(`hover:${String(detail.featureId ?? "")}`);
+  writeEventLog();
+});
+
+map.addEventListener("honua-viewport-change", (event) => {
+  const detail = (event as CustomEvent<{ zoom?: number }>).detail;
+  eventLog.push(`viewport:${String(Math.round((detail.zoom ?? 0) * 10) / 10)}`);
+  writeEventLog();
+});
 
 document.addEventListener("honua-layer-visibility-change", (event) => {
   const detail = (event as CustomEvent<{ layerId: string; visible: boolean }>).detail;
@@ -156,9 +254,9 @@ document.addEventListener("honua-filter-change", (event) => {
   writeEventLog();
 });
 
+map.controller = controller;
+
 function writeEventLog(): void {
   const target = document.querySelector("#event-log");
   if (target) target.textContent = eventLog.at(-1) ?? "";
 }
-
-runtime.ready = true;

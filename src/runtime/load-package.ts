@@ -195,6 +195,9 @@ export async function loadMapPackage(
       styleSources[native.sourceId] = native.spec;
       honuaMap.addSource(native.sourceId, native.spec);
     }
+    for (const [sourceId, source] of Object.entries(styleSources)) {
+      if (!honuaMap.hasSource(sourceId)) honuaMap.addSource(sourceId, source);
+    }
 
     const layers = filterLayersByAvailableSource(target.mapSpec.layers, failedSourceIds);
 

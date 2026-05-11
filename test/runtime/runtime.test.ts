@@ -190,6 +190,36 @@ describe("loadMapPackage", () => {
     expect(events.some((e) => e.type === "package-loaded" && e.packageId === pkg.mapPackageId)).toBe(true);
   });
 
+  test("loads inline MapLibre sources before adding package layers", async () => {
+    const map = makeMockMap();
+    const pkg = makePackage({
+      sourceBindings: [],
+      mapSpec: {
+        version: 8,
+        sources: {
+          incidents: {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+          },
+        },
+        layers: [{ id: "incident-points", source: "incidents", type: "circle" }],
+      },
+      initialView: { center: [-157.86, 21.3], zoom: 11 },
+    });
+
+    const runtime = await loadMapPackage(pkg, map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+    });
+
+    expect(runtime.honuaMap.hasSource("incidents")).toBe(true);
+    expect(runtime.composedStyle.layers.map((layer) => layer.id)).toEqual(["incident-points"]);
+    expect(map._calls.find((call) => call.method === "setStyle")?.args[0]).toMatchObject({
+      sources: { incidents: { type: "geojson" } },
+    });
+  });
+
   test("rejects unsupported package format via HonuaMapPackageError", async () => {
     const map = makeMockMap();
     const bad = makePackage({ format: "honua_map_package.v999" as unknown as typeof HONUA_MAP_PACKAGE_FORMAT_V1 });
