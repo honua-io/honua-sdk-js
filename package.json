@@ -83,6 +83,10 @@
       "types": "./dist/src/generated-app/index.d.ts",
       "default": "./dist/src/generated-app/index.js"
     },
+    "./agent-tools": {
+      "types": "./dist/src/agent-tools/index.d.ts",
+      "default": "./dist/src/agent-tools/index.js"
+    },
     "./operator": {
       "types": "./dist/src/operator/index.d.ts",
       "default": "./dist/src/operator/index.js"
