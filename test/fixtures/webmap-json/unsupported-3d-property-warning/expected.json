@@ -35,9 +35,11 @@
     {
       "code": "unsupported-3d-property",
       "path": "",
-      "message": "Top-level 3D property 'ground' is not supported",
+      "message": "Top-level 3D property 'ground' is not supported by the 2D WebMap style path",
       "context": {
-        "property": "ground"
+        "property": "ground",
+        "status": "degraded",
+        "fallback": "Convert ground/elevation metadata into scene workspace terrain primitives for MapLibre 2.5D."
       }
     },
     {
@@ -51,17 +53,21 @@
     {
       "code": "unsupported-3d-property",
       "path": "operationalLayers[0]",
-      "message": "Layer type 'ArcGISSceneServiceLayer' is 3D and not supported",
+      "message": "Layer type 'ArcGISSceneServiceLayer' requires a scene renderer adapter",
       "context": {
-        "layerType": "ArcGISSceneServiceLayer"
+        "layerType": "ArcGISSceneServiceLayer",
+        "status": "unsupported",
+        "fallback": "Preserve the service URL as scene-layer metadata or model-layer primitives; omit it from the 2D style."
       }
     },
     {
       "code": "unsupported-3d-property",
       "path": "operationalLayers[0]",
-      "message": "Layer property 'elevationInfo' is not supported",
+      "message": "Layer property 'elevationInfo' is not supported by the 2D WebMap style path",
       "context": {
-        "property": "elevationInfo"
+        "property": "elevationInfo",
+        "status": "degraded",
+        "fallback": "MapLibre extrusion/terrain primitives can represent simple height and elevation behavior."
       }
     },
     {

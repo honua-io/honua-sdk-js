@@ -10,9 +10,12 @@ and subscribe to narrow slices or selectors.
 
 ```ts
 import {
+  createMapLibreSceneAdapter,
   createSceneWorkspace,
+  diagnoseScenePrimitives,
   sceneWorkspaceIntentFromAdapterEvent,
   selectSceneEvidenceForFeature,
+  selectScenePrimitivesByKind,
   selectSceneVisibleLayers,
 } from "@honua/sdk-js/scene-workspace";
 import { sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
@@ -23,6 +26,26 @@ const workspace = createSceneWorkspace({
   layers: {
     buildings: { id: "buildings", sourceId: "buildings", title: "Buildings", visible: true, kind: "scene" },
     incidents: { id: "incidents", sourceId: "incidents", title: "Incidents", visible: true, kind: "feature" },
+  },
+  primitives: {
+    terrain: {
+      kind: "elevation-source",
+      id: "terrain",
+      sourceId: "terrain-dem",
+      protocol: "terrain-rgb",
+      tiles: ["/terrain/{z}/{y}/{x}.png"],
+      encoding: "mapbox",
+      tileSize: 512,
+      exaggeration: 1.25,
+      cache: { status: "ready", scope: "tiles", ttlMs: 86400000 },
+    },
+    buildings: {
+      kind: "extrusion",
+      id: "buildings",
+      sourceId: "buildings",
+      height: ["get", "height_m"],
+      base: 0,
+    },
   },
 });
 
@@ -60,6 +83,45 @@ The important property is that no adapter calls another adapter directly. The
 scene publishes camera or selection state, the map publishes selected features,
 the table and detail panel observe the same source-qualified selection, and the
 timeline/realtime layer shares status through the same state model.
+
+## Scene Primitives
+
+Scene primitives describe 3D intent without naming a renderer package:
+
+- `camera`: serializable view state separate from source data state.
+- `ground` and `elevation-source`: terrain/ground metadata, cache policy,
+  attribution, and tile protocol.
+- `extrusion`: a source-bound height/base/color definition that MapLibre can
+  render as `fill-extrusion`.
+- `model-layer`: glTF, 3D Tiles, I3S, or custom model binding for a 3D adapter.
+- `scene-layer-metadata`: SceneServer/mesh/point-cloud metadata preserved when a
+  renderer cannot draw it directly.
+
+Use MapLibre 2.5D when the experience is a pitched map with raster-dem terrain,
+hillshade, and source-bound building or asset extrusions. Use a Cesium or custom
+3D adapter when the workflow needs globe navigation, glTF/3D Tiles/I3S model
+layers, point clouds, precise ground clamping, or scene-layer symbology.
+
+Adapters declare `SceneRuntimeCapabilities` and can run
+`diagnoseScenePrimitives()` before applying state:
+
+```ts
+const adapter = createMapLibreSceneAdapter();
+const diagnostics = diagnoseScenePrimitives(
+  selectScenePrimitivesByKind(workspace.state, "elevation-source"),
+  adapter.capabilities,
+);
+
+workspace.dispatch(
+  sceneWorkspaceIntentFromAdapterEvent({ type: "primitive-diagnostics", diagnostics }, "scene"),
+);
+```
+
+Diagnostics use `supported`, `degraded`, and `unsupported` states. Degraded
+means the app can continue with an explicit fallback, such as rendering a
+SceneServer layer as metadata while the MapLibre map keeps terrain and
+extrusions active. Unsupported means the primitive should be routed to another
+adapter or retained in migration diagnostics rather than silently dropped.
 
 ## Demo Fit
 

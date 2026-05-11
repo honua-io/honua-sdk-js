@@ -1,4 +1,10 @@
-import { type SelectionHandle, createHoverHandler, createSelectionHandler } from "@honua/sdk-js/honua";
+import {
+  type SceneExtrusionPrimitive,
+  type SelectionHandle,
+  createHoverHandler,
+  createSelectionHandler,
+  toMapLibreExtrusionLayer,
+} from "@honua/sdk-js/honua";
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from "maplibre-gl";
 
 import {
@@ -18,6 +24,35 @@ const ROUTE_PROGRESS_LAYER_ID = "story-route-progress-layer";
 const ROUTE_MARKER_LAYER_ID = "story-route-marker-layer";
 const STOP_BASE_LAYER_ID = "story-stop-base";
 const STOP_ACTIVE_LAYER_ID = "story-stop-active";
+
+function createAssetExtrusionPrimitive(sourceId: string): SceneExtrusionPrimitive {
+  return {
+    kind: "extrusion",
+    id: ASSET_EXTRUSION_LAYER_ID,
+    sourceId,
+    height: ["get", "extrusion_height_m"],
+    base: 0,
+    opacity: ["case", ["boolean", ["feature-state", "hover"], false], 0.95, 0.84],
+    color: [
+      "case",
+      ["boolean", ["feature-state", "selected"], false],
+      "#f3d38a",
+      ["boolean", ["feature-state", "priority"], false],
+      "#f28d52",
+      ["==", ["get", "risk_bucket"], "severe"],
+      "#b44a2e",
+      ["==", ["get", "risk_bucket"], "high"],
+      "#d26c43",
+      ["==", ["get", "risk_bucket"], "guarded"],
+      "#cfb05f",
+      "#4d8a87",
+    ],
+    metadata: {
+      title: "Story asset extrusions",
+      fallback: "Render as 2D fills when fill-extrusion is unavailable.",
+    },
+  };
+}
 
 function getErrorDetail(error: unknown): string {
   if (error instanceof Error) {
@@ -210,30 +245,7 @@ export async function createStoryMap(options: CreateStoryMapOptions): Promise<St
     },
   });
 
-  map.addLayer({
-    id: ASSET_EXTRUSION_LAYER_ID,
-    type: "fill-extrusion",
-    source: options.config.sourceIds.assets,
-    paint: {
-      "fill-extrusion-height": ["get", "extrusion_height_m"],
-      "fill-extrusion-base": 0,
-      "fill-extrusion-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.95, 0.84],
-      "fill-extrusion-color": [
-        "case",
-        ["boolean", ["feature-state", "selected"], false],
-        "#f3d38a",
-        ["boolean", ["feature-state", "priority"], false],
-        "#f28d52",
-        ["==", ["get", "risk_bucket"], "severe"],
-        "#b44a2e",
-        ["==", ["get", "risk_bucket"], "high"],
-        "#d26c43",
-        ["==", ["get", "risk_bucket"], "guarded"],
-        "#cfb05f",
-        "#4d8a87",
-      ],
-    },
-  });
+  map.addLayer(toMapLibreExtrusionLayer(createAssetExtrusionPrimitive(options.config.sourceIds.assets)) as never);
 
   map.addLayer({
     id: ASSET_OUTLINE_LAYER_ID,
