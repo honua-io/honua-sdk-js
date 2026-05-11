@@ -12,6 +12,12 @@
         <honua-map id="ops-map" label="Response map"></honua-map>
         <div class="side-panel">
           <honua-search for="ops-map" source="incidents" placeholder="Find incidents"></honua-search>
+          <honua-basemap-control for="ops-map"></honua-basemap-control>
+          <honua-bookmarks
+            for="ops-map"
+            bookmarks='[{"id":"harbor","label":"Harbor","viewport":{"center":[-157.87,21.31],"zoom":13}},{"id":"kakaako","label":"Kakaako","viewport":{"center":[-157.86,21.29],"zoom":13}}]'
+          ></honua-bookmarks>
+          <honua-locate-control for="ops-map" latitude="21.3" longitude="-157.86" zoom="12"></honua-locate-control>
           <honua-layer-list for="ops-map"></honua-layer-list>
           <honua-legend for="ops-map"></honua-legend>
         </div>
@@ -26,6 +32,14 @@
         ></honua-feature-table>
         <honua-editor for="ops-map" source="incidents" label="Incident editor"></honua-editor>
         <honua-chart for="ops-map" label="Priority summary"></honua-chart>
+        <honua-measure-control for="ops-map"></honua-measure-control>
+        <honua-sketch-control for="ops-map"></honua-sketch-control>
+        <honua-print-export for="ops-map" title="Response map"></honua-print-export>
+        <honua-map-status for="ops-map" attribution="Honua demo data"></honua-map-status>
+        <honua-action-panel
+          for="ops-map"
+          actions='[{"id":"refresh","label":"Refresh sources"},{"id":"handoff","label":"Open handoff"}]'
+        ></honua-action-panel>
       </section>
       <output id="event-log" aria-live="polite"></output>
     </main>

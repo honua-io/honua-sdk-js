@@ -171,5 +171,13 @@ describe("Honua web component controller", () => {
 
     expect(defined.has("honua-map")).toBe(true);
     expect(defined.has("honua-feature-table")).toBe(true);
+    expect(defined.has("honua-basemap-control")).toBe(true);
+    expect(defined.has("honua-bookmarks")).toBe(true);
+    expect(defined.has("honua-locate-control")).toBe(true);
+    expect(defined.has("honua-measure-control")).toBe(true);
+    expect(defined.has("honua-sketch-control")).toBe(true);
+    expect(defined.has("honua-print-export")).toBe(true);
+    expect(defined.has("honua-map-status")).toBe(true);
+    expect(defined.has("honua-action-panel")).toBe(true);
   });
 });
