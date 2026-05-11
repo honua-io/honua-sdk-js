@@ -42,6 +42,7 @@ function createSdkPackage() {
   fs.mkdirSync(packageRoot, { recursive: true });
 
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "control-plane"), path.join(packageRoot, "control-plane"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
@@ -73,6 +74,10 @@ function createSdkPackage() {
       "./contract": {
         types: "./contract/index.d.ts",
         default: "./contract/index.js",
+      },
+      "./control-plane": {
+        types: "./control-plane/index.d.ts",
+        default: "./control-plane/index.js",
       },
       "./agent-tools": {
         types: "./agent-tools/index.d.ts",
