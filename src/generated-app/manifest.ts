@@ -9,7 +9,7 @@
  * @module
  */
 
-import type { AggregationMetric, FeatureId } from "../contract/index.js";
+import type { AggregationMetric, FeatureId, WidgetTimeSeriesInterval } from "../contract/index.js";
 import type { ExplorationState, FilterClause, LinkedViewPresetName } from "../exploration/index.js";
 import type { HonuaMapPackage } from "../runtime/index.js";
 
@@ -24,6 +24,7 @@ export type HonuaGeneratedAppManifestArtifactVersion = typeof HONUA_GENERATED_AP
 export type HonuaGeneratedAppProfile = typeof HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1;
 
 export type HonuaGeneratedAppWidgetKind = "map" | "table" | "list" | "count" | "chart" | "filter";
+export type HonuaGeneratedAppChartKind = "categories" | "histogram" | "time-series";
 
 export interface HonuaGeneratedAppFieldBinding {
   readonly sourceId?: string;
@@ -82,7 +83,16 @@ export interface HonuaGeneratedAppCountWidget extends HonuaGeneratedAppWidgetBas
 
 export interface HonuaGeneratedAppChartWidget extends HonuaGeneratedAppWidgetBase {
   readonly kind: "chart";
-  readonly groupBy: string;
+  readonly chartKind?: HonuaGeneratedAppChartKind;
+  readonly groupBy?: string;
+  readonly field?: string;
+  readonly bins?: number;
+  readonly min?: number;
+  readonly max?: number;
+  readonly interval?: WidgetTimeSeriesInterval;
+  readonly start?: string | number;
+  readonly end?: string | number;
+  readonly fillMissing?: boolean;
   readonly metric?: AggregationMetric;
 }
 

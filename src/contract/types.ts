@@ -314,6 +314,30 @@ export interface SourceSchema {
   timeField?: string;
 }
 
+export interface SourceFreshnessContract {
+  readonly mode: "snapshot" | "watermark" | "cursor" | "delta" | "realtime";
+  readonly ttlMs?: number;
+  readonly watermarkField?: string;
+  readonly cursorField?: string;
+  readonly updatedAtField?: string;
+}
+
+export interface SourceHistogramCapabilityMetadata {
+  readonly fields?: readonly string[];
+  readonly maxBins?: number;
+}
+
+export interface SourceTimeSeriesCapabilityMetadata {
+  readonly fields?: readonly string[];
+  readonly intervals?: readonly AggregationTimeIntervalUnit[];
+}
+
+export interface SourceAnalyticsCapabilities {
+  readonly histogram?: boolean | SourceHistogramCapabilityMetadata;
+  readonly timeSeries?: boolean | SourceTimeSeriesCapabilityMetadata;
+  readonly freshness?: SourceFreshnessContract;
+}
+
 /**
  * Canonical descriptor for one protocol-backed data source. Carries
  * everything required to construct a `Source`, negotiate capabilities, and
@@ -325,6 +349,7 @@ export interface SourceDescriptor {
   locator: SourceLocator;
   capabilities: Capabilities;
   schema?: SourceSchema;
+  analytics?: SourceAnalyticsCapabilities;
   attribution?: string;
 }
 
@@ -344,11 +369,60 @@ export interface SortSpec {
 
 export type AggregationFn = "count" | "sum" | "avg" | "min" | "max" | "stddev" | "var";
 
+export type AggregationTimeIntervalUnit = "minute" | "hour" | "day" | "week" | "month" | "quarter" | "year";
+
+export interface AggregationHistogramBucketAliases {
+  /** Bucket index or id emitted by a server histogram response. */
+  bucket?: string;
+  /** Inclusive lower bucket boundary. */
+  min?: string;
+  /** Upper bucket boundary. */
+  max?: string;
+  /** Optional display label emitted by the server. */
+  label?: string;
+}
+
+export interface AggregationHistogramBucketSpec {
+  readonly field: string;
+  readonly bins: number;
+  readonly min?: number;
+  readonly max?: number;
+  readonly boundary?: "inclusive-exclusive" | "inclusive";
+  readonly aliases?: AggregationHistogramBucketAliases;
+}
+
+export interface AggregationTimeIntervalSpec {
+  readonly unit: AggregationTimeIntervalUnit;
+  readonly step?: number;
+  readonly timezone?: string;
+}
+
+export interface AggregationTimeSeriesAliases {
+  /** Inclusive interval start emitted by a server time-series response. */
+  start?: string;
+  /** Exclusive interval end emitted by a server time-series response. */
+  end?: string;
+  /** Optional display label emitted by the server. */
+  label?: string;
+}
+
+export interface AggregationTimeSeriesSpec {
+  readonly field: string;
+  readonly interval: AggregationTimeIntervalSpec;
+  readonly start?: string | number;
+  readonly end?: string | number;
+  readonly aliases?: AggregationTimeSeriesAliases;
+}
+
 export interface AggregationSpec {
   /** Optional grouping fields. Empty / omitted = single-row aggregate. */
   groupBy?: readonly string[];
   /** Aggregation expressions. */
   metrics: readonly AggregationMetric[];
+  /** Optional numeric bucketization intent for server-side histograms. */
+  histogram?: AggregationHistogramBucketSpec;
+  /** Optional temporal interval intent for server-side time-series widgets. */
+  timeSeries?: AggregationTimeSeriesSpec;
 }
 
 export interface AggregationMetric {
