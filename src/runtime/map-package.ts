@@ -169,6 +169,8 @@ export interface HonuaMapPackage {
   status?: HonuaMapPackageStatus;
   createdAt?: string;
   updatedAt?: string;
+  /** Optional server retention / hosting expiry timestamp. */
+  expiresAt?: string;
 
   templateId?: string;
   themeId?: string;

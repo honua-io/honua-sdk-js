@@ -24,6 +24,39 @@
 export { loadMapPackage } from "./load-package.js";
 export type { LoadMapPackageOptions, SourceErrorPolicy } from "./load-package.js";
 
+export {
+  DEFAULT_MAP_PACKAGE_PATH_PREFIX,
+  defaultMapPackagePath,
+  fetchMapPackage,
+  loadMapPackageFromId,
+  mapPackageFingerprint,
+  resolveMapPackagePath,
+} from "./map-package-fetch.js";
+export type {
+  FetchMapPackageOptions,
+  FetchMapPackageResult,
+  LoadMapPackageFromIdOptions,
+  LoadMapPackageFromIdResult,
+  MapPackageFetchCache,
+  MapPackageFetchCacheEntry,
+  MapPackageFetchCacheState,
+  MapPackageFetchCacheStatus,
+  MapPackageLocator,
+  MapPackagePathResolver,
+} from "./map-package-fetch.js";
+
+export { watchMapPackage } from "./map-package-watch.js";
+export type { MapPackageWatchEvent, MapPackageWatchHandle, WatchMapPackageOptions } from "./map-package-watch.js";
+
+export { hasMapPackageDiagnosticErrors, validateMapPackage } from "./map-package-validation.js";
+export type {
+  HonuaMapPackageDiagnostic,
+  HonuaMapPackageDiagnosticCode,
+  HonuaMapPackageDiagnosticSeverity,
+  ValidateMapPackageOptions,
+  ValidateMapPackageResult,
+} from "./map-package-validation.js";
+
 export { HonuaMapRuntime } from "./runtime.js";
 export type {
   HonuaMapRuntimeInternals,
