@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/admin/tokens",
+    "body": {
+      "name": "CI deploy token",
+      "workspaceId": "workspace-ops",
+      "scopes": ["maps:read", "packages:publish"],
+      "expiresAt": "2026-06-11T00:00:00Z"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "id": "tok_123",
+      "name": "CI deploy token",
+      "workspaceId": "workspace-ops",
+      "scopes": ["maps:read", "packages:publish"],
+      "status": "active",
+      "prefix": "hn_live_1234",
+      "value": "hn_live_1234_SHOULD_NOT_SURVIVE",
+      "oneTimeReveal": "hn_live_1234_REDACTED_FIXTURE_ONLY",
+      "createdAt": "2026-05-11T10:00:00Z",
+      "expiresAt": "2026-06-11T00:00:00Z"
+    }
+  }
+}

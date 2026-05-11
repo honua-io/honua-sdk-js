@@ -55,6 +55,10 @@
       "types": "./dist/src/contract/index.d.ts",
       "default": "./dist/src/contract/index.js"
     },
+    "./control-plane": {
+      "types": "./dist/src/control-plane/index.d.ts",
+      "default": "./dist/src/control-plane/index.js"
+    },
     "./exploration": {
       "types": "./dist/src/exploration/index.d.ts",
       "default": "./dist/src/exploration/index.js"

@@ -65,6 +65,10 @@ import {
 } from "@honua/sdk";
 import { HonuaGeocodingClient } from "@honua/sdk/geocoding";
 import {
+  HONUA_CONTROL_PLANE_BASE_PATH,
+  createHonuaControlPlane,
+} from "@honua/sdk/control-plane";
+import {
   CAPABILITIES,
   PROTOCOLS,
   createDataset,
@@ -203,6 +207,10 @@ if (typeof HonuaGeoprocessingService !== "function")
   throw new Error("HonuaGeoprocessingService export missing from @honua/sdk");
 if (typeof HonuaGeocodingClient !== "function")
   throw new Error("HonuaGeocodingClient export missing from @honua/sdk/geocoding");
+if (HONUA_CONTROL_PLANE_BASE_PATH !== "/api/v1/admin")
+  throw new Error("HONUA_CONTROL_PLANE_BASE_PATH export missing from @honua/sdk/control-plane");
+if (typeof createHonuaControlPlane !== "function")
+  throw new Error("createHonuaControlPlane export missing from @honua/sdk/control-plane");
 if (!Array.isArray(HONUA_AGENT_TOOL_NAMES) || !HONUA_AGENT_TOOL_NAMES.includes("explainCapabilityGap"))
   throw new Error("agent tool exports missing from @honua/sdk/agent-tools");
 if (explainHonuaCapabilityGap({ protocol: "wmts", capability: "query" }).supported)

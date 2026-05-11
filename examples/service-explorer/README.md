@@ -12,6 +12,29 @@ When no API key or bearer token is configured and `VITE_HONUA_SERVICE_EXPLORER_M
 
 The source picker demonstrates FeatureServer, MapServer, WFS, WMTS, OGC Maps, and OData lanes against the same Cloud Honua-oriented app shell. Queryable sources participate in the shared linked context. Render-only standards sources keep metadata, cache, capability, map, and diagnostics panels active while table/query controls are disabled.
 
+## Control-Plane Handoff
+
+Hosted Honua deployments can use the experimental control-plane subpath to discover a hosted map and pass its package locator to the runtime loader without mixing admin APIs into data queries:
+
+```ts
+import { HonuaClient } from "@honua/sdk-js";
+import { createHonuaControlPlane } from "@honua/sdk-js/control-plane";
+import { loadMapPackageFromId } from "@honua/sdk-js/runtime";
+
+const client = new HonuaClient({ baseUrl: "https://cloud.honua.io", apiKey: process.env.HONUA_API_KEY });
+const controlPlane = createHonuaControlPlane({ client });
+const maps = await controlPlane.hostedMaps.list({ workspaceId: "workspace-ops", limit: 10 });
+
+if (maps.supported && maps.value.items[0]) {
+  const locator = await controlPlane.hostedMaps.getPackageLocator(maps.value.items[0].id);
+  if (locator.supported) {
+    await loadMapPackageFromId(locator.value, maplibreMap, { client });
+  }
+}
+```
+
+When `/api/v1/admin` is not exposed, control-plane calls return `{ supported: false, capability, reason }` for 404/501 capability misses so the sample can stay on fixture/service discovery lanes.
+
 ## Run
 
 ```sh
@@ -39,6 +62,7 @@ npm run test:playwright:service-explorer
 - Filters update the map layer filter, table rows, chart buckets, and query diagnostics.
 - Shared selection drives map feature-state, table highlighting, and the detail panel.
 - Unsupported/degraded states are represented as diagnostics and capability badges.
+- Experimental control-plane handoff can locate a hosted map package, then runtime loading remains on `@honua/sdk-js/runtime`.
 
 ## Caching Notes
 

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/admin/maps"
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "type": "https://honua.io/problems/capability-not-exposed",
+      "title": "Control-plane capability is not exposed",
+      "status": 404,
+      "detail": "This deployment does not expose hosted map administration."
+    }
+  }
+}
