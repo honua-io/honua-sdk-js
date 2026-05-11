@@ -3,6 +3,8 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { WIDGET_SOURCE_SCHEMA_VERSION } from "../src/contract/index.js";
+import type { WidgetSource } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
 import type {
   HonuaGeneratedAppFeatureInput,
@@ -121,6 +123,23 @@ function tableWidget(
   return found as Extract<HonuaGeneratedAppWidgetModel, { kind: "table" | "list" }>;
 }
 
+function widgetResultBase() {
+  return {
+    schemaVersion: WIDGET_SOURCE_SCHEMA_VERSION,
+    sourceId: "incidents",
+    protocol: "geoservices-feature-service" as const,
+    execution: "server" as const,
+    serverPushdown: true,
+    cache: {
+      metadataCacheable: true,
+      resultCacheable: true,
+      cacheKey: "generated-app-widget-source-test",
+      keyParts: ["generated-app-widget-source-test"],
+      status: "computed" as const,
+    },
+  };
+}
+
 async function loadFixtureRuntime() {
   const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
   const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
@@ -204,6 +223,80 @@ describe("@honua/sdk-js/generated-app", () => {
       ["Harbor", 2],
       ["Windward", 1],
     ]);
+  });
+
+  it("can consume widgetSource models for count, chart, and filter widgets", async () => {
+    const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
+    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>("operations-dashboard-features.v1.json");
+    const requestedFields: string[] = [];
+    const widgetSource: WidgetSource = {
+      source: undefined as never,
+      count: async (request) => {
+        requestedFields.push("count");
+        expect(request?.projection?.filters).toEqual({});
+        return {
+          ...widgetResultBase(),
+          kind: "count",
+          value: 42,
+          label: "Incidents",
+        };
+      },
+      categories: async (request) => {
+        requestedFields.push(request.field);
+        return {
+          ...widgetResultBase(),
+          kind: "categories",
+          field: request.field,
+          buckets: [
+            { value: "Harbor", label: "Harbor", count: 30, percent: 30 / 42 },
+            { value: "Downtown", label: "Downtown", count: 12, percent: 12 / 42 },
+          ],
+        };
+      },
+      formula: async () => {
+        throw new Error("not used");
+      },
+      histogram: async () => {
+        throw new Error("not used");
+      },
+      range: async () => {
+        throw new Error("not used");
+      },
+      topValues: async () => {
+        throw new Error("not used");
+      },
+    };
+
+    const result = await previewGeneratedApp(
+      { appPackage, mapPackage },
+      {
+        mapFactory: () => ({ map: makeMockMap() }),
+        mapLoadOptions: { client: makeClient(), skipCompatibilityCheck: true, applyInitialView: false },
+        initialFeatures: features,
+        widgetSource,
+      },
+    );
+
+    expect(result.status).toBe("ready");
+    if (result.status === "ready") {
+      expect(widget(result.model, "incident-count", "count").value).toBe(42);
+      expect(
+        widget(result.model, "district-chart", "chart").buckets.map((bucket) => [bucket.value, bucket.count]),
+      ).toEqual([
+        ["Harbor", 30],
+        ["Downtown", 12],
+      ]);
+      expect(
+        widget(result.model, "district-filter", "filter").options.map((option) => [option.value, option.count]),
+      ).toEqual([
+        ["Downtown", 12],
+        ["Harbor", 30],
+        ["Windward", 0],
+      ]);
+      expect(requestedFields).toEqual(["count", "district", "district"]);
+      result.runtime.dispose();
+    }
   });
 
   it("requests every bound field needed by the default map-backed loader", async () => {

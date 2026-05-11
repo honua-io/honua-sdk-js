@@ -9,9 +9,11 @@ import {
   CAPABILITIES,
   PROTOCOLS,
   PROTOCOL_DEFAULT_CAPABILITIES,
+  WIDGET_SOURCE_SCHEMA_VERSION,
   capabilities,
   createDataset,
   createEditSession,
+  createWidgetSource,
   geoServicesFeatureSource,
   geoServicesGPServiceSource,
   geoServicesGeometryServiceSource,
@@ -146,6 +148,7 @@ import {
   createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
   createHonuaController as honuaCreateHonuaController,
   createSceneWorkspace as honuaCreateSceneWorkspace,
+  createWidgetSource as honuaCreateWidgetSource,
   preparePrimaryDetailModel as honuaPreparePrimaryDetailModel,
   selectLinkedViewQueryProjection as honuaSelectLinkedViewQueryProjection,
   selectHonuaAppWorkspaceMetadataCacheModel as honuaSelectMetadataCacheModel,
@@ -161,6 +164,7 @@ import {
   preparePrimaryDetailModel,
   createEditSession as rootCreateEditSession,
   createSceneWorkspace as rootCreateSceneWorkspace,
+  createWidgetSource as rootCreateWidgetSource,
   selectLinkedViewQueryProjection as rootSelectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
   selectHonuaAppWorkspaceMetadataCacheModel,
@@ -321,11 +325,15 @@ describe("entrypoint modules", () => {
     expect(PROTOCOLS).toHaveLength(18);
     expect(CAPABILITIES.length).toBeGreaterThan(0);
     expect(Object.keys(PROTOCOL_DEFAULT_CAPABILITIES)).toEqual([...PROTOCOLS]);
+    expect(WIDGET_SOURCE_SCHEMA_VERSION).toBe("honua.widget-source.v1");
     expect(capabilities).toBeTypeOf("function");
     expect(createDataset).toBeTypeOf("function");
     expect(createEditSession).toBeTypeOf("function");
     expect(rootCreateEditSession).toBe(createEditSession);
     expect(honuaCreateEditSession).toBe(createEditSession);
+    expect(createWidgetSource).toBeTypeOf("function");
+    expect(rootCreateWidgetSource).toBe(createWidgetSource);
+    expect(honuaCreateWidgetSource).toBe(createWidgetSource);
     expect(normalizeEditWorkflowFailures).toBeTypeOf("function");
     expect(geoServicesFeatureSource).toBeTypeOf("function");
     expect(geoServicesMapServiceSource).toBeTypeOf("function");
