@@ -108,6 +108,38 @@ describe("saved-map collaboration client", () => {
     expect(replay.operations.map((operation) => operation.id)).toEqual([second.id]);
   });
 
+  it("reconnects deterministically by replaying operations from the last cursor", async () => {
+    const client = createHonuaSavedMapCollaboration({
+      transport: createFixtureSavedMapCollaborationTransport({
+        now: () => new Date("2026-05-11T10:00:00.000Z"),
+      }),
+    });
+    const alice = await client.joinSavedMap({ mapId: "map-ops", participantId: "alice" });
+    const bob = await client.joinSavedMap({ mapId: "map-ops", participantId: "bob" });
+    const listener = vi.fn();
+    alice.subscribe(listener);
+
+    alice.disconnect();
+    expect(alice.snapshot.status).toBe("stale");
+
+    const operation = await bob.submitOperation({
+      expectedRevision: 0,
+      operation: {
+        kind: "style",
+        payload: { layerId: "incidents", paint: { "circle-color": "#e11d48" } },
+      },
+    });
+
+    expect(alice.snapshot.operations).toHaveLength(0);
+
+    const replay = await alice.reconnect();
+
+    expect(replay?.operations.map((candidate) => candidate.id)).toEqual([operation.id]);
+    expect(alice.snapshot.status).toBe("live");
+    expect(alice.snapshot.operations.map((candidate) => candidate.id)).toEqual([operation.id]);
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ status: "reconnecting" }), undefined);
+  });
+
   it("surfaces deterministic resync and stale cursor errors", async () => {
     const transport = createFixtureSavedMapCollaborationTransport({
       now: () => new Date("2026-05-11T10:00:00.000Z"),

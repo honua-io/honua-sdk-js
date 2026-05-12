@@ -260,6 +260,10 @@ export interface SavedMapOperationReplayResult<TPayload = unknown> {
   readonly resyncRequired?: boolean;
 }
 
+export interface SavedMapCollaborationReconnectOptions extends SavedMapOperationReplayRequest {
+  readonly replayOperations?: boolean;
+}
+
 export interface SavedMapCollaborationObserver<TPayload = unknown> {
   next(envelope: SavedMapCollaborationEnvelope<TPayload>): void;
   error(error: unknown): void;

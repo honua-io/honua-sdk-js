@@ -2,6 +2,7 @@ import { HonuaCollaborationError } from "./errors.js";
 import type {
   SavedMapCollaborationEnvelope,
   SavedMapCollaborationJoinRequest,
+  SavedMapCollaborationReconnectOptions,
   SavedMapCollaborationSessionRef,
   SavedMapCollaborationSnapshot,
   SavedMapCollaborationSnapshotListener,
@@ -52,6 +53,7 @@ export class HonuaSavedMapCollaborationSession<TPayload = unknown> {
   #snapshot: SavedMapCollaborationSnapshot<TPayload>;
   #handle: SavedMapCollaborationSubscriptionHandle | undefined;
   #closed = false;
+  #subscriptionGeneration = 0;
 
   public constructor(
     transport: SavedMapCollaborationTransport<TPayload>,
@@ -90,42 +92,68 @@ export class HonuaSavedMapCollaborationSession<TPayload = unknown> {
     };
   }
 
-  public connect(): void {
+  public connect(status: "connecting" | "reconnecting" = "connecting"): void {
     if (this.#closed || this.#handle) return;
-    this.#snapshot = { ...this.#snapshot, status: "connecting" };
+    const generation = ++this.#subscriptionGeneration;
+    this.#snapshot = { ...this.#snapshot, status, error: undefined };
+    this.emit();
     this.#handle = this.#transport.subscribe(this.#session, {
-      next: (envelope) => this.apply(envelope),
+      next: (envelope) => {
+        if (generation === this.#subscriptionGeneration) this.apply(envelope);
+      },
       error: (error) => {
-        const collaborationError =
-          error instanceof HonuaCollaborationError
-            ? error
-            : new HonuaCollaborationError("transport-failure", "Collaboration transport failed.", { cause: error });
-        this.#snapshot = {
-          ...this.#snapshot,
-          status: "error",
-          error: {
-            type: "error",
-            code: collaborationError.code,
-            message: collaborationError.message,
-            retryAfterMs: collaborationError.retryAfterMs,
-            resyncRequired: collaborationError.resyncRequired,
-            details: collaborationError.details,
-          },
-        };
-        this.emit();
+        if (generation === this.#subscriptionGeneration) this.applyError(error);
       },
       complete: () => {
+        if (generation !== this.#subscriptionGeneration) return;
         this.#snapshot = { ...this.#snapshot, status: "closed" };
+        this.#handle = undefined;
         this.emit();
       },
     });
   }
 
+  public disconnect(): void {
+    if (this.#closed) return;
+    this.closeSubscription();
+    this.#snapshot = { ...this.#snapshot, status: "stale" };
+    this.emit();
+  }
+
+  public async reconnect(
+    options: SavedMapCollaborationReconnectOptions = {},
+  ): Promise<SavedMapOperationReplayResult<TPayload> | undefined> {
+    if (this.#closed) {
+      throw new HonuaCollaborationError("transport-failure", "Cannot reconnect a closed collaboration session.");
+    }
+
+    this.closeSubscription();
+    this.#snapshot = { ...this.#snapshot, status: "reconnecting", error: undefined };
+    this.emit();
+
+    let replay: SavedMapOperationReplayResult<TPayload> | undefined;
+    if (options.replayOperations !== false) {
+      try {
+        replay = await this.#transport.replayOperations(
+          this.#session,
+          replayRequestForSnapshot(this.#snapshot, options),
+        );
+        this.#snapshot = mergeReplayedOperations(this.#snapshot, replay);
+        this.emit();
+      } catch (error) {
+        this.applyError(error);
+        throw error;
+      }
+    }
+
+    this.connect("reconnecting");
+    return replay;
+  }
+
   public async leave(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
-    this.#handle?.close();
-    this.#handle = undefined;
+    this.closeSubscription();
     await this.#transport.leave(this.#session);
     this.#snapshot = { ...this.#snapshot, status: "closed" };
     this.emit();
@@ -182,6 +210,34 @@ export class HonuaSavedMapCollaborationSession<TPayload = unknown> {
 
   private emit(envelope?: SavedMapCollaborationEnvelope<TPayload>): void {
     for (const listener of [...this.#listeners]) listener(this.#snapshot, envelope);
+  }
+
+  private closeSubscription(): void {
+    if (!this.#handle) return;
+    const handle = this.#handle;
+    this.#handle = undefined;
+    this.#subscriptionGeneration++;
+    handle.close();
+  }
+
+  private applyError(error: unknown): void {
+    const collaborationError =
+      error instanceof HonuaCollaborationError
+        ? error
+        : new HonuaCollaborationError("transport-failure", "Collaboration transport failed.", { cause: error });
+    this.#snapshot = {
+      ...this.#snapshot,
+      status: "error",
+      error: {
+        type: "error",
+        code: collaborationError.code,
+        message: collaborationError.message,
+        retryAfterMs: collaborationError.retryAfterMs,
+        resyncRequired: collaborationError.resyncRequired,
+        details: collaborationError.details,
+      },
+    };
+    this.emit();
   }
 }
 
@@ -295,4 +351,33 @@ function sameFeatureLockTarget(
 function omitKey<T>(record: Readonly<Record<string, T>>, key: string): Readonly<Record<string, T>> {
   const { [key]: _removed, ...rest } = record;
   return rest;
+}
+
+function replayRequestForSnapshot<TPayload>(
+  snapshot: SavedMapCollaborationSnapshot<TPayload>,
+  options: SavedMapCollaborationReconnectOptions,
+): SavedMapOperationReplayRequest {
+  const { replayOperations: _replayOperations, ...request } = options;
+  if (request.afterCursor !== undefined || request.afterSequence !== undefined) return request;
+  if (snapshot.cursor !== undefined) return { ...request, afterCursor: snapshot.cursor };
+  return { ...request, afterSequence: snapshot.sequence };
+}
+
+function mergeReplayedOperations<TPayload>(
+  snapshot: SavedMapCollaborationSnapshot<TPayload>,
+  replay: SavedMapOperationReplayResult<TPayload>,
+): SavedMapCollaborationSnapshot<TPayload> {
+  const operationIds = new Set(snapshot.operations.map((operation) => operation.id));
+  const operations = [...snapshot.operations];
+  for (const operation of replay.operations) {
+    if (operationIds.has(operation.id)) continue;
+    operationIds.add(operation.id);
+    operations.push(operation);
+  }
+  return {
+    ...snapshot,
+    operations,
+    sequence: Math.max(snapshot.sequence, replay.sequence),
+    cursor: replay.cursor ?? snapshot.cursor,
+  };
 }

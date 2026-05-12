@@ -36,6 +36,7 @@ export type {
   SavedMapCollaborationObserver,
   SavedMapCollaborationParticipant,
   SavedMapCollaborationParticipantId,
+  SavedMapCollaborationReconnectOptions,
   SavedMapCollaborationSessionId,
   SavedMapCollaborationSessionRef,
   SavedMapCollaborationSnapshot,
