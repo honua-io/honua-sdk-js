@@ -43,7 +43,26 @@ Server adapters should map each server message to `SavedMapCollaborationEnvelope
 }
 ```
 
-`sequence` is stream ordering. `cursor` is the server replay token. Consumers keep the latest `snapshot.cursor` and pass it back through `joinSavedMap({ resumeFrom: { cursor } })` or `replayOperations({ afterCursor })`.
+`sequence` is stream ordering. `cursor` is the server replay token. Consumers keep the latest `snapshot.cursor` and pass it back through `joinSavedMap({ resumeFrom: { cursor } })`, `replayOperations({ afterCursor })`, or `reconnect()`.
+
+## Reconnect
+
+Use `session.disconnect()` when the host detects an interrupted channel but should keep the logical saved-map participant. The snapshot status becomes `stale` and subscriptions remain registered. `session.reconnect()` closes the stale subscription, replays committed operations from the last snapshot cursor by default, merges unseen operations, and opens a fresh subscription:
+
+```ts
+session.disconnect();
+
+try {
+  const replay = await session.reconnect();
+  console.log(replay?.operations.length ?? 0);
+} catch (error) {
+  if (error instanceof HonuaCollaborationError && error.resyncRequired) {
+    await session.leave();
+  }
+}
+```
+
+Pass `reconnect({ replayOperations: false })` when the server channel itself will deliver an authoritative snapshot on subscribe. Pass `afterCursor` or `afterSequence` to override the default resume point.
 
 ## Event Shapes
 
@@ -82,4 +101,4 @@ Typical Portal flow:
 3. Publish cursor/selection/follow events from UI interactions.
 4. Claim a feature lock before editing; handle `lock-held` by keeping the feature read-only.
 5. Submit saved-map operations with `expectedRevision` when optimistic concurrency is available.
-6. On reconnect, replay operations from the last cursor. On `resync-required`, discard local collaboration state and join without a resume cursor.
+6. On reconnect, call `session.reconnect()` to replay operations from the last cursor. On `resync-required`, discard local collaboration state and join without a resume cursor.
