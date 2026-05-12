@@ -48,7 +48,9 @@ Supported env vars:
 - `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT`: bounded query size. Default: `25`. Must be greater than `0`.
 - `VITE_HONUA_QUICKSTART_BASEMAP_STYLE`: MapLibre style URL. Default: `https://demotiles.maplibre.org/style.json`.
 - `VITE_HONUA_QUICKSTART_API_KEY`: optional API key forwarded as `X-API-Key`.
-- `VITE_HONUA_QUICKSTART_BEARER_TOKEN`: optional bearer token forwarded as `Authorization: Bearer ...`.
+- `VITE_HONUA_QUICKSTART_BEARER_TOKEN`: browser bearer-token forwarding is disabled unless
+  `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true` is also set. Prefer short-lived API keys or backend-issued sessions for
+  browser demos.
 
 The app trims trailing slashes from `VITE_HONUA_QUICKSTART_BASE_URL` before instantiating `HonuaClient`.
 Layer-id and result-count overrides are validated during startup before the app makes any Honua API requests.

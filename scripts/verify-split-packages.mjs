@@ -114,6 +114,16 @@ import {
   createSceneWorkspace,
   sceneWorkspaceIntentFromAdapterEvent,
 } from "@honua/sdk/scene-workspace";
+import { HonuaMap } from "@honua/sdk/map";
+import { validateHonuaStyle } from "@honua/sdk/style";
+import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
+import { defineHonuaWebComponents } from "@honua/sdk/web-components";
+import { projectBuildSpecToGeneratedAppManifest } from "@honua/sdk/generated-app";
+import { OPERATOR_EXECUTION_OUTPUT_KEY } from "@honua/sdk/operator";
+import { ChatController } from "@honua/sdk/operator/controllers";
+import { OperatorWorkspace } from "@honua/sdk/operator/workspace";
+import { DEFAULT_OPERATOR_TOKENS } from "@honua/sdk/operator/theming";
+import { DEFAULT_MESSAGES } from "@honua/sdk/operator/i18n";
 import {
   AttributionCompat,
   BasemapCompat,
@@ -267,6 +277,35 @@ if (typeof createSceneWorkspace !== "function")
   throw new Error("createSceneWorkspace export missing from @honua/sdk/scene-workspace");
 if (typeof sceneWorkspaceIntentFromAdapterEvent !== "function")
   throw new Error("sceneWorkspaceIntentFromAdapterEvent export missing from @honua/sdk/scene-workspace");
+if (typeof HonuaMap !== "function")
+  throw new Error("HonuaMap export missing from @honua/sdk/map");
+if (typeof validateHonuaStyle !== "function")
+  throw new Error("validateHonuaStyle export missing from @honua/sdk/style");
+if (typeof loadMapPackage !== "function")
+  throw new Error("loadMapPackage export missing from @honua/sdk/runtime");
+if (typeof validateRuntimeStyleSpec !== "function")
+  throw new Error("validateRuntimeStyleSpec export missing from @honua/sdk/runtime");
+if (typeof defineHonuaWebComponents !== "function")
+  throw new Error("defineHonuaWebComponents export missing from @honua/sdk/web-components");
+if (typeof projectBuildSpecToGeneratedAppManifest !== "function")
+  throw new Error("projectBuildSpecToGeneratedAppManifest export missing from @honua/sdk/generated-app");
+if (OPERATOR_EXECUTION_OUTPUT_KEY !== "result")
+  throw new Error("OPERATOR_EXECUTION_OUTPUT_KEY export missing from @honua/sdk/operator");
+if (typeof ChatController !== "function")
+  throw new Error("ChatController export missing from @honua/sdk/operator/controllers");
+if (typeof OperatorWorkspace !== "function")
+  throw new Error("OperatorWorkspace export missing from @honua/sdk/operator/workspace");
+if (typeof DEFAULT_OPERATOR_TOKENS !== "object" || DEFAULT_OPERATOR_TOKENS === null)
+  throw new Error("DEFAULT_OPERATOR_TOKENS export missing from @honua/sdk/operator/theming");
+if (typeof DEFAULT_MESSAGES !== "object" || DEFAULT_MESSAGES === null)
+  throw new Error("DEFAULT_MESSAGES export missing from @honua/sdk/operator/i18n");
+const styleSpecDiagnostics = await validateRuntimeStyleSpec({
+  version: 8,
+  sources: {},
+  layers: [],
+});
+if (styleSpecDiagnostics.length !== 0)
+  throw new Error("validateRuntimeStyleSpec failed in split package smoke");
 if (typeof CompatEventBus !== "function") throw new Error("CompatEventBus export missing");
 if (typeof CoordinateConversionCompat !== "function") throw new Error("CoordinateConversionCompat export missing");
 if (typeof createEsriRequestInterceptors !== "function") throw new Error("createEsriRequestInterceptors export missing");

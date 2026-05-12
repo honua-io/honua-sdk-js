@@ -4,8 +4,10 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { type HonuaAppLifecycleEvent, createHonuaApp, normalizeHonuaAppOptions } from "../src/app/index.js";
+import { PROTOCOL_DEFAULT_CAPABILITIES, type Protocol, type SourceDescriptor } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, type MaplibreMap } from "../src/runtime/index.js";
+import type { HonuaWebComponentController, HonuaWebComponentState } from "../src/web-components/types.js";
 
 interface MockMap extends MaplibreMap {
   readonly calls: readonly { method: string; args: unknown[] }[];
@@ -122,6 +124,64 @@ function makePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage 
   };
 }
 
+function makeDescriptor(protocol: Protocol, overrides: Partial<SourceDescriptor> = {}): SourceDescriptor {
+  const id = overrides.id ?? `${protocol}-source`;
+  return {
+    id,
+    protocol,
+    locator: {
+      url: `https://mock.honua.test/${id}`,
+      ...overrides.locator,
+    },
+    capabilities: overrides.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES[protocol],
+    ...(overrides.schema ? { schema: overrides.schema } : {}),
+    ...(overrides.analytics ? { analytics: overrides.analytics } : {}),
+    ...(overrides.attribution ? { attribution: overrides.attribution } : {}),
+  };
+}
+
+function makeWebComponentController<T = Record<string, unknown>>(): {
+  controller: HonuaWebComponentController<T>;
+  destroyed(): boolean;
+} {
+  let isDestroyed = false;
+  const state: HonuaWebComponentState<T> = {
+    status: "ready",
+    layers: [],
+    legend: [],
+    viewport: {},
+    featuresBySource: {},
+    featureStates: [],
+    filters: {},
+  };
+  return {
+    controller: {
+      getState: () => state,
+      subscribe(listener) {
+        listener(state);
+        return { remove() {} };
+      },
+      setLayerVisibility() {},
+      setViewport() {},
+      setFilter() {},
+      selectFeature() {},
+      clearSelection() {},
+      setFeatureState() {},
+      removeFeatureState() {},
+      async queryFeatures(sourceId) {
+        return { sourceId, status: "ready", fields: [], rows: [], totalCount: 0 };
+      },
+      async search() {
+        return [];
+      },
+      destroy() {
+        isDestroyed = true;
+      },
+    },
+    destroyed: () => isDestroyed,
+  };
+}
+
 describe("createHonuaApp", () => {
   it("normalizes package locators without requiring a renderer", () => {
     const normalized = normalizeHonuaAppOptions({
@@ -176,6 +236,132 @@ describe("createHonuaApp", () => {
     ).rejects.toThrow();
 
     expect(events).toContainEqual(expect.objectContaining({ type: "error", stage: "auth" }));
+  });
+
+  it("synthesizes raster layers for render-only source descriptor protocols", async () => {
+    const cases: Array<{ protocol: Protocol; packageProtocol: string }> = [
+      { protocol: "geoservices-map-service", packageProtocol: "geoservices_map_service" },
+      { protocol: "ogc-maps", packageProtocol: "ogc_maps" },
+      { protocol: "wms", packageProtocol: "wms" },
+      { protocol: "wmts", packageProtocol: "wmts" },
+      { protocol: "maplibre-raster", packageProtocol: "raster_tile" },
+    ];
+
+    for (const item of cases) {
+      const webComponents = makeWebComponentController();
+      const app = await createHonuaApp({
+        client: makeClient(),
+        source: {
+          id: `preview-${item.protocol}`,
+          title: "Preview imagery",
+          descriptor: makeDescriptor(item.protocol, { id: `source-${item.protocol}` }),
+        },
+        webComponentControllerFactory: () => webComponents.controller,
+      });
+
+      expect(app.mapPackage?.sourceBindings[0]).toMatchObject({
+        sourceId: `source-${item.protocol}`,
+        protocol: item.packageProtocol,
+      });
+      expect(app.mapPackage?.mapSpec.layers[0]).toMatchObject({
+        id: `preview-${item.protocol}-layer`,
+        source: `source-${item.protocol}`,
+        type: "raster",
+        metadata: { title: "Preview imagery" },
+      });
+
+      app.dispose();
+      expect(webComponents.destroyed()).toBe(true);
+    }
+  });
+
+  it("requires explicit layer metadata for ambiguous source descriptor protocols", async () => {
+    await expect(
+      createHonuaApp({
+        client: makeClient(),
+        source: {
+          id: "preview-features",
+          descriptor: makeDescriptor("ogc-features", { id: "features" }),
+        },
+      }),
+    ).rejects.toThrow('createHonuaApp source "preview-features" (ogc-features) requires source.layer.type');
+  });
+
+  it("preserves caller vector-tile source-layer metadata in descriptor projection", async () => {
+    const webComponents = makeWebComponentController();
+
+    const app = await createHonuaApp({
+      client: makeClient(),
+      source: {
+        id: "preview-roads",
+        descriptor: makeDescriptor("maplibre-vector", { id: "roads" }),
+        layer: { type: "line", sourceLayer: "transportation", paint: { "line-color": "#2563eb" } },
+      },
+      webComponentControllerFactory: () => webComponents.controller,
+    });
+
+    expect(app.mapPackage?.sourceBindings[0]).toMatchObject({
+      sourceId: "roads",
+      protocol: "vector_tile",
+    });
+    expect(app.mapPackage?.mapSpec.layers[0]).toMatchObject({
+      source: "roads",
+      type: "line",
+      "source-layer": "transportation",
+      paint: { "line-color": "#2563eb" },
+    });
+
+    app.dispose();
+  });
+
+  it("rejects vector-tile source descriptors without source-layer metadata", async () => {
+    await expect(
+      createHonuaApp({
+        client: makeClient(),
+        source: {
+          id: "preview-tiles",
+          descriptor: makeDescriptor("ogc-tiles", { id: "tiles" }),
+          layer: { type: "fill" },
+        },
+      }),
+    ).rejects.toThrow('createHonuaApp source "preview-tiles" (ogc-tiles) requires source.layer.sourceLayer');
+  });
+
+  it("uses an injected web-component controller factory", async () => {
+    const webComponents = makeWebComponentController();
+    let receivedPackageId: string | undefined;
+
+    const app = await createHonuaApp({
+      client: makeClient(),
+      mapPackage: makePackage(),
+      webComponentControllerFactory: (context) => {
+        receivedPackageId = context.mapPackage.mapPackageId;
+        return webComponents.controller;
+      },
+    });
+
+    expect(receivedPackageId).toBe("app-test");
+    expect(app.webComponentController).toBe(webComponents.controller);
+
+    app.dispose();
+    expect(webComponents.destroyed()).toBe(true);
+  });
+
+  it("disposes owned runtime resources when bootstrap fails after rendering", async () => {
+    const map = makeMockMap();
+
+    await expect(
+      createHonuaApp({
+        client: makeClient(),
+        mapPackage: makePackage(),
+        map,
+        load: { skipCompatibilityCheck: true, applyInitialView: false },
+        controllerOptions: { initialViewport: { center: [Number.NaN, 21.3] } },
+      }),
+    ).rejects.toThrow("center must contain finite longitude and latitude values");
+
+    expect(map.calls.some((call) => call.method === "removeLayer" && call.args[0] === "incident-points")).toBe(true);
+    expect(map.calls.some((call) => call.method === "removeSource" && call.args[0] === "incidents")).toBe(true);
   });
 
   it("exports the app package subpath", () => {

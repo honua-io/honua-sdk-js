@@ -159,6 +159,7 @@ export interface MapPackageRealtimeWatchOptions {
   readonly withCredentials?: boolean;
   readonly auth?: MapPackageRealtimeAuth;
   readonly advertise?: boolean;
+  readonly allowedAdvertisedOrigins?: readonly string[];
   readonly fallback?: MapPackageRealtimeFallbackMode;
   readonly reconnect?: false | MapPackageRealtimeReconnectOptions;
   readonly staleAfterMs?: number;
@@ -238,7 +239,7 @@ export function createMapPackageServerSentEventsTransport(
           observer.connected({
             channel: MAP_PACKAGE_REALTIME_CHANNEL_V1,
             transport: "sse",
-            url: encoded.toString(),
+            url: redactMapPackageRealtimeUrl(encoded),
           });
         }
       };
@@ -300,6 +301,27 @@ export function encodeMapPackageRealtimeUrl(url: URL, request: MapPackageRealtim
     url.searchParams.set("lastModified", request.resumeFrom.validator.lastModified);
   }
   return url;
+}
+
+export function redactMapPackageRealtimeUrl(input: string | URL): string {
+  const text = String(input);
+  try {
+    const url = new URL(text, "https://honua.invalid");
+    const sensitiveParams = new Set(["access_token", "token", "api_key", "apikey", "key", "authorization"]);
+    for (const key of [...url.searchParams.keys()]) {
+      if (sensitiveParams.has(key.toLowerCase())) {
+        url.searchParams.set(key, "REDACTED");
+      }
+    }
+    url.username = url.username ? "REDACTED" : "";
+    url.password = url.password ? "REDACTED" : "";
+    const redacted = url.toString();
+    return text.startsWith("http://") || text.startsWith("https://")
+      ? redacted
+      : `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return text.replace(/([?&](?:access_token|token|api_key|apikey|key|authorization)=)[^&#]*/gi, "$1REDACTED");
+  }
 }
 
 export function decodeMapPackageRealtimeMessage(payload: unknown): MapPackageRealtimeMessage {

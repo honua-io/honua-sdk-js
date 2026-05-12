@@ -48,10 +48,16 @@ jobs:
         id: gate
         run: |
           if [ -z "${HONUA_INTEGRATION_BASE_URL:-}" ]; then
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+              echo "::error::Manual integration runs require base_url input or HONUA_INTEGRATION_BASE_URL. Refusing to report a manual run as a passing no-op."
+              exit 1
+            fi
             {
               echo "## SDK Integration"
               echo ""
-              echo "Skipped: \`HONUA_INTEGRATION_BASE_URL\` is not configured."
+              echo "Mode: local/unconfigured no-op."
+              echo ""
+              echo "Skipped: \`HONUA_INTEGRATION_BASE_URL\` is not configured for this push."
               echo ""
               echo "The integration lane is connect-only and runs against an"
               echo "externally-managed seeded Honua Server. Configure the repo/org"
@@ -61,6 +67,7 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             echo "::notice::HONUA_INTEGRATION_BASE_URL is not configured; skipping integration lane."
             echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "mode=noop" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ -z "${HONUA_INTEGRATION_API_KEY:-}" ]; then
@@ -68,6 +75,19 @@ jobs:
             exit 1
           fi
           echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "mode=live" >> "$GITHUB_OUTPUT"
+
+      - name: Record live integration mode
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          {
+            echo "## SDK Integration"
+            echo ""
+            echo "Mode: configured live integration."
+            echo ""
+            echo "- Base URL: \`${HONUA_INTEGRATION_BASE_URL}\`"
+            echo "- Seed profile: \`${HONUA_INTEGRATION_SEED_PROFILE}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup Node.js
         if: steps.gate.outputs.skip != 'true'

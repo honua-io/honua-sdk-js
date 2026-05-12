@@ -21,6 +21,7 @@ export const DEFAULT_QUICKSTART_SERVICE_ID = "natural-earth";
 export const DEFAULT_QUICKSTART_LAYER_ID = 0;
 export const DEFAULT_QUICKSTART_WHERE = "1=1";
 export const DEFAULT_QUICKSTART_RESULT_RECORD_COUNT = 25;
+const BROWSER_BEARER_TOKEN_OPT_IN = "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN";
 
 function readOptional(env: Record<string, string | undefined>, key: string): string | undefined {
   const value = env[key]?.trim();
@@ -77,6 +78,16 @@ function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
+function readBrowserBearerToken(env: Record<string, string | undefined>, key: string): string | undefined {
+  const token = readOptional(env, key);
+  if (!token) return undefined;
+  if (typeof globalThis.window === "undefined" || readOptional(env, BROWSER_BEARER_TOKEN_OPT_IN) === "true") {
+    return token;
+  }
+  console.warn(`${key} is ignored in browser demos unless ${BROWSER_BEARER_TOKEN_OPT_IN}=true is set.`);
+  return undefined;
+}
+
 function createQuickstartConfig({
   baseUrl,
   apiKey,
@@ -119,7 +130,7 @@ export function resolveQuickstartConfig(env: Record<string, string | undefined>)
   return createQuickstartConfig({
     baseUrl: readOptional(env, "VITE_HONUA_QUICKSTART_BASE_URL") ?? "",
     apiKey: readOptional(env, "VITE_HONUA_QUICKSTART_API_KEY"),
-    bearerToken: readOptional(env, "VITE_HONUA_QUICKSTART_BEARER_TOKEN"),
+    bearerToken: readBrowserBearerToken(env, "VITE_HONUA_QUICKSTART_BEARER_TOKEN"),
     serviceId: readOptional(env, "VITE_HONUA_QUICKSTART_SERVICE_ID") ?? DEFAULT_QUICKSTART_SERVICE_ID,
     layerId: readIntegerWithFallback(
       env,

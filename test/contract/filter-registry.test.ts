@@ -141,6 +141,35 @@ describe("filter registry", () => {
     expect(listener).toHaveBeenCalledWith(["incidents-only"], expect.any(Object));
   });
 
+  it("treats value policy changes as live registry changes while omitting policies from serialization", () => {
+    const registry = createFilterRegistry();
+    const listener = vi.fn();
+    registry.subscribe(listener);
+
+    registry.upsert({
+      id: "search-token",
+      owner: { kind: "search", id: "global" },
+      field: "TOKEN",
+      operator: "=",
+      value: "redacted",
+      valuePolicy: { secret: false },
+    });
+    registry.upsert({
+      id: "search-token",
+      owner: { kind: "search", id: "global" },
+      field: "TOKEN",
+      operator: "=",
+      value: "redacted",
+      valuePolicy: { secret: true },
+    });
+
+    const serialized = serializeFilterRegistry(registry.snapshot);
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(serialized).not.toContain("valuePolicy");
+    expect(serialized).not.toContain("redacted");
+  });
+
   it("serializes deterministically and omits disabled, transient, secret, and large values", () => {
     const registry = createFilterRegistry({
       initialClauses: [
@@ -195,6 +224,114 @@ describe("filter registry", () => {
     expect(parsed.clauses.find((clause) => clause.id === "a")?.value).toBe("open");
     expect(parsed.clauses.find((clause) => clause.id === "b")?.value).toBeUndefined();
     expect(parsed.clauses.find((clause) => clause.id === "large")?.value).toBeUndefined();
+  });
+
+  it("validates parsed clauses before projection and skips unsafe field names in SQL WHERE output", () => {
+    const parsed = parseFilterRegistry(
+      JSON.stringify({
+        version: 1,
+        clauses: [
+          {
+            id: "valid",
+            owner: { kind: "control", id: "filters" },
+            sourceScope: ["incidents"],
+            field: "STATUS",
+            operator: "=",
+            value: "open",
+            lifecycle: "persistent",
+            effect: "filter",
+            valuePolicy: { maxSerializedBytes: 64 },
+          },
+          {
+            id: "unsafe-field",
+            owner: { kind: "control", id: "filters" },
+            field: "STATUS) OR 1=1 --",
+            operator: "=",
+            value: "open",
+          },
+          {
+            id: "bad-owner",
+            owner: { kind: "unknown", id: "filters" },
+            field: "STATUS",
+            operator: "=",
+            value: "open",
+          },
+          {
+            id: "bad-source-scope",
+            owner: { kind: "control", id: "filters" },
+            sourceScope: [42],
+            field: "STATUS",
+            operator: "=",
+            value: "open",
+          },
+          {
+            id: "bad-policy",
+            owner: { kind: "control", id: "filters" },
+            field: "STATUS",
+            operator: "=",
+            value: "open",
+            valuePolicy: { secret: "yes" },
+          },
+          {
+            id: "bad-effect",
+            owner: { kind: "control", id: "filters" },
+            field: "STATUS",
+            operator: "=",
+            value: "open",
+            effect: "mask",
+          },
+        ],
+      }),
+    );
+    const unsafeProjection = projectFilterRegistryToQuery({
+      version: 1,
+      clauses: [
+        {
+          id: "unsafe",
+          owner: { kind: "control", id: "filters" },
+          field: "STATUS) OR 1=1 --",
+          operator: "=",
+          value: "open",
+        },
+      ],
+    });
+
+    expect(parsed.clauses.map((clause) => clause.id)).toEqual(["valid"]);
+    expect(projectFilterRegistryToQuery(parsed).query.where).toBe("(STATUS = 'open')");
+    expect(unsafeProjection.query.where).toBeUndefined();
+    expect(unsafeProjection.where).toBeUndefined();
+  });
+
+  it("clones and freezes snapshot/input boundaries", () => {
+    const sourceScope = ["incidents"];
+    const value = { nested: { status: "open" } };
+    const registry = createFilterRegistry({
+      initialClauses: [
+        {
+          id: "status",
+          owner: { kind: "control", id: "filters" },
+          sourceScope,
+          field: "STATUS",
+          operator: "=",
+          value,
+        },
+      ],
+    });
+
+    sourceScope[0] = "assets";
+    value.nested.status = "closed";
+
+    expect(registry.snapshot.clauses[0]?.sourceScope).toEqual(["incidents"]);
+    expect(registry.snapshot.clauses[0]?.value).toEqual({ nested: { status: "open" } });
+    expect(() => {
+      (registry.snapshot.clauses as unknown as unknown[]).push({
+        id: "mutated",
+        owner: { kind: "control", id: "filters" },
+      });
+    }).toThrow(TypeError);
+    expect(() => {
+      (registry.snapshot.clauses[0]?.value as { nested: { status: string } }).nested.status = "closed";
+    }).toThrow(TypeError);
   });
 
   it("preserves degraded reasons when a source cannot apply filters server-side", () => {

@@ -203,45 +203,51 @@ export function defineIndexedSpatialSource(
     readonly kind?: IndexedSpatialSourceDescriptor["kind"];
   },
 ): IndexedSpatialSourceDescriptor {
-  const modelId = descriptor.index.modelId;
+  const modelId = descriptor.index?.modelId;
   const kind =
     descriptor.kind ?? (modelId === "h3" ? "h3-index" : modelId === "quadbin" ? "quadbin-index" : "indexed-spatial");
   return normalizeAnalyticsSourceDescriptor({ ...descriptor, kind });
 }
 
 export function normalizeAnalyticsSourceDescriptor<T extends AnalyticsSourceDescriptor>(descriptor: T): T {
+  if (!isRecord(descriptor)) {
+    throw new Error("AnalyticsSourceDescriptor must be an object");
+  }
   if (!descriptor.id || typeof descriptor.id !== "string") {
     throw new Error("AnalyticsSourceDescriptor.id is required");
   }
-  if (descriptor.kind === "warehouse-table" && !descriptor.relation.table) {
+  if (!isAnalyticsSourceKind(descriptor.kind)) {
+    throw new Error("AnalyticsSourceDescriptor.kind is required");
+  }
+  if (descriptor.kind === "warehouse-table" && !isRelationDescriptor(descriptor.relation)) {
     throw new Error("warehouse table sources require relation.table");
   }
-  if (descriptor.kind === "warehouse-query" && !descriptor.sql.text) {
+  if (descriptor.kind === "warehouse-query" && !isSqlDescriptor(descriptor.sql)) {
     throw new Error("warehouse query sources require sql.text");
   }
-  if (descriptor.kind === "warehouse-tileset" && !descriptor.tileset.id) {
+  if (descriptor.kind === "warehouse-tileset" && !isTilesetDescriptor(descriptor.tileset)) {
     throw new Error("warehouse tileset sources require tileset.id");
   }
   if (
     (descriptor.kind === "indexed-spatial" || descriptor.kind === "h3-index" || descriptor.kind === "quadbin-index") &&
-    (!descriptor.index.modelId || !descriptor.index.cellIdField)
+    !isIndexDescriptor(descriptor.index)
   ) {
     throw new Error("indexed spatial sources require index.modelId and index.cellIdField");
   }
+  const capabilities = isCapabilitiesMetadata(descriptor.capabilities) ? descriptor.capabilities : undefined;
+  const fallback = isFallbackPolicy(descriptor.fallback) ? descriptor.fallback : undefined;
   return {
     ...descriptor,
     schemaVersion: descriptor.schemaVersion ?? ANALYTICS_SOURCE_SCHEMA_VERSION,
     sourceId: descriptor.sourceId ?? descriptor.id,
     capabilities: {
-      pushdown: descriptor.capabilities?.pushdown ?? defaultPushdown(descriptor),
-      ...(descriptor.capabilities?.unsupported ? { unsupported: descriptor.capabilities.unsupported } : {}),
-      ...(descriptor.capabilities?.maxClientRows !== undefined
-        ? { maxClientRows: descriptor.capabilities.maxClientRows }
-        : {}),
-      ...(descriptor.capabilities?.realtime !== undefined ? { realtime: descriptor.capabilities.realtime } : {}),
-      ...(descriptor.capabilities?.freshness ? { freshness: descriptor.capabilities.freshness } : {}),
+      pushdown: capabilities?.pushdown ?? defaultPushdown(descriptor),
+      ...(capabilities?.unsupported ? { unsupported: capabilities.unsupported } : {}),
+      ...(capabilities?.maxClientRows !== undefined ? { maxClientRows: capabilities.maxClientRows } : {}),
+      ...(capabilities?.realtime !== undefined ? { realtime: capabilities.realtime } : {}),
+      ...(capabilities?.freshness ? { freshness: capabilities.freshness } : {}),
     },
-    fallback: descriptor.fallback ?? { mode: "disabled" },
+    fallback: fallback ?? { mode: "disabled" },
   } as T;
 }
 
@@ -250,16 +256,20 @@ export function analyticsSourceId(descriptor: AnalyticsSourceDescriptor): Source
 }
 
 export function isAnalyticsSourceDescriptor(value: unknown): value is AnalyticsSourceDescriptor {
-  if (!value || typeof value !== "object") return false;
-  const kind = (value as { readonly kind?: unknown }).kind;
-  return (
-    kind === "warehouse-table" ||
-    kind === "warehouse-query" ||
-    kind === "warehouse-tileset" ||
-    kind === "indexed-spatial" ||
-    kind === "h3-index" ||
-    kind === "quadbin-index"
-  );
+  if (!isRecord(value)) return false;
+  if (typeof value.id !== "string" || value.id.length === 0 || !isAnalyticsSourceKind(value.kind)) return false;
+  switch (value.kind) {
+    case "warehouse-table":
+      return isRelationDescriptor(value.relation);
+    case "warehouse-query":
+      return isSqlDescriptor(value.sql);
+    case "warehouse-tileset":
+      return isTilesetDescriptor(value.tileset);
+    case "indexed-spatial":
+    case "h3-index":
+    case "quadbin-index":
+      return isIndexDescriptor(value.index);
+  }
 }
 
 export function buildAnalyticsSourceCacheKey(
@@ -349,6 +359,71 @@ function capabilityToContractCapability(capability: AnalyticsSourcePushdownCapab
   return "queryAggregate";
 }
 
+function isAnalyticsSourceKind(value: unknown): value is AnalyticsSourceKind {
+  return (
+    value === "warehouse-table" ||
+    value === "warehouse-query" ||
+    value === "warehouse-tileset" ||
+    value === "indexed-spatial" ||
+    value === "h3-index" ||
+    value === "quadbin-index"
+  );
+}
+
+function isRelationDescriptor(value: unknown): value is AnalyticsSourceRelationDescriptor {
+  return isRecord(value) && typeof value.table === "string" && value.table.length > 0;
+}
+
+function isSqlDescriptor(value: unknown): value is AnalyticsSourceSqlDescriptor {
+  return isRecord(value) && typeof value.text === "string" && value.text.length > 0;
+}
+
+function isTilesetDescriptor(value: unknown): value is AnalyticsSourceTilesetDescriptor {
+  return isRecord(value) && typeof value.id === "string" && value.id.length > 0;
+}
+
+function isIndexDescriptor(value: unknown): value is AnalyticsIndexDescriptor {
+  return (
+    isRecord(value) &&
+    typeof value.modelId === "string" &&
+    value.modelId.length > 0 &&
+    typeof value.cellIdField === "string" &&
+    value.cellIdField.length > 0
+  );
+}
+
+function isCapabilitiesMetadata(value: unknown): value is AnalyticsSourceCapabilityMetadata {
+  if (!isRecord(value)) return false;
+  return (
+    (!("pushdown" in value) || isPushdownCapabilityArray(value.pushdown)) &&
+    (!("unsupported" in value) || isPushdownCapabilityArray(value.unsupported)) &&
+    (!("maxClientRows" in value) || typeof value.maxClientRows === "number") &&
+    (!("realtime" in value) || typeof value.realtime === "boolean")
+  );
+}
+
+function isPushdownCapabilityArray(value: unknown): value is readonly AnalyticsSourcePushdownCapability[] {
+  return Array.isArray(value) && value.every(isPushdownCapability);
+}
+
+function isPushdownCapability(value: unknown): value is AnalyticsSourcePushdownCapability {
+  return (
+    value === "sql" ||
+    value === "tiles" ||
+    value === "widgets" ||
+    value === "spatialAggregate" ||
+    value === "crossfilter" ||
+    value === "metadata"
+  );
+}
+
+function isFallbackPolicy(value: unknown): value is AnalyticsSourceFallbackPolicy {
+  return (
+    isRecord(value) &&
+    (value.mode === "disabled" || value.mode === "server-degraded" || value.mode === "client-bounded")
+  );
+}
+
 function relationForCache(descriptor: AnalyticsSourceDescriptor): AnalyticsSourceRelationDescriptor | undefined {
   return "relation" in descriptor ? descriptor.relation : undefined;
 }
@@ -382,4 +457,8 @@ function stableStringify(value: unknown): string {
     .filter((key) => obj[key] !== undefined)
     .map((key) => `${JSON.stringify(key)}:${stableStringify(obj[key])}`)
     .join(",")}}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

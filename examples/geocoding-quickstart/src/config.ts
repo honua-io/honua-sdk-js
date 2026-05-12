@@ -5,6 +5,7 @@ export const DEFAULT_GEOCODING_INITIAL_QUERY = "Honolulu Hale";
 export const DEFAULT_GEOCODING_COUNTRY_CODES = "US";
 export const DEFAULT_GEOCODING_MAX_RESULTS = 5;
 export const DEFAULT_GEOCODING_MAX_SUGGESTIONS = 5;
+const BROWSER_BEARER_TOKEN_OPT_IN = "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN";
 
 function readOptional(env: Record<string, string | undefined>, key: string): string | undefined {
   const value = env[key]?.trim();
@@ -13,6 +14,16 @@ function readOptional(env: Record<string, string | undefined>, key: string): str
 
 function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+function readBrowserBearerToken(env: Record<string, string | undefined>, key: string): string | undefined {
+  const token = readOptional(env, key);
+  if (!token) return undefined;
+  if (typeof globalThis.window === "undefined" || readOptional(env, BROWSER_BEARER_TOKEN_OPT_IN) === "true") {
+    return token;
+  }
+  console.warn(`${key} is ignored in browser demos unless ${BROWSER_BEARER_TOKEN_OPT_IN}=true is set.`);
+  return undefined;
 }
 
 function readPositiveIntegerWithFallback(
@@ -41,7 +52,7 @@ export function resolveGeocodingQuickstartConfig(
   return {
     honuaBaseUrl,
     apiKey: readOptional(env, "VITE_HONUA_GEOCODING_API_KEY"),
-    bearerToken: readOptional(env, "VITE_HONUA_GEOCODING_BEARER_TOKEN"),
+    bearerToken: readBrowserBearerToken(env, "VITE_HONUA_GEOCODING_BEARER_TOKEN"),
     locatorName: readOptional(env, "VITE_HONUA_GEOCODING_LOCATOR_NAME") ?? DEFAULT_GEOCODING_LOCATOR_NAME,
     initialQuery: readOptional(env, "VITE_HONUA_GEOCODING_INITIAL_QUERY") ?? DEFAULT_GEOCODING_INITIAL_QUERY,
     countryCodes: readOptional(env, "VITE_HONUA_GEOCODING_COUNTRY_CODES") ?? DEFAULT_GEOCODING_COUNTRY_CODES,

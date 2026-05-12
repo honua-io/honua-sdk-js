@@ -35,7 +35,9 @@ Symptoms:
 Checks:
 
 - set `VITE_HONUA_QUICKSTART_API_KEY` when the server expects `X-API-Key`
-- set `VITE_HONUA_QUICKSTART_BEARER_TOKEN` when the server expects bearer auth
+- use `VITE_HONUA_QUICKSTART_BEARER_TOKEN` only with
+  `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true`; prefer `VITE_HONUA_QUICKSTART_API_KEY` or a backend-issued browser
+  session for live browser demos
 - for staging CI, set `HONUA_STAGING_API_KEY` or `HONUA_STAGING_BEARER_TOKEN` if the environment is protected
 
 The quickstart app forwards auth directly into `HonuaClient`; it does not add custom example-only header behavior.

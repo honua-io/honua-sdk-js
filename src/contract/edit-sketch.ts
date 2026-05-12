@@ -328,8 +328,10 @@ function stageAttachment<T>(session: EditWorkflowSession<T>, mutation: EditAttac
 function cloneFeature<T>(feature: CanonicalFeature<T>): CanonicalFeature<T> {
   return {
     ...(feature.id !== undefined ? { id: feature.id } : {}),
-    attributes: { ...(feature.attributes as Record<string, unknown>) } as T,
-    ...(feature.geometry !== undefined ? { geometry: feature.geometry === null ? null : { ...feature.geometry } } : {}),
+    attributes: cloneJsonLike(feature.attributes) as T,
+    ...(feature.geometry !== undefined
+      ? { geometry: feature.geometry === null ? null : (cloneJsonLike(feature.geometry) as Record<string, unknown>) }
+      : {}),
   };
 }
 
@@ -339,5 +341,37 @@ function cloneAttachmentMutation(mutation: EditAttachmentMutation): EditAttachme
 }
 
 function sameRestorable<T>(left: RestorableSnapshot<T>, right: RestorableSnapshot<T>): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return deepEqual(left, right);
+}
+
+function cloneJsonLike(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (value instanceof Date) return new Date(value.getTime());
+  if (Array.isArray(value)) return value.map(cloneJsonLike);
+  if (!isPlainRecord(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) out[key] = cloneJsonLike(entry);
+  return out;
+}
+
+function deepEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (left instanceof Date || right instanceof Date) {
+    return left instanceof Date && right instanceof Date && left.getTime() === right.getTime();
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((value, index) => deepEqual(value, right[index]));
+  }
+  if (!isPlainRecord(left) || !isPlainRecord(right)) return false;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) return false;
+  return leftKeys.every((key) => Object.hasOwn(right, key) && deepEqual(left[key], right[key]));
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }

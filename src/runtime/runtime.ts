@@ -227,9 +227,9 @@ export class HonuaMapRuntime {
 
   /**
    * The `HonuaMap` owning the current package's sources and layers. The
-   * reference is replaced on any structural `updatePackage` call so
-   * consumers always observe the live source set rather than the one
-   * captured at first load.
+   * reference is replaced after every successful `updatePackage` call so
+   * consumers always observe the live source and layer specs rather than
+   * the ones captured at first load.
    */
   public get honuaMap(): HonuaMap {
     return this.#honuaMap;
@@ -237,8 +237,8 @@ export class HonuaMapRuntime {
 
   /**
    * The `Dataset` bound to the current package's source bindings. The
-   * reference is replaced on any structural `updatePackage` call so a
-   * source-binding locator or filter change is visible through
+   * reference is replaced after every successful `updatePackage` call so
+   * a source-binding locator or filter change is visible through
    * `runtime.dataset.source(id)`.
    */
   public get dataset(): Dataset {
@@ -960,7 +960,7 @@ export class HonuaMapRuntime {
 
       const reload = await this.#reload(next);
       const composedStructuralReason = diff.incremental
-        ? detectUnpatchableLayerChange(this.#composedStyle, reload.composed)
+        ? detectUnpatchableLayerChange(this.map, this.#composedStyle, reload.composed)
         : undefined;
       if (composedStructuralReason) {
         diff = {
@@ -991,6 +991,8 @@ export class HonuaMapRuntime {
       }
 
       this.#applyIncremental(reload.composed, diff);
+      this.#honuaMap = reload.honuaMap;
+      this.#dataset = reload.dataset;
       this.#packageRef.current = next;
       this.#composedStyle = reload.composed;
       this.#reapPopupBindings(reload.composed, next);
@@ -1240,6 +1242,9 @@ export class HonuaMapRuntime {
   ): void {
     const prevPaint = prev.paint ?? {};
     const nextPaint = next.paint ?? {};
+    if (!this.map.setPaintProperty && !sameJson(prevPaint, nextPaint)) {
+      throw new Error(`Renderer cannot patch paint properties for layer "${layerId}".`);
+    }
     if (this.map.setPaintProperty) {
       const keys = unionKeys(prevPaint, nextPaint);
       for (const key of keys) {
@@ -1252,6 +1257,9 @@ export class HonuaMapRuntime {
 
     const prevLayout = prev.layout ?? {};
     const nextLayout = next.layout ?? {};
+    if (!this.map.setLayoutProperty && !sameJson(prevLayout, nextLayout)) {
+      throw new Error(`Renderer cannot patch layout properties for layer "${layerId}".`);
+    }
     if (this.map.setLayoutProperty) {
       const keys = unionKeys(prevLayout, nextLayout);
       for (const key of keys) {
@@ -1262,7 +1270,10 @@ export class HonuaMapRuntime {
       }
     }
 
-    if (this.map.setFilter && JSON.stringify(prev.filter) !== JSON.stringify(next.filter)) {
+    if (!this.map.setFilter && !sameJson(prev.filter, next.filter)) {
+      throw new Error(`Renderer cannot patch filter for layer "${layerId}".`);
+    }
+    if (this.map.setFilter && !sameJson(prev.filter, next.filter)) {
       this.map.setFilter(layerId, next.filter);
     }
   }
@@ -1414,6 +1425,7 @@ function popupBindingForSource(
 }
 
 function detectUnpatchableLayerChange(
+  map: MaplibreMap,
   previous: HonuaStyleSpecification,
   next: HonuaStyleSpecification,
 ): string | undefined {
@@ -1443,6 +1455,11 @@ function detectUnpatchableLayerChange(
       return "composed source set changed (tolerant source failure or recovery)";
     }
   }
+  for (const sourceId of previousSourceIds) {
+    if (!sameJson(previous.sources[sourceId], next.sources[sourceId])) {
+      return `composed source "${sourceId}" changed`;
+    }
+  }
 
   const previousLayers = new Map(previous.layers.map((layer) => [layer.id, layer]));
   for (const nextLayer of next.layers) {
@@ -1450,6 +1467,9 @@ function detectUnpatchableLayerChange(
     if (!previousLayer) continue;
     if (!patchableLayerShapeEqual(previousLayer, nextLayer)) {
       return `layer "${nextLayer.id}" changed outside paint/layout/filter`;
+    }
+    if (!canPatchLayerWithMap(map, previousLayer, nextLayer)) {
+      return `layer "${nextLayer.id}" requires unsupported incremental patch APIs`;
     }
   }
   return undefined;

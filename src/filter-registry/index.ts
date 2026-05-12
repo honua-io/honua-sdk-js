@@ -144,11 +144,36 @@ const SERVER_FILTER_PROTOCOLS = new Set<Protocol>([
   "wfs",
   "odata",
 ]);
+const FILTER_OWNER_KINDS = new Set<FilterRegistryOwner["kind"]>([
+  "map",
+  "chart",
+  "table",
+  "search",
+  "control",
+  "component",
+]);
+const FILTER_LIFECYCLES = new Set<FilterLifecycle>(["persistent", "session", "transient"]);
+const FILTER_EFFECTS = new Set<FilterEffect>(["filter", "crossfilter", "selection", "search", "spatial-mask"]);
+const FILTER_OPERATORS = new Set<FilterOperator>([
+  "=",
+  "!=",
+  "<",
+  "<=",
+  ">",
+  ">=",
+  "in",
+  "not-in",
+  "between",
+  "like",
+  "is-null",
+  "is-not-null",
+]);
+const FILTER_FIELD_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 
 /** Create an in-memory filter registry with owner-scoped mutation helpers. */
 export function createFilterRegistry(options: CreateFilterRegistryOptions = {}): FilterRegistry {
   let clauses = normalizeClauses(options.initialClauses ?? []);
-  let snapshot: FilterRegistrySnapshot = { version: 1, clauses };
+  let snapshot = freezeSnapshot({ version: 1, clauses });
   const listeners = new Set<FilterRegistryListener>();
 
   function publish(previous: FilterRegistrySnapshot, changedIds: ReadonlySet<string>): void {
@@ -160,7 +185,7 @@ export function createFilterRegistry(options: CreateFilterRegistryOptions = {}):
   function commit(nextClauses: readonly FilterClause[], changedIds: ReadonlySet<string>): void {
     const previous = snapshot;
     clauses = normalizeClauses(nextClauses);
-    snapshot = { version: 1, clauses };
+    snapshot = freezeSnapshot({ version: 1, clauses });
     publish(previous, changedIds);
   }
 
@@ -241,6 +266,7 @@ export function selectActiveFilterClauses(
   options: FilterRegistryProjectionOptions = {},
 ): readonly FilterClause[] {
   return snapshot.clauses
+    .filter(isFilterClause)
     .filter(
       (clause) => (options.includeDisabled || (clause.enabled ?? true)) && appliesToSource(clause, options.sourceId),
     )
@@ -329,18 +355,18 @@ export function serializeFilterRegistry(
       .filter((clause) => clause.lifecycle !== "transient")
       .map(shareableClause),
   };
-  return stableStringify(shareable);
+  return stableShareStringify(shareable);
 }
 
 /** Parse a registry serialization produced by `serializeFilterRegistry`. */
 export function parseFilterRegistry(value: string | null | undefined): FilterRegistrySnapshot {
-  if (!value) return { version: 1, clauses: [] };
+  if (!value) return freezeSnapshot({ version: 1, clauses: [] });
   try {
     const parsed = JSON.parse(value) as Partial<ShareableFilterRegistryState>;
-    if (parsed.version !== 1 || !Array.isArray(parsed.clauses)) return { version: 1, clauses: [] };
-    return { version: 1, clauses: normalizeClauses(parsed.clauses.filter(isFilterClause)) };
+    if (parsed.version !== 1 || !Array.isArray(parsed.clauses)) return freezeSnapshot({ version: 1, clauses: [] });
+    return freezeSnapshot({ version: 1, clauses: normalizeClauses(parsed.clauses.filter(isFilterClause)) });
   } catch {
-    return { version: 1, clauses: [] };
+    return freezeSnapshot({ version: 1, clauses: [] });
   }
 }
 
@@ -382,7 +408,8 @@ function compileWhere(clauses: readonly FilterClause[]): string | undefined {
 
 function compileClauseWhere(clause: FilterClause): string | undefined {
   if (!clause.field || !clause.operator) return undefined;
-  const field = clause.field;
+  const field = sqlIdentifier(clause.field);
+  if (!field) return undefined;
   switch (clause.operator) {
     case "=":
       return `${field} = ${literal(clause.value)}`;
@@ -505,17 +532,25 @@ function shareableClause(clause: FilterClause): FilterClause {
 function normalizeClauses(input: readonly FilterClause[]): readonly FilterClause[] {
   const byId = new Map<string, FilterClause>();
   for (const clause of input) byId.set(clause.id, normalizeClause(clause));
-  return [...byId.values()].sort(compareClause);
+  return deepFreeze([...byId.values()].sort(compareClause));
 }
 
 function normalizeClause(clause: FilterClause): FilterClause {
-  return {
-    ...clause,
+  if (!isFilterClause(clause)) throw new Error("Invalid filter registry clause");
+  return deepFreeze({
+    id: clause.id,
+    owner: { kind: clause.owner.kind, id: clause.owner.id },
+    ...(clause.field !== undefined ? { field: clause.field } : {}),
+    ...(clause.operator !== undefined ? { operator: clause.operator } : {}),
+    ...(clause.value !== undefined ? { value: cloneJsonLike(clause.value) } : {}),
+    ...(clause.spatialScope !== undefined ? { spatialScope: cloneJsonLike(clause.spatialScope) } : {}),
     enabled: clause.enabled ?? true,
     lifecycle: clause.lifecycle ?? "session",
     effect: clause.effect ?? (clause.spatialScope ? "spatial-mask" : "filter"),
-    sourceScope: clause.sourceScope ?? "all",
-  };
+    sourceScope: cloneSourceScope(clause.sourceScope ?? "all"),
+    ...(clause.cacheable !== undefined ? { cacheable: clause.cacheable } : {}),
+    ...(clause.valuePolicy !== undefined ? { valuePolicy: cloneJsonLike(clause.valuePolicy) } : {}),
+  });
 }
 
 function compareClause(left: FilterClause, right: FilterClause): number {
@@ -533,22 +568,30 @@ function literal(value: unknown): string {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+function sqlIdentifier(field: string): string | undefined {
+  return FILTER_FIELD_IDENTIFIER.test(field) ? field : undefined;
+}
+
 function combineWhere(left: string | undefined, right: string | undefined): string | undefined {
   if (left && right) return `(${left}) AND (${right})`;
   return left || right || undefined;
 }
 
 function stableStringify(value: unknown): string {
-  return JSON.stringify(sortJsonValue(value));
+  return JSON.stringify(sortJsonValue(value, false));
 }
 
-function sortJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortJsonValue);
+function stableShareStringify(value: unknown): string {
+  return JSON.stringify(sortJsonValue(value, true));
+}
+
+function sortJsonValue(value: unknown, stripValuePolicy: boolean): unknown {
+  if (Array.isArray(value)) return value.map((entry) => sortJsonValue(entry, stripValuePolicy));
   if (!value || typeof value !== "object") return value;
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(value).sort()) {
-    if (key === "valuePolicy") continue;
-    out[key] = sortJsonValue((value as Record<string, unknown>)[key]);
+    if (stripValuePolicy && key === "valuePolicy") continue;
+    out[key] = sortJsonValue((value as Record<string, unknown>)[key], stripValuePolicy);
   }
   return out;
 }
@@ -558,8 +601,99 @@ function valuesEqual(left: unknown, right: unknown): boolean {
 }
 
 function isFilterClause(value: unknown): value is FilterClause {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (!isRecord(value)) return false;
   const record = value as Record<string, unknown>;
-  const owner = record.owner as Record<string, unknown> | undefined;
-  return typeof record.id === "string" && !!owner && typeof owner.kind === "string" && typeof owner.id === "string";
+  return (
+    typeof record.id === "string" &&
+    record.id.length > 0 &&
+    isFilterRegistryOwner(record.owner) &&
+    validOptional(record.field, (field) => typeof field === "string" && FILTER_FIELD_IDENTIFIER.test(field)) &&
+    validOptional(
+      record.operator,
+      (operator) => typeof operator === "string" && FILTER_OPERATORS.has(operator as FilterOperator),
+    ) &&
+    validOptional(record.sourceScope, isFilterSourceScope) &&
+    validOptional(
+      record.lifecycle,
+      (lifecycle) => typeof lifecycle === "string" && FILTER_LIFECYCLES.has(lifecycle as FilterLifecycle),
+    ) &&
+    validOptional(
+      record.effect,
+      (effect) => typeof effect === "string" && FILTER_EFFECTS.has(effect as FilterEffect),
+    ) &&
+    validOptional(record.enabled, (enabled) => typeof enabled === "boolean") &&
+    validOptional(record.cacheable, (cacheable) => typeof cacheable === "boolean") &&
+    validOptional(record.spatialScope, isRecord) &&
+    validOptional(record.valuePolicy, isFilterValuePolicy)
+  );
+}
+
+function isFilterRegistryOwner(value: unknown): value is FilterRegistryOwner {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.kind === "string" &&
+    FILTER_OWNER_KINDS.has(value.kind as FilterRegistryOwner["kind"]) &&
+    typeof value.id === "string" &&
+    value.id.length > 0
+  );
+}
+
+function isFilterSourceScope(value: unknown): value is FilterSourceScope {
+  return (
+    value === "all" || (Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry.length > 0))
+  );
+}
+
+function isFilterValuePolicy(value: unknown): value is FilterValuePolicy {
+  if (!isRecord(value)) return false;
+  return (
+    validOptional(value.secret, (secret) => typeof secret === "boolean") &&
+    validOptional(
+      value.maxSerializedBytes,
+      (maxSerializedBytes) => typeof maxSerializedBytes === "number" && Number.isFinite(maxSerializedBytes),
+    )
+  );
+}
+
+function validOptional(value: unknown, validate: (value: unknown) => boolean): boolean {
+  return value === undefined || validate(value);
+}
+
+function cloneSourceScope(sourceScope: FilterSourceScope): FilterSourceScope {
+  return Array.isArray(sourceScope) ? deepFreeze([...sourceScope]) : sourceScope;
+}
+
+function freezeSnapshot(snapshot: FilterRegistrySnapshot): FilterRegistrySnapshot {
+  return deepFreeze(snapshot);
+}
+
+function cloneJsonLike<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(cloneJsonLike) as T;
+  if (value instanceof Date) return new Date(value.getTime()) as T;
+  if (isPlainRecord(value)) {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(value)) out[key] = cloneJsonLike((value as Record<string, unknown>)[key]);
+    return out as T;
+  }
+  return value;
+}
+
+function deepFreeze<T>(value: T): T {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  if (Array.isArray(value)) {
+    for (const entry of value) deepFreeze(entry);
+  } else {
+    for (const key of Object.keys(value)) deepFreeze((value as Record<string, unknown>)[key]);
+  }
+  return Object.freeze(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }

@@ -53,10 +53,12 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "filter-registry"), path.join(packageRoot, "filter-registry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "generated-app"), path.join(packageRoot, "generated-app"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
   copyDirectory(path.join(DIST_SRC_ROOT, "app-controller"), path.join(packageRoot, "app-controller"));
   copyDirectory(path.join(DIST_SRC_ROOT, "app-workspace"), path.join(packageRoot, "app-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "operator"), path.join(packageRoot, "operator"));
   copyDirectory(path.join(DIST_SRC_ROOT, "realtime"), path.join(packageRoot, "realtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "runtime"), path.join(packageRoot, "runtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "scene-workspace"), path.join(packageRoot, "scene-workspace"));
@@ -95,6 +97,34 @@ function createSdkPackage() {
       "./app": {
         types: "./app/index.d.ts",
         default: "./app/index.js",
+      },
+      "./web-components": {
+        types: "./web-components/index.d.ts",
+        default: "./web-components/index.js",
+      },
+      "./generated-app": {
+        types: "./generated-app/index.d.ts",
+        default: "./generated-app/index.js",
+      },
+      "./operator": {
+        types: "./operator/index.d.ts",
+        default: "./operator/index.js",
+      },
+      "./operator/controllers": {
+        types: "./operator/controllers/index.d.ts",
+        default: "./operator/controllers/index.js",
+      },
+      "./operator/workspace": {
+        types: "./operator/workspace/index.d.ts",
+        default: "./operator/workspace/index.js",
+      },
+      "./operator/theming": {
+        types: "./operator/theming/index.d.ts",
+        default: "./operator/theming/index.js",
+      },
+      "./operator/i18n": {
+        types: "./operator/i18n/index.d.ts",
+        default: "./operator/i18n/index.js",
       },
       "./exploration": {
         types: "./exploration/index.d.ts",
@@ -153,6 +183,7 @@ function createSdkPackage() {
       "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
       "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
       "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
+      "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
     },
   });
 

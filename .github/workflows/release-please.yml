@@ -28,7 +28,24 @@ jobs:
         if: ${{ steps.release.outputs.releases_created == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          JS_SDK_RELEASE_CREATED: ${{ steps.release.outputs.release_created || steps.release.outputs['.--release_created'] }}
+          JS_SDK_TAG_NAME: ${{ steps.release.outputs.tag_name || steps.release.outputs['.--tag_name'] }}
+          MCP_RELEASE_CREATED: ${{ steps.release.outputs['mcp--release_created'] }}
+          MCP_TAG_NAME: ${{ steps.release.outputs['mcp--tag_name'] }}
         run: |
-          release_ref="${GITHUB_REF_NAME}"
-          gh workflow run publish-js-sdk.yml --repo "${GITHUB_REPOSITORY}" --ref "${release_ref}" -f dry_run=false
-          gh workflow run publish-mcp-server.yml --repo "${GITHUB_REPOSITORY}" --ref "${release_ref}" -f dry_run=false
+          dispatch_publish() {
+            local workflow="$1"
+            local tag="$2"
+            if [[ -z "${tag}" ]]; then
+              echo "Release Please did not expose a tag for ${workflow}; refusing to dispatch a branch publish."
+              exit 1
+            fi
+            gh workflow run "${workflow}" --repo "${GITHUB_REPOSITORY}" --ref "${tag}" -f dry_run=false
+          }
+
+          if [[ "${JS_SDK_RELEASE_CREATED}" == "true" ]]; then
+            dispatch_publish publish-js-sdk.yml "${JS_SDK_TAG_NAME}"
+          fi
+          if [[ "${MCP_RELEASE_CREATED}" == "true" ]]; then
+            dispatch_publish publish-mcp-server.yml "${MCP_TAG_NAME}"
+          fi

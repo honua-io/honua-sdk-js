@@ -387,6 +387,64 @@ describe("query tile runtime helpers", () => {
     expect(controller.cacheSnapshot().entries).toBeGreaterThan(0);
   });
 
+  it("rejects unsafe viewport inputs before materializing tile lists", () => {
+    expect(() => queryTilesForViewport({ bounds: [0, 0, 10, 10], zoom: Number.POSITIVE_INFINITY })).toThrow(
+      /zoom must be finite/,
+    );
+    expect(() => queryTilesForViewport({ bounds: [-180, -85, 180, 85], zoom: 12, maxTiles: 10 })).toThrow(
+      /exceeding maxTiles=10/,
+    );
+    expect(() =>
+      queryTilesForViewport({ bounds: [-180, -90, 180, 90], zoom: 31, maxzoom: 31, maxTiles: 100_000 }),
+    ).toThrow(/exceeds safe tile zoom/);
+  });
+
+  it("limits viewport fetch concurrency", async () => {
+    let active = 0;
+    let maxActive = 0;
+    const controller = createQueryTileRequestController<string>(descriptor(), {
+      fetchTile: async (request) => {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active -= 1;
+        return `tile:${request.tileKey.z}/${request.tileKey.x}/${request.tileKey.y}`;
+      },
+    });
+
+    const result = await controller.requestViewport(
+      { bounds: [-30, -30, 30, 30], zoom: 4, maxTiles: 64 },
+      {
+        concurrency: 2,
+      },
+    );
+
+    expect(result.results.every((entry) => entry.status === "fulfilled")).toBe(true);
+    expect(maxActive).toBeLessThanOrEqual(2);
+  });
+
+  it("does not reuse tile payloads when cache identity lacks authorization scope", async () => {
+    let fetchCount = 0;
+    const queryTiles = defineQueryTileSource({
+      id: "unscoped-query-tiles",
+      source: sourceDescriptor,
+      endpoint: { baseUrl: "https://tiles.example.test/query" },
+      cache: { maxEntries: 4, key: { sourceVersion: "stream-11" } },
+    });
+    const controller = createQueryTileRequestController<{ count: number }>(queryTiles, {
+      fetchTile: async () => {
+        fetchCount += 1;
+        return { count: fetchCount };
+      },
+    });
+
+    await controller.requestTile({ z: 3, x: 2, y: 4 });
+    await controller.requestTile({ z: 3, x: 2, y: 4 });
+
+    expect(fetchCount).toBe(2);
+    expect(controller.cacheSnapshot().entries).toBe(0);
+  });
+
   it("reuses cached tiles and exposes invalidation events", async () => {
     const events: QueryTileLifecycleEvent<{ bytes: number }>[] = [];
     let fetchCount = 0;

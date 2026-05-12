@@ -55,6 +55,7 @@ export interface HonuaSearchResult<T = Record<string, unknown>> {
   id: string;
   label: string;
   sourceId?: string;
+  sourceLayer?: string;
   featureId?: FeatureId;
   feature?: HonuaFeatureRecord<T>;
   subtitle?: string;
@@ -64,6 +65,7 @@ export interface HonuaSearchResult<T = Record<string, unknown>> {
 
 export interface HonuaSelectionState<T = Record<string, unknown>> {
   sourceId?: string;
+  sourceLayer?: string;
   featureId?: FeatureId;
   feature?: HonuaFeatureRecord<T>;
 }

@@ -181,6 +181,85 @@ describe("watchMapPackage realtime", () => {
     expect(source?.closed).toBe(true);
   });
 
+  test("redacts query-token auth from public realtime URL events", async () => {
+    const initial = makePackage({
+      realtime: {
+        mapPackageWatch: {
+          transport: "sse",
+          href: "https://mock.honua.test/api/v1/map-packages/pkg-001/watch?existing=1",
+        },
+      },
+    });
+    const events: MapPackageWatchEvent[] = [];
+    const sources: MockMapPackageEventSource[] = [];
+
+    const handle = watchMapPackage("pkg-001", {
+      client: makeClient(vi.fn()),
+      initialPackage: initial,
+      immediate: false,
+      realtime: {
+        auth: { kind: "query-token", token: "secret-token" },
+        eventSourceFactory(url) {
+          const source = new MockMapPackageEventSource(url);
+          sources.push(source);
+          return source;
+        },
+      },
+      onEvent: (event) => {
+        events.push(event);
+      },
+    });
+
+    expect(sources[0]?.url).toContain("access_token=secret-token");
+    sources[0]?.open();
+
+    const connected = events.find((event) => event.type === "connected");
+    expect(connected).toMatchObject({ type: "connected", advertised: true });
+    expect(connected?.url).toContain("access_token=REDACTED");
+    expect(connected?.url).not.toContain("secret-token");
+
+    handle.dispose();
+  });
+
+  test("rejects cross-origin advertised SSE URLs when query-token auth is configured", () => {
+    const initial = makePackage({
+      realtime: {
+        mapPackageWatch: {
+          transport: "sse",
+          href: "https://evil.example.test/watch",
+        },
+      },
+    });
+    const events: MapPackageWatchEvent[] = [];
+    const factory = vi.fn(() => new MockMapPackageEventSource("unused"));
+
+    const handle = watchMapPackage("pkg-001", {
+      client: makeClient(vi.fn()),
+      initialPackage: initial,
+      immediate: false,
+      realtime: {
+        auth: { kind: "query-token", token: "secret-token" },
+        eventSourceFactory: factory,
+      },
+      onEvent: (event) => {
+        events.push(event);
+      },
+    });
+
+    expect(factory).not.toHaveBeenCalled();
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "fallback",
+          mode: "polling",
+          reason: "advertised-query-token-url-cross-origin",
+        }),
+      ]),
+    );
+
+    handle.dispose();
+  });
+
   test("falls back to polling when the realtime channel is terminal", async () => {
     const initial = makePackage();
     const next = makePackage({

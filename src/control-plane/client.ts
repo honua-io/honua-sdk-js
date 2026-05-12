@@ -106,13 +106,20 @@ export class HonuaControlPlaneClient {
     options: HonuaControlPlaneListOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<T>>> {
     try {
+      const hasValidator = Boolean(options.validator?.etag || options.validator?.lastModified);
       const response = await this.#client.pipelineFetch(
         "GET",
         this.resolvePath(withListQuery(path, options)),
         { headers: listHeaders(options) },
         options.signal,
+        { okStatuses: hasValidator ? [304, 404, 501] : [404, 501] },
       );
-      const value = normalizePage<T>(await readJson(response), response);
+      if (response.status === 404 || response.status === 501) {
+        return unsupportedFromStatus(capability, response.status, await readJson(response));
+      }
+      const value = normalizePage<T>(response.status === 304 ? undefined : await readJson(response), response, {
+        fallbackValidator: options.validator,
+      });
       return supported(value);
     } catch (error) {
       return unsupportedFromError(capability, error);
@@ -384,19 +391,27 @@ function supported<T>(value: T): HonuaControlPlaneResult<T> {
 
 function unsupportedFromError<T>(capability: HonuaControlPlaneCapability, error: unknown): HonuaControlPlaneResult<T> {
   if (error instanceof HonuaHttpError && (error.statusCode === 404 || error.statusCode === 501)) {
-    const problem = toProblemDetails(error.body);
-    return {
-      supported: false,
-      capability,
-      statusCode: error.statusCode,
-      reason:
-        problem?.detail ??
-        problem?.title ??
-        `Control-plane capability "${capability}" is not exposed by this deployment.`,
-      ...(problem ? { problem } : {}),
-    };
+    return unsupportedFromStatus(capability, error.statusCode, error.body);
   }
   throw error;
+}
+
+function unsupportedFromStatus<T>(
+  capability: HonuaControlPlaneCapability,
+  statusCode: number,
+  body: unknown,
+): HonuaControlPlaneResult<T> {
+  const problem = toProblemDetails(body);
+  return {
+    supported: false,
+    capability,
+    statusCode,
+    reason:
+      problem?.detail ??
+      problem?.title ??
+      `Control-plane capability "${capability}" is not exposed by this deployment.`,
+    ...(problem ? { problem } : {}),
+  };
 }
 
 function normalizeBasePath(path: string): string {
@@ -428,9 +443,8 @@ function listHeaders(options: HonuaControlPlaneListOptions): HeadersInit {
     Accept: "application/json",
     ...headersToRecord(options.headers),
   };
-  if (options.refresh || options.validator?.etag) headers["If-None-Match"] = options.validator?.etag ?? "";
-  if (options.refresh || options.validator?.lastModified)
-    headers["If-Modified-Since"] = options.validator?.lastModified ?? "";
+  if (options.validator?.etag) headers["If-None-Match"] = options.validator.etag;
+  if (options.validator?.lastModified) headers["If-Modified-Since"] = options.validator.lastModified;
   return headers;
 }
 
@@ -452,11 +466,15 @@ async function readJson(response: Response): Promise<unknown> {
   return JSON.parse(text);
 }
 
-function normalizePage<T>(body: unknown, response: Response): HonuaControlPlanePage<T> {
+function normalizePage<T>(
+  body: unknown,
+  response: Response,
+  options: { readonly fallbackValidator?: HonuaControlPlaneListOptions["validator"] } = {},
+): HonuaControlPlanePage<T> {
   const value = isRecord(body) ? body : {};
   const items = (Array.isArray(value.items) ? value.items : Array.isArray(value.data) ? value.data : []) as T[];
   const pagination = isRecord(value.pagination) ? value.pagination : value;
-  const validator = honuaCacheValidatorFromHeaders(response.headers);
+  const validator = honuaCacheValidatorFromHeaders(response.headers) ?? options.fallbackValidator;
   const sourceUpdatedAt = response.headers.get("last-modified") ?? undefined;
   return {
     items,

@@ -1425,68 +1425,6 @@ export type {
   GeocodeSuggestion,
 } from "./geocoding/index.js";
 
-export { scanArcGisUsage, summarizeArcGisScan } from "./migration/scanner.js";
-export type { ArcGisImportHit, ArcGisScanReport } from "./migration/scanner.js";
-export { runEsriCompatCodemod } from "./migration/codemod.js";
-export type {
-  CodemodConstructorKind,
-  CodemodTarget,
-  CodemodFileResult,
-  CodemodKindMetrics,
-  CodemodMetrics,
-  CodemodMetricsByKind,
-  EsriCompatCodemodOptions,
-  EsriCompatCodemodResult,
-  MigrationTodo,
-} from "./migration/codemod.js";
-export { SUPPORTED_ARCGIS_MODULES } from "./migration/codemod.js";
-export { buildJsMigrationReport } from "./migration/report.js";
-export type {
-  ArcGisModuleSummary,
-  ArcGisUsageStyle,
-  JsMigrationReport,
-  ManualRewriteMetric,
-  ManualInterventionMetric,
-  MigrationGateResult,
-  MigrationReadiness,
-  MigrationReasonSummary,
-} from "./migration/report.js";
-export { evaluateMigrationGates } from "./migration/gating.js";
-export type { MigrationGateEvaluation, MigrationGateOptions } from "./migration/gating.js";
-export { runLayerReconciliation, summarizeLayerReconciliation } from "./migration/reconcile.js";
-export type { LayerReconciliationOptions, LayerReconciliationReport } from "./migration/reconcile.js";
-export {
-  parseGeoservicesServiceUrl,
-  runGeoservicesImportJob,
-  runMigrationDemo,
-} from "./migration/demo.js";
-export type {
-  GeoservicesImportJobReport,
-  GeoservicesImportStageOptions,
-  MigrationDemoOptions,
-  MigrationDemoReport,
-  ParsedGeoservicesServiceUrl,
-} from "./migration/demo.js";
-export { getJsParityMatrix, JS_PARITY_MATRIX, summarizeJsParityMatrix } from "./migration/parity-matrix.js";
-export type {
-  JsParityCategory,
-  JsParityMatrixEntry,
-  JsParityMatrixKind,
-  JsParityStatus,
-  JsParitySummary,
-} from "./migration/parity-matrix.js";
-export {
-  getJsRuntimeParityMatrix,
-  JS_RUNTIME_PARITY_MATRIX,
-  summarizeJsRuntimeParity,
-} from "./migration/runtime-matrix.js";
-export type {
-  JsRuntimeParityEntry,
-  JsRuntimeParityStatus,
-  JsRuntimeParitySurface,
-  JsRuntimeParitySummary,
-} from "./migration/runtime-matrix.js";
-
 export {
   ANALYTICS_SOURCE_SCHEMA_VERSION,
   CAPABILITIES,
@@ -1519,12 +1457,14 @@ export {
   capabilities,
   createEditSession,
   createDataset,
+  createEditSketchWorkflow,
   createWidgetSource,
   defineIndexedSpatialSource,
   defineQueryTileSource,
   defineWarehouseQuerySource,
   defineWarehouseTableSource,
   defineWarehouseTilesetSource,
+  EditSketchWorkflowModel,
   EditWorkflowSession,
   geoServicesFeatureSource,
   geoServicesGPServiceSource,
@@ -1544,12 +1484,14 @@ export {
   odataSource,
   ogcFeaturesSource,
   ogcMapsSource,
+  ogcRecordsSource,
   ogcTilesSource,
   parseQueryTileFeatureDetailResponse,
   parseQueryTileJson,
   parseQueryTileServerErrorResponse,
   queryTileKeyString,
   queryTileServerRequestParamsFromDescriptor,
+  resolveSpatialAggregationWidgetSummary,
   spatialAggregationProgress,
   spatialAggregationSummaryKindSupportedByFeatureServerH3,
   spatialAggregationSummaryKindRequiresField,
@@ -1560,6 +1502,7 @@ export {
   validateFeatureServerH3SpatialAggregationRequest,
   validateSpatialAggregationRequest,
   widgetSource,
+  wfsSource,
   wmsSource,
   wmtsSource,
 } from "./contract/index.js";
@@ -1639,6 +1582,17 @@ export type {
   EditWorkflowSubmitResult,
   EditWorkflowValidationError,
   EditWorkflowValidationResult,
+  EditAnnotationPersistenceHook,
+  EditAnnotationPersistenceSnapshot,
+  EditAnnotationPersistenceState,
+  EditSketchCapabilityState,
+  EditSketchStatus,
+  EditSketchTool,
+  EditSketchToolCapability,
+  EditSketchToolCapabilityInput,
+  EditSketchUndoSnapshot,
+  EditSketchWorkflowOptions,
+  EditSketchWorkflowSnapshot,
   FeatureId,
   IndexedSpatialSourceDescriptor,
   IJobRun,
@@ -1797,13 +1751,16 @@ export type {
 
 export {
   EMPTY_STATE,
+  EMPTY_STATE as EXPLORATION_EMPTY_STATE,
   LINKED_VIEW_PRESETS,
   SLICES,
+  SLICES as EXPLORATION_SLICES,
   createExplorationContext,
   featureSelectionKey,
   isSourceQualifiedSelectionTarget,
   propagationFor,
   reduce,
+  reduce as reduceExplorationState,
   sourceFeatureSelectionTarget,
 } from "./exploration/index.js";
 

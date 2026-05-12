@@ -69,6 +69,22 @@ describe("hit-test normalization", () => {
     });
   });
 
+  it("honors maxResults zero before normalizing hits", () => {
+    const hits = normalizeHitTestFeatures(
+      [
+        {
+          id: 101,
+          layer: { id: "parcels-fill", source: "parcels" },
+          properties: { name: "A" },
+          geometry: { type: "Polygon" },
+        },
+      ],
+      { maxResults: 0 },
+    );
+
+    expect(hits).toEqual([]);
+  });
+
   it("surfaces degraded states for missing source bindings, ids, geometry, and lngLat", async () => {
     const map: HonuaHitTestMap = {
       queryRenderedFeatures: () => [{ layer: { id: "orphan" }, properties: { name: "No id" } }],
@@ -81,6 +97,21 @@ describe("hit-test normalization", () => {
       "feature-id-unavailable",
       "geometry-unavailable",
     ]);
+  });
+
+  it("marks raster hits without a defined sample value as degraded", () => {
+    const hits = normalizeHitTestFeatures([
+      {
+        id: 1,
+        layer: { id: "raster-layer", type: "raster", source: "imagery" },
+        properties: {},
+        geometry: { type: "Point" },
+        raster: { band: 1 },
+      },
+    ]);
+
+    expect(hits[0].raster).toMatchObject({ band: 1 });
+    expect(hits[0].degraded.map((entry) => entry.reason)).toContain("raster-value-unavailable");
   });
 
   it("maps query-tile identities and composes selected feature detail loading", async () => {

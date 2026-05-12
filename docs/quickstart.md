@@ -52,7 +52,9 @@ The live app accepts:
 - optional `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT`. Default: `25`. Must be greater than `0`.
 - optional `VITE_HONUA_QUICKSTART_BASEMAP_STYLE`. Default: `https://demotiles.maplibre.org/style.json`.
 - optional `VITE_HONUA_QUICKSTART_API_KEY`
-- optional `VITE_HONUA_QUICKSTART_BEARER_TOKEN`
+- optional `VITE_HONUA_QUICKSTART_BEARER_TOKEN`, ignored in browser demos unless
+  `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true` is also set. Prefer short-lived API keys or backend-issued sessions for
+  browser demos.
 
 Invalid layer-id or result-count overrides fail startup before the app makes any Honua API requests.
 

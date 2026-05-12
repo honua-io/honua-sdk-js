@@ -230,13 +230,17 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
     const onMove = (event: unknown): void => {
       const mapFeature = firstEventFeature(event);
       const featureId = featureIdFromMapFeature(mapFeature);
+      const feature =
+        featureId !== undefined
+          ? (this.#findFeature(sourceId, featureId) ?? featureRecordFromMapFeature(sourceId, featureId, mapFeature))
+          : undefined;
       this.#options.onHover({
         hovering: featureId !== undefined,
         layerId: layer.id,
         sourceId,
         ...(sourceLayer !== undefined ? { sourceLayer } : {}),
         ...(featureId !== undefined ? { featureId } : {}),
-        ...(featureId !== undefined ? { feature: this.#findFeature(sourceId, featureId) } : {}),
+        ...(feature !== undefined ? { feature } : {}),
         ...(mapFeature !== undefined ? { mapFeature } : {}),
         ...eventPosition(event),
         originalEvent: event,
@@ -267,13 +271,18 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
     try {
       this.#interactionHandles.push(
         runtime.bindClick(layer.id, (event) => {
-          const featureId = event.featureId;
-          const sourceId = event.sourceId;
-          const feature = featureId !== undefined ? this.#findFeature(sourceId, featureId) : undefined;
+          const sourceId = event.selectionTarget?.sourceId ?? event.sourceId;
+          const sourceLayer = event.selectionTarget?.sourceLayer ?? event.sourceLayer;
+          const featureId = event.selectionTarget?.id ?? event.featureId;
+          const feature =
+            featureId !== undefined
+              ? (this.#findFeature(sourceId, featureId) ??
+                featureRecordFromMapFeature(sourceId, featureId, event.feature))
+              : undefined;
           const detail: HonuaMapClickDetail<T> = {
             layerId: event.layerId,
             sourceId,
-            ...(event.sourceLayer !== undefined ? { sourceLayer: event.sourceLayer } : {}),
+            ...(sourceLayer !== undefined ? { sourceLayer } : {}),
             ...(featureId !== undefined ? { featureId } : {}),
             ...(feature ? { feature } : {}),
             ...(event.feature !== undefined ? { mapFeature: event.feature } : {}),
@@ -284,6 +293,7 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
           if (featureId === undefined) return;
           const selection: HonuaSelectionChangeDetail<T> = {
             sourceId,
+            ...(sourceLayer !== undefined ? { sourceLayer } : {}),
             featureId,
             ...(feature ? { feature } : {}),
           };
@@ -437,9 +447,10 @@ function mapPackageKey(mapPackage: HonuaMapPackage): string {
 
 function selectionFeatureState<T>(state: HonuaWebComponentState<T>): HonuaFeatureStateEntry | undefined {
   const sourceId = state.selection?.sourceId;
+  const sourceLayer = state.selection?.sourceLayer;
   const featureId = state.selection?.featureId;
   if (sourceId === undefined || featureId === undefined) return undefined;
-  return { sourceId, featureId, state: { selected: true } };
+  return { sourceId, ...(sourceLayer !== undefined ? { sourceLayer } : {}), featureId, state: { selected: true } };
 }
 
 function copyFeatureStateEntry(entry: HonuaFeatureStateEntry): HonuaFeatureStateEntry {
@@ -481,6 +492,36 @@ function featureIdFromMapFeature(feature: unknown): FeatureId | undefined {
   if (typeof feature !== "object" || feature === null || !("id" in feature)) return undefined;
   const id = (feature as { id?: unknown }).id;
   return typeof id === "string" || typeof id === "number" ? id : undefined;
+}
+
+function featureRecordFromMapFeature<T>(
+  sourceId: string,
+  featureId: FeatureId,
+  feature: unknown,
+): HonuaFeatureRecord<T> | undefined {
+  if (typeof feature !== "object" || feature === null) return undefined;
+  const candidate = feature as { properties?: unknown; geometry?: unknown };
+  const attributes =
+    candidate.properties && typeof candidate.properties === "object"
+      ? ({ ...(candidate.properties as Record<string, unknown>) } as T)
+      : ({} as T);
+  return {
+    id: featureId,
+    sourceId,
+    attributes,
+    ...(candidate.geometry !== undefined ? { geometry: candidate.geometry as HonuaFeatureRecord<T>["geometry"] } : {}),
+    title: featureTitle(attributes, featureId),
+  };
+}
+
+function featureTitle<T>(attributes: T, id: FeatureId): string {
+  const values = attributes && typeof attributes === "object" ? (attributes as Record<string, unknown>) : {};
+  for (const key of ["name", "Name", "NAME", "title", "Title", "TITLE", "label", "Label", "LABEL"]) {
+    const value = values[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  const firstString = Object.values(values).find((value) => typeof value === "string" && value.trim());
+  return typeof firstString === "string" ? firstString : String(id);
 }
 
 function eventPosition(event: unknown): Pick<HonuaMapClickDetail, "point" | "lngLat"> {

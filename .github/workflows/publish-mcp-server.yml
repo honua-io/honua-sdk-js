@@ -51,11 +51,16 @@ jobs:
       - name: Validate package
         run: |
           npm run typecheck
+          npm run check
           npm run test
 
-      - name: Validate tag version
-        if: github.event_name == 'push'
+      - name: Validate publish ref and version
+        if: env.DRY_RUN != 'true'
         run: |
+          if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != mcp-server-* ]]; then
+            echo "Non-dry-run publish must run from an mcp-server-* tag. Current ref: ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
+            exit 1
+          fi
           package_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
           tag_version="${GITHUB_REF_NAME#mcp-server-}"
           while [[ "$tag_version" == v* ]]; do

@@ -10,3 +10,10 @@ Run it with:
 npm run demo:app-bootstrap
 ```
 
+Validation:
+
+```sh
+npm run demo:app-bootstrap:typecheck
+npm run demo:app-bootstrap:build
+npm run test:playwright:app-bootstrap
+```

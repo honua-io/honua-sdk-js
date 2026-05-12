@@ -12,6 +12,7 @@ import {
   MAP_PACKAGE_REALTIME_CHANNEL_V1,
   createMapPackageServerSentEventsTransport,
   readMapPackageRealtimeAdvertisement,
+  redactMapPackageRealtimeUrl,
 } from "./map-package-realtime.js";
 import type {
   MapPackageRealtimeCheckpoint,
@@ -309,12 +310,13 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
             if (disposed) return;
             reconnectAttempt = 0;
             armRealtimeStaleTimer(source);
+            const eventUrl = info.url ? redactMapPackageRealtimeUrl(info.url) : source.url;
             emit({
               type: "connected",
               transport: info.transport,
               advertised: source.advertised,
               ...(info.channel ? { channel: info.channel } : source.channel ? { channel: source.channel } : {}),
-              ...(info.url ? { url: info.url } : source.url ? { url: source.url } : {}),
+              ...(eventUrl ? { url: eventUrl } : {}),
               ...(lastRealtimeCheckpoint ? { resumedFrom: lastRealtimeCheckpoint } : {}),
             });
           },
@@ -577,6 +579,11 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     if (!url) {
       return { type: "unsupported", reason: "missing-realtime-url", fallback: advertisedFallback };
     }
+    const advertisedUrlGuard = validateAdvertisedRealtimeUrl(url, options.client.serverBaseUrl, realtime);
+    if (advertisedUrlGuard) {
+      return { type: "unsupported", reason: advertisedUrlGuard, fallback: advertisedFallback };
+    }
+    const publicUrl = redactMapPackageRealtimeUrl(url);
 
     return {
       type: "available",
@@ -590,7 +597,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
         }),
         transportKind: "sse",
         advertised: true,
-        url,
+        url: publicUrl,
         channel: advertisement.channel ?? MAP_PACKAGE_REALTIME_CHANNEL_V1,
         fallback: advertisedFallback,
         reconnect,
@@ -751,6 +758,27 @@ function reconnectDelayMs(attempt: number, options: Required<MapPackageRealtimeR
 
 function cookieCredentials(options: MapPackageRealtimeWatchOptions): boolean | undefined {
   return options.auth?.kind === "cookie" ? options.auth.withCredentials : undefined;
+}
+
+function validateAdvertisedRealtimeUrl(
+  value: string,
+  baseUrl: string,
+  options: MapPackageRealtimeWatchOptions,
+): string | undefined {
+  if (options.auth?.kind !== "query-token" || !isAbsoluteHttpUrl(value)) return undefined;
+  if (!isAbsoluteHttpUrl(baseUrl)) return "advertised-query-token-url-requires-absolute-base";
+  try {
+    const advertisedOrigin = new URL(value).origin;
+    if (advertisedOrigin === new URL(baseUrl).origin) return undefined;
+    if (options.allowedAdvertisedOrigins?.includes(advertisedOrigin)) return undefined;
+    return "advertised-query-token-url-cross-origin";
+  } catch {
+    return "invalid-advertised-realtime-url";
+  }
+}
+
+function isAbsoluteHttpUrl(value: string): boolean {
+  return value.startsWith("http://") || value.startsWith("https://");
 }
 
 function packageIdFromLocator(locator: MapPackageLocator): string | undefined {

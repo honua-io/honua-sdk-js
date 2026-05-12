@@ -113,11 +113,13 @@ describe("Honua web component controller", () => {
     controller.setFeatureState({ sourceId: "incidents", featureId: 1 }, { selected: true });
     controller.setFeatureState({ sourceId: "incidents", featureId: 1 }, { hover: true });
     controller.setFeatureState({ sourceId: "incidents", featureId: 2, sourceLayer: "events" }, { selected: true });
+    controller.selectFeature({ sourceId: "incidents", sourceLayer: "events", featureId: 2 });
 
     expect(controller.getState().featureStates).toEqual([
       { sourceId: "incidents", featureId: 1, state: { selected: true, hover: true } },
       { sourceId: "incidents", featureId: 2, sourceLayer: "events", state: { selected: true } },
     ]);
+    expect(controller.getState().selection).toMatchObject({ sourceId: "incidents", sourceLayer: "events" });
 
     controller.removeFeatureState({ sourceId: "incidents", featureId: 1 }, "hover");
     controller.removeFeatureState({ sourceId: "incidents", featureId: 2, sourceLayer: "events" });
@@ -152,10 +154,15 @@ describe("Honua web component controller", () => {
     controller.setLayerVisibility("incident-points", false);
     controller.setViewport({ zoom: 12 });
     const table = await controller.queryFeatures("incidents");
+    const search = await createHonuaWebComponentControllerFromRuntime(runtime, {
+      searchFields: ["name"],
+    }).search("Runtime");
 
     expect(setLayerVisibility).toHaveBeenCalledWith("incident-points", false);
     expect(setViewState).toHaveBeenCalledWith({ zoom: 12 });
     expect(table.rows[0]).toMatchObject({ id: 11, title: "Runtime feature" });
+    expect(controller.getState().featuresBySource.incidents?.[0]).toMatchObject({ id: 11, title: "Runtime feature" });
+    expect(search[0]).toMatchObject({ sourceId: "incidents", featureId: 11, label: "Runtime feature" });
   });
 
   it("can be imported in Node and registers only when a registry is supplied", () => {
