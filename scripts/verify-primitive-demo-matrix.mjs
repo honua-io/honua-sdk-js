@@ -30,6 +30,9 @@ for (const row of rows) {
   if (row.validationCommands.length === 0) {
     failures.push(`#${row.issue} does not list any validation command.`);
   }
+  if (row.proofMarkers.length === 0) {
+    failures.push(`#${row.issue} does not list any primitive proof marker.`);
+  }
   for (const demoPath of row.demoPaths) {
     if (!fs.existsSync(path.join(repoRoot, demoPath))) {
       failures.push(`#${row.issue} references missing demo path: ${demoPath}`);
@@ -42,6 +45,9 @@ for (const row of rows) {
     } else if (!Object.hasOwn(scripts, scriptName)) {
       failures.push(`#${row.issue} references missing package script: ${scriptName}`);
     }
+  }
+  for (const proof of row.proofMarkers) {
+    validateProofMarker(row.issue, proof, failures);
   }
 }
 
@@ -71,6 +77,7 @@ function parseRow(line) {
     issue,
     demoPaths: codeSpans(cells[2]).filter((value) => value.startsWith("examples/")),
     validationCommands: codeSpans(cells[3]).filter((value) => value.startsWith("npm run ")),
+    proofMarkers: codeSpans(cells[4] ?? ""),
   };
 }
 
@@ -81,4 +88,65 @@ function codeSpans(markdownCell) {
 function npmRunScriptName(command) {
   const match = command.match(/^npm run ([^\s]+)$/);
   return match?.[1];
+}
+
+function validateProofMarker(issue, proof, targetFailures) {
+  const parsed = parseProofMarker(proof);
+  if (!parsed) {
+    targetFailures.push(
+      `#${issue} has unsupported proof marker: ${proof}. Use import:<file>:<module>, marker:<file>:<text>, or script:<name>.`,
+    );
+    return;
+  }
+
+  if (parsed.kind === "script") {
+    if (!Object.hasOwn(scripts, parsed.scriptName)) {
+      targetFailures.push(`#${issue} references missing proof script: ${parsed.scriptName}`);
+    }
+    return;
+  }
+
+  const absolutePath = path.join(repoRoot, parsed.filePath);
+  if (!fs.existsSync(absolutePath)) {
+    targetFailures.push(`#${issue} proof marker references missing file: ${parsed.filePath}`);
+    return;
+  }
+
+  const source = fs.readFileSync(absolutePath, "utf8");
+  if (parsed.kind === "marker") {
+    if (!source.includes(parsed.text)) {
+      targetFailures.push(`#${issue} proof marker not found in ${parsed.filePath}: ${parsed.text}`);
+    }
+    return;
+  }
+
+  const escapedModule = escapeRegExp(parsed.moduleName);
+  const importPattern = new RegExp(`(?:from\\s+["']${escapedModule}["']|import\\(\\s*["']${escapedModule}["']\\s*\\))`);
+  if (!importPattern.test(source)) {
+    targetFailures.push(`#${issue} import proof not found in ${parsed.filePath}: ${parsed.moduleName}`);
+  }
+}
+
+function parseProofMarker(proof) {
+  if (proof.startsWith("script:")) {
+    const scriptName = proof.slice("script:".length).trim();
+    return scriptName ? { kind: "script", scriptName } : undefined;
+  }
+
+  const firstColon = proof.indexOf(":");
+  if (firstColon < 0) return undefined;
+  const secondColon = proof.indexOf(":", firstColon + 1);
+  if (secondColon < 0) return undefined;
+
+  const kind = proof.slice(0, firstColon);
+  const filePath = proof.slice(firstColon + 1, secondColon).trim();
+  const value = proof.slice(secondColon + 1).trim();
+  if (!filePath || !value) return undefined;
+  if (kind === "marker") return { kind, filePath, text: value };
+  if (kind === "import") return { kind, filePath, moduleName: value };
+  return undefined;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

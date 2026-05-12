@@ -52,6 +52,9 @@ declare global {
       widgetRefreshCount: number;
       selectedFeatureId?: string | number;
       layerVisible(layerId: string): boolean;
+      renderedFeatureCount(layerId: string): number;
+      renderedFeatureIds(layerId: string): Array<string | number>;
+      featureState(featureId: string | number): Record<string, unknown>;
       widgetCount(): number;
       shareState(): string;
     };
@@ -75,7 +78,7 @@ let widgetRefreshCount = 0;
 let latestWidgetCount = 0;
 let selectedFeatureId: string | number | undefined;
 let latestShareState = "";
-let selectedTarget: { source: string; id: string | number } | undefined;
+let selectedTarget: { sourceId: string; id: string | number; sourceLayer?: string } | undefined;
 let allRecords: IncidentFeatureRecord[] = [];
 
 const smokeRuntime = {
@@ -91,6 +94,22 @@ const smokeRuntime = {
   },
   layerVisible(layerId: string): boolean {
     return layerVisible(layerId);
+  },
+  renderedFeatureCount(layerId: string): number {
+    return renderedFeatures(layerId).length;
+  },
+  renderedFeatureIds(layerId: string): Array<string | number> {
+    return renderedFeatures(layerId)
+      .map((feature) => feature.id ?? feature.properties?.id)
+      .filter((id): id is string | number => typeof id === "string" || typeof id === "number");
+  },
+  featureState(featureId: string | number): Record<string, unknown> {
+    if (!runtime) return {};
+    try {
+      return runtime.getFeatureStateForTarget({ source: INCIDENT_SOURCE_ID, id: featureId });
+    } catch {
+      return {};
+    }
   },
   widgetCount(): number {
     return latestWidgetCount;
@@ -129,7 +148,16 @@ async function boot(): Promise<void> {
   smokeRuntime.mapReady = true;
   setText("#map-status", "Ready");
 
-  const safeRuntime = createSafeRuntime(runtime);
+  const widgetSource = createWidgetSource(createFixtureWidgetSource(allRecords, fixture.sourceId), {
+    ttlMs: 30_000,
+    cache: {
+      metadataCacheable: true,
+      resultCacheable: true,
+      ttlMs: 30_000,
+      keyParts: [PACKAGE_ID, fixture.generatedAt],
+    },
+  });
+  const safeRuntime = createSafeRuntime(runtime, { [fixture.sourceId]: widgetSource });
   appController = createHonuaController({
     runtime: safeRuntime,
     sourceIds: [fixture.sourceId],
@@ -140,18 +168,8 @@ async function boot(): Promise<void> {
     },
   });
   const filterView = appController.context.connectView({ id: "runtime-filter", role: "filter" });
-  const widgetSource = createWidgetSource(createFixtureWidgetSource(allRecords, fixture.sourceId), {
-    ttlMs: 30_000,
-    cache: {
-      metadataCacheable: true,
-      resultCacheable: true,
-      ttlMs: 30_000,
-      keyParts: [PACKAGE_ID, fixture.generatedAt],
-    },
-  });
 
   const componentController = createHonuaWebComponentControllerFromRuntime<IncidentAttributes>(safeRuntime, {
-    featuresBySource: { [fixture.sourceId]: allRecords },
     fieldsBySource: { [fixture.sourceId]: fixture.fields },
     chart: statusChartModel(allRecords),
     searchFields: ["name", "status", "priority", "district", "team"],
@@ -183,12 +201,15 @@ async function boot(): Promise<void> {
 
 function createSafeRuntime(
   runtimeHandle: HonuaMapRuntime,
+  querySources: Readonly<Record<string, ReturnType<typeof createWidgetSource<IncidentAttributes>>>> = {},
 ): HonuaControllerRuntimeLike & HonuaWebComponentRuntimeLike<IncidentAttributes> {
   return {
     map: runtimeHandle.map,
     mapPackage: runtimeHandle.mapPackage,
     composedStyle: runtimeHandle.composedStyle,
-    dataset: runtimeHandle.dataset,
+    dataset: {
+      source: (id) => querySources[id]?.source ?? runtimeHandle.dataset.source(id),
+    },
     getLegend: () => runtimeHandle.getLegend(),
     on: (listener) => runtimeHandle.on(listener),
     setLayerVisibility(layerId, visible) {
@@ -367,8 +388,11 @@ function wireMapSelection(runtimeHandle: HonuaMapRuntime, controller: ReturnType
   runtimeHandle.bindClick(
     "incident-points",
     (event) => {
-      if (event.featureId === undefined) return;
-      controller.selectFeature(INCIDENT_SOURCE_ID, event.featureId);
+      if (event.selectionTarget) {
+        controller.selectFeatures([event.selectionTarget], { replace: true });
+        return;
+      }
+      if (event.featureId !== undefined) controller.selectFeature(INCIDENT_SOURCE_ID, event.featureId);
     },
     { featureIdProperty: "id" },
   );
@@ -504,7 +528,7 @@ function updateFeatureState(featureId: string | number | undefined): void {
     selectedTarget = undefined;
   }
   if (featureId === undefined) return;
-  selectedTarget = { source: INCIDENT_SOURCE_ID, id: featureId };
+  selectedTarget = runtime.layerSelectionTarget("incident-points", featureId);
   try {
     runtime.setFeatureStateForTarget(selectedTarget, { selected: true });
   } catch (error) {
@@ -569,6 +593,18 @@ function layerVisible(layerId: string): boolean {
   const controllerVisible = appController?.getVisibility().layers[layerId];
   if (controllerVisible !== undefined) return controllerVisible;
   return runtime?.composedStyle.layers.find((layer) => layer.id === layerId)?.layout?.visibility !== "none";
+}
+
+function renderedFeatures(layerId: string): Array<{ id?: string | number; properties?: Record<string, unknown> }> {
+  try {
+    return (
+      (runtime?.map.queryRenderedFeatures?.(undefined, { layers: [layerId] }) as
+        | Array<{ id?: string | number; properties?: Record<string, unknown> }>
+        | undefined) ?? []
+    );
+  } catch {
+    return [];
+  }
 }
 
 function parseJsonParam<T>(params: URLSearchParams, key: string): T | undefined {

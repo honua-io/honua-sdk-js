@@ -45,13 +45,21 @@ jobs:
       - name: Validate package
         run: |
           npm run typecheck
+          npm run check
           npm test
           npm run build:split-packages
           npm run verify:split-packages
+          npm run demo:primitive-matrix
+          npm run demo:examples:typecheck
+          npm run demo:examples:build
 
-      - name: Validate tag version
-        if: github.event_name == 'push'
+      - name: Validate publish ref and version
+        if: env.DRY_RUN != 'true'
         run: |
+          if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != js-sdk-* ]]; then
+            echo "Non-dry-run publish must run from a js-sdk-* tag. Current ref: ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
+            exit 1
+          fi
           package_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
           tag_version="${GITHUB_REF_NAME#js-sdk-}"
           while [[ "$tag_version" == v* ]]; do

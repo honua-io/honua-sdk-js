@@ -13,6 +13,7 @@ import {
   capabilities,
   createDataset,
   createEditSession,
+  createEditSketchWorkflow,
   createWidgetSource,
   geoServicesFeatureSource,
   geoServicesGPServiceSource,
@@ -25,7 +26,11 @@ import {
   ogcMapsSource,
   ogcRecordsSource,
   ogcTilesSource,
+  resolveSpatialAggregationWidgetSummary,
   stacSearchSource,
+  wfsSource,
+  wmsSource,
+  wmtsSource,
 } from "../src/contract/index.js";
 import {
   HONUA_CONTROL_PLANE_BASE_PATH,
@@ -116,6 +121,11 @@ import {
   when,
   whenOnce,
 } from "../src/esri-compat-entry.js";
+import type {
+  FeatureFormValidationFn,
+  MapImageLayerApplyEditsOptions,
+  MapViewCenterLike,
+} from "../src/esri-compat-entry.js";
 import {
   EMPTY_STATE,
   LINKED_VIEW_PRESETS,
@@ -151,6 +161,7 @@ import {
   createHonuaService,
   bindQueryProjectionToExploration as honuaBindQueryProjectionToExploration,
   createEditSession as honuaCreateEditSession,
+  createEditSketchWorkflow as honuaCreateEditSketchWorkflow,
   createFilterRegistry as honuaCreateFilterRegistry,
   createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
   createHonuaControlPlane as honuaCreateHonuaControlPlane,
@@ -158,13 +169,23 @@ import {
   createMapLibreSceneAdapter as honuaCreateMapLibreSceneAdapter,
   createSceneWorkspace as honuaCreateSceneWorkspace,
   createWidgetSource as honuaCreateWidgetSource,
+  EXPLORATION_EMPTY_STATE as honuaExplorationEmptyState,
+  EXPLORATION_SLICES as honuaExplorationSlices,
+  ogcRecordsSource as honuaOgcRecordsSource,
   preparePrimaryDetailModel as honuaPreparePrimaryDetailModel,
   projectFilterRegistryToQuery as honuaProjectFilterRegistryToQuery,
+  reduceExplorationState as honuaReduceExplorationState,
+  resolveSpatialAggregationWidgetSummary as honuaResolveSpatialAggregationWidgetSummary,
   selectLinkedViewQueryProjection as honuaSelectLinkedViewQueryProjection,
   selectHonuaAppWorkspaceMetadataCacheModel as honuaSelectMetadataCacheModel,
   sourceFeatureSelectionTarget as honuaSourceFeatureSelectionTarget,
+  wfsSource as honuaWfsSource,
+  wmsSource as honuaWmsSource,
+  wmtsSource as honuaWmtsSource,
 } from "../src/honua.js";
 import {
+  EXPLORATION_EMPTY_STATE,
+  EXPLORATION_SLICES,
   HonuaWfsExceptionError as HonuaWfsExceptionErrorRoot,
   HonuaControlPlaneClient as RootHonuaControlPlaneClient,
   bindChartToExploration,
@@ -173,14 +194,21 @@ import {
   createHonuaAppWorkspace,
   createHonuaController,
   preparePrimaryDetailModel,
+  reduceExplorationState,
   createEditSession as rootCreateEditSession,
+  createEditSketchWorkflow as rootCreateEditSketchWorkflow,
   createFilterRegistry as rootCreateFilterRegistry,
   createMapLibreSceneAdapter as rootCreateMapLibreSceneAdapter,
   createSceneWorkspace as rootCreateSceneWorkspace,
   createWidgetSource as rootCreateWidgetSource,
+  ogcRecordsSource as rootOgcRecordsSource,
   projectFilterRegistryToQuery as rootProjectFilterRegistryToQuery,
+  resolveSpatialAggregationWidgetSummary as rootResolveSpatialAggregationWidgetSummary,
   selectLinkedViewQueryProjection as rootSelectLinkedViewQueryProjection,
   sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
+  wfsSource as rootWfsSource,
+  wmsSource as rootWmsSource,
+  wmtsSource as rootWmtsSource,
   selectHonuaAppWorkspaceMetadataCacheModel,
   syncFeatureStateSelection,
 } from "../src/index.js";
@@ -333,6 +361,16 @@ describe("entrypoint modules", () => {
     expect(whenOnce).toBeTypeOf("function");
   });
 
+  it("exposes esri-compat option member types", () => {
+    const validationFunction: FeatureFormValidationFn = () => undefined;
+    const applyEditsOptions: MapImageLayerApplyEditsOptions = { layerId: 0 };
+    const center: MapViewCenterLike = [0, 0];
+
+    expect(validationFunction("status", "open")).toBeUndefined();
+    expect(applyEditsOptions.layerId).toBe(0);
+    expect(center[0]).toBe(0);
+  });
+
   it("exposes migration tooling entrypoint", () => {
     expect(scanArcGisUsage).toBeTypeOf("function");
     expect(runEsriCompatCodemod).toBeTypeOf("function");
@@ -341,6 +379,14 @@ describe("entrypoint modules", () => {
     expect(getJsParityMatrix).toBeTypeOf("function");
     expect(runLayerReconciliation).toBeTypeOf("function");
     expect(summarizeJsParityMatrix).toBeTypeOf("function");
+  });
+
+  it("keeps migration tooling off the root entrypoint", async () => {
+    const root = await import("../src/index.js");
+
+    expect(root).not.toHaveProperty("runEsriCompatCodemod");
+    expect(root).not.toHaveProperty("scanArcGisUsage");
+    expect(root).not.toHaveProperty("buildJsMigrationReport");
   });
 
   it("exposes the canonical contract entrypoint", () => {
@@ -357,6 +403,9 @@ describe("entrypoint modules", () => {
     expect(createEditSession).toBeTypeOf("function");
     expect(rootCreateEditSession).toBe(createEditSession);
     expect(honuaCreateEditSession).toBe(createEditSession);
+    expect(createEditSketchWorkflow).toBeTypeOf("function");
+    expect(rootCreateEditSketchWorkflow).toBe(createEditSketchWorkflow);
+    expect(honuaCreateEditSketchWorkflow).toBe(createEditSketchWorkflow);
     expect(createWidgetSource).toBeTypeOf("function");
     expect(rootCreateWidgetSource).toBe(createWidgetSource);
     expect(honuaCreateWidgetSource).toBe(createWidgetSource);
@@ -370,14 +419,34 @@ describe("entrypoint modules", () => {
     expect(ogcTilesSource).toBeTypeOf("function");
     expect(ogcMapsSource).toBeTypeOf("function");
     expect(ogcRecordsSource).toBeTypeOf("function");
+    expect(rootOgcRecordsSource).toBe(ogcRecordsSource);
+    expect(honuaOgcRecordsSource).toBe(ogcRecordsSource);
     expect(stacSearchSource).toBeTypeOf("function");
     expect(odataSource).toBeTypeOf("function");
+    expect(wfsSource).toBeTypeOf("function");
+    expect(rootWfsSource).toBe(wfsSource);
+    expect(honuaWfsSource).toBe(wfsSource);
+    expect(wmsSource).toBeTypeOf("function");
+    expect(rootWmsSource).toBe(wmsSource);
+    expect(honuaWmsSource).toBe(wmsSource);
+    expect(wmtsSource).toBeTypeOf("function");
+    expect(rootWmtsSource).toBe(wmtsSource);
+    expect(honuaWmtsSource).toBe(wmtsSource);
+    expect(resolveSpatialAggregationWidgetSummary).toBeTypeOf("function");
+    expect(rootResolveSpatialAggregationWidgetSummary).toBe(resolveSpatialAggregationWidgetSummary);
+    expect(honuaResolveSpatialAggregationWidgetSummary).toBe(resolveSpatialAggregationWidgetSummary);
   });
 
   it("exposes the exploration entrypoint", () => {
     expect(EMPTY_STATE.preset).toBe("globalLinked");
+    expect(EXPLORATION_EMPTY_STATE).toBe(EMPTY_STATE);
+    expect(honuaExplorationEmptyState).toBe(EMPTY_STATE);
     expect(SLICES[0]).toBe("all");
+    expect(EXPLORATION_SLICES).toBe(SLICES);
+    expect(honuaExplorationSlices).toBe(SLICES);
     expect(reduce).toBeTypeOf("function");
+    expect(reduceExplorationState).toBe(reduce);
+    expect(honuaReduceExplorationState).toBe(reduce);
     expect(createExplorationContext).toBeTypeOf("function");
     const target = sourceFeatureSelectionTarget("parcels", 101);
     expect(isSourceQualifiedSelectionTarget(target)).toBe(true);

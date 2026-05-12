@@ -111,6 +111,18 @@ function sameLayer(a: HonuaLayerSpecification, b: HonuaLayerSpecification): bool
 function detectStructuralChange(prev: HonuaStyleSpecification, next: HonuaStyleSpecification): string | undefined {
   if (prev.version !== next.version) return "mapSpec.version changed";
 
+  const prevSourceIds = Object.keys(prev.sources).sort();
+  const nextSourceIds = Object.keys(next.sources).sort();
+  if (prevSourceIds.length !== nextSourceIds.length) return "mapSpec source set changed";
+  for (let i = 0; i < prevSourceIds.length; i++) {
+    if (prevSourceIds[i] !== nextSourceIds[i]) return "mapSpec source set changed";
+  }
+  for (const sourceId of prevSourceIds) {
+    if (!stableEqual(prev.sources[sourceId], next.sources[sourceId])) {
+      return `mapSpec source "${sourceId}" changed`;
+    }
+  }
+
   const prevIds = prev.layers.map((l) => l.id);
   const nextIds = next.layers.map((l) => l.id);
   if (prevIds.length !== nextIds.length || prevIds.some((id) => !nextIds.includes(id))) {

@@ -39,7 +39,9 @@ Supported env vars:
 - `VITE_HONUA_GEOCODING_MAX_RESULTS`: forwarded as `maxLocations`. Default: `5`.
 - `VITE_HONUA_GEOCODING_MAX_SUGGESTIONS`: forwarded as `maxSuggestions`. Default: `5`.
 - `VITE_HONUA_GEOCODING_API_KEY`: optional API key forwarded as `X-API-Key`.
-- `VITE_HONUA_GEOCODING_BEARER_TOKEN`: optional bearer token forwarded as `Authorization: Bearer ...`.
+- `VITE_HONUA_GEOCODING_BEARER_TOKEN`: browser bearer-token forwarding is disabled unless
+  `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true` is also set. Prefer short-lived API keys or backend-issued sessions for
+  browser demos.
 
 ## Network Contract And Audit Mapping
 

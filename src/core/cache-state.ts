@@ -55,6 +55,9 @@ export interface NormalizedHonuaMetadataRequestOptions {
   readonly staleIfErrorMs?: number;
 }
 
+export const HONUA_DEFAULT_METADATA_CACHE_TTL_MS = 5 * 60 * 1000;
+export const HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS = 60 * 60 * 1000;
+
 export interface HonuaCacheStateInit {
   readonly scope: HonuaCacheScope;
   readonly status: HonuaCacheStatus;
@@ -88,17 +91,16 @@ export function createHonuaCacheState(init: HonuaCacheStateInit): HonuaCacheStat
 export function normalizeHonuaMetadataRequestOptions(
   options: HonuaMetadataRequestOptions = {},
 ): NormalizedHonuaMetadataRequestOptions {
+  const ttlMs = normalizeNonNegativeInteger(options.ttlMs) ?? HONUA_DEFAULT_METADATA_CACHE_TTL_MS;
+  const staleIfErrorMs =
+    normalizeNonNegativeInteger(options.staleIfErrorMs) ?? HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS;
   return {
     ...(options.signal ? { signal: options.signal } : {}),
     refresh: options.refresh === true,
     cache: options.cache === "bypass" ? "bypass" : "default",
     staleIfError: options.staleIfError !== false,
-    ...(normalizeNonNegativeInteger(options.ttlMs) !== undefined
-      ? { ttlMs: normalizeNonNegativeInteger(options.ttlMs) }
-      : {}),
-    ...(normalizeNonNegativeInteger(options.staleIfErrorMs) !== undefined
-      ? { staleIfErrorMs: normalizeNonNegativeInteger(options.staleIfErrorMs) }
-      : {}),
+    ttlMs,
+    staleIfErrorMs,
   };
 }
 

@@ -285,6 +285,10 @@ export function diagnoseScenePrimitive(
           ),
         ];
       }
+      if (primitive.protocol === "terrain-rgb") {
+        const terrainDiagnostics = diagnoseRenderableTerrainRgb(primitive, capabilities);
+        if (terrainDiagnostics.length > 0) return terrainDiagnostics;
+      }
       return [supported(primitive, capabilities, "Elevation source can be applied as terrain.")];
     }
     case "extrusion":
@@ -368,6 +372,7 @@ export function toMapLibreExtrusionLayer(primitive: SceneExtrusionPrimitive): Ma
       "fill-extrusion-opacity": primitive.opacity ?? 0.82,
     },
     layout: {},
+    ...(primitive.filters ? { filter: compileMapLibreFilters(primitive.filters, primitive.sourceId) } : {}),
     ...(primitive.metadata ? { metadata: primitive.metadata } : {}),
   };
 }
@@ -455,4 +460,108 @@ function diagnostic(
     message,
     ...(fallback ? { fallback } : {}),
   };
+}
+
+function diagnoseRenderableTerrainRgb(
+  primitive: SceneElevationSourcePrimitive,
+  capabilities: SceneRuntimeCapabilities,
+): ScenePrimitiveDiagnostic[] {
+  const diagnostics: ScenePrimitiveDiagnostic[] = [];
+  if (!hasRenderableTerrainUrl(primitive)) {
+    diagnostics.push(
+      diagnostic(
+        "scene-primitive-terrain-source-missing-url",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "terrain-rgb elevation source requires a renderable url or tile template.",
+        "Provide a non-empty url or at least one non-empty tiles entry before applying terrain.",
+      ),
+    );
+  }
+
+  const invalidRanges: Record<string, unknown> = {};
+  if (primitive.tileSize !== undefined && !isPositiveFiniteNumber(primitive.tileSize)) {
+    invalidRanges.tileSize = primitive.tileSize;
+  }
+  if (primitive.minzoom !== undefined && !isZoom(primitive.minzoom)) invalidRanges.minzoom = primitive.minzoom;
+  if (primitive.maxzoom !== undefined && !isZoom(primitive.maxzoom)) invalidRanges.maxzoom = primitive.maxzoom;
+  if (
+    primitive.minzoom !== undefined &&
+    primitive.maxzoom !== undefined &&
+    Number.isFinite(primitive.minzoom) &&
+    Number.isFinite(primitive.maxzoom) &&
+    primitive.minzoom > primitive.maxzoom
+  ) {
+    invalidRanges.zoomRange = [primitive.minzoom, primitive.maxzoom];
+  }
+  if (primitive.exaggeration !== undefined && !isPositiveFiniteNumber(primitive.exaggeration)) {
+    invalidRanges.exaggeration = primitive.exaggeration;
+  }
+
+  if (Object.keys(invalidRanges).length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-terrain-range-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "terrain-rgb elevation source has invalid numeric rendering ranges.",
+        "Use finite positive tileSize/exaggeration values and ordered zoom values between 0 and 24.",
+      ),
+      context: invalidRanges,
+    });
+  }
+  return diagnostics;
+}
+
+function hasRenderableTerrainUrl(primitive: SceneElevationSourcePrimitive): boolean {
+  if (typeof primitive.url === "string" && primitive.url.trim() !== "") return true;
+  return primitive.tiles?.some((tile) => typeof tile === "string" && tile.trim() !== "") === true;
+}
+
+function isPositiveFiniteNumber(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
+function isZoom(value: number): boolean {
+  return Number.isFinite(value) && value >= 0 && value <= 24;
+}
+
+function compileMapLibreFilters(filters: Readonly<Record<string, FilterClause>>, sourceId: string): unknown[] {
+  const compiled = Object.values(filters)
+    .filter((clause) => !clause.appliesTo || clause.appliesTo.length === 0 || clause.appliesTo.includes(sourceId))
+    .map(clauseToMapLibreFilter)
+    .filter((entry): entry is unknown[] => Array.isArray(entry));
+  return compiled.length === 0 ? ["all"] : ["all", ...compiled];
+}
+
+function clauseToMapLibreFilter(clause: FilterClause): unknown[] | undefined {
+  switch (clause.operator) {
+    case "=":
+      return ["==", clause.field, clause.value];
+    case "!=":
+      return ["!=", clause.field, clause.value];
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+      return typeof clause.value === "number" ? [clause.operator, clause.field, clause.value] : undefined;
+    case "in":
+      return Array.isArray(clause.value) ? ["in", clause.field, ...clause.value] : undefined;
+    case "not-in":
+      return Array.isArray(clause.value) ? ["!in", clause.field, ...clause.value] : undefined;
+    case "is-null":
+      return ["==", clause.field, null];
+    case "is-not-null":
+      return ["!=", clause.field, null];
+    case "between":
+      return Array.isArray(clause.value) && typeof clause.value[0] === "number" && typeof clause.value[1] === "number"
+        ? ["all", [">=", clause.field, clause.value[0]], ["<=", clause.field, clause.value[1]]]
+        : undefined;
+    case "like":
+      return undefined;
+  }
 }

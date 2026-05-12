@@ -22,8 +22,10 @@ cp examples/imagery-cog-quickstart/.env.example examples/imagery-cog-quickstart/
 npm run demo:imagery-cog
 ```
 
-Set `VITE_HONUA_IMAGERY_BASE_URL` to the cloud Honua deployment. Optional `VITE_HONUA_IMAGERY_API_KEY` or
-`VITE_HONUA_IMAGERY_BEARER_TOKEN` is passed to both SDK API calls and MapLibre raster tile requests.
+Set `VITE_HONUA_IMAGERY_BASE_URL` to the cloud Honua deployment. Optional `VITE_HONUA_IMAGERY_API_KEY` is passed to
+both SDK API calls and MapLibre raster tile requests. Browser bearer-token forwarding through
+`VITE_HONUA_IMAGERY_BEARER_TOKEN` is disabled unless `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true` is also set; prefer
+short-lived API keys or backend-issued sessions for browser demos.
 
 ## Honua Surfaces
 

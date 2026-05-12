@@ -53,6 +53,17 @@ function serveJsonFixture(res, filePath, headers = {}) {
   res.end(fs.readFileSync(filePath));
 }
 
+function serveIncidentGeoJson(res) {
+  const payload = JSON.parse(fs.readFileSync(featureFixturePath, "utf8"));
+  res.writeHead(200, {
+    "content-type": "application/geo+json; charset=utf-8",
+    "cache-control": "no-store",
+    etag: '"runtime-parity-incidents-geojson-v1"',
+    "last-modified": "Fri, 01 May 2026 12:00:00 GMT",
+  });
+  res.end(JSON.stringify(payload.features));
+}
+
 export async function startRuntimeParityShowcaseFixtureServer({ build = true } = {}) {
   if (build) buildDemoIfNeeded();
 
@@ -82,6 +93,11 @@ export async function startRuntimeParityShowcaseFixtureServer({ build = true } =
         etag: '"runtime-parity-features-v1"',
         "last-modified": "Fri, 01 May 2026 12:00:00 GMT",
       });
+      return;
+    }
+
+    if (requestUrl.pathname === "/__runtime-parity-showcase__/incidents.geojson") {
+      serveIncidentGeoJson(res);
       return;
     }
 

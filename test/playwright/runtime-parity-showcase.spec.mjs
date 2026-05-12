@@ -22,6 +22,12 @@ test("runtime parity showcase loads package, surface, widgets, selection, and la
     await expect(page.locator("honua-layer-list").getByText("Incident points")).toBeVisible();
     await expect(page.locator("honua-feature-table").getByText("Harbor fuel sheen")).toBeVisible();
     await expect(page.locator("#widget-count")).toHaveText("4");
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_RUNTIME_PARITY_SHOWCASE__?.renderedFeatureCount("incident-points") ?? 0))
+      .toBeGreaterThan(0);
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_RUNTIME_PARITY_SHOWCASE__?.renderedFeatureIds("incident-points") ?? []))
+      .toContain("inc-101");
 
     const firstRefreshCount = Number(await page.locator("#widget-refresh-count").textContent());
     await page.getByRole("button", { name: "Refresh widgets" }).click();
@@ -40,12 +46,15 @@ test("runtime parity showcase loads package, surface, widgets, selection, and la
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_RUNTIME_PARITY_SHOWCASE__?.selectedFeatureId))
       .toBe("inc-103");
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_RUNTIME_PARITY_SHOWCASE__?.featureState("inc-103")?.selected))
+      .toBe(true);
 
     await page.getByLabel("Incident points").uncheck();
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_RUNTIME_PARITY_SHOWCASE__?.layerVisible("incident-points")))
       .toBe(false);
-    await expect(page.locator("#event-log")).toHaveText("layer:incident-points:false");
+    await expect(page.locator("#visible-layer-state")).toHaveText("incident-points:false");
 
     await page.getByRole("button", { name: "Fit Downtown" }).click();
     await expect(page.locator("#share-state")).toHaveValue(/viewport=/);

@@ -8,7 +8,7 @@ The default app configuration targets cloud Honua:
 - `VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID=natural-earth`
 - `VITE_HONUA_SERVICE_EXPLORER_LAYER_ID=0`
 
-When no API key or bearer token is configured and `VITE_HONUA_SERVICE_EXPLORER_MODE=auto`, the app loads a bundled fixture so the sample remains buildable and useful locally. The UI keeps the cloud target visible and surfaces the fixture lane as a degraded diagnostic.
+When no API key is configured and `VITE_HONUA_SERVICE_EXPLORER_MODE=auto`, the app loads a bundled fixture so the sample remains buildable and useful locally. The UI keeps the cloud target visible and surfaces the fixture lane as a degraded diagnostic. Browser bearer-token forwarding through `VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN` is disabled unless `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true` is also set; prefer short-lived API keys or backend-issued sessions for browser demos.
 
 The source picker demonstrates FeatureServer, MapServer, WFS, WMTS, OGC Maps, and OData lanes against the same Cloud Honua-oriented app shell. Queryable sources participate in the shared linked context. Render-only standards sources keep metadata, cache, capability, map, and diagnostics panels active while table/query controls are disabled.
 

@@ -286,6 +286,7 @@ describe("HonuaMapRuntime", () => {
       skipCompatibilityCheck: true,
       applyInitialView: false,
     });
+    const previousHonuaMap = runtime.honuaMap;
     map._calls.length = 0;
 
     const next = makePackage({
@@ -308,6 +309,80 @@ describe("HonuaMapRuntime", () => {
     expect(map._calls.some((c) => c.method === "setStyle")).toBe(false);
     const paint = map._calls.find((c) => c.method === "setPaintProperty");
     expect(paint?.args).toEqual(["parcels-fill", "fill-color", "#ff0000"]);
+    expect(runtime.honuaMap).not.toBe(previousHonuaMap);
+    expect(runtime.honuaMap.getLayer("parcels-fill")?.paint?.["fill-color"]).toBe("#ff0000");
+  });
+
+  test("inline mapSpec source changes fall back to full setStyle", async () => {
+    const initial = makePackage({
+      sourceBindings: [],
+      mapSpec: {
+        version: 8,
+        sources: { incidents: { type: "geojson", data: { type: "FeatureCollection", features: [] } } },
+        layers: [{ id: "incident-points", type: "circle", source: "incidents" }],
+      },
+    });
+    const map = makeMockMap();
+    const runtime = await loadMapPackage(initial, map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+    });
+    map._calls.length = 0;
+
+    const next = makePackage({
+      sourceBindings: [],
+      mapSpec: {
+        version: 8,
+        sources: {
+          incidents: {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: null }] },
+          },
+        },
+        layers: [{ id: "incident-points", type: "circle", source: "incidents" }],
+      },
+    });
+
+    const diff = diffPackages(runtime.mapPackage, next);
+    expect(diff.incremental).toBe(false);
+    expect(diff.structuralReason).toContain('mapSpec source "incidents" changed');
+
+    await runtime.updatePackage(next);
+    expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
+  });
+
+  test("paint changes fall back when renderer lacks paint patch support", async () => {
+    const map = makeMockMap();
+    delete map.setPaintProperty;
+    const runtime = await loadMapPackage(makePackage(), map, {
+      client: makeClient(),
+      skipCompatibilityCheck: true,
+      applyInitialView: false,
+    });
+    map._calls.length = 0;
+
+    const next = makePackage({
+      mapSpec: {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: "parcels-fill",
+            type: "fill",
+            source: "parcels",
+            paint: { "fill-color": "#ff0000", "fill-opacity": 0.5 },
+            layout: { visibility: "visible" },
+          },
+        ],
+      },
+    });
+
+    await runtime.updatePackage(next);
+
+    expect(map._calls.some((c) => c.method === "setPaintProperty")).toBe(false);
+    expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
+    expect(runtime.honuaMap.getLayer("parcels-fill")?.paint?.["fill-color"]).toBe("#ff0000");
   });
 
   test("composed root layer changes fall back to full setStyle", async () => {

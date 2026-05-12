@@ -9,6 +9,8 @@ import {
   defineQueryTileSource,
   defineWarehouseQuerySource,
   defineWarehouseTableSource,
+  isAnalyticsSourceDescriptor,
+  normalizeAnalyticsSourceDescriptor,
 } from "../../src/contract/index.js";
 import type { AttachmentApi, Query, Result, Source } from "../../src/contract/index.js";
 import { capabilities } from "../../src/contract/index.js";
@@ -151,6 +153,55 @@ describe("contract / analytics source primitives", () => {
       sourceId: "warehouse.raw-events",
     });
     expect(assessment.cacheKey).toContain("warehouse.raw-events");
+  });
+
+  it("rejects malformed descriptors in the runtime guard without throwing", () => {
+    const malformed = [
+      null,
+      [],
+      { id: "missing-kind" },
+      { kind: "warehouse-table", id: "missing-relation" },
+      { kind: "warehouse-table", id: "missing-table", relation: {} },
+      { kind: "warehouse-query", id: "missing-sql", sql: {} },
+      { kind: "warehouse-tileset", id: "missing-tileset", tileset: {} },
+      { kind: "indexed-spatial", id: "missing-index", index: { modelId: "h3" } },
+      { kind: "unknown", id: "unknown-kind" },
+    ];
+
+    for (const descriptor of malformed) {
+      expect(() => isAnalyticsSourceDescriptor(descriptor)).not.toThrow();
+      expect(isAnalyticsSourceDescriptor(descriptor)).toBe(false);
+    }
+
+    expect(
+      isAnalyticsSourceDescriptor({
+        kind: "warehouse-query",
+        id: "valid-query",
+        sql: { text: "select 1" },
+      }),
+    ).toBe(true);
+  });
+
+  it("normalizes malformed optional descriptor metadata without property-access failures", () => {
+    const normalized = normalizeAnalyticsSourceDescriptor({
+      kind: "warehouse-query",
+      id: "warehouse.safe-query",
+      sql: { text: "select 1" },
+      capabilities: { pushdown: "sql" },
+      fallback: { mode: "unexpected" },
+    } as unknown as Parameters<typeof normalizeAnalyticsSourceDescriptor>[0]);
+
+    expect(normalized.capabilities?.pushdown).toEqual(["sql", "widgets", "spatialAggregate", "metadata"]);
+    expect(normalized.fallback).toEqual({ mode: "disabled" });
+    expect(() =>
+      normalizeAnalyticsSourceDescriptor({
+        kind: "warehouse-table",
+        id: "bad-table",
+      } as unknown as Parameters<typeof normalizeAnalyticsSourceDescriptor>[0]),
+    ).toThrow("relation.table");
+    expect(() =>
+      defineIndexedSpatialSource({ id: "bad-indexed" } as unknown as Parameters<typeof defineIndexedSpatialSource>[0]),
+    ).toThrow("index.modelId and index.cellIdField");
   });
 });
 

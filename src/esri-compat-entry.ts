@@ -21,9 +21,11 @@ export type {
 export { FeatureFormCompat } from "./esri-compat/feature-form.js";
 export type {
   FeatureFormCompatOptions,
+  FeatureFormFieldErrorCompat,
   FeatureFormHandleCompat,
   FeatureFormLoadStatusCompat,
   FeatureFormSubmitResultCompat,
+  FeatureFormValidationFn,
 } from "./esri-compat/feature-form.js";
 export { FeatureTemplatesCompat } from "./esri-compat/feature-templates.js";
 export type {
@@ -266,6 +268,7 @@ export { MapCompat } from "./esri-compat/map.js";
 export type { MapCompatHandle, MapCompatOptions, MapLoadStatusCompat } from "./esri-compat/map.js";
 export { MapImageLayerCompat, MapImageSublayerCompat } from "./esri-compat/map-image-layer.js";
 export type {
+  MapImageLayerApplyEditsOptions,
   MapImageLayerCreateQueryResult,
   MapImageLayerHandleCompat,
   MapImageLayerFindOptions,
@@ -281,6 +284,7 @@ export type {
   MapImageLayerQueryObjectIdsOptions,
   MapImageLayerQueryRelatedFeaturesOptions,
   MapImageLayerQueryOptions,
+  MapImageSublayerApplyEditsOptions,
   MapImageSublayerCompatOptions,
   MapImageSublayerCreateQueryResult,
   MapImageSublayerQueryCountOptions,
@@ -370,13 +374,17 @@ export {
   MapViewUiCompat,
 } from "./esri-compat/map-view.js";
 export type {
+  MapViewCenterLike,
   MapViewCompatOptions,
+  MapViewConstraintsLike,
+  MapViewExtentLike,
   MapViewGoToExtentLike,
   MapViewGoToInput,
   MapViewGoToOptions,
   MapViewGoToPointLike,
   MapViewGoToTarget,
   MapViewHandle,
+  MapViewHighlightOptionsLike,
   MapViewHitTestEvent,
   MapViewHitTestResult,
   MapViewHitTestResultItem,
@@ -385,8 +393,10 @@ export type {
   MapViewLayerViewHighlightRecord,
   MapViewLoadStatusCompat,
   MapViewMapPoint,
+  MapViewPaddingLike,
   MapViewPopupOpenOptions,
   MapViewScreenPoint,
+  MapViewSpatialReferenceLike,
   MapViewTakeScreenshotArea,
   MapViewTakeScreenshotOptions,
   MapViewTakeScreenshotResult,

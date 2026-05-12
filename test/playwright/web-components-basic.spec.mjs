@@ -28,6 +28,8 @@ test("web components compose map, layers, legend, table, search, and editor stat
     await expect(page.locator("honua-locate-control").getByRole("button", { name: "Use location" })).toBeVisible();
     await expect(page.locator("honua-measure-control").getByText("Measurement geometry is not available")).toBeVisible();
     await expect(page.locator("honua-sketch-control").getByText("Sketch editing is not available")).toBeVisible();
+    await expect(page.locator("honua-measure-control").getByRole("button", { name: "Distance" })).toBeDisabled();
+    await expect(page.locator("honua-sketch-control").getByRole("button", { name: "Point" })).toBeDisabled();
     await expect(page.locator("honua-print-export").getByRole("button", { name: "Snapshot" })).toBeVisible();
     await expect(page.locator("honua-map-status").getByText("Honua demo data")).toBeVisible();
     await expect(page.locator("honua-action-panel").getByRole("button", { name: "Refresh sources" })).toBeVisible();
@@ -60,8 +62,13 @@ test("web components compose map, layers, legend, table, search, and editor stat
     await expect(page.locator("#event-log")).toHaveText("layer:incident-points:false");
 
     await page.locator("honua-search").getByRole("textbox", { name: "Search" }).fill("harbor");
-    await page.locator("honua-search").getByRole("button", { name: "Search" }).click();
+    await page.keyboard.press("Enter");
     await expect(page.locator("#event-log")).toHaveText("search:harbor:1");
+    await expect
+      .poll(async () =>
+        page.locator("honua-search").evaluate((element) => element.shadowRoot?.activeElement?.id),
+      )
+      .toBe("honua-search-input");
     await page.getByRole("button", { name: "Harbor response district" }).click();
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.selectedFeatureId))
@@ -93,12 +100,6 @@ test("web components compose map, layers, legend, table, search, and editor stat
     await page.locator("honua-locate-control").getByRole("button", { name: "Use location" }).click();
     await expect(page.locator("#event-log")).toHaveText("locate:ready");
 
-    await page.locator("honua-measure-control").getByRole("button", { name: "Distance" }).click();
-    await expect(page.locator("#event-log")).toHaveText("measure:distance:unsupported");
-
-    await page.locator("honua-sketch-control").getByRole("button", { name: "Point" }).click();
-    await expect(page.locator("#event-log")).toHaveText("sketch:point:unsupported");
-
     await page.locator("honua-print-export").getByRole("button", { name: "Snapshot" }).click();
     await expect(page.locator("#event-log")).toHaveText("export:png:unsupported");
 
@@ -117,6 +118,27 @@ test("web components compose map, layers, legend, table, search, and editor stat
     expect(teardown).toEqual({ connected: false, hasCanvas: false, hasMap: false, hasRuntime: false });
 
     expect(pageErrors).toEqual([]);
+  } finally {
+    await server.close();
+  }
+});
+
+test("honua-map package-url failures render persistent status text", async ({ page }) => {
+  const server = await startWebComponentsFixtureServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => customElements.get("honua-map") !== undefined)).toBe(true);
+
+    const statusText = await page.evaluate(async () => {
+      const element = document.createElement("honua-map");
+      element.setAttribute("src", "/__missing-map-package__.json");
+      document.body.append(element);
+      await new Promise((resolve) => element.addEventListener("honua-map-error", resolve, { once: true }));
+      return element.shadowRoot?.querySelector(".map__status")?.textContent ?? "";
+    });
+
+    expect(statusText).not.toBe("Loading map package");
+    expect(statusText.length).toBeGreaterThan(0);
   } finally {
     await server.close();
   }

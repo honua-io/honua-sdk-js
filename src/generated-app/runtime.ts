@@ -62,7 +62,14 @@ import type {
   HonuaGeneratedAppTableWidget,
   HonuaGeneratedAppWidget,
 } from "./manifest.js";
-import { assertGeneratedAppManifest, projectAppPackageToGeneratedAppManifest } from "./projection.js";
+import {
+  HONUA_GENERATED_APP_DEFAULT_PREVIEW_LIMIT,
+  HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT,
+  assertGeneratedAppManifest,
+  clampGeneratedAppManifest,
+  clampGeneratedAppPreviewLimit,
+  projectAppPackageToGeneratedAppManifest,
+} from "./projection.js";
 
 export type HonuaGeneratedAppFeatureInput<TAttributes extends Record<string, unknown> = Record<string, unknown>> =
   | HonuaGeneratedAppFeatureRecord<TAttributes>
@@ -270,6 +277,7 @@ export async function loadGeneratedAppRuntime<TAttributes extends Record<string,
   options: HonuaGeneratedAppLoadOptions<TAttributes>,
 ): Promise<HonuaGeneratedAppRuntime<TAttributes>> {
   assertGeneratedAppManifest(manifest);
+  manifest = clampGeneratedAppManifest(manifest);
   assertOperationsDashboardWidgets(manifest);
 
   const sourceId = manifest.data.sourceId;
@@ -643,8 +651,8 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
     const categories: Record<string, WidgetCategoriesResult> = {};
     const histogram: Record<string, WidgetHistogramResult> = {};
     const timeSeries: Record<string, WidgetTimeSeriesResult> = {};
-    await Promise.all(
-      this.manifest.layout.widgets.map(async (widget) => {
+    await runWithConcurrency(
+      this.manifest.layout.widgets.map((widget) => async () => {
         switch (widget.kind) {
           case "count":
             count[widget.id] = await this.#widgetSource!.count({ projection });
@@ -685,7 +693,7 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
             categories[widget.id] = await this.#widgetSource!.categories({
               projection,
               field: widget.field,
-              limit: Math.max(widget.options?.length ?? 0, 25),
+              limit: clampInteger(Math.max(widget.options?.length ?? 0, 25), 1, HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT),
             });
             break;
           case "map":
@@ -694,6 +702,7 @@ export class HonuaGeneratedAppRuntime<TAttributes extends Record<string, unknown
             break;
         }
       }),
+      4,
     );
     return { projectionKey: stableWidgetProjectionKey(projection), count, categories, histogram, timeSeries };
   }
@@ -833,13 +842,14 @@ async function loadFeaturesFromMapRuntime(
       },
     });
   }
+  const previewLimit = clampGeneratedAppPreviewLimit(
+    projection.pagination.limit ?? manifest.data.previewLimit ?? HONUA_GENERATED_APP_DEFAULT_PREVIEW_LIMIT,
+  );
   const query: Query = {
     returnGeometry: true,
     outFields: generatedAppQueryFields(manifest),
     orderBy: projection.orderBy,
-    pagination: projection.pagination.limit
-      ? projection.pagination
-      : { ...projection.pagination, limit: manifest.data.previewLimit ?? 250 },
+    pagination: { ...projection.pagination, limit: previewLimit ?? HONUA_GENERATED_APP_DEFAULT_PREVIEW_LIMIT },
   };
   const result = await source.query(query);
   return result.features.map((feature) => ({
@@ -1266,8 +1276,8 @@ function histogramBins(
   requestedMax: number | undefined,
 ): ReadonlyArray<HonuaGeneratedAppHistogramBin> {
   const values = records.map((record) => numericValue(record.attributes[field])).filter(isNumber);
-  const min = requestedMin ?? (values.length > 0 ? Math.min(...values) : undefined);
-  const max = requestedMax ?? (values.length > 0 ? Math.max(...values) : undefined);
+  const min = requestedMin ?? minNumber(values);
+  const max = requestedMax ?? maxNumber(values);
   if (min === undefined || max === undefined) return [];
   const count = clampInteger(requestedBins ?? 10, 1, 200);
   const width = max === min ? 1 : (max - min) / count;
@@ -1525,9 +1535,9 @@ function computeWidgetMetric(
     case "avg":
       return values.reduce((sum, value) => sum + value, 0) / values.length;
     case "min":
-      return Math.min(...values);
+      return minNumber(values) ?? null;
     case "max":
-      return Math.max(...values);
+      return maxNumber(values) ?? null;
     case "stddev": {
       const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
       const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
@@ -1543,6 +1553,18 @@ function computeWidgetMetric(
 function clampInteger(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.max(min, Math.min(max, Math.trunc(value)));
+}
+
+function minNumber(values: readonly number[]): number | undefined {
+  let min: number | undefined;
+  for (const value of values) min = min === undefined || value < min ? value : min;
+  return min;
+}
+
+function maxNumber(values: readonly number[]): number | undefined {
+  let max: number | undefined;
+  for (const value of values) max = max === undefined || value > max ? value : max;
+  return max;
 }
 
 function formatNumber(value: number): string {
@@ -1589,4 +1611,18 @@ function stableStringify(value: unknown): string {
 
 function unique(values: ReadonlyArray<string>): string[] {
   return [...new Set(values)];
+}
+
+async function runWithConcurrency(tasks: ReadonlyArray<() => Promise<void>>, concurrency: number): Promise<void> {
+  const limit = clampInteger(concurrency, 1, tasks.length || 1);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < tasks.length) {
+      const task = tasks[next];
+      next += 1;
+      if (!task) continue;
+      await task();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, () => worker()));
 }

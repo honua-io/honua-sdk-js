@@ -239,6 +239,7 @@ export interface QueryTileRequestTileOptions {
 
 export interface QueryTileViewportRequestOptions extends QueryTileRequestTileOptions {
   abortOutOfViewport?: boolean;
+  concurrency?: number;
 }
 
 export interface QueryTileViewportRequestResult<T> {
@@ -270,6 +271,9 @@ interface InflightEntry<T> {
 }
 
 const WEB_MERCATOR_LAT_LIMIT = 85.05112878;
+const DEFAULT_MAX_VIEWPORT_TILES = 1024;
+const MAX_SAFE_TILE_ZOOM = 30;
+const DEFAULT_VIEWPORT_FETCH_CONCURRENCY = 8;
 
 const TILE_PUSHDOWN_PROTOCOLS = new Set<Protocol>([
   "ogc-tiles",
@@ -474,22 +478,28 @@ export async function fetchQueryTileFeatureDetail<T = Record<string, unknown>>(
 
 /** Compute visible XYZ tiles for a WGS84 bounds + zoom viewport. */
 export function queryTilesForViewport(viewport: QueryTileViewport): readonly QueryTileKey[] {
-  const z = clampZoom(Math.floor(viewport.zoom), viewport.minzoom, viewport.maxzoom);
-  const ranges = tileRangesForBounds(viewport.bounds, z);
+  const { z, ranges, maxTiles } = normalizedViewportTileRanges(viewport);
+  const cardinality = tileRangeCardinality(ranges);
+  if (cardinality > maxTiles) {
+    throw new Error(`viewport resolves to ${cardinality} tiles, exceeding maxTiles=${maxTiles}`);
+  }
   const out: QueryTileKey[] = [];
+  const seen = new Set<string>();
   for (const range of ranges) {
     for (let x = range.minX; x <= range.maxX; x += 1) {
       for (let y = range.minY; y <= range.maxY; y += 1) {
-        out.push(normalizeQueryTileKey({ z, x, y }));
+        const tile = normalizeQueryTileKey({ z, x, y });
+        const id = stableJson(tile);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        if (out.length >= maxTiles) {
+          throw new Error(`viewport resolves to more than maxTiles=${maxTiles} tiles`);
+        }
+        out.push(tile);
       }
     }
   }
-  const deduped = uniqueTiles(out);
-  const maxTiles = viewport.maxTiles ?? 1024;
-  if (deduped.length > maxTiles) {
-    throw new Error(`viewport resolves to ${deduped.length} tiles, exceeding maxTiles=${maxTiles}`);
-  }
-  return deduped;
+  return out;
 }
 
 /** Diagnose protocol support, fallback behavior, and cache observability gaps. */
@@ -641,7 +651,8 @@ export class QueryTileRequestController<T = unknown> {
     const cacheKey = this.#cacheKey(key, options.cache);
     const cached = this.#cache.get(cacheKey);
     const now = Date.now();
-    if (cached && this.#isFresh(cached, now)) {
+    const cacheEnabled = this.#cacheEnabled(options.cache);
+    if (cacheEnabled && cached && this.#isFresh(cached, now)) {
       cached.lastAccessedAt = now;
       this.#emit({ type: "tile-cache-hit", ...this.#eventBase(key, cacheKey), value: cached.value });
       return Promise.resolve(cached.value);
@@ -674,13 +685,15 @@ export class QueryTileRequestController<T = unknown> {
           });
           throw abortError(controller.signal.reason);
         }
-        this.#cache.set(cacheKey, {
-          value,
-          tileKey: key,
-          createdAt: Date.now(),
-          lastAccessedAt: Date.now(),
-        });
-        this.#enforceMaxEntries();
+        if (cacheEnabled) {
+          this.#cache.set(cacheKey, {
+            value,
+            tileKey: key,
+            createdAt: Date.now(),
+            lastAccessedAt: Date.now(),
+          });
+          this.#enforceMaxEntries();
+        }
         this.#emit({ type: "tile-loaded", ...this.#eventBase(key, cacheKey), value });
         return value;
       })
@@ -716,7 +729,11 @@ export class QueryTileRequestController<T = unknown> {
         if (!visibleCacheKeys.has(cacheKey)) entry.controller.abort("out-of-viewport");
       }
     }
-    const results = await Promise.allSettled(tiles.map((tile) => this.requestTile(tile, options)));
+    const results = await allSettledLimited(
+      tiles,
+      normalizeConcurrency(options.concurrency, DEFAULT_VIEWPORT_FETCH_CONCURRENCY),
+      (tile) => this.requestTile(tile, options),
+    );
     return {
       viewport,
       tiles,
@@ -776,6 +793,11 @@ export class QueryTileRequestController<T = unknown> {
 
   #cacheKey(tileKey: QueryTileKey, cache: QueryTileCacheKeyOptions["cache"] | undefined): string {
     return buildQueryTileCacheKey(this.descriptor, tileKey, { cache });
+  }
+
+  #cacheEnabled(cache: QueryTileCacheKeyOptions["cache"] | undefined): boolean {
+    const key = { ...(this.descriptor.cache?.key ?? {}), ...(cache ?? {}) };
+    return typeof key.authorizationScope === "string" && key.authorizationScope.length > 0;
   }
 
   #isFresh(entry: CacheEntry<T>, now: number): boolean {
@@ -981,6 +1003,53 @@ function stripUndefined<T extends Record<string, unknown>>(value: T): T {
   return out as T;
 }
 
+function normalizedViewportTileRanges(viewport: QueryTileViewport): {
+  z: number;
+  ranges: Array<{ minX: number; maxX: number; minY: number; maxY: number }>;
+  maxTiles: number;
+} {
+  validateViewport(viewport);
+  const z = clampZoom(Math.floor(viewport.zoom), viewport.minzoom, viewport.maxzoom);
+  if (!Number.isSafeInteger(z) || z < 0 || z > MAX_SAFE_TILE_ZOOM) {
+    throw new Error(`viewport zoom ${z} exceeds safe tile zoom ${MAX_SAFE_TILE_ZOOM}`);
+  }
+  const maxTiles = Math.trunc(viewport.maxTiles ?? DEFAULT_MAX_VIEWPORT_TILES);
+  return {
+    z,
+    ranges: tileRangesForBounds(viewport.bounds, z),
+    maxTiles,
+  };
+}
+
+function validateViewport(viewport: QueryTileViewport): void {
+  if (!Array.isArray(viewport.bounds) || viewport.bounds.length !== 4) {
+    throw new Error("viewport bounds must be [west, south, east, north]");
+  }
+  if (viewport.bounds.some((value) => typeof value !== "number" || !Number.isFinite(value))) {
+    throw new Error("viewport bounds must contain finite numbers");
+  }
+  const [west, south, east, north] = viewport.bounds;
+  if (south > north) {
+    throw new Error("viewport bounds south must be <= north");
+  }
+  if (west < -360 || west > 360 || east < -360 || east > 360 || south < -90 || north > 90) {
+    throw new Error("viewport bounds exceed supported WGS84 ranges");
+  }
+  for (const [name, value] of [
+    ["zoom", viewport.zoom],
+    ["minzoom", viewport.minzoom],
+    ["maxzoom", viewport.maxzoom],
+    ["maxTiles", viewport.maxTiles],
+  ] as const) {
+    if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value))) {
+      throw new Error(`viewport ${name} must be finite`);
+    }
+  }
+  if (viewport.maxTiles !== undefined && viewport.maxTiles < 1) {
+    throw new Error("viewport maxTiles must be >= 1");
+  }
+}
+
 function clampZoom(zoom: number, minzoom: number | undefined, maxzoom: number | undefined): number {
   const min = minzoom ?? 0;
   const max = maxzoom ?? 24;
@@ -1019,6 +1088,10 @@ function tileRangeForNormalizedBounds(
   };
 }
 
+function tileRangeCardinality(ranges: readonly { minX: number; maxX: number; minY: number; maxY: number }[]): number {
+  return ranges.reduce((total, range) => total + (range.maxX - range.minX + 1) * (range.maxY - range.minY + 1), 0);
+}
+
 function lonToTileX(lon: number, z: number): number {
   const clampedLon = Math.max(-180, Math.min(180, lon));
   return Math.floor(((clampedLon + 180) / 360) * 2 ** z);
@@ -1030,20 +1103,37 @@ function latToTileY(lat: number, z: number): number {
   return Math.floor(((1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2) * 2 ** z);
 }
 
-function uniqueTiles(tiles: readonly QueryTileKey[]): readonly QueryTileKey[] {
-  const seen = new Set<string>();
-  const out: QueryTileKey[] = [];
-  for (const tile of tiles) {
-    const id = stableJson(tile);
-    if (seen.has(id)) continue;
-    seen.add(id);
-    out.push(tile);
-  }
-  return out;
-}
-
 function sameTile(a: QueryTileKey, b: QueryTileKey): boolean {
   return a.z === b.z && a.x === b.x && a.y === b.y;
+}
+
+async function allSettledLimited<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  worker: (value: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(values.length);
+  let nextIndex = 0;
+  async function run(): Promise<void> {
+    for (;;) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= values.length) return;
+      try {
+        results[index] = { status: "fulfilled", value: await worker(values[index] as T) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+  const workers = Array.from({ length: Math.min(concurrency, values.length) }, () => run());
+  await Promise.all(workers);
+  return results;
+}
+
+function normalizeConcurrency(value: number | undefined, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.trunc(value));
 }
 
 function linkAbortSignals(controller: AbortController, signal: AbortSignal | undefined): () => void {

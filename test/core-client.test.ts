@@ -82,6 +82,61 @@ describe("HonuaClient", () => {
     expect(reasons).toEqual(["initial", "manual", "initial"]);
   });
 
+  it("refreshes provider auth once after a replay-safe unauthorized response", async () => {
+    const requestedHeaders: HeadersInit[] = [];
+    const reasons: string[] = [];
+    let issue = 0;
+    let attempts = 0;
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      auth: ({ reason }) => {
+        reasons.push(reason);
+        issue += 1;
+        return { bearerToken: `token-${issue}`, expiresAt: Date.now() + 60_000 };
+      },
+      fetchFn: async (_input, init) => {
+        attempts += 1;
+        requestedHeaders.push(init?.headers ?? {});
+        if (attempts === 1) {
+          return new Response(JSON.stringify({ error: { message: "expired" } }), { status: 401 });
+        }
+        return new Response(JSON.stringify({ services: [] }), { status: 200 });
+      },
+    });
+
+    await expect(client.listServices()).resolves.toMatchObject({ services: [] });
+
+    expect(attempts).toBe(2);
+    expect(reasons).toEqual(["initial", "unauthorized"]);
+    expect(requestedHeaders[0]).toMatchObject({ Authorization: "Bearer token-1" });
+    expect(requestedHeaders[1]).toMatchObject({ Authorization: "Bearer token-2" });
+  });
+
+  it("aborts during retry backoff sleep", async () => {
+    const controller = new AbortController();
+    let attempts = 0;
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      retry: {
+        maxRetries: 1,
+        baseDelayMs: 60_000,
+        maxDelayMs: 60_000,
+        retryStatuses: [503],
+      },
+      fetchFn: async () => {
+        attempts += 1;
+        return new Response(JSON.stringify({ error: { message: "unavailable" } }), { status: 503 });
+      },
+    });
+
+    const request = client.listServices({ signal: controller.signal });
+    await Promise.resolve();
+    controller.abort();
+
+    await expect(request).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(attempts).toBe(1);
+  });
+
   it("queries features using GET params", async () => {
     let requestedUrl: string | undefined;
     let requestedInit: RequestInit | undefined;

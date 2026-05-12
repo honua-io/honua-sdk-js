@@ -184,6 +184,10 @@ describe("scene workspace", () => {
         sourceId: "scene-assets",
         height: ["get", "extrusion_height_m"],
         color: "#4d8a87",
+        filters: {
+          active: { field: "status", operator: "=", value: "active", appliesTo: ["scene-assets"] },
+          ignored: { field: "tenant", operator: "=", value: "other", appliesTo: ["other-source"] },
+        },
       },
     ];
 
@@ -219,6 +223,40 @@ describe("scene workspace", () => {
       type: "fill-extrusion",
       source: "scene-assets",
       paint: { "fill-extrusion-height": ["get", "extrusion_height_m"] },
+      filter: ["all", ["==", "status", "active"]],
+    });
+  });
+
+  it("diagnoses non-renderable terrain-rgb sources and invalid terrain ranges", () => {
+    const diagnostics = diagnoseScenePrimitives(
+      [
+        {
+          kind: "elevation-source",
+          id: "bad-terrain",
+          sourceId: "terrain-source",
+          protocol: "terrain-rgb",
+          tiles: [],
+          tileSize: 0,
+          minzoom: 15,
+          maxzoom: 8,
+          exaggeration: Number.POSITIVE_INFINITY,
+        },
+      ],
+      {
+        renderer: "maplibre",
+        terrain: { protocols: ["terrain-rgb"], supportsExaggeration: true },
+      },
+    );
+
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "scene-primitive-terrain-source-missing-url",
+      "scene-primitive-terrain-range-invalid",
+    ]);
+    expect(diagnostics.every((diagnostic) => diagnostic.status === "unsupported")).toBe(true);
+    expect(diagnostics[1].context).toMatchObject({
+      tileSize: 0,
+      zoomRange: [15, 8],
+      exaggeration: Number.POSITIVE_INFINITY,
     });
   });
 

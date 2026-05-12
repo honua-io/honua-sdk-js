@@ -128,6 +128,7 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
 
   public selectFeature(selection: HonuaSelectionState<T>): void {
     const sourceId = selection.sourceId;
+    const sourceLayer = selection.sourceLayer;
     const featureId = selection.featureId;
     const feature =
       selection.feature ??
@@ -138,6 +139,7 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
       ...this.#state,
       selection: {
         ...(sourceId !== undefined ? { sourceId } : {}),
+        ...(sourceLayer !== undefined ? { sourceLayer } : {}),
         ...(featureId !== undefined ? { featureId } : {}),
         ...(feature ? { feature: copyFeature(feature) } : {}),
       },
@@ -240,6 +242,7 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
       const result = await source.query(request);
       const rows = result.features.map((feature, index) => normalizeFeature(resolvedSourceId, feature, index));
       const fields = result.fields?.map((field) => field.name) ?? options.fields ?? inferFields(rows);
+      this.#cacheRuntimeRows(resolvedSourceId, rows);
       return {
         sourceId: resolvedSourceId,
         status: "ready",
@@ -267,12 +270,12 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
     const limit = Math.max(1, options.limit ?? 10);
     const sourceIds = options.sourceId
       ? [options.sourceId]
-      : Object.keys(this.#state.featuresBySource).filter((sourceId) => sourceId.trim().length > 0);
+      : sourceIdsFromState(this.#state.featuresBySource, this.#state.layers);
     const fields = options.fields ?? this.#searchFields;
     const results: HonuaSearchResult<T>[] = [];
 
     for (const sourceId of sourceIds) {
-      const rows = this.#state.featuresBySource[sourceId] ?? [];
+      const rows = await this.#searchRows(sourceId, fields, options.signal);
       for (const row of rows) {
         if (!featureMatches(row, needle, fields)) continue;
         results.push({
@@ -341,6 +344,32 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
       rows: pagedRows.map(copyFeature),
       totalCount: rows.length,
     };
+  }
+
+  async #searchRows(
+    sourceId: string,
+    fields: readonly string[] | undefined,
+    signal: AbortSignal | undefined,
+  ): Promise<readonly HonuaFeatureRecord<T>[]> {
+    const rows = this.#state.featuresBySource[sourceId] ?? [];
+    if (rows.length > 0 || !this.#runtime?.dataset?.source(sourceId)) return rows;
+    const table = await this.queryFeatures(sourceId, {
+      fields,
+      pagination: { limit: 1000 },
+      ...(signal ? { signal } : {}),
+    });
+    return table.rows;
+  }
+
+  #cacheRuntimeRows(sourceId: string, rows: readonly HonuaFeatureRecord<T>[]): void {
+    this.#state = {
+      ...this.#state,
+      featuresBySource: {
+        ...this.#state.featuresBySource,
+        [sourceId]: rows.map(copyFeature),
+      },
+    };
+    this.#notify();
   }
 
   #notify(): void {
@@ -518,6 +547,7 @@ function copyState<T>(state: HonuaWebComponentState<T>): HonuaWebComponentState<
 function copySelection<T>(selection: HonuaSelectionState<T>): HonuaSelectionState<T> {
   return {
     ...(selection.sourceId !== undefined ? { sourceId: selection.sourceId } : {}),
+    ...(selection.sourceLayer !== undefined ? { sourceLayer: selection.sourceLayer } : {}),
     ...(selection.featureId !== undefined ? { featureId: selection.featureId } : {}),
     ...(selection.feature ? { feature: copyFeature(selection.feature) } : {}),
   };
@@ -581,6 +611,18 @@ function firstSourceId<T>(
   const featureSource = Object.keys(featuresBySource)[0];
   if (featureSource) return featureSource;
   return layers.find((layer) => layer.sourceId)?.sourceId;
+}
+
+function sourceIdsFromState<T>(
+  featuresBySource: Readonly<Record<string, readonly HonuaFeatureRecord<T>[]>>,
+  layers: readonly HonuaLayerModel[],
+): string[] {
+  return [
+    ...new Set([
+      ...Object.keys(featuresBySource).filter((sourceId) => sourceId.trim().length > 0),
+      ...layers.flatMap((layer) => (layer.sourceId ? [layer.sourceId] : [])),
+    ]),
+  ];
 }
 
 function filterRows<T>(

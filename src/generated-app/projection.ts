@@ -23,6 +23,10 @@ import {
   type HonuaGeneratedAppWidget,
 } from "./manifest.js";
 
+export const HONUA_GENERATED_APP_DEFAULT_PREVIEW_LIMIT = 250;
+export const HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT = 1_000;
+export const HONUA_GENERATED_APP_MAX_WIDGETS = 64;
+
 export interface ProjectBuildSpecToGeneratedAppManifestOptions {
   readonly appId?: string;
   readonly version?: string;
@@ -76,12 +80,12 @@ export function projectAppPackageToGeneratedAppManifest(
   assertGeneratedAppManifest(manifest);
 
   const mapPackage = manifest.mapPackage ?? options.mapPackage ?? pkg.mapPackage;
-  return {
+  return clampGeneratedAppManifest({
     ...manifest,
     appId: manifest.appId || pkg.id,
     version: manifest.version ?? pkg.version,
     ...(mapPackage ? { mapPackage, mapPackageId: manifest.mapPackageId ?? mapPackage.mapPackageId } : {}),
-  };
+  });
 }
 
 export function projectBuildSpecToGeneratedAppManifest(
@@ -109,9 +113,13 @@ export function projectBuildSpecToGeneratedAppManifest(
     });
   }
 
-  const widgets =
-    options.widgets ?? buildSpec.widgets ?? buildSpec.layout?.widgets ?? defaultOperationsWidgets(bindings);
-  return {
+  const widgets = clampGeneratedAppWidgets(
+    options.widgets ?? buildSpec.widgets ?? buildSpec.layout?.widgets ?? defaultOperationsWidgets(bindings),
+  );
+  const previewLimit = clampGeneratedAppPreviewLimit(
+    (buildSpec as { data?: { previewLimit?: number } }).data?.previewLimit,
+  );
+  return clampGeneratedAppManifest({
     format: HONUA_GENERATED_APP_MANIFEST_FORMAT_V1,
     profile: HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1,
     appId: options.appId ?? buildSpec.appId ?? buildSpec.id ?? "generated-app",
@@ -120,6 +128,7 @@ export function projectBuildSpecToGeneratedAppManifest(
     ...(options.version ? { version: options.version } : {}),
     data: {
       sourceId,
+      ...(previewLimit === undefined ? {} : { previewLimit }),
     },
     ...((options.mapPackageId ?? options.mapPackage?.mapPackageId)
       ? { mapPackageId: options.mapPackageId ?? options.mapPackage?.mapPackageId }
@@ -135,7 +144,7 @@ export function projectBuildSpecToGeneratedAppManifest(
     metadata: {
       buildSpec,
     },
-  };
+  });
 }
 
 export function projectMapPackageToGeneratedAppManifest(
@@ -155,7 +164,7 @@ export function projectMapPackageToGeneratedAppManifest(
     layerId: firstLayerIdForSource(mapPackage, sourceId),
     ...(options.bindings ?? {}),
   };
-  return {
+  return clampGeneratedAppManifest({
     format: HONUA_GENERATED_APP_MANIFEST_FORMAT_V1,
     profile: HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1,
     appId: options.appId ?? mapPackage.previewArtifactId ?? mapPackage.mapPackageId,
@@ -172,7 +181,7 @@ export function projectMapPackageToGeneratedAppManifest(
     metadata: {
       mapPackageId: mapPackage.mapPackageId,
     },
-  };
+  });
 }
 
 export function assertGeneratedAppManifest(manifest: HonuaGeneratedAppManifest): void {
@@ -278,4 +287,42 @@ function defaultOperationsWidgets(bindings: HonuaGeneratedAppFieldBinding): Read
 
 function firstLayerIdForSource(mapPackage: HonuaMapPackage, sourceId: string): string | undefined {
   return mapPackage.mapSpec.layers.find((layer) => layer.source === sourceId)?.id;
+}
+
+export function clampGeneratedAppManifest(manifest: HonuaGeneratedAppManifest): HonuaGeneratedAppManifest {
+  const widgets = clampGeneratedAppWidgets(manifest.layout.widgets);
+  const previewLimit = clampGeneratedAppPreviewLimit(manifest.data.previewLimit);
+  const data =
+    previewLimit === manifest.data.previewLimit ? manifest.data : dataWithPreviewLimit(manifest, previewLimit);
+  return {
+    ...manifest,
+    data,
+    layout: {
+      ...manifest.layout,
+      widgets,
+    },
+  };
+}
+
+function dataWithPreviewLimit(
+  manifest: HonuaGeneratedAppManifest,
+  previewLimit: number | undefined,
+): HonuaGeneratedAppManifest["data"] {
+  const { previewLimit: _previewLimit, ...rest } = manifest.data;
+  return {
+    ...rest,
+    ...(previewLimit === undefined ? {} : { previewLimit }),
+  };
+}
+
+export function clampGeneratedAppPreviewLimit(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isFinite(value)) return undefined;
+  return Math.max(1, Math.min(HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT, Math.trunc(value)));
+}
+
+export function clampGeneratedAppWidgets(
+  widgets: ReadonlyArray<HonuaGeneratedAppWidget>,
+): ReadonlyArray<HonuaGeneratedAppWidget> {
+  return widgets.length > HONUA_GENERATED_APP_MAX_WIDGETS ? widgets.slice(0, HONUA_GENERATED_APP_MAX_WIDGETS) : widgets;
 }

@@ -24,6 +24,10 @@ import {
   projectBuildSpecToGeneratedAppManifest,
   projectMapPackageToGeneratedAppManifest,
 } from "../src/generated-app/index.js";
+import {
+  HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT,
+  HONUA_GENERATED_APP_MAX_WIDGETS,
+} from "../src/generated-app/projection.js";
 import type { HonuaMapPackage, MaplibreMap } from "../src/runtime/index.js";
 
 interface MockCall {
@@ -204,6 +208,24 @@ describe("@honua/sdk-js/generated-app", () => {
     });
     expect(mapManifest.data.sourceId).toBe("incidents");
     expect(mapManifest.mapPackageId).toBe("map-ops-dashboard-v1");
+  });
+
+  it("clamps generated manifest widget counts and preview limits during projection", () => {
+    const widgets = Array.from({ length: HONUA_GENERATED_APP_MAX_WIDGETS + 10 }, (_, index) => ({
+      id: `count-${index}`,
+      kind: "count" as const,
+      sourceId: "incidents",
+    }));
+
+    const manifest = projectBuildSpecToGeneratedAppManifest({
+      id: "large-build-spec",
+      sourceId: "incidents",
+      widgets,
+      data: { previewLimit: HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT * 10 },
+    });
+
+    expect(manifest.layout.widgets).toHaveLength(HONUA_GENERATED_APP_MAX_WIDGETS);
+    expect(manifest.data.previewLimit).toBe(HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT);
   });
 
   it("loads and renders map, table, count, chart, and filter widgets from model-free fixtures", async () => {
@@ -428,6 +450,7 @@ describe("@honua/sdk-js/generated-app", () => {
       severity: 3,
     };
     const requestedOutFields: string[] = [];
+    const requestedLimits: string[] = [];
     const client = new HonuaClient({
       baseUrl: "https://mock.honua.test",
       fetchFn: async (input) => {
@@ -438,6 +461,7 @@ describe("@honua/sdk-js/generated-app", () => {
 
         const outFields = url.searchParams.get("outFields") ?? "";
         requestedOutFields.push(outFields);
+        requestedLimits.push(url.searchParams.get("resultRecordCount") ?? "");
         const requestedFields = outFields === "*" ? Object.keys(sourceAttributes) : outFields.split(",");
         const attributes = Object.fromEntries(requestedFields.map((field) => [field, sourceAttributes[field]]));
         return new Response(JSON.stringify({ features: [{ attributes, geometry: null }] }), {
@@ -448,6 +472,8 @@ describe("@honua/sdk-js/generated-app", () => {
     });
     const sparseDisplayManifest: HonuaGeneratedAppManifest = {
       ...manifest,
+      data: { ...manifest.data, previewLimit: HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT * 10 },
+      initialState: { page: { limit: HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT * 10 } },
       bindings: {
         ...manifest.bindings,
         primaryKey: "incident_id",
@@ -488,6 +514,7 @@ describe("@honua/sdk-js/generated-app", () => {
 
     expect(result.status).toBe("ready");
     expect(requestedOutFields[0]?.split(",")).toEqual(["incident_id", "title", "status", "district", "severity"]);
+    expect(requestedLimits[0]).toBe(String(HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT));
     if (result.status === "ready") {
       expect(tableWidget(result.model, "incident-table").rows[0]).toMatchObject({
         id: "INC-1001",
@@ -502,6 +529,76 @@ describe("@honua/sdk-js/generated-app", () => {
       ).toEqual([[3, 1]]);
       result.runtime.dispose();
     }
+  });
+
+  it("bounds concurrent generated widget source requests", async () => {
+    const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
+    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>("operations-dashboard-features.v1.json");
+    const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
+    const concurrentManifest: HonuaGeneratedAppManifest = {
+      ...manifest,
+      layout: {
+        ...manifest.layout,
+        widgets: [
+          ...Array.from({ length: 12 }, (_, index) => ({
+            id: `extra-count-${index}`,
+            kind: "count" as const,
+            sourceId: manifest.data.sourceId,
+          })),
+          ...manifest.layout.widgets,
+        ],
+      },
+    };
+    let active = 0;
+    let peak = 0;
+    const gate = async <T>(value: T): Promise<T> => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active -= 1;
+      return value;
+    };
+    const widgetSource: WidgetSource = {
+      source: undefined as never,
+      count: async () => gate({ ...widgetResultBase(), kind: "count", value: 1, label: "Incidents" }),
+      categories: async (request) =>
+        gate({ ...widgetResultBase(), kind: "categories", field: request.field, buckets: [] }),
+      histogram: async (request) =>
+        gate({ ...widgetResultBase(), kind: "histogram", field: request.field, min: 0, max: 0, bins: [] }),
+      timeSeries: async (request) =>
+        gate({
+          ...widgetResultBase(),
+          kind: "time-series",
+          field: request.field,
+          interval: { unit: "day", step: 1, timezone: "UTC" },
+          totalCount: 0,
+          buckets: [],
+        }),
+      formula: async () => {
+        throw new Error("not used");
+      },
+      range: async () => {
+        throw new Error("not used");
+      },
+      topValues: async () => {
+        throw new Error("not used");
+      },
+    };
+
+    const result = await previewGeneratedApp(
+      { manifest: concurrentManifest, mapPackage },
+      {
+        mapFactory: () => ({ map: makeMockMap() }),
+        mapLoadOptions: { client: makeClient(), skipCompatibilityCheck: true, applyInitialView: false },
+        initialFeatures: features,
+        widgetSource,
+      },
+    );
+
+    expect(result.status).toBe("ready");
+    expect(peak).toBeLessThanOrEqual(4);
+    if (result.status === "ready") result.runtime.dispose();
   });
 
   it("routes filter, chart, and table interactions through ExplorationContext", async () => {

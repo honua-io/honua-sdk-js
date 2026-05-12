@@ -202,6 +202,7 @@ export function normalizeHitTestFeatures(
   features: readonly unknown[],
   options: HonuaNormalizeHitTestOptions = {},
 ): HonuaHitFeature[] {
+  if (options.maxResults !== undefined && options.maxResults <= 0) return [];
   const out: HonuaHitFeature[] = [];
   for (const feature of features) {
     const context = featureContext(feature, options);
@@ -252,7 +253,7 @@ export function normalizeHitFeature(
       featureId,
     });
   }
-  if (context.layerType === "raster" && raster === undefined) {
+  if (context.layerType === "raster" && raster?.value === undefined) {
     degraded.push({
       reason: "raster-value-unavailable",
       message: "Rendered raster hit did not include a sample value.",

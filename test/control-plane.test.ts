@@ -61,6 +61,44 @@ describe("control-plane client", () => {
     expect(result.value.sourceUpdatedAt).toBe("Mon, 11 May 2026 10:00:00 GMT");
   });
 
+  it("does not emit empty conditional headers for refreshes without validators", async () => {
+    let headers: HeadersInit | undefined;
+    const controlPlane = clientFor(({ init }) => {
+      headers = init.headers;
+      return new Response(JSON.stringify({ items: [], pagination: {} }), { status: 200 });
+    });
+
+    const result = await controlPlane.hostedMaps.list({ refresh: true });
+    const requestHeaders = new Headers(headers);
+
+    expect(result.supported).toBe(true);
+    expect(requestHeaders.get("If-None-Match")).toBeNull();
+    expect(requestHeaders.get("If-Modified-Since")).toBeNull();
+  });
+
+  it("handles conditional list 304 responses when validators are supplied", async () => {
+    let headers: HeadersInit | undefined;
+    const controlPlane = clientFor(({ init }) => {
+      headers = init.headers;
+      return new Response(null, { status: 304 });
+    });
+
+    const result = await controlPlane.hostedMaps.list({
+      validator: { etag: '"maps-v1"', lastModified: "Mon, 11 May 2026 10:00:00 GMT" },
+    });
+    const requestHeaders = new Headers(headers);
+
+    expect(requestHeaders.get("If-None-Match")).toBe('"maps-v1"');
+    expect(requestHeaders.get("If-Modified-Since")).toBe("Mon, 11 May 2026 10:00:00 GMT");
+    expect(result.supported).toBe(true);
+    if (!result.supported) return;
+    expect(result.value.items).toEqual([]);
+    expect(result.value.validator).toEqual({
+      etag: '"maps-v1"',
+      lastModified: "Mon, 11 May 2026 10:00:00 GMT",
+    });
+  });
+
   it("passes optimistic concurrency validators when publishing packages", async () => {
     const contract = fixture("map-package-publish.v1.json");
     let body: unknown;

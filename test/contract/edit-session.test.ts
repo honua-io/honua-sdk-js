@@ -184,6 +184,44 @@ describe("contract / edit workflow session", () => {
     expect(optimisticApply).not.toHaveBeenCalled();
   });
 
+  it("deep-clones edit snapshots and compares nested sketch state structurally", () => {
+    const session = createEditSession<ParcelDraft>({
+      source: makeSource(),
+      kind: "update",
+      feature: {
+        id: 10,
+        attributes: { OBJECTID: 10, status: "open", version: 1, meta: { tags: ["a"] } },
+        geometry: { type: "polygon", rings: [[[0, 0]]] },
+      },
+    });
+    const snapshot = session.snapshot();
+
+    (snapshot.feature.attributes.meta as { tags: string[] }).tags.push("mutated");
+    (snapshot.feature.geometry as { rings: number[][][] }).rings[0][0][0] = 99;
+
+    expect((session.snapshot().feature.attributes.meta as { tags: string[] }).tags).toEqual(["a"]);
+    expect((session.snapshot().feature.geometry as { rings: number[][][] }).rings[0][0][0]).toBe(0);
+
+    const workflow = createEditSketchWorkflow<ParcelDraft>({
+      source: makeSource(),
+      kind: "update",
+      feature: {
+        id: 10,
+        attributes: { OBJECTID: 10, status: "open", version: 1, meta: { a: 1, b: [2] } },
+        geometry: { type: "point", coordinates: [0, 0] },
+      },
+    });
+
+    workflow.setValues({ meta: { b: [2], a: 1 } });
+    expect(workflow.snapshot().dirty).toBe(false);
+
+    workflow.setSketchGeometry("point", { type: "point", coordinates: [1, 2] });
+    const changed = workflow.snapshot();
+    (changed.feature.geometry as { coordinates: number[] }).coordinates[0] = 99;
+    workflow.discard();
+    expect(workflow.snapshot().feature.geometry).toEqual({ type: "point", coordinates: [0, 0] });
+  });
+
   it("tracks reusable sketch geometry, dirty state, undo, redo, and unsupported tools outside UI", () => {
     const workflow = createEditSketchWorkflow<ParcelDraft>({
       source: makeSource(),

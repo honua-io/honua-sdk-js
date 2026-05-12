@@ -102,7 +102,9 @@ abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElement
   protected setShadowHtml(html: string): void {
     this.ensureShadowRoot();
     const root = this.shadowRoot ?? this;
+    const focus = captureFocus(root);
     root.innerHTML = html;
+    restoreFocus(root, focus);
   }
 
   protected resolveControllerFromContext(): void {
@@ -157,6 +159,8 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   #packageUrl: string | undefined;
   #renderer: HonuaMapLibreRenderer<T> | undefined;
   #packageLoadToken = 0;
+  #packageLoading = false;
+  #packageLoadError: string | undefined;
 
   public get map(): unknown | undefined {
     return this.#renderer?.map;
@@ -181,6 +185,9 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
 
   public set packageUrl(value: string | undefined) {
     this.#packageUrl = value?.trim() || undefined;
+    this.#packageLoadError = undefined;
+    this.#packageLoading = Boolean(this.#packageUrl);
+    this.render();
     if (this.#packageUrl) void this.loadPackageFromUrl(this.#packageUrl);
   }
 
@@ -190,6 +197,10 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
 
   public set mapPackage(mapPackage: CreateHonuaWebComponentControllerOptions<T>["mapPackage"]) {
     this.#options = { ...this.#options, ...(mapPackage ? { mapPackage } : { mapPackage: undefined }) };
+    if (mapPackage) {
+      this.#packageLoading = false;
+      this.#packageLoadError = undefined;
+    }
     if (mapPackage) {
       this.controller = createHonuaWebComponentController(this.#options);
     } else if (!this.controller) {
@@ -223,6 +234,8 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
       try {
         this.mapPackage = JSON.parse(newValue) as CreateHonuaWebComponentControllerOptions<T>["mapPackage"];
       } catch {
+        this.#packageLoading = false;
+        this.#packageLoadError = "Invalid map-package JSON.";
         this.dispatchTypedEvent<HonuaMapErrorDetail>("honua-map-error", {
           error: new Error("Invalid map-package JSON."),
           message: "Invalid map-package JSON.",
@@ -298,10 +311,7 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     setText(nextRoot.querySelector(".zoom"), String(viewport.zoom?.toFixed?.(1) ?? viewport.zoom ?? 0));
     setText(nextRoot.querySelector("[data-visible-layers]"), `${String(visibleLayers.length)} visible`);
     setText(nextRoot.querySelector("[data-center]"), viewport.center ? viewport.center.join(", ") : "No center");
-    setText(
-      nextRoot.querySelector(".map__status"),
-      state?.mapPackage ? "" : this.#packageUrl ? "Loading map package" : "No map package",
-    );
+    setText(nextRoot.querySelector(".map__status"), this.mapStatusText(state));
     void this.syncRenderer();
   }
 
@@ -355,6 +365,9 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
 
   private async loadPackageFromUrl(locator: MapPackageLocator): Promise<void> {
     const token = ++this.#packageLoadToken;
+    this.#packageLoading = true;
+    this.#packageLoadError = undefined;
+    this.render();
     try {
       const [{ fetchMapPackage }, { HonuaClient }] = await Promise.all([
         import("../runtime/index.js"),
@@ -369,15 +382,27 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
       });
       if (token !== this.#packageLoadToken) return;
       this.mapPackage = result.mapPackage;
+      this.#packageLoading = false;
+      this.#packageLoadError = undefined;
       await this.syncRenderer();
       this.render();
     } catch (error) {
       if (token !== this.#packageLoadToken) return;
+      this.#packageLoading = false;
+      this.#packageLoadError = error instanceof Error ? error.message : String(error);
       this.dispatchTypedEvent<HonuaMapErrorDetail>("honua-map-error", {
         error,
-        message: error instanceof Error ? error.message : String(error),
+        message: this.#packageLoadError,
       });
+      this.render();
     }
+  }
+
+  private mapStatusText(state: HonuaWebComponentState<T> | undefined): string {
+    if (this.#packageLoadError) return this.#packageLoadError;
+    if (state?.mapPackage) return "";
+    if (this.#packageLoading || this.#packageUrl) return "Loading map package";
+    return "No map package";
   }
 }
 
@@ -1027,9 +1052,9 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
           ${(["off", "distance", "area"] as const)
             .map(
               (mode) => `
-            <button type="button" data-measure-mode="${mode}" aria-pressed="${String(this.#mode === mode)}">${escapeHtml(
-              modeLabel(mode),
-            )}</button>
+            <button type="button" data-measure-mode="${mode}" aria-pressed="${String(
+              this.#mode === mode,
+            )}" aria-disabled="true" disabled>${escapeHtml(modeLabel(mode))}</button>
           `,
             )
             .join("")}
@@ -1078,9 +1103,9 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
           ${(["off", "point", "line", "polygon"] as const)
             .map(
               (mode) => `
-            <button type="button" data-sketch-mode="${mode}" aria-pressed="${String(this.#mode === mode)}">${escapeHtml(
-              modeLabel(mode),
-            )}</button>
+            <button type="button" data-sketch-mode="${mode}" aria-pressed="${String(
+              this.#mode === mode,
+            )}" aria-disabled="true" disabled>${escapeHtml(modeLabel(mode))}</button>
           `,
             )
             .join("")}
@@ -1405,6 +1430,75 @@ function approximateScale(viewport: HonuaViewportState | undefined): string {
 
 function setText(element: Element | null | undefined, value: string): void {
   if (element) element.textContent = value;
+}
+
+interface FocusSnapshot {
+  selector: string;
+  value?: string;
+  selectionStart?: number;
+  selectionEnd?: number;
+  selectionDirection?: "forward" | "backward" | "none";
+}
+
+function captureFocus(root: Element | ShadowRoot): FocusSnapshot | undefined {
+  if (!("activeElement" in root)) return undefined;
+  const active = root.activeElement;
+  if (!active || !("localName" in active)) return undefined;
+  const selector = focusSelector(active);
+  if (!selector) return undefined;
+  const textControl = isTextControl(active) ? active : undefined;
+  return {
+    selector,
+    ...(textControl ? { value: textControl.value } : {}),
+    ...(typeof textControl?.selectionStart === "number" ? { selectionStart: textControl.selectionStart } : {}),
+    ...(typeof textControl?.selectionEnd === "number" ? { selectionEnd: textControl.selectionEnd } : {}),
+    ...(textControl?.selectionDirection ? { selectionDirection: textControl.selectionDirection } : {}),
+  };
+}
+
+function restoreFocus(root: Element | ShadowRoot, snapshot: FocusSnapshot | undefined): void {
+  if (!snapshot || typeof root.querySelector !== "function") return;
+  const target = root.querySelector(snapshot.selector);
+  if (!target || !("focus" in target) || typeof target.focus !== "function") return;
+  target.focus({ preventScroll: true });
+  if (
+    snapshot.value === undefined ||
+    snapshot.selectionStart === undefined ||
+    snapshot.selectionEnd === undefined ||
+    !isTextControl(target) ||
+    target.value !== snapshot.value
+  ) {
+    return;
+  }
+  target.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd, snapshot.selectionDirection ?? "none");
+}
+
+function focusSelector(element: Element): string | undefined {
+  const tagName = element.localName;
+  for (const name of ["id", "name"]) {
+    const value = element.getAttribute(name);
+    if (value) return `${tagName}[${name}="${cssAttribute(value)}"]`;
+  }
+  for (const name of element
+    .getAttributeNames()
+    .filter((attribute) => attribute.startsWith("data-"))
+    .sort()) {
+    const value = element.getAttribute(name);
+    if (value) return `${tagName}[${name}="${cssAttribute(value)}"]`;
+  }
+  return undefined;
+}
+
+function isTextControl(element: Element): element is HTMLInputElement | HTMLTextAreaElement {
+  return (
+    (element.localName === "input" || element.localName === "textarea") &&
+    "value" in element &&
+    "setSelectionRange" in element
+  );
+}
+
+function cssAttribute(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function browserOrigin(): string {

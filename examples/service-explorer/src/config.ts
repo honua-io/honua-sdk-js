@@ -6,6 +6,7 @@ export const DEFAULT_SERVICE_EXPLORER_LAYER_ID = 0;
 export const DEFAULT_SERVICE_EXPLORER_WHERE = "1=1";
 export const DEFAULT_SERVICE_EXPLORER_RESULT_RECORD_COUNT = 100;
 export const DEFAULT_SERVICE_EXPLORER_MAP_MOVE_DEBOUNCE_MS = 160;
+const BROWSER_BEARER_TOKEN_OPT_IN = "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN";
 
 function readOptional(env: Record<string, string | undefined>, key: string): string | undefined {
   const value = env[key]?.trim();
@@ -47,6 +48,16 @@ function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
+function readBrowserBearerToken(env: Record<string, string | undefined>, key: string): string | undefined {
+  const token = readOptional(env, key);
+  if (!token) return undefined;
+  if (typeof globalThis.window === "undefined" || readOptional(env, BROWSER_BEARER_TOKEN_OPT_IN) === "true") {
+    return token;
+  }
+  console.warn(`${key} is ignored in browser demos unless ${BROWSER_BEARER_TOKEN_OPT_IN}=true is set.`);
+  return undefined;
+}
+
 function readDataMode(env: Record<string, string | undefined>): ServiceExplorerDataMode {
   const mode = readOptional(env, "VITE_HONUA_SERVICE_EXPLORER_MODE") ?? "auto";
   if (mode === "auto" || mode === "cloud" || mode === "fixture") return mode;
@@ -67,7 +78,7 @@ export function resolveServiceExplorerConfig(env: Record<string, string | undefi
       readOptional(env, "VITE_HONUA_SERVICE_EXPLORER_BASE_URL") ?? DEFAULT_SERVICE_EXPLORER_BASE_URL,
     ),
     apiKey: readOptional(env, "VITE_HONUA_SERVICE_EXPLORER_API_KEY"),
-    bearerToken: readOptional(env, "VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN"),
+    bearerToken: readBrowserBearerToken(env, "VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN"),
     mode: readDataMode(env),
     serviceId: readOptional(env, "VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID") ?? DEFAULT_SERVICE_EXPLORER_SERVICE_ID,
     layerId: readIntegerWithFallback(
