@@ -41,6 +41,10 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/contract/index.ts"),
       },
       {
+        find: "@honua/sdk-js/collaboration",
+        replacement: path.resolve(import.meta.dirname, "src/collaboration/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/exploration",
         replacement: path.resolve(import.meta.dirname, "src/exploration/index.ts"),
       },

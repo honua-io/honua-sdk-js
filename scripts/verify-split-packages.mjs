@@ -69,6 +69,10 @@ import {
   createHonuaControlPlane,
 } from "@honua/sdk/control-plane";
 import {
+  createFixtureSavedMapCollaborationTransport,
+  createHonuaSavedMapCollaboration,
+} from "@honua/sdk/collaboration";
+import {
   CAPABILITIES,
   PROTOCOLS,
   createDataset,
@@ -221,6 +225,10 @@ if (HONUA_CONTROL_PLANE_BASE_PATH !== "/api/v1/admin")
   throw new Error("HONUA_CONTROL_PLANE_BASE_PATH export missing from @honua/sdk/control-plane");
 if (typeof createHonuaControlPlane !== "function")
   throw new Error("createHonuaControlPlane export missing from @honua/sdk/control-plane");
+if (typeof createHonuaSavedMapCollaboration !== "function")
+  throw new Error("createHonuaSavedMapCollaboration export missing from @honua/sdk/collaboration");
+if (typeof createFixtureSavedMapCollaborationTransport !== "function")
+  throw new Error("createFixtureSavedMapCollaborationTransport export missing from @honua/sdk/collaboration");
 if (!Array.isArray(HONUA_AGENT_TOOL_NAMES) || !HONUA_AGENT_TOOL_NAMES.includes("explainCapabilityGap"))
   throw new Error("agent tool exports missing from @honua/sdk/agent-tools");
 if (explainHonuaCapabilityGap({ protocol: "wmts", capability: "query" }).supported)
