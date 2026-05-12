@@ -2,6 +2,15 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.10-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.9-alpha.0...js-sdk-v0.0.10-alpha.0) (2026-05-12)
+
+
+### Features
+
+* **collaboration:** add saved-map collaboration SDK client ([#200](https://github.com/honua-io/honua-sdk-js/issues/200)) ([d99b94a](https://github.com/honua-io/honua-sdk-js/commit/d99b94a41d1e02a51f0a1d83c980879a429e3b5d))
+* add collaboration reconnect replay flow ([#202](https://github.com/honua-io/honua-sdk-js/issues/202)) ([06fc1dd](https://github.com/honua-io/honua-sdk-js/commit/06fc1ddf695f3ecc626e3dc616f526b72bc7ea43))
+* harden JS SDK primitive parity surface ([#203](https://github.com/honua-io/honua-sdk-js/issues/203)) ([8907600](https://github.com/honua-io/honua-sdk-js/commit/890760082e34727af4992ea844e2ed4d2e1249fe))
+
 ## [0.0.9-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.8-alpha.0...js-sdk-v0.0.9-alpha.0) (2026-05-11)
 
 
