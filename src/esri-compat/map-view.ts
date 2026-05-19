@@ -444,8 +444,13 @@ export class MapViewLayerViewCompat {
       const optionWhere = typeof merged.where === "string" && merged.where.length > 0 ? merged.where : undefined;
       merged.where = optionWhere ? `(${optionWhere}) AND (${filterWhere})` : filterWhere;
     }
-    if (merged.objectIds === undefined && filter.objectIds) {
-      merged.objectIds = [...filter.objectIds];
+    if (filter.objectIds) {
+      if (merged.objectIds === undefined) {
+        merged.objectIds = [...filter.objectIds];
+      } else if (Array.isArray(merged.objectIds)) {
+        const filterIds = new Set<number | string>(filter.objectIds);
+        merged.objectIds = (merged.objectIds as Array<number | string>).filter((id) => filterIds.has(id));
+      }
     }
     if (merged.geometry === undefined && filter.geometry) {
       merged.geometry = filter.geometry;

@@ -2,7 +2,7 @@ import { HonuaClient } from "../core/client.js";
 import { HonuaImageService } from "../core/surfaces.js";
 import type { HonuaServiceMetadata } from "../core/types.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
-import { parseMapServiceUrl } from "./url.js";
+import { parseImageServiceUrl } from "./url.js";
 
 export interface ImageryLayerCompatOptions {
   url: string;
@@ -73,7 +73,7 @@ export class ImageryLayerCompat {
   private readonly eventListeners: Map<string, Set<(event: unknown) => void>>;
 
   public constructor(options: ImageryLayerCompatOptions) {
-    const parsed = parseMapServiceUrl(options.url);
+    const parsed = parseImageServiceUrl(options.url);
     this.type = "imagery";
     this.url = options.url;
     this.serviceId = parsed.serviceId;

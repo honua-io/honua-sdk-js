@@ -176,6 +176,7 @@ export class WMSLayerCompat {
       HEIGHT: String(input.height),
       FORMAT: this.imageFormat,
       TRANSPARENT: input.transparent === false ? "FALSE" : "TRUE",
+      ...this.customLayerParameters,
       ...this.customParameters,
     });
     return `${this.url}${this.url.includes("?") ? "&" : "?"}${params.toString()}`;
