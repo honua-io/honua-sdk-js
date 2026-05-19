@@ -171,6 +171,12 @@ describe("arcgis migration integration", () => {
       "esri-request": 0,
       "esri-config": 0,
       "reactive-utils": 0,
+      "feature-filter": 0,
+      "vector-tile-layer": 0,
+      "geojson-layer": 0,
+      "wms-layer": 0,
+      "wfs-layer": 0,
+      "imagery-layer": 0,
     });
     expect(report.manualTodoReasons).toHaveLength(0);
     expect(report.unhandledArcGisModules).toHaveLength(0);

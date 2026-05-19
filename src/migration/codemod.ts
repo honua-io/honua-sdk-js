@@ -89,6 +89,12 @@ const ESRI_LEAFLET_COMPAT_FALLBACK_KINDS = new Set<CodemodConstructorKind>([
   "esri-request",
   "esri-config",
   "reactive-utils",
+  "feature-filter",
+  "vector-tile-layer",
+  "geojson-layer",
+  "wms-layer",
+  "wfs-layer",
+  "imagery-layer",
 ]);
 
 export type CodemodTarget = "honua-compat" | "esri-leaflet";
@@ -161,7 +167,13 @@ export type CodemodConstructorKind =
   | "identity-manager"
   | "esri-request"
   | "esri-config"
-  | "reactive-utils";
+  | "reactive-utils"
+  | "feature-filter"
+  | "vector-tile-layer"
+  | "geojson-layer"
+  | "wms-layer"
+  | "wfs-layer"
+  | "imagery-layer";
 
 interface ConstructorRewriteSpec {
   kind: CodemodConstructorKind;
@@ -521,6 +533,39 @@ const REWRITE_SPECS: readonly ConstructorRewriteSpec[] = [
     kind: "reactive-utils",
     compatSymbol: "reactiveUtils",
     arcGisModules: new Set(["@arcgis/core/core/reactiveUtils", "@arcgis/core/core/reactiveUtils.js"]),
+  },
+  {
+    kind: "feature-filter",
+    compatSymbol: "FeatureFilterCompat",
+    arcGisModules: new Set([
+      "@arcgis/core/layers/support/FeatureFilter",
+      "@arcgis/core/layers/support/FeatureFilter.js",
+    ]),
+  },
+  {
+    kind: "vector-tile-layer",
+    compatSymbol: "VectorTileLayerCompat",
+    arcGisModules: new Set(["@arcgis/core/layers/VectorTileLayer", "@arcgis/core/layers/VectorTileLayer.js"]),
+  },
+  {
+    kind: "geojson-layer",
+    compatSymbol: "GeoJSONLayerCompat",
+    arcGisModules: new Set(["@arcgis/core/layers/GeoJSONLayer", "@arcgis/core/layers/GeoJSONLayer.js"]),
+  },
+  {
+    kind: "wms-layer",
+    compatSymbol: "WMSLayerCompat",
+    arcGisModules: new Set(["@arcgis/core/layers/WMSLayer", "@arcgis/core/layers/WMSLayer.js"]),
+  },
+  {
+    kind: "wfs-layer",
+    compatSymbol: "WFSLayerCompat",
+    arcGisModules: new Set(["@arcgis/core/layers/WFSLayer", "@arcgis/core/layers/WFSLayer.js"]),
+  },
+  {
+    kind: "imagery-layer",
+    compatSymbol: "ImageryLayerCompat",
+    arcGisModules: new Set(["@arcgis/core/layers/ImageryLayer", "@arcgis/core/layers/ImageryLayer.js"]),
   },
 ];
 
@@ -1970,6 +2015,12 @@ function createEmptyByKindMetrics(): CodemodMetricsByKind {
     "esri-request": { total: 0, autoMigrated: 0, manual: 0 },
     "esri-config": { total: 0, autoMigrated: 0, manual: 0 },
     "reactive-utils": { total: 0, autoMigrated: 0, manual: 0 },
+    "feature-filter": { total: 0, autoMigrated: 0, manual: 0 },
+    "vector-tile-layer": { total: 0, autoMigrated: 0, manual: 0 },
+    "geojson-layer": { total: 0, autoMigrated: 0, manual: 0 },
+    "wms-layer": { total: 0, autoMigrated: 0, manual: 0 },
+    "wfs-layer": { total: 0, autoMigrated: 0, manual: 0 },
+    "imagery-layer": { total: 0, autoMigrated: 0, manual: 0 },
   };
 }
 
@@ -3065,9 +3116,135 @@ function isSafeConstructorCall(
         ok: false,
         reason: "ReactiveUtils is not a constructor and requires import-based migration.",
       };
+    case "feature-filter":
+      return isSafeAllowedPropertiesCall(node, "FeatureFilter", FEATURE_FILTER_ALLOWED_PROPS);
+    case "vector-tile-layer":
+      return isSafeAllowedPropertiesCall(node, "VectorTileLayer", VECTOR_TILE_LAYER_ALLOWED_PROPS);
+    case "geojson-layer":
+      return isSafeAllowedPropertiesCall(node, "GeoJSONLayer", GEOJSON_LAYER_ALLOWED_PROPS);
+    case "wms-layer":
+      return isSafeAllowedPropertiesCall(node, "WMSLayer", WMS_LAYER_ALLOWED_PROPS);
+    case "wfs-layer":
+      return isSafeAllowedPropertiesCall(node, "WFSLayer", WFS_LAYER_ALLOWED_PROPS);
+    case "imagery-layer":
+      return isSafeAllowedPropertiesCall(node, "ImageryLayer", IMAGERY_LAYER_ALLOWED_PROPS);
     default:
       return { ok: false, reason: "Unsupported ArcGIS constructor usage." };
   }
+}
+
+const FEATURE_FILTER_ALLOWED_PROPS = new Set([
+  "where",
+  "objectIds",
+  "geometry",
+  "spatialRelationship",
+  "distance",
+  "units",
+  "timeExtent",
+]);
+const VECTOR_TILE_LAYER_ALLOWED_PROPS = new Set([
+  "url",
+  "style",
+  "id",
+  "title",
+  "opacity",
+  "visible",
+  "minScale",
+  "maxScale",
+  "listMode",
+]);
+const GEOJSON_LAYER_ALLOWED_PROPS = new Set([
+  "url",
+  "data",
+  "id",
+  "title",
+  "opacity",
+  "visible",
+  "minScale",
+  "maxScale",
+  "listMode",
+  "renderer",
+  "popupTemplate",
+  "outFields",
+  "objectIdField",
+  "fields",
+  "geometryType",
+  "spatialReference",
+]);
+const WMS_LAYER_ALLOWED_PROPS = new Set([
+  "url",
+  "sublayers",
+  "version",
+  "spatialReference",
+  "imageFormat",
+  "id",
+  "title",
+  "opacity",
+  "visible",
+  "customLayerParameters",
+  "customParameters",
+  "listMode",
+]);
+const WFS_LAYER_ALLOWED_PROPS = new Set([
+  "url",
+  "name",
+  "version",
+  "id",
+  "title",
+  "opacity",
+  "visible",
+  "listMode",
+  "outFields",
+  "customParameters",
+  "spatialReference",
+]);
+const IMAGERY_LAYER_ALLOWED_PROPS = new Set([
+  "url",
+  "id",
+  "title",
+  "opacity",
+  "visible",
+  "listMode",
+  "format",
+  "pixelType",
+  "bandIds",
+  "renderingRule",
+  "mosaicRule",
+]);
+
+function isSafeAllowedPropertiesCall(
+  node: ts.NewExpression,
+  displayName: string,
+  allowed: ReadonlySet<string>,
+): { ok: true } | { ok: false; reason: string } {
+  const args = node.arguments;
+  if (!args || args.length === 0) return { ok: true };
+  if (args.length !== 1) {
+    return {
+      ok: false,
+      reason: `${displayName} constructor has more than one argument; requires manual migration.`,
+    };
+  }
+  const [arg] = args;
+  if (!ts.isObjectLiteralExpression(arg)) {
+    return { ok: false, reason: `${displayName} constructor argument is not an object literal.` };
+  }
+  for (const property of arg.properties) {
+    if (!isAssignableObjectProperty(property)) {
+      return {
+        ok: false,
+        reason: `${displayName} options contain spread/method/computed property syntax; requires manual migration.`,
+      };
+    }
+  }
+  const unsupported = collectUnsupportedPropertyNames(arg, allowed);
+  if (unsupported.length > 0) {
+    return {
+      ok: false,
+      reason: `${displayName} options include unsupported properties: ${unsupported.join(", ")}; requires manual migration.`,
+    };
+  }
+  return { ok: true };
 }
 
 function isSafeRouteLayerCompatCall(node: ts.NewExpression): { ok: true } | { ok: false; reason: string } {
