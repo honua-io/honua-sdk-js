@@ -127,4 +127,27 @@ describe("reactiveUtils compat", () => {
     expect(reactiveUtils.when).toBe(when);
     expect(reactiveUtils.whenOnce).toBe(whenOnce);
   });
+
+  it("accepts target/property-name overload form for codemod-rewritten calls", async () => {
+    const state: { scale: number } = { scale: 100 };
+    const seen: number[] = [];
+
+    const handle = watch<number>(
+      state as unknown as Record<string, unknown>,
+      "scale",
+      (next) => {
+        seen.push(next);
+      },
+      { initial: true, intervalMs: 1 },
+    );
+
+    await sleep(5);
+    state.scale = 200;
+    await sleep(5);
+    state.scale = 300;
+    await sleep(5);
+    handle.remove();
+
+    expect(seen).toEqual([100, 200, 300]);
+  });
 });

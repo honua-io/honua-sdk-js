@@ -130,11 +130,16 @@ hold the surface stable).
    ARIA, CSS class names that downstream apps style against) is
    **not** byte-identical. Apps that rely on
    `calcite-action--`-prefixed selectors will need style work.
-7. **`reactiveUtils.watch` semantics.** Compat `watch` is
+7. **`reactiveUtils.watch` semantics (partial).** Compat `watch` is
    property-name-based and synchronous. ArcGIS `watch` accepts an
    accessor function and returns a `WatchHandle` with `pause()` /
-   `resume()`. Apps using accessor-style `watch(() => view.scale)`
-   will be flagged but not rewritten.
+   `resume()`. Single-property accessors —
+   `reactiveUtils.watch(() => view.scale, h)` where `view` is a
+   tracked compat instance — are now rewritten by the codemod to
+   `reactiveUtils.watch(view, "scale", h)`. Multi-property accessors
+   (`() => [view.scale, view.zoom]`) and complex bodies still fall
+   through to a manual TODO. `pause()` / `resume()` on the handle
+   is still unsupported.
 
 ### Codemod gaps
 
@@ -154,11 +159,15 @@ known constructors" into "automated app conversion":
    `basemap-change`, `ground-change`, `portal-item-change`,
    `active-basemap-change`, `camera-change`,
    `quality-profile-change`, `viewing-mode-change`, and `refresh`.
-   What is still missing: receiver-aware scoping (today the gate
-   is "file has ArcGIS imports"; ideally we'd only rewrite when
-   the receiver is a tracked compat instance), and pointer/keyboard
-   event handlers (`click`, `pointer-down`, `key-down`, …) which
-   compat doesn't emit yet.
+   Receiver-aware scoping is now in place: the rewrite only fires
+   when the receiver is an Identifier whose binding came from
+   `new XCompat(...)` where `X` was a tracked ArcGIS import (via
+   `resolveAssignedIdentifierForNewExpression`). Receivers that
+   don't trace back to a tracked compat instance (e.g.,
+   `someEmitter.on("layerview-create", h)`) are left alone even
+   when the file has ArcGIS imports. What is still missing:
+   pointer/keyboard event handlers (`click`, `pointer-down`,
+   `key-down`, …) which compat doesn't emit yet.
 2. **Dynamic / CJS imports (Task F, partial).**
    Dynamic ESM imports (`import("@arcgis/core/...")`) are
    rewritten through the `isArcGisDynamicImportCall` pass and have
@@ -169,11 +178,12 @@ known constructors" into "automated app conversion":
    `const { XCompat } = require("@honua/sdk-esri-compat");` and
    rewrites `new X(opts)` to `new XCompat(opts)` in `.cjs` files
    and `.js` files containing CommonJS markers. The original
-   `const X = require("@arcgis/core/...")` declaration is left in
-   place — if the local name has no remaining references, it is
-   dead code the user should remove (the codemod does not yet
-   prune orphaned arcgis requires). The `esri-leaflet` target
-   still emits a manual TODO for CJS require constructors.
+   `const X = require("@arcgis/core/...")` declaration is now
+   pruned when no other references to `X` remain in the file
+   (constructor calls are the only references in the typical case;
+   the codemod scans for non-constructor uses and preserves the
+   require if it sees any). The `esri-leaflet` target still emits
+   a manual TODO for CJS require constructors.
 3. **Module re-exports beyond the registered set.** The codemod
    already follows `localArcGisReExports` for one level. Deeper
    barrel-file chains (`./esri.ts` → `./layers/index.ts` → …)
