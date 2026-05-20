@@ -209,7 +209,43 @@ known constructors" into "automated app conversion":
    shapes). The shim accepts the ArcGIS shape at runtime, but
    the report should flag known-divergent property values so app
    authors can confirm intent.
-5. **End-to-end demo conversion.** Shipped at
+5. **WebMap JSON → MapLibre style derivation (`honua-maplibre`
+   target).** *Partially shipped.* `src/map/webmap-maplibre.ts`
+   exposes `webmapJsonToMapLibreStyle(webmap, options)`, a pure
+   converter that delegates the heavy lifting to the existing
+   `src/webmap/` pipeline — `parseWebMap` orchestrates
+   `convertBasemap`, `convertOperationalLayer`, `convertRenderer`,
+   `convertPopupInfo`, `convertLabelingInfo`, and
+   `convertExtent`/`convertInitialViewpoint` — and returns a
+   `HonuaStyleSpecification` ready for `map.setStyle(...)` plus a
+   structured `manualGaps: WebMapMapLibreManualGap[]` array.
+   `manualGaps` is the single source of truth for unsupported
+   constructs: every entry carries `{ kind, reason, path?,
+   layerId?, expression?, context? }` and the `kind` taxonomy
+   covers `arcade-expression` (popup `expressionInfos` and complex
+   Arcade label expressions), `unsupported-renderer` (heatmap,
+   dotDensity, and any other renderer the converter doesn't
+   handle), `scene-3d` (top-level `ground` / `camera` /
+   `viewingMode`, `ArcGISSceneServiceLayer`, `elevationInfo`,
+   `heightInfo`, `sceneProperties`), `dashboard-reference`,
+   `experience-builder-reference`, `custom-widget-reference`
+   (`applicationProperties.viewing.widgetsOnScreen` and the
+   top-level `widgets` array used by host shells), plus
+   pass-throughs for `unsupported-symbol`,
+   `unsupported-layer-type`, `unsupported-feature-collection`, and
+   `unsupported-webmap-version`. **What still requires manual
+   review:** the codemod does **not** yet wire this converter into
+   its import-rewriting pass — apps that call ArcGIS WebMap
+   loaders (`WebMap.load()`, `WebMap({ portalItem })`) still hit
+   the existing `web-map` compat shim, not the MapLibre style
+   path; the gap surface is also intentionally honest about its
+   ceiling, since Arcade execution, scene/3D rendering, Dashboard
+   widget hosts, Experience Builder pages, and custom-widget
+   plugins all require runtime support the JS SDK cannot
+   synthesize from JSON alone. Each emitted gap is a `// TODO`
+   anchor for an app author, not a promise of automated
+   migration.
+6. **End-to-end demo conversion.** Shipped at
    `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`.
    The sample is a hand-written parcel viewer exercising
    `FeatureLayer` (with `outFields` + `popupTemplate`), `Map`,

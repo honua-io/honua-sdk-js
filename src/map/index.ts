@@ -23,3 +23,10 @@ export type {
   HonuaMapServiceLayerOptions,
   HonuaTileServiceLayerOptions,
 } from "./maplibre-target.js";
+export { webmapJsonToMapLibreStyle } from "./webmap-maplibre.js";
+export type {
+  WebMapJsonToMapLibreStyleOptions,
+  WebMapJsonToMapLibreStyleResult,
+  WebMapMapLibreGapKind,
+  WebMapMapLibreManualGap,
+} from "./webmap-maplibre.js";

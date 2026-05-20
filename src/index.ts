@@ -444,6 +444,13 @@ export type {
 } from "./map/index.js";
 export { parseWebMap } from "./webmap/index.js";
 export type { ParseWebMapOptions, ParseWebMapResult } from "./webmap/index.js";
+export { webmapJsonToMapLibreStyle } from "./map/index.js";
+export type {
+  WebMapJsonToMapLibreStyleOptions,
+  WebMapJsonToMapLibreStyleResult,
+  WebMapMapLibreGapKind,
+  WebMapMapLibreManualGap,
+} from "./map/index.js";
 export type {
   ApplyEditsRequest,
   ExportMapRequest,
