@@ -82,6 +82,13 @@ describe("Esri sample migration corpus", () => {
     ]);
     expect(analyses[1].serviceUrls).toEqual([
       {
+        url: "https://route.example.com/arcgis/rest/services/World/Route/NAServer/Route_World",
+        normalizedUrl: "https://route.example.com/arcgis/rest/services/World/Route/NAServer/Route_World",
+        kind: "NAServer",
+        servicePath: "World/Route/NAServer/Route_World",
+        layerId: undefined,
+      },
+      {
         url: "https://route.example.com/arcgis/rest/services/World/RouteServer",
         normalizedUrl: "https://route.example.com/arcgis/rest/services/World/RouteServer",
         kind: "RouteServer",
@@ -102,6 +109,29 @@ describe("Esri sample migration corpus", () => {
       kind: "MapServer",
       servicePath: "Hosted/Parcels",
       layerId: 2,
+    });
+  });
+
+  it("recognizes NAServer routing endpoints and flags them as premium-service references", () => {
+    const extraction = extractEsriSampleReferences(`
+      const routeUrl = "https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
+      const closestUrl = "https://route.arcgis.com/arcgis/rest/services/World/ClosestFacility/NAServer/ClosestFacility_World";
+    `);
+
+    expect(extraction.serviceUrls).toHaveLength(2);
+    expect(extraction.serviceUrls.every((entry) => entry.kind === "NAServer")).toBe(true);
+    expect(extraction.guardrailFlags).toContain("premium-service-reference");
+  });
+
+  it("classifies NAServer URLs with the network-analyst sub-service name folded into servicePath", () => {
+    expect(
+      classifyArcGisServiceUrl("https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World"),
+    ).toEqual({
+      url: "https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World",
+      normalizedUrl: "https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World",
+      kind: "NAServer",
+      servicePath: "World/Route/NAServer/Route_World",
+      layerId: undefined,
     });
   });
 

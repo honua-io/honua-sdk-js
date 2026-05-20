@@ -4,7 +4,7 @@ import path from "node:path";
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
 const ARCGIS_SERVICE_URL_REGEX =
-  /https?:\/\/[^\s"'`<>)]+?\/arcgis\/rest\/services\/[^\s"'`<>)]+?\/(?:FeatureServer|MapServer|ImageServer|VectorTileServer|GeometryServer|GPServer|GeocodeServer|RouteServer)(?:\/\d+)?(?:\?[^\s"'`<>)]+)?/gi;
+  /https?:\/\/[^\s"'`<>)]+?\/arcgis\/rest\/services\/[^\s"'`<>)]+?\/(?:FeatureServer|MapServer|ImageServer|VectorTileServer|GeometryServer|GPServer|GeocodeServer|RouteServer|NAServer)(?:\/[A-Za-z0-9_-]+)?(?:\/\d+)?(?:\?[^\s"'`<>)]+)?/gi;
 const PORTAL_ITEM_OBJECT_REGEX =
   /\bportalItem\s*:\s*\{[\s\S]{0,320}?\bid\s*:\s*["']([A-Za-z0-9_-]{6,})["'][\s\S]{0,320}?\}/g;
 const PORTAL_ITEM_ID_REGEX = /\b(?:itemId|portalItemId)\s*:\s*["']([A-Za-z0-9_-]{6,})["']/g;
@@ -35,6 +35,7 @@ export type ArcGisServiceKind =
   | "GPServer"
   | "GeocodeServer"
   | "RouteServer"
+  | "NAServer"
   | "unknown";
 
 export interface EsriSampleCorpusManifest {
@@ -270,7 +271,7 @@ export function extractEsriSampleReferences(source: string): EsriSampleReference
     if (service.normalizedUrl.startsWith("http://") || service.normalizedUrl.startsWith("https://")) {
       guardrailFlags.add("external-live-service-reference");
     }
-    if (service.kind === "RouteServer") {
+    if (service.kind === "RouteServer" || service.kind === "NAServer") {
       guardrailFlags.add("premium-service-reference");
     }
   }
@@ -306,7 +307,7 @@ export function classifyArcGisServiceUrl(url: string): ArcGisServiceReference {
   parsed.hash = "";
   const normalizedUrl = parsed.toString().replace(/\/$/, "");
   const serviceMatch = normalizedUrl.match(
-    /\/arcgis\/rest\/services\/(.+?)\/(FeatureServer|MapServer|ImageServer|VectorTileServer|GeometryServer|GPServer|GeocodeServer|RouteServer)(?:\/(\d+))?$/i,
+    /\/arcgis\/rest\/services\/(.+?)\/(FeatureServer|MapServer|ImageServer|VectorTileServer|GeometryServer|GPServer|GeocodeServer|RouteServer|NAServer)(?:\/([A-Za-z0-9_-]+))?(?:\/(\d+))?$/i,
   );
 
   if (!serviceMatch) {
@@ -318,12 +319,25 @@ export function classifyArcGisServiceUrl(url: string): ArcGisServiceReference {
   }
 
   const kind = serviceMatch[2] as ArcGisServiceKind;
-  const layerId = serviceMatch[3] === undefined ? undefined : Number.parseInt(serviceMatch[3], 10);
+  // For NAServer, the third capture is the network-analyst sub-service name
+  // (e.g., Route_World, ClosestFacility_World) — fold it into servicePath so
+  // downstream consumers see it. For other kinds it's the numeric layer id.
+  let servicePath = serviceMatch[1];
+  let layerToken: string | undefined;
+  if (kind === "NAServer") {
+    if (serviceMatch[3]) {
+      servicePath = `${servicePath}/NAServer/${serviceMatch[3]}`;
+    }
+    layerToken = serviceMatch[4];
+  } else {
+    layerToken = serviceMatch[3] ?? serviceMatch[4];
+  }
+  const layerId = layerToken === undefined ? undefined : Number.parseInt(layerToken, 10);
   return {
     url: cleanedUrl,
     normalizedUrl,
     kind,
-    servicePath: serviceMatch[1],
+    servicePath,
     layerId: Number.isFinite(layerId) ? layerId : undefined,
   };
 }
