@@ -263,7 +263,7 @@
     "test:migration:real-samples": "vitest run test/migration-real-sample-runtime.test.ts test/migration-feature-table-demo-runtime.test.ts",
     "test:playwright": "npm run build --silent && node scripts/ensure-kepler-demo-deps.mjs && playwright test",
     "test:playwright:25d": "playwright test test/playwright/storytelling-25d-map.spec.mjs",
-    "test:playwright:migration": "npm run build --silent && playwright test test/playwright/migration-browser-smoke.spec.mjs test/playwright/migration-browser-real-sample.spec.mjs",
+    "test:playwright:migration": "npm run build --silent && playwright test test/playwright/migration-browser-smoke.spec.mjs test/playwright/migration-browser-real-sample.spec.mjs test/playwright/migration-browser-maplibre.spec.mjs",
     "report:migration:demo-target": "npm run build --silent && node dist/src/migration/cli.js fixtures --target honua --fixtures esri-demo-feature-table-relates-app --report reports/demo-featuretable-primary-metrics.json",
     "gate:migration:demo-target": "npm run build --silent && node dist/src/migration/cli.js fixtures --target honua --fixtures esri-demo-feature-table-relates-app --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/demo-featuretable-primary-metrics.json",
     "report:migration:esri-leaflet-target": "npm run build --silent && node dist/src/migration/cli.js fixtures --target esri-leaflet --fixtures esri-demo-feature-table-popup-interaction-app --report reports/demo-featuretable-fallback-esri-leaflet-metrics.json",
