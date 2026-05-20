@@ -22,6 +22,30 @@ const ESRI_REQUEST_IMPORT_UNSUPPORTED_REASON = "esriRequest import shape is unsu
 const SHADOWED_IMPORT_CONSTRUCTOR_REASON =
   "Constructor identifier is shadowed by a local declaration; requires manual migration.";
 
+const ARCGIS_TO_COMPAT_EVENT_REMAP: Readonly<Record<string, string>> = Object.freeze({
+  "layerview-create": "layer-view-created",
+  "layerview-create-error": "layer-view-create-error",
+  "layerview-destroy": "layer-view-removed",
+  "visibility-change": "visibility-changed",
+  "extent-change": "extent-changed",
+  "rotation-change": "rotation-changed",
+  "scale-change": "scale-changed",
+  "zoom-change": "zoom-changed",
+  "center-change": "center-changed",
+  "spatial-reference-change": "spatial-reference-changed",
+  "padding-change": "padding-changed",
+  "constraints-change": "constraints-changed",
+  "highlight-options-change": "highlight-options-changed",
+  "basemap-change": "basemap-changed",
+  "ground-change": "ground-changed",
+  "portal-item-change": "portal-item-changed",
+  "active-basemap-change": "active-basemap-changed",
+  "camera-change": "camera-changed",
+  "quality-profile-change": "quality-profile-changed",
+  "viewing-mode-change": "viewing-mode-changed",
+  refresh: "refreshed",
+});
+
 const ESRI_LEAFLET_NATIVE_KINDS = new Set<CodemodConstructorKind>(["feature-layer", "map-image-layer", "tile-layer"]);
 const ESRI_LEAFLET_COMPAT_FALLBACK_KINDS = new Set<CodemodConstructorKind>([
   "graphic",
@@ -653,6 +677,7 @@ export interface CodemodFileResult {
   rewrittenImports: number;
   rewrittenConstructors: number;
   rewrittenDynamicImports: number;
+  rewrittenEventNames: number;
   addedCompatImport: boolean;
   removedArcGisImports: number;
   annotatedTodoComments: number;
@@ -754,6 +779,7 @@ export function runEsriCompatCodemod(options: EsriCompatCodemodOptions): EsriCom
       fileResult.rewrittenImports > 0 ||
       fileResult.rewrittenConstructors > 0 ||
       fileResult.rewrittenDynamicImports > 0 ||
+      fileResult.rewrittenEventNames > 0 ||
       fileResult.addedCompatImport ||
       fileResult.removedArcGisImports > 0 ||
       fileResult.annotatedTodoComments > 0;
@@ -775,6 +801,7 @@ export function runEsriCompatCodemod(options: EsriCompatCodemodOptions): EsriCom
         rewrittenImports: fileResult.rewrittenImports,
         rewrittenConstructors: fileResult.rewrittenConstructors,
         rewrittenDynamicImports: fileResult.rewrittenDynamicImports,
+        rewrittenEventNames: fileResult.rewrittenEventNames,
         addedCompatImport: fileResult.addedCompatImport,
         removedArcGisImports: fileResult.removedArcGisImports,
         annotatedTodoComments: fileResult.annotatedTodoComments,
@@ -786,6 +813,7 @@ export function runEsriCompatCodemod(options: EsriCompatCodemodOptions): EsriCom
         rewrittenImports: 0,
         rewrittenConstructors: 0,
         rewrittenDynamicImports: 0,
+        rewrittenEventNames: 0,
         addedCompatImport: false,
         removedArcGisImports: 0,
         annotatedTodoComments: 0,
@@ -803,6 +831,7 @@ export function runEsriCompatCodemod(options: EsriCompatCodemodOptions): EsriCom
         item.rewrittenConstructors > 0 ||
         item.rewrittenImports > 0 ||
         item.rewrittenDynamicImports > 0 ||
+        item.rewrittenEventNames > 0 ||
         item.addedCompatImport ||
         item.removedArcGisImports > 0 ||
         item.annotatedTodoComments > 0,
@@ -847,6 +876,7 @@ function codemodFile(
   rewrittenImports: number;
   rewrittenConstructors: number;
   rewrittenDynamicImports: number;
+  rewrittenEventNames: number;
   rewrittenKinds: CodemodConstructorKind[];
   addedCompatImport: boolean;
   removedArcGisImports: number;
@@ -868,6 +898,7 @@ function codemodFile(
 
   const constructorEdits: TextEdit[] = [];
   const dynamicImportEdits: TextEdit[] = [];
+  const eventNameEdits: TextEdit[] = [];
   const importEdits: TextEdit[] = [];
   const rewrittenKinds: CodemodConstructorKind[] = [];
   const manualTodos: MigrationTodo[] = [];
@@ -991,6 +1022,26 @@ function codemodFile(
             });
           }
         }
+      }
+      return;
+    }
+
+    if (
+      imports.length > 0 &&
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      (node.expression.name.text === "on" || node.expression.name.text === "watch") &&
+      node.arguments.length >= 1 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      const literal = node.arguments[0];
+      const remapped = ARCGIS_TO_COMPAT_EVENT_REMAP[literal.text];
+      if (remapped) {
+        eventNameEdits.push({
+          start: literal.getStart(sourceFile),
+          end: literal.getEnd(),
+          text: `"${remapped}"`,
+        });
       }
       return;
     }
@@ -1158,12 +1209,18 @@ function codemodFile(
     }
   });
 
-  if (constructorEdits.length === 0 && dynamicImportEdits.length === 0 && importEdits.length === 0) {
+  if (
+    constructorEdits.length === 0 &&
+    dynamicImportEdits.length === 0 &&
+    eventNameEdits.length === 0 &&
+    importEdits.length === 0
+  ) {
     return {
       nextSource: applyTextEdits(source, todoCommentEdits),
       rewrittenImports: 0,
       rewrittenConstructors: 0,
       rewrittenDynamicImports: 0,
+      rewrittenEventNames: 0,
       rewrittenKinds: [],
       addedCompatImport: false,
       removedArcGisImports: 0,
@@ -1176,6 +1233,7 @@ function codemodFile(
     ...importEdits,
     ...constructorEdits,
     ...dynamicImportEdits,
+    ...eventNameEdits,
     ...todoCommentEdits,
   ]);
   const removedArcGisImports = removeUnusedArcGisImports(file, transformed);
@@ -1204,6 +1262,7 @@ function codemodFile(
     rewrittenImports: importEdits.length,
     rewrittenConstructors: constructorEdits.length,
     rewrittenDynamicImports: dynamicImportEdits.length,
+    rewrittenEventNames: eventNameEdits.length,
     rewrittenKinds,
     addedCompatImport,
     removedArcGisImports: removedArcGisImports.removedCount,

@@ -97,6 +97,7 @@ function createCodemodResult(): EsriCompatCodemodResult {
         rewrittenImports: 0,
         rewrittenConstructors: 3,
         rewrittenDynamicImports: 0,
+        rewrittenEventNames: 0,
         addedCompatImport: true,
         removedArcGisImports: 2,
         annotatedTodoComments: 1,

@@ -141,17 +141,24 @@ hold the surface stable).
 These are the load-bearing pieces required to turn "rewrites
 known constructors" into "automated app conversion":
 
-1. **Event-name remap (Task D, in progress).**
-   `.on("edits", h)`, `.on("visibility-change", h)`,
-   `.on("layerview-create", h)`, and a handful of others have
-   different names in Honua compat (e.g.,
-   `"layerview-created"` / `"layer.visibility-changed"`). The
-   codemod needs a CallExpression pass that detects
-   `<arcgis-bound>.on(stringLiteral, ...)` and rewrites the
-   literal, plus parallel handling for `.watch()`. None of this is
-   implemented yet — it requires extending `walk()` in
-   `codemodFile` to track method calls on identifiers whose
-   binding came from `importsByLocalName`.
+1. **Event-name remap (Task D, partial).**
+   The codemod now rewrites well-known divergent event names on
+   `.on()` and `.watch()` calls in files that have at least one
+   ArcGIS import being touched. The dictionary is in
+   `ARCGIS_TO_COMPAT_EVENT_REMAP` in `src/migration/codemod.ts`
+   and currently covers `layerview-create*`, `layerview-destroy`,
+   `visibility-change`, `extent-change`, `rotation-change`,
+   `scale-change`, `zoom-change`, `center-change`,
+   `spatial-reference-change`, `padding-change`,
+   `constraints-change`, `highlight-options-change`,
+   `basemap-change`, `ground-change`, `portal-item-change`,
+   `active-basemap-change`, `camera-change`,
+   `quality-profile-change`, `viewing-mode-change`, and `refresh`.
+   What is still missing: receiver-aware scoping (today the gate
+   is "file has ArcGIS imports"; ideally we'd only rewrite when
+   the receiver is a tracked compat instance), and pointer/keyboard
+   event handlers (`click`, `pointer-down`, `key-down`, …) which
+   compat doesn't emit yet.
 2. **Dynamic / CJS imports (Task F, not started).**
    The codemod handles static ESM imports only. It does **not**
    rewrite `import("@arcgis/core/...")` (dynamic import), nor

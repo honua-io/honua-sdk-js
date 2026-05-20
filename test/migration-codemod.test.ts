@@ -3501,4 +3501,59 @@ describe("runEsriCompatCodemod", () => {
     expect(nextSource).toContain("TileLayerCompat");
     expect(nextSource).not.toContain("@arcgis/core/layers/TileLayer");
   });
+
+  it("rewrites well-known ArcGIS event names on .on() and .watch() in files with ArcGIS imports", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "events.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import MapView from '@arcgis/core/views/MapView';",
+        "const view = new MapView();",
+        "view.on('layerview-create', () => {});",
+        "view.on('layerview-destroy', () => {});",
+        "view.on('extent-change', () => {});",
+        "view.watch('visibility-change', () => {});",
+        "view.on('click', () => {});",
+        "void view;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    const fileResult = result.fileResults.find((entry) => entry.file === file);
+    expect(fileResult?.rewrittenEventNames).toBe(4);
+
+    const nextSource = fs.readFileSync(file, "utf8");
+    expect(nextSource).toContain('view.on("layer-view-created"');
+    expect(nextSource).toContain('view.on("layer-view-removed"');
+    expect(nextSource).toContain('view.on("extent-changed"');
+    expect(nextSource).toContain('view.watch("visibility-changed"');
+    expect(nextSource).toContain("view.on('click', () => {});");
+  });
+
+  it("does not rewrite event names in files without ArcGIS imports", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "non-arcgis.ts");
+    fs.writeFileSync(
+      file,
+      ["const emitter = makeEmitter();", "emitter.on('layerview-create', () => {});"].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.filesChanged).toBe(0);
+    const nextSource = fs.readFileSync(file, "utf8");
+    expect(nextSource).toContain("emitter.on('layerview-create'");
+  });
 });
