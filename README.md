@@ -914,6 +914,9 @@ node dist/src/migration/cli.js runtime-matrix --report runtime-parity-matrix.jso
 # Generate readiness metrics for bundled complex real-sample fixtures
 node dist/src/migration/cli.js fixtures --report reports/real-sample-metrics.json
 
+# Inspect the fixture-only Esri sample migration corpus helpers from tests/docs
+# See docs/esri-sample-corpus.md and test/fixtures/esri-sample-corpus/manifest.json
+
 # Enforce strict readiness gates for bundled real-sample fixtures
 node dist/src/migration/cli.js fixtures --fail-on-manual --fail-on-unhandled --fail-on-blocked --max-manual-ratio 0 --max-manual-intervention-ratio 0 --report reports/real-sample-metrics.json
 
@@ -977,6 +980,15 @@ for source inventory, migration manifest, parity evidence pack, cutover
 readiness, and readiness attestations. Manifest, parity, and readiness artifacts
 are modeled for client-side review workflows only; the SDK does not assume
 server routes for those artifacts.
+
+## Esri Sample Corpus (#206)
+
+The first paired sample-app/service corpus slice is fixture-only and documented
+in [`docs/esri-sample-corpus.md`](./docs/esri-sample-corpus.md). The curated
+manifest at `test/fixtures/esri-sample-corpus/manifest.json` records Esri sample
+source URLs as metadata only, license/terms notes, skip reasons, and expected
+service/Portal references. PR CI uses Honua-owned snippets and must not contact
+live Esri services, vendor Esri sample code, or commit Esri service data.
 
 ## FeatureTable Demo Lane (#327)
 
