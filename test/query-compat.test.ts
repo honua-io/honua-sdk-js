@@ -57,6 +57,37 @@ describe("QueryCompat", () => {
     expect(query.start).toBe(5);
   });
 
+  it("accepts Honua-side aliases (resultOffset/resultRecordCount/outSr/spatialRel) interchangeably with ArcGIS spellings", () => {
+    const honuaShape = new QueryCompat({
+      resultOffset: 100,
+      resultRecordCount: 25,
+      outSr: { wkid: 3857 },
+      spatialRel: "esriSpatialRelIntersects",
+      geometryType: "esriGeometryPolygon",
+    });
+    expect(honuaShape.start).toBe(100);
+    expect(honuaShape.num).toBe(25);
+    expect(honuaShape.outSpatialReference).toEqual({ wkid: 3857 });
+    expect(honuaShape.spatialRelationship).toBe("esriSpatialRelIntersects");
+    expect(honuaShape.geometryType).toBe("esriGeometryPolygon");
+
+    // ArcGIS spelling takes precedence when both forms are present.
+    const ambiguous = new QueryCompat({
+      start: 5,
+      resultOffset: 999,
+      num: 10,
+      resultRecordCount: 999,
+      spatialRelationship: "intersects",
+      spatialRel: "contains",
+      outSpatialReference: { wkid: 4326 },
+      outSr: { wkid: 3857 },
+    });
+    expect(ambiguous.start).toBe(5);
+    expect(ambiguous.num).toBe(10);
+    expect(ambiguous.spatialRelationship).toBe("intersects");
+    expect(ambiguous.outSpatialReference).toEqual({ wkid: 4326 });
+  });
+
   it("clones and serializes safely", () => {
     const query = new QueryCompat({
       outFields: ["OBJECTID", "status"],
