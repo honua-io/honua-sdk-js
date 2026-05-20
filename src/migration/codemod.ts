@@ -1081,27 +1081,29 @@ function codemodFile(
     }
 
     if (isCommonJsModule && importBinding.sourceKind === "require") {
-      const nodeStart = node.getStart(sourceFile);
-      const location = sourceFile.getLineAndCharacterOfPosition(nodeStart);
-      manualTodos.push({
-        kind: importBinding.kind,
-        file,
-        line: location.line + 1,
-        column: location.character + 1,
-        reason: CJS_REQUIRE_MANUAL_REASON,
-        difficulty: "moderate",
-      });
-      if (annotateTodos) {
-        const lineStart = findLineStartOffset(source, nodeStart);
-        if (shouldInsertTodoComment(source, lineStart, nodeStart)) {
-          todoCommentEdits.push({
-            start: lineStart,
-            end: lineStart,
-            text: `// ${TODO_MARKER}[${importBinding.kind}]: ${CJS_REQUIRE_MANUAL_REASON}\n`,
-          });
+      if (target !== "honua-compat") {
+        const nodeStart = node.getStart(sourceFile);
+        const location = sourceFile.getLineAndCharacterOfPosition(nodeStart);
+        manualTodos.push({
+          kind: importBinding.kind,
+          file,
+          line: location.line + 1,
+          column: location.character + 1,
+          reason: CJS_REQUIRE_MANUAL_REASON,
+          difficulty: "moderate",
+        });
+        if (annotateTodos) {
+          const lineStart = findLineStartOffset(source, nodeStart);
+          if (shouldInsertTodoComment(source, lineStart, nodeStart)) {
+            todoCommentEdits.push({
+              start: lineStart,
+              end: lineStart,
+              text: `// ${TODO_MARKER}[${importBinding.kind}]: ${CJS_REQUIRE_MANUAL_REASON}\n`,
+            });
+          }
         }
+        return;
       }
-      return;
     }
 
     const safeCheck = isSafeConstructorCall(importBinding.kind, node, target);
@@ -1242,7 +1244,9 @@ function codemodFile(
   let addedCompatImport = false;
   const compatSymbols = Array.from(requiredCompatSymbols).sort();
   if (compatSymbols.length > 0) {
-    const compatImportResult = ensureCompatNamedImports(file, transformed, compatSymbols, compatImportPath);
+    const compatImportResult = isCommonJsModule
+      ? ensureCompatNamedRequire(file, transformed, compatSymbols, compatImportPath)
+      : ensureCompatNamedImports(file, transformed, compatSymbols, compatImportPath);
     transformed = compatImportResult.nextSource;
     addedCompatImport = compatImportResult.changed;
   }
@@ -2386,6 +2390,68 @@ function ensureCompatNamedImports(
 
   return {
     nextSource: `${prefix}${leading}${importLine}${trailing}${suffix}`,
+    changed: true,
+  };
+}
+
+function ensureCompatNamedRequire(
+  file: string,
+  source: string,
+  symbols: readonly string[],
+  importPath: string,
+): { nextSource: string; changed: boolean } {
+  if (symbols.length === 0) {
+    return { nextSource: source, changed: false };
+  }
+
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) {
+      continue;
+    }
+    for (const declaration of statement.declarationList.declarations) {
+      const modulePath = declaration.initializer
+        ? extractModulePathFromRequireInitializer(declaration.initializer)
+        : undefined;
+      if (modulePath !== importPath) {
+        continue;
+      }
+      if (!ts.isObjectBindingPattern(declaration.name)) {
+        continue;
+      }
+      const existingLocalNames = new Set<string>();
+      for (const element of declaration.name.elements) {
+        if (ts.isIdentifier(element.name)) {
+          existingLocalNames.add(element.name.text);
+        }
+      }
+      const missing = symbols.filter((symbol) => !existingLocalNames.has(symbol));
+      if (missing.length === 0) {
+        return { nextSource: source, changed: false };
+      }
+      const mergedNames = [...existingLocalNames, ...missing].sort();
+      const replacement = `const { ${mergedNames.join(", ")} } = require("${importPath}");`;
+      const nextSource = applyTextEdits(source, [
+        {
+          start: statement.getStart(sourceFile),
+          end: statement.getEnd(),
+          text: replacement,
+        },
+      ]);
+      return { nextSource, changed: true };
+    }
+  }
+
+  const requireLine = `const { ${[...symbols].sort().join(", ")} } = require("${importPath}");`;
+  const insertionIndex = findImportInsertionIndex(sourceFile);
+  const prefix = source.slice(0, insertionIndex);
+  const suffix = source.slice(insertionIndex);
+  const needsLeadingNewline = prefix.length > 0 && !prefix.endsWith("\n");
+  const leading = needsLeadingNewline ? "\n" : "";
+  const needsTrailingNewline = suffix.length > 0 && !suffix.startsWith("\n");
+  const trailing = needsTrailingNewline ? "\n" : "";
+  return {
+    nextSource: `${prefix}${leading}${requireLine}${trailing}${suffix}`,
     changed: true,
   };
 }

@@ -2393,7 +2393,7 @@ describe("runEsriCompatCodemod", () => {
     expect(nextSource).not.toContain("const { default: MapCtor } = require('@arcgis/core/Map');");
   });
 
-  it("keeps require constructor in .cjs and reports manual TODO", () => {
+  it("auto-migrates require constructor in .cjs to compat destructure", () => {
     const root = makeTempProject();
     const file = path.join(root, "require-map.cjs");
     fs.writeFileSync(
@@ -2408,25 +2408,17 @@ describe("runEsriCompatCodemod", () => {
       compatImportPath: "@honua/sdk-esri-compat",
     });
 
-    expect(result.filesChanged).toBe(0);
+    expect(result.filesChanged).toBe(1);
     expect(result.metrics.totalCodemodScopedCallSites).toBe(1);
-    expect(result.metrics.autoMigratedCallSites).toBe(0);
-    expect(result.metrics.manualCallSites).toBe(1);
-    expect(result.metrics.byKind.map).toEqual({
-      total: 1,
-      autoMigrated: 0,
-      manual: 1,
-    });
-    expect(result.manualTodos).toHaveLength(1);
-    expect(result.manualTodos[0]?.reason).toContain("CommonJS require constructors");
+    expect(result.metrics.autoMigratedCallSites).toBe(1);
+    expect(result.metrics.manualCallSites).toBe(0);
 
     const nextSource = fs.readFileSync(file, "utf8");
-    expect(nextSource).toContain("const Map = require('@arcgis/core/Map');");
-    expect(nextSource).toContain("const map = new Map({ basemap: 'streets' });");
-    expect(nextSource).not.toContain("@honua/sdk-esri-compat");
+    expect(nextSource).toContain('const { MapCompat } = require("@honua/sdk-esri-compat");');
+    expect(nextSource).toContain("new MapCompat({ basemap: 'streets' })");
   });
 
-  it("keeps require constructor in CommonJS .js modules and reports manual TODO", () => {
+  it("auto-migrates require constructor in CommonJS .js modules to compat destructure", () => {
     const root = makeTempProject();
     const file = path.join(root, "require-map.js");
     fs.writeFileSync(
@@ -2445,23 +2437,36 @@ describe("runEsriCompatCodemod", () => {
       compatImportPath: "@honua/sdk-esri-compat",
     });
 
-    expect(result.filesChanged).toBe(0);
+    expect(result.filesChanged).toBe(1);
     expect(result.metrics.totalCodemodScopedCallSites).toBe(1);
-    expect(result.metrics.autoMigratedCallSites).toBe(0);
-    expect(result.metrics.manualCallSites).toBe(1);
-    expect(result.metrics.byKind.map).toEqual({
-      total: 1,
-      autoMigrated: 0,
-      manual: 1,
-    });
-    expect(result.manualTodos).toHaveLength(1);
-    expect(result.manualTodos[0]?.reason).toContain("CommonJS require constructors");
+    expect(result.metrics.autoMigratedCallSites).toBe(1);
+    expect(result.metrics.manualCallSites).toBe(0);
 
     const nextSource = fs.readFileSync(file, "utf8");
-    expect(nextSource).toContain("const Map = require('@arcgis/core/Map');");
-    expect(nextSource).toContain("const map = new Map({ basemap: 'streets' });");
+    expect(nextSource).toContain('const { MapCompat } = require("@honua/sdk-esri-compat");');
+    expect(nextSource).toContain("new MapCompat({ basemap: 'streets' })");
     expect(nextSource).toContain("module.exports = { map };");
-    expect(nextSource).not.toContain("@honua/sdk-esri-compat");
+  });
+
+  it("falls back to manual TODO for CJS require constructor when targeting esri-leaflet", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "require-map-leaflet.cjs");
+    fs.writeFileSync(
+      file,
+      ["const Map = require('@arcgis/core/Map');", "const map = new Map({ basemap: 'streets' });"].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+      target: "esri-leaflet",
+    });
+
+    expect(result.metrics.autoMigratedCallSites).toBe(0);
+    expect(result.metrics.manualCallSites).toBe(1);
+    expect(result.manualTodos[0]?.reason).toContain("CommonJS require constructors");
   });
 
   it("rewrites safe Map, MapView, SceneView, and WebMap constructors", () => {

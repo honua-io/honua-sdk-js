@@ -159,12 +159,21 @@ known constructors" into "automated app conversion":
    the receiver is a tracked compat instance), and pointer/keyboard
    event handlers (`click`, `pointer-down`, `key-down`, …) which
    compat doesn't emit yet.
-2. **Dynamic / CJS imports (Task F, not started).**
-   The codemod handles static ESM imports only. It does **not**
-   rewrite `import("@arcgis/core/...")` (dynamic import), nor
-   `require("@arcgis/core/...")`. Real apps mix both. Until those
-   are handled, `filesScanned` undercounts and the
-   `no-unhandled-modules` gate is unreliable for CJS code paths.
+2. **Dynamic / CJS imports (Task F, partial).**
+   Dynamic ESM imports (`import("@arcgis/core/...")`) are
+   rewritten through the `isArcGisDynamicImportCall` pass and have
+   test coverage for SceneView, esriConfig, esriRequest, and
+   IdentityManager. CommonJS `require("@arcgis/core/...")` is now
+   auto-rewritten for the `honua-compat` target when constructor
+   options are safe: the codemod emits
+   `const { XCompat } = require("@honua/sdk-esri-compat");` and
+   rewrites `new X(opts)` to `new XCompat(opts)` in `.cjs` files
+   and `.js` files containing CommonJS markers. The original
+   `const X = require("@arcgis/core/...")` declaration is left in
+   place — if the local name has no remaining references, it is
+   dead code the user should remove (the codemod does not yet
+   prune orphaned arcgis requires). The `esri-leaflet` target
+   still emits a manual TODO for CJS require constructors.
 3. **Module re-exports beyond the registered set.** The codemod
    already follows `localArcGisReExports` for one level. Deeper
    barrel-file chains (`./esri.ts` → `./layers/index.ts` → …)
