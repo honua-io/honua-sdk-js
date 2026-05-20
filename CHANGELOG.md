@@ -2,6 +2,22 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.12-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.11-alpha.0...js-sdk-v0.0.12-alpha.0) (2026-05-20)
+
+
+### Features
+
+* **map:** WebMap JSON to MapLibre style derivation ([#205](https://github.com/honua-io/honua-sdk-js/issues/205)) ([#220](https://github.com/honua-io/honua-sdk-js/issues/220)) ([43603dd](https://github.com/honua-io/honua-sdk-js/commit/43603dd2a20d5e3a99a7dcfcb009ababf7c83932))
+* **migration:** classify MapLibre widget verdicts (LayerList/Legend/Popup/Search/FeatureTable) ([#205](https://github.com/honua-io/honua-sdk-js/issues/205)) ([#219](https://github.com/honua-io/honua-sdk-js/issues/219)) ([a77e585](https://github.com/honua-io/honua-sdk-js/commit/a77e585fc80fda3e07aae70b7512e6d037388c33))
+* **migration:** corpus-evidence CLI subcommand + persisted artifacts ([#206](https://github.com/honua-io/honua-sdk-js/issues/206)) ([#221](https://github.com/honua-io/honua-sdk-js/issues/221)) ([bee3611](https://github.com/honua-io/honua-sdk-js/commit/bee361161fa7452144e76f2612ef72dab019281f))
+* **migration:** per-sample evidence emitter for Esri corpus ([#206](https://github.com/honua-io/honua-sdk-js/issues/206)) ([#217](https://github.com/honua-io/honua-sdk-js/issues/217)) ([dfc106a](https://github.com/honua-io/honua-sdk-js/commit/dfc106a4ff6b649b9e927416bf83ca4cb9a1a936))
+* **migration:** wire WebMap→MapLibre style into honua-maplibre codemod ([#205](https://github.com/honua-io/honua-sdk-js/issues/205)) ([#222](https://github.com/honua-io/honua-sdk-js/issues/222)) ([50e4e4f](https://github.com/honua-io/honua-sdk-js/commit/50e4e4f58e32270715f73e78c22efdea524ce6f4))
+
+
+### Documentation
+
+* **migration:** add honua-maplibre target doc + CLI examples ([#205](https://github.com/honua-io/honua-sdk-js/issues/205)) ([#216](https://github.com/honua-io/honua-sdk-js/issues/216)) ([cd941c8](https://github.com/honua-io/honua-sdk-js/commit/cd941c85a5c272c893ae6da821e0daae0e68826d))
+
 ## [0.0.11-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.10-alpha.0...js-sdk-v0.0.11-alpha.0) (2026-05-20)
 
 
