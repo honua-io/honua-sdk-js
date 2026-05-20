@@ -242,17 +242,26 @@ known constructors" into "automated app conversion":
    top-level `widgets` array used by host shells), plus
    pass-throughs for `unsupported-symbol`,
    `unsupported-layer-type`, `unsupported-feature-collection`, and
-   `unsupported-webmap-version`. **What still requires manual
-   review:** the codemod does **not** yet wire this converter into
-   its import-rewriting pass — apps that call ArcGIS WebMap
-   loaders (`WebMap.load()`, `WebMap({ portalItem })`) still hit
-   the existing `web-map` compat shim, not the MapLibre style
-   path; the gap surface is also intentionally honest about its
-   ceiling, since Arcade execution, scene/3D rendering, Dashboard
-   widget hosts, Experience Builder pages, and custom-widget
-   plugins all require runtime support the JS SDK cannot
-   synthesize from JSON alone. Each emitted gap is a `// TODO`
-   anchor for an app author, not a promise of automated
+   `unsupported-webmap-version`. The migration codemod now wires
+   this converter into its `honua-maplibre` constructor-rewriting
+   pass: any `new WebMap({ ... })` call whose argument is a static
+   WebMap JSON object literal (top-level `operationalLayers` and/or
+   `baseMap`, fully literal values, no `portalItem`) is rewritten
+   to `webmapJsonToMapLibreStyle({ ... })` from
+   `@honua/sdk-js/map`, and the helper's `manualGaps` array is
+   propagated into the migration report as per-gap `web-map`
+   manual TODOs (Arcade, unsupported renderer, scene/3D, dashboard
+   shell, …). **What still requires manual review:** dynamic /
+   portal-loaded WebMaps (`new WebMap({ portalItem: { id: someId }
+   })`, `WebMap.load()`, identifier references, computed
+   properties, spreads) still emit a `web-map` manual TODO with
+   no rewrite — they need a runtime fetch the codemod cannot
+   synthesize. The gap surface is also intentionally honest about
+   its ceiling, since Arcade execution, scene/3D rendering,
+   Dashboard widget hosts, Experience Builder pages, and
+   custom-widget plugins all require runtime support the JS SDK
+   cannot synthesize from JSON alone. Each emitted gap is a `//
+   TODO` anchor for an app author, not a promise of automated
    migration.
 6. **End-to-end demo conversion.** Shipped at
    `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`.
