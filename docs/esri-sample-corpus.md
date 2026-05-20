@@ -87,6 +87,19 @@ API-key, premium-service, etc.) appear in the evidence record with
 aggregate, but never as `migrated`. No live Esri services are contacted; the
 helper operates entirely on the committed fixture corpus.
 
+The same evidence can be persisted to disk via the migration CLI subcommand
+`corpus-evidence`. It writes one JSON artifact per sample to
+`<out>/samples/<sampleId>.json` and a single aggregate document to
+`<out>/corpus-evidence.json`. `--corpus` defaults to
+`test/fixtures/esri-sample-corpus`, and `--target` defaults to
+`honua-maplibre`:
+
+```bash
+node dist/src/migration/cli.js corpus-evidence \
+  --corpus test/fixtures/esri-sample-corpus \
+  --out ./corpus-evidence
+```
+
 ## Live Evidence Lanes
 
 Live Esri sample/service evidence is reserved for scheduled or manual runs. A
