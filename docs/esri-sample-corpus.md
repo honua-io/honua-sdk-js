@@ -52,6 +52,41 @@ void summary;
 void analysis;
 ```
 
+## Per-sample evidence
+
+For each curated sample, the migration entrypoint can run the existing codemod
+against the local fixture and emit a structured evidence record:
+
+```ts
+import { emitEsriSampleCorpusEvidence } from "@honua/sdk-js/migration";
+
+const evidence = emitEsriSampleCorpusEvidence({
+  manifestPath: "test/fixtures/esri-sample-corpus/manifest.json",
+  // Defaults to "honua-maplibre". Other codemod targets are also accepted.
+});
+
+for (const sample of evidence.samples) {
+  // sample.status === "migrated" | "skipped" | "error"
+  // sample.classification.auto / manual / unsupported
+  // sample.manualTodos.reasons (deduped by reason, includes affected kinds)
+  // sample.referencedServices / sample.portalItems / sample.guardrailFlags
+  // sample.urlRewriteSummary.byKind / sample.unsupportedApis
+}
+
+// Aggregate across the corpus — per-status counts always sum to the manifest
+// length, and unsupported APIs are deduplicated.
+const { statusCounts, totals, uniqueUnsupportedApis } = evidence.aggregate;
+void statusCounts;
+void totals;
+void uniqueUnsupportedApis;
+```
+
+Samples whose manifest entry is `status: "skipped"` (private-portal, routing
+API-key, premium-service, etc.) appear in the evidence record with
+`status: "skipped"` and the manifest skip reason — they always count toward the
+aggregate, but never as `migrated`. No live Esri services are contacted; the
+helper operates entirely on the committed fixture corpus.
+
 ## Live Evidence Lanes
 
 Live Esri sample/service evidence is reserved for scheduled or manual runs. A
