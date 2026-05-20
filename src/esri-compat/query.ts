@@ -7,12 +7,22 @@ export interface QueryCompatOptions {
   objectIds?: number[] | string;
   geometry?: unknown;
   spatialRelationship?: string;
+  /** Honua-side alias for `spatialRelationship`; accepted by the shim for codemod-emitted call sites. */
+  spatialRel?: string;
   outSpatialReference?: unknown;
+  /** Honua-side alias for `outSpatialReference`; accepted by the shim for codemod-emitted call sites. */
+  outSr?: unknown;
   num?: number;
+  /** Honua-side alias for `num`; accepted by the shim for codemod-emitted call sites. */
+  resultRecordCount?: number;
   start?: number;
+  /** Honua-side alias for `start`; accepted by the shim for codemod-emitted call sites. */
+  resultOffset?: number;
   timeExtent?: unknown;
   groupByFieldsForStatistics?: string | string[];
   outStatistics?: unknown[];
+  /** Honua-side companion to `geometry`; accepted alongside the ArcGIS shape. */
+  geometryType?: string;
 }
 
 export type QueryLoadStatusCompat = "not-loaded" | "loading" | "loaded";
@@ -37,6 +47,8 @@ export class QueryCompat {
   public timeExtent: unknown;
   public groupByFieldsForStatistics: string[] | undefined;
   public outStatistics: unknown[] | undefined;
+  /** Honua-side companion to `geometry`; populated when the caller passes `geometryType` explicitly. */
+  public geometryType: string | undefined;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
 
   public constructor(options: QueryCompatOptions = {}) {
@@ -48,13 +60,19 @@ export class QueryCompat {
     this.orderByFields = normalizeStringList(options.orderByFields);
     this.objectIds = normalizeObjectIds(options.objectIds);
     this.geometry = options.geometry;
-    this.spatialRelationship = options.spatialRelationship;
-    this.outSpatialReference = options.outSpatialReference;
-    this.num = normalizeFiniteNumber(options.num);
-    this.start = normalizeFiniteNumber(options.start);
+    // Accept either ArcGIS `spatialRelationship` or Honua `spatialRel`; ArcGIS spelling wins when both present.
+    this.spatialRelationship = options.spatialRelationship ?? options.spatialRel;
+    // Accept either ArcGIS `outSpatialReference` or Honua `outSr`; ArcGIS spelling wins when both present.
+    this.outSpatialReference = options.outSpatialReference ?? options.outSr;
+    // Accept either ArcGIS `num` or Honua `resultRecordCount`; ArcGIS spelling wins when both present.
+    this.num = normalizeFiniteNumber(options.num ?? options.resultRecordCount);
+    // Accept either ArcGIS `start` or Honua `resultOffset`; ArcGIS spelling wins when both present.
+    this.start = normalizeFiniteNumber(options.start ?? options.resultOffset);
     this.timeExtent = options.timeExtent;
     this.groupByFieldsForStatistics = normalizeStringList(options.groupByFieldsForStatistics);
     this.outStatistics = options.outStatistics ? [...options.outStatistics] : undefined;
+    // Honua-side companion field; only populated when the caller passes it explicitly.
+    this.geometryType = typeof options.geometryType === "string" ? options.geometryType : undefined;
     this.watchListeners = new Map();
   }
 
@@ -114,6 +132,7 @@ export class QueryCompat {
       timeExtent: this.timeExtent,
       groupByFieldsForStatistics: this.groupByFieldsForStatistics ? [...this.groupByFieldsForStatistics] : undefined,
       outStatistics: this.outStatistics ? [...this.outStatistics] : undefined,
+      geometryType: this.geometryType,
     };
   }
 
