@@ -1,4 +1,5 @@
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { FeatureFilterCompat, type FeatureFilterCompatOptions } from "./feature-filter.js";
 
 // ── Structural Type Aliases ───────────────────────────────────
 
@@ -313,6 +314,9 @@ export class MapViewLayerViewCompat {
   public suspended: boolean;
   public hasAllFeatures: boolean;
   public hasAllFeaturesInView: boolean;
+  public visible: boolean;
+  public filter: FeatureFilterCompat | null;
+  public effect: unknown;
 
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
   private readonly eventBus: CompatEventBus | undefined;
@@ -325,10 +329,42 @@ export class MapViewLayerViewCompat {
     this.suspended = false;
     this.hasAllFeatures = true;
     this.hasAllFeaturesInView = true;
+    this.visible = true;
+    this.filter = null;
+    this.effect = undefined;
     this.watchListeners = new Map();
     this.eventBus = eventBus;
     this.highlightsInternal = new Map();
     this.nextHighlightId = 1;
+  }
+
+  public setFilter(input: FeatureFilterCompat | FeatureFilterCompatOptions | null | undefined): void {
+    if (input === null || input === undefined) {
+      this.filter = null;
+    } else if (input instanceof FeatureFilterCompat) {
+      this.filter = input;
+    } else {
+      this.filter = new FeatureFilterCompat({ ...input, eventBus: this.eventBus });
+    }
+    this.notifyWatchers("filter", this.filter);
+    this.eventBus?.emit(
+      "view.layer-view-filter-changed",
+      { layer: this.layer, filter: this.filter?.toJSON() ?? null },
+      this,
+    );
+  }
+
+  public setEffect(effect: unknown): void {
+    this.effect = effect;
+    this.notifyWatchers("effect", effect);
+    this.eventBus?.emit("view.layer-view-effect-changed", { layer: this.layer, effect }, this);
+  }
+
+  public setVisibility(visible: boolean): void {
+    if (this.visible === visible) return;
+    this.visible = visible;
+    this.notifyWatchers("visible", visible);
+    this.eventBus?.emit("view.layer-view-visibility-changed", { layer: this.layer, visible }, this);
   }
 
   public get highlights(): readonly MapViewLayerViewHighlightRecord[] {
@@ -391,20 +427,51 @@ export class MapViewLayerViewCompat {
   }
 
   public async queryFeatures(options: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+    const merged = this.mergeFilter(options);
     if (isQueryFeaturesProvider(this.layer)) {
-      return this.layer.queryFeatures(options);
+      return this.layer.queryFeatures(merged);
     }
 
     return { features: [] };
   }
 
+  private mergeFilter(options: Record<string, unknown>): Record<string, unknown> {
+    const filter = this.filter;
+    if (!filter) return options;
+    const merged: Record<string, unknown> = { ...options };
+    const filterWhere = filter.where;
+    if (typeof filterWhere === "string" && filterWhere.length > 0) {
+      const optionWhere = typeof merged.where === "string" && merged.where.length > 0 ? merged.where : undefined;
+      merged.where = optionWhere ? `(${optionWhere}) AND (${filterWhere})` : filterWhere;
+    }
+    if (filter.objectIds) {
+      if (merged.objectIds === undefined) {
+        merged.objectIds = [...filter.objectIds];
+      } else if (Array.isArray(merged.objectIds)) {
+        const filterIds = new Set<number | string>(filter.objectIds);
+        merged.objectIds = (merged.objectIds as Array<number | string>).filter((id) => filterIds.has(id));
+      }
+    }
+    if (merged.geometry === undefined && filter.geometry) {
+      merged.geometry = filter.geometry;
+    }
+    if (merged.spatialRelationship === undefined) {
+      merged.spatialRelationship = filter.spatialRelationship;
+    }
+    if (merged.timeExtent === undefined && filter.timeExtent != null) {
+      merged.timeExtent = filter.timeExtent;
+    }
+    return merged;
+  }
+
   public async queryFeatureCount(options: Record<string, unknown> = {}): Promise<number> {
+    const merged = this.mergeFilter(options);
     if (isQueryFeatureCountProvider(this.layer)) {
-      const count = await this.layer.queryFeatureCount(options);
+      const count = await this.layer.queryFeatureCount(merged);
       return normalizeCount(count);
     }
 
-    const result = await this.queryFeatures(options);
+    const result = await this.queryFeatures(merged);
     if (isFeatureCollection(result)) {
       return result.features.length;
     }
@@ -413,14 +480,15 @@ export class MapViewLayerViewCompat {
   }
 
   public async queryObjectIds(options: Record<string, unknown> = {}): Promise<number[]> {
+    const merged = this.mergeFilter(options);
     if (isQueryObjectIdsProvider(this.layer)) {
-      const ids = await this.layer.queryObjectIds(options);
+      const ids = await this.layer.queryObjectIds(merged);
       return Array.isArray(ids)
         ? ids.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
         : [];
     }
 
-    const result = await this.queryFeatures(options);
+    const result = await this.queryFeatures(merged);
     if (!isFeatureCollection(result)) {
       return [];
     }

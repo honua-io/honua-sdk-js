@@ -14,6 +14,7 @@ const PROTOCOL_RELATIVE_URL_RE = /^\/\//;
 const RELATIVE_URL_BASE = "https://honua.invalid";
 const FEATURE_LAYER_PATH_RE = /^(?<prefix>.*)\/rest\/services\/(?<serviceId>[^/]+)\/FeatureServer\/(?<layerId>\d+)\/?$/;
 const MAP_SERVICE_PATH_RE = /^(?<prefix>.*)\/rest\/services\/(?<serviceId>[^/]+)\/MapServer(?:\/\d+)?\/?$/;
+const IMAGE_SERVICE_PATH_RE = /^(?<prefix>.*)\/rest\/services\/(?<serviceId>[^/]+)\/ImageServer(?:\/\d+)?\/?$/;
 
 export function parseFeatureLayerUrl(url: string): ParsedFeatureLayerUrl {
   const { parsed, absolute } = parseServiceUrl(url);
@@ -40,6 +41,21 @@ export function parseMapServiceUrl(url: string): ParsedMapServiceUrl {
   const match = parsed.pathname.match(MAP_SERVICE_PATH_RE);
   if (!match || !match.groups) {
     throw new Error("Invalid MapServer URL. Expected .../rest/services/{serviceId}/MapServer");
+  }
+
+  const serviceId = decodeURIComponent(match.groups.serviceId);
+  const prefix = match.groups.prefix || "";
+  const baseUrl = absolute
+    ? `${parsed.protocol}//${parsed.host}${prefix}`.replace(/\/+$/, "")
+    : prefix.replace(/\/+$/, "");
+  return { baseUrl, serviceId };
+}
+
+export function parseImageServiceUrl(url: string): ParsedMapServiceUrl {
+  const { parsed, absolute } = parseServiceUrl(url);
+  const match = parsed.pathname.match(IMAGE_SERVICE_PATH_RE);
+  if (!match || !match.groups) {
+    throw new Error("Invalid ImageServer URL. Expected .../rest/services/{serviceId}/ImageServer");
   }
 
   const serviceId = decodeURIComponent(match.groups.serviceId);

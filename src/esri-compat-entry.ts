@@ -534,3 +534,50 @@ export type {
   EditorLayerInfoCompat,
   EditorWorkflowCompat,
 } from "./esri-compat/editor.js";
+export { FeatureFilterCompat } from "./esri-compat/feature-filter.js";
+export type {
+  FeatureFilterCompatOptions,
+  FeatureFilterGeometryCompat,
+  FeatureFilterHandleCompat,
+  FeatureFilterLoadStatusCompat,
+  FeatureFilterSpatialRelationshipCompat,
+  FeatureFilterTimeExtentCompat,
+} from "./esri-compat/feature-filter.js";
+export { VectorTileLayerCompat } from "./esri-compat/vector-tile-layer.js";
+export type {
+  VectorTileLayerCompatOptions,
+  VectorTileLayerHandleCompat,
+  VectorTileLayerLoadStatusCompat,
+} from "./esri-compat/vector-tile-layer.js";
+export { GeoJSONLayerCompat } from "./esri-compat/geojson-layer.js";
+export type {
+  GeoJSONLayerCompatOptions,
+  GeoJSONLayerHandleCompat,
+  GeoJSONLayerLoadStatusCompat,
+  GeoJSONLayerQueryOptions,
+  GeoJSONLayerQueryResult,
+} from "./esri-compat/geojson-layer.js";
+export { WMSLayerCompat, WMSSublayerCompat } from "./esri-compat/wms-layer.js";
+export type {
+  WMSLayerCompatOptions,
+  WMSLayerHandleCompat,
+  WMSLayerLoadStatusCompat,
+  WMSSublayerCompatOptions,
+} from "./esri-compat/wms-layer.js";
+export { WFSLayerCompat } from "./esri-compat/wfs-layer.js";
+export type {
+  WFSLayerCompatOptions,
+  WFSLayerHandleCompat,
+  WFSLayerLoadStatusCompat,
+  WFSLayerQueryOptions,
+  WFSLayerQueryResult,
+} from "./esri-compat/wfs-layer.js";
+export { ImageryLayerCompat } from "./esri-compat/imagery-layer.js";
+export type {
+  ImageryLayerCompatOptions,
+  ImageryLayerExportOptions,
+  ImageryLayerHandleCompat,
+  ImageryLayerIdentifyOptions,
+  ImageryLayerLoadStatusCompat,
+  ImageryLayerQueryOptions,
+} from "./esri-compat/imagery-layer.js";
