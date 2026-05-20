@@ -1,5 +1,5 @@
 import { HonuaClient } from "../core/client.js";
-import { HonuaImageService } from "../core/surfaces.js";
+import type { HonuaImageService } from "../core/surfaces.js";
 import type { HonuaServiceMetadata } from "../core/types.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { parseImageServiceUrl } from "./url.js";
@@ -172,7 +172,11 @@ export class ImageryLayerCompat {
       this.watchListeners.set(propertyName, listeners);
     }
     listeners.add(listener);
-    return { remove: () => { listeners?.delete(listener); } };
+    return {
+      remove: () => {
+        listeners?.delete(listener);
+      },
+    };
   }
 
   public on(eventName: string, listener: (event: unknown) => void): ImageryLayerHandleCompat {

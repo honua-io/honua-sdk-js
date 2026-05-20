@@ -93,7 +93,11 @@ export class VectorTileLayerCompat {
       this.watchListeners.set(propertyName, listeners);
     }
     listeners.add(listener);
-    return { remove: () => { listeners?.delete(listener); } };
+    return {
+      remove: () => {
+        listeners?.delete(listener);
+      },
+    };
   }
 
   public on(eventName: string, listener: (event: unknown) => void): VectorTileLayerHandleCompat {
