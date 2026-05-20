@@ -112,14 +112,27 @@ hold the surface stable).
    service-area, OD-cost-matrix, closest-facility,
    non-network geoprocessing) need their own surfaces under
    `src/core/` and matching compat classes.
-4. **`Query` argument depth.** The `Query` shim accepts the common
-   property set, but the codemod's options validator currently
-   allows-but-passes-through complex sub-objects
-   (`statisticDefinitions`, `quantizationParameters`, etc.) without
-   transforming them into the Honua-side request shape. A failing
-   query at runtime is preferable to a silently-wrong query — but
-   the codemod should detect these and emit a manual TODO instead
-   of letting the call through.
+4. **`Query` argument depth.** *Shipped (Task E).* The codemod now
+   deep-transforms `new Query({...})` argument literals into the
+   Honua `QueryFeaturesRequest` shape: renames `start` →
+   `resultOffset`, `num` → `resultRecordCount`, `outSpatialReference`
+   → `outSr`, `spatialRelationship` → `spatialRel`; splits
+   `geometry: { type, ...rest }` into a sibling `geometryType`
+   field with the matching `esriGeometry*` enum value; and
+   lowercases `outStatistics[i].statisticType` against the
+   STATISTIC_TYPE_MAP keyset (count/sum/min/max/avg/stddev/var).
+   Divergent / dynamic shapes emit a manual TODO with a precise
+   reason — specifically: `timeExtent` (no Honua field; use
+   `extraParams.time`), `quantizationParameters` (server-side
+   optimization with no Honua equivalent), `relationParam` (no
+   Honua support), `geometry` without a string-literal `type`
+   discriminator, and `outStatistics` items with a non-literal
+   `statisticType` or an unknown enum value. The shim
+   `QueryCompat` accepts either ArcGIS or Honua property
+   spellings (`spatialRelationship` / `spatialRel`,
+   `outSpatialReference` / `outSr`, `num` / `resultRecordCount`,
+   `start` / `resultOffset`) so codemod output and hand-written
+   callers both validate.
 5. **Popup actions / popup templates with `actions`,
    `outFields: ["*"]` expansions, and `fieldInfos` formatters.**
    These rewrite cleanly only for the simple case; arrow-function
@@ -223,14 +236,16 @@ In rough effort order:
 | --- | --- | --- |
 | Codemod event-name remap (Task D) | 1–2 days | Pure JS-side work; needs an event-name dictionary plus AST pass. |
 | Codemod dynamic-import + CJS (Task F) | 1–2 days | Mirror the static-ESM path; care needed for awaited dynamic imports' destructuring. |
-| Query argument deep-transform (Task E) | 3–5 days | Need to fork allowlist into "rewrite" vs "passthrough" props and emit transformed sub-objects. |
+| ~~Query argument deep-transform (Task E)~~ | ~~3–5 days~~ | Shipped: codemod renames `start`/`num`/`outSpatialReference`/`spatialRelationship`, splits `geometry` into `geometry`+`geometryType`, normalizes `outStatistics[i].statisticType` against `STATISTIC_TYPE_MAP`, and emits precise manual TODOs for `timeExtent`, `quantizationParameters`, `relationParam`, dynamic statisticType, and geometry without a literal `type`. `QueryCompat` accepts both ArcGIS and Honua property spellings. |
 | Locator + Geoprocessor compat (Task C) | 1–2 weeks | Requires `HonuaGeocodeService`, `HonuaGeoprocessService` surfaces (server work). |
 | Scene-layer compat (Task A-rest) | 4–8 weeks | Requires I3S/glTF pipeline on `honua-server`; not pure-JS work. |
 | ~~E2E demo conversion harness (Task I)~~ | ~~1 week~~ | Shipped: `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`, wired into the JS SDK CI workflow after the unit-test step. |
 
-Until the first three rows ship, "automated app conversion" should
-be marketed as "deterministic constructor rewrite + manual-TODO
-report," not as a one-click migration. Until the last three rows
-ship, "parity with ArcGIS JS SDK" should be qualified as
-"deterministic 2D parity; scene/3D and advanced tasks remain
-assisted migration."
+With the first three rows (Tasks D/F/E) now shipped, "automated app
+conversion" reaches deterministic constructor rewrite + event-name
+remap + dynamic/CJS imports + Query argument deep-transform, plus a
+manual-TODO report for everything else. The remaining rows
+(Locator/Geoprocessor and Scene-layer compat) still gate the
+unqualified "parity with ArcGIS JS SDK" claim — that should remain
+qualified as "deterministic 2D parity; scene/3D and advanced tasks
+remain assisted migration" until they land.
