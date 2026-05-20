@@ -2,6 +2,14 @@
 
 All notable changes to the Honua JS SDK will be documented in this file.
 
+## [0.0.11-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.10-alpha.0...js-sdk-v0.0.11-alpha.0) (2026-05-20)
+
+
+### Features
+
+* add Esri sample corpus guardrails ([#207](https://github.com/honua-io/honua-sdk-js/issues/207)) ([d463b00](https://github.com/honua-io/honua-sdk-js/commit/d463b0083a77fcd91c8da07a186f9a9f241bba92))
+* add honua-maplibre migration target ([#205](https://github.com/honua-io/honua-sdk-js/issues/205)) ([#208](https://github.com/honua-io/honua-sdk-js/issues/208)) ([af1ebee](https://github.com/honua-io/honua-sdk-js/commit/af1ebee59c37b1af145e0f863f70fcbfdc335bf5))
+
 ## [0.0.10-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.9-alpha.0...js-sdk-v0.0.10-alpha.0) (2026-05-12)
 
 
