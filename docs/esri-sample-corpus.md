@@ -68,3 +68,13 @@ live lane should:
 
 Follow-on issue #206 work can layer service import, app codemod, URL rewriting,
 and Playwright smoke evidence on top of this manifest and extraction helper.
+
+## Related: `honua-maplibre` migration target
+
+The codemod's MapLibre-native migration target is documented in
+[`docs/migration-honua-maplibre.md`](./migration-honua-maplibre.md). That
+page covers the `--target honua-maplibre` flag, the rewritten kinds, the
+migration report fields, and the manual gaps that remain open on issue
+#205. The bundled MapLibre fixture
+`test/fixtures/esri-maplibre-simple-app/` is the canonical example
+for that target and is referenced from the doc.
