@@ -902,6 +902,10 @@ node dist/src/migration/cli.js codemod ./src --target honua --write --report mig
 # Safe codemod (write changes targeting esri-leaflet for supported subset)
 node dist/src/migration/cli.js codemod ./src --target esri-leaflet --write --report migration-report.json
 
+# Safe codemod (write changes targeting honua-maplibre for layer/map/view-core subset)
+# See docs/migration-honua-maplibre.md for the rewritten kinds, report fields, and manual gaps.
+node dist/src/migration/cli.js codemod ./src --target honua-maplibre --write --report migration-report.json
+
 # Safe codemod (write + inline TODO annotations for manual sites)
 node dist/src/migration/cli.js codemod ./src --write --annotate-todos --report migration-report.json
 
@@ -989,6 +993,31 @@ manifest at `test/fixtures/esri-sample-corpus/manifest.json` records Esri sample
 source URLs as metadata only, license/terms notes, skip reasons, and expected
 service/Portal references. PR CI uses Honua-owned snippets and must not contact
 live Esri services, vendor Esri sample code, or commit Esri service data.
+
+## `honua-maplibre` Migration Target (#205)
+
+The codemod's `--target honua-maplibre` option rewrites a curated
+subset of `@arcgis/core` constructors directly into
+`@honua/sdk-js/map` helpers plus MapLibre style/layer objects,
+instead of routing them through the Esri-shaped compat shims. It is
+the option that produces MapLibre-native output for the
+layer/map/view core (`FeatureLayer`, `MapImageLayer`, `TileLayer`,
+`Map`, `MapView`). Everything else still falls through to a manual
+TODO under this target.
+
+| Target | Rewritten natively | Doc |
+| --- | --- | --- |
+| `honua-compat` (alias `honua`) | Full 2D constructor surface in `REWRITE_SPECS` | [`docs/migration-punch-list.md`](./docs/migration-punch-list.md) |
+| `honua-maplibre` | `feature-layer`, `map-image-layer`, `tile-layer`, `map`, `map-view` | [`docs/migration-honua-maplibre.md`](./docs/migration-honua-maplibre.md) |
+| `esri-leaflet` | `feature-layer`, `map-image-layer`, `tile-layer` natively + compat fallback for the rest | [`docs/migration-punch-list.md`](./docs/migration-punch-list.md) |
+
+See [`docs/migration-honua-maplibre.md`](./docs/migration-honua-maplibre.md)
+for the CLI invocations, the migration report fields the target
+emits (`codemodTarget`, `manualRewriteMetric`,
+`manualInterventionMetric`, `readiness`, `gates`,
+`unhandledArcGisModules`, …), and the manual-gap list — including
+WebMap conversion, widget visual parity, 3D/SceneView, and the
+Playwright smoke that remain open on issue #205.
 
 ## FeatureTable Demo Lane (#327)
 

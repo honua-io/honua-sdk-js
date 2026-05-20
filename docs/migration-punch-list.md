@@ -82,6 +82,15 @@ API (it does **not** use regex). It:
 - Knows the `esri-leaflet` migration target as a separate column,
   with `ESRI_LEAFLET_COMPAT_FALLBACK_KINDS` gating which kinds are
   treated as deterministic vs. assisted.
+- Knows the `honua-maplibre` migration target as a third column,
+  gated by `HONUA_MAPLIBRE_NATIVE_KINDS` (`feature-layer`,
+  `map-image-layer`, `tile-layer`, `map`, `map-view`). The native
+  rewrite emits `@honua/sdk-js/map` helpers plus MapLibre
+  style/layer objects instead of compat shims; everything outside
+  that set falls through to a manual TODO. See
+  [`docs/migration-honua-maplibre.md`](./migration-honua-maplibre.md)
+  for the per-target rewrite surface, CLI invocations, report
+  fields, and the manual-gap list against issue #205.
 
 Everything in this section is covered by tests under `test/`
 (`migration-codemod.test.ts` is 75 cases; `migration-report.test.ts`,
