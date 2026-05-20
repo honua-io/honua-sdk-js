@@ -21,8 +21,34 @@ const MAX_COMPARISON_DEPTH = 8;
 export function watch<TValue>(
   getter: () => TValue,
   callback: (value: TValue) => void,
-  options: ReactiveUtilsWatchOptionsCompat = {},
+  options?: ReactiveUtilsWatchOptionsCompat,
+): ReactiveUtilsHandleCompat;
+export function watch<TValue>(
+  target: Record<string, unknown>,
+  propertyName: string,
+  callback: (value: TValue) => void,
+  options?: ReactiveUtilsWatchOptionsCompat,
+): ReactiveUtilsHandleCompat;
+export function watch<TValue>(
+  getterOrTarget: (() => TValue) | Record<string, unknown>,
+  callbackOrProperty: ((value: TValue) => void) | string,
+  callbackOrOptions?: ((value: TValue) => void) | ReactiveUtilsWatchOptionsCompat,
+  optionsArg?: ReactiveUtilsWatchOptionsCompat,
 ): ReactiveUtilsHandleCompat {
+  let getter: () => TValue;
+  let callback: (value: TValue) => void;
+  let options: ReactiveUtilsWatchOptionsCompat;
+  if (typeof getterOrTarget === "function") {
+    getter = getterOrTarget as () => TValue;
+    callback = callbackOrProperty as (value: TValue) => void;
+    options = (callbackOrOptions as ReactiveUtilsWatchOptionsCompat | undefined) ?? {};
+  } else {
+    const target = getterOrTarget;
+    const propertyName = callbackOrProperty as string;
+    getter = () => target[propertyName] as TValue;
+    callback = callbackOrOptions as (value: TValue) => void;
+    options = optionsArg ?? {};
+  }
   let active = true;
   let hasValue = false;
   let previousValue: TValue | undefined;
