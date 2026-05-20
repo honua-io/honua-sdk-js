@@ -57,6 +57,9 @@ jobs:
       - name: Unit tests with coverage
         run: npm run test:coverage
 
+      - name: Migration e2e harness
+        run: npx vitest run test/migration-e2e.test.ts
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 

@@ -186,12 +186,22 @@ known constructors" into "automated app conversion":
    shapes). The shim accepts the ArcGIS shape at runtime, but
    the report should flag known-divergent property values so app
    authors can confirm intent.
-5. **End-to-end demo conversion.** No tooling exists in this repo
-   that takes a real ArcGIS sample app and outputs a building
-   honua-compat app + parity report. The codemod has unit tests
-   only. The honest test of the "automated conversion" claim is
-   to run the codemod against ArcGIS's own sample repo, file the
-   diff into CI, and let it fail loudly when shipped code drifts.
+5. **End-to-end demo conversion.** Shipped at
+   `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`.
+   The sample is a hand-written parcel viewer exercising
+   `FeatureLayer` (with `outFields` + `popupTemplate`), `Map`,
+   `MapView`, an untouched `view.on("click", …)` handler, and an
+   event-name-remapped `layer.on("layerview-create", …)` handler.
+   The e2e test copies it into a tempdir, runs the codemod with
+   `target: "honua-compat"`, asserts every expected rewrite landed
+   and the readiness gate is `"ready"`, and then runs `tsc
+   --noEmit` against the migrated source with `paths` resolving
+   `@honua/sdk-esri-compat` to the workspace `src/esri-compat/`
+   entry. The CI job runs this harness immediately after the unit
+   test step. Remaining work: extend the sample to additional
+   layer kinds (Imagery / VectorTile / WMS / WFS / GeoJSON) so
+   the harness exercises the full surface, not just the parcel
+   viewer slice.
 
 ---
 
@@ -206,7 +216,7 @@ In rough effort order:
 | Query argument deep-transform (Task E) | 3–5 days | Need to fork allowlist into "rewrite" vs "passthrough" props and emit transformed sub-objects. |
 | Locator + Geoprocessor compat (Task C) | 1–2 weeks | Requires `HonuaGeocodeService`, `HonuaGeoprocessService` surfaces (server work). |
 | Scene-layer compat (Task A-rest) | 4–8 weeks | Requires I3S/glTF pipeline on `honua-server`; not pure-JS work. |
-| E2E demo conversion harness (Task I) | 1 week | Wire codemod into a CI job that builds an ArcGIS sample app and asserts the report stays green. |
+| ~~E2E demo conversion harness (Task I)~~ | ~~1 week~~ | Shipped: `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`, wired into the JS SDK CI workflow after the unit-test step. |
 
 Until the first three rows ship, "automated app conversion" should
 be marketed as "deterministic constructor rewrite + manual-TODO
