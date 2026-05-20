@@ -105,6 +105,9 @@ export class WFSLayerCompat {
     if (options.count !== undefined) params.set("COUNT", String(options.count));
     if (options.startIndex !== undefined) params.set("STARTINDEX", String(options.startIndex));
     if (options.bbox) params.set("BBOX", options.bbox.join(","));
+    if (options.where && options.where.trim().length > 0) {
+      params.set("CQL_FILTER", options.where);
+    }
 
     const url = `${this.url}${this.url.includes("?") ? "&" : "?"}${params.toString()}`;
     const response = await fetch(url);

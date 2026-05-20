@@ -2443,7 +2443,7 @@ function ensureCompatNamedRequire(
   }
 
   const requireLine = `const { ${[...symbols].sort().join(", ")} } = require("${importPath}");`;
-  const insertionIndex = findImportInsertionIndex(sourceFile);
+  const insertionIndex = findRequireInsertionIndexAfterDirectives(sourceFile, source);
   const prefix = source.slice(0, insertionIndex);
   const suffix = source.slice(insertionIndex);
   const needsLeadingNewline = prefix.length > 0 && !prefix.endsWith("\n");
@@ -2454,6 +2454,27 @@ function ensureCompatNamedRequire(
     nextSource: `${prefix}${leading}${requireLine}${trailing}${suffix}`,
     changed: true,
   };
+}
+
+function findRequireInsertionIndexAfterDirectives(sourceFile: ts.SourceFile, source: string): number {
+  let lastDirectiveEnd = -1;
+  for (const statement of sourceFile.statements) {
+    if (!ts.isExpressionStatement(statement) || !ts.isStringLiteral(statement.expression)) {
+      break;
+    }
+    lastDirectiveEnd = statement.getEnd();
+  }
+  if (lastDirectiveEnd < 0) {
+    return findImportInsertionIndex(sourceFile);
+  }
+  let cursor = lastDirectiveEnd;
+  while (cursor < source.length && (source[cursor] === " " || source[cursor] === "\t")) {
+    cursor += 1;
+  }
+  if (cursor < source.length && source[cursor] === "\n") {
+    cursor += 1;
+  }
+  return cursor;
 }
 
 function findNamespaceImportAlias(sourceFile: ts.SourceFile, importPath: string): string | undefined {
