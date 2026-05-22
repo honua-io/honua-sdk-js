@@ -358,7 +358,9 @@
   },
   "sideEffects": [
     "./dist/src/web-components/index.js",
-    "./dist/src/web-components/elements.js"
+    "./dist/src/web-components/elements.js",
+    "./src/web-components/index.ts",
+    "./src/web-components/elements.ts"
   ],
   "engines": {
     "node": ">=20.0.0"
