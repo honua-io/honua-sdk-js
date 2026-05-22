@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, FeatureTemplatesCompat } from "../src/index.js";
+import { CompatEventBus, FeatureTemplatesCompat } from "../src/esri-compat-entry.js";
 
 describe("FeatureTemplatesCompat", () => {
   it("supports when() and watch() for lifecycle state", async () => {

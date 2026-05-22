@@ -1,3 +1,24 @@
+/**
+ * `@honua/sdk-js/honua` — the Honua-first SDK entrypoint.
+ *
+ * Re-exports the core {@link HonuaClient}, the cross-protocol typing primitives,
+ * the filter / cache / runtime helpers, and the Honua-native client wrappers
+ * (`HonuaFeatureLayer`, `HonuaMapService`, `HonuaOgcFeatures`, `HonuaWfs`, ...).
+ *
+ * Use this entrypoint for new code. For migration code that talks the legacy
+ * Esri shape, import from `@honua/sdk-js/esri-compat`. For protocol-neutral
+ * cross-protocol code, import from `@honua/sdk-js/contract`.
+ *
+ * @example
+ * ```ts
+ * import { HonuaClient } from "@honua/sdk-js/honua";
+ *
+ * const client = new HonuaClient({ baseUrl: "https://your-honua-server.example" });
+ * const { features } = await client.queryFeatures({ serviceId: "parcels", layerId: 0, where: "1=1" });
+ * ```
+ *
+ * @packageDocumentation
+ */
 export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
 export {
   MIGRATION_EVIDENCE_STATES,
@@ -59,51 +80,8 @@ export type {
   HonuaMetadataRequestOptions,
   NormalizedHonuaMetadataRequestOptions,
 } from "./core/cache-state.js";
-export {
-  FixtureSavedMapCollaborationTransport,
-  HonuaCollaborationError,
-  HonuaSavedMapCollaborationClient,
-  HonuaSavedMapCollaborationSession,
-  createFixtureSavedMapCollaborationTransport,
-  createHonuaSavedMapCollaboration,
-  isHonuaCollaborationError,
-  reduceSavedMapCollaborationSnapshot,
-} from "./collaboration/index.js";
-export type {
-  FixtureSavedMapCollaborationTransportOptions,
-  HonuaSavedMapCollaborationClientOptions,
-  SavedMapCollaborationCapabilities,
-  SavedMapCollaborationConnectionStatus,
-  SavedMapCollaborationEnvelope,
-  SavedMapCollaborationErrorCode,
-  SavedMapCollaborationErrorEvent,
-  SavedMapCollaborationEvent,
-  SavedMapCollaborationJoinRequest,
-  SavedMapCollaborationJoinResult,
-  SavedMapCollaborationObserver,
-  SavedMapCollaborationParticipant,
-  SavedMapCollaborationParticipantId,
-  SavedMapCollaborationSessionId,
-  SavedMapCollaborationSessionRef,
-  SavedMapCollaborationSnapshot,
-  SavedMapCollaborationSnapshotListener,
-  SavedMapCollaborationSubscriptionHandle,
-  SavedMapCollaborationTransport,
-  SavedMapCollaborationTransportCapabilities,
-  SavedMapCollaborationTransportKind,
-  SavedMapCommittedOperation,
-  SavedMapCursor,
-  SavedMapEditOperation,
-  SavedMapFeatureLock,
-  SavedMapFeatureLockReleaseRequest,
-  SavedMapFeatureLockRequest,
-  SavedMapFollowTarget,
-  SavedMapId,
-  SavedMapOperationReplayRequest,
-  SavedMapOperationReplayResult,
-  SavedMapOperationSubmitRequest,
-  SavedMapSelection,
-} from "./collaboration/index.js";
+// Experimental collaboration surface is subpath-only:
+//   import { HonuaSavedMapCollaborationClient } from "@honua/sdk-js/collaboration";
 export { parseWebMap } from "./webmap/index.js";
 export type { ParseWebMapOptions, ParseWebMapResult } from "./webmap/index.js";
 export {
@@ -270,71 +248,8 @@ export type {
   ShareableInteractionQueryParams,
   ShareableInteractionQueryState,
 } from "./interactions/index.js";
-export {
-  createSceneWorkspace,
-  emptySceneWorkspaceState,
-  reduceSceneWorkspaceState,
-  sceneWorkspaceIntentFromAdapterEvent,
-  selectSceneDiagnosticsByStatus,
-  selectSceneEvidenceForFeature,
-  selectScenePrimitivesByKind,
-  selectSceneVisibleLayers,
-} from "./scene-workspace/index.js";
-export {
-  MAPLIBRE_SCENE_CAPABILITIES,
-  applyMapLibreScenePrimitives,
-  createMapLibreSceneAdapter,
-  createSceneRuntimeAdapter,
-  diagnoseScenePrimitive,
-  diagnoseScenePrimitives,
-  summarizeDiagnosticStatus,
-  toMapLibreExtrusionLayer,
-  toMapLibreTerrainPatch,
-} from "./scene-workspace/index.js";
-export { SCENE_WORKSPACE_SLICES } from "./scene-workspace/index.js";
-export type {
-  MapLibreExtrusionLayerSpecification,
-  MapLibreSceneRuntimeTarget,
-  MapLibreTerrainOptions,
-  MapLibreTerrainPatch,
-  MapLibreTerrainSourceSpecification,
-  SceneBookmark,
-  SceneCacheMetadata,
-  SceneCameraState,
-  SceneCameraPrimitive,
-  SceneDetailState,
-  SceneElevationSourcePrimitive,
-  SceneElevationSourceProtocol,
-  SceneEvidenceReference,
-  SceneExtrusionPrimitive,
-  SceneExtrusionValue,
-  SceneGroundPrimitive,
-  SceneLayerMetadataPrimitive,
-  SceneLayerState,
-  SceneModelFormat,
-  SceneModelLayerPrimitive,
-  ScenePrimitiveApplyResult,
-  ScenePrimitiveDiagnostic,
-  ScenePrimitiveDiagnosticSeverity,
-  ScenePrimitiveStatus,
-  SceneRealtimeState,
-  SceneRendererKind,
-  SceneRuntimeAdapter,
-  SceneRuntimeCapabilities,
-  SceneRuntimePrimitive,
-  SceneRuntimePrimitiveKind,
-  SceneTimelineState,
-  SceneWorkspace,
-  SceneWorkspaceAdapterEvent,
-  SceneWorkspaceChangeEvent,
-  SceneWorkspaceHistoryEntry,
-  SceneWorkspaceIntent,
-  SceneWorkspaceListener,
-  SceneWorkspaceSlice,
-  SceneWorkspaceSnapshot,
-  SceneWorkspaceState,
-  SceneWorkspaceUnsubscribe,
-} from "./scene-workspace/index.js";
+// Experimental scene-workspace surface is subpath-only:
+//   import { createSceneWorkspace } from "@honua/sdk-js/scene-workspace";
 export { HonuaMap } from "./map/index.js";
 export type {
   HonuaMapOptions,
@@ -1128,204 +1043,9 @@ export type {
   ViewRole,
 } from "./exploration/index.js";
 
-export {
-  HONUA_CONTROLLER_SNAPSHOT_VERSION,
-  HonuaController,
-  HonuaControllerError,
-  createHonuaController,
-} from "./app-controller/index.js";
-export type {
-  HonuaAnnotationStyle,
-  HonuaBounds,
-  HonuaControllerAdapter,
-  HonuaControllerAdapterSubscription,
-  HonuaControllerErrorCode,
-  HonuaControllerEvent,
-  HonuaControllerEventBase,
-  HonuaControllerEventFor,
-  HonuaControllerEventListener,
-  HonuaControllerEventSource,
-  HonuaControllerEventType,
-  HonuaControllerIdleEvent,
-  HonuaControllerOptions,
-  HonuaControllerRuntime,
-  HonuaControllerRuntimeLike,
-  HonuaControllerSelectionChangeEvent,
-  HonuaControllerSnapshot,
-  HonuaControllerViewportEvent,
-  HonuaControllerVisibilityChangeEvent,
-  HonuaCoordinate,
-  HonuaFitBoundsOptions,
-  HonuaGeneratedAppRuntimeLike,
-  HonuaGeoJson,
-  HonuaGeoJsonFeature,
-  HonuaGeoJsonFeatureCollection,
-  HonuaGeoJsonGeometry,
-  HonuaOverlayStyle,
-  HonuaTemporaryAnnotation,
-  HonuaTemporaryAnnotationInput,
-  HonuaTemporaryOverlay,
-  HonuaTemporaryOverlayInput,
-  HonuaViewport,
-  HonuaViewportOptions,
-  HonuaVisibilityChangeSet,
-  HonuaVisibilitySnapshot,
-  HonuaVisibilityTarget,
-  HonuaVisibilityTargetInput,
-  HonuaVisibilityTargetKind,
-  HonuaVisibilityUpdate,
-} from "./app-controller/index.js";
-
-export {
-  HONUA_SAVED_WORKSPACE_DOCUMENT_KIND,
-  HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION,
-  HonuaAppWorkspace,
-  assertHonuaSavedWorkspaceDocument,
-  bindHonuaAppWorkspaceSelector,
-  createHonuaAppWorkspace,
-  createHonuaAppWorkspaceFromSavedDocument,
-  createHonuaSavedWorkspaceDocument,
-  hydrateHonuaSavedWorkspaceState,
-  reattachHonuaSavedWorkspaceArtifacts,
-  selectHonuaAppWorkspaceChartModel,
-  selectHonuaAppWorkspaceDetailModel,
-  selectHonuaAppWorkspaceDrafts,
-  selectHonuaAppWorkspaceFilterModel,
-  selectHonuaAppWorkspaceJobModel,
-  selectHonuaAppWorkspaceMapModel,
-  selectHonuaAppWorkspaceMetadataCacheModel,
-  selectHonuaAppWorkspaceRealtimeModel,
-  selectHonuaAppWorkspaceTableModel,
-  summarizeHonuaSavedWorkspaceForMcp,
-  validateHonuaSavedWorkspaceDocument,
-} from "./app-workspace/index.js";
-export type {
-  HonuaAppWorkspaceChartModel,
-  HonuaAppWorkspaceChangeEvent,
-  HonuaAppWorkspaceDetailModel,
-  HonuaAppWorkspaceDraftEntry,
-  HonuaAppWorkspaceDraftState,
-  HonuaAppWorkspaceEquality,
-  HonuaAppWorkspaceExplorationReference,
-  HonuaAppWorkspaceExplorationState,
-  HonuaAppWorkspaceFilterModel,
-  HonuaAppWorkspaceIntent,
-  HonuaAppWorkspaceJobEntry,
-  HonuaAppWorkspaceJobModel,
-  HonuaAppWorkspaceJobState,
-  HonuaAppWorkspaceLayoutState,
-  HonuaAppWorkspaceListener,
-  HonuaAppWorkspaceMapModel,
-  HonuaAppWorkspaceMetadataCacheModel,
-  HonuaAppWorkspaceOptions,
-  HonuaAppWorkspacePanelState,
-  HonuaAppWorkspaceRealtimeModel,
-  HonuaAppWorkspaceRealtimeState,
-  HonuaAppWorkspaceReviewableIntent,
-  HonuaAppWorkspaceSavedStateMetadata,
-  HonuaAppWorkspaceSelector,
-  HonuaAppWorkspaceSelectorListener,
-  HonuaAppWorkspaceSlice,
-  HonuaAppWorkspaceSnapshot,
-  HonuaAppWorkspaceSourceState,
-  HonuaAppWorkspaceState,
-  HonuaAppWorkspaceTableModel,
-  HonuaSavedWorkspaceAnalysisOutput,
-  HonuaSavedWorkspaceCreateOptions,
-  HonuaSavedWorkspaceDocument,
-  HonuaSavedWorkspaceDocumentKind,
-  HonuaSavedWorkspaceDocumentVersion,
-  HonuaSavedWorkspaceHydrateOptions,
-  HonuaSavedWorkspaceJob,
-  HonuaSavedWorkspaceLayer,
-  HonuaSavedWorkspaceMcpSummary,
-  HonuaSavedWorkspaceMigrationMetadata,
-  HonuaSavedWorkspaceMigrationStep,
-  HonuaSavedWorkspaceQuery,
-  HonuaSavedWorkspaceSelectedFeature,
-  HonuaSavedWorkspaceSource,
-  HonuaSavedWorkspaceStyle,
-  HonuaSavedWorkspaceValidationError,
-  HonuaSavedWorkspaceValidationResult,
-  HonuaWorkspaceProjectState,
-  HonuaWorkspaceSessionState,
-  HonuaSourceCacheStatus,
-  HonuaSourceMetadataEntry,
-} from "./app-workspace/index.js";
-
-export {
-  HONUA_AGENT_TOOL_DEFINITIONS,
-  HONUA_AGENT_TOOL_NAMES,
-  HonuaAgentToolError,
-  adaptHonuaControllerToAgentRuntime,
-  adaptHonuaGeneratedAppRuntimeToAgentRuntime,
-  convertHonuaAgentToolDefinitions,
-  createHonuaAgentMapContext,
-  createHonuaAgentSystemPrompt,
-  createHonuaAiMapKit,
-  createHonuaAgentToolExecutor,
-  executeHonuaAgentTool,
-  explainHonuaCapabilityGap,
-  getHonuaAgentToolDefinition,
-  normalizeAiMapKitPolicy,
-  toHonuaMcpToolDefinitions,
-  toHonuaOpenAiToolDefinitions,
-} from "./agent-tools/index.js";
-export type {
-  AddLayerArgs,
-  ExplainCapabilityGapArgs,
-  HonuaAgentContextOptions,
-  HonuaAgentAuditEvent,
-  HonuaAgentJsonSchema,
-  HonuaAgentLayerSummary,
-  HonuaAgentMapSnapshot,
-  HonuaAgentProviderToolFormat,
-  HonuaAgentRuntime,
-  HonuaAgentSemanticMapContext,
-  HonuaAgentSelectionSummary,
-  HonuaAgentSourceSummary,
-  HonuaAgentToolCall,
-  HonuaAgentToolDefinition,
-  HonuaAgentToolDegradedReason,
-  HonuaAgentToolExecutorOptions,
-  HonuaAgentToolMode,
-  HonuaAgentToolName,
-  HonuaAgentToolResult,
-  HonuaAgentToolStatus,
-  HonuaAgentViewport,
-  HonuaAgentWidgetQueryRequest,
-  HonuaAgentWidgetQueryResult,
-  HonuaAiMapKit,
-  HonuaAiMapKitOptions,
-  HonuaAiMapKitPolicy,
-  HonuaControllerLike,
-  HonuaGeneratedAppRuntimeLikeForAgents,
-  HonuaMcpCompatibleToolDefinition,
-  HonuaOpenAiToolDefinition,
-  HonuaProviderToolDefinition,
-  InspectMapArgs,
-  ListCapabilitiesArgs,
-  ListSourcesArgs,
-  RunWidgetQueryArgs,
-  SelectFeatureArgs,
-  SetFilterArgs,
-  SetViewportArgs,
-  SummarizeSelectionArgs,
-} from "./agent-tools/index.js";
-
-export {
-  HONUA_CONTROL_PLANE_BASE_PATH,
-  HonuaControlPlaneClient,
-  createHonuaControlPlane,
-} from "./control-plane/index.js";
-export type {
-  HonuaApiToken,
-  HonuaControlPlaneCapability,
-  HonuaControlPlaneJob,
-  HonuaControlPlanePage,
-  HonuaControlPlaneResult,
-  HonuaControlPlaneSourceDescriptor,
-  HonuaHostedMap,
-  HonuaHostedMapSummary,
-  HonuaMapPackageSummary,
-} from "./control-plane/index.js";
+// Experimental app-controller / app-workspace / agent-tools / control-plane
+// surfaces are subpath-only — import them from their named subpaths:
+//   import { HonuaController } from "@honua/sdk-js/app-controller";
+//   import { HonuaAppWorkspace } from "@honua/sdk-js/app-workspace";
+//   import { HONUA_AGENT_TOOL_DEFINITIONS } from "@honua/sdk-js/agent-tools";
+//   import { HonuaControlPlaneClient } from "@honua/sdk-js/control-plane";

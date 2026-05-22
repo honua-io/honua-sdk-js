@@ -28,7 +28,7 @@ import {
   selectHonuaAppWorkspaceTableModel,
   summarizeHonuaSavedWorkspaceForMcp,
   validateHonuaSavedWorkspaceDocument,
-} from "../src/index.js";
+} from "../src/app-workspace/index.js";
 
 describe("HonuaAppWorkspace", () => {
   it("notifies narrow slice subscribers only for changed slices", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, DirectionsCompat } from "../src/index.js";
+import { CompatEventBus, DirectionsCompat } from "../src/esri-compat-entry.js";
 
 describe("DirectionsCompat", () => {
   it("supports when() and watch() lifecycle plus route updates", async () => {

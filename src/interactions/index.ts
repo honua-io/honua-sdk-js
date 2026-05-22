@@ -1,3 +1,21 @@
+/**
+ * `@honua/sdk-js/interactions` — hit-test, pointer normalization, and the
+ * binding primitives that wire chart / map / table widgets to an
+ * `ExplorationContext`.
+ *
+ * @example
+ * ```ts
+ * import { hitTestMap, bindMapSelectionToExploration } from "@honua/sdk-js/interactions";
+ *
+ * map.on("click", async (event) => {
+ *   const hit = await hitTestMap(map, event);
+ *   if (hit?.feature) ctx.dispatch({ type: "select", target: hit.feature });
+ * });
+ * bindMapSelectionToExploration({ map, context: ctx, sourceId: "parcels" });
+ * ```
+ *
+ * @packageDocumentation
+ */
 export {
   createQueryTileDetailLoader,
   hitTestMap,

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { esriRequest } from "../src/index.js";
+import { esriRequest } from "../src/esri-compat-entry.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();

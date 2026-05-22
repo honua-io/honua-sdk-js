@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BasemapCompat, CompatEventBus } from "../src/index.js";
+import { BasemapCompat, CompatEventBus } from "../src/esri-compat-entry.js";
 
 describe("BasemapCompat", () => {
   it("supports watch handles for load and layer updates", async () => {

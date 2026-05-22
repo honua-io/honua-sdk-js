@@ -18,7 +18,7 @@
  * await runtime.updatePackage(nextPkg);
  * ```
  *
- * @module
+ * @packageDocumentation
  */
 
 export { loadMapPackage } from "./load-package.js";

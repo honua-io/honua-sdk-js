@@ -1,3 +1,34 @@
+/**
+ * `@honua/sdk-js/geocoding` — `HonuaGeocodingClient` for forward / reverse
+ * geocoding and typeahead suggestions over a Honua-hosted GeocodeServer.
+ *
+ * @example
+ * ```ts
+ * import { HonuaGeocodingClient } from "@honua/sdk-js/geocoding";
+ *
+ * const geo = new HonuaGeocodingClient({
+ *   baseUrl: "https://your-honua-server.example",
+ *   locatorName: "world-geocoder",
+ * });
+ *
+ * const results = await geo.findAddressCandidates({ singleLine: "1 Honolulu Pl, HI" });
+ * const here = await geo.reverseGeocode({ location: { x: -157.85, y: 21.30 } });
+ * const hints = await geo.suggest({ text: "honol" });
+ * ```
+ *
+ * @example Streaming typeahead with AbortSignal
+ * ```ts
+ * const controller = new AbortController();
+ * input.addEventListener("input", async (event) => {
+ *   controller.abort();
+ *   const hints = await geo.suggest({ text: event.target.value, signal: controller.signal });
+ *   render(hints);
+ * });
+ * ```
+ *
+ * @packageDocumentation
+ */
+
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "../core/errors.js";
 
 // ---------------------------------------------------------------------------

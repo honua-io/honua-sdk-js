@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FeatureSetCompat } from "../src/index.js";
+import { FeatureSetCompat } from "../src/esri-compat-entry.js";
 
 describe("FeatureSetCompat", () => {
   it("supports when() and watch() lifecycle state transitions", async () => {

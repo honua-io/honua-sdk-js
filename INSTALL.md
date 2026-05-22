@@ -1,35 +1,86 @@
 # Installing the Honua JavaScript SDK
 
-## Packages
+The Honua JavaScript SDK ships as a single npm package — **`@honua/sdk-js`** — with multiple
+subpath entrypoints. The core client, the Esri compatibility layer, the migration helpers,
+and the protocol-neutral contract are all reachable from this one install.
 
-| Package | Description |
-|---------|-------------|
-| `@honua/sdk` | Core client — feature queries, web mapping, expressions |
-| `@honua/sdk-esri-compat` | Esri ArcGIS JS compatibility layer for migration |
-| `@honua/honua-migrate` | CLI and library for migrating Esri apps to Honua |
+
+## Stable subpath entrypoints
+
+Subpaths covered by the SDK's semver contract. Symbols reachable from these
+entrypoints are stable across minor versions.
+
+| Subpath | What it gives you |
+|---------|-------------------|
+| `@honua/sdk-js` | Default barrel — re-exports the most common stable symbols |
+| `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
+| `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
+| `@honua/sdk-js/esri-compat` | Esri ArcGIS JS-API compatibility layer for migration |
+| `@honua/sdk-js/migration` | Programmatic migration helpers (codemod runner, scan reports) |
+| `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
+| `@honua/sdk-js/expr` | Honua expression builder |
+| `@honua/sdk-js/webmap` | WebMap JSON load/save helpers |
+| `@honua/sdk-js/geocoding` | Geocoding adapters |
+| `@honua/sdk-js/exploration` | Linked-view exploration state + presets |
+| `@honua/sdk-js/interactions` | Hit-test + pointer normalization + chart/map bindings |
+| `@honua/sdk-js/filter-registry` | Shared filter clause registry + projections |
+| `@honua/sdk-js/style` | Honua style spec + source parsers/validators |
+| `@honua/sdk-js/map` | `HonuaMap` programmatic map container |
+
+## Experimental subpath entrypoints
+
+Subpaths marked `@experimental` in JSDoc. Useful today; the shape may change in
+any minor release prior to `1.0.0`. **The experimental subpaths are subpath-only
+— they are not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`** so a
+default-barrel import never pulls them in.
+
+| Subpath | What it gives you |
+|---------|-------------------|
+| `@honua/sdk-js/app` | App bootstrap helper for browser shells |
+| `@honua/sdk-js/app-controller` | `HonuaController` — renderer-neutral app controller |
+| `@honua/sdk-js/app-workspace` | Framework-neutral workspace state orchestration |
+| `@honua/sdk-js/scene-workspace` | 3D scene workspace + MapLibre/Cesium adapters |
+| `@honua/sdk-js/collaboration` | Saved-map collaboration client |
+| `@honua/sdk-js/control-plane` | Hosted-product / admin client |
+| `@honua/sdk-js/generated-app` | Manifest projection + preview runtime for generated apps |
+| `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions (MCP/OpenAI compatible) |
+| `@honua/sdk-js/realtime` | Realtime transport adapters (SSE, future WS/WebTransport) |
+| `@honua/sdk-js/web-components` | Framework-neutral custom elements |
+| `@honua/sdk-js/operator` | Operator-native chat/plan-review/approval controllers |
+| `@honua/sdk-js/operator/controllers` | Framework-neutral controllers behind `/operator` |
+| `@honua/sdk-js/operator/workspace` | Operator workspace state container |
+| `@honua/sdk-js/operator/theming` | Operator design-system theme provider + tokens |
+| `@honua/sdk-js/operator/i18n` | Operator message catalog + resolution |
 
 ## Prerequisites
 
 - Node.js 20 or later
 - A running Honua Server instance (for runtime queries)
 
-## Install via npm
+## Install
 
 ```bash
-# Core SDK
-npm install @honua/sdk
-
-# Esri compatibility (if migrating from ArcGIS)
-npm install @honua/sdk-esri-compat
-
-# Migration CLI
-npm install -g @honua/honua-migrate
+npm install @honua/sdk-js
 ```
+
+### Optional peer dependencies
+
+A few integration paths are gated behind **optional peer dependencies** so a
+Node-only or REST-only consumer never pays the install cost:
+
+| Integration | Peer to install |
+|-------------|-----------------|
+| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
+| Cesium 3D adapters (`@honua/sdk-js/scene-workspace`) | `npm install cesium` |
+| gRPC-Web transport (`new HonuaClient({ transport: "grpc-web" })`) | `npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf` |
+
+If you stay on the default REST transport with no MapLibre/Cesium scene work,
+no extra installs are required.
 
 ## Quick Start
 
 ```typescript
-import { HonuaClient } from "@honua/sdk";
+import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({
   baseUrl: "https://your-honua-server.com",
@@ -57,15 +108,17 @@ const featureCount = result.features?.length ?? 0;
 console.log(`Found ${featureCount} feature(s)`);
 ```
 
-`checkCompatibility()` reads the parsed `data.compatibility` contract from `GET /api/v1/admin/capabilities`.
-For a runnable browser example from this repo, including the renderable-geometry checks used by the committed
-MapLibre quickstart, use [`examples/maplibre-quickstart/README.md`](./examples/maplibre-quickstart/README.md).
+`checkCompatibility()` reads the parsed `data.compatibility` contract from
+`GET /api/v1/admin/capabilities`. For a runnable browser example from this repo,
+including the renderable-geometry checks used by the committed MapLibre quickstart,
+see [`examples/maplibre-quickstart/README.md`](./examples/maplibre-quickstart/README.md).
 
 ## Canonical Contract And Exploration
 
-The SDK exposes a protocol-neutral client contract and exploration state module that wrap the existing
-`HonuaFeatureLayer` / `HonuaMapService` / `HonuaOgcFeatureCollection` classes. These ship from the
-`@honua/sdk` package as the `@honua/sdk/contract` and `@honua/sdk/exploration` subpath entrypoints:
+The SDK exposes a protocol-neutral client contract and exploration state module that
+wrap the existing `HonuaFeatureLayer` / `HonuaMapService` / `HonuaOgcFeatureCollection`
+classes. These are reachable via the `@honua/sdk-js/contract` and
+`@honua/sdk-js/exploration` subpaths:
 
 - [`docs/shared-client-contract.md`](./docs/shared-client-contract.md) — `Dataset`, `Source`, `Capabilities`,
   `Query`, `Result`, `MapBinding`, and `createDataset(...)`.
@@ -85,17 +138,29 @@ The SDK exposes a protocol-neutral client contract and exploration state module 
 
 ## Esri Migration
 
-```bash
-# Scan an existing ArcGIS JS app
-npx @honua/honua-migrate scan --input ./src
+The migration helpers live behind the `@honua/sdk-js/migration` subpath. They
+power the same codemod that the standalone CLI runs:
 
-# Generate a migration report
-npx @honua/honua-migrate codemod --input ./src --output ./migrated
+```typescript
+import { runCodemod, scanProject } from "@honua/sdk-js/migration";
+
+const report = await scanProject({ input: "./src" });
+await runCodemod({ input: "./src", output: "./migrated" });
 ```
 
 ## Version Policy
 
-- **Pre-release** (`-alpha.*`, `-beta.*`): Published to npm with `@alpha` / `@beta` dist-tags
-- **Stable** (`1.0.0+`): Published to npm as `@latest`
+- **Pre-release** (`-alpha.*`, `-beta.*`): Published to npm with `@alpha` / `@beta` dist-tags.
+- **Stable** (`1.0.0+`): Published to npm as `@latest`.
+- **Semver:** All releases follow [Semantic Versioning](https://semver.org/). Public symbols
+  reachable from the documented subpaths above are covered by the contract; symbols marked
+  `@experimental` in JSDoc may change in any minor release.
+- **Cross-language alignment:** Major versions are coordinated across the Honua SDK family
+  (JavaScript, Python, .NET) so a single semver line tells you what the contract is on every
+  platform.
 
-All packages follow [Semantic Versioning](https://semver.org/). Major versions are coordinated across all Honua SDKs.
+> **Advanced packaging.** Downstream packagers can also produce a three-package
+> split (`@honua/sdk` / `@honua/sdk-esri-compat` / `@honua/honua-migrate`) via
+> `npm run build:split-packages`. This is an opt-in build target, not the default
+> consumer install. See [`docs/split-packages.md`](./docs/split-packages.md) if you
+> are integrating with a downstream registry that needs the smaller surfaces.

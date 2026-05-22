@@ -1,3 +1,11 @@
+/**
+ * `@honua/sdk-js/operator/controllers` — framework-neutral controllers behind the
+ * operator-native component architecture.
+ *
+ * @experimental This entrypoint is not yet covered by the SDK's semver contract
+ *   — the surface may change in any minor release prior to `1.0.0`.
+ * @module
+ */
 export { ApprovalController } from "./approval.js";
 export type { ApprovalControllerOptions, ApprovalEvent } from "./approval.js";
 

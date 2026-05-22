@@ -11,11 +11,13 @@ import { applyServiceExplorerProjection } from "../examples/service-explorer/src
 import {
   bindMapExtentToExploration,
   bindQueryProjectionToExploration,
+  sourceFeatureSelectionTarget,
+} from "../src/index.js";
+import {
   selectHonuaAppWorkspaceChartModel,
   selectHonuaAppWorkspaceDetailModel,
   selectHonuaAppWorkspaceMetadataCacheModel,
-  sourceFeatureSelectionTarget,
-} from "../src/index.js";
+} from "../src/app-workspace/index.js";
 import type { HonuaExtent, LinkedViewQueryProjection } from "../src/index.js";
 
 async function flush(): Promise<void> {

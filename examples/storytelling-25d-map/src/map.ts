@@ -1,10 +1,12 @@
 import {
-  type SceneExtrusionPrimitive,
   type SelectionHandle,
   createHoverHandler,
   createSelectionHandler,
-  toMapLibreExtrusionLayer,
 } from "@honua/sdk-js/honua";
+import {
+  type SceneExtrusionPrimitive,
+  toMapLibreExtrusionLayer,
+} from "@honua/sdk-js/scene-workspace";
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from "maplibre-gl";
 
 import {

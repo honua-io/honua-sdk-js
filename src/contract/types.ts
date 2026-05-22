@@ -435,6 +435,18 @@ export interface AggregationMetric {
  * Protocol-neutral query intent. `Source.query()` adapters translate this
  * into a `QueryFeaturesRequest`, `MapLayerQueryRequest`, `OgcItemsRequest`,
  * or the corresponding WFS / OData request.
+ *
+ * @example
+ * ```ts
+ * const query: Query = {
+ *   where: "STATUS = 'ACTIVE'",
+ *   outFields: ["OBJECTID", "NAME"],
+ *   spatialFilter: { kind: "bbox", bbox: [-158.5, 21.2, -157.6, 21.7] },
+ *   orderBy: [{ field: "REPORTED_AT", direction: "desc" }],
+ *   pagination: { limit: 500 },
+ *   returnGeometry: true,
+ * };
+ * ```
  */
 export interface Query<_T = Record<string, unknown>> {
   /** Logical filter expression. SQL-92 WHERE for GeoServices, CQL2 for OGC. */
@@ -489,6 +501,17 @@ export interface DegradedReason {
  * `HonuaTypedQueryResponse<T>` and `HonuaOgcFeatureCollectionResponse`;
  * adapters fill the optional fields that their underlying response carries
  * and leave the rest undefined.
+ *
+ * @example
+ * ```ts
+ * const result: Result<{ name: string }> = await source.query({ where: "1=1" });
+ * for (const feature of result.features) {
+ *   console.log(feature.attributes.name, feature.geometry?.type);
+ * }
+ * if (result.exceededTransferLimit) {
+ *   // re-issue with pagination.offset or use source.queryAll() to drain
+ * }
+ * ```
  */
 export interface Result<T = Record<string, unknown>> {
   /** Returned features. Empty array (not undefined) when nothing matched. */
@@ -719,6 +742,17 @@ export type AdapterFor<K extends AdapterKind> = K extends keyof AdapterTypeMap ?
  * `where`, raw `outFields`, GeoServices `calculate` / `validateSQL` /
  * `replica` etc.) live behind `protocol()` so the top-level API stays
  * free of ArcGIS-typed structures.
+ *
+ * @example
+ * ```ts
+ * const parcels = dataset.source<{ NAME: string }>("parcels")!;
+ * const result = await parcels.queryAll({ where: "STATUS = 'ACTIVE'" });
+ * for await (const page of parcels.stream({ where: "1=1" })) {
+ *   console.log(page.features.length);
+ * }
+ * const fs = parcels.protocol("geoservices-feature-service");
+ * await fs?.calculate({ where: "1=1", calcExpression: { field: "AREA", sqlExpression: "ST_Area(SHAPE)" } });
+ * ```
  */
 export interface Source<T = Record<string, unknown>> {
   readonly descriptor: SourceDescriptor;
@@ -767,6 +801,15 @@ export interface Source<T = Record<string, unknown>> {
  * Logical grouping of one or more sources sharing identity and (optionally)
  * a field schema. `Dataset` is the canonical entry point: `createDataset`
  * gates the compatibility check and caches it per `HonuaClient`.
+ *
+ * @example
+ * ```ts
+ * const dataset = createDataset({ id: "parcels", client, sources: [...] });
+ * if (!(await dataset.isCompatible())) throw new Error("server too old");
+ * for (const id of dataset.sourceIds()) {
+ *   console.log(id, dataset.source(id)?.capabilities);
+ * }
+ * ```
  */
 export interface Dataset {
   readonly id: DatasetId;

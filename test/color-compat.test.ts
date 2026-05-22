@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ColorCompat } from "../src/index.js";
+import { ColorCompat } from "../src/esri-compat-entry.js";
 
 describe("ColorCompat", () => {
   it("supports when() and watch() lifecycle state", async () => {

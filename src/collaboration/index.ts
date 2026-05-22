@@ -5,6 +5,8 @@
  * transport today and a WebSocket/WebTransport adapter when the server
  * endpoints land.
  *
+ * @experimental This entrypoint is not yet covered by the SDK's semver contract
+ *   — the surface may change in any minor release prior to `1.0.0`.
  * @module
  */
 

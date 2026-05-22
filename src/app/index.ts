@@ -6,6 +6,8 @@
  * when the app should render; otherwise it returns package-aware controller
  * handles that can be bound by the host.
  *
+ * @experimental This entrypoint is not yet covered by the SDK's semver contract
+ *   — the surface may change in any minor release prior to `1.0.0`.
  * @module
  */
 

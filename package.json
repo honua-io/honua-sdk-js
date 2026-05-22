@@ -7,18 +7,33 @@
   "homepage": "https://github.com/honua-io",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/honua-io/honua-sdk-js.git"
+    "url": "git+https://github.com/honua-io/honua-sdk-js.git",
+    "directory": "."
+  },
+  "bugs": {
+    "url": "https://github.com/honua-io/honua-sdk-js/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "keywords": [
     "geospatial",
-    "mobile",
     "gis",
-    "offline",
-    "sync",
-    "grpc",
     "honua",
     "esri",
-    "arcgis"
+    "arcgis",
+    "ogc",
+    "ogc-api",
+    "wms",
+    "wmts",
+    "wfs",
+    "stac",
+    "geoservices",
+    "feature-service",
+    "maplibre",
+    "cesium",
+    "typescript"
   ],
   "type": "module",
   "types": "./dist/src/index.d.ts",
@@ -147,6 +162,7 @@
     "verify:split-packages": "npm run build:split-packages --silent && node scripts/verify-split-packages.mjs",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat && npm pack ./dist/packages/honua-migrate",
     "typecheck": "tsc --noEmit",
+    "docs:api": "npx --yes typedoc@^0.26 --tsconfig tsconfig.json --out dist/docs-api --excludeInternal --excludePrivate --readme README.md --name '@honua/sdk-js' src/index.ts src/honua.ts src/contract/index.ts src/expr/index.ts src/webmap/index.ts src/geocoding/index.ts src/runtime/index.ts src/migration-entry.ts src/esri-compat-entry.ts",
     "demo:quickstart": "vite --config examples/maplibre-quickstart/vite.config.ts",
     "demo:quickstart:build": "vite build --config examples/maplibre-quickstart/vite.config.ts",
     "demo:quickstart:preview": "vite preview --config examples/maplibre-quickstart/vite.config.ts --host 127.0.0.1",
@@ -293,15 +309,15 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.0.0",
-    "@connectrpc/connect": "^2.0.0",
-    "@connectrpc/connect-web": "^2.0.0",
     "@maplibre/maplibre-gl-style-spec": "^24.7.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@bufbuild/buf": "^1.47.0",
+    "@bufbuild/protobuf": "^2.0.0",
     "@bufbuild/protoc-gen-es": "^2.0.0",
+    "@connectrpc/connect": "^2.0.0",
+    "@connectrpc/connect-web": "^2.0.0",
     "@playwright/test": "^1.58.0",
     "@types/node": "^24.3.1",
     "@vitest/coverage-v8": "^4.0.18",
@@ -317,16 +333,30 @@
     "CHANGELOG.md"
   ],
   "peerDependencies": {
-    "typescript": ">=4.7.0"
+    "@bufbuild/protobuf": "^2.0.0",
+    "@connectrpc/connect": "^2.0.0",
+    "@connectrpc/connect-web": "^2.0.0",
+    "cesium": "^1.139.0",
+    "maplibre-gl": "^5.0.0"
   },
   "peerDependenciesMeta": {
-    "typescript": {
+    "@bufbuild/protobuf": {
+      "optional": true
+    },
+    "@connectrpc/connect": {
+      "optional": true
+    },
+    "@connectrpc/connect-web": {
+      "optional": true
+    },
+    "cesium": {
+      "optional": true
+    },
+    "maplibre-gl": {
       "optional": true
     }
   },
   "sideEffects": [
-    "./src/web-components/index.ts",
-    "./src/web-components/elements.ts",
     "./dist/src/web-components/index.js",
     "./dist/src/web-components/elements.js"
   ],

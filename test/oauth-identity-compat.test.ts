@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { OAuthInfoCompat, identityManager } from "../src/index.js";
+import { identityManager } from "../src/esri-compat-entry.js";
+import { OAuthInfoCompat } from "../src/esri-compat-entry.js";
 
 afterEach(() => {
   identityManager.reset();

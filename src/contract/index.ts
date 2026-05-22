@@ -4,9 +4,40 @@
  *
  * The runtime classes in `src/core/surfaces.ts` remain the implementation;
  * this module is the protocol-neutral vocabulary layered over them. See
- * `docs/shared-client-contract.md` for the full design.
+ * `docs/shared-client-contract.md` for the full design and
+ * `docs/protocol-capability-matrix.md` for per-protocol capability coverage.
  *
- * @module
+ * @example
+ * ```ts
+ * import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+ * import { HonuaClient } from "@honua/sdk-js/honua";
+ *
+ * const client = new HonuaClient({ baseUrl: "https://your-honua-server.example" });
+ *
+ * const dataset = createDataset({
+ *   id: "ops",
+ *   client,
+ *   sources: [
+ *     {
+ *       id: "incidents",
+ *       protocol: "geoservices-feature-service",
+ *       locator: { url: "https://your-honua-server.example", serviceId: "incidents", layerId: 0 },
+ *       capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+ *     },
+ *     {
+ *       id: "imagery",
+ *       protocol: "stac",
+ *       locator: { url: "https://your-honua-server.example/stac" },
+ *       capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+ *     },
+ *   ],
+ * });
+ *
+ * const incidents = await dataset.source("incidents")!.queryAll({ where: "STATUS = 'OPEN'" });
+ * const scenes = await dataset.source("imagery")!.query({ where: "collections IN ('landsat-c2-l2')" });
+ * ```
+ *
+ * @packageDocumentation
  */
 
 export type {

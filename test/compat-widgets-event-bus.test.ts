@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  CompatEventBus,
-  GraphicsLayerCompat,
-  GroupLayerCompat,
-  LayerListCompat,
-  LegendCompat,
-  MapCompat,
-} from "../src/index.js";
+import { CompatEventBus, GraphicsLayerCompat, GroupLayerCompat, LayerListCompat, LegendCompat, MapCompat } from "../src/esri-compat-entry.js";
 
 async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();

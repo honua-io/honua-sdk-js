@@ -163,11 +163,6 @@ import {
   createEditSession as honuaCreateEditSession,
   createEditSketchWorkflow as honuaCreateEditSketchWorkflow,
   createFilterRegistry as honuaCreateFilterRegistry,
-  createHonuaAppWorkspace as honuaCreateHonuaAppWorkspace,
-  createHonuaControlPlane as honuaCreateHonuaControlPlane,
-  createHonuaController as honuaCreateHonuaController,
-  createMapLibreSceneAdapter as honuaCreateMapLibreSceneAdapter,
-  createSceneWorkspace as honuaCreateSceneWorkspace,
   createWidgetSource as honuaCreateWidgetSource,
   EXPLORATION_EMPTY_STATE as honuaExplorationEmptyState,
   EXPLORATION_SLICES as honuaExplorationSlices,
@@ -177,7 +172,6 @@ import {
   reduceExplorationState as honuaReduceExplorationState,
   resolveSpatialAggregationWidgetSummary as honuaResolveSpatialAggregationWidgetSummary,
   selectLinkedViewQueryProjection as honuaSelectLinkedViewQueryProjection,
-  selectHonuaAppWorkspaceMetadataCacheModel as honuaSelectMetadataCacheModel,
   sourceFeatureSelectionTarget as honuaSourceFeatureSelectionTarget,
   wfsSource as honuaWfsSource,
   wmsSource as honuaWmsSource,
@@ -187,19 +181,14 @@ import {
   EXPLORATION_EMPTY_STATE,
   EXPLORATION_SLICES,
   HonuaWfsExceptionError as HonuaWfsExceptionErrorRoot,
-  HonuaControlPlaneClient as RootHonuaControlPlaneClient,
   bindChartToExploration,
   bindMapSelectionToExploration,
   bindQueryProjectionToExploration,
-  createHonuaAppWorkspace,
-  createHonuaController,
   preparePrimaryDetailModel,
   reduceExplorationState,
   createEditSession as rootCreateEditSession,
   createEditSketchWorkflow as rootCreateEditSketchWorkflow,
   createFilterRegistry as rootCreateFilterRegistry,
-  createMapLibreSceneAdapter as rootCreateMapLibreSceneAdapter,
-  createSceneWorkspace as rootCreateSceneWorkspace,
   createWidgetSource as rootCreateWidgetSource,
   ogcRecordsSource as rootOgcRecordsSource,
   projectFilterRegistryToQuery as rootProjectFilterRegistryToQuery,
@@ -209,9 +198,24 @@ import {
   wfsSource as rootWfsSource,
   wmsSource as rootWmsSource,
   wmtsSource as rootWmtsSource,
-  selectHonuaAppWorkspaceMetadataCacheModel,
   syncFeatureStateSelection,
 } from "../src/index.js";
+// Experimental subpaths are no longer re-exported from the root barrel —
+// importing them keeps this test honest about the stable / experimental tier.
+import {
+  createHonuaController,
+} from "../src/app-controller/index.js";
+import {
+  createHonuaAppWorkspace,
+  selectHonuaAppWorkspaceMetadataCacheModel,
+} from "../src/app-workspace/index.js";
+import {
+  createMapLibreSceneAdapter as rootCreateMapLibreSceneAdapter,
+  createSceneWorkspace as rootCreateSceneWorkspace,
+} from "../src/scene-workspace/index.js";
+import {
+  HonuaControlPlaneClient as RootHonuaControlPlaneClient,
+} from "../src/control-plane/index.js";
 import {
   bindChartToExploration as interactionsBindChartToExploration,
   selectLinkedViewQueryProjection as interactionsSelectLinkedViewQueryProjection,
@@ -265,8 +269,6 @@ describe("entrypoint modules", () => {
     expect(HonuaWfsExceptionErrorRoot).toBe(HonuaWfsExceptionError);
     expect(createHonuaCacheState).toBeTypeOf("function");
     expect(RootHonuaControlPlaneClient).toBe(HonuaControlPlaneClient);
-    expect(honuaCreateHonuaControlPlane).toBe(createHonuaControlPlane);
-    expect(honuaCreateHonuaController).toBe(appControllerCreateHonuaController);
     expect(createHonuaController).toBe(appControllerCreateHonuaController);
   });
 
@@ -498,10 +500,8 @@ describe("entrypoint modules", () => {
   it("exposes the app workspace entrypoint", () => {
     expect(createHonuaAppWorkspace).toBeTypeOf("function");
     expect(appWorkspaceCreateHonuaAppWorkspace).toBe(createHonuaAppWorkspace);
-    expect(honuaCreateHonuaAppWorkspace).toBe(createHonuaAppWorkspace);
     expect(selectHonuaAppWorkspaceMetadataCacheModel).toBeTypeOf("function");
     expect(appWorkspaceSelectMetadataCacheModel).toBe(selectHonuaAppWorkspaceMetadataCacheModel);
-    expect(honuaSelectMetadataCacheModel).toBe(selectHonuaAppWorkspaceMetadataCacheModel);
   });
 
   it("exposes the scene workspace entrypoint", () => {
@@ -509,8 +509,6 @@ describe("entrypoint modules", () => {
     expect(createMapLibreSceneAdapter).toBeTypeOf("function");
     expect(sceneWorkspaceIntentFromAdapterEvent).toBeTypeOf("function");
     expect(rootCreateSceneWorkspace).toBe(createSceneWorkspace);
-    expect(honuaCreateSceneWorkspace).toBe(createSceneWorkspace);
     expect(rootCreateMapLibreSceneAdapter).toBe(createMapLibreSceneAdapter);
-    expect(honuaCreateMapLibreSceneAdapter).toBe(createMapLibreSceneAdapter);
   });
 });

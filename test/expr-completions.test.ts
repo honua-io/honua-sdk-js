@@ -20,7 +20,7 @@ import {
   resolvedLocale,
   toRgba,
   zoom,
-} from "../src/index.js";
+} from "../src/expr/index.js";
 
 describe("Expression engine completions (Direction 13)", () => {
   describe("format()", () => {

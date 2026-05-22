@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  EsriRequestInterceptorRegistry,
-  HonuaClient,
-  HonuaHttpError,
-  createArcGisTokenInterceptor,
-  createEsriRequestInterceptors,
-} from "../src/index.js";
+import { HonuaClient, HonuaHttpError } from "../src/index.js";
+import { EsriRequestInterceptorRegistry, createArcGisTokenInterceptor, createEsriRequestInterceptors } from "../src/esri-compat-entry.js";
 
 describe("HonuaClient request interceptors", () => {
   it("applies before/after interceptor hooks", async () => {

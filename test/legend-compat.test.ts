@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, LegendCompat } from "../src/index.js";
+import { CompatEventBus, LegendCompat } from "../src/esri-compat-entry.js";
 
 describe("LegendCompat", () => {
   it("supports when() and watch() for load and item updates", async () => {

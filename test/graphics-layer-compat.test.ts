@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, GraphicsLayerCompat } from "../src/index.js";
+import { CompatEventBus, GraphicsLayerCompat } from "../src/esri-compat-entry.js";
 
 describe("GraphicsLayerCompat", () => {
   it("supports lifecycle loading and graphic collection helpers", async () => {
