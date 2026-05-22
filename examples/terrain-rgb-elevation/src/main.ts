@@ -1,6 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { HonuaClient, type MapLibreSceneRuntimeTarget, applyMapLibreScenePrimitives } from "@honua/sdk-js/honua";
+import { HonuaClient } from "@honua/sdk-js/honua";
+import { type MapLibreSceneRuntimeTarget, applyMapLibreScenePrimitives } from "@honua/sdk-js/scene-workspace";
 import maplibregl from "maplibre-gl";
 
 import { clientOptionsFromTerrainConfig, resolveTerrainElevationConfig, terrainRequestHeaders } from "./config.js";
