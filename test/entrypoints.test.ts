@@ -205,6 +205,22 @@ import {
   wmtsSource as rootWmtsSource,
   syncFeatureStateSelection,
 } from "../src/index.js";
+// Experimental subpaths are no longer re-exported from the root barrel —
+// importing them keeps this test honest about the stable / experimental tier.
+import {
+  createHonuaController,
+} from "../src/app-controller/index.js";
+import {
+  createHonuaAppWorkspace,
+  selectHonuaAppWorkspaceMetadataCacheModel,
+} from "../src/app-workspace/index.js";
+import {
+  createMapLibreSceneAdapter as rootCreateMapLibreSceneAdapter,
+  createSceneWorkspace as rootCreateSceneWorkspace,
+} from "../src/scene-workspace/index.js";
+import {
+  HonuaControlPlaneClient as RootHonuaControlPlaneClient,
+} from "../src/control-plane/index.js";
 import {
   bindChartToExploration as interactionsBindChartToExploration,
   selectLinkedViewQueryProjection as interactionsSelectLinkedViewQueryProjection,
