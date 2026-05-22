@@ -76,8 +76,8 @@ import {
   varExpr,
   within,
   zoom,
-} from "../src/index.js";
-import type { GeoJsonGeometry } from "../src/index.js";
+} from "../src/expr/index.js";
+import type { GeoJsonGeometry } from "../src/expr/index.js";
 
 describe("Expr", () => {
   it("wraps a JSON value and serializes via toJSON()", () => {

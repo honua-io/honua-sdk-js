@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, IdentifyCompat, MapCompat, MapViewCompat } from "../src/index.js";
+import { CompatEventBus, IdentifyCompat, MapCompat, MapViewCompat } from "../src/esri-compat-entry.js";
 
 describe("IdentifyCompat", () => {
   it("runs identify across visible layers and opens popup with merged features", async () => {

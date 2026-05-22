@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, TileLayerCompat } from "../src/index.js";
+import { CompatEventBus, TileLayerCompat } from "../src/esri-compat-entry.js";
 
 describe("TileLayerCompat", () => {
   it("supports watch handles for lifecycle and mutable properties", async () => {

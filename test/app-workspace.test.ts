@@ -1,14 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import type {
-  IJobRun,
-  JobProgress,
-  JobResult,
-  JobSnapshot,
-  JobSnapshotListener,
-  JobStatus,
-} from "../src/contract/index.js";
-import { createExplorationContext, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 import {
   HonuaAppWorkspace,
   bindHonuaAppWorkspaceSelector,
@@ -28,7 +19,16 @@ import {
   selectHonuaAppWorkspaceTableModel,
   summarizeHonuaSavedWorkspaceForMcp,
   validateHonuaSavedWorkspaceDocument,
-} from "../src/index.js";
+} from "../src/app-workspace/index.js";
+import type {
+  IJobRun,
+  JobProgress,
+  JobResult,
+  JobSnapshot,
+  JobSnapshotListener,
+  JobStatus,
+} from "../src/contract/index.js";
+import { createExplorationContext, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 
 describe("HonuaAppWorkspace", () => {
   it("notifies narrow slice subscribers only for changed slices", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, MapImageLayerCompat, MapImageSublayerCompat, parseMapServiceUrl } from "../src/index.js";
+import { parseMapServiceUrl } from "../src/esri-compat-entry.js";
+import { CompatEventBus, MapImageLayerCompat, MapImageSublayerCompat } from "../src/esri-compat-entry.js";
 
 describe("parseMapServiceUrl", () => {
   it("parses canonical map service URL", () => {

@@ -1,3 +1,21 @@
+/**
+ * `@honua/sdk-js/map` — `HonuaMap` programmatic map container.
+ *
+ * A small, renderer-neutral map handle for tests and headless workflows that
+ * mirrors the subset of the MapLibre / Cesium runtime API the SDK contracts
+ * against.
+ *
+ * @example
+ * ```ts
+ * import { HonuaMap } from "@honua/sdk-js/map";
+ *
+ * const map = new HonuaMap({ extent: { xmin: -158, ymin: 21, xmax: -157, ymax: 22 } });
+ * map.on("extentchange", (event) => console.log(event.extent));
+ * map.setSourceVisible("parcels", false);
+ * ```
+ *
+ * @packageDocumentation
+ */
 export { HonuaMap } from "./honua-map.js";
 export type {
   HonuaMapOptions,

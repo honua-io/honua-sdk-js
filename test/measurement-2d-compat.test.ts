@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AreaMeasurement2DCompat, CompatEventBus, DistanceMeasurement2DCompat } from "../src/index.js";
+import { AreaMeasurement2DCompat, CompatEventBus, DistanceMeasurement2DCompat } from "../src/esri-compat-entry.js";
 
 describe("measurement 2d compat", () => {
   it("supports when() and watch() lifecycle state for distance and area widgets", async () => {

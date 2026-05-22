@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, GroupLayerCompat } from "../src/index.js";
+import { CompatEventBus, GroupLayerCompat } from "../src/esri-compat-entry.js";
 
 describe("GroupLayerCompat", () => {
   it("supports lifecycle loading and nested layer operations", async () => {

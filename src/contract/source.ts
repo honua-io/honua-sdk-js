@@ -102,8 +102,56 @@ import {
 } from "./types.js";
 
 /**
- * Construct a `Dataset` over one `HonuaClient`. Compatibility is checked
- * once and cached on the client. `Source` handles are constructed lazily.
+ * Construct a protocol-neutral `Dataset` over a `HonuaClient`.
+ *
+ * A `Dataset` groups one or more `Source`s. Each `Source` accepts a protocol-neutral
+ * `Query` and returns a protocol-neutral `Result`. The dataset is the cross-protocol
+ * unit of work: a single `Dataset` can mix GeoServices FeatureServer, OGC API Features,
+ * WFS, STAC, and OData sources under one capability policy.
+ *
+ * `Source` handles are constructed lazily, server compatibility is checked once per
+ * dataset (and cached on the underlying client), and capability gaps surface as
+ * {@link HonuaCapabilityNotSupportedError} under the default `"strict"` policy rather
+ * than silently returning empty results.
+ *
+ * Operations the canonical surface does not cover stay reachable through the typed
+ * `source.protocol(...)` escape hatch (e.g. ImageServer `exportImage`, GeometryServer
+ * `project`, GPServer `submitJob`, WFS `LockFeature`).
+ *
+ * @param options - The dataset id, the `HonuaClient` to talk to, the list of
+ *   `SourceDescriptor`s, and (optionally) `capabilityPolicy` and a custom
+ *   `resolveSource` factory.
+ *
+ * @example
+ * ```ts
+ * import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+ * import { HonuaClient } from "@honua/sdk-js/honua";
+ *
+ * const client = new HonuaClient({ baseUrl: "https://your-honua-server.example" });
+ *
+ * const dataset = createDataset({
+ *   id: "parcels",
+ *   client,
+ *   sources: [
+ *     {
+ *       id: "parcels-fs",
+ *       protocol: "geoservices-feature-service",
+ *       locator: { url: "https://your-honua-server.example", serviceId: "parcels", layerId: 0 },
+ *       capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+ *     },
+ *   ],
+ * });
+ *
+ * const parcels = dataset.source("parcels-fs")!;
+ * const result = await parcels.queryAll({
+ *   where: "STATUS = 'ACTIVE'",
+ *   outFields: ["OBJECTID", "NAME"],
+ *   returnGeometry: true,
+ *   pagination: { limit: 500 },
+ * });
+ *
+ * console.log(`Loaded ${result.features.length} features`);
+ * ```
  */
 export function createDataset(options: CreateDatasetOptions): Dataset {
   const { id, client, sources, resolveSource } = options;
@@ -204,6 +252,31 @@ function buildBuiltInSource<T>(
 
 // ── GeoServices Feature Service ───────────────────────────────
 
+/**
+ * Adapter factory for a GeoServices FeatureServer layer.
+ *
+ * Used internally by {@link createDataset} when it sees a descriptor with
+ * `protocol: "geoservices-feature-service"`. Calling it directly is rarely
+ * necessary; pass the descriptor to `createDataset` instead.
+ *
+ * @example
+ * ```ts
+ * const dataset = createDataset({
+ *   id: "parcels",
+ *   client,
+ *   sources: [{
+ *     id: "parcels-fs",
+ *     protocol: "geoservices-feature-service",
+ *     locator: { url: "https://your-honua-server.example", serviceId: "parcels", layerId: 0 },
+ *     capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+ *   }],
+ * });
+ * const result = await dataset.source("parcels-fs")!.queryAll({
+ *   where: "STATUS = 'ACTIVE'",
+ *   outFields: ["OBJECTID", "NAME"],
+ * });
+ * ```
+ */
 export function geoServicesFeatureSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
@@ -287,6 +360,27 @@ export function geoServicesFeatureSource<T>(
 
 // ── GeoServices Map Service / Map Layer ───────────────────────
 
+/**
+ * Adapter factory for a GeoServices MapServer layer.
+ *
+ * Reach `Source.protocol("geoservices-map-service")` for raw `exportImage` /
+ * `identify` / `find` access; the canonical `query()` runs against a single
+ * sublayer via the MapServer query endpoint.
+ *
+ * @example
+ * ```ts
+ * const dataset = createDataset({
+ *   id: "basemap",
+ *   client,
+ *   sources: [{
+ *     id: "states-mapserver",
+ *     protocol: "geoservices-map-service",
+ *     locator: { url: "https://your-honua-server.example", serviceId: "states", layerId: 0 },
+ *     capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-map-service"],
+ *   }],
+ * });
+ * ```
+ */
 export function geoServicesMapServiceSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
@@ -370,6 +464,27 @@ export function geoServicesMapServiceSource<T>(
 
 // ── OGC API Features ──────────────────────────────────────────
 
+/**
+ * Adapter factory for an OGC API Features collection.
+ *
+ * @example
+ * ```ts
+ * const dataset = createDataset({
+ *   id: "addresses",
+ *   client,
+ *   sources: [{
+ *     id: "addresses-ogc",
+ *     protocol: "ogc-features",
+ *     locator: { url: "https://your-honua-server.example", collectionId: "addresses" },
+ *     capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+ *   }],
+ * });
+ * const result = await dataset.source("addresses-ogc")!.queryAll({
+ *   where: "city = 'Honolulu'",
+ *   pagination: { limit: 200 },
+ * });
+ * ```
+ */
 export function ogcFeaturesSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
@@ -574,6 +689,22 @@ export function ogcFeaturesSource<T>(
  * surface drives the raster catalog (each row is a raster with footprint
  * geometry); image export, identify, and tile operations live behind
  * `Source.protocol("geoservices-image-service")`.
+ *
+ * @example
+ * ```ts
+ * const dataset = createDataset({
+ *   id: "imagery",
+ *   client,
+ *   sources: [{
+ *     id: "naip",
+ *     protocol: "geoservices-image-service",
+ *     locator: { url: "https://your-honua-server.example", serviceId: "naip" },
+ *     capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-image-service"],
+ *   }],
+ * });
+ * const img = dataset.source("naip")!.protocol("geoservices-image-service");
+ * const png = await img?.exportImage({ bbox: [-158.5, 21.2, -157.6, 21.7], size: [512, 512] });
+ * ```
  */
 export function geoServicesImageSource<T>(
   descriptor: SourceDescriptor,
@@ -678,6 +809,16 @@ export function geoServicesImageSource<T>(
  * query family throws `HonuaCapabilityNotSupportedError` and operations
  * (buffer, project, simplify, etc.) live behind
  * `Source.protocol("geoservices-geometry-service")`.
+ *
+ * @example
+ * ```ts
+ * const geom = dataset.source("geom")!.protocol("geoservices-geometry-service");
+ * const projected = await geom?.project({
+ *   inSr: 4326,
+ *   outSr: 3857,
+ *   geometries: [{ x: -158, y: 21 }],
+ * });
+ * ```
  */
 export function geoServicesGeometryServiceSource<T>(
   descriptor: SourceDescriptor,
@@ -699,6 +840,13 @@ export function geoServicesGeometryServiceSource<T>(
  * services run async tasks rather than hosting features; the canonical
  * feature surface throws and task submission / status / result lookup
  * live behind `Source.protocol("geoservices-gp-service")`.
+ *
+ * @example
+ * ```ts
+ * const gp = dataset.source("buffer-task")!.protocol("geoservices-gp-service");
+ * const job = await gp!.submitJob({ inputs: { distance: 500 } });
+ * const result = await gp!.awaitJobResult(job.jobId);
+ * ```
  */
 export function geoServicesGPServiceSource<T>(
   descriptor: SourceDescriptor,
@@ -726,6 +874,12 @@ export function geoServicesGPServiceSource<T>(
  * tile-fetch, not feature-query); rendering integrations consume the
  * tileset through `Source.protocol("ogc-tiles")` to reach the underlying
  * runtime class.
+ *
+ * @example
+ * ```ts
+ * const tiles = dataset.source("ogc-tileset")!.protocol("ogc-tiles");
+ * const bytes = await tiles!.tile({ tileMatrix: "WebMercatorQuad", tileRow: 5, tileCol: 8 });
+ * ```
  */
 export function ogcTilesSource<T>(
   descriptor: SourceDescriptor,
@@ -757,6 +911,12 @@ export function ogcTilesSource<T>(
  * Render-only Source adapter for OGC API Maps. Same shape as the Tiles
  * adapter — `Source.protocol("ogc-maps")` exposes the runtime class for
  * server-rendered map images; the canonical query family throws.
+ *
+ * @example
+ * ```ts
+ * const maps = dataset.source("ogc-map")!.protocol("ogc-maps");
+ * const png = await maps!.map({ bbox: [-158, 21, -157, 22], width: 512, height: 512 });
+ * ```
  */
 export function ogcMapsSource<T>(
   descriptor: SourceDescriptor,
@@ -787,6 +947,12 @@ export function ogcMapsSource<T>(
  * collection/catalog id) and returns record documents as typed features.
  * Records-specific search affordances (`q`, `type`, `externalIds`,
  * `profile`, raw HTML/JSON access) live on `Source.protocol("ogc-records")`.
+ *
+ * @example
+ * ```ts
+ * const records = dataset.source("catalog")!;
+ * const result = await records.query({ where: "type = 'dataset' AND q = 'parcels'" });
+ * ```
  */
 export function ogcRecordsSource<T>(
   descriptor: SourceDescriptor,
@@ -892,6 +1058,23 @@ export function ogcRecordsSource<T>(
  * stays honest — multi-pixel feature info lives on
  * `Source.protocol("wms").featureInfo()`.
  */
+/**
+ * Adapter factory for a WMS 1.3.0 endpoint.
+ *
+ * The canonical `Source.query()` is implemented through point-only
+ * `GetFeatureInfo`. Reach `Source.protocol("wms")` for raw `GetMap` /
+ * `GetLegendGraphic` access (with TIME / ELEVATION dimension handling and
+ * CRS axis-order swap per WMS 1.3 §6.7.3.2).
+ *
+ * @example
+ * ```ts
+ * const wms = dataset.source("usgs-imagery")!.protocol("wms");
+ * const png = await wms!.getMap({
+ *   layers: ["topo"], bbox: [-158, 21, -157, 22], crs: "EPSG:4326",
+ *   width: 512, height: 512,
+ * });
+ * ```
+ */
 export function wmsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
   const { serviceId } = requireWmsLocator(descriptor);
   const layerName = descriptor.locator.typeName;
@@ -983,6 +1166,17 @@ export function wmsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
  * pixels (not a canonical spatial filter); raw access lives on
  * `Source.protocol("wmts" | "wmts-layer" | "wmts-tileset")`.
  */
+/**
+ * Adapter factory for a WMTS 1.0.0 endpoint. Render-only; `Source.query()`
+ * throws `HonuaCapabilityNotSupportedError`. Reach `Source.protocol("wmts")`
+ * for RESTful + KVP tile fetch and capabilities.
+ *
+ * @example
+ * ```ts
+ * const wmts = dataset.source("basemap-tiles")!.protocol("wmts");
+ * const tile = await wmts!.tile({ tileMatrixSet: "WebMercatorQuad", tileMatrix: "8", tileRow: 5, tileCol: 8 });
+ * ```
+ */
 export function wmtsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
   const { serviceId } = requireWmtsLocator(descriptor);
   const layerName = descriptor.locator.typeName;
@@ -1013,6 +1207,31 @@ export function wmtsSource<T>(descriptor: SourceDescriptor, client: HonuaClient,
 
 // ── STAC API ──────────────────────────────────────────────────
 
+/**
+ * Adapter factory for a STAC API search endpoint.
+ *
+ * The canonical `Source.query()` runs a `POST /search` against the STAC root,
+ * with `Query.spatialFilter.bbox` and `Query.where` translated into STAC's
+ * `bbox` / `datetime` / `filter` parameters.
+ *
+ * @example
+ * ```ts
+ * const dataset = createDataset({
+ *   id: "imagery",
+ *   client,
+ *   sources: [{
+ *     id: "stac-search",
+ *     protocol: "stac",
+ *     locator: { url: "https://your-honua-server.example/stac" },
+ *     capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+ *   }],
+ * });
+ * const result = await dataset.source("stac-search")!.query({
+ *   where: "collections IN ('landsat-c2-l2')",
+ *   spatialFilter: { kind: "bbox", bbox: [-158.5, 21.2, -157.6, 21.7] },
+ * });
+ * ```
+ */
 export function stacSearchSource<T>(
   descriptor: SourceDescriptor,
   client: HonuaClient,
@@ -1123,6 +1342,32 @@ const WFS_GET_FILTER_BUDGET = 7000;
 
 const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
 
+/**
+ * Adapter factory for a WFS 2.0 endpoint.
+ *
+ * `Query.where` and `Query.spatialFilter` compile to FES 2.0; GeoJSON is
+ * preferred over GML via `OperationsMetadata` negotiation. `applyEdits()`
+ * builds `<wfs:Transaction>` bodies. Reach `Source.protocol("wfs")` for raw
+ * GML / `LockFeature` / stored-query access.
+ *
+ * @example
+ * ```ts
+ * const dataset = createDataset({
+ *   id: "wfs-parcels",
+ *   client,
+ *   sources: [{
+ *     id: "parcels",
+ *     protocol: "wfs",
+ *     locator: { url: "https://your-honua-server.example/wfs", typeName: "ns:Parcels" },
+ *     capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs,
+ *   }],
+ * });
+ * const result = await dataset.source("parcels")!.queryAll({
+ *   where: "STATUS = 'ACTIVE'",
+ *   pagination: { limit: 500 },
+ * });
+ * ```
+ */
 export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
   const { url, typeName, featureNamespace } = requireWfsLocator(descriptor);
   const root = new HonuaWfs({ client, endpointUrl: url });
@@ -1894,6 +2139,33 @@ function canonicalEditResultFromTransaction<T>(
  * first time a capability-gated method is invoked — this is the
  * precedent for the metadata-driven downgrade pattern referenced in
  * `docs/shared-client-contract.md`.
+ */
+/**
+ * Adapter factory for an OData v4 entity set.
+ *
+ * `Query.where` compiles to OData `$filter`, `Query.outFields` becomes
+ * `$select`, `Query.orderBy` becomes `$orderby`, and `Query.pagination`
+ * becomes `$top`/`$skip`. Geospatial filters translate to OData's
+ * `geo.intersects` / `geo.distance` family.
+ *
+ * @example
+ * ```ts
+ * const dataset = createDataset({
+ *   id: "incidents",
+ *   client,
+ *   sources: [{
+ *     id: "incidents",
+ *     protocol: "odata",
+ *     locator: { url: "https://your-honua-server.example/odata", entitySet: "Incidents" },
+ *     capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+ *   }],
+ * });
+ * const result = await dataset.source("incidents")!.queryAll({
+ *   where: "Severity ge 3",
+ *   orderBy: [{ field: "ReportedAt", direction: "desc" }],
+ *   pagination: { limit: 100 },
+ * });
+ * ```
  */
 export function odataSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
   const { entitySet, basePath } = requireOdataLocator(descriptor);

@@ -12,6 +12,10 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: "@honua/sdk-js/honua", replacement: path.resolve(repoRoot, "src/honua.ts") },
+      {
+        find: "@honua/sdk-js/scene-workspace",
+        replacement: path.resolve(repoRoot, "src/scene-workspace/index.ts"),
+      },
       { find: "@honua/sdk-js", replacement: path.resolve(repoRoot, "src/index.ts") },
     ],
   },

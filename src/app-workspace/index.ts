@@ -5,6 +5,8 @@
  * Components dispatch reducer-style commands and subscribe to narrow slices or
  * selectors; no component needs an imperative reference to another component.
  *
+ * @experimental This entrypoint is not yet covered by the SDK's semver contract
+ *   — the surface may change in any minor release prior to `1.0.0`.
  * @module
  */
 

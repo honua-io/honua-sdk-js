@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, RouteLayerCompat } from "../src/index.js";
+import { CompatEventBus, RouteLayerCompat } from "../src/esri-compat-entry.js";
 
 describe("RouteLayerCompat", () => {
   it("supports lifecycle loading and watch handles", async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, ExpandCompat } from "../src/index.js";
+import { CompatEventBus, ExpandCompat } from "../src/esri-compat-entry.js";
 
 describe("ExpandCompat", () => {
   it("supports when() and watch() lifecycle state", async () => {

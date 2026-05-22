@@ -3,6 +3,8 @@
  * controllers and workspace orchestration for chat, clarification, plan
  * review, execution, map/app preview, and approval surfaces.
  *
+ * @experimental This entrypoint is not yet covered by the SDK's semver contract
+ *   — the surface may change in any minor release prior to `1.0.0`.
  * @module
  */
 

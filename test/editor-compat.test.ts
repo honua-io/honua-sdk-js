@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, EditorCompat } from "../src/index.js";
+import { CompatEventBus, EditorCompat } from "../src/esri-compat-entry.js";
 
 describe("EditorCompat", () => {
   it("supports when() and watch() lifecycle and workflow state", async () => {

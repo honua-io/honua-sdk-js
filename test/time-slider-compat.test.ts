@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, TimeSliderCompat } from "../src/index.js";
+import { CompatEventBus, TimeSliderCompat } from "../src/esri-compat-entry.js";
 
 describe("TimeSliderCompat", () => {
   it("supports when() and watch() lifecycle and playing state", async () => {

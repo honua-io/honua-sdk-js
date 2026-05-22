@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, TrackCompat } from "../src/index.js";
+import { CompatEventBus, TrackCompat } from "../src/esri-compat-entry.js";
 
 describe("TrackCompat", () => {
   it("supports when() and watch() lifecycle/tracking state", async () => {

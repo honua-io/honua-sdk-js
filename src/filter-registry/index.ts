@@ -1,11 +1,23 @@
 /**
- * Shared filter and crossfilter registry.
+ * `@honua/sdk-js/filter-registry` — shared filter / crossfilter registry.
  *
- * The registry is a protocol-neutral state container for map, chart, table,
- * search, and control filters. Projection helpers translate active clauses
- * into existing SDK query, linked-view, widget, runtime-style, and URL state.
+ * Protocol-neutral state container for map, chart, table, search, and control
+ * filters. Projection helpers translate active clauses into existing SDK
+ * query, linked-view, widget, runtime-style, and URL state.
  *
- * @module
+ * @example
+ * ```ts
+ * import { createFilterRegistry, projectFilterRegistryToQuery } from "@honua/sdk-js/filter-registry";
+ *
+ * const registry = createFilterRegistry();
+ * registry.set("status", { field: "STATUS", op: "=", value: "ACTIVE" });
+ * registry.set("severity", { field: "SEVERITY", op: ">=", value: 3 });
+ *
+ * const query = projectFilterRegistryToQuery(registry, { sourceId: "incidents" });
+ * const { features } = await dataset.source("incidents")!.queryAll(query);
+ * ```
+ *
+ * @packageDocumentation
  */
 
 import type {

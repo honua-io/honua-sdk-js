@@ -1,3 +1,23 @@
+/**
+ * `@honua/sdk-js/style` — Honua style spec source parsers and validators.
+ *
+ * Translate `Source`/`SourceDescriptor` shapes to and from MapLibre-style
+ * source specifications, and validate Honua style documents.
+ *
+ * @example
+ * ```ts
+ * import { createSources, validateHonuaStyle, parseOgcFeaturesUrl } from "@honua/sdk-js/style";
+ *
+ * const sources = createSources(dataset.sourceDescriptors);
+ * const errors = validateHonuaStyle(myStyle);
+ * if (errors.length) throw new Error(errors.map(e => e.message).join("\n"));
+ *
+ * const parsed = parseOgcFeaturesUrl("https://example.com/ogc/collections/parcels/items");
+ * console.log(parsed.collectionId); // "parcels"
+ * ```
+ *
+ * @packageDocumentation
+ */
 export {
   isHonuaSource,
   isFeatureServiceSource,

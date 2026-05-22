@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BasemapLayerListCompat, CompatEventBus, MapCompat } from "../src/index.js";
+import { BasemapLayerListCompat, CompatEventBus, MapCompat } from "../src/esri-compat-entry.js";
 
 describe("BasemapLayerListCompat", () => {
   it("supports when() and watch() lifecycle state and collection updates", async () => {

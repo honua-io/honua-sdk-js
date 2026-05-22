@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LabelClassCompat, PictureMarkerSymbolCompat, TextSymbolCompat } from "../src/index.js";
+import { LabelClassCompat, PictureMarkerSymbolCompat, TextSymbolCompat } from "../src/esri-compat-entry.js";
 
 describe("symbol/label compat", () => {
   it("supports picture marker and text symbols", async () => {

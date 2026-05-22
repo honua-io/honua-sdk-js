@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { HonuaOgcFeatureCollection } from "../src/core/surfaces.js";
+import { parseFeatureLayerUrl, parseMapServiceUrl } from "../src/esri-compat-entry.js";
 import {
   HonuaClient,
   HonuaFeatureLayer,
@@ -14,8 +15,6 @@ import {
   isHonuaSource,
   isMapServiceSource,
   isOgcFeaturesSource,
-  parseFeatureLayerUrl,
-  parseMapServiceUrl,
   parseOgcFeaturesUrl,
   validateHonuaStyle,
 } from "../src/index.js";

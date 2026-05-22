@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, MapCompat, TableListCompat } from "../src/index.js";
+import { CompatEventBus, MapCompat, TableListCompat } from "../src/esri-compat-entry.js";
 
 describe("TableListCompat", () => {
   it("supports when() and watch() lifecycle and table updates", async () => {

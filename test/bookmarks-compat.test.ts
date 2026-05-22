@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BookmarksCompat, CompatEventBus, MapViewCompat } from "../src/index.js";
+import { BookmarksCompat, CompatEventBus, MapViewCompat } from "../src/esri-compat-entry.js";
 
 describe("BookmarksCompat", () => {
   it("supports when() and watch() lifecycle state", async () => {

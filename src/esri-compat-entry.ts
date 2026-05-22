@@ -100,6 +100,7 @@ export { CompatEventBus } from "./esri-compat/event-bus.js";
 export type {
   CompatEvent,
   CompatEventListener,
+  CompatEventPayloads,
   CompatEventSubscription,
 } from "./esri-compat/event-bus.js";
 export {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, SceneViewCompat } from "../src/index.js";
+import { CompatEventBus, SceneViewCompat } from "../src/esri-compat-entry.js";
 
 describe("SceneViewCompat", () => {
   it("extends map-view lifecycle defaults with scene options", async () => {

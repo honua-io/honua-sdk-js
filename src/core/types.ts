@@ -529,9 +529,44 @@ export interface ApplyEditsRequest {
 
 export type HonuaTransport = "rest" | "grpc-web";
 
+/**
+ * Configuration passed to the {@link HonuaClient} constructor.
+ *
+ * @example Minimal config
+ * ```ts
+ * new HonuaClient({ baseUrl: "https://your-honua-server.example" });
+ * ```
+ *
+ * @example With API key + retries
+ * ```ts
+ * new HonuaClient({
+ *   baseUrl: "https://your-honua-server.example",
+ *   apiKey: process.env.HONUA_API_KEY,
+ *   retry: { maxRetries: 3, baseDelayMs: 250 },
+ *   timeoutMs: 30_000,
+ * });
+ * ```
+ *
+ * @example With an OAuth-style credential provider
+ * ```ts
+ * new HonuaClient({
+ *   baseUrl: "https://your-honua-server.example",
+ *   auth: async () => {
+ *     const token = await fetchAccessToken();
+ *     return { bearerToken: token.access_token, expiresAt: token.expiresAt };
+ *   },
+ * });
+ * ```
+ */
 export interface HonuaClientOptions {
+  /**
+   * Absolute origin of the Honua server (e.g. `https://api.honua.example`).
+   * Trailing slashes are normalized.
+   */
   baseUrl: string;
+  /** Static API key sent as `X-API-Key`. Prefer {@link auth} for refreshable credentials. */
   apiKey?: string;
+  /** Static bearer token sent as `Authorization: Bearer <token>`. Prefer {@link auth} for refreshable credentials. */
   bearerToken?: string;
   /**
    * Optional credential provider. The SDK calls it lazily, caches returned
@@ -541,9 +576,13 @@ export interface HonuaClientOptions {
   auth?: HonuaAuthProvider | HonuaAuthCredentialsProvider;
   /** Milliseconds before `expiresAt` when credentials should be refreshed. Default: 60 seconds. */
   authRefreshSkewMs?: number;
+  /** Override the global `fetch` implementation (useful in Node before built-in fetch, or for testing). */
   fetchFn?: typeof fetch;
+  /** Per-request `before` / `after` / `error` hooks invoked on every HTTP call. */
   interceptors?: readonly HonuaRequestInterceptor[];
+  /** Per-request hard timeout in milliseconds. Independent of any caller-supplied `AbortSignal`. */
   timeoutMs?: number;
+  /** Retry strategy for transient HTTP failures. */
   retry?: HonuaRetryOptions;
   /**
    * When `true`, query methods use `f=pbf` for binary protobuf responses

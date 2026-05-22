@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, CoordinateConversionCompat } from "../src/index.js";
+import { CompatEventBus, CoordinateConversionCompat } from "../src/esri-compat-entry.js";
 
 describe("CoordinateConversionCompat", () => {
   it("supports when() and watch() lifecycle and conversion updates", async () => {

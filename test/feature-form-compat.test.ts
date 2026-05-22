@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, FeatureFormCompat } from "../src/index.js";
+import { CompatEventBus, FeatureFormCompat } from "../src/esri-compat-entry.js";
 
 describe("FeatureFormCompat", () => {
   it("supports when() and watch() for lifecycle state", async () => {

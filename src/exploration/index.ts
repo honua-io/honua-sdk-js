@@ -1,9 +1,20 @@
 /**
- * Exploration context — protocol-neutral state shared across linked views.
- * Re-exported from `@honua/sdk-js/exploration`. See
- * `docs/exploration-context.md`.
+ * `@honua/sdk-js/exploration` — protocol-neutral state container shared across
+ * linked views (map / table / chart). Provides `createExplorationContext()`
+ * with preset link policies (`globalLinked`, `mapDriven`, `gridDriven`,
+ * `chartDriven`, `decoupled`). See `docs/exploration-context.md` for the
+ * full design.
  *
- * @module
+ * @example
+ * ```ts
+ * import { createExplorationContext } from "@honua/sdk-js/exploration";
+ *
+ * const ctx = createExplorationContext({ dataset, preset: "globalLinked" });
+ * ctx.dispatch({ type: "set-extent", extent });
+ * const unsubscribe = ctx.subscribe(["selection"], (state) => render(state));
+ * ```
+ *
+ * @packageDocumentation
  */
 
 export {

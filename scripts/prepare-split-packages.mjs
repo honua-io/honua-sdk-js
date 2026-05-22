@@ -246,6 +246,24 @@ function createMigrationPackage() {
 
   copyDirectory(path.join(DIST_SRC_ROOT, "migration"), path.join(packageRoot, "migration"));
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
+  // The codemod imports `../map/webmap-maplibre.js` (and its `../style/specification.js` types),
+  // so the migration package needs those siblings to resolve at runtime.
+  copyFile(
+    path.join(DIST_SRC_ROOT, "map", "webmap-maplibre.js"),
+    path.join(packageRoot, "map", "webmap-maplibre.js"),
+  );
+  copyFile(
+    path.join(DIST_SRC_ROOT, "map", "webmap-maplibre.d.ts"),
+    path.join(packageRoot, "map", "webmap-maplibre.d.ts"),
+  );
+  copyFile(
+    path.join(DIST_SRC_ROOT, "style", "specification.js"),
+    path.join(packageRoot, "style", "specification.js"),
+  );
+  copyFile(
+    path.join(DIST_SRC_ROOT, "style", "specification.d.ts"),
+    path.join(packageRoot, "style", "specification.d.ts"),
+  );
   copyMigrationCoreTypeSupport(packageRoot);
   copyFile(path.join(DIST_SRC_ROOT, "migration-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "migration-entry.d.ts"), path.join(packageRoot, "index.d.ts"));

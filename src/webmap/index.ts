@@ -1,3 +1,26 @@
+/**
+ * `@honua/sdk-js/webmap` — WebMap JSON parse + symbol / renderer / popup converters.
+ *
+ * @example
+ * ```ts
+ * import { parseWebMap } from "@honua/sdk-js/webmap";
+ *
+ * const webmapJson = await (await fetch("/path/to/webmap.json")).json();
+ * const { layers, warnings } = parseWebMap(webmapJson);
+ * if (warnings.length > 0) console.warn("WebMap conversion warnings:", warnings);
+ * ```
+ *
+ * @example Inspect the compatibility contract
+ * ```ts
+ * import { CONTRACT, getContractSummary } from "@honua/sdk-js/webmap";
+ *
+ * const summary = getContractSummary();
+ * console.log(summary.supported);   // ["FeatureLayer", "MapImageLayer", ...]
+ * console.log(summary.unsupported); // entries with `support: "unsupported"` + reason
+ * ```
+ *
+ * @packageDocumentation
+ */
 export { parseWebMap } from "./parse.js";
 export type { ParseWebMapOptions, ParseWebMapResult } from "./parse.js";
 export { createWarningCollector } from "./warnings.js";

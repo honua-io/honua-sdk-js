@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { PointCompat, SimpleFillSymbolCompat, SimpleLineSymbolCompat, SimpleMarkerSymbolCompat } from "../src/index.js";
+import {
+  PointCompat,
+  SimpleFillSymbolCompat,
+  SimpleLineSymbolCompat,
+  SimpleMarkerSymbolCompat,
+} from "../src/esri-compat-entry.js";
 
 describe("geometry/symbol compat", () => {
   it("creates point geometry payloads", async () => {

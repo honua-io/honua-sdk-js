@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CompatEventBus, WebMapCompat } from "../src/index.js";
+import { CompatEventBus, WebMapCompat } from "../src/esri-compat-entry.js";
 
 describe("WebMapCompat", () => {
   it("supports portalItem and when/load lifecycle", async () => {

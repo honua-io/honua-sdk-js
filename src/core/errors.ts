@@ -1,6 +1,45 @@
+/**
+ * Honua SDK error hierarchy. Every error thrown by `@honua/sdk-js` is an
+ * instance of one of the classes in this file plus the runtime-type guard
+ * `isHonuaError(error)`. See [`docs/errors.md`](../../docs/errors.md) for the
+ * full reference table including recovery hints and the retry-policy mapping.
+ *
+ * @example
+ * ```ts
+ * import {
+ *   HonuaHttpError,
+ *   HonuaTimeoutError,
+ *   HonuaCapabilityNotSupportedError,
+ *   isHonuaError,
+ * } from "@honua/sdk-js";
+ *
+ * try {
+ *   await dataset.source("parcels")!.queryAll({ where: "1=1" });
+ * } catch (error) {
+ *   if (!isHonuaError(error)) throw error;
+ *   if (error instanceof HonuaCapabilityNotSupportedError) return fallback();
+ *   if (error instanceof HonuaHttpError && error.statusCode === 401) {
+ *     await refreshCredentials();
+ *     return retry();
+ *   }
+ *   if (error instanceof HonuaTimeoutError) return notifyUser("Server slow");
+ *   throw error;
+ * }
+ * ```
+ *
+ * @packageDocumentation
+ */
+
 import { HonuaWmsCapabilitiesParseError } from "./wms-capabilities.js";
 import { HonuaWmtsCapabilitiesParseError } from "./wmts-capabilities.js";
 
+/**
+ * Thrown when the server returns a non-2xx HTTP status. Branch on
+ * `.statusCode` to decide recovery: refresh credentials on 401/403, respect
+ * `Retry-After` on 429, back off on 5xx, etc.
+ *
+ * @see [`docs/errors.md`](../../docs/errors.md)
+ */
 export class HonuaHttpError extends Error {
   public readonly statusCode: number;
   public readonly body: unknown;

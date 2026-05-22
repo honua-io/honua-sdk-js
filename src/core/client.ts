@@ -283,7 +283,57 @@ interface MetadataCacheEntry<T = unknown> {
   sourceUpdatedAt?: string;
 }
 
+/**
+ * The main Honua HTTP/gRPC-Web client.
+ *
+ * `HonuaClient` is the protocol-aware entry point into the Honua server. It speaks
+ * GeoServices (FeatureServer, MapServer, ImageServer, GeometryServer, GPServer),
+ * OGC API Features / Tiles / Maps / Processes, STAC, WMS, WMTS, WFS 2.0, and OData v4,
+ * with one consistent request/response shape, capability negotiation, optional retries,
+ * pluggable auth, and a small in-process metadata cache.
+ *
+ * For cross-protocol code that does not need to know the underlying service shape,
+ * prefer the protocol-neutral {@link createDataset} contract from `@honua/sdk-js/contract`
+ * — it wraps this client and exposes a single `Source.query(...)` surface that throws
+ * {@link HonuaCapabilityNotSupportedError} when a protocol cannot satisfy the request.
+ *
+ * @example Basic usage
+ * ```ts
+ * import { HonuaClient } from "@honua/sdk-js/honua";
+ *
+ * const client = new HonuaClient({
+ *   baseUrl: "https://your-honua-server.example",
+ *   apiKey: process.env.HONUA_API_KEY,
+ * });
+ *
+ * const { supported, reasons } = await client.checkCompatibility();
+ * if (!supported) {
+ *   throw new Error(`Unsupported Honua server: ${reasons.join("; ")}`);
+ * }
+ *
+ * const result = await client.queryFeatures({
+ *   serviceId: "natural-earth",
+ *   layerId: 0,
+ *   where: "1=1",
+ *   outFields: ["*"],
+ *   returnGeometry: true,
+ *   resultRecordCount: 25,
+ * });
+ *
+ * console.log(`Loaded ${result.features?.length ?? 0} features`);
+ * ```
+ *
+ * @example Per-service fluent wrappers
+ * ```ts
+ * const parcels = client.featureLayer<{ NAME: string }>("parcels", 0);
+ * const items = await client.ogcFeatures();
+ * const wms = client.wms("usgs-imagery");
+ * ```
+ *
+ * @public
+ */
 export class HonuaClient {
+  /** The minimum Honua server version this SDK is contractually tested against. */
   public static readonly minimumSupportedServerVersion = HONUA_MINIMUM_SUPPORTED_SERVER_VERSION;
   public static readonly minimumSupportedServerReleaseChannel = MINIMUM_SUPPORTED_SERVER_RELEASE_CHANNEL;
 
@@ -303,6 +353,27 @@ export class HonuaClient {
   private connectClient: Client<typeof FeatureService> | undefined;
   private readonly metadataCache = new Map<string, MetadataCacheEntry>();
 
+  /**
+   * Create a new `HonuaClient`.
+   *
+   * @param options - Connection, auth, transport, retry, and interceptor configuration.
+   *   See {@link HonuaClientOptions} for every field and `@example` blocks for common shapes.
+   *
+   * @example Minimal
+   * ```ts
+   * const client = new HonuaClient({ baseUrl: "https://your-honua-server.example" });
+   * ```
+   *
+   * @example With API key + retries + timeout
+   * ```ts
+   * const client = new HonuaClient({
+   *   baseUrl: "https://your-honua-server.example",
+   *   apiKey: process.env.HONUA_API_KEY,
+   *   retry: { maxRetries: 3 },
+   *   timeoutMs: 30_000,
+   * });
+   * ```
+   */
   public constructor(options: HonuaClientOptions) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
     this.fetchFn = options.fetchFn ?? fetch;
@@ -410,6 +481,20 @@ export class HonuaClient {
     }
   }
 
+  /**
+   * Drive a paginated FeatureServer query as an async generator. Each yielded
+   * chunk is a `HonuaFeature[]` slice; iteration stops when the server stops
+   * advertising `exceededTransferLimit`. Lower-level than
+   * `dataset.source(...).queryAll()` but suitable for streaming pipelines that
+   * want backpressure between pages.
+   *
+   * @example
+   * ```ts
+   * for await (const page of client.queryFeaturesStream({ serviceId: "parcels", layerId: 0, where: "1=1" })) {
+   *   process(page);
+   * }
+   * ```
+   */
   public async *queryFeaturesStream(request: QueryFeaturesRequest): AsyncGenerator<HonuaFeature[], void, undefined> {
     const client = await this.ensureConnectClient();
     const grpcAdapter = await HonuaClient.loadGrpcAdapter();
@@ -424,6 +509,21 @@ export class HonuaClient {
     });
   }
 
+  /**
+   * Construct a typed wrapper for a single FeatureServer layer.
+   *
+   * The returned {@link HonuaFeatureLayer} carries the same `serviceId` / `layerId`
+   * on every call so you can write `await layer.queryFeatures({ where: "..." })`
+   * without restating the address.
+   *
+   * @typeParam T - The attribute shape of features in this layer.
+   *
+   * @example
+   * ```ts
+   * const parcels = client.featureLayer<{ NAME: string; STATUS: string }>("parcels", 0);
+   * const { features } = await parcels.queryFeatures({ where: "STATUS = 'ACTIVE'" });
+   * ```
+   */
   public featureLayer<T = Record<string, unknown>>(serviceId: string, layerId: number): HonuaFeatureLayer<T> {
     return new HonuaFeatureLayer<T>({
       client: this,
@@ -447,6 +547,21 @@ export class HonuaClient {
     });
   }
 
+  /**
+   * Construct the OGC API Features client wrapper.
+   *
+   * Use this to walk collections (`landing()`, `conformance()`, `collections()`),
+   * read items (`items()`, `item()`), and apply edits (`create*` / `replace*` /
+   * `patch*` / `delete*`) against an OGC API Features endpoint exposed by the
+   * Honua server.
+   *
+   * @example
+   * ```ts
+   * const features = client.ogcFeatures();
+   * const collections = await features.collections();
+   * const items = await features.items("parcels", { limit: 100 });
+   * ```
+   */
   public ogcFeatures(): HonuaOgcFeatures {
     return new HonuaOgcFeatures({
       client: this,
@@ -545,6 +660,23 @@ export class HonuaClient {
     );
   }
 
+  /**
+   * Fetch and parse the server's compatibility contract from `GET /api/v1/admin/capabilities`.
+   *
+   * The first call populates an in-process cache; subsequent calls return the cached value
+   * unless `options.refresh` is `true`. Use {@link HonuaClient.checkCompatibility} instead
+   * when you want a non-throwing pass/fail signal with a list of reasons.
+   *
+   * @throws {@link HonuaError} when the server response cannot be parsed into a valid
+   *   compatibility envelope (missing `serverVersion`, `controlPlaneApi`, etc.).
+   *
+   * @example
+   * ```ts
+   * const contract = await client.getCompatibility();
+   * console.log(contract.serverVersion, contract.releaseChannel);
+   * console.log(contract.metadataSchemas);
+   * ```
+   */
   public async getCompatibility(options: HonuaCompatibilityRequest = {}): Promise<HonuaServerCompatibility> {
     if (!options.refresh && this.serverCompatibilityCache) {
       return this.serverCompatibilityCache;
@@ -562,6 +694,22 @@ export class HonuaClient {
     return compatibility;
   }
 
+  /**
+   * Probe the server's compatibility contract and return a structured pass/fail status.
+   *
+   * Unlike {@link HonuaClient.getCompatibility}, this method does not throw on transport
+   * or parse failures — those are reported as `supported: false` with a human-readable
+   * `reasons` entry. Use this at app startup to fail loudly before exercising admin or
+   * control-plane flows.
+   *
+   * @example
+   * ```ts
+   * const { supported, reasons } = await client.checkCompatibility();
+   * if (!supported) {
+   *   throw new Error(`Unsupported Honua server: ${reasons.join("; ")}`);
+   * }
+   * ```
+   */
   public async checkCompatibility(options: HonuaCompatibilityRequest = {}): Promise<HonuaServerCompatibilityStatus> {
     try {
       const compatibility = await this.getCompatibility(options);
@@ -581,6 +729,17 @@ export class HonuaClient {
     }
   }
 
+  /**
+   * Returns `true` if the server's `data.compatibility.features` map advertises the
+   * given coarse capability. Use this to gate experimental or admin-only workflows.
+   *
+   * @example
+   * ```ts
+   * if (await client.supportsFeature("manifestApply")) {
+   *   // safe to call the manifest apply admin endpoint
+   * }
+   * ```
+   */
   public async supportsFeature(
     feature: HonuaServerCompatibilityFeature,
     options: HonuaCompatibilityRequest = {},
@@ -1784,6 +1943,35 @@ export class HonuaClient {
     return this.requestCachedMetadataJson<HonuaLayerMetadata>(`geoservices-map:${serviceId}:${layerId}`, path, options);
   }
 
+  /**
+   * Run a GeoServices `FeatureServer/query` request against a Honua-hosted layer.
+   *
+   * This is the canonical low-level read path. It maps directly to the FeatureServer
+   * `query` endpoint and accepts the full ArcGIS query shape (`where`, `outFields`,
+   * `geometry`, `spatialRel`, `orderByFields`, `resultRecordCount`, `outSr`, ...).
+   *
+   * For cross-protocol code (OGC, WFS, OData, STAC), prefer the protocol-neutral
+   * {@link createDataset} contract — it normalizes capability differences and gives
+   * you `Source.query(...)` plus paginated `Source.queryAll(...)` with explicit
+   * `exceededTransferLimit` reporting.
+   *
+   * @example
+   * ```ts
+   * const { features, exceededTransferLimit } = await client.queryFeatures({
+   *   serviceId: "parcels",
+   *   layerId: 0,
+   *   where: "STATUS = 'ACTIVE'",
+   *   outFields: ["OBJECTID", "NAME"],
+   *   returnGeometry: true,
+   *   outSr: 4326,
+   *   resultRecordCount: 500,
+   * });
+   *
+   * if (exceededTransferLimit) {
+   *   // re-issue with `resultOffset` or use queryFeaturesStream / dataset.source().queryAll()
+   * }
+   * ```
+   */
   public async queryFeatures(request: QueryFeaturesRequest): Promise<HonuaQueryResponse> {
     if (this.transport === "grpc-web") {
       const client = await this.ensureConnectClient();

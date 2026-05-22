@@ -12,7 +12,7 @@ import {
   MapViewCompat,
   ScaleBarCompat,
   ZoomCompat,
-} from "../src/index.js";
+} from "../src/esri-compat-entry.js";
 
 describe("common controls compat", () => {
   it("supports when() and watch() lifecycle state across controls", async () => {
