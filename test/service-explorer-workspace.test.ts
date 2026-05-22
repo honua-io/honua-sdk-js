@@ -9,15 +9,15 @@ import {
 import { createDebouncedMapExtentSource } from "../examples/service-explorer/src/map-adapter.js";
 import { applyServiceExplorerProjection } from "../examples/service-explorer/src/projection.js";
 import {
-  bindMapExtentToExploration,
-  bindQueryProjectionToExploration,
-  sourceFeatureSelectionTarget,
-} from "../src/index.js";
-import {
   selectHonuaAppWorkspaceChartModel,
   selectHonuaAppWorkspaceDetailModel,
   selectHonuaAppWorkspaceMetadataCacheModel,
 } from "../src/app-workspace/index.js";
+import {
+  bindMapExtentToExploration,
+  bindQueryProjectionToExploration,
+  sourceFeatureSelectionTarget,
+} from "../src/index.js";
 import type { HonuaExtent, LinkedViewQueryProjection } from "../src/index.js";
 
 async function flush(): Promise<void> {

@@ -1,5 +1,5 @@
 import { type HonuaClient, HonuaImageService } from "@honua/sdk-js/honua";
-import { type SceneRuntimePrimitive } from "@honua/sdk-js/scene-workspace";
+import type { SceneRuntimePrimitive } from "@honua/sdk-js/scene-workspace";
 
 import { createFixtureTerrainElevationDataset } from "./fixtures.js";
 import type {

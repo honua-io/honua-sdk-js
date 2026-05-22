@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { ExtentCompat, PointCompat, PolygonCompat, PolylineCompat, SpatialReferenceCompat } from "../src/esri-compat-entry.js";
+import {
+  ExtentCompat,
+  PointCompat,
+  PolygonCompat,
+  PolylineCompat,
+  SpatialReferenceCompat,
+} from "../src/esri-compat-entry.js";
 
 describe("geometry primitives compat", () => {
   it("supports when() and watch() lifecycle for point and spatial reference", async () => {

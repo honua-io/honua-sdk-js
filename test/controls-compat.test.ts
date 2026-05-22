@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { AttributionCompat, BasemapToggleCompat, CompassCompat, CompatEventBus, FullscreenCompat, HomeCompat, LocateCompat, MapCompat, MapViewCompat, ScaleBarCompat, ZoomCompat } from "../src/esri-compat-entry.js";
+import {
+  AttributionCompat,
+  BasemapToggleCompat,
+  CompassCompat,
+  CompatEventBus,
+  FullscreenCompat,
+  HomeCompat,
+  LocateCompat,
+  MapCompat,
+  MapViewCompat,
+  ScaleBarCompat,
+  ZoomCompat,
+} from "../src/esri-compat-entry.js";
 
 describe("common controls compat", () => {
   it("supports when() and watch() lifecycle state across controls", async () => {

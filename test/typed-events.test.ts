@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { CompatEventPayloads } from "../src/esri-compat-entry.js";
-import { HonuaClient } from "../src/index.js";
 import { CompatEventBus, FeatureLayerCompat, GraphicCompat } from "../src/esri-compat-entry.js";
+import { HonuaClient } from "../src/index.js";
 
 describe("Typed event emitter (Direction 20)", () => {
   describe("CompatEventBus typed on()", () => {

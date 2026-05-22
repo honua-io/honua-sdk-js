@@ -1,8 +1,23 @@
 import { describe, expect, it } from "vitest";
 
 import { HonuaOgcFeatureCollection } from "../src/core/surfaces.js";
-import { HonuaClient, HonuaFeatureLayer, HonuaMapService, HonuaWms, HonuaWmsLayer, HonuaWmts, HonuaWmtsTileset, createSources, isFeatureServiceSource, isHonuaSource, isMapServiceSource, isOgcFeaturesSource, parseOgcFeaturesUrl, validateHonuaStyle } from "../src/index.js";
 import { parseFeatureLayerUrl, parseMapServiceUrl } from "../src/esri-compat-entry.js";
+import {
+  HonuaClient,
+  HonuaFeatureLayer,
+  HonuaMapService,
+  HonuaWms,
+  HonuaWmsLayer,
+  HonuaWmts,
+  HonuaWmtsTileset,
+  createSources,
+  isFeatureServiceSource,
+  isHonuaSource,
+  isMapServiceSource,
+  isOgcFeaturesSource,
+  parseOgcFeaturesUrl,
+  validateHonuaStyle,
+} from "../src/index.js";
 import type { HonuaStyleSpecification } from "../src/index.js";
 
 describe("Type guards", () => {

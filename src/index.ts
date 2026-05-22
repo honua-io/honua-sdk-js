@@ -376,7 +376,6 @@ export type {
   HonuaServicesResponse,
 } from "./core/types.js";
 
-
 // ─────────────────────────────────────────────────────────────
 // Esri compatibility wrappers are subpath-only:
 //   import { FeatureLayerCompat, MapViewCompat, ... } from "@honua/sdk-js/esri-compat";

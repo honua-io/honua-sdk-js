@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { ClassBreaksRendererCompat, SimpleRendererCompat, UniqueValueRendererCompat } from "../src/esri-compat-entry.js";
+import {
+  ClassBreaksRendererCompat,
+  SimpleRendererCompat,
+  UniqueValueRendererCompat,
+} from "../src/esri-compat-entry.js";
 
 describe("renderer compat", () => {
   it("supports simple renderer payloads", async () => {

@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { createHonuaController as appControllerCreateHonuaController } from "../src/app-controller/index.js";
+// Experimental subpaths are no longer re-exported from the root barrel —
+// importing them keeps this test honest about the stable / experimental tier.
+import { createHonuaController } from "../src/app-controller/index.js";
 import {
   createHonuaAppWorkspace as appWorkspaceCreateHonuaAppWorkspace,
   selectHonuaAppWorkspaceMetadataCacheModel as appWorkspaceSelectMetadataCacheModel,
 } from "../src/app-workspace/index.js";
+import { createHonuaAppWorkspace, selectHonuaAppWorkspaceMetadataCacheModel } from "../src/app-workspace/index.js";
 import {
   CAPABILITIES,
   PROTOCOLS,
@@ -37,6 +41,7 @@ import {
   HonuaControlPlaneClient,
   createHonuaControlPlane,
 } from "../src/control-plane/index.js";
+import { HonuaControlPlaneClient as RootHonuaControlPlaneClient } from "../src/control-plane/index.js";
 import {
   AreaMeasurement2DCompat,
   AttributionCompat,
@@ -200,22 +205,6 @@ import {
   wmtsSource as rootWmtsSource,
   syncFeatureStateSelection,
 } from "../src/index.js";
-// Experimental subpaths are no longer re-exported from the root barrel —
-// importing them keeps this test honest about the stable / experimental tier.
-import {
-  createHonuaController,
-} from "../src/app-controller/index.js";
-import {
-  createHonuaAppWorkspace,
-  selectHonuaAppWorkspaceMetadataCacheModel,
-} from "../src/app-workspace/index.js";
-import {
-  createMapLibreSceneAdapter as rootCreateMapLibreSceneAdapter,
-  createSceneWorkspace as rootCreateSceneWorkspace,
-} from "../src/scene-workspace/index.js";
-import {
-  HonuaControlPlaneClient as RootHonuaControlPlaneClient,
-} from "../src/control-plane/index.js";
 import {
   bindChartToExploration as interactionsBindChartToExploration,
   selectLinkedViewQueryProjection as interactionsSelectLinkedViewQueryProjection,
@@ -239,6 +228,10 @@ import {
   validateRuntimeFilterExpression,
   validateRuntimeStyleExpression,
 } from "../src/runtime/index.js";
+import {
+  createMapLibreSceneAdapter as rootCreateMapLibreSceneAdapter,
+  createSceneWorkspace as rootCreateSceneWorkspace,
+} from "../src/scene-workspace/index.js";
 import {
   createMapLibreSceneAdapter,
   createSceneWorkspace,

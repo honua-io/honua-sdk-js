@@ -19,8 +19,8 @@ import {
   visibleUnifiedOpsEditFeatures,
 } from "../examples/unified-ops-workspace/src/model.js";
 import { FIELD_INSPECTION_SOURCE_ID, INCIDENT_SOURCE_ID } from "../examples/unified-ops-workspace/src/types.js";
-import { selectLinkedViewQueryProjection, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 import { selectHonuaAppWorkspaceDetailModel, selectHonuaAppWorkspaceFilterModel } from "../src/app-workspace/index.js";
+import { selectLinkedViewQueryProjection, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 
 async function flush(): Promise<void> {
   await Promise.resolve();
