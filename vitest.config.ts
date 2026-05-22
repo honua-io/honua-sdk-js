@@ -33,6 +33,50 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/app-workspace/index.ts"),
       },
       {
+        find: "@honua/sdk-js/app-controller",
+        replacement: path.resolve(import.meta.dirname, "src/app-controller/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/app",
+        replacement: path.resolve(import.meta.dirname, "src/app/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/scene-workspace",
+        replacement: path.resolve(import.meta.dirname, "src/scene-workspace/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/control-plane",
+        replacement: path.resolve(import.meta.dirname, "src/control-plane/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/esri-compat",
+        replacement: path.resolve(import.meta.dirname, "src/esri-compat-entry.ts"),
+      },
+      {
+        find: "@honua/sdk-js/migration",
+        replacement: path.resolve(import.meta.dirname, "src/migration-entry.ts"),
+      },
+      {
+        find: "@honua/sdk-js/expr",
+        replacement: path.resolve(import.meta.dirname, "src/expr/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/webmap",
+        replacement: path.resolve(import.meta.dirname, "src/webmap/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/filter-registry",
+        replacement: path.resolve(import.meta.dirname, "src/filter-registry/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/style",
+        replacement: path.resolve(import.meta.dirname, "src/style/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/map",
+        replacement: path.resolve(import.meta.dirname, "src/map/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/agent-tools",
         replacement: path.resolve(import.meta.dirname, "src/agent-tools/index.ts"),
       },
