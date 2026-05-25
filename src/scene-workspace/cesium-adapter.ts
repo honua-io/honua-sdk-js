@@ -107,10 +107,17 @@ export interface CesiumCameraLike {
 /**
  * A 3D-Tiles tileset handle (the bits the adapter mutates). Real Cesium
  * `Cesium3DTileset` instances satisfy this; tests pass a plain object.
+ *
+ * `extras` mirrors Cesium's `Cesium3DTileset.extras` — the parsed `extras`
+ * object from the tileset.json root, available once the tileset is ready. The
+ * server advertises its attribute-driven styling there under `honua_style`
+ * (honua-server#1206). `style` is the settable `Cesium3DTileStyle` slot.
  */
 export interface CesiumTilesetLike {
   show: boolean;
   modelMatrix?: unknown;
+  extras?: unknown;
+  style?: unknown;
   destroy?(): void;
   isDestroyed?(): boolean;
 }
@@ -317,6 +324,7 @@ type CesiumModule = {
   readonly Cesium3DTileset: {
     fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumTilesetLike>;
   };
+  readonly Cesium3DTileStyle: new (style?: Record<string, unknown>) => unknown;
   readonly Model: {
     fromGltfAsync(options: Record<string, unknown>): Promise<CesiumModelLike>;
   };
@@ -356,19 +364,235 @@ function placementToModelMatrix(cesium: CesiumModule, placement: CesiumModelPlac
 }
 
 /**
+ * A condition block of a 3D-Tiles styling expression. Each entry is an
+ * `[expression, result]` pair evaluated in priority order, where `expression`
+ * is a Cesium styling-language string (`${attr}` references feature attributes)
+ * and `result` is the value applied when the expression is the first to match.
+ * A trailing `["true", <default>]` entry supplies the fallback.
+ *
+ * This is shaped EXACTLY as a CesiumJS `Cesium3DTileStyle` `color`/`show`
+ * block, so a spec can be handed straight to `new Cesium3DTileStyle({ ... })`.
+ */
+export interface Honua3DStyleConditions {
+  readonly conditions: ReadonlyArray<readonly [string, string]>;
+}
+
+/**
+ * The attribute-driven 3D-Tiles styling contract the Honua server emits as a
+ * `style.json` sidecar next to `tileset.json` (honua-server#1206). The server
+ * advertises it in the tileset's root `extras.honua_style`; the `style.color`
+ * / `style.show` blocks are pre-shaped for `Cesium3DTileStyle`.
+ *
+ * `style.color` and `style.show` are each optional — when a block is omitted
+ * the corresponding aspect of the Cesium style is left untouched.
+ */
+export interface Honua3DStyleSpec {
+  readonly encoding: "3d-tiles-styling";
+  readonly version: string;
+  readonly defaultMaterial?: {
+    readonly color?: string;
+    readonly opacity?: number;
+  };
+  readonly style: {
+    readonly color?: Honua3DStyleConditions;
+    readonly show?: Honua3DStyleConditions;
+  };
+}
+
+/**
+ * The descriptor the server places at `extras.honua_style` on the tileset.json
+ * root to advertise its styling sidecar. `uri` is RELATIVE to the tileset.json
+ * URL and is resolved against the tileset's base URL before fetching.
+ */
+export interface Honua3DStyleDescriptor {
+  readonly encoding: "3d-tiles-styling";
+  readonly version: string;
+  readonly uri: string;
+}
+
+/**
+ * Read the `honua_style` descriptor off a tileset's (or tileset.json's)
+ * `extras`, if present and well-formed. Returns `undefined` when the tileset
+ * carries no Honua styling metadata (the common case for plain tilesets), so
+ * the auto-apply path can no-op silently.
+ */
+export function readHonua3DStyleDescriptor(extras: unknown): Honua3DStyleDescriptor | undefined {
+  if (extras === null || typeof extras !== "object") return undefined;
+  const candidate = (extras as { honua_style?: unknown }).honua_style;
+  if (candidate === null || typeof candidate !== "object") return undefined;
+  const descriptor = candidate as { encoding?: unknown; version?: unknown; uri?: unknown };
+  if (descriptor.encoding !== "3d-tiles-styling") return undefined;
+  if (typeof descriptor.uri !== "string" || descriptor.uri.trim() === "") return undefined;
+  return {
+    encoding: "3d-tiles-styling",
+    version: typeof descriptor.version === "string" ? descriptor.version : "1.0",
+    uri: descriptor.uri,
+  };
+}
+
+/**
+ * Resolve a sidecar `uri` (relative, per the contract) against the
+ * `tileset.json` URL it was advertised in. Falls back to returning the raw
+ * `uri` unchanged when `tilesetUrl` is not a parseable absolute/base URL (e.g.
+ * a bare relative path in a test), which keeps a plain `fetch` workable.
+ */
+export function resolveHonua3DStyleUri(uri: string, tilesetUrl: string): string {
+  try {
+    return new URL(uri, tilesetUrl).toString();
+  } catch {
+    return uri;
+  }
+}
+
+/**
+ * Fetch + parse the `style.json` sidecar at `styleUrl`.
+ *
+ * The sidecar is a STATIC asset served next to `tileset.json` (not a Honua API
+ * call), so it is fetched with a plain global `fetch` rather than routed
+ * through the SDK's authenticated request path — this keeps the styling module
+ * free of a client dependency and mirrors how Cesium itself loads tileset
+ * assets. A custom `fetchImpl` can be injected (tests pass a mock).
+ */
+export async function fetchHonua3DStyleSpec(
+  styleUrl: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Honua3DStyleSpec> {
+  const response = await fetchImpl(styleUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Honua 3D style "${styleUrl}": ${response.status} ${response.statusText}`);
+  }
+  return (await response.json()) as Honua3DStyleSpec;
+}
+
+/**
+ * Discover and load the Honua 3D styling spec advertised by a tileset.
+ *
+ * Reads `extras.honua_style` (off either a loaded `Cesium3DTileset` or a parsed
+ * tileset.json `extras` object), resolves the sidecar `uri` against
+ * `tilesetUrl`, and fetches the `style.json`. Returns `undefined` when the
+ * tileset advertises no Honua styling, so callers can treat "no style" as a
+ * silent no-op rather than an error.
+ */
+export async function loadHonua3DStyle(
+  extras: unknown,
+  tilesetUrl: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Honua3DStyleSpec | undefined> {
+  const descriptor = readHonua3DStyleDescriptor(extras);
+  if (!descriptor) return undefined;
+  const styleUrl = resolveHonua3DStyleUri(descriptor.uri, tilesetUrl);
+  return fetchHonua3DStyleSpec(styleUrl, fetchImpl);
+}
+
+/**
+ * Build a Cesium `Cesium3DTileStyle` options object from a spec, including only
+ * the blocks (`color` / `show`) that are present. The spec's blocks are already
+ * `Cesium3DTileStyle`-shaped, so they are passed through verbatim. Pure (no
+ * Cesium import) so the block-selection logic is unit-testable.
+ */
+export function honua3DStyleToCesiumStyleOptions(spec: Honua3DStyleSpec): Record<string, unknown> {
+  const options: Record<string, unknown> = {};
+  if (spec.style.color) options.color = spec.style.color;
+  if (spec.style.show) options.show = spec.style.show;
+  return options;
+}
+
+/**
+ * Apply a Honua 3D styling spec to a tileset by constructing a
+ * `Cesium3DTileStyle` (only from the present `color` / `show` blocks) and
+ * assigning it to `tileset.style`. Lazily loads Cesium the same way the rest of
+ * the adapter does, so no static `import("cesium")` leaks into the 2D bundle.
+ *
+ * When the spec carries neither a `color` nor a `show` block, the tileset's
+ * `style` is left untouched (nothing to apply).
+ */
+export async function applyHonua3DStyle(
+  tileset: CesiumTilesetLike,
+  spec: Honua3DStyleSpec,
+  cesium?: CesiumModule,
+): Promise<void> {
+  const options = honua3DStyleToCesiumStyleOptions(spec);
+  if (Object.keys(options).length === 0) return;
+  const mod = cesium ?? (await loadCesium());
+  tileset.style = new mod.Cesium3DTileStyle(options);
+}
+
+/**
+ * Programmatic override for a tileset's styling: apply a (typically
+ * server-discovered, but possibly hand-authored) {@link Honua3DStyleSpec} to a
+ * live tileset. Thin alias over {@link applyHonua3DStyle} that reads as an
+ * intentional manual set at the call site.
+ */
+export function setTilesetStyle(
+  tileset: CesiumTilesetLike,
+  spec: Honua3DStyleSpec,
+  cesium?: CesiumModule,
+): Promise<void> {
+  return applyHonua3DStyle(tileset, spec, cesium);
+}
+
+/**
+ * Discover and apply the server's attribute-driven styling to an already-loaded
+ * tileset, if it advertises any (`extras.honua_style`). Returns the applied
+ * spec (or `undefined` when the tileset carries no Honua styling). Used by
+ * {@link addCesium3DTileset}'s auto-apply path and exposed for callers that
+ * load a tileset themselves.
+ */
+export async function applyTilesetServerStyle(
+  tileset: CesiumTilesetLike,
+  tilesetUrl: string,
+  cesium?: CesiumModule,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Honua3DStyleSpec | undefined> {
+  const spec = await loadHonua3DStyle(tileset.extras, tilesetUrl, fetchImpl);
+  if (!spec) return undefined;
+  await applyHonua3DStyle(tileset, spec, cesium);
+  return spec;
+}
+
+/**
+ * Options controlling {@link addCesium3DTileset}.
+ */
+export interface AddCesium3DTilesetOptions {
+  /**
+   * When `true` (the default), a tileset that advertises Honua styling metadata
+   * (`extras.honua_style`) has its `style.json` sidecar fetched and applied
+   * automatically after the tileset loads. Set to `false` to add the tileset
+   * unstyled (e.g. to apply a custom style via {@link setTilesetStyle}).
+   */
+  readonly applyServerStyle?: boolean;
+  /**
+   * Override the `fetch` used to load the styling sidecar. Defaults to the
+   * global `fetch`. Primarily a test seam.
+   */
+  readonly fetchImpl?: typeof fetch;
+}
+
+/**
  * Materialize a 3D-Tiles tileset from a model-layer primitive and add it to the
  * scene's primitive collection, returning a handle for later visibility /
  * teardown. Exported so consumers (and tests) can drive a single tileset.
+ *
+ * If the loaded tileset advertises the server's attribute-driven styling
+ * contract (`extras.honua_style`, honua-server#1206) the sidecar style is
+ * fetched and applied automatically (honua-server#1206). Pass
+ * `{ applyServerStyle: false }` to skip that and style the tileset manually via
+ * {@link setTilesetStyle}. A tileset without `honua_style` is added unchanged
+ * (no fetch), so existing callers are unaffected.
  */
 export async function addCesium3DTileset(
   scene: CesiumSceneLike,
   primitive: SceneModelLayerPrimitive,
   cesium?: CesiumModule,
+  options: AddCesium3DTilesetOptions = {},
 ): Promise<CesiumLayerHandle> {
   const mod = cesium ?? (await loadCesium());
   const tileset = await mod.Cesium3DTileset.fromUrl(primitive.uri);
   if (primitive.position) {
     tileset.modelMatrix = placementToModelMatrix(mod, modelLayerToCesiumPlacement(primitive));
+  }
+  if (options.applyServerStyle !== false) {
+    await applyTilesetServerStyle(tileset, primitive.uri, mod, options.fetchImpl ?? fetch);
   }
   scene.primitives.add(tileset);
   return makeLayerHandle(scene, primitive.id, tileset, "model-layer", primitive.format);
