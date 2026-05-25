@@ -117,7 +117,7 @@ export interface HonuaQueryPackage extends HonuaStudioPackageBase {
 export interface HonuaAnalysisPackage extends HonuaStudioPackageBase {
   readonly format: HonuaAnalysisPackageFormat;
   readonly sourcePackageId?: string;
-  readonly analysisKind: string;
+  readonly analysisKind?: string;
   readonly parameters?: Record<string, unknown>;
   readonly resultBindings?: readonly HonuaStudioBindingRef[];
 }
@@ -215,7 +215,7 @@ export interface HonuaGPParameterSpec {
  */
 export interface HonuaGPPackage extends HonuaStudioPackageBase {
   readonly format: HonuaGPPackageFormat;
-  readonly processId: string;
+  readonly processId?: string;
   readonly inputs?: readonly HonuaGPParameterSpec[];
   readonly outputs?: readonly HonuaGPParameterSpec[];
 }
