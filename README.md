@@ -173,6 +173,7 @@ tables, and backwards-compatibility policy live in:
 - [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md) — what each protocol supports
 - [`docs/sdk-surface-alignment.md`](./docs/sdk-surface-alignment.md) — cross-language naming & semver policy
 - [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage()` / `HonuaMapRuntime`
+- [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/sdk-js/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
 - [`INSTALL.md`](./INSTALL.md) — install + subpath entrypoint table
 
@@ -189,8 +190,8 @@ tables, and backwards-compatibility policy live in:
     `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`.
   - **Experimental** (subpath-only — not re-exported from the root barrels):
     `/app`, `/app-controller`, `/app-workspace`, `/scene-workspace`, `/collaboration`,
-    `/control-plane`, `/generated-app`, `/agent-tools`, `/realtime`, `/web-components`,
-    `/operator`, `/operator/*`.
+    `/control-plane`, `/generated-app`, `/studio`, `/agent-tools`, `/realtime`,
+    `/web-components`, `/operator`, `/operator/*`.
 
 ## More guides
 

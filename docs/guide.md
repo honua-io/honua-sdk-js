@@ -185,6 +185,7 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
 - Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`
+- Studio package-family projections, validation/preview envelopes, capability manifest, and publish/share/embed contracts (MCP/QGIS-safe): `@honua/sdk-js/studio` — see [`docs/studio-package-contracts.md`](./studio-package-contracts.md)
 
 The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export for compatibility. Surfaces documented
 as subpath-only, including `@honua/sdk-js/generated-app`, should be imported from their named subpath.
