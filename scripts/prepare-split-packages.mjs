@@ -54,6 +54,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   copyDirectory(path.join(DIST_SRC_ROOT, "generated-app"), path.join(packageRoot, "generated-app"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "studio"), path.join(packageRoot, "studio"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
   copyDirectory(path.join(DIST_SRC_ROOT, "app-controller"), path.join(packageRoot, "app-controller"));
   copyDirectory(path.join(DIST_SRC_ROOT, "app-workspace"), path.join(packageRoot, "app-workspace"));
@@ -105,6 +106,10 @@ function createSdkPackage() {
       "./generated-app": {
         types: "./generated-app/index.d.ts",
         default: "./generated-app/index.js",
+      },
+      "./studio": {
+        types: "./studio/index.d.ts",
+        default: "./studio/index.js",
       },
       "./operator": {
         types: "./operator/index.d.ts",

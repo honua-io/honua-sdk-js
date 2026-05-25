@@ -119,6 +119,7 @@ import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import { defineHonuaWebComponents } from "@honua/sdk/web-components";
 import { projectBuildSpecToGeneratedAppManifest } from "@honua/sdk/generated-app";
+import { HONUA_QUERY_PACKAGE_FORMAT_V1, toStudioValidationResponse } from "@honua/sdk/studio";
 import { OPERATOR_EXECUTION_OUTPUT_KEY } from "@honua/sdk/operator";
 import { ChatController } from "@honua/sdk/operator/controllers";
 import { OperatorWorkspace } from "@honua/sdk/operator/workspace";
@@ -289,6 +290,10 @@ if (typeof defineHonuaWebComponents !== "function")
   throw new Error("defineHonuaWebComponents export missing from @honua/sdk/web-components");
 if (typeof projectBuildSpecToGeneratedAppManifest !== "function")
   throw new Error("projectBuildSpecToGeneratedAppManifest export missing from @honua/sdk/generated-app");
+if (HONUA_QUERY_PACKAGE_FORMAT_V1 !== "honua_query_package.v1")
+  throw new Error("HONUA_QUERY_PACKAGE_FORMAT_V1 export missing from @honua/sdk/studio");
+if (typeof toStudioValidationResponse !== "function")
+  throw new Error("toStudioValidationResponse export missing from @honua/sdk/studio");
 if (OPERATOR_EXECUTION_OUTPUT_KEY !== "result")
   throw new Error("OPERATOR_EXECUTION_OUTPUT_KEY export missing from @honua/sdk/operator");
 if (typeof ChatController !== "function")

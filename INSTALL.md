@@ -43,6 +43,7 @@ default-barrel import never pulls them in.
 | `@honua/sdk-js/collaboration` | Saved-map collaboration client |
 | `@honua/sdk-js/control-plane` | Hosted-product / admin client |
 | `@honua/sdk-js/generated-app` | Manifest projection + preview runtime for generated apps |
+| `@honua/sdk-js/studio` | Studio package-family projections, validation/preview envelopes, capability manifest, publish/share/embed contracts (MCP/QGIS-safe) |
 | `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions (MCP/OpenAI compatible) |
 | `@honua/sdk-js/realtime` | Realtime transport adapters (SSE, future WS/WebTransport) |
 | `@honua/sdk-js/web-components` | Framework-neutral custom elements |
