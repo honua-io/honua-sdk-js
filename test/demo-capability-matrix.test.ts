@@ -30,6 +30,7 @@ const requiredCapabilities = [
   "Edits",
   "Style/runtime",
   "Generated app preview runtime",
+  "Studio package contracts",
   "Webmap conversion",
   "Geocoding",
   "Telemetry/diagnostics",
