@@ -54,6 +54,41 @@ export type {
   CesiumSceneRuntimeTarget,
   CesiumTilesetLike,
 } from "./cesium-adapter.js";
+export {
+  buildElevationProfilePath,
+  buildLineOfSightBody,
+  buildViewshedBody,
+  formatMeasurementLabel,
+  haversineMeters,
+  measureScenePositions,
+  pathLengthMeters,
+  positionsToWktLineString,
+  renderElevationProfilePolyline,
+  renderLineOfSight,
+  renderMeasurement,
+  renderViewshed,
+  requestElevationProfile,
+  requestLineOfSight,
+  requestViewshed,
+  slantDistanceMeters,
+  sphericalPolygonAreaSquareMeters,
+} from "./analysis-widgets.js";
+export type {
+  CesiumEntityCollectionLike,
+  ElevationProfileRequest,
+  ElevationProfileResult,
+  ElevationProfileSample,
+  LineOfSightRequest,
+  LineOfSightResult,
+  SceneAnalysisCesiumModule,
+  SceneAnalysisOverlay,
+  SceneAnalysisPosition,
+  SceneAnalysisRequestExecutor,
+  SceneMeasurement,
+  ViewshedRequest,
+  ViewshedResult,
+  ViewshedSample,
+} from "./analysis-widgets.js";
 export { SCENE_WORKSPACE_SLICES } from "./types.js";
 export type {
   MapLibreExtrusionLayerSpecification,
