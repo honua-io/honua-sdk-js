@@ -386,10 +386,13 @@ export async function addCesiumModel(
 ): Promise<CesiumLayerHandle> {
   const mod = cesium ?? (await loadCesium());
   const placement = modelLayerToCesiumPlacement(primitive);
+  // `placementToModelMatrix` already folds the uniform scale into the model
+  // matrix (alongside translation + rotation). Cesium applies `Model.scale` on
+  // top of `modelMatrix`, so passing it here too would square the scale
+  // (requested 3 → rendered 9). Apply it exactly once, via the matrix.
   const model = await mod.Model.fromGltfAsync({
     url: primitive.uri,
     modelMatrix: placementToModelMatrix(mod, placement),
-    scale: placement.scale,
   });
   scene.primitives.add(model);
   return makeLayerHandle(scene, primitive.id, model, "model-layer", primitive.format);
@@ -425,6 +428,11 @@ export async function applyCesiumTerrain(
       /* terrain is always on once set; visibility is a no-op for the provider. */
     },
     remove() {
+      // Only tear down if *this* handle's provider is still the active one. If a
+      // newer elevation source has since replaced `scene.terrainProvider`,
+      // removing this (now-stale) handle must be a no-op so we don't clobber the
+      // active terrain/exaggeration.
+      if (scene.terrainProvider !== provider) return;
       scene.terrainProvider = undefined;
       scene.verticalExaggeration = 1;
     },

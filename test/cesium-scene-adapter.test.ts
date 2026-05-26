@@ -55,6 +55,7 @@ import {
   type SceneRuntimePrimitive,
   applyCameraStateToCesiumCamera,
   applyCesiumScenePrimitives,
+  applyCesiumTerrain,
   cameraStateToCesiumView,
   cesiumCameraToSceneState,
   createCesiumSceneAdapter,
@@ -344,6 +345,49 @@ describe("cesium scene adapter", () => {
       expect(scene.verticalExaggeration).toBe(1);
     });
 
+    it("ignores a stale terrain handle's remove() once a newer provider replaced it", async () => {
+      const scene = createMockCesiumScene();
+      // Each `CesiumTerrainProvider.fromUrl` call returns a distinct provider.
+      const cesium = (await import("cesium")) as never;
+
+      const first = await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "terrain-a",
+          sourceId: "terrain-a",
+          protocol: "quantized-mesh",
+          url: "https://example.test/terrain-a",
+          exaggeration: 2,
+        },
+        cesium,
+      );
+      const firstProvider = scene.terrainProvider;
+
+      // A newer elevation source replaces the active provider + exaggeration.
+      await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "terrain-b",
+          sourceId: "terrain-b",
+          protocol: "quantized-mesh",
+          url: "https://example.test/terrain-b",
+          exaggeration: 3,
+        },
+        cesium,
+      );
+      const secondProvider = scene.terrainProvider;
+      expect(secondProvider).not.toBe(firstProvider);
+      expect(scene.verticalExaggeration).toBe(3);
+
+      // Removing the now-stale first handle must be a no-op: the newer provider
+      // and its exaggeration stay active.
+      first?.remove();
+      expect(scene.terrainProvider).toBe(secondProvider);
+      expect(scene.verticalExaggeration).toBe(3);
+    });
+
     it("sets exaggeration but skips the provider when terrain url is absent", async () => {
       const camera = createMockCesiumCamera();
       const scene = createMockCesiumScene();
@@ -379,9 +423,12 @@ describe("cesium scene adapter", () => {
       ]);
 
       expect(modelFromGltfAsync).toHaveBeenCalledTimes(1);
-      const call = modelFromGltfAsync.mock.calls[0]?.[0] as { url: string; scale: number; modelMatrix: unknown };
+      const call = modelFromGltfAsync.mock.calls[0]?.[0] as { url: string; scale?: number; modelMatrix: unknown };
       expect(call.url).toBe("https://example.test/turbine.glb");
-      expect(call.scale).toBe(3);
+      // Scale must be applied EXACTLY once. Cesium multiplies `Model.scale` on
+      // top of `modelMatrix`, so the scale lives in the matrix only and the
+      // `scale` option must be absent (otherwise a requested 3 renders as 9).
+      expect(call.scale).toBeUndefined();
       // A non-unit scale folds a uniform-scale matrix into the fixed frame.
       expect(call.modelMatrix).toMatchObject({ kind: "scaled", scale: 3 });
       expect(scene.added).toHaveLength(1);
