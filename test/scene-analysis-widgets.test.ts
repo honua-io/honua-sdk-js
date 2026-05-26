@@ -137,6 +137,30 @@ describe("scene analysis: client-side geometry", () => {
     expect(sphericalPolygonAreaSquareMeters([HONOLULU, DIAMOND_HEAD])).toBe(0);
   });
 
+  it("normalizes longitude deltas across the antimeridian (no area inflation)", () => {
+    // A ~1 km square straddling the ±180° antimeridian (0.009° wide). Without
+    // longitude-delta normalization, the 179.9955 → -179.9955 edge reads as
+    // ~-359.99° instead of +0.009°, inflating the area ~40000x.
+    const ring: SceneAnalysisPosition[] = [
+      { longitude: 179.9955, latitude: 0 },
+      { longitude: -179.9955, latitude: 0 },
+      { longitude: -179.9955, latitude: 0.009 },
+      { longitude: 179.9955, latitude: 0.009 },
+    ];
+    const area = sphericalPolygonAreaSquareMeters(ring);
+    expect(area).toBeGreaterThan(800_000);
+    expect(area).toBeLessThan(1_200_000);
+
+    // It must match the identical square placed away from the antimeridian.
+    const equivalent: SceneAnalysisPosition[] = [
+      { longitude: 0, latitude: 0 },
+      { longitude: 0.009, latitude: 0 },
+      { longitude: 0.009, latitude: 0.009 },
+      { longitude: 0, latitude: 0.009 },
+    ];
+    expect(area).toBeCloseTo(sphericalPolygonAreaSquareMeters(equivalent), 3);
+  });
+
   it("serializes positions to a 2D WKT LINESTRING (lon lat, height dropped)", () => {
     expect(positionsToWktLineString([HONOLULU, DIAMOND_HEAD])).toBe(
       "LINESTRING (-157.8583 21.3069, -157.8036 21.2619)",

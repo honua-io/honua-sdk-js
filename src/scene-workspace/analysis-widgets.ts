@@ -133,10 +133,24 @@ export function sphericalPolygonAreaSquareMeters(positions: readonly SceneAnalys
   for (let i = 0; i < n; i++) {
     const p1 = positions[i] as SceneAnalysisPosition;
     const p2 = positions[(i + 1) % n] as SceneAnalysisPosition;
-    total +=
-      (p2.longitude - p1.longitude) * DEG2RAD * (2 + Math.sin(p1.latitude * DEG2RAD) + Math.sin(p2.latitude * DEG2RAD));
+    // Normalize the longitude delta into [-180, 180] so edges crossing the
+    // antimeridian use the short arc: e.g. 179.9 → -179.9 must read as +0.2°,
+    // not -359.8°, otherwise the area is inflated by orders of magnitude.
+    const dLon = normalizeLongitudeDeltaDegrees(p2.longitude - p1.longitude);
+    total += dLon * DEG2RAD * (2 + Math.sin(p1.latitude * DEG2RAD) + Math.sin(p2.latitude * DEG2RAD));
   }
   return Math.abs((total * EARTH_RADIUS_METERS * EARTH_RADIUS_METERS) / 2);
+}
+
+/**
+ * Wrap a longitude difference (degrees) into `(-180, 180]` so polygon edges that
+ * cross the ±180° antimeridian are integrated along the short arc. Pure.
+ */
+function normalizeLongitudeDeltaDegrees(deltaDegrees: number): number {
+  let d = deltaDegrees % 360;
+  if (d > 180) d -= 360;
+  else if (d <= -180) d += 360;
+  return d;
 }
 
 /**
