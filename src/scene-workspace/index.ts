@@ -29,17 +29,30 @@ export {
 } from "./primitives.js";
 export {
   CESIUM_SCENE_CAPABILITIES,
+  addCesium3DTileset,
+  addCesiumModel,
   applyCameraStateToCesiumCamera,
   applyCesiumScenePrimitives,
+  applyCesiumTerrain,
   cameraStateToCesiumView,
   cesiumCameraToSceneState,
   createCesiumSceneAdapter,
+  modelLayerToCesiumPlacement,
+  pickCesiumFeatureAttributes,
+  resolveCesiumModelScale,
+  resolvePickedFeatureAttributes,
 } from "./cesium-adapter.js";
 export type {
   CesiumCameraLike,
   CesiumCameraView,
   CesiumHeadingPitchRollRadians,
+  CesiumLayerHandle,
+  CesiumModelLike,
+  CesiumModelPlacement,
+  CesiumPrimitiveCollectionLike,
+  CesiumSceneLike,
   CesiumSceneRuntimeTarget,
+  CesiumTilesetLike,
 } from "./cesium-adapter.js";
 export { SCENE_WORKSPACE_SLICES } from "./types.js";
 export type {

@@ -1,29 +1,69 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Cesium needs a WebGL context that is unavailable headless, and a real
-// `Cartesian3` is opaque ECEF geometry. Mock only the tiny surface the adapter
-// touches lazily (`Cartesian3.fromDegrees`) so `apply()` stays a fast, pure
-// wiring test. The 2D bundle never loads this module — see the static-import
-// guard test below.
+// `Cartesian3` / model matrix is opaque ECEF geometry. Mock only the surface the
+// adapter touches lazily (`Cartesian3.fromDegrees`, the model-matrix helpers,
+// and the async layer factories) so `apply()` stays a fast, pure wiring test.
+// The 2D bundle never loads this module — see the static-import guard test.
+const tilesetFromUrl = vi.fn(async (url: string) => ({ kind: "tileset", url, show: true, modelMatrix: undefined }));
+const modelFromGltfAsync = vi.fn(async (options: Record<string, unknown>) => ({
+  kind: "model",
+  url: options.url,
+  modelMatrix: options.modelMatrix,
+  scale: options.scale,
+  show: true,
+}));
+const terrainFromUrl = vi.fn(async (url: string) => ({ kind: "terrain-provider", url }));
+
 vi.mock("cesium", () => ({
   Cartesian3: {
-    fromDegrees: (longitude: number, latitude: number, height: number) => ({ longitude, latitude, height }),
+    fromDegrees: (longitude: number, latitude: number, height?: number) => ({ longitude, latitude, height }),
+  },
+  HeadingPitchRoll: class {
+    constructor(
+      public heading = 0,
+      public pitch = 0,
+      public roll = 0,
+    ) {}
+  },
+  Transforms: {
+    headingPitchRollToFixedFrame: (origin: unknown, hpr: unknown) => ({ kind: "frame", origin, hpr }),
+  },
+  Matrix4: {
+    multiplyByUniformScale: (matrix: unknown, scale: number) => ({ kind: "scaled", matrix, scale }),
+    clone: (matrix: unknown) => matrix,
+  },
+  Cesium3DTileset: {
+    fromUrl: (url: string) => tilesetFromUrl(url),
+  },
+  Model: {
+    fromGltfAsync: (options: Record<string, unknown>) => modelFromGltfAsync(options),
+  },
+  CesiumTerrainProvider: {
+    fromUrl: (url: string) => terrainFromUrl(url),
   },
 }));
 
 import {
   CESIUM_SCENE_CAPABILITIES,
   type CesiumCameraLike,
+  type CesiumSceneLike,
   type SceneCameraState,
   type SceneRuntimePrimitive,
   applyCameraStateToCesiumCamera,
+  applyCesiumScenePrimitives,
+  applyCesiumTerrain,
   cameraStateToCesiumView,
   cesiumCameraToSceneState,
   createCesiumSceneAdapter,
   createSceneWorkspace,
+  modelLayerToCesiumPlacement,
+  pickCesiumFeatureAttributes,
+  resolveCesiumModelScale,
+  resolvePickedFeatureAttributes,
 } from "../src/scene-workspace/index.js";
 
 const DEG2RAD = Math.PI / 180;
@@ -71,6 +111,41 @@ function createMockCesiumCamera(): CesiumCameraLike & {
     },
     setView,
   };
+}
+
+/**
+ * A pure-JS stand-in for the slice of Cesium's `Scene` the adapter mutates: a
+ * primitive collection (tracking adds/removes), a settable `terrainProvider`,
+ * `verticalExaggeration`, and an injectable `pick`. No WebGL required.
+ */
+function createMockCesiumScene(pickResult: unknown = undefined): CesiumSceneLike & {
+  added: unknown[];
+  pick: ReturnType<typeof vi.fn>;
+} {
+  const added: unknown[] = [];
+  const pick = vi.fn(() => pickResult);
+  const scene: CesiumSceneLike & { added: unknown[]; pick: ReturnType<typeof vi.fn> } = {
+    added,
+    verticalExaggeration: 1,
+    terrainProvider: undefined,
+    primitives: {
+      add(primitive: unknown) {
+        added.push(primitive);
+        return primitive;
+      },
+      remove(primitive?: unknown) {
+        const index = added.indexOf(primitive);
+        if (index === -1) return false;
+        added.splice(index, 1);
+        return true;
+      },
+      contains(primitive?: unknown) {
+        return added.includes(primitive);
+      },
+    },
+    pick,
+  };
+  return scene;
 }
 
 describe("cesium scene adapter", () => {
@@ -197,6 +272,221 @@ describe("cesium scene adapter", () => {
   it("omits apply() when no live Cesium target is provided", () => {
     const adapter = createCesiumSceneAdapter();
     expect(adapter.apply).toBeUndefined();
+  });
+
+  describe("3D layer rendering (#1197)", () => {
+    beforeEach(() => {
+      tilesetFromUrl.mockClear();
+      modelFromGltfAsync.mockClear();
+      terrainFromUrl.mockClear();
+    });
+
+    it("loads a 3D-Tiles tileset, adds it to the scene, and toggles visibility", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera, scene }, [
+        {
+          kind: "model-layer",
+          id: "city-tiles",
+          uri: "https://example.test/tileset.json",
+          format: "3d-tiles",
+        },
+      ]);
+
+      expect(tilesetFromUrl).toHaveBeenCalledWith("https://example.test/tileset.json");
+      expect(scene.added).toHaveLength(1);
+      expect(result.status).toBe("supported");
+
+      const handle = result.layers.get("city-tiles");
+      expect(handle?.kind).toBe("model-layer");
+      expect(handle?.format).toBe("3d-tiles");
+
+      const tileset = scene.added[0] as { show: boolean };
+      handle?.setVisible(false);
+      expect(tileset.show).toBe(false);
+      handle?.setVisible(true);
+      expect(tileset.show).toBe(true);
+    });
+
+    it("removes a tileset from the scene via its handle", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera, scene }, [
+        { kind: "model-layer", id: "city-tiles", uri: "https://example.test/tileset.json", format: "3d-tiles" },
+      ]);
+
+      expect(scene.added).toHaveLength(1);
+      result.layers.get("city-tiles")?.remove();
+      expect(scene.added).toHaveLength(0);
+    });
+
+    it("wires a quantized-mesh terrain provider and honors exaggeration", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera, scene }, [
+        {
+          kind: "elevation-source",
+          id: "world-terrain",
+          sourceId: "world-terrain",
+          protocol: "quantized-mesh",
+          url: "https://example.test/terrain",
+          exaggeration: 2.5,
+        },
+      ]);
+
+      expect(terrainFromUrl).toHaveBeenCalledWith("https://example.test/terrain");
+      expect(scene.terrainProvider).toMatchObject({ kind: "terrain-provider" });
+      expect(scene.verticalExaggeration).toBe(2.5);
+      expect(result.layers.has("world-terrain")).toBe(true);
+
+      // Removing the terrain handle resets the globe back to a flat ellipsoid.
+      result.layers.get("world-terrain")?.remove();
+      expect(scene.terrainProvider).toBeUndefined();
+      expect(scene.verticalExaggeration).toBe(1);
+    });
+
+    it("ignores a stale terrain handle's remove() once a newer provider replaced it", async () => {
+      const scene = createMockCesiumScene();
+      // Each `CesiumTerrainProvider.fromUrl` call returns a distinct provider.
+      const cesium = (await import("cesium")) as never;
+
+      const first = await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "terrain-a",
+          sourceId: "terrain-a",
+          protocol: "quantized-mesh",
+          url: "https://example.test/terrain-a",
+          exaggeration: 2,
+        },
+        cesium,
+      );
+      const firstProvider = scene.terrainProvider;
+
+      // A newer elevation source replaces the active provider + exaggeration.
+      await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "terrain-b",
+          sourceId: "terrain-b",
+          protocol: "quantized-mesh",
+          url: "https://example.test/terrain-b",
+          exaggeration: 3,
+        },
+        cesium,
+      );
+      const secondProvider = scene.terrainProvider;
+      expect(secondProvider).not.toBe(firstProvider);
+      expect(scene.verticalExaggeration).toBe(3);
+
+      // Removing the now-stale first handle must be a no-op: the newer provider
+      // and its exaggeration stay active.
+      first?.remove();
+      expect(scene.terrainProvider).toBe(secondProvider);
+      expect(scene.verticalExaggeration).toBe(3);
+    });
+
+    it("sets exaggeration but skips the provider when terrain url is absent", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera, scene }, [
+        {
+          kind: "elevation-source",
+          id: "terrain-no-url",
+          sourceId: "terrain-no-url",
+          protocol: "quantized-mesh",
+          exaggeration: 1.5,
+        },
+      ]);
+
+      expect(terrainFromUrl).not.toHaveBeenCalled();
+      expect(scene.terrainProvider).toBeUndefined();
+      expect(scene.verticalExaggeration).toBe(1.5);
+      expect(result.layers.has("terrain-no-url")).toBe(false);
+    });
+
+    it("places a glTF model at its position/rotation/scale", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera, scene }, [
+        {
+          kind: "model-layer",
+          id: "turbine",
+          uri: "https://example.test/turbine.glb",
+          format: "glb",
+          position: [-122.4, 37.8, 50],
+          rotation: [90, 0, 0],
+          scale: 3,
+        },
+      ]);
+
+      expect(modelFromGltfAsync).toHaveBeenCalledTimes(1);
+      const call = modelFromGltfAsync.mock.calls[0]?.[0] as { url: string; scale?: number; modelMatrix: unknown };
+      expect(call.url).toBe("https://example.test/turbine.glb");
+      // Scale must be applied EXACTLY once. Cesium multiplies `Model.scale` on
+      // top of `modelMatrix`, so the scale lives in the matrix only and the
+      // `scale` option must be absent (otherwise a requested 3 renders as 9).
+      expect(call.scale).toBeUndefined();
+      // A non-unit scale folds a uniform-scale matrix into the fixed frame.
+      expect(call.modelMatrix).toMatchObject({ kind: "scaled", scale: 3 });
+      expect(scene.added).toHaveLength(1);
+      expect(result.layers.get("turbine")?.kind).toBe("model-layer");
+    });
+
+    it("maps a model-layer primitive to a placement with radian orientation", () => {
+      const placement = modelLayerToCesiumPlacement({
+        kind: "model-layer",
+        id: "m",
+        uri: "x",
+        format: "gltf",
+        position: [10, 20, 5],
+        rotation: [180, -90, 45],
+        scale: [2, 2, 2],
+      });
+      expect(placement.position).toEqual({ longitude: 10, latitude: 20, height: 5 });
+      expect(placement.orientation.heading).toBeCloseTo(Math.PI, 12);
+      expect(placement.orientation.pitch).toBeCloseTo(-Math.PI / 2, 12);
+      expect(placement.scale).toBe(2);
+    });
+
+    it("collapses scale variants to a positive uniform factor (default 1)", () => {
+      expect(resolveCesiumModelScale(4)).toBe(4);
+      expect(resolveCesiumModelScale([5, 1, 1])).toBe(5);
+      expect(resolveCesiumModelScale(undefined)).toBe(1);
+      expect(resolveCesiumModelScale(0)).toBe(1);
+      expect(resolveCesiumModelScale(Number.NaN)).toBe(1);
+    });
+
+    it("skips layer rendering when the target has no scene (camera-only)", async () => {
+      const camera = createMockCesiumCamera();
+      const result = await applyCesiumScenePrimitives({ camera }, [
+        { kind: "model-layer", id: "city-tiles", uri: "https://example.test/tileset.json", format: "3d-tiles" },
+      ]);
+      expect(tilesetFromUrl).not.toHaveBeenCalled();
+      expect(result.layers.size).toBe(0);
+    });
+
+    it("resolves a picked 3D-Tiles feature's batch/structural-metadata attributes", () => {
+      const feature = {
+        getPropertyIds: () => ["name", "height"],
+        getProperty: (name: string) => (name === "name" ? "Town Hall" : 42),
+      };
+      const scene = createMockCesiumScene(feature);
+      const attributes = pickCesiumFeatureAttributes(scene, { x: 100, y: 200 });
+      expect(attributes).toEqual({ name: "Town Hall", height: 42 });
+      expect(scene.pick).toHaveBeenCalledWith({ x: 100, y: 200 });
+    });
+
+    it("returns undefined for picks that are not 3D-Tiles features", () => {
+      expect(resolvePickedFeatureAttributes(undefined)).toBeUndefined();
+      expect(resolvePickedFeatureAttributes(null)).toBeUndefined();
+      // A glTF model `Model` pick has no batch-property accessors.
+      expect(resolvePickedFeatureAttributes({ primitive: {} })).toBeUndefined();
+      const scene = createMockCesiumScene(undefined);
+      expect(pickCesiumFeatureAttributes(scene, { x: 0, y: 0 })).toBeUndefined();
+    });
   });
 
   it("does not statically import Cesium from the scene-workspace sources", () => {
