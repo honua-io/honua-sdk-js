@@ -12,6 +12,6 @@
     "verbatimModuleSyntax": true,
     "noEmitOnError": true
   },
-  "include": ["src", "test"],
+  "include": ["src", "test", "bench"],
   "exclude": ["test/fixtures"]
 }
