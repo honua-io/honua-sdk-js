@@ -89,14 +89,13 @@ export function findQueryResultDrift(expected: ExpectedQueryResult, actual: Resu
     });
   }
 
-  if (
-    expected.totalCount !== undefined &&
-    actual.totalCount !== undefined &&
-    actual.totalCount !== expected.totalCount
-  ) {
+  if (expected.totalCount !== undefined && actual.totalCount !== expected.totalCount) {
     findings.push({
       kind: "total-count",
-      message: `totalCount drift: golden expects ${expected.totalCount} but live returned ${actual.totalCount}`,
+      message:
+        actual.totalCount === undefined
+          ? `totalCount drift: golden declares ${expected.totalCount} but live response omitted totalCount`
+          : `totalCount drift: golden expects ${expected.totalCount} but live returned ${actual.totalCount}`,
     });
   }
 
