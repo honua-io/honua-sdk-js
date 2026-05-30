@@ -45,6 +45,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "control-plane"), path.join(packageRoot, "control-plane"));
   copyDirectory(path.join(DIST_SRC_ROOT, "collaboration"), path.join(packageRoot, "collaboration"));
   copyDirectory(path.join(DIST_SRC_ROOT, "console"), path.join(packageRoot, "console"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "share"), path.join(packageRoot, "share"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
   copyDirectory(path.join(DIST_SRC_ROOT, "app"), path.join(packageRoot, "app"));
@@ -96,6 +97,10 @@ function createSdkPackage() {
       "./console": {
         types: "./console/index.d.ts",
         default: "./console/index.js",
+      },
+      "./share": {
+        types: "./share/index.d.ts",
+        default: "./share/index.js",
       },
       "./agent-tools": {
         types: "./agent-tools/index.d.ts",
