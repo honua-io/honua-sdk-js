@@ -49,6 +49,7 @@ Run from the repo root unless noted. These are copied from `package.json` / CI; 
 - **Format:** `npm run format` / `npm run format:fix`
 - **Unit tests:** `npm test` (`vitest run`); coverage: `npm run test:coverage`
 - **Integration tests:** `npm run test:integration` (`vitest.integration.config.ts`)
+- **Contract conformance:** `npm run test:conformance` (`vitest.conformance.config.ts`) — round-trips the shared, versioned geospatial-grpc fixtures through the real `HonuaClient` against a pinned `honua-server:nightly` and fails on `Dataset`/`Source`/`Query`/`Result` drift. Double-gated on `HONUA_INTEGRATION_BASE_URL` + `HONUA_CONFORMANCE_FIXTURES_DIR`; explicit no-op otherwise. Pull fixtures with `conformance/fetch-fixtures.sh --version <X.Y.Z>`. See `conformance/README.md`.
 - **Staging / cloud-demo tests:** `npm run test:quickstart:staging`, `npm run test:cloud-demo:staging`
 - **Browser smoke (all):** `npm run test:playwright` (builds first, installs kepler deps, runs Playwright)
 - **Split-package build/verify:** `npm run build:split-packages` / `npm run verify:split-packages`

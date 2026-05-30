@@ -41,6 +41,7 @@ const META_FIXTURE = {
   serverReleaseChannel: "preview",
   serverImage: undefined,
   serverCommit: undefined,
+  conformanceFixturesVersion: undefined,
   baseUrl: "http://localhost:5555",
   seedProfile: "places-roads-v1",
   serviceId: "test_service_gw0",

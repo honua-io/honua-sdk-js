@@ -1,0 +1,112 @@
+# SDK contract conformance
+
+This directory wires `@honua/sdk-js` into the **Compatibility Train**
+(geospatial-grpc#18): every consumer SDK continuously round-trips the shared,
+versioned `geospatial-grpc` conformance fixtures through the real
+`HonuaClient` against a **pinned `honua-server:nightly`** and fails CI on any
+drift in the protocol-neutral `Dataset` → `Source` → `Query` → `Result`
+contract.
+
+This is the gate that would have caught honua-server#1238 — a server-side
+FeatureServer/OGC projection change that altered the on-the-wire response shape
+and surfaced as production failures because nothing verified that real clients
+still parsed those payloads.
+
+## What lives here
+
+- `fetch-fixtures.sh` — the **committed helper** (delivered in
+  geospatial-grpc#19) that SDK CI uses to pull a pinned fixture version. It
+  downloads the release asset `conformance-fixtures-<version>.tar.gz` (+
+  `.sha256`) from the `v<version>` GitHub Release of `honua-io/geospatial-grpc`,
+  verifies the tarball SHA-256, extracts it, re-verifies every file against the
+  in-tarball `SHA256SUMS`, asserts the embedded `VERSION` equals the requested
+  pin, and leaves `fixtures/` (+ `manifest.txt`), `golden/`, `run.sh`, and
+  `VERSION` in `--dest` (default `./conformance-fixtures-<version>/`).
+
+  ```bash
+  conformance/fetch-fixtures.sh --version 0.1.0-alpha.1 [--dest DIR] [--repo honua-io/geospatial-grpc]
+  ```
+
+The fixtures themselves are **not vendored** — they are pulled at CI time so a
+fixture set always maps 1:1 to a `geospatial.v1` schema release (REQ-003).
+
+## The conformance lane
+
+- Test code: `test/conformance/`
+  - `fixtures.ts` — loads/validates a fetched bundle (manifest, VERSION pin).
+  - `mapping.ts` — translates the canonical `geospatial.v1` fixtures into the
+    protocol-neutral `Query` and derives the expected `Result` contract from
+    the golden. This is the only place that knows the `geospatial.v1` field
+    names; golden drift changes the derived expectations.
+  - `assert.ts` — pure drift detector: live `Result` vs golden-derived
+    expectations (field names + types, geometry, attribute coverage,
+    `exceededTransferLimit`, `totalCount`).
+  - `harness.ts` — bridges the fixtures to a live `Dataset`/`Source`, reusing
+    the integration lane's connect-only config, diagnostics, and reporter.
+  - `feature-service.conformance.ts` — live round-trip for the `feature_query`
+    workflow (FeatureServer + OGC Features — the #1238 regression class).
+  - `known-gaps.conformance.ts` — KNOWN-EXPECTED-FAILING scenarios gated on
+    tracked server defects (see below).
+  - `drift-detection.test.ts` — the **effectiveness guardrail**: a negative
+    test (runs in the normal unit lane, no server needed) proving a mutated
+    golden is caught. This keeps the gate from being trivially always-green.
+- Config: `vitest.conformance.config.ts`; run with `npm run test:conformance`.
+- CI: the `conformance` job in `.github/workflows/integration.yml`.
+
+### Running locally
+
+```bash
+# 1. pull the pinned fixtures
+conformance/fetch-fixtures.sh --version 0.1.0-alpha.1 --dest ./conformance-fixtures
+
+# 2. point the lane at a live, seeded honua-server and the fixtures
+export HONUA_INTEGRATION_BASE_URL=http://localhost:5555
+export HONUA_INTEGRATION_API_KEY=...          # matches the server admin password
+export HONUA_CONFORMANCE_FIXTURES_DIR=$PWD/conformance-fixtures
+export HONUA_CONFORMANCE_FIXTURES_VERSION=0.1.0-alpha.1
+
+npm run test:conformance
+```
+
+When `HONUA_INTEGRATION_BASE_URL` or `HONUA_CONFORMANCE_FIXTURES_DIR` is unset
+the lane degrades to an explicit, labelled no-op (`describe.skip`) — forks and
+unconfigured pushes never report a false green.
+
+## Pinned server image
+
+The lane is **connect-only**: like the integration lane it does not own server
+bootstrap (the seed/admin-seed image is the honua-sdk-js#39 follow-on). It
+pins and records the server under test into `test-results/integration-meta.json`:
+
+| Field | Value |
+| --- | --- |
+| Image | `ghcr.io/honua-io/honua-server:nightly-86042bd` |
+| Server commit | `86042bd` (nightly 2026-05-30) |
+| Digest | `sha256:080d7e87f7b1e4c36a917adddb567bfe7148d47e7d2d016480fb4e39187515db` |
+| Fixtures version | `0.1.0-alpha.1` |
+
+The pin is set in `.github/workflows/integration.yml` (`CONFORMANCE_SERVER_IMAGE`
+/ `CONFORMANCE_SERVER_COMMIT` / `CONFORMANCE_FIXTURES_VERSION`) and overridable
+via repo variables. Advancing the pin is a deliberate, reviewable change.
+
+## Known, already-tracked server gaps (xfail)
+
+These scenarios are wired but gated on tracked server-side defects. They are
+registered as explicit `describe.skip` suites (KNOWN-EXPECTED-FAILING) that
+record the surface as skipped **with the tracking issue** in the run metadata —
+never a silent skip and never a blanket `continue-on-error`. The JOB stays
+green and the harness stays in place, while any NEW / untracked drift still
+FAILS (new drift surfaces in the live suites, not here). When a gap lands in
+the server, flip the corresponding `knownGapConformanceSuite` to a live
+`conformanceSuite` so the scenario becomes required.
+
+| Surface | Tracking issue |
+| --- | --- |
+| FeatureServer/OGC JSONB attribute projection | honua-server#1238 |
+| Temporal as-of / history | honua-server#1166 |
+| Replica extract / sync | honua-server#1167 |
+| Analysis list / estimate | honua-server#1237 |
+
+The baseline `feature_query` shape IS covered live (geoservices + OGC) in
+`feature-service.conformance.ts`; only the JSONB-typed projection sub-case of
+#1238 is gated.
