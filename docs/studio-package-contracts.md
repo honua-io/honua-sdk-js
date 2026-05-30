@@ -170,6 +170,14 @@ re-exported from the root barrels), so it is outside the SDK semver contract
 until the matching server contracts land. The format constants follow the
 `HONUA_X_PACKAGE_FORMAT_V1 = "honua_x_package.v1"` pattern.
 
+## Cross-surface parity (MCP / QGIS)
+
+The parity layer that makes packages portable across Console, MCP, and QGIS —
+a shared `provenance` envelope, a family-agnostic `validateStudioPackage`
+helper, a documented Vega-Lite chart subset, and cross-surface fixtures — is
+documented in [`studio-package-parity.md`](./studio-package-parity.md)
+(`honua-sdk-js#226`).
+
 ## Open questions (pending server contracts)
 
 These are tracked for follow-up once the server shapes are finalized:

@@ -1,0 +1,52 @@
+{
+  "id": "app-pkg-mcp-004",
+  "version": "1.2.0",
+  "assets": [
+    { "id": "manifest", "kind": "manifest", "mediaType": "application/json" },
+    { "id": "map", "kind": "map-package", "url": "honua://packages/pkg-map-mcp-001" }
+  ],
+  "manifest_artifact": {
+    "artifactKind": "honua.generated-app.manifest",
+    "artifactVersion": 1,
+    "createdAt": "2026-05-23T10:00:00Z",
+    "source": "mcp",
+    "manifest": {
+      "format": "honua_generated_app_manifest.v1",
+      "profile": "operations-dashboard.v1",
+      "appId": "app-pkg-mcp-004",
+      "title": "Field operations app",
+      "version": "1.2.0",
+      "data": { "sourceId": "assets", "previewLimit": 250 },
+      "mapPackageId": "pkg-map-mcp-001",
+      "layout": {
+        "kind": "operations-dashboard",
+        "widgets": [
+          { "id": "map", "kind": "map", "sourceId": "assets" },
+          { "id": "list", "kind": "list", "sourceId": "assets", "titleField": "name", "subtitleField": "status" }
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "format": "honua_package_provenance.v1",
+    "origin": "mcp",
+    "packageId": "app-pkg-mcp-004",
+    "generatedAt": "2026-05-23T10:00:00Z",
+    "generator": "honua-mcp@1.4.0",
+    "prompt": {
+      "text": "Make a field operations app with a map and an asset list",
+      "surface": "mcp"
+    },
+    "plan": {
+      "steps": [
+        { "id": "scaffold", "kind": "app-scaffold", "summary": "Scaffold map + list app", "status": "succeeded" }
+      ]
+    },
+    "dataBindings": [
+      { "sourceId": "assets", "role": "primary" }
+    ],
+    "permissions": [
+      { "scope": "source:read", "resource": "assets", "clientSide": true }
+    ]
+  }
+}

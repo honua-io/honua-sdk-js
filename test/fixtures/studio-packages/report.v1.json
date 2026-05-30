@@ -1,0 +1,38 @@
+{
+  "packageId": "pkg-report-mcp-003",
+  "format": "honua_report_package.v1",
+  "status": "Ready",
+  "title": "Quarterly flood exposure report",
+  "templateId": "standard-report.v1",
+  "mapPackageId": "pkg-map-mcp-001",
+  "sections": [
+    { "id": "summary", "kind": "text", "title": "Executive summary" },
+    { "id": "exposure-map", "kind": "map", "title": "Exposure map" },
+    { "id": "by-zone", "kind": "chart", "title": "Parcels by flood zone" }
+  ],
+  "provenance": {
+    "format": "honua_package_provenance.v1",
+    "origin": "mcp",
+    "packageId": "pkg-report-mcp-003",
+    "generatedAt": "2026-05-22T16:00:00Z",
+    "generator": "honua-mcp@1.4.0",
+    "prompt": {
+      "text": "Generate a quarterly flood exposure report with a map and a chart of parcels by zone",
+      "surface": "mcp"
+    },
+    "plan": {
+      "steps": [
+        { "id": "outline", "kind": "report-outline", "summary": "Outline summary, map, chart sections", "status": "succeeded" }
+      ]
+    },
+    "dataBindings": [
+      { "sourceId": "flood-zones", "protocol": "ogc_features", "role": "primary" },
+      { "sourceId": "parcels", "protocol": "ogc_features", "role": "secondary" }
+    ],
+    "permissions": [
+      { "scope": "source:read", "resource": "flood-zones", "clientSide": true },
+      { "scope": "source:read", "resource": "parcels", "clientSide": true },
+      { "scope": "report:render", "resource": "pkg-report-mcp-003", "clientSide": false, "description": "PDF rendering runs server-side" }
+    ]
+  }
+}

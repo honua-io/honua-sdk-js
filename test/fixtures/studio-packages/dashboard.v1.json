@@ -1,0 +1,44 @@
+{
+  "format": "honua_generated_app_manifest.v1",
+  "profile": "operations-dashboard.v1",
+  "appId": "app-dash-qgis-002",
+  "title": "Active incidents dashboard",
+  "version": "1.0.0",
+  "data": { "sourceId": "incidents", "previewLimit": 500 },
+  "mapPackageId": "pkg-map-mcp-001",
+  "layout": {
+    "kind": "operations-dashboard",
+    "widgets": [
+      { "id": "map", "kind": "map", "sourceId": "incidents", "showLegend": true },
+      { "id": "by-status", "kind": "chart", "chartKind": "categories", "title": "Incidents by status", "sourceId": "incidents", "groupBy": "status" },
+      { "id": "over-time", "kind": "chart", "chartKind": "time-series", "title": "Incidents over time", "sourceId": "incidents", "field": "reported_at", "interval": "day" },
+      { "id": "total", "kind": "count", "label": "Total incidents", "sourceId": "incidents" }
+    ]
+  },
+  "bindings": { "sourceId": "incidents", "primaryKey": "id", "titleField": "name", "categoryField": "status" },
+  "provenance": {
+    "format": "honua_package_provenance.v1",
+    "origin": "qgis",
+    "packageId": "app-dash-qgis-002",
+    "generatedAt": "2026-05-21T09:30:00Z",
+    "generator": "qgis-plugin@0.3.1",
+    "prompt": {
+      "text": "Build an operations dashboard for active incidents with a status chart and a daily trend",
+      "surface": "qgis"
+    },
+    "plan": {
+      "rationale": "Map plus categorical and temporal charts cover status mix and trend.",
+      "steps": [
+        { "id": "bind", "kind": "source-binding", "summary": "Bind incidents source", "status": "succeeded" },
+        { "id": "charts", "kind": "chart-derivation", "summary": "Derive status and trend charts", "status": "succeeded" }
+      ]
+    },
+    "dataBindings": [
+      { "sourceId": "incidents", "role": "primary" }
+    ],
+    "permissions": [
+      { "scope": "source:read", "resource": "incidents", "clientSide": true },
+      { "scope": "aggregate:client", "resource": "incidents", "clientSide": true }
+    ]
+  }
+}
