@@ -1,0 +1,49 @@
+{
+  "mapPackageId": "pkg-map-mcp-001",
+  "format": "honua_map_package.v1",
+  "status": "Ready",
+  "title": "Honolulu flood zones",
+  "createdAt": "2026-05-20T12:00:00Z",
+  "updatedAt": "2026-05-20T12:00:00Z",
+  "sourceBindings": [
+    {
+      "sourceId": "flood-zones",
+      "protocol": "ogc_features",
+      "locator": { "url": "https://example.test/collections/flood-zones" }
+    }
+  ],
+  "mapSpec": {
+    "version": 8,
+    "sources": {
+      "flood-zones": { "type": "geojson", "data": { "type": "FeatureCollection", "features": [] } }
+    },
+    "layers": [
+      { "id": "flood-fill", "type": "fill", "source": "flood-zones", "paint": { "fill-color": "#1d6fb8", "fill-opacity": 0.4 } }
+    ]
+  },
+  "initialView": { "center": [-157.86, 21.31], "zoom": 11 },
+  "provenance": {
+    "format": "honua_package_provenance.v1",
+    "origin": "mcp",
+    "packageId": "pkg-map-mcp-001",
+    "generatedAt": "2026-05-20T12:00:00Z",
+    "generator": "honua-mcp@1.4.0",
+    "prompt": {
+      "text": "Map the flood zones for Honolulu",
+      "surface": "mcp",
+      "model": "claude-opus-4"
+    },
+    "plan": {
+      "steps": [
+        { "id": "discover", "kind": "source-discovery", "summary": "Resolve flood-zones collection", "status": "succeeded" },
+        { "id": "compose", "kind": "map-compose", "summary": "Compose fill layer", "status": "succeeded" }
+      ]
+    },
+    "dataBindings": [
+      { "sourceId": "flood-zones", "protocol": "ogc_features", "role": "primary", "layerId": "flood-fill" }
+    ],
+    "permissions": [
+      { "scope": "source:read", "resource": "flood-zones", "clientSide": true }
+    ]
+  }
+}

@@ -64,6 +64,30 @@ export type {
   StudioPreviewArtifactRef,
 } from "./validation.js";
 
+export { validatePackageProvenance, validateStudioPackage } from "./validate.js";
+export type { ValidateStudioPackageOptions } from "./validate.js";
+
+export { HONUA_PACKAGE_PROVENANCE_FORMAT_V1, getPackageProvenance } from "./provenance.js";
+export type {
+  HonuaPackageOrigin,
+  HonuaPackagePermission,
+  HonuaPackageProvenance,
+  HonuaPackageProvenanceFormat,
+  HonuaPlanProvenance,
+  HonuaPlanStep,
+  HonuaPromptProvenance,
+  HonuaProvenanceDataBinding,
+} from "./provenance.js";
+
+export { HONUA_VEGA_LITE_SCHEMA_V5, chartWidgetToVegaLiteSpec } from "./chart-spec.js";
+export type {
+  HonuaChartEncoding,
+  HonuaChartEncodingChannel,
+  HonuaChartFieldType,
+  HonuaChartMark,
+  HonuaVegaLiteChartSpec,
+} from "./chart-spec.js";
+
 export { getCapability, hasCapability } from "./capability-manifest.js";
 export type {
   StudioCapabilityConstraint,
