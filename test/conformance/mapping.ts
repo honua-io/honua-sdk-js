@@ -152,6 +152,29 @@ const CANON_FIELD_TYPE_TO_ESRI: Record<string, string> = {
   FIELD_TYPE_OID: "esriFieldTypeOID",
 };
 
+/**
+ * The canonical set of `EsriFieldType` strings the SDK contract recognises
+ * (mirrors the named members of `EsriFieldType` in `src/core/types.ts`; that
+ * union is open-ended via `(string & {})`, so there is no runtime enum to
+ * import). The live projection check flags any on-the-wire field type outside
+ * this set as drift.
+ */
+export const VALID_ESRI_FIELD_TYPES: ReadonlySet<string> = new Set<string>([
+  "esriFieldTypeString",
+  "esriFieldTypeInteger",
+  "esriFieldTypeSmallInteger",
+  "esriFieldTypeDouble",
+  "esriFieldTypeSingle",
+  "esriFieldTypeDate",
+  "esriFieldTypeOID",
+  "esriFieldTypeGeometry",
+  "esriFieldTypeBlob",
+  "esriFieldTypeRaster",
+  "esriFieldTypeGUID",
+  "esriFieldTypeGlobalID",
+  "esriFieldTypeXML",
+]);
+
 /** Map a geospatial.v1 field type to its canonical SDK EsriFieldType. */
 export function canonFieldTypeToEsri(fieldType: string): string {
   const mapped = CANON_FIELD_TYPE_TO_ESRI[fieldType];

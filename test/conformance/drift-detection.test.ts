@@ -19,10 +19,11 @@
 
 import type { Result } from "@honua/sdk-js/contract";
 import { describe, expect, it } from "vitest";
-import { findQueryResultDrift, formatDriftFindings } from "./assert.js";
+import { findLiveProjectionDrift, findQueryResultDrift, formatDriftFindings } from "./assert.js";
 import {
   type CanonQueryRequest,
   type CanonQueryResponse,
+  VALID_ESRI_FIELD_TYPES,
   canonRequestToQuery,
   goldenToExpectedQueryResult,
 } from "./mapping.js";
@@ -144,5 +145,66 @@ describe("conformance gate effectiveness (negative drift detection)", () => {
     mutated.totalCount = 5;
     const drift = findQueryResultDrift(expected, mutated);
     expect(drift.some((d) => d.kind === "total-count")).toBe(true);
+  });
+});
+
+describe("live projection conformance (seed-independent)", () => {
+  // A live result whose names differ from the golden's seed but whose
+  // PROJECTION SHAPE is conformant: field schema present, canonical field
+  // types, geometry present, >= golden attribute count, boolean transfer flag.
+  function liveResult(): Result {
+    return {
+      features: [
+        {
+          attributes: { objectid: 1, name: "Generic Seed Park", area: 123.4 },
+          geometry: { x: 0, y: 0 },
+        },
+      ],
+      exceededTransferLimit: false,
+      fields: [
+        { name: "objectid", type: "esriFieldTypeOID" },
+        { name: "name", type: "esriFieldTypeString" },
+        { name: "area", type: "esriFieldTypeDouble" },
+      ],
+    };
+  }
+
+  it("reports zero drift for a conformant live Result with different seed names", () => {
+    const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
+    const drift = findLiveProjectionDrift(expected, liveResult(), VALID_ESRI_FIELD_TYPES);
+    expect(drift, formatDriftFindings("feature_query/live", drift)).toEqual([]);
+  });
+
+  it("FAILS when a live field type is not a canonical SDK type (enum/projection drift)", () => {
+    const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
+    const mutated = liveResult();
+    mutated.fields = mutated.fields?.map((f) => (f.name === "area" ? { ...f, type: "esriFieldTypeJsonb" } : f));
+    const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
+    expect(drift.some((d) => d.kind === "field-type")).toBe(true);
+  });
+
+  it("FAILS when the live response drops a projection column below the golden count (#1238 class)", () => {
+    const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
+    const mutated = liveResult();
+    // Golden projects 2 attributes (NAME, AREA); drop the live feature to 1.
+    mutated.features = [{ attributes: { objectid: 1 }, geometry: { x: 0, y: 0 } }];
+    const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
+    expect(drift.some((d) => d.kind === "missing-attribute")).toBe(true);
+  });
+
+  it("FAILS when the live response drops the fields[] schema entirely", () => {
+    const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
+    const mutated = liveResult();
+    mutated.fields = [];
+    const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
+    expect(drift.some((d) => d.kind === "missing-field")).toBe(true);
+  });
+
+  it("FAILS when a live feature drops geometry that was requested", () => {
+    const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
+    const mutated = liveResult();
+    mutated.features = [{ attributes: { objectid: 1, name: "x", area: 1 }, geometry: null }];
+    const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
+    expect(drift.some((d) => d.kind === "geometry")).toBe(true);
   });
 });

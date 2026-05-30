@@ -22,24 +22,43 @@
 
 import type { Query, Result } from "@honua/sdk-js/contract";
 import { expect, it } from "vitest";
-import { findQueryResultDrift, formatDriftFindings } from "./assert.js";
+import { findLiveProjectionDrift, formatDriftFindings } from "./assert.js";
 import { conformanceSuite, runWithDiagnostics } from "./harness.js";
 import {
   type CanonQueryRequest,
   type CanonQueryResponse,
+  VALID_ESRI_FIELD_TYPES,
   canonRequestToQuery,
   goldenToExpectedQueryResult,
 } from "./mapping.js";
 
+// The golden fixture's field/attribute *names* are tied to its own seed
+// (sf-parks); the pinned honua-server:nightly seed the job connects to is
+// generic. So the live suite asserts the seed-independent PROJECTION SHAPE the
+// golden commits to — the exact class honua-server#1238 broke: a field schema
+// is present, every on-the-wire field type is a canonical SDK type, geometry
+// is present when requested, the attribute count is not reduced below the
+// golden's, and exceededTransferLimit is a boolean. Literal-name golden-vs-
+// actual comparison is covered (with both sides controlled) by the negative
+// unit test in drift-detection.test.ts.
 conformanceSuite<CanonQueryRequest, CanonQueryResponse>(
   "FeatureService query",
   "feature-server",
   "feature_query",
   ({ context, config, fixture, source }) => {
-    const query: Query = canonRequestToQuery(fixture.request);
+    // Preserve the canonical request's structural intent (returnGeometry,
+    // outSr, pagination) but make the predicate seed-agnostic: the golden's
+    // where/outFields name sf-parks columns, while the pinned server seed is
+    // generic. We assert the projection SHAPE, not the seed's specific rows.
+    const canonicalQuery = canonRequestToQuery(fixture.request);
+    const query: Query = {
+      ...canonicalQuery,
+      where: "1=1",
+      outFields: ["*"],
+    };
     const expected = goldenToExpectedQueryResult(fixture.golden);
 
-    it("GeoServices FeatureServer Result conforms to the golden contract", async () => {
+    it("GeoServices FeatureServer Result conforms to the golden projection shape", async () => {
       const fs = source("geoservices-feature-service", {
         url: config.baseUrl,
         serviceId: config.serviceId,
@@ -50,11 +69,11 @@ conformanceSuite<CanonQueryRequest, CanonQueryResponse>(
       );
       // The seed must return at least one feature so the shape is observable.
       expect(result.features.length).toBeGreaterThan(0);
-      const drift = findQueryResultDrift(expected, result);
+      const drift = findLiveProjectionDrift(expected, result, VALID_ESRI_FIELD_TYPES);
       expect(drift, formatDriftFindings("feature_query/geoservices", drift)).toEqual([]);
     });
 
-    it("OGC API Features Result conforms to the golden contract", async () => {
+    it("OGC API Features Result conforms to the golden projection shape", async () => {
       const ogc = source("ogc-features", {
         url: config.baseUrl,
         collectionId: config.collectionId,
@@ -63,11 +82,10 @@ conformanceSuite<CanonQueryRequest, CanonQueryResponse>(
         ogc.query(query),
       );
       expect(result.features.length).toBeGreaterThan(0);
-      // OGC Features carries geometry + attributes; assert the golden
-      // attribute coverage and geometry presence hold on the wire. Field
-      // schema is GeoServices-specific, so OGC checks the feature shape.
+      // OGC Features does not carry an Esri-style fields[] schema, so check the
+      // feature-level projection shape (geometry presence + attribute count).
       const ogcExpected = { ...expected, fields: [] };
-      const drift = findQueryResultDrift(ogcExpected, result);
+      const drift = findLiveProjectionDrift(ogcExpected, result, VALID_ESRI_FIELD_TYPES);
       expect(drift, formatDriftFindings("feature_query/ogc-features", drift)).toEqual([]);
     });
   },
