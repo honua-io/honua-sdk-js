@@ -86,6 +86,10 @@
       "types": "./dist/src/replica-sync/index.d.ts",
       "default": "./dist/src/replica-sync/index.js"
     },
+    "./share": {
+      "types": "./dist/src/share/index.d.ts",
+      "default": "./dist/src/share/index.js"
+    },
     "./exploration": {
       "types": "./dist/src/exploration/index.d.ts",
       "default": "./dist/src/exploration/index.js"

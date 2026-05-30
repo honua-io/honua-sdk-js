@@ -73,6 +73,10 @@ import {
   createHonuaSavedMapCollaboration,
 } from "@honua/sdk/collaboration";
 import {
+  parseEmbedTokenFromFragment,
+  toDcatDataset,
+} from "@honua/sdk/share";
+import {
   CAPABILITIES,
   PROTOCOLS,
   createDataset,
@@ -231,6 +235,10 @@ if (typeof createHonuaSavedMapCollaboration !== "function")
   throw new Error("createHonuaSavedMapCollaboration export missing from @honua/sdk/collaboration");
 if (typeof createFixtureSavedMapCollaborationTransport !== "function")
   throw new Error("createFixtureSavedMapCollaborationTransport export missing from @honua/sdk/collaboration");
+if (typeof parseEmbedTokenFromFragment !== "function" || typeof toDcatDataset !== "function")
+  throw new Error("share contract exports missing from @honua/sdk/share");
+if (parseEmbedTokenFromFragment("https://app.example/embed?embed_token=leaked").ok)
+  throw new Error("share embed-token helper accepted a query-string bearer token");
 if (!Array.isArray(HONUA_AGENT_TOOL_NAMES) || !HONUA_AGENT_TOOL_NAMES.includes("explainCapabilityGap"))
   throw new Error("agent tool exports missing from @honua/sdk/agent-tools");
 if (explainHonuaCapabilityGap({ protocol: "wmts", capability: "query" }).supported)
