@@ -82,6 +82,10 @@
       "types": "./dist/src/console/index.d.ts",
       "default": "./dist/src/console/index.js"
     },
+    "./replica-sync": {
+      "types": "./dist/src/replica-sync/index.d.ts",
+      "default": "./dist/src/replica-sync/index.js"
+    },
     "./exploration": {
       "types": "./dist/src/exploration/index.d.ts",
       "default": "./dist/src/exploration/index.js"
