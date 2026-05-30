@@ -1,0 +1,236 @@
+{
+  "schemaVersion": "honua.temporal.v1",
+  "capability": {
+    "sourceId": "parcels",
+    "resourceId": "cadastre/parcels",
+    "layerId": 0,
+    "mode": "rollback",
+    "historyModel": "system_versioned",
+    "stableFeatureIdField": "parcel_uid",
+    "validFromField": "valid_from",
+    "validToField": "valid_to",
+    "transactionIdField": "txn_id",
+    "actorField": "edited_by",
+    "operationIdField": "operation_id",
+    "geometryHistorySupported": true,
+    "attributeHistorySupported": true,
+    "rollbackSupported": true,
+    "retentionPolicyId": "retain-7y",
+    "schemaEvolutionPolicy": "additive-only",
+    "minimumSnapshotGranularity": "PT1H",
+    "maxDiffWindow": "P90D",
+    "changeTrackingSupported": true
+  },
+  "checkpoints": [
+    {
+      "checkpointId": "cp-release-2026-05-23",
+      "sourceId": "parcels",
+      "resourceId": "cadastre/parcels",
+      "cursorType": "release",
+      "cursorValue": "2026-05-23.4",
+      "label": "before release 2026-05-23.4",
+      "createdAt": "2026-05-23T18:00:00Z",
+      "createdBy": "ci@honua.io",
+      "operationRef": "op-release-1842",
+      "metadataReleaseId": "rel-1842"
+    },
+    {
+      "checkpointId": "cp-job-018",
+      "sourceId": "parcels",
+      "resourceId": "cadastre/parcels",
+      "cursorType": "job",
+      "cursorValue": "018",
+      "label": "after parcel migration job 018",
+      "createdAt": "2026-05-24T02:14:00Z",
+      "jobRunId": "job-018"
+    },
+    {
+      "checkpointId": "cp-ts-2026-05-22T0000",
+      "sourceId": "parcels",
+      "resourceId": "cadastre/parcels",
+      "cursorType": "timestamp",
+      "cursorValue": "2026-05-22T00:00:00Z",
+      "label": "2026-05-22 14:00 HST"
+    }
+  ],
+  "asOf": {
+    "request": {
+      "sourceId": "parcels",
+      "cursor": { "checkpointId": "cp-ts-2026-05-22T0000" },
+      "where": "status = 'active'",
+      "outFields": ["parcel_uid", "owner", "status"],
+      "limit": 100
+    },
+    "revisions": [
+      {
+        "revisionId": "rev-1001",
+        "sourceId": "parcels",
+        "featureId": "parcel-42",
+        "validFrom": "2026-05-01T00:00:00Z",
+        "validTo": "2026-05-22T09:00:00Z",
+        "transactionTime": "2026-05-01T00:00:00Z",
+        "operation": "update",
+        "actorId": "u-7",
+        "actorDisplayName": "Lani K.",
+        "sourceClient": "qgis-plugin",
+        "reason": "owner correction",
+        "schemaVersion": "v3",
+        "geometryDigest": "g:9af1",
+        "attributeDigest": "a:11bc"
+      }
+    ]
+  },
+  "diff": {
+    "request": {
+      "sourceId": "parcels",
+      "from": { "checkpointId": "cp-release-2026-05-23" },
+      "to": { "checkpointId": "cp-job-018" },
+      "includeAttributeChanges": true,
+      "includeGeometryChanges": true,
+      "limit": 50
+    },
+    "response": {
+      "diffId": "diff-55aa",
+      "sourceId": "parcels",
+      "fromCheckpointId": "cp-release-2026-05-23",
+      "toCheckpointId": "cp-job-018",
+      "status": "successful",
+      "extent": { "xmin": -158.3, "ymin": 21.2, "xmax": -157.6, "ymax": 21.7, "spatialReference": { "wkid": 4326 } },
+      "summary": {
+        "addedFeatures": 12,
+        "removedFeatures": 3,
+        "updatedFeatures": 27,
+        "geometryChangedFeatures": 9,
+        "attributeChangedFeatures": 24,
+        "unchangedFeatures": 1840
+      },
+      "sampleFeatureChanges": [
+        {
+          "featureId": "parcel-42",
+          "changeType": "updated",
+          "fromRevisionId": "rev-1001",
+          "toRevisionId": "rev-1042",
+          "attributeChanges": [
+            { "field": "owner", "before": "K. Mahelona", "after": "Mahelona Trust" },
+            { "field": "ssn", "masked": true }
+          ],
+          "geometryChange": { "changed": true, "fromDigest": "g:9af1", "toDigest": "g:c027", "magnitude": 4.5 },
+          "actorIds": ["u-7"],
+          "operationRefs": ["op-release-1842"]
+        }
+      ],
+      "nextCursor": "diff-55aa:page-2",
+      "generatedAt": "2026-05-24T02:20:00Z",
+      "expiresAt": "2026-05-31T02:20:00Z"
+    }
+  },
+  "featureTimeline": {
+    "request": {
+      "sourceId": "parcels",
+      "featureId": "parcel-42",
+      "limit": 50
+    },
+    "response": {
+      "sourceId": "parcels",
+      "featureId": "parcel-42",
+      "revisions": [
+        {
+          "revisionId": "rev-1001",
+          "sourceId": "parcels",
+          "featureId": "parcel-42",
+          "validFrom": "2026-05-01T00:00:00Z",
+          "validTo": "2026-05-23T18:00:00Z",
+          "operation": "update",
+          "actorId": "u-7",
+          "actorDisplayName": "Lani K.",
+          "sourceClient": "qgis-plugin",
+          "reason": "owner correction"
+        },
+        {
+          "revisionId": "rev-1042",
+          "sourceId": "parcels",
+          "featureId": "parcel-42",
+          "validFrom": "2026-05-23T18:00:00Z",
+          "operation": "update",
+          "actorId": "job-018",
+          "sourceClient": "etl",
+          "jobRunId": "job-018",
+          "reason": "parcel migration"
+        }
+      ],
+      "changes": [
+        {
+          "featureId": "parcel-42",
+          "changeType": "updated",
+          "fromRevisionId": "rev-1001",
+          "toRevisionId": "rev-1042",
+          "geometryChange": { "changed": true, "fromDigest": "g:9af1", "toDigest": "g:c027" }
+        }
+      ]
+    }
+  },
+  "rollback": {
+    "planRequest": {
+      "sourceId": "parcels",
+      "targetScope": "feature",
+      "targetCheckpointId": "cp-release-2026-05-23",
+      "featureIds": ["parcel-42"],
+      "reason": "migration job 018 corrupted owner records"
+    },
+    "plan": {
+      "rollbackPlanId": "rbp-77",
+      "sourceId": "parcels",
+      "targetScope": "feature",
+      "targetCheckpointId": "cp-release-2026-05-23",
+      "currentCheckpointId": "cp-job-018",
+      "affectedFeatureCount": 1,
+      "validationFindings": [],
+      "compatibilityFindings": [],
+      "requiresJob": false,
+      "requiresApproval": true,
+      "rollbackMode": "data_revert",
+      "estimatedDuration": "PT2M",
+      "riskLevel": "medium"
+    },
+    "operation": {
+      "rollbackOperationId": "rbo-91",
+      "rollbackPlanId": "rbp-77",
+      "jobRunId": "job-rbo-91",
+      "status": "running",
+      "requestedBy": "u-3",
+      "approvedBy": "u-1",
+      "startedAt": "2026-05-24T03:00:00Z",
+      "auditEventIds": ["evt-5001"]
+    }
+  },
+  "errors": {
+    "unsupported-history": {
+      "code": "unsupported-history",
+      "message": "Source basemap-tiles does not retain temporal history."
+    },
+    "masked-fields": {
+      "code": "masked-fields",
+      "message": "Some fields were masked by policy.",
+      "maskedFields": ["ssn", "tax_id"]
+    },
+    "expired-retention": {
+      "code": "expired-retention",
+      "message": "Requested cursor is older than the retention window.",
+      "retentionExpiresAt": "2019-05-24T00:00:00Z"
+    },
+    "large-diff-job-required": {
+      "code": "large-diff-job-required",
+      "message": "Diff exceeds the synchronous window; follow the job reference.",
+      "job": { "jobRunId": "job-diff-1201", "status": "accepted" }
+    },
+    "rollback-blocked": {
+      "code": "rollback-blocked",
+      "message": "Rollback blocked: target checkpoint precedes a schema-breaking release."
+    },
+    "approval-required": {
+      "code": "approval-required",
+      "message": "Rollback requires approval before execution.",
+      "requiredApprovals": ["data-steward", "layer-owner"]
+    }
+  }
+}
