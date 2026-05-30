@@ -224,6 +224,12 @@ import {
   reduceRealtimeFeatureState,
 } from "../src/realtime/index.js";
 import {
+  HonuaReplicaSyncClient,
+  createFixtureReplicaSyncTransport,
+  createHonuaReplicaSync,
+  isUnsupportedReplicaSyncError,
+} from "../src/replica-sync/index.js";
+import {
   HonuaRuntimeDiagnosticError,
   validateRuntimeFilterExpression,
   validateRuntimeStyleExpression,
@@ -482,6 +488,13 @@ describe("entrypoint modules", () => {
     expect(emptyRealtimeFeatureState).toBeTypeOf("function");
     expect(reduceRealtimeFeatureState).toBeTypeOf("function");
     expect(createRealtimeFeatureStore).toBeTypeOf("function");
+  });
+
+  it("exposes the replica-sync entrypoint", () => {
+    expect(HonuaReplicaSyncClient).toBeTypeOf("function");
+    expect(createHonuaReplicaSync).toBeTypeOf("function");
+    expect(createFixtureReplicaSyncTransport).toBeTypeOf("function");
+    expect(isUnsupportedReplicaSyncError).toBeTypeOf("function");
   });
 
   it("exposes the runtime style and interaction helper entrypoint", () => {
