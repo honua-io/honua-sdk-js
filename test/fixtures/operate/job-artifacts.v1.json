@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/jobs/job-export-300/artifacts"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "etag": "\"job-300-artifacts-v1\"" },
+    "body": {
+      "items": [
+        {
+          "id": "artifact-export-geojson",
+          "jobId": "job-export-300",
+          "name": "parcels-export.geojson",
+          "contentType": "application/geo+json",
+          "sizeBytes": 4823211,
+          "createdAt": "2026-05-28T08:10:00Z",
+          "href": "/api/v1/operate/jobs/job-export-300/artifacts/artifact-export-geojson",
+          "checksum": "sha256:5b3f...e1a9"
+        },
+        {
+          "id": "artifact-export-report",
+          "jobId": "job-export-300",
+          "name": "export-report.json",
+          "contentType": "application/json",
+          "sizeBytes": 1842,
+          "createdAt": "2026-05-28T08:10:01Z",
+          "href": "/api/v1/operate/jobs/job-export-300/artifacts/artifact-export-report"
+        }
+      ],
+      "pagination": { "limit": 50, "total": 2 }
+    }
+  }
+}

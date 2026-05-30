@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/alerts/alert-disk-014"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "etag": "\"alert-disk-014-v3\"" },
+    "body": {
+      "id": "alert-disk-014",
+      "targetId": "server-eu",
+      "ruleId": "rule-disk-low",
+      "title": "Disk space low on server-eu",
+      "severity": "warning",
+      "status": "suppressed",
+      "firedAt": "2026-05-28T06:00:00Z",
+      "updatedAt": "2026-05-28T08:30:00Z",
+      "suppression": {
+        "reason": "Planned storage expansion in progress.",
+        "until": "2026-05-28T18:00:00Z",
+        "by": "ops@honua.io"
+      },
+      "delivery": { "state": "delivered", "channelId": "chan-email" },
+      "availableActions": ["unsuppress", "resolve"],
+      "links": { "self": "/api/v1/operate/alerts/alert-disk-014" }
+    }
+  }
+}

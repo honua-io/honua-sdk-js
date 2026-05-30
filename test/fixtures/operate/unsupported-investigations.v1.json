@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/operate/investigations"
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "title": "Investigation store not available",
+      "status": 404,
+      "detail": "No investigation store is provisioned for this deployment.",
+      "code": "capability_unavailable"
+    }
+  }
+}

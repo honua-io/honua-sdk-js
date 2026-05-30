@@ -61,6 +61,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "app-workspace"), path.join(packageRoot, "app-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
   copyDirectory(path.join(DIST_SRC_ROOT, "operator"), path.join(packageRoot, "operator"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "operate"), path.join(packageRoot, "operate"));
   copyDirectory(path.join(DIST_SRC_ROOT, "realtime"), path.join(packageRoot, "realtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "runtime"), path.join(packageRoot, "runtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "scene-workspace"), path.join(packageRoot, "scene-workspace"));
@@ -135,6 +136,10 @@ function createSdkPackage() {
       "./operator/i18n": {
         types: "./operator/i18n/index.d.ts",
         default: "./operator/i18n/index.js",
+      },
+      "./operate": {
+        types: "./operate/index.d.ts",
+        default: "./operate/index.js",
       },
       "./exploration": {
         types: "./exploration/index.d.ts",

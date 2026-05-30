@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/investigations/inv-outage-42"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "etag": "\"inv-42-v5\"" },
+    "body": {
+      "id": "inv-outage-42",
+      "title": "Tile service outage 2026-05-28",
+      "status": "investigating",
+      "summary": "Investigating elevated 5xx on the tile service starting 09:00Z.",
+      "targetId": "server-prod",
+      "createdAt": "2026-05-28T09:06:00Z",
+      "updatedAt": "2026-05-28T09:20:00Z",
+      "createdBy": "ops@honua.io",
+      "pinnedItemIds": ["alert-cpu-001"],
+      "timeline": [
+        { "id": "tl-1", "kind": "alert", "at": "2026-05-28T09:00:00Z", "summary": "CPU saturation alert fired", "refId": "alert-cpu-001", "pinned": true },
+        { "id": "tl-2", "kind": "note", "at": "2026-05-28T09:08:00Z", "summary": "Scaled tile workers from 4 to 8", "author": "ops@honua.io" },
+        { "id": "tl-3", "kind": "job", "at": "2026-05-28T09:12:00Z", "summary": "Tile bake retried", "refId": "job-tile-bake-101" }
+      ],
+      "links": { "self": "/api/v1/operate/investigations/inv-outage-42" }
+    }
+  }
+}

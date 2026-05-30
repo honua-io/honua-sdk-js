@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/alerts?limit=2&targetId=server-prod"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "etag": "\"alerts-v1\"",
+      "last-modified": "Thu, 28 May 2026 09:05:00 GMT"
+    },
+    "body": {
+      "items": [
+        {
+          "id": "alert-cpu-001",
+          "targetId": "server-prod",
+          "ruleId": "rule-cpu-sat",
+          "title": "CPU saturation on server-prod",
+          "description": "CPU usage above 95% for 5 minutes.",
+          "severity": "critical",
+          "status": "firing",
+          "firedAt": "2026-05-28T09:00:00Z",
+          "updatedAt": "2026-05-28T09:05:00Z",
+          "delivery": { "state": "delivered", "channelId": "chan-pagerduty", "attemptedAt": "2026-05-28T09:00:05Z" },
+          "availableActions": ["acknowledge", "resolve", "suppress", "escalate"],
+          "labels": { "service": "tiles", "region": "us-east" },
+          "links": { "self": "/api/v1/operate/alerts/alert-cpu-001", "rule": "/api/v1/operate/alert-rules/rule-cpu-sat" }
+        }
+      ],
+      "pagination": { "nextCursor": "cursor-alerts-2", "limit": 2, "total": 1 }
+    }
+  }
+}

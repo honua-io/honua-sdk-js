@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/jobs/job-import-200"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "id": "job-import-200",
+      "name": "Import: parcels-2026",
+      "type": "import",
+      "targetId": "server-prod",
+      "state": "failed",
+      "queuedAt": "2026-05-28T07:00:00Z",
+      "startedAt": "2026-05-28T07:00:05Z",
+      "finishedAt": "2026-05-28T07:04:12Z",
+      "durationMs": 247000,
+      "attempt": 1,
+      "maxAttempts": 3,
+      "availableActions": ["retry", "rerun"],
+      "problem": {
+        "title": "Import failed",
+        "status": 422,
+        "detail": "Row 8821 has an invalid geometry (self-intersection).",
+        "code": "invalid_geometry"
+      },
+      "stages": [
+        { "id": "fetch", "name": "Fetch", "state": "succeeded", "durationMs": 12000 },
+        { "id": "validate", "name": "Validate", "state": "failed", "durationMs": 235000, "message": "Invalid geometry at row 8821", "problem": { "code": "invalid_geometry", "status": 422 } }
+      ],
+      "links": { "self": "/api/v1/operate/jobs/job-import-200", "logs": "/api/v1/operate/jobs/job-import-200/logs" }
+    }
+  }
+}
