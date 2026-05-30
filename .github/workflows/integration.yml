@@ -22,17 +22,12 @@ on:
 
 env:
   NODE_VERSION: "20.19.0"
-  # Pinned geospatial-grpc conformance fixtures version (1:1 with a
-  # geospatial.v1 schema release). Bumping this is a deliberate, reviewable
-  # change — keep it in lock-step with the SDK pin in test/conformance/fixtures.ts.
-  CONFORMANCE_FIXTURES_VERSION: "0.1.0-alpha.1"
-  # Pinned honua-server:nightly image under test. The conformance lane is
-  # connect-only (it does not bootstrap the server — see honua-sdk-js#39), but
-  # records this pin into integration-meta.json so a run is reproducible and
-  # traceable. Pinned to the 2026-05-30 nightly (server commit 86042bd),
-  # digest sha256:080d7e87f7b1e4c36a917adddb567bfe7148d47e7d2d016480fb4e39187515db.
-  CONFORMANCE_SERVER_IMAGE: "ghcr.io/honua-io/honua-server:nightly-86042bd"
-  CONFORMANCE_SERVER_COMMIT: "86042bd"
+  # NOTE: the conformance server/fixtures pins are defined as literals in the
+  # `conformance` job's `env:` block below. They are intentionally NOT defined
+  # here at workflow level, because the job-level `env:` fallbacks (`vars.X ||
+  # <pin>`) cannot reference the `env` context — GitHub only exposes `env` to
+  # step-level expressions, so a workflow/job-level `env.CONFORMANCE_*`
+  # reference fails the run at startup with a "workflow file issue".
 
 jobs:
   integration-tests:
@@ -189,11 +184,19 @@ jobs:
       HONUA_INTEGRATION_LAYER_ID: ${{ vars.HONUA_INTEGRATION_LAYER_ID || '1000' }}
       HONUA_INTEGRATION_COLLECTION_ID: ${{ vars.HONUA_INTEGRATION_COLLECTION_ID || '1000' }}
       HONUA_INTEGRATION_TILE_MATRIX_SET: ${{ vars.HONUA_INTEGRATION_TILE_MATRIX_SET || 'WebMercatorQuad' }}
-      # Pin the server image/commit by env (REQ-002). A repo variable overrides
-      # the workflow default so the pin can be advanced without a code change.
-      HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || env.CONFORMANCE_SERVER_IMAGE }}
-      HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT || env.CONFORMANCE_SERVER_COMMIT }}
-      HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || env.CONFORMANCE_FIXTURES_VERSION }}
+      # Pin the server image/commit/fixtures by literal (REQ-002). A repo
+      # variable overrides the pin so it can be advanced without a code change.
+      # The literals below are the single source of truth for the pin — they
+      # cannot be hoisted to workflow-level `env` and referenced here, because
+      # the `env` context is not available to job-level `env:` expressions.
+      #
+      # Pinned to the 2026-05-30 honua-server nightly (commit 86042bd, digest
+      # sha256:080d7e87f7b1e4c36a917adddb567bfe7148d47e7d2d016480fb4e39187515db).
+      # Fixtures version is 1:1 with a geospatial.v1 schema release — keep it in
+      # lock-step with the SDK pin in test/conformance/fixtures.ts.
+      HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-86042bd' }}
+      HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT || '86042bd' }}
+      HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.1.0-alpha.1' }}
     steps:
       - uses: actions/checkout@v6
 
