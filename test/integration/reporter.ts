@@ -39,6 +39,14 @@ export interface IntegrationMetaDocument {
   serverReleaseChannel: string | undefined;
   serverImage: string | undefined;
   serverCommit: string | undefined;
+  /**
+   * Pinned geospatial-grpc conformance fixtures version exercised this run, or
+   * `undefined` when the conformance lane is not configured. Set by the
+   * integration global setup from `HONUA_CONFORMANCE_FIXTURES_VERSION` so the
+   * uploaded artifact ties the run to an exact `geospatial.v1` schema release
+   * (REQ-002 / REQ-003).
+   */
+  conformanceFixturesVersion: string | undefined;
   baseUrl: string;
   seedProfile: string;
   serviceId: string;

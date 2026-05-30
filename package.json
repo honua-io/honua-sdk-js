@@ -296,6 +296,7 @@
     "test:playwright:runtime-parity": "playwright test test/playwright/runtime-parity-showcase.spec.mjs",
     "test:quickstart:staging": "vitest run --config vitest.staging.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:conformance": "vitest run --config vitest.conformance.config.ts",
     "test:migration:real-samples": "vitest run test/migration-real-sample-runtime.test.ts test/migration-feature-table-demo-runtime.test.ts",
     "test:playwright": "npm run build --silent && node scripts/ensure-kepler-demo-deps.mjs && playwright test",
     "test:playwright:25d": "playwright test test/playwright/storytelling-25d-map.spec.mjs",
