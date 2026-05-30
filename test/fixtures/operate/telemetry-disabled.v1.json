@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/targets/server-edge/telemetry"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "targetId": "server-edge",
+      "health": "unknown",
+      "telemetryEnabled": false,
+      "observedAt": "2026-05-28T09:02:00Z",
+      "message": "No OTLP pipeline is configured for this target.",
+      "providers": [{ "id": "otlp", "kind": "otlp", "enabled": false }]
+    }
+  }
+}

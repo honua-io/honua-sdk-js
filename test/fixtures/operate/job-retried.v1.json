@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/jobs/job-import-201"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "id": "job-import-201",
+      "name": "Import: parcels-2026",
+      "type": "import",
+      "targetId": "server-prod",
+      "state": "retrying",
+      "queuedAt": "2026-05-28T07:05:00Z",
+      "startedAt": "2026-05-28T07:05:05Z",
+      "attempt": 2,
+      "maxAttempts": 3,
+      "retryOfRunId": "job-import-200",
+      "progress": { "completed": 8821, "total": 50000, "message": "Re-validating from last good row" },
+      "availableActions": ["cancel"],
+      "links": { "self": "/api/v1/operate/jobs/job-import-201" }
+    }
+  }
+}

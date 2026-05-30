@@ -157,6 +157,10 @@
     "./operator/i18n": {
       "types": "./dist/src/operator/i18n/index.d.ts",
       "default": "./dist/src/operator/i18n/index.js"
+    },
+    "./operate": {
+      "types": "./dist/src/operate/index.d.ts",
+      "default": "./dist/src/operate/index.js"
     }
   },
   "scripts": {

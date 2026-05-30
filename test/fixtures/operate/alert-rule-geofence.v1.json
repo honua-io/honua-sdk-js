@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/alert-rules/rule-fleet-geofence"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "etag": "\"rule-fleet-geofence-v2\"" },
+    "body": {
+      "id": "rule-fleet-geofence",
+      "name": "Fleet left service area",
+      "kind": "geofence",
+      "enabled": true,
+      "targetId": "server-prod",
+      "description": "Fire when a tracked asset exits the service-area zone.",
+      "severity": "warning",
+      "realtime": true,
+      "geofenceZoneId": "zone-service-area",
+      "channelBindings": [
+        { "channelId": "chan-slack-ops", "kind": "slack", "enabled": true, "target": "#ops-alerts", "lastDeliveryState": "delivered" }
+      ],
+      "createdAt": "2026-05-01T00:00:00Z",
+      "updatedAt": "2026-05-20T12:00:00Z",
+      "links": { "self": "/api/v1/operate/alert-rules/rule-fleet-geofence" }
+    }
+  }
+}

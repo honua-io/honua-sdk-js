@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/alert-rules/rule-webhook-prod"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "id": "rule-webhook-prod",
+      "name": "Production error spike",
+      "kind": "rate",
+      "enabled": true,
+      "targetId": "server-prod",
+      "severity": "error",
+      "realtime": true,
+      "expression": "error_rate > 0.05",
+      "windowSeconds": 300,
+      "threshold": 0.05,
+      "channelBindings": [
+        {
+          "channelId": "chan-webhook-pd",
+          "kind": "webhook",
+          "enabled": true,
+          "target": "https://hooks.example.test/honua",
+          "lastDeliveryState": "failed",
+          "lastError": {
+            "title": "Delivery failed",
+            "status": 502,
+            "detail": "Webhook endpoint returned 502 Bad Gateway.",
+            "code": "delivery_channel_error"
+          }
+        }
+      ],
+      "links": { "self": "/api/v1/operate/alert-rules/rule-webhook-prod" }
+    }
+  }
+}

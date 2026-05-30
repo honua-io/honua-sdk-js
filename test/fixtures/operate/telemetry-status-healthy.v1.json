@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/targets/server-prod/telemetry"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "etag": "\"telemetry-prod-v1\"",
+      "last-modified": "Thu, 28 May 2026 09:00:00 GMT"
+    },
+    "body": {
+      "targetId": "server-prod",
+      "health": "healthy",
+      "telemetryEnabled": true,
+      "version": "2026.5.1",
+      "uptimeSeconds": 864000,
+      "startedAt": "2026-05-18T09:00:00Z",
+      "observedAt": "2026-05-28T09:00:00Z",
+      "providers": [
+        { "id": "otlp", "kind": "otlp", "enabled": true, "connected": true, "lastSeenAt": "2026-05-28T08:59:55Z" },
+        { "id": "logs", "kind": "logs", "enabled": true, "connected": true },
+        { "id": "alerts", "kind": "alerts", "enabled": true, "connected": true }
+      ],
+      "metrics": [
+        { "name": "request_rate", "value": 412.5, "unit": "rps", "observedAt": "2026-05-28T09:00:00Z" },
+        { "name": "error_rate", "value": 0.002, "unit": "ratio", "observedAt": "2026-05-28T09:00:00Z" }
+      ]
+    }
+  }
+}

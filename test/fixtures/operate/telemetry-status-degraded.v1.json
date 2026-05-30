@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/targets/server-eu/telemetry"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "targetId": "server-eu",
+      "health": "degraded",
+      "telemetryEnabled": true,
+      "version": "2026.5.1",
+      "observedAt": "2026-05-28T09:01:00Z",
+      "message": "Metrics provider is reporting elevated error rate.",
+      "providers": [
+        { "id": "otlp", "kind": "otlp", "enabled": true, "connected": true },
+        { "id": "metrics", "kind": "metrics", "enabled": true, "connected": false, "detail": "scrape timeout" }
+      ],
+      "metrics": [{ "name": "error_rate", "value": 0.087, "unit": "ratio", "observedAt": "2026-05-28T09:01:00Z" }]
+    }
+  }
+}

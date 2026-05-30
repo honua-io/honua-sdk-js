@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/jobs/job-tile-bake-101"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "etag": "\"job-101-v4\"" },
+    "body": {
+      "id": "job-tile-bake-101",
+      "name": "Tile bake: basemap-eu",
+      "type": "tile-bake",
+      "targetId": "server-prod",
+      "state": "running",
+      "queuedAt": "2026-05-28T09:00:00Z",
+      "startedAt": "2026-05-28T09:00:10Z",
+      "attempt": 1,
+      "maxAttempts": 3,
+      "progress": { "completed": 6400, "total": 16384, "message": "Baking zoom 12" },
+      "availableActions": ["cancel"],
+      "triggeredBy": "scheduler",
+      "stages": [
+        { "id": "plan", "name": "Plan", "state": "succeeded", "startedAt": "2026-05-28T09:00:10Z", "finishedAt": "2026-05-28T09:00:20Z", "durationMs": 10000 },
+        { "id": "bake", "name": "Bake", "state": "running", "startedAt": "2026-05-28T09:00:20Z" }
+      ],
+      "links": {
+        "self": "/api/v1/operate/jobs/job-tile-bake-101",
+        "logs": "/api/v1/operate/jobs/job-tile-bake-101/logs",
+        "artifacts": "/api/v1/operate/jobs/job-tile-bake-101/artifacts"
+      }
+    }
+  }
+}

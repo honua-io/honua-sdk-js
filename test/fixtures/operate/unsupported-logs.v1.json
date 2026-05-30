@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/operate/logs"
+  },
+  "response": {
+    "status": 501,
+    "body": {
+      "title": "Logs provider not configured",
+      "status": 501,
+      "detail": "This deployment has no log store configured.",
+      "code": "capability_unavailable"
+    }
+  }
+}
