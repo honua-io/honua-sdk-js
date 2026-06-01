@@ -323,6 +323,24 @@ describe("AppPackage projection", () => {
     expect(projection.widgets).toHaveLength(3);
   });
 
+  it("prefers the canonical manifest_artifact over the camelCase alias", () => {
+    const staleManifest: HonuaGeneratedAppManifest = {
+      ...manifest,
+      title: "Stale alias title",
+      layout: { kind: "operations-dashboard", widgets: [{ id: "w-stale", kind: "map" }] },
+    };
+    const pkg: HonuaGeneratedAppPackage = {
+      id: "app-mixed",
+      version: "1.0.0",
+      // Canonical snake_case field must win, matching the generated-app runtime.
+      manifest_artifact: manifest,
+      manifestArtifact: staleManifest,
+    };
+    const projection = projectAppPackage(pkg);
+    expect(projection.title).toBe("Incident ops");
+    expect(projection.widgets).toHaveLength(3);
+  });
+
   it("raises a typed missing-binding error when no manifest resolves", () => {
     const pkg = { id: "app-3", version: "0.0.1" } as unknown as HonuaGeneratedAppPackage;
     try {

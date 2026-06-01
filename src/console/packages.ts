@@ -172,7 +172,10 @@ function readStringField(value: unknown, key: string): string | undefined {
 }
 
 function resolveManifest(pkg: HonuaGeneratedAppPackage): HonuaGeneratedAppManifest | undefined {
-  const candidate = pkg.manifestArtifact ?? pkg.manifest_artifact;
+  // Match `projectAppPackageToGeneratedAppManifest` precedence: the canonical
+  // server `manifest_artifact` wins over the camelCase compatibility alias so
+  // the Console catalog summary and the launched runtime read the same manifest.
+  const candidate = pkg.manifest_artifact ?? pkg.manifestArtifact;
   if (!candidate || typeof candidate !== "object") return undefined;
   // The artifact may be the manifest itself or a `{ artifactKind, manifest }` wrapper.
   const wrapper = candidate as { readonly artifactKind?: unknown; readonly manifest?: unknown };
