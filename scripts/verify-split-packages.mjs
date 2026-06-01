@@ -77,6 +77,11 @@ import {
   toDcatDataset,
 } from "@honua/sdk/share";
 import {
+  HONUA_OPERATE_BASE_PATH,
+  HonuaOperateClient,
+  createHonuaOperate,
+} from "@honua/sdk/operate";
+import {
   CAPABILITIES,
   PROTOCOLS,
   createDataset,
@@ -239,6 +244,10 @@ if (typeof parseEmbedTokenFromFragment !== "function" || typeof toDcatDataset !=
   throw new Error("share contract exports missing from @honua/sdk/share");
 if (parseEmbedTokenFromFragment("https://app.example/embed?embed_token=leaked").ok)
   throw new Error("share embed-token helper accepted a query-string bearer token");
+if (HONUA_OPERATE_BASE_PATH !== "/api/v1/operate")
+  throw new Error("HONUA_OPERATE_BASE_PATH export missing from @honua/sdk/operate");
+if (typeof createHonuaOperate !== "function" || typeof HonuaOperateClient !== "function")
+  throw new Error("operate observability exports missing from @honua/sdk/operate");
 if (!Array.isArray(HONUA_AGENT_TOOL_NAMES) || !HONUA_AGENT_TOOL_NAMES.includes("explainCapabilityGap"))
   throw new Error("agent tool exports missing from @honua/sdk/agent-tools");
 if (explainHonuaCapabilityGap({ protocol: "wmts", capability: "query" }).supported)
