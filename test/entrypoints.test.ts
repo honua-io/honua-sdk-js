@@ -219,6 +219,19 @@ import {
   summarizeJsParityMatrix,
 } from "../src/migration-entry.js";
 import {
+  HONUA_OPERATE_BASE_PATH,
+  HonuaAlertRulesClient,
+  HonuaAlertsClient,
+  HonuaEventsClient,
+  HonuaGeofencesClient,
+  HonuaInvestigationsClient,
+  HonuaJobsClient,
+  HonuaLogsClient,
+  HonuaOperateClient,
+  HonuaTelemetryClient,
+  createHonuaOperate,
+} from "../src/operate/index.js";
+import {
   createRealtimeFeatureStore,
   emptyRealtimeFeatureState,
   reduceRealtimeFeatureState,
@@ -495,6 +508,20 @@ describe("entrypoint modules", () => {
     expect(createHonuaReplicaSync).toBeTypeOf("function");
     expect(createFixtureReplicaSyncTransport).toBeTypeOf("function");
     expect(isUnsupportedReplicaSyncError).toBeTypeOf("function");
+  });
+
+  it("exposes the operate observability entrypoint", () => {
+    expect(HONUA_OPERATE_BASE_PATH).toBe("/api/v1/operate");
+    expect(createHonuaOperate).toBeTypeOf("function");
+    expect(HonuaOperateClient).toBeTypeOf("function");
+    expect(HonuaTelemetryClient).toBeTypeOf("function");
+    expect(HonuaEventsClient).toBeTypeOf("function");
+    expect(HonuaLogsClient).toBeTypeOf("function");
+    expect(HonuaAlertsClient).toBeTypeOf("function");
+    expect(HonuaAlertRulesClient).toBeTypeOf("function");
+    expect(HonuaGeofencesClient).toBeTypeOf("function");
+    expect(HonuaInvestigationsClient).toBeTypeOf("function");
+    expect(HonuaJobsClient).toBeTypeOf("function");
   });
 
   it("exposes the runtime style and interaction helper entrypoint", () => {
