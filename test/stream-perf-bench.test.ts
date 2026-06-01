@@ -50,4 +50,27 @@ describe("stream/pagination performance harness", () => {
     expect(body.exceededTransferLimit).toBe(true);
     expect(transport.requestCount()).toBe(1);
   });
+
+  it("omits geometry when the client requests returnGeometry=false", async () => {
+    const features = buildFeatureFixture(5);
+    const transport = createMockTransport({ features });
+
+    const withGeometry = (await (
+      await transport.fetchFn(
+        "http://bench.local/rest/services/incidents/FeatureServer/0/query?resultRecordCount=5&returnGeometry=true",
+      )
+    ).json()) as { geometryType?: string; features: Array<Record<string, unknown>> };
+    expect(withGeometry.geometryType).toBe("esriGeometryPoint");
+    expect(withGeometry.features.every((f) => "geometry" in f)).toBe(true);
+
+    const withoutGeometry = (await (
+      await transport.fetchFn(
+        "http://bench.local/rest/services/incidents/FeatureServer/0/query?resultRecordCount=5&returnGeometry=false",
+      )
+    ).json()) as { geometryType?: string; features: Array<Record<string, unknown>> };
+    expect(withoutGeometry.geometryType).toBeUndefined();
+    expect(withoutGeometry.features.every((f) => !("geometry" in f))).toBe(true);
+    // Attributes still come through so the feature payload remains decodable.
+    expect(withoutGeometry.features.every((f) => "attributes" in f)).toBe(true);
+  });
 });

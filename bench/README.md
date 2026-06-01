@@ -63,10 +63,14 @@ node dist/bench/run.js --features 100000 --pages 1000,5000,20000
 node dist/bench/run.js --latency 2 --json
 ```
 
-You can also import the harness programmatically:
+You can also import the harness programmatically. The `bench/` harness is an
+in-repo dev tool — it is not part of the published package (`files` only ships
+`dist/src`, and there is no `./bench/*` export), so import it by relative path
+from within this repo:
 
 ```ts
-import { runStreamBench, formatReport } from "@honua/sdk-js/bench/stream-bench"; // or relative path in-repo
+// from within this repo (e.g. a script under bench/ or test/)
+import { runStreamBench, formatReport } from "./stream-bench.js";
 const report = await runStreamBench({ featureCount: 50_000, pageSizes: [500, 2000, 10_000] });
 console.log(formatReport(report));
 ```

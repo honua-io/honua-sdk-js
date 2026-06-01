@@ -3,7 +3,8 @@
  *
  * Produces a `fetch`-compatible function that answers GeoServices FeatureServer
  * `/query` requests by slicing a fixture array according to the `resultOffset`
- * and `resultRecordCount` query parameters the SDK's paginating stream emits.
+ * and `resultRecordCount` query parameters the SDK's paginating stream emits,
+ * and drops geometry from the page when the client requests `returnGeometry=false`.
  * No sockets, no server — every page is served synchronously from memory so the
  * harness measures the SDK's streaming/decoding overhead rather than network jitter.
  */
@@ -26,13 +27,16 @@ export interface MockTransportHandle {
   requestCount(): number;
 }
 
-function readOffsetAndCount(url: string): { offset: number; count: number } {
+function readQueryParams(url: string): { offset: number; count: number; returnGeometry: boolean } {
   const parsed = new URL(url, "http://bench.local");
   const offset = Number.parseInt(parsed.searchParams.get("resultOffset") ?? "0", 10);
   const count = Number.parseInt(parsed.searchParams.get("resultRecordCount") ?? "2000", 10);
+  // FeatureServer defaults returnGeometry to true; only an explicit "false" omits geometry.
+  const returnGeometry = parsed.searchParams.get("returnGeometry") !== "false";
   return {
     offset: Number.isFinite(offset) && offset >= 0 ? offset : 0,
     count: Number.isFinite(count) && count > 0 ? count : 2000,
+    returnGeometry,
   };
 }
 
@@ -61,14 +65,18 @@ export function createMockTransport(options: MockTransportOptions): MockTranspor
       await new Promise<void>((resolve) => setTimeout(resolve, pageLatencyMs));
     }
 
-    const { offset, count } = readOffsetAndCount(url);
-    const page = features.slice(offset, offset + count);
+    const { offset, count, returnGeometry } = readQueryParams(url);
+    const slice = features.slice(offset, offset + count);
+    // Mirror a real FeatureServer: drop geometry from every feature when the
+    // client asked for returnGeometry=false, so the geometry-free benchmark
+    // serializes a smaller payload and exercises distinct heap behavior.
+    const page = returnGeometry ? slice : slice.map(({ geometry: _geometry, ...rest }) => rest);
     const exceededTransferLimit = offset + count < features.length;
 
     return new Response(
       JSON.stringify({
         objectIdFieldName: "OBJECTID",
-        geometryType: "esriGeometryPoint",
+        ...(returnGeometry ? { geometryType: "esriGeometryPoint" } : {}),
         features: page,
         exceededTransferLimit,
       }),
