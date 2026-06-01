@@ -2,17 +2,20 @@
  * `@honua/sdk-js/console` — browser-safe SDK contracts for `honua-console`.
  *
  * This subpath exposes the SDK-projected view of the shared content/metadata
- * model (content items, Metadata v2, sharing, embeds, provenance) and the
- * dashboard/report package projections with Vega-Lite chart spec support, so
- * Console can consume stable contracts without copying server DTOs or Portal
- * types.
+ * model (content items, Metadata v2, sharing, embeds, provenance), the
+ * dashboard/report package projections with Vega-Lite chart spec support, and
+ * normalized MapPackage / AppPackage catalog projections, so Console can consume
+ * stable contracts without copying server DTOs or Portal types.
  *
  * Contract ownership:
  * - **server-owned**: canonical wire shapes in `honua-server` (Metadata v2,
  *   content items, packages, sharing, embeds, provenance). Not defined here.
  * - **SDK-projected**: the browser-safe types and projection helpers in this
- *   module, plus `@honua/sdk-js/runtime` (`MapPackage`), `./control-plane`
- *   (admin resources, sharing), and `./generated-app` (generated-app runtime).
+ *   module (including {@link projectMapPackage} / {@link projectAppPackage}
+ *   catalog summaries), plus `@honua/sdk-js/runtime` (`MapPackage` runtime),
+ *   `./control-plane` (admin resources, sharing), and `./generated-app`
+ *   (generated-app runtime). The projection helpers reuse the runtime and
+ *   generated-app wire types rather than redefining them.
  * - **Console-rendered**: render models (`*RenderModel`) derived from the
  *   projections above.
  *
@@ -83,6 +86,16 @@ export type {
   HonuaConsoleReportRenderModel,
   HonuaConsoleReportSection,
 } from "./dashboard.js";
+
+export { projectAppPackage, projectMapPackage } from "./packages.js";
+export type {
+  HonuaConsoleAppChartKind,
+  HonuaConsoleAppPackageProjection,
+  HonuaConsoleAppWidgetSummary,
+  HonuaConsoleMapPackageProjection,
+  HonuaConsoleMapSourceSummary,
+  HonuaConsolePackageProjectionContext,
+} from "./packages.js";
 
 export { HonuaConsoleError, toConsoleDiagnostic } from "./errors.js";
 export type {
