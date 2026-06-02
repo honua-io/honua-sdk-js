@@ -94,6 +94,46 @@ describe("fetchMapPackage", () => {
     });
   });
 
+  test("defaults to resolving style refs via /ogc/styles when no callback is supplied", async () => {
+    const requests: string[] = [];
+    const client = makeClient(async (url) => {
+      requests.push(String(url));
+      if (String(url).endsWith("/ogc/styles/style-fill")) {
+        return jsonResponse({
+          version: 8,
+          sources: {},
+          layers: [{ id: "parcels-fill", type: "fill", source: "parcels", paint: { "fill-color": "#00ff00" } }],
+        });
+      }
+      return jsonResponse(makePackage({ styleRefs: [{ styleId: "style-fill", body: undefined }] }));
+    });
+
+    const resolved = await fetchMapPackage("pkg-001", { client });
+
+    expect(requests.some((url) => url.endsWith("/ogc/styles/style-fill"))).toBe(true);
+    expect(resolved.diagnostics).toEqual([]);
+    expect(resolved.mapPackage.styleRefs?.[0].body).toEqual({
+      "parcels-fill": { paint: { "fill-color": "#00ff00" } },
+    });
+  });
+
+  test("disableDefaultStyleRefResolver skips the /ogc/styles default", async () => {
+    const requests: string[] = [];
+    const client = makeClient(async (url) => {
+      requests.push(String(url));
+      return jsonResponse(makePackage({ styleRefs: [{ styleId: "style-fill", body: undefined }] }));
+    });
+
+    const resolved = await fetchMapPackage("pkg-001", {
+      client,
+      allowInvalid: true,
+      disableDefaultStyleRefResolver: true,
+    });
+
+    expect(requests.some((url) => url.includes("/ogc/styles/"))).toBe(false);
+    expect(resolved.diagnostics).toEqual([expect.objectContaining({ code: "style-ref-unresolved" })]);
+  });
+
   test("reports style-ref resolver failures as diagnostics", async () => {
     const client = makeClient(async () =>
       jsonResponse(

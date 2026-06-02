@@ -14,6 +14,7 @@ import { HonuaMap } from "../map/honua-map.js";
 import type { HonuaLayerSpecification, HonuaStyleSpecification } from "../style/specification.js";
 import { HonuaMapPackageError } from "./errors.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage } from "./map-package.js";
+import { createOgcStyleRefResolver } from "./ogc-styles.js";
 import type { PopupFactory, PopupRenderer } from "./popups.js";
 import {
   HonuaMapRuntime,
@@ -55,8 +56,22 @@ export type SourceErrorPolicy = "tolerant" | "fail-fast";
 export interface LoadMapPackageOptions {
   /** Active `HonuaClient`; used for protocol adapter binding. */
   client: HonuaClient;
-  /** Out-of-band style-ref body resolver. Only called when the ref has no inline body. */
+  /**
+   * Out-of-band style-ref body resolver. Only called when the ref has no
+   * inline body. When omitted, the runtime defaults to resolving
+   * `styleRefs.styleId` against the server's OGC API – Styles surface
+   * (`GET /ogc/styles/{styleId}`, content-negotiated MapLibre) via
+   * {@link createOgcStyleRefResolver}, so the JS identifier matches the
+   * server's canonical styleId. Pass a callback to override that path
+   * (back-compat), or set {@link disableDefaultStyleRefResolver} to skip it.
+   */
   resolveStyleRef?: StyleRefResolver;
+  /**
+   * Disable the default `/ogc/styles` StyleRef resolver. When true and no
+   * {@link resolveStyleRef} callback is supplied, style refs without an
+   * inline body are left unresolved (composition then errors on them).
+   */
+  disableDefaultStyleRefResolver?: boolean;
   /** Out-of-band theme resolver. Only called when `pkg.theme` is absent and `pkg.themeId` is set. */
   resolveTheme?: ThemeResolver;
   /**
@@ -139,6 +154,12 @@ export async function loadMapPackage(
 
   const sourceErrorPolicy: SourceErrorPolicy = options.sourceErrorPolicy ?? "tolerant";
   const styleSpecValidationMode: RuntimeStyleSpecValidationMode = options.styleSpecValidationMode ?? "strict";
+  // Default StyleRef resolution to the server's OGC API – Styles surface so
+  // `styleRefs.styleId` aligns with the server's canonical styleId. A
+  // caller-supplied callback overrides this for back-compat.
+  const styleRefResolver: StyleRefResolver | undefined =
+    options.resolveStyleRef ??
+    (options.disableDefaultStyleRefResolver ? undefined : createOgcStyleRefResolver({ client: options.client }));
   throwRuntimeDiagnostics(
     await prepareRuntimeStyleSpecValidation(styleSpecValidationMode),
     "Cannot initialize MapLibre style-spec validation.",
@@ -227,7 +248,7 @@ export async function loadMapPackage(
     }
 
     const composed = await composeStyle(target, preComposed, {
-      resolveStyleRef: options.resolveStyleRef,
+      resolveStyleRef: styleRefResolver,
       resolveTheme: options.resolveTheme,
     });
     return { composed, dataset, honuaMap, failedSources };

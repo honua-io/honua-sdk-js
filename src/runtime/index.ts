@@ -157,6 +157,22 @@ export { applyStyleRefs, applyTheme, composeStyle } from "./style-compose.js";
 export type { StyleComposeOptions, StyleRefResolver, ThemeResolver } from "./style-compose.js";
 
 export {
+  DEFAULT_OGC_STYLES_PATH_PREFIX,
+  MAPLIBRE_STYLE_MEDIA_TYPE,
+  OgcStylesClient,
+  createOgcStyleRefResolver,
+  styleDocumentToRefBody,
+} from "./ogc-styles.js";
+export type {
+  OgcStyleLink,
+  OgcStyleList,
+  OgcStyleListEntry,
+  OgcStyleRefResolverOptions,
+  OgcStylesClientOptions,
+  OgcStylesRequestOptions,
+} from "./ogc-styles.js";
+
+export {
   prepareRuntimeStyleSpecValidation,
   validateRuntimeFilterStyleSpec,
   validateRuntimeLayerStyleSpec,
