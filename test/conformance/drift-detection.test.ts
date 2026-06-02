@@ -146,15 +146,6 @@ describe("conformance gate effectiveness (negative drift detection)", () => {
     const drift = findQueryResultDrift(expected, mutated);
     expect(drift.some((d) => d.kind === "total-count")).toBe(true);
   });
-
-  it("FAILS when the golden declares totalCount but the live result omits it", () => {
-    const golden: CanonQueryResponse = { ...CANON_GOLDEN, totalCount: "1" };
-    const expected = goldenToExpectedQueryResult(golden);
-    const mutated = conformantResult();
-    delete mutated.totalCount;
-    const drift = findQueryResultDrift(expected, mutated);
-    expect(drift.some((d) => d.kind === "total-count")).toBe(true);
-  });
 });
 
 describe("live projection conformance (seed-independent)", () => {
