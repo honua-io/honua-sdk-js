@@ -5,10 +5,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SERVER_VERSION, createClientFromEnv, createServer, resolveRuntimeOptions } from "../src/index.js";
 import * as layerSchemaResource from "../src/resources/layer-schema.js";
 import * as servicesResource from "../src/resources/services.js";
+import * as stylesResource from "../src/resources/styles.js";
+import * as applyStylePreset from "../src/tools/apply-style-preset.js";
 import * as countFeatures from "../src/tools/count-features.js";
 import * as describeLayer from "../src/tools/describe-layer.js";
 import * as explainCapabilityGap from "../src/tools/explain-capability-gap.js";
 import * as getExtent from "../src/tools/get-extent.js";
+import * as getStyle from "../src/tools/get-style.js";
 import * as listServices from "../src/tools/list-services.js";
 import * as queryFeatures from "../src/tools/query-features.js";
 import * as statistics from "../src/tools/statistics.js";
@@ -49,8 +52,14 @@ describe("MCP server setup", () => {
     const explainSpy = vi
       .spyOn(explainCapabilityGap, "execute")
       .mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
+    const getStyleSpy = vi.spyOn(getStyle, "execute").mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
+    const applyStyleSpy = vi
+      .spyOn(applyStylePreset, "execute")
+      .mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
     const servicesReadSpy = vi.spyOn(servicesResource, "read").mockResolvedValue({ contents: [] });
     const layerReadSpy = vi.spyOn(layerSchemaResource, "read").mockResolvedValue({ contents: [] });
+    const stylesCatalogSpy = vi.spyOn(stylesResource, "readCatalog").mockResolvedValue({ contents: [] });
+    const styleReadSpy = vi.spyOn(stylesResource, "read").mockResolvedValue({ contents: [] });
 
     const client = asClient(createMockClient());
     createServer(client);
@@ -63,8 +72,15 @@ describe("MCP server setup", () => {
       "honua_get_extent",
       "honua_statistics",
       "honua_explain_capability_gap",
+      "honua_get_style",
+      "honua_apply_style_preset",
     ]);
-    expect(resourceSpy.mock.calls.map((call) => call[0])).toEqual(["services-catalog", "layer-schema"]);
+    expect(resourceSpy.mock.calls.map((call) => call[0])).toEqual([
+      "services-catalog",
+      "layer-schema",
+      "styles-catalog",
+      "style",
+    ]);
 
     const toolInputs: Record<string, Record<string, unknown>> = {
       honua_list_services: {},
@@ -74,6 +90,8 @@ describe("MCP server setup", () => {
       honua_get_extent: { serviceId: "Parks", layerId: 0 },
       honua_statistics: { serviceId: "Parks", layerId: 0, statisticType: "count", onField: "OBJECTID" },
       honua_explain_capability_gap: { protocol: "wmts", capability: "query" },
+      honua_get_style: { styleId: "topographic" },
+      honua_apply_style_preset: { styleId: "topographic" },
     };
 
     for (const [name, args] of Object.entries(toolInputs)) {
@@ -94,6 +112,8 @@ describe("MCP server setup", () => {
       onField: "OBJECTID",
     });
     expect(explainSpy).toHaveBeenCalledWith(client, { protocol: "wmts", capability: "query" });
+    expect(getStyleSpy).toHaveBeenCalledWith(client, { styleId: "topographic" });
+    expect(applyStyleSpy).toHaveBeenCalledWith(client, { styleId: "topographic" });
 
     const servicesRegistration = resourceSpy.mock.calls.find((call) => call[0] === "services-catalog");
     const servicesHandler = servicesRegistration?.[2] as (uri: URL) => Promise<unknown>;
@@ -103,8 +123,18 @@ describe("MCP server setup", () => {
     const layerHandler = layerRegistration?.[2] as (uri: URL, params: Record<string, unknown>) => Promise<unknown>;
     await layerHandler(new URL("honua://services/Parks/layers/0"), { encodedServiceId: "Parks", layerId: "0" });
 
+    const stylesCatalogRegistration = resourceSpy.mock.calls.find((call) => call[0] === "styles-catalog");
+    const stylesCatalogHandler = stylesCatalogRegistration?.[2] as (uri: URL) => Promise<unknown>;
+    await stylesCatalogHandler(new URL("honua://styles"));
+
+    const styleRegistration = resourceSpy.mock.calls.find((call) => call[0] === "style");
+    const styleHandler = styleRegistration?.[2] as (uri: URL, params: Record<string, unknown>) => Promise<unknown>;
+    await styleHandler(new URL("honua://styles/topographic"), { styleId: "topographic" });
+
     expect(servicesReadSpy).toHaveBeenCalledWith(client);
     expect(layerReadSpy).toHaveBeenCalledWith(client, "Parks", "0");
+    expect(stylesCatalogSpy).toHaveBeenCalledWith(client);
+    expect(styleReadSpy).toHaveBeenCalledWith(client, "topographic");
   });
 });
 

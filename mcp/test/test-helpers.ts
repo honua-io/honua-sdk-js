@@ -14,6 +14,43 @@ export interface MockHonuaClient {
   queryFeatures: ReturnType<
     typeof vi.fn<(...args: unknown[]) => Promise<HonuaQueryResponse | Record<string, unknown>>>
   >;
+  pipelineFetch: ReturnType<typeof vi.fn<(method: string, path: string, init?: RequestInit) => Promise<Response>>>;
+  serverBaseUrl: string;
+}
+
+/**
+ * Default `pipelineFetch` for the OGC API – Styles surface used by the styles
+ * resource/tools. Routes by path to canned styles list, metadata, and MapLibre
+ * stylesheet bodies.
+ */
+function defaultStylesPipelineFetch(): MockHonuaClient["pipelineFetch"] {
+  return vi.fn<(method: string, path: string, init?: RequestInit) => Promise<Response>>(async (_method, path) => {
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+
+    if (path === "/ogc/styles") {
+      return json({
+        styles: [
+          { id: "topographic", title: "Topographic", links: [] },
+          { id: "imagery", title: "Imagery", links: [] },
+        ],
+        default: "topographic",
+      });
+    }
+    if (path === "/ogc/styles/topographic/metadata") {
+      return json({
+        id: "topographic",
+        title: "Topographic",
+        description: "Default topographic basemap style",
+        version: "3",
+        links: [{ rel: "preview", type: "image/png", href: "https://example.test/ogc/styles/topographic/preview" }],
+      });
+    }
+    if (path === "/ogc/styles/topographic") {
+      return json({ version: 8, name: "Topographic", layers: [{ id: "background", type: "background" }] });
+    }
+    return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+  });
 }
 
 export function createMockClient(overrides: Partial<MockHonuaClient> = {}): MockHonuaClient {
@@ -65,6 +102,8 @@ export function createMockClient(overrides: Partial<MockHonuaClient> = {}): Mock
         ],
         exceededTransferLimit: false,
       }),
+    pipelineFetch: overrides.pipelineFetch ?? defaultStylesPipelineFetch(),
+    serverBaseUrl: overrides.serverBaseUrl ?? "https://example.test",
   };
 }
 
