@@ -9,6 +9,7 @@ import {
   validateMapPackage,
 } from "./map-package-validation.js";
 import type { HonuaMapPackage, HonuaMapPackageStyleRef, HonuaStyleRefBody } from "./map-package.js";
+import { createOgcStyleRefResolver } from "./ogc-styles.js";
 import type { HonuaMapRuntime, MaplibreMap } from "./runtime.js";
 import type { StyleRefResolver } from "./style-compose.js";
 
@@ -37,8 +38,16 @@ export interface FetchMapPackageOptions {
   readonly resolvePath?: MapPackagePathResolver;
   /** In-memory response cache. Omit for a per-client default; pass `false` to bypass SDK validators. */
   readonly cache?: MapPackageFetchCache | false;
-  /** Resolve out-of-band style refs and inline successful bodies into the returned package. */
+  /**
+   * Resolve out-of-band style refs and inline successful bodies into the
+   * returned package. When omitted, defaults to resolving `styleRefs.styleId`
+   * against the server's OGC API – Styles surface (`GET /ogc/styles/{styleId}`)
+   * via {@link createOgcStyleRefResolver}. Pass a callback to override that
+   * path (back-compat), or set {@link disableDefaultStyleRefResolver} to skip it.
+   */
   readonly resolveStyleRef?: StyleRefResolver;
+  /** Disable the default `/ogc/styles` StyleRef resolver when no callback is supplied. */
+  readonly disableDefaultStyleRefResolver?: boolean;
   /** Treat unresolved style refs as validation errors instead of warnings. */
   readonly requireStyleRefResolution?: boolean;
   /** Emit a stale-package warning when the package timestamp is older than this many ms. */
@@ -129,8 +138,11 @@ export async function fetchMapPackage(
 
   const body = await parseJsonBody(response, path);
   const rawPackage = unwrapMapPackageEnvelope(body);
+  const styleRefResolver =
+    options.resolveStyleRef ??
+    (options.disableDefaultStyleRefResolver ? undefined : createOgcStyleRefResolver({ client: options.client }));
   const resolved = await resolveMapPackageStyleRefs(rawPackage, {
-    resolveStyleRef: options.resolveStyleRef,
+    ...(styleRefResolver ? { resolveStyleRef: styleRefResolver } : {}),
     requireStyleRefResolution: options.requireStyleRefResolution === true,
   });
   const mapPackage = resolved.mapPackage;
@@ -185,6 +197,7 @@ export async function loadMapPackageFromId(
     resolvePath: options.resolvePath,
     cache: options.cache,
     resolveStyleRef: options.resolveStyleRef,
+    disableDefaultStyleRefResolver: options.disableDefaultStyleRefResolver,
     requireStyleRefResolution: options.requireStyleRefResolution ?? true,
     maxAgeMs: options.maxAgeMs,
     now: options.now,
