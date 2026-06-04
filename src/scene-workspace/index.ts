@@ -101,6 +101,31 @@ export type {
   ViewshedResult,
   ViewshedSample,
 } from "./analysis-widgets.js";
+export {
+  getScene,
+  listScenes,
+  normalizeScene,
+  resolveSceneTilesetUrl,
+  sceneCameraPrimitive,
+  sceneLayerStates,
+  sceneTerrainPrimitive,
+  sceneTilesetPrimitive,
+  sceneToRuntimePrimitives,
+  sceneViewpointBookmarks,
+} from "./scene-discovery.js";
+export type {
+  HonuaScene,
+  SceneDiscoveryRequestExecutor,
+  SceneExtent3D,
+  SceneViewpoint,
+} from "./scene-discovery.js";
+export { SceneView } from "./scene-view.js";
+export type {
+  SceneViewEvent,
+  SceneViewEventListener,
+  SceneViewOptions,
+  SceneViewRequestExecutor,
+} from "./scene-view.js";
 export { SCENE_WORKSPACE_SLICES } from "./types.js";
 export type {
   MapLibreExtrusionLayerSpecification,
