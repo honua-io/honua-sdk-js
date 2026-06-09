@@ -20,6 +20,7 @@
  */
 
 import type { HonuaClient } from "../core/client.js";
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { HonuaLayerSpecification, HonuaStyleSpecification } from "../style/specification.js";
 import { HonuaMapPackageError } from "./errors.js";
 import type { HonuaStyleRefBody, HonuaStyleRefLayerOverride } from "./map-package.js";
@@ -244,7 +245,7 @@ function normalizeStyleList(body: unknown): OgcStyleList {
 }
 
 function normalizePrefix(prefix: string): string {
-  const trimmed = prefix.replace(/\/+$/, "");
+  const trimmed = trimTrailingSlashes(prefix);
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 

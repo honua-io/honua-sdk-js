@@ -37,6 +37,7 @@ import {
   stableJson,
 } from "../contract/tiles.js";
 import type { Capability, Protocol } from "../contract/types.js";
+import { trimLeadingSlashes, trimTrailingSlashes } from "../core/path-utils.js";
 
 export interface MapLibreQueryTileSourceSpec {
   type: "vector";
@@ -378,8 +379,9 @@ export function buildQueryTileUrlTemplate<T = Record<string, unknown>>(
       sourceId: normalized.sourceId,
       routePrefix: "",
       format: normalized.format ?? "mvt",
-    }).replace(/^\/+/, "");
-  const url = joinUrl(baseUrl, path);
+    });
+  const normalizedPath = trimLeadingSlashes(path);
+  const url = joinUrl(baseUrl, normalizedPath);
   const params = {
     ...queryTileServerRequestParamsFromDescriptor(normalized, {
       params: options.includeCacheKey
@@ -972,7 +974,7 @@ function queryTileServerResponseError(
 
 function joinUrl(baseUrl: string, path: string): string {
   const [basePath, query = ""] = baseUrl.split("?", 2);
-  const joined = `${basePath.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+  const joined = `${trimTrailingSlashes(basePath)}/${trimLeadingSlashes(path)}`;
   return query ? `${joined}?${query}` : joined;
 }
 

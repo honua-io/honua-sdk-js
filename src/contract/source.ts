@@ -31,6 +31,7 @@ import { HonuaOgcCollectionMap, HonuaOgcMaps } from "../core/ogc-maps.js";
 import type { HonuaOgcProcesses } from "../core/ogc-processes.js";
 import { HonuaOgcRecordCollection } from "../core/ogc-records.js";
 import { HonuaOgcTiles, HonuaOgcTileset } from "../core/ogc-tiles.js";
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import { HonuaStacSearch } from "../core/stac.js";
 import {
   HonuaFeatureLayer,
@@ -2605,11 +2606,11 @@ function requireOdataLocator(descriptor: SourceDescriptor): { entitySet: string;
 function extractOdataBasePath(url: string): string {
   try {
     const parsed = new URL(url);
-    const pathname = parsed.pathname.replace(/\/+$/, "");
+    const pathname = trimTrailingSlashes(parsed.pathname);
     return pathname === "" ? "/odata" : pathname;
   } catch {
     // Relative URL: take it as the basePath verbatim.
-    return url.startsWith("/") ? url.replace(/\/+$/, "") || "/odata" : `/${url.replace(/\/+$/, "")}`;
+    return url.startsWith("/") ? trimTrailingSlashes(url) || "/odata" : `/${trimTrailingSlashes(url)}`;
   }
 }
 

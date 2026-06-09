@@ -1,6 +1,7 @@
 import { honuaCacheValidatorFromHeaders } from "../core/cache-state.js";
 import type { HonuaClient } from "../core/client.js";
 import { HonuaHttpError } from "../core/errors.js";
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { QueryMethod } from "../core/types.js";
 import type { HonuaMapPackage } from "../runtime/index.js";
 import {
@@ -416,7 +417,7 @@ function unsupportedFromStatus<T>(
 
 function normalizeBasePath(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  return normalized.replace(/\/+$/, "");
+  return trimTrailingSlashes(normalized);
 }
 
 function withListQuery(path: string, options: HonuaControlPlaneListOptions): string {

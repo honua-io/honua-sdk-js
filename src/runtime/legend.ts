@@ -7,6 +7,7 @@
  * @module
  */
 
+import { trimChar } from "../core/path-utils.js";
 import type { HonuaStyleSpecification } from "../style/specification.js";
 import type { HonuaMapPackageLegendEntry } from "./map-package.js";
 
@@ -40,11 +41,13 @@ export function buildLegend(
 }
 
 function legendEntryId(entry: HonuaMapPackageLegendEntry, index: number): string {
-  const slug = entry.label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const slug = trimChar(
+    entry.label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-"),
+    "-",
+  );
   return slug ? `${slug}-${index}` : `legend-${index}`;
 }
 

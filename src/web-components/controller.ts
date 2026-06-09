@@ -1,4 +1,5 @@
 import type { FeatureId, Query } from "../contract/index.js";
+import { trimChar } from "../core/path-utils.js";
 import type { HonuaTypedFeature } from "../core/types.js";
 import type { HonuaLayerSpecification } from "../style/index.js";
 import type {
@@ -680,10 +681,12 @@ function layerColor(layer: HonuaLayerSpecification): string | undefined {
 }
 
 function legendId(label: string, index: number): string {
-  const slug = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const slug = trimChar(
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-"),
+    "-",
+  );
   return slug ? `${slug}-${index}` : `legend-${index}`;
 }

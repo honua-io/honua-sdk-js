@@ -1,6 +1,7 @@
 import { honuaCacheValidatorFromHeaders } from "../core/cache-state.js";
 import type { HonuaClient } from "../core/client.js";
 import { HonuaHttpError } from "../core/errors.js";
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { QueryMethod } from "../core/types.js";
 import {
   HONUA_OPERATE_BASE_PATH,
@@ -443,7 +444,7 @@ export class HonuaJobsClient {
 
 function normalizeBasePath(basePath: string): string {
   const normalized = basePath.startsWith("/") ? basePath : `/${basePath}`;
-  return normalized.replace(/\/+$/, "");
+  return trimTrailingSlashes(normalized);
 }
 
 function supported<T>(value: T): HonuaOperateResult<T> {

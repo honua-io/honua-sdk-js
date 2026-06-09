@@ -25,6 +25,7 @@
  * @module
  */
 
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { QueryMethod } from "../core/types.js";
 import type { SceneCameraPrimitive, SceneElevationSourcePrimitive, SceneModelLayerPrimitive } from "./primitives.js";
 import type { SceneBookmark, SceneCameraState, SceneLayerState } from "./types.js";
@@ -250,7 +251,7 @@ export async function getScene(
 export function resolveSceneTilesetUrl(scene: HonuaScene, baseUrl?: string): string | undefined {
   if (scene.tilesetUrl && scene.tilesetUrl.trim() !== "") return scene.tilesetUrl;
   if (!baseUrl) return undefined;
-  const trimmed = baseUrl.replace(/\/+$/, "");
+  const trimmed = trimTrailingSlashes(baseUrl);
   return `${trimmed}/scenes/${encodeURIComponent(scene.sceneId)}/tileset.json`;
 }
 

@@ -219,13 +219,23 @@ export function parseOgcFeaturesUrl(url: string): ParsedOgcFeaturesUrl {
   const absoluteUrl = parseAbsoluteHttpUrl(url);
   const path = absoluteUrl ? absoluteUrl.pathname : stripQueryAndHash(url);
   const normalizedPath = trimTrailingSlashes(path);
-  const collectionsMatch = normalizedPath.match(/^(.*?)(?:\/collections\/([^/?#]+))(?:\/.*)?$/i);
-  if (collectionsMatch) {
-    const basePath = normalizeCollectionBasePath(collectionsMatch[1] ?? "", normalizedPath);
-    return {
-      baseUrl: joinUrlParts(absoluteUrl?.origin, basePath),
-      collectionId: collectionsMatch[2],
-    };
+  // Locate the first `/collections/` segment (case-insensitive) and split the
+  // path into basePath + collectionId. Linear `indexOf` scanning replaces the
+  // prior `/^(.*?)\/collections\/([^/?#]+)(?:\/.*)?$/i` regex, whose lazy
+  // leading `.*?` plus trailing alternation could backtrack super-linearly.
+  const collectionsToken = "/collections/";
+  const markerIndex = normalizedPath.toLowerCase().indexOf(collectionsToken);
+  if (markerIndex >= 0) {
+    const afterMarker = normalizedPath.slice(markerIndex + collectionsToken.length);
+    const nextSlash = afterMarker.indexOf("/");
+    const collectionId = nextSlash >= 0 ? afterMarker.slice(0, nextSlash) : afterMarker;
+    if (collectionId !== "") {
+      const basePath = normalizeCollectionBasePath(normalizedPath.slice(0, markerIndex), normalizedPath);
+      return {
+        baseUrl: joinUrlParts(absoluteUrl?.origin, basePath),
+        collectionId,
+      };
+    }
   }
 
   return {
@@ -258,7 +268,13 @@ function trimTrailingSlashes(path: string): string {
     return "/";
   }
 
-  return path.replace(/\/+$/, "");
+  // Linear-time trailing-slash trim. Avoids the `/\/+$/` regex, whose
+  // anchored quantifier can backtrack super-linearly on long slash runs.
+  let end = path.length;
+  while (end > 0 && path.charCodeAt(end - 1) === 47 /* '/' */) {
+    end -= 1;
+  }
+  return end === path.length ? path : path.slice(0, end);
 }
 
 function normalizeCollectionBasePath(basePath: string, fullPath: string): string {
