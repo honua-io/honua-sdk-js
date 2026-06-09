@@ -337,6 +337,10 @@ function copyMigrationCoreTypeSupport(packageRoot) {
   copyFile(path.join(DIST_SRC_ROOT, "core", "types.d.ts"), path.join(coreRoot, "types.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "core", "cache-state.js"), path.join(coreRoot, "cache-state.js"));
   copyFile(path.join(DIST_SRC_ROOT, "core", "cache-state.d.ts"), path.join(coreRoot, "cache-state.d.ts"));
+  // path-utils provides the linear slash/trim helpers used by migration/reconcile + content
+  // (self-contained, no further core deps).
+  copyFile(path.join(DIST_SRC_ROOT, "core", "path-utils.js"), path.join(coreRoot, "path-utils.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "core", "path-utils.d.ts"), path.join(coreRoot, "path-utils.d.ts"));
 }
 
 function writePackageJson(packageRoot, overrides) {
