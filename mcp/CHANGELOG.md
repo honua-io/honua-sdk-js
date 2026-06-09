@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.13-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.0.12-alpha.0...mcp-server-v0.0.13-alpha.0) (2026-06-09)
+
+
+### Features
+
+* add honua://styles resources + get_style/apply_style_preset MCP tools ([#14](https://github.com/honua-io/honua-sdk-js/issues/14)) ([#252](https://github.com/honua-io/honua-sdk-js/issues/252)) ([35ff5f1](https://github.com/honua-io/honua-sdk-js/commit/35ff5f16adfe435e9d67794c877fe000905c9d9d))
+* SDK: Studio package family projections and validation response contracts ([#230](https://github.com/honua-io/honua-sdk-js/issues/230)) ([e66211d](https://github.com/honua-io/honua-sdk-js/commit/e66211d6e22b4f6b39d804833289f6d9234348f5))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.0.13-alpha.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.0.12-alpha.0 to ^0.0.13-alpha.0
+
 ## [0.0.12-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.0.11-alpha.0...mcp-server-v0.0.12-alpha.0) (2026-05-20)
 
 
