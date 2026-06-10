@@ -28,6 +28,7 @@ import {
   withoutHonuaCacheState,
 } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
+import { trimTrailingSlashes } from "./path-utils.js";
 import type { HonuaFieldInfo } from "./types.js";
 
 // ── Locator + options ─────────────────────────────────────────
@@ -630,7 +631,7 @@ interface OdataValueEnvelope<T> {
 
 function normalizeBasePath(path: string | undefined): string {
   if (path === undefined || path === "") return "/odata";
-  return path.startsWith("/") ? path.replace(/\/+$/, "") || "/" : `/${path.replace(/\/+$/, "")}`;
+  return path.startsWith("/") ? trimTrailingSlashes(path) || "/" : `/${trimTrailingSlashes(path)}`;
 }
 
 /**

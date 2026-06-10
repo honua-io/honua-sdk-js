@@ -1,3 +1,4 @@
+import { stripQueryAndFragment, trimTrailingSlashes } from "../core/path-utils.js";
 import type {
   HonuaFeatureServiceSourceSpecification,
   HonuaLayerSpecification,
@@ -136,7 +137,7 @@ export function createHonuaMapServiceLayer(options: HonuaMapServiceLayerOptions)
  */
 export function createHonuaTileServiceLayer(options: HonuaTileServiceLayerOptions): HonuaMapLibreLayerDefinition {
   const sourceId = normalizeLayerId(options.id, options.title, options.url, "tile-service");
-  const baseUrl = options.url.replace(/\/+$/, "");
+  const baseUrl = trimTrailingSlashes(options.url);
   const source: HonuaMapLibreRasterSourceSpecification = {
     type: "raster",
     tiles: [`${baseUrl}/tile/{z}/{y}/{x}`],
@@ -232,7 +233,7 @@ function normalizeLayerId(id: string | undefined, title: string | undefined, url
 }
 
 function lastUrlSegment(url: string): string | undefined {
-  const trimmed = url.replace(/[?#].*$/, "").replace(/\/+$/, "");
+  const trimmed = trimTrailingSlashes(stripQueryAndFragment(url));
   const segment = trimmed.slice(trimmed.lastIndexOf("/") + 1);
   return segment || undefined;
 }

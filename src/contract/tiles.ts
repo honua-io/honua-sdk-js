@@ -9,6 +9,7 @@
  * @module
  */
 
+import { trimLeadingSlashes, trimSurroundingSlashes, trimTrailingSlashes } from "../core/path-utils.js";
 import type { HonuaTypedFeature } from "../core/types.js";
 import {
   analyticsSourceId,
@@ -743,7 +744,7 @@ function queryTileServerRequestParamsFromOptions<T = Record<string, unknown>>(
 }
 
 function normalizeRoutePrefix(prefix: string): string {
-  return prefix.replace(/^\/+|\/+$/g, "");
+  return trimSurroundingSlashes(prefix);
 }
 
 function encodePathSegment(value: string | number): string {
@@ -752,7 +753,7 @@ function encodePathSegment(value: string | number): string {
 
 function joinRouteUrl(baseUrl: string, path: string): string {
   const [basePath, query = ""] = baseUrl.split("?", 2);
-  const joined = `${basePath.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+  const joined = `${trimTrailingSlashes(basePath)}/${trimLeadingSlashes(path)}`;
   return query ? `${joined}?${query}` : joined;
 }
 

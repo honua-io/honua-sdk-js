@@ -14,6 +14,8 @@
  * @module
  */
 
+import { decodeXmlText as decodeXmlEntities } from "./xml-text.js";
+
 /**
  * Top-level WMS Capabilities surface.
  */
@@ -614,15 +616,7 @@ function parseFloatText(value: string | undefined): number {
 
 function decodeXmlText(text: string): string {
   if (text.indexOf("&") < 0 && text.indexOf("<![CDATA[") < 0) return text;
-  return text
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .replace(/&apos;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_match, dec: string) => String.fromCodePoint(Number(dec)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_match, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)));
+  return decodeXmlEntities(text);
 }
 
 /**

@@ -18,6 +18,7 @@ import { HonuaOgcMaps } from "./ogc-maps.js";
 import { HonuaOgcProcesses } from "./ogc-processes.js";
 import { HonuaOgcRecords } from "./ogc-records.js";
 import { HonuaOgcTiles } from "./ogc-tiles.js";
+import { stripQuery, trimTrailingSlashes } from "./path-utils.js";
 import { decodePbfQueryResponse, isPbfResponse } from "./pbf-decoder.js";
 import {
   type HonuaProcessRunner,
@@ -143,7 +144,7 @@ import { type WmtsCapabilities, parseWmtsCapabilities } from "./wmts-capabilitie
 import { HonuaWmts } from "./wmts.js";
 
 function normalizeBaseUrl(baseUrl: string): string {
-  return baseUrl.replace(/\/+$/, "");
+  return trimTrailingSlashes(baseUrl);
 }
 
 function normalizePath(path: string): string {
@@ -2525,7 +2526,7 @@ export class HonuaClient {
         } catch {
           // PBF decode failed — fall back to JSON request
           params.set("f", "json");
-          const jsonPath = `${path.replace(/\?.*$/, "")}?${params.toString()}`;
+          const jsonPath = `${stripQuery(path)}?${params.toString()}`;
           return this.requestJson("GET", jsonPath, undefined, callerSignal ?? request.init.signal ?? undefined);
         }
       }
@@ -3121,7 +3122,7 @@ function normalizePathValue(path: string): string {
   }
 
   const prefixed = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  return prefixed.replace(/\/+$/, "");
+  return trimTrailingSlashes(prefixed);
 }
 
 function getReleaseChannelRank(releaseChannel: string): number | undefined {

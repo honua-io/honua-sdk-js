@@ -30,6 +30,7 @@
  */
 
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "../core/errors.js";
+import { trimTrailingSlashes } from "../core/path-utils.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -123,7 +124,7 @@ interface ServerError {
 // ---------------------------------------------------------------------------
 
 function normalizeBaseUrl(url: string): string {
-  return url.replace(/\/+$/, "");
+  return trimTrailingSlashes(url);
 }
 
 function stringifyAttributes(attrs: Record<string, unknown>): Record<string, string | null> {
