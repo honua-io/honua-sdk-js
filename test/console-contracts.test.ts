@@ -13,10 +13,21 @@ import {
   isKnownConsoleContentKind,
   isVegaLiteSpec,
   normalizeVegaLiteSpec,
+  projectAppPackage,
   projectDashboardPackage,
+  projectMapPackage,
   projectReportPackage,
   toConsoleDiagnostic,
 } from "../src/console/index.js";
+import {
+  HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND,
+  HONUA_GENERATED_APP_MANIFEST_ARTIFACT_VERSION,
+  HONUA_GENERATED_APP_MANIFEST_FORMAT_V1,
+  HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1,
+  type HonuaGeneratedAppManifest,
+  type HonuaGeneratedAppPackage,
+} from "../src/generated-app/index.js";
+import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage } from "../src/runtime/index.js";
 
 const validSpec: HonuaVegaLiteSpec = {
   mark: "bar",
@@ -194,5 +205,152 @@ describe("report package projection", () => {
     expect(model.sections[0]?.charts[0]?.chartSpec.$schema).toBe(HONUA_CONSOLE_VEGA_LITE_SCHEMA);
     expect(model.sections[0]?.body).toBe("Overview text");
     expect(model.sections[1]?.charts).toHaveLength(0);
+  });
+});
+
+describe("MapPackage projection", () => {
+  const mapPackage: HonuaMapPackage = {
+    mapPackageId: "mp-1",
+    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    status: "Ready",
+    createdAt: "2026-05-01T00:00:00Z",
+    previewArtifactId: "preview-9",
+    metadata: { title: "City incidents" },
+    sourceBindings: [
+      {
+        sourceId: "incidents",
+        protocol: "geoservices_feature_service",
+        locator: { url: "https://example.test/incidents" },
+        attribution: "City GIS",
+      },
+    ],
+    mapSpec: {
+      version: 8,
+      sources: {},
+      layers: [
+        { id: "incidents-fill", type: "fill", source: "incidents" },
+        { id: "incidents-line", type: "line", source: "incidents" },
+      ],
+    } as unknown as HonuaMapPackage["mapSpec"],
+    legend: [{ label: "Open", color: "#f00" }],
+    initialView: { center: [-122, 37], zoom: 10 },
+  };
+
+  it("projects identity, sources, layers, and metadata into a catalog summary", () => {
+    const projection = projectMapPackage(mapPackage, {
+      sharing: { visibility: "workspace" },
+      provenance: { createdBy: "operator" },
+    });
+    expect(projection.kind).toBe("map-package");
+    expect(projection.id).toBe("mp-1");
+    expect(projection.title).toBe("City incidents");
+    expect(projection.status).toBe("Ready");
+    expect(projection.sources).toHaveLength(1);
+    expect(projection.sources[0]?.sourceId).toBe("incidents");
+    expect(projection.sources[0]?.url).toBe("https://example.test/incidents");
+    expect(projection.layerCount).toBe(2);
+    expect(projection.hasLegend).toBe(true);
+    expect(projection.previewArtifactId).toBe("preview-9");
+    expect(projection.initialView?.zoom).toBe(10);
+    expect(projection.sharing?.visibility).toBe("workspace");
+    expect(projection.provenance?.createdBy).toBe("operator");
+  });
+
+  it("rejects an unsupported MapPackage format with a typed error", () => {
+    const bad = { ...mapPackage, format: "honua_map_package.v2" } as unknown as HonuaMapPackage;
+    try {
+      projectMapPackage(bad);
+      throw new Error("expected throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(HonuaConsoleError);
+      const diag = toConsoleDiagnostic(error);
+      expect(diag.code).toBe("unsupported-package-format");
+      expect(diag.detail?.packageId).toBe("mp-1");
+    }
+  });
+});
+
+describe("AppPackage projection", () => {
+  const manifest: HonuaGeneratedAppManifest = {
+    format: HONUA_GENERATED_APP_MANIFEST_FORMAT_V1,
+    profile: HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1,
+    appId: "app-1",
+    title: "Incident ops",
+    description: "Operations dashboard",
+    version: "1.2.0",
+    data: { sourceId: "incidents" },
+    mapPackageId: "mp-1",
+    layout: {
+      kind: "operations-dashboard",
+      widgets: [
+        { id: "w-map", kind: "map" },
+        { id: "w-chart", kind: "chart", chartKind: "categories", groupBy: "status", title: "By status" },
+        { id: "w-hist", kind: "chart", chartKind: "histogram", field: "magnitude" },
+      ],
+    },
+  };
+
+  it("projects a manifest-artifact-wrapped package into a catalog summary", () => {
+    const pkg: HonuaGeneratedAppPackage = {
+      id: "app-1",
+      version: "1.2.0",
+      manifestArtifact: {
+        artifactKind: HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND,
+        artifactVersion: HONUA_GENERATED_APP_MANIFEST_ARTIFACT_VERSION,
+        manifest,
+      },
+    };
+    const projection = projectAppPackage(pkg);
+    expect(projection.kind).toBe("app-package");
+    expect(projection.id).toBe("app-1");
+    expect(projection.version).toBe("1.2.0");
+    expect(projection.title).toBe("Incident ops");
+    expect(projection.profile).toBe(HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1);
+    expect(projection.primarySourceId).toBe("incidents");
+    expect(projection.mapPackageId).toBe("mp-1");
+    expect(projection.widgets).toHaveLength(3);
+    expect(projection.chartKinds).toEqual(["categories", "histogram"]);
+  });
+
+  it("accepts a bare manifest as the artifact", () => {
+    const pkg: HonuaGeneratedAppPackage = {
+      id: "app-2",
+      version: "0.1.0",
+      manifest_artifact: manifest,
+    };
+    const projection = projectAppPackage(pkg);
+    expect(projection.id).toBe("app-2");
+    expect(projection.widgets).toHaveLength(3);
+  });
+
+  it("prefers the canonical manifest_artifact over the camelCase alias", () => {
+    const staleManifest: HonuaGeneratedAppManifest = {
+      ...manifest,
+      title: "Stale alias title",
+      layout: { kind: "operations-dashboard", widgets: [{ id: "w-stale", kind: "map" }] },
+    };
+    const pkg: HonuaGeneratedAppPackage = {
+      id: "app-mixed",
+      version: "1.0.0",
+      // Canonical snake_case field must win, matching the generated-app runtime.
+      manifest_artifact: manifest,
+      manifestArtifact: staleManifest,
+    };
+    const projection = projectAppPackage(pkg);
+    expect(projection.title).toBe("Incident ops");
+    expect(projection.widgets).toHaveLength(3);
+  });
+
+  it("raises a typed missing-binding error when no manifest resolves", () => {
+    const pkg = { id: "app-3", version: "0.0.1" } as unknown as HonuaGeneratedAppPackage;
+    try {
+      projectAppPackage(pkg);
+      throw new Error("expected throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(HonuaConsoleError);
+      const diag = toConsoleDiagnostic(error);
+      expect(diag.code).toBe("missing-binding");
+      expect(diag.detail?.packageId).toBe("app-3");
+    }
   });
 });

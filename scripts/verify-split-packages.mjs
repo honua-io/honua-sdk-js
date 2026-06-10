@@ -128,7 +128,7 @@ import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import { defineHonuaWebComponents } from "@honua/sdk/web-components";
 import { projectBuildSpecToGeneratedAppManifest } from "@honua/sdk/generated-app";
-import { chartWidgetToVegaLiteSpec, isVegaLiteSpec } from "@honua/sdk/console";
+import { chartWidgetToVegaLiteSpec, isVegaLiteSpec, projectMapPackage } from "@honua/sdk/console";
 import { HONUA_QUERY_PACKAGE_FORMAT_V1, toStudioValidationResponse } from "@honua/sdk/studio";
 import { OPERATOR_EXECUTION_OUTPUT_KEY } from "@honua/sdk/operator";
 import { ChatController } from "@honua/sdk/operator/controllers";
@@ -312,6 +312,18 @@ if (typeof chartWidgetToVegaLiteSpec !== "function" || typeof isVegaLiteSpec !==
   throw new Error("console chart spec exports missing from @honua/sdk/console");
 if (!isVegaLiteSpec(chartWidgetToVegaLiteSpec({ chartKind: "categories", groupBy: "status" })))
   throw new Error("@honua/sdk/console chartWidgetToVegaLiteSpec did not produce a valid Vega-Lite spec");
+if (typeof projectMapPackage !== "function")
+  throw new Error("projectMapPackage export missing from @honua/sdk/console");
+{
+  const mapProjection = projectMapPackage({
+    mapPackageId: "verify-mp",
+    format: "honua_map_package.v1",
+    sourceBindings: [],
+    mapSpec: { version: 8, sources: {}, layers: [] },
+  });
+  if (mapProjection.kind !== "map-package" || mapProjection.id !== "verify-mp")
+    throw new Error("@honua/sdk/console projectMapPackage did not produce a MapPackage projection");
+}
 if (HONUA_QUERY_PACKAGE_FORMAT_V1 !== "honua_query_package.v1")
   throw new Error("HONUA_QUERY_PACKAGE_FORMAT_V1 export missing from @honua/sdk/studio");
 if (typeof toStudioValidationResponse !== "function")
