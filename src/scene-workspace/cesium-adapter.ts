@@ -455,7 +455,7 @@ export function resolveHonua3DStyleUri(uri: string, tilesetUrl: string): string 
  */
 export async function fetchHonua3DStyleSpec(
   styleUrl: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch = fetch.bind(globalThis),
 ): Promise<Honua3DStyleSpec> {
   const response = await fetchImpl(styleUrl);
   if (!response.ok) {
@@ -476,7 +476,7 @@ export async function fetchHonua3DStyleSpec(
 export async function loadHonua3DStyle(
   extras: unknown,
   tilesetUrl: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch = fetch.bind(globalThis),
 ): Promise<Honua3DStyleSpec | undefined> {
   const descriptor = readHonua3DStyleDescriptor(extras);
   if (!descriptor) return undefined;
@@ -542,7 +542,7 @@ export async function applyTilesetServerStyle(
   tileset: CesiumTilesetLike,
   tilesetUrl: string,
   cesium?: CesiumModule,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch = fetch.bind(globalThis),
 ): Promise<Honua3DStyleSpec | undefined> {
   const spec = await loadHonua3DStyle(tileset.extras, tilesetUrl, fetchImpl);
   if (!spec) return undefined;
@@ -592,7 +592,7 @@ export async function addCesium3DTileset(
     tileset.modelMatrix = placementToModelMatrix(mod, modelLayerToCesiumPlacement(primitive));
   }
   if (options.applyServerStyle !== false) {
-    await applyTilesetServerStyle(tileset, primitive.uri, mod, options.fetchImpl ?? fetch);
+    await applyTilesetServerStyle(tileset, primitive.uri, mod, options.fetchImpl ?? fetch.bind(globalThis));
   }
   scene.primitives.add(tileset);
   return makeLayerHandle(scene, primitive.id, tileset, "model-layer", primitive.format);

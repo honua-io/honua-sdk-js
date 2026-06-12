@@ -477,3 +477,50 @@ describe("realtime feature state", () => {
     ctx.dispose();
   });
 });
+
+describe("realtime SSE default EventSource factory", () => {
+  // The global `EventSource` is a constructor: invoking it as a plain
+  // call (`EventSource(url, init)`) throws a TypeError in browsers
+  // (#271). A class double reproduces that — class constructors also
+  // throw when invoked without `new` — so this test fails unless the
+  // default factory constructs the source.
+  it("constructs the global EventSource with `new` when no eventSourceFactory is provided", () => {
+    const constructed: GlobalEventSourceDouble[] = [];
+    class GlobalEventSourceDouble implements RealtimeServerSentEventSource {
+      public onopen: ((event: Event) => void) | null = null;
+      public onmessage: ((event: MessageEvent<string>) => void) | null = null;
+      public onerror: ((event: Event) => void) | null = null;
+      public readyState = 0;
+      public closed = false;
+      public constructor(
+        public readonly url: string,
+        public readonly init?: EventSourceInit,
+      ) {
+        constructed.push(this);
+      }
+      public close(): void {
+        this.closed = true;
+        this.readyState = 2;
+      }
+    }
+    vi.stubGlobal("EventSource", GlobalEventSourceDouble);
+    try {
+      const transport = createRealtimeServerSentEventsTransport<{ status: string }>({
+        url: "https://honua.example/api/v1/realtime/events",
+        withCredentials: true,
+      });
+      const handle = transport.subscribe(
+        { sourceId: "incidents" },
+        { next: () => {}, error: () => {}, complete: () => {} },
+      );
+      expect(constructed).toHaveLength(1);
+      expect(constructed[0]).toBeInstanceOf(GlobalEventSourceDouble);
+      expect(constructed[0].url).toContain("sourceId=incidents");
+      expect(constructed[0].init).toEqual({ withCredentials: true });
+      handle.close();
+      expect(constructed[0].closed).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

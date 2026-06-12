@@ -153,7 +153,11 @@ export class HonuaGeocodingClient {
   public constructor(options: GeocodingClientOptions) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
     this.locatorName = options.locatorName ?? "World";
-    this.fetchFn = options.fetchFn ?? fetch;
+    // Bind to `globalThis` at assignment: invoking an unbound `window.fetch`
+    // as `this.fetchFn(...)` throws "TypeError: Illegal invocation" in
+    // browsers. Binding is a no-op for Node's undici fetch and for
+    // caller-supplied wrappers.
+    this.fetchFn = (options.fetchFn ?? fetch).bind(globalThis);
     this.timeoutMs = options.timeoutMs;
 
     const headers: Record<string, string> = {};
