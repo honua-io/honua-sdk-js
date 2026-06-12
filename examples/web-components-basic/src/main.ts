@@ -1,11 +1,14 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
-// Side-effect import registers <honua-basemap-switcher>.
+// Side-effect import registers <honua-basemap-switcher> and <honua-legend>.
+// It runs before the web-components import below, so the controls-entry
+// legend (map-driven, derive mode) owns the honua-legend tag in this demo.
 import "@honua/sdk-js/controls";
 import type {
   HonuaBasemapDefinition,
   HonuaBasemapSwitcherChangeDetail,
   HonuaBasemapSwitcherElement,
+  HonuaLegendElement,
 } from "@honua/sdk-js/controls";
 import {
   type HonuaChartModel,
@@ -29,6 +32,46 @@ declare global {
 }
 
 const INCIDENT_SOURCE_ID = "incidents";
+const ZONING_SOURCE_ID = "zoning";
+
+// Categorical zoning districts. The fill layer styles them with a MapLibre
+// match expression on the "district" attribute, and <honua-legend> derives
+// its swatch rows from that same expression — one source of truth, so map
+// and legend cannot drift.
+function zoningPolygon(district: string, ring: [number, number][]) {
+  return {
+    type: "Feature",
+    properties: { district },
+    geometry: { type: "Polygon", coordinates: [ring] },
+  };
+}
+
+const zoningGeoJson = {
+  type: "FeatureCollection",
+  features: [
+    zoningPolygon("Residential", [
+      [-157.88, 21.305],
+      [-157.862, 21.305],
+      [-157.862, 21.32],
+      [-157.88, 21.32],
+      [-157.88, 21.305],
+    ]),
+    zoningPolygon("Business", [
+      [-157.862, 21.29],
+      [-157.845, 21.29],
+      [-157.845, 21.305],
+      [-157.862, 21.305],
+      [-157.862, 21.29],
+    ]),
+    zoningPolygon("Open-Park", [
+      [-157.845, 21.285],
+      [-157.83, 21.285],
+      [-157.83, 21.3],
+      [-157.845, 21.3],
+      [-157.845, 21.285],
+    ]),
+  ],
+};
 
 const features: HonuaFeatureRecord[] = [
   {
@@ -102,8 +145,39 @@ const controller = createHonuaWebComponentController({
           type: "geojson",
           data: incidentGeoJson,
         },
+        [ZONING_SOURCE_ID]: {
+          type: "geojson",
+          data: zoningGeoJson,
+        },
       },
       layers: [
+        {
+          id: "zoning-districts",
+          source: ZONING_SOURCE_ID,
+          type: "fill",
+          metadata: { title: "Zoning districts" },
+          paint: {
+            "fill-color": [
+              "match",
+              ["get", "district"],
+              "Residential",
+              "#facc15",
+              "Agricultural",
+              "#84cc16",
+              "Business",
+              "#ef4444",
+              "Industrial",
+              "#a855f7",
+              "Hotel",
+              "#fb923c",
+              "Open-Park",
+              "#22c55e",
+              "#cbd5e1",
+            ],
+            "fill-opacity": 0.35,
+            "fill-outline-color": "#475569",
+          },
+        },
         {
           id: "incident-halos",
           source: INCIDENT_SOURCE_ID,
@@ -322,6 +396,25 @@ basemapSwitcher.addEventListener("change", (event) => {
 // The element also self-wires from for="ops-map" + the honua-map-ready event;
 // assigning the bases is the only imperative step the host performs.
 basemapSwitcher.bases = demoBasemaps;
+
+// <honua-legend> combines explicit entries (the incident symbology below)
+// with a section derived from the zoning layer's match expression (layer=
+// "zoning-districts" in the markup). follow-layer-visibility hides the
+// zoning section while the layer is toggled off in the layer list, and
+// auto-refresh re-derives on the map's styledata events.
+const legend = document.querySelector("honua-legend") as HonuaLegendElement | null;
+if (!legend) throw new Error("Missing honua-legend");
+legend.entries = [
+  {
+    title: "Incident priority",
+    layer: "incident-points",
+    entries: [
+      { label: "High priority", color: "#dc2626", shape: "circle" },
+      { label: "Medium priority", color: "#d97706", shape: "circle" },
+      { label: "Low priority", color: "#16a34a", shape: "circle" },
+    ],
+  },
+];
 
 document.addEventListener("honua-bookmark-change", (event) => {
   const detail = (event as CustomEvent<{ id: string }>).detail;

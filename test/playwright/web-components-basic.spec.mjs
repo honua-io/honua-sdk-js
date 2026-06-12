@@ -19,6 +19,11 @@ test("web components compose map, layers, legend, table, search, and editor stat
     await expect(page.locator("honua-map canvas")).toHaveCount(1);
     await expect(page.locator("honua-layer-list").getByText("Incident response halos")).toBeVisible();
     await expect(page.locator("honua-legend").getByText("High priority")).toBeVisible();
+    // Derive-mode rows parsed from the zoning layer's match expression,
+    // including the fallback color row.
+    await expect(page.locator("honua-legend").getByText("Residential")).toBeVisible();
+    await expect(page.locator("honua-legend").getByText("Open-Park")).toBeVisible();
+    await expect(page.locator("honua-legend").getByText("Other")).toBeVisible();
     await expect(page.locator("honua-feature-table").getByText("Harbor response district")).toBeVisible();
     await expect(page.locator("honua-editor").getByText("Source metadata marks incidents read-only.")).toBeVisible();
     await expect(page.locator("honua-editor button[data-action='save']")).toBeDisabled();
@@ -64,6 +69,13 @@ test("web components compose map, layers, legend, table, search, and editor stat
       .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.mapLayerVisible("incident-points")))
       .toBe(false);
     await expect(page.locator("#event-log")).toHaveText("layer:incident-points:false");
+
+    // follow-layer-visibility: hiding the zoning layer hides its derived
+    // legend section; re-showing it brings the section back.
+    await page.getByLabel("Zoning districts").uncheck();
+    await expect(page.locator("honua-legend").getByText("Residential")).toBeHidden();
+    await page.getByLabel("Zoning districts").check();
+    await expect(page.locator("honua-legend").getByText("Residential")).toBeVisible();
 
     await page.locator("honua-search").getByRole("textbox", { name: "Search" }).fill("harbor");
     await page.keyboard.press("Enter");
