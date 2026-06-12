@@ -192,7 +192,7 @@ tables, and backwards-compatibility policy live in:
     `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`.
   - **Experimental** (subpath-only — not re-exported from the root barrels):
     `/app`, `/app-controller`, `/app-workspace`, `/scene-workspace`, `/collaboration`,
-    `/control-plane`, `/generated-app`, `/studio`, `/agent-tools`, `/realtime`,
+    `/control-plane`, `/controls`, `/generated-app`, `/studio`, `/agent-tools`, `/realtime`,
     `/web-components`, `/operator`, `/operator/*`.
 
 ## More guides

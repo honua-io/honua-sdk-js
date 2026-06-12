@@ -1,5 +1,12 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
+// Side-effect import registers <honua-basemap-switcher>.
+import "@honua/sdk-js/controls";
+import type {
+  HonuaBasemapDefinition,
+  HonuaBasemapSwitcherChangeDetail,
+  HonuaBasemapSwitcherElement,
+} from "@honua/sdk-js/controls";
 import {
   type HonuaChartModel,
   type HonuaFeatureRecord,
@@ -97,19 +104,6 @@ const controller = createHonuaWebComponentController({
         },
       },
       layers: [
-        {
-          id: "basemap-background",
-          type: "background",
-          metadata: { title: "Blue basemap", basemap: true },
-          paint: { "background-color": "#e8eef7" },
-        },
-        {
-          id: "basemap-dark",
-          type: "background",
-          metadata: { title: "Dark basemap", basemap: true },
-          layout: { visibility: "none" },
-          paint: { "background-color": "#203040" },
-        },
         {
           id: "incident-halos",
           source: INCIDENT_SOURCE_ID,
@@ -261,11 +255,73 @@ document.addEventListener("honua-filter-change", (event) => {
   writeEventLog();
 });
 
-document.addEventListener("honua-basemap-change", (event) => {
-  const detail = (event as CustomEvent<{ basemapId: string }>).detail;
-  eventLog.push(`basemap:${detail.basemapId}`);
+// Exclusive basemap definitions for <honua-basemap-switcher>. The mock lane
+// stays offline, so the composite "Terrain" base pairs a background with an
+// inline GeoJSON contour layer; against a live Honua deployment the same
+// definition shape carries a pmtiles:// vector base plus a raster-dem
+// hillshade (see @honua/sdk-js/controls docs).
+const demoBasemaps: HonuaBasemapDefinition[] = [
+  {
+    id: "light",
+    label: "Light",
+    kind: "vector",
+    sources: {},
+    layers: [{ id: "base-light", type: "background", paint: { "background-color": "#e8eef7" } }],
+  },
+  {
+    id: "dark",
+    label: "Dark",
+    kind: "vector",
+    sources: {},
+    layers: [{ id: "base-dark", type: "background", paint: { "background-color": "#203040" } }],
+  },
+  {
+    id: "terrain",
+    label: "Terrain",
+    kind: "raster-dem-composite",
+    sources: {
+      "demo-contours": {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: [-157.92, -157.88, -157.84, -157.8].map((lng) => ({
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [lng, 21.25],
+                [lng + 0.02, 21.35],
+              ],
+            },
+          })),
+        },
+      },
+    },
+    layers: [
+      { id: "base-terrain", type: "background", paint: { "background-color": "#e2ead9" } },
+      {
+        id: "base-terrain-contours",
+        type: "line",
+        source: "demo-contours",
+        paint: { "line-color": "#9db89a", "line-width": 1 },
+      },
+    ],
+  },
+];
+
+const basemapSwitcher = document.querySelector("honua-basemap-switcher") as HonuaBasemapSwitcherElement | null;
+if (!basemapSwitcher) throw new Error("Missing honua-basemap-switcher");
+
+basemapSwitcher.addEventListener("change", (event) => {
+  const detail = (event as CustomEvent<HonuaBasemapSwitcherChangeDetail>).detail;
+  eventLog.push(`basemap:${detail.value}`);
   writeEventLog();
 });
+
+// The element also self-wires from for="ops-map" + the honua-map-ready event;
+// assigning the bases is the only imperative step the host performs.
+basemapSwitcher.bases = demoBasemaps;
 
 document.addEventListener("honua-bookmark-change", (event) => {
   const detail = (event as CustomEvent<{ id: string }>).detail;

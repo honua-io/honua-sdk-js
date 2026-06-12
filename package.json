@@ -66,6 +66,10 @@
       "types": "./dist/src/geocoding/index.d.ts",
       "default": "./dist/src/geocoding/index.js"
     },
+    "./controls": {
+      "types": "./dist/src/controls/index.d.ts",
+      "default": "./dist/src/controls/index.js"
+    },
     "./contract": {
       "types": "./dist/src/contract/index.d.ts",
       "default": "./dist/src/contract/index.js"
@@ -182,7 +186,7 @@
     "verify:split-packages": "npm run build:split-packages --silent && node scripts/verify-split-packages.mjs",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat && npm pack ./dist/packages/honua-migrate",
     "typecheck": "tsc --noEmit",
-    "docs:api": "npx --yes typedoc@^0.26 --tsconfig tsconfig.json --out dist/docs-api --excludeInternal --excludePrivate --readme README.md --name '@honua/sdk-js' src/index.ts src/honua.ts src/contract/index.ts src/expr/index.ts src/webmap/index.ts src/geocoding/index.ts src/runtime/index.ts src/studio/index.ts src/migration-entry.ts src/esri-compat-entry.ts",
+    "docs:api": "npx --yes typedoc@^0.26 --tsconfig tsconfig.json --out dist/docs-api --excludeInternal --excludePrivate --readme README.md --name '@honua/sdk-js' src/index.ts src/honua.ts src/contract/index.ts src/controls/index.ts src/expr/index.ts src/webmap/index.ts src/geocoding/index.ts src/runtime/index.ts src/studio/index.ts src/migration-entry.ts src/esri-compat-entry.ts",
     "demo:quickstart": "vite --config examples/maplibre-quickstart/vite.config.ts",
     "demo:quickstart:build": "vite build --config examples/maplibre-quickstart/vite.config.ts",
     "demo:quickstart:preview": "vite preview --config examples/maplibre-quickstart/vite.config.ts --host 127.0.0.1",
@@ -382,7 +386,11 @@
     "./dist/src/web-components/index.js",
     "./dist/src/web-components/elements.js",
     "./src/web-components/index.ts",
-    "./src/web-components/elements.ts"
+    "./src/web-components/elements.ts",
+    "./dist/src/controls/index.js",
+    "./dist/src/controls/basemap-switcher.js",
+    "./src/controls/index.ts",
+    "./src/controls/basemap-switcher.ts"
   ],
   "engines": {
     "node": ">=20.0.0"
