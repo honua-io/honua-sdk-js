@@ -40,20 +40,21 @@
  */
 
 import { HonuaBasemapStyleBinding } from "./basemap-style-binding.js";
+import {
+  HTMLElementBase,
+  escapeAttribute,
+  escapeHtml,
+  globalDom,
+  listenForHonuaMapReady,
+  resolveHonuaMapFromContext,
+} from "./element-utils.js";
+import { HonuaLegendElement } from "./legend.js";
 import type {
   HonuaBasemapDefinition,
   HonuaBasemapKind,
   HonuaBasemapSwitcherChangeDetail,
   HonuaBasemapSwitcherMap,
 } from "./types.js";
-
-const globalDom = globalThis as typeof globalThis & {
-  HTMLElement?: typeof HTMLElement;
-  CustomEvent?: typeof CustomEvent;
-  customElements?: CustomElementRegistry;
-};
-
-const HTMLElementBase: typeof HTMLElement = globalDom.HTMLElement ?? (class {} as unknown as typeof HTMLElement);
 
 /**
  * Custom element implementing the exclusive basemap switcher. Registered as
@@ -67,7 +68,7 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
 
   readonly #binding = new HonuaBasemapStyleBinding();
   #requestedValue: string | undefined;
-  #mapReadyListener: ((event: Event) => void) | undefined;
+  #disposeMapReadyListener: (() => void) | undefined;
   #rendered = false;
 
   /**
@@ -176,10 +177,8 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
   }
 
   public disconnectedCallback(): void {
-    if (this.#mapReadyListener) {
-      this.#rootEventTarget()?.removeEventListener("honua-map-ready", this.#mapReadyListener);
-      this.#mapReadyListener = undefined;
-    }
+    this.#disposeMapReadyListener?.();
+    this.#disposeMapReadyListener = undefined;
   }
 
   /**
@@ -200,39 +199,18 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
   // ── map wiring (matches the web-components `for` + ready-event idiom) ──
 
   #listenForMapReady(): void {
-    if (this.#mapReadyListener) return;
-    const target = this.#rootEventTarget();
-    if (!target) return;
-    this.#mapReadyListener = (event: Event) => {
-      const detail = (event as CustomEvent<{ map?: unknown }>).detail;
-      if (!detail?.map) return;
-      const forId = this.getAttribute("for");
-      if (forId && (event.target as Element | null)?.id !== forId) return;
+    if (this.#disposeMapReadyListener) return;
+    this.#disposeMapReadyListener = listenForHonuaMapReady(this, (map) => {
+      const forId = typeof this.getAttribute === "function" ? this.getAttribute("for") : null;
       if (!forId && this.map) return;
-      this.map = detail.map as HonuaBasemapSwitcherMap;
-    };
-    target.addEventListener("honua-map-ready", this.#mapReadyListener as EventListener);
+      this.map = map as HonuaBasemapSwitcherMap;
+    });
   }
 
   #resolveMapFromContext(): void {
-    if (this.map || typeof this.getAttribute !== "function") return;
-    const forId = this.getAttribute("for");
-    if (!forId) return;
-    const root = this.getRootNode?.() as (Document | ShadowRoot) | undefined;
-    const host =
-      root && "getElementById" in root
-        ? root.getElementById(forId)
-        : typeof document !== "undefined"
-          ? document.getElementById(forId)
-          : null;
-    const map = (host as { map?: unknown } | null)?.map;
+    if (this.map) return;
+    const map = resolveHonuaMapFromContext(this);
     if (map) this.map = map as HonuaBasemapSwitcherMap;
-  }
-
-  #rootEventTarget(): EventTarget | undefined {
-    const root = this.getRootNode?.();
-    if (root && "addEventListener" in root) return root as EventTarget;
-    return typeof document !== "undefined" ? document : undefined;
   }
 
   // ── rendering ──────────────────────────────────────────────
@@ -355,14 +333,22 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
 }
 
 /**
- * Registers the controls-entry custom elements (`honua-basemap-switcher`).
- * Invoked automatically on import when a global `customElements` registry is
- * present; call explicitly when using a scoped registry.
+ * Registers the controls-entry custom elements (`honua-basemap-switcher`,
+ * `honua-legend`). Invoked automatically on import when a global
+ * `customElements` registry is present; call explicitly when using a scoped
+ * registry.
+ *
+ * Registrations are skipped for tag names that are already defined. In
+ * particular the `web-components` entry registers its own (controller-driven)
+ * `honua-legend`; whichever entry is imported first owns that tag.
  */
 export function defineHonuaControls(registry = globalDom.customElements): void {
   if (!registry) return;
   if (!registry.get("honua-basemap-switcher")) {
     registry.define("honua-basemap-switcher", HonuaBasemapSwitcherElement);
+  }
+  if (!registry.get("honua-legend")) {
+    registry.define("honua-legend", HonuaLegendElement);
   }
 }
 
@@ -407,17 +393,4 @@ function structuralStyles(): string {
     .group { display: inline-flex; flex-wrap: wrap; }
     .radio { font: inherit; cursor: pointer; }
   `;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function escapeAttribute(value: string): string {
-  return escapeHtml(value);
 }

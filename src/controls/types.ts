@@ -101,3 +101,62 @@ export interface HonuaBasemapSwitcherChangeDetail {
   /** Kind of the now-active base. */
   readonly kind: HonuaBasemapKind;
 }
+
+/**
+ * Swatch geometry rendered for a legend entry by `<honua-legend>`:
+ * - `"fill"` — square swatch (polygon fills); supports an outline color.
+ * - `"line"` — short horizontal bar (line layers).
+ * - `"circle"` — round swatch (circle/point layers).
+ */
+export type HonuaLegendSwatchShape = "fill" | "line" | "circle";
+
+/** Split fill/outline colors for a legend swatch (typically fill layers). */
+export interface HonuaLegendSwatchColor {
+  /** CSS color painted as the swatch body. */
+  readonly fill?: string;
+  /** CSS color painted as the swatch border. */
+  readonly outline?: string;
+}
+
+/** One swatch+label row rendered by `<honua-legend>`. */
+export interface HonuaLegendEntry {
+  /** Visible text carrying the entry's meaning (swatches are aria-hidden). */
+  readonly label: string;
+  /** Swatch color: a CSS color string or split `{ fill, outline }` colors. */
+  readonly color: string | HonuaLegendSwatchColor;
+  /** Swatch geometry; defaults to `"fill"`. */
+  readonly shape?: HonuaLegendSwatchShape;
+}
+
+/** A titled group of legend entries rendered by `<honua-legend>`. */
+export interface HonuaLegendSection {
+  /** Optional section title rendered above the rows. */
+  readonly title?: string;
+  /**
+   * Style layer id this section describes. When the element has
+   * `follow-layer-visibility`, the section is hidden while the layer's
+   * `visibility` layout property is `"none"`.
+   */
+  readonly layer?: string;
+  /** The swatch+label rows of the section. */
+  readonly entries: readonly HonuaLegendEntry[];
+}
+
+/**
+ * Minimal duck-typed subset of `maplibre-gl.Map` required by
+ * `<honua-legend>`. Any MapLibre-GL `Map` instance satisfies this interface,
+ * and tests can pass a plain stub (same posture as
+ * {@link HonuaBasemapSwitcherMap}).
+ */
+export interface HonuaLegendMap {
+  /** Returns a truthy handle (with a `type`) when the layer exists. */
+  getLayer?(id: string): unknown;
+  /** Reads a paint property value as written in the style (expressions are returned verbatim). */
+  getPaintProperty?(layerId: string, name: string): unknown;
+  /** Reads a layout property; used for `follow-layer-visibility`. */
+  getLayoutProperty?(layerId: string, name: string): unknown;
+  /** Subscribes to map events; used for `auto-refresh` on `styledata`. */
+  on?(type: string, listener: (event?: unknown) => void): unknown;
+  /** Unsubscribes a listener registered with `on`. */
+  off?(type: string, listener: (event?: unknown) => void): unknown;
+}

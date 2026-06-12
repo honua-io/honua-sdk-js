@@ -130,7 +130,9 @@ import { defineHonuaWebComponents } from "@honua/sdk/web-components";
 import {
   HonuaBasemapStyleBinding,
   HonuaBasemapSwitcherElement,
+  HonuaLegendElement,
   defineHonuaControls,
+  deriveLegendEntries,
 } from "@honua/sdk/controls";
 import { projectBuildSpecToGeneratedAppManifest } from "@honua/sdk/generated-app";
 import { chartWidgetToVegaLiteSpec, isVegaLiteSpec, projectMapPackage } from "@honua/sdk/console";
@@ -324,6 +326,22 @@ if (typeof HonuaBasemapStyleBinding !== "function")
   ]);
   if (!bindingSmoke.activate("light") || bindingSmoke.activeId !== "light")
     throw new Error("@honua/sdk/controls HonuaBasemapStyleBinding failed to activate a base");
+}
+if (typeof HonuaLegendElement !== "function")
+  throw new Error("HonuaLegendElement export missing from @honua/sdk/controls");
+if (typeof deriveLegendEntries !== "function")
+  throw new Error("deriveLegendEntries export missing from @honua/sdk/controls");
+{
+  const legendSmoke = deriveLegendEntries(
+    {
+      getLayer: () => ({ type: "fill" }),
+      getPaintProperty: (_layerId, name) =>
+        name === "fill-color" ? ["match", ["get", "district"], "Residential", "#facc15", "#cbd5e1"] : undefined,
+    },
+    "zoning-districts",
+  );
+  if (legendSmoke.length !== 2 || legendSmoke[0].label !== "Residential" || legendSmoke[1].label !== "Other")
+    throw new Error("@honua/sdk/controls deriveLegendEntries failed to parse a match expression");
 }
 if (typeof projectBuildSpecToGeneratedAppManifest !== "function")
   throw new Error("projectBuildSpecToGeneratedAppManifest export missing from @honua/sdk/generated-app");
