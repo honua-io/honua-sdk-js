@@ -1578,3 +1578,33 @@ function buildMinimalPbf(): Uint8Array {
   const fcpb = [...sf(1, "1.0"), ...ld(2, queryResult)];
   return new Uint8Array(fcpb);
 }
+
+describe("HonuaClient default fetch binding", () => {
+  // Browsers reject `window.fetch` invoked with any receiver other than
+  // the global object — calling the stored default through
+  // `this.fetchFn(...)` rebinds the receiver to the client instance and
+  // throws "TypeError: Illegal invocation" (#269). Emulate the browser
+  // receiver contract in Node with a strict double so the regression
+  // fails when the default fetch is stored unbound.
+  it("invokes the default global fetch with a globalThis-safe receiver, not the client instance", async () => {
+    const realFetch = globalThis.fetch;
+    const strictFetch = function (this: unknown, ..._args: Parameters<typeof fetch>): Promise<Response> {
+      if (this !== undefined && this !== globalThis) {
+        throw new TypeError("Illegal invocation");
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ services: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    };
+    globalThis.fetch = strictFetch as typeof fetch;
+    try {
+      const client = new HonuaClient({ baseUrl: "https://example.test" });
+      await expect(client.listServices()).resolves.toMatchObject({ services: [] });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});

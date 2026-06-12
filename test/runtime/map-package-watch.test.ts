@@ -11,6 +11,7 @@ import {
   type MapPackageRealtimeSubscribeRequest,
   type MapPackageRealtimeTransport,
   type MapPackageWatchEvent,
+  createMapPackageServerSentEventsTransport,
   mapPackageFingerprint,
   watchMapPackage,
 } from "../../src/runtime/index.js";
@@ -410,3 +411,58 @@ function jsonResponse(body: unknown): Response {
 async function flushPromises(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
+
+describe("map-package SSE default EventSource factory", () => {
+  // The global `EventSource` is a constructor: invoking it as a plain
+  // call (`EventSource(url, init)`) throws a TypeError in browsers —
+  // the same family as the realtime SSE transport bug (#271). A class
+  // double reproduces that — class constructors also throw when invoked
+  // without `new` — so this test fails unless the default factory
+  // constructs the source.
+  test("constructs the global EventSource with `new` when no eventSourceFactory is provided", () => {
+    const constructed: GlobalEventSourceDouble[] = [];
+    class GlobalEventSourceDouble implements MapPackageRealtimeEventSource {
+      public onopen: ((event: Event) => void) | null = null;
+      public onmessage: ((event: MessageEvent<string>) => void) | null = null;
+      public onerror: ((event: Event) => void) | null = null;
+      public readyState = 0;
+      public closed = false;
+      public constructor(
+        public readonly url: string,
+        public readonly init?: EventSourceInit,
+      ) {
+        constructed.push(this);
+      }
+      public close(): void {
+        this.closed = true;
+        this.readyState = 2;
+      }
+    }
+    vi.stubGlobal("EventSource", GlobalEventSourceDouble);
+    try {
+      const transport = createMapPackageServerSentEventsTransport({
+        url: "/api/v1/map-packages/pkg-001/watch",
+        withCredentials: true,
+      });
+      const controller = new AbortController();
+      const handle = transport.subscribe(
+        {
+          locator: "pkg-001",
+          packageId: "pkg-001",
+          path: "/api/v1/map-packages/pkg-001",
+          client: { serverBaseUrl: "https://honua.example" } as unknown as HonuaClient,
+          signal: controller.signal,
+        },
+        { connected: () => {}, message: () => {}, disconnected: () => {}, error: () => {} },
+      );
+      expect(constructed).toHaveLength(1);
+      expect(constructed[0]).toBeInstanceOf(GlobalEventSourceDouble);
+      expect(constructed[0].url).toContain("packageId=pkg-001");
+      expect(constructed[0].init).toEqual({ withCredentials: true });
+      handle.close();
+      expect(constructed[0].closed).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

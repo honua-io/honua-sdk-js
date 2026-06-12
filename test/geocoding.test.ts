@@ -567,4 +567,34 @@ describe("HonuaGeocodingClient", () => {
       expect(capturedUrl).not.toContain("///");
     });
   });
+
+  describe("default fetch binding", () => {
+    // Browsers reject `window.fetch` invoked with any receiver other than
+    // the global object — calling the stored default through
+    // `this.fetchFn(...)` rebinds the receiver to the client instance and
+    // throws "TypeError: Illegal invocation" (#272, same family as #269).
+    // Emulate the browser receiver contract in Node with a strict double
+    // so the regression fails when the default fetch is stored unbound.
+    it("invokes the default global fetch with a globalThis-safe receiver, not the client instance", async () => {
+      const realFetch = globalThis.fetch;
+      const strictFetch = function (this: unknown, ..._args: Parameters<typeof fetch>): Promise<Response> {
+        if (this !== undefined && this !== globalThis) {
+          throw new TypeError("Illegal invocation");
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ candidates: [] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      };
+      globalThis.fetch = strictFetch as typeof fetch;
+      try {
+        const client = new HonuaGeocodingClient({ baseUrl: BASE_URL });
+        await expect(client.forwardGeocode("380 New York St, Redlands")).resolves.toEqual([]);
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+    });
+  });
 });

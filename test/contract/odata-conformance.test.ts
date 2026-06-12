@@ -1518,3 +1518,49 @@ describe("odata / HonuaOdataEntitySet.apply signature (README fix)", () => {
     expect(result.rows).toHaveLength(2);
   });
 });
+
+describe("odata / $metadata degradation", () => {
+  function makeMetadataFailingSource(extra?: Partial<SourceDescriptor>) {
+    const client = makeMockClient({
+      routes: [
+        ["/odata/$metadata", () => new Response("metadata unavailable", { status: 500 })],
+        ["/odata/Parcels", () => jsonResponse(odataParcelsResponse())],
+      ],
+    });
+    return odataSource<ParcelAttrs>(
+      {
+        id: "parcels-odata",
+        protocol: "odata",
+        locator: { url: "https://mock/odata", entitySet: "Parcels" },
+        capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata,
+        ...extra,
+      },
+      client,
+      "strict",
+    );
+  }
+
+  it("query() succeeds when $metadata is missing or failing — the capability check degrades like fieldsFor (#270)", async () => {
+    // `ensureAdvertised` must not reject the canonical surface when the
+    // `$metadata` fetch fails; it degrades to the declared capability
+    // set the same way `fieldsFor` tolerates a missing schema.
+    const source = makeMetadataFailingSource();
+    const result = await source.query({ where: "STATE eq 'CA'" });
+    expect(result.features).toHaveLength(PARCEL_FEATURES.length);
+    // Schema degraded silently — no fields block, but no rejection.
+    expect(result.fields ?? []).toEqual([]);
+  });
+
+  it("spatial-filter queries succeed without $metadata — SRID/geometry context degrades to defaults", async () => {
+    // The geometry column comes from the descriptor schema; `$metadata`
+    // only refines the SRID context here, so its failure must not
+    // reject the query.
+    const source = makeMetadataFailingSource({
+      schema: { fields: [{ name: "Geometry", type: "esriFieldTypeGeometry" }] },
+    });
+    const result = await source.query({
+      spatialFilter: envelope(-120, 30, -110, 40, { wkid: 4326 }),
+    });
+    expect(result.features).toHaveLength(PARCEL_FEATURES.length);
+  });
+});

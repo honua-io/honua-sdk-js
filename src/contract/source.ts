@@ -2730,9 +2730,13 @@ async function buildOdataParams<T>(
     if (rewritten !== "") filterParts.push(rewritten);
   }
   if (request.spatialFilter) {
-    const meta = await entity.metadata();
-    const typeName = meta.entitySets[entity.entitySetName];
-    const spatialFields = (typeName ? meta.fields[typeName] : []) ?? [];
+    // `$metadata` is advisory here — it only refines the geometry column
+    // and SRID context. When it is missing or failing, fall back to the
+    // descriptor-derived `geomColumn` and column defaults instead of
+    // rejecting the query (same degradation as `resolveOdataGeometryColumn`).
+    const meta = await entity.metadata().catch(() => undefined);
+    const typeName = meta ? meta.entitySets[entity.entitySetName] : undefined;
+    const spatialFields = (typeName && meta ? meta.fields[typeName] : undefined) ?? [];
     // The WKT SRID stamps the **input** literal's coordinate system, not
     // the desired output SR (`Query.outSr` controls the response geometry
     // SR via column-side projection on the server). Derive the input SRID
@@ -2970,7 +2974,13 @@ class OdataCapabilityNegotiator {
     // narrower sets short-circuit through `ensureCapability` before this
     // is reached.
     if (!this.declared.includes(capability)) return;
-    const meta = await this.materialize();
+    // A missing or failing `$metadata` endpoint is allowed at runtime —
+    // degrade to the descriptor's declared capability set instead of
+    // rejecting the canonical call, mirroring `fieldsFor` / `keyFields` /
+    // `batchAdvertised`. Errors from the data request itself still
+    // surface from `query`.
+    const meta = await this.materialize().catch(() => undefined);
+    if (!meta) return;
     const advertised: HonuaOdataAdvertisedCapabilities = meta.capabilities[this.entity.entitySetName] ?? {};
     const flag = advertisedFlag(advertised, capability);
     if (flag === false) {

@@ -139,13 +139,19 @@ function createEventSource<TFeature>(
   url: string,
   options: RealtimeServerSentEventsTransportOptions<TFeature>,
 ): RealtimeServerSentEventSource {
-  const factory =
-    options.eventSourceFactory ??
-    ((globalThis as unknown as { EventSource?: RealtimeServerSentEventSourceFactory }).EventSource as
-      | RealtimeServerSentEventSourceFactory
-      | undefined);
-  if (!factory) throw new Error("EventSource is not available; provide eventSourceFactory for this runtime.");
-  return factory(url, { withCredentials: options.withCredentials });
+  if (options.eventSourceFactory) {
+    return options.eventSourceFactory(url, { withCredentials: options.withCredentials });
+  }
+  // The global `EventSource` is a constructor: calling it as a plain
+  // function (`EventSource(url, init)`) throws a TypeError in browsers,
+  // so the default path must construct with `new`.
+  const EventSourceCtor = (
+    globalThis as unknown as {
+      EventSource?: new (url: string, init?: EventSourceInit) => RealtimeServerSentEventSource;
+    }
+  ).EventSource;
+  if (!EventSourceCtor) throw new Error("EventSource is not available; provide eventSourceFactory for this runtime.");
+  return new EventSourceCtor(url, { withCredentials: options.withCredentials });
 }
 
 function resolveEventSourceUrl(input: string, url: URL): string {

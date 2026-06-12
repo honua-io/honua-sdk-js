@@ -377,7 +377,12 @@ export class HonuaClient {
    */
   public constructor(options: HonuaClientOptions) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
-    this.fetchFn = options.fetchFn ?? fetch;
+    // Bind to `globalThis` at assignment: the default browser `fetch` is an
+    // unbound `window.fetch`, and invoking it as `this.fetchFn(...)` rebinds
+    // its receiver to the client instance, which browsers reject with
+    // "TypeError: Illegal invocation". Binding is a no-op for Node's undici
+    // fetch and for caller-supplied wrappers (arrow/bound functions ignore it).
+    this.fetchFn = (options.fetchFn ?? fetch).bind(globalThis);
 
     const headers: Record<string, string> = {};
     if (options.apiKey) {
