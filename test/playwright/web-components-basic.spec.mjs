@@ -23,7 +23,11 @@ test("web components compose map, layers, legend, table, search, and editor stat
     await expect(page.locator("honua-editor").getByText("Source metadata marks incidents read-only.")).toBeVisible();
     await expect(page.locator("honua-editor button[data-action='save']")).toBeDisabled();
     await expect(page.locator("honua-chart").getByText("High")).toBeVisible();
-    await expect(page.locator("honua-basemap-control").getByRole("button", { name: "Dark basemap" })).toBeVisible();
+    await expect(page.locator("honua-basemap-switcher").getByRole("radio", { name: "Dark" })).toBeVisible();
+    await expect(page.locator("honua-basemap-switcher").getByRole("radio", { name: "Light" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
     await expect(page.locator("honua-bookmarks").getByRole("button", { name: "Home" })).toBeVisible();
     await expect(page.locator("honua-locate-control").getByRole("button", { name: "Use location" })).toBeVisible();
     await expect(page.locator("honua-measure-control").getByText("Measurement geometry is not available")).toBeVisible();
@@ -88,11 +92,32 @@ test("web components compose map, layers, legend, table, search, and editor stat
     await expect(page.locator("#event-log")).toHaveText("filter:incidents:kakaako");
     await expect(page.locator("honua-feature-table").getByText("Ala Moana shelter route")).toHaveCount(0);
 
-    await page.locator("honua-basemap-control").getByRole("button", { name: "Dark basemap" }).click();
-    await expect(page.locator("#event-log")).toHaveText("basemap:basemap-dark");
+    await page.locator("honua-basemap-switcher").getByRole("radio", { name: "Dark" }).click();
+    await expect(page.locator("#event-log")).toHaveText("basemap:dark");
     await expect
-      .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.mapLayerVisible("basemap-dark")))
+      .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.mapLayerVisible("base-dark")))
       .toBe(true);
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.mapLayerVisible("base-light")))
+      .toBe(false);
+    await expect(page.locator("honua-basemap-switcher").getByRole("radio", { name: "Dark" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+
+    await page.locator("honua-basemap-switcher").getByRole("radio", { name: "Terrain" }).click();
+    await expect(page.locator("#event-log")).toHaveText("basemap:terrain");
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.mapLayerVisible("base-terrain")))
+      .toBe(true);
+    await expect
+      .poll(async () =>
+        page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.mapLayerVisible("base-terrain-contours")),
+      )
+      .toBe(true);
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.mapLayerVisible("base-dark")))
+      .toBe(false);
 
     await page.locator("honua-bookmarks").getByRole("button", { name: "Harbor" }).click();
     await expect(page.locator("#event-log")).toHaveText("bookmark:harbor");

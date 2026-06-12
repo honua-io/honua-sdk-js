@@ -127,6 +127,11 @@ import { HonuaMap } from "@honua/sdk/map";
 import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import { defineHonuaWebComponents } from "@honua/sdk/web-components";
+import {
+  HonuaBasemapStyleBinding,
+  HonuaBasemapSwitcherElement,
+  defineHonuaControls,
+} from "@honua/sdk/controls";
 import { projectBuildSpecToGeneratedAppManifest } from "@honua/sdk/generated-app";
 import { chartWidgetToVegaLiteSpec, isVegaLiteSpec, projectMapPackage } from "@honua/sdk/console";
 import { HONUA_QUERY_PACKAGE_FORMAT_V1, toStudioValidationResponse } from "@honua/sdk/studio";
@@ -306,6 +311,20 @@ if (typeof validateRuntimeStyleSpec !== "function")
   throw new Error("validateRuntimeStyleSpec export missing from @honua/sdk/runtime");
 if (typeof defineHonuaWebComponents !== "function")
   throw new Error("defineHonuaWebComponents export missing from @honua/sdk/web-components");
+if (typeof defineHonuaControls !== "function")
+  throw new Error("defineHonuaControls export missing from @honua/sdk/controls");
+if (typeof HonuaBasemapSwitcherElement !== "function")
+  throw new Error("HonuaBasemapSwitcherElement export missing from @honua/sdk/controls");
+if (typeof HonuaBasemapStyleBinding !== "function")
+  throw new Error("HonuaBasemapStyleBinding export missing from @honua/sdk/controls");
+{
+  const bindingSmoke = new HonuaBasemapStyleBinding();
+  bindingSmoke.setBases([
+    { id: "light", label: "Light", kind: "vector", sources: {}, layers: [{ id: "light-bg", type: "background" }] },
+  ]);
+  if (!bindingSmoke.activate("light") || bindingSmoke.activeId !== "light")
+    throw new Error("@honua/sdk/controls HonuaBasemapStyleBinding failed to activate a base");
+}
 if (typeof projectBuildSpecToGeneratedAppManifest !== "function")
   throw new Error("projectBuildSpecToGeneratedAppManifest export missing from @honua/sdk/generated-app");
 if (typeof chartWidgetToVegaLiteSpec !== "function" || typeof isVegaLiteSpec !== "function")

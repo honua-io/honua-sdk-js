@@ -42,6 +42,7 @@ function createSdkPackage() {
   fs.mkdirSync(packageRoot, { recursive: true });
 
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "controls"), path.join(packageRoot, "controls"));
   copyDirectory(path.join(DIST_SRC_ROOT, "control-plane"), path.join(packageRoot, "control-plane"));
   copyDirectory(path.join(DIST_SRC_ROOT, "collaboration"), path.join(packageRoot, "collaboration"));
   copyDirectory(path.join(DIST_SRC_ROOT, "console"), path.join(packageRoot, "console"));
@@ -85,6 +86,10 @@ function createSdkPackage() {
       "./contract": {
         types: "./contract/index.d.ts",
         default: "./contract/index.js",
+      },
+      "./controls": {
+        types: "./controls/index.d.ts",
+        default: "./controls/index.js",
       },
       "./control-plane": {
         types: "./control-plane/index.d.ts",

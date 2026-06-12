@@ -38,6 +38,28 @@ honua-map {
   min-height: 20px;
 }
 
+/* The basemap switcher ships structural CSS only; theme it via ::part(). */
+honua-basemap-switcher::part(group) {
+  background: #ffffff;
+  border: 1px solid #d0d7e2;
+  border-radius: 8px;
+  gap: 4px;
+  padding: 4px;
+}
+
+honua-basemap-switcher::part(radio) {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #172033;
+  padding: 6px 10px;
+}
+
+honua-basemap-switcher::part(radio-active) {
+  background: #2563eb;
+  color: #ffffff;
+}
+
 @media (max-width: 820px) {
   .workspace,
   .bottom-panel {
