@@ -1027,6 +1027,15 @@ export class HonuaLocateControlElement<T = Record<string, unknown>> extends Honu
   }
 }
 
+/**
+ * `<honua-measure-control>` renders distance/area measuring modes.
+ *
+ * The control is only interactive when the controller has a measurement
+ * geometry provider configured (`measurementGeometry` on
+ * {@link CreateHonuaWebComponentControllerOptions}). Without one — for example
+ * the bare in-memory controller — the modes render disabled with a "configure
+ * a provider" affordance, by design: the SDK does not bundle a drawing backend.
+ */
 export class HonuaMeasureControlElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
     return ["for", "label"];
@@ -1039,14 +1048,19 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
     this.render();
   }
 
+  protected controllerChanged(): void {
+    this.render();
+  }
+
   protected render(): void {
     const label = this.getAttribute("label") ?? "Measure";
+    const enabled = this.controller?.canMeasure() ?? false;
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>unsupported</span>
+          <span>${escapeHtml(enabled ? "ready" : "unsupported")}</span>
         </div>
         <div class="segmented" role="group" aria-label="${escapeAttribute(label)}">
           ${(["off", "distance", "area"] as const)
@@ -1054,30 +1068,49 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
               (mode) => `
             <button type="button" data-measure-mode="${mode}" aria-pressed="${String(
               this.#mode === mode,
-            )}" aria-disabled="true" disabled>${escapeHtml(modeLabel(mode))}</button>
+            )}"${enabled ? "" : ' aria-disabled="true" disabled'}>${escapeHtml(modeLabel(mode))}</button>
           `,
             )
             .join("")}
         </div>
-        <p class="empty" role="status">Measurement geometry is not available from the current controller.</p>
+        ${
+          enabled
+            ? ""
+            : `<p class="empty" role="status">Measurement is disabled because no geometry provider is configured. Pass a \`measurementGeometry\` provider to the controller to enable distance and area measuring.</p>`
+        }
       </section>
     `);
+    if (!enabled) return;
     this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-measure-mode]").forEach((button) => {
-      button.addEventListener("click", () => this.setMode((button.dataset.measureMode ?? "off") as HonuaMeasureMode));
+      button.addEventListener("click", () => {
+        void this.setMode((button.dataset.measureMode ?? "off") as HonuaMeasureMode);
+      });
     });
   }
 
-  private setMode(mode: HonuaMeasureMode): void {
+  private async setMode(mode: HonuaMeasureMode): Promise<void> {
     this.#mode = mode;
-    this.dispatchTypedEvent<HonuaMeasureChangeDetail>("honua-measure-change", {
-      mode,
-      status: "unsupported",
-      message: "Measurement geometry is not available from the current controller.",
-    });
+    const detail = this.controller
+      ? await this.controller.setMeasureMode(mode)
+      : {
+          mode,
+          status: "unsupported" as HonuaComponentStatus,
+          message:
+            "Measurement requires a geometry provider. Configure `measurementGeometry` on the controller to enable measuring.",
+        };
+    this.dispatchTypedEvent<HonuaMeasureChangeDetail>("honua-measure-change", detail);
     this.render();
   }
 }
 
+/**
+ * `<honua-sketch-control>` renders point/line/polygon drawing modes.
+ *
+ * Like {@link HonuaMeasureControlElement}, the control is only interactive when
+ * the controller has a sketch geometry provider configured (`sketchGeometry` on
+ * {@link CreateHonuaWebComponentControllerOptions}). Without one the modes
+ * render disabled with a "configure a provider" affordance.
+ */
 export class HonuaSketchControlElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
     return ["for", "label"];
@@ -1090,14 +1123,19 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
     this.render();
   }
 
+  protected controllerChanged(): void {
+    this.render();
+  }
+
   protected render(): void {
     const label = this.getAttribute("label") ?? "Sketch";
+    const enabled = this.controller?.canSketch() ?? false;
     this.setShadowHtml(`
       <style>${baseStyles()}${controlPanelStyles()}</style>
       <section class="control-panel" part="panel" aria-label="${escapeHtml(label)}">
         <div class="control-panel__bar">
           <h2>${escapeHtml(label)}</h2>
-          <span>unsupported</span>
+          <span>${escapeHtml(enabled ? "ready" : "unsupported")}</span>
         </div>
         <div class="segmented" role="group" aria-label="${escapeAttribute(label)}">
           ${(["off", "point", "line", "polygon"] as const)
@@ -1105,26 +1143,37 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
               (mode) => `
             <button type="button" data-sketch-mode="${mode}" aria-pressed="${String(
               this.#mode === mode,
-            )}" aria-disabled="true" disabled>${escapeHtml(modeLabel(mode))}</button>
+            )}"${enabled ? "" : ' aria-disabled="true" disabled'}>${escapeHtml(modeLabel(mode))}</button>
           `,
             )
             .join("")}
         </div>
-        <p class="empty" role="status">Sketch editing is not available from the current controller.</p>
+        ${
+          enabled
+            ? ""
+            : `<p class="empty" role="status">Sketching is disabled because no geometry provider is configured. Pass a \`sketchGeometry\` provider to the controller to enable point, line, and polygon drawing.</p>`
+        }
       </section>
     `);
+    if (!enabled) return;
     this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-sketch-mode]").forEach((button) => {
-      button.addEventListener("click", () => this.setMode((button.dataset.sketchMode ?? "off") as HonuaSketchMode));
+      button.addEventListener("click", () => {
+        void this.setMode((button.dataset.sketchMode ?? "off") as HonuaSketchMode);
+      });
     });
   }
 
-  private setMode(mode: HonuaSketchMode): void {
+  private async setMode(mode: HonuaSketchMode): Promise<void> {
     this.#mode = mode;
-    this.dispatchTypedEvent<HonuaSketchChangeDetail>("honua-sketch-change", {
-      mode,
-      status: "unsupported",
-      message: "Sketch editing is not available from the current controller.",
-    });
+    const detail = this.controller
+      ? await this.controller.setSketchMode(mode)
+      : {
+          mode,
+          status: "unsupported" as HonuaComponentStatus,
+          message:
+            "Sketching requires a geometry provider. Configure `sketchGeometry` on the controller to enable drawing.",
+        };
+    this.dispatchTypedEvent<HonuaSketchChangeDetail<T>>("honua-sketch-change", detail);
     this.render();
   }
 }
