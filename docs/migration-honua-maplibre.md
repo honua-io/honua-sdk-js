@@ -61,6 +61,43 @@ is defined in `src/migration/codemod.ts` as
 
 The helper signatures live in `src/map/maplibre-target.ts`.
 
+### Rendering feature-service layers (custom source → `geojson`)
+
+`createHonuaTileServiceLayer` and `createHonuaMapServiceLayer` emit
+MapLibre-native `raster` sources that render as soon as you add them to
+a map. `createHonuaFeatureServiceLayer` is different: its `source` uses
+the custom `honua-feature-service` type, which MapLibre's renderer does
+not understand. Adding that source to a `maplibre-gl` `Map` directly is
+a silent no-op — no error, no features.
+
+To render feature-service layers, run them through the MapLibre runtime
+adapter exported from `@honua/sdk-js/map`. It fetches features via the
+SDK query path and produces a standard `geojson` source MapLibre renders
+natively:
+
+```ts
+import maplibregl from "maplibre-gl";
+import { HonuaClient } from "@honua/sdk-js";
+import {
+  createHonuaFeatureServiceLayer,
+  loadHonuaFeatureServiceGeoJson,
+} from "@honua/sdk-js/map";
+
+const client = new HonuaClient({ baseUrl: "https://gis.example.com" });
+const layer = createHonuaFeatureServiceLayer({ url, outFields: ["*"] });
+
+// Replace the custom honua-feature-service source with a fetched geojson source.
+const source = await loadHonuaFeatureServiceGeoJson(client, layer.source.url);
+map.addSource(layer.sourceId, source);
+map.addLayer(layer.layer);
+```
+
+For a whole `HonuaMap`, `registerHonuaFeatureServiceSources(map, honuaMap,
+client)` walks every `honua-feature-service` source and live-patches it
+on the MapLibre map (adding a new `geojson` source or calling `setData`
+on an existing one). Both helpers live in
+`src/map/feature-service-adapter.ts`.
+
 Every other constructor kind in `REWRITE_SPECS` — geometries,
 symbols, renderers, `WebMap`, `SceneView`, `GraphicsLayer`,
 `GroupLayer`, `VectorTileLayer`, `GeoJSONLayer`, `WMSLayer`,
