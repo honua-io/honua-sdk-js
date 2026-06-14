@@ -11,6 +11,17 @@
  * @module
  */
 
+import type { FeatureId, SourceId } from "../contract/types.js";
+
+/**
+ * Re-exported so replica-sync conflict records compose directly with the
+ * temporal history contracts (honua-sdk-js#227), which key revisions and
+ * timelines by the same {@link FeatureId} / {@link SourceId} aliases. A reviewer
+ * can take a conflict's `featureId` and feed it straight into the temporal
+ * feature-timeline contract without re-typing.
+ */
+export type { FeatureId, SourceId } from "../contract/types.js";
+
 /** Stable identifier for a disconnected replica. */
 export type ReplicaId = string;
 
@@ -98,7 +109,7 @@ export interface DisconnectedReplica {
    */
   readonly name?: string;
   readonly datasetId: string;
-  readonly sourceId?: string;
+  readonly sourceId?: SourceId;
   readonly state: ReplicaState;
   readonly direction: ReplicaSyncDirection;
   readonly conflictPolicy: ReplicaConflictPolicy;
@@ -174,9 +185,11 @@ export interface SyncConflictSummary {
   readonly id: SyncConflictId;
   readonly replicaId: ReplicaId;
   readonly datasetId: string;
-  readonly sourceId?: string;
+  readonly sourceId?: SourceId;
   readonly layerId?: string | number;
-  readonly featureId: string | number;
+  /** Shared with the temporal contracts (#227) so a conflict's feature can be
+   * fed straight into a temporal feature timeline. */
+  readonly featureId: FeatureId;
   readonly kind: SyncConflictKind;
   readonly status: SyncConflictStatus;
   readonly clientOperation: SyncConflictOperation;
@@ -229,7 +242,7 @@ export interface SyncConflictResolutionRecord {
 /** Pageable request for the replica listing. */
 export interface ListReplicasRequest {
   readonly datasetId?: string;
-  readonly sourceId?: string;
+  readonly sourceId?: SourceId;
   readonly states?: ReadonlyArray<ReplicaState>;
   readonly ownerId?: string;
   readonly limit?: number;

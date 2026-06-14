@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { TemporalFeatureTimelineRequest } from "../src/contract/temporal.js";
+import type { FeatureId } from "../src/replica-sync/index.js";
 import {
   createFixtureReplicaSyncTransport,
   createHonuaReplicaSync,
@@ -156,6 +158,25 @@ describe("unsupported capabilities are explicit", () => {
     await expect(sync.capabilities("does-not-exist")).rejects.toSatisfy((error) =>
       isUnsupportedReplicaSyncError(error),
     );
+  });
+});
+
+describe("composition with temporal history contracts (#227)", () => {
+  it("uses the shared FeatureId so a conflict feeds a temporal feature timeline", async () => {
+    const sync = client();
+    const detail = await sync.getConflict("conflict-pending-1");
+
+    // The conflict's featureId is the shared contract FeatureId alias, so it can
+    // be handed straight to the temporal feature-timeline request without any
+    // re-typing or coercion — the two contracts compose by construction.
+    const featureId: FeatureId = detail.featureId;
+    const timelineRequest: TemporalFeatureTimelineRequest = {
+      sourceId: detail.sourceId ?? detail.datasetId,
+      featureId,
+    };
+
+    expect(timelineRequest.featureId).toBe(detail.featureId);
+    expect(timelineRequest.sourceId).toBe("parcels");
   });
 });
 
