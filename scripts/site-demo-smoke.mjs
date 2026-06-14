@@ -118,8 +118,11 @@ for (const d of targets) {
   const shot = path.join(SHOT_DIR, `${d.id}.png`);
   try { await page.screenshot({ path: shot, fullPage: false }); } catch (_) {}
 
-  // classify
-  const serverBad = badResponses.filter((b) => b.includes("demo.honua.io"));
+  // classify (parse the host exactly; substring matching would accept spoofed hosts)
+  const serverBad = badResponses.filter((b) => {
+    const m = b.match(/https?:\/\/[^\s]+/);
+    try { return m ? new URL(m[0]).hostname === "demo.honua.io" : false; } catch (_) { return false; }
+  });
   let status = "ok";
   if (!navOk || pageErrors.length) status = "bad";
   else if (!readyFound || consoleErrors.length || serverBad.length) status = "warn";
