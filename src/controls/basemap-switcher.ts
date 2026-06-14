@@ -48,6 +48,7 @@ import {
   listenForHonuaMapReady,
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
+import { HonuaLayerListElement } from "./layer-list.js";
 import { HonuaLegendElement } from "./legend.js";
 import type {
   HonuaBasemapDefinition,
@@ -334,7 +335,7 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
 
 /**
  * Registers the controls-entry custom elements (`honua-basemap-switcher`,
- * `honua-legend`). Invoked automatically on import when a global
+ * `honua-legend`, `honua-layer-list`). Invoked automatically on import when a global
  * `customElements` registry is present; call explicitly when using a scoped
  * registry.
  *
@@ -349,6 +350,9 @@ export function defineHonuaControls(registry = globalDom.customElements): void {
   }
   if (!registry.get("honua-legend")) {
     registry.define("honua-legend", HonuaLegendElement);
+  }
+  if (!registry.get("honua-layer-list")) {
+    registry.define("honua-layer-list", HonuaLayerListElement);
   }
 }
 

@@ -2,7 +2,7 @@
  * Native Honua UI control kit (`@honua/sdk-js/controls`) — optional,
  * framework-free custom elements for apps built on the native lane
  * (HonuaClient + MapLibre). Tracked by issue #274; ships the basemap
- * switcher and the legend, with a layer list to follow.
+ * switcher, the legend, and the layer list.
  *
  * This entry is intentionally independent of the SDK core bundle (the same
  * posture as `@honua/sdk-js/esri-compat`): it imports nothing from
@@ -22,6 +22,7 @@ import "./basemap-switcher.js";
 
 export { HonuaBasemapStyleBinding } from "./basemap-style-binding.js";
 export { HonuaBasemapSwitcherElement, defineHonuaControls } from "./basemap-switcher.js";
+export { HonuaLayerListElement } from "./layer-list.js";
 export { HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js";
 export type { HonuaLegendDeriveErrorCode } from "./legend-derive.js";
 export { HonuaLegendElement } from "./legend.js";
@@ -31,6 +32,9 @@ export type {
   HonuaBasemapLayerSpecification,
   HonuaBasemapSwitcherChangeDetail,
   HonuaBasemapSwitcherMap,
+  HonuaLayerListChangeDetail,
+  HonuaLayerListMap,
+  HonuaLayerListOverlay,
   HonuaLegendEntry,
   HonuaLegendMap,
   HonuaLegendSection,

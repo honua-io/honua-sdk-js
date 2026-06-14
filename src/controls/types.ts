@@ -103,6 +103,53 @@ export interface HonuaBasemapSwitcherChangeDetail {
 }
 
 /**
+ * One overlay option rendered as a toggle row by `<honua-layer-list>`. An
+ * overlay groups one or more MapLibre style layer ids that are shown/hidden
+ * together (their `visibility` layout property is toggled in lock-step).
+ */
+export interface HonuaLayerListOverlay {
+  /** Stable identifier emitted in `change` events. */
+  readonly id: string;
+  /** Human-readable label rendered next to the checkbox. */
+  readonly label: string;
+  /** Style layer ids toggled together when the overlay is toggled. */
+  readonly layers: readonly string[];
+  /** Optional attribution text (purely descriptive; rendered as a row hint). */
+  readonly attribution?: string;
+}
+
+/**
+ * Minimal duck-typed subset of `maplibre-gl.Map` required by
+ * `<honua-layer-list>`. Any MapLibre-GL `Map` instance satisfies this
+ * interface, and tests can pass a plain stub (same posture as
+ * {@link HonuaBasemapSwitcherMap} and {@link HonuaLegendMap}).
+ */
+export interface HonuaLayerListMap {
+  /** Returns a truthy handle when the layer exists (drives the not-seeded state). */
+  getLayer?(id: string): unknown;
+  /** Reads a layout property; used to sync checkbox state from the map. */
+  getLayoutProperty?(layerId: string, name: string): unknown;
+  /** Sets a layout property; used to toggle `visibility` per overlay layer. */
+  setLayoutProperty(layerId: string, name: string, value: unknown): void;
+  /** Subscribes to map events; used for `auto-refresh` on `styledata`. */
+  on?(type: string, listener: (event?: unknown) => void): unknown;
+  /** Unsubscribes a listener registered with `on`. */
+  off?(type: string, listener: (event?: unknown) => void): unknown;
+}
+
+/**
+ * Detail payload of the `change` CustomEvent dispatched by
+ * `<honua-layer-list>` whenever an overlay is toggled (user interaction or
+ * programmatic `setVisible`).
+ */
+export interface HonuaLayerListChangeDetail {
+  /** Id of the toggled overlay. */
+  readonly id: string;
+  /** Whether the overlay's layers are now visible. */
+  readonly visible: boolean;
+}
+
+/**
  * Swatch geometry rendered for a legend entry by `<honua-legend>`:
  * - `"fill"` — square swatch (polygon fills); supports an outline color.
  * - `"line"` — short horizontal bar (line layers).
