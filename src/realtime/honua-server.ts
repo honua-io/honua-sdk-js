@@ -35,6 +35,7 @@
  */
 
 import type { FeatureId } from "../contract/types.js";
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import { createRealtimeServerSentEventsTransport } from "./sse.js";
 import type { RealtimeServerSentEventsTransportOptions } from "./sse.js";
 import type {
@@ -240,7 +241,9 @@ function resolveStreamingUrl(baseUrl: string | undefined): string {
   if (!baseUrl) {
     throw new Error("createHonuaServerRealtimeSubscription requires either `url` or `baseUrl`.");
   }
-  return `${baseUrl.replace(/\/+$/, "")}${HONUA_SERVER_STREAMING_FEATURES_PATH}`;
+  // Linear trim (no anchored `\/+$` regex) to avoid polynomial backtracking on
+  // adversarial input — mirrors the rest of the SDK's path handling.
+  return `${trimTrailingSlashes(baseUrl)}${HONUA_SERVER_STREAMING_FEATURES_PATH}`;
 }
 
 function collectChanges<TFeature>(
