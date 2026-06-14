@@ -313,6 +313,30 @@ export class HonuaLayerListElement extends HTMLElementBase {
   }
 }
 
+/**
+ * Registers the layer-list custom element (`honua-layer-list`). Skips the
+ * registration when the tag is already defined.
+ *
+ * Unlike the other controls-kit elements, this is **opt-in** and is NOT run by
+ * the blanket `defineHonuaControls()` / module-load auto-registration. The
+ * `web-components` entry ships its own (controller-driven) `honua-layer-list`
+ * under the same tag, and that kit auto-registers on import. Auto-registering
+ * the controls variant too would let it silently win the tag in apps that load
+ * both kits (the order is import-dependent), so callers who want the native,
+ * overlay-definition-driven layer list register it explicitly:
+ *
+ * ```ts
+ * import { defineHonuaLayerList } from "@honua/sdk-js/controls";
+ * defineHonuaLayerList();
+ * ```
+ */
+export function defineHonuaLayerList(registry = globalDom.customElements): void {
+  if (!registry) return;
+  if (!registry.get("honua-layer-list")) {
+    registry.define("honua-layer-list", HonuaLayerListElement);
+  }
+}
+
 function normalizeOverlays(value: readonly HonuaLayerListOverlay[]): HonuaLayerListOverlay[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item): HonuaLayerListOverlay[] => {

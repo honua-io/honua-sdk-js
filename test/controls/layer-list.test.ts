@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { defineHonuaControls } from "../../src/controls/basemap-switcher.js";
-import { HonuaLayerListElement } from "../../src/controls/layer-list.js";
+import { HonuaLayerListElement, defineHonuaLayerList } from "../../src/controls/layer-list.js";
 import type { HonuaLayerListChangeDetail, HonuaLayerListOverlay } from "../../src/controls/types.js";
 
 interface MockLayer {
@@ -125,7 +125,7 @@ afterEach(() => {
 });
 
 describe("HonuaLayerListElement", () => {
-  test("is registered for browser registries via defineHonuaControls", () => {
+  test("is opt-in via defineHonuaLayerList and not auto-registered by defineHonuaControls", () => {
     const defined: Record<string, CustomElementConstructor> = {};
     const registry = {
       get: (name: string) => defined[name],
@@ -133,10 +133,15 @@ describe("HonuaLayerListElement", () => {
         defined[name] = ctor;
       },
     } as unknown as CustomElementRegistry;
+    // The blanket controls registration must NOT claim honua-layer-list — the
+    // tag is shared with the controller-driven web-components element.
     defineHonuaControls(registry);
+    expect(defined["honua-layer-list"]).toBeUndefined();
+    // Explicit opt-in registers it.
+    defineHonuaLayerList(registry);
     expect(defined["honua-layer-list"]).toBe(HonuaLayerListElement);
     // Idempotent: re-defining must not throw.
-    defineHonuaControls(registry);
+    defineHonuaLayerList(registry);
   });
 
   test("renders a checkbox row per overlay with accessible label/checkbox parts", () => {

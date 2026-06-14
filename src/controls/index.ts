@@ -9,9 +9,12 @@
  * `src/core`/`src/runtime` and has no dependency on `maplibre-gl` — controls
  * drive any MapLibre `Map` through a duck-typed interface.
  *
- * Importing this module registers the shipped custom elements when a browser
- * `customElements` registry is present. Node imports are safe; call
- * `defineHonuaControls()` explicitly when using a scoped registry.
+ * Importing this module registers the basemap switcher, legend, and swipe
+ * control when a browser `customElements` registry is present. Node imports are
+ * safe; call `defineHonuaControls()` explicitly when using a scoped registry.
+ * The layer list is opt-in via {@link defineHonuaLayerList} because its tag
+ * (`honua-layer-list`) collides with the `web-components` kit's own
+ * controller-driven element.
  *
  * @experimental This entrypoint is not yet covered by the SDK's semver
  *   contract — the surface may change in any minor release prior to `1.0.0`.
@@ -23,7 +26,7 @@ import "./swipe-control.js";
 
 export { HonuaBasemapStyleBinding } from "./basemap-style-binding.js";
 export { HonuaBasemapSwitcherElement, defineHonuaControls } from "./basemap-switcher.js";
-export { HonuaLayerListElement } from "./layer-list.js";
+export { HonuaLayerListElement, defineHonuaLayerList } from "./layer-list.js";
 export { HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js";
 export type { HonuaLegendDeriveErrorCode } from "./legend-derive.js";
 export { HonuaLegendElement } from "./legend.js";
