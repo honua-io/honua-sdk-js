@@ -93,7 +93,8 @@ export function stripQuery(value: string): string {
  * A plain `serviceId` without slashes behaves exactly like
  * `encodeURIComponent(serviceId)`. Empty segments produced by leading,
  * trailing, or doubled slashes are dropped so the result never contains
- * stray `/` runs.
+ * stray `/` runs. Use {@link encodePathSegments} instead when empty segments
+ * must be preserved verbatim.
  */
 export function encodeServiceIdPath(serviceId: string): string {
   if (!serviceId.includes("/")) {
@@ -102,6 +103,29 @@ export function encodeServiceIdPath(serviceId: string): string {
   return serviceId
     .split("/")
     .filter((segment) => segment.length > 0)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
+/**
+ * Percent-encode a path that may contain `/` separators, encoding each
+ * segment independently so the separators survive.
+ *
+ * `encodeURIComponent("a/b")` returns `a%2Fb`, which is wrong for
+ * folder-prefixed identifiers such as `myFolder/parcels` that must serialize
+ * as `myFolder/parcels` on the wire. Splitting on `/` and encoding each
+ * segment keeps the separators literal while still escaping reserved
+ * characters inside each segment. Empty segments (leading/trailing/double
+ * slashes) are preserved verbatim so callers retain full control over the
+ * resulting path shape. Use {@link encodeServiceIdPath} when empty segments
+ * should instead be dropped (e.g. routable Esri service ids).
+ */
+export function encodePathSegments(value: string): string {
+  if (!value.includes("/")) {
+    return encodeURIComponent(value);
+  }
+  return value
+    .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
 }

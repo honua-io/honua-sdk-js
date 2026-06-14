@@ -301,15 +301,19 @@ export {
 } from "./core/surfaces.js";
 export {
   createHonuaOgcTiles,
+  DEFAULT_OGC_TILE_MATRIX_SET,
   HonuaOgcTiles,
   HonuaOgcTileset,
 } from "./core/ogc-tiles.js";
 export type {
+  HonuaMapLibreTilesConfig,
+  HonuaMapLibreVectorSourceOptions,
   HonuaOgcCollectionTileRequest,
   HonuaOgcCollectionTilesetRequest,
   HonuaOgcCollectionTilesetsRequest,
   HonuaOgcTilesOptions,
   HonuaOgcTilesetOptions,
+  MapLibreVectorSourceSpec,
 } from "./core/ogc-tiles.js";
 export {
   createHonuaOgcMaps,
