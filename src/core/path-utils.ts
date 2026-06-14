@@ -77,3 +77,25 @@ export function stripQuery(value: string): string {
   const index = value.indexOf("?");
   return index < 0 ? value : value.slice(0, index);
 }
+
+/**
+ * Percent-encode a path that may contain `/` separators, encoding each
+ * segment independently so the separators survive.
+ *
+ * `encodeURIComponent("a/b")` returns `a%2Fb`, which is wrong for
+ * folder-prefixed identifiers such as `myFolder/parcels` that must serialize
+ * as `myFolder/parcels` on the wire. Splitting on `/` and encoding each
+ * segment keeps the separators literal while still escaping reserved
+ * characters inside each segment. Empty segments (leading/trailing/double
+ * slashes) are preserved verbatim so callers retain full control over the
+ * resulting path shape.
+ */
+export function encodePathSegments(value: string): string {
+  if (!value.includes("/")) {
+    return encodeURIComponent(value);
+  }
+  return value
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
