@@ -49,6 +49,7 @@ import {
   resolveHonuaMapFromContext,
 } from "./element-utils.js";
 import { HonuaLegendElement } from "./legend.js";
+import { HonuaSwipeControlElement } from "./swipe-control.js";
 import type {
   HonuaBasemapDefinition,
   HonuaBasemapKind,
@@ -334,13 +335,17 @@ export class HonuaBasemapSwitcherElement extends HTMLElementBase {
 
 /**
  * Registers the controls-entry custom elements (`honua-basemap-switcher`,
- * `honua-legend`). Invoked automatically on import when a global
- * `customElements` registry is present; call explicitly when using a scoped
- * registry.
+ * `honua-legend`, `honua-swipe-control`). Invoked automatically on import when
+ * a global `customElements` registry is present; call explicitly when using a
+ * scoped registry.
  *
  * Registrations are skipped for tag names that are already defined. In
  * particular the `web-components` entry registers its own (controller-driven)
  * `honua-legend`; whichever entry is imported first owns that tag.
+ *
+ * `honua-layer-list` is intentionally NOT registered here — it collides with
+ * the `web-components` kit's own controller-driven `honua-layer-list`, so it is
+ * opt-in via {@link defineHonuaLayerList}.
  */
 export function defineHonuaControls(registry = globalDom.customElements): void {
   if (!registry) return;
@@ -349,6 +354,9 @@ export function defineHonuaControls(registry = globalDom.customElements): void {
   }
   if (!registry.get("honua-legend")) {
     registry.define("honua-legend", HonuaLegendElement);
+  }
+  if (!registry.get("honua-swipe-control")) {
+    registry.define("honua-swipe-control", HonuaSwipeControlElement);
   }
 }
 

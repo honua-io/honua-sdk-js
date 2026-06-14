@@ -15,10 +15,16 @@ import type {
   HonuaFilterState,
   HonuaLayerModel,
   HonuaLegendItem,
+  HonuaMeasureChangeDetail,
+  HonuaMeasureMode,
+  HonuaMeasureProvider,
   HonuaQueryFeaturesOptions,
   HonuaSearchOptions,
   HonuaSearchResult,
   HonuaSelectionState,
+  HonuaSketchChangeDetail,
+  HonuaSketchMode,
+  HonuaSketchProvider,
   HonuaViewportState,
   HonuaWebComponentController,
   HonuaWebComponentRuntimeLike,
@@ -32,6 +38,8 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
   readonly #fieldsBySource = new Map<string, readonly string[]>();
   readonly #searchFields: readonly string[] | undefined;
   readonly #runtime: HonuaWebComponentRuntimeLike<T> | undefined;
+  readonly #measurementGeometry: HonuaMeasureProvider | undefined;
+  readonly #sketchGeometry: HonuaSketchProvider<T> | undefined;
   #runtimeHandle: { remove(): void } | undefined;
   #state: HonuaWebComponentState<T>;
 
@@ -41,6 +49,8 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
     } = {},
   ) {
     this.#runtime = options.runtime;
+    this.#measurementGeometry = options.measurementGeometry;
+    this.#sketchGeometry = options.sketchGeometry;
     this.#searchFields = options.searchFields;
     for (const [sourceId, fields] of Object.entries(options.fieldsBySource ?? {})) {
       this.#fieldsBySource.set(sourceId, [...fields]);
@@ -324,7 +334,71 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
     this.#notify();
   }
 
+  public canMeasure(): boolean {
+    return this.#measurementGeometry !== undefined;
+  }
+
+  public canSketch(): boolean {
+    return this.#sketchGeometry !== undefined;
+  }
+
+  public async setMeasureMode(mode: HonuaMeasureMode): Promise<HonuaMeasureChangeDetail> {
+    const provider = this.#measurementGeometry;
+    if (!provider) {
+      return {
+        mode,
+        status: "unsupported",
+        message:
+          "Measurement requires a geometry provider. Configure `measurementGeometry` on the controller to enable measuring.",
+      };
+    }
+    try {
+      if (mode === "off") provider.stop?.();
+      const result = await provider.startMode(mode);
+      return {
+        mode,
+        status: "ready",
+        ...(result ? { result } : {}),
+      };
+    } catch (error) {
+      return {
+        mode,
+        status: "error",
+        message: error instanceof Error ? error.message : "Measurement provider failed.",
+      };
+    }
+  }
+
+  public async setSketchMode(mode: HonuaSketchMode): Promise<HonuaSketchChangeDetail<T>> {
+    const provider = this.#sketchGeometry;
+    if (!provider) {
+      return {
+        mode,
+        status: "unsupported",
+        message:
+          "Sketching requires a geometry provider. Configure `sketchGeometry` on the controller to enable drawing.",
+      };
+    }
+    try {
+      if (mode === "off") provider.stop?.();
+      const result = await provider.startMode(mode);
+      return {
+        mode,
+        status: "ready",
+        ...(result ? { result } : {}),
+      };
+    } catch (error) {
+      return {
+        mode,
+        status: "error",
+        message: error instanceof Error ? error.message : "Sketch provider failed.",
+      };
+    }
+  }
+
   public destroy(): void {
+    this.#measurementGeometry?.stop?.();
+    this.#sketchGeometry?.stop?.();
     this.#runtimeHandle?.remove();
     this.#runtimeHandle = undefined;
     this.#listeners.clear();

@@ -183,6 +183,14 @@ export interface HonuaWebComponentController<T = Record<string, unknown>> {
   ): HonuaControllerSubscription;
   applyEdit?(request: HonuaEditRequest<T>): Promise<HonuaEditorModel>;
   updateFeatures?(sourceId: string, features: readonly HonuaFeatureRecord<T>[]): void;
+  /** Whether a measurement drawing provider is configured. */
+  canMeasure(): boolean;
+  /** Whether a sketch drawing provider is configured. */
+  canSketch(): boolean;
+  /** Activate a measuring mode through the configured provider. */
+  setMeasureMode(mode: HonuaMeasureMode): Promise<HonuaMeasureChangeDetail>;
+  /** Activate a drawing mode through the configured provider. */
+  setSketchMode(mode: HonuaSketchMode): Promise<HonuaSketchChangeDetail<T>>;
   destroy?(): void;
 }
 
@@ -197,6 +205,20 @@ export interface CreateHonuaWebComponentControllerOptions<T = Record<string, unk
   chart?: HonuaChartModel;
   searchFields?: readonly string[];
   status?: HonuaComponentStatus;
+  /**
+   * Optional drawing backend that powers `<honua-measure-control>`. When
+   * omitted the control renders disabled with a "configure a provider"
+   * affordance — measurement geometry is not available from the bare
+   * in-memory controller by design. Supply an adapter (for example one backed
+   * by maplibre-gl-draw) to enable distance/area measuring.
+   */
+  measurementGeometry?: HonuaMeasureProvider;
+  /**
+   * Optional drawing backend that powers `<honua-sketch-control>`. When
+   * omitted the control renders disabled with a "configure a provider"
+   * affordance. Supply an adapter to enable point/line/polygon sketching.
+   */
+  sketchGeometry?: HonuaSketchProvider<T>;
 }
 
 export interface HonuaWebComponentRuntimeLike<T = Record<string, unknown>> {
@@ -307,18 +329,88 @@ export interface HonuaLocateChangeDetail {
 
 export type HonuaMeasureMode = "off" | "distance" | "area";
 
+/**
+ * A drawn measurement geometry plus its computed result.
+ *
+ * Geometry is intentionally protocol-neutral (GeoJSON-style coordinates) so a
+ * provider can be backed by maplibre-gl-draw, Terra Draw, a custom canvas
+ * tool, or an in-memory fixture without the SDK depending on any of them.
+ */
+export interface HonuaMeasureResult {
+  mode: HonuaMeasureMode;
+  /** GeoJSON `[lng, lat]` positions describing the drawn line or ring. */
+  coordinates: readonly (readonly [number, number])[];
+  /** Total length in metres for distance mode. */
+  distance?: number;
+  /** Enclosed area in square metres for area mode. */
+  area?: number;
+}
+
 export interface HonuaMeasureChangeDetail {
   mode: HonuaMeasureMode;
   status: HonuaComponentStatus;
   message?: string;
+  result?: HonuaMeasureResult;
 }
 
 export type HonuaSketchMode = "off" | "point" | "line" | "polygon";
 
-export interface HonuaSketchChangeDetail {
+/**
+ * A drawn sketch feature emitted by a {@link HonuaSketchProvider}.
+ */
+export interface HonuaSketchResult<T = Record<string, unknown>> {
+  mode: HonuaSketchMode;
+  /** Stable id for the drawn feature when the backend assigns one. */
+  id?: FeatureId;
+  /** Protocol-neutral GeoJSON geometry produced by the drawing backend. */
+  geometry: HonuaTypedFeature<T>["geometry"];
+  /** Optional attributes the backend attaches to the drawn feature. */
+  attributes?: T;
+}
+
+/**
+ * Minimal drawing-backend contract for the `<honua-measure-control>` widget.
+ *
+ * Implementations adapt a concrete drawing tool (for example a
+ * maplibre-gl-draw instance) to the protocol-neutral measurement surface. The
+ * SDK never imports a drawing library directly; consumers supply an adapter via
+ * {@link CreateHonuaWebComponentControllerOptions.measurementGeometry}.
+ */
+export interface HonuaMeasureProvider {
+  /**
+   * Enter (or leave, when `mode === "off"`) a measuring mode. Returns the
+   * current/last measurement result when one is immediately available.
+   */
+  startMode(mode: HonuaMeasureMode): HonuaMeasureResult | undefined | Promise<HonuaMeasureResult | undefined>;
+  /** Stop measuring and discard any in-progress geometry. */
+  stop?(): void;
+  /** Subscribe to measurement results as the user draws. */
+  onResult?(listener: (result: HonuaMeasureResult) => void): HonuaControllerSubscription;
+}
+
+/**
+ * Minimal drawing-backend contract for the `<honua-sketch-control>` widget.
+ *
+ * @see HonuaMeasureProvider for the design rationale (no hard drawing-library
+ *   dependency; adapters are supplied by the consumer).
+ */
+export interface HonuaSketchProvider<T = Record<string, unknown>> {
+  /**
+   * Enter (or leave, when `mode === "off"`) a drawing mode. Returns the
+   * current/last sketch result when one is immediately available.
+   */
+  startMode(mode: HonuaSketchMode): HonuaSketchResult<T> | undefined | Promise<HonuaSketchResult<T> | undefined>;
+  /** Stop drawing and discard any in-progress geometry. */
+  stop?(): void;
+  /** Subscribe to sketch results as the user draws. */
+  onResult?(listener: (result: HonuaSketchResult<T>) => void): HonuaControllerSubscription;
+}
+
+export interface HonuaSketchChangeDetail<T = Record<string, unknown>> {
   mode: HonuaSketchMode;
   status: HonuaComponentStatus;
   message?: string;
+  result?: HonuaSketchResult<T>;
 }
 
 export interface HonuaExportDetail {

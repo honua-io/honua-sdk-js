@@ -35,8 +35,12 @@ test("web components compose map, layers, legend, table, search, and editor stat
     );
     await expect(page.locator("honua-bookmarks").getByRole("button", { name: "Home" })).toBeVisible();
     await expect(page.locator("honua-locate-control").getByRole("button", { name: "Use location" })).toBeVisible();
-    await expect(page.locator("honua-measure-control").getByText("Measurement geometry is not available")).toBeVisible();
-    await expect(page.locator("honua-sketch-control").getByText("Sketch editing is not available")).toBeVisible();
+    await expect(
+      page.locator("honua-measure-control").getByText("Measurement is disabled because no geometry provider is configured"),
+    ).toBeVisible();
+    await expect(
+      page.locator("honua-sketch-control").getByText("Sketching is disabled because no geometry provider is configured"),
+    ).toBeVisible();
     await expect(page.locator("honua-measure-control").getByRole("button", { name: "Distance" })).toBeDisabled();
     await expect(page.locator("honua-sketch-control").getByRole("button", { name: "Point" })).toBeDisabled();
     await expect(page.locator("honua-print-export").getByRole("button", { name: "Snapshot" })).toBeVisible();

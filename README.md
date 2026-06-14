@@ -39,6 +39,33 @@ can migrate file-by-file.
 npm install @honua/sdk-js
 ```
 
+### Build-less / CDN usage
+
+For static sites, prototypes, or CSP-strict pages that can't run a bundler, a
+prebuilt browser bundle is published under `dist/browser/`. Drop in the
+minified IIFE build and use the global `window.HonuaSDK`:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@honua/sdk-js/dist/browser/honua-sdk.min.js"></script>
+<script>
+  const client = new HonuaSDK.HonuaClient({ baseUrl: "https://your-honua-server.example" });
+  // window.HonuaSDK exposes the same public API as `import ... from "@honua/sdk-js"`.
+</script>
+```
+
+Or, for native ES module imports via an ESM CDN:
+
+```html
+<script type="module">
+  import { HonuaClient } from "https://esm.sh/@honua/sdk-js/browser";
+  const client = new HonuaClient({ baseUrl: "https://your-honua-server.example" });
+</script>
+```
+
+The runtime peers (`maplibre-gl`, `cesium`, `@bufbuild/*`, `@connectrpc/*`) are
+kept external — load them yourself when you need map rendering or gRPC
+transport. See [`docs/browser-bundle.md`](./docs/browser-bundle.md) for details.
+
 ## 60-second quickstart
 
 The canonical surface is protocol-neutral: build a `Dataset` over one or more

@@ -5,7 +5,12 @@ import {
   createHonuaWebComponentControllerFromRuntime,
   defineHonuaWebComponents,
 } from "../src/web-components/index.js";
-import type { HonuaFeatureRecord, HonuaWebComponentRuntimeLike } from "../src/web-components/index.js";
+import type {
+  HonuaFeatureRecord,
+  HonuaMeasureProvider,
+  HonuaSketchProvider,
+  HonuaWebComponentRuntimeLike,
+} from "../src/web-components/index.js";
 
 const features: HonuaFeatureRecord[] = [
   {
@@ -163,6 +168,89 @@ describe("Honua web component controller", () => {
     expect(table.rows[0]).toMatchObject({ id: 11, title: "Runtime feature" });
     expect(controller.getState().featuresBySource.incidents?.[0]).toMatchObject({ id: 11, title: "Runtime feature" });
     expect(search[0]).toMatchObject({ sourceId: "incidents", featureId: 11, label: "Runtime feature" });
+  });
+
+  it("leaves measure and sketch disabled without a geometry provider", async () => {
+    const controller = createHonuaWebComponentController({ mapPackage: mapPackage() });
+
+    expect(controller.canMeasure()).toBe(false);
+    expect(controller.canSketch()).toBe(false);
+
+    const measure = await controller.setMeasureMode("distance");
+    const sketch = await controller.setSketchMode("polygon");
+
+    expect(measure.status).toBe("unsupported");
+    expect(measure.result).toBeUndefined();
+    expect(measure.message).toContain("measurementGeometry");
+    expect(sketch.status).toBe("unsupported");
+    expect(sketch.message).toContain("sketchGeometry");
+  });
+
+  it("enables measure and sketch when geometry providers are supplied", async () => {
+    const measureProvider: HonuaMeasureProvider = {
+      startMode: (mode) =>
+        mode === "off"
+          ? undefined
+          : {
+              mode,
+              coordinates: [
+                [-157.87, 21.31],
+                [-157.86, 21.29],
+              ],
+              ...(mode === "distance" ? { distance: 2400 } : { area: 180000 }),
+            },
+    };
+    const sketchProvider: HonuaSketchProvider = {
+      startMode: (mode) =>
+        mode === "off"
+          ? undefined
+          : {
+              mode,
+              id: "drawn-1",
+              geometry: { x: -157.86, y: 21.3 },
+            },
+    };
+
+    const controller = createHonuaWebComponentController({
+      mapPackage: mapPackage(),
+      measurementGeometry: measureProvider,
+      sketchGeometry: sketchProvider,
+    });
+
+    expect(controller.canMeasure()).toBe(true);
+    expect(controller.canSketch()).toBe(true);
+
+    const measure = await controller.setMeasureMode("distance");
+    expect(measure.status).toBe("ready");
+    expect(measure.result?.distance).toBe(2400);
+    expect(measure.result?.coordinates).toHaveLength(2);
+
+    const sketch = await controller.setSketchMode("point");
+    expect(sketch.status).toBe("ready");
+    expect(sketch.result?.id).toBe("drawn-1");
+    expect(sketch.result?.geometry).toMatchObject({ x: -157.86, y: 21.3 });
+  });
+
+  it("reports provider failures as error change details and stops on `off`", async () => {
+    const stop = vi.fn();
+    const provider: HonuaMeasureProvider = {
+      startMode: (mode) => {
+        if (mode === "area") throw new Error("draw backend offline");
+        return undefined;
+      },
+      stop,
+    };
+    const controller = createHonuaWebComponentController({
+      mapPackage: mapPackage(),
+      measurementGeometry: provider,
+    });
+
+    const failed = await controller.setMeasureMode("area");
+    expect(failed.status).toBe("error");
+    expect(failed.message).toBe("draw backend offline");
+
+    await controller.setMeasureMode("off");
+    expect(stop).toHaveBeenCalledTimes(1);
   });
 
   it("can be imported in Node and registers only when a registry is supplied", () => {

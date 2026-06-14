@@ -33,6 +33,8 @@ export type {
 export type {
   BatchConflictResolutionResult,
   ConflictFeatureState,
+  FeatureId,
+  SourceId,
   ConflictResolutionChoice,
   ConflictResolutionOption,
   DisconnectedReplica,

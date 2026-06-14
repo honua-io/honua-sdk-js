@@ -85,6 +85,36 @@ const tombstones = selectRealtimeFeatureTombstones(store.state, { sourceId: "inc
 
 Use `reconcileRealtimeSelection(view, state)` with an `ExplorationViewController` to remove deleted or missing features from shared map/table/detail selection.
 
+## honua-server Preset
+
+honua-server exposes live feature changes at `/api/v1/streaming/features`. That endpoint expects `serviceId=` / `layers=` query params (not the default `sourceId=` / `layerId=`) and emits its own feature-change envelopes. The `honuaServerRealtimePreset` packages the matching `encodeRequest` and `decodeEvent` hooks so consumers do not re-write the adapter:
+
+```ts
+import {
+  createRealtimeServerSentEventsTransport,
+  honuaServerRealtimePreset,
+} from "@honua/sdk-js/realtime";
+
+const transport = createRealtimeServerSentEventsTransport({
+  url: "https://honua.example/api/v1/streaming/features",
+  ...honuaServerRealtimePreset(),
+});
+```
+
+Or use the convenience factory, which appends the default streaming path to a server origin:
+
+```ts
+import { createHonuaServerRealtimeSubscription } from "@honua/sdk-js/realtime";
+
+const transport = createHonuaServerRealtimeSubscription({
+  baseUrl: "https://honua.example",
+});
+
+store.connect(transport, { sourceId: "incidents", layerId: "0", mode: "snapshot-then-delta" });
+```
+
+The preset decodes honua-server feature-change envelopes (`{ op: "insert" | "update" | "delete", featureId, feature, ... }`, batched under `changes` or inlined) into SDK `delta` events, carrying `serviceId` through as the event `sourceId`. Status, heartbeat, and error envelopes that already use the SDK vocabulary pass through unchanged. The default `sourceId=` / `layerId=` encoder remains the transport default; the preset is opt-in.
+
 ## Adapter Expectations
 
 SSE adapters should emit `snapshot` or `delta` after open, `heartbeat` for server keepalives, `status: "reconnecting"` before retry, and `error` only when the stream cannot recover. WebSocket adapters should use the same event vocabulary for server messages and close codes. Delta polling adapters should emit `delta` batches, preserve server ordering, and pass cursor/timestamp/delta-token checkpoints through `checkpoint`.

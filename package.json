@@ -37,10 +37,17 @@
   ],
   "type": "module",
   "types": "./dist/src/index.d.ts",
+  "browser": "./dist/browser/honua-sdk.min.js",
+  "unpkg": "./dist/browser/honua-sdk.min.js",
+  "jsdelivr": "./dist/browser/honua-sdk.min.js",
   "exports": {
     ".": {
       "types": "./dist/src/index.d.ts",
       "default": "./dist/src/index.js"
+    },
+    "./browser": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/browser/honua-sdk.esm.js"
     },
     "./honua": {
       "types": "./dist/src/honua.d.ts",
@@ -182,6 +189,7 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean --silent && tsc -p tsconfig.json",
+    "build:browser": "node scripts/build-browser-bundle.mjs",
     "build:split-packages": "npm run build --silent && node scripts/prepare-split-packages.mjs",
     "verify:split-packages": "npm run build:split-packages --silent && node scripts/verify-split-packages.mjs",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat && npm pack ./dist/packages/honua-migrate",
@@ -355,6 +363,7 @@
   },
   "files": [
     "dist/src",
+    "dist/browser",
     "README.md",
     "CHANGELOG.md"
   ],
