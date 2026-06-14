@@ -174,6 +174,18 @@ function makeWebComponentController<T = Record<string, unknown>>(): {
       async search() {
         return [];
       },
+      canMeasure() {
+        return false;
+      },
+      canSketch() {
+        return false;
+      },
+      async setMeasureMode(mode) {
+        return { mode, status: "unsupported" };
+      },
+      async setSketchMode(mode) {
+        return { mode, status: "unsupported" };
+      },
       destroy() {
         isDestroyed = true;
       },
