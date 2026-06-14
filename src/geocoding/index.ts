@@ -30,7 +30,7 @@
  */
 
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "../core/errors.js";
-import { trimTrailingSlashes } from "../core/path-utils.js";
+import { encodeServiceIdPath, trimTrailingSlashes } from "../core/path-utils.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -298,7 +298,7 @@ export class HonuaGeocodingClient {
   // -------------------------------------------------------------------------
 
   private serviceBasePath(): string {
-    return `${this.baseUrl}/rest/services/${encodeURIComponent(this.locatorName)}/GeocodeServer`;
+    return `${this.baseUrl}/rest/services/${encodeServiceIdPath(this.locatorName)}/GeocodeServer`;
   }
 
   private async request<T>(url: string): Promise<T> {

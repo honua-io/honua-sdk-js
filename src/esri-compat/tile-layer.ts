@@ -1,4 +1,5 @@
 import { HonuaClient } from "../core/client.js";
+import { encodeServiceIdPath } from "../core/path-utils.js";
 import type { HonuaServiceMetadata } from "../core/types.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { parseMapServiceUrl } from "./url.js";
@@ -181,7 +182,7 @@ export class TileLayerCompat {
   }
 
   public getTileUrl(level: number, row: number, col: number): string {
-    return `${this.baseUrl}/rest/services/${encodeURIComponent(this.serviceId)}/MapServer/tile/${level}/${row}/${col}`;
+    return `${this.baseUrl}/rest/services/${encodeServiceIdPath(this.serviceId)}/MapServer/tile/${level}/${row}/${col}`;
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {
