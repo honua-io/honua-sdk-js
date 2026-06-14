@@ -119,6 +119,27 @@ export interface HonuaLayerListOverlay {
 }
 
 /**
+ * Orientation of the divider rendered by `<honua-swipe-control>`:
+ * - `"vertical"` — a vertical divider that moves left/right, clipping the top
+ *   map's left edge (the default; a left/right comparison).
+ * - `"horizontal"` — a horizontal divider that moves up/down, clipping the top
+ *   map's top edge (a top/bottom comparison).
+ */
+export type HonuaSwipeOrientation = "vertical" | "horizontal";
+
+/**
+ * Detail payload of the `change` CustomEvent dispatched by
+ * `<honua-swipe-control>` whenever the divider position changes (user drag,
+ * keyboard, or programmatic `position` assignment).
+ */
+export interface HonuaSwipeChangeDetail {
+  /** Divider position as a percentage 0–100 of the control's width/height. */
+  readonly position: number;
+  /** Current divider orientation. */
+  readonly orientation: HonuaSwipeOrientation;
+}
+
+/**
  * Minimal duck-typed subset of `maplibre-gl.Map` required by
  * `<honua-layer-list>`. Any MapLibre-GL `Map` instance satisfies this
  * interface, and tests can pass a plain stub (same posture as
@@ -147,6 +168,18 @@ export interface HonuaLayerListChangeDetail {
   readonly id: string;
   /** Whether the overlay's layers are now visible. */
   readonly visible: boolean;
+}
+
+/**
+ * Minimal duck-typed subset of `maplibre-gl.Map` required by
+ * `<honua-swipe-control>`. The control only needs each map's canvas
+ * container so it can apply a CSS `clip-path` to the top map; any MapLibre-GL
+ * `Map` instance satisfies this interface, and tests can pass a plain stub
+ * (same posture as {@link HonuaBasemapSwitcherMap}).
+ */
+export interface HonuaSwipeMap {
+  /** Returns the map's outermost container element (clip target). */
+  getContainer(): HTMLElement;
 }
 
 /**

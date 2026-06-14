@@ -1,4 +1,4 @@
-import { type HonuaClient, HonuaImageService } from "@honua/sdk-js/honua";
+import { type HonuaClient, HonuaImageService, decodeTerrainRgbElevation } from "@honua/sdk-js/honua";
 import type { SceneRuntimePrimitive } from "@honua/sdk-js/scene-workspace";
 
 import { createFixtureTerrainElevationDataset } from "./fixtures.js";
@@ -110,9 +110,10 @@ export function buildTerrainRgbTileUrlTemplate(
     .replace(`/${levelSentinel}/${rowSentinel}/${colSentinel}`, "/{z}/{y}/{x}");
 }
 
-export function decodeTerrainRgbElevation(red: number, green: number, blue: number): number {
-  return -10_000 + (red * 256 * 256 + green * 256 + blue) * 0.1;
-}
+// Re-exported from the SDK (`@honua/sdk-js`) so the demo and its smoke tests
+// keep their existing import surface while the decode formula lives in one
+// shared, tested place. See `decodeTerrainRgbElevation` in core/terrain-elevation.
+export { decodeTerrainRgbElevation };
 
 export async function lookupTerrainElevation(
   plan: TerrainRenderPlan,

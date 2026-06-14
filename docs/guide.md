@@ -593,6 +593,38 @@ const search = await client.stac().search({
 });
 ```
 
+### STAC in the browser bundle
+
+`HonuaStacSearch` is part of the browser-safe surface — import it (or call
+`client.stac()`) instead of hand-writing `fetch` against STAC endpoints. It is
+re-exported from both the root barrel (`@honua/sdk-js`) and the
+`@honua/sdk-js/honua` subpath, so it bundles with esbuild/Vite/Rollup like the
+rest of the client:
+
+```ts
+// Browser app (esbuild / Vite / Rollup). No Node-only imports.
+import { HonuaClient, HonuaStacSearch } from "@honua/sdk-js";
+
+const client = new HonuaClient({ baseUrl: "https://example.test" });
+
+// Either construct it directly…
+const stac = new HonuaStacSearch({ client });
+// …or get the same instance from the client:
+const sameStac = client.stac();
+
+const landing = await stac.landing();
+const items = await stac.search({
+  bbox: [-122, 37, -120, 38],
+  collections: ["sentinel-2"],
+  datetime: "2026-01-01/2026-06-01",
+});
+
+// `searchAll` paginates for you (bounded by `maxPages`):
+for await (const item of stac.searchStream({ collections: ["sentinel-2"] })) {
+  // …
+}
+```
+
 See [`docs/ogc-api.md`](./docs/ogc-api.md) for the full developer
 reference, [`docs/shared-client-contract.md`](./docs/shared-client-contract.md)
 for the canonical `Source` / `IJobRun` model, and

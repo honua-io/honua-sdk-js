@@ -19,6 +19,7 @@
  */
 
 import "./basemap-switcher.js";
+import "./swipe-control.js";
 
 export { HonuaBasemapStyleBinding } from "./basemap-style-binding.js";
 export { HonuaBasemapSwitcherElement, defineHonuaControls } from "./basemap-switcher.js";
@@ -26,6 +27,7 @@ export { HonuaLayerListElement } from "./layer-list.js";
 export { HonuaLegendDeriveError, deriveLegendEntries } from "./legend-derive.js";
 export type { HonuaLegendDeriveErrorCode } from "./legend-derive.js";
 export { HonuaLegendElement } from "./legend.js";
+export { HonuaSwipeControlElement, defineHonuaSwipeControl } from "./swipe-control.js";
 export type {
   HonuaBasemapDefinition,
   HonuaBasemapKind,
@@ -40,4 +42,7 @@ export type {
   HonuaLegendSection,
   HonuaLegendSwatchColor,
   HonuaLegendSwatchShape,
+  HonuaSwipeChangeDetail,
+  HonuaSwipeMap,
+  HonuaSwipeOrientation,
 } from "./types.js";
