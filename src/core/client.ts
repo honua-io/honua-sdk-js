@@ -18,7 +18,7 @@ import { HonuaOgcMaps } from "./ogc-maps.js";
 import { HonuaOgcProcesses } from "./ogc-processes.js";
 import { HonuaOgcRecords } from "./ogc-records.js";
 import { HonuaOgcTiles } from "./ogc-tiles.js";
-import { stripQuery, trimTrailingSlashes } from "./path-utils.js";
+import { encodeServiceIdPath, stripQuery, trimTrailingSlashes } from "./path-utils.js";
 import { decodePbfQueryResponse, isPbfResponse } from "./pbf-decoder.js";
 import {
   type HonuaProcessRunner,
@@ -1171,7 +1171,7 @@ export class HonuaClient {
     options: HonuaMetadataRequestOptions = {},
   ): Promise<HonuaLayerMetadata> {
     const query = new URLSearchParams({ f: "json" });
-    const path = `/rest/services/${encodeURIComponent(serviceId)}/FeatureServer/${layerId}?${query.toString()}`;
+    const path = `/rest/services/${encodeServiceIdPath(serviceId)}/FeatureServer/${layerId}?${query.toString()}`;
     return this.requestCachedMetadataJson<HonuaLayerMetadata>(
       `geoservices-feature:${serviceId}:${layerId}`,
       path,
@@ -1184,7 +1184,7 @@ export class HonuaClient {
     options: HonuaMetadataRequestOptions = {},
   ): Promise<HonuaServiceMetadata> {
     const query = new URLSearchParams({ f: "json" });
-    const path = `/rest/services/${encodeURIComponent(serviceId)}/FeatureServer?${query.toString()}`;
+    const path = `/rest/services/${encodeServiceIdPath(serviceId)}/FeatureServer?${query.toString()}`;
     return this.requestCachedMetadataJson<HonuaServiceMetadata>(
       `geoservices-feature:${serviceId}:service`,
       path,
@@ -1935,7 +1935,7 @@ export class HonuaClient {
     options: HonuaMetadataRequestOptions = {},
   ): Promise<HonuaServiceMetadata> {
     const query = new URLSearchParams({ f: "json" });
-    const path = `/rest/services/${encodeURIComponent(serviceId)}/MapServer?${query.toString()}`;
+    const path = `/rest/services/${encodeServiceIdPath(serviceId)}/MapServer?${query.toString()}`;
     return this.requestCachedMetadataJson<HonuaServiceMetadata>(`geoservices-map:${serviceId}:service`, path, options);
   }
 
@@ -1945,7 +1945,7 @@ export class HonuaClient {
     options: HonuaMetadataRequestOptions = {},
   ): Promise<HonuaLayerMetadata> {
     const query = new URLSearchParams({ f: "json" });
-    const path = `/rest/services/${encodeURIComponent(serviceId)}/MapServer/${layerId}?${query.toString()}`;
+    const path = `/rest/services/${encodeServiceIdPath(serviceId)}/MapServer/${layerId}?${query.toString()}`;
     return this.requestCachedMetadataJson<HonuaLayerMetadata>(`geoservices-map:${serviceId}:${layerId}`, path, options);
   }
 
@@ -2002,7 +2002,7 @@ export class HonuaClient {
     serializeQueryParams(params, request);
     appendQueryExtraParams(params, request);
 
-    const path = `/rest/services/${encodeURIComponent(request.serviceId)}/FeatureServer/${request.layerId}/query`;
+    const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/${request.layerId}/query`;
 
     if (usePbf) {
       return this.requestBinaryWithJsonFallback(
@@ -2046,7 +2046,7 @@ export class HonuaClient {
     serializeQueryParams(params, request);
     appendQueryExtraParams(params, request);
 
-    const path = `/rest/services/${encodeURIComponent(request.serviceId)}/MapServer/${request.layerId}/query`;
+    const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/${request.layerId}/query`;
     if (method === "GET") {
       return this.requestJson(
         "GET",
@@ -2070,7 +2070,7 @@ export class HonuaClient {
   }
 
   public async applyEdits(request: ApplyEditsRequest): Promise<HonuaApplyEditsResponse> {
-    const path = `/rest/services/${encodeURIComponent(request.serviceId)}/FeatureServer/${request.layerId}/applyEdits`;
+    const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/${request.layerId}/applyEdits`;
     const params = new URLSearchParams();
     params.set("f", "json");
     params.set("rollbackOnFailure", String(request.rollbackOnFailure ?? true));
@@ -2119,7 +2119,7 @@ export class HonuaClient {
     }
 
     const path =
-      `/rest/services/${encodeURIComponent(request.serviceId)}` +
+      `/rest/services/${encodeServiceIdPath(request.serviceId)}` +
       `/FeatureServer/${request.layerId}/queryRelatedRecords`;
     if (method === "GET") {
       return this.requestJson(
@@ -2165,7 +2165,7 @@ export class HonuaClient {
     }
 
     const path =
-      `/rest/services/${encodeURIComponent(request.serviceId)}` + `/MapServer/${request.layerId}/queryRelatedRecords`;
+      `/rest/services/${encodeServiceIdPath(request.serviceId)}` + `/MapServer/${request.layerId}/queryRelatedRecords`;
     if (method === "GET") {
       return this.requestJson(
         "GET",
@@ -2222,7 +2222,7 @@ export class HonuaClient {
       }
     }
 
-    const path = `/rest/services/${encodeURIComponent(request.serviceId)}/MapServer/export`;
+    const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/export`;
     if (method === "GET") {
       return this.requestJson("GET", `${path}?${params.toString()}`) as Promise<HonuaExportMapResponse>;
     }
@@ -2250,7 +2250,7 @@ export class HonuaClient {
       }
     }
 
-    const path = `/rest/services/${encodeURIComponent(request.serviceId)}/MapServer/legend`;
+    const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/legend`;
     return this.requestJson("GET", `${path}?${params.toString()}`) as Promise<HonuaLegendResponse>;
   }
 
@@ -2289,7 +2289,7 @@ export class HonuaClient {
       }
     }
 
-    const path = `/rest/services/${encodeURIComponent(request.serviceId)}/MapServer/identify`;
+    const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/identify`;
     if (method === "GET") {
       return this.requestJson("GET", `${path}?${params.toString()}`) as Promise<HonuaIdentifyResponse>;
     }
@@ -2350,7 +2350,7 @@ export class HonuaClient {
       }
     }
 
-    const path = `/rest/services/${encodeURIComponent(request.serviceId)}/MapServer/find`;
+    const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/find`;
     if (method === "GET") {
       return this.requestJson("GET", `${path}?${params.toString()}`) as Promise<HonuaFindResponse>;
     }
@@ -3771,12 +3771,12 @@ function stacFieldsCsv(fields: StacSearchRequest["fields"] | undefined): string 
 
 /** Canonical WMS endpoint path. honua-server publishes both `/rest/services/{id}/MapServer/WMS` and `/ogc/services/{id}/wms`; the SDK targets the GeoServices-aliased path because every Honua deployment exposes it. */
 function wmsBasePath(serviceId: string): string {
-  return `/rest/services/${encodeURIComponent(serviceId)}/MapServer/WMS`;
+  return `/rest/services/${encodeServiceIdPath(serviceId)}/MapServer/WMS`;
 }
 
 /** Canonical WMTS endpoint path. */
 function wmtsBasePath(serviceId: string): string {
-  return `/rest/services/${encodeURIComponent(serviceId)}/MapServer/WMTS`;
+  return `/rest/services/${encodeServiceIdPath(serviceId)}/MapServer/WMTS`;
 }
 
 /**

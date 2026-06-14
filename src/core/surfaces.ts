@@ -27,6 +27,7 @@ import type {
 import type { SourceId } from "../contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
+import { encodeServiceIdPath } from "./path-utils.js";
 import type {
   ApplyEditsRequest,
   ExportMapRequest,
@@ -273,7 +274,7 @@ export class HonuaService {
   public async request<T = unknown>(request: HonuaServiceRequest): Promise<T> {
     return this.client.request<T>({
       ...request,
-      path: `/rest/services/${encodeURIComponent(this.serviceId)}/${normalizeServicePath(request.path)}`,
+      path: `/rest/services/${encodeServiceIdPath(this.serviceId)}/${normalizeServicePath(request.path)}`,
     });
   }
 
@@ -496,7 +497,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     assertFeatureServerH3SpatialAggregationRequest(normalizedRequest);
 
     const plan = createFeatureServerH3AggregationPlan(normalizedRequest, request.kRingDistance);
-    const path = `/rest/services/${encodeURIComponent(this.serviceId)}/FeatureServer/${this.layerId}/queryH3`;
+    const path = `/rest/services/${encodeServiceIdPath(this.serviceId)}/FeatureServer/${this.layerId}/queryH3`;
     const method = request.method ?? "POST";
     const response =
       method === "GET"
@@ -550,7 +551,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
   ): Promise<HonuaQueryAttachmentsResponse> {
     const method: QueryMethod = request.method ?? "GET";
     const path =
-      `/rest/services/${encodeURIComponent(this.serviceId)}` + `/FeatureServer/${this.layerId}/queryAttachments`;
+      `/rest/services/${encodeServiceIdPath(this.serviceId)}` + `/FeatureServer/${this.layerId}/queryAttachments`;
     const query = {
       ...(request.objectIds === undefined
         ? {}
@@ -590,7 +591,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     return this.client.request({
       method: "GET",
       path:
-        `/rest/services/${encodeURIComponent(this.serviceId)}` +
+        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
         `/FeatureServer/${this.layerId}/${request.objectId}/attachments`,
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
@@ -609,7 +610,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     return this.client.request<HonuaDeleteAttachmentsResponse>({
       method: "POST",
       path:
-        `/rest/services/${encodeURIComponent(this.serviceId)}` +
+        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
         `/FeatureServer/${this.layerId}/${request.objectId}/deleteAttachments`,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -624,7 +625,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     return this.client.request<HonuaAddAttachmentResponse>({
       method: "POST",
       path:
-        `/rest/services/${encodeURIComponent(this.serviceId)}` +
+        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
         `/FeatureServer/${this.layerId}/${request.objectId}/addAttachment`,
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
@@ -641,7 +642,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     return this.client.request<HonuaUpdateAttachmentResponse>({
       method: "POST",
       path:
-        `/rest/services/${encodeURIComponent(this.serviceId)}` +
+        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
         `/FeatureServer/${this.layerId}/${request.objectId}/updateAttachment`,
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
@@ -654,7 +655,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     return this.client.request<T>({
       ...request,
       path:
-        `/rest/services/${encodeURIComponent(this.serviceId)}` +
+        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
         `/FeatureServer/${this.layerId}/${normalizeLayerPath(request.path)}`,
     });
   }
@@ -879,7 +880,8 @@ export class HonuaMapService {
   public async request<T = unknown>(request: HonuaMapServiceRequest): Promise<T> {
     return this.client.request<T>({
       ...request,
-      path: `/rest/services/${encodeURIComponent(this.serviceId)}` + `/MapServer/${normalizeServicePath(request.path)}`,
+      path:
+        `/rest/services/${encodeServiceIdPath(this.serviceId)}` + `/MapServer/${normalizeServicePath(request.path)}`,
     });
   }
 }
@@ -1053,7 +1055,7 @@ export class HonuaMapLayer {
     return this.client.request<T>({
       ...request,
       path:
-        `/rest/services/${encodeURIComponent(this.serviceId)}` +
+        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
         `/MapServer/${this.layerId}/${normalizeLayerPath(request.path)}`,
     });
   }
@@ -1371,7 +1373,7 @@ export class HonuaImageService {
   public async metadata(): Promise<HonuaServiceMetadata> {
     return this.client.request<HonuaServiceMetadata>({
       method: "GET",
-      path: `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer`,
+      path: `/rest/services/${encodeServiceIdPath(this.serviceId)}/ImageServer`,
       responseFormat: "json",
     });
   }
@@ -1411,7 +1413,7 @@ export class HonuaImageService {
     params: Record<string, string | number | boolean>,
   ): Promise<R> {
     const method: QueryMethod = request.method ?? "GET";
-    const path = `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/${op}`;
+    const path = `/rest/services/${encodeServiceIdPath(this.serviceId)}/ImageServer/${op}`;
     const responseFormat = request.responseFormat ?? "json";
     if (method === "GET") {
       return this.client.request<R>({ method: "GET", path, responseFormat, query: params, signal: request.signal });
@@ -1431,14 +1433,14 @@ export class HonuaImageService {
     col: number,
     format: "png" | "jpg" | "jpeg" | "tif" | "tiff" = "png",
   ): string {
-    const path = `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/tile/${level}/${row}/${col}`;
+    const path = `/rest/services/${encodeServiceIdPath(this.serviceId)}/ImageServer/tile/${level}/${row}/${col}`;
     return `${this.client.serverBaseUrl}${path}?f=${format}`;
   }
 
   public async legend(): Promise<HonuaLegendResponse> {
     return this.client.request<HonuaLegendResponse>({
       method: "GET",
-      path: `/rest/services/${encodeURIComponent(this.serviceId)}/ImageServer/legend`,
+      path: `/rest/services/${encodeServiceIdPath(this.serviceId)}/ImageServer/legend`,
       responseFormat: "json",
     });
   }
@@ -1863,7 +1865,7 @@ export class HonuaGeoprocessingService {
 
   private taskPath(suffix: string): string {
     const taskSegment = this.taskName ? `/${encodeURIComponent(this.taskName)}` : "";
-    return `/rest/services/${encodeURIComponent(this.serviceId)}/GPServer${taskSegment}/${suffix}`;
+    return `/rest/services/${encodeServiceIdPath(this.serviceId)}/GPServer${taskSegment}/${suffix}`;
   }
 }
 
