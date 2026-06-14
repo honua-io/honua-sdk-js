@@ -286,6 +286,21 @@ export type { BatchQueryItem, BatchQueryOptions, BatchQueryResult } from "./core
 export { decodePbfQueryResponse, isPbfResponse } from "./core/pbf-decoder.js";
 export { esriFeatureToGeoJSON, esriGeometryToGeoJSON } from "./core/esri-geojson.js";
 export {
+  decodeElevationPixel,
+  decodeTerrainRgbElevation,
+  decodeTerrariumElevation,
+  haversineMeters,
+  sampleElevationProfile,
+} from "./core/terrain-elevation.js";
+export type {
+  ElevationCoordinate,
+  ElevationProfile,
+  ElevationProfileSample,
+  ElevationSampler,
+  SampleElevationProfileOptions,
+  TerrainElevationEncoding,
+} from "./core/terrain-elevation.js";
+export {
   createHonuaOgcFeatures,
   createHonuaService,
   HonuaFeatureLayer,
