@@ -180,6 +180,26 @@ describe("anonymous-safe denial states", () => {
     expect(isShareAccessDenied(denied)).toBe(true);
   });
 
+  it("grants a public-content read and denies a forbidden one explicitly", () => {
+    // public (public-content) access kind, granted.
+    const resolution: HonuaPublicLinkResolution = {
+      itemId: "item-9",
+      itemType: "open-data",
+      accessTier: "public-indexed",
+      endpoints: { self: "/api/v1/console/share/content/item-9" },
+    };
+    const granted = grantShareAccess("public-content", resolution);
+    expect(granted.status).toBe("granted");
+    expect(granted.kind).toBe("public-content");
+
+    // forbidden denial built directly (not only via HTTP status mapping).
+    const forbidden = denyShareAccess("embed", "forbidden");
+    expect(forbidden.reason).toBe("forbidden");
+    expect(forbidden.message).toBe(HONUA_SHARE_DENIAL_MESSAGES.embed);
+    // Forbidden carries the same identity-free message as not-found (no oracle).
+    expect(forbidden.message).toBe(denyShareAccess("embed", "not-found").message);
+  });
+
   it("accepts a server ConsoleEmbedRedeemResponse-shaped object", () => {
     const wire = {
       itemId: "item-1",
