@@ -17,6 +17,18 @@ export type {
   RealtimeServerSentEventsTransportOptions,
 } from "./sse.js";
 export {
+  createHonuaServerRealtimeSubscription,
+  decodeHonuaServerRealtimeEvent,
+  encodeHonuaServerRealtimeRequest,
+  honuaServerRealtimePreset,
+  HONUA_SERVER_STREAMING_FEATURES_PATH,
+} from "./honua-server.js";
+export type {
+  CreateHonuaServerRealtimeSubscriptionOptions,
+  HonuaServerFeatureChange,
+  HonuaServerFeatureChangeEnvelope,
+} from "./honua-server.js";
+export {
   emptyRealtimeFeatureState,
   reconcileRealtimeStaleness,
   reduceRealtimeFeatureState,
