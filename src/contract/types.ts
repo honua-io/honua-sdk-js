@@ -436,12 +436,17 @@ export interface AggregationMetric {
  * into a `QueryFeaturesRequest`, `MapLayerQueryRequest`, `OgcItemsRequest`,
  * or the corresponding WFS / OData request.
  *
+ * `spatialFilter` is a `SpatialFilter` produced by the spatial-filter builders
+ * (`envelope`, `point`, `polygon`, `buffer`, …), not an inline literal.
+ *
  * @example
  * ```ts
+ * import { envelope } from "@honua/sdk-js";
+ *
  * const query: Query = {
  *   where: "STATUS = 'ACTIVE'",
  *   outFields: ["OBJECTID", "NAME"],
- *   spatialFilter: { kind: "bbox", bbox: [-158.5, 21.2, -157.6, 21.7] },
+ *   spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7),
  *   orderBy: [{ field: "REPORTED_AT", direction: "desc" }],
  *   pagination: { limit: 500 },
  *   returnGeometry: true,
