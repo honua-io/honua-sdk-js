@@ -842,7 +842,7 @@ describe("HonuaClient", () => {
     expect(requestedUrls[1]).toBe("https://example.test/rest/services/default/FeatureServer/12?f=json");
   });
 
-  it("encodes special characters in serviceId paths", async () => {
+  it("encodes special characters per segment while preserving folder slashes in serviceId paths", async () => {
     let requestedUrl: string | undefined;
     const client = new HonuaClient({
       baseUrl: "https://example.test",
@@ -857,7 +857,9 @@ describe("HonuaClient", () => {
       layerId: 0,
     });
 
-    expect(requestedUrl).toContain("/rest/services/Public%20Works%2FUtilities%20%26%20More/FeatureServer/0/query?");
+    // Folder-organized service ids keep the `/` separator (so the server can
+    // route them) while reserved characters inside each segment stay encoded.
+    expect(requestedUrl).toContain("/rest/services/Public%20Works/Utilities%20%26%20More/FeatureServer/0/query?");
   });
 
   it("returns empty object for empty responses and raw text for non-JSON responses", async () => {

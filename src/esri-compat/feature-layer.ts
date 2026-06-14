@@ -1,4 +1,5 @@
 import { HonuaClient } from "../core/client.js";
+import { encodeServiceIdPath } from "../core/path-utils.js";
 import type {
   ApplyEditsRequest,
   HonuaAddAttachmentResponse,
@@ -603,7 +604,7 @@ export class FeatureLayerCompat {
   public queryAttachments(options: FeatureLayerQueryAttachmentsOptions = {}): Promise<HonuaQueryAttachmentsResponse> {
     return this.client.request({
       method: options.method ?? "GET",
-      path: `/rest/services/${encodeURIComponent(this.serviceId)}/FeatureServer/${this.layerId}/queryAttachments`,
+      path: `/rest/services/${encodeServiceIdPath(this.serviceId)}/FeatureServer/${this.layerId}/queryAttachments`,
       responseFormat: options.responseFormat ?? "json",
       query: {
         ...(options.objectIds === undefined
@@ -621,7 +622,7 @@ export class FeatureLayerCompat {
     return this.client.request({
       method: "GET",
       path:
-        `/rest/services/${encodeURIComponent(this.serviceId)}` +
+        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
         `/FeatureServer/${this.layerId}/${options.objectId}/attachments`,
       responseFormat: options.responseFormat ?? "json",
       query: options.extraParams,
@@ -644,7 +645,7 @@ export class FeatureLayerCompat {
     return this.client.request({
       method: "POST",
       path:
-        `/rest/services/${encodeURIComponent(this.serviceId)}` +
+        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
         `/FeatureServer/${this.layerId}/${options.objectId}/deleteAttachments`,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -664,7 +665,7 @@ export class FeatureLayerCompat {
       this.client.request({
         method: "POST",
         path:
-          `/rest/services/${encodeURIComponent(this.serviceId)}` +
+          `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
           `/FeatureServer/${this.layerId}/${options.objectId}/addAttachment`,
         responseFormat: options.responseFormat ?? "json",
         query: options.extraParams,
@@ -688,7 +689,7 @@ export class FeatureLayerCompat {
       return this.client.request({
         method: "POST",
         path:
-          `/rest/services/${encodeURIComponent(this.serviceId)}` +
+          `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
           `/FeatureServer/${this.layerId}/${options.objectId}/updateAttachment`,
         responseFormat: options.responseFormat ?? "json",
         query: options.extraParams,

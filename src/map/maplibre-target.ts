@@ -87,6 +87,19 @@ export interface HonuaMapLibreMapOptions {
 
 /**
  * Create a Honua feature-service source and a default MapLibre render layer.
+ *
+ * The returned `source` carries the custom `honua-feature-service` type, which
+ * MapLibre's renderer does not understand on its own — adding it to a
+ * `maplibre-gl` `Map` directly is a silent no-op. To render it, run the layer's
+ * source through the MapLibre runtime adapter
+ * (`loadHonuaFeatureServiceGeoJson` / `registerHonuaFeatureServiceSources` from
+ * `@honua/sdk-js/map`), which fetches features via the SDK and produces a
+ * standard `geojson` source. This differs from
+ * {@link createHonuaTileServiceLayer}, which emits a native MapLibre `raster`
+ * source that renders without an adapter.
+ *
+ * @see loadHonuaFeatureServiceGeoJson
+ * @see registerHonuaFeatureServiceSources
  */
 export function createHonuaFeatureServiceLayer(options: HonuaFeatureServiceLayerOptions): HonuaMapLibreLayerDefinition {
   const sourceId = normalizeLayerId(options.id, options.title, options.url, "feature-service");

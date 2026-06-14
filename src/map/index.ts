@@ -41,6 +41,21 @@ export type {
   HonuaMapServiceLayerOptions,
   HonuaTileServiceLayerOptions,
 } from "./maplibre-target.js";
+export {
+  esriFeaturesToGeoJson,
+  esriGeometryToGeoJson,
+  loadHonuaFeatureServiceGeoJson,
+  registerHonuaFeatureServiceSources,
+} from "./feature-service-adapter.js";
+export type {
+  AdapterGeoJsonFeature,
+  AdapterGeoJsonFeatureCollection,
+  AdapterGeoJsonGeometry,
+  FeatureServiceAdapterMap,
+  LoadHonuaFeatureServiceGeoJsonOptions,
+  MapLibreGeoJsonSourceSpecification,
+  RegisterHonuaFeatureServiceSourcesResult,
+} from "./feature-service-adapter.js";
 export { webmapJsonToMapLibreStyle } from "./webmap-maplibre.js";
 export type {
   WebMapJsonToMapLibreStyleOptions,

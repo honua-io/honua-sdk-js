@@ -284,6 +284,7 @@ export type { SpatialFilter } from "./core/spatial-filter.js";
 export { batchQuery } from "./core/batch.js";
 export type { BatchQueryItem, BatchQueryOptions, BatchQueryResult } from "./core/batch.js";
 export { decodePbfQueryResponse, isPbfResponse } from "./core/pbf-decoder.js";
+export { esriFeatureToGeoJSON, esriGeometryToGeoJSON } from "./core/esri-geojson.js";
 export {
   createHonuaOgcFeatures,
   createHonuaService,
@@ -300,15 +301,19 @@ export {
 } from "./core/surfaces.js";
 export {
   createHonuaOgcTiles,
+  DEFAULT_OGC_TILE_MATRIX_SET,
   HonuaOgcTiles,
   HonuaOgcTileset,
 } from "./core/ogc-tiles.js";
 export type {
+  HonuaMapLibreTilesConfig,
+  HonuaMapLibreVectorSourceOptions,
   HonuaOgcCollectionTileRequest,
   HonuaOgcCollectionTilesetRequest,
   HonuaOgcCollectionTilesetsRequest,
   HonuaOgcTilesOptions,
   HonuaOgcTilesetOptions,
+  MapLibreVectorSourceSpec,
 } from "./core/ogc-tiles.js";
 export {
   createHonuaOgcMaps,

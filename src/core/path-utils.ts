@@ -77,3 +77,55 @@ export function stripQuery(value: string): string {
   const index = value.indexOf("?");
   return index < 0 ? value : value.slice(0, index);
 }
+
+/**
+ * Encode an Esri-style `serviceId` for use as a URL path segment, preserving
+ * folder structure.
+ *
+ * Esri/GeoServices services may be folder-organized, e.g.
+ * `MyFolder/MyService`. Naively passing the whole id through
+ * `encodeURIComponent` percent-encodes the `/` separator (`%2F`), collapsing
+ * the folder and service into a single path segment that the server cannot
+ * route. This helper splits on `/`, encodes each non-empty segment
+ * individually, and rejoins with `/` so the folder path is preserved while
+ * special characters within a segment (spaces, `&`, etc.) are still encoded.
+ *
+ * A plain `serviceId` without slashes behaves exactly like
+ * `encodeURIComponent(serviceId)`. Empty segments produced by leading,
+ * trailing, or doubled slashes are dropped so the result never contains
+ * stray `/` runs. Use {@link encodePathSegments} instead when empty segments
+ * must be preserved verbatim.
+ */
+export function encodeServiceIdPath(serviceId: string): string {
+  if (!serviceId.includes("/")) {
+    return encodeURIComponent(serviceId);
+  }
+  return serviceId
+    .split("/")
+    .filter((segment) => segment.length > 0)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
+/**
+ * Percent-encode a path that may contain `/` separators, encoding each
+ * segment independently so the separators survive.
+ *
+ * `encodeURIComponent("a/b")` returns `a%2Fb`, which is wrong for
+ * folder-prefixed identifiers such as `myFolder/parcels` that must serialize
+ * as `myFolder/parcels` on the wire. Splitting on `/` and encoding each
+ * segment keeps the separators literal while still escaping reserved
+ * characters inside each segment. Empty segments (leading/trailing/double
+ * slashes) are preserved verbatim so callers retain full control over the
+ * resulting path shape. Use {@link encodeServiceIdPath} when empty segments
+ * should instead be dropped (e.g. routable Esri service ids).
+ */
+export function encodePathSegments(value: string): string {
+  if (!value.includes("/")) {
+    return encodeURIComponent(value);
+  }
+  return value
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}

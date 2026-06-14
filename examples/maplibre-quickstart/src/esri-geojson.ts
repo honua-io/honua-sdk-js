@@ -1,3 +1,4 @@
+import { esriGeometryToGeoJSON } from "@honua/sdk-js";
 import type { HonuaFeature } from "@honua/sdk-js/honua";
 
 export type QuickstartRenderableGeometryType = "point" | "line" | "polygon";
@@ -96,170 +97,6 @@ function isFinitePosition(value: unknown): value is QuickstartPosition {
   );
 }
 
-function collectFinitePositions(value: unknown): QuickstartPosition[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.filter(isFinitePosition);
-}
-
-function collectPositionSets(value: unknown): QuickstartPosition[][] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.map((entry) => collectFinitePositions(entry)).filter((entry) => entry.length > 0);
-}
-
-function computeRingSignedArea(ring: readonly QuickstartPosition[]): number {
-  if (ring.length < 3) {
-    return 0;
-  }
-
-  let area = 0;
-  for (let index = 0; index < ring.length; index += 1) {
-    const current = ring[index];
-    const next = ring[(index + 1) % ring.length];
-    if (!current || !next) {
-      continue;
-    }
-    area += current[0] * next[1] - next[0] * current[1];
-  }
-
-  return area / 2;
-}
-
-function isExteriorRing(ring: readonly QuickstartPosition[]): boolean {
-  return computeRingSignedArea(ring) < 0;
-}
-
-function isPointOnSegment(
-  point: QuickstartPosition,
-  segmentStart: QuickstartPosition,
-  segmentEnd: QuickstartPosition,
-): boolean {
-  const epsilon = 1e-9;
-  const crossProduct =
-    (point[0] - segmentStart[0]) * (segmentEnd[1] - segmentStart[1]) -
-    (point[1] - segmentStart[1]) * (segmentEnd[0] - segmentStart[0]);
-
-  if (Math.abs(crossProduct) > epsilon) {
-    return false;
-  }
-
-  const dotProduct =
-    (point[0] - segmentStart[0]) * (segmentEnd[0] - segmentStart[0]) +
-    (point[1] - segmentStart[1]) * (segmentEnd[1] - segmentStart[1]);
-  if (dotProduct < -epsilon) {
-    return false;
-  }
-
-  const segmentLengthSquared =
-    (segmentEnd[0] - segmentStart[0]) * (segmentEnd[0] - segmentStart[0]) +
-    (segmentEnd[1] - segmentStart[1]) * (segmentEnd[1] - segmentStart[1]);
-
-  return dotProduct - segmentLengthSquared <= epsilon;
-}
-
-function isPointInsideRing(point: QuickstartPosition, ring: readonly QuickstartPosition[]): boolean {
-  if (ring.length < 3) {
-    return false;
-  }
-
-  let isInside = false;
-  for (let index = 0, previousIndex = ring.length - 1; index < ring.length; previousIndex = index, index += 1) {
-    const current = ring[index];
-    const previous = ring[previousIndex];
-    if (!current || !previous) {
-      continue;
-    }
-
-    if (isPointOnSegment(point, previous, current)) {
-      return true;
-    }
-
-    const intersects =
-      current[1] > point[1] !== previous[1] > point[1] &&
-      point[0] < ((previous[0] - current[0]) * (point[1] - current[1])) / (previous[1] - current[1]) + current[0];
-    if (intersects) {
-      isInside = !isInside;
-    }
-  }
-
-  return isInside;
-}
-
-function findContainingPolygonIndex(
-  polygons: readonly QuickstartPosition[][][],
-  outerAreas: readonly number[],
-  ring: readonly QuickstartPosition[],
-): number {
-  const samplePoint = ring[0];
-  if (!samplePoint) {
-    return -1;
-  }
-
-  let containingPolygonIndex = -1;
-  let smallestContainingArea = Number.POSITIVE_INFINITY;
-
-  for (let index = 0; index < polygons.length; index += 1) {
-    const polygon = polygons[index];
-    const outerRing = polygon?.[0];
-    const outerArea = outerAreas[index];
-    if (!outerRing || outerArea === undefined || !isPointInsideRing(samplePoint, outerRing)) {
-      continue;
-    }
-
-    if (outerArea < smallestContainingArea) {
-      smallestContainingArea = outerArea;
-      containingPolygonIndex = index;
-    }
-  }
-
-  return containingPolygonIndex;
-}
-
-function convertPolygonRings(
-  rings: readonly QuickstartPosition[][],
-): QuickstartGeoJsonPolygon | QuickstartGeoJsonMultiPolygon {
-  const polygons: QuickstartPosition[][][] = [];
-  const outerAreas: number[] = [];
-  const interiorRings: QuickstartPosition[][] = [];
-
-  for (const ring of rings) {
-    if (isExteriorRing(ring)) {
-      polygons.push([ring]);
-      outerAreas.push(Math.abs(computeRingSignedArea(ring)));
-      continue;
-    }
-
-    interiorRings.push(ring);
-  }
-
-  for (const ring of interiorRings) {
-    const containingPolygonIndex = findContainingPolygonIndex(polygons, outerAreas, ring);
-
-    if (containingPolygonIndex < 0) {
-      polygons.push([ring]);
-      outerAreas.push(Math.abs(computeRingSignedArea(ring)));
-      continue;
-    }
-
-    polygons[containingPolygonIndex]?.push(ring);
-  }
-
-  return polygons.length === 1
-    ? {
-        type: "Polygon",
-        coordinates: polygons[0] ?? [],
-      }
-    : {
-        type: "MultiPolygon",
-        coordinates: polygons,
-      };
-}
-
 function includeCoordinate(bounds: QuickstartBounds | undefined, coordinate: QuickstartPosition): QuickstartBounds {
   if (!bounds) {
     return {
@@ -305,81 +142,22 @@ export function mergeBounds(boundsList: readonly (QuickstartBounds | undefined)[
   return merged;
 }
 
+/**
+ * Convert a contract feature's Esri geometry into the quickstart GeoJSON shape.
+ *
+ * Conversion is delegated to the SDK's shared {@link esriGeometryToGeoJSON}
+ * utility; this wrapper only narrows the SDK's `number[]` coordinates into the
+ * `[number, number]` tuples the quickstart map code uses.
+ */
 function convertGeometry(geometry: HonuaFeature["geometry"]): QuickstartGeoJsonGeometry | null {
-  if (!geometry) {
+  const converted = esriGeometryToGeoJSON(geometry);
+  if (!converted) {
     return null;
   }
-
-  if ("x" in geometry && "y" in geometry && typeof geometry.x === "number" && typeof geometry.y === "number") {
-    return {
-      type: "Point",
-      coordinates: [geometry.x, geometry.y],
-    };
-  }
-
-  if ("points" in geometry && Array.isArray(geometry.points)) {
-    const coordinates = collectFinitePositions(geometry.points);
-    if (coordinates.length < 1) {
-      return null;
-    }
-
-    return {
-      type: "MultiPoint",
-      coordinates,
-    };
-  }
-
-  if ("paths" in geometry && Array.isArray(geometry.paths)) {
-    const coordinates = collectPositionSets(geometry.paths);
-    if (coordinates.length < 1) {
-      return null;
-    }
-
-    return coordinates.length === 1
-      ? {
-          type: "LineString",
-          coordinates: coordinates[0] ?? [],
-        }
-      : {
-          type: "MultiLineString",
-          coordinates,
-        };
-  }
-
-  if ("rings" in geometry && Array.isArray(geometry.rings)) {
-    const coordinates = collectPositionSets(geometry.rings);
-    if (coordinates.length < 1) {
-      return null;
-    }
-
-    return convertPolygonRings(coordinates);
-  }
-
-  if (
-    "xmin" in geometry &&
-    "ymin" in geometry &&
-    "xmax" in geometry &&
-    "ymax" in geometry &&
-    typeof geometry.xmin === "number" &&
-    typeof geometry.ymin === "number" &&
-    typeof geometry.xmax === "number" &&
-    typeof geometry.ymax === "number"
-  ) {
-    return {
-      type: "Polygon",
-      coordinates: [
-        [
-          [geometry.xmin, geometry.ymin],
-          [geometry.xmax, geometry.ymin],
-          [geometry.xmax, geometry.ymax],
-          [geometry.xmin, geometry.ymax],
-          [geometry.xmin, geometry.ymin],
-        ],
-      ],
-    };
-  }
-
-  return null;
+  // The SDK emits GeoJSON with `number[]` positions; the quickstart map code
+  // works with `[number, number]` tuples. The structures are identical at
+  // runtime, so a single cast keeps the quickstart types intact.
+  return converted as unknown as QuickstartGeoJsonGeometry;
 }
 
 export function convertEsriFeaturesToGeoJson(

@@ -9,6 +9,7 @@
  */
 
 import type { HonuaClient } from "./client.js";
+import { encodePathSegments, trimTrailingSlashes } from "./path-utils.js";
 import type {
   HonuaOgcConformanceResponse,
   HonuaOgcLandingResponse,
@@ -18,13 +19,47 @@ import type {
   HonuaOgcTilesetMetadata,
   HonuaOgcTilesetsResponse,
   OgcMetadataRequest,
+  OgcTileMatrixSetId,
   OgcTileRequest,
   OgcTilesetRequest,
   OgcTilesetsRequest,
 } from "./types.js";
 
+/** Default OGC tile-matrix-set used when none is specified (Web Mercator XYZ). */
+export const DEFAULT_OGC_TILE_MATRIX_SET: OgcTileMatrixSetId = "WebMercatorQuad";
+
 export interface HonuaOgcTilesOptions {
   client: HonuaClient;
+}
+
+/**
+ * Structural shape of a MapLibre `VectorSourceSpecification` for tiled
+ * vector data. Declared locally so the SDK does not take a runtime or type
+ * dependency on `maplibre-gl` (a peer); the object is assignable to
+ * MapLibre's `VectorSourceSpecification`.
+ */
+export interface MapLibreVectorSourceSpec {
+  type: "vector";
+  tiles: string[];
+  minzoom?: number;
+  maxzoom?: number;
+  scheme?: "xyz";
+}
+
+/** Options for {@link HonuaOgcTiles.getMapLibreVectorSource}. */
+export interface HonuaMapLibreVectorSourceOptions {
+  /** Tile-matrix-set to template against. Defaults to `WebMercatorQuad`. */
+  tileMatrixSetId?: OgcTileMatrixSetId;
+  /** Override the `minzoom` of the produced source. */
+  minzoom?: number;
+  /** Override the `maxzoom` of the produced source. */
+  maxzoom?: number;
+}
+
+/** Result of {@link HonuaOgcTiles.getMapLibreConfig}. */
+export interface HonuaMapLibreTilesConfig {
+  source: MapLibreVectorSourceSpec;
+  sourceLayer: string;
 }
 
 export interface HonuaOgcTilesetOptions {
@@ -85,6 +120,65 @@ export class HonuaOgcTiles {
 
   public async tile(request: OgcTileRequest): Promise<HonuaOgcTileResponse> {
     return this.client.fetchOgcTile(request);
+  }
+
+  /**
+   * Build a MapLibre-ready vector source definition for a tiled collection.
+   *
+   * Produces a `{ type: "vector", tiles: ["…/{z}/{y}/{x}"] }` object whose
+   * tile URL points at the canonical OGC API Tiles collection-tile route on
+   * the SDK's configured `baseUrl`. The MapLibre `{z}/{y}/{x}` placeholders
+   * are kept literal (the braces are not percent-encoded) while the
+   * collection / service identifier is encoded per path segment so
+   * folder-prefixed identifiers like `myFolder/parcels` serialize correctly.
+   *
+   * No network request is made; this is a pure URL-template builder. Pass
+   * `minzoom` / `maxzoom` to constrain the source, otherwise MapLibre's
+   * defaults apply.
+   */
+  public getMapLibreVectorSource(
+    serviceId: string,
+    options: HonuaMapLibreVectorSourceOptions = {},
+  ): MapLibreVectorSourceSpec {
+    const tileMatrixSetId = options.tileMatrixSetId ?? DEFAULT_OGC_TILE_MATRIX_SET;
+    const baseUrl = trimTrailingSlashes(this.client.serverBaseUrl);
+    const collection = encodePathSegments(serviceId);
+    const matrixSet = encodeURIComponent(tileMatrixSetId);
+    const template = `${baseUrl}/ogc/tiles/collections/${collection}/tiles/${matrixSet}/{z}/{y}/{x}`;
+    const source: MapLibreVectorSourceSpec = {
+      type: "vector",
+      tiles: [template],
+      scheme: "xyz",
+    };
+    if (options.minzoom !== undefined) source.minzoom = options.minzoom;
+    if (options.maxzoom !== undefined) source.maxzoom = options.maxzoom;
+    return source;
+  }
+
+  /**
+   * Resolve the `source-layer` name to use in a MapLibre layer that renders
+   * the collection's vector tiles. The Honua server names the MVT layer after
+   * the collection identifier; for folder-prefixed identifiers the trailing
+   * segment is the layer name (the folder is a routing prefix, not part of
+   * the layer name baked into the tile).
+   */
+  public getDefaultSourceLayer(serviceId: string): string {
+    const segments = serviceId.split("/");
+    return segments[segments.length - 1] ?? serviceId;
+  }
+
+  /**
+   * Convenience wrapper returning both the MapLibre vector {@link source}
+   * object and the {@link sourceLayer} name to wire into a layer definition.
+   */
+  public getMapLibreConfig(
+    serviceId: string,
+    options: HonuaMapLibreVectorSourceOptions = {},
+  ): HonuaMapLibreTilesConfig {
+    return {
+      source: this.getMapLibreVectorSource(serviceId, options),
+      sourceLayer: this.getDefaultSourceLayer(serviceId),
+    };
   }
 }
 

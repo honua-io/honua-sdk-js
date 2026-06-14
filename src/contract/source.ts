@@ -1212,11 +1212,14 @@ export function wmtsSource<T>(descriptor: SourceDescriptor, client: HonuaClient,
  * Adapter factory for a STAC API search endpoint.
  *
  * The canonical `Source.query()` runs a `POST /search` against the STAC root,
- * with `Query.spatialFilter.bbox` and `Query.where` translated into STAC's
- * `bbox` / `datetime` / `filter` parameters.
+ * with `Query.spatialFilter` (e.g. an `envelope(...)` bounding box) and
+ * `Query.where` translated into STAC's `bbox` / `datetime` / `filter`
+ * parameters.
  *
  * @example
  * ```ts
+ * import { envelope } from "@honua/sdk-js";
+ *
  * const dataset = createDataset({
  *   id: "imagery",
  *   client,
@@ -1229,7 +1232,7 @@ export function wmtsSource<T>(descriptor: SourceDescriptor, client: HonuaClient,
  * });
  * const result = await dataset.source("stac-search")!.query({
  *   where: "collections IN ('landsat-c2-l2')",
- *   spatialFilter: { kind: "bbox", bbox: [-158.5, 21.2, -157.6, 21.7] },
+ *   spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7),
  * });
  * ```
  */
