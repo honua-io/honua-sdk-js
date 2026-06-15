@@ -13,7 +13,25 @@ import type { LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
 export type ServiceExplorerDataMode = "auto" | "cloud" | "fixture";
 export type ServiceExplorerDataSource = "cloud" | "fixture";
 export type ServiceExplorerDiagnosticLevel = "info" | "warning" | "error";
-export type ServiceExplorerProtocol = "FeatureServer" | "MapServer" | "WFS" | "WMTS" | "OGC Maps" | "OData";
+export type ServiceExplorerProtocol =
+  | "Honua gRPC"
+  | "FeatureServer"
+  | "MapServer"
+  | "ImageServer"
+  | "Geometry Service"
+  | "GP Service"
+  | "OGC Features"
+  | "OGC Tiles"
+  | "OGC Maps"
+  | "OGC Records"
+  | "STAC"
+  | "WFS"
+  | "WMS"
+  | "WMTS"
+  | "OData"
+  | "MapLibre Vector"
+  | "MapLibre Raster"
+  | "MapLibre GeoJSON";
 export type ServiceExplorerCapabilityStatus = "supported" | "degraded" | "unsupported";
 export type ServiceExplorerSourceMode = "queryable" | "render-only" | "degraded";
 

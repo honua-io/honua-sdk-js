@@ -10,7 +10,16 @@ The default app configuration targets cloud Honua:
 
 When no API key is configured and `VITE_HONUA_SERVICE_EXPLORER_MODE=auto`, the app loads a bundled fixture so the sample remains buildable and useful locally. The UI keeps the cloud target visible and surfaces the fixture lane as a degraded diagnostic. Browser bearer-token forwarding through `VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN` is disabled unless `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true` is also set; prefer short-lived API keys or backend-issued sessions for browser demos.
 
-The source picker demonstrates FeatureServer, MapServer, WFS, WMTS, OGC Maps, and OData lanes against the same Cloud Honua-oriented app shell. Queryable sources participate in the shared linked context. Render-only standards sources keep metadata, cache, capability, map, and diagnostics panels active while table/query controls are disabled.
+The source picker covers **every protocol identifier the SDK contract supports** (`src/contract/types.ts` `Protocol`), grouped by family:
+
+- **Honua native** — Honua gRPC FeatureService transport.
+- **Esri GeoServices** — FeatureServer, MapServer, ImageServer, Geometry Service, GP Service.
+- **OGC API & catalogs** — OGC API Features, Tiles, Maps, Records, and STAC.
+- **OGC web services** — WFS, WMS, WMTS.
+- **OData** — OData v4 entity sets.
+- **MapLibre native** — vector, raster, and GeoJSON sources composed alongside protocol sources.
+
+Queryable sources participate in the shared linked context. Render-only standards sources keep metadata, cache, capability, map, and diagnostics panels active while table/query controls are disabled. Utility-only services (Geometry, GP) host no features, so they expose metadata and diagnostics while the table/query/render lanes report as unsupported — mirroring how the SDK exposes them only through the typed `Source.protocol()` escape hatch.
 
 ## Control-Plane Handoff
 
@@ -41,7 +50,7 @@ When `/api/v1/admin` is not exposed, control-plane calls return `{ supported: fa
 npm run demo:service-explorer
 ```
 
-To open a specific fixture source, pass `?source=<id>` in the URL. Useful source ids include `honolulu-civic-services:0`, `wfs-service-requests`, `wmts-basemap`, `ogc-maps-zoning`, and `odata-assets`.
+To open a specific fixture source, pass `?source=<id>` in the URL. Useful source ids include `honolulu-civic-services:0`, `grpc-service-requests`, `ogc-features-parcels`, `ogc-records-catalog`, `stac-imagery`, `imageserver-elevation`, `geometry-utility`, `gp-routing`, `wms-hazard`, `ogc-tiles-basemap`, `wfs-service-requests`, `wmts-basemap`, `ogc-maps-zoning`, `odata-assets`, and `maplibre-vector-basemap`.
 
 ## Validate
 
@@ -55,7 +64,7 @@ npm run test:playwright:service-explorer
 ## Slice Coverage
 
 - Service and layer discovery from cloud Honua or the local fixture catalog.
-- Standards source picker for FeatureServer, MapServer, WFS, WMTS, OGC Maps, and OData.
+- Standards source picker for every SDK protocol — Honua gRPC, FeatureServer, MapServer, ImageServer, Geometry Service, GP Service, OGC API Features/Tiles/Maps/Records, STAC, WFS, WMS, WMTS, OData, and MapLibre vector/raster/GeoJSON — grouped by protocol family.
 - Schema, capabilities, extent, metadata cache status, and revalidate controls.
 - Map, table, chart, filter, and detail panels synchronized through one `ExplorationContext`.
 - Map extent publishes a debounced spatial filter that drives table and chart projections.
