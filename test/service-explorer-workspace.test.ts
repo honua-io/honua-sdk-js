@@ -6,6 +6,7 @@ import {
   completeServiceExplorerMetadataRevalidation,
   createServiceExplorerWorkspace,
 } from "../examples/service-explorer/src/explorer-workspace.js";
+import { FIXTURE_SOURCE_OPTIONS } from "../examples/service-explorer/src/fixtures.js";
 import { createDebouncedMapExtentSource } from "../examples/service-explorer/src/map-adapter.js";
 import { applyServiceExplorerProjection } from "../examples/service-explorer/src/projection.js";
 import {
@@ -230,6 +231,53 @@ describe("service explorer workspace", () => {
     });
     expect(wmts.featureSummaries).toEqual([]);
     expect(wmts.diagnostics.some((diagnostic) => diagnostic.code === "table-query-disabled")).toBe(true);
+  });
+
+  it("covers every SDK protocol family in the source picker catalog", () => {
+    const protocols = new Set(FIXTURE_SOURCE_OPTIONS.map((option) => option.protocol));
+    for (const expected of [
+      "Honua gRPC",
+      "FeatureServer",
+      "MapServer",
+      "ImageServer",
+      "Geometry Service",
+      "GP Service",
+      "OGC Features",
+      "OGC Tiles",
+      "OGC Maps",
+      "OGC Records",
+      "STAC",
+      "WFS",
+      "WMS",
+      "WMTS",
+      "OData",
+      "MapLibre Vector",
+      "MapLibre Raster",
+      "MapLibre GeoJSON",
+    ]) {
+      expect(protocols.has(expected as (typeof FIXTURE_SOURCE_OPTIONS)[number]["protocol"])).toBe(true);
+    }
+  });
+
+  it("projects a STAC catalog-search lane into the linked queryable context", () => {
+    const stac = createFixtureServiceExplorerDataset({ sourceOptionId: "stac-imagery", now: 8_000 });
+    expect(stac.sourceOption.protocol).toBe("STAC");
+    expect(stac.metadata.capabilities).toMatchObject({ query: "supported", table: "supported", find: "supported" });
+    expect(stac.featureSummaries.length).toBeGreaterThan(0);
+  });
+
+  it("keeps utility-only Geometry Service lanes non-queryable with metadata still live", () => {
+    const geometry = createFixtureServiceExplorerDataset({ sourceOptionId: "geometry-utility", now: 9_000 });
+    expect(geometry.sourceOption.protocol).toBe("Geometry Service");
+    expect(geometry.sourceOption.mode).toBe("degraded");
+    expect(geometry.metadata.capabilities).toMatchObject({
+      query: "unsupported",
+      render: "unsupported",
+      table: "unsupported",
+      metadata: "supported",
+    });
+    expect(geometry.featureSummaries).toEqual([]);
+    expect(geometry.diagnostics.some((diagnostic) => diagnostic.code === "table-query-disabled")).toBe(true);
   });
 
   it("debounces high-frequency map movement before publishing extent", () => {

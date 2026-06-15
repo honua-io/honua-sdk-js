@@ -43,6 +43,7 @@ import type {
   ServiceExplorerDataset,
   ServiceExplorerFeatureSummary,
   ServiceExplorerProjectionResult,
+  ServiceExplorerProtocol,
 } from "./types.js";
 
 import "./styles.css";
@@ -104,16 +105,64 @@ function setOverlay(state: "loading" | "ready" | "error", title: string, detail:
   setText("#overlay-detail", detail);
 }
 
+// Group label for each protocol so the picker reads as a protocol catalog
+// rather than a flat list once every SDK protocol has a lane.
+const PROTOCOL_FAMILY_ORDER = [
+  "Honua native",
+  "Esri GeoServices",
+  "OGC API & catalogs",
+  "OGC web services",
+  "OData",
+  "MapLibre native",
+] as const;
+
+function protocolFamily(protocol: ServiceExplorerProtocol): (typeof PROTOCOL_FAMILY_ORDER)[number] {
+  switch (protocol) {
+    case "Honua gRPC":
+      return "Honua native";
+    case "FeatureServer":
+    case "MapServer":
+    case "ImageServer":
+    case "Geometry Service":
+    case "GP Service":
+      return "Esri GeoServices";
+    case "OGC Features":
+    case "OGC Tiles":
+    case "OGC Maps":
+    case "OGC Records":
+    case "STAC":
+      return "OGC API & catalogs";
+    case "WFS":
+    case "WMS":
+    case "WMTS":
+      return "OGC web services";
+    case "OData":
+      return "OData";
+    case "MapLibre Vector":
+    case "MapLibre Raster":
+    case "MapLibre GeoJSON":
+      return "MapLibre native";
+  }
+}
+
 function renderDiscovery(dataset: ServiceExplorerDataset): void {
   const sourcePicker = getElement<HTMLSelectElement>("#source-picker");
   sourcePicker.innerHTML = "";
+  const byFamily = new Map<string, HTMLOptGroupElement>();
+  for (const family of PROTOCOL_FAMILY_ORDER) {
+    if (!dataset.catalog.sources.some((source) => protocolFamily(source.protocol) === family)) continue;
+    const group = document.createElement("optgroup");
+    group.label = family;
+    byFamily.set(family, group);
+    sourcePicker.append(group);
+  }
   for (const source of dataset.catalog.sources) {
     const option = document.createElement("option");
     option.value = source.id;
     option.textContent = `${source.protocol} / ${source.name}`;
     option.dataset.mode = source.mode;
     option.selected = source.id === dataset.sourceOption.id;
-    sourcePicker.append(option);
+    (byFamily.get(protocolFamily(source.protocol)) ?? sourcePicker).append(option);
   }
 
   const services = getElement<HTMLElement>("#service-list");

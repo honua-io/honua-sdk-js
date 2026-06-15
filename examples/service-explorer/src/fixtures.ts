@@ -17,6 +17,263 @@ export const FIXTURE_SERVICE_ID = "honolulu-civic-services";
 export const FIXTURE_LAYER_ID = 0;
 export const FIXTURE_SOURCE_ID = `${FIXTURE_SERVICE_ID}:${FIXTURE_LAYER_ID}`;
 
+// Standards / native sources added to round out the picker so every protocol
+// identifier the SDK contract supports (src/contract/types.ts `Protocol`) has a
+// lane in the explorer — not just the original FeatureServer/MapServer/WFS/WMTS/
+// OGC Maps/OData six. Capability summaries mirror the protocol defaults in
+// `PROTOCOL_DEFAULT_CAPABILITIES`; query/render-only utility lanes keep table
+// controls disabled while metadata, cache, capability, and diagnostics panels
+// stay live.
+const STANDARDS_SOURCE_OPTIONS: readonly ServiceExplorerSourceOption[] = [
+  sourceOption({
+    id: "grpc-service-requests",
+    name: "Honua gRPC feature stream",
+    protocol: "Honua gRPC",
+    mode: "queryable",
+    serviceId: "grpc-service-requests",
+    description:
+      "Honua's canonical gRPC FeatureService transport — the protocol-neutral query, aggregate, and streaming surface every other adapter normalizes onto.",
+    cachePolicy:
+      "Cache the FeatureService descriptor, field schema, and capability manifest by service version; stream query/aggregate responses live.",
+    capabilities: {
+      query: "supported",
+      render: "supported",
+      table: "supported",
+      metadata: "supported",
+      extent: "supported",
+      statistics: "supported",
+      attachments: "unsupported",
+      find: "degraded",
+    },
+  }),
+  sourceOption({
+    id: "imageserver-elevation",
+    name: "ImageServer elevation",
+    protocol: "ImageServer",
+    mode: "render-only",
+    serviceId: "imageserver-elevation",
+    description:
+      "GeoServices ImageServer raster lane — exportImage rendering and pixel identify. Feature tables are disabled; identify stays a degraded query affordance.",
+    cachePolicy:
+      "Cache service metadata, raster function info, mosaic-rule defaults, and tile matrix hints; refresh exportImage and identify requests.",
+    capabilities: {
+      query: "degraded",
+      render: "supported",
+      table: "unsupported",
+      metadata: "supported",
+      extent: "supported",
+      statistics: "unsupported",
+      attachments: "unsupported",
+      find: "degraded",
+    },
+  }),
+  sourceOption({
+    id: "geometry-utility",
+    name: "Geometry Service utility",
+    protocol: "Geometry Service",
+    mode: "degraded",
+    serviceId: "geometry-utility",
+    description:
+      "GeoServices Geometry Service — project/buffer/relate utility operations. It hosts no features, so only the typed protocol() escape hatch and metadata stay active.",
+    cachePolicy:
+      "Cache the geometry service descriptor and supported-operation manifest; treat every project/buffer/relate call as a fresh request.",
+    capabilities: {
+      query: "unsupported",
+      render: "unsupported",
+      table: "unsupported",
+      metadata: "supported",
+      extent: "unsupported",
+      statistics: "unsupported",
+      attachments: "unsupported",
+      find: "unsupported",
+    },
+  }),
+  sourceOption({
+    id: "gp-routing",
+    name: "GP Service routing job",
+    protocol: "GP Service",
+    mode: "degraded",
+    serviceId: "gp-routing",
+    description:
+      "GeoServices Geoprocessing Service — submit/poll async jobs and read materialized results. No live feature table; the job lifecycle runs through the typed protocol() surface.",
+    cachePolicy:
+      "Cache the GP task descriptor and parameter schema; never cache job submissions, status polls, or result materialization.",
+    capabilities: {
+      query: "unsupported",
+      render: "unsupported",
+      table: "unsupported",
+      metadata: "supported",
+      extent: "unsupported",
+      statistics: "unsupported",
+      attachments: "unsupported",
+      find: "unsupported",
+    },
+  }),
+  sourceOption({
+    id: "ogc-features-parcels",
+    name: "OGC API Features parcels",
+    protocol: "OGC Features",
+    mode: "queryable",
+    serviceId: "ogc-features-parcels",
+    description:
+      "OGC API Features items lane — CQL2 filtering normalized into the same linked map/table/chart/filter/detail context as FeatureServer.",
+    cachePolicy:
+      "Cache the landing page, conformance, collection descriptor, queryables, and CRS list; refresh items requests.",
+    capabilities: {
+      query: "supported",
+      render: "supported",
+      table: "supported",
+      metadata: "supported",
+      extent: "supported",
+      statistics: "degraded",
+      attachments: "unsupported",
+      find: "degraded",
+    },
+  }),
+  sourceOption({
+    id: "ogc-tiles-basemap",
+    name: "OGC API Tiles basemap",
+    protocol: "OGC Tiles",
+    mode: "render-only",
+    serviceId: "ogc-tiles-basemap",
+    description:
+      "OGC API Tiles vector/raster tile lane. Render and tile-matrix metadata stay visible; feature table and query controls are disabled.",
+    cachePolicy:
+      "Cache the tileset list, tile matrix sets, and tile JSON; individual tile fetches follow normal HTTP cache decisions.",
+    capabilities: {
+      query: "unsupported",
+      render: "supported",
+      table: "unsupported",
+      metadata: "supported",
+      extent: "degraded",
+      statistics: "unsupported",
+      attachments: "unsupported",
+      find: "unsupported",
+    },
+  }),
+  sourceOption({
+    id: "ogc-records-catalog",
+    name: "OGC API Records catalog",
+    protocol: "OGC Records",
+    mode: "queryable",
+    serviceId: "ogc-records-catalog",
+    description:
+      "OGC API Records catalog lane — searchable record metadata with footprints projected into the linked table and detail panels.",
+    cachePolicy: "Cache the catalog landing page, conformance, and queryables; refresh record search requests.",
+    capabilities: {
+      query: "supported",
+      render: "degraded",
+      table: "supported",
+      metadata: "supported",
+      extent: "supported",
+      statistics: "unsupported",
+      attachments: "unsupported",
+      find: "supported",
+    },
+  }),
+  sourceOption({
+    id: "stac-imagery",
+    name: "STAC imagery search",
+    protocol: "STAC",
+    mode: "queryable",
+    serviceId: "stac-imagery",
+    description:
+      "STAC item-search lane — bbox/datetime/collection filters returning item footprints and asset metadata in the shared linked context.",
+    cachePolicy: "Cache the catalog landing page, collection descriptors, and queryables; refresh /search responses.",
+    capabilities: {
+      query: "supported",
+      render: "degraded",
+      table: "supported",
+      metadata: "supported",
+      extent: "supported",
+      statistics: "unsupported",
+      attachments: "degraded",
+      find: "supported",
+    },
+  }),
+  sourceOption({
+    id: "wms-hazard",
+    name: "WMS hazard overlay",
+    protocol: "WMS",
+    mode: "render-only",
+    serviceId: "wms-hazard",
+    description:
+      "OGC WMS GetMap render lane with GetFeatureInfo identify. Table/query controls are disabled; identify stays a degraded query affordance.",
+    cachePolicy:
+      "Cache GetCapabilities, layer/style metadata, and CRS list; refresh GetMap and GetFeatureInfo requests.",
+    capabilities: {
+      query: "degraded",
+      render: "supported",
+      table: "unsupported",
+      metadata: "supported",
+      extent: "supported",
+      statistics: "unsupported",
+      attachments: "unsupported",
+      find: "unsupported",
+    },
+  }),
+  sourceOption({
+    id: "maplibre-vector-basemap",
+    name: "MapLibre vector source",
+    protocol: "MapLibre Vector",
+    mode: "render-only",
+    serviceId: "maplibre-vector-basemap",
+    description:
+      "MapLibre-native vector tile source composed alongside protocol sources by HonuaMap. Render-only; schema comes from the style, not a service descriptor.",
+    cachePolicy: "Cache the style document and tile JSON; vector tile fetches follow normal HTTP cache decisions.",
+    capabilities: {
+      query: "unsupported",
+      render: "supported",
+      table: "unsupported",
+      metadata: "degraded",
+      extent: "degraded",
+      statistics: "unsupported",
+      attachments: "unsupported",
+      find: "unsupported",
+    },
+  }),
+  sourceOption({
+    id: "maplibre-raster-imagery",
+    name: "MapLibre raster source",
+    protocol: "MapLibre Raster",
+    mode: "render-only",
+    serviceId: "maplibre-raster-imagery",
+    description:
+      "MapLibre-native raster tile source composed alongside protocol sources. Render-only basemap/imagery tiles with style-derived metadata.",
+    cachePolicy: "Cache the style document and tile JSON; raster tile fetches follow normal HTTP cache decisions.",
+    capabilities: {
+      query: "unsupported",
+      render: "supported",
+      table: "unsupported",
+      metadata: "degraded",
+      extent: "degraded",
+      statistics: "unsupported",
+      attachments: "unsupported",
+      find: "unsupported",
+    },
+  }),
+  sourceOption({
+    id: "maplibre-geojson-incidents",
+    name: "MapLibre GeoJSON source",
+    protocol: "MapLibre GeoJSON",
+    mode: "render-only",
+    serviceId: "maplibre-geojson-incidents",
+    description:
+      "MapLibre-native in-memory GeoJSON source. Renders client-side geometry; there is no server query surface, so table/query stay degraded affordances.",
+    cachePolicy: "No server metadata to cache; the GeoJSON payload lives in memory and is supplied by the composition.",
+    capabilities: {
+      query: "degraded",
+      render: "supported",
+      table: "unsupported",
+      metadata: "degraded",
+      extent: "degraded",
+      statistics: "unsupported",
+      attachments: "unsupported",
+      find: "unsupported",
+    },
+  }),
+];
+
 export const FIXTURE_SOURCE_OPTIONS: readonly ServiceExplorerSourceOption[] = [
   sourceOption({
     id: FIXTURE_SOURCE_ID,
@@ -136,6 +393,7 @@ export const FIXTURE_SOURCE_OPTIONS: readonly ServiceExplorerSourceOption[] = [
       find: "unsupported",
     },
   }),
+  ...STANDARDS_SOURCE_OPTIONS,
 ];
 
 export const FIXTURE_SERVICES: readonly ServiceExplorerServiceSummary[] = [
@@ -169,6 +427,13 @@ export const FIXTURE_SERVICES: readonly ServiceExplorerServiceSummary[] = [
     description: "OData entity-set table lane.",
     status: "degraded",
   }),
+  ...STANDARDS_SOURCE_OPTIONS.map((option) =>
+    serviceSummary(option, {
+      layerCount: 1,
+      description: option.description,
+      status: option.mode === "degraded" ? "degraded" : "available",
+    }),
+  ),
 ];
 
 export const FIXTURE_LAYERS: readonly ServiceExplorerLayerSummary[] = [
@@ -193,19 +458,21 @@ export const FIXTURE_LAYERS: readonly ServiceExplorerLayerSummary[] = [
   layerSummary(FIXTURE_SOURCE_OPTIONS[3], "Basemap WMTS"),
   layerSummary(FIXTURE_SOURCE_OPTIONS[4], "Zoning OGC Maps"),
   layerSummary(FIXTURE_SOURCE_OPTIONS[5], "Public Assets EntitySet"),
+  ...STANDARDS_SOURCE_OPTIONS.map((option) => layerSummary(option, option.name)),
 ];
 
 export const FIXTURE_CATALOG: ServiceExplorerCatalog = {
   sources: FIXTURE_SOURCE_OPTIONS,
   services: FIXTURE_SERVICES,
-  layersByServiceId: {
-    [FIXTURE_SERVICE_ID]: FIXTURE_LAYERS.filter((layer) => layer.serviceId === FIXTURE_SERVICE_ID),
-    "mapserver-orthoimagery": [layerSummary(FIXTURE_SOURCE_OPTIONS[1], "Current Orthoimagery")],
-    "wfs-service-requests": [layerSummary(FIXTURE_SOURCE_OPTIONS[2], "Service Requests WFS")],
-    "wmts-basemap": [layerSummary(FIXTURE_SOURCE_OPTIONS[3], "Basemap WMTS")],
-    "ogc-maps-zoning": [layerSummary(FIXTURE_SOURCE_OPTIONS[4], "Zoning OGC Maps")],
-    "odata-assets": [layerSummary(FIXTURE_SOURCE_OPTIONS[5], "Public Assets EntitySet")],
-  },
+  // One entry per distinct serviceId, derived from FIXTURE_LAYERS so new
+  // standards/native lanes appear in the discovery panel without hand-maintained
+  // duplication.
+  layersByServiceId: Object.fromEntries(
+    [...new Set(FIXTURE_LAYERS.map((layer) => layer.serviceId))].map((serviceId) => [
+      serviceId,
+      FIXTURE_LAYERS.filter((layer) => layer.serviceId === serviceId),
+    ]),
+  ),
 };
 
 export const FIXTURE_SERVICE_METADATA: HonuaServiceMetadata = {
