@@ -139,6 +139,31 @@ See [`docs/quickstart.md`](./docs/quickstart.md) for the guided walkthrough,
 modes, and [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) for the
 committed source.
 
+## Command-line client (`honua`)
+
+Installing the SDK also installs a first-class **`honua` CLI** — the same
+querying and catalog browsing without writing code. It wraps the SDK (no raw
+HTTP, no URL-encoding, no `f=json`), prints readable tables by default, and adds
+`--json` / `--format geojson` for machine output.
+
+```bash
+npm i -g @honua/sdk-js            # or: npx @honua/sdk-js honua <command>
+export HONUA_BASE_URL=https://demo.honua.io   # anonymous reads on the public demo
+
+honua services                    # list published services
+honua layers maui-parcels         # list a service's layers
+honua query maui-parcels/1 --count
+honua query maui-parcels/1 --where "tmk_txt LIKE '2%'" --limit 5
+honua query maui-parcels/1 --bbox -156.7,20.7,-156.3,21.0 --format geojson
+honua stac collections
+honua geocode "1 Honolulu Pl, HI"
+honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o maui.png
+```
+
+Authentication resolves from `--api-key`, `HONUA_API_KEY`, or a saved
+`honua login`. Run `honua --help` for the full command surface. This is the
+recommended replacement for `curl` in docs and demos.
+
 ## What you can build
 
 | Demo | What it shows |

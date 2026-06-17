@@ -184,7 +184,14 @@
     "./operate": {
       "types": "./dist/src/operate/index.d.ts",
       "default": "./dist/src/operate/index.js"
+    },
+    "./cli": {
+      "types": "./dist/src/cli/main.d.ts",
+      "default": "./dist/src/cli/main.js"
     }
+  },
+  "bin": {
+    "honua": "./dist/src/cli/bin.js"
   },
   "scripts": {
     "clean": "rm -rf dist",
