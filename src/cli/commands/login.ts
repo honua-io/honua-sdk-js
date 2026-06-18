@@ -9,7 +9,7 @@ import fs from "node:fs";
 import type { ParsedArgs } from "../args.js";
 import { getString } from "../args.js";
 import type { CommandContext } from "../command.js";
-import { configPath, readConfig, resolveConnection, writeConfig } from "../config.js";
+import { configPath, readConfig, resolveConnection, stripTrailingSlashes, writeConfig } from "../config.js";
 import { printLine, renderDetail } from "../output.js";
 
 export async function loginCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
@@ -19,7 +19,7 @@ export async function loginCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     throw new Error("`honua login` requires --base-url <url> (and optionally --api-key <key>).");
   }
   const existing = readConfig();
-  const config = { ...existing, baseUrl: baseUrl.replace(/\/+$/, "") };
+  const config = { ...existing, baseUrl: stripTrailingSlashes(baseUrl) };
   if (apiKey) config.apiKey = apiKey;
   const file = writeConfig(config);
   printLine(

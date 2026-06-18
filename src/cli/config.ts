@@ -30,6 +30,21 @@ export interface ResolvedConnection {
   source: "flag" | "env" | "config";
 }
 
+/**
+ * Strip any trailing `/` characters from a base URL.
+ *
+ * Implemented as a linear scan rather than a `/\/+$/` regex so it is not
+ * susceptible to polynomial backtracking on attacker- or library-controlled
+ * input (CodeQL js/redos).
+ */
+export function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47 /* '/' */) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
+}
+
 /** Directory that holds the persisted CLI config. */
 export function configDir(env: NodeJS.ProcessEnv = process.env): string {
   if (env.HONUA_CONFIG_HOME && env.HONUA_CONFIG_HOME.trim() !== "") {
@@ -110,5 +125,5 @@ export function resolveConnection(options: ResolveOptions = {}): ResolvedConnect
     (env.HONUA_API_KEY && env.HONUA_API_KEY.trim() !== "" ? env.HONUA_API_KEY : undefined) ??
     (saved.apiKey && saved.apiKey.trim() !== "" ? saved.apiKey : undefined);
 
-  return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey, source };
+  return { baseUrl: stripTrailingSlashes(baseUrl), apiKey, source };
 }
