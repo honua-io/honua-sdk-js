@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maui Planning &amp; Permitting Workbench</title>
+  </head>
+  <body>
+    <main class="workbench-shell">
+      <aside class="left-rail" aria-label="Workbench controls">
+        <header class="app-header">
+          <p class="eyebrow">Honua Planning</p>
+          <h1>Planning &amp; Permitting Workbench</h1>
+          <p class="tier-badge" id="tier-badge">Community + Pro</p>
+        </header>
+
+        <nav class="module-switcher" aria-label="Workbench modules">
+          <button type="button" data-module="review-board" aria-pressed="true">Review Board</button>
+          <button type="button" data-module="query-analysis" aria-pressed="false">Query &amp; Analysis</button>
+          <button type="button" data-module="permit-editing" aria-pressed="false">Permit Editing</button>
+        </nav>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Search</h2>
+            <span id="search-status">geocode</span>
+          </div>
+          <label class="field-label" for="search-input">Address or TMK</label>
+          <input id="search-input" type="search" placeholder="120 Market St / 3-8-001-014" autocomplete="off" />
+          <ul id="search-results" class="stack-list search-list"></ul>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Layers</h2>
+            <span id="layer-count">0 on</span>
+          </div>
+          <label class="source-toggle">
+            <input id="layer-parcels" type="checkbox" checked />
+            <span><strong>Parcels</strong><em id="parcels-status">ready</em></span>
+          </label>
+          <label class="source-toggle">
+            <input id="layer-zoning" type="checkbox" checked />
+            <span><strong>Zoning</strong><em id="zoning-status">ready</em></span>
+          </label>
+          <label class="source-toggle">
+            <input id="layer-flood" type="checkbox" checked />
+            <span><strong>Flood hazard</strong><em id="flood-status">ready</em></span>
+          </label>
+          <label class="source-toggle">
+            <input id="layer-permits" type="checkbox" checked />
+            <span><strong>Permits</strong><em id="permits-status">writable</em></span>
+          </label>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Legend</h2>
+            <span>zoning / flood</span>
+          </div>
+          <div id="zoning-legend" class="legend"></div>
+          <div id="flood-legend" class="legend"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Extent</h2>
+            <span id="extent-label">Maui Nui</span>
+          </div>
+          <div id="map-presets" class="button-grid"></div>
+          <p id="extent-readout" class="readout">-</p>
+        </section>
+      </aside>
+
+      <section class="module-stage" aria-live="polite">
+        <section id="review-board-module" class="module-view" data-active="true">
+          <div class="stage-heading">
+            <div>
+              <p class="eyebrow">Review Board</p>
+              <h2>Map, Parcel Table, and Detail</h2>
+            </div>
+            <dl class="summary-strip">
+              <div><dt>Parcels</dt><dd id="parcel-count">0</dd></div>
+              <div><dt>Flood-exposed</dt><dd id="flood-count">0</dd></div>
+              <div><dt>Assessed</dt><dd id="assessed-total">$0</dd></div>
+            </dl>
+          </div>
+
+          <div class="map-workspace">
+            <div id="workbench-map" class="workbench-map" aria-label="Linked parcel map"></div>
+            <div class="queue-panel">
+              <div class="panel-heading">
+                <h3>Parcels</h3>
+                <span id="selection-count">0 selected</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>TMK</th><th>Address</th><th>Zoning</th><th></th></tr>
+                  </thead>
+                  <tbody id="parcel-table-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <section class="panel filter-panel">
+            <div class="panel-heading">
+              <h3>Query filters</h3>
+              <span><strong id="filter-count">0</strong> active</span>
+            </div>
+            <div class="filter-row">
+              <label class="field-label" for="zoning-filter">Zoning</label>
+              <select id="zoning-filter">
+                <option value="">Any zone</option>
+              </select>
+              <label class="checkbox">
+                <input id="flood-filter" type="checkbox" />
+                <span>Regulated flood only</span>
+              </label>
+              <button id="clear-filters" type="button">Clear</button>
+            </div>
+          </section>
+        </section>
+
+        <section id="query-analysis-module" class="module-view" data-active="false">
+          <div class="stage-heading">
+            <div>
+              <p class="eyebrow">Query &amp; Analysis</p>
+              <h2>Linked Map / Table / Chart</h2>
+            </div>
+            <dl class="summary-strip">
+              <div><dt>In AOI</dt><dd id="aoi-count">0</dd></div>
+              <div><dt>Sketch acres</dt><dd id="sketch-acres">0</dd></div>
+              <div><dt>Measure</dt><dd id="measure-readout">0 m</dd></div>
+            </dl>
+          </div>
+
+          <div class="analysis-grid">
+            <section class="panel chart-panel">
+              <div class="panel-heading">
+                <h3>Parcels by zoning</h3>
+                <span>shared context</span>
+              </div>
+              <div id="zoning-chart" class="zoning-chart"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Sketch proposed footprint</h3>
+                <span id="sketch-status">no sketch</span>
+              </div>
+              <p class="hint">Draws a sample AOI ring, then checks it against the flood-hazard overlay.</p>
+              <div class="button-row">
+                <button id="sketch-footprint" type="button">Sketch AOI</button>
+                <button id="measure-footprint" type="button">Measure</button>
+                <button id="clear-sketch" type="button">Clear</button>
+              </div>
+              <ul id="sketch-readout" class="stack-list"></ul>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Print / export</h3>
+                <span id="print-status">not generated</span>
+              </div>
+              <div class="button-row">
+                <button id="generate-print" type="button">Generate print manifest</button>
+                <button id="export-workspace" type="button">Export workspace</button>
+              </div>
+              <pre id="print-json" class="json-readout"></pre>
+            </section>
+          </div>
+        </section>
+
+        <section id="permit-editing-module" class="module-view" data-active="false">
+          <div class="stage-heading">
+            <div>
+              <p class="eyebrow">Permit Editing</p>
+              <h2>Writable Permit Layer</h2>
+            </div>
+            <dl class="summary-strip">
+              <div><dt>Permits</dt><dd id="permit-count">0</dd></div>
+              <div><dt>Mode</dt><dd id="permit-mode">update</dd></div>
+              <div><dt>Status</dt><dd id="edit-status-readout">ready</dd></div>
+            </dl>
+          </div>
+
+          <div class="field-edit-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Permits</h3>
+                <button id="new-permit" type="button">New permit</button>
+              </div>
+              <ul id="permit-list" class="stack-list edit-list"></ul>
+            </section>
+
+            <section class="panel edit-form-panel">
+              <div class="panel-heading">
+                <h3>Permit form</h3>
+                <span id="edit-permit-no">-</span>
+              </div>
+              <label class="field-label" for="edit-parcel-field">Parcel TMK</label>
+              <input id="edit-parcel-field" type="text" />
+              <label class="field-label" for="edit-type-field">Permit type</label>
+              <select id="edit-type-field">
+                <option value="residential">Residential</option>
+                <option value="commercial">Commercial</option>
+                <option value="grading">Grading</option>
+                <option value="shoreline">Shoreline</option>
+                <option value="demolition">Demolition</option>
+              </select>
+              <label class="field-label" for="edit-status-field">Status</label>
+              <select id="edit-status-field">
+                <option value="intake">Intake</option>
+                <option value="under-review">Under review</option>
+                <option value="approved">Approved</option>
+                <option value="issued">Issued</option>
+                <option value="denied">Denied</option>
+              </select>
+              <label class="field-label" for="edit-reviewer-field">Reviewer</label>
+              <input id="edit-reviewer-field" type="text" />
+              <label class="field-label" for="edit-valuation-field">Valuation ($)</label>
+              <input id="edit-valuation-field" type="number" min="0" step="1000" />
+              <label class="field-label" for="edit-description-field">Description</label>
+              <textarea id="edit-description-field" rows="3"></textarea>
+              <div class="button-row">
+                <button id="force-conflict" type="button">Force conflict</button>
+                <button id="save-permit" type="button">Save permit</button>
+              </div>
+              <p id="edit-message" class="edit-message">-</p>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <h3>Capability readiness</h3>
+                <span id="edit-capability-state">-</span>
+              </div>
+              <ul id="edit-readiness-list" class="stack-list"></ul>
+            </section>
+          </div>
+        </section>
+      </section>
+
+      <aside class="detail-rail" aria-label="Parcel detail">
+        <section class="panel detail-panel">
+          <div class="panel-heading">
+            <h2>Detail</h2>
+            <span id="detail-source">-</span>
+          </div>
+          <h3 id="detail-title">No selected parcel</h3>
+          <p id="detail-summary">-</p>
+          <dl id="detail-attributes" class="metric-list"></dl>
+          <div id="flood-warning" class="flood-warning" data-active="false"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Linked context</h2>
+            <span id="context-active-view">review-board</span>
+          </div>
+          <pre id="context-json" class="json-readout"></pre>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
