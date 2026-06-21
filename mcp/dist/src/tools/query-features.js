@@ -24,7 +24,10 @@ export async function execute(client, input) {
         serviceId: input.serviceId,
         layerId: input.layerId,
         where: input.where,
-        outFields: input.outFields ?? "*",
+        // An empty array is a natural "no specific fields" from an agent, but Esri
+        // FeatureServer treats an empty outFields as "OBJECTID only". Coerce both
+        // missing and empty to "*" so all fields are returned.
+        outFields: input.outFields && input.outFields.length > 0 ? input.outFields : "*",
         geometry: input.geometry,
         geometryType: resolveGeometryType(input.geometry, input.geometryType),
         spatialRel: mapSpatialRel(input.spatialRel),

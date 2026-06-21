@@ -1,7 +1,7 @@
 import type { HonuaClient } from "@honua/sdk-js";
 import { z } from "zod";
 import { jsonText } from "../helpers.js";
-import { getMapLibreStylesheet, resolveStyleRef } from "../styles.js";
+import { resolveStyleRef } from "../styles.js";
 
 export const schema = z.object({
   styleId: z.string().describe("Stable style identifier of the preset to resolve."),
@@ -20,10 +20,11 @@ export type Input = z.infer<typeof schema>;
  * MCP boundary (geospatial-mcp taxonomy / ADR-0028).
  */
 export async function execute(client: HonuaClient, input: Input) {
-  const [styleRef, stylesheet] = await Promise.all([
-    resolveStyleRef(client, input.styleId),
-    getMapLibreStylesheet(client, input.styleId),
-  ]);
+  // `resolveStyleRef` already fetches the MapLibre stylesheet and inlines it on
+  // the `mapbox-style` encoding, so reuse that body instead of issuing a second
+  // identical GET /ogc/styles/{id}.
+  const styleRef = await resolveStyleRef(client, input.styleId);
+  const stylesheet = styleRef.encodings.find((e) => e.encoding === "mapbox-style")?.inlineBody ?? null;
 
   return jsonText({
     style: styleRef,

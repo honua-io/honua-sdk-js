@@ -10,6 +10,17 @@ export declare function jsonText(result: unknown): {
     }>;
 };
 export declare function metadataErrorText(): string;
+/**
+ * Coerce a feature `count` from a query response into a usable value.
+ *
+ * The default `grpc-web` transport returns counts via `toSafeNumberOrString`,
+ * which yields a **string** when the proto count exceeds
+ * `Number.MAX_SAFE_INTEGER` (chosen specifically to avoid precision loss). Both
+ * a finite `number` and a numeric `string` are valid counts; anything else
+ * (non-finite numbers, non-numeric strings, missing values) returns
+ * `undefined`.
+ */
+export declare function coerceCount(value: unknown): number | string | undefined;
 export declare function encodeServiceId(serviceId: string): string;
 export declare function decodeServiceId(encoded: string): string;
 export declare function parseLayerId(value: string): number;

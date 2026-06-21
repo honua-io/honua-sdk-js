@@ -189,13 +189,23 @@ interface RecordsPageCursor {
   offset?: number;
 }
 
+/**
+ * Query-param names that may carry the next-page start offset on an OGC API
+ * `rel:"next"` link. `offset` is Honua Server's spelling; `startindex` is the
+ * OGC API – Features / Records standard name (servers also vary the casing).
+ */
+const RECORDS_OFFSET_PARAM_NAMES = ["offset", "startindex", "startIndex"] as const;
+
 function nextRecordsCursor(links: HonuaOgcRecordsResponse["links"] | undefined): RecordsPageCursor {
   if (!links) return {};
   for (const link of links) {
     if (link.rel !== "next" || typeof link.href !== "string") continue;
     try {
       const url = new URL(link.href, "https://placeholder.test");
-      const offsetParam = url.searchParams.get("offset");
+      // Standards-conformant servers commonly express the next page with
+      // `startindex` rather than `offset`; honor whichever the server sent so
+      // pagination doesn't silently stop after the first page.
+      const offsetParam = readFirstParam(url.searchParams, RECORDS_OFFSET_PARAM_NAMES);
       if (offsetParam === null) continue;
       const offset = Number(offsetParam);
       if (Number.isFinite(offset)) return { offset };
@@ -204,6 +214,15 @@ function nextRecordsCursor(links: HonuaOgcRecordsResponse["links"] | undefined):
     }
   }
   return {};
+}
+
+/** Return the first non-null value among `names` from the query string. */
+function readFirstParam(params: URLSearchParams, names: readonly string[]): string | null {
+  for (const name of names) {
+    const value = params.get(name);
+    if (value !== null) return value;
+  }
+  return null;
 }
 
 export function createHonuaOgcRecords(client: HonuaClient): HonuaOgcRecords {

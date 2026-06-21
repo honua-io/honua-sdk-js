@@ -73,6 +73,29 @@ export function metadataErrorText(): string {
   return METADATA_ERROR_MESSAGE;
 }
 
+/**
+ * Coerce a feature `count` from a query response into a usable value.
+ *
+ * The default `grpc-web` transport returns counts via `toSafeNumberOrString`,
+ * which yields a **string** when the proto count exceeds
+ * `Number.MAX_SAFE_INTEGER` (chosen specifically to avoid precision loss). Both
+ * a finite `number` and a numeric `string` are valid counts; anything else
+ * (non-finite numbers, non-numeric strings, missing values) returns
+ * `undefined`.
+ */
+export function coerceCount(value: unknown): number | string | undefined {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === "string") {
+    // Accept canonical base-10 integer strings (optionally signed). These are
+    // the large-count representation the grpc adapter emits to preserve
+    // precision beyond Number.MAX_SAFE_INTEGER.
+    return /^-?\d+$/.test(value.trim()) ? value.trim() : undefined;
+  }
+  return undefined;
+}
+
 export function encodeServiceId(serviceId: string): string {
   return encodeURIComponent(serviceId);
 }

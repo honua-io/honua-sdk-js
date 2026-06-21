@@ -1257,6 +1257,59 @@ describe("odata / HonuaOdataEntitySet path metadata", () => {
   });
 });
 
+describe("odata / update + delete key encoding (review fix)", () => {
+  function captureMutationPath(method: "PATCH" | "DELETE", key: string): Promise<string> {
+    return new Promise((resolve) => {
+      const client = makeMockClient({
+        routes: [
+          ["/odata/$metadata", () => odataMetadataResponse()],
+          [
+            /\/odata\/Parcels\(/,
+            (url, init) => {
+              if ((init?.method ?? "GET").toUpperCase() === method) {
+                resolve(url.pathname);
+                return new Response(null, { status: 204 });
+              }
+              return new Response("not found", { status: 404 });
+            },
+          ],
+        ],
+      });
+      const entity = new HonuaOdataEntitySet({ client, entitySet: "Parcels" });
+      if (method === "PATCH") {
+        void entity.update(key, { STATE: "CA" });
+      } else {
+        void entity.delete(key);
+      }
+    });
+  }
+
+  it("update() percent-encodes reserved characters in the key so the path is not split", async () => {
+    const path = await captureMutationPath("PATCH", "A&B");
+    expect(path).toBe("/odata/Parcels(A%26B)");
+  });
+
+  it("delete() percent-encodes reserved characters (?, #, /, space)", async () => {
+    const path = await captureMutationPath("DELETE", "x/y z?#");
+    expect(path).toBe("/odata/Parcels(x%2Fy%20z%3F%23)");
+  });
+
+  it("preserves quoted-string-literal structure while encoding unsafe chars inside the quotes", async () => {
+    const path = await captureMutationPath("DELETE", "'A&B'");
+    expect(path).toBe("/odata/Parcels('A%26B')");
+  });
+
+  it("keeps composite-key delimiters (`,` and `=`) structural outside quotes", async () => {
+    const path = await captureMutationPath("DELETE", "LayerId=1,ObjectId=3");
+    expect(path).toBe("/odata/Parcels(LayerId=1,ObjectId=3)");
+  });
+
+  it("leaves a simple unreserved key unchanged", async () => {
+    const path = await captureMutationPath("PATCH", "42");
+    expect(path).toBe("/odata/Parcels(42)");
+  });
+});
+
 describe("odata / SQL comparison operator rewriting (review fix)", () => {
   it("rewrites SQL `>` / `<` / `>=` / `<=` to OData `gt` / `lt` / `ge` / `le`", () => {
     expect(rewriteWhereToOdataFilter("ACRES > 10")).toBe("ACRES gt 10");

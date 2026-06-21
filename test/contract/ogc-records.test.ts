@@ -206,6 +206,44 @@ describe("ogc-records / wire", () => {
     expect(calls).toBe(3);
     expect(observedOffsets).toEqual([null, "2", "4"]);
   });
+
+  it("searchAll() follows rel=next links that use the standard `startindex` param", async () => {
+    // Standards-conformant OGC API servers express the next page with
+    // `startindex` rather than Honua Server's `offset`. Without honoring it,
+    // pagination silently stops after the first page.
+    let calls = 0;
+    const observedOffsets: Array<string | null> = [];
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/records/collections/catalog/items",
+          (url) => {
+            calls += 1;
+            observedOffsets.push(url.searchParams.get("offset"));
+            const last = calls === 3;
+            return jsonResponse({
+              ...recordsResponse(2),
+              links: last
+                ? []
+                : [
+                    {
+                      rel: "next",
+                      href: `https://mock/ogc/records/collections/catalog/items?startindex=${calls * 2}`,
+                    },
+                  ],
+            });
+          },
+        ],
+      ],
+    });
+
+    const records = await client.ogcRecords().searchAll({ collectionId: "catalog", limit: 2 });
+
+    expect(records).toHaveLength(6);
+    expect(calls).toBe(3);
+    // The cursor extracted from `startindex` is sent back as the `offset` param.
+    expect(observedOffsets).toEqual([null, "2", "4"]);
+  });
 });
 
 describe("ogc-records / Source adapter", () => {

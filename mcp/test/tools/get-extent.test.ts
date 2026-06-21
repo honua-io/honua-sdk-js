@@ -108,6 +108,30 @@ describe("honua_get_extent", () => {
     );
   });
 
+  it("rejects an array extent payload (typeof object but not a valid envelope)", async () => {
+    const mock = createMockClient({
+      queryFeatures: vi.fn().mockResolvedValue({ extent: [-120, 30, -110, 40], count: 1 }),
+    });
+    await expect(execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }))).rejects.toThrow(
+      "Extent query returned an invalid extent payload",
+    );
+  });
+
+  it("accepts a large count returned as a numeric string", async () => {
+    const big = "9007199254740993";
+    const mock = createMockClient({
+      queryFeatures: vi.fn().mockResolvedValue({
+        extent: { xmin: -120, ymin: 30, xmax: -110, ymax: 40 },
+        count: big,
+      }),
+    });
+    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed.extent).toEqual({ xmin: -120, ymin: 30, xmax: -110, ymax: 40 });
+    expect(parsed.count).toBe(big);
+  });
+
   it("rejects negative layerId", () => {
     expect(() => schema.parse({ serviceId: "Parks", layerId: -1 })).toThrow();
   });

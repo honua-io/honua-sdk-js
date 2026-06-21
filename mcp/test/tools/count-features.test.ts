@@ -87,7 +87,7 @@ describe("honua_count_features", () => {
     );
   });
 
-  it("throws for non-finite or non-number count values", async () => {
+  it("throws for non-finite or non-numeric count values", async () => {
     const badCountMock = createMockClient({
       queryFeatures: vi.fn().mockResolvedValue({ count: Number.POSITIVE_INFINITY }),
     });
@@ -95,12 +95,35 @@ describe("honua_count_features", () => {
       "Count query did not return a numeric count",
     );
 
-    const stringCountMock = createMockClient({
+    const nonNumericStringMock = createMockClient({
+      queryFeatures: vi.fn().mockResolvedValue({ count: "not-a-number" }),
+    });
+    await expect(
+      execute(asClient(nonNumericStringMock), schema.parse({ serviceId: "Parks", layerId: 0 })),
+    ).rejects.toThrow("Count query did not return a numeric count");
+  });
+
+  it("accepts a numeric string count (large counts past Number.MAX_SAFE_INTEGER)", async () => {
+    // The grpc-web transport returns counts beyond Number.MAX_SAFE_INTEGER as
+    // strings to preserve precision; the tool must surface them, not throw.
+    const big = "9007199254740993"; // 2^53 + 1
+    const mock = createMockClient({
+      queryFeatures: vi.fn().mockResolvedValue({ count: big }),
+    });
+    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed.count).toBe(big);
+  });
+
+  it("accepts a small numeric string count", async () => {
+    const mock = createMockClient({
       queryFeatures: vi.fn().mockResolvedValue({ count: "42" }),
     });
-    await expect(execute(asClient(stringCountMock), schema.parse({ serviceId: "Parks", layerId: 0 }))).rejects.toThrow(
-      "Count query did not return a numeric count",
-    );
+    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed.count).toBe("42");
   });
 
   it("rejects negative layerId", () => {
