@@ -40,3 +40,47 @@ HONUA_BASE_URL="https://honua.example.com" HONUA_TRANSPORT="grpc-web" node dist/
 
 - `honua://services`
 - `honua://services/{encodedServiceId}/layers/{layerId}`
+
+## Certification
+
+The package ships a **deterministic MCP certification harness** that proves the
+advertised MCP surface is well-formed and conformant to the open
+[`geospatial-mcp`](https://github.com/honua-io/geospatial-mcp) standard. It is
+fully offline — no model/API calls, no network in the default path — and is the
+evidence document for the WS-H "Provability" workstream.
+
+For each tool the server advertises (over an in-memory MCP transport) it:
+
+1. Enumerates `tools/list`, `resources/list`, and `prompts/list`.
+2. Validates each `inputSchema` (and any `structuredContent` output schema) is
+   well-formed JSON Schema, accepting both the draft-07 dialect emitted by
+   zod-to-json-schema and the draft 2020-12 dialect of the standard.
+3. Where a vendored standard schema matches the advertised tool (by the
+   standard's `referenceToolName`), checks **conformance** — every standard
+   `required` property must be accepted with a compatible type. Standard tools
+   that are not advertised, and advertised tools outside the standard, are
+   recorded as **known gaps**, not failures.
+4. **Round-trips** every read-only tool (`tools/call` with a fixture input),
+   validating the response. Write/destructive tools are never called.
+
+It emits a stable machine-readable JSON report plus a human-readable Markdown
+summary, and exits non-zero on any conformance/round-trip failure.
+
+```bash
+# Run the certifier against the offline fixture backend and write artifacts:
+npm run certify
+
+# CI entry points (also runnable locally):
+npm run test:certification            # gate: runs harness tests + certifier, exits non-zero on failure
+npm run test:certification:artifact   # evidence: writes artifacts, always exits 0
+```
+
+Artifacts are written to the package root as
+`mcp-certification-results.json` and `mcp-certification-results.md` (gitignored;
+uploaded by CI). To certify against a **live** honua-server, set `HONUA_BASE_URL`
+(and `HONUA_TRANSPORT`, `HONUA_MCP_SERVICE_ID`, `HONUA_MCP_LAYER_ID`); the
+harness then drives a real `HonuaClient` instead of the fixture.
+
+The standard schemas are vendored under
+`certification/geospatial-mcp-schemas/` (see that directory's `PROVENANCE.md`
+for the pinned source revision).
