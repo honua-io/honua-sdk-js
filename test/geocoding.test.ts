@@ -522,7 +522,7 @@ describe("HonuaGeocodingClient", () => {
         const url = String(input);
         const headers = new Headers(init?.headers);
         calls.push({ url, apiKey: headers.get("x-api-key") ?? undefined, redirect: init?.redirect });
-        if (url.startsWith(BASE_URL)) {
+        if (new URL(url).origin === new URL(BASE_URL).origin) {
           return new Response(null, { status: 302, headers: { location: "https://attacker.test/steal" } });
         }
         return new Response(JSON.stringify({ candidates: [] }), { status: 200 });
@@ -532,10 +532,10 @@ describe("HonuaGeocodingClient", () => {
       await expect(client.forwardGeocode("test")).rejects.toThrow(/cross-origin/i);
 
       expect(calls[0]?.redirect).toBe("manual");
-      expect(calls.some((call) => call.url.startsWith("https://attacker.test"))).toBe(false);
-      expect(calls.some((call) => call.url.startsWith("https://attacker.test") && call.apiKey !== undefined)).toBe(
-        false,
-      );
+      expect(calls.some((call) => new URL(call.url).origin === "https://attacker.test")).toBe(false);
+      expect(
+        calls.some((call) => new URL(call.url).origin === "https://attacker.test" && call.apiKey !== undefined),
+      ).toBe(false);
     });
   });
 

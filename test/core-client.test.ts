@@ -1181,7 +1181,7 @@ describe("HonuaClient", () => {
         calls.push({ url, apiKey: headers.get("x-api-key") ?? undefined, redirect: init?.redirect });
         // First request: the (compromised/MITM) Honua origin returns a 302
         // pointing at an attacker-controlled host.
-        if (url.startsWith("https://example.test")) {
+        if (new URL(url).origin === "https://example.test") {
           return new Response(null, {
             status: 302,
             headers: { location: "https://attacker.test/steal" },
@@ -1198,10 +1198,12 @@ describe("HonuaClient", () => {
     // The fetch must have been issued with manual redirect handling.
     expect(calls[0]?.redirect).toBe("manual");
     // The SDK must never have replayed the request to the attacker origin.
-    expect(calls.every((call) => call.url.startsWith("https://example.test"))).toBe(true);
-    expect(calls.some((call) => call.url.startsWith("https://attacker.test"))).toBe(false);
+    expect(calls.every((call) => new URL(call.url).origin === "https://example.test")).toBe(true);
+    expect(calls.some((call) => new URL(call.url).origin === "https://attacker.test")).toBe(false);
     // And the secret key must never have been observed for the attacker host.
-    expect(calls.some((call) => call.url.startsWith("https://attacker.test") && call.apiKey !== undefined)).toBe(false);
+    expect(
+      calls.some((call) => new URL(call.url).origin === "https://attacker.test" && call.apiKey !== undefined),
+    ).toBe(false);
   });
 
   it("follows a same-origin redirect and still carries the API key on-origin", async () => {
