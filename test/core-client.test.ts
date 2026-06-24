@@ -1170,6 +1170,69 @@ describe("HonuaClient", () => {
     ).rejects.toThrow("Cross-origin request URL is not allowed");
   });
 
+  it("does not leak the X-API-Key header to a cross-origin redirect target (issue #305)", async () => {
+    const calls: { url: string; apiKey: string | undefined; redirect: RequestRedirect | undefined }[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      apiKey: "super-secret-key",
+      fetchFn: async (input, init) => {
+        const url = String(input);
+        const headers = new Headers(init?.headers);
+        calls.push({ url, apiKey: headers.get("x-api-key") ?? undefined, redirect: init?.redirect });
+        // First request: the (compromised/MITM) Honua origin returns a 302
+        // pointing at an attacker-controlled host.
+        if (url.startsWith("https://example.test")) {
+          return new Response(null, {
+            status: 302,
+            headers: { location: "https://attacker.test/steal" },
+          });
+        }
+        // If the SDK ever followed the redirect, the attacker host would see
+        // the request (and, with the old behavior, the X-API-Key header).
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      },
+    });
+
+    await expect(client.request({ path: "/rest/services", method: "GET" })).rejects.toThrow(/cross-origin/i);
+
+    // The fetch must have been issued with manual redirect handling.
+    expect(calls[0]?.redirect).toBe("manual");
+    // The SDK must never have replayed the request to the attacker origin.
+    expect(calls.every((call) => call.url.startsWith("https://example.test"))).toBe(true);
+    expect(calls.some((call) => call.url.startsWith("https://attacker.test"))).toBe(false);
+    // And the secret key must never have been observed for the attacker host.
+    expect(calls.some((call) => call.url.startsWith("https://attacker.test") && call.apiKey !== undefined)).toBe(false);
+  });
+
+  it("follows a same-origin redirect and still carries the API key on-origin", async () => {
+    const calls: { url: string; apiKey: string | undefined }[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      apiKey: "super-secret-key",
+      fetchFn: async (input, init) => {
+        const url = String(input);
+        const headers = new Headers(init?.headers);
+        calls.push({ url, apiKey: headers.get("x-api-key") ?? undefined });
+        if (url === "https://example.test/rest/services?f=json") {
+          return new Response(null, {
+            status: 302,
+            headers: { location: "https://example.test/rest/services/moved?f=json" },
+          });
+        }
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      },
+    });
+
+    await expect(client.request({ path: "/rest/services", method: "GET" })).resolves.toMatchObject({ ok: true });
+    // The redirect was followed on the same origin, and the API key was sent
+    // (same-origin redirects are safe to carry the credential).
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://example.test/rest/services?f=json",
+      "https://example.test/rest/services/moved?f=json",
+    ]);
+    expect(calls.every((call) => call.apiKey === "super-secret-key")).toBe(true);
+  });
+
   it("calls OGC metadata endpoints with explicit response formats", async () => {
     const requestedUrls: string[] = [];
     const client = new HonuaClient({
