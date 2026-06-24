@@ -6,9 +6,13 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import * as layerSchemaResource from "./resources/layer-schema.js";
 import * as servicesResource from "./resources/services.js";
+import * as stylesResource from "./resources/styles.js";
+import * as applyStylePreset from "./tools/apply-style-preset.js";
 import * as countFeatures from "./tools/count-features.js";
 import * as describeLayer from "./tools/describe-layer.js";
+import * as explainCapabilityGap from "./tools/explain-capability-gap.js";
 import * as getExtent from "./tools/get-extent.js";
+import * as getStyle from "./tools/get-style.js";
 import * as listServices from "./tools/list-services.js";
 import * as queryFeatures from "./tools/query-features.js";
 import * as statistics from "./tools/statistics.js";
@@ -124,9 +128,14 @@ export function createServer(client) {
     server.tool("honua_count_features", "Count features matching a filter without returning data. Use before querying to check cardinality.", countFeatures.schema.shape, async (args) => countFeatures.execute(client, countFeatures.schema.parse(args)));
     server.tool("honua_get_extent", "Get the spatial bounding box of features matching a filter.", getExtent.schema.shape, async (args) => getExtent.execute(client, getExtent.schema.parse(args)));
     server.tool("honua_statistics", "Compute aggregate statistics (count, sum, avg, min, max, stddev) on a field, optionally grouped.", statistics.schema.shape, async (args) => statistics.execute(client, statistics.schema.parse(args)));
+    server.tool("honua_explain_capability_gap", "Explain whether a Honua source/protocol supports a capability and suggest a safe fallback when it does not.", explainCapabilityGap.schema.shape, async (args) => explainCapabilityGap.execute(client, explainCapabilityGap.schema.parse(args)));
+    server.tool("honua_get_style", "Resolve a style from the server's OGC API – Styles surface. Pass styleId for the canonical StyleRef (style_id, title, encodings incl. inlined MapLibre); omit it to list available styles.", getStyle.schema.shape, async (args) => getStyle.execute(client, getStyle.schema.parse(args)));
+    server.tool("honua_apply_style_preset", "Resolve a style preset and its MapLibre stylesheet for client-side application. Read-only: returns the stylesheet to apply locally; it does not mutate server state.", applyStylePreset.schema.shape, async (args) => applyStylePreset.execute(client, applyStylePreset.schema.parse(args)));
     // ── Resources ──────────────────────────────────────────────────
     server.resource("services-catalog", servicesResource.uri, async (uri) => servicesResource.read(client));
     server.resource("layer-schema", new ResourceTemplate(layerSchemaResource.uriTemplate, { list: undefined }), async (uri, params) => layerSchemaResource.read(client, params.encodedServiceId, params.layerId));
+    server.resource("styles-catalog", stylesResource.uri, async (uri) => stylesResource.readCatalog(client));
+    server.resource("style", new ResourceTemplate(stylesResource.uriTemplate, { list: undefined }), async (uri, params) => stylesResource.read(client, params.styleId));
     return server;
 }
 async function main() {

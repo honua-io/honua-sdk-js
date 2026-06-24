@@ -1,6 +1,6 @@
 import type { HonuaClient } from "@honua/sdk-js";
 import { z } from "zod";
-import { GEOMETRY_TYPES, jsonText, mapSpatialRel, resolveGeometryType } from "../helpers.js";
+import { GEOMETRY_TYPES, coerceCount, jsonText, mapSpatialRel, resolveGeometryType } from "../helpers.js";
 
 export const schema = z.object({
   serviceId: z.string().describe("The feature service ID"),
@@ -31,9 +31,9 @@ export async function execute(client: HonuaClient, input: Input) {
     extraParams: { returnExtentOnly: true },
   })) as Record<string, unknown>;
 
-  const hasCount = Object.prototype.hasOwnProperty.call(response, "count");
-  const count =
-    hasCount && typeof response.count === "number" && Number.isFinite(response.count) ? response.count : undefined;
+  // Accept large counts returned as strings by the grpc-web transport (chosen
+  // to preserve precision beyond Number.MAX_SAFE_INTEGER) as well as numbers.
+  const count = coerceCount(response.count);
 
   const hasExtent = Object.prototype.hasOwnProperty.call(response, "extent");
   if (!hasExtent) {
@@ -47,7 +47,8 @@ export async function execute(client: HonuaClient, input: Input) {
   let extent: Record<string, unknown> | null;
   if (response.extent === null) {
     extent = null;
-  } else if (typeof response.extent === "object") {
+  } else if (typeof response.extent === "object" && !Array.isArray(response.extent)) {
+    // A JSON array is `typeof "object"` but is not a valid extent envelope.
     extent = response.extent as Record<string, unknown>;
   } else {
     throw new Error("Extent query returned an invalid extent payload.");

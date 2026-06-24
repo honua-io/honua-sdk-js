@@ -30,4 +30,14 @@ describe("honua_apply_style_preset", () => {
       expect(call[0]).toBe("GET");
     }
   });
+
+  it("fetches the stylesheet only once per call", async () => {
+    // resolveStyleRef already inlines the MapLibre body; the tool must reuse it
+    // rather than issuing a second identical GET /ogc/styles/{id}.
+    const mock = createMockClient();
+    await execute(asClient(mock), schema.parse({ styleId: "topographic" }));
+
+    const stylesheetFetches = mock.pipelineFetch.mock.calls.filter((call) => call[1] === "/ogc/styles/topographic");
+    expect(stylesheetFetches).toHaveLength(1);
+  });
 });

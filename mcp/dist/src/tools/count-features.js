@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GEOMETRY_TYPES, jsonText, mapSpatialRel, resolveGeometryType } from "../helpers.js";
+import { GEOMETRY_TYPES, coerceCount, jsonText, mapSpatialRel, resolveGeometryType } from "../helpers.js";
 export const schema = z.object({
     serviceId: z.string().describe("The feature service ID"),
     layerId: z.number().int().nonnegative().describe("The layer ID within the service"),
@@ -26,9 +26,10 @@ export async function execute(client, input) {
         outFields: "OBJECTID",
         extraParams: { returnCountOnly: true },
     }));
-    const hasCount = Object.prototype.hasOwnProperty.call(response, "count");
-    const count = response.count;
-    if (!hasCount || typeof count !== "number" || !Number.isFinite(count)) {
+    // The default grpc-web transport returns very large counts as a string to
+    // preserve precision beyond Number.MAX_SAFE_INTEGER; accept both forms.
+    const count = coerceCount(response.count);
+    if (count === undefined) {
         throw new Error("Count query did not return a numeric count.");
     }
     return jsonText({ count });

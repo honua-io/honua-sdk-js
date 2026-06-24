@@ -144,6 +144,15 @@ describe("honua_query_features", () => {
     expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ outFields: "*" }));
   });
 
+  it("treats an empty outFields array as all fields (not OBJECTID-only)", async () => {
+    // An empty array is a natural "no specific fields" from an agent; Esri
+    // FeatureServer would otherwise treat "" as OBJECTID-only.
+    const mock = createMockClient();
+    await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0, outFields: [] }));
+
+    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ outFields: "*" }));
+  });
+
   it("rejects invalid negative paging/layer inputs", () => {
     expect(() => schema.parse({ serviceId: "Parks", layerId: -1 })).toThrow();
     expect(() => schema.parse({ serviceId: "Parks", layerId: 0, offset: -1 })).toThrow();
