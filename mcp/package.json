@@ -14,6 +14,9 @@
     "test": "npm run build --silent && vitest run --coverage",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "certify": "npm run build --silent && node dist/src/certification/cli.js",
+    "test:certification": "npm run build --silent && vitest run test/certification && node dist/src/certification/cli.js",
+    "test:certification:artifact": "npm run build --silent && node dist/src/certification/cli.js --artifact-only",
     "lint": "biome lint src/ test/",
     "lint:fix": "biome lint --write src/ test/",
     "format": "biome format src/ test/",
@@ -23,6 +26,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "ajv": "^8.20.0",
     "zod": "^3.24.0"
   },
   "overrides": {
@@ -32,8 +36,8 @@
     "@honua/sdk-js": "^0.0.14-alpha.0"
   },
   "devDependencies": {
-    "@honua/sdk-js": "file:..",
     "@biomejs/biome": "1.9.4",
+    "@honua/sdk-js": "file:..",
     "@types/node": "^24.3.1",
     "@vitest/coverage-v8": "^4.0.16",
     "typescript": "^5.9.2",
@@ -41,6 +45,7 @@
   },
   "files": [
     "dist/src",
+    "certification/geospatial-mcp-schemas",
     "README.md"
   ],
   "engines": {
