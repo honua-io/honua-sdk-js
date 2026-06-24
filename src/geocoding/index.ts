@@ -123,6 +123,16 @@ interface ServerError {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Redirect status codes that carry a `Location` header. */
+const GEOCODING_REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+
+/** Maximum number of redirects {@link HonuaGeocodingClient} will follow. */
+const GEOCODING_MAX_REDIRECTS = 20;
+
+function isAbsoluteHttpUrl(value: string): boolean {
+  return value.startsWith("http://") || value.startsWith("https://");
+}
+
 function normalizeBaseUrl(url: string): string {
   return trimTrailingSlashes(url);
 }
@@ -301,6 +311,56 @@ export class HonuaGeocodingClient {
     return `${this.baseUrl}/rest/services/${encodeServiceIdPath(this.locatorName)}/GeocodeServer`;
   }
 
+  /**
+   * Fetch with `redirect: "manual"`, only following a redirect when its target
+   * stays on the configured base origin. The geocoding client attaches its API
+   * key as a custom `X-API-Key` header that the runtime does not strip across a
+   * cross-origin redirect, so auto-following one would leak the key to the
+   * redirect target's host. Cross-origin (or origin-unverifiable) redirects
+   * throw instead of replaying the credentialed request off-origin.
+   */
+  private async fetchWithSafeRedirects(url: string, init: RequestInit): Promise<Response> {
+    const baseOrigin = isAbsoluteHttpUrl(this.baseUrl) ? new URL(this.baseUrl).origin : undefined;
+    let currentUrl = url;
+    for (let redirects = 0; ; redirects += 1) {
+      const response = await this.fetchFn(currentUrl, { ...init, redirect: "manual" });
+
+      if (response.type === "opaqueredirect") {
+        throw new HonuaNetworkError(
+          "Refusing to follow an opaque cross-origin redirect; the geocoding API key would be leaked to the redirect target.",
+          undefined,
+        );
+      }
+
+      if (!GEOCODING_REDIRECT_STATUSES.has(response.status)) {
+        return response;
+      }
+
+      if (redirects >= GEOCODING_MAX_REDIRECTS) {
+        throw new HonuaNetworkError(`Exceeded the maximum of ${GEOCODING_MAX_REDIRECTS} redirects.`, undefined);
+      }
+
+      const location = response.headers.get("location");
+      if (!location) {
+        throw new HonuaNetworkError("Redirect response is missing a Location header.", undefined);
+      }
+      let target: URL;
+      try {
+        target = new URL(location, currentUrl);
+      } catch {
+        throw new HonuaNetworkError(`Redirect response has an invalid Location header: ${location}`, undefined);
+      }
+      if (baseOrigin === undefined || target.origin !== baseOrigin) {
+        throw new HonuaNetworkError(
+          `Refusing to follow a cross-origin redirect to ${target.origin}; the geocoding API key would be leaked.`,
+          undefined,
+        );
+      }
+      currentUrl = target.toString();
+      await response.body?.cancel().catch(() => undefined);
+    }
+  }
+
   private async request<T>(url: string): Promise<T> {
     const controller = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -311,7 +371,7 @@ export class HonuaGeocodingClient {
 
     let response: Response;
     try {
-      response = await this.fetchFn(url, {
+      response = await this.fetchWithSafeRedirects(url, {
         method: "GET",
         headers: this.defaultHeaders,
         signal: controller.signal,

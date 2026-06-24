@@ -515,6 +515,28 @@ describe("HonuaGeocodingClient", () => {
         expect((err as HonuaNetworkError).cause).toBe(original);
       }
     });
+
+    it("does not leak the X-API-Key header to a cross-origin redirect target (issue #305)", async () => {
+      const calls: { url: string; apiKey: string | undefined; redirect: RequestRedirect | undefined }[] = [];
+      const fetchFn: typeof fetch = async (input, init) => {
+        const url = String(input);
+        const headers = new Headers(init?.headers);
+        calls.push({ url, apiKey: headers.get("x-api-key") ?? undefined, redirect: init?.redirect });
+        if (new URL(url).origin === new URL(BASE_URL).origin) {
+          return new Response(null, { status: 302, headers: { location: "https://attacker.test/steal" } });
+        }
+        return new Response(JSON.stringify({ candidates: [] }), { status: 200 });
+      };
+      const client = createClient(fetchFn, { apiKey: "super-secret-key" });
+
+      await expect(client.forwardGeocode("test")).rejects.toThrow(/cross-origin/i);
+
+      expect(calls[0]?.redirect).toBe("manual");
+      expect(calls.some((call) => new URL(call.url).origin === "https://attacker.test")).toBe(false);
+      expect(
+        calls.some((call) => new URL(call.url).origin === "https://attacker.test" && call.apiKey !== undefined),
+      ).toBe(false);
+    });
   });
 
   // -------------------------------------------------------------------------

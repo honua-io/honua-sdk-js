@@ -173,6 +173,46 @@ function resolveRequestUrl(baseUrl: string, path: string): string {
   return `${baseUrl}${path}`;
 }
 
+/**
+ * The maximum number of HTTP redirects {@link HonuaClient.fetchWithSafeRedirects}
+ * will follow before giving up. Mirrors the conventional browser/undici limit of 20.
+ */
+const MAX_SAFE_REDIRECTS = 20;
+
+/**
+ * HTTP status codes that represent a redirect carrying a `Location` header.
+ */
+const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * Resolve a redirect `Location` (which may be relative) against the URL that
+ * produced the redirect and assert it stays on the configured base origin.
+ *
+ * The SDK attaches the API key as a custom `X-API-Key` header. The Fetch/undici
+ * runtime only strips `Authorization`/`Cookie`/`Host` on a cross-origin redirect,
+ * so custom auth headers like `X-API-Key` would otherwise be replayed to an
+ * attacker-controlled `Location` host. To prevent that credential disclosure we
+ * never auto-follow redirects; we re-run the same origin guard used at request
+ * construction and refuse to follow any redirect that leaves the base origin.
+ *
+ * @throws if the target origin differs from the base origin, or if the
+ *   `Location` header is missing/unparsable.
+ */
+function resolveRedirectUrl(baseUrl: string, fromUrl: string, location: string | null): string {
+  if (!location) {
+    throw new Error("Redirect response is missing a Location header.");
+  }
+  let target: URL;
+  try {
+    target = new URL(location, fromUrl);
+  } catch {
+    throw new Error(`Redirect response has an invalid Location header: ${location}`);
+  }
+  // Re-run the base-origin guard against the redirect target so the API key is
+  // never forwarded off the configured origin.
+  return resolveRequestUrl(baseUrl, target.toString());
+}
+
 function normalizeInterceptorRequestUrl(baseUrl: string, url: string): string {
   if (isAbsoluteHttpUrl(url)) {
     return resolveRequestUrl(baseUrl, url);
@@ -436,6 +476,63 @@ export class HonuaClient {
     });
     this.connectClient = createClient(FeatureService, transport);
     return this.connectClient;
+  }
+
+  /**
+   * Perform a fetch that never auto-follows a cross-origin redirect.
+   *
+   * Browsers/undici forward custom request headers (such as the SDK's
+   * `X-API-Key`) across redirects, stripping only `Authorization`/`Cookie`/`Host`
+   * cross-origin. To avoid leaking the API key to an attacker-supplied
+   * `Location` host, this issues every request with `redirect: "manual"` and
+   * only follows a redirect when its target origin still matches the configured
+   * base origin (re-running the {@link resolveRequestUrl} origin guard).
+   * Cross-origin redirects throw before the credentialed request is replayed.
+   */
+  private async fetchWithSafeRedirects(url: string, init: RequestInit): Promise<Response> {
+    let currentUrl = url;
+    let currentInit: RequestInit = init;
+    for (let redirects = 0; ; redirects += 1) {
+      const response = await this.fetchFn(currentUrl, { ...currentInit, redirect: "manual" });
+
+      // `redirect: "manual"` surfaces redirects as status 3xx with a usable
+      // `Location` header (and, in fetch, an "opaqueredirect" type with status 0
+      // in some runtimes — treated as a same-origin-unverifiable redirect we
+      // must refuse to follow blindly).
+      if (response.type === "opaqueredirect") {
+        throw new HonuaNetworkError(
+          "Refusing to follow an opaque cross-origin redirect; the request's API key would be leaked to the redirect target.",
+          undefined,
+        );
+      }
+
+      if (!REDIRECT_STATUSES.has(response.status)) {
+        return response;
+      }
+
+      if (redirects >= MAX_SAFE_REDIRECTS) {
+        throw new HonuaNetworkError(`Exceeded the maximum of ${MAX_SAFE_REDIRECTS} redirects.`, undefined);
+      }
+
+      // Re-validate the redirect target against the base origin. A cross-origin
+      // target throws here, so the API key is never replayed off-origin.
+      const location = response.headers.get("location");
+      const nextUrl = resolveRedirectUrl(this.baseUrl, currentUrl, location);
+
+      // Apply the standard Fetch redirect method/body rewriting so the followed
+      // (same-origin) request matches what the runtime would have done natively:
+      // 303 always becomes GET; 301/302 turn a non-GET/HEAD into GET. The body
+      // is dropped whenever the method changes to GET.
+      const method = (currentInit.method ?? "GET").toUpperCase();
+      const downgradeToGet =
+        response.status === 303 ||
+        ((response.status === 301 || response.status === 302) && method !== "GET" && method !== "HEAD");
+      currentInit = downgradeToGet ? { ...currentInit, method: "GET", body: null } : currentInit;
+      currentUrl = nextUrl;
+
+      // Drain the redirect body so the underlying connection can be reused.
+      await response.body?.cancel().catch(() => undefined);
+    }
   }
 
   private static async loadGrpcAdapter() {
@@ -922,7 +1019,7 @@ export class HonuaClient {
       const timeout = createTimeoutSignal(callerSignal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
       try {
-        response = await this.fetchFn(request.url, {
+        response = await this.fetchWithSafeRedirects(request.url, {
           ...request.init,
           method: request.method,
           signal: timeout.signal,
@@ -1026,7 +1123,7 @@ export class HonuaClient {
       const timeout = createTimeoutSignal(metadataOptions.signal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
       try {
-        response = await this.fetchFn(request.url, {
+        response = await this.fetchWithSafeRedirects(request.url, {
           ...request.init,
           method: request.method,
           signal: timeout.signal,
@@ -2389,7 +2486,7 @@ export class HonuaClient {
       const timeout = createTimeoutSignal(callerSignal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
       try {
-        response = await this.fetchFn(request.url, {
+        response = await this.fetchWithSafeRedirects(request.url, {
           ...request.init,
           method: request.method,
           signal: timeout.signal,
@@ -2472,7 +2569,7 @@ export class HonuaClient {
       const timeout = createTimeoutSignal(callerSignal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
       try {
-        response = await this.fetchFn(request.url, {
+        response = await this.fetchWithSafeRedirects(request.url, {
           ...request.init,
           method: request.method,
           signal: timeout.signal,
@@ -2578,7 +2675,7 @@ export class HonuaClient {
       const timeout = createTimeoutSignal(options?.signal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
       try {
-        response = await this.fetchFn(request.url, {
+        response = await this.fetchWithSafeRedirects(request.url, {
           ...request.init,
           method: request.method,
           signal: timeout.signal,
@@ -2668,7 +2765,7 @@ export class HonuaClient {
       const timeout = createTimeoutSignal(callerSignal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
       try {
-        response = await this.fetchFn(request.url, {
+        response = await this.fetchWithSafeRedirects(request.url, {
           ...request.init,
           method: request.method,
           signal: timeout.signal,
