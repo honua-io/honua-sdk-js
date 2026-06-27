@@ -13,6 +13,7 @@ const OUTPUT_ROOT = path.join(DIST_ROOT, "packages");
 const rootPackageJsonPath = path.join(PROJECT_ROOT, "package.json");
 const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, "utf8"));
 const version = rootPackageJson.version;
+const ROOT_LICENSE_PATH = path.join(PROJECT_ROOT, "LICENSE");
 // Keep published package install support aligned with the SDK runtime floor,
 // even when repo-only tooling or example dependencies need a newer Node patch.
 const publishedEngines = { node: ">=20.0.0" };
@@ -353,6 +354,7 @@ function writePackageJson(packageRoot, overrides) {
     name: overrides.name,
     version,
     description: overrides.description,
+    license: rootPackageJson.license,
     type: "module",
     main: overrides.main,
     types: overrides.types,
@@ -367,6 +369,11 @@ function writePackageJson(packageRoot, overrides) {
     `${JSON.stringify(packageJson, null, 2)}\n`,
     "utf8",
   );
+
+  // Ship the repository LICENSE alongside each published package so the
+  // distributed Apache-2.0 artifacts carry both the `license` field and the
+  // license text.
+  copyFile(ROOT_LICENSE_PATH, path.join(packageRoot, "LICENSE"));
 }
 
 function writeReadme(packageRoot, contents) {

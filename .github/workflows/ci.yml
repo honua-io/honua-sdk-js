@@ -39,6 +39,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build and verify browser bundle
+        run: npm run verify:browser
+
       - name: Split package verification
         run: npm run verify:split-packages
 
