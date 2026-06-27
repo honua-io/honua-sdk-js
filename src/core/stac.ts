@@ -87,8 +87,11 @@ export class HonuaStacSearch {
       if (pageItems.length === 0) break;
       items.push(...pageItems);
       cursor = nextStacCursor(response.links);
+      // Continuation is driven solely by the next-link cursor (and the
+      // maxPages cap). STAC permits a server to return fewer than `limit`
+      // items on a non-final page while still advertising a `rel=next` link,
+      // so a short page must not stop paging.
       if (cursor.offset === undefined && cursor.next === undefined) break;
-      if (pageItems.length < pageSize) break;
     }
     return items;
   }
@@ -110,8 +113,9 @@ export class HonuaStacSearch {
       if (pageItems.length === 0) break;
       yield pageItems;
       cursor = nextStacCursor(response.links);
+      // See searchAll: a short page is not a termination signal; rely on the
+      // next-link cursor and the maxPages cap.
       if (cursor.offset === undefined && cursor.next === undefined) break;
-      if (pageItems.length < pageSize) break;
     }
   }
 }
