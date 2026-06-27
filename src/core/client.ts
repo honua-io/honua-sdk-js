@@ -2530,6 +2530,20 @@ export class HonuaClient {
         throw httpError;
       }
 
+      // GeoServices/Esri services return HTTP 200 with a top-level `{error}`
+      // envelope on failure (bad WHERE, invalid outFields, edit failures, …).
+      // Surface these through the unified error model instead of handing the
+      // failure envelope back as a "successful" response object.
+      const envelopeError = geoServicesEnvelopeError(response.status, body);
+      if (envelopeError) {
+        await this.applyErrorInterceptors({
+          request: cloneRequestContext(request),
+          error: envelopeError,
+          durationMs,
+        });
+        throw envelopeError;
+      }
+
       try {
         await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
       } catch (error) {
@@ -2952,6 +2966,31 @@ export class HonuaClient {
 
     return new HonuaHttpError(statusCode, fallback, body);
   }
+}
+
+/**
+ * Detect a GeoServices/Esri error envelope returned on an HTTP 2xx response.
+ *
+ * GeoServices services (FeatureServer/MapServer/GeocodeServer/…) report
+ * operation failures as HTTP 200 with a body of the shape
+ * `{ error: { code, message, ... } }`. Without this guard such failures are
+ * cast verbatim to the success response type and surface downstream as empty
+ * results or confusing `undefined` access. Returns a normalized
+ * {@link HonuaHttpError} when the envelope is present, otherwise `undefined`.
+ */
+function geoServicesEnvelopeError(httpStatus: number, body: unknown): HonuaHttpError | undefined {
+  if (!isObject(body) || !isObject(body.error)) {
+    return undefined;
+  }
+  const error = body.error;
+  const hasCode = typeof error.code === "number";
+  const hasMessage = typeof error.message === "string";
+  if (!hasCode && !hasMessage) {
+    return undefined;
+  }
+  const statusCode = hasCode ? (error.code as number) : httpStatus;
+  const message = hasMessage ? (error.message as string) : "Request failed";
+  return new HonuaHttpError(statusCode, message, body);
 }
 
 async function parseResponseBody(response: Response): Promise<unknown> {

@@ -169,6 +169,54 @@ describe("HonuaClient", () => {
     expect(requestedInit?.method).toBe("GET");
   });
 
+  it("throws HonuaHttpError when a 200 response carries a GeoServices error envelope", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async () =>
+        new Response(
+          JSON.stringify({ error: { code: 400, message: "Unable to perform query. Invalid field: BOGUS" } }),
+          { status: 200 },
+        ),
+    });
+
+    const request = client.queryFeatures({
+      serviceId: "default",
+      layerId: 1000,
+      where: "BOGUS > 1",
+      method: "GET",
+    });
+
+    await expect(request).rejects.toBeInstanceOf(HonuaHttpError);
+    await expect(request).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it("surfaces a 200 applyEdits error envelope as a thrown HonuaHttpError", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async () =>
+        new Response(JSON.stringify({ error: { code: 500, message: "Edit operation failed" } }), { status: 200 }),
+    });
+
+    await expect(
+      client.applyEdits({
+        serviceId: "default",
+        layerId: 0,
+        adds: [{ attributes: { NAME: "x" } }],
+      }),
+    ).rejects.toBeInstanceOf(HonuaHttpError);
+  });
+
+  it("does not treat a normal success body as an error envelope", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async () => new Response(JSON.stringify({ features: [], error: null }), { status: 200 }),
+    });
+
+    await expect(
+      client.queryFeatures({ serviceId: "default", layerId: 1000, where: "1=1", method: "GET" }),
+    ).resolves.toEqual({ features: [], error: null });
+  });
+
   it("keeps request outSr canonical when extraParams also provide outSr", async () => {
     let requestedUrl: string | undefined;
 
