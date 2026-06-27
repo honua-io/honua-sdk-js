@@ -160,7 +160,9 @@ describe("HonuaProcessRunner unified geoprocessing API", () => {
     const runner = createHonuaProcessRunner(createGeospatialGrpcProcessAdapter(processClient));
     const job = await runner.execute({ plan: { planId: "analysis-plan" } });
 
-    await expect(job.results({ maxAttempts: 2, pollIntervalMs: 0, signal: new AbortController().signal })).rejects.toMatchObject({
+    await expect(
+      job.results({ maxAttempts: 2, pollIntervalMs: 0, signal: new AbortController().signal }),
+    ).rejects.toMatchObject({
       name: "HonuaJobPollTimeoutError",
       reason: "max-attempts",
     });
@@ -187,8 +189,10 @@ describe("HonuaProcessRunner unified geoprocessing API", () => {
     };
     const runner = createHonuaProcessRunner(createGeospatialGrpcProcessAdapter(processClient));
     const job = await runner.execute({ plan: { planId: "analysis-plan" } });
-    await expect(job.results({ signal: controller.signal, maxAttempts: 100, pollIntervalMs: 0 })).rejects.toMatchObject({
-      reason: "aborted",
-    });
+    await expect(job.results({ signal: controller.signal, maxAttempts: 100, pollIntervalMs: 0 })).rejects.toMatchObject(
+      {
+        reason: "aborted",
+      },
+    );
   });
 });

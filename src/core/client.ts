@@ -2485,7 +2485,12 @@ export class HonuaClient {
           } catch {
             params.set("f", "json");
             const jsonPath = `${stripQuery(path)}?${params.toString()}`;
-            return this.requestJson("GET", jsonPath, undefined, callerSignal ?? currentRequest.init.signal ?? undefined);
+            return this.requestJson(
+              "GET",
+              jsonPath,
+              undefined,
+              callerSignal ?? currentRequest.init.signal ?? undefined,
+            );
           }
         }
 

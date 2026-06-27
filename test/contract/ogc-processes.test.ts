@@ -8,12 +8,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  HonuaJobPollTimeoutError,
-  type IJobRun,
-  type JobSnapshot,
-  isJobTerminal,
-} from "../../src/contract/index.js";
+import { HonuaJobPollTimeoutError, type IJobRun, type JobSnapshot, isJobTerminal } from "../../src/contract/index.js";
 import { HonuaJobFailedError, HonuaOgcProcessJobRun } from "../../src/core/ogc-processes.js";
 import type { HonuaOgcProcessJobStatus } from "../../src/core/types.js";
 

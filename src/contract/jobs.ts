@@ -157,7 +157,12 @@ export class HonuaJobPollTimeoutError extends Error {
   public readonly jobId: string;
   public readonly lastStatus: JobStatus;
 
-  public constructor(message: string, reason: "aborted" | "deadline" | "max-attempts", jobId: string, lastStatus: JobStatus) {
+  public constructor(
+    message: string,
+    reason: "aborted" | "deadline" | "max-attempts",
+    jobId: string,
+    lastStatus: JobStatus,
+  ) {
     super(message);
     this.name = "HonuaJobPollTimeoutError";
     this.reason = reason;

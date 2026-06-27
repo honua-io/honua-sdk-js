@@ -486,7 +486,11 @@ describe("realtime tombstone bounding", () => {
       [2, 200],
       [3, 300],
     ] as const) {
-      state = reduceRealtimeFeatureState(state, { type: "delete", sourceId: "s", id, receivedAt }, { maxTombstones: 2 });
+      state = reduceRealtimeFeatureState(
+        state,
+        { type: "delete", sourceId: "s", id, receivedAt },
+        { maxTombstones: 2 },
+      );
     }
     expect(Object.keys(state.tombstones).sort()).toEqual(["s:2", "s:3"]);
   });

@@ -92,11 +92,7 @@ export function reduceRealtimeFeatureState<TFeature>(
         receivedAt,
       );
     case "delta":
-      return boundTombstones(
-        applyDelta(base, event.upserts ?? [], event.deletes ?? [], metadata),
-        options,
-        receivedAt,
-      );
+      return boundTombstones(applyDelta(base, event.upserts ?? [], event.deletes ?? [], metadata), options, receivedAt);
     case "heartbeat":
       return {
         ...base,
@@ -301,9 +297,7 @@ function boundTombstones<TFeature>(
   }
   if (maxTombstones > 0 && kept.length > maxTombstones) {
     // Retain the most-recently-deleted entries.
-    kept = [...kept]
-      .sort((a, b) => (a.deletedAt ?? 0) - (b.deletedAt ?? 0))
-      .slice(kept.length - maxTombstones);
+    kept = [...kept].sort((a, b) => (a.deletedAt ?? 0) - (b.deletedAt ?? 0)).slice(kept.length - maxTombstones);
   }
   if (kept.length === entries.length) {
     return state;
