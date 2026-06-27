@@ -209,6 +209,46 @@ describe("registerHonuaFeatureServiceSources", () => {
     expect(setData).toHaveBeenCalledTimes(1);
     expect(fakeMap.addSource).not.toHaveBeenCalled();
   });
+
+  it("fetches multiple sources concurrently while preserving source order", async () => {
+    const client = makeClient();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    vi.spyOn(client, "getLayerMetadata").mockResolvedValue({
+      id: 0,
+      name: "x",
+      geometryType: "esriGeometryPoint",
+    } as never);
+    vi.spyOn(client, "queryFeatures").mockImplementation((async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      inFlight -= 1;
+      return { features: [{ attributes: { OBJECTID: 1 }, geometry: { x: 0, y: 0 } }] };
+    }) as never);
+
+    const honuaMap = new HonuaMap({ client });
+    honuaMap.addSource("a", { type: "honua-feature-service", url: FEATURE_URL });
+    honuaMap.addSource("b", { type: "honua-feature-service", url: FEATURE_URL });
+    honuaMap.addSource("c", { type: "honua-feature-service", url: FEATURE_URL });
+
+    const order: string[] = [];
+    const fakeMap = {
+      getSource: () => undefined,
+      addSource: (id: string) => {
+        order.push(id);
+      },
+      removeSource: () => {},
+    };
+
+    const result = await registerHonuaFeatureServiceSources(fakeMap, honuaMap, client);
+
+    expect(result.registered).toEqual(["a", "b", "c"]);
+    // Map mutations stay ordered even though fetches run concurrently.
+    expect(order).toEqual(["a", "b", "c"]);
+    // Serial loading would never exceed one in-flight fetch.
+    expect(maxInFlight).toBeGreaterThan(1);
+  });
 });
 
 describe("helper source asymmetry", () => {

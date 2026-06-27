@@ -823,6 +823,32 @@ describe("odata / pipeline integrity", () => {
     await entity.raw("GET", "/odata/Parcels/$count");
     expect(observedAuth).toBe("ak-test");
   });
+
+  it("add and update send Content-Type application/json so OData servers accept the body", async () => {
+    const observed: Array<{ method: string; contentType: string | null }> = [];
+    const client = new (await import("../../src/core/client.js")).HonuaClient({
+      baseUrl: "https://mock.honua.test",
+      fetchFn: async (input, init) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith("/$metadata")) return odataMetadataResponse();
+        observed.push({
+          method: init?.method ?? "GET",
+          contentType: new Headers(init?.headers).get("Content-Type"),
+        });
+        return new Response(JSON.stringify({ OBJECTID: 1 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
+
+    const entity = new HonuaOdataEntitySet({ client, entitySet: "Parcels" });
+    await entity.add({ NAME: "x" });
+    await entity.update("1", { NAME: "y" });
+
+    expect(observed.find((o) => o.method === "POST")?.contentType).toBe("application/json");
+    expect(observed.find((o) => o.method === "PATCH")?.contentType).toBe("application/json");
+  });
 });
 
 describe("odata / canonical contract honor (review fixes)", () => {

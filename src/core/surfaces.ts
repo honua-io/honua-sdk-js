@@ -343,12 +343,13 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     const startingOffset = normalizeOffset(request.resultOffset);
 
     const features: HonuaTypedFeature<T>[] = [];
+    let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: startingOffset + page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -359,7 +360,8 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       }
 
       features.push(...pageFeatures);
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -401,12 +403,13 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       return;
     }
 
+    let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: startingOffset + page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -417,7 +420,8 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       }
 
       yield pageFeatures;
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -769,12 +773,13 @@ export class HonuaMapService {
         : 100;
 
     const features: HonuaFeature[] = [];
+    let offset = 0;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryLayer({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -785,7 +790,8 @@ export class HonuaMapService {
       }
 
       features.push(...pageFeatures);
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -805,12 +811,13 @@ export class HonuaMapService {
         ? Math.max(1, Math.trunc(request.maxPages))
         : 100;
 
+    let offset = 0;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryLayer({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -821,7 +828,8 @@ export class HonuaMapService {
       }
 
       yield pageFeatures;
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -951,12 +959,13 @@ export class HonuaMapLayer {
     const startingOffset = normalizeOffset(request.resultOffset);
 
     const features: HonuaFeature[] = [];
+    let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: startingOffset + page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -967,7 +976,8 @@ export class HonuaMapLayer {
       }
 
       features.push(...pageFeatures);
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -988,12 +998,13 @@ export class HonuaMapLayer {
         : 100;
     const startingOffset = normalizeOffset(request.resultOffset);
 
+    let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: startingOffset + page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -1004,7 +1015,8 @@ export class HonuaMapLayer {
       }
 
       yield pageFeatures;
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -2476,6 +2488,16 @@ function extractFeaturesFromResponse(response: unknown): HonuaFeature[] {
     return [];
   }
   return response.features as HonuaFeature[];
+}
+
+/**
+ * GeoServices servers clamp `resultRecordCount` to their `maxRecordCount` and
+ * signal that more rows remain with `exceededTransferLimit: true`. Fetch-all
+ * loops must keep paging while this flag is set rather than stopping on the
+ * first short page, otherwise a "return everything" call silently truncates.
+ */
+function responseExceededTransferLimit(response: unknown): boolean {
+  return isObject(response) && response.exceededTransferLimit === true;
 }
 
 function extractObjectIdsFromResponse(response: unknown): number[] {

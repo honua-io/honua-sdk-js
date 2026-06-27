@@ -217,6 +217,59 @@ describe("HonuaClient", () => {
     ).resolves.toEqual({ features: [], error: null });
   });
 
+  it("throws on a 200 GeoServices error envelope when preferBinary receives JSON instead of PBF", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      preferBinary: true,
+      fetchFn: async () =>
+        new Response(JSON.stringify({ error: { code: 498, message: "Invalid Token" } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    });
+
+    const request = client.queryFeatures({ serviceId: "default", layerId: 1000, where: "1=1", method: "GET" });
+    await expect(request).rejects.toBeInstanceOf(HonuaHttpError);
+    await expect(request).rejects.toMatchObject({ statusCode: 498 });
+  });
+
+  it("throws on a 200 GeoServices error envelope for cached metadata requests", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async () =>
+        new Response(JSON.stringify({ error: { code: 499, message: "Token Required" } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    });
+
+    await expect(client.listServices()).rejects.toBeInstanceOf(HonuaHttpError);
+  });
+
+  it("does not cache a 200 metadata error envelope as valid metadata", async () => {
+    let calls = 0;
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async () => {
+        calls += 1;
+        if (calls === 1) {
+          return new Response(JSON.stringify({ error: { code: 499, message: "Token Required" } }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ services: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+
+    await expect(client.listServices()).rejects.toBeInstanceOf(HonuaHttpError);
+    await expect(client.listServices()).resolves.toBeDefined();
+    expect(calls).toBe(2);
+  });
+
   it("keeps request outSr canonical when extraParams also provide outSr", async () => {
     let requestedUrl: string | undefined;
 

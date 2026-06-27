@@ -352,7 +352,9 @@ export class HonuaOdataEntitySet {
     options: { signal?: AbortSignal } = {},
   ): Promise<T> {
     const path = this.entitySetPath();
-    return this.requestJson<T>("POST", path, undefined, options.signal, JSON.stringify(body));
+    return this.requestJson<T>("POST", path, undefined, options.signal, JSON.stringify(body), {
+      "Content-Type": "application/json",
+    });
   }
 
   /**
@@ -368,7 +370,9 @@ export class HonuaOdataEntitySet {
     options: { signal?: AbortSignal } = {},
   ): Promise<T | undefined> {
     const path = `${this.entitySetPath()}(${encodeOdataKey(key)})`;
-    return this.requestJson<T | undefined>("PATCH", path, undefined, options.signal, JSON.stringify(body));
+    return this.requestJson<T | undefined>("PATCH", path, undefined, options.signal, JSON.stringify(body), {
+      "Content-Type": "application/json",
+    });
   }
 
   /** Delete a row via `DELETE /<entitySet>(<key>)`. */
