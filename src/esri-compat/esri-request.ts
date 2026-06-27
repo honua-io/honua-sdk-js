@@ -16,6 +16,81 @@ export interface EsriRequestCompatResponse<TData = unknown> {
   headers: Headers;
 }
 
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_SAFE_REDIRECTS = 20;
+
+/**
+ * Fetch that never auto-follows a cross-origin redirect.
+ *
+ * `esriRequest` replays caller-supplied auth headers (e.g. `X-API-Key`,
+ * `X-Esri-Authorization`). The default `redirect: "follow"` forwards those
+ * custom headers across a 30x to an attacker-supplied `Location` host, leaking
+ * the credentials. Mirroring the core client's `fetchWithSafeRedirects`, this
+ * issues every request with `redirect: "manual"` and only follows a redirect
+ * whose target origin still matches the original request origin. Cross-origin
+ * (and opaque) redirects throw before the credentialed request is replayed.
+ */
+async function fetchWithSafeRedirects(url: string, init: RequestInit): Promise<Response> {
+  // Resolve against the document base when the caller passed a relative URL
+  // (browser usage). When no absolute origin can be derived (e.g. a relative
+  // URL under Node), origin-guarding is skipped — but `fetch` itself requires
+  // an absolute URL there, so a relative request only resolves in a browser
+  // where the base is available.
+  const documentBase = (globalThis as { location?: { href?: string } }).location?.href;
+  let originalOrigin: string | undefined;
+  let currentUrl = url;
+  try {
+    const absolute = new URL(url, documentBase);
+    originalOrigin = absolute.origin;
+    currentUrl = absolute.toString();
+  } catch {
+    originalOrigin = undefined;
+  }
+  let currentInit: RequestInit = init;
+
+  for (let redirects = 0; ; redirects += 1) {
+    const response = await fetch(currentUrl, { ...currentInit, redirect: "manual" });
+
+    if (response.type === "opaqueredirect") {
+      throw new Error(
+        "esriRequest: refusing to follow an opaque cross-origin redirect; the request's auth headers would be leaked to the redirect target.",
+      );
+    }
+
+    if (!REDIRECT_STATUSES.has(response.status)) {
+      return response;
+    }
+
+    if (redirects >= MAX_SAFE_REDIRECTS) {
+      throw new Error(`esriRequest: exceeded the maximum of ${MAX_SAFE_REDIRECTS} redirects.`);
+    }
+
+    const location = response.headers.get("location");
+    if (!location) {
+      return response;
+    }
+
+    const nextUrl = new URL(location, currentUrl);
+    if (originalOrigin !== undefined && nextUrl.origin !== originalOrigin) {
+      throw new Error(
+        `esriRequest: refusing to follow a cross-origin redirect to ${nextUrl.origin}; the request's auth headers would be leaked.`,
+      );
+    }
+
+    // Apply the standard Fetch redirect method/body rewriting: 303 always
+    // becomes GET; 301/302 turn a non-GET/HEAD into GET, dropping the body.
+    const method = (currentInit.method ?? "GET").toUpperCase();
+    const downgradeToGet =
+      response.status === 303 ||
+      ((response.status === 301 || response.status === 302) && method !== "GET" && method !== "HEAD");
+    currentInit = downgradeToGet ? { ...currentInit, method: "GET", body: null } : currentInit;
+    currentUrl = nextUrl.toString();
+
+    // Drain the redirect body so the underlying connection can be reused.
+    await response.body?.cancel().catch(() => undefined);
+  }
+}
+
 export async function esriRequest<TData = unknown>(
   url: string,
   options: EsriRequestCompatOptions = {},
@@ -24,7 +99,7 @@ export async function esriRequest<TData = unknown>(
   const method = options.method?.toUpperCase() ?? "GET";
   const responseType = options.responseType ?? "json";
 
-  const response = await fetch(finalUrl, {
+  const response = await fetchWithSafeRedirects(finalUrl, {
     method,
     headers: options.headers,
     body: options.body ?? undefined,

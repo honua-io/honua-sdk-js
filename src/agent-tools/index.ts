@@ -900,9 +900,13 @@ export async function executeHonuaAgentTool(
   try {
     switch (call.name) {
       case "inspectMap":
-        return result(call.name, "ok", args, options, { data: await inspectMap(runtime, call.args) });
+        return result(call.name, "ok", args, options, {
+          data: sanitizeMapSnapshot(await inspectMap(runtime, call.args)),
+        });
       case "listSources":
-        return result(call.name, "ok", args, options, { data: await listSources(runtime, call.args) });
+        return result(call.name, "ok", args, options, {
+          data: (await listSources(runtime, call.args)).map(sanitizeSourceSummary),
+        });
       case "listCapabilities":
         return result(call.name, "ok", args, options, { data: await listCapabilities(runtime, call.args) });
       case "setViewport":
@@ -1241,6 +1245,23 @@ function auditOutcome(status: HonuaAgentToolStatus): HonuaAgentAuditEvent["outco
 
 function positiveLimit(value: number | undefined, fallback: number): number {
   return value && Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
+/**
+ * Redact secret-bearing metadata from a full map snapshot before it leaves the
+ * tool executor for an LLM. `inspectMap` returns raw runtime metadata
+ * (connection strings, tokens) on sources/layers/realtime/metadata; the
+ * context/system-prompt path already sanitizes, but the executor result builder
+ * did not, so tool results bypassed redaction.
+ */
+function sanitizeMapSnapshot(snapshot: HonuaAgentMapSnapshot): HonuaAgentMapSnapshot {
+  return {
+    ...snapshot,
+    sources: snapshot.sources.map(sanitizeSourceSummary),
+    layers: snapshot.layers.map(sanitizeLayerSummary),
+    ...(snapshot.realtime ? { realtime: sanitizeRecord(snapshot.realtime) } : {}),
+    ...(snapshot.metadata ? { metadata: sanitizeRecord(snapshot.metadata) } : {}),
+  };
 }
 
 function sanitizeSourceSummary(source: HonuaAgentSourceSummary): HonuaAgentSourceSummary {
