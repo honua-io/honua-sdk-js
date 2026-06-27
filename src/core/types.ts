@@ -582,7 +582,13 @@ export interface HonuaClientOptions {
   interceptors?: readonly HonuaRequestInterceptor[];
   /** Per-request hard timeout in milliseconds. Independent of any caller-supplied `AbortSignal`. */
   timeoutMs?: number;
-  /** Retry strategy for transient HTTP failures. */
+  /**
+   * Retry strategy for transient HTTP failures.
+   *
+   * Applies to the REST transport. The `"grpc-web"` transport does not yet
+   * apply this retry policy (auth headers, `timeoutMs`, and per-call abort
+   * signals are honored).
+   */
   retry?: HonuaRetryOptions;
   /**
    * When `true`, query methods use `f=pbf` for binary protobuf responses
