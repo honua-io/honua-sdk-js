@@ -9,9 +9,11 @@
  * provides that translation as a first-class, dependency-free utility.
  *
  * Polygon rings are grouped following the Esri convention where clockwise
- * (positive signed area) rings are exterior and counter-clockwise rings are
- * holes, producing `Polygon` for a single exterior ring and `MultiPolygon`
- * when several exterior rings are present.
+ * rings are exterior and counter-clockwise rings are holes, producing `Polygon`
+ * for a single exterior ring and `MultiPolygon` when several exterior rings are
+ * present. The emitted rings are rewound to the GeoJSON RFC 7946 right-hand rule
+ * (counter-clockwise exterior, clockwise holes) so conformant consumers do not
+ * interpret polygons inside-out.
  *
  * @module
  */
@@ -160,6 +162,28 @@ function findContainingPolygonIndex(
   return containingPolygonIndex;
 }
 
+/**
+ * Rewind a ring to the GeoJSON RFC 7946 §3.1.6 right-hand rule: exterior rings
+ * counter-clockwise (positive signed area), interior rings (holes) clockwise
+ * (negative signed area). Esri uses the opposite convention (clockwise
+ * exterior), so emitting Esri rings verbatim produces GeoJSON that
+ * RFC 7946-conformant consumers (and the S2 spherical winding used by some
+ * renderers) interpret inside-out.
+ */
+function rewindRingForGeoJson(ring: readonly Position[], exterior: boolean): Position[] {
+  const copy = ring.map((position) => [...position] as Position);
+  const area = computeRingSignedArea(copy);
+  if (area === 0) {
+    return copy;
+  }
+  const correctlyWound = exterior ? area > 0 : area < 0;
+  return correctlyWound ? copy : copy.reverse();
+}
+
+function rewindPolygonForGeoJson(polygon: readonly Position[][]): Position[][] {
+  return polygon.map((ring, index) => rewindRingForGeoJson(ring, index === 0));
+}
+
 function convertPolygonRings(rings: readonly Position[][]): GeoJsonPolygon | GeoJsonMultiPolygon {
   const polygons: Position[][][] = [];
   const outerAreas: number[] = [];
@@ -190,11 +214,11 @@ function convertPolygonRings(rings: readonly Position[][]): GeoJsonPolygon | Geo
   return polygons.length === 1
     ? {
         type: "Polygon",
-        coordinates: polygons[0] ?? [],
+        coordinates: rewindPolygonForGeoJson(polygons[0] ?? []),
       }
     : {
         type: "MultiPolygon",
-        coordinates: polygons,
+        coordinates: polygons.map(rewindPolygonForGeoJson),
       };
 }
 

@@ -118,6 +118,48 @@ describe("wms / wire", () => {
     expect(observed?.get("CRS")).toBe("EPSG:4326");
   });
 
+  it("derives axis order from the CRS authority code, not an exact 'EPSG:4326' string", async () => {
+    // WMS 1.3.0 honors authority axis order: geographic EPSG CRSes (4326, and
+    // also ETRS89 / NAD83, plus the URN/URL spellings of 4326) are lat,lon;
+    // OGC CRS84 and projected CRSes are x,y. The previous Set(["EPSG:4326"])
+    // only matched one spelling of one CRS.
+    const swapped = "37,-122,38,-120";
+    const unswapped = "-122,37,-120,38";
+    const cases: Array<{ crs: string; expected: string }> = [
+      { crs: "EPSG:4258", expected: swapped }, // ETRS89 (geographic)
+      { crs: "EPSG:4269", expected: swapped }, // NAD83 (geographic)
+      { crs: "urn:ogc:def:crs:EPSG::4326", expected: swapped }, // URN form of 4326
+      { crs: "http://www.opengis.net/def/crs/EPSG/0/4326", expected: swapped }, // URL form
+      { crs: "CRS:84", expected: unswapped }, // OGC CRS84 is lon,lat
+      { crs: "EPSG:3857", expected: unswapped }, // Web Mercator (projected)
+      { crs: "EPSG:32633", expected: unswapped }, // UTM 33N (projected)
+    ];
+
+    for (const { crs, expected } of cases) {
+      let observed: URLSearchParams | undefined;
+      const client = makeMockClient({
+        routes: [
+          [
+            "MapServer/WMS",
+            (url) => {
+              observed = url.searchParams;
+              return pngResponse();
+            },
+          ],
+        ],
+      });
+      await client.wms("imagery").map({
+        layers: ["parcels"],
+        crs,
+        bbox: [-122, 37, -120, 38],
+        width: 256,
+        height: 256,
+      });
+      expect(observed?.get("BBOX"), `BBOX for ${crs}`).toBe(expected);
+      expect(observed?.get("CRS"), `CRS for ${crs}`).toBe(crs);
+    }
+  });
+
   it("decodes GetFeatureInfo JSON into the canonical typed feature shape", async () => {
     const client = makeMockClient({
       routes: [

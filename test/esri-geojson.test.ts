@@ -96,8 +96,10 @@ describe("esriGeometryToGeoJSON", () => {
     expect(esriGeometryToGeoJSON({ paths: [] })).toBeNull();
   });
 
-  it("converts a single-ring polygon", () => {
-    // Esri exterior rings are clockwise (negative signed area).
+  it("converts a single-ring polygon and rewinds the exterior to RFC 7946 (CCW)", () => {
+    // Esri exterior rings are clockwise (negative signed area). RFC 7946
+    // requires counter-clockwise exterior rings, so the emitted ring is the
+    // reverse of the clockwise Esri input.
     const result = esriGeometryToGeoJSON({
       rings: [
         [
@@ -114,17 +116,18 @@ describe("esriGeometryToGeoJSON", () => {
       coordinates: [
         [
           [0, 0],
-          [0, 4],
-          [4, 4],
           [4, 0],
+          [4, 4],
+          [0, 4],
           [0, 0],
         ],
       ],
     });
   });
 
-  it("converts a polygon with a hole (interior ring)", () => {
-    // Clockwise exterior ring + counter-clockwise interior ring (hole).
+  it("converts a polygon with a hole, rewinding exterior CCW and hole CW", () => {
+    // Clockwise exterior ring + counter-clockwise interior ring (hole) on the
+    // wire. RFC 7946 wants CCW exterior and CW holes, so both rings flip.
     const result = esriGeometryToGeoJSON({
       rings: [
         [
@@ -148,23 +151,23 @@ describe("esriGeometryToGeoJSON", () => {
       coordinates: [
         [
           [0, 0],
-          [0, 10],
-          [10, 10],
           [10, 0],
+          [10, 10],
+          [0, 10],
           [0, 0],
         ],
         [
           [2, 2],
-          [4, 2],
-          [4, 4],
           [2, 4],
+          [4, 4],
+          [4, 2],
           [2, 2],
         ],
       ],
     });
   });
 
-  it("converts multiple exterior rings to a MultiPolygon", () => {
+  it("converts multiple exterior rings to a MultiPolygon with CCW exteriors", () => {
     const result = esriGeometryToGeoJSON({
       rings: [
         [
@@ -189,23 +192,37 @@ describe("esriGeometryToGeoJSON", () => {
         [
           [
             [0, 0],
-            [0, 2],
-            [2, 2],
             [2, 0],
+            [2, 2],
+            [0, 2],
             [0, 0],
           ],
         ],
         [
           [
             [10, 10],
-            [10, 12],
-            [12, 12],
             [12, 10],
+            [12, 12],
+            [10, 12],
             [10, 10],
           ],
         ],
       ],
     });
+  });
+
+  it("emits exterior rings already CCW unchanged (idempotent rewinding)", () => {
+    // A counter-clockwise (RFC 7946-conformant) exterior ring must pass through
+    // untouched rather than being flipped to clockwise.
+    const ccwExterior = [
+      [0, 0],
+      [4, 0],
+      [4, 4],
+      [0, 4],
+      [0, 0],
+    ];
+    const result = esriGeometryToGeoJSON({ rings: [ccwExterior] });
+    expect(result).toEqual({ type: "Polygon", coordinates: [ccwExterior] });
   });
 
   it("returns null for empty rings", () => {
