@@ -551,7 +551,9 @@ describe("fromProtoQueryResponse", () => {
     const fieldTypes: Array<[FieldType, string]> = [
       [FieldType.STRING, "esriFieldTypeString"],
       [FieldType.INTEGER, "esriFieldTypeInteger"],
-      [FieldType.BIG_INTEGER, "esriFieldTypeInteger"],
+      // 64-bit columns must report esriFieldTypeBigInteger, matching the PBF
+      // fast path; mapping to esriFieldTypeInteger diverged across transports.
+      [FieldType.BIG_INTEGER, "esriFieldTypeBigInteger"],
       [FieldType.DOUBLE, "esriFieldTypeDouble"],
       [FieldType.FLOAT, "esriFieldTypeSingle"],
       [FieldType.BOOLEAN, "esriFieldTypeSmallInteger"],

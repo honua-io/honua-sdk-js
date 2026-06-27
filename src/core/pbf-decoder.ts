@@ -18,6 +18,21 @@ const WIRE_64BIT = 1;
 const WIRE_LENGTH_DELIMITED = 2;
 const WIRE_32BIT = 5;
 
+/**
+ * Thrown when a PBF feature response cannot be decoded losslessly into the
+ * `f=json` shape — either because it carries Z/M geometry (which the flat
+ * 2D fast-path decoder would silently garble) or because the coordinate
+ * stream is malformed (odd length / non-finite values from a truncated or
+ * hostile payload). `HonuaClient` treats this as a signal to fall back to a
+ * fresh `f=json` request, which decodes the same data correctly.
+ */
+export class PbfDecodeError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "PbfDecodeError";
+  }
+}
+
 // ── Low-level protobuf reader ────────────────────────────────
 
 /** Reads protobuf wire-format primitives from a byte buffer. */
@@ -361,6 +376,15 @@ function decodeGeometry(
 
   if (coords.length === 0) return null;
 
+  // The 2D fast path packs the stream as flat (x, y) pairs. A truncated or
+  // hostile payload with an odd number of values would otherwise read past the
+  // last x as a `y === undefined`, delta-accumulate to NaN, and propagate
+  // silent NaN coordinates through the geometry. Reject it instead so the
+  // caller can fall back to f=json.
+  if (coords.length % 2 !== 0) {
+    throw new PbfDecodeError(`PBF geometry coordinate stream has an odd length (${coords.length})`);
+  }
+
   // Delta-decode and transform coordinates
   const xScale = transform?.xScale ?? 1;
   const yScale = transform?.yScale ?? 1;
@@ -374,7 +398,12 @@ function decodeGeometry(
   for (let i = 0; i < coords.length; i += 2) {
     prevX += coords[i];
     prevY += coords[i + 1];
-    worldCoords.push([prevX * xScale + xTranslate, prevY * yScale + yTranslate]);
+    const x = prevX * xScale + xTranslate;
+    const y = prevY * yScale + yTranslate;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new PbfDecodeError("PBF geometry produced a non-finite coordinate");
+    }
+    worldCoords.push([x, y]);
   }
 
   return buildGeoServicesGeometry(layerGeometryType, worldCoords, lengths);
@@ -522,6 +551,18 @@ function decodeFeatureResult(reader: PbfReader): Record<string, unknown> {
       default:
         reader.skip(wire);
     }
+  }
+
+  // The geometry decoder reads the packed coordinate stream as flat (x, y)
+  // pairs. When the server advertises Z and/or M, each vertex carries extra
+  // ordinates, so decoding as 2D pairs would mis-pair every coordinate and
+  // garble the geometry. Rather than emit silently corrupt geometry on the
+  // binary fast path, signal the caller to fall back to f=json (which decodes
+  // Z/M correctly). See HonuaClient.requestBinaryWithJsonFallback.
+  if (hasZ || hasM) {
+    throw new PbfDecodeError(
+      `PBF response carries ${hasZ ? "Z" : ""}${hasZ && hasM ? "/" : ""}${hasM ? "M" : ""} geometry; falling back to f=json`,
+    );
   }
 
   // Now decode features with full field/transform context

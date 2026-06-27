@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decodePbfQueryResponse, isPbfResponse } from "../src/core/pbf-decoder.js";
+import { PbfDecodeError, decodePbfQueryResponse, isPbfResponse } from "../src/core/pbf-decoder.js";
 
 // ── Protobuf encoding helpers for building test fixtures ──────
 
@@ -157,6 +157,8 @@ function buildFeatureResult(opts: {
   geometryType?: number;
   spatialReference?: number[];
   exceededTransferLimit?: boolean;
+  hasZ?: boolean;
+  hasM?: boolean;
   transform?: number[];
   fields: number[][];
   features: number[][];
@@ -166,6 +168,8 @@ function buildFeatureResult(opts: {
   if (opts.geometryType !== undefined) fr.push(...varintField(7, opts.geometryType));
   if (opts.spatialReference) fr.push(...lengthDelimited(8, opts.spatialReference));
   if (opts.exceededTransferLimit) fr.push(...boolField(9, true));
+  if (opts.hasZ) fr.push(...boolField(10, true));
+  if (opts.hasM) fr.push(...boolField(11, true));
   if (opts.transform) fr.push(...lengthDelimited(12, opts.transform));
   for (const field of opts.fields) {
     fr.push(...lengthDelimited(13, field));
@@ -663,6 +667,11 @@ describe("decodePbfQueryResponse", () => {
     const features = result.features as Record<string, unknown>[];
     const attrs = features[0].attributes as Record<string, unknown>;
     expect(attrs.bignum).toBe(9007199254740000);
+    // PBF field type 13 -> esriFieldTypeBigInteger. This must match the gRPC
+    // adapter's BIG_INTEGER mapping so a 64-bit column reports the same type on
+    // both transports (see test/grpc-adapter.test.ts "maps field types correctly").
+    const fields = result.fields as Array<{ name: string; type: string }>;
+    expect(fields[1].type).toBe("esriFieldTypeBigInteger");
   });
 
   it("decodes field alias correctly", () => {
@@ -695,5 +704,45 @@ describe("decodePbfQueryResponse", () => {
   it("returns empty object for empty buffer", () => {
     const result = decodePbfQueryResponse(new Uint8Array(0));
     expect(result).toEqual({});
+  });
+
+  it("throws PbfDecodeError for Z geometry so callers fall back to f=json", () => {
+    const transform = buildTransform(1, 1, 0, 0);
+    const featureResult = buildFeatureResult({
+      objectIdFieldName: "OBJECTID",
+      geometryType: 0,
+      spatialReference: buildSpatialReference(4326),
+      hasZ: true,
+      transform,
+      fields: [buildField("OBJECTID", 6)],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], buildPointGeometry(-100, 40))],
+    });
+    const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
+    expect(() => decodePbfQueryResponse(toBuffer(pbf))).toThrow(PbfDecodeError);
+  });
+
+  it("throws PbfDecodeError for M geometry so callers fall back to f=json", () => {
+    const featureResult = buildFeatureResult({
+      objectIdFieldName: "OBJECTID",
+      geometryType: 0,
+      hasM: true,
+      fields: [buildField("OBJECTID", 6)],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], buildPointGeometry(-100, 40))],
+    });
+    const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
+    expect(() => decodePbfQueryResponse(toBuffer(pbf))).toThrow(PbfDecodeError);
+  });
+
+  it("rejects a truncated coordinate stream with an odd length instead of yielding NaN", () => {
+    // A single packed sint64 value: the 2D decoder cannot pair it into (x, y).
+    const geometry = [...varintField(1, 0), ...packedSInt64(3, [5])];
+    const featureResult = buildFeatureResult({
+      objectIdFieldName: "OBJECTID",
+      geometryType: 0,
+      fields: [buildField("OBJECTID", 6)],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], geometry)],
+    });
+    const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
+    expect(() => decodePbfQueryResponse(toBuffer(pbf))).toThrow(PbfDecodeError);
   });
 });
