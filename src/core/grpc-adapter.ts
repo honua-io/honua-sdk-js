@@ -41,9 +41,17 @@ import type {
 const FIELD_TYPE_MAP: Record<number, string> = {
   [FieldType.STRING]: "esriFieldTypeString",
   [FieldType.INTEGER]: "esriFieldTypeInteger",
-  [FieldType.BIG_INTEGER]: "esriFieldTypeInteger",
+  // BIG_INTEGER must map to esriFieldTypeBigInteger so a 64-bit column reports
+  // the same field type as the PBF fast path (mapPbfFieldTypeToGeoServices maps
+  // PBF type 13 -> esriFieldTypeBigInteger). Mapping it to esriFieldTypeInteger
+  // made a 64-bit column's reported type diverge between the gRPC and PBF
+  // transports for the same dataset.
+  [FieldType.BIG_INTEGER]: "esriFieldTypeBigInteger",
   [FieldType.DOUBLE]: "esriFieldTypeDouble",
   [FieldType.FLOAT]: "esriFieldTypeSingle",
+  // Esri/GeoServices has no boolean field type; ArcGIS surfaces booleans as a
+  // small integer, and the PBF schema likewise carries booleans as small
+  // integers, so esriFieldTypeSmallInteger keeps the two transports in parity.
   [FieldType.BOOLEAN]: "esriFieldTypeSmallInteger",
   [FieldType.DATE_TIME]: "esriFieldTypeDate",
   [FieldType.DATE]: "esriFieldTypeDate",

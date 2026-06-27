@@ -3801,13 +3801,60 @@ function wmtsBasePath(serviceId: string): string {
 }
 
 /**
- * CRS table for WMS 1.3 axis order. WMS 1.3 honors authority axis order,
- * which means `EPSG:4326` is `(lat, lon)` and `CRS:84` / `EPSG:3857` are
- * `(x, y)`. The `BBOX` envelope tuple supplied by callers is the
- * canonical `[minx, miny, maxx, maxy]`; this map decides whether the
- * tuple is swapped on the wire.
+ * Geographic CRSes (in the EPSG authority) whose WMS 1.3.0 axis order is
+ * latitude,longitude. WMS 1.3.0 honors the authority-defined axis order, so the
+ * canonical `[minx, miny, maxx, maxy]` BBOX tuple must be transposed on the wire
+ * for these. OGC `CRS:84` and projected CRSes (e.g. EPSG:3857) are x,y and are
+ * sent as-is.
+ *
+ * The previous implementation matched only the exact string `"EPSG:4326"`,
+ * which left other authority lat/lon CRSes (notably ETRS89 / EPSG:4258 and
+ * NAD83 / EPSG:4269) — and even the URN / URL spellings of 4326 itself —
+ * transposed on every `GetMap` / `GetFeatureInfo`. The axis order is now
+ * derived from the CRS authority code instead.
  */
-const WMS_AXIS_SWAP_CRS: ReadonlySet<string> = new Set(["EPSG:4326"]);
+const WMS_LATLON_GEOGRAPHIC_EPSG: ReadonlySet<number> = new Set([
+  4326, // WGS 84
+  4258, // ETRS89
+  4269, // NAD83
+  4267, // NAD27
+  4203, // AGD66
+  4283, // GDA94
+  7844, // GDA2020
+  4490, // China Geodetic Coordinate System 2000
+  4214, // Beijing 1954
+  4152, // NAD83(HARN)
+  4759, // NAD83(NSRS2007)
+  4617, // NAD83(CSRS)
+  4674, // SIRGAS 2000
+  4618, // SAD69
+  4612, // JGD2000
+  4019, // GRS 1980 ensemble
+]);
+
+/**
+ * Extract the trailing EPSG numeric code from any of the CRS spellings WMS
+ * clients use: `EPSG:4326`, `urn:ogc:def:crs:EPSG::4326`,
+ * `urn:ogc:def:crs:EPSG:8.9:4326`, and `http://www.opengis.net/def/crs/EPSG/0/4326`.
+ * Returns `undefined` for non-EPSG identifiers (e.g. `CRS:84`, OGC URNs).
+ */
+function parseEpsgCode(crs: string): number | undefined {
+  const upper = crs.toUpperCase();
+  const idx = upper.lastIndexOf("EPSG");
+  if (idx < 0) return undefined;
+  const digitGroups = crs.slice(idx).match(/\d+/g);
+  if (!digitGroups || digitGroups.length === 0) return undefined;
+  // The authority code is the last numeric group (URN forms embed a version
+  // number such as `8.9` between the authority and the code).
+  const code = Number(digitGroups[digitGroups.length - 1]);
+  return Number.isInteger(code) ? code : undefined;
+}
+
+/** Whether a WMS 1.3.0 BBOX for `crs` must be transposed to lat,lon on the wire. */
+function wmsBboxRequiresAxisSwap(crs: string): boolean {
+  const code = parseEpsgCode(crs);
+  return code !== undefined && WMS_LATLON_GEOGRAPHIC_EPSG.has(code);
+}
 
 function serializeWmsMapParams(request: WmsMapRequest & { serviceId: string }): URLSearchParams {
   const params = new URLSearchParams();
@@ -3818,7 +3865,7 @@ function serializeWmsMapParams(request: WmsMapRequest & { serviceId: string }): 
   const crs = request.crs ?? "EPSG:3857";
   params.set("CRS", crs);
   const [minx, miny, maxx, maxy] = request.bbox;
-  const wireBbox = WMS_AXIS_SWAP_CRS.has(crs) ? [miny, minx, maxy, maxx] : [minx, miny, maxx, maxy];
+  const wireBbox = wmsBboxRequiresAxisSwap(crs) ? [miny, minx, maxy, maxx] : [minx, miny, maxx, maxy];
   params.set("BBOX", wireBbox.join(","));
   params.set("WIDTH", String(Math.trunc(request.width)));
   params.set("HEIGHT", String(Math.trunc(request.height)));
