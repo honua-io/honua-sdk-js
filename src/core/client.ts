@@ -1,4 +1,4 @@
-import type { Client } from "@connectrpc/connect";
+import type { Client, Interceptor } from "@connectrpc/connect";
 import type { FeatureService } from "../gen/honua/v1/feature_service_pb.js";
 import {
   HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS,
@@ -445,6 +445,46 @@ export class HonuaClient {
     }
   }
 
+  /**
+   * Connect interceptor that injects the same credentials the REST pipeline
+   * uses (`apiKey`/`bearerToken` from {@link defaultHeaders} plus any provider
+   * credentials resolved via {@link resolveAuthHeaders}) onto every gRPC-web
+   * call. Without it the advertised `transport: "grpc-web"` path would send
+   * every RPC unauthenticated.
+   */
+  private buildConnectAuthInterceptor(): Interceptor {
+    return (next) => async (req) => {
+      const headers = await this.composeHeaders();
+      for (const [key, value] of Object.entries(headers)) {
+        req.header.set(key, value);
+      }
+      return next(req);
+    };
+  }
+
+  /**
+   * Shared gRPC-web transport options. The auth interceptor mirrors the REST
+   * credential pipeline, and `defaultTimeoutMs` honors the documented
+   * `timeoutMs` contract on every RPC (per-call abort signals are threaded by
+   * the individual RPC methods).
+   *
+   * Note: the `retry` policy is not yet applied to the gRPC-web transport;
+   * callers needing retries on this path should wrap calls themselves.
+   */
+  private connectTransportOptions(): {
+    baseUrl: string;
+    fetch: typeof fetch;
+    interceptors: Interceptor[];
+    defaultTimeoutMs?: number;
+  } {
+    return {
+      baseUrl: this.baseUrl,
+      fetch: this.fetchFn,
+      interceptors: [this.buildConnectAuthInterceptor()],
+      ...(this.timeoutMs !== undefined ? { defaultTimeoutMs: this.timeoutMs } : {}),
+    };
+  }
+
   private initConnectClient(): void {
     // Dynamic imports are used to avoid bundling Connect dependencies
     // when only the REST transport is used. The imports are resolved
@@ -452,10 +492,7 @@ export class HonuaClient {
     import("@connectrpc/connect").then(({ createClient }) =>
       import("@connectrpc/connect-web").then(({ createGrpcWebTransport }) =>
         import("../gen/honua/v1/feature_service_pb.js").then(({ FeatureService }) => {
-          const transport = createGrpcWebTransport({
-            baseUrl: this.baseUrl,
-            fetch: this.fetchFn,
-          });
+          const transport = createGrpcWebTransport(this.connectTransportOptions());
           this.connectClient = createClient(FeatureService, transport);
         }),
       ),
@@ -470,10 +507,7 @@ export class HonuaClient {
     const { createClient } = await import("@connectrpc/connect");
     const { createGrpcWebTransport } = await import("@connectrpc/connect-web");
     const { FeatureService } = await import("../gen/honua/v1/feature_service_pb.js");
-    const transport = createGrpcWebTransport({
-      baseUrl: this.baseUrl,
-      fetch: this.fetchFn,
-    });
+    const transport = createGrpcWebTransport(this.connectTransportOptions());
     this.connectClient = createClient(FeatureService, transport);
     return this.connectClient;
   }
@@ -602,7 +636,9 @@ export class HonuaClient {
     const client = await this.ensureConnectClient();
     const grpcAdapter = await HonuaClient.loadGrpcAdapter();
     const protoRequest = grpcAdapter.toProtoQueryRequest(request);
-    yield* grpcAdapter.streamProtoPages(client.queryFeaturesStream(protoRequest));
+    yield* grpcAdapter.streamProtoPages(
+      client.queryFeaturesStream(protoRequest, request.signal ? { signal: request.signal } : undefined),
+    );
   }
 
   public service(serviceId: string): HonuaService {
@@ -2081,7 +2117,10 @@ export class HonuaClient {
       const grpcAdapter = await HonuaClient.loadGrpcAdapter();
       const protoRequest = grpcAdapter.toProtoQueryRequest(request);
       try {
-        const response = await client.queryFeatures(protoRequest);
+        const response = await client.queryFeatures(
+          protoRequest,
+          request.signal ? { signal: request.signal } : undefined,
+        );
         return grpcAdapter.fromProtoQueryResponse(response) as HonuaQueryResponse;
       } catch (error) {
         throw grpcAdapter.wrapConnectError(error);
