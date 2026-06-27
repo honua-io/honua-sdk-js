@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.0.15-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.0.14-alpha.0...mcp-server-v0.0.15-alpha.0) (2026-06-27)
+
+
+### Features
+
+* **mcp:** deterministic MCP certification artifact (conformance + round-trip) ([#1956](https://github.com/honua-io/honua-sdk-js/issues/1956)) ([#303](https://github.com/honua-io/honua-sdk-js/issues/303)) ([50771b7](https://github.com/honua-io/honua-sdk-js/commit/50771b725ed06761d11879cd5154f82f8550a32a))
+
+
+### Bug Fixes
+
+* **sdk,mcp:** resolve OData/OGC pagination and MCP tool defects ([#302](https://github.com/honua-io/honua-sdk-js/issues/302)) ([f3cde34](https://github.com/honua-io/honua-sdk-js/commit/f3cde34deb49fbac44cd688361450403f815ddb7))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.0.15-alpha.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.0.14-alpha.0 to ^0.0.15-alpha.0
+
 ## [0.0.14-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.0.13-alpha.0...mcp-server-v0.0.14-alpha.0) (2026-06-10)
 
 
