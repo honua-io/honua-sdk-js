@@ -478,6 +478,46 @@ describe("realtime feature state", () => {
   });
 });
 
+describe("realtime tombstone bounding", () => {
+  it("caps tombstone count at maxTombstones, retaining the most recently deleted", () => {
+    let state = emptyRealtimeFeatureState();
+    for (const [id, receivedAt] of [
+      [1, 100],
+      [2, 200],
+      [3, 300],
+    ] as const) {
+      state = reduceRealtimeFeatureState(state, { type: "delete", sourceId: "s", id, receivedAt }, { maxTombstones: 2 });
+    }
+    expect(Object.keys(state.tombstones).sort()).toEqual(["s:2", "s:3"]);
+  });
+
+  it("drops tombstones older than tombstoneTtlMs", () => {
+    let state = emptyRealtimeFeatureState();
+    state = reduceRealtimeFeatureState(
+      state,
+      { type: "delete", sourceId: "s", id: 1, receivedAt: 1_000 },
+      { tombstoneTtlMs: 5_000 },
+    );
+    state = reduceRealtimeFeatureState(
+      state,
+      { type: "delete", sourceId: "s", id: 2, receivedAt: 7_000 },
+      { tombstoneTtlMs: 5_000 },
+    );
+    expect(state.tombstones["s:1"]).toBeUndefined();
+    expect(state.tombstones["s:2"]).toBeDefined();
+  });
+
+  it("returns the same state reference for an empty delta", () => {
+    const state = reduceRealtimeFeatureState(emptyRealtimeFeatureState(), {
+      type: "snapshot",
+      features: [{ sourceId: "s", id: 1, feature: { v: 1 } }],
+    });
+    const next = reduceRealtimeFeatureState(state, { type: "delta", upserts: [], deletes: [] });
+    expect(next.records).toBe(state.records);
+    expect(next.tombstones).toBe(state.tombstones);
+  });
+});
+
 describe("realtime SSE default EventSource factory", () => {
   // The global `EventSource` is a constructor: invoking it as a plain
   // call (`EventSource(url, init)`) throws a TypeError in browsers

@@ -8,7 +8,12 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { type IJobRun, type JobSnapshot, isJobTerminal } from "../../src/contract/index.js";
+import {
+  HonuaJobPollTimeoutError,
+  type IJobRun,
+  type JobSnapshot,
+  isJobTerminal,
+} from "../../src/contract/index.js";
 import { HonuaJobFailedError, HonuaOgcProcessJobRun } from "../../src/core/ogc-processes.js";
 import type { HonuaOgcProcessJobStatus } from "../../src/core/types.js";
 
@@ -434,5 +439,68 @@ describe("ogc-processes / IJobRun lifecycle", () => {
       errorCode: "JobFailed",
       message: expect.stringContaining("input geometry is not closed"),
     });
+  });
+});
+
+describe("ogc-processes / runUntilTerminal bounds", () => {
+  const runningStatus: HonuaOgcProcessJobStatus = { jobID: "job-x", status: "running", processID: "buffer" };
+
+  function makeNeverTerminalJob(
+    pollFn: (jobId: string, signal?: AbortSignal) => Promise<HonuaOgcProcessJobStatus>,
+  ): HonuaOgcProcessJobRun {
+    const client = makeMockClient({ routes: [] });
+    return new HonuaOgcProcessJobRun({ client, jobId: "job-x", processId: "buffer", pollIntervalMs: 0, pollFn });
+  }
+
+  it("stops after maxAttempts when the job never reaches a terminal state", async () => {
+    let polls = 0;
+    const job = makeNeverTerminalJob(async () => {
+      polls += 1;
+      return runningStatus;
+    });
+    await expect(job.results({ maxAttempts: 3 })).rejects.toMatchObject({
+      name: "HonuaJobPollTimeoutError",
+      reason: "max-attempts",
+    });
+    expect(polls).toBe(3);
+  });
+
+  it("stops once the deadline elapses", async () => {
+    const job = makeNeverTerminalJob(async () => runningStatus);
+    await expect(job.results({ deadlineMs: 0 })).rejects.toBeInstanceOf(HonuaJobPollTimeoutError);
+  });
+
+  it("stops when the caller aborts the poll loop", async () => {
+    const controller = new AbortController();
+    const job = makeNeverTerminalJob(async () => {
+      controller.abort();
+      return runningStatus;
+    });
+    await expect(job.results({ signal: controller.signal, maxAttempts: 100 })).rejects.toMatchObject({
+      reason: "aborted",
+    });
+  });
+
+  it("does not poison results() after a bounded attempt is exhausted", async () => {
+    let polls = 0;
+    const statuses: HonuaOgcProcessJobStatus[] = [
+      runningStatus,
+      { jobID: "job-x", status: "successful", processID: "buffer" },
+    ];
+    const client = makeMockClient({
+      routes: [["/ogc/processes/jobs/job-x/results", () => jsonResponse({ out: 1 })]],
+    });
+    const job = new HonuaOgcProcessJobRun({
+      client,
+      jobId: "job-x",
+      processId: "buffer",
+      pollIntervalMs: 0,
+      pollFn: async () => statuses[Math.min(polls++, statuses.length - 1)],
+    });
+    // First call is capped before the job terminates.
+    await expect(job.results({ maxAttempts: 1 })).rejects.toBeInstanceOf(HonuaJobPollTimeoutError);
+    // A subsequent unbounded call must be able to retry rather than replay the rejection.
+    const result = await job.results();
+    expect(result.outputs).toMatchObject({ out: 1 });
   });
 });

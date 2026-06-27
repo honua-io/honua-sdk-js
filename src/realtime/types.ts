@@ -162,6 +162,21 @@ export interface RealtimeFeatureState<TFeature = unknown> {
 export interface RealtimeReducerOptions {
   readonly now?: () => number;
   readonly maxSeenEventIds?: number;
+  /**
+   * Upper bound on the number of delete tombstones retained in state. Outside a
+   * `replace` snapshot, tombstones are never cleared, so a long-lived delta
+   * subscription leaks one entry per delete. When the cap is exceeded the
+   * oldest tombstones (by `deletedAt`) are evicted, mirroring the
+   * {@link maxSeenEventIds} cap. Defaults to 1024; set to `0` to disable the
+   * count bound.
+   */
+  readonly maxTombstones?: number;
+  /**
+   * Maximum age, in milliseconds, of a retained tombstone measured from its
+   * `deletedAt`. Tombstones older than this are dropped on the next reduce.
+   * Disabled (no age bound) when omitted.
+   */
+  readonly tombstoneTtlMs?: number;
 }
 
 export interface RealtimeStalenessOptions {

@@ -137,4 +137,58 @@ describe("HonuaProcessRunner unified geoprocessing API", () => {
       artifacts: [{ artifactId: "layer-1" }],
     });
   });
+
+  it("bounds geospatial-grpc polling by maxAttempts and forwards the abort signal", async () => {
+    let getJobCount = 0;
+    let sawSignal = false;
+    const processClient: GeospatialGrpcProcessClient = {
+      async submitJob() {
+        return { jobId: "grpc-job-1", state: "JOB_STATE_RUNNING" };
+      },
+      async getJob(request) {
+        getJobCount += 1;
+        if (request.signal) sawSignal = true;
+        return { jobId: "grpc-job-1", state: "JOB_STATE_RUNNING" };
+      },
+      async getJobResult() {
+        return { jobId: "grpc-job-1", result: {} };
+      },
+      async cancelJob() {
+        return { jobId: "grpc-job-1", state: "JOB_STATE_CANCELLED" };
+      },
+    };
+    const runner = createHonuaProcessRunner(createGeospatialGrpcProcessAdapter(processClient));
+    const job = await runner.execute({ plan: { planId: "analysis-plan" } });
+
+    await expect(job.results({ maxAttempts: 2, pollIntervalMs: 0, signal: new AbortController().signal })).rejects.toMatchObject({
+      name: "HonuaJobPollTimeoutError",
+      reason: "max-attempts",
+    });
+    expect(getJobCount).toBe(2);
+    expect(sawSignal).toBe(true);
+  });
+
+  it("aborts geospatial-grpc polling when the caller signal fires", async () => {
+    const controller = new AbortController();
+    const processClient: GeospatialGrpcProcessClient = {
+      async submitJob() {
+        return { jobId: "grpc-job-1", state: "JOB_STATE_RUNNING" };
+      },
+      async getJob() {
+        controller.abort();
+        return { jobId: "grpc-job-1", state: "JOB_STATE_RUNNING" };
+      },
+      async getJobResult() {
+        return { jobId: "grpc-job-1", result: {} };
+      },
+      async cancelJob() {
+        return { jobId: "grpc-job-1", state: "JOB_STATE_CANCELLED" };
+      },
+    };
+    const runner = createHonuaProcessRunner(createGeospatialGrpcProcessAdapter(processClient));
+    const job = await runner.execute({ plan: { planId: "analysis-plan" } });
+    await expect(job.results({ signal: controller.signal, maxAttempts: 100, pollIntervalMs: 0 })).rejects.toMatchObject({
+      reason: "aborted",
+    });
+  });
 });

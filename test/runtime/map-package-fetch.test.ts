@@ -2,9 +2,12 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { HonuaClient } from "../../src/core/client.js";
 import {
+  BoundedMapPackageFetchCache,
+  DEFAULT_MAP_PACKAGE_CACHE_LIMIT,
   HONUA_MAP_PACKAGE_FORMAT_V1,
   type HonuaMapPackage,
   HonuaMapPackageError,
+  type MapPackageFetchCacheEntry,
   type MaplibreMap,
   fetchMapPackage,
   loadMapPackageFromId,
@@ -330,3 +333,44 @@ function makeMockMap(): MockMap {
   };
   return map;
 }
+
+describe("BoundedMapPackageFetchCache", () => {
+  function entry(id: string): MapPackageFetchCacheEntry {
+    return {
+      mapPackage: { mapPackageId: id, format: HONUA_MAP_PACKAGE_FORMAT_V1 } as unknown as HonuaMapPackage,
+      cachedAtMs: 0,
+      fingerprint: id,
+    };
+  }
+
+  test("evicts the oldest entry once the size limit is exceeded", () => {
+    const cache = new BoundedMapPackageFetchCache(2);
+    cache.set("a", entry("a"));
+    cache.set("b", entry("b"));
+    cache.set("c", entry("c"));
+    expect([...cache.keys()]).toEqual(["b", "c"]);
+    expect(cache.has("a")).toBe(false);
+  });
+
+  test("refreshes recency on get so the most-recently-used entry survives eviction", () => {
+    const cache = new BoundedMapPackageFetchCache(2);
+    cache.set("a", entry("a"));
+    cache.set("b", entry("b"));
+    // Touch "a" so "b" becomes the least-recently-used entry.
+    expect(cache.get("a")?.fingerprint).toBe("a");
+    cache.set("c", entry("c"));
+    expect([...cache.keys()]).toEqual(["a", "c"]);
+    expect(cache.has("b")).toBe(false);
+  });
+
+  test("defaults to the metadata-mirroring 256-entry limit", () => {
+    expect(DEFAULT_MAP_PACKAGE_CACHE_LIMIT).toBe(256);
+    const cache = new BoundedMapPackageFetchCache();
+    for (let i = 0; i < DEFAULT_MAP_PACKAGE_CACHE_LIMIT + 5; i += 1) {
+      cache.set(`k${i}`, entry(`k${i}`));
+    }
+    expect(cache.size).toBe(DEFAULT_MAP_PACKAGE_CACHE_LIMIT);
+    expect(cache.has("k0")).toBe(false);
+    expect(cache.has(`k${DEFAULT_MAP_PACKAGE_CACHE_LIMIT + 4}`)).toBe(true);
+  });
+});

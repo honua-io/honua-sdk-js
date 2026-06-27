@@ -74,6 +74,26 @@ export interface JobResult<T = unknown> {
 export type JobSnapshotListener<T = unknown> = (snapshot: JobSnapshot<T>) => void;
 
 /**
+ * Bounds for {@link IJobRun.results}. Without any bound a hung or never-terminal
+ * status endpoint polls forever with no caller cancellation. Implementations
+ * pass {@link signal} through to the underlying status request, stop polling
+ * when the signal aborts or a deadline / attempt cap is reached, and use capped
+ * exponential backoff between polls.
+ */
+export interface JobResultsOptions {
+  /** Abort the poll loop (and the in-flight status request) when this fires. */
+  readonly signal?: AbortSignal;
+  /** Wall-clock budget in ms for reaching a terminal state. */
+  readonly deadlineMs?: number;
+  /** Maximum number of status polls before giving up. */
+  readonly maxAttempts?: number;
+  /** Base poll interval in ms (defaults to the adapter's cadence). */
+  readonly pollIntervalMs?: number;
+  /** Cap for the exponential backoff interval in ms. */
+  readonly maxPollIntervalMs?: number;
+}
+
+/**
  * Canonical async-operation handle. Methods are intentionally narrow so
  * downstream tickets that submit jobs (operator workflows, manifest
  * apply, etc.) can speak one vocabulary across protocols.
@@ -101,10 +121,13 @@ export interface IJobRun<T = unknown> {
   /**
    * Wait for the job to reach a terminal state and resolve with the
    * outputs. Rejects with `HonuaJobFailedError` for `failed` /
-   * `dismissed` terminal states. Implementations must poll on a
-   * configurable interval; the default cadence is left to the adapter.
+   * `dismissed` terminal states, or `HonuaJobPollTimeoutError` when the
+   * optional {@link JobResultsOptions} deadline / attempt cap is reached or
+   * the supplied signal aborts. Implementations poll on a configurable
+   * interval (capped exponential backoff); the default cadence is left to
+   * the adapter.
    */
-  results(): Promise<JobResult<T>>;
+  results(options?: JobResultsOptions): Promise<JobResult<T>>;
   /**
    * Cancel / dismiss the job. Idempotent. Returns the resulting status
    * (typically `dismissed`, but the server may have raced to a terminal
@@ -121,4 +144,24 @@ export interface IJobRun<T = unknown> {
  */
 export function isJobTerminal(status: JobStatus): boolean {
   return status === "successful" || status === "failed" || status === "dismissed";
+}
+
+/**
+ * Thrown by {@link IJobRun.results} when the poll loop is cancelled or exhausted
+ * before the job reached a terminal state — i.e. the {@link JobResultsOptions}
+ * signal aborted, the deadline elapsed, or the attempt cap was hit. `reason`
+ * distinguishes the three so callers can branch (e.g. retry vs surface).
+ */
+export class HonuaJobPollTimeoutError extends Error {
+  public readonly reason: "aborted" | "deadline" | "max-attempts";
+  public readonly jobId: string;
+  public readonly lastStatus: JobStatus;
+
+  public constructor(message: string, reason: "aborted" | "deadline" | "max-attempts", jobId: string, lastStatus: JobStatus) {
+    super(message);
+    this.name = "HonuaJobPollTimeoutError";
+    this.reason = reason;
+    this.jobId = jobId;
+    this.lastStatus = lastStatus;
+  }
 }

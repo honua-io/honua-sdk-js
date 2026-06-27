@@ -67,6 +67,51 @@ export interface MapPackageFetchCacheEntry {
 
 export type MapPackageFetchCache = Map<string, MapPackageFetchCacheEntry>;
 
+/**
+ * Default entry cap for the per-client map-package fetch cache, mirroring the
+ * metadata cache's 256-entry bound.
+ */
+export const DEFAULT_MAP_PACKAGE_CACHE_LIMIT = 256;
+
+/**
+ * A {@link MapPackageFetchCache} that evicts least-recently-used entries once it
+ * exceeds {@link DEFAULT_MAP_PACKAGE_CACHE_LIMIT}. The previous default cache
+ * was an unbounded `Map`, so a client that fetched many distinct packages grew
+ * it without bound (unlike the size-capped metadata cache). Callers that pass
+ * their own `cache` keep full control of eviction.
+ */
+export class BoundedMapPackageFetchCache extends Map<string, MapPackageFetchCacheEntry> {
+  private readonly limit: number;
+
+  public constructor(limit: number = DEFAULT_MAP_PACKAGE_CACHE_LIMIT) {
+    super();
+    this.limit = limit;
+  }
+
+  public override get(key: string): MapPackageFetchCacheEntry | undefined {
+    const entry = super.get(key);
+    if (entry !== undefined) {
+      // Refresh recency: re-insertion moves the key to the newest position.
+      super.delete(key);
+      super.set(key, entry);
+    }
+    return entry;
+  }
+
+  public override set(key: string, value: MapPackageFetchCacheEntry): this {
+    if (super.has(key)) {
+      super.delete(key);
+    }
+    super.set(key, value);
+    while (this.limit > 0 && this.size > this.limit) {
+      const oldest = this.keys().next().value;
+      if (oldest === undefined) break;
+      super.delete(oldest);
+    }
+    return this;
+  }
+}
+
 export type MapPackageFetchCacheStatus = "miss" | "refreshed" | "not-modified" | "bypass";
 
 export interface MapPackageFetchCacheState {
@@ -370,7 +415,7 @@ function resolveCache(
   if (cache) return cache;
   const existing = defaultCaches.get(client);
   if (existing) return existing;
-  const next: MapPackageFetchCache = new Map();
+  const next: MapPackageFetchCache = new BoundedMapPackageFetchCache(DEFAULT_MAP_PACKAGE_CACHE_LIMIT);
   defaultCaches.set(client, next);
   return next;
 }

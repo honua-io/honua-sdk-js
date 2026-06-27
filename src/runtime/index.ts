@@ -25,6 +25,8 @@ export { loadMapPackage } from "./load-package.js";
 export type { LoadMapPackageOptions, SourceErrorPolicy } from "./load-package.js";
 
 export {
+  BoundedMapPackageFetchCache,
+  DEFAULT_MAP_PACKAGE_CACHE_LIMIT,
   DEFAULT_MAP_PACKAGE_PATH_PREFIX,
   defaultMapPackagePath,
   fetchMapPackage,

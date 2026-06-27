@@ -12,11 +12,12 @@ import type {
   JobError,
   JobProgress,
   JobResult,
+  JobResultsOptions,
   JobSnapshot,
   JobSnapshotListener,
   JobStatus,
 } from "../contract/jobs.js";
-import { isJobTerminal } from "../contract/jobs.js";
+import { HonuaJobPollTimeoutError, isJobTerminal } from "../contract/jobs.js";
 import type { HonuaClient } from "./client.js";
 import type {
   HonuaOgcConformanceResponse,
@@ -156,9 +157,15 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
     return () => this.listeners.delete(listener);
   }
 
-  public async results(): Promise<JobResult<T>> {
+  public async results(options: JobResultsOptions = {}): Promise<JobResult<T>> {
     if (!this.terminalPromise) {
-      this.terminalPromise = this.runUntilTerminal();
+      // Reset the cached promise if the poll loop rejects (abort / deadline /
+      // attempt cap) so a later results() call can retry rather than being
+      // permanently poisoned by a transient cancellation.
+      this.terminalPromise = this.runUntilTerminal(options).catch((error) => {
+        this.terminalPromise = undefined;
+        throw error;
+      });
     }
     return this.terminalPromise;
   }
@@ -211,13 +218,52 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
     }
   }
 
-  private async runUntilTerminal(): Promise<JobResult<T>> {
+  private async runUntilTerminal(options: JobResultsOptions = {}): Promise<JobResult<T>> {
+    const { signal } = options;
+    const baseIntervalMs = options.pollIntervalMs ?? this.pollIntervalMs;
+    const maxIntervalMs = options.maxPollIntervalMs ?? Math.max(baseIntervalMs, 30_000);
+    const startedAt = Date.now();
+    let attempts = 0;
+
     while (!this.terminalSnapshot) {
-      const ogcStatus = await this.pollFn(this.id);
+      if (signal?.aborted) {
+        throw new HonuaJobPollTimeoutError(`Job ${this.id} poll aborted`, "aborted", this.id, this.currentStatus);
+      }
+      if (options.maxAttempts !== undefined && attempts >= options.maxAttempts) {
+        throw new HonuaJobPollTimeoutError(
+          `Job ${this.id} did not reach a terminal state within ${options.maxAttempts} poll attempt(s)`,
+          "max-attempts",
+          this.id,
+          this.currentStatus,
+        );
+      }
+
+      let ogcStatus: HonuaOgcProcessJobStatus;
+      try {
+        ogcStatus = await this.pollFn(this.id, signal);
+      } catch (error) {
+        if (signal?.aborted) {
+          throw new HonuaJobPollTimeoutError(`Job ${this.id} poll aborted`, "aborted", this.id, this.currentStatus);
+        }
+        throw error;
+      }
+      attempts += 1;
       await this.handleOgcStatus(ogcStatus);
       if (this.terminalSnapshot) break;
-      if (this.pollIntervalMs > 0) {
-        await delay(this.pollIntervalMs);
+
+      if (options.deadlineMs !== undefined && Date.now() - startedAt >= options.deadlineMs) {
+        throw new HonuaJobPollTimeoutError(
+          `Job ${this.id} did not reach a terminal state within ${options.deadlineMs}ms`,
+          "deadline",
+          this.id,
+          this.currentStatus,
+        );
+      }
+
+      // Capped exponential backoff instead of a fixed interval.
+      const intervalMs = Math.min(maxIntervalMs, baseIntervalMs * 2 ** (attempts - 1));
+      if (intervalMs > 0) {
+        await delay(intervalMs, signal);
       }
     }
     if (this.terminalSnapshot.status === "successful" && this.terminalSnapshot.result) {
@@ -376,9 +422,21 @@ function makeJobFailedError<T>(snapshot: JobSnapshot<T>): HonuaJobFailedError {
   return new HonuaJobFailedError(message, snapshot.status, error?.code, error?.details);
 }
 
-function delay(ms: number): Promise<void> {
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
 
