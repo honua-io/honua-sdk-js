@@ -242,6 +242,19 @@ export interface RegisterHonuaFeatureServiceSourcesResult {
   failed: Array<{ sourceId: string; error: unknown }>;
 }
 
+/** Options for {@link registerHonuaFeatureServiceSources}. */
+export interface RegisterHonuaFeatureServiceSourcesOptions extends LoadHonuaFeatureServiceGeoJsonOptions {
+  /**
+   * Maximum number of feature-service sources to fetch concurrently. Defaults
+   * to {@link DEFAULT_REGISTER_CONCURRENCY}. Total load latency becomes the max
+   * of the per-source fetches rather than their sum.
+   */
+  concurrency?: number;
+}
+
+/** Default fetch fan-out for {@link registerHonuaFeatureServiceSources}. */
+const DEFAULT_REGISTER_CONCURRENCY = 6;
+
 /**
  * Walk a {@link HonuaMap} and replace every `honua-feature-service` source on a
  * real MapLibre map with a fetched standard `geojson` source so feature layers
@@ -259,11 +272,14 @@ export async function registerHonuaFeatureServiceSources(
   map: FeatureServiceAdapterMap,
   honuaMap: HonuaMap,
   client: HonuaClient,
-  options: LoadHonuaFeatureServiceGeoJsonOptions = {},
+  options: RegisterHonuaFeatureServiceSourcesOptions = {},
 ): Promise<RegisterHonuaFeatureServiceSourcesResult> {
   const registered: string[] = [];
   const failed: Array<{ sourceId: string; error: unknown }> = [];
 
+  // Collect the feature-service sources to load, validating `url` up front so a
+  // missing url fails fast without consuming a fetch slot.
+  const pending: Array<{ sourceId: string; url: string; spec: unknown }> = [];
   for (const sourceId of honuaMap.sourceIds) {
     const spec = honuaMap.getSourceSpec(sourceId);
     if (!spec || spec.type !== "honua-feature-service") {
@@ -274,24 +290,33 @@ export async function registerHonuaFeatureServiceSources(
       failed.push({ sourceId, error: new Error(`feature-service source "${sourceId}" is missing url`) });
       continue;
     }
+    pending.push({ sourceId, url, spec });
+  }
 
+  // Fetch sources with bounded concurrency: total latency becomes the max of the
+  // per-source fetches instead of their sum (a startup cliff for multi-layer maps).
+  const concurrency =
+    typeof options.concurrency === "number" && Number.isFinite(options.concurrency)
+      ? Math.max(1, Math.trunc(options.concurrency))
+      : DEFAULT_REGISTER_CONCURRENCY;
+  const results = await allSettledLimited(pending, concurrency, (item) =>
+    loadHonuaFeatureServiceGeoJson(client, item.url, {
+      ...options,
+      ...featureServiceSpecOverrides(item.spec),
+    }),
+  );
+
+  // Apply the fetched sources to the map sequentially, preserving source order.
+  // Map mutations are synchronous and must stay single-threaded.
+  for (let index = 0; index < pending.length; index += 1) {
+    const { sourceId } = pending[index];
+    const result = results[index];
+    if (result.status === "rejected") {
+      failed.push({ sourceId, error: result.reason });
+      continue;
+    }
     try {
-      const source = await loadHonuaFeatureServiceGeoJson(client, url, {
-        ...options,
-        ...(typeof (spec as { definitionExpression?: unknown }).definitionExpression === "string"
-          ? { definitionExpression: (spec as { definitionExpression: string }).definitionExpression }
-          : {}),
-        ...(Array.isArray((spec as { outFields?: unknown }).outFields)
-          ? { outFields: (spec as { outFields: string[] }).outFields }
-          : {}),
-        ...(typeof (spec as { outSR?: unknown }).outSR === "number"
-          ? { outSR: (spec as { outSR: number }).outSR }
-          : {}),
-        ...(typeof (spec as { attribution?: unknown }).attribution === "string"
-          ? { attribution: (spec as { attribution: string }).attribution }
-          : {}),
-      });
-
+      const source = result.value;
       const existing = map.getSource(sourceId);
       if (existing && typeof (existing as MapLibreGeoJsonSourceHandle).setData === "function") {
         (existing as MapLibreGeoJsonSourceHandle).setData(source.data);
@@ -308,6 +333,51 @@ export async function registerHonuaFeatureServiceSources(
   }
 
   return { registered, failed };
+}
+
+/** Derive per-source query overrides from a `honua-feature-service` source spec. */
+function featureServiceSpecOverrides(spec: unknown): LoadHonuaFeatureServiceGeoJsonOptions {
+  return {
+    ...(typeof (spec as { definitionExpression?: unknown }).definitionExpression === "string"
+      ? { definitionExpression: (spec as { definitionExpression: string }).definitionExpression }
+      : {}),
+    ...(Array.isArray((spec as { outFields?: unknown }).outFields)
+      ? { outFields: (spec as { outFields: string[] }).outFields }
+      : {}),
+    ...(typeof (spec as { outSR?: unknown }).outSR === "number" ? { outSR: (spec as { outSR: number }).outSR } : {}),
+    ...(typeof (spec as { attribution?: unknown }).attribution === "string"
+      ? { attribution: (spec as { attribution: string }).attribution }
+      : {}),
+  };
+}
+
+/**
+ * Run `worker` over `values` with at most `concurrency` in flight, collecting
+ * settled results in input order. Mirrors the limiter in `runtime/query-tiles`;
+ * kept local to avoid coupling the map layer to the runtime tile pipeline.
+ */
+async function allSettledLimited<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  worker: (value: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(values.length);
+  let nextIndex = 0;
+  async function run(): Promise<void> {
+    for (;;) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= values.length) return;
+      try {
+        results[index] = { status: "fulfilled", value: await worker(values[index] as T) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+  const workers = Array.from({ length: Math.min(concurrency, values.length) }, () => run());
+  await Promise.all(workers);
+  return results;
 }
 
 // ── Coercion helpers ─────────────────────────────────────────

@@ -1233,6 +1233,19 @@ export class HonuaClient {
         throw httpError;
       }
 
+      // GeoServices reports metadata failures (layer not found, invalid token =>
+      // code 499, …) as HTTP 200 with a top-level `{error}` envelope. Detect it
+      // before caching so a transient auth/permission error is never persisted
+      // as "valid" metadata for the cache TTL and surfaced downstream as
+      // `undefined` field access instead of a thrown HonuaHttpError.
+      const envelopeError = geoServicesEnvelopeError(response.status, body);
+      if (envelopeError) {
+        const stale = this.staleMetadataFallback(cached, metadataOptions, envelopeError);
+        if (stale) return stale;
+        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: envelopeError, durationMs });
+        throw envelopeError;
+      }
+
       try {
         await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
       } catch (error) {
@@ -2686,8 +2699,23 @@ export class HonuaClient {
         }
       }
 
-      // Server returned JSON despite PBF request (e.g. error or unsupported)
-      return parseResponseBody(response);
+      // Server returned JSON despite PBF request (e.g. error or unsupported).
+      // GeoServices reports query failures (bad WHERE, invalid outFields,
+      // expired token => code 498/499) as HTTP 200 application/json even when
+      // f=pbf was requested. Detect the `{error}` envelope here so preferBinary
+      // callers throw a normalized HonuaHttpError exactly like the JSON path,
+      // instead of receiving the failure envelope cast as a success response.
+      const body = await parseResponseBody(response);
+      const envelopeError = geoServicesEnvelopeError(response.status, body);
+      if (envelopeError) {
+        await this.applyErrorInterceptors({
+          request: cloneRequestContext(request),
+          error: envelopeError,
+          durationMs,
+        });
+        throw envelopeError;
+      }
+      return body;
     }
   }
 
