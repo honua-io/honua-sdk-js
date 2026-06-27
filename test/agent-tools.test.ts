@@ -228,6 +228,21 @@ describe("@honua/sdk-js/agent-tools", () => {
     expect(context.staleState).toContain("Snapshot timestamp");
     expect(JSON.stringify(context.sources)).not.toContain("apiKey");
   });
+
+  it("redacts secret metadata from inspectMap and listSources tool results", async () => {
+    const runtime = makeRuntime();
+
+    const inspect = await executeHonuaAgentTool(runtime, { name: "inspectMap", args: {} });
+    expect(inspect.status).toBe("ok");
+    expect(JSON.stringify(inspect)).not.toContain("secret");
+    // Non-secret metadata is preserved.
+    expect(JSON.stringify(inspect)).toContain("owner");
+
+    const list = await executeHonuaAgentTool(runtime, { name: "listSources", args: {} });
+    expect(list.status).toBe("ok");
+    expect(JSON.stringify(list)).not.toContain("secret");
+    expect(JSON.stringify(list)).toContain("owner");
+  });
 });
 
 function makeRuntime(
