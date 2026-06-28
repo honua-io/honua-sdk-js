@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaClient, batchQuery } from "../src/index.js";
+import { HonuaAbortError, HonuaClient, batchQuery } from "../src/index.js";
 import type { BatchQueryItem } from "../src/index.js";
 
 function createMockClient(
@@ -169,7 +169,11 @@ describe("batchQuery", () => {
     for (let i = 1; i < 5; i++) {
       expect(results[i].response).toBeUndefined();
       expect(results[i].error).toBeDefined();
-      expect(results[i].error!.name).toBe("AbortError");
+      // Aborts are surfaced as the SDK-uniform HonuaAbortError, not a raw
+      // DOMException, so callers can `instanceof HonuaAbortError` regardless of
+      // whether the query was skipped pre-flight or aborted mid-request.
+      expect(results[i].error).toBeInstanceOf(HonuaAbortError);
+      expect(results[i].error!.name).toBe("HonuaAbortError");
     }
   });
 

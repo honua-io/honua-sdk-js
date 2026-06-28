@@ -292,67 +292,82 @@ async function resolveMapPackageStyleRefs(
     return { mapPackage: value, diagnostics: [] };
   }
 
-  const diagnostics: HonuaMapPackageDiagnostic[] = [];
   const packageId = typeof value.mapPackageId === "string" ? value.mapPackageId : undefined;
-  const nextRefs: HonuaMapPackageStyleRef[] = [];
-  let changed = false;
 
-  for (let i = 0; i < value.styleRefs.length; i += 1) {
-    const ref = value.styleRefs[i];
-    if (!isRecord(ref)) {
-      nextRefs.push(ref as HonuaMapPackageStyleRef);
-      continue;
-    }
-    if (isRecord(ref.body)) {
-      nextRefs.push(ref as unknown as HonuaMapPackageStyleRef);
-      continue;
-    }
+  // Each unresolved ref triggers an independent `GET /ogc/styles/{id}`; resolve
+  // them concurrently rather than one network round-trip at a time so map-load
+  // latency does not scale linearly with ref count. Order and per-ref
+  // diagnostics are preserved by resolving each index into its own slot, and the
+  // per-ref try/catch stays inside the task so one failure produces a diagnostic
+  // instead of rejecting the whole batch.
+  const resolveStyleRef = options.resolveStyleRef;
+  const results = await Promise.all(
+    value.styleRefs.map(
+      async (
+        ref,
+        i,
+      ): Promise<{ ref: HonuaMapPackageStyleRef; diagnostic?: HonuaMapPackageDiagnostic; changed: boolean }> => {
+        if (!isRecord(ref) || isRecord(ref.body)) {
+          return { ref: ref as HonuaMapPackageStyleRef, changed: false };
+        }
 
-    const styleId = typeof ref.styleId === "string" ? ref.styleId : "";
-    if (!options.resolveStyleRef) {
-      diagnostics.push({
-        code: "style-ref-unresolved",
-        severity: options.requireStyleRefResolution ? "error" : "warning",
-        message: `StyleRef "${styleId || i}" has no inline body and no resolver was provided.`,
-        ...(packageId ? { packageId } : {}),
-        path: `styleRefs[${i}].body`,
-        detail: { styleId: ref.styleId, presetId: ref.presetId },
-      });
-      nextRefs.push(ref as unknown as HonuaMapPackageStyleRef);
-      continue;
-    }
+        const styleId = typeof ref.styleId === "string" ? ref.styleId : "";
+        if (!resolveStyleRef) {
+          return {
+            ref: ref as unknown as HonuaMapPackageStyleRef,
+            changed: false,
+            diagnostic: {
+              code: "style-ref-unresolved",
+              severity: options.requireStyleRefResolution ? "error" : "warning",
+              message: `StyleRef "${styleId || i}" has no inline body and no resolver was provided.`,
+              ...(packageId ? { packageId } : {}),
+              path: `styleRefs[${i}].body`,
+              detail: { styleId: ref.styleId, presetId: ref.presetId },
+            },
+          };
+        }
 
-    try {
-      const body = await options.resolveStyleRef(styleId, typeof ref.presetId === "string" ? ref.presetId : undefined);
-      if (!isRecord(body)) {
-        diagnostics.push({
-          code: "style-ref-resolution-failed",
-          severity: "error",
-          message: `StyleRef "${styleId || i}" resolver returned a non-object body.`,
-          ...(packageId ? { packageId } : {}),
-          path: `styleRefs[${i}].body`,
-          detail: { styleId, presetId: ref.presetId },
-        });
-        nextRefs.push(ref as unknown as HonuaMapPackageStyleRef);
-        continue;
-      }
-      changed = true;
-      nextRefs.push({
-        ...(ref as unknown as HonuaMapPackageStyleRef),
-        body: body as HonuaStyleRefBody,
-      });
-    } catch (cause) {
-      diagnostics.push({
-        code: "style-ref-resolution-failed",
-        severity: "error",
-        message: `StyleRef "${styleId || i}" could not be resolved.`,
-        ...(packageId ? { packageId } : {}),
-        path: `styleRefs[${i}].body`,
-        detail: { styleId, presetId: ref.presetId, error: errorMessage(cause) },
-      });
-      nextRefs.push(ref as unknown as HonuaMapPackageStyleRef);
-    }
-  }
+        try {
+          const body = await resolveStyleRef(styleId, typeof ref.presetId === "string" ? ref.presetId : undefined);
+          if (!isRecord(body)) {
+            return {
+              ref: ref as unknown as HonuaMapPackageStyleRef,
+              changed: false,
+              diagnostic: {
+                code: "style-ref-resolution-failed",
+                severity: "error",
+                message: `StyleRef "${styleId || i}" resolver returned a non-object body.`,
+                ...(packageId ? { packageId } : {}),
+                path: `styleRefs[${i}].body`,
+                detail: { styleId, presetId: ref.presetId },
+              },
+            };
+          }
+          return {
+            ref: { ...(ref as unknown as HonuaMapPackageStyleRef), body: body as HonuaStyleRefBody },
+            changed: true,
+          };
+        } catch (cause) {
+          return {
+            ref: ref as unknown as HonuaMapPackageStyleRef,
+            changed: false,
+            diagnostic: {
+              code: "style-ref-resolution-failed",
+              severity: "error",
+              message: `StyleRef "${styleId || i}" could not be resolved.`,
+              ...(packageId ? { packageId } : {}),
+              path: `styleRefs[${i}].body`,
+              detail: { styleId, presetId: ref.presetId, error: errorMessage(cause) },
+            },
+          };
+        }
+      },
+    ),
+  );
+
+  const nextRefs = results.map((r) => r.ref);
+  const diagnostics = results.flatMap((r) => (r.diagnostic ? [r.diagnostic] : []));
+  const changed = results.some((r) => r.changed);
 
   return {
     mapPackage: changed ? { ...value, styleRefs: nextRefs } : value,

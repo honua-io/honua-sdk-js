@@ -26,6 +26,18 @@ function varint64(value: number): number[] {
   return bytes;
 }
 
+/** Encode a 64-bit varint from a bigint (full precision, incl. > 2^53). */
+function varint64Big(value: bigint): number[] {
+  let v = value & ((1n << 64n) - 1n); // two's-complement wrap for negatives
+  const bytes: number[] = [];
+  while (v > 0x7fn) {
+    bytes.push(Number((v & 0x7fn) | 0x80n));
+    v >>= 7n;
+  }
+  bytes.push(Number(v & 0x7fn));
+  return bytes;
+}
+
 /** Zigzag-encode a signed 32-bit integer. */
 function zigzag32(n: number): number {
   return (n << 1) ^ (n >> 31);
@@ -111,6 +123,8 @@ function buildValue(opts: {
   sintValue?: number;
   uintValue?: number;
   int64Value?: number;
+  int64ValueBig?: bigint;
+  uint64ValueBig?: bigint;
   boolValue?: boolean;
   isNull?: boolean;
   fieldIndex: number;
@@ -122,6 +136,8 @@ function buildValue(opts: {
   if (opts.sintValue !== undefined) v.push(...tag(4, 0), ...varint(zigzag32(opts.sintValue)));
   if (opts.uintValue !== undefined) v.push(...varintField(5, opts.uintValue));
   if (opts.int64Value !== undefined) v.push(...tag(6, 0), ...varint64(opts.int64Value));
+  if (opts.int64ValueBig !== undefined) v.push(...tag(6, 0), ...varint64Big(opts.int64ValueBig));
+  if (opts.uint64ValueBig !== undefined) v.push(...tag(7, 0), ...varint64Big(opts.uint64ValueBig));
   if (opts.boolValue !== undefined) v.push(...boolField(9, opts.boolValue));
   if (opts.isNull) v.push(...boolField(10, true));
   v.push(...varintField(11, opts.fieldIndex));
@@ -297,6 +313,40 @@ describe("decodePbfQueryResponse", () => {
     expect(attrs.OBJECTID).toBe(42);
     expect(attrs.count).toBe(-5);
     expect(attrs.area).toBeCloseTo(123.456);
+  });
+
+  it("preserves 64-bit attribute precision above 2^53 as a string", () => {
+    // 9007199254740993 = Number.MAX_SAFE_INTEGER + 2; as a JS number it would
+    // round to 9007199254740992, so the decoder must emit a lossless string.
+    const bigUint = 9007199254740993n;
+    const bigInt = -9007199254740993n;
+    const featureResult = buildFeatureResult({
+      objectIdFieldName: "OID",
+      fields: [
+        buildField("OID", 13), // BigInteger
+        buildField("bigUint", 13),
+        buildField("bigInt", 13),
+        buildField("smallInt", 6), // OID — fits, stays a number
+      ],
+      features: [
+        buildFeature([
+          buildValue({ uint64ValueBig: bigUint, fieldIndex: 0 }),
+          buildValue({ uint64ValueBig: bigUint, fieldIndex: 1 }),
+          buildValue({ int64ValueBig: bigInt, fieldIndex: 2 }),
+          buildValue({ int64ValueBig: 123n, fieldIndex: 3 }),
+        ]),
+      ],
+    });
+    const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
+    const result = decodePbfQueryResponse(toBuffer(pbf));
+
+    const features = result.features as Record<string, unknown>[];
+    const attrs = features[0].attributes as Record<string, unknown>;
+    expect(attrs.OID).toBe("9007199254740993");
+    expect(attrs.bigUint).toBe("9007199254740993");
+    expect(attrs.bigInt).toBe("-9007199254740993");
+    // Values within the safe range still decode to a plain number.
+    expect(attrs.smallInt).toBe(123);
   });
 
   it("decodes feature with boolean attribute", () => {
