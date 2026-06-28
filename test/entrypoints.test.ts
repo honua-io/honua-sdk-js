@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createHonuaController as appControllerCreateHonuaController } from "../src/app-controller/index.js";
-// Experimental subpaths are no longer re-exported from the root barrel —
-// importing them keeps this test honest about the stable / experimental tier.
+// Experimental subpaths are imported from their own entrypoints (never the root
+// barrel). The "exposes ... entrypoint" tests verify the experimental tier still
+// exports its symbols; the "keeps experimental subpaths off the root entrypoint"
+// test enforces the stable/experimental split against an actual src/index.js import.
 import { createHonuaController } from "../src/app-controller/index.js";
-import {
-  createHonuaAppWorkspace as appWorkspaceCreateHonuaAppWorkspace,
-  selectHonuaAppWorkspaceMetadataCacheModel as appWorkspaceSelectMetadataCacheModel,
-} from "../src/app-workspace/index.js";
 import { createHonuaAppWorkspace, selectHonuaAppWorkspaceMetadataCacheModel } from "../src/app-workspace/index.js";
 import {
   CAPABILITIES,
@@ -41,7 +38,6 @@ import {
   HonuaControlPlaneClient,
   createHonuaControlPlane,
 } from "../src/control-plane/index.js";
-import { HonuaControlPlaneClient as RootHonuaControlPlaneClient } from "../src/control-plane/index.js";
 import {
   AreaMeasurement2DCompat,
   AttributionCompat,
@@ -248,10 +244,6 @@ import {
   validateRuntimeStyleExpression,
 } from "../src/runtime/index.js";
 import {
-  createMapLibreSceneAdapter as rootCreateMapLibreSceneAdapter,
-  createSceneWorkspace as rootCreateSceneWorkspace,
-} from "../src/scene-workspace/index.js";
-import {
   createMapLibreSceneAdapter,
   createSceneWorkspace,
   sceneWorkspaceIntentFromAdapterEvent,
@@ -280,8 +272,6 @@ describe("entrypoint modules", () => {
     expect(HonuaWfsExceptionError).toBeTypeOf("function");
     expect(HonuaWfsExceptionErrorRoot).toBe(HonuaWfsExceptionError);
     expect(createHonuaCacheState).toBeTypeOf("function");
-    expect(RootHonuaControlPlaneClient).toBe(HonuaControlPlaneClient);
-    expect(createHonuaController).toBe(appControllerCreateHonuaController);
   });
 
   it("exposes the experimental control-plane subpath", () => {
@@ -532,16 +522,32 @@ describe("entrypoint modules", () => {
 
   it("exposes the app workspace entrypoint", () => {
     expect(createHonuaAppWorkspace).toBeTypeOf("function");
-    expect(appWorkspaceCreateHonuaAppWorkspace).toBe(createHonuaAppWorkspace);
     expect(selectHonuaAppWorkspaceMetadataCacheModel).toBeTypeOf("function");
-    expect(appWorkspaceSelectMetadataCacheModel).toBe(selectHonuaAppWorkspaceMetadataCacheModel);
   });
 
   it("exposes the scene workspace entrypoint", () => {
     expect(createSceneWorkspace).toBeTypeOf("function");
     expect(createMapLibreSceneAdapter).toBeTypeOf("function");
     expect(sceneWorkspaceIntentFromAdapterEvent).toBeTypeOf("function");
-    expect(rootCreateSceneWorkspace).toBe(createSceneWorkspace);
-    expect(rootCreateMapLibreSceneAdapter).toBe(createMapLibreSceneAdapter);
+  });
+
+  it("exposes the experimental app-controller subpath", () => {
+    expect(createHonuaController).toBeTypeOf("function");
+  });
+
+  it("keeps experimental subpaths off the root entrypoint", async () => {
+    // The experimental tiers above (app-controller, control-plane, app-workspace,
+    // scene-workspace) must NOT leak onto the stable root barrel. Assert against an
+    // actual import of src/index.js rather than comparing two imports of the same
+    // experimental module (which would be a vacuous always-true identity check).
+    const root = await import("../src/index.js");
+
+    expect(root).not.toHaveProperty("createHonuaController");
+    expect(root).not.toHaveProperty("HonuaControlPlaneClient");
+    expect(root).not.toHaveProperty("createHonuaAppWorkspace");
+    expect(root).not.toHaveProperty("selectHonuaAppWorkspaceMetadataCacheModel");
+    expect(root).not.toHaveProperty("createSceneWorkspace");
+    expect(root).not.toHaveProperty("createMapLibreSceneAdapter");
+    expect(root).not.toHaveProperty("sceneWorkspaceIntentFromAdapterEvent");
   });
 });
