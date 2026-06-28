@@ -142,6 +142,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
   let previousFingerprint = previousPackage ? mapPackageFingerprint(previousPackage) : undefined;
   let currentAbort: AbortController | undefined;
   let realtimeAbort: AbortController | undefined;
+  let realtimeLinkDispose: (() => void) | undefined;
   let realtimeSubscription: MapPackageRealtimeSubscriptionHandle | undefined;
   let activeRealtime: ActiveRealtimeSource | undefined;
   let suppressRealtimeDisconnect = false;
@@ -250,10 +251,11 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     if (disposed || inFlight) return;
     inFlight = true;
     currentAbort = new AbortController();
+    const link = linkAbortSignals(options.signal, currentAbort.signal);
     try {
       const result = await fetchMapPackage(input.locatorOverride ?? locator, {
         ...options,
-        signal: linkAbortSignals(options.signal, currentAbort.signal),
+        signal: link.signal,
       });
       lastFetchedPackage = result.mapPackage;
       emit({ type: "fetched", result });
@@ -268,6 +270,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     } catch (error) {
       if (!disposed) emit({ type: "error", error });
     } finally {
+      link.dispose();
       inFlight = false;
       currentAbort = undefined;
       if (input.scheduleAfter !== false) schedule();
@@ -288,10 +291,12 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
 
     const source = resolution.source;
     const abort = new AbortController();
-    const signal = linkAbortSignals(options.signal, abort.signal);
+    const link = linkAbortSignals(options.signal, abort.signal);
+    const signal = link.signal;
     const path = resolveMapPackagePath(locator, options.resolvePath);
     activeRealtime = source;
     realtimeAbort = abort;
+    realtimeLinkDispose = link.dispose;
     clearScheduled();
 
     try {
@@ -425,10 +430,11 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     if (disposed) return;
     inFlight = true;
     currentAbort = new AbortController();
+    const link = linkAbortSignals(options.signal, currentAbort.signal);
     try {
       const result = await fetchMapPackage(path ? { path } : locator, {
         ...options,
-        signal: linkAbortSignals(options.signal, currentAbort.signal),
+        signal: link.signal,
       });
       lastFetchedPackage = result.mapPackage;
       emit({ type: "fetched", result });
@@ -440,6 +446,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     } catch (error) {
       if (!disposed) emit({ type: "error", error });
     } finally {
+      link.dispose();
       inFlight = false;
       currentAbort = undefined;
     }
@@ -491,6 +498,8 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     realtimeSubscription = undefined;
     realtimeAbort?.abort();
     realtimeAbort = undefined;
+    realtimeLinkDispose?.();
+    realtimeLinkDispose = undefined;
     activeRealtime = undefined;
     if (close && subscription) {
       suppressRealtimeDisconnect = true;
@@ -791,13 +800,30 @@ function packageIdFromLocator(locator: MapPackageLocator): string | undefined {
   return locator.packageId ?? locator.id;
 }
 
-function linkAbortSignals(a: AbortSignal | undefined, b: AbortSignal): AbortSignal {
-  if (!a) return b;
-  if (a.aborted) return a;
-  if (b.aborted) return b;
+interface LinkedAbortSignal {
+  readonly signal: AbortSignal;
+  /**
+   * Detaches the listeners registered on the source signals. Must be called
+   * when the linked operation settles so a long-lived caller `signal` does not
+   * accumulate one listener per poll / refetch / reconnect cycle.
+   */
+  readonly dispose: () => void;
+}
+
+function linkAbortSignals(a: AbortSignal | undefined, b: AbortSignal): LinkedAbortSignal {
+  if (!a) return { signal: b, dispose: () => undefined };
+  if (a.aborted) return { signal: a, dispose: () => undefined };
+  if (b.aborted) return { signal: b, dispose: () => undefined };
   const controller = new AbortController();
-  const abort = (): void => controller.abort();
+  const dispose = (): void => {
+    a.removeEventListener("abort", abort);
+    b.removeEventListener("abort", abort);
+  };
+  const abort = (): void => {
+    dispose();
+    controller.abort();
+  };
   a.addEventListener("abort", abort, { once: true });
   b.addEventListener("abort", abort, { once: true });
-  return controller.signal;
+  return { signal: controller.signal, dispose };
 }

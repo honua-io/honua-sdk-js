@@ -111,8 +111,11 @@ export class HonuaOgcRecords {
       if (pageRecords.length === 0) break;
       records.push(...pageRecords);
       cursor = nextRecordsCursor(response.links);
+      // Continuation is driven solely by the next-link cursor (and the
+      // maxPages cap). OGC API Records/Features permits a server to return
+      // fewer than `limit` records on a non-final page while still
+      // advertising a `rel=next` link, so a short page must not stop paging.
       if (cursor.offset === undefined) break;
-      if (pageRecords.length < pageSize) break;
     }
     return records;
   }
@@ -133,8 +136,9 @@ export class HonuaOgcRecords {
       if (pageRecords.length === 0) break;
       yield pageRecords;
       cursor = nextRecordsCursor(response.links);
+      // See searchAll: a short page is not a termination signal; rely on the
+      // next-link cursor and the maxPages cap.
       if (cursor.offset === undefined) break;
-      if (pageRecords.length < pageSize) break;
     }
   }
 }
