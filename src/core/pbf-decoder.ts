@@ -85,6 +85,25 @@ class PbfReader {
     return (hi >>> 0) * 0x10000000 + (lo >>> 0);
   }
 
+  /**
+   * Read a 64-bit varint as a raw {@link bigint} with no precision loss. Used
+   * for attribute decoding where values may exceed `Number.MAX_SAFE_INTEGER`
+   * (e.g. BigInteger / 64-bit OID fields), so the caller can preserve exact
+   * values as a string instead of silently rounding.
+   */
+  readVarint64Bigint(): bigint {
+    let result = 0n;
+    let shift = 0n;
+    while (this.pos < this.end) {
+      const byte = this.bytes[this.pos++];
+      result |= BigInt(byte & 0x7f) << shift;
+      if ((byte & 0x80) === 0) return result;
+      shift += 7n;
+      if (shift > 63n) throw new Error("Varint too long");
+    }
+    throw new Error("Unexpected end of buffer reading varint");
+  }
+
   /** Read a signed 64-bit varint (zigzag-decoded) as a JavaScript number. */
   readSVarint64(): number {
     const n = this.readVarint64();
@@ -294,6 +313,28 @@ function decodeSpatialReference(reader: PbfReader): { wkid: number; latestWkid: 
   return { wkid, latestWkid: latestWkid || wkid };
 }
 
+const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
+const MIN_SAFE = BigInt(Number.MIN_SAFE_INTEGER);
+const TWO_POW_64 = 1n << 64n;
+
+/**
+ * Reinterpret an unsigned 64-bit value as signed two's-complement, matching how
+ * GeoServices PBF encodes `int64` attributes.
+ */
+function asInt64(unsigned: bigint): bigint {
+  return unsigned >= 1n << 63n ? unsigned - TWO_POW_64 : unsigned;
+}
+
+/**
+ * Preserve 64-bit integer precision: return a JS `number` when the value fits
+ * within the safe-integer range, otherwise a decimal string. Mirrors the gRPC
+ * transport's `toSafeNumberOrString` so PBF, gRPC, and `f=json` agree on large
+ * 64-bit ids instead of the PBF fast path silently rounding above 2^53.
+ */
+function safeNumberOrString(value: bigint): number | string {
+  return value <= MAX_SAFE && value >= MIN_SAFE ? Number(value) : value.toString();
+}
+
 function decodeValue(reader: PbfReader): { value: unknown; fieldIndex: number } {
   let value: unknown = null;
   let fieldIndex = -1;
@@ -322,12 +363,12 @@ function decodeValue(reader: PbfReader): { value: unknown; fieldIndex: number } 
         if (wire === WIRE_VARINT) value = reader.readVarint();
         else reader.skip(wire);
         break;
-      case 6: // int64_value
-        if (wire === WIRE_VARINT) value = reader.readVarint64();
+      case 6: // int64_value (signed two's-complement)
+        if (wire === WIRE_VARINT) value = safeNumberOrString(asInt64(reader.readVarint64Bigint()));
         else reader.skip(wire);
         break;
       case 7: // uint64_value
-        if (wire === WIRE_VARINT) value = reader.readVarint64();
+        if (wire === WIRE_VARINT) value = safeNumberOrString(reader.readVarint64Bigint());
         else reader.skip(wire);
         break;
       case 9: // bool_value

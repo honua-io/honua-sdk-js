@@ -1,4 +1,5 @@
 import type { HonuaClient } from "./client.js";
+import { HonuaAbortError } from "./errors.js";
 import type { HonuaQueryResponse, MapLayerQueryRequest, QueryFeaturesRequest } from "./types.js";
 
 /** A single query item in a batch. */
@@ -83,7 +84,7 @@ export async function batchQuery(
       if (signal?.aborted) {
         results[index] = {
           label: item.label,
-          error: new DOMException("The operation was aborted.", "AbortError"),
+          error: new HonuaAbortError("Batch query aborted before completion."),
         };
         return;
       }
@@ -95,7 +96,7 @@ export async function batchQuery(
         release();
         results[index] = {
           label: item.label,
-          error: new DOMException("The operation was aborted.", "AbortError"),
+          error: new HonuaAbortError("Batch query aborted before completion."),
         };
         return;
       }

@@ -97,6 +97,75 @@ describe("fetchMapPackage", () => {
     });
   });
 
+  test("resolves multiple style refs concurrently while preserving order", async () => {
+    const client = makeClient(async () =>
+      jsonResponse(
+        makePackage({
+          styleRefs: [
+            { styleId: "style-a", body: undefined },
+            { styleId: "style-b", body: undefined },
+            { styleId: "style-c", body: undefined },
+          ],
+        }),
+      ),
+    );
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const resolved = await fetchMapPackage("pkg-001", {
+      client,
+      resolveStyleRef: async (styleId) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        // Yield so all refs are in flight together if resolution is parallel.
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight -= 1;
+        // Key on the package's existing layer so the validator stays quiet; the
+        // distinguishing payload lives under a per-style paint property.
+        return { "parcels-fill": { paint: { "fill-opacity": styleId } } };
+      },
+    });
+
+    // Independent refs are resolved in parallel, not one round-trip at a time.
+    expect(maxInFlight).toBeGreaterThan(1);
+    expect(resolved.diagnostics).toEqual([]);
+    // Order is preserved regardless of resolution timing.
+    expect(resolved.mapPackage.styleRefs?.map((r) => r.styleId)).toEqual(["style-a", "style-b", "style-c"]);
+    expect(resolved.mapPackage.styleRefs?.[0].body).toEqual({
+      "parcels-fill": { paint: { "fill-opacity": "style-a" } },
+    });
+    expect(resolved.mapPackage.styleRefs?.[2].body).toEqual({
+      "parcels-fill": { paint: { "fill-opacity": "style-c" } },
+    });
+  });
+
+  test("one style-ref failure yields a diagnostic without rejecting the batch", async () => {
+    const client = makeClient(async () =>
+      jsonResponse(
+        makePackage({
+          styleRefs: [
+            { styleId: "ok-style", body: undefined },
+            { styleId: "bad-style", body: undefined },
+          ],
+        }),
+      ),
+    );
+
+    const resolved = await fetchMapPackage("pkg-001", {
+      client,
+      allowInvalid: true,
+      resolveStyleRef: async (styleId) => {
+        if (styleId === "bad-style") throw new Error("boom");
+        return { "parcels-fill": { paint: {} } };
+      },
+    });
+
+    expect(resolved.mapPackage.styleRefs?.[0].body).toEqual({ "parcels-fill": { paint: {} } });
+    expect(resolved.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "style-ref-resolution-failed", path: "styleRefs[1].body" }),
+    );
+  });
+
   test("defaults to resolving style refs via /ogc/styles when no callback is supplied", async () => {
     const requests: string[] = [];
     const client = makeClient(async (url) => {
