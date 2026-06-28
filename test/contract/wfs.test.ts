@@ -34,7 +34,7 @@ const WFS_LOCATOR = {
 
 function buildWfsDataset(
   routes: Array<[string | RegExp, (url: URL, init?: RequestInit) => Response | Promise<Response>]>,
-  locator: { url: string; typeName: string; featureNamespace?: string } = WFS_LOCATOR,
+  locator: { url: string; typeName: string; featureNamespace?: string; srsName?: string | number } = WFS_LOCATOR,
 ) {
   const client = makeMockClient({ routes });
   return createDataset({
@@ -764,6 +764,51 @@ describe("wfs / canonical Source", () => {
     expect(result.added[0].success).toBe(true);
     expect(result.updated[0].success).toBe(true);
     expect(result.deleted[0].success).toBe(true);
+  });
+
+  it("applyEdits emits the locator srsName on Insert/Update geometry with GML 3.2 axis order", async () => {
+    let observedBody: string | undefined;
+    const dataset = buildWfsDataset(
+      [
+        [
+          "/wfs",
+          async (url, init) => {
+            const request = url.searchParams.get("request");
+            if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+            if (init?.method === "POST") {
+              observedBody = typeof init.body === "string" ? init.body : await new Response(init.body).text();
+              return xmlResponse(wfsTransactionResponseXml());
+            }
+            return new Response("not found", { status: 404 });
+          },
+        ],
+      ],
+      // Numeric WKID normalizes to the OGC URN form, which is lat,lon for 4326.
+      {
+        url: "https://mock.honua.test/wfs",
+        typeName: "parcels:lot",
+        featureNamespace: "http://parcels.example.test/ns",
+        srsName: 4326,
+      },
+    );
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    await source.applyEdits({
+      adds: [
+        { attributes: { OBJECTID: 99, STATE: "CA", ACRES: 5 }, geometry: { type: "Point", coordinates: [-122, 37] } },
+      ],
+      updates: [
+        {
+          id: 1,
+          attributes: { OBJECTID: 1, STATE: "CA", ACRES: 8 },
+          geometry: { type: "Point", coordinates: [-121, 38] },
+        },
+      ],
+    });
+    // srsName attribute is emitted on the transaction geometry...
+    expect(observedBody).toContain('srsName="urn:ogc:def:crs:EPSG::4326"');
+    // ...and coordinates are written lat,lon (y,x) for the URN-form 4326 CRS.
+    expect(observedBody).toContain("<gml:pos>37 -122</gml:pos>");
+    expect(observedBody).toContain("<gml:pos>38 -121</gml:pos>");
   });
 
   it("applyEdits falls back to a synthetic xmlns when the locator omits featureNamespace", async () => {

@@ -366,27 +366,32 @@ export function geoJsonGeometryToGml(geometry: unknown, srsName: string | undefi
   if (typeof geometry !== "object" || geometry === null) return undefined;
   const geom = geometry as { type?: unknown; coordinates?: unknown };
   const srsAttr = srsName ? ` srsName=${attr(srsName)}` : "";
+  // Honor GML 3.2 axis order for the resolved CRS, mirroring the query-path
+  // emitters: authority (URN/HTTP) forms of geographic CRSes are lat,lon while
+  // the legacy short `EPSG:4326` form and CRS84 stay lon,lat.
+  const latLon = srsAxisIsLatLon(srsName);
+  const c = (p: [number, number]) => formatCoord(p[0], p[1], latLon);
   switch (geom.type) {
     case "Point": {
-      const c = geom.coordinates as [number, number] | undefined;
-      if (!Array.isArray(c) || typeof c[0] !== "number" || typeof c[1] !== "number") return undefined;
-      return `<gml:Point${srsAttr}><gml:pos>${c[0]} ${c[1]}</gml:pos></gml:Point>`;
+      const coord = geom.coordinates as [number, number] | undefined;
+      if (!Array.isArray(coord) || typeof coord[0] !== "number" || typeof coord[1] !== "number") return undefined;
+      return `<gml:Point${srsAttr}><gml:pos>${c(coord)}</gml:pos></gml:Point>`;
     }
     case "LineString": {
-      const c = geom.coordinates as Array<[number, number]> | undefined;
-      if (!Array.isArray(c) || c.length === 0) return undefined;
-      const posList = c.map((p) => `${p[0]} ${p[1]}`).join(" ");
+      const coords = geom.coordinates as Array<[number, number]> | undefined;
+      if (!Array.isArray(coords) || coords.length === 0) return undefined;
+      const posList = coords.map(c).join(" ");
       return `<gml:LineString${srsAttr}><gml:posList>${posList}</gml:posList></gml:LineString>`;
     }
     case "Polygon": {
-      const c = geom.coordinates as Array<Array<[number, number]>> | undefined;
-      if (!Array.isArray(c) || c.length === 0) return undefined;
-      const exterior = c[0].map((p) => `${p[0]} ${p[1]}`).join(" ");
-      const interiors = c
+      const coords = geom.coordinates as Array<Array<[number, number]>> | undefined;
+      if (!Array.isArray(coords) || coords.length === 0) return undefined;
+      const exterior = coords[0].map(c).join(" ");
+      const interiors = coords
         .slice(1)
         .map(
           (ring) =>
-            `<gml:interior><gml:LinearRing><gml:posList>${ring.map((p) => `${p[0]} ${p[1]}`).join(" ")}</gml:posList></gml:LinearRing></gml:interior>`,
+            `<gml:interior><gml:LinearRing><gml:posList>${ring.map(c).join(" ")}</gml:posList></gml:LinearRing></gml:interior>`,
         )
         .join("");
       return `<gml:Polygon${srsAttr}><gml:exterior><gml:LinearRing><gml:posList>${exterior}</gml:posList></gml:LinearRing></gml:exterior>${interiors}</gml:Polygon>`;

@@ -1373,7 +1373,7 @@ const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
  * ```
  */
 export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
-  const { url, typeName, featureNamespace } = requireWfsLocator(descriptor);
+  const { url, typeName, featureNamespace, srsName: wfsSrsName } = requireWfsLocator(descriptor);
   const root = new HonuaWfs({ client, endpointUrl: url });
   const featureType = new HonuaWfsFeatureType({ root, typeName });
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wfs;
@@ -1597,7 +1597,7 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
         summary = { totalInserted: 0, totalUpdated: 0, totalDeleted: 0, insertResults: [] };
       } else {
         const filtered: EditEnvelope<T> = { ...envelope, updates: validUpdates };
-        const body = buildTransactionBody(typeName, filtered, featureNamespace);
+        const body = buildTransactionBody(typeName, filtered, featureNamespace, wfsSrsName);
         const transactionOptions: { body: string; signal?: AbortSignal } = { body };
         if (envelope.signal) transactionOptions.signal = envelope.signal;
         summary = await featureType.transaction(transactionOptions);
@@ -1615,8 +1615,9 @@ function requireWfsLocator(descriptor: SourceDescriptor): {
   url: string;
   typeName: string;
   featureNamespace: string | undefined;
+  srsName: string | undefined;
 } {
-  const { url, typeName, featureNamespace } = descriptor.locator;
+  const { url, typeName, featureNamespace, srsName } = descriptor.locator;
   if (typeof url !== "string" || url.length === 0) {
     throw new Error(`createDataset: source "${descriptor.id}" (wfs) requires locator.url`);
   }
@@ -1632,6 +1633,7 @@ function requireWfsLocator(descriptor: SourceDescriptor): {
     url,
     typeName,
     featureNamespace: typeof featureNamespace === "string" ? featureNamespace : undefined,
+    srsName: wfsSrsNameFromOutSr(srsName),
   };
 }
 
@@ -1945,6 +1947,7 @@ function buildTransactionBody<T>(
   typeName: string,
   envelope: EditEnvelope<T>,
   featureNamespace: string | undefined,
+  srsName: string | undefined,
 ): string {
   const releaseAction = envelope.rollbackOnFailure ? "ALL" : "SOME";
   const { prefix } = splitTypeName(typeName);
@@ -1965,12 +1968,12 @@ function buildTransactionBody<T>(
   // result-mapping side cannot drift.
   const adds = envelope.adds ?? [];
   for (let i = 0; i < adds.length; i += 1) {
-    blocks.push(buildInsertBlock(typeName, adds[i], wfsInsertHandle(i)));
+    blocks.push(buildInsertBlock(typeName, adds[i], wfsInsertHandle(i), srsName));
   }
   let handleCounter = adds.length;
   for (const update of envelope.updates ?? []) {
     handleCounter += 1;
-    blocks.push(buildUpdateBlock(typeName, update, `upd-${handleCounter}`));
+    blocks.push(buildUpdateBlock(typeName, update, `upd-${handleCounter}`, srsName));
   }
   for (const id of envelope.deletes ?? []) {
     handleCounter += 1;
@@ -2005,6 +2008,7 @@ function buildInsertBlock<T>(
   typeName: string,
   feature: { attributes: T; geometry?: Record<string, unknown> | null },
   handle: string,
+  srsName: string | undefined,
 ): string {
   const attributes = feature.attributes as Record<string, unknown>;
   const propertyXml = Object.entries(attributes)
@@ -2013,8 +2017,9 @@ function buildInsertBlock<T>(
       ([key, value]) => `<${escapeXmlElement(key)}>${escapeXmlText(formatLiteral(value))}</${escapeXmlElement(key)}>`,
     )
     .join("");
-  const geometryXml = feature.geometry ? (geoJsonGeometryToGml(feature.geometry, undefined) ?? "") : "";
-  const featureXml = `<${escapeXmlElement(typeName)}>${propertyXml}${geometryXml ? `<the_geom>${geometryXml}</the_geom>` : ""}</${escapeXmlElement(typeName)}>`;
+  const geometryXml = feature.geometry ? (geoJsonGeometryToGml(feature.geometry, srsName) ?? "") : "";
+  const geometryProperty = escapeXmlElement(DEFAULT_WFS_GEOMETRY_PROPERTY);
+  const featureXml = `<${escapeXmlElement(typeName)}>${propertyXml}${geometryXml ? `<${geometryProperty}>${geometryXml}</${geometryProperty}>` : ""}</${escapeXmlElement(typeName)}>`;
   return `<wfs:Insert handle="${handle}">${featureXml}</wfs:Insert>`;
 }
 
@@ -2022,6 +2027,7 @@ function buildUpdateBlock<T>(
   typeName: string,
   feature: { id?: FeatureId; attributes: T; geometry?: Record<string, unknown> | null },
   handle: string,
+  srsName: string | undefined,
 ): string {
   const attributes = feature.attributes as Record<string, unknown>;
   const properties = Object.entries(attributes)
@@ -2032,7 +2038,7 @@ function buildUpdateBlock<T>(
     )
     .join("");
   const geometryProperty = feature.geometry
-    ? `<wfs:Property><wfs:ValueReference>the_geom</wfs:ValueReference><wfs:Value>${geoJsonGeometryToGml(feature.geometry, undefined) ?? ""}</wfs:Value></wfs:Property>`
+    ? `<wfs:Property><wfs:ValueReference>${escapeXmlText(DEFAULT_WFS_GEOMETRY_PROPERTY)}</wfs:ValueReference><wfs:Value>${geoJsonGeometryToGml(feature.geometry, srsName) ?? ""}</wfs:Value></wfs:Property>`
     : "";
   const filter =
     feature.id !== undefined
