@@ -300,6 +300,16 @@ export interface SourceLocator {
    * not have to fetch capabilities synchronously.
    */
   featureNamespace?: string;
+  /**
+   * WFS coordinate reference system for the layer's native geometry (e.g.
+   * `EPSG:4326`, a numeric WKID, or an OGC URN like
+   * `urn:ogc:def:crs:EPSG::4326`). When set, WFS-T `applyEdits` emits it as the
+   * `srsName` attribute on `<wfs:Insert>` / `<wfs:Update>` geometries. Servers
+   * that require `srsName` on transaction geometry, or whose native CRS differs
+   * from the unqualified default, otherwise reject or mis-place the written
+   * feature.
+   */
+  srsName?: string | number;
   /** OData entity-set identifier. */
   entitySet?: string;
   /** GP Service task identifier (for `geoservices-gp-service`). */
