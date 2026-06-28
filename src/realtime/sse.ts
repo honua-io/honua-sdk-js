@@ -43,6 +43,16 @@ export function createRealtimeServerSentEventsTransport<TFeature = unknown>(
       emitsWatermarks: true,
     },
     subscribe(request, observer): RealtimeSubscriptionHandle {
+      // If the caller's signal is already aborted at subscribe time, the
+      // "abort" event has already fired and will never fire again, so the
+      // listener registered below would never run and the EventSource would
+      // leak (open connection + auto-reconnect + attached listeners). Bail
+      // out synchronously before constructing anything, mirroring the
+      // up-front `signal?.aborted` guard used elsewhere (e.g. core/batch.ts).
+      if (request.signal?.aborted) {
+        observer.complete();
+        return { close: () => {} };
+      }
       const url = new URL(options.url, "http://honua.local");
       encodeDefaultRealtimeRequest(url, request);
       options.encodeRequest?.(url, request);

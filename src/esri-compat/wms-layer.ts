@@ -1,3 +1,4 @@
+import { orderWmsBbox } from "../core/wms-axis.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 
 export interface WMSSublayerCompatOptions {
@@ -175,7 +176,10 @@ export class WMSLayerCompat {
       LAYERS: visibleLayers.join(","),
       STYLES: "",
       [this.version === "1.3.0" ? "CRS" : "SRS"]: crs,
-      BBOX: input.bbox.join(","),
+      // WMS 1.3.0 honors the authority-defined axis order, so geographic CRSes
+      // (EPSG:4326 and friends) require the BBOX transposed to lat,lon on the
+      // wire. Shared with the first-party WMS path via orderWmsBbox.
+      BBOX: orderWmsBbox(input.bbox, this.version, crs).join(","),
       WIDTH: String(input.width),
       HEIGHT: String(input.height),
       FORMAT: this.imageFormat,

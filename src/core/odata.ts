@@ -1161,30 +1161,54 @@ function wktLiteral(wkt: string, srid: string | number | undefined): string {
   return `geography'SRID=${srid};${wkt}'`;
 }
 
+// Coordinates are interpolated verbatim into a WKT string that is wrapped in an
+// OData `geography'...'` literal and passed straight into `$filter`. Any value
+// that is not a finite number must be rejected here: a non-numeric string (e.g.
+// one containing a single quote) would otherwise terminate the OData string
+// literal and inject attacker-controlled tokens into the server-side filter, and
+// NaN/Infinity/undefined would produce malformed WKT.
+function wktCoordinate(value: unknown, context: string): number {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) {
+    throw new Error(`odata: spatialFilter ${context} must be a finite number.`);
+  }
+  return num;
+}
+
+function wktPoint(pt: ArrayLike<unknown>, context: string): string {
+  return `${wktCoordinate(pt[0], `${context}[0]`)} ${wktCoordinate(pt[1], `${context}[1]`)}`;
+}
+
 function geometryToWkt(geometry: Record<string, unknown>, geometryType: string): string {
   if (geometryType === "esriGeometryEnvelope") {
-    const { xmin, ymin, xmax, ymax } = geometry as { xmin: number; ymin: number; xmax: number; ymax: number };
+    const xmin = wktCoordinate(geometry.xmin, "envelope.xmin");
+    const ymin = wktCoordinate(geometry.ymin, "envelope.ymin");
+    const xmax = wktCoordinate(geometry.xmax, "envelope.xmax");
+    const ymax = wktCoordinate(geometry.ymax, "envelope.ymax");
     return `POLYGON((${xmin} ${ymin}, ${xmax} ${ymin}, ${xmax} ${ymax}, ${xmin} ${ymax}, ${xmin} ${ymin}))`;
   }
   if (geometryType === "esriGeometryPoint") {
-    const { x, y } = geometry as { x: number; y: number };
+    const x = wktCoordinate(geometry.x, "point.x");
+    const y = wktCoordinate(geometry.y, "point.y");
     return `POINT(${x} ${y})`;
   }
   if (geometryType === "esriGeometryPolygon") {
-    const rings = geometry.rings as number[][][] | undefined;
+    const rings = geometry.rings as unknown[][][] | undefined;
     if (!Array.isArray(rings) || rings.length === 0) {
       throw new Error("odata: polygon spatialFilter has no rings");
     }
-    const inner = rings.map((ring) => `(${ring.map((pt) => `${pt[0]} ${pt[1]}`).join(", ")})`).join(", ");
+    const inner = rings
+      .map((ring) => `(${ring.map((pt) => wktPoint(pt as ArrayLike<unknown>, "polygon.ring")).join(", ")})`)
+      .join(", ");
     return `POLYGON(${inner})`;
   }
   if (geometryType === "esriGeometryPolyline") {
-    const paths = geometry.paths as number[][][] | undefined;
+    const paths = geometry.paths as unknown[][][] | undefined;
     if (!Array.isArray(paths) || paths.length === 0) {
       throw new Error("odata: polyline spatialFilter has no paths");
     }
     const path = paths[0];
-    return `LINESTRING(${path.map((pt) => `${pt[0]} ${pt[1]}`).join(", ")})`;
+    return `LINESTRING(${path.map((pt) => wktPoint(pt as ArrayLike<unknown>, "polyline.path")).join(", ")})`;
   }
   throw new Error(`odata: spatialFilter.geometryType "${geometryType}" is not supported.`);
 }
