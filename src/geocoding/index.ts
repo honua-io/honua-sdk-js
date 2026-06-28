@@ -11,18 +11,21 @@
  *   locatorName: "world-geocoder",
  * });
  *
- * const results = await geo.findAddressCandidates({ singleLine: "1 Honolulu Pl, HI" });
- * const here = await geo.reverseGeocode({ location: { x: -157.85, y: 21.30 } });
- * const hints = await geo.suggest({ text: "honol" });
+ * const results = await geo.forwardGeocode("1 Honolulu Pl, HI");
+ * // reverseGeocode is latitude-first, then longitude.
+ * const here = await geo.reverseGeocode(21.30, -157.85);
+ * const hints = await geo.suggest("honol");
  * ```
  *
- * @example Streaming typeahead with AbortSignal
+ * @example Debounced typeahead
  * ```ts
- * const controller = new AbortController();
- * input.addEventListener("input", async (event) => {
- *   controller.abort();
- *   const hints = await geo.suggest({ text: event.target.value, signal: controller.signal });
- *   render(hints);
+ * let timer: ReturnType<typeof setTimeout> | undefined;
+ * input.addEventListener("input", (event) => {
+ *   clearTimeout(timer);
+ *   const text = (event.target as HTMLInputElement).value;
+ *   timer = setTimeout(async () => {
+ *     render(await geo.suggest(text));
+ *   }, 200);
  * });
  * ```
  *

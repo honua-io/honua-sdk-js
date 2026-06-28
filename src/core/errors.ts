@@ -30,6 +30,7 @@
  * @packageDocumentation
  */
 
+import { HonuaJobFailedError } from "./ogc-processes.js";
 import { HonuaWmsCapabilitiesParseError } from "./wms-capabilities.js";
 import { HonuaWmtsCapabilitiesParseError } from "./wmts-capabilities.js";
 
@@ -170,6 +171,7 @@ export type HonuaError =
   | HonuaCapabilityNotSupportedError
   | HonuaExplorationContextError
   | HonuaWfsExceptionError
+  | HonuaJobFailedError
   | HonuaWmsCapabilitiesParseError
   | HonuaWmtsCapabilitiesParseError;
 
@@ -184,6 +186,7 @@ export function isHonuaError(error: unknown): error is HonuaError {
     error instanceof HonuaCapabilityNotSupportedError ||
     error instanceof HonuaExplorationContextError ||
     error instanceof HonuaWfsExceptionError ||
+    error instanceof HonuaJobFailedError ||
     error instanceof HonuaWmsCapabilitiesParseError ||
     error instanceof HonuaWmtsCapabilitiesParseError
   );
