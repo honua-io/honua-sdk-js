@@ -59,7 +59,7 @@ subset of these errors when configured:
 | `HonuaHttpError` with status in `retryStatuses` (default `[408, 429, 500, 502, 503, 504]`) | Yes |
 | `HonuaNetworkError` | Yes |
 | `HonuaTimeoutError` | Yes |
-| `HonuaGrpcError` with retryable code | Yes |
+| `HonuaGrpcError` with retryable code | **No** — the built-in `retry` policy is not applied to the gRPC-web transport; wrap these calls yourself |
 | `HonuaAbortError` | **No** — caller asked to stop |
 | `HonuaCapabilityNotSupportedError` | **No** — would never succeed |
 | `HonuaWfsExceptionError` | **No** — caller bug |
