@@ -12,7 +12,7 @@ import {
   withHonuaCacheState,
   withoutHonuaCacheState,
 } from "./cache-state.js";
-import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
+import { HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
 import { HonuaOdataEntitySet } from "./odata.js";
 import { HonuaOgcMaps } from "./ogc-maps.js";
 import { HonuaOgcProcesses } from "./ogc-processes.js";
@@ -28,6 +28,18 @@ import {
   createOgcProcessesAdapter,
 } from "./process-runner.js";
 import type { GeospatialGrpcProcessClient, HonuaProcessAdapter } from "./process-runner.js";
+import {
+  DEFAULT_RETRY_METHODS,
+  type NormalizedRetryOptions,
+  createTimeoutSignal,
+  normalizeNetworkError,
+  normalizeRetryOptions,
+  normalizeTimeoutMs,
+  resolveRetryDelayMs,
+  shouldRetryRequest,
+  sleep,
+  toHttpError,
+} from "./request-pipeline.js";
 import { HonuaStacSearch } from "./stac.js";
 import {
   HonuaFeatureLayer,
@@ -85,7 +97,6 @@ import type {
   HonuaRequestInterceptor,
   HonuaRequestMutation,
   HonuaResponseContext,
-  HonuaRetryOptions,
   HonuaServerCapabilitiesResponse,
   HonuaServerCompatibility,
   HonuaServerCompatibilityFeature,
@@ -289,15 +300,6 @@ function normalizeSearchFields(searchFields: MapFindRequest["searchFields"]): st
   return Array.isArray(searchFields) ? searchFields.join(",") : searchFields;
 }
 
-interface NormalizedRetryOptions {
-  maxRetries: number;
-  baseDelayMs: number;
-  maxDelayMs: number;
-  retryStatuses: ReadonlySet<number>;
-}
-
-const DEFAULT_RETRY_STATUSES: ReadonlySet<number> = new Set([429, 502, 503, 504]);
-const DEFAULT_RETRY_METHODS: ReadonlySet<QueryMethod> = new Set(["GET", "PUT", "DELETE"]);
 const DEFAULT_AUTH_REFRESH_SKEW_MS = 60_000;
 const DEFAULT_METADATA_CACHE_MAX_ENTRIES = 256;
 const SUPPORTED_CONTROL_PLANE_API_MAJOR = 1;
@@ -322,6 +324,34 @@ interface MetadataCacheEntry<T = unknown> {
   keyFingerprint: string;
   validator?: HonuaCacheValidator;
   sourceUpdatedAt?: string;
+}
+
+/** Result of an {@link ExecuteRequestOptions.handleResponse} hook. */
+type ExecuteRequestHandled<T> = { handled: true; value: T } | { handled: false };
+
+/**
+ * Per-call customization for the shared {@link HonuaClient.executeRequest}
+ * attempt loop. The loop owns timeout, auth-replay, retry/backoff, and
+ * interceptor invocation; the typed wrappers supply only the Accept/context and
+ * a `finalize` that turns the successful {@link Response} into `T`.
+ */
+interface ExecuteRequestOptions<T> {
+  /** Caller-supplied abort signal that takes precedence over `request.init.signal`. */
+  retrySignal?: AbortSignal | undefined;
+  /** Status codes that should be treated as success despite `!response.ok`. */
+  okStatuses?: readonly number[] | undefined;
+  /** Parse a non-OK response into the body passed to {@link toHttpError}. Defaults to JSON. */
+  parseErrorBody?: (response: Response) => Promise<unknown>;
+  /** Return a fallback value (e.g. stale cache) instead of throwing on a terminal error. */
+  onErrorFallback?: (error: unknown) => T | undefined;
+  /** Intercept the raw response before the OK/error branch (e.g. 304 revalidation). */
+  handleResponse?: (
+    response: Response,
+    durationMs: number,
+    request: HonuaRequestContext,
+  ) => Promise<ExecuteRequestHandled<T>>;
+  /** Turn a successful response into the resolved value. */
+  finalize: (response: Response, durationMs: number, request: HonuaRequestContext) => Promise<T> | T;
 }
 
 /**
@@ -998,7 +1028,7 @@ export class HonuaClient {
     callerSignal?: AbortSignal,
     options: { okStatuses?: readonly number[] } = {},
   ): Promise<Response> {
-    let request: HonuaRequestContext = {
+    const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
@@ -1010,68 +1040,11 @@ export class HonuaClient {
       },
     };
 
-    request = await this.applyBeforeInterceptors(request);
-    const retrySignal = callerSignal ?? request.init.signal ?? undefined;
-    let refreshedAuth = false;
-
-    for (let attempt = 0; ; attempt += 1) {
-      let response: Response;
-      const timeout = createTimeoutSignal(callerSignal ?? request.init.signal, this.timeoutMs);
-      const startTime = performance.now();
-      try {
-        response = await this.fetchWithSafeRedirects(request.url, {
-          ...request.init,
-          method: request.method,
-          signal: timeout.signal,
-        });
-      } catch (error) {
-        const durationMs = performance.now() - startTime;
-        const normalizedError = timeout.didTimeout
-          ? new HonuaTimeoutError(this.timeoutMs ?? 0)
-          : normalizeNetworkError(error);
-        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
-          await this.sleepBeforeRetry(attempt, undefined, retrySignal);
-          continue;
-        }
-        await this.applyErrorInterceptors({
-          request: cloneRequestContext(request),
-          error: normalizedError,
-          durationMs,
-        });
-        throw normalizedError;
-      } finally {
-        timeout.dispose();
-      }
-      const durationMs = performance.now() - startTime;
-
-      if (!response.ok && !options.okStatuses?.includes(response.status)) {
-        const body = await parseResponseBody(response.clone());
-        const httpError = this.toHttpError(response.status, body);
-        const authRefreshedRequest = refreshedAuth
-          ? undefined
-          : await this.refreshReplaySafeRequestAuth(request, response.status);
-        if (authRefreshedRequest) {
-          request = authRefreshedRequest;
-          refreshedAuth = true;
-          continue;
-        }
-        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
-          await this.sleepBeforeRetry(attempt, response, retrySignal);
-          continue;
-        }
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
-        throw httpError;
-      }
-
-      try {
-        await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
-      } catch (error) {
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
-        throw error;
-      }
-
-      return response;
-    }
+    return this.executeRequest<Response>(request, {
+      retrySignal: callerSignal,
+      okStatuses: options.okStatuses,
+      finalize: (response) => response,
+    });
   }
 
   private async requestCachedMetadataJson<T>(
@@ -1097,7 +1070,7 @@ export class HonuaClient {
       );
     }
 
-    let request: HonuaRequestContext = {
+    const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method: "GET",
@@ -1114,120 +1087,67 @@ export class HonuaClient {
       },
     };
 
-    request = await this.applyBeforeInterceptors(request);
-    const retrySignal = metadataOptions.signal ?? request.init.signal ?? undefined;
-    let refreshedAuth = false;
-
-    for (let attempt = 0; ; attempt += 1) {
-      let response: Response;
-      const timeout = createTimeoutSignal(metadataOptions.signal ?? request.init.signal, this.timeoutMs);
-      const startTime = performance.now();
-      try {
-        response = await this.fetchWithSafeRedirects(request.url, {
-          ...request.init,
-          method: request.method,
-          signal: timeout.signal,
-        });
-      } catch (error) {
-        const durationMs = performance.now() - startTime;
-        const normalizedError = timeout.didTimeout
-          ? new HonuaTimeoutError(this.timeoutMs ?? 0)
-          : normalizeNetworkError(error);
-        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
-          await this.sleepBeforeRetry(attempt, undefined, retrySignal);
-          continue;
+    return this.executeRequest<T>(request, {
+      retrySignal: metadataOptions.signal,
+      onErrorFallback: (error) => this.staleMetadataFallback(cached, metadataOptions, error),
+      handleResponse: async (response, durationMs, currentRequest) => {
+        if (response.status === 304 && cached && !bypass) {
+          try {
+            await this.applyAfterInterceptors(cloneRequestContext(currentRequest), response, durationMs);
+          } catch (error) {
+            await this.applyErrorInterceptors({ request: cloneRequestContext(currentRequest), error, durationMs });
+            throw error;
+          }
+          const updatedEntry: MetadataCacheEntry<T> = {
+            ...cached,
+            cachedAtMs: Date.now(),
+            ...((honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator)
+              ? { validator: honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator }
+              : {}),
+          };
+          this.setMetadataCacheEntry(keyFingerprint, updatedEntry);
+          return {
+            handled: true,
+            value: withHonuaCacheState(
+              updatedEntry.body,
+              createMetadataCacheState(updatedEntry, "refreshed", {
+                now: Date.now(),
+                ttlMs: metadataOptions.ttlMs,
+                staleIfErrorMs: metadataOptions.staleIfErrorMs,
+                revalidatedAt: new Date().toISOString(),
+              }),
+            ),
+          };
         }
-        const stale = this.staleMetadataFallback(cached, metadataOptions, normalizedError);
-        if (stale) return stale;
-        await this.applyErrorInterceptors({
-          request: cloneRequestContext(request),
-          error: normalizedError,
-          durationMs,
-        });
-        throw normalizedError;
-      } finally {
-        timeout.dispose();
-      }
-      const durationMs = performance.now() - startTime;
-
-      if (response.status === 304 && cached && !bypass) {
-        try {
-          await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
-        } catch (error) {
-          await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
-          throw error;
-        }
-        const updatedEntry: MetadataCacheEntry<T> = {
-          ...cached,
+        return { handled: false };
+      },
+      finalize: async (response) => {
+        const body = await parseResponseBody(response.clone());
+        const cleanBody = withoutHonuaCacheState(body) as T;
+        const validator = honuaCacheValidatorFromHeaders(response.headers);
+        const sourceUpdatedAt = response.headers.get("last-modified") ?? undefined;
+        const entry: MetadataCacheEntry<T> = {
+          body: cleanBody,
           cachedAtMs: Date.now(),
-          ...((honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator)
-            ? { validator: honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator }
-            : {}),
+          keyFingerprint,
+          ...(validator ? { validator } : {}),
+          ...(sourceUpdatedAt ? { sourceUpdatedAt } : {}),
         };
-        this.setMetadataCacheEntry(keyFingerprint, updatedEntry);
+        const status = bypass ? "bypass" : cached ? "refreshed" : "miss";
+        if (!bypass) {
+          this.setMetadataCacheEntry(keyFingerprint, entry);
+        }
         return withHonuaCacheState(
-          updatedEntry.body,
-          createMetadataCacheState(updatedEntry, "refreshed", {
+          cleanBody,
+          createMetadataCacheState(entry, status, {
             now: Date.now(),
             ttlMs: metadataOptions.ttlMs,
             staleIfErrorMs: metadataOptions.staleIfErrorMs,
-            revalidatedAt: new Date().toISOString(),
+            ...(status === "refreshed" ? { revalidatedAt: new Date().toISOString() } : {}),
           }),
         );
-      }
-
-      const body = await parseResponseBody(response.clone());
-      if (!response.ok) {
-        const httpError = this.toHttpError(response.status, body);
-        const authRefreshedRequest = refreshedAuth
-          ? undefined
-          : await this.refreshReplaySafeRequestAuth(request, response.status);
-        if (authRefreshedRequest) {
-          request = authRefreshedRequest;
-          refreshedAuth = true;
-          continue;
-        }
-        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
-          await this.sleepBeforeRetry(attempt, response, retrySignal);
-          continue;
-        }
-        const stale = this.staleMetadataFallback(cached, metadataOptions, httpError);
-        if (stale) return stale;
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
-        throw httpError;
-      }
-
-      try {
-        await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
-      } catch (error) {
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
-        throw error;
-      }
-
-      const cleanBody = withoutHonuaCacheState(body) as T;
-      const validator = honuaCacheValidatorFromHeaders(response.headers);
-      const sourceUpdatedAt = response.headers.get("last-modified") ?? undefined;
-      const entry: MetadataCacheEntry<T> = {
-        body: cleanBody,
-        cachedAtMs: Date.now(),
-        keyFingerprint,
-        ...(validator ? { validator } : {}),
-        ...(sourceUpdatedAt ? { sourceUpdatedAt } : {}),
-      };
-      const status = bypass ? "bypass" : cached ? "refreshed" : "miss";
-      if (!bypass) {
-        this.setMetadataCacheEntry(keyFingerprint, entry);
-      }
-      return withHonuaCacheState(
-        cleanBody,
-        createMetadataCacheState(entry, status, {
-          now: Date.now(),
-          ttlMs: metadataOptions.ttlMs,
-          staleIfErrorMs: metadataOptions.staleIfErrorMs,
-          ...(status === "refreshed" ? { revalidatedAt: new Date().toISOString() } : {}),
-        }),
-      );
-    }
+      },
+    });
   }
 
   private staleMetadataFallback<T>(
@@ -2466,7 +2386,7 @@ export class HonuaClient {
     init?: RequestInit,
     callerSignal?: AbortSignal,
   ): Promise<unknown> {
-    let request: HonuaRequestContext = {
+    const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
@@ -2477,68 +2397,10 @@ export class HonuaClient {
       },
     };
 
-    request = await this.applyBeforeInterceptors(request);
-    const retrySignal = callerSignal ?? request.init.signal ?? undefined;
-    let refreshedAuth = false;
-
-    for (let attempt = 0; ; attempt += 1) {
-      let response: Response;
-      const timeout = createTimeoutSignal(callerSignal ?? request.init.signal, this.timeoutMs);
-      const startTime = performance.now();
-      try {
-        response = await this.fetchWithSafeRedirects(request.url, {
-          ...request.init,
-          method: request.method,
-          signal: timeout.signal,
-        });
-      } catch (error) {
-        const durationMs = performance.now() - startTime;
-        const normalizedError = timeout.didTimeout
-          ? new HonuaTimeoutError(this.timeoutMs ?? 0)
-          : normalizeNetworkError(error);
-        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
-          await this.sleepBeforeRetry(attempt, undefined, retrySignal);
-          continue;
-        }
-        await this.applyErrorInterceptors({
-          request: cloneRequestContext(request),
-          error: normalizedError,
-          durationMs,
-        });
-        throw normalizedError;
-      } finally {
-        timeout.dispose();
-      }
-      const durationMs = performance.now() - startTime;
-
-      const body = await parseResponseBody(response.clone());
-      if (!response.ok) {
-        const httpError = this.toHttpError(response.status, body);
-        const authRefreshedRequest = refreshedAuth
-          ? undefined
-          : await this.refreshReplaySafeRequestAuth(request, response.status);
-        if (authRefreshedRequest) {
-          request = authRefreshedRequest;
-          refreshedAuth = true;
-          continue;
-        }
-        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
-          await this.sleepBeforeRetry(attempt, response, retrySignal);
-          continue;
-        }
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
-        throw httpError;
-      }
-
-      try {
-        await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
-      } catch (error) {
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
-        throw error;
-      }
-
-      return body;
-    }
+    return this.executeRequest<unknown>(request, {
+      retrySignal: callerSignal,
+      finalize: (response) => parseResponseBody(response.clone()),
+    });
   }
 
   /**
@@ -2550,7 +2412,7 @@ export class HonuaClient {
     params: URLSearchParams,
     callerSignal?: AbortSignal,
   ): Promise<unknown> {
-    let request: HonuaRequestContext = {
+    const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
@@ -2560,82 +2422,26 @@ export class HonuaClient {
       },
     };
 
-    request = await this.applyBeforeInterceptors(request);
-    const retrySignal = callerSignal ?? request.init.signal ?? undefined;
-    let refreshedAuth = false;
-
-    for (let attempt = 0; ; attempt += 1) {
-      let response: Response;
-      const timeout = createTimeoutSignal(callerSignal ?? request.init.signal, this.timeoutMs);
-      const startTime = performance.now();
-      try {
-        response = await this.fetchWithSafeRedirects(request.url, {
-          ...request.init,
-          method: request.method,
-          signal: timeout.signal,
-        });
-      } catch (error) {
-        const durationMs = performance.now() - startTime;
-        const normalizedError = timeout.didTimeout
-          ? new HonuaTimeoutError(this.timeoutMs ?? 0)
-          : normalizeNetworkError(error);
-        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
-          await this.sleepBeforeRetry(attempt, undefined, retrySignal);
-          continue;
+    return this.executeRequest<unknown>(request, {
+      retrySignal: callerSignal,
+      finalize: async (response, _durationMs, finalRequest) => {
+        // If server returned PBF, decode it
+        if (isPbfResponse(response)) {
+          try {
+            const buffer = await response.arrayBuffer();
+            return decodePbfQueryResponse(buffer);
+          } catch {
+            // PBF decode failed — fall back to JSON request
+            params.set("f", "json");
+            const jsonPath = `${stripQuery(path)}?${params.toString()}`;
+            return this.requestJson("GET", jsonPath, undefined, callerSignal ?? finalRequest.init.signal ?? undefined);
+          }
         }
-        await this.applyErrorInterceptors({
-          request: cloneRequestContext(request),
-          error: normalizedError,
-          durationMs,
-        });
-        throw normalizedError;
-      } finally {
-        timeout.dispose();
-      }
-      const durationMs = performance.now() - startTime;
 
-      if (!response.ok) {
-        const body = await parseResponseBody(response.clone());
-        const httpError = this.toHttpError(response.status, body);
-        const authRefreshedRequest = refreshedAuth
-          ? undefined
-          : await this.refreshReplaySafeRequestAuth(request, response.status);
-        if (authRefreshedRequest) {
-          request = authRefreshedRequest;
-          refreshedAuth = true;
-          continue;
-        }
-        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
-          await this.sleepBeforeRetry(attempt, response, retrySignal);
-          continue;
-        }
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
-        throw httpError;
-      }
-
-      try {
-        await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
-      } catch (error) {
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
-        throw error;
-      }
-
-      // If server returned PBF, decode it
-      if (isPbfResponse(response)) {
-        try {
-          const buffer = await response.arrayBuffer();
-          return decodePbfQueryResponse(buffer);
-        } catch {
-          // PBF decode failed — fall back to JSON request
-          params.set("f", "json");
-          const jsonPath = `${stripQuery(path)}?${params.toString()}`;
-          return this.requestJson("GET", jsonPath, undefined, callerSignal ?? request.init.signal ?? undefined);
-        }
-      }
-
-      // Server returned JSON despite PBF request (e.g. error or unsupported)
-      return parseResponseBody(response);
-    }
+        // Server returned JSON despite PBF request (e.g. error or unsupported)
+        return parseResponseBody(response);
+      },
+    });
   }
 
   /**
@@ -2655,7 +2461,7 @@ export class HonuaClient {
     const acceptHeader = options?.accept ?? "*/*";
     const headers: Record<string, string> = { Accept: acceptHeader };
     if (options?.contentType) headers["Content-Type"] = options.contentType;
-    let request: HonuaRequestContext = {
+    const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
@@ -2666,69 +2472,19 @@ export class HonuaClient {
       },
     };
 
-    request = await this.applyBeforeInterceptors(request);
-    const retrySignal = options?.signal ?? request.init.signal ?? undefined;
-    let refreshedAuth = false;
-
-    for (let attempt = 0; ; attempt += 1) {
-      let response: Response;
-      const timeout = createTimeoutSignal(options?.signal ?? request.init.signal, this.timeoutMs);
-      const startTime = performance.now();
-      try {
-        response = await this.fetchWithSafeRedirects(request.url, {
-          ...request.init,
-          method: request.method,
-          signal: timeout.signal,
-        });
-      } catch (error) {
-        const durationMs = performance.now() - startTime;
-        const normalizedError = timeout.didTimeout
-          ? new HonuaTimeoutError(this.timeoutMs ?? 0)
-          : normalizeNetworkError(error);
-        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
-          await this.sleepBeforeRetry(attempt, undefined, retrySignal);
-          continue;
-        }
-        await this.applyErrorInterceptors({
-          request: cloneRequestContext(request),
-          error: normalizedError,
-          durationMs,
-        });
-        throw normalizedError;
-      } finally {
-        timeout.dispose();
-      }
-      const durationMs = performance.now() - startTime;
-
-      const text = await response.clone().text();
-      const contentType = response.headers.get("content-type") ?? acceptHeader;
-      if (!response.ok) {
-        const httpError = this.toHttpError(response.status, text ? { raw: text, contentType } : {});
-        const authRefreshedRequest = refreshedAuth
-          ? undefined
-          : await this.refreshReplaySafeRequestAuth(request, response.status);
-        if (authRefreshedRequest) {
-          request = authRefreshedRequest;
-          refreshedAuth = true;
-          continue;
-        }
-        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
-          await this.sleepBeforeRetry(attempt, response, retrySignal);
-          continue;
-        }
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
-        throw httpError;
-      }
-
-      try {
-        await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
-      } catch (error) {
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
-        throw error;
-      }
-
-      return { text, contentType, status: response.status };
-    }
+    return this.executeRequest<{ text: string; contentType: string; status: number }>(request, {
+      retrySignal: options?.signal,
+      parseErrorBody: async (response) => {
+        const text = await response.clone().text();
+        const contentType = response.headers.get("content-type") ?? acceptHeader;
+        return text ? { raw: text, contentType } : {};
+      },
+      finalize: async (response) => {
+        const text = await response.clone().text();
+        const contentType = response.headers.get("content-type") ?? acceptHeader;
+        return { text, contentType, status: response.status };
+      },
+    });
   }
 
   /**
@@ -2745,7 +2501,7 @@ export class HonuaClient {
     callerSignal?: AbortSignal,
   ): Promise<{ bytes: Uint8Array; contentType: string; empty: boolean }> {
     const acceptHeader = accept ?? "application/octet-stream";
-    let request: HonuaRequestContext = {
+    const request: HonuaRequestContext = {
       url: resolveRequestUrl(this.baseUrl, path),
       path,
       method,
@@ -2756,13 +2512,37 @@ export class HonuaClient {
       },
     };
 
-    request = await this.applyBeforeInterceptors(request);
-    const retrySignal = callerSignal ?? request.init.signal ?? undefined;
+    return this.executeRequest<{ bytes: Uint8Array; contentType: string; empty: boolean }>(request, {
+      retrySignal: callerSignal,
+      finalize: async (response) => {
+        const buffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        return {
+          bytes,
+          contentType: response.headers.get("content-type") ?? acceptHeader,
+          empty: response.status === 204 || bytes.byteLength === 0,
+        };
+      },
+    });
+  }
+
+  /**
+   * The single shared request pipeline. Owns the attempt loop, per-attempt
+   * timeout, transient/error retry with backoff, 401/403 auth-replay refresh,
+   * and the before/after/error interceptor calls. Every typed request wrapper
+   * (`requestJson`, `requestText`, `requestBytes`, `requestBinaryWithJsonFallback`,
+   * `requestCachedMetadataJson`, `pipelineFetch`) delegates here so retry, auth,
+   * and error-envelope semantics live in exactly one place.
+   */
+  private async executeRequest<T>(initialRequest: HonuaRequestContext, options: ExecuteRequestOptions<T>): Promise<T> {
+    let request = await this.applyBeforeInterceptors(initialRequest);
+    const retrySignal = options.retrySignal ?? request.init.signal ?? undefined;
+    const parseErrorBody = options.parseErrorBody ?? ((response: Response) => parseResponseBody(response.clone()));
     let refreshedAuth = false;
 
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
-      const timeout = createTimeoutSignal(callerSignal ?? request.init.signal, this.timeoutMs);
+      const timeout = createTimeoutSignal(options.retrySignal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
       try {
         response = await this.fetchWithSafeRedirects(request.url, {
@@ -2775,9 +2555,13 @@ export class HonuaClient {
         const normalizedError = timeout.didTimeout
           ? new HonuaTimeoutError(this.timeoutMs ?? 0)
           : normalizeNetworkError(error);
-        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
+        if (shouldRetryRequest(this.retryOptions, request.method, attempt, undefined, normalizedError)) {
           await this.sleepBeforeRetry(attempt, undefined, retrySignal);
           continue;
+        }
+        const fallback = options.onErrorFallback?.(normalizedError);
+        if (fallback !== undefined) {
+          return fallback;
         }
         await this.applyErrorInterceptors({
           request: cloneRequestContext(request),
@@ -2790,9 +2574,16 @@ export class HonuaClient {
       }
       const durationMs = performance.now() - startTime;
 
-      if (!response.ok) {
-        const body = await parseResponseBody(response.clone());
-        const httpError = this.toHttpError(response.status, body);
+      if (options.handleResponse) {
+        const handled = await options.handleResponse(response, durationMs, request);
+        if (handled.handled) {
+          return handled.value;
+        }
+      }
+
+      if (!response.ok && !options.okStatuses?.includes(response.status)) {
+        const body = await parseErrorBody(response);
+        const httpError = toHttpError(response.status, body);
         const authRefreshedRequest = refreshedAuth
           ? undefined
           : await this.refreshReplaySafeRequestAuth(request, response.status);
@@ -2801,9 +2592,13 @@ export class HonuaClient {
           refreshedAuth = true;
           continue;
         }
-        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
+        if (shouldRetryRequest(this.retryOptions, request.method, attempt, response.status, httpError)) {
           await this.sleepBeforeRetry(attempt, response, retrySignal);
           continue;
+        }
+        const fallback = options.onErrorFallback?.(httpError);
+        if (fallback !== undefined) {
+          return fallback;
         }
         await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
         throw httpError;
@@ -2816,13 +2611,7 @@ export class HonuaClient {
         throw error;
       }
 
-      const buffer = await response.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      return {
-        bytes,
-        contentType: response.headers.get("content-type") ?? acceptHeader,
-        empty: response.status === 204 || bytes.byteLength === 0,
-      };
+      return options.finalize(response, durationMs, request);
     }
   }
 
@@ -2893,64 +2682,8 @@ export class HonuaClient {
     };
   }
 
-  private shouldRetryRequest(
-    method: QueryMethod,
-    attempt: number,
-    statusCode: number | undefined,
-    error: unknown,
-  ): boolean {
-    if (!this.retryOptions || attempt >= this.retryOptions.maxRetries) {
-      return false;
-    }
-
-    if (!DEFAULT_RETRY_METHODS.has(method)) {
-      return false;
-    }
-
-    if (error instanceof HonuaAbortError) {
-      return false;
-    }
-
-    if (statusCode !== undefined) {
-      return this.retryOptions.retryStatuses.has(statusCode);
-    }
-
-    return error instanceof HonuaNetworkError || error instanceof HonuaTimeoutError;
-  }
-
-  private resolveRetryDelayMs(attempt: number, response?: Response): number {
-    const retryAfterMs = response ? parseRetryAfterMs(response) : undefined;
-    if (retryAfterMs !== undefined) {
-      return Math.min(this.retryOptions?.maxDelayMs ?? retryAfterMs, retryAfterMs);
-    }
-    if (!this.retryOptions) {
-      return 0;
-    }
-    const exponentialDelay = this.retryOptions.baseDelayMs * 2 ** attempt;
-    const cappedDelay = Math.min(this.retryOptions.maxDelayMs, exponentialDelay);
-    return cappedDelay * (0.5 + Math.random() * 0.5);
-  }
-
   private async sleepBeforeRetry(attempt: number, response: Response | undefined, signal: AbortSignal | undefined) {
-    await sleep(this.resolveRetryDelayMs(attempt, response), signal);
-  }
-
-  private toHttpError(statusCode: number, body: unknown): HonuaHttpError {
-    const fallback = "Request failed";
-    if (isObject(body)) {
-      const error = body.error;
-      if (isObject(error) && typeof error.message === "string") {
-        return new HonuaHttpError(statusCode, error.message, body);
-      }
-      if (typeof body.message === "string") {
-        return new HonuaHttpError(statusCode, body.message, body);
-      }
-      if (typeof body.detail === "string") {
-        return new HonuaHttpError(statusCode, body.detail, body);
-      }
-    }
-
-    return new HonuaHttpError(statusCode, fallback, body);
+    await sleep(resolveRetryDelayMs(this.retryOptions, attempt, response), signal);
   }
 }
 
@@ -3400,156 +3133,6 @@ function authHeadersFromCredentials(credentials: HonuaAuthCredentials): Record<s
     headers.Authorization = `Bearer ${credentials.bearerToken}`;
   }
   return Object.keys(headers).length > 0 ? headers : undefined;
-}
-
-function normalizeTimeoutMs(timeoutMs: number | undefined): number | undefined {
-  if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs)) {
-    return undefined;
-  }
-  return Math.max(1, Math.trunc(timeoutMs));
-}
-
-function normalizeRetryOptions(options: HonuaRetryOptions | undefined): NormalizedRetryOptions | undefined {
-  if (!options) {
-    return undefined;
-  }
-
-  const maxRetries =
-    typeof options.maxRetries === "number" && Number.isFinite(options.maxRetries)
-      ? Math.max(0, Math.trunc(options.maxRetries))
-      : 0;
-  if (maxRetries < 1) {
-    return undefined;
-  }
-
-  const baseDelayMs =
-    typeof options.baseDelayMs === "number" && Number.isFinite(options.baseDelayMs)
-      ? Math.max(1, Math.trunc(options.baseDelayMs))
-      : 100;
-  const maxDelayMs =
-    typeof options.maxDelayMs === "number" && Number.isFinite(options.maxDelayMs)
-      ? Math.max(baseDelayMs, Math.trunc(options.maxDelayMs))
-      : 2_000;
-  const retryStatuses = new Set<number>(
-    (options.retryStatuses ?? Array.from(DEFAULT_RETRY_STATUSES))
-      .map((status) => Math.trunc(status))
-      .filter((status) => Number.isFinite(status) && status >= 100 && status <= 599),
-  );
-  if (retryStatuses.size === 0) {
-    for (const status of DEFAULT_RETRY_STATUSES) {
-      retryStatuses.add(status);
-    }
-  }
-
-  return {
-    maxRetries,
-    baseDelayMs,
-    maxDelayMs,
-    retryStatuses,
-  };
-}
-
-function parseRetryAfterMs(response: Response): number | undefined {
-  const value = response.headers.get("retry-after");
-  if (!value) {
-    return undefined;
-  }
-
-  const seconds = Number.parseInt(value, 10);
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return seconds * 1_000;
-  }
-
-  const targetTime = Date.parse(value);
-  if (!Number.isFinite(targetTime)) {
-    return undefined;
-  }
-  return Math.max(0, targetTime - Date.now());
-}
-
-async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  if (ms <= 0) {
-    return;
-  }
-  if (signal?.aborted) {
-    throw new HonuaAbortError();
-  }
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", abort);
-      resolve();
-    }, ms);
-    const abort = () => {
-      clearTimeout(timer);
-      reject(new HonuaAbortError());
-    };
-    signal?.addEventListener("abort", abort, { once: true });
-  });
-}
-
-function normalizeNetworkError(error: unknown): Error {
-  if (error instanceof Error && error.name === "AbortError") {
-    return new HonuaAbortError();
-  }
-  if (error instanceof Error) {
-    return new HonuaNetworkError(error.message, error);
-  }
-  return new HonuaNetworkError(String(error), error);
-}
-
-function createTimeoutSignal(
-  existingSignal: AbortSignal | null | undefined,
-  timeoutMs: number | undefined,
-): {
-  signal: AbortSignal | undefined;
-  didTimeout: boolean;
-  dispose(): void;
-} {
-  if (timeoutMs === undefined) {
-    return {
-      signal: existingSignal ?? undefined,
-      didTimeout: false,
-      dispose: () => undefined,
-    };
-  }
-
-  const controller = new AbortController();
-  let didTimeout = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let onAbort: (() => void) | undefined;
-
-  timer = setTimeout(() => {
-    didTimeout = true;
-    controller.abort();
-  }, timeoutMs);
-
-  if (existingSignal) {
-    if (existingSignal.aborted) {
-      controller.abort();
-    } else {
-      onAbort = () => {
-        controller.abort();
-      };
-      existingSignal.addEventListener("abort", onAbort, { once: true });
-    }
-  }
-
-  return {
-    signal: controller.signal,
-    get didTimeout() {
-      return didTimeout;
-    },
-    dispose: () => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = undefined;
-      }
-      if (existingSignal && onAbort) {
-        existingSignal.removeEventListener("abort", onAbort);
-        onAbort = undefined;
-      }
-    },
-  };
 }
 
 function createOgcMetadataParams(request: OgcMetadataRequest): URLSearchParams {
