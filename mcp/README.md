@@ -84,3 +84,65 @@ harness then drives a real `HonuaClient` instead of the fixture.
 The standard schemas are vendored under
 `certification/geospatial-mcp-schemas/` (see that directory's `PROVENANCE.md`
 for the pinned source revision).
+
+## Transport-symmetric stdio proxy
+
+The honua server exposes one MCP catalog over streamable-HTTP/SSE at `/mcp`.
+Claude-Desktop-style clients speak **stdio**. Rather than reimplement that
+catalog (which is how the HTTP and stdio surfaces historically drifted apart),
+this package ships a **stdio proxy** (`honua-mcp-proxy`) that bridges a local
+stdio MCP client to the remote HTTP-SSE MCP server. It connects upstream as an
+MCP client and re-exposes the *same* catalog downstream over stdio — identical
+tools, identical input/output schemas, identical resources and prompts, and live
+`tools/list_changed` notifications. There is one source-of-truth catalog (the
+server's `/mcp`); the SDK proxies it, so the two transports are symmetric by
+construction. (Cross-repo: honua-io/honua-server#1950.)
+
+```bash
+# Bridge a stdio MCP client to a remote honua /mcp surface:
+HONUA_MCP_REMOTE_URL="https://demo.honua.io/mcp" honua-mcp-proxy
+```
+
+Environment variables:
+
+- `HONUA_MCP_REMOTE_URL` (required; alias `HONUA_MCP_URL`): the remote honua
+  `/mcp` endpoint to proxy.
+- `HONUA_MCP_AUTH_TOKEN` (optional): sent as `Authorization: Bearer <token>`.
+- `HONUA_API_KEY` (optional): sent as `x-api-key`.
+
+A parity test (`test/proxy.test.ts`) asserts the tool/resource/template catalog
+the downstream client sees is byte-identical to the upstream surface, that
+`tools/call` and resource reads round-trip identically, and that `list_changed`
+notifications are forwarded.
+
+## Cross-model workflow eval (provability)
+
+The package ships a **cross-model workflow eval** that proves the "any client →
+any workflow" claim: a held-out corpus of GIS workflows (`src/eval/corpus.ts`)
+is driven through the MCP surface by different client LLMs and graded for
+end-to-end success / clarification / edit rates per model. (Cross-repo:
+honua-io/honua-server#1956.)
+
+- **Deterministic control (offline, CI):** a scripted "ideal client" runs every
+  workflow's real `tools/call` round-trips against the offline fixture surface —
+  no model/API calls — and is graded identically to the live models. This is the
+  reproducible CI gate.
+- **Live cross-model (Claude + GPT):** when `ANTHROPIC_API_KEY` /
+  `OPENAI_API_KEY` are set, the Claude driver (latest Opus, `claude-opus-4-8`)
+  and a GPT driver run the corpus through a real agentic tool-use loop over the
+  identical catalog. The `@anthropic-ai/sdk` / `openai` packages are imported
+  dynamically (not dependencies); keys come from the environment and are never
+  hardcoded. Set `HONUA_MCP_REMOTE_URL` to drive a live remote `/mcp` instead of
+  the fixture.
+
+```bash
+npm run eval            # run the eval (live models join if their keys are set)
+npm run eval:offline    # force the deterministic control + fixture surface
+npm run test:eval       # gate: harness tests + offline eval, exits non-zero on failure
+npm run test:eval:artifact   # evidence: writes artifacts, always exits 0
+```
+
+Artifacts (`mcp-eval-results.json` / `mcp-eval-results.md`, gitignored, uploaded
+by CI) record the per-model scorecard. The CI gate asserts the deterministic
+control passes every scenario; live cross-model runs are recorded but
+informational.
