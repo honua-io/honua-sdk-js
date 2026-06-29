@@ -12,7 +12,7 @@ import {
   withHonuaCacheState,
   withoutHonuaCacheState,
 } from "./cache-state.js";
-import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
+import { HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
 import { HonuaOdataEntitySet } from "./odata.js";
 import { HonuaOgcMaps } from "./ogc-maps.js";
 import { HonuaOgcProcesses } from "./ogc-processes.js";
@@ -28,6 +28,18 @@ import {
   createOgcProcessesAdapter,
 } from "./process-runner.js";
 import type { GeospatialGrpcProcessClient, HonuaProcessAdapter } from "./process-runner.js";
+import {
+  DEFAULT_RETRY_METHODS,
+  type NormalizedRetryOptions,
+  createTimeoutSignal,
+  normalizeNetworkError,
+  normalizeRetryOptions,
+  normalizeTimeoutMs,
+  resolveRetryDelayMs,
+  shouldRetryRequest,
+  sleep,
+  toHttpError,
+} from "./request-pipeline.js";
 import { HonuaStacSearch } from "./stac.js";
 import {
   HonuaFeatureLayer,
@@ -85,7 +97,6 @@ import type {
   HonuaRequestInterceptor,
   HonuaRequestMutation,
   HonuaResponseContext,
-  HonuaRetryOptions,
   HonuaServerCapabilitiesResponse,
   HonuaServerCompatibility,
   HonuaServerCompatibilityFeature,
@@ -290,15 +301,6 @@ function normalizeSearchFields(searchFields: MapFindRequest["searchFields"]): st
   return Array.isArray(searchFields) ? searchFields.join(",") : searchFields;
 }
 
-interface NormalizedRetryOptions {
-  maxRetries: number;
-  baseDelayMs: number;
-  maxDelayMs: number;
-  retryStatuses: ReadonlySet<number>;
-}
-
-const DEFAULT_RETRY_STATUSES: ReadonlySet<number> = new Set([429, 502, 503, 504]);
-const DEFAULT_RETRY_METHODS: ReadonlySet<QueryMethod> = new Set(["GET", "PUT", "DELETE"]);
 const DEFAULT_AUTH_REFRESH_SKEW_MS = 60_000;
 const DEFAULT_METADATA_CACHE_MAX_ENTRIES = 256;
 const SUPPORTED_CONTROL_PLANE_API_MAJOR = 1;
@@ -2663,7 +2665,7 @@ export class HonuaClient {
         const normalizedError = timeout.didTimeout
           ? new HonuaTimeoutError(this.timeoutMs ?? 0)
           : normalizeNetworkError(error);
-        if (this.shouldRetryRequest(request.method, attempt, undefined, normalizedError)) {
+        if (shouldRetryRequest(this.retryOptions, request.method, attempt, undefined, normalizedError)) {
           await this.sleepBeforeRetry(attempt, undefined, retrySignal);
           continue;
         }
@@ -2696,7 +2698,7 @@ export class HonuaClient {
 
       if (!response.ok && !options.okStatuses?.includes(response.status)) {
         const body = options.errorBody ? await options.errorBody(response) : await parseResponseBody(response.clone());
-        const httpError = this.toHttpError(response.status, body);
+        const httpError = toHttpError(response.status, body);
         const authRefreshedRequest = refreshedAuth
           ? undefined
           : await this.refreshReplaySafeRequestAuth(request, response.status);
@@ -2705,7 +2707,7 @@ export class HonuaClient {
           refreshedAuth = true;
           continue;
         }
-        if (this.shouldRetryRequest(request.method, attempt, response.status, httpError)) {
+        if (shouldRetryRequest(this.retryOptions, request.method, attempt, response.status, httpError)) {
           await this.sleepBeforeRetry(attempt, response, retrySignal);
           continue;
         }
@@ -2798,64 +2800,8 @@ export class HonuaClient {
     };
   }
 
-  private shouldRetryRequest(
-    method: QueryMethod,
-    attempt: number,
-    statusCode: number | undefined,
-    error: unknown,
-  ): boolean {
-    if (!this.retryOptions || attempt >= this.retryOptions.maxRetries) {
-      return false;
-    }
-
-    if (!DEFAULT_RETRY_METHODS.has(method)) {
-      return false;
-    }
-
-    if (error instanceof HonuaAbortError) {
-      return false;
-    }
-
-    if (statusCode !== undefined) {
-      return this.retryOptions.retryStatuses.has(statusCode);
-    }
-
-    return error instanceof HonuaNetworkError || error instanceof HonuaTimeoutError;
-  }
-
-  private resolveRetryDelayMs(attempt: number, response?: Response): number {
-    const retryAfterMs = response ? parseRetryAfterMs(response) : undefined;
-    if (retryAfterMs !== undefined) {
-      return Math.min(this.retryOptions?.maxDelayMs ?? retryAfterMs, retryAfterMs);
-    }
-    if (!this.retryOptions) {
-      return 0;
-    }
-    const exponentialDelay = this.retryOptions.baseDelayMs * 2 ** attempt;
-    const cappedDelay = Math.min(this.retryOptions.maxDelayMs, exponentialDelay);
-    return cappedDelay * (0.5 + Math.random() * 0.5);
-  }
-
   private async sleepBeforeRetry(attempt: number, response: Response | undefined, signal: AbortSignal | undefined) {
-    await sleep(this.resolveRetryDelayMs(attempt, response), signal);
-  }
-
-  private toHttpError(statusCode: number, body: unknown): HonuaHttpError {
-    const fallback = "Request failed";
-    if (isObject(body)) {
-      const error = body.error;
-      if (isObject(error) && typeof error.message === "string") {
-        return new HonuaHttpError(statusCode, error.message, body);
-      }
-      if (typeof body.message === "string") {
-        return new HonuaHttpError(statusCode, body.message, body);
-      }
-      if (typeof body.detail === "string") {
-        return new HonuaHttpError(statusCode, body.detail, body);
-      }
-    }
-
-    return new HonuaHttpError(statusCode, fallback, body);
+    await sleep(resolveRetryDelayMs(this.retryOptions, attempt, response), signal);
   }
 }
 
@@ -3330,156 +3276,6 @@ function authHeadersFromCredentials(credentials: HonuaAuthCredentials): Record<s
     headers.Authorization = `Bearer ${credentials.bearerToken}`;
   }
   return Object.keys(headers).length > 0 ? headers : undefined;
-}
-
-function normalizeTimeoutMs(timeoutMs: number | undefined): number | undefined {
-  if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs)) {
-    return undefined;
-  }
-  return Math.max(1, Math.trunc(timeoutMs));
-}
-
-function normalizeRetryOptions(options: HonuaRetryOptions | undefined): NormalizedRetryOptions | undefined {
-  if (!options) {
-    return undefined;
-  }
-
-  const maxRetries =
-    typeof options.maxRetries === "number" && Number.isFinite(options.maxRetries)
-      ? Math.max(0, Math.trunc(options.maxRetries))
-      : 0;
-  if (maxRetries < 1) {
-    return undefined;
-  }
-
-  const baseDelayMs =
-    typeof options.baseDelayMs === "number" && Number.isFinite(options.baseDelayMs)
-      ? Math.max(1, Math.trunc(options.baseDelayMs))
-      : 100;
-  const maxDelayMs =
-    typeof options.maxDelayMs === "number" && Number.isFinite(options.maxDelayMs)
-      ? Math.max(baseDelayMs, Math.trunc(options.maxDelayMs))
-      : 2_000;
-  const retryStatuses = new Set<number>(
-    (options.retryStatuses ?? Array.from(DEFAULT_RETRY_STATUSES))
-      .map((status) => Math.trunc(status))
-      .filter((status) => Number.isFinite(status) && status >= 100 && status <= 599),
-  );
-  if (retryStatuses.size === 0) {
-    for (const status of DEFAULT_RETRY_STATUSES) {
-      retryStatuses.add(status);
-    }
-  }
-
-  return {
-    maxRetries,
-    baseDelayMs,
-    maxDelayMs,
-    retryStatuses,
-  };
-}
-
-function parseRetryAfterMs(response: Response): number | undefined {
-  const value = response.headers.get("retry-after");
-  if (!value) {
-    return undefined;
-  }
-
-  const seconds = Number.parseInt(value, 10);
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return seconds * 1_000;
-  }
-
-  const targetTime = Date.parse(value);
-  if (!Number.isFinite(targetTime)) {
-    return undefined;
-  }
-  return Math.max(0, targetTime - Date.now());
-}
-
-async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  if (ms <= 0) {
-    return;
-  }
-  if (signal?.aborted) {
-    throw new HonuaAbortError();
-  }
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", abort);
-      resolve();
-    }, ms);
-    const abort = () => {
-      clearTimeout(timer);
-      reject(new HonuaAbortError());
-    };
-    signal?.addEventListener("abort", abort, { once: true });
-  });
-}
-
-function normalizeNetworkError(error: unknown): Error {
-  if (error instanceof Error && error.name === "AbortError") {
-    return new HonuaAbortError();
-  }
-  if (error instanceof Error) {
-    return new HonuaNetworkError(error.message, error);
-  }
-  return new HonuaNetworkError(String(error), error);
-}
-
-function createTimeoutSignal(
-  existingSignal: AbortSignal | null | undefined,
-  timeoutMs: number | undefined,
-): {
-  signal: AbortSignal | undefined;
-  didTimeout: boolean;
-  dispose(): void;
-} {
-  if (timeoutMs === undefined) {
-    return {
-      signal: existingSignal ?? undefined,
-      didTimeout: false,
-      dispose: () => undefined,
-    };
-  }
-
-  const controller = new AbortController();
-  let didTimeout = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let onAbort: (() => void) | undefined;
-
-  timer = setTimeout(() => {
-    didTimeout = true;
-    controller.abort();
-  }, timeoutMs);
-
-  if (existingSignal) {
-    if (existingSignal.aborted) {
-      controller.abort();
-    } else {
-      onAbort = () => {
-        controller.abort();
-      };
-      existingSignal.addEventListener("abort", onAbort, { once: true });
-    }
-  }
-
-  return {
-    signal: controller.signal,
-    get didTimeout() {
-      return didTimeout;
-    },
-    dispose: () => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = undefined;
-      }
-      if (existingSignal && onAbort) {
-        existingSignal.removeEventListener("abort", onAbort);
-        onAbort = undefined;
-      }
-    },
-  };
 }
 
 function createOgcMetadataParams(request: OgcMetadataRequest): URLSearchParams {
