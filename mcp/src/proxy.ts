@@ -146,6 +146,10 @@ export function createProxyServer(upstream: Client): Server {
   return server;
 }
 
+/* v8 ignore start -- live-process entry: wires the stdio transport to a real
+   remote /mcp upstream; exercised by running the proxy, not by unit tests. The
+   unit-testable logic (option/header resolution, upstream connect, catalog
+   forwarding) lives in the exported functions above and is covered there. */
 async function main(): Promise<void> {
   const options = resolveProxyOptions();
   const upstream = await connectUpstream(options);
@@ -170,3 +174,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(1);
   });
 }
+/* v8 ignore stop */
