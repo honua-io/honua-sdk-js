@@ -10,6 +10,8 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const PACKAGES_ROOT = path.join(PROJECT_ROOT, "dist", "packages");
 const EXPECTED_PUBLISHED_NODE_ENGINE = ">=20.0.0";
+const ROOT_PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
+const EXPECTED_LICENSE = ROOT_PACKAGE_JSON.license;
 
 const packageDirs = {
   "@honua/sdk": path.join(PACKAGES_ROOT, "honua-sdk"),
@@ -32,6 +34,18 @@ for (const [name, directory] of Object.entries(packageDirs)) {
     process.stderr.write(
       `Expected split packages to keep the SDK runtime floor at ${EXPECTED_PUBLISHED_NODE_ENGINE}.\n`,
     );
+    process.exit(1);
+  }
+
+  if (packageJson?.license !== EXPECTED_LICENSE) {
+    process.stderr.write(
+      `Missing or unexpected license for ${name}: ${packageJson?.license ?? "<missing>"} (expected ${EXPECTED_LICENSE}).\n`,
+    );
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(path.join(directory, "LICENSE"))) {
+    process.stderr.write(`Missing LICENSE file in split package ${name}: ${directory}\n`);
     process.exit(1);
   }
 }

@@ -41,9 +41,17 @@ import type {
 const FIELD_TYPE_MAP: Record<number, string> = {
   [FieldType.STRING]: "esriFieldTypeString",
   [FieldType.INTEGER]: "esriFieldTypeInteger",
-  [FieldType.BIG_INTEGER]: "esriFieldTypeInteger",
+  // BIG_INTEGER must map to esriFieldTypeBigInteger so a 64-bit column reports
+  // the same field type as the PBF fast path (mapPbfFieldTypeToGeoServices maps
+  // PBF type 13 -> esriFieldTypeBigInteger). Mapping it to esriFieldTypeInteger
+  // made a 64-bit column's reported type diverge between the gRPC and PBF
+  // transports for the same dataset.
+  [FieldType.BIG_INTEGER]: "esriFieldTypeBigInteger",
   [FieldType.DOUBLE]: "esriFieldTypeDouble",
   [FieldType.FLOAT]: "esriFieldTypeSingle",
+  // Esri/GeoServices has no boolean field type; ArcGIS surfaces booleans as a
+  // small integer, and the PBF schema likewise carries booleans as small
+  // integers, so esriFieldTypeSmallInteger keeps the two transports in parity.
   [FieldType.BOOLEAN]: "esriFieldTypeSmallInteger",
   [FieldType.DATE_TIME]: "esriFieldTypeDate",
   [FieldType.DATE]: "esriFieldTypeDate",
@@ -750,6 +758,25 @@ function toSafeNumberOrString(value: bigint): number | string {
   return value.toString();
 }
 
+/**
+ * Builds an Esri-JSON coordinate array from a proto coordinate. Z and M are
+ * appended only when present, matching `f=json` / PBF output:
+ *   - `[x, y]`        (2D)
+ *   - `[x, y, z]`     (Z only)
+ *   - `[x, y, m]`     (M only — Esri's M-without-Z convention)
+ *   - `[x, y, z, m]`  (Z and M)
+ *
+ * A `NaN` placeholder is never emitted: `JSON.stringify` would serialize it to
+ * `null`, which is invalid Esri-JSON/GeoJSON and diverges from the other
+ * transports.
+ */
+function coordToArray(x: number, y: number, z: number | undefined, m: number | undefined): number[] {
+  const coords: number[] = [x, y];
+  if (z !== undefined) coords.push(z);
+  if (m !== undefined) coords.push(m);
+  return coords;
+}
+
 function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Record<string, unknown> | null {
   switch (geometry.shape.case) {
     case "point": {
@@ -762,50 +789,19 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
     case "multiPoint": {
       const mp = geometry.shape.value;
       return {
-        points: mp.points.map((p) => {
-          const coords: number[] = [p.x, p.y];
-          if (p.z !== undefined) {
-            coords.push(p.z);
-          } else if (p.m !== undefined) {
-            coords.push(Number.NaN);
-          }
-          if (p.m !== undefined) coords.push(p.m);
-          return coords;
-        }),
+        points: mp.points.map((p) => coordToArray(p.x, p.y, p.z, p.m)),
       };
     }
     case "polyline": {
       const pl = geometry.shape.value;
       return {
-        paths: pl.paths.map((path) =>
-          path.coords.map((c) => {
-            const coords: number[] = [c.x, c.y];
-            if (c.z !== undefined) {
-              coords.push(c.z);
-            } else if (c.m !== undefined) {
-              coords.push(Number.NaN);
-            }
-            if (c.m !== undefined) coords.push(c.m);
-            return coords;
-          }),
-        ),
+        paths: pl.paths.map((path) => path.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m))),
       };
     }
     case "polygon": {
       const pg = geometry.shape.value;
       return {
-        rings: pg.rings.map((ring) =>
-          ring.coords.map((c) => {
-            const coords: number[] = [c.x, c.y];
-            if (c.z !== undefined) {
-              coords.push(c.z);
-            } else if (c.m !== undefined) {
-              coords.push(Number.NaN);
-            }
-            if (c.m !== undefined) coords.push(c.m);
-            return coords;
-          }),
-        ),
+        rings: pg.rings.map((ring) => ring.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m))),
       };
     }
     case "multiPolygon": {
@@ -813,18 +809,7 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
       const rings: number[][][] = [];
       for (const poly of mpg.polygons) {
         for (const ring of poly.rings) {
-          rings.push(
-            ring.coords.map((c) => {
-              const coords: number[] = [c.x, c.y];
-              if (c.z !== undefined) {
-                coords.push(c.z);
-              } else if (c.m !== undefined) {
-                coords.push(Number.NaN);
-              }
-              if (c.m !== undefined) coords.push(c.m);
-              return coords;
-            }),
-          );
+          rings.push(ring.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m)));
         }
       }
       return { rings };

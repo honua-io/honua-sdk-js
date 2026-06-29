@@ -34,7 +34,7 @@ const WFS_LOCATOR = {
 
 function buildWfsDataset(
   routes: Array<[string | RegExp, (url: URL, init?: RequestInit) => Response | Promise<Response>]>,
-  locator: { url: string; typeName: string; featureNamespace?: string } = WFS_LOCATOR,
+  locator: { url: string; typeName: string; featureNamespace?: string; srsName?: string | number } = WFS_LOCATOR,
 ) {
   const client = makeMockClient({ routes });
   return createDataset({
@@ -150,6 +150,88 @@ describe("wfs / FES emission", () => {
     expect(xml).toContain("<fes:BBOX>");
     expect(xml).toContain("<gml:Envelope");
     expect(xml).toContain("urn:ogc:def:crs:EPSG::4326");
+  });
+
+  it("emits lat,lon corners for a URN-form geographic CRS (GML 3.2 axis order)", () => {
+    const compiled = compileSpatialFilter(
+      {
+        geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelIntersects",
+      },
+      { geometryProperty: "the_geom", srsName: "urn:ogc:def:crs:EPSG::4326" },
+    );
+    expect(compiled).not.toBe(UNSUPPORTED_FES);
+    if (compiled === UNSUPPORTED_FES) return;
+    const xml = serializeFes([compiled]);
+    // EPSG:4326 in URN form is latitude,longitude on conformant WFS 2.0 servers.
+    expect(xml).toContain("<gml:lowerCorner>37 -123</gml:lowerCorner>");
+    expect(xml).toContain("<gml:upperCorner>45 -120</gml:upperCorner>");
+  });
+
+  it("keeps lon,lat corners for the legacy short EPSG form and CRS84", () => {
+    const short = compileSpatialFilter(
+      {
+        geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelIntersects",
+      },
+      { geometryProperty: "the_geom", srsName: "EPSG:4326" },
+    );
+    expect(short).not.toBe(UNSUPPORTED_FES);
+    if (short === UNSUPPORTED_FES) return;
+    expect(serializeFes([short])).toContain("<gml:lowerCorner>-123 37</gml:lowerCorner>");
+
+    const crs84 = compileSpatialFilter(
+      {
+        geometry: { xmin: -123, ymin: 37, xmax: -120, ymax: 45 },
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelIntersects",
+      },
+      { geometryProperty: "the_geom", srsName: "urn:ogc:def:crs:OGC:1.3:CRS84" },
+    );
+    expect(crs84).not.toBe(UNSUPPORTED_FES);
+    if (crs84 === UNSUPPORTED_FES) return;
+    expect(serializeFes([crs84])).toContain("<gml:lowerCorner>-123 37</gml:lowerCorner>");
+  });
+
+  it("emits lat,lon for a URN-form geographic CRS in a <fes:Within> polygon", () => {
+    const compiled = compileSpatialFilter(
+      {
+        geometry: {
+          rings: [
+            [
+              [-123, 37],
+              [-120, 37],
+              [-120, 45],
+              [-123, 45],
+              [-123, 37],
+            ],
+          ],
+        },
+        geometryType: "esriGeometryPolygon",
+        spatialRel: "esriSpatialRelWithin",
+      },
+      { geometryProperty: "the_geom", srsName: "urn:ogc:def:crs:EPSG::4326" },
+    );
+    expect(compiled).not.toBe(UNSUPPORTED_FES);
+    if (compiled === UNSUPPORTED_FES) return;
+    const xml = serializeFes([compiled]);
+    expect(xml).toContain("<gml:posList>37 -123 37 -120 45 -120 45 -123 37 -123</gml:posList>");
+  });
+
+  it("keeps projected CRS axis order as easting,northing (x,y)", () => {
+    const compiled = compileSpatialFilter(
+      {
+        geometry: { xmin: 100, ymin: 200, xmax: 300, ymax: 400 },
+        geometryType: "esriGeometryEnvelope",
+        spatialRel: "esriSpatialRelIntersects",
+      },
+      { geometryProperty: "the_geom", srsName: "urn:ogc:def:crs:EPSG::3857" },
+    );
+    expect(compiled).not.toBe(UNSUPPORTED_FES);
+    if (compiled === UNSUPPORTED_FES) return;
+    expect(serializeFes([compiled])).toContain("<gml:lowerCorner>100 200</gml:lowerCorner>");
   });
 
   it("translates a polygon + within into <fes:Within>", () => {
@@ -682,6 +764,51 @@ describe("wfs / canonical Source", () => {
     expect(result.added[0].success).toBe(true);
     expect(result.updated[0].success).toBe(true);
     expect(result.deleted[0].success).toBe(true);
+  });
+
+  it("applyEdits emits the locator srsName on Insert/Update geometry with GML 3.2 axis order", async () => {
+    let observedBody: string | undefined;
+    const dataset = buildWfsDataset(
+      [
+        [
+          "/wfs",
+          async (url, init) => {
+            const request = url.searchParams.get("request");
+            if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+            if (init?.method === "POST") {
+              observedBody = typeof init.body === "string" ? init.body : await new Response(init.body).text();
+              return xmlResponse(wfsTransactionResponseXml());
+            }
+            return new Response("not found", { status: 404 });
+          },
+        ],
+      ],
+      // Numeric WKID normalizes to the OGC URN form, which is lat,lon for 4326.
+      {
+        url: "https://mock.honua.test/wfs",
+        typeName: "parcels:lot",
+        featureNamespace: "http://parcels.example.test/ns",
+        srsName: 4326,
+      },
+    );
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    await source.applyEdits({
+      adds: [
+        { attributes: { OBJECTID: 99, STATE: "CA", ACRES: 5 }, geometry: { type: "Point", coordinates: [-122, 37] } },
+      ],
+      updates: [
+        {
+          id: 1,
+          attributes: { OBJECTID: 1, STATE: "CA", ACRES: 8 },
+          geometry: { type: "Point", coordinates: [-121, 38] },
+        },
+      ],
+    });
+    // srsName attribute is emitted on the transaction geometry...
+    expect(observedBody).toContain('srsName="urn:ogc:def:crs:EPSG::4326"');
+    // ...and coordinates are written lat,lon (y,x) for the URN-form 4326 CRS.
+    expect(observedBody).toContain("<gml:pos>37 -122</gml:pos>");
+    expect(observedBody).toContain("<gml:pos>38 -121</gml:pos>");
   });
 
   it("applyEdits falls back to a synthetic xmlns when the locator omits featureNamespace", async () => {

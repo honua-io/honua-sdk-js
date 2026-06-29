@@ -72,6 +72,66 @@ describe("HonuaClient transport selection", () => {
   });
 });
 
+describe("HonuaClient gRPC-web auth + timeout wiring", () => {
+  it("connect auth interceptor injects credential headers onto every call", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      transport: "grpc-web",
+      apiKey: "secret-key",
+      bearerToken: "tok-123",
+      fetchFn: async () => new Response("{}", { status: 200 }),
+    });
+
+    const interceptor = (client as any).buildConnectAuthInterceptor();
+    const req = { header: new Headers() };
+    let forwarded: unknown;
+    const next = async (r: unknown) => {
+      forwarded = r;
+      return { ok: true };
+    };
+
+    await interceptor(next)(req);
+
+    expect(forwarded).toBe(req);
+    expect(req.header.get("x-api-key")).toBe("secret-key");
+    expect(req.header.get("authorization")).toBe("Bearer tok-123");
+  });
+
+  it("connect auth interceptor resolves provider credentials per call", async () => {
+    let issued = 0;
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      transport: "grpc-web",
+      auth: () => {
+        issued += 1;
+        return { bearerToken: `provider-${issued}`, expiresAt: Date.now() + 60_000 };
+      },
+      fetchFn: async () => new Response("{}", { status: 200 }),
+    });
+
+    const interceptor = (client as any).buildConnectAuthInterceptor();
+    const req = { header: new Headers() };
+    await interceptor(async () => ({ ok: true }))(req);
+
+    expect(req.header.get("authorization")).toBe("Bearer provider-1");
+    expect(issued).toBe(1);
+  });
+
+  it("connectTransportOptions wires the auth interceptor and honors timeoutMs", () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      transport: "grpc-web",
+      timeoutMs: 1234,
+      fetchFn: async () => new Response("{}", { status: 200 }),
+    });
+
+    const opts = (client as any).connectTransportOptions();
+    expect(opts.baseUrl).toBe("https://example.test");
+    expect(opts.interceptors).toHaveLength(1);
+    expect(opts.defaultTimeoutMs).toBe(1234);
+  });
+});
+
 describe("HonuaClient REST transport parity", () => {
   it("queryFeatures still works with preferBinary on rest transport", async () => {
     let requestedUrl = "";

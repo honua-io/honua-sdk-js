@@ -19,6 +19,7 @@ import type {
 } from "./types.js";
 
 const DEFAULT_MAX_SEEN_EVENT_IDS = 256;
+const DEFAULT_MAX_TOMBSTONES = 1024;
 
 export function emptyRealtimeFeatureState<TFeature = unknown>(): RealtimeFeatureState<TFeature> {
   return {
@@ -77,17 +78,21 @@ export function reduceRealtimeFeatureState<TFeature>(
     case "upsert":
       return applyUpsert(base, event.feature, metadata);
     case "delete":
-      return applyDelete(base, {
-        id: event.id,
-        sourceId: event.sourceId,
-        cursor: metadata.cursor,
-        sequence: metadata.sequence,
-        version: event.version,
-        updatedAt: event.updatedAt,
-        deletedAt: event.deletedAt ?? receivedAt,
-      });
+      return boundTombstones(
+        applyDelete(base, {
+          id: event.id,
+          sourceId: event.sourceId,
+          cursor: metadata.cursor,
+          sequence: metadata.sequence,
+          version: event.version,
+          updatedAt: event.updatedAt,
+          deletedAt: event.deletedAt ?? receivedAt,
+        }),
+        options,
+        receivedAt,
+      );
     case "delta":
-      return applyDelta(base, event.upserts ?? [], event.deletes ?? [], metadata);
+      return boundTombstones(applyDelta(base, event.upserts ?? [], event.deletes ?? [], metadata), options, receivedAt);
     case "heartbeat":
       return {
         ...base,
@@ -221,12 +226,33 @@ function applyDelta<TFeature>(
     readonly receivedAt: number;
   },
 ): RealtimeFeatureState<TFeature> {
-  let next = state;
-  for (const feature of upserts) {
-    next = applyUpsert(next, feature, metadata);
+  if (upserts.length === 0 && deletes.length === 0) {
+    return state;
   }
+  // Build the next records/tombstones maps once and mutate them across every
+  // item in the batch. The previous implementation delegated to
+  // applyUpsert/applyDelete per item, each of which spread the entire records
+  // (and tombstones) dictionary — O(deltaSize x stateSize): a 100-mutation
+  // delta over a 10k-feature state copied ~1M entries.
+  const records: Record<string, RealtimeFeatureRecord<TFeature>> = { ...state.records };
+  const tombstones: Record<string, RealtimeFeatureTombstone> = { ...state.tombstones };
+
+  for (const feature of upserts) {
+    const key = realtimeFeatureKey(feature.sourceId, feature.id);
+    delete tombstones[key];
+    records[key] = {
+      ...feature,
+      key,
+      cursor: metadata.cursor,
+      sequence: metadata.sequence,
+      receivedAt: metadata.receivedAt,
+    };
+  }
+
   for (const tombstone of deletes) {
-    next = applyDelete(next, {
+    const key = realtimeFeatureKey(tombstone.sourceId, tombstone.id);
+    delete records[key];
+    tombstones[key] = {
       id: tombstone.id,
       sourceId: tombstone.sourceId,
       cursor: metadata.cursor,
@@ -234,9 +260,54 @@ function applyDelta<TFeature>(
       version: tombstone.version,
       updatedAt: tombstone.updatedAt,
       deletedAt: tombstone.deletedAt ?? metadata.receivedAt,
-    });
+      key,
+    };
   }
-  return next;
+
+  return {
+    ...state,
+    records,
+    tombstones,
+  };
+}
+
+/**
+ * Evict tombstones that exceed the configured age (`tombstoneTtlMs`) or count
+ * (`maxTombstones`, default {@link DEFAULT_MAX_TOMBSTONES}) bound. Returns the
+ * input state unchanged when nothing is pruned so reducers stay referentially
+ * stable on the common path.
+ */
+function boundTombstones<TFeature>(
+  state: RealtimeFeatureState<TFeature>,
+  options: RealtimeReducerOptions,
+  now: number,
+): RealtimeFeatureState<TFeature> {
+  const maxTombstones = options.maxTombstones ?? DEFAULT_MAX_TOMBSTONES;
+  const ttlMs = options.tombstoneTtlMs;
+  const hasTtl = typeof ttlMs === "number" && ttlMs >= 0;
+  const entries = Object.values(state.tombstones);
+  const overCount = maxTombstones > 0 && entries.length > maxTombstones;
+  if (!overCount && !hasTtl) {
+    return state;
+  }
+
+  let kept = entries;
+  if (hasTtl) {
+    kept = kept.filter((tombstone) => now - (tombstone.deletedAt ?? 0) <= (ttlMs as number));
+  }
+  if (maxTombstones > 0 && kept.length > maxTombstones) {
+    // Retain the most-recently-deleted entries.
+    kept = [...kept].sort((a, b) => (a.deletedAt ?? 0) - (b.deletedAt ?? 0)).slice(kept.length - maxTombstones);
+  }
+  if (kept.length === entries.length) {
+    return state;
+  }
+
+  const tombstones: Record<string, RealtimeFeatureTombstone> = {};
+  for (const tombstone of kept) {
+    tombstones[tombstone.key] = tombstone;
+  }
+  return { ...state, tombstones };
 }
 
 function applyUpsert<TFeature>(

@@ -1,6 +1,6 @@
 {
   "name": "@honua/mcp-server",
-  "version": "0.0.14-alpha.0",
+  "version": "0.0.19-alpha.0",
   "description": "MCP server for Honua geospatial feature services",
   "type": "module",
   "bin": {
@@ -33,7 +33,7 @@
     "hono": "^4.12.21"
   },
   "peerDependencies": {
-    "@honua/sdk-js": "^0.0.14-alpha.0"
+    "@honua/sdk-js": "^0.0.19-alpha.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",

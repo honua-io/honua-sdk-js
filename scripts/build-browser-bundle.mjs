@@ -17,9 +17,10 @@
  * not inline multi-megabyte map/protobuf runtimes. The sole real dependency,
  * `@maplibre/maplibre-gl-style-spec`, is bundled.
  *
- * esbuild is used directly from `node_modules` (it must already be installed);
- * it is intentionally NOT a package.json dependency so building this artifact
- * never forces an install in the shared dev environment.
+ * esbuild is a declared `devDependency` so the publish pipeline and CI can
+ * build this artifact deterministically (the published root package ships the
+ * resulting `dist/browser/*`). If the import below fails, install dev deps with
+ * `npm ci`.
  *
  * Run with: `npm run build:browser`
  */

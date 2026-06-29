@@ -551,7 +551,9 @@ describe("fromProtoQueryResponse", () => {
     const fieldTypes: Array<[FieldType, string]> = [
       [FieldType.STRING, "esriFieldTypeString"],
       [FieldType.INTEGER, "esriFieldTypeInteger"],
-      [FieldType.BIG_INTEGER, "esriFieldTypeInteger"],
+      // 64-bit columns must report esriFieldTypeBigInteger, matching the PBF
+      // fast path; mapping to esriFieldTypeInteger diverged across transports.
+      [FieldType.BIG_INTEGER, "esriFieldTypeBigInteger"],
       [FieldType.DOUBLE, "esriFieldTypeDouble"],
       [FieldType.FLOAT, "esriFieldTypeSingle"],
       [FieldType.BOOLEAN, "esriFieldTypeSmallInteger"],
@@ -618,7 +620,7 @@ describe("fromProtoQueryResponse", () => {
     expect(result.features[0].geometry).toEqual({ x: 10, y: 20, z: 100, m: 0.5 });
   });
 
-  it("converts multipoint geometry with m and no z using 4-value coordinates", () => {
+  it("converts multipoint geometry with m and no z using Esri [x, y, m] coordinates", () => {
     const feature = create(FeatureSchema);
     feature.id = 1n;
 
@@ -638,14 +640,12 @@ describe("fromProtoQueryResponse", () => {
 
     const result = fromProtoQueryResponse(response) as any;
     const coords = result.features[0].geometry.points[0] as number[];
-    expect(coords).toHaveLength(4);
-    expect(coords[0]).toBe(1);
-    expect(coords[1]).toBe(2);
-    expect(Number.isNaN(coords[2])).toBe(true);
-    expect(coords[3]).toBe(9);
+    // M-without-Z follows Esri's [x, y, m] convention — no NaN placeholder,
+    // which would serialize to invalid JSON null.
+    expect(coords).toEqual([1, 2, 9]);
   });
 
-  it("converts polyline geometry with m and no z using 4-value coordinates", () => {
+  it("converts polyline geometry with m and no z using Esri [x, y, m] coordinates", () => {
     const feature = create(FeatureSchema);
     feature.id = 1n;
 
@@ -667,11 +667,9 @@ describe("fromProtoQueryResponse", () => {
 
     const result = fromProtoQueryResponse(response) as any;
     const coords = result.features[0].geometry.paths[0][0] as number[];
-    expect(coords).toHaveLength(4);
-    expect(coords[0]).toBe(0);
-    expect(coords[1]).toBe(0);
-    expect(Number.isNaN(coords[2])).toBe(true);
-    expect(coords[3]).toBe(3);
+    // M-without-Z follows Esri's [x, y, m] convention — no NaN placeholder,
+    // which would serialize to invalid JSON null.
+    expect(coords).toEqual([0, 0, 3]);
   });
 });
 

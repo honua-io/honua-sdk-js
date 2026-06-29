@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decodePbfQueryResponse, isPbfResponse } from "../src/core/pbf-decoder.js";
+import { PbfDecodeError, decodePbfQueryResponse, isPbfResponse } from "../src/core/pbf-decoder.js";
 
 // ── Protobuf encoding helpers for building test fixtures ──────
 
@@ -23,6 +23,18 @@ function varint64(value: number): number[] {
     value = Math.floor(value / 128);
   }
   bytes.push(value & 0x7f);
+  return bytes;
+}
+
+/** Encode a 64-bit varint from a bigint (full precision, incl. > 2^53). */
+function varint64Big(value: bigint): number[] {
+  let v = value & ((1n << 64n) - 1n); // two's-complement wrap for negatives
+  const bytes: number[] = [];
+  while (v > 0x7fn) {
+    bytes.push(Number((v & 0x7fn) | 0x80n));
+    v >>= 7n;
+  }
+  bytes.push(Number(v & 0x7fn));
   return bytes;
 }
 
@@ -111,6 +123,8 @@ function buildValue(opts: {
   sintValue?: number;
   uintValue?: number;
   int64Value?: number;
+  int64ValueBig?: bigint;
+  uint64ValueBig?: bigint;
   boolValue?: boolean;
   isNull?: boolean;
   fieldIndex: number;
@@ -122,6 +136,8 @@ function buildValue(opts: {
   if (opts.sintValue !== undefined) v.push(...tag(4, 0), ...varint(zigzag32(opts.sintValue)));
   if (opts.uintValue !== undefined) v.push(...varintField(5, opts.uintValue));
   if (opts.int64Value !== undefined) v.push(...tag(6, 0), ...varint64(opts.int64Value));
+  if (opts.int64ValueBig !== undefined) v.push(...tag(6, 0), ...varint64Big(opts.int64ValueBig));
+  if (opts.uint64ValueBig !== undefined) v.push(...tag(7, 0), ...varint64Big(opts.uint64ValueBig));
   if (opts.boolValue !== undefined) v.push(...boolField(9, opts.boolValue));
   if (opts.isNull) v.push(...boolField(10, true));
   v.push(...varintField(11, opts.fieldIndex));
@@ -157,6 +173,8 @@ function buildFeatureResult(opts: {
   geometryType?: number;
   spatialReference?: number[];
   exceededTransferLimit?: boolean;
+  hasZ?: boolean;
+  hasM?: boolean;
   transform?: number[];
   fields: number[][];
   features: number[][];
@@ -166,6 +184,8 @@ function buildFeatureResult(opts: {
   if (opts.geometryType !== undefined) fr.push(...varintField(7, opts.geometryType));
   if (opts.spatialReference) fr.push(...lengthDelimited(8, opts.spatialReference));
   if (opts.exceededTransferLimit) fr.push(...boolField(9, true));
+  if (opts.hasZ) fr.push(...boolField(10, true));
+  if (opts.hasM) fr.push(...boolField(11, true));
   if (opts.transform) fr.push(...lengthDelimited(12, opts.transform));
   for (const field of opts.fields) {
     fr.push(...lengthDelimited(13, field));
@@ -293,6 +313,40 @@ describe("decodePbfQueryResponse", () => {
     expect(attrs.OBJECTID).toBe(42);
     expect(attrs.count).toBe(-5);
     expect(attrs.area).toBeCloseTo(123.456);
+  });
+
+  it("preserves 64-bit attribute precision above 2^53 as a string", () => {
+    // 9007199254740993 = Number.MAX_SAFE_INTEGER + 2; as a JS number it would
+    // round to 9007199254740992, so the decoder must emit a lossless string.
+    const bigUint = 9007199254740993n;
+    const bigInt = -9007199254740993n;
+    const featureResult = buildFeatureResult({
+      objectIdFieldName: "OID",
+      fields: [
+        buildField("OID", 13), // BigInteger
+        buildField("bigUint", 13),
+        buildField("bigInt", 13),
+        buildField("smallInt", 6), // OID — fits, stays a number
+      ],
+      features: [
+        buildFeature([
+          buildValue({ uint64ValueBig: bigUint, fieldIndex: 0 }),
+          buildValue({ uint64ValueBig: bigUint, fieldIndex: 1 }),
+          buildValue({ int64ValueBig: bigInt, fieldIndex: 2 }),
+          buildValue({ int64ValueBig: 123n, fieldIndex: 3 }),
+        ]),
+      ],
+    });
+    const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
+    const result = decodePbfQueryResponse(toBuffer(pbf));
+
+    const features = result.features as Record<string, unknown>[];
+    const attrs = features[0].attributes as Record<string, unknown>;
+    expect(attrs.OID).toBe("9007199254740993");
+    expect(attrs.bigUint).toBe("9007199254740993");
+    expect(attrs.bigInt).toBe("-9007199254740993");
+    // Values within the safe range still decode to a plain number.
+    expect(attrs.smallInt).toBe(123);
   });
 
   it("decodes feature with boolean attribute", () => {
@@ -663,6 +717,11 @@ describe("decodePbfQueryResponse", () => {
     const features = result.features as Record<string, unknown>[];
     const attrs = features[0].attributes as Record<string, unknown>;
     expect(attrs.bignum).toBe(9007199254740000);
+    // PBF field type 13 -> esriFieldTypeBigInteger. This must match the gRPC
+    // adapter's BIG_INTEGER mapping so a 64-bit column reports the same type on
+    // both transports (see test/grpc-adapter.test.ts "maps field types correctly").
+    const fields = result.fields as Array<{ name: string; type: string }>;
+    expect(fields[1].type).toBe("esriFieldTypeBigInteger");
   });
 
   it("decodes field alias correctly", () => {
@@ -695,5 +754,45 @@ describe("decodePbfQueryResponse", () => {
   it("returns empty object for empty buffer", () => {
     const result = decodePbfQueryResponse(new Uint8Array(0));
     expect(result).toEqual({});
+  });
+
+  it("throws PbfDecodeError for Z geometry so callers fall back to f=json", () => {
+    const transform = buildTransform(1, 1, 0, 0);
+    const featureResult = buildFeatureResult({
+      objectIdFieldName: "OBJECTID",
+      geometryType: 0,
+      spatialReference: buildSpatialReference(4326),
+      hasZ: true,
+      transform,
+      fields: [buildField("OBJECTID", 6)],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], buildPointGeometry(-100, 40))],
+    });
+    const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
+    expect(() => decodePbfQueryResponse(toBuffer(pbf))).toThrow(PbfDecodeError);
+  });
+
+  it("throws PbfDecodeError for M geometry so callers fall back to f=json", () => {
+    const featureResult = buildFeatureResult({
+      objectIdFieldName: "OBJECTID",
+      geometryType: 0,
+      hasM: true,
+      fields: [buildField("OBJECTID", 6)],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], buildPointGeometry(-100, 40))],
+    });
+    const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
+    expect(() => decodePbfQueryResponse(toBuffer(pbf))).toThrow(PbfDecodeError);
+  });
+
+  it("rejects a truncated coordinate stream with an odd length instead of yielding NaN", () => {
+    // A single packed sint64 value: the 2D decoder cannot pair it into (x, y).
+    const geometry = [...varintField(1, 0), ...packedSInt64(3, [5])];
+    const featureResult = buildFeatureResult({
+      objectIdFieldName: "OBJECTID",
+      geometryType: 0,
+      fields: [buildField("OBJECTID", 6)],
+      features: [buildFeature([buildValue({ uintValue: 1, fieldIndex: 0 })], geometry)],
+    });
+    const pbf = buildFeatureCollectionPBuffer("1.0", featureResult);
+    expect(() => decodePbfQueryResponse(toBuffer(pbf))).toThrow(PbfDecodeError);
   });
 });

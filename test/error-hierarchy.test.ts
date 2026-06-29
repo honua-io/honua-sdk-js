@@ -7,6 +7,7 @@ import {
   HonuaExplorationContextError,
   HonuaGrpcError,
   HonuaHttpError,
+  HonuaJobFailedError,
   HonuaNetworkError,
   HonuaTimeoutError,
   HonuaWmsCapabilitiesParseError,
@@ -165,6 +166,7 @@ describe("Error hierarchy", () => {
       expect(isHonuaError(new HonuaGrpcError(2, "unknown"))).toBe(true);
       expect(isHonuaError(new HonuaCapabilityNotSupportedError("query", "wfs"))).toBe(true);
       expect(isHonuaError(new HonuaExplorationContextError("disposed", "ctx"))).toBe(true);
+      expect(isHonuaError(new HonuaJobFailedError("job failed", "failed"))).toBe(true);
       expect(isHonuaError(new HonuaWmsCapabilitiesParseError("missing root"))).toBe(true);
       expect(isHonuaError(new HonuaWmtsCapabilitiesParseError("missing root"))).toBe(true);
     });

@@ -3,10 +3,12 @@ import type {
   JobError,
   JobProgress,
   JobResult,
+  JobResultsOptions,
   JobSnapshot,
   JobSnapshotListener,
   JobStatus,
 } from "../contract/jobs.js";
+import { HonuaJobPollTimeoutError } from "../contract/jobs.js";
 import type { HonuaOgcProcesses } from "./ogc-processes.js";
 import type { HonuaGeoprocessingService } from "./surfaces.js";
 import type { OgcProcessExecuteRequest } from "./types.js";
@@ -124,7 +126,7 @@ export interface GeospatialGrpcProcessClient {
   validatePlan?(request: { readonly plan: unknown }): Promise<unknown>;
   dryRunPlan?(request: { readonly plan: unknown }): Promise<unknown>;
   submitJob(request: { readonly plan: unknown; readonly context?: unknown }): Promise<GeospatialGrpcSubmitJobResponse>;
-  getJob(request: { readonly jobId: string }): Promise<GeospatialGrpcGetJobResponse>;
+  getJob(request: { readonly jobId: string; readonly signal?: AbortSignal }): Promise<GeospatialGrpcGetJobResponse>;
   getJobResult(request: { readonly jobId: string }): Promise<GeospatialGrpcGetJobResultResponse>;
   cancelJob(request: { readonly jobId: string }): Promise<GeospatialGrpcCancelJobResponse>;
 }
@@ -227,9 +229,14 @@ class GeospatialGrpcProcessJobRun<T = unknown> implements IJobRun<T> {
     return () => this.listeners.delete(listener);
   }
 
-  public async results(): Promise<JobResult<T>> {
+  public async results(options: JobResultsOptions = {}): Promise<JobResult<T>> {
     if (!this.terminalPromise) {
-      this.terminalPromise = this.runUntilTerminal();
+      // Reset on failure so an aborted / timed-out poll does not permanently
+      // poison subsequent results() calls.
+      this.terminalPromise = this.runUntilTerminal(options).catch((error) => {
+        this.terminalPromise = undefined;
+        throw error;
+      });
     }
     return this.terminalPromise;
   }
@@ -241,10 +248,53 @@ class GeospatialGrpcProcessJobRun<T = unknown> implements IJobRun<T> {
     return snapshot.status;
   }
 
-  private async runUntilTerminal(): Promise<JobResult<T>> {
+  private async runUntilTerminal(options: JobResultsOptions = {}): Promise<JobResult<T>> {
+    const { signal } = options;
+    const baseIntervalMs = options.pollIntervalMs ?? 1_000;
+    const maxIntervalMs = options.maxPollIntervalMs ?? Math.max(baseIntervalMs, 30_000);
+    const startedAt = Date.now();
+    let attempts = 0;
+
     while (!this.terminalSnapshot) {
-      await this.poll();
-      if (!this.terminalSnapshot) await wait(1_000);
+      if (signal?.aborted) {
+        throw new HonuaJobPollTimeoutError(`Job ${this.id} poll aborted`, "aborted", this.id, this.currentStatus);
+      }
+      if (options.maxAttempts !== undefined && attempts >= options.maxAttempts) {
+        throw new HonuaJobPollTimeoutError(
+          `Job ${this.id} did not reach a terminal state within ${options.maxAttempts} poll attempt(s)`,
+          "max-attempts",
+          this.id,
+          this.currentStatus,
+        );
+      }
+
+      let response: GeospatialGrpcGetJobResponse;
+      try {
+        response = await this.client.getJob({ jobId: this.id, signal });
+      } catch (error) {
+        if (signal?.aborted) {
+          throw new HonuaJobPollTimeoutError(`Job ${this.id} poll aborted`, "aborted", this.id, this.currentStatus);
+        }
+        throw error;
+      }
+      attempts += 1;
+      await this.handleJob(response);
+      if (this.terminalSnapshot) break;
+
+      if (options.deadlineMs !== undefined && Date.now() - startedAt >= options.deadlineMs) {
+        throw new HonuaJobPollTimeoutError(
+          `Job ${this.id} did not reach a terminal state within ${options.deadlineMs}ms`,
+          "deadline",
+          this.id,
+          this.currentStatus,
+        );
+      }
+
+      // Capped exponential backoff instead of a fixed 1s interval.
+      const intervalMs = Math.min(maxIntervalMs, baseIntervalMs * 2 ** (attempts - 1));
+      if (intervalMs > 0) {
+        await wait(intervalMs, signal);
+      }
     }
     if (this.terminalSnapshot.status === "successful" && this.terminalSnapshot.result) {
       return this.terminalSnapshot.result;
@@ -379,8 +429,20 @@ function timestampToIso(value: number | bigint | string): string {
   return String(value);
 }
 
-function wait(ms: number): Promise<void> {
+function wait(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }

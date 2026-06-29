@@ -386,11 +386,12 @@ export type {
   JobError,
   JobProgress,
   JobResult,
+  JobResultsOptions,
   JobSnapshot,
   JobSnapshotListener,
   JobStatus,
 } from "./jobs.js";
-export { isJobTerminal } from "./jobs.js";
+export { HonuaJobPollTimeoutError, isJobTerminal } from "./jobs.js";
 
 export {
   TEMPORAL_CAPABILITY,

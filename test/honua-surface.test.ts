@@ -196,6 +196,36 @@ describe("Honua native API surfaces", () => {
     expect(requestedRecordCounts).toEqual(["2", "2"]);
   });
 
+  it("queryFeaturesAll keeps paging when the server clamps the page and sets exceededTransferLimit", async () => {
+    const requestedOffsets: number[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async (input) => {
+        const url = new URL(String(input));
+        const offset = Number.parseInt(url.searchParams.get("resultOffset") ?? "0", 10);
+        requestedOffsets.push(offset);
+        // Server clamps resultRecordCount to maxRecordCount=1 and signals more rows.
+        if (offset === 0) {
+          return new Response(JSON.stringify({ features: [{ id: 1 }], exceededTransferLimit: true }), { status: 200 });
+        }
+        if (offset === 1) {
+          return new Response(JSON.stringify({ features: [{ id: 2 }], exceededTransferLimit: true }), { status: 200 });
+        }
+        if (offset === 2) {
+          return new Response(JSON.stringify({ features: [{ id: 3 }], exceededTransferLimit: false }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ features: [] }), { status: 200 });
+      },
+    });
+
+    const layer = client.featureLayer("transport", 4);
+    const allFeatures = await layer.queryFeaturesAll({ where: "1=1", pageSize: 1000 });
+
+    // Must not truncate on the first short page; offset advances by the actual count.
+    expect(allFeatures).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    expect(requestedOffsets).toEqual([0, 1, 2]);
+  });
+
   it("invokes map-service metadata, legend, export, identify, and find wrappers", async () => {
     const requestedUrls: string[] = [];
 
@@ -325,6 +355,31 @@ describe("Honua native API surfaces", () => {
     expect(allFeatures).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
     expect(requestedOffsets).toEqual(["0", "2"]);
     expect(requestedRecordCounts).toEqual(["2", "2"]);
+  });
+
+  it("queryLayerFeaturesAll keeps paging when the server clamps the page and sets exceededTransferLimit", async () => {
+    const requestedOffsets: number[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      fetchFn: async (input) => {
+        const parsed = new URL(String(input));
+        const offset = Number.parseInt(parsed.searchParams.get("resultOffset") ?? "0", 10);
+        requestedOffsets.push(offset);
+        if (offset === 0) {
+          return new Response(JSON.stringify({ features: [{ id: 1 }], exceededTransferLimit: true }), { status: 200 });
+        }
+        if (offset === 1) {
+          return new Response(JSON.stringify({ features: [{ id: 2 }], exceededTransferLimit: false }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ features: [] }), { status: 200 });
+      },
+    });
+
+    const mapService = client.mapService("basemap");
+    const allFeatures = await mapService.queryLayerFeaturesAll({ layerId: 2, pageSize: 1000 });
+
+    expect(allFeatures).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(requestedOffsets).toEqual([0, 1]);
   });
 
   it("supports map-service and map-layer related-record query helpers", async () => {

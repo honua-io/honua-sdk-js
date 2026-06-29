@@ -119,9 +119,37 @@ describe("maplibre quickstart data", () => {
       },
     ]);
 
+    // The SDK converter rewinds rings to RFC 7946 (CCW exterior, CW holes), so
+    // the clockwise Esri exteriors and CCW hole flip relative to the input.
     expect(geojson.features[0]?.geometry).toEqual({
       type: "MultiPolygon",
-      coordinates: [[outerRingA, holeRingA], [outerRingB]],
+      coordinates: [
+        [
+          [
+            [0, 4],
+            [0, 0],
+            [4, 0],
+            [4, 4],
+            [0, 4],
+          ],
+          [
+            [1, 1],
+            [1, 3],
+            [3, 3],
+            [3, 1],
+            [1, 1],
+          ],
+        ],
+        [
+          [
+            [10, 4],
+            [10, 0],
+            [14, 0],
+            [14, 4],
+            [10, 4],
+          ],
+        ],
+      ],
     });
   });
 
@@ -150,9 +178,25 @@ describe("maplibre quickstart data", () => {
       },
     ]);
 
+    // Rewound to RFC 7946: CCW exterior, CW hole.
     expect(geojson.features[0]?.geometry).toEqual({
       type: "Polygon",
-      coordinates: [outerRing, holeRing],
+      coordinates: [
+        [
+          [0, 4],
+          [0, 0],
+          [4, 0],
+          [4, 4],
+          [0, 4],
+        ],
+        [
+          [1, 1],
+          [1, 3],
+          [3, 3],
+          [3, 1],
+          [1, 1],
+        ],
+      ],
     });
   });
 

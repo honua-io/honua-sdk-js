@@ -18,6 +18,21 @@ const WIRE_64BIT = 1;
 const WIRE_LENGTH_DELIMITED = 2;
 const WIRE_32BIT = 5;
 
+/**
+ * Thrown when a PBF feature response cannot be decoded losslessly into the
+ * `f=json` shape — either because it carries Z/M geometry (which the flat
+ * 2D fast-path decoder would silently garble) or because the coordinate
+ * stream is malformed (odd length / non-finite values from a truncated or
+ * hostile payload). `HonuaClient` treats this as a signal to fall back to a
+ * fresh `f=json` request, which decodes the same data correctly.
+ */
+export class PbfDecodeError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "PbfDecodeError";
+  }
+}
+
 // ── Low-level protobuf reader ────────────────────────────────
 
 /** Reads protobuf wire-format primitives from a byte buffer. */
@@ -68,6 +83,25 @@ class PbfReader {
       if (shift > 63) throw new Error("Varint too long");
     }
     return (hi >>> 0) * 0x10000000 + (lo >>> 0);
+  }
+
+  /**
+   * Read a 64-bit varint as a raw {@link bigint} with no precision loss. Used
+   * for attribute decoding where values may exceed `Number.MAX_SAFE_INTEGER`
+   * (e.g. BigInteger / 64-bit OID fields), so the caller can preserve exact
+   * values as a string instead of silently rounding.
+   */
+  readVarint64Bigint(): bigint {
+    let result = 0n;
+    let shift = 0n;
+    while (this.pos < this.end) {
+      const byte = this.bytes[this.pos++];
+      result |= BigInt(byte & 0x7f) << shift;
+      if ((byte & 0x80) === 0) return result;
+      shift += 7n;
+      if (shift > 63n) throw new Error("Varint too long");
+    }
+    throw new Error("Unexpected end of buffer reading varint");
   }
 
   /** Read a signed 64-bit varint (zigzag-decoded) as a JavaScript number. */
@@ -279,6 +313,28 @@ function decodeSpatialReference(reader: PbfReader): { wkid: number; latestWkid: 
   return { wkid, latestWkid: latestWkid || wkid };
 }
 
+const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
+const MIN_SAFE = BigInt(Number.MIN_SAFE_INTEGER);
+const TWO_POW_64 = 1n << 64n;
+
+/**
+ * Reinterpret an unsigned 64-bit value as signed two's-complement, matching how
+ * GeoServices PBF encodes `int64` attributes.
+ */
+function asInt64(unsigned: bigint): bigint {
+  return unsigned >= 1n << 63n ? unsigned - TWO_POW_64 : unsigned;
+}
+
+/**
+ * Preserve 64-bit integer precision: return a JS `number` when the value fits
+ * within the safe-integer range, otherwise a decimal string. Mirrors the gRPC
+ * transport's `toSafeNumberOrString` so PBF, gRPC, and `f=json` agree on large
+ * 64-bit ids instead of the PBF fast path silently rounding above 2^53.
+ */
+function safeNumberOrString(value: bigint): number | string {
+  return value <= MAX_SAFE && value >= MIN_SAFE ? Number(value) : value.toString();
+}
+
 function decodeValue(reader: PbfReader): { value: unknown; fieldIndex: number } {
   let value: unknown = null;
   let fieldIndex = -1;
@@ -307,12 +363,12 @@ function decodeValue(reader: PbfReader): { value: unknown; fieldIndex: number } 
         if (wire === WIRE_VARINT) value = reader.readVarint();
         else reader.skip(wire);
         break;
-      case 6: // int64_value
-        if (wire === WIRE_VARINT) value = reader.readVarint64();
+      case 6: // int64_value (signed two's-complement)
+        if (wire === WIRE_VARINT) value = safeNumberOrString(asInt64(reader.readVarint64Bigint()));
         else reader.skip(wire);
         break;
       case 7: // uint64_value
-        if (wire === WIRE_VARINT) value = reader.readVarint64();
+        if (wire === WIRE_VARINT) value = safeNumberOrString(reader.readVarint64Bigint());
         else reader.skip(wire);
         break;
       case 9: // bool_value
@@ -361,6 +417,15 @@ function decodeGeometry(
 
   if (coords.length === 0) return null;
 
+  // The 2D fast path packs the stream as flat (x, y) pairs. A truncated or
+  // hostile payload with an odd number of values would otherwise read past the
+  // last x as a `y === undefined`, delta-accumulate to NaN, and propagate
+  // silent NaN coordinates through the geometry. Reject it instead so the
+  // caller can fall back to f=json.
+  if (coords.length % 2 !== 0) {
+    throw new PbfDecodeError(`PBF geometry coordinate stream has an odd length (${coords.length})`);
+  }
+
   // Delta-decode and transform coordinates
   const xScale = transform?.xScale ?? 1;
   const yScale = transform?.yScale ?? 1;
@@ -374,7 +439,12 @@ function decodeGeometry(
   for (let i = 0; i < coords.length; i += 2) {
     prevX += coords[i];
     prevY += coords[i + 1];
-    worldCoords.push([prevX * xScale + xTranslate, prevY * yScale + yTranslate]);
+    const x = prevX * xScale + xTranslate;
+    const y = prevY * yScale + yTranslate;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new PbfDecodeError("PBF geometry produced a non-finite coordinate");
+    }
+    worldCoords.push([x, y]);
   }
 
   return buildGeoServicesGeometry(layerGeometryType, worldCoords, lengths);
@@ -522,6 +592,18 @@ function decodeFeatureResult(reader: PbfReader): Record<string, unknown> {
       default:
         reader.skip(wire);
     }
+  }
+
+  // The geometry decoder reads the packed coordinate stream as flat (x, y)
+  // pairs. When the server advertises Z and/or M, each vertex carries extra
+  // ordinates, so decoding as 2D pairs would mis-pair every coordinate and
+  // garble the geometry. Rather than emit silently corrupt geometry on the
+  // binary fast path, signal the caller to fall back to f=json (which decodes
+  // Z/M correctly). See HonuaClient.requestBinaryWithJsonFallback.
+  if (hasZ || hasM) {
+    throw new PbfDecodeError(
+      `PBF response carries ${hasZ ? "Z" : ""}${hasZ && hasM ? "/" : ""}${hasM ? "M" : ""} geometry; falling back to f=json`,
+    );
   }
 
   // Now decode features with full field/transform context

@@ -136,8 +136,49 @@ function envelopeToPolygonGml(
   srsName: string | undefined,
 ): string {
   const srsAttr = srsName ? ` srsName=${attr(srsName)}` : "";
-  const ring = `${xmin} ${ymin} ${xmax} ${ymin} ${xmax} ${ymax} ${xmin} ${ymax} ${xmin} ${ymin}`;
+  const latLon = srsAxisIsLatLon(srsName);
+  const c = (x: number, y: number) => formatCoord(x, y, latLon);
+  const ring = `${c(xmin, ymin)} ${c(xmax, ymin)} ${c(xmax, ymax)} ${c(xmin, ymax)} ${c(xmin, ymin)}`;
   return `<gml:Polygon${srsAttr}><gml:exterior><gml:LinearRing><gml:posList>${ring}</gml:posList></gml:LinearRing></gml:exterior></gml:Polygon>`;
+}
+
+/**
+ * Well-known geographic (latitude/longitude) EPSG codes. In URN
+ * (`urn:ogc:def:crs:EPSG::4326`) or OGC-HTTP
+ * (`http://www.opengis.net/def/crs/EPSG/0/4326`) form, WFS 2.0 / GML 3.2 require
+ * authority axis order — latitude,longitude — for these CRSes, whereas the
+ * legacy short `EPSG:4326` form and `CRS84` stay longitude,latitude. Projected
+ * CRSes (easting,northing) already match the canonical x,y order, so they are
+ * intentionally excluded.
+ */
+const LATLON_GEOGRAPHIC_EPSG = new Set<number>([
+  4326, 4979, 4258, 4269, 4267, 4203, 4283, 4759, 4490, 4674, 4617, 4612, 4619, 4668, 4555,
+]);
+
+/**
+ * Decide whether a `srsName` implies latitude,longitude axis order. Defaults to
+ * longitude,latitude (the canonical x,y order) for the legacy short EPSG form,
+ * CRS84, unknown codes, and an absent srsName — preserving existing behavior and
+ * avoiding regressions for callers that already supply lon,lat-oriented CRSes.
+ */
+function srsAxisIsLatLon(srsName: string | undefined): boolean {
+  if (!srsName) return false;
+  const value = srsName.trim();
+  // CRS84 / CRS:84 are explicitly longitude,latitude regardless of form.
+  if (/(?:^|[:/])CRS:?84$/i.test(value) || /CRS84/i.test(value)) return false;
+  // URN form: urn:ogc:def:crs:EPSG::4326 (the version segment may be empty).
+  const urn = value.match(/^urn:[\w-]+:def:crs:EPSG:[^:]*:(\d+)$/i);
+  // OGC HTTP form: http://www.opengis.net/def/crs/EPSG/0/4326
+  const http = value.match(/def\/crs\/EPSG\/[^/]+\/(\d+)$/i);
+  const code = urn?.[1] ?? http?.[1];
+  // The legacy short "EPSG:4326" form keeps GIS-conventional lon,lat order.
+  if (!code) return false;
+  return LATLON_GEOGRAPHIC_EPSG.has(Number(code));
+}
+
+/** Serialize a coordinate pair honoring the resolved CRS axis order. */
+function formatCoord(x: number, y: number, latLon: boolean): string {
+  return latLon ? `${y} ${x}` : `${x} ${y}`;
 }
 
 function mapSpatialRel(rel: SpatialFilter["spatialRel"]): FesSpatialOp | undefined {
@@ -252,7 +293,8 @@ function attr(value: string): string {
 
 function envelopeGml(env: { xmin: number; ymin: number; xmax: number; ymax: number; srsName?: string }): string {
   const srsAttr = env.srsName ? ` srsName=${attr(env.srsName)}` : "";
-  return `<gml:Envelope${srsAttr}><gml:lowerCorner>${env.xmin} ${env.ymin}</gml:lowerCorner><gml:upperCorner>${env.xmax} ${env.ymax}</gml:upperCorner></gml:Envelope>`;
+  const latLon = srsAxisIsLatLon(env.srsName);
+  return `<gml:Envelope${srsAttr}><gml:lowerCorner>${formatCoord(env.xmin, env.ymin, latLon)}</gml:lowerCorner><gml:upperCorner>${formatCoord(env.xmax, env.ymax, latLon)}</gml:upperCorner></gml:Envelope>`;
 }
 
 /**
@@ -267,12 +309,13 @@ function geometryToGml(
   srsName: string | undefined,
 ): string | undefined {
   const srsAttr = srsName ? ` srsName=${attr(srsName)}` : "";
+  const latLon = srsAxisIsLatLon(srsName);
   switch (geometryType) {
     case "esriGeometryPoint": {
       const x = (geometry as { x?: unknown }).x;
       const y = (geometry as { y?: unknown }).y;
       if (typeof x !== "number" || typeof y !== "number") return undefined;
-      return `<gml:Point${srsAttr}><gml:pos>${x} ${y}</gml:pos></gml:Point>`;
+      return `<gml:Point${srsAttr}><gml:pos>${formatCoord(x, y, latLon)}</gml:pos></gml:Point>`;
     }
     case "esriGeometryPolyline": {
       const paths = (geometry as { paths?: unknown }).paths;
@@ -281,7 +324,7 @@ function geometryToGml(
       const path = paths[0];
       if (!Array.isArray(path)) return undefined;
       const coords = path
-        .map((p) => (Array.isArray(p) ? `${p[0]} ${p[1]}` : ""))
+        .map((p) => (Array.isArray(p) ? formatCoord(p[0], p[1], latLon) : ""))
         .filter(Boolean)
         .join(" ");
       if (!coords) return undefined;
@@ -290,11 +333,11 @@ function geometryToGml(
     case "esriGeometryPolygon": {
       const rings = (geometry as { rings?: unknown }).rings;
       if (!Array.isArray(rings) || rings.length === 0) return undefined;
-      const exterior = ringToPosList(rings[0]);
+      const exterior = ringToPosList(rings[0], latLon);
       if (!exterior) return undefined;
       const interiors: string[] = [];
       for (let i = 1; i < rings.length; i += 1) {
-        const inner = ringToPosList(rings[i]);
+        const inner = ringToPosList(rings[i], latLon);
         if (!inner) return undefined;
         interiors.push(
           `<gml:interior><gml:LinearRing><gml:posList>${inner}</gml:posList></gml:LinearRing></gml:interior>`,
@@ -307,10 +350,10 @@ function geometryToGml(
   }
 }
 
-function ringToPosList(ring: unknown): string | undefined {
+function ringToPosList(ring: unknown, latLon: boolean): string | undefined {
   if (!Array.isArray(ring) || ring.length < 3) return undefined;
   return ring
-    .map((p) => (Array.isArray(p) ? `${p[0]} ${p[1]}` : ""))
+    .map((p) => (Array.isArray(p) ? formatCoord(p[0], p[1], latLon) : ""))
     .filter(Boolean)
     .join(" ");
 }
@@ -323,27 +366,32 @@ export function geoJsonGeometryToGml(geometry: unknown, srsName: string | undefi
   if (typeof geometry !== "object" || geometry === null) return undefined;
   const geom = geometry as { type?: unknown; coordinates?: unknown };
   const srsAttr = srsName ? ` srsName=${attr(srsName)}` : "";
+  // Honor GML 3.2 axis order for the resolved CRS, mirroring the query-path
+  // emitters: authority (URN/HTTP) forms of geographic CRSes are lat,lon while
+  // the legacy short `EPSG:4326` form and CRS84 stay lon,lat.
+  const latLon = srsAxisIsLatLon(srsName);
+  const c = (p: [number, number]) => formatCoord(p[0], p[1], latLon);
   switch (geom.type) {
     case "Point": {
-      const c = geom.coordinates as [number, number] | undefined;
-      if (!Array.isArray(c) || typeof c[0] !== "number" || typeof c[1] !== "number") return undefined;
-      return `<gml:Point${srsAttr}><gml:pos>${c[0]} ${c[1]}</gml:pos></gml:Point>`;
+      const coord = geom.coordinates as [number, number] | undefined;
+      if (!Array.isArray(coord) || typeof coord[0] !== "number" || typeof coord[1] !== "number") return undefined;
+      return `<gml:Point${srsAttr}><gml:pos>${c(coord)}</gml:pos></gml:Point>`;
     }
     case "LineString": {
-      const c = geom.coordinates as Array<[number, number]> | undefined;
-      if (!Array.isArray(c) || c.length === 0) return undefined;
-      const posList = c.map((p) => `${p[0]} ${p[1]}`).join(" ");
+      const coords = geom.coordinates as Array<[number, number]> | undefined;
+      if (!Array.isArray(coords) || coords.length === 0) return undefined;
+      const posList = coords.map(c).join(" ");
       return `<gml:LineString${srsAttr}><gml:posList>${posList}</gml:posList></gml:LineString>`;
     }
     case "Polygon": {
-      const c = geom.coordinates as Array<Array<[number, number]>> | undefined;
-      if (!Array.isArray(c) || c.length === 0) return undefined;
-      const exterior = c[0].map((p) => `${p[0]} ${p[1]}`).join(" ");
-      const interiors = c
+      const coords = geom.coordinates as Array<Array<[number, number]>> | undefined;
+      if (!Array.isArray(coords) || coords.length === 0) return undefined;
+      const exterior = coords[0].map(c).join(" ");
+      const interiors = coords
         .slice(1)
         .map(
           (ring) =>
-            `<gml:interior><gml:LinearRing><gml:posList>${ring.map((p) => `${p[0]} ${p[1]}`).join(" ")}</gml:posList></gml:LinearRing></gml:interior>`,
+            `<gml:interior><gml:LinearRing><gml:posList>${ring.map(c).join(" ")}</gml:posList></gml:LinearRing></gml:interior>`,
         )
         .join("");
       return `<gml:Polygon${srsAttr}><gml:exterior><gml:LinearRing><gml:posList>${exterior}</gml:posList></gml:LinearRing></gml:exterior>${interiors}</gml:Polygon>`;

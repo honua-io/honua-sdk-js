@@ -228,6 +228,37 @@ describe("@honua/sdk-js/agent-tools", () => {
     expect(context.staleState).toContain("Snapshot timestamp");
     expect(JSON.stringify(context.sources)).not.toContain("apiKey");
   });
+
+  it("redacts secret metadata from inspectMap and listSources tool results", async () => {
+    const runtime = makeRuntime();
+
+    const inspect = await executeHonuaAgentTool(runtime, { name: "inspectMap", args: {} });
+    expect(inspect.status).toBe("ok");
+    expect(JSON.stringify(inspect)).not.toContain("secret");
+    // Non-secret metadata is preserved.
+    expect(JSON.stringify(inspect)).toContain("owner");
+
+    const list = await executeHonuaAgentTool(runtime, { name: "listSources", args: {} });
+    expect(list.status).toBe("ok");
+    expect(JSON.stringify(list)).not.toContain("secret");
+    expect(JSON.stringify(list)).toContain("owner");
+  });
+
+  it("deeply redacts connection strings and nested credentials from tool results", async () => {
+    const runtime = makeRuntime();
+    const inspect = await executeHonuaAgentTool(runtime, { name: "inspectMap", args: {} });
+    expect(inspect.status).toBe("ok");
+    const serialized = JSON.stringify(inspect);
+
+    // Top-level connection string is dropped.
+    expect(serialized).not.toContain("connectionString");
+    expect(serialized).not.toContain("hunter2");
+    // Nested credential objects are dropped, not copied whole.
+    expect(serialized).not.toContain("p4ss");
+    expect(serialized).not.toContain("tok_abc123");
+    // Non-secret nested fields survive the recursion.
+    expect(serialized).toContain("db.internal");
+  });
 });
 
 function makeRuntime(
@@ -249,7 +280,15 @@ function makeRuntime(
           id: "incidents",
           protocol: "geoservices-feature-service",
           capabilities: ["query", "queryAggregate", "queryExtent", "queryObjectIds"],
-          metadata: { apiKey: "secret", owner: "ops" },
+          metadata: {
+            apiKey: "secret",
+            owner: "ops",
+            // Top-level connection string and nested secret-bearing objects
+            // must both be scrubbed before the snapshot reaches an LLM.
+            connectionString: "postgres://admin:hunter2@db.internal/incidents",
+            database: { connectionString: "postgres://svc:p4ss@db/incidents", host: "db.internal" },
+            auth: { bearer: "tok_abc123", scopes: ["read"] },
+          },
         },
       ],
       layers: [{ id: "incident-points", sourceId: "incidents", type: "circle", visible: true }],

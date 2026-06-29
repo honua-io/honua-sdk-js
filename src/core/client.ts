@@ -1,4 +1,4 @@
-import type { Client } from "@connectrpc/connect";
+import type { Client, Interceptor } from "@connectrpc/connect";
 import type { FeatureService } from "../gen/honua/v1/feature_service_pb.js";
 import {
   HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS,
@@ -137,6 +137,7 @@ import type {
   StacSearchRequest,
 } from "./types.js";
 import { HonuaWfs } from "./wfs.js";
+import { wmsBboxRequiresAxisSwap } from "./wms-axis.js";
 import { type WmsCapabilities, parseWmsCapabilities } from "./wms-capabilities.js";
 import {
   type HonuaWmsFeatureInfoResponse,
@@ -326,34 +327,6 @@ interface MetadataCacheEntry<T = unknown> {
   sourceUpdatedAt?: string;
 }
 
-/** Result of an {@link ExecuteRequestOptions.handleResponse} hook. */
-type ExecuteRequestHandled<T> = { handled: true; value: T } | { handled: false };
-
-/**
- * Per-call customization for the shared {@link HonuaClient.executeRequest}
- * attempt loop. The loop owns timeout, auth-replay, retry/backoff, and
- * interceptor invocation; the typed wrappers supply only the Accept/context and
- * a `finalize` that turns the successful {@link Response} into `T`.
- */
-interface ExecuteRequestOptions<T> {
-  /** Caller-supplied abort signal that takes precedence over `request.init.signal`. */
-  retrySignal?: AbortSignal | undefined;
-  /** Status codes that should be treated as success despite `!response.ok`. */
-  okStatuses?: readonly number[] | undefined;
-  /** Parse a non-OK response into the body passed to {@link toHttpError}. Defaults to JSON. */
-  parseErrorBody?: (response: Response) => Promise<unknown>;
-  /** Return a fallback value (e.g. stale cache) instead of throwing on a terminal error. */
-  onErrorFallback?: (error: unknown) => T | undefined;
-  /** Intercept the raw response before the OK/error branch (e.g. 304 revalidation). */
-  handleResponse?: (
-    response: Response,
-    durationMs: number,
-    request: HonuaRequestContext,
-  ) => Promise<ExecuteRequestHandled<T>>;
-  /** Turn a successful response into the resolved value. */
-  finalize: (response: Response, durationMs: number, request: HonuaRequestContext) => Promise<T> | T;
-}
-
 /**
  * The main Honua HTTP/gRPC-Web client.
  *
@@ -475,6 +448,46 @@ export class HonuaClient {
     }
   }
 
+  /**
+   * Connect interceptor that injects the same credentials the REST pipeline
+   * uses (`apiKey`/`bearerToken` from {@link defaultHeaders} plus any provider
+   * credentials resolved via {@link resolveAuthHeaders}) onto every gRPC-web
+   * call. Without it the advertised `transport: "grpc-web"` path would send
+   * every RPC unauthenticated.
+   */
+  private buildConnectAuthInterceptor(): Interceptor {
+    return (next) => async (req) => {
+      const headers = await this.composeHeaders();
+      for (const [key, value] of Object.entries(headers)) {
+        req.header.set(key, value);
+      }
+      return next(req);
+    };
+  }
+
+  /**
+   * Shared gRPC-web transport options. The auth interceptor mirrors the REST
+   * credential pipeline, and `defaultTimeoutMs` honors the documented
+   * `timeoutMs` contract on every RPC (per-call abort signals are threaded by
+   * the individual RPC methods).
+   *
+   * Note: the `retry` policy is not yet applied to the gRPC-web transport;
+   * callers needing retries on this path should wrap calls themselves.
+   */
+  private connectTransportOptions(): {
+    baseUrl: string;
+    fetch: typeof fetch;
+    interceptors: Interceptor[];
+    defaultTimeoutMs?: number;
+  } {
+    return {
+      baseUrl: this.baseUrl,
+      fetch: this.fetchFn,
+      interceptors: [this.buildConnectAuthInterceptor()],
+      ...(this.timeoutMs !== undefined ? { defaultTimeoutMs: this.timeoutMs } : {}),
+    };
+  }
+
   private initConnectClient(): void {
     // Dynamic imports are used to avoid bundling Connect dependencies
     // when only the REST transport is used. The imports are resolved
@@ -482,10 +495,7 @@ export class HonuaClient {
     import("@connectrpc/connect").then(({ createClient }) =>
       import("@connectrpc/connect-web").then(({ createGrpcWebTransport }) =>
         import("../gen/honua/v1/feature_service_pb.js").then(({ FeatureService }) => {
-          const transport = createGrpcWebTransport({
-            baseUrl: this.baseUrl,
-            fetch: this.fetchFn,
-          });
+          const transport = createGrpcWebTransport(this.connectTransportOptions());
           this.connectClient = createClient(FeatureService, transport);
         }),
       ),
@@ -500,10 +510,7 @@ export class HonuaClient {
     const { createClient } = await import("@connectrpc/connect");
     const { createGrpcWebTransport } = await import("@connectrpc/connect-web");
     const { FeatureService } = await import("../gen/honua/v1/feature_service_pb.js");
-    const transport = createGrpcWebTransport({
-      baseUrl: this.baseUrl,
-      fetch: this.fetchFn,
-    });
+    const transport = createGrpcWebTransport(this.connectTransportOptions());
     this.connectClient = createClient(FeatureService, transport);
     return this.connectClient;
   }
@@ -632,7 +639,9 @@ export class HonuaClient {
     const client = await this.ensureConnectClient();
     const grpcAdapter = await HonuaClient.loadGrpcAdapter();
     const protoRequest = grpcAdapter.toProtoQueryRequest(request);
-    yield* grpcAdapter.streamProtoPages(client.queryFeaturesStream(protoRequest));
+    yield* grpcAdapter.streamProtoPages(
+      client.queryFeaturesStream(protoRequest, request.signal ? { signal: request.signal } : undefined),
+    );
   }
 
   public service(serviceId: string): HonuaService {
@@ -1041,9 +1050,12 @@ export class HonuaClient {
     };
 
     return this.executeRequest<Response>(request, {
-      retrySignal: callerSignal,
-      okStatuses: options.okStatuses,
-      finalize: (response) => response,
+      callerSignal,
+      ...(options.okStatuses ? { okStatuses: options.okStatuses } : {}),
+      finalize: async (response, _durationMs, _request, runAfter) => {
+        await runAfter();
+        return response;
+      },
     });
   }
 
@@ -1088,41 +1100,57 @@ export class HonuaClient {
     };
 
     return this.executeRequest<T>(request, {
-      retrySignal: metadataOptions.signal,
-      onErrorFallback: (error) => this.staleMetadataFallback(cached, metadataOptions, error),
-      handleResponse: async (response, durationMs, currentRequest) => {
-        if (response.status === 304 && cached && !bypass) {
-          try {
-            await this.applyAfterInterceptors(cloneRequestContext(currentRequest), response, durationMs);
-          } catch (error) {
-            await this.applyErrorInterceptors({ request: cloneRequestContext(currentRequest), error, durationMs });
-            throw error;
-          }
-          const updatedEntry: MetadataCacheEntry<T> = {
-            ...cached,
-            cachedAtMs: Date.now(),
-            ...((honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator)
-              ? { validator: honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator }
-              : {}),
-          };
-          this.setMetadataCacheEntry(keyFingerprint, updatedEntry);
-          return {
-            handled: true,
-            value: withHonuaCacheState(
-              updatedEntry.body,
-              createMetadataCacheState(updatedEntry, "refreshed", {
-                now: Date.now(),
-                ttlMs: metadataOptions.ttlMs,
-                staleIfErrorMs: metadataOptions.staleIfErrorMs,
-                revalidatedAt: new Date().toISOString(),
-              }),
-            ),
-          };
+      callerSignal: metadataOptions.signal,
+      // stale-if-error fallback on a terminal network or HTTP failure.
+      onTerminalError: (error) => this.staleMetadataFallback(cached, metadataOptions, error),
+      // 304 Not Modified: revalidate the cached entry without re-parsing a body.
+      shortCircuit: async (response, _durationMs, _currentRequest, runAfter) => {
+        if (response.status !== 304 || !cached || bypass) {
+          return undefined;
         }
-        return { handled: false };
+        await runAfter();
+        const updatedEntry: MetadataCacheEntry<T> = {
+          ...cached,
+          cachedAtMs: Date.now(),
+          ...((honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator)
+            ? { validator: honuaCacheValidatorFromHeaders(response.headers) ?? cached.validator }
+            : {}),
+        };
+        this.setMetadataCacheEntry(keyFingerprint, updatedEntry);
+        return {
+          value: withHonuaCacheState(
+            updatedEntry.body,
+            createMetadataCacheState(updatedEntry, "refreshed", {
+              now: Date.now(),
+              ttlMs: metadataOptions.ttlMs,
+              staleIfErrorMs: metadataOptions.staleIfErrorMs,
+              revalidatedAt: new Date().toISOString(),
+            }),
+          ),
+        };
       },
-      finalize: async (response) => {
-        const body = await parseResponseBody(response.clone());
+      finalize: async (response, durationMs, currentRequest, runAfter) => {
+        const body = await parseResponseBody(this.hasAfterInterceptors() ? response.clone() : response);
+
+        // GeoServices reports metadata failures (layer not found, invalid token
+        // => code 499, …) as HTTP 200 with a top-level `{error}` envelope.
+        // Detect it before caching so a transient auth/permission error is never
+        // persisted as "valid" metadata for the cache TTL and surfaced
+        // downstream as `undefined` field access instead of a HonuaHttpError.
+        const envelopeError = geoServicesEnvelopeError(response.status, body);
+        if (envelopeError) {
+          const stale = this.staleMetadataFallback(cached, metadataOptions, envelopeError);
+          if (stale) return stale;
+          await this.applyErrorInterceptors({
+            request: cloneRequestContext(currentRequest),
+            error: envelopeError,
+            durationMs,
+          });
+          throw envelopeError;
+        }
+
+        await runAfter();
+
         const cleanBody = withoutHonuaCacheState(body) as T;
         const validator = honuaCacheValidatorFromHeaders(response.headers);
         const sourceUpdatedAt = response.headers.get("last-modified") ?? undefined;
@@ -2001,7 +2029,10 @@ export class HonuaClient {
       const grpcAdapter = await HonuaClient.loadGrpcAdapter();
       const protoRequest = grpcAdapter.toProtoQueryRequest(request);
       try {
-        const response = await client.queryFeatures(protoRequest);
+        const response = await client.queryFeatures(
+          protoRequest,
+          request.signal ? { signal: request.signal } : undefined,
+        );
         return grpcAdapter.fromProtoQueryResponse(response) as HonuaQueryResponse;
       } catch (error) {
         throw grpcAdapter.wrapConnectError(error);
@@ -2398,8 +2429,29 @@ export class HonuaClient {
     };
 
     return this.executeRequest<unknown>(request, {
-      retrySignal: callerSignal,
-      finalize: (response) => parseResponseBody(response.clone()),
+      callerSignal,
+      finalize: async (response, durationMs, currentRequest, runAfter) => {
+        // Parse the original body directly when no after-interceptor will read
+        // it; only clone when an interceptor needs an independent copy.
+        const body = await parseResponseBody(this.hasAfterInterceptors() ? response.clone() : response);
+
+        // GeoServices/Esri services return HTTP 200 with a top-level `{error}`
+        // envelope on failure (bad WHERE, invalid outFields, edit failures, …).
+        // Surface these through the unified error model instead of handing the
+        // failure envelope back as a "successful" response object.
+        const envelopeError = geoServicesEnvelopeError(response.status, body);
+        if (envelopeError) {
+          await this.applyErrorInterceptors({
+            request: cloneRequestContext(currentRequest),
+            error: envelopeError,
+            durationMs,
+          });
+          throw envelopeError;
+        }
+
+        await runAfter();
+        return body;
+      },
     });
   }
 
@@ -2423,23 +2475,45 @@ export class HonuaClient {
     };
 
     return this.executeRequest<unknown>(request, {
-      retrySignal: callerSignal,
-      finalize: async (response, _durationMs, finalRequest) => {
-        // If server returned PBF, decode it
+      callerSignal,
+      finalize: async (response, durationMs, currentRequest, runAfter) => {
+        await runAfter();
+
+        // If the server returned PBF, decode it; on decode failure (including
+        // Z/M geometry the fast path can't handle) retry as f=json.
         if (isPbfResponse(response)) {
           try {
             const buffer = await response.arrayBuffer();
             return decodePbfQueryResponse(buffer);
           } catch {
-            // PBF decode failed — fall back to JSON request
             params.set("f", "json");
             const jsonPath = `${stripQuery(path)}?${params.toString()}`;
-            return this.requestJson("GET", jsonPath, undefined, callerSignal ?? finalRequest.init.signal ?? undefined);
+            return this.requestJson(
+              "GET",
+              jsonPath,
+              undefined,
+              callerSignal ?? currentRequest.init.signal ?? undefined,
+            );
           }
         }
 
-        // Server returned JSON despite PBF request (e.g. error or unsupported)
-        return parseResponseBody(response);
+        // Server returned JSON despite the PBF request (e.g. error or
+        // unsupported). GeoServices reports query failures (bad WHERE, invalid
+        // outFields, expired token => code 498/499) as HTTP 200 application/json
+        // even when f=pbf was requested. Detect the `{error}` envelope here so
+        // preferBinary callers throw a normalized HonuaHttpError exactly like
+        // the JSON path instead of receiving the failure envelope as success.
+        const body = await parseResponseBody(response);
+        const envelopeError = geoServicesEnvelopeError(response.status, body);
+        if (envelopeError) {
+          await this.applyErrorInterceptors({
+            request: cloneRequestContext(currentRequest),
+            error: envelopeError,
+            durationMs,
+          });
+          throw envelopeError;
+        }
+        return body;
       },
     });
   }
@@ -2473,14 +2547,15 @@ export class HonuaClient {
     };
 
     return this.executeRequest<{ text: string; contentType: string; status: number }>(request, {
-      retrySignal: options?.signal,
-      parseErrorBody: async (response) => {
+      callerSignal: options?.signal,
+      errorBody: async (response) => {
         const text = await response.clone().text();
         const contentType = response.headers.get("content-type") ?? acceptHeader;
         return text ? { raw: text, contentType } : {};
       },
-      finalize: async (response) => {
-        const text = await response.clone().text();
+      finalize: async (response, _durationMs, _request, runAfter) => {
+        await runAfter();
+        const text = await response.text();
         const contentType = response.headers.get("content-type") ?? acceptHeader;
         return { text, contentType, status: response.status };
       },
@@ -2513,8 +2588,9 @@ export class HonuaClient {
     };
 
     return this.executeRequest<{ bytes: Uint8Array; contentType: string; empty: boolean }>(request, {
-      retrySignal: callerSignal,
-      finalize: async (response) => {
+      callerSignal,
+      finalize: async (response, _durationMs, _request, runAfter) => {
+        await runAfter();
         const buffer = await response.arrayBuffer();
         const bytes = new Uint8Array(buffer);
         return {
@@ -2527,22 +2603,56 @@ export class HonuaClient {
   }
 
   /**
-   * The single shared request pipeline. Owns the attempt loop, per-attempt
-   * timeout, transient/error retry with backoff, 401/403 auth-replay refresh,
-   * and the before/after/error interceptor calls. Every typed request wrapper
-   * (`requestJson`, `requestText`, `requestBytes`, `requestBinaryWithJsonFallback`,
-   * `requestCachedMetadataJson`, `pipelineFetch`) delegates here so retry, auth,
-   * and error-envelope semantics live in exactly one place.
+   * Single owner of the HTTP attempt loop shared by every typed request
+   * wrapper: before-interceptors, per-attempt timeout, network-error
+   * normalization + retry, replay-safe auth refresh, HTTP-status retry, and the
+   * after/error-interceptor calls. The previous implementation copy-pasted this
+   * loop across six methods (pipelineFetch / requestCachedMetadataJson /
+   * requestJson / requestBinaryWithJsonFallback / requestText / requestBytes),
+   * and the copies had drifted in signal, okStatuses, and 304 handling — the
+   * exact surface where an auth-replay / retry regression can appear in one
+   * transport but not the others.
+   *
+   * Wrappers supply only what differs:
+   * - `finalize` turns a successful `Response` into the wrapper's `T`. It is
+   *   handed a `runAfter` thunk so it controls *when* after-interceptors fire
+   *   (e.g. before vs. after a GeoServices error-envelope check) and can parse
+   *   the original body without a defensive clone (see `hasAfterInterceptors`).
+   * - `shortCircuit` (optional) inspects the response before the ok/!ok split,
+   *   e.g. a metadata `304 Not Modified`.
+   * - `okStatuses` (optional) treats specific non-2xx statuses as success.
+   * - `errorBody` (optional) builds the body fed to `toHttpError` on failure.
+   * - `onTerminalError` (optional) yields a fallback value instead of throwing
+   *   on a terminal network/HTTP error, e.g. stale-if-error metadata.
    */
-  private async executeRequest<T>(initialRequest: HonuaRequestContext, options: ExecuteRequestOptions<T>): Promise<T> {
+  private async executeRequest<T>(
+    initialRequest: HonuaRequestContext,
+    options: {
+      callerSignal?: AbortSignal;
+      okStatuses?: readonly number[];
+      errorBody?: (response: Response) => Promise<unknown>;
+      shortCircuit?: (
+        response: Response,
+        durationMs: number,
+        request: HonuaRequestContext,
+        runAfter: () => Promise<void>,
+      ) => Promise<{ value: T } | undefined>;
+      onTerminalError?: (error: unknown) => T | undefined;
+      finalize: (
+        response: Response,
+        durationMs: number,
+        request: HonuaRequestContext,
+        runAfter: () => Promise<void>,
+      ) => Promise<T>;
+    },
+  ): Promise<T> {
     let request = await this.applyBeforeInterceptors(initialRequest);
-    const retrySignal = options.retrySignal ?? request.init.signal ?? undefined;
-    const parseErrorBody = options.parseErrorBody ?? ((response: Response) => parseResponseBody(response.clone()));
+    const retrySignal = options.callerSignal ?? request.init.signal ?? undefined;
     let refreshedAuth = false;
 
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
-      const timeout = createTimeoutSignal(options.retrySignal ?? request.init.signal, this.timeoutMs);
+      const timeout = createTimeoutSignal(options.callerSignal ?? request.init.signal, this.timeoutMs);
       const startTime = performance.now();
       try {
         response = await this.fetchWithSafeRedirects(request.url, {
@@ -2559,10 +2669,8 @@ export class HonuaClient {
           await this.sleepBeforeRetry(attempt, undefined, retrySignal);
           continue;
         }
-        const fallback = options.onErrorFallback?.(normalizedError);
-        if (fallback !== undefined) {
-          return fallback;
-        }
+        const fallback = options.onTerminalError?.(normalizedError);
+        if (fallback !== undefined) return fallback;
         await this.applyErrorInterceptors({
           request: cloneRequestContext(request),
           error: normalizedError,
@@ -2573,16 +2681,23 @@ export class HonuaClient {
         timeout.dispose();
       }
       const durationMs = performance.now() - startTime;
-
-      if (options.handleResponse) {
-        const handled = await options.handleResponse(response, durationMs, request);
-        if (handled.handled) {
-          return handled.value;
+      const currentRequest = request;
+      const runAfter = async (): Promise<void> => {
+        try {
+          await this.applyAfterInterceptors(cloneRequestContext(currentRequest), response, durationMs);
+        } catch (error) {
+          await this.applyErrorInterceptors({ request: cloneRequestContext(currentRequest), error, durationMs });
+          throw error;
         }
+      };
+
+      if (options.shortCircuit) {
+        const shorted = await options.shortCircuit(response, durationMs, currentRequest, runAfter);
+        if (shorted) return shorted.value;
       }
 
       if (!response.ok && !options.okStatuses?.includes(response.status)) {
-        const body = await parseErrorBody(response);
+        const body = options.errorBody ? await options.errorBody(response) : await parseResponseBody(response.clone());
         const httpError = toHttpError(response.status, body);
         const authRefreshedRequest = refreshedAuth
           ? undefined
@@ -2596,22 +2711,13 @@ export class HonuaClient {
           await this.sleepBeforeRetry(attempt, response, retrySignal);
           continue;
         }
-        const fallback = options.onErrorFallback?.(httpError);
-        if (fallback !== undefined) {
-          return fallback;
-        }
+        const fallback = options.onTerminalError?.(httpError);
+        if (fallback !== undefined) return fallback;
         await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
         throw httpError;
       }
 
-      try {
-        await this.applyAfterInterceptors(cloneRequestContext(request), response, durationMs);
-      } catch (error) {
-        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error, durationMs });
-        throw error;
-      }
-
-      return options.finalize(response, durationMs, request);
+      return options.finalize(response, durationMs, currentRequest, runAfter);
     }
   }
 
@@ -2641,13 +2747,25 @@ export class HonuaClient {
     durationMs: number,
   ): Promise<void> {
     for (const interceptor of this.interceptors) {
+      // Only clone the response for interceptors that actually inspect it. This
+      // keeps the no-after-interceptor hot path free of `Response.clone()` (so
+      // typed wrappers can parse the original body directly) and avoids cloning
+      // for `before`/`error`-only interceptors.
+      if (!interceptor.after) {
+        continue;
+      }
       const context: HonuaResponseContext = {
         request: cloneRequestContext(request),
         response: response.clone(),
         durationMs,
       };
-      await interceptor.after?.(context);
+      await interceptor.after(context);
     }
+  }
+
+  /** Whether any registered interceptor inspects responses (`after` hook). */
+  private hasAfterInterceptors(): boolean {
+    return this.interceptors.some((interceptor) => interceptor.after !== undefined);
   }
 
   private async applyErrorInterceptors(context: HonuaErrorContext): Promise<void> {
@@ -2685,6 +2803,31 @@ export class HonuaClient {
   private async sleepBeforeRetry(attempt: number, response: Response | undefined, signal: AbortSignal | undefined) {
     await sleep(resolveRetryDelayMs(this.retryOptions, attempt, response), signal);
   }
+}
+
+/**
+ * Detect a GeoServices/Esri error envelope returned on an HTTP 2xx response.
+ *
+ * GeoServices services (FeatureServer/MapServer/GeocodeServer/…) report
+ * operation failures as HTTP 200 with a body of the shape
+ * `{ error: { code, message, ... } }`. Without this guard such failures are
+ * cast verbatim to the success response type and surface downstream as empty
+ * results or confusing `undefined` access. Returns a normalized
+ * {@link HonuaHttpError} when the envelope is present, otherwise `undefined`.
+ */
+function geoServicesEnvelopeError(httpStatus: number, body: unknown): HonuaHttpError | undefined {
+  if (!isObject(body) || !isObject(body.error)) {
+    return undefined;
+  }
+  const error = body.error;
+  const hasCode = typeof error.code === "number";
+  const hasMessage = typeof error.message === "string";
+  if (!hasCode && !hasMessage) {
+    return undefined;
+  }
+  const statusCode = hasCode ? (error.code as number) : httpStatus;
+  const message = hasMessage ? (error.message as string) : "Request failed";
+  return new HonuaHttpError(statusCode, message, body);
 }
 
 async function parseResponseBody(response: Response): Promise<unknown> {
@@ -3459,15 +3602,6 @@ function wmtsBasePath(serviceId: string): string {
   return `/rest/services/${encodeServiceIdPath(serviceId)}/MapServer/WMTS`;
 }
 
-/**
- * CRS table for WMS 1.3 axis order. WMS 1.3 honors authority axis order,
- * which means `EPSG:4326` is `(lat, lon)` and `CRS:84` / `EPSG:3857` are
- * `(x, y)`. The `BBOX` envelope tuple supplied by callers is the
- * canonical `[minx, miny, maxx, maxy]`; this map decides whether the
- * tuple is swapped on the wire.
- */
-const WMS_AXIS_SWAP_CRS: ReadonlySet<string> = new Set(["EPSG:4326"]);
-
 function serializeWmsMapParams(request: WmsMapRequest & { serviceId: string }): URLSearchParams {
   const params = new URLSearchParams();
   params.set("SERVICE", "WMS");
@@ -3477,7 +3611,7 @@ function serializeWmsMapParams(request: WmsMapRequest & { serviceId: string }): 
   const crs = request.crs ?? "EPSG:3857";
   params.set("CRS", crs);
   const [minx, miny, maxx, maxy] = request.bbox;
-  const wireBbox = WMS_AXIS_SWAP_CRS.has(crs) ? [miny, minx, maxy, maxx] : [minx, miny, maxx, maxy];
+  const wireBbox = wmsBboxRequiresAxisSwap(crs) ? [miny, minx, maxy, maxx] : [minx, miny, maxx, maxy];
   params.set("BBOX", wireBbox.join(","));
   params.set("WIDTH", String(Math.trunc(request.width)));
   params.set("HEIGHT", String(Math.trunc(request.height)));

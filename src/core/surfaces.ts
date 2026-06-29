@@ -1,9 +1,10 @@
-import { isJobTerminal } from "../contract/jobs.js";
+import { HonuaJobPollTimeoutError, isJobTerminal } from "../contract/jobs.js";
 import type {
   IJobRun,
   JobError,
   JobProgress,
   JobResult,
+  JobResultsOptions,
   JobSnapshot,
   JobSnapshotListener,
   JobStatus,
@@ -343,12 +344,13 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     const startingOffset = normalizeOffset(request.resultOffset);
 
     const features: HonuaTypedFeature<T>[] = [];
+    let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: startingOffset + page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -359,7 +361,8 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       }
 
       features.push(...pageFeatures);
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -401,12 +404,13 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       return;
     }
 
+    let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: startingOffset + page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -417,7 +421,8 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       }
 
       yield pageFeatures;
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -769,12 +774,13 @@ export class HonuaMapService {
         : 100;
 
     const features: HonuaFeature[] = [];
+    let offset = 0;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryLayer({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -785,7 +791,8 @@ export class HonuaMapService {
       }
 
       features.push(...pageFeatures);
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -805,12 +812,13 @@ export class HonuaMapService {
         ? Math.max(1, Math.trunc(request.maxPages))
         : 100;
 
+    let offset = 0;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryLayer({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -821,7 +829,8 @@ export class HonuaMapService {
       }
 
       yield pageFeatures;
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -951,12 +960,13 @@ export class HonuaMapLayer {
     const startingOffset = normalizeOffset(request.resultOffset);
 
     const features: HonuaFeature[] = [];
+    let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: startingOffset + page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -967,7 +977,8 @@ export class HonuaMapLayer {
       }
 
       features.push(...pageFeatures);
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -988,12 +999,13 @@ export class HonuaMapLayer {
         : 100;
     const startingOffset = normalizeOffset(request.resultOffset);
 
+    let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
-          resultOffset: startingOffset + page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -1004,7 +1016,8 @@ export class HonuaMapLayer {
       }
 
       yield pageFeatures;
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -1948,9 +1961,16 @@ export class HonuaGeoprocessingJobRun<T = unknown> implements IJobRun<T> {
     return () => this.listeners.delete(listener);
   }
 
-  public async results(): Promise<JobResult<T>> {
+  public async results(options: JobResultsOptions = {}): Promise<JobResult<T>> {
     if (!this.terminalPromise) {
-      this.terminalPromise = this.runUntilTerminal();
+      // Reset the cached promise if the poll loop rejects (abort / deadline /
+      // attempt cap / transient poll error) so a later results() call can retry
+      // rather than being permanently poisoned while the job may still be
+      // running and pollable.
+      this.terminalPromise = this.runUntilTerminal(options).catch((error) => {
+        this.terminalPromise = undefined;
+        throw error;
+      });
     }
     return this.terminalPromise;
   }
@@ -1962,12 +1982,52 @@ export class HonuaGeoprocessingJobRun<T = unknown> implements IJobRun<T> {
     return snapshot.status;
   }
 
-  private async runUntilTerminal(): Promise<JobResult<T>> {
+  private async runUntilTerminal(options: JobResultsOptions = {}): Promise<JobResult<T>> {
+    const { signal } = options;
+    const baseIntervalMs = options.pollIntervalMs ?? this.pollIntervalMs;
+    const maxIntervalMs = options.maxPollIntervalMs ?? Math.max(baseIntervalMs, 30_000);
+    const startedAt = Date.now();
+    let attempts = 0;
+
     while (!this.terminalSnapshot) {
-      const job = await this.pollFn(this.id);
+      if (signal?.aborted) {
+        throw new HonuaJobPollTimeoutError(`Job ${this.id} poll aborted`, "aborted", this.id, this.currentStatus);
+      }
+      if (options.maxAttempts !== undefined && attempts >= options.maxAttempts) {
+        throw new HonuaJobPollTimeoutError(
+          `Job ${this.id} did not reach a terminal state within ${options.maxAttempts} poll attempt(s)`,
+          "max-attempts",
+          this.id,
+          this.currentStatus,
+        );
+      }
+
+      let job: HonuaGeoprocessingJob;
+      try {
+        job = await this.pollFn(this.id, signal);
+      } catch (error) {
+        if (signal?.aborted) {
+          throw new HonuaJobPollTimeoutError(`Job ${this.id} poll aborted`, "aborted", this.id, this.currentStatus);
+        }
+        throw error;
+      }
+      attempts += 1;
       await this.handleGeoprocessingJob(job);
       if (this.terminalSnapshot) break;
-      if (this.pollIntervalMs > 0) await gpDelay(this.pollIntervalMs);
+
+      if (options.deadlineMs !== undefined && Date.now() - startedAt >= options.deadlineMs) {
+        throw new HonuaJobPollTimeoutError(
+          `Job ${this.id} did not reach a terminal state within ${options.deadlineMs}ms`,
+          "deadline",
+          this.id,
+          this.currentStatus,
+        );
+      }
+
+      // Capped exponential backoff instead of a fixed interval, matching the
+      // OGC Processes and geospatial-grpc job pollers.
+      const intervalMs = Math.min(maxIntervalMs, baseIntervalMs * 2 ** (attempts - 1));
+      if (intervalMs > 0) await gpDelay(intervalMs, signal);
     }
     if (this.terminalSnapshot.status === "successful" && this.terminalSnapshot.result) {
       return this.terminalSnapshot.result;
@@ -2082,9 +2142,21 @@ function geoprocessingJobError(status: JobStatus, job: HonuaGeoprocessingJob | u
   };
 }
 
-function gpDelay(ms: number): Promise<void> {
+function gpDelay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
 
@@ -2476,6 +2548,16 @@ function extractFeaturesFromResponse(response: unknown): HonuaFeature[] {
     return [];
   }
   return response.features as HonuaFeature[];
+}
+
+/**
+ * GeoServices servers clamp `resultRecordCount` to their `maxRecordCount` and
+ * signal that more rows remain with `exceededTransferLimit: true`. Fetch-all
+ * loops must keep paging while this flag is set rather than stopping on the
+ * first short page, otherwise a "return everything" call silently truncates.
+ */
+function responseExceededTransferLimit(response: unknown): boolean {
+  return isObject(response) && response.exceededTransferLimit === true;
 }
 
 function extractObjectIdsFromResponse(response: unknown): number[] {

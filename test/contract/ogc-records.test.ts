@@ -207,6 +207,36 @@ describe("ogc-records / wire", () => {
     expect(observedOffsets).toEqual([null, "2", "4"]);
   });
 
+  it("searchAll() keeps paging on a short page while a rel=next link is present", async () => {
+    // OGC API Records/Features lets a conformant server return fewer than the
+    // requested `limit` on a non-final page while still advertising `rel=next`.
+    // The SDK must follow the link instead of treating the short page as the end.
+    let calls = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/records/collections/catalog/items",
+          () => {
+            calls += 1;
+            const last = calls === 3;
+            // Each page returns 1 record even though limit is 2 (a "short" page).
+            return jsonResponse({
+              ...recordsResponse(1),
+              links: last
+                ? []
+                : [{ rel: "next", href: `https://mock/ogc/records/collections/catalog/items?offset=${calls}` }],
+            });
+          },
+        ],
+      ],
+    });
+
+    const records = await client.ogcRecords().searchAll({ collectionId: "catalog", limit: 2 });
+
+    expect(records).toHaveLength(3);
+    expect(calls).toBe(3);
+  });
+
   it("searchAll() follows rel=next links that use the standard `startindex` param", async () => {
     // Standards-conformant OGC API servers express the next page with
     // `startindex` rather than Honua Server's `offset`. Without honoring it,

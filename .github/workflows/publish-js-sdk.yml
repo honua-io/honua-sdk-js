@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -61,6 +61,7 @@ jobs:
           npm test
           npm run build:split-packages
           npm run verify:split-packages
+          npm run verify:browser
           npm run demo:primitive-matrix
           npm run demo:examples:typecheck
           npm run demo:examples:build
@@ -94,6 +95,10 @@ jobs:
       - name: Publish split packages
         run: |
           npm run build:split-packages --silent
+          # build:split-packages cleans dist/, so (re)build the browser bundle
+          # afterwards. Without this the root package publishes without
+          # dist/browser/*, breaking the ./browser export and every CDN path.
+          npm run build:browser --silent
 
           flags=""
           if [[ "${DRY_RUN}" == "true" ]]; then

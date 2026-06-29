@@ -900,9 +900,13 @@ export async function executeHonuaAgentTool(
   try {
     switch (call.name) {
       case "inspectMap":
-        return result(call.name, "ok", args, options, { data: await inspectMap(runtime, call.args) });
+        return result(call.name, "ok", args, options, {
+          data: sanitizeMapSnapshot(await inspectMap(runtime, call.args)),
+        });
       case "listSources":
-        return result(call.name, "ok", args, options, { data: await listSources(runtime, call.args) });
+        return result(call.name, "ok", args, options, {
+          data: (await listSources(runtime, call.args)).map(sanitizeSourceSummary),
+        });
       case "listCapabilities":
         return result(call.name, "ok", args, options, { data: await listCapabilities(runtime, call.args) });
       case "setViewport":
@@ -1243,6 +1247,23 @@ function positiveLimit(value: number | undefined, fallback: number): number {
   return value && Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
 }
 
+/**
+ * Redact secret-bearing metadata from a full map snapshot before it leaves the
+ * tool executor for an LLM. `inspectMap` returns raw runtime metadata
+ * (connection strings, tokens) on sources/layers/realtime/metadata; the
+ * context/system-prompt path already sanitizes, but the executor result builder
+ * did not, so tool results bypassed redaction.
+ */
+function sanitizeMapSnapshot(snapshot: HonuaAgentMapSnapshot): HonuaAgentMapSnapshot {
+  return {
+    ...snapshot,
+    sources: snapshot.sources.map(sanitizeSourceSummary),
+    layers: snapshot.layers.map(sanitizeLayerSummary),
+    ...(snapshot.realtime ? { realtime: sanitizeRecord(snapshot.realtime) } : {}),
+    ...(snapshot.metadata ? { metadata: sanitizeRecord(snapshot.metadata) } : {}),
+  };
+}
+
 function sanitizeSourceSummary(source: HonuaAgentSourceSummary): HonuaAgentSourceSummary {
   return {
     id: source.id,
@@ -1264,14 +1285,50 @@ function sanitizeLayerSummary(layer: HonuaAgentLayerSummary): HonuaAgentLayerSum
   };
 }
 
+/**
+ * Keys whose values are redacted from snapshot metadata before it leaves the
+ * tool executor for an LLM. Covers tokens, passwords, API keys, bearer/auth
+ * material, private keys/passphrases, and connection strings/DSNs — the latter
+ * frequently embed `user:password@host` credentials. Matched case-insensitively
+ * as a substring so e.g. `dbConnectionString`, `x-api-key`, `privateKey`, and
+ * `connectionUri` are all caught.
+ */
+const SENSITIVE_KEY_PATTERN =
+  /token|secret|password|passphrase|credential|apikey|api[-_ ]?key|authorization|auth|bearer|private[-_ ]?key|connection|connectionstring|connectionuri|dsn/i;
+
+/**
+ * Deeply redact secret-bearing fields from arbitrary metadata. Recurses into
+ * plain objects and arrays so nested shapes such as
+ * `{ database: { connectionString: "postgres://u:pw@h/db" } }` or
+ * `{ auth: { token: "…" } }` are scrubbed rather than copied whole. Class
+ * instances / exotic objects are passed through unchanged (they are not the
+ * plain `Record<string, unknown>` runtime metadata shapes this guards), and
+ * functions/`undefined` are dropped.
+ */
 function sanitizeRecord(record: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
-  const sanitized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(record)) {
-    if (/token|secret|password|apikey|api_key|authorization/i.test(key)) continue;
-    if (value === undefined || typeof value === "function") continue;
-    sanitized[key] = value;
+  return sanitizeValue(record) as Readonly<Record<string, unknown>>;
+}
+
+function sanitizeValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeValue);
   }
-  return sanitized;
+  if (isPlainObject(value)) {
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value)) {
+      if (SENSITIVE_KEY_PATTERN.test(key)) continue;
+      if (child === undefined || typeof child === "function") continue;
+      sanitized[key] = sanitizeValue(child);
+    }
+    return sanitized;
+  }
+  return value;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 function realtimeStateNote(snapshot: HonuaAgentMapSnapshot): string | undefined {
