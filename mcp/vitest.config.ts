@@ -17,13 +17,16 @@ export default defineConfig({
         "src/eval/cli.ts",
         // Type-only declarations — no runtime code to cover.
         "src/eval/types.ts",
-        // Live cross-model driver adapters that make real Anthropic/OpenAI API
-        // calls. The cross-model eval only runs with real API keys (live runs are
-        // deferred, honua-server #1956); the deterministic driver is the offline
-        // CI control, and the eval pipeline (runner/grade/report) is unit-tested
-        // through it.
+        // Live cross-model driver adapters that make real Anthropic/OpenAI/Bedrock
+        // calls. The cross-model eval only runs with real API keys / AWS creds (live
+        // runs are deferred, honua-server #1956); the deterministic driver is the
+        // offline CI control, and the eval pipeline (runner/grade/report) is
+        // unit-tested through it. The pure mapping helpers in bedrock.ts are still
+        // unit-tested directly (test/eval/bedrock.test.ts), but the network-bound
+        // runWorkflow path cannot be covered without real calls.
         "src/eval/drivers/anthropic.ts",
         "src/eval/drivers/openai.ts",
+        "src/eval/drivers/bedrock.ts",
       ],
       thresholds: {
         lines: 80,
