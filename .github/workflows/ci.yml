@@ -104,3 +104,29 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: MCP certification (gate)
+        run: npm run test:certification
+
+      - name: MCP certification artifact
+        if: always()
+        run: npm run test:certification:artifact
+
+      - name: Cross-model workflow eval (gate, offline)
+        run: npm run test:eval
+
+      - name: Cross-model workflow eval artifact
+        if: always()
+        run: npm run test:eval:artifact
+
+      - name: Upload MCP provability artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-provability-artifacts
+          path: |
+            mcp/mcp-certification-results.json
+            mcp/mcp-certification-results.md
+            mcp/mcp-eval-results.json
+            mcp/mcp-eval-results.md
+          if-no-files-found: warn
