@@ -8,8 +8,10 @@
  * @module
  */
 
+import type { HonuaMetadataRequestOptions } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
 import { encodePathSegments, trimTrailingSlashes } from "./path-utils.js";
+import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
   HonuaOgcConformanceResponse,
   HonuaOgcLandingResponse,
@@ -24,6 +26,7 @@ import type {
   OgcTilesetRequest,
   OgcTilesetsRequest,
 } from "./types.js";
+import { createOgcMetadataParams } from "./wire-shared.js";
 
 /** Default OGC tile-matrix-set used when none is specified (Web Mercator XYZ). */
 export const DEFAULT_OGC_TILE_MATRIX_SET: OgcTileMatrixSetId = "WebMercatorQuad";
@@ -219,4 +222,108 @@ export class HonuaOgcTileset {
 
 export function createHonuaOgcTiles(client: HonuaClient): HonuaOgcTiles {
   return new HonuaOgcTiles({ client });
+}
+
+// ── OGC API Tiles wire methods ──────────────────────────────────
+//
+// Concrete URL-building / param-serialization / response-handling for the
+// OGC API Tiles endpoints, invoked against an injected transport. The client
+// exposes thin `get*/list*/fetch*` delegators that call these.
+
+export async function getOgcTilesLanding(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcLandingResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcLandingResponse>(
+    `ogc-tiles:landing:${params.toString()}`,
+    `/ogc/tiles?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getOgcTilesConformance(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcConformanceResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
+    `ogc-tiles:conformance:${params.toString()}`,
+    `/ogc/tiles/conformance?${params.toString()}`,
+    request,
+  );
+}
+
+export async function listOgcTileMatrixSets(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcTileMatrixSetsResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcTileMatrixSetsResponse>(
+    `ogc-tiles:tile-matrix-sets:${params.toString()}`,
+    `/ogc/tiles/tileMatrixSets?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getOgcTileMatrixSet(
+  transport: HonuaProtocolTransport,
+  request: {
+    tileMatrixSetId: string;
+    responseFormat?: string;
+    extraParams?: Record<string, string | number | boolean>;
+  } & HonuaMetadataRequestOptions,
+): Promise<HonuaOgcTileMatrixSet> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcTileMatrixSet>(
+    `ogc-tiles:tile-matrix-set:${request.tileMatrixSetId}:${params.toString()}`,
+    `/ogc/tiles/tileMatrixSets/${encodeURIComponent(request.tileMatrixSetId)}?${params.toString()}`,
+    request,
+  );
+}
+
+export async function listOgcCollectionTilesets(
+  transport: HonuaProtocolTransport,
+  request: OgcTilesetsRequest,
+): Promise<HonuaOgcTilesetsResponse> {
+  const params = createOgcMetadataParams(request);
+  const path = `/ogc/tiles/collections/${encodeURIComponent(String(request.collectionId))}/tiles`;
+  return transport.requestCachedMetadataJson<HonuaOgcTilesetsResponse>(
+    `ogc-tiles:tilesets:${request.collectionId}:${params.toString()}`,
+    `${path}?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getOgcCollectionTileset(
+  transport: HonuaProtocolTransport,
+  request: OgcTilesetRequest,
+): Promise<HonuaOgcTilesetMetadata> {
+  const params = createOgcMetadataParams(request);
+  const path =
+    `/ogc/tiles/collections/${encodeURIComponent(String(request.collectionId))}` +
+    `/tiles/${encodeURIComponent(request.tileMatrixSetId)}`;
+  return transport.requestCachedMetadataJson<HonuaOgcTilesetMetadata>(
+    `ogc-tiles:tileset:${request.collectionId}:${request.tileMatrixSetId}:${params.toString()}`,
+    `${path}?${params.toString()}`,
+    request,
+  );
+}
+
+export async function fetchOgcTile(
+  transport: HonuaProtocolTransport,
+  request: OgcTileRequest,
+): Promise<HonuaOgcTileResponse> {
+  const params = new URLSearchParams();
+  if (request.extraParams) {
+    for (const [key, value] of Object.entries(request.extraParams)) {
+      params.set(key, String(value));
+    }
+  }
+  const collection = encodeURIComponent(String(request.collectionId));
+  const matrixSet = encodeURIComponent(request.tileMatrixSetId);
+  const matrix = encodeURIComponent(String(request.tileMatrix));
+  const query = params.size > 0 ? `?${params.toString()}` : "";
+  const path = `/ogc/tiles/collections/${collection}/tiles/${matrixSet}/${matrix}/${request.tileRow}/${request.tileCol}${query}`;
+  return transport.requestBytes("GET", path, request.accept, undefined, request.signal);
 }

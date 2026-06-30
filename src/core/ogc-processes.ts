@@ -19,6 +19,7 @@ import type {
 } from "../contract/jobs.js";
 import { HonuaJobPollTimeoutError, isJobTerminal } from "../contract/jobs.js";
 import type { HonuaClient } from "./client.js";
+import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
   HonuaOgcConformanceResponse,
   HonuaOgcLandingResponse,
@@ -31,6 +32,7 @@ import type {
   OgcProcessExecuteRequest,
   OgcProcessStatus,
 } from "./types.js";
+import { createOgcMetadataParams, mergeHeaders } from "./wire-shared.js";
 
 export interface HonuaOgcProcessesOptions {
   client: HonuaClient;
@@ -449,3 +451,140 @@ export function createHonuaOgcProcesses(client: HonuaClient): HonuaOgcProcesses 
 // surface module.
 export type HonuaOgcProcessesAdapter = HonuaOgcProcesses;
 export type { OgcProcessStatus };
+
+// ── OGC API Processes wire methods ──────────────────────────────
+
+export async function getOgcProcessesLanding(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcLandingResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcLandingResponse>(
+    `ogc-processes:landing:${params.toString()}`,
+    `/ogc/processes?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getOgcProcessesConformance(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcConformanceResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
+    `ogc-processes:conformance:${params.toString()}`,
+    `/ogc/processes/conformance?${params.toString()}`,
+    request,
+  );
+}
+
+export async function listOgcProcesses(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcProcessesResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcProcessesResponse>(
+    `ogc-processes:processes:${params.toString()}`,
+    `/ogc/processes/processes?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getOgcProcess(
+  transport: HonuaProtocolTransport,
+  request: { processId: string } & OgcMetadataRequest,
+): Promise<HonuaOgcProcessDescription> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcProcessDescription>(
+    `ogc-processes:process:${request.processId}:${params.toString()}`,
+    `/ogc/processes/processes/${encodeURIComponent(request.processId)}?${params.toString()}`,
+    request,
+  );
+}
+
+export async function executeOgcProcess(
+  transport: HonuaProtocolTransport,
+  request: OgcProcessExecuteRequest,
+): Promise<HonuaOgcProcessJobAccepted> {
+  const headers = mergeHeaders(
+    { "Content-Type": "application/json", Accept: "application/json" },
+    request.headers,
+    preferHeaderForExecute(request),
+  );
+  const path = `/ogc/processes/processes/${encodeURIComponent(request.processId)}/execution`;
+  // honua-server only supports `response: "document"` and rejects "raw"
+  // with HTTP 501; the SDK pins the supported value here.
+  const body = JSON.stringify({
+    inputs: request.inputs ?? {},
+    outputs: request.outputs,
+    response: "document",
+  });
+  return transport.requestJson<HonuaOgcProcessJobAccepted>("POST", path, { headers, body }, request.signal);
+}
+
+export async function getOgcProcessJob(
+  transport: HonuaProtocolTransport,
+  request: {
+    jobId: string;
+    signal?: AbortSignal;
+    responseFormat?: string;
+    extraParams?: Record<string, string | number | boolean>;
+  },
+): Promise<HonuaOgcProcessJobStatus> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestJson<HonuaOgcProcessJobStatus>(
+    "GET",
+    `/ogc/processes/jobs/${encodeURIComponent(request.jobId)}?${params.toString()}`,
+    undefined,
+    request.signal,
+  );
+}
+
+export async function getOgcProcessJobResults(
+  transport: HonuaProtocolTransport,
+  request: {
+    jobId: string;
+    signal?: AbortSignal;
+    responseFormat?: string;
+    extraParams?: Record<string, string | number | boolean>;
+  },
+): Promise<HonuaOgcProcessJobResults> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestJson<HonuaOgcProcessJobResults>(
+    "GET",
+    `/ogc/processes/jobs/${encodeURIComponent(request.jobId)}/results?${params.toString()}`,
+    undefined,
+    request.signal,
+  );
+}
+
+export async function cancelOgcProcessJob(
+  transport: HonuaProtocolTransport,
+  request: {
+    jobId: string;
+    signal?: AbortSignal;
+    responseFormat?: string;
+    extraParams?: Record<string, string | number | boolean>;
+  },
+): Promise<HonuaOgcProcessJobStatus> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestJson<HonuaOgcProcessJobStatus>(
+    "DELETE",
+    `/ogc/processes/jobs/${encodeURIComponent(request.jobId)}?${params.toString()}`,
+    undefined,
+    request.signal,
+  );
+}
+
+/**
+ * Build the `Prefer` header for an OGC API Processes execution request.
+ * honua-server is async-only: `mode: "async"` sends an explicit
+ * `Prefer: respond-async` so OGC-conformance checkers see the header;
+ * `mode: "auto"` (or unset) omits it and lets the server default apply.
+ */
+function preferHeaderForExecute(request: OgcProcessExecuteRequest): { Prefer: string } | undefined {
+  if (request.mode === "async") {
+    return { Prefer: "respond-async" };
+  }
+  return undefined;
+}

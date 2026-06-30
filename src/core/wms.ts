@@ -13,8 +13,12 @@
 
 import type { HonuaClient } from "./client.js";
 import { HonuaCapabilityNotSupportedError } from "./errors.js";
+import { encodeServiceIdPath } from "./path-utils.js";
+import type { HonuaProtocolTransport } from "./protocol-transport.js";
+import type { HonuaTypedFeature } from "./types.js";
+import { wmsBboxRequiresAxisSwap } from "./wms-axis.js";
 import type { WmsCapabilities, WmsCapabilityLayer, WmsCapabilityStyle } from "./wms-capabilities.js";
-import { findWmsLayer } from "./wms-capabilities.js";
+import { findWmsLayer, parseWmsCapabilities } from "./wms-capabilities.js";
 import type {
   HonuaWmsFeatureInfoResponse,
   HonuaWmsImageResponse,
@@ -234,4 +238,180 @@ export class HonuaWmsLayer {
 
 export function createHonuaWms(client: HonuaClient, serviceId: string): HonuaWms {
   return new HonuaWms({ client, serviceId });
+}
+
+// ── WMS 1.3 wire methods ────────────────────────────────────────
+
+/** Canonical WMS endpoint path. honua-server publishes both `/rest/services/{id}/MapServer/WMS` and `/ogc/services/{id}/wms`; the SDK targets the GeoServices-aliased path because every Honua deployment exposes it. */
+function wmsBasePath(serviceId: string): string {
+  return `/rest/services/${encodeServiceIdPath(serviceId)}/MapServer/WMS`;
+}
+
+/**
+ * Fetch and parse a WMS `GetCapabilities` document for the addressed
+ * service. The XML body decodes through `requestText`; the parsed
+ * shape is the typed `WmsCapabilities` envelope (no XML node leaks
+ * through the public surface).
+ */
+export async function getWmsCapabilities(
+  transport: HonuaProtocolTransport,
+  request: {
+    serviceId: string;
+    version?: string;
+    signal?: AbortSignal;
+    extraParams?: Record<string, string | number | boolean>;
+  },
+): Promise<WmsCapabilities> {
+  const params = new URLSearchParams();
+  params.set("SERVICE", "WMS");
+  params.set("REQUEST", "GetCapabilities");
+  params.set("VERSION", request.version ?? "1.3.0");
+  if (request.extraParams) {
+    for (const [key, value] of Object.entries(request.extraParams)) {
+      params.set(key, String(value));
+    }
+  }
+  const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
+  const { text: xml } = await transport.requestText("GET", path, {
+    accept: "text/xml,application/xml",
+    signal: request.signal,
+  });
+  return parseWmsCapabilities(xml);
+}
+
+/** Render a WMS `GetMap`. Returns the raw image bytes. */
+export async function getWmsMap(
+  transport: HonuaProtocolTransport,
+  request: { serviceId: string } & WmsMapRequest,
+): Promise<HonuaWmsImageResponse> {
+  const params = serializeWmsMapParams(request);
+  params.set("REQUEST", "GetMap");
+  const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
+  const accept = request.format ?? "image/png";
+  const response = await transport.requestBytes("GET", path, accept, undefined, request.signal);
+  return { bytes: response.bytes, contentType: response.contentType };
+}
+
+/**
+ * Issue a WMS `GetFeatureInfo`. When `INFO_FORMAT=application/json`
+ * the JSON body decodes into the canonical `HonuaTypedFeature[]`
+ * shape; non-JSON formats round-trip on `bytes` so callers retain the
+ * raw payload behind the protocol escape hatch.
+ */
+export async function getWmsFeatureInfo<T = Record<string, unknown>>(
+  transport: HonuaProtocolTransport,
+  request: { serviceId: string } & WmsFeatureInfoRequest,
+): Promise<HonuaWmsFeatureInfoResponse<T>> {
+  const params = serializeWmsMapParams(request);
+  params.set("REQUEST", "GetFeatureInfo");
+  params.set("QUERY_LAYERS", request.queryLayers.join(","));
+  params.set("I", String(Math.trunc(request.i)));
+  params.set("J", String(Math.trunc(request.j)));
+  const infoFormat = request.infoFormat ?? "application/json";
+  params.set("INFO_FORMAT", infoFormat);
+  if (request.featureCount !== undefined) {
+    params.set("FEATURE_COUNT", String(Math.trunc(request.featureCount)));
+  }
+  const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
+  const response = await transport.requestBytes("GET", path, infoFormat, undefined, request.signal);
+  return decodeWmsFeatureInfoResponse<T>(response.bytes, response.contentType, infoFormat);
+}
+
+/**
+ * Fetch a WMS `GetLegendGraphic`. honua-server does not implement
+ * GetLegendGraphic today; callers should branch on
+ * `WmsCapabilities.request.getLegendGraphic` before invoking. When
+ * the wire returns 5xx the underlying `HonuaHttpError` flows through.
+ */
+export async function getWmsLegend(
+  transport: HonuaProtocolTransport,
+  request: { serviceId: string } & WmsLegendRequest,
+): Promise<HonuaWmsImageResponse> {
+  const params = new URLSearchParams();
+  params.set("SERVICE", "WMS");
+  params.set("VERSION", "1.3.0");
+  params.set("REQUEST", "GetLegendGraphic");
+  params.set("LAYER", request.layer);
+  if (request.style) params.set("STYLE", request.style);
+  const format = request.format ?? "image/png";
+  params.set("FORMAT", format);
+  if (request.width !== undefined) params.set("WIDTH", String(Math.trunc(request.width)));
+  if (request.height !== undefined) params.set("HEIGHT", String(Math.trunc(request.height)));
+  if (request.extraParams) {
+    for (const [key, value] of Object.entries(request.extraParams)) {
+      params.set(key, String(value));
+    }
+  }
+  const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
+  const response = await transport.requestBytes("GET", path, format, undefined, request.signal);
+  return { bytes: response.bytes, contentType: response.contentType };
+}
+
+function serializeWmsMapParams(request: WmsMapRequest & { serviceId: string }): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set("SERVICE", "WMS");
+  params.set("VERSION", "1.3.0");
+  params.set("LAYERS", request.layers.join(","));
+  params.set("STYLES", request.styles ? request.styles.join(",") : "");
+  const crs = request.crs ?? "EPSG:3857";
+  params.set("CRS", crs);
+  const [minx, miny, maxx, maxy] = request.bbox;
+  const wireBbox = wmsBboxRequiresAxisSwap(crs) ? [miny, minx, maxy, maxx] : [minx, miny, maxx, maxy];
+  params.set("BBOX", wireBbox.join(","));
+  params.set("WIDTH", String(Math.trunc(request.width)));
+  params.set("HEIGHT", String(Math.trunc(request.height)));
+  params.set("FORMAT", request.format ?? "image/png");
+  params.set("TRANSPARENT", String(request.transparent ?? true).toUpperCase());
+  if (request.bgcolor !== undefined) params.set("BGCOLOR", request.bgcolor);
+  if (request.time !== undefined) params.set("TIME", request.time);
+  if (request.elevation !== undefined) params.set("ELEVATION", request.elevation);
+  if (request.extraParams) {
+    for (const [key, value] of Object.entries(request.extraParams)) {
+      params.set(key, String(value));
+    }
+  }
+  return params;
+}
+
+export function decodeWmsFeatureInfoResponse<T>(
+  bytes: Uint8Array,
+  contentType: string,
+  requestedFormat: string,
+): HonuaWmsFeatureInfoResponse<T> {
+  const isJson =
+    contentType.toLowerCase().includes("application/json") ||
+    requestedFormat.toLowerCase().includes("application/json");
+  if (!isJson) {
+    return { contentType, bytes };
+  }
+  const text = new TextDecoder("utf-8").decode(bytes);
+  if (text.length === 0) {
+    return { contentType, features: [] };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // Server emitted a non-JSON body despite the JSON Accept; preserve as bytes.
+    return { contentType, bytes };
+  }
+  const features = extractFeatureInfoFeatures<T>(parsed);
+  return { contentType, features };
+}
+
+function extractFeatureInfoFeatures<T>(parsed: unknown): ReadonlyArray<HonuaTypedFeature<T>> {
+  if (!parsed || typeof parsed !== "object") return [];
+  // honua-server emits `{ type: "FeatureInfoResponse", features: [{ layer, attributes }, ...] }`
+  // and a fallback GeoJSON `{ type: "FeatureCollection", features: [...] }`; both decode here.
+  const obj = parsed as Record<string, unknown>;
+  const featuresRaw = Array.isArray(obj.features) ? obj.features : [];
+  const out: HonuaTypedFeature<T>[] = [];
+  for (const raw of featuresRaw) {
+    if (!raw || typeof raw !== "object") continue;
+    const feat = raw as Record<string, unknown>;
+    const attributes = (feat.attributes ?? feat.properties ?? {}) as T;
+    const geometry = (feat.geometry as Record<string, unknown> | null | undefined) ?? null;
+    out.push({ attributes, geometry });
+  }
+  return out;
 }

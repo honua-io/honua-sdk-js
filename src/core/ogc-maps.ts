@@ -9,6 +9,7 @@
  */
 
 import type { HonuaClient } from "./client.js";
+import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
   HonuaOgcConformanceResponse,
   HonuaOgcLandingResponse,
@@ -16,6 +17,7 @@ import type {
   OgcMapImageRequest,
   OgcMetadataRequest,
 } from "./types.js";
+import { createOgcMetadataParams } from "./wire-shared.js";
 
 export interface HonuaOgcMapsOptions {
   client: HonuaClient;
@@ -83,4 +85,95 @@ export class HonuaOgcCollectionMap {
 
 export function createHonuaOgcMaps(client: HonuaClient): HonuaOgcMaps {
   return new HonuaOgcMaps({ client });
+}
+
+// ── OGC API Maps wire methods ───────────────────────────────────
+
+export async function getOgcMapsLanding(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcLandingResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcLandingResponse>(
+    `ogc-maps:landing:${params.toString()}`,
+    `/ogc/maps?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getOgcMapsConformance(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcConformanceResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
+    `ogc-maps:conformance:${params.toString()}`,
+    `/ogc/maps/conformance?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getOgcMapImage(
+  transport: HonuaProtocolTransport,
+  request: OgcMapImageRequest,
+): Promise<HonuaOgcMapImageResponse> {
+  const params = serializeOgcMapImageParams(request);
+  const collectionPart =
+    request.collectionId !== undefined ? `/collections/${encodeURIComponent(String(request.collectionId))}` : "";
+  const stylePart = request.styleId ? `/styles/${encodeURIComponent(request.styleId)}` : "";
+  const path = `/ogc/maps${collectionPart}${stylePart}/map${params.size > 0 ? `?${params.toString()}` : ""}`;
+  const accept = ogcMapAcceptHeader(request.format) ?? "image/png";
+  const response = await transport.requestBytes("GET", path, accept, undefined, request.signal);
+  return { bytes: response.bytes, contentType: response.contentType };
+}
+
+function serializeOgcMapImageParams(request: OgcMapImageRequest): URLSearchParams {
+  const params = new URLSearchParams();
+  const f = ogcMapShortFormat(request.format);
+  if (f !== undefined) params.set("f", f);
+  if (request.width !== undefined) params.set("width", String(request.width));
+  if (request.height !== undefined) params.set("height", String(request.height));
+  if (request.bbox !== undefined) {
+    params.set("bbox", typeof request.bbox === "string" ? request.bbox : request.bbox.join(","));
+  }
+  if (request.bboxCrs !== undefined) params.set("bbox-crs", request.bboxCrs);
+  if (request.crs !== undefined) params.set("crs", request.crs);
+  if (request.collections !== undefined && request.collections.length > 0) {
+    params.set("collections", request.collections.join(","));
+  }
+  if (request.transparent !== undefined) params.set("transparent", String(request.transparent));
+  if (request.extraParams) {
+    for (const [key, value] of Object.entries(request.extraParams)) {
+      params.set(key, String(value));
+    }
+  }
+  return params;
+}
+
+const OGC_MAP_FORMAT_TO_SHORT: ReadonlyMap<string, string> = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpeg"],
+  ["image/jpg", "jpg"],
+  ["image/tiff", "tiff"],
+  ["image/tif", "tif"],
+]);
+
+const OGC_MAP_SHORT_TO_MEDIA: ReadonlyMap<string, string> = new Map([
+  ["png", "image/png"],
+  ["jpeg", "image/jpeg"],
+  ["jpg", "image/jpeg"],
+  ["tiff", "image/tiff"],
+  ["tif", "image/tiff"],
+]);
+
+function ogcMapShortFormat(format: string | undefined): string | undefined {
+  if (format === undefined) return undefined;
+  const lower = format.toLowerCase();
+  return OGC_MAP_FORMAT_TO_SHORT.get(lower) ?? lower;
+}
+
+function ogcMapAcceptHeader(format: string | undefined): string | undefined {
+  if (format === undefined) return undefined;
+  const lower = format.toLowerCase();
+  return OGC_MAP_SHORT_TO_MEDIA.get(lower) ?? format;
 }

@@ -12,14 +12,18 @@
  */
 
 import type { HonuaClient } from "./client.js";
-import type {
-  HonuaWmtsFeatureInfoResponse,
-  HonuaWmtsTileResponse,
-  WmtsFeatureInfoRequest,
-  WmtsTileRequest,
+import { encodeServiceIdPath } from "./path-utils.js";
+import type { HonuaProtocolTransport } from "./protocol-transport.js";
+import {
+  type HonuaWmtsFeatureInfoResponse,
+  type HonuaWmtsTileResponse,
+  type WmtsFeatureInfoRequest,
+  type WmtsTileRequest,
+  wmtsExtensionForFormat,
 } from "./wms-types.js";
+import { decodeWmsFeatureInfoResponse } from "./wms.js";
 import type { WmtsCapabilities, WmtsCapabilityLayer, WmtsCapabilityTileMatrixSet } from "./wmts-capabilities.js";
-import { findWmtsLayer, findWmtsTileMatrixSet } from "./wmts-capabilities.js";
+import { findWmtsLayer, findWmtsTileMatrixSet, parseWmtsCapabilities } from "./wmts-capabilities.js";
 
 export interface HonuaWmtsOptions {
   client: HonuaClient;
@@ -229,4 +233,178 @@ export class HonuaWmtsTileset {
 
 export function createHonuaWmts(client: HonuaClient, serviceId: string): HonuaWmts {
   return new HonuaWmts({ client, serviceId });
+}
+
+// ── WMTS 1.0 wire methods ───────────────────────────────────────
+
+/** Canonical WMTS endpoint path. */
+function wmtsBasePath(serviceId: string): string {
+  return `/rest/services/${encodeServiceIdPath(serviceId)}/MapServer/WMTS`;
+}
+
+export async function getWmtsCapabilities(
+  transport: HonuaProtocolTransport,
+  request: {
+    serviceId: string;
+    signal?: AbortSignal;
+  },
+): Promise<WmtsCapabilities> {
+  const params = new URLSearchParams();
+  params.set("SERVICE", "WMTS");
+  params.set("REQUEST", "GetCapabilities");
+  params.set("VERSION", "1.0.0");
+  const path = `${wmtsBasePath(request.serviceId)}?${params.toString()}`;
+  const { text: xml } = await transport.requestText("GET", path, {
+    accept: "text/xml,application/xml",
+    signal: request.signal,
+  });
+  return parseWmtsCapabilities(xml);
+}
+
+/**
+ * Fetch a single WMTS tile. `mode` selects between KVP
+ * (`?REQUEST=GetTile&...`) and the RESTful path
+ * (`/{layer}/{style}/{tms}/{z}/{y}/{x}.{ext}`). honua-server
+ * advertises both; the SDK defaults to RESTful because the wire path
+ * is a single string substitution per tile and skips
+ * URLSearchParams serialisation on the hot path.
+ */
+export async function fetchWmtsTile(
+  transport: HonuaProtocolTransport,
+  request: { serviceId: string } & WmtsTileRequest,
+): Promise<HonuaWmtsTileResponse> {
+  const mode: "kvp" | "rest" = request.mode ?? "rest";
+  const format = request.format ?? "image/png";
+  const style = request.style ?? "default";
+  const tileMatrixSet = request.tileMatrixSet ?? "WebMercatorQuad";
+  if (mode === "kvp") {
+    const params = new URLSearchParams();
+    params.set("SERVICE", "WMTS");
+    params.set("VERSION", "1.0.0");
+    params.set("REQUEST", "GetTile");
+    params.set("LAYER", request.layer);
+    params.set("STYLE", style);
+    params.set("FORMAT", format);
+    params.set("TILEMATRIXSET", tileMatrixSet);
+    params.set("TILEMATRIX", String(request.tileMatrix));
+    params.set("TILEROW", String(request.tileRow));
+    params.set("TILECOL", String(request.tileCol));
+    if (request.extraParams) {
+      for (const [key, value] of Object.entries(request.extraParams)) {
+        params.set(key, String(value));
+      }
+    }
+    const path = `${wmtsBasePath(request.serviceId)}?${params.toString()}`;
+    return transport.requestBytes("GET", path, format, undefined, request.signal);
+  }
+  const ext = wmtsExtensionForFormat(format);
+  const base = wmtsBasePath(request.serviceId);
+  const layer = encodeURIComponent(request.layer);
+  const styleSeg = encodeURIComponent(style);
+  const tmsSeg = encodeURIComponent(tileMatrixSet);
+  const tm = encodeURIComponent(String(request.tileMatrix));
+  const tr = encodeURIComponent(String(request.tileRow));
+  const tc = encodeURIComponent(String(request.tileCol));
+  const extra = wmtsRestExtraParamsSuffix(request.extraParams);
+  const path = `${base}/${layer}/${styleSeg}/${tmsSeg}/${tm}/${tr}/${tc}.${ext}${extra}`;
+  return transport.requestBytes("GET", path, format, undefined, request.signal);
+}
+
+/**
+ * WMTS GetFeatureInfo. honua-server accepts both KVP and RESTful
+ * routing; mode default mirrors `fetchWmtsTile`.
+ */
+export async function getWmtsFeatureInfo<T = Record<string, unknown>>(
+  transport: HonuaProtocolTransport,
+  request: { serviceId: string } & WmtsFeatureInfoRequest,
+): Promise<HonuaWmtsFeatureInfoResponse<T>> {
+  const mode: "kvp" | "rest" = request.mode ?? "rest";
+  const infoFormat = request.infoFormat ?? "application/json";
+  const format = request.format ?? "image/png";
+  const style = request.style ?? "default";
+  const tileMatrixSet = request.tileMatrixSet ?? "WebMercatorQuad";
+  if (mode === "kvp") {
+    const params = new URLSearchParams();
+    params.set("SERVICE", "WMTS");
+    params.set("VERSION", "1.0.0");
+    params.set("REQUEST", "GetFeatureInfo");
+    params.set("LAYER", request.layer);
+    params.set("STYLE", style);
+    params.set("FORMAT", format);
+    params.set("TILEMATRIXSET", tileMatrixSet);
+    params.set("TILEMATRIX", String(request.tileMatrix));
+    params.set("TILEROW", String(request.tileRow));
+    params.set("TILECOL", String(request.tileCol));
+    params.set("I", String(Math.trunc(request.i)));
+    params.set("J", String(Math.trunc(request.j)));
+    params.set("INFOFORMAT", infoFormat);
+    if (request.extraParams) {
+      for (const [key, value] of Object.entries(request.extraParams)) {
+        params.set(key, String(value));
+      }
+    }
+    const path = `${wmtsBasePath(request.serviceId)}?${params.toString()}`;
+    const response = await transport.requestBytes("GET", path, infoFormat, undefined, request.signal);
+    return decodeWmsFeatureInfoResponse<T>(response.bytes, response.contentType, infoFormat);
+  }
+  const ext = wmtsFeatureInfoExtensionForFormat(infoFormat);
+  const base = wmtsBasePath(request.serviceId);
+  const layer = encodeURIComponent(request.layer);
+  const styleSeg = encodeURIComponent(style);
+  const tmsSeg = encodeURIComponent(tileMatrixSet);
+  const tm = encodeURIComponent(String(request.tileMatrix));
+  const tr = encodeURIComponent(String(request.tileRow));
+  const tc = encodeURIComponent(String(request.tileCol));
+  const jSeg = encodeURIComponent(String(Math.trunc(request.j)));
+  const iSeg = encodeURIComponent(String(Math.trunc(request.i)));
+  const extra = wmtsRestExtraParamsSuffix(request.extraParams);
+  const path = `${base}/${layer}/${styleSeg}/${tmsSeg}/${tm}/${tr}/${tc}/${jSeg}/${iSeg}.${ext}${extra}`;
+  const response = await transport.requestBytes("GET", path, infoFormat, undefined, request.signal);
+  return decodeWmsFeatureInfoResponse<T>(response.bytes, response.contentType, infoFormat);
+}
+
+const WMTS_FEATURE_INFO_FORMAT_TO_EXTENSION: ReadonlyMap<string, string> = new Map([
+  ["application/json", "json"],
+  ["text/plain", "txt"],
+  ["text/html", "html"],
+  ["application/geo+json", "geojson"],
+]);
+
+function wmtsFeatureInfoExtensionForFormat(format: string): string {
+  return WMTS_FEATURE_INFO_FORMAT_TO_EXTENSION.get(format.toLowerCase()) ?? "txt";
+}
+
+const WMTS_REST_RESERVED_KEYS: ReadonlySet<string> = new Set([
+  "service",
+  "version",
+  "request",
+  "layer",
+  "style",
+  "format",
+  "infoformat",
+  "tilematrixset",
+  "tilematrix",
+  "tilerow",
+  "tilecol",
+  "i",
+  "j",
+]);
+
+/**
+ * Serialize `extraParams` for the RESTful WMTS routes. Path-encoded WMTS
+ * keys take precedence — any extraParams whose key (case-insensitively)
+ * matches a path-derived value is dropped so the same URL never carries
+ * the value twice. Returns the query-string suffix to append (empty
+ * string when there is nothing left after filtering).
+ */
+function wmtsRestExtraParamsSuffix(extraParams: Record<string, unknown> | undefined): string {
+  if (!extraParams) return "";
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(extraParams)) {
+    if (value === undefined || value === null) continue;
+    if (WMTS_REST_RESERVED_KEYS.has(key.toLowerCase())) continue;
+    params.set(key, String(value));
+  }
+  const serialized = params.toString();
+  return serialized.length > 0 ? `?${serialized}` : "";
 }
