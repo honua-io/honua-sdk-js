@@ -127,8 +127,151 @@ describe("HonuaClient gRPC-web auth + timeout wiring", () => {
 
     const opts = (client as any).connectTransportOptions();
     expect(opts.baseUrl).toBe("https://example.test");
+    // No retry configured -> auth interceptor only.
     expect(opts.interceptors).toHaveLength(1);
     expect(opts.defaultTimeoutMs).toBe(1234);
+  });
+
+  it("connectTransportOptions adds the retry interceptor when retry is configured", () => {
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      transport: "grpc-web",
+      retry: { maxRetries: 2 },
+      fetchFn: async () => new Response("{}", { status: 200 }),
+    });
+
+    const opts = (client as any).connectTransportOptions();
+    // Retry interceptor wraps the auth interceptor (outermost-first).
+    expect(opts.interceptors).toHaveLength(2);
+  });
+});
+
+describe("HonuaClient gRPC-web retry interceptor", () => {
+  const grpcClient = (overrides: Record<string, unknown> = {}) =>
+    new HonuaClient({
+      baseUrl: "https://example.test",
+      transport: "grpc-web",
+      retry: { maxRetries: 3, baseDelayMs: 1, maxDelayMs: 2 },
+      fetchFn: async () => new Response("{}", { status: 200 }),
+      ...overrides,
+    });
+
+  // Minimal Connect-error shape: a numeric `code` is what the SDK keys on.
+  const connectError = (code: number, metadata?: Headers) =>
+    Object.assign(new Error(`grpc code ${code}`), { code, ...(metadata ? { metadata } : {}) });
+
+  const unaryReq = (signal?: AbortSignal) => ({
+    stream: false as const,
+    header: new Headers(),
+    signal: signal ?? new AbortController().signal,
+  });
+
+  it("retries a transient gRPC code then succeeds", async () => {
+    const interceptor = (grpcClient() as any).buildConnectRetryInterceptor();
+    let calls = 0;
+    const next = async () => {
+      calls += 1;
+      if (calls < 3) {
+        throw connectError(14); // unavailable
+      }
+      return { ok: true };
+    };
+
+    const result = await interceptor(next)(unaryReq());
+
+    expect(calls).toBe(3);
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("does not retry a non-retryable gRPC code", async () => {
+    const interceptor = (grpcClient() as any).buildConnectRetryInterceptor();
+    let calls = 0;
+    const next = async () => {
+      calls += 1;
+      throw connectError(3); // invalid_argument
+    };
+
+    await expect(interceptor(next)(unaryReq())).rejects.toMatchObject({ code: 3 });
+    expect(calls).toBe(1);
+  });
+
+  it("gives up after maxRetries and rethrows the last error", async () => {
+    const interceptor = (grpcClient() as any).buildConnectRetryInterceptor();
+    let calls = 0;
+    const next = async () => {
+      calls += 1;
+      throw connectError(14);
+    };
+
+    await expect(interceptor(next)(unaryReq())).rejects.toMatchObject({ code: 14 });
+    // initial attempt + 3 retries
+    expect(calls).toBe(4);
+  });
+
+  it("does not retry once the abort signal has fired", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const interceptor = (grpcClient() as any).buildConnectRetryInterceptor();
+    let calls = 0;
+    const next = async () => {
+      calls += 1;
+      throw connectError(14);
+    };
+
+    await expect(interceptor(next)(unaryReq(controller.signal))).rejects.toMatchObject({ code: 14 });
+    expect(calls).toBe(1);
+  });
+
+  it("does not retry server-streaming calls", async () => {
+    const interceptor = (grpcClient() as any).buildConnectRetryInterceptor();
+    let calls = 0;
+    const next = async () => {
+      calls += 1;
+      throw connectError(14);
+    };
+    const streamReq = { stream: true as const, header: new Headers(), signal: new AbortController().signal };
+
+    await expect(interceptor(next)(streamReq)).rejects.toMatchObject({ code: 14 });
+    expect(calls).toBe(1);
+  });
+
+  it("is a passthrough when no retry policy is configured", async () => {
+    const interceptor = (grpcClient({ retry: undefined }) as any).buildConnectRetryInterceptor();
+    let calls = 0;
+    const next = async () => {
+      calls += 1;
+      throw connectError(14);
+    };
+
+    await expect(interceptor(next)(unaryReq())).rejects.toMatchObject({ code: 14 });
+    expect(calls).toBe(1);
+  });
+
+  it("honors retry-after metadata for the backoff delay", async () => {
+    const interceptor = (grpcClient() as any).buildConnectRetryInterceptor();
+    const delays: number[] = [];
+    const realSetTimeout = globalThis.setTimeout;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void, ms?: number) => {
+      if (typeof ms === "number") {
+        delays.push(ms);
+      }
+      return realSetTimeout(fn, 0);
+    }) as typeof setTimeout);
+
+    let calls = 0;
+    const next = async () => {
+      calls += 1;
+      if (calls < 2) {
+        throw connectError(14, new Headers({ "retry-after": "2" }));
+      }
+      return { ok: true };
+    };
+
+    await interceptor(next)(unaryReq());
+    vi.restoreAllMocks();
+
+    // retry-after: 2s, capped by maxDelayMs (2ms) -> 2ms.
+    expect(delays).toContain(2);
   });
 });
 

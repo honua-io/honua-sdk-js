@@ -67,8 +67,14 @@ export function normalizeRetryOptions(options: HonuaRetryOptions | undefined): N
   };
 }
 
-export function parseRetryAfterMs(response: Response): number | undefined {
-  const value = response.headers.get("retry-after");
+/**
+ * Parse a `Retry-After` header value (delta-seconds or HTTP-date) into a delay
+ * in milliseconds. Shared by the REST {@link parseRetryAfterMs} response helper
+ * and the gRPC-web path, which reads the same header off the Connect error
+ * metadata (a `Headers`-shaped object) rather than a `Response`.
+ */
+export function parseRetryAfterHeaderMs(headers: Pick<Headers, "get">): number | undefined {
+  const value = headers.get("retry-after");
   if (!value) {
     return undefined;
   }
@@ -83,6 +89,10 @@ export function parseRetryAfterMs(response: Response): number | undefined {
     return undefined;
   }
   return Math.max(0, targetTime - Date.now());
+}
+
+export function parseRetryAfterMs(response: Response): number | undefined {
+  return parseRetryAfterHeaderMs(response.headers);
 }
 
 /**
@@ -136,6 +146,99 @@ export function resolveRetryDelayMs(
   const exponentialDelay = retryOptions.baseDelayMs * 2 ** attempt;
   const cappedDelay = Math.min(retryOptions.maxDelayMs, exponentialDelay);
   return cappedDelay * (0.5 + Math.random() * 0.5);
+}
+
+/**
+ * gRPC/Connect numeric status codes that map to the transient REST retry
+ * statuses in {@link DEFAULT_RETRY_STATUSES}, so the grpc-web transport retries
+ * the same class of transient failures as REST. Mirrors the gRPC retry
+ * conventions: `resource_exhausted` (~429), `unavailable` (~502/503),
+ * `deadline_exceeded` (~504), and the transient `aborted` concurrency code.
+ */
+export const DEFAULT_RETRYABLE_GRPC_CODES: ReadonlySet<number> = new Set([
+  4, // deadline_exceeded
+  8, // resource_exhausted
+  10, // aborted
+  14, // unavailable
+]);
+
+/** Connect/gRPC `canceled` code — caller/abort-driven, never retried. */
+const GRPC_CODE_CANCELED = 1;
+
+/**
+ * Extract the numeric gRPC/Connect status code off a thrown error (a
+ * `ConnectError` carries a numeric `code`). Returns `undefined` for non-Connect
+ * errors so callers can treat them as non-retryable.
+ */
+export function connectErrorCode(error: unknown): number | undefined {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code: unknown }).code === "number"
+  ) {
+    return (error as { code: number }).code;
+  }
+  return undefined;
+}
+
+/**
+ * Decide whether a failed gRPC-web call should be retried. Mirrors
+ * {@link shouldRetryRequest} for the Connect transport: retries only the
+ * transient {@link DEFAULT_RETRYABLE_GRPC_CODES} while honoring `maxRetries`,
+ * and never retries once the call's abort signal has fired (caller abort or the
+ * `timeoutMs` deadline) or for the `canceled` code.
+ *
+ * Replay-safety (unary-only, since server-streaming responses cannot be safely
+ * replayed mid-iteration) is enforced by the caller, mirroring the REST
+ * {@link DEFAULT_RETRY_METHODS} idempotency gate.
+ */
+export function shouldRetryGrpcCall(
+  retryOptions: NormalizedRetryOptions | undefined,
+  attempt: number,
+  error: unknown,
+  aborted: boolean,
+): boolean {
+  if (!retryOptions || attempt >= retryOptions.maxRetries) {
+    return false;
+  }
+  if (aborted) {
+    return false;
+  }
+  const code = connectErrorCode(error);
+  if (code === undefined || code === GRPC_CODE_CANCELED) {
+    return false;
+  }
+  return DEFAULT_RETRYABLE_GRPC_CODES.has(code);
+}
+
+function connectErrorMetadata(error: unknown): Pick<Headers, "get"> | undefined {
+  if (typeof error === "object" && error !== null && "metadata" in error) {
+    const metadata = (error as { metadata: unknown }).metadata;
+    if (metadata && typeof (metadata as { get?: unknown }).get === "function") {
+      return metadata as Pick<Headers, "get">;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Resolve the backoff delay before the next gRPC-web attempt. Reuses the shared
+ * {@link resolveRetryDelayMs} exponential-with-jitter math; a `retry-after`
+ * value carried on the Connect error metadata (capped by `maxDelayMs`) wins,
+ * mirroring the REST `Retry-After` handling.
+ */
+export function resolveGrpcRetryDelayMs(
+  retryOptions: NormalizedRetryOptions | undefined,
+  attempt: number,
+  error: unknown,
+): number {
+  const metadata = connectErrorMetadata(error);
+  const retryAfterMs = metadata ? parseRetryAfterHeaderMs(metadata) : undefined;
+  if (retryAfterMs !== undefined) {
+    return Math.min(retryOptions?.maxDelayMs ?? retryAfterMs, retryAfterMs);
+  }
+  return resolveRetryDelayMs(retryOptions, attempt);
 }
 
 export async function sleep(ms: number, signal?: AbortSignal): Promise<void> {

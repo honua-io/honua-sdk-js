@@ -583,11 +583,15 @@ export interface HonuaClientOptions {
   /** Per-request hard timeout in milliseconds. Independent of any caller-supplied `AbortSignal`. */
   timeoutMs?: number;
   /**
-   * Retry strategy for transient HTTP failures.
+   * Retry strategy for transient failures.
    *
-   * Applies to the REST transport. The `"grpc-web"` transport does not yet
-   * apply this retry policy (auth headers, `timeoutMs`, and per-call abort
-   * signals are honored).
+   * Applies to both the REST and `"grpc-web"` transports. On gRPC-web the same
+   * policy is applied to replay-safe **unary** calls only: transient gRPC
+   * status codes (`resource_exhausted`, `unavailable`, `deadline_exceeded`,
+   * `aborted`) are retried with the same exponential backoff + jitter and
+   * `retry-after` handling as REST, and never past the abort/`timeoutMs`
+   * deadline. Server-streaming calls are not retried (they cannot be safely
+   * replayed mid-iteration).
    */
   retry?: HonuaRetryOptions;
   /**

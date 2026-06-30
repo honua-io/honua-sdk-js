@@ -35,7 +35,9 @@ import {
   normalizeNetworkError,
   normalizeRetryOptions,
   normalizeTimeoutMs,
+  resolveGrpcRetryDelayMs,
   resolveRetryDelayMs,
+  shouldRetryGrpcCall,
   shouldRetryRequest,
   sleep,
   toHttpError,
@@ -466,13 +468,44 @@ export class HonuaClient {
   }
 
   /**
+   * Connect interceptor that applies the SDK's configured `retry` policy to
+   * gRPC-web calls, mirroring the REST request pipeline. It retries only
+   * replay-safe **unary** calls (server-streaming responses cannot be safely
+   * replayed mid-iteration, the gRPC analog of the REST
+   * {@link DEFAULT_RETRY_METHODS} idempotency gate) on the transient
+   * {@link shouldRetryGrpcCall} status codes, backing off with the shared
+   * exponential-with-jitter math (honoring any `retry-after` metadata) and
+   * stopping immediately once the call's abort signal fires (caller abort or the
+   * `timeoutMs` deadline). It wraps the auth interceptor so each attempt
+   * re-resolves fresh credentials.
+   */
+  private buildConnectRetryInterceptor(): Interceptor {
+    return (next) => async (req) => {
+      // Only retry replay-safe unary calls; mirror REST idempotency scoping.
+      if (req.stream || !this.retryOptions) {
+        return next(req);
+      }
+      const retryOptions = this.retryOptions;
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          return await next(req);
+        } catch (error) {
+          const aborted = req.signal?.aborted === true;
+          if (!shouldRetryGrpcCall(retryOptions, attempt, error, aborted)) {
+            throw error;
+          }
+          await sleep(resolveGrpcRetryDelayMs(retryOptions, attempt, error), req.signal);
+        }
+      }
+    };
+  }
+
+  /**
    * Shared gRPC-web transport options. The auth interceptor mirrors the REST
-   * credential pipeline, and `defaultTimeoutMs` honors the documented
-   * `timeoutMs` contract on every RPC (per-call abort signals are threaded by
-   * the individual RPC methods).
-   *
-   * Note: the `retry` policy is not yet applied to the gRPC-web transport;
-   * callers needing retries on this path should wrap calls themselves.
+   * credential pipeline, the retry interceptor (when `retry` is configured)
+   * applies the same retry/backoff policy as REST, and `defaultTimeoutMs`
+   * honors the documented `timeoutMs` contract on every RPC (per-call abort
+   * signals are threaded by the individual RPC methods).
    */
   private connectTransportOptions(): {
     baseUrl: string;
@@ -480,10 +513,16 @@ export class HonuaClient {
     interceptors: Interceptor[];
     defaultTimeoutMs?: number;
   } {
+    // Order matters: the retry interceptor must wrap the auth interceptor so
+    // every replayed attempt re-runs auth and re-resolves credential headers.
+    const interceptors: Interceptor[] = [this.buildConnectAuthInterceptor()];
+    if (this.retryOptions) {
+      interceptors.unshift(this.buildConnectRetryInterceptor());
+    }
     return {
       baseUrl: this.baseUrl,
       fetch: this.fetchFn,
-      interceptors: [this.buildConnectAuthInterceptor()],
+      interceptors,
       ...(this.timeoutMs !== undefined ? { defaultTimeoutMs: this.timeoutMs } : {}),
     };
   }

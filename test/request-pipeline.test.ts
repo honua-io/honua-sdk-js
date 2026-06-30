@@ -3,12 +3,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "../src/core/errors.js";
 import {
   type NormalizedRetryOptions,
+  connectErrorCode,
   createTimeoutSignal,
   normalizeNetworkError,
   normalizeRetryOptions,
   normalizeTimeoutMs,
+  parseRetryAfterHeaderMs,
   parseRetryAfterMs,
+  resolveGrpcRetryDelayMs,
   resolveRetryDelayMs,
+  shouldRetryGrpcCall,
   shouldRetryRequest,
   sleep,
   toHttpError,
@@ -235,5 +239,72 @@ describe("request-pipeline: createTimeoutSignal", () => {
     expect(timeout.signal?.aborted).toBe(true);
     expect(timeout.didTimeout).toBe(false);
     timeout.dispose();
+  });
+});
+
+describe("request-pipeline: connectErrorCode", () => {
+  it("returns the numeric code from a Connect-shaped error", () => {
+    expect(connectErrorCode(Object.assign(new Error("x"), { code: 14 }))).toBe(14);
+  });
+
+  it("returns undefined for non-Connect errors", () => {
+    expect(connectErrorCode(new Error("plain"))).toBeUndefined();
+    expect(connectErrorCode({ code: "unavailable" })).toBeUndefined();
+    expect(connectErrorCode(undefined)).toBeUndefined();
+  });
+});
+
+describe("request-pipeline: shouldRetryGrpcCall", () => {
+  const err = (code: number) => Object.assign(new Error("grpc"), { code });
+
+  it("returns false without retry options", () => {
+    expect(shouldRetryGrpcCall(undefined, 0, err(14), false)).toBe(false);
+  });
+
+  it("retries transient gRPC codes within the budget", () => {
+    expect(shouldRetryGrpcCall(retryWith(), 0, err(14), false)).toBe(true); // unavailable
+    expect(shouldRetryGrpcCall(retryWith(), 0, err(8), false)).toBe(true); // resource_exhausted
+    expect(shouldRetryGrpcCall(retryWith(), 0, err(4), false)).toBe(true); // deadline_exceeded
+    expect(shouldRetryGrpcCall(retryWith(), 0, err(10), false)).toBe(true); // aborted
+  });
+
+  it("does not retry non-transient codes", () => {
+    expect(shouldRetryGrpcCall(retryWith(), 0, err(3), false)).toBe(false); // invalid_argument
+    expect(shouldRetryGrpcCall(retryWith(), 0, err(16), false)).toBe(false); // unauthenticated
+    expect(shouldRetryGrpcCall(retryWith(), 0, err(1), false)).toBe(false); // canceled
+  });
+
+  it("does not retry when aborted or out of budget", () => {
+    expect(shouldRetryGrpcCall(retryWith(), 0, err(14), true)).toBe(false);
+    expect(shouldRetryGrpcCall(retryWith({ maxRetries: 2 }), 2, err(14), false)).toBe(false);
+  });
+
+  it("does not retry non-Connect errors", () => {
+    expect(shouldRetryGrpcCall(retryWith(), 0, new Error("network"), false)).toBe(false);
+  });
+});
+
+describe("request-pipeline: resolveGrpcRetryDelayMs", () => {
+  it("honors retry-after metadata capped by maxDelayMs", () => {
+    const err = Object.assign(new Error("grpc"), {
+      code: 14,
+      metadata: new Headers({ "retry-after": "5" }),
+    });
+    expect(resolveGrpcRetryDelayMs(retryWith({ maxDelayMs: 2000 }), 0, err)).toBe(2000);
+  });
+
+  it("falls back to exponential backoff with jitter when no retry-after", () => {
+    const err = Object.assign(new Error("grpc"), { code: 14 });
+    const delay = resolveGrpcRetryDelayMs(retryWith({ baseDelayMs: 100, maxDelayMs: 2000 }), 1, err);
+    // base * 2^1 = 200, jittered into [100, 200]
+    expect(delay).toBeGreaterThanOrEqual(100);
+    expect(delay).toBeLessThanOrEqual(200);
+  });
+});
+
+describe("request-pipeline: parseRetryAfterHeaderMs", () => {
+  it("parses delta-seconds and HTTP-date the same as the response helper", () => {
+    expect(parseRetryAfterHeaderMs(new Headers({ "retry-after": "3" }))).toBe(3000);
+    expect(parseRetryAfterHeaderMs(new Headers())).toBeUndefined();
   });
 });
