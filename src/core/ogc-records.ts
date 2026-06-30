@@ -9,6 +9,7 @@
  */
 
 import type { HonuaClient } from "./client.js";
+import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
   HonuaOgcCollectionMetadata,
   HonuaOgcCollectionsResponse,
@@ -23,6 +24,7 @@ import type {
   OgcRecordsRawSearchRequest,
   OgcRecordsSearchRequest,
 } from "./types.js";
+import { createOgcMetadataParams, mergeHeaders, normalizeCsv, normalizeStringCsv } from "./wire-shared.js";
 
 export interface HonuaOgcRecordsOptions {
   client: HonuaClient;
@@ -231,4 +233,145 @@ function readFirstParam(params: URLSearchParams, names: readonly string[]): stri
 
 export function createHonuaOgcRecords(client: HonuaClient): HonuaOgcRecords {
   return new HonuaOgcRecords({ client });
+}
+
+// ── OGC API Records wire methods ────────────────────────────────
+
+export async function getOgcRecordsLanding(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcLandingResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcLandingResponse>(
+    `ogc-records:landing:${params.toString()}`,
+    `/ogc/records?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getOgcRecordsConformance(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcConformanceResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
+    `ogc-records:conformance:${params.toString()}`,
+    `/ogc/records/conformance?${params.toString()}`,
+    request,
+  );
+}
+
+export async function listOgcRecordCollections(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcCollectionsResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcCollectionsResponse>(
+    `ogc-records:collections:${params.toString()}`,
+    `/ogc/records/collections?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getOgcRecordCollection(
+  transport: HonuaProtocolTransport,
+  request: OgcCollectionRequest,
+): Promise<HonuaOgcCollectionMetadata> {
+  const params = createOgcMetadataParams(request);
+  const path = `/ogc/records/collections/${encodeURIComponent(String(request.collectionId))}`;
+  return transport.requestCachedMetadataJson<HonuaOgcCollectionMetadata>(
+    `ogc-records:collection:${request.collectionId}:${params.toString()}`,
+    `${path}?${params.toString()}`,
+    request,
+  );
+}
+
+export async function searchOgcRecords(
+  transport: HonuaProtocolTransport,
+  request: OgcRecordsSearchRequest,
+): Promise<HonuaOgcRecordsResponse> {
+  return transport.requestJson<HonuaOgcRecordsResponse>(
+    "GET",
+    buildOgcRecordsSearchPath(request),
+    undefined,
+    request.signal,
+  );
+}
+
+export async function getOgcRecord(
+  transport: HonuaProtocolTransport,
+  request: OgcRecordItemRequest,
+): Promise<HonuaOgcRecordResponse> {
+  return transport.requestJson<HonuaOgcRecordResponse>("GET", buildOgcRecordPath(request), undefined, request.signal);
+}
+
+export async function fetchOgcRecordsRaw(
+  transport: HonuaProtocolTransport,
+  request: OgcRecordsRawSearchRequest,
+): Promise<Response> {
+  return transport.pipelineFetch(
+    "GET",
+    buildOgcRecordsSearchPath(request),
+    {
+      headers: mergeHeaders(
+        { Accept: request.accept ?? "application/geo+json, application/json;q=0.9" },
+        request.headers,
+      ),
+    },
+    request.signal,
+  );
+}
+
+export async function fetchOgcRecordRaw(
+  transport: HonuaProtocolTransport,
+  request: OgcRecordRawItemRequest,
+): Promise<Response> {
+  return transport.pipelineFetch(
+    "GET",
+    buildOgcRecordPath(request),
+    {
+      headers: mergeHeaders(
+        { Accept: request.accept ?? "application/geo+json, application/json;q=0.9" },
+        request.headers,
+      ),
+    },
+    request.signal,
+  );
+}
+
+function normalizeRecordsBbox(value: OgcRecordsSearchRequest["bbox"]): string {
+  return Array.isArray(value) ? value.join(",") : String(value);
+}
+
+function buildOgcRecordsSearchPath(request: OgcRecordsSearchRequest): string {
+  const collection = encodeURIComponent(String(request.collectionId));
+  const params = serializeOgcRecordsSearchParams(request);
+  return `/ogc/records/collections/${collection}/items?${params.toString()}`;
+}
+
+function buildOgcRecordPath(request: OgcRecordItemRequest): string {
+  const collection = encodeURIComponent(String(request.collectionId));
+  const record = encodeURIComponent(String(request.recordId));
+  const params = createOgcMetadataParams(request);
+  if (request.profile !== undefined) params.set("profile", normalizeStringCsv(request.profile));
+  return `/ogc/records/collections/${collection}/items/${record}?${params.toString()}`;
+}
+
+function serializeOgcRecordsSearchParams(request: OgcRecordsSearchRequest): URLSearchParams {
+  const params = createOgcMetadataParams(request);
+  if (request.limit !== undefined) params.set("limit", String(request.limit));
+  if (request.offset !== undefined) params.set("offset", String(request.offset));
+  if (request.bbox !== undefined) params.set("bbox", normalizeRecordsBbox(request.bbox));
+  if (request.datetime !== undefined) params.set("datetime", request.datetime);
+  if (request.q !== undefined) params.set("q", normalizeStringCsv(request.q));
+  if (request.ids !== undefined) params.set("ids", normalizeCsv(request.ids));
+  if (request.type !== undefined) params.set("type", normalizeStringCsv(request.type));
+  if (request.externalIds !== undefined) params.set("externalIds", normalizeStringCsv(request.externalIds));
+  if (request.filter !== undefined) params.set("filter", request.filter);
+  if (request.filterLang !== undefined) params.set("filter-lang", request.filterLang);
+  if (request.filterCrs !== undefined) params.set("filter-crs", request.filterCrs);
+  if (request.properties !== undefined) params.set("properties", normalizeStringCsv(request.properties));
+  if (request.sortby !== undefined) params.set("sortby", request.sortby);
+  if (request.profile !== undefined) params.set("profile", normalizeStringCsv(request.profile));
+  return params;
 }

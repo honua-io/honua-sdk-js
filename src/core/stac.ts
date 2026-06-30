@@ -8,6 +8,7 @@
  */
 
 import type { HonuaClient } from "./client.js";
+import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
   HonuaOgcCollectionMetadata,
   HonuaOgcCollectionsResponse,
@@ -18,6 +19,7 @@ import type {
   OgcMetadataRequest,
   StacSearchRequest,
 } from "./types.js";
+import { createOgcMetadataParams, mergeHeaders } from "./wire-shared.js";
 
 export interface HonuaStacSearchOptions {
   client: HonuaClient;
@@ -154,4 +156,141 @@ function nextStacCursor(links: HonuaStacItemCollectionResponse["links"] | undefi
 
 export function createHonuaStacSearch(client: HonuaClient): HonuaStacSearch {
   return new HonuaStacSearch({ client });
+}
+
+// ── STAC API wire methods ───────────────────────────────────────
+
+export async function getStacLanding(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaStacLandingResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaStacLandingResponse>(
+    `stac:landing:${params.toString()}`,
+    `/stac?${params.toString()}`,
+    request,
+  );
+}
+
+export async function listStacCollections(
+  transport: HonuaProtocolTransport,
+  request: OgcMetadataRequest = {},
+): Promise<HonuaOgcCollectionsResponse> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcCollectionsResponse>(
+    `stac:collections:${params.toString()}`,
+    `/stac/collections?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getStacCollection(
+  transport: HonuaProtocolTransport,
+  request: OgcCollectionRequest,
+): Promise<HonuaOgcCollectionMetadata> {
+  const params = createOgcMetadataParams(request);
+  return transport.requestCachedMetadataJson<HonuaOgcCollectionMetadata>(
+    `stac:collection:${request.collectionId}:${params.toString()}`,
+    `/stac/collections/${encodeURIComponent(String(request.collectionId))}?${params.toString()}`,
+    request,
+  );
+}
+
+export async function getStacItem(
+  transport: HonuaProtocolTransport,
+  request: {
+    collectionId: string | number;
+    itemId: string | number;
+    signal?: AbortSignal;
+    responseFormat?: string;
+    extraParams?: Record<string, string | number | boolean>;
+  },
+): Promise<HonuaStacItemResponse> {
+  const params = createOgcMetadataParams(request);
+  const path =
+    `/stac/collections/${encodeURIComponent(String(request.collectionId))}` +
+    `/items/${encodeURIComponent(String(request.itemId))}`;
+  return transport.requestJson<HonuaStacItemResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
+}
+
+export async function searchStac(
+  transport: HonuaProtocolTransport,
+  request: StacSearchRequest = {},
+): Promise<HonuaStacItemCollectionResponse> {
+  if (request.usePost) {
+    return transport.requestJson<HonuaStacItemCollectionResponse>(
+      "POST",
+      "/stac/search",
+      {
+        headers: mergeHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+        body: JSON.stringify(stacSearchBody(request)),
+      },
+      request.signal,
+    );
+  }
+  const params = serializeStacSearchParams(request);
+  return transport.requestJson<HonuaStacItemCollectionResponse>(
+    "GET",
+    `/stac/search?${params.toString()}`,
+    undefined,
+    request.signal,
+  );
+}
+
+function serializeStacSearchParams(request: StacSearchRequest): URLSearchParams {
+  const params = new URLSearchParams();
+  if (request.bbox !== undefined) params.set("bbox", request.bbox.join(","));
+  if (request.datetime !== undefined) params.set("datetime", request.datetime);
+  if (request.ids !== undefined && request.ids.length > 0) params.set("ids", request.ids.join(","));
+  if (request.collections !== undefined && request.collections.length > 0) {
+    params.set("collections", request.collections.join(","));
+  }
+  // honua-server accepts `intersects` on GET as a JSON-encoded geometry
+  // and `fields` as a CSV with `-` prefix marking excludes (matches
+  // STAC Item Search GET conventions and the server's parser).
+  if (request.intersects !== undefined) params.set("intersects", JSON.stringify(request.intersects));
+  const fields = stacFieldsCsv(request.fields);
+  if (fields !== undefined) params.set("fields", fields);
+  if (request.filter !== undefined) params.set("filter", request.filter);
+  if (request.filterLang !== undefined) params.set("filter-lang", request.filterLang);
+  if (request.limit !== undefined) params.set("limit", String(request.limit));
+  // honua-server uses numeric `offset` paging on GET. `next` is kept as
+  // optional support for STAC servers that advertise an opaque token.
+  if (request.offset !== undefined) params.set("offset", String(request.offset));
+  if (request.next !== undefined) params.set("next", request.next);
+  if (request.sortby !== undefined) params.set("sortby", request.sortby);
+  return params;
+}
+
+function stacSearchBody(request: StacSearchRequest): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (request.bbox !== undefined) out.bbox = request.bbox;
+  if (request.datetime !== undefined) out.datetime = request.datetime;
+  if (request.intersects !== undefined) out.intersects = request.intersects;
+  if (request.ids !== undefined) out.ids = request.ids;
+  if (request.collections !== undefined) out.collections = request.collections;
+  if (request.filter !== undefined) out.filter = request.filter;
+  if (request.filterLang !== undefined) out["filter-lang"] = request.filterLang;
+  if (request.limit !== undefined) out.limit = request.limit;
+  if (request.offset !== undefined) out.offset = request.offset;
+  if (request.next !== undefined) out.next = request.next;
+  if (request.sortby !== undefined) out.sortby = request.sortby;
+  if (request.fields !== undefined) out.fields = request.fields;
+  return out;
+}
+
+function stacFieldsCsv(fields: StacSearchRequest["fields"] | undefined): string | undefined {
+  if (!fields) return undefined;
+  const parts: string[] = [];
+  if (fields.include) {
+    for (const f of fields.include) {
+      if (typeof f === "string" && f.length > 0) parts.push(f);
+    }
+  }
+  if (fields.exclude) {
+    for (const f of fields.exclude) {
+      if (typeof f === "string" && f.length > 0) parts.push(`-${f}`);
+    }
+  }
+  return parts.length > 0 ? parts.join(",") : undefined;
 }
