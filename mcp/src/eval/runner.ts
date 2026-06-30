@@ -3,7 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createFixtureClient } from "../certification/fixture-client.js";
 import { createServer } from "../index.js";
 import { connectUpstream, resolveProxyOptions } from "../proxy.js";
-import { CORPUS } from "./corpus.js";
+import { resolveCorpus } from "./corpus.js";
 import { resolveDrivers } from "./drivers/index.js";
 import { grade } from "./grade.js";
 import { type EvalReport, assembleReport } from "./report.js";
@@ -96,7 +96,7 @@ function buildContext(client: Client, tools: WorkflowContext["tools"]): Workflow
 
 export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport> {
   const env = options.env ?? process.env;
-  const corpus = options.corpus ?? CORPUS;
+  const corpus = options.corpus ?? resolveCorpus(env);
   const drivers = options.drivers ?? resolveDrivers({ env });
   const forceOffline = options.forceOffline ?? false;
 

@@ -22,6 +22,10 @@ import { runEval } from "./runner.js";
  *                    explicit request yields an honest driverError, not a silent
  *                    skip. Without --driver, drivers are auto-resolved from env.
  *
+ * Corpus selection is env-driven (see `resolveCorpus`): default is the analyst
+ * corpus (in-process SDK fixture surface, the CI control); `HONUA_EVAL_CORPUS=operator`
+ * targets the honua-server operator MCP surface for live runs; `all` runs both.
+ *
  * Offline and deterministic by default: zero model/API calls. Live cross-model
  * runs activate when ANTHROPIC_API_KEY / OPENAI_API_KEY are set (Anthropic/OpenAI
  * APIs) or HONUA_EVAL_BEDROCK is set (Claude via Amazon Bedrock, AWS credential
