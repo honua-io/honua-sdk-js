@@ -92,7 +92,7 @@ export interface ScenarioGrade {
 export interface ModelDriver {
   /** Stable identifier recorded in the artifact, e.g. "claude-opus-4-8". */
   readonly id: string;
-  readonly vendor: "anthropic" | "openai" | "deterministic";
+  readonly vendor: "anthropic" | "openai" | "bedrock" | "deterministic";
   /** Whether this driver can actually run (key + SDK present). */
   isAvailable(): boolean;
   runWorkflow(scenario: Scenario, ctx: WorkflowContext): Promise<WorkflowTranscript>;

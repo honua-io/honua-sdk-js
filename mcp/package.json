@@ -30,6 +30,7 @@
     "check:fix": "biome check --write src/ test/"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.901.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ajv": "^8.20.0",
     "zod": "^3.24.0"

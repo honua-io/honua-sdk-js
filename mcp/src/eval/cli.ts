@@ -2,6 +2,7 @@
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { type DriverName, parseDriverName, selectDrivers } from "./drivers/index.js";
 import { renderMarkdown } from "./report.js";
 import { runEval } from "./runner.js";
 
@@ -15,23 +16,31 @@ import { runEval } from "./runner.js";
  *                    upload step; runs with always() in CI).
  *   --offline        Force the in-memory fixture surface + deterministic driver
  *                    only, even if API keys / HONUA_MCP_REMOTE_URL are set.
+ *   --driver <name>  Run the deterministic control plus the named live driver(s)
+ *                    (repeatable or comma-separated): anthropic | openai | bedrock.
+ *                    The named driver is run even if its key/opt-in is absent so an
+ *                    explicit request yields an honest driverError, not a silent
+ *                    skip. Without --driver, drivers are auto-resolved from env.
  *
  * Offline and deterministic by default: zero model/API calls. Live cross-model
- * runs (Claude + GPT) activate when ANTHROPIC_API_KEY / OPENAI_API_KEY are set,
- * and live remote MCP runs when HONUA_MCP_REMOTE_URL is set. Keys are never
- * hardcoded — they come from the environment.
+ * runs activate when ANTHROPIC_API_KEY / OPENAI_API_KEY are set (Anthropic/OpenAI
+ * APIs) or HONUA_EVAL_BEDROCK is set (Claude via Amazon Bedrock, AWS credential
+ * chain), and live remote MCP runs when HONUA_MCP_REMOTE_URL is set. Keys are
+ * never hardcoded — they come from the environment.
  */
 
 interface CliOptions {
   artifactOnly: boolean;
   offline: boolean;
   outDir: string;
+  drivers: DriverName[];
 }
 
 function parseArgs(argv: string[]): CliOptions {
   let artifactOnly = false;
   let offline = false;
   let outDir = fileURLToPath(new URL("../../../", import.meta.url));
+  const drivers: DriverName[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--artifact-only") {
@@ -44,14 +53,28 @@ function parseArgs(argv: string[]): CliOptions {
         throw new Error("--out-dir requires a directory argument");
       }
       outDir = resolve(value);
+    } else if (arg === "--driver") {
+      const value = argv[++i];
+      if (!value) {
+        throw new Error("--driver requires a driver name (anthropic | openai | bedrock)");
+      }
+      for (const name of value.split(",")) {
+        const trimmed = name.trim();
+        if (trimmed.length > 0) {
+          drivers.push(parseDriverName(trimmed));
+        }
+      }
     }
   }
-  return { artifactOnly, offline, outDir };
+  return { artifactOnly, offline, outDir, drivers };
 }
 
 async function main(): Promise<void> {
-  const { artifactOnly, offline, outDir } = parseArgs(process.argv.slice(2));
-  const report = await runEval({ forceOffline: offline });
+  const { artifactOnly, offline, outDir, drivers } = parseArgs(process.argv.slice(2));
+  const report = await runEval({
+    forceOffline: offline,
+    ...(drivers.length > 0 ? { drivers: selectDrivers(drivers) } : {}),
+  });
 
   const jsonPath = resolve(outDir, "mcp-eval-results.json");
   const mdPath = resolve(outDir, "mcp-eval-results.md");
