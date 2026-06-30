@@ -173,7 +173,7 @@ export const OPERATOR_CORPUS: Scenario[] = [
     title: "Validate a query package against the governance contract",
     category: "governance",
     prompt:
-      "Run a read-only validation/review of a query package and tell me whether it is ready to execute and whether it needs approval. The package family is 'query' and its entire payload is just this layer binding: { \"serviceId\": \"svc-publish-maui-buildings\", \"layerId\": 13 }. Validate it exactly as given — do not ask me for anything more.",
+      'Run a read-only validation/review of a query package and tell me whether it is ready to execute and whether it needs approval. The package family is \'query\' and its entire payload is just this layer binding: { "serviceId": "svc-publish-maui-buildings", "layerId": 13 }. Validate it exactly as given — do not ask me for anything more.',
     criteria: {
       requiredTools: ["honua_validate_package"],
       forbiddenTools: MUTATING_TOOLS,
