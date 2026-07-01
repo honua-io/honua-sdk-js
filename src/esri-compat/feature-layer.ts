@@ -15,6 +15,7 @@ import type {
   HonuaUpdateAttachmentResponse,
   QueryMethod,
 } from "../core/types.js";
+import { responseExceededTransferLimit } from "../core/wire-shared.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { parseFeatureLayerUrl } from "./url.js";
 
@@ -446,12 +447,13 @@ export class FeatureLayerCompat {
         : 100;
 
     const features: HonuaFeature[] = [];
+    let offset = 0;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...queryOptions,
         extraParams: {
           ...(queryOptions.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -462,7 +464,8 @@ export class FeatureLayerCompat {
       }
 
       features.push(...pageFeatures);
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -483,12 +486,13 @@ export class FeatureLayerCompat {
         ? Math.max(1, Math.trunc(requestedMaxPages))
         : 100;
 
+    let offset = 0;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...queryOptions,
         extraParams: {
           ...(queryOptions.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -499,7 +503,8 @@ export class FeatureLayerCompat {
       }
 
       yield pageFeatures;
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }

@@ -505,6 +505,50 @@ describe("FeatureLayerCompat", () => {
     });
   });
 
+  it("keeps paging (by actual row count) when the server caps resultRecordCount below pageSize", async () => {
+    // Server maxRecordCount is 2 even though the caller asks for pageSize 5. It
+    // signals more rows with exceededTransferLimit and returns the capped page.
+    // The fetch-all loop must advance by the actual returned count (not a fixed
+    // page * pageSize stride, which would skip rows) and must not stop on the
+    // short-but-more page.
+    const capturedOffsets: number[] = [];
+    const serverCap = 2;
+    const total = 5;
+    const layer = new FeatureLayerCompat({
+      url: "https://example.test/rest/services/default/FeatureServer/1000",
+      client: new (class {
+        public getLayerMetadata(): Promise<unknown> {
+          return Promise.resolve({});
+        }
+
+        public queryFeatures(request: unknown): Promise<unknown> {
+          const extraParams = ((request as Record<string, unknown>).extraParams ?? {}) as Record<string, unknown>;
+          const offset = Number(extraParams.resultOffset ?? 0);
+          capturedOffsets.push(offset);
+          const slice = [];
+          for (let id = offset; id < Math.min(offset + serverCap, total); id += 1) {
+            slice.push({ id: id + 1 });
+          }
+          return Promise.resolve({
+            features: slice,
+            exceededTransferLimit: offset + slice.length < total,
+          });
+        }
+
+        public applyEdits(): Promise<unknown> {
+          return Promise.resolve({});
+        }
+      })() as any,
+    });
+
+    const features = await layer.queryFeaturesAll({ pageSize: 5 });
+
+    // All rows returned, none skipped or truncated.
+    expect(features).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+    // Offsets advance by the actual (capped) row count: 0, 2, 4.
+    expect(capturedOffsets).toEqual([0, 2, 4]);
+  });
+
   it("supports queryExtent with returnExtentOnly passthrough", async () => {
     let lastQuery: unknown;
     const layer = new FeatureLayerCompat({

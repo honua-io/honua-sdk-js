@@ -17,6 +17,7 @@ import type {
   MapLegendRequest,
   MapRelatedRecordsRequest,
 } from "../core/types.js";
+import { responseExceededTransferLimit } from "../core/wire-shared.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { parseMapServiceUrl } from "./url.js";
 
@@ -299,12 +300,13 @@ export class MapImageLayerCompat {
         : 100;
 
     const features: unknown[] = [];
+    let offset = 0;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...options,
         extraParams: {
           ...(options.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -315,7 +317,8 @@ export class MapImageLayerCompat {
       }
 
       features.push(...pageFeatures);
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }
@@ -333,12 +336,13 @@ export class MapImageLayerCompat {
         ? Math.max(1, Math.trunc(options.maxPages))
         : 100;
 
+    let offset = 0;
     for (let page = 0; page < maxPages; page += 1) {
       const response = await this.queryFeatures({
         ...options,
         extraParams: {
           ...(options.extraParams ?? {}),
-          resultOffset: page * pageSize,
+          resultOffset: offset,
           resultRecordCount: pageSize,
         },
       });
@@ -349,7 +353,8 @@ export class MapImageLayerCompat {
       }
 
       yield pageFeatures;
-      if (pageFeatures.length < pageSize) {
+      offset += pageFeatures.length;
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
         break;
       }
     }

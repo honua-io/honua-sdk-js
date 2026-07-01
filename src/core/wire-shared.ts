@@ -69,3 +69,20 @@ export function normalizeCsv(value: string | readonly (string | number)[]): stri
 export function normalizeStringCsv(value: string | readonly string[]): string {
   return typeof value === "string" ? value : value.join(",");
 }
+
+/**
+ * True when a GeoServices/FeatureServer response advertises more pages via
+ * `exceededTransferLimit`. GeoServices servers clamp `resultRecordCount` to
+ * their `maxRecordCount` and set this flag when more rows remain, so
+ * offset-paginated fetch-all loops must keep paging while it is set — advancing
+ * by the actual returned row count, never a fixed `page * pageSize` stride that
+ * would skip the rows the server capped off — rather than stopping on the first
+ * page that comes back shorter than the requested `pageSize`.
+ */
+export function responseExceededTransferLimit(response: unknown): boolean {
+  return (
+    typeof response === "object" &&
+    response !== null &&
+    (response as { exceededTransferLimit?: unknown }).exceededTransferLimit === true
+  );
+}
