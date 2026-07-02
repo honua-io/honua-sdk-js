@@ -17,8 +17,13 @@ import type { ValidateMapPackageResult } from "../runtime/map-package-validation
 import type { HonuaMapPackage } from "../runtime/map-package.js";
 import type { HonuaStudioPackageFamily } from "./types.js";
 
-/** Severity of a single {@link StudioPackageDiagnostic}. */
-export type StudioPackageDiagnosticSeverity = "error" | "warning";
+/**
+ * Severity of a single {@link StudioPackageDiagnostic}. Matches the frozen
+ * server / honua-sdk-dotnet `StudioPackageDiagnosticSeverity` enum members
+ * (`info`, `warning`, `error`, `blocker`); the map-package validator emits only
+ * `error`/`warning`, which remain assignable.
+ */
+export type StudioPackageDiagnosticSeverity = "info" | "warning" | "error" | "blocker";
 
 /**
  * One diagnostic emitted while validating a Studio package. The shape is a

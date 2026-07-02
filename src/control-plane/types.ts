@@ -5,6 +5,13 @@ import type { HonuaMapPackage } from "../runtime/index.js";
 
 export const HONUA_CONTROL_PLANE_BASE_PATH = "/api/v1/admin" as const;
 
+/**
+ * Server-wide capability manifest path (`honua.capability_manifest.v1`). Sits
+ * outside the admin base path — the manifest describes the whole deployment,
+ * not an admin resource.
+ */
+export const HONUA_CAPABILITY_MANIFEST_PATH = "/api/v1/capabilities/manifest" as const;
+
 export type HonuaControlPlaneCapability =
   | "hosted-maps"
   | "map-packages"
@@ -13,7 +20,16 @@ export type HonuaControlPlaneCapability =
   | "workspaces"
   | "connections"
   | "sharing"
+  | "capabilities"
   | "raw";
+
+/** Options for {@link HonuaControlPlaneClient.getCapabilityManifest}. */
+export interface HonuaCapabilityManifestOptions extends HonuaControlPlaneRequestOptions {
+  /** Optional environment (metadata snapshot) identifier to scope the manifest to. */
+  readonly environment?: string;
+  /** Optional workspace identifier to scope the manifest to. */
+  readonly workspaceId?: string;
+}
 
 export interface HonuaProblemDetails {
   readonly type?: string;

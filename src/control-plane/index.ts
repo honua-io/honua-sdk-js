@@ -24,10 +24,12 @@ export {
   createHonuaControlPlane,
 } from "./client.js";
 export type { HonuaControlPlaneClientOptions } from "./client.js";
-export { HONUA_CONTROL_PLANE_BASE_PATH } from "./types.js";
+export type { StudioCapabilityManifest } from "../studio/capability-manifest.js";
+export { HONUA_CAPABILITY_MANIFEST_PATH, HONUA_CONTROL_PLANE_BASE_PATH } from "./types.js";
 export type {
   HonuaApiToken,
   HonuaApiTokenCreateRequest,
+  HonuaCapabilityManifestOptions,
   HonuaConnectionSummary,
   HonuaControlPlaneCapability,
   HonuaControlPlaneJob,
