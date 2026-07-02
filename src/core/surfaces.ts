@@ -75,6 +75,7 @@ import type {
   QueryMethod,
   QueryRelatedRecordsRequest,
 } from "./types.js";
+import { responseExceededTransferLimit } from "./wire-shared.js";
 
 export interface HonuaServiceOptions {
   client: HonuaClient;
@@ -2548,16 +2549,6 @@ function extractFeaturesFromResponse(response: unknown): HonuaFeature[] {
     return [];
   }
   return response.features as HonuaFeature[];
-}
-
-/**
- * GeoServices servers clamp `resultRecordCount` to their `maxRecordCount` and
- * signal that more rows remain with `exceededTransferLimit: true`. Fetch-all
- * loops must keep paging while this flag is set rather than stopping on the
- * first short page, otherwise a "return everything" call silently truncates.
- */
-function responseExceededTransferLimit(response: unknown): boolean {
-  return isObject(response) && response.exceededTransferLimit === true;
 }
 
 function extractObjectIdsFromResponse(response: unknown): number[] {

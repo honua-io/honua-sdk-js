@@ -52,4 +52,47 @@ if (!/\bexport\s*[{*]/.test(esmSource)) {
   fail(`ESM bundle ${path.relative(PROJECT_ROOT, ESM_BUNDLE)} does not expose any named export.`);
 }
 
+// "Consume the published artifact" smoke: the ESM bundle must expose the primary
+// public entry point (`HonuaClient`) so build-less / CDN consumers can actually
+// `import { HonuaClient }` from it, not just any anonymous export.
+if (!/\bHonuaClient\b/.test(esmSource)) {
+  fail(`ESM bundle ${path.relative(PROJECT_ROOT, ESM_BUNDLE)} does not export the public "HonuaClient" entry point.`);
+}
+
+// The bundle only ships to consumers if package.json both (a) advertises the
+// browser entry points and (b) includes dist/browser in the published `files`.
+// Historically the advertised CDN paths pointed at files that were never built
+// or never packed. Assert every advertised path resolves to a real file and
+// that the publish `files` allowlist actually ships dist/browser, so the
+// regression ("published @honua/sdk-js ships without the browser bundle it
+// advertises") cannot recur.
+const packageJson = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
+
+const advertisedEntryPoints = [
+  ["browser", packageJson.browser],
+  ["unpkg", packageJson.unpkg],
+  ["jsdelivr", packageJson.jsdelivr],
+  ["exports['./browser'].default", packageJson.exports?.["./browser"]?.default],
+  ["exports['./browser'].types", packageJson.exports?.["./browser"]?.types],
+];
+
+for (const [field, target] of advertisedEntryPoints) {
+  if (!target) {
+    fail(`package.json does not advertise a browser entry point for "${field}".`);
+  }
+  const resolved = path.resolve(PROJECT_ROOT, target);
+  if (!fs.existsSync(resolved)) {
+    fail(`package.json "${field}" points at "${target}", which does not exist. Run "npm run build:browser".`);
+  }
+}
+
+const publishedFiles = Array.isArray(packageJson.files) ? packageJson.files : [];
+const shipsBrowserDir = publishedFiles.some((entry) => {
+  const normalized = String(entry).replace(/^\.\//, "").replace(/\/+$/, "");
+  return normalized === "dist/browser" || normalized === "dist" || normalized.startsWith("dist/browser/");
+});
+if (!shipsBrowserDir) {
+  fail('package.json "files" does not include "dist/browser"; the published package would omit the browser bundle.');
+}
+
 process.stdout.write("browserBundleSmoke=ok\n");
