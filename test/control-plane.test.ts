@@ -10,6 +10,7 @@ import {
   createHonuaControlPlane,
 } from "../src/control-plane/index.js";
 import { HonuaClient } from "../src/index.js";
+import { getCapabilityReasonCode, hasCapability, isCapabilitySupported } from "../src/studio/index.js";
 
 const fixturesDir = resolve(dirname(fileURLToPath(import.meta.url)), "fixtures/control-plane");
 
@@ -189,5 +190,66 @@ describe("control-plane client", () => {
     expect(controlPlane.packages.locator("pkg-ops-ready")).toEqual({
       path: "/api/v1/admin/packages/pkg-ops-ready",
     });
+  });
+
+  it("fetches the capability manifest from the server-wide path, not the admin base", async () => {
+    const paths: string[] = [];
+    const controlPlane = clientFor(({ url }) => {
+      paths.push(`${url.pathname}${url.search}`);
+      return new Response(
+        JSON.stringify({
+          schemaVersion: "honua.capability_manifest.v1",
+          capabilities: [
+            { id: "studio.map", category: "studio", supported: true, available: true },
+            {
+              id: "studio.ai.generate",
+              category: "studio",
+              supported: true,
+              available: false,
+              reasonCode: "entitlement-inactive",
+            },
+          ],
+          packages: { families: [{ id: "map", kind: "storage", supported: true }] },
+        }),
+        { status: 200 },
+      );
+    });
+
+    const result = await controlPlane.getCapabilityManifest();
+
+    // The manifest is server-wide and must NOT be nested under /api/v1/admin.
+    expect(paths[0]).toBe("/api/v1/capabilities/manifest");
+    expect(result.supported).toBe(true);
+    if (!result.supported) return;
+    expect(result.value.schemaVersion).toBe("honua.capability_manifest.v1");
+    expect(hasCapability(result.value, "studio.map")).toBe(true);
+    expect(hasCapability(result.value, "studio.ai.generate")).toBe(false);
+    expect(isCapabilitySupported(result.value, "studio.ai.generate")).toBe(true);
+    expect(getCapabilityReasonCode(result.value, "studio.ai.generate")).toBe("entitlement-inactive");
+  });
+
+  it("appends environment and workspace scope query parameters to the manifest request", async () => {
+    const paths: string[] = [];
+    const controlPlane = clientFor(({ url }) => {
+      paths.push(`${url.pathname}${url.search}`);
+      return new Response(JSON.stringify({ schemaVersion: "honua.capability_manifest.v1", capabilities: [] }), {
+        status: 200,
+      });
+    });
+
+    await controlPlane.getCapabilityManifest({ environment: "prod env", workspaceId: "ws-1" });
+
+    expect(paths[0]).toBe("/api/v1/capabilities/manifest?environment=prod+env&workspaceId=ws-1");
+  });
+
+  it("returns a typed unsupported result when the manifest endpoint is absent", async () => {
+    const controlPlane = clientFor(() => new Response(JSON.stringify({ title: "Not Found" }), { status: 404 }));
+
+    const result = await controlPlane.getCapabilityManifest();
+
+    expect(result.supported).toBe(false);
+    if (result.supported) return;
+    expect(result.capability).toBe("capabilities");
+    expect(result.statusCode).toBe(404);
   });
 });

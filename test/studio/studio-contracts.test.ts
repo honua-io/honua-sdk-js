@@ -20,7 +20,10 @@ import {
   STUDIO_PACKAGE_FAMILIES,
   fromMapPackageValidation,
   getCapability,
+  getCapabilityReasonCode,
   hasCapability,
+  hasPackageFamily,
+  isCapabilitySupported,
   isStudioPackageFamily,
   tagStudioPackage,
   toStudioValidationResponse,
@@ -50,6 +53,123 @@ function minimalValidMapPackage(): HonuaMapPackage {
     },
   };
 }
+
+// Frozen honua.capability_manifest.v1 wire fixture, kept byte-identical to the
+// honua-sdk-dotnet CapabilityManifestClientTests fixture so the JS and .NET
+// projections are proven against the same authoritative server contract.
+const FROZEN_MANIFEST_WIRE = JSON.stringify({
+  schemaVersion: "honua.capability_manifest.v1",
+  issuedAt: "2026-07-01T12:00:00Z",
+  scope: {
+    tenantId: "acme",
+    tenantSource: "header",
+    environment: "prod",
+    workspaceId: "ws-1",
+    workspaceAvailable: true,
+    authenticated: true,
+  },
+  server: {
+    serverVersion: "1.9.0",
+    apiVersion: "1",
+    metadataApiVersion: "2",
+    metadataSchemaVersion: "honua.metadata.v2",
+    deploymentEnvironment: "production",
+  },
+  environment: { environmentId: "prod", requested: true, available: true, revision: 42 },
+  packages: {
+    schemaVersions: ["honua_map_package.v1"],
+    families: [
+      { id: "map", kind: "storage", schemaVersion: "honua_map_package.v1", supported: true },
+      { id: "etl", kind: "storage", schemaVersion: "honua_etl_package.v1", supported: false },
+    ],
+    storageFamilies: ["map"],
+    publicationFamilies: ["map"],
+  },
+  capabilities: [
+    { id: "studio.map", category: "studio", supported: true, available: true },
+    {
+      id: "studio.ai.generate",
+      category: "studio",
+      supported: true,
+      available: false,
+      reasonCode: "entitlement-inactive",
+      entitlementKey: "ai.generation",
+      entitlementKeys: ["ai.generation"],
+      minimumEdition: "enterprise",
+      messageKey: "capability.ai.disabled",
+    },
+  ],
+  transports: {
+    items: [{ id: "grpc", supported: true, available: true }],
+    mtlsMode: "disabled",
+    forwardedClientCertificateEnabled: false,
+  },
+  limits: {
+    preview: { maxPreviewSizeBytes: 1048576, maxPreviewFeatures: 500, maxPreviewCountScan: 10000 },
+    query: {
+      defaultRecordCount: 100,
+      maxRecordCount: 2000,
+      maxFeatures: 5000,
+      maxPageSize: 1000,
+      queryTimeoutSeconds: 30,
+      maxBboxAreaSqKm: 100000.0,
+      maxFilterDepth: 8,
+      maxSpatialOperations: 4,
+    },
+    analysis: {
+      maxInputFeatures: 100000,
+      maxClusters: 50,
+      maxDbscanEpsMeters: 5000.0,
+      maxKMeansK: 25,
+      maxBufferDistanceMeters: 100000.0,
+      minDensityCellSizeMeters: 10.0,
+      maxDensityCellSizeMeters: 100000.0,
+      maxDensityCells: 100000,
+      maxDWithinDistanceMeters: 50000.0,
+      maxH3CellsPerQuery: 10000,
+      maxSpatialOperations: 8,
+      maxJoins: 4,
+    },
+    publication: { configuredDeployTargetCount: 2, gitOpsManifestExportSupported: true },
+    job: {
+      configuredWorkloadCount: 3,
+      availableBackendCount: 1,
+      supportsCancellation: true,
+      supportsProgressPolling: true,
+    },
+    upload: {
+      maxUploadSizeBytes: 104857600,
+      maxFileSizeBytes: 52428800,
+      maxConcurrentUploads: 4,
+      maxQueuedUploads: 16,
+      maxSecurityScanSizeBytes: 10485760,
+    },
+    streaming: {
+      maxConcurrentSessions: 100,
+      maxBufferPerConnection: 1000,
+      maxSubscriptionsPerSession: 20,
+      maxSubscriptionIdLength: 128,
+      maxControlFrameBytes: 65536,
+      cursorRetentionLimit: 1000,
+      heartbeatIntervalSeconds: 15.0,
+      grpcStreamBatchSize: 100,
+    },
+    edit: { maxFeaturesPerEdit: 1000, maxEditsPerTransaction: 100, maxPayloadSizeBytes: 10485760 },
+    geometry: { maxVerticesPerGeometry: 100000, maxGeometrySizeBytes: 1048576, maxCoordinatePrecision: 15 },
+    attachment: { maxAttachmentsPerFeature: 25, maxAttachmentSizeBytes: 10485760 },
+  },
+  policies: {
+    currentEdition: "enterprise",
+    licenseValidationState: "valid",
+    licenseValid: true,
+    callerCapabilities: ["studio.map"],
+    entitlements: [
+      { key: "ai.generation", active: false, minimumEdition: "enterprise", reasonCode: "entitlement-inactive" },
+    ],
+    authorizationNotice: "Authorized for tenant acme.",
+  },
+  links: [{ rel: "self", href: "/api/v1/capabilities/manifest", type: "application/json" }],
+});
 
 describe("@honua/sdk-js/studio package.json export", () => {
   it("registers the ./studio subpath against the built barrel", () => {
@@ -105,23 +225,71 @@ describe("StudioPackageValidationResponse adapter", () => {
 
 describe("StudioCapabilityManifest helpers", () => {
   const manifest: StudioCapabilityManifest = {
-    version: "1",
+    schemaVersion: "honua.capability_manifest.v1",
     capabilities: [
-      { id: "package.query", enabled: true },
-      { id: "package.etl", enabled: false },
+      { id: "studio.map", category: "studio", supported: true, available: true },
+      {
+        id: "studio.ai.generate",
+        category: "studio",
+        supported: true,
+        available: false,
+        reasonCode: "entitlement-inactive",
+        entitlementKey: "ai.generation",
+      },
     ],
-    packageFamilies: ["query", "map"],
+    packages: {
+      families: [
+        { id: "map", kind: "storage", supported: true },
+        { id: "etl", kind: "storage", supported: false },
+      ],
+    },
   };
 
-  it("hasCapability is true only for advertised, enabled capabilities", () => {
-    expect(hasCapability(manifest, "package.query")).toBe(true);
-    expect(hasCapability(manifest, "package.etl")).toBe(false);
-    expect(hasCapability(manifest, "package.unknown")).toBe(false);
+  it("hasCapability is true only for advertised, available capabilities (wire `available`, not `enabled`)", () => {
+    expect(hasCapability(manifest, "studio.map")).toBe(true);
+    expect(hasCapability(manifest, "studio.ai.generate")).toBe(false);
+    expect(hasCapability(manifest, "studio.unknown")).toBe(false);
   });
 
-  it("getCapability returns the entry regardless of enabled state", () => {
-    expect(getCapability(manifest, "package.etl")?.enabled).toBe(false);
-    expect(getCapability(manifest, "package.unknown")).toBeUndefined();
+  it("isCapabilitySupported reports server implementation independent of availability", () => {
+    expect(isCapabilitySupported(manifest, "studio.ai.generate")).toBe(true);
+    expect(isCapabilitySupported(manifest, "studio.unknown")).toBe(false);
+  });
+
+  it("getCapability returns the entry and surfaces the reason code", () => {
+    expect(getCapability(manifest, "studio.ai.generate")?.available).toBe(false);
+    expect(getCapabilityReasonCode(manifest, "studio.ai.generate")).toBe("entitlement-inactive");
+    expect(getCapability(manifest, "studio.unknown")).toBeUndefined();
+  });
+
+  it("hasPackageFamily gates on the supported flag", () => {
+    expect(hasPackageFamily(manifest, "map")).toBe(true);
+    expect(hasPackageFamily(manifest, "etl")).toBe(false);
+    expect(hasPackageFamily(manifest, "unknown")).toBe(false);
+  });
+
+  it("parses the frozen honua.capability_manifest.v1 wire in parity with honua-sdk-dotnet #253", () => {
+    // Byte-for-byte the fixture used by the honua-sdk-dotnet CapabilityManifest
+    // client test (feat/sdk-c1-capability-manifest). Both SDKs must project the
+    // same frozen server wire without drift.
+    const wire = JSON.parse(FROZEN_MANIFEST_WIRE) as StudioCapabilityManifest;
+
+    expect(wire.schemaVersion).toBe("honua.capability_manifest.v1");
+    expect(wire.scope?.tenantId).toBe("acme");
+    expect(wire.server?.serverVersion).toBe("1.9.0");
+    expect(wire.environment?.revision).toBe(42);
+    expect(wire.capabilities).toHaveLength(2);
+    expect(hasCapability(wire, "studio.map")).toBe(true);
+    expect(isCapabilitySupported(wire, "studio.ai.generate")).toBe(true);
+    expect(hasCapability(wire, "studio.ai.generate")).toBe(false);
+    expect(getCapabilityReasonCode(wire, "studio.ai.generate")).toBe("entitlement-inactive");
+    expect(getCapability(wire, "studio.ai.generate")?.entitlementKey).toBe("ai.generation");
+    expect(hasPackageFamily(wire, "map")).toBe(true);
+    expect(hasPackageFamily(wire, "etl")).toBe(false);
+    expect(wire.limits?.query?.maxRecordCount).toBe(2000);
+    expect(wire.transports?.mtlsMode).toBe("disabled");
+    expect(wire.policies?.entitlements?.[0]?.active).toBe(false);
+    expect(wire.links?.[0]?.type).toBe("application/json");
   });
 });
 

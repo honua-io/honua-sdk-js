@@ -4,10 +4,13 @@ import { HonuaHttpError } from "../core/errors.js";
 import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { QueryMethod } from "../core/types.js";
 import type { HonuaMapPackage } from "../runtime/index.js";
+import type { StudioCapabilityManifest } from "../studio/capability-manifest.js";
 import {
+  HONUA_CAPABILITY_MANIFEST_PATH,
   HONUA_CONTROL_PLANE_BASE_PATH,
   type HonuaApiToken,
   type HonuaApiTokenCreateRequest,
+  type HonuaCapabilityManifestOptions,
   type HonuaConnectionSummary,
   type HonuaControlPlaneCapability,
   type HonuaControlPlaneJob,
@@ -75,6 +78,27 @@ export class HonuaControlPlaneClient {
     });
   }
 
+  /**
+   * Fetch the server capability manifest (`honua.capability_manifest.v1`) from
+   * `GET /api/v1/capabilities/manifest`, optionally scoped to an `environment`
+   * and/or `workspaceId`. Lets a client gate UI and tool exposure on what the
+   * connected server actually supports. Returns an unsupported result when the
+   * deployment predates the manifest endpoint (404/501). Mirrors the
+   * honua-sdk-dotnet `HonuaCapabilityManifestClient.GetManifestAsync`.
+   */
+  public async getCapabilityManifest(
+    options: HonuaCapabilityManifestOptions = {},
+  ): Promise<HonuaControlPlaneResult<StudioCapabilityManifest>> {
+    const { environment, workspaceId, ...requestOptions } = options;
+    return this.requestJson<StudioCapabilityManifest>(
+      "capabilities",
+      "GET",
+      withManifestQuery(HONUA_CAPABILITY_MANIFEST_PATH, environment, workspaceId),
+      undefined,
+      requestOptions,
+    );
+  }
+
   public async requestJson<T>(
     capability: HonuaControlPlaneCapability,
     method: QueryMethod,
@@ -131,6 +155,10 @@ export class HonuaControlPlaneClient {
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
     const normalized = path.startsWith("/") ? path : `/${path}`;
     if (normalized === this.#basePath || normalized.startsWith(`${this.#basePath}/`)) return normalized;
+    // Server-wide, already-rooted API paths (e.g. the capability manifest at
+    // /api/v1/capabilities/manifest) are used verbatim rather than nested under
+    // the admin base path.
+    if (normalized.startsWith("/api/")) return normalized;
     return `${this.#basePath}${normalized}`;
   }
 }
@@ -429,6 +457,14 @@ function withListQuery(path: string, options: HonuaControlPlaneListOptions): str
   if (options.includeDeleted !== undefined) params.set("includeDeleted", String(options.includeDeleted));
   const query = params.toString();
   return query ? `${path}${path.includes("?") ? "&" : "?"}${query}` : path;
+}
+
+function withManifestQuery(path: string, environment?: string, workspaceId?: string): string {
+  const params = new URLSearchParams();
+  if (environment) params.set("environment", environment);
+  if (workspaceId) params.set("workspaceId", workspaceId);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 function jsonHeaders(headers: HeadersInit | undefined): HeadersInit {

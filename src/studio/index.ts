@@ -88,11 +88,37 @@ export type {
   HonuaVegaLiteChartSpec,
 } from "./chart-spec.js";
 
-export { getCapability, hasCapability } from "./capability-manifest.js";
+export {
+  getCapability,
+  getCapabilityReasonCode,
+  hasCapability,
+  hasPackageFamily,
+  isCapabilitySupported,
+} from "./capability-manifest.js";
 export type {
-  StudioCapabilityConstraint,
+  StudioCapabilityAnalysisLimits,
+  StudioCapabilityAttachmentLimits,
+  StudioCapabilityEditLimits,
+  StudioCapabilityEntitlementDecision,
   StudioCapabilityEntry,
+  StudioCapabilityEnvironment,
+  StudioCapabilityGeometryLimits,
+  StudioCapabilityJobLimits,
+  StudioCapabilityLimits,
+  StudioCapabilityLink,
   StudioCapabilityManifest,
+  StudioCapabilityPackageFamily,
+  StudioCapabilityPackages,
+  StudioCapabilityPolicies,
+  StudioCapabilityPreviewLimits,
+  StudioCapabilityPublicationLimits,
+  StudioCapabilityQueryLimits,
+  StudioCapabilityScope,
+  StudioCapabilityServerInfo,
+  StudioCapabilityStreamingLimits,
+  StudioCapabilityTransports,
+  StudioCapabilityTransportState,
+  StudioCapabilityUploadLimits,
 } from "./capability-manifest.js";
 
 export type {
