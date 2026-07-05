@@ -115,7 +115,7 @@ export interface CertifyOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-const STANDARD_SOURCE = "geospatial-mcp@968d7d7 (spec/schemas)";
+const STANDARD_SOURCE = "geospatial-mcp@54cbd49 (spec/schemas)";
 
 /** Determine whether a discovered tool is safe to round-trip (read-only). */
 export function isReadOnlyTool(tool: { name: string; annotations?: { readOnlyHint?: boolean } }): boolean {
@@ -500,12 +500,18 @@ function collectKnownGaps(
   referenceLookup: Map<string, StandardToolEntry>,
 ): KnownGap[] {
   const gaps: KnownGap[] = [];
+  // Advertised names that resolve to a standard entry through the SDK-local
+  // reference aliases (e.g. honua_dry_run_plan → validate_plan) also count as
+  // covering that standard tool.
+  const coveredStandardNames = new Set<string>();
+  for (const name of advertisedNames) {
+    const entry = referenceLookup.get(name);
+    if (entry) {
+      coveredStandardNames.add(entry.standardName);
+    }
+  }
   for (const tool of index.tools) {
-    const names = [tool.referenceToolName, ...(tool.referenceToolAliases ?? [])].filter(
-      (n): n is string => typeof n === "string",
-    );
-    const advertised = names.some((n) => advertisedNames.has(n));
-    if (!advertised) {
+    if (!coveredStandardNames.has(tool.standardName)) {
       gaps.push({
         kind: "standard-tool",
         name: tool.standardName,
@@ -513,7 +519,7 @@ function collectKnownGaps(
         detail:
           tool.implementationStatus === "known-gap"
             ? "standard family not yet implemented as a discrete tool"
-            : `reference tool ${names[0] ?? "(unnamed)"} not advertised by the certified surface`,
+            : `reference tool ${tool.referenceToolName ?? "(unnamed)"} not advertised by the certified surface`,
       });
     }
   }

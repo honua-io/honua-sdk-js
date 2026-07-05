@@ -55,7 +55,7 @@ export function buildRoundTripInputs(env: RoundTripEnv): Record<string, Record<s
     },
     honua_validate_plan: { plan: {} },
     honua_dry_run_plan: { plan: { planId: "plan-001", steps: [{ stepId: "s1", kind: "QueryFeatures" }] } },
-    honua_resolve_entity: { query: "parks" },
+    honua_resolve_entity: { text: "parks" },
   };
 }
 

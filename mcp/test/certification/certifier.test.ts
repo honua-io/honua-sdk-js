@@ -6,7 +6,12 @@ import { type CertificationReport, certify, isReadOnlyTool } from "../../src/cer
 import { checkConformance, checkWellFormed } from "../../src/certification/json-schema.js";
 import { renderMarkdown } from "../../src/certification/report.js";
 import { writeArtifacts } from "../../src/certification/run.js";
-import { loadSchemaFile, loadSchemaIndex } from "../../src/certification/schema-index.js";
+import {
+  REFERENCE_TOOL_ALIASES,
+  buildReferenceToolLookup,
+  loadSchemaFile,
+  loadSchemaIndex,
+} from "../../src/certification/schema-index.js";
 import { type CertificationTarget, openCertificationTarget } from "../../src/certification/target.js";
 
 const tmpDirs: string[] = [];
@@ -75,7 +80,18 @@ describe("MCP certification harness — offline operator upstream", () => {
     expect(names).toContain("honua_execute_plan");
     expect(names).toContain("honua_dry_run_plan");
     expect(names).toContain("honua_create_map_package");
-    expect(names).toContain("honua_publish_service");
+    // honua_publish_service conforms to the standard's publish_service entry
+    // (documented divergence), never to the known-gap publish_result family.
+    const publishService = mapped.find((t) => t.name === "honua_publish_service");
+    expect(publishService?.standardName).toBe("publish_service");
+  });
+
+  it("reports publish_result as a documented, non-failing known gap", () => {
+    const gap = report.knownGaps.find((g) => g.kind === "standard-tool" && g.name === "publish_result");
+    expect(gap).toBeDefined();
+    expect(gap?.detail).toContain("not yet implemented");
+    // Known gaps never fail certification.
+    expect(report.summary.pass).toBe(true);
   });
 
   it("passes the pagination, error-shape, and auth contracts", () => {
@@ -236,21 +252,40 @@ describe("markdown rendering", () => {
 });
 
 describe("vendored schema index", () => {
-  it("maps reference tool names and aliases to standard schemas", () => {
+  it("maps reference tool names to standard schemas per the upstream standard", () => {
     const index = loadSchemaIndex();
     const queryFeatures = index.tools.find((t) => t.standardName === "query_features");
     expect(queryFeatures?.referenceToolName).toBe("honua_query_features");
     expect(queryFeatures?.implementationStatus).toBe("implemented");
 
-    const validate = index.tools.find((t) => t.standardName === "validate_plan");
-    expect(validate?.referenceToolAliases).toContain("honua_dry_run_plan");
-
-    // Publishing / composition tools are now mapped to reference names (widened).
-    expect(index.tools.find((t) => t.standardName === "publish_result")?.referenceToolName).toBe(
+    // publish_result is a documented known-gap upstream; honua_publish_service
+    // is a divergence mapped to its own publish_service entry, NOT an
+    // implementation of publish_result.
+    const publishResult = index.tools.find((t) => t.standardName === "publish_result");
+    expect(publishResult?.referenceToolName).toBeNull();
+    expect(publishResult?.implementationStatus).toBe("known-gap");
+    expect(index.tools.find((t) => t.standardName === "publish_service")?.referenceToolName).toBe(
       "honua_publish_service",
     );
+
     expect(index.tools.find((t) => t.standardName === "create_map_package")?.referenceToolName).toBe(
       "honua_create_map_package",
     );
+    expect(index.tools.find((t) => t.standardName === "create_app_package")?.referenceToolName).toBe(
+      "honua_create_app_package",
+    );
+
+    // The vendored index stays byte-aligned with upstream: no SDK-invented fields.
+    for (const tool of index.tools) {
+      expect("referenceToolAliases" in tool, `${tool.standardName} must not carry referenceToolAliases`).toBe(false);
+    }
+  });
+
+  it("applies the SDK-local honua_dry_run_plan alias in the reference lookup", () => {
+    expect(REFERENCE_TOOL_ALIASES.honua_dry_run_plan).toBe("honua_validate_plan");
+    const lookup = buildReferenceToolLookup(loadSchemaIndex());
+    const viaAlias = lookup.get("honua_dry_run_plan");
+    expect(viaAlias?.standardName).toBe("validate_plan");
+    expect(viaAlias).toBe(lookup.get("honua_validate_plan"));
   });
 });

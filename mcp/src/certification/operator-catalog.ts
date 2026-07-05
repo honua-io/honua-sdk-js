@@ -89,10 +89,11 @@ function vendoredInputSchema(referenceName: string): JsonSchema {
 }
 
 /**
- * Representative operator catalog. Every tool that maps to a vendored standard
- * schema advertises that schema; the two open-core discovery tools without a
- * standard schema (`honua_list_capabilities`, `honua_resolve_entity`) advertise
- * a plain inline shape and are certified for well-formedness + contracts only.
+ * Representative operator catalog. Every tool advertises its vendored standard
+ * inputSchema verbatim — including the Honua-extension discovery tools
+ * (`honua_list_capabilities`, `honua_resolve_entity`) and
+ * `honua_publish_service`, which the standard maps to its own `publish_service`
+ * entry as a documented divergence from the known-gap `publish_result` family.
  */
 export function buildOperatorTools(): OperatorTool[] {
   return [
@@ -291,9 +292,7 @@ export function buildOperatorTools(): OperatorTool[] {
       name: "honua_list_capabilities",
       title: "List capabilities",
       description: "List capabilities advertised by the connected honua deployment.",
-      inputSchema: OBJECT_SCHEMA({
-        family: { type: "string", description: "Optional capability family filter." },
-      }),
+      inputSchema: vendoredInputSchema("honua_list_capabilities"),
       outputSchema: OBJECT_SCHEMA(
         {
           capabilities: {
@@ -310,7 +309,7 @@ export function buildOperatorTools(): OperatorTool[] {
       name: "honua_resolve_entity",
       title: "Resolve entity",
       description: "Resolve a freeform reference to canonical platform entities.",
-      inputSchema: OBJECT_SCHEMA({ query: { type: "string", minLength: 1 } }, ["query"]),
+      inputSchema: vendoredInputSchema("honua_resolve_entity"),
       outputSchema: OBJECT_SCHEMA(
         {
           entities: {
@@ -357,7 +356,8 @@ export function buildOperatorTools(): OperatorTool[] {
     {
       name: "honua_publish_service",
       title: "Publish service",
-      description: "Publish a result package as a hosted service.",
+      description:
+        "Publish a source table as a new hosted service (documented divergence from the standard publish_result family, which remains a known-gap).",
       inputSchema: vendoredInputSchema("honua_publish_service"),
       outputSchema: OBJECT_SCHEMA({ publishedServiceId: { type: "string" }, uri: { type: "string" } }, [
         "publishedServiceId",
