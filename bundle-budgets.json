@@ -1,0 +1,37 @@
+{
+  "$comment": [
+    "Per-entrypoint bundle-size budgets for @honua/sdk-js (issue #350).",
+    "Each budget is a hard byte ceiling for a single public entrypoint bundled the",
+    "way a real consumer would build it: esbuild --bundle --minify, target es2020,",
+    "runtime peers (maplibre-gl, cesium, @bufbuild/*, @connectrpc/*) kept external.",
+    "'min' is the minified byte size; 'gzip' is the gzip-compressed byte size.",
+    "",
+    "HEADROOM POLICY: budgets are set to the measured current size + ~10% headroom",
+    "(ceil(actual * 1.1)). The 10% absorbs normal churn without hiding real bloat.",
+    "When a legitimate change pushes an entry over budget, re-run",
+    "'npm run report:bundle-sizes' to refresh docs/bundle-sizes.md, then RESET that",
+    "entry's budget to the new actual + ~10% in the SAME PR (never widen silently).",
+    "'npm run verify:bundle-budgets' is the CI gate; it fails on any exceedance with",
+    "a per-entry delta table.",
+    "",
+    "'tree-shake:HonuaClient' is a deep-import-hygiene guard: a fixture importing ONLY",
+    "{ HonuaClient } from the root entry must stay under its ceiling, proving a single",
+    "symbol does not drag the whole SDK into a consumer bundle.",
+    "@honua/react and @honua/geometry will get their own entries here when they land."
+  ],
+  "entrypoints": {
+    ".": { "min": 462438, "gzip": 122168 },
+    "/honua": { "min": 465309, "gzip": 122800 },
+    "/contract": { "min": 240908, "gzip": 61140 },
+    "/runtime": { "min": 469747, "gzip": 122338 },
+    "/esri-compat": { "min": 473975, "gzip": 100193 },
+    "/expr": { "min": 8651, "gzip": 2717 },
+    "/webmap": { "min": 21998, "gzip": 6678 },
+    "/geocoding": { "min": 5472, "gzip": 2164 },
+    "/style": { "min": 40820, "gzip": 9341 },
+    "/map": { "min": 70492, "gzip": 18293 },
+    "browser-iife": { "min": 463519, "gzip": 122557 },
+    "browser-esm": { "min": 461836, "gzip": 122161 },
+    "tree-shake:HonuaClient": { "min": 209173, "gzip": 53307 }
+  }
+}

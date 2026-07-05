@@ -198,6 +198,8 @@
     "build": "npm run clean --silent && tsc -p tsconfig.json",
     "build:browser": "node scripts/build-browser-bundle.mjs",
     "verify:browser": "npm run build:browser --silent && node scripts/verify-browser-bundle.mjs",
+    "report:bundle-sizes": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs",
+    "verify:bundle-budgets": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs --check",
     "build:split-packages": "npm run build --silent && node scripts/prepare-split-packages.mjs",
     "verify:split-packages": "npm run build:split-packages --silent && node scripts/verify-split-packages.mjs",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat && npm pack ./dist/packages/honua-migrate",

@@ -66,6 +66,29 @@ The runtime peers (`maplibre-gl`, `cesium`, `@bufbuild/*`, `@connectrpc/*`) are
 kept external — load them yourself when you need map rendering or gRPC
 transport. See [`docs/browser-bundle.md`](./docs/browser-bundle.md) for details.
 
+## Bundle size
+
+Small and honest about size: every subpath entrypoint carries a min+gzip byte
+budget that CI enforces on every PR (`npm run verify:bundle-budgets`), so drift
+fails the build instead of shipping. Sizes are measured the way a consumer
+builds — esbuild `--bundle --minify`, runtime peers external. A tree-shake guard
+proves that importing a single symbol from the root doesn't drag the whole SDK
+in.
+
+| Entrypoint (gzip) | Size |
+| --- | ---: |
+| `@honua/sdk-js/geocoding` | 1.9 KiB |
+| `@honua/sdk-js/expr` | 2.4 KiB |
+| `@honua/sdk-js/webmap` | 5.9 KiB |
+| `@honua/sdk-js/style` | 8.3 KiB |
+| `@honua/sdk-js/map` | 16.2 KiB |
+| `@honua/sdk-js` (root) | 108.3 KiB |
+| `{ HonuaClient }` only (tree-shake guard) | 47.2 KiB |
+
+Full per-entrypoint table (min + gzip, generated, not hand-written):
+[`docs/bundle-sizes.md`](./docs/bundle-sizes.md). Refresh it with
+`npm run report:bundle-sizes`.
+
 ## 60-second quickstart
 
 The canonical surface is protocol-neutral: build a `Dataset` over one or more
