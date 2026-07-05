@@ -6,6 +6,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { expect, test } from "@playwright/test";
 
+import {
+  buildGeometryPeerVendors,
+  importMapScriptTag,
+  serveVendorRequest,
+} from "./vendor-geometry-peers.mjs";
+
 function getProjectRoot() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 }
@@ -23,12 +29,13 @@ function createTempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "honua-playwright-real-sample-"));
 }
 
-function createIndexHtml() {
+function createIndexHtml(importMapTag) {
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Honua Migration Real Sample Browser Smoke</title>
+    ${importMapTag}
   </head>
   <body>
     <script type="module">
@@ -51,14 +58,17 @@ function createIndexHtml() {
 </html>`;
 }
 
-function startServer(projectRoot, appMain) {
+function startServer(projectRoot, appMain, vendors) {
   const distSourceRoot = path.join(projectRoot, "dist", "src");
 
   const server = http.createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
+    if (serveVendorRequest(requestUrl, res, vendors.outDir)) {
+      return;
+    }
     if (requestUrl.pathname === "/") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(createIndexHtml());
+      res.end(createIndexHtml(importMapScriptTag(vendors.imports)));
       return;
     }
 
@@ -128,7 +138,8 @@ async function runMigratedFixtureBrowserSmoke(page, options) {
     pageErrors.push(error.message);
   });
 
-  const server = await startServer(projectRoot, appMain);
+  const vendors = await buildGeometryPeerVendors(projectRoot, path.join(tempRoot, "vendor"));
+  const server = await startServer(projectRoot, appMain, vendors);
   try {
     const serverUrl = await getServerUrl(server);
     await page.goto(serverUrl);
