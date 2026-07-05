@@ -6521,11 +6521,11 @@ honua-io/honua-server#1956.)
   reproducible CI gate.
 - **Live cross-model (Claude + GPT):** when `ANTHROPIC_API_KEY` /
   `OPENAI_API_KEY` are set, the Claude driver (latest Opus, `claude-opus-4-8`)
-  and a GPT driver run the corpus through a real agentic tool-use loop over the
-  identical catalog. The `@anthropic-ai/sdk` / `openai` packages are imported
-  dynamically (not dependencies); keys come from the environment and are never
-  hardcoded. Set `HONUA_MCP_REMOTE_URL` to drive a live remote `/mcp` instead of
-  the fixture.
+  and the GPT driver (GA flagship, `gpt-5.5`, override with `OPENAI_MODEL`) run
+  the corpus through a real agentic tool-use loop over the identical catalog. The
+  `@anthropic-ai/sdk` / `openai` packages are imported dynamically (not
+  dependencies); keys come from the environment and are never hardcoded. Set
+  `HONUA_MCP_REMOTE_URL` to drive a live remote `/mcp` instead of the fixture.
 
 ```bash
 npm run eval            # run the eval (live models join if their keys are set)
@@ -6538,6 +6538,67 @@ Artifacts (`mcp-eval-results.json` / `mcp-eval-results.md`, gitignored, uploaded
 by CI) record the per-model scorecard. The CI gate asserts the deterministic
 control passes every scenario; live cross-model runs are recorded but
 informational.
+
+### Live lane (paid, manual only)
+
+The **operator corpus** (`src/eval/operator-corpus.ts`, 8 harder scenarios) is
+meant to run against a live honua-server **operator** `/mcp` surface with real
+models. This is a **billable** lane: it makes real Anthropic / OpenAI (or AWS
+Bedrock) calls. It never runs on push/PR — locally via `npm run eval:live`, or in
+CI via the manual **`MCP Live Cross-Model Eval`** workflow
+(`.github/workflows/mcp-eval-live.yml`, `workflow_dispatch`-only). The live model
+SDKs are not package dependencies; install them first for a live run:
+
+```bash
+npm install --no-save @anthropic-ai/sdk openai   # only needed for live runs
+```
+
+`eval:live` runs the operator corpus (`--corpus operator`) against the remote
+`/mcp` and always writes artifacts (`--artifact-only`). Authentication uses the
+same headers as the stdio proxy — **no dev-auth bypass**; the resolved auth mode
+(`bearer` / `api-key` / `anonymous`) is recorded in the artifact so the run
+proves it was authenticated. Set `HONUA_EVAL_REQUIRE_AUTH=1` to refuse an
+anonymous run outright.
+
+Shared env for every live run:
+
+- `HONUA_MCP_REMOTE_URL` (required): the operator `/mcp` endpoint, e.g. `https://demo.honua.io/mcp`.
+- `HONUA_MCP_AUTH_TOKEN`: sent as `Authorization: Bearer <token>` (preferred; ⇒ auth mode `bearer`).
+- `HONUA_API_KEY`: sent as `x-api-key` (⇒ auth mode `api-key`) when the deployment uses key auth instead.
+- `HONUA_EVAL_REQUIRE_AUTH=1` (recommended): fail fast if neither credential is present.
+
+```bash
+# Anthropic Claude (default claude-opus-4-8; override with HONUA_EVAL_ANTHROPIC_MODEL):
+HONUA_MCP_REMOTE_URL="https://demo.honua.io/mcp" \
+HONUA_MCP_AUTH_TOKEN="$HONUA_TOKEN" \
+HONUA_EVAL_REQUIRE_AUTH=1 \
+ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+npm run eval:live -- --driver anthropic
+
+# OpenAI GPT (default gpt-5.5; override with OPENAI_MODEL, e.g. gpt-5.6-sol once you have access):
+HONUA_MCP_REMOTE_URL="https://demo.honua.io/mcp" \
+HONUA_MCP_AUTH_TOKEN="$HONUA_TOKEN" \
+HONUA_EVAL_REQUIRE_AUTH=1 \
+OPENAI_API_KEY="$OPENAI_API_KEY" \
+npm run eval:live -- --driver openai
+
+# Claude via Amazon Bedrock (AWS credential chain; default Sonnet 4.5,
+# override with HONUA_EVAL_BEDROCK_MODEL — most ids need a us.* inference profile):
+HONUA_MCP_REMOTE_URL="https://demo.honua.io/mcp" \
+HONUA_MCP_AUTH_TOKEN="$HONUA_TOKEN" \
+HONUA_EVAL_REQUIRE_AUTH=1 \
+HONUA_EVAL_BEDROCK=1 AWS_REGION=us-west-2 \
+HONUA_EVAL_BEDROCK_MODEL="us.anthropic.claude-sonnet-4-5-20250929-v1:0" \
+npm run eval:live -- --driver bedrock
+```
+
+Pass multiple drivers to compare them in one artifact:
+`npm run eval:live -- --driver anthropic,openai`. Every driver is graded against
+the **identical** operator corpus and catalog, and the artifact's
+`catalog.unresolvedRequiredTools` names any required tool the live surface did
+not advertise — so a scenario that fails does so for a real capability gap, not a
+silent tool name-resolution bug (the runner resolves required tools against the
+live `tools/list`, never against the vendored certification index).
 
 ---
 
