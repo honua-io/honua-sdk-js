@@ -73,11 +73,20 @@ export function findQueryResultDrift(expected: ExpectedQueryResult, actual: Resu
   }
 
   if (expected.expectsGeometry && features.length > 0) {
-    const missingGeometry = features.find((feature) => feature.geometry == null);
-    if (missingGeometry) {
+    // Nullability-aware: a stored-null geometry is legal on the wire
+    // (GeoJSON `geometry: null`, Esri JSON omits/nulls it), so individual
+    // null-geometry features are NOT drift. Drift is (a) a feature that
+    // drops the geometry member entirely, or (b) EVERY feature losing
+    // geometry — the whole-result projection-loss class this gate exists
+    // to catch (honua-server#1238).
+    const memberDropped = features.some((feature) => !("geometry" in feature) || feature.geometry === undefined);
+    const allGeometryNull = features.every((feature) => feature.geometry == null);
+    if (memberDropped || allGeometryNull) {
       findings.push({
         kind: "geometry",
-        message: "golden carries geometry on every feature but a live feature returned null/absent geometry",
+        message: memberDropped
+          ? "golden carries geometry but a live feature dropped the geometry member entirely"
+          : "golden carries geometry but every live feature returned null geometry (whole-result geometry loss)",
       });
     }
   }
@@ -156,10 +165,17 @@ export function findLiveProjectionDrift(
 
   const features = actual.features ?? [];
   if (expected.expectsGeometry && features.length > 0) {
-    if (features.some((feature) => feature.geometry == null)) {
+    // Same nullability-aware rule as findQueryResultDrift: explicit null
+    // geometry on some features is legal (nullable stored geometry); drift is
+    // a dropped geometry member or a whole-result geometry loss.
+    const memberDropped = features.some((feature) => !("geometry" in feature) || feature.geometry === undefined);
+    const allGeometryNull = features.every((feature) => feature.geometry == null);
+    if (memberDropped || allGeometryNull) {
       findings.push({
         kind: "geometry",
-        message: "golden carries geometry on every feature but a live feature returned null/absent geometry",
+        message: memberDropped
+          ? "golden carries geometry but a live feature dropped the geometry member entirely"
+          : "golden carries geometry but every live feature returned null geometry (whole-result geometry loss)",
       });
     }
   }
