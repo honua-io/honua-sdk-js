@@ -17,21 +17,76 @@
     "'tree-shake:HonuaClient' is a deep-import-hygiene guard: a fixture importing ONLY",
     "{ HonuaClient } from the root entry must stay under its ceiling, proving a single",
     "symbol does not drag the whole SDK into a consumer bundle.",
-    "@honua/react and @honua/geometry will get their own entries here when they land."
+    "/react and /geometry landed with the adoption-wave-1 bundle (issues #349/#351). /esri-compat's budget was reset for the geometryEngine shim's turf/proj4 backing; 'tree-shake:esri-compat-FeatureLayerCompat' guards that compat consumers who never touch geometryEngine keep paying only the pre-shim cost. 'tree-shake:geometry-buffer' is intentionally large: @turf/buffer carries a JSTS port (~66 KiB gzip); light ops like area() shake down to ~1 KiB."
   ],
   "entrypoints": {
-    ".": { "min": 462438, "gzip": 122168 },
-    "/honua": { "min": 465309, "gzip": 122800 },
-    "/contract": { "min": 240908, "gzip": 61140 },
-    "/runtime": { "min": 469747, "gzip": 122338 },
-    "/esri-compat": { "min": 473975, "gzip": 100193 },
-    "/expr": { "min": 8651, "gzip": 2717 },
-    "/webmap": { "min": 21998, "gzip": 6678 },
-    "/geocoding": { "min": 5472, "gzip": 2164 },
-    "/style": { "min": 40820, "gzip": 9341 },
-    "/map": { "min": 70492, "gzip": 18293 },
-    "browser-iife": { "min": 463519, "gzip": 122557 },
-    "browser-esm": { "min": 461836, "gzip": 122161 },
-    "tree-shake:HonuaClient": { "min": 209173, "gzip": 53307 }
+    ".": {
+      "min": 462438,
+      "gzip": 122168
+    },
+    "/honua": {
+      "min": 465309,
+      "gzip": 122800
+    },
+    "/contract": {
+      "min": 240908,
+      "gzip": 61140
+    },
+    "/runtime": {
+      "min": 469747,
+      "gzip": 122338
+    },
+    "/esri-compat": {
+      "min": 1050877,
+      "gzip": 259650
+    },
+    "/expr": {
+      "min": 8651,
+      "gzip": 2717
+    },
+    "/webmap": {
+      "min": 21998,
+      "gzip": 6678
+    },
+    "/geocoding": {
+      "min": 5472,
+      "gzip": 2164
+    },
+    "/style": {
+      "min": 40820,
+      "gzip": 9341
+    },
+    "/map": {
+      "min": 70492,
+      "gzip": 18293
+    },
+    "browser-iife": {
+      "min": 463519,
+      "gzip": 122557
+    },
+    "browser-esm": {
+      "min": 461836,
+      "gzip": 122161
+    },
+    "tree-shake:HonuaClient": {
+      "min": 209173,
+      "gzip": 53307
+    },
+    "/react": {
+      "min": 415417,
+      "gzip": 107009
+    },
+    "/geometry": {
+      "min": 581674,
+      "gzip": 160738
+    },
+    "tree-shake:geometry-buffer": {
+      "min": 323840,
+      "gzip": 73892
+    },
+    "tree-shake:esri-compat-FeatureLayerCompat": {
+      "min": 225732,
+      "gzip": 57109
+    }
   }
 }

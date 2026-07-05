@@ -72,6 +72,19 @@ const SECTIONS = [
       },
       { path: "docs/errors.md", description: "Named error hierarchy, catch-narrowing, and retry policy." },
       {
+        path: "docs/react.md",
+        description: "@honua/react bindings: HonuaProvider, useQuery/useDataset hooks, and map components.",
+      },
+      {
+        path: "docs/geometry.md",
+        description:
+          "@honua/geometry client-side ops (buffer/area/measure/simplify/reproject) and the geometryEngine compat shim coverage table.",
+      },
+      {
+        path: "docs/bundle-sizes.md",
+        description: "CI-enforced per-entrypoint bundle sizes (min + gzip) with budget policy.",
+      },
+      {
         path: "docs/guide.md",
         description: "Long-form reference: server compatibility, entrypoints, protocol cookbooks, auth bridge.",
       },

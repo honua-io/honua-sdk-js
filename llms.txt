@@ -17,6 +17,9 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [Protocol × Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/protocol-capability-matrix.md): Which operations each protocol supports and where capabilities fall back.
 - [Cross-SDK Surface Alignment](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/sdk-surface-alignment.md): Cross-language naming parity and the semver / stability policy.
 - [Error reference](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/errors.md): Named error hierarchy, catch-narrowing, and retry policy.
+- [React bindings (@honua/react)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/react.md): @honua/react bindings: HonuaProvider, useQuery/useDataset hooks, and map components.
+- [@honua/geometry — client-side geometry operations](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/geometry.md): @honua/geometry client-side ops (buffer/area/measure/simplify/reproject) and the geometryEngine compat shim coverage table.
+- [Bundle sizes](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/bundle-sizes.md): CI-enforced per-entrypoint bundle sizes (min + gzip) with budget policy.
 - [@honua/sdk-js reference guide](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/guide.md): Long-form reference: server compatibility, entrypoints, protocol cookbooks, auth bridge.
 
 ## Protocols

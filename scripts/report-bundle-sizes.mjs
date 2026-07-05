@@ -70,6 +70,19 @@ const TARGETS = [
   { key: "/style", kind: "bundle", entry: "dist/src/style/index.js", label: "`/style`" },
   { key: "/map", kind: "bundle", entry: "dist/src/map/index.js", label: "`/map`" },
   {
+    key: "/react",
+    kind: "bundle",
+    entry: "dist/src/react/index.js",
+    label: "`/react` (react/react-dom external)",
+    external: ["react", "react-dom", "react/jsx-runtime"],
+  },
+  {
+    key: "/geometry",
+    kind: "bundle",
+    entry: "dist/src/geometry/index.js",
+    label: "`/geometry` (turf/proj4 bundled — real consumer cost)",
+  },
+  {
     key: "browser-iife",
     kind: "prebuilt",
     entry: "dist/browser/honua-sdk.min.js",
@@ -81,6 +94,18 @@ const TARGETS = [
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-honua-client.mjs",
     label: "tree-shake guard (`{ HonuaClient }` only)",
+  },
+  {
+    key: "tree-shake:esri-compat-FeatureLayerCompat",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-esri-compat-feature-layer.mjs",
+    label: "tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`)",
+  },
+  {
+    key: "tree-shake:geometry-buffer",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-geometry-buffer.mjs",
+    label: "tree-shake guard (`{ buffer }` from `/geometry`, turf bundled)",
   },
 ];
 
@@ -97,8 +122,13 @@ function gzipBytes(buffer) {
   return gzipSync(buffer, { level: 9 }).byteLength;
 }
 
-async function measureBundle(entryAbs) {
-  const result = await esbuild.build({ ...SHARED_ESBUILD_OPTIONS, format: "esm", entryPoints: [entryAbs] });
+async function measureBundle(entryAbs, extraExternal = []) {
+  const result = await esbuild.build({
+    ...SHARED_ESBUILD_OPTIONS,
+    external: [...EXTERNAL, ...extraExternal],
+    format: "esm",
+    entryPoints: [entryAbs],
+  });
   const buffer = Buffer.from(result.outputFiles[0].contents);
   return { min: buffer.byteLength, gzip: gzipBytes(buffer) };
 }
@@ -118,7 +148,9 @@ async function measureAll() {
       );
     }
     measurements[target.key] =
-      target.kind === "prebuilt" ? measurePrebuilt(entryAbs) : await measureBundle(entryAbs);
+      target.kind === "prebuilt"
+        ? measurePrebuilt(entryAbs)
+        : await measureBundle(entryAbs, target.external ?? []);
   }
   return measurements;
 }
