@@ -254,6 +254,26 @@ tables, and backwards-compatibility policy live in:
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
 - [`INSTALL.md`](./INSTALL.md) — install + subpath entrypoint table
 
+## AI assistants
+
+Coding agents (Claude Code, Cursor, and compatible assistants) can discover and
+correctly use this SDK:
+
+- **[`llms.txt`](./llms.txt)** — a curated [llms.txt](https://llmstxt.org/) index
+  of the docs, plus **[`llms-full.txt`](./llms-full.txt)** with the full corpus
+  concatenated for single-fetch ingestion. Both are generated from `docs/` +
+  `README.md` + entrypoint JSDoc by `npm run docs:llms` (freshness-checked in CI
+  via `npm run verify:llms`).
+- **Agent skills** under [`skills/`](./skills/README.md) — `honua-sdk-quickstart`,
+  `honua-arcgis-migration`, and `honua-mcp-setup` load procedural instructions
+  into Claude Code and compatible agents. See [`skills/README.md`](./skills/README.md)
+  for installation.
+- **MCP server** — [`@honua/mcp-server`](./mcp/README.md) exposes Honua discovery
+  and query tools to assistants over the Model Context Protocol.
+- **Context7** — [`context7.json`](./context7.json) registers the library so
+  [Context7](https://context7.com) serves current docs to coding agents; the
+  submission steps are in [`skills/README.md`](./skills/README.md).
+
 ## Stability and versioning
 
 - The SDK follows [Semantic Versioning](https://semver.org/). The public contract is the set

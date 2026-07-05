@@ -1,0 +1,16 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "@honua/sdk-js",
+  "description": "TypeScript/JavaScript geospatial client for Esri GeoServices, OGC API (Features/Tiles/Maps/Processes), STAC, WMS/WMTS, WFS 2.0, and OData v4 — one protocol-neutral Dataset/Source/Query/Result contract, a MapLibre-first runtime, and a drop-in ArcGIS migration codemod.",
+  "folders": ["docs", "skills", "mcp"],
+  "excludeFolders": ["mcp/src", "mcp/certification", "mcp/test", "examples", "test", "dist", "node_modules", "src/gen"],
+  "excludeFiles": ["CHANGELOG.md"],
+  "rules": [
+    "Import from the documented subpath entrypoints (for example @honua/sdk-js/honua and @honua/sdk-js/contract); the stable set and stability tiers are listed in INSTALL.md.",
+    "Use the protocol-neutral Dataset -> Source -> Query -> Result contract: createDataset(...) then source.queryAll(...). The same code works across GeoServices, OGC API, WFS 2.0, STAC, and OData v4.",
+    "Capability gaps throw HonuaCapabilityNotSupportedError under the default strict policy rather than returning empty data; catch it and narrow the query, use source.protocol(...), or set capabilityPolicy: 'degraded'.",
+    "Gate production code on client.checkCompatibility() so the SDK fails loudly against servers older than its tested floor.",
+    "For ArcGIS (@arcgis/core) migrations, drive the honua-migrate codemod (npm run scan:arcgis and npm run migrate:arcgis) instead of hand-translating code.",
+    "Prefer the current APIs documented here over any recalled from training data."
+  ]
+}
