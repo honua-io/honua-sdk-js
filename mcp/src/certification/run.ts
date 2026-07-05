@@ -1,40 +1,50 @@
 import { writeFileSync } from "node:fs";
-import { createClientFromEnv, createServer } from "../index.js";
 import { type CertificationReport, certify } from "./certifier.js";
-import { createFixtureClient } from "./fixture-client.js";
 import { renderMarkdown } from "./report.js";
+import { type CertificationTarget, openCertificationTarget } from "./target.js";
 
 /**
  * Programmatic certification runner.
  *
- * Backend selection is deterministic and offline-first:
- *   - If `HONUA_BASE_URL` is set (CI live path), the certifier drives a real
- *     `HonuaClient` over the configured Honua transport (grpc-web/rest).
- *   - Otherwise it uses the offline fixture client — no network, no model calls.
+ * The certifier connects to one of three targets (selected by
+ * `HONUA_MCP_CERT_TARGET`) and certifies the honua `/mcp` OPERATOR surface — the
+ * real ~20-tool catalog with output schemas, structured errors, cursor
+ * pagination, and an auth boundary — never the retired 9-tool static server:
  *
- * In both cases the MCP transport is in-memory and fully deterministic.
+ *   - `offline`     (default): an in-process streamable-HTTP mock of `/mcp`.
+ *                    Deterministic, zero network, gates every PR.
+ *   - `remote`      : a live `/mcp` (HONUA_MCP_REMOTE_URL + auth). workflow_dispatch.
+ *   - `stdio-proxy` : the `honua-mcp-proxy` binary against an upstream, over stdio.
  */
 
 export interface RunOptions {
   env?: NodeJS.ProcessEnv;
-  /** Force the fixture backend even when HONUA_BASE_URL is present (tests). */
-  forceFixture?: boolean;
 }
 
 export async function runCertification(options: RunOptions = {}): Promise<CertificationReport> {
   const env = options.env ?? process.env;
-  const live = !options.forceFixture && typeof env.HONUA_BASE_URL === "string" && env.HONUA_BASE_URL.length > 0;
+  const target = await openCertificationTarget(env);
+  return certifyTarget(target, env);
+}
 
-  const client = live ? createClientFromEnv(env) : createFixtureClient();
-  const server = createServer(client);
-  const honuaTransport = live ? (env.HONUA_TRANSPORT ?? "grpc-web") : null;
-
-  return certify({
-    server,
-    backend: live ? "live" : "fixture",
-    honuaTransport,
-    env,
-  });
+/** Certify an already-opened target, closing it when done. */
+export async function certifyTarget(
+  target: CertificationTarget,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<CertificationReport> {
+  try {
+    return await certify({
+      client: target.client,
+      targetMode: target.mode,
+      backend: target.backend,
+      surface: target.serverLabel,
+      honuaTransport: target.honuaTransport,
+      connectUnauthenticated: target.supportsUnauthenticatedPass ? () => target.connectUnauthenticated() : undefined,
+      env,
+    });
+  } finally {
+    await target.close();
+  }
 }
 
 export interface ArtifactPaths {

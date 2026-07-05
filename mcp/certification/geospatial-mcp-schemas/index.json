@@ -29,10 +29,11 @@
     {
       "standardName": "validate_plan",
       "referenceToolName": "honua_validate_plan",
+      "referenceToolAliases": ["honua_dry_run_plan"],
       "family": "Intent and planning",
       "schema": "tools/validate_plan.schema.json",
       "implementationStatus": "implemented",
-      "notes": "Reference also advertises honua_dry_run_plan with the same partial-plan input schema."
+      "notes": "Reference also advertises honua_dry_run_plan with the same partial-plan input schema (mapped via referenceToolAliases)."
     },
     {
       "standardName": "execute_plan",
@@ -43,10 +44,10 @@
     },
     {
       "standardName": "create_map_package",
-      "referenceToolName": null,
+      "referenceToolName": "honua_create_map_package",
       "family": "Map composition",
       "schema": "tools/create_map_package.schema.json",
-      "implementationStatus": "known-gap"
+      "implementationStatus": "implemented"
     },
     {
       "standardName": "refine_map_package",
@@ -78,10 +79,10 @@
     },
     {
       "standardName": "create_app_package",
-      "referenceToolName": null,
+      "referenceToolName": "honua_create_app_package",
       "family": "App composition",
       "schema": "tools/create_app_package.schema.json",
-      "implementationStatus": "known-gap"
+      "implementationStatus": "implemented"
     },
     {
       "standardName": "preview_app_package",
@@ -92,10 +93,11 @@
     },
     {
       "standardName": "publish_result",
-      "referenceToolName": null,
+      "referenceToolName": "honua_publish_service",
       "family": "Publishing",
       "schema": "tools/publish_result.schema.json",
-      "implementationStatus": "known-gap"
+      "implementationStatus": "implemented",
+      "notes": "Reference advertises this publishing tool as honua_publish_service."
     },
     {
       "standardName": "list_layers",

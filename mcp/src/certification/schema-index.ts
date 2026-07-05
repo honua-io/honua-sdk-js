@@ -14,6 +14,12 @@ export interface StandardToolEntry {
   standardName: string;
   /** Name the reference implementation advertises, or null when unimplemented. */
   referenceToolName: string | null;
+  /**
+   * Additional advertised names that map to this same standard schema (e.g. the
+   * reference implementation exposes `honua_dry_run_plan` alongside
+   * `honua_validate_plan`, both driven by the partial-plan schema).
+   */
+  referenceToolAliases?: string[];
   family: string;
   /** Relative path of the schema file, e.g. `tools/query_features.schema.json`. */
   schema: string;
@@ -101,6 +107,9 @@ export function buildReferenceToolLookup(index: SchemaIndex): Map<string, Standa
   for (const tool of index.tools) {
     if (tool.referenceToolName) {
       lookup.set(tool.referenceToolName, tool);
+    }
+    for (const alias of tool.referenceToolAliases ?? []) {
+      lookup.set(alias, tool);
     }
   }
   return lookup;
