@@ -146,7 +146,10 @@ export function defaultPopupRenderer(context: PopupRenderContext): Node | undefi
 }
 
 function renderStringTemplate(template: string, properties: Record<string, unknown>): string {
-  return template.replace(/\{([^}]+)\}/g, (_, key) => {
+  // [^{}] (not [^}]) keeps candidate matches non-overlapping so the scan stays
+  // linear on adversarial input like "{{{{…" (CodeQL js/polynomial-redos), and
+  // stops a stray "{" from being swallowed into the preceding placeholder key.
+  return template.replace(/\{([^{}]+)\}/g, (_, key) => {
     const value = properties[key];
     return value === undefined || value === null ? "" : String(value);
   });
