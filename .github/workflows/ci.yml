@@ -36,11 +36,20 @@ jobs:
       - name: Code style
         run: npm run check
 
+      - name: Verify llms.txt freshness
+        run: npm run verify:llms
+
+      - name: Verify agent skills
+        run: npm run verify:skills
+
       - name: Build
         run: npm run build
 
       - name: Build and verify browser bundle
         run: npm run verify:browser
+
+      - name: Bundle-size budgets
+        run: npm run verify:bundle-budgets
 
       - name: Split package verification
         run: npm run verify:split-packages

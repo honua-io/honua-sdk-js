@@ -129,13 +129,17 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/web-components/index.ts"),
       },
       {
+        find: "@honua/sdk-js/react",
+        replacement: path.resolve(import.meta.dirname, "src/react/index.ts"),
+      },
+      {
         find: "@honua/sdk-js",
         replacement: path.resolve(import.meta.dirname, "src/index.ts"),
       },
     ],
   },
   test: {
-    include: ["test/**/*.test.ts"],
+    include: ["test/**/*.test.ts", "test/react/**/*.test.tsx"],
     exclude: ["dist/**", "node_modules/**"],
     coverage: {
       provider: "v8",
@@ -152,6 +156,7 @@ export default defineConfig({
         "src/*-entry.ts",
         "src/honua.ts",
         "src/migration/cli.ts",
+        "src/react/**",
         "examples/**/src/main.ts",
       ],
       thresholds: {

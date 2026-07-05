@@ -66,6 +66,29 @@ The runtime peers (`maplibre-gl`, `cesium`, `@bufbuild/*`, `@connectrpc/*`) are
 kept external — load them yourself when you need map rendering or gRPC
 transport. See [`docs/browser-bundle.md`](./docs/browser-bundle.md) for details.
 
+## Bundle size
+
+Small and honest about size: every subpath entrypoint carries a min+gzip byte
+budget that CI enforces on every PR (`npm run verify:bundle-budgets`), so drift
+fails the build instead of shipping. Sizes are measured the way a consumer
+builds — esbuild `--bundle --minify`, runtime peers external. A tree-shake guard
+proves that importing a single symbol from the root doesn't drag the whole SDK
+in.
+
+| Entrypoint (gzip) | Size |
+| --- | ---: |
+| `@honua/sdk-js/geocoding` | 1.9 KiB |
+| `@honua/sdk-js/expr` | 2.4 KiB |
+| `@honua/sdk-js/webmap` | 5.9 KiB |
+| `@honua/sdk-js/style` | 8.3 KiB |
+| `@honua/sdk-js/map` | 16.2 KiB |
+| `@honua/sdk-js` (root) | 108.3 KiB |
+| `{ HonuaClient }` only (tree-shake guard) | 47.2 KiB |
+
+Full per-entrypoint table (min + gzip, generated, not hand-written):
+[`docs/bundle-sizes.md`](./docs/bundle-sizes.md). Refresh it with
+`npm run report:bundle-sizes`.
+
 ## 60-second quickstart
 
 The canonical surface is protocol-neutral: build a `Dataset` over one or more
@@ -227,9 +250,31 @@ tables, and backwards-compatibility policy live in:
 - [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md) — what each protocol supports
 - [`docs/sdk-surface-alignment.md`](./docs/sdk-surface-alignment.md) — cross-language naming & semver policy
 - [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage()` / `HonuaMapRuntime`
+- [`docs/react.md`](./docs/react.md) — React bindings (`@honua/react`): provider, hooks, and map components
+- [`docs/geometry.md`](./docs/geometry.md) — `@honua/sdk-js/geometry` curated turf/proj4 ops (buffer/area/measure/simplify/reproject) + the `geometryEngine` compat shim
 - [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/sdk-js/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
 - [`INSTALL.md`](./INSTALL.md) — install + subpath entrypoint table
+
+## AI assistants
+
+Coding agents (Claude Code, Cursor, and compatible assistants) can discover and
+correctly use this SDK:
+
+- **[`llms.txt`](./llms.txt)** — a curated [llms.txt](https://llmstxt.org/) index
+  of the docs, plus **[`llms-full.txt`](./llms-full.txt)** with the full corpus
+  concatenated for single-fetch ingestion. Both are generated from `docs/` +
+  `README.md` + entrypoint JSDoc by `npm run docs:llms` (freshness-checked in CI
+  via `npm run verify:llms`).
+- **Agent skills** under [`skills/`](./skills/README.md) — `honua-sdk-quickstart`,
+  `honua-arcgis-migration`, and `honua-mcp-setup` load procedural instructions
+  into Claude Code and compatible agents. See [`skills/README.md`](./skills/README.md)
+  for installation.
+- **MCP server** — [`@honua/mcp-server`](./mcp/README.md) exposes Honua discovery
+  and query tools to assistants over the Model Context Protocol.
+- **Context7** — [`context7.json`](./context7.json) registers the library so
+  [Context7](https://context7.com) serves current docs to coding agents; the
+  submission steps are in [`skills/README.md`](./skills/README.md).
 
 ## Stability and versioning
 
@@ -245,7 +290,7 @@ tables, and backwards-compatibility policy live in:
   - **Experimental** (subpath-only — not re-exported from the root barrels):
     `/app`, `/app-controller`, `/app-workspace`, `/scene-workspace`, `/collaboration`,
     `/control-plane`, `/controls`, `/generated-app`, `/studio`, `/agent-tools`, `/realtime`,
-    `/web-components`, `/operator`, `/operator/*`.
+    `/web-components`, `/react`, `/operator`, `/operator/*`.
 
 ## More guides
 

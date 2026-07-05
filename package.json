@@ -149,6 +149,10 @@
       "types": "./dist/src/web-components/index.d.ts",
       "default": "./dist/src/web-components/index.js"
     },
+    "./react": {
+      "types": "./dist/src/react/index.d.ts",
+      "default": "./dist/src/react/index.js"
+    },
     "./generated-app": {
       "types": "./dist/src/generated-app/index.d.ts",
       "default": "./dist/src/generated-app/index.js"
@@ -188,6 +192,10 @@
     "./cli": {
       "types": "./dist/src/cli/main.d.ts",
       "default": "./dist/src/cli/main.js"
+    },
+    "./geometry": {
+      "types": "./dist/src/geometry/index.d.ts",
+      "default": "./dist/src/geometry/index.js"
     }
   },
   "bin": {
@@ -198,16 +206,26 @@
     "build": "npm run clean --silent && tsc -p tsconfig.json",
     "build:browser": "node scripts/build-browser-bundle.mjs",
     "verify:browser": "npm run build:browser --silent && node scripts/verify-browser-bundle.mjs",
+    "report:bundle-sizes": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs",
+    "verify:bundle-budgets": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs --check",
     "build:split-packages": "npm run build --silent && node scripts/prepare-split-packages.mjs",
     "verify:split-packages": "npm run build:split-packages --silent && node scripts/verify-split-packages.mjs",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat && npm pack ./dist/packages/honua-migrate",
     "typecheck": "tsc --noEmit",
     "docs:api": "npx --yes typedoc@^0.26 --tsconfig tsconfig.json --out dist/docs-api --excludeInternal --excludePrivate --readme README.md --name '@honua/sdk-js' src/index.ts src/honua.ts src/contract/index.ts src/controls/index.ts src/expr/index.ts src/webmap/index.ts src/geocoding/index.ts src/runtime/index.ts src/studio/index.ts src/migration-entry.ts src/esri-compat-entry.ts",
+    "docs:llms": "node scripts/generate-llms-txt.mjs",
+    "verify:llms": "node scripts/generate-llms-txt.mjs --check",
+    "verify:skills": "node scripts/verify-skills.mjs",
     "demo:quickstart": "vite --config examples/maplibre-quickstart/vite.config.ts",
     "demo:quickstart:build": "vite build --config examples/maplibre-quickstart/vite.config.ts",
     "demo:quickstart:preview": "vite preview --config examples/maplibre-quickstart/vite.config.ts --host 127.0.0.1",
     "demo:quickstart:mock": "node examples/maplibre-quickstart/mock-server.mjs",
     "demo:quickstart:typecheck": "tsc -p examples/maplibre-quickstart/tsconfig.json --noEmit",
+    "demo:react-quickstart": "vite --config examples/react-quickstart/vite.config.ts",
+    "demo:react-quickstart:build": "vite build --config examples/react-quickstart/vite.config.ts",
+    "demo:react-quickstart:preview": "vite preview --config examples/react-quickstart/vite.config.ts --host 127.0.0.1",
+    "demo:react-quickstart:mock": "node examples/react-quickstart/mock-server.mjs",
+    "demo:react-quickstart:typecheck": "tsc -p examples/react-quickstart/tsconfig.json --noEmit",
     "demo:incident": "vite --config examples/realtime-incident-dashboard/vite.config.ts",
     "demo:incident:build": "vite build --config examples/realtime-incident-dashboard/vite.config.ts",
     "demo:incident:preview": "vite preview --config examples/realtime-incident-dashboard/vite.config.ts --host 127.0.0.1",
@@ -298,12 +316,13 @@
     "demo:runtime-parity:mock": "node examples/runtime-parity-showcase/mock-server.mjs",
     "demo:runtime-parity:typecheck": "tsc -p examples/runtime-parity-showcase/tsconfig.json --noEmit",
     "demo:primitive-matrix": "node scripts/verify-primitive-demo-matrix.mjs",
-    "demo:examples:typecheck": "npm run demo:quickstart:typecheck && npm run demo:incident:typecheck && npm run demo:unified-ops:typecheck && npm run demo:25d:typecheck && npm run demo:service-explorer:typecheck && npm run demo:migration-workbench:typecheck && npm run demo:mcp-gis-assistant:typecheck && npm run demo:ai-spatial-builder:typecheck && npm run demo:spatial-analytics:typecheck && npm run demo:gp-runner:typecheck && npm run demo:stac-browser:typecheck && npm run demo:imagery-cog:typecheck && npm run demo:geocoding:typecheck && npm run demo:node-backend:typecheck && npm run demo:terrain-elevation:typecheck && npm run demo:edit-workflow:typecheck && npm run demo:planning-workbench:typecheck && npm run demo:web-components:typecheck && npm run demo:app-bootstrap:typecheck && npm run demo:runtime-parity:typecheck && node scripts/ensure-kepler-demo-deps.mjs && npm --prefix examples/kepler-analytics run typecheck",
-    "demo:examples:build": "node scripts/ensure-kepler-demo-deps.mjs && npm run demo:quickstart:build && npm run demo:incident:build && npm run demo:unified-ops:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:planning-workbench:build && npm run demo:web-components:build && npm run demo:app-bootstrap:build && npm run demo:runtime-parity:build && npm run demo:kepler:build",
+    "demo:examples:typecheck": "npm run demo:quickstart:typecheck && npm run demo:react-quickstart:typecheck && npm run demo:incident:typecheck && npm run demo:unified-ops:typecheck && npm run demo:25d:typecheck && npm run demo:service-explorer:typecheck && npm run demo:migration-workbench:typecheck && npm run demo:mcp-gis-assistant:typecheck && npm run demo:ai-spatial-builder:typecheck && npm run demo:spatial-analytics:typecheck && npm run demo:gp-runner:typecheck && npm run demo:stac-browser:typecheck && npm run demo:imagery-cog:typecheck && npm run demo:geocoding:typecheck && npm run demo:node-backend:typecheck && npm run demo:terrain-elevation:typecheck && npm run demo:edit-workflow:typecheck && npm run demo:planning-workbench:typecheck && npm run demo:web-components:typecheck && npm run demo:app-bootstrap:typecheck && npm run demo:runtime-parity:typecheck && node scripts/ensure-kepler-demo-deps.mjs && npm --prefix examples/kepler-analytics run typecheck",
+    "demo:examples:build": "node scripts/ensure-kepler-demo-deps.mjs && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:unified-ops:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:planning-workbench:build && npm run demo:web-components:build && npm run demo:app-bootstrap:build && npm run demo:runtime-parity:build && npm run demo:kepler:build",
     "test": "vitest run",
     "test:cloud-demo:config": "vitest run test/cloud-demo-services.test.ts test/demo-capability-matrix.test.ts",
     "test:cloud-demo:staging": "vitest run --config vitest.cloud-demo.config.ts",
     "test:playwright:quickstart": "playwright test test/playwright/quickstart-map.spec.mjs",
+    "test:playwright:react-quickstart": "playwright test test/playwright/react-quickstart.spec.mjs",
     "test:playwright:incident": "playwright test test/playwright/realtime-incident-dashboard.spec.mjs",
     "test:playwright:unified-ops": "playwright test test/playwright/unified-ops-workspace.spec.mjs",
     "test:playwright:service-explorer": "playwright test test/playwright/service-explorer.spec.mjs",
@@ -347,12 +366,12 @@
     "scan:arcgis": "npm run build --silent && node dist/src/migration/cli.js scan",
     "migrate:arcgis": "npm run build --silent && node dist/src/migration/cli.js codemod",
     "proto:generate": "buf generate --template ../../proto/buf.gen.yaml ../../proto",
-    "lint": "biome lint src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
-    "lint:fix": "biome lint --write src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
-    "format": "biome format src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
-    "format:fix": "biome format --write src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
-    "check": "biome check src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
-    "check:fix": "biome check --write src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
+    "lint": "biome lint src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
+    "lint:fix": "biome lint --write src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
+    "format": "biome format src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
+    "format:fix": "biome format --write src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
+    "check": "biome check src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
+    "check:fix": "biome check --write src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/unified-ops-workspace/src/ examples/unified-ops-workspace/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/kepler-analytics/src/ examples/kepler-analytics/scripts/",
     "test:coverage": "vitest run --coverage",
     "bench:stream": "npm run build --silent && node dist/bench/run.js"
   },
@@ -367,11 +386,35 @@
     "@connectrpc/connect": "^2.0.0",
     "@connectrpc/connect-web": "^2.0.0",
     "@playwright/test": "^1.58.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@turf/area": "^7.3.5",
+    "@turf/bbox": "^7.3.5",
+    "@turf/boolean-contains": "^7.3.5",
+    "@turf/boolean-intersects": "^7.3.5",
+    "@turf/boolean-within": "^7.3.5",
+    "@turf/buffer": "^7.3.5",
+    "@turf/centroid": "^7.3.5",
+    "@turf/convex": "^7.3.5",
+    "@turf/difference": "^7.3.5",
+    "@turf/helpers": "^7.3.5",
+    "@turf/intersect": "^7.3.5",
+    "@turf/length": "^7.3.5",
+    "@turf/nearest-point": "^7.3.5",
+    "@turf/simplify": "^7.3.5",
+    "@turf/union": "^7.3.5",
+    "@types/geojson": "^7946.0.14",
     "@types/node": "^24.3.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^4.0.18",
     "cesium": "^1.139.1",
     "esbuild": "^0.28.1",
+    "jsdom": "^25.0.1",
     "maplibre-gl": "^5.21.1",
+    "proj4": "^2.20.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "typescript": "^5.9.2",
     "vite": "^8.0.16",
     "vitest": "^4.0.16"
@@ -386,8 +429,26 @@
     "@bufbuild/protobuf": "^2.0.0",
     "@connectrpc/connect": "^2.0.0",
     "@connectrpc/connect-web": "^2.0.0",
+    "@turf/area": "^7.0.0",
+    "@turf/bbox": "^7.0.0",
+    "@turf/boolean-contains": "^7.0.0",
+    "@turf/boolean-intersects": "^7.0.0",
+    "@turf/boolean-within": "^7.0.0",
+    "@turf/buffer": "^7.0.0",
+    "@turf/centroid": "^7.0.0",
+    "@turf/convex": "^7.0.0",
+    "@turf/difference": "^7.0.0",
+    "@turf/helpers": "^7.0.0",
+    "@turf/intersect": "^7.0.0",
+    "@turf/length": "^7.0.0",
+    "@turf/nearest-point": "^7.0.0",
+    "@turf/simplify": "^7.0.0",
+    "@turf/union": "^7.0.0",
     "cesium": "^1.139.0",
-    "maplibre-gl": "^5.0.0"
+    "maplibre-gl": "^5.0.0",
+    "proj4": "^2.11.0",
+    "react": "^18.2.0 || ^19.0.0",
+    "react-dom": "^18.2.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {
     "@bufbuild/protobuf": {
@@ -399,10 +460,34 @@
     "@connectrpc/connect-web": {
       "optional": true
     },
+    "@turf/area": { "optional": true },
+    "@turf/bbox": { "optional": true },
+    "@turf/boolean-contains": { "optional": true },
+    "@turf/boolean-intersects": { "optional": true },
+    "@turf/boolean-within": { "optional": true },
+    "@turf/buffer": { "optional": true },
+    "@turf/centroid": { "optional": true },
+    "@turf/convex": { "optional": true },
+    "@turf/difference": { "optional": true },
+    "@turf/helpers": { "optional": true },
+    "@turf/intersect": { "optional": true },
+    "@turf/length": { "optional": true },
+    "@turf/nearest-point": { "optional": true },
+    "@turf/simplify": { "optional": true },
+    "@turf/union": { "optional": true },
     "cesium": {
       "optional": true
     },
     "maplibre-gl": {
+      "optional": true
+    },
+    "proj4": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
       "optional": true
     }
   },

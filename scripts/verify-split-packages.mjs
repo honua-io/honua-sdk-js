@@ -17,6 +17,8 @@ const packageDirs = {
   "@honua/sdk": path.join(PACKAGES_ROOT, "honua-sdk"),
   "@honua/sdk-esri-compat": path.join(PACKAGES_ROOT, "honua-sdk-esri-compat"),
   "@honua/honua-migrate": path.join(PACKAGES_ROOT, "honua-migrate"),
+  "@honua/react": path.join(PACKAGES_ROOT, "honua-react"),
+  "@honua/geometry": path.join(PACKAGES_ROOT, "honua-geometry"),
 };
 
 for (const [name, directory] of Object.entries(packageDirs)) {
@@ -61,6 +63,10 @@ try {
       "@honua/sdk": `file:${packageDirs["@honua/sdk"]}`,
       "@honua/sdk-esri-compat": `file:${packageDirs["@honua/sdk-esri-compat"]}`,
       "@honua/honua-migrate": `file:${packageDirs["@honua/honua-migrate"]}`,
+      "@honua/react": `file:${packageDirs["@honua/react"]}`,
+      react: ROOT_PACKAGE_JSON.devDependencies.react,
+      "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
+      "@honua/geometry": `file:${packageDirs["@honua/geometry"]}`,
     },
   };
   fs.writeFileSync(
@@ -242,6 +248,21 @@ import {
   scanArcGisUsage,
   summarizeJsParityMatrix,
 } from "@honua/honua-migrate";
+import {
+  HonuaLayer,
+  HonuaMap as HonuaReactMap,
+  HonuaPopup,
+  HonuaProvider,
+  HonuaQueryCache,
+  useCapabilities,
+  useDataset,
+  useHonuaClient,
+  useMapRuntime,
+  useQuery,
+  useRealtime,
+} from "@honua/react";
+import { area, buffer, project, toWgs84 } from "@honua/geometry";
+import { geometryEngineCompat } from "@honua/sdk-esri-compat";
 
 if (typeof HonuaClient !== "function") throw new Error("HonuaClient export missing");
 if (typeof HonuaMapLayer !== "function") throw new Error("HonuaMapLayer export missing");
@@ -489,6 +510,51 @@ if (typeof buildJsMigrationReport !== "function") throw new Error("buildJsMigrat
 if (typeof getJsParityMatrix !== "function") throw new Error("getJsParityMatrix export missing");
 if (typeof runLayerReconciliation !== "function") throw new Error("runLayerReconciliation export missing");
 if (typeof summarizeJsParityMatrix !== "function") throw new Error("summarizeJsParityMatrix export missing");
+if (typeof HonuaProvider !== "function") throw new Error("HonuaProvider export missing from @honua/react");
+if (typeof useHonuaClient !== "function") throw new Error("useHonuaClient export missing from @honua/react");
+if (typeof useDataset !== "function") throw new Error("useDataset export missing from @honua/react");
+if (typeof useQuery !== "function") throw new Error("useQuery export missing from @honua/react");
+if (typeof useCapabilities !== "function") throw new Error("useCapabilities export missing from @honua/react");
+if (typeof useMapRuntime !== "function") throw new Error("useMapRuntime export missing from @honua/react");
+if (typeof useRealtime !== "function") throw new Error("useRealtime export missing from @honua/react");
+if (typeof HonuaReactMap !== "function") throw new Error("HonuaMap export missing from @honua/react");
+if (typeof HonuaLayer !== "function") throw new Error("HonuaLayer export missing from @honua/react");
+if (typeof HonuaPopup !== "function") throw new Error("HonuaPopup export missing from @honua/react");
+if (typeof HonuaQueryCache !== "function") throw new Error("HonuaQueryCache export missing from @honua/react");
+
+if (typeof buffer !== "function" || typeof area !== "function" || typeof project !== "function")
+  throw new Error("geometry op exports missing from @honua/geometry");
+{
+  const square = {
+    type: "Polygon",
+    coordinates: [
+      [
+        [0, 0],
+        [0, 1],
+        [1, 1],
+        [1, 0],
+        [0, 0],
+      ],
+    ],
+  };
+  const buffered = buffer(square, 100, "meters");
+  if (!buffered || (buffered.type !== "Polygon" && buffered.type !== "MultiPolygon"))
+    throw new Error("@honua/geometry buffer did not return a polygon");
+  if (!(area(square) > 0)) throw new Error("@honua/geometry area returned a non-positive value");
+  const mercator = project(square, 4326, 3857);
+  if (mercator.type !== "Polygon" || Math.abs(mercator.coordinates[0][2][0]) < 1000)
+    throw new Error("@honua/geometry project did not reproject to Web Mercator meters");
+  const back = toWgs84(mercator, 3857);
+  if (Math.abs(back.coordinates[0][2][0] - 1) > 1e-6)
+    throw new Error("@honua/geometry toWgs84 round-trip drifted");
+}
+if (typeof geometryEngineCompat !== "object" || typeof geometryEngineCompat.buffer !== "function")
+  throw new Error("geometryEngineCompat export missing from @honua/sdk-esri-compat");
+{
+  const point = { x: 0, y: 0, spatialReference: { wkid: 3857 } };
+  const disk = geometryEngineCompat.buffer(point, 100, "meters");
+  if (!disk || !Array.isArray(disk.rings)) throw new Error("geometryEngineCompat.buffer did not return an Esri polygon");
+}
 
 console.log("splitPackageSmoke=ok");
 `.trimStart();
