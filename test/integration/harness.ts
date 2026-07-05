@@ -1,10 +1,14 @@
 /**
- * Shared integration-test harness. The SDK does not own the Honua Server
- * bootstrap — instead the integration lane is connect-only:
+ * Shared integration-test harness. The test code connects to a running Honua
+ * Server via `HONUA_INTEGRATION_BASE_URL`; it does not own the server bootstrap
+ * itself. CI provides that server: the `Integration + Conformance` job in
+ * `.github/workflows/integration.yml` spins the pinned `honua-server:nightly`
+ * plus Redis and Postgres inside the workflow (self-contained mode) and seeds
+ * it, or connects to an external deployment when a base URL is configured.
  *
- *   - `HONUA_INTEGRATION_BASE_URL` points at a running server (CI uses
- *     Docker Compose, local devs typically point at `http://localhost:5555`
- *     produced by `honua-server/tests/python/shared/js_test_server.py`).
+ *   - `HONUA_INTEGRATION_BASE_URL` points at that server (CI's in-workflow
+ *     container, or a local dev's `http://localhost:5555` produced by
+ *     `honua-server/tests/python/shared/js_test_server.py`).
  *   - {@link integrationSuite} is the public entry point per surface
  *     test file. It calls `describe.skip(...)` when the env var is unset,
  *     so the suite degrades to a no-op rather than failing in
@@ -17,7 +21,7 @@
  * @module
  */
 
-import { HonuaClient } from "@honua/sdk-js";
+import { HonuaCapabilityNotSupportedError, HonuaClient, HonuaHttpError } from "@honua/sdk-js";
 import { beforeAll, describe, it } from "vitest";
 import {
   type DiagnosticsContext,
@@ -29,6 +33,7 @@ import { recordSurface } from "./reporter.js";
 
 export { runWithDiagnostics, formatFailureContext } from "./diagnostics.js";
 export type { DiagnosticsContext } from "./diagnostics.js";
+export { recordSurface } from "./reporter.js";
 
 /** Env var that gates the entire integration lane. */
 export const INTEGRATION_BASE_URL_ENV = "HONUA_INTEGRATION_BASE_URL";
@@ -144,7 +149,7 @@ export function resolveIntegrationConfig(): IntegrationConfig {
   const config = tryResolveIntegrationConfig();
   if (!config) {
     throw new Error(
-      `${INTEGRATION_BASE_URL_ENV} is not set. The integration lane is connect-only — start a Honua Server and set ${INTEGRATION_BASE_URL_ENV}.`,
+      `${INTEGRATION_BASE_URL_ENV} is not set. The integration suites connect to a running Honua Server — start one (CI spins a self-contained container; see .github/workflows/integration.yml) and set ${INTEGRATION_BASE_URL_ENV}.`,
     );
   }
   return config;
@@ -235,6 +240,42 @@ export async function probeServerHealth(client: HonuaClient): Promise<{
     serverVersion: compatibility.serverVersion,
     releaseChannel: compatibility.releaseChannel,
   };
+}
+
+/**
+ * HTTP statuses that mean "this protocol surface is not published on the
+ * target seed" rather than "the request was malformed / the server is
+ * broken". A surface probe that fails with one of these is a clean,
+ * expected capability gap and should skip with a reason; any other failure
+ * is a real defect and must surface loudly.
+ */
+const CAPABILITY_GAP_STATUSES = new Set([404, 405, 501]);
+
+/** A classified capability gap: the surface is legitimately absent. */
+export interface CapabilityGap {
+  reason: string;
+}
+
+/**
+ * Decide whether a thrown SDK error means the target server simply does not
+ * publish the probed surface (a clean skip) versus a genuine failure (which
+ * must be re-thrown so the lane fails loudly). Returns a {@link CapabilityGap}
+ * with an explicit reason for the former and `undefined` for the latter.
+ *
+ * Used by the runtime-gated surfaces (`ogc-records`, `grpc`, `realtime`) that
+ * can only discover capability by probing the live server, unlike the
+ * env-gated surfaces that decide at module load.
+ */
+export function classifyCapabilityGap(label: string, error: unknown): CapabilityGap | undefined {
+  if (error instanceof HonuaCapabilityNotSupportedError) {
+    return { reason: `${label}: ${error.message}` };
+  }
+  if (error instanceof HonuaHttpError && CAPABILITY_GAP_STATUSES.has(error.statusCode)) {
+    return {
+      reason: `${label}: server responded HTTP ${error.statusCode} — surface not published on this seed`,
+    };
+  }
+  return undefined;
 }
 
 function parseIntOrDefault(raw: string | undefined, fallback: number): number {
