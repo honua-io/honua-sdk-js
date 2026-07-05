@@ -20,6 +20,7 @@
     "test:certification:artifact": "npm run build --silent && node dist/src/certification/cli.js --artifact-only",
     "eval": "npm run build --silent && node dist/src/eval/cli.js",
     "eval:offline": "npm run build --silent && node dist/src/eval/cli.js --offline",
+    "eval:live": "npm run build --silent && node dist/src/eval/cli.js --corpus operator --artifact-only",
     "test:eval": "npm run build --silent && vitest run test/eval && node dist/src/eval/cli.js --offline",
     "test:eval:artifact": "npm run build --silent && node dist/src/eval/cli.js --artifact-only",
     "lint": "biome lint src/ test/",

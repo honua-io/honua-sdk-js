@@ -1,0 +1,104 @@
+name: MCP Live Cross-Model Eval
+
+# PAID, MANUAL-ONLY lane. This workflow makes real, billable model API calls
+# (Anthropic / OpenAI) against a live remote honua /mcp surface. It is gated to
+# `workflow_dispatch` ONLY and MUST NEVER run on push or pull_request. The
+# offline, deterministic eval that gates every PR lives in the `mcp-sdk` job of
+# ci.yml; this is its live counterpart, run on demand to publish a cross-model
+# comparison artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      remote_url:
+        description: "Remote honua /mcp endpoint to evaluate (e.g. https://demo.honua.io/mcp)"
+        required: true
+        type: string
+      corpus:
+        description: "Corpus to run against the live surface"
+        required: true
+        default: operator
+        type: choice
+        options:
+          - operator
+          - analyst
+          - all
+      drivers:
+        description: "Comma-separated live drivers (anthropic,openai,bedrock)"
+        required: true
+        default: anthropic
+        type: string
+      require_auth:
+        description: "Refuse to run if the surface would be reached anonymously"
+        required: true
+        default: true
+        type: boolean
+
+# Never grant more than read access; this lane only reads code + publishes an artifact.
+permissions:
+  contents: read
+
+jobs:
+  mcp-eval-live:
+    name: MCP live cross-model eval
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    env:
+      NODE_VERSION: "20.19.0"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Build JS SDK dependency
+        run: |
+          npm ci --prefix ..
+          npm run build --prefix ..
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install live model SDKs (not package dependencies)
+        # The Anthropic / OpenAI SDKs are imported dynamically by the live drivers
+        # and are intentionally NOT dependencies of @honua/mcp-server, so the
+        # offline path never needs them. Install them only for this live lane.
+        run: npm install --no-save @anthropic-ai/sdk openai
+
+      - name: Build MCP package
+        run: npm run build
+
+      - name: Run live cross-model eval
+        env:
+          # Auth-enforced live lane: no dev-auth bypass. Bearer takes precedence;
+          # the run refuses to proceed anonymously when require_auth is true. The
+          # resolved auth mode is recorded in the results artifact.
+          HONUA_MCP_REMOTE_URL: ${{ inputs.remote_url }}
+          HONUA_MCP_AUTH_TOKEN: ${{ secrets.HONUA_MCP_AUTH_TOKEN }}
+          HONUA_API_KEY: ${{ secrets.HONUA_MCP_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          HONUA_EVAL_REQUIRE_AUTH: ${{ inputs.require_auth }}
+          # Optional model overrides (defaults: claude-opus-4-8 / gpt-5.5).
+          HONUA_EVAL_ANTHROPIC_MODEL: ${{ vars.HONUA_EVAL_ANTHROPIC_MODEL }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+        run: >
+          node dist/src/eval/cli.js
+          --corpus ${{ inputs.corpus }}
+          --driver ${{ inputs.drivers }}
+          --artifact-only
+
+      - name: Upload live eval artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-eval-live-results
+          path: |
+            mcp/mcp-eval-results.json
+            mcp/mcp-eval-results.md
+          if-no-files-found: warn

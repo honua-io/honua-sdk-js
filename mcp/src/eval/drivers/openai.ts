@@ -34,7 +34,19 @@ const SYSTEM_PROMPT =
   "When finished, give a concise final answer that references what the tools returned.";
 
 const MAX_ITERATIONS = 8;
-const DEFAULT_MODEL = "gpt-4o";
+/**
+ * Default GPT model for live cross-model runs.
+ *
+ * `gpt-5.5` is OpenAI's generally-available flagship reasoning model as of
+ * July 2026 (the apex of the public Chat Completions catalog; see
+ * developers.openai.com/api/docs/models/all). The newer GPT-5.6 "Sol" family was
+ * still preview-gated to a handful of orgs at that date and not callable by an
+ * ordinary API key, so it is NOT the default — set `OPENAI_MODEL=gpt-5.6-sol`
+ * (or any other id) to override once you have access. The resolved id is recorded
+ * per-driver in the results artifact (`models[].model`) so published comparisons
+ * are attributable to an exact model.
+ */
+const DEFAULT_MODEL = "gpt-5.5";
 
 export interface OpenAiDriverOptions {
   apiKey?: string | undefined;
