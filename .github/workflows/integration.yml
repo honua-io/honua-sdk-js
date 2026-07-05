@@ -55,10 +55,10 @@ env:
   # deliberate, reviewable change. The vendored seed
   # (test/integration/seed/places-roads-v1.sql) is refreshed 1:1 with this pin.
   #
-  # Pinned to the 2026-05-30 honua-server nightly (commit 86042bd, digest
-  # sha256:080d7e87f7b1e4c36a917adddb567bfe7148d47e7d2d016480fb4e39187515db).
-  HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-86042bd' }}
-  HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT || '86042bd' }}
+  # Pinned to the 2026-07-05 honua-server nightly (commit 6d34dd1, digest
+  # sha256:4c17c4feaedb880606684c5c013119fe7dfb16cab6ad663383164f31bade6157).
+  HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-6d34dd1' }}
+  HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT || '6d34dd1' }}
   HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.1.0-alpha.1' }}
   # Deterministic container passwords for the self-contained stack. These are
   # NOT secrets (the stack is ephemeral and never exposed off the runner); the

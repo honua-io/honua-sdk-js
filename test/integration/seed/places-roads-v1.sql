@@ -1,26 +1,16 @@
 -- ============================================================================
 -- Honua SDK integration seed — VENDORED, do not hand-edit.
 --
--- Provenance: honua-io/honua-server `tests/seed/client-compat-v1.sql` @ 86042bd
+-- Provenance: honua-io/honua-server `tests/seed/client-compat-v1.sql` @ 6d34dd1
 --   (the exact commit behind the pinned integration image
---   `ghcr.io/honua-io/honua-server:nightly-86042bd`). Refreshed 1:1 with the
+--   `ghcr.io/honua-io/honua-server:nightly-6d34dd1`). Refreshed 1:1 with the
 --   image pin so the seed schema always matches the server that consumes it.
 --
--- The SDK integration lane (`.github/workflows/integration.yml`, self-contained
--- mode) applies this file to Postgres with `psql -v ON_ERROR_STOP=1` BEFORE the
--- server container boots — mirroring honua-server's own client-compat compose
--- (`docker/client-compat/compose.yml`) ordering. It creates the catalog tables
--- (CREATE ... IF NOT EXISTS), registers service `test_service` / layer 0 with
--- features, and — as its LAST statement — builds and ACTIVATES a Metadata v2
--- snapshot (`honua.seed_metadata_v2_compat_snapshot()`). The snapshot must be
--- activated after the v1 rows exist, or later-registered services are shadowed;
--- this file already orders it correctly, so keep the activation call last.
---
--- The `HONUA_INTEGRATION_SEED_PROFILE=places-roads-v1` label is telemetry only
--- (recorded into integration-meta.json, never sent on the wire). The concrete
--- service/layer/collection this seed exposes are test_service / 0 / 0.
+-- To advance: update HONUA_INTEGRATION_SERVER_IMAGE/_COMMIT in
+-- .github/workflows/integration.yml and re-vendor this file from the same
+-- commit: git -C ../honua-server show <commit>:tests/seed/client-compat-v1.sql
 -- ============================================================================
---
+
 -- Client compatibility certification seed snapshot v1.
 -- Canonical source for the Windows client compatibility certification workflow.
 -- This file is intentionally versioned and self-contained so future CI seed
@@ -301,7 +291,7 @@ DECLARE
     snapshot_document jsonb;
     snapshot_etag text;
 BEGIN
-    FOREACH target_environment IN ARRAY ARRAY['default', 'Development', 'Test']
+    FOREACH target_environment IN ARRAY ARRAY['default', 'Development', 'Test', 'Production']
     LOOP
         WITH
         status_doc AS (
@@ -338,6 +328,48 @@ BEGIN
                 COALESCE(NULLIF(l.table_schema, ''), 'public') AS table_schema,
                 l.table_name,
                 l.geometry_type,
+                -- Storage binding options. Layers published onto the shared 'features'
+                -- table store attributes in the JSONB 'attributes' column and share the
+                -- table across layers via the 'layer_id' discriminator. Mirror the
+                -- production BuildPublishedStorageBinding path
+                -- (PostgreSqlLayerPublishingService.MetadataV2Graph) so the storage-mapped
+                -- reader projects attributes/geometry and constrains reads to this layer's
+                -- rows (WHERE layer_id = StorageLayerId). Declare the full physical column
+                -- set (schema/table/primaryKey/geometry/attributes/discriminator) so
+                -- FeatureStorageMapping.FromMetadata does NOT fall back to the
+                -- `geometry.primary` schema field name (`shape`) or bare per-field column
+                -- projection — either fallback produces Postgres 42703
+                -- "column ... does not exist" at query time. (honua-server#1312, #1356.)
+                CASE
+                    WHEN l.table_name = 'features' THEN
+                        COALESCE(l.storage_options, '{}'::jsonb) || jsonb_build_object(
+                            'schemaName', COALESCE(NULLIF(l.table_schema, ''), 'public'),
+                            'tableName', l.table_name,
+                            'primaryKeyColumn', COALESCE(NULLIF(l.primary_key_column, ''), 'objectid'),
+                            'attributesColumn', 'attributes',
+                            'geometryColumn', 'geometry',
+                            'layerDiscriminatorColumn', 'layer_id'
+                        )
+                    ELSE COALESCE(l.storage_options, '{}'::jsonb)
+                END AS storage_options,
+                -- Access policy carried through from v1 service/layer metadata so a
+                -- service declared non-anonymous stays protected after compile. Defaults
+                -- to anonymous only when no policy was seeded. (honua-server#1345.)
+                COALESCE(s.metadata -> 'accessPolicy', jsonb_build_object('allowAnonymous', true)) AS service_access_policy,
+                COALESCE(l.metadata -> 'accessPolicy', jsonb_build_object('allowAnonymous', true)) AS layer_access_policy,
+                -- Temporal (time-aware) config carried through from v1 layer metadata so a
+                -- layer published with timeInfo compiles into the v2 resource's typed
+                -- temporal slot. Only surfaced when a non-empty startTimeField is present.
+                -- (honua-server#1910.)
+                CASE
+                    WHEN NULLIF(l.metadata #>> '{timeInfo,startTimeField}', '') IS NOT NULL THEN
+                        jsonb_strip_nulls(jsonb_build_object(
+                            'startTimeField', l.metadata #>> '{timeInfo,startTimeField}',
+                            'endTimeField', l.metadata #>> '{timeInfo,endTimeField}',
+                            'trackIdField', l.metadata #>> '{timeInfo,trackIdField}'
+                        ))
+                    ELSE NULL
+                END AS layer_temporal,
                 l.srid,
                 ST_XMin(l.extent)::double precision AS west,
                 ST_YMin(l.extent)::double precision AS south,
@@ -448,10 +480,16 @@ BEGIN
                             'north', north
                         )
                     ),
-                    'accessPolicy', jsonb_build_object('allowAnonymous', true),
+                    'accessPolicy', layer_access_policy,
                     'status', (SELECT value FROM status_doc),
                     'extensions', '{}'::jsonb
-                ) AS value,
+                )
+                -- Attach the typed temporal slot only when the v1 layer declared a
+                -- start-time field (opt-in time-aware). (honua-server#1910.)
+                || CASE WHEN layer_temporal IS NOT NULL
+                        THEN jsonb_build_object('temporal', layer_temporal)
+                        ELSE '{}'::jsonb END
+                AS value,
                 ('res-layer-' || layer_part) AS sort_key
             FROM layer_rows
 
@@ -506,7 +544,7 @@ BEGIN
                             'north', north
                         )
                     ),
-                    'accessPolicy', jsonb_build_object('allowAnonymous', true),
+                    'accessPolicy', layer_access_policy,
                     'status', (SELECT value FROM status_doc),
                     'extensions', '{}'::jsonb
                 ) AS value,
@@ -523,7 +561,7 @@ BEGIN
                     'locator', table_schema || '.' || table_name,
                     'storageLayerId', layer_id,
                     'capabilities', to_jsonb(ARRAY['query', 'filter', 'sort', 'aggregate', 'edit', 'transactions', 'render', 'tile', 'search']::text[]),
-                    'options', '{}'::jsonb,
+                    'options', storage_options,
                     'status', (SELECT value FROM status_doc),
                     'extensions', '{}'::jsonb
                 ) AS value,
@@ -548,7 +586,7 @@ BEGIN
             FROM layer_rows
         ),
         service_names AS (
-            SELECT DISTINCT service_name, service_part
+            SELECT DISTINCT service_name, service_part, service_access_policy
             FROM layer_rows
         ),
         service_rows AS (
@@ -560,7 +598,7 @@ BEGIN
                     'protocols', to_jsonb(ARRAY['FeatureServer', 'MapServer', 'OData', 'Grpc', 'OgcFeatures', 'Wfs20', 'Wms', 'Wmts', 'OGC-API-Maps', 'OGC-API-Tiles']::text[]),
                     'enabledProtocols', to_jsonb(ARRAY['FeatureServer', 'MapServer', 'OData', 'Grpc', 'OgcFeatures', 'Wfs20', 'Wms', 'Wmts', 'OGC-API-Maps', 'OGC-API-Tiles']::text[]),
                     'options', '{}'::jsonb,
-                    'accessPolicy', jsonb_build_object('allowAnonymous', true),
+                    'accessPolicy', service_access_policy,
                     'status', (SELECT value FROM status_doc),
                     'extensions', '{}'::jsonb
                 ) AS value,
@@ -577,7 +615,7 @@ BEGIN
                     'protocols', to_jsonb(ARRAY['MapServer', 'Wms', 'Wmts', 'OGC-API-Maps', 'OGC-API-Tiles']::text[]),
                     'enabledProtocols', to_jsonb(ARRAY['MapServer', 'Wms', 'Wmts', 'OGC-API-Maps', 'OGC-API-Tiles']::text[]),
                     'options', '{}'::jsonb,
-                    'accessPolicy', jsonb_build_object('allowAnonymous', true),
+                    'accessPolicy', service_access_policy,
                     'status', (SELECT value FROM status_doc),
                     'extensions', '{}'::jsonb
                 ) AS value,
@@ -594,7 +632,7 @@ BEGIN
                     'protocols', to_jsonb(ARRAY['ImageServer', 'Wcs', 'OGC-API-Coverages']::text[]),
                     'enabledProtocols', to_jsonb(ARRAY['ImageServer', 'Wcs', 'OGC-API-Coverages']::text[]),
                     'options', '{}'::jsonb,
-                    'accessPolicy', jsonb_build_object('allowAnonymous', true),
+                    'accessPolicy', service_access_policy,
                     'status', (SELECT value FROM status_doc),
                     'extensions', '{}'::jsonb
                 ) AS value,
@@ -612,7 +650,7 @@ BEGIN
                     'protocols', to_jsonb(ARRAY['OgcFeatures', 'Wfs20']::text[]),
                     'enabledProtocols', to_jsonb(ARRAY['OgcFeatures', 'Wfs20']::text[]),
                     'options', '{}'::jsonb,
-                    'accessPolicy', jsonb_build_object('allowAnonymous', true),
+                    'accessPolicy', service_access_policy,
                     'status', (SELECT value FROM status_doc),
                     'extensions', '{}'::jsonb
                 ) AS value,
@@ -630,7 +668,7 @@ BEGIN
                     'protocols', to_jsonb(ARRAY['Stac']::text[]),
                     'enabledProtocols', to_jsonb(ARRAY['Stac']::text[]),
                     'options', '{}'::jsonb,
-                    'accessPolicy', jsonb_build_object('allowAnonymous', true),
+                    'accessPolicy', service_access_policy,
                     'status', (SELECT value FROM status_doc),
                     'extensions', '{}'::jsonb
                 ) AS value,
@@ -891,7 +929,12 @@ VALUES
     (0, 'event_time', 'Time', 10, NULL, true, NULL, 'Event time'),
     (0, 'uid', 'Uuid', 11, NULL, true, NULL, 'Unique identifier'),
     (0, 'tags', 'Json', 12, NULL, true, NULL, 'Tag array'),
-    (0, 'numbers', 'Json', 13, NULL, true, NULL, 'Number array')
+    (0, 'numbers', 'Json', 13, NULL, true, NULL, 'Number array'),
+    -- STAC EO extension cloud-cover queryable. stac-api-validator's Filter Extension
+    -- conformance matrix hard-codes `eo:cloud_cover` as the numeric property it filters on,
+    -- so the seeded collection must expose it as a real, queryable numeric field for the
+    -- Item Search Filter Ext class to pass.
+    (0, 'eo:cloud_cover', 'Double', 14, NULL, true, NULL, 'Cloud cover percentage')
 ON CONFLICT (layer_id, field_name) DO NOTHING;
 
 INSERT INTO honua.service_layers (service_name, layer_id, layer_order)
@@ -902,16 +945,16 @@ WITH seeded_features AS (
     SELECT *
     FROM (
         VALUES
-            ('alpha',   'active',   1,  1.25, true,  '2024-01-01T12:00:00Z', '2024-02-01', '12:34:56', '00000000-0000-0000-0000-000000000001', '["red","blue"]'::jsonb, '[0,1,2]'::jsonb, NULL::text,          'POINT(-122.4900 37.7100)'),
-            ('beta',    'inactive', 2,  2.50, false, '2024-01-02T12:00:00Z', '2024-02-02', '12:34:56', '00000000-0000-0000-0000-000000000002', '["green"]'::jsonb,      '[1,2,3]'::jsonb, 'description_1',   'POINT(-122.4750 37.7200)'),
-            ('gamma',   'active',   3,  3.75, true,  '2024-01-03T12:00:00Z', '2024-02-03', '12:34:56', '00000000-0000-0000-0000-000000000003', '["red","blue"]'::jsonb, '[2,3,4]'::jsonb, 'description_2',   'POINT(-122.4600 37.7300)'),
-            ('delta',   'inactive', 4,  5.00, false, '2024-01-04T12:00:00Z', '2024-02-04', '12:34:56', '00000000-0000-0000-0000-000000000004', '["green"]'::jsonb,      '[3,4,5]'::jsonb, NULL::text,          'POINT(-122.4450 37.7400)'),
-            ('epsilon', 'active',   5,  6.25, true,  '2024-01-05T12:00:00Z', '2024-02-05', '12:34:56', '00000000-0000-0000-0000-000000000005', '["red","blue"]'::jsonb, '[4,5,6]'::jsonb, 'description_4',   'POINT(-122.4300 37.7500)'),
-            ('zeta',    'inactive', 6,  7.50, false, '2024-01-06T12:00:00Z', '2024-02-06', '12:34:56', '00000000-0000-0000-0000-000000000006', '["green"]'::jsonb,      '[5,6,7]'::jsonb, 'description_5',   'POINT(-122.4150 37.7600)'),
-            ('eta',     'active',   7,  8.75, true,  '2024-01-07T12:00:00Z', '2024-02-07', '12:34:56', '00000000-0000-0000-0000-000000000007', '["red","blue"]'::jsonb, '[6,7,8]'::jsonb, NULL::text,          'POINT(-122.4000 37.7700)'),
-            ('theta',   'inactive', 8, 10.00, false, '2024-01-08T12:00:00Z', '2024-02-08', '12:34:56', '00000000-0000-0000-0000-000000000008', '["green"]'::jsonb,      '[7,8,9]'::jsonb, 'description_7',   'POINT(-122.3850 37.7800)'),
-            ('iota',    'active',   9, 11.25, true,  '2024-01-09T12:00:00Z', '2024-02-09', '12:34:56', '00000000-0000-0000-0000-000000000009', '["red","blue"]'::jsonb, '[8,9,10]'::jsonb, 'description_8',  'POINT(-122.3700 37.7900)'),
-            ('lambda',  'inactive',10, 12.50, false, '2024-01-10T12:00:00Z', '2024-02-10', '12:34:56', '00000000-0000-0000-0000-000000000010', '["green"]'::jsonb,      '[9,10,11]'::jsonb, NULL::text,        NULL::text)
+            ('alpha',   'active',   1,  1.25, true,  '2024-01-01T12:00:00Z', '2024-02-01', '12:34:56', '00000000-0000-0000-0000-000000000001', '["red","blue"]'::jsonb, '[0,1,2]'::jsonb, NULL::text,          'POINT(-122.4900 37.7100)',  5.0::double precision),
+            ('beta',    'inactive', 2,  2.50, false, '2024-01-02T12:00:00Z', '2024-02-02', '12:34:56', '00000000-0000-0000-0000-000000000002', '["green"]'::jsonb,      '[1,2,3]'::jsonb, 'description_1',   'POINT(-122.4750 37.7200)',  8.0::double precision),
+            ('gamma',   'active',   3,  3.75, true,  '2024-01-03T12:00:00Z', '2024-02-03', '12:34:56', '00000000-0000-0000-0000-000000000003', '["red","blue"]'::jsonb, '[2,3,4]'::jsonb, 'description_2',   'POINT(-122.4600 37.7300)', 25.0::double precision),
+            ('delta',   'inactive', 4,  5.00, false, '2024-01-04T12:00:00Z', '2024-02-04', '12:34:56', '00000000-0000-0000-0000-000000000004', '["green"]'::jsonb,      '[3,4,5]'::jsonb, NULL::text,          'POINT(-122.4450 37.7400)', 60.0::double precision),
+            ('epsilon', 'active',   5,  6.25, true,  '2024-01-05T12:00:00Z', '2024-02-05', '12:34:56', '00000000-0000-0000-0000-000000000005', '["red","blue"]'::jsonb, '[4,5,6]'::jsonb, 'description_4',   'POINT(-122.4300 37.7500)',  9.0::double precision),
+            ('zeta',    'inactive', 6,  7.50, false, '2024-01-06T12:00:00Z', '2024-02-06', '12:34:56', '00000000-0000-0000-0000-000000000006', '["green"]'::jsonb,      '[5,6,7]'::jsonb, 'description_5',   'POINT(-122.4150 37.7600)', 75.0::double precision),
+            ('eta',     'active',   7,  8.75, true,  '2024-01-07T12:00:00Z', '2024-02-07', '12:34:56', '00000000-0000-0000-0000-000000000007', '["red","blue"]'::jsonb, '[6,7,8]'::jsonb, NULL::text,          'POINT(-122.4000 37.7700)',  2.0::double precision),
+            ('theta',   'inactive', 8, 10.00, false, '2024-01-08T12:00:00Z', '2024-02-08', '12:34:56', '00000000-0000-0000-0000-000000000008', '["green"]'::jsonb,      '[7,8,9]'::jsonb, 'description_7',   'POINT(-122.3850 37.7800)', 95.0::double precision),
+            ('iota',    'active',   9, 11.25, true,  '2024-01-09T12:00:00Z', '2024-02-09', '12:34:56', '00000000-0000-0000-0000-000000000009', '["red","blue"]'::jsonb, '[8,9,10]'::jsonb, 'description_8',  'POINT(-122.3700 37.7900)',  7.0::double precision),
+            ('lambda',  'inactive',10, 12.50, false, '2024-01-10T12:00:00Z', '2024-02-10', '12:34:56', '00000000-0000-0000-0000-000000000010', '["green"]'::jsonb,      '[9,10,11]'::jsonb, NULL::text,        NULL::text,                 NULL::double precision)
     ) AS seed(
         name,
         status,
@@ -925,7 +968,8 @@ WITH seeded_features AS (
         tags,
         numbers,
         description,
-        wkt
+        wkt,
+        cloud_cover
     )
 )
 INSERT INTO features (layer_id, geometry, attributes)
@@ -947,7 +991,8 @@ SELECT
         'uid', uid,
         'tags', tags,
         'numbers', numbers,
-        'description', description
+        'description', description,
+        'eo:cloud_cover', cloud_cover
     )
 FROM seeded_features
 WHERE NOT EXISTS (

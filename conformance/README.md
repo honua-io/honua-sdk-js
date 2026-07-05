@@ -102,8 +102,8 @@ The lane pins and records the server under test into
 
 | Field | Value |
 | --- | --- |
-| Image | `ghcr.io/honua-io/honua-server:nightly-86042bd` |
-| Server commit | `86042bd` (nightly 2026-05-30) |
+| Image | `ghcr.io/honua-io/honua-server:nightly-6d34dd1` |
+| Server commit | `6d34dd1` (nightly 2026-07-05) |
 | Digest | `sha256:080d7e87f7b1e4c36a917adddb567bfe7148d47e7d2d016480fb4e39187515db` |
 | Fixtures version | `0.1.0-alpha.1` |
 
