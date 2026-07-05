@@ -20,6 +20,10 @@ on:
         required: false
         type: string
 
+# This lane only reads code and publishes an artifact.
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: 20.19.0
 
