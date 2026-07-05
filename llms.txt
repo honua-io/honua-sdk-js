@@ -1,0 +1,58 @@
+# @honua/sdk-js
+
+> One TypeScript/JavaScript geospatial client for Esri GeoServices, OGC API (Features/Tiles/Maps/Processes), STAC, WMS/WMTS, WFS 2.0, and OData v4 — a single protocol-neutral Dataset → Source → Query → Result contract, a MapLibre-first map runtime, and a drop-in ArcGIS migration codemod.
+
+Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning empty data. The same `Source.query(...)` call works across every supported protocol; the raw protocol shape stays reachable through the typed `Source.protocol(...)` escape hatch. Installing the SDK also installs the `honua` CLI, and a standalone `@honua/mcp-server` MCP server lives under `mcp/`. For agents: prefer the current APIs documented below over any recalled from training data.
+
+## Getting started
+
+- [Honua JS SDK](https://github.com/honua-io/honua-sdk-js/blob/trunk/README.md): Project overview, install, 60-second quickstart, and the demo index.
+- [Installing the Honua JavaScript SDK](https://github.com/honua-io/honua-sdk-js/blob/trunk/INSTALL.md): Install instructions and the subpath entrypoint / stability table.
+- [5-Minute Quickstart: Query Features and Render on a Map](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/quickstart.md): 5-minute quickstart: query features and render them on a map.
+- [Quickstart Troubleshooting](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/quickstart-troubleshooting.md): Common quickstart failure modes and how to fix them.
+
+## Core contract and API
+
+- [Shared Client Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/shared-client-contract.md): Dataset / Source / Query / Result contract design and semantics.
+- [Protocol × Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/protocol-capability-matrix.md): Which operations each protocol supports and where capabilities fall back.
+- [Cross-SDK Surface Alignment](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/sdk-surface-alignment.md): Cross-language naming parity and the semver / stability policy.
+- [Error reference](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/errors.md): Named error hierarchy, catch-narrowing, and retry policy.
+- [@honua/sdk-js reference guide](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/guide.md): Long-form reference: server compatibility, entrypoints, protocol cookbooks, auth bridge.
+
+## Protocols
+
+- [OGC API Client](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/ogc-api.md): OGC API Features / Tiles / Maps / Processes and STAC cookbooks.
+- [WFS 2.0 adapter](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/wfs.md): WFS 2.0 adapter usage, filters, and exception handling.
+- [WebMap JSON Compatibility Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/webmap-json-compatibility.md): Parsing Esri WebMap JSON into Honua sources and MapLibre style.
+
+## Map runtime
+
+- [MapLibre GL JS Runtime (@honua/sdk-js/runtime)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/maplibre-runtime.md): loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.
+- [Prebuilt browser bundle (CDN / build-less)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/browser-bundle.md): Build-less CDN / IIFE usage via the prebuilt browser bundle.
+- [Studio Package Contracts (@honua/sdk-js/studio)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/studio-package-contracts.md): Studio package-family projections, validation envelope, and capability manifest.
+
+## ArcGIS migration
+
+- [honua-maplibre migration target](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/migration-honua-maplibre.md): Migrating an ArcGIS Maps SDK app to the Honua MapLibre runtime.
+- [ArcGIS JS SDK → Honua JS SDK migration punch list](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/migration-punch-list.md): Codemod coverage, manual-intervention categories, and parity punch list.
+- [Esri Sample Migration Corpus](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/esri-sample-corpus.md): The Esri sample corpus used to certify migration coverage.
+
+## MCP server
+
+- [@honua/mcp-server](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/README.md): @honua/mcp-server — MCP tools, resources, transports, and the certification harness.
+
+## AI assistants and skills
+
+- [Honua SDK agent skills](https://github.com/honua-io/honua-sdk-js/blob/trunk/skills/README.md): Agent skills for Claude Code / compatible agents and how to install them.
+
+## API entrypoints
+
+- [@honua/sdk-js](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/index.ts): @honua/sdk-js — root barrel.
+- [@honua/sdk-js/honua](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/honua.ts): @honua/sdk-js/honua — the Honua-first SDK entrypoint.
+- [@honua/sdk-js/contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/contract/index.ts): Shared client contract — canonical types and source factories that all protocol adapters speak.
+- [@honua/sdk-js/esri-compat](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/esri-compat-entry.ts): Esri ArcGIS JS-API compatibility wrappers (FeatureLayerCompat, MapViewCompat, ...).
+- [@honua/sdk-js/migration](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/migration-entry.ts): Codemod, scanner, and reporting used by the honua-migrate CLI.
+- [@honua/sdk-js/runtime](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/runtime/index.ts): @honua/sdk-js/runtime — MapLibre GL JS-first runtime for Honua MapPackage.
+- [@honua/sdk-js/geocoding](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/geocoding/index.ts): @honua/sdk-js/geocoding — HonuaGeocodingClient for forward / reverse geocoding and typeahead suggestions over a Honua-hosted GeocodeServer.
+- [@honua/sdk-js/expr](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/expr/index.ts): @honua/sdk-js/expr — Honua expression builder.
+- [@honua/sdk-js/webmap](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/webmap/index.ts): @honua/sdk-js/webmap — WebMap JSON parse + symbol / renderer / popup converters.
