@@ -154,7 +154,6 @@ jobs:
             -e Kestrel__Endpoints__Http__Protocols=Http1AndHttp2 \
             -e PUBLIC_BASE_URL=http://localhost:8080 \
             -e HONUA_ADMIN_PASSWORD="$SELF_CONTAINED_ADMIN_PASSWORD" \
-            -e HONUA_DEV_AUTH=true \
             -e "ConnectionStrings__DefaultConnection=Server=honua-pg;Port=5432;Database=${PG_DB};User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
             -e "ConnectionStrings__honua=Server=honua-pg;Port=5432;Database=${PG_DB};User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
             -e ConnectionStrings__Redis=honua-redis:6379 \
