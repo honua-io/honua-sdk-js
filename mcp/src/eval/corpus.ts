@@ -1,3 +1,4 @@
+import { NORTHSTAR_CORPUS } from "./northstar-corpus.js";
 import { OPERATOR_CORPUS } from "./operator-corpus.js";
 import type { Scenario } from "./types.js";
 
@@ -118,16 +119,20 @@ export const CORPUS: Scenario[] = [
  *
  * The default `analyst` corpus targets the in-process SDK fixture surface and is
  * the CI control. `operator` selects {@link OPERATOR_CORPUS} for live runs against
- * the honua-server operator MCP surface; `all` runs both back-to-back. Selection
- * is case-insensitive and falls back to the analyst corpus for any unset/unknown
- * value so CI behavior is unchanged unless `HONUA_EVAL_CORPUS` is set explicitly.
+ * the honua-server operator MCP surface; `northstar` selects {@link NORTHSTAR_CORPUS},
+ * the three P1-gate workflows (also live-gated); `all` runs every corpus
+ * back-to-back. Selection is case-insensitive and falls back to the analyst corpus
+ * for any unset/unknown value so CI behavior is unchanged unless `HONUA_EVAL_CORPUS`
+ * is set explicitly.
  */
 export function resolveCorpus(env: NodeJS.ProcessEnv = process.env): Scenario[] {
   switch ((env.HONUA_EVAL_CORPUS ?? "").trim().toLowerCase()) {
     case "operator":
       return OPERATOR_CORPUS;
+    case "northstar":
+      return NORTHSTAR_CORPUS;
     case "all":
-      return [...CORPUS, ...OPERATOR_CORPUS];
+      return [...CORPUS, ...OPERATOR_CORPUS, ...NORTHSTAR_CORPUS];
     default:
       return CORPUS;
   }

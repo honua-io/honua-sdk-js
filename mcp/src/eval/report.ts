@@ -9,6 +9,14 @@ export interface EvalResult {
   toolsCalled: string[];
   errorCount: number;
   driverError?: string | undefined;
+  /**
+   * Required tools THIS scenario needs that the live `tools/list` did not
+   * advertise — the per-workflow view of {@link EvalReport.catalog.unresolvedRequiredTools}.
+   * Empty when the surface advertises every tool the scenario requires. This is
+   * the P1 gate dashboard: it names, per north-star workflow, exactly which tools
+   * a target surface is still missing.
+   */
+  missingTools: string[];
 }
 
 /**
@@ -46,7 +54,7 @@ export interface ModelScorecard {
 }
 
 export interface EvalReport {
-  schemaVersion: 3;
+  schemaVersion: 4;
   generatedAt: string;
   surface: {
     backend: "fixture" | "live";
@@ -102,6 +110,11 @@ function corpusRequiredTools(corpus: Scenario[]): string[] {
 }
 
 export function assembleReport(input: AssembleInput): EvalReport {
+  const advertised = new Set(input.advertisedTools);
+  // Per-scenario required tools, so each result can name the tools THIS workflow
+  // is missing from the surface (the per-workflow gate view).
+  const requiredByScenario = new Map<string, string[]>(input.corpus.map((s) => [s.id, s.criteria.requiredTools]));
+
   const results: EvalResult[] = input.graded.map(({ grade, transcript }) => ({
     scenarioId: grade.scenarioId,
     modelId: grade.modelId,
@@ -110,6 +123,7 @@ export function assembleReport(input: AssembleInput): EvalReport {
     toolsCalled: transcript.steps.map((s) => s.tool),
     errorCount: grade.errorCount,
     driverError: transcript.driverError,
+    missingTools: (requiredByScenario.get(grade.scenarioId) ?? []).filter((t) => !advertised.has(t)),
   }));
 
   const models: ModelScorecard[] = input.drivers.map((driver) => {
@@ -144,12 +158,11 @@ export function assembleReport(input: AssembleInput): EvalReport {
   const controlPass = control ? control.fail === 0 && control.error === 0 && control.scenarios > 0 : false;
   const liveModelsEvaluated = models.filter((m) => m.vendor !== "deterministic" && m.scenarios > 0).length;
 
-  const advertised = new Set(input.advertisedTools);
   const requiredTools = corpusRequiredTools(input.corpus);
   const unresolvedRequiredTools = requiredTools.filter((t) => !advertised.has(t));
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     generatedAt: new Date().toISOString(),
     surface: {
       backend: input.backend,
@@ -217,6 +230,9 @@ export function renderMarkdown(report: EvalReport): string {
     lines.push("");
     for (const r of failures) {
       lines.push(`- \`${r.modelId}\` × \`${r.scenarioId}\` — **${r.outcome}**`);
+      if (r.missingTools.length > 0) {
+        lines.push(`  - missing required tool(s) on this surface: ${r.missingTools.map((t) => `\`${t}\``).join(", ")}`);
+      }
       for (const v of r.violations) {
         lines.push(`  - ${v}`);
       }

@@ -172,7 +172,7 @@ describe("deterministic driver fidelity (#1956)", () => {
 describe("artifact metadata: auth mode, resolved model, catalog audit (#1956)", () => {
   it("records auth=none and full catalog coverage for the offline fixture surface", async () => {
     const report = await runEval({ forceOffline: true, drivers: [new DeterministicDriver()] });
-    expect(report.schemaVersion).toBe(3);
+    expect(report.schemaVersion).toBe(4);
     expect(report.surface.auth).toBe("none");
     // Every analyst-corpus required tool resolves against the live fixture catalog.
     expect(report.catalog.advertisedToolCount).toBeGreaterThan(0);
