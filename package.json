@@ -192,6 +192,10 @@
     "./cli": {
       "types": "./dist/src/cli/main.d.ts",
       "default": "./dist/src/cli/main.js"
+    },
+    "./geometry": {
+      "types": "./dist/src/geometry/index.d.ts",
+      "default": "./dist/src/geometry/index.js"
     }
   },
   "bin": {
@@ -384,6 +388,22 @@
     "@playwright/test": "^1.58.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
+    "@turf/area": "^7.3.5",
+    "@turf/bbox": "^7.3.5",
+    "@turf/boolean-contains": "^7.3.5",
+    "@turf/boolean-intersects": "^7.3.5",
+    "@turf/boolean-within": "^7.3.5",
+    "@turf/buffer": "^7.3.5",
+    "@turf/centroid": "^7.3.5",
+    "@turf/convex": "^7.3.5",
+    "@turf/difference": "^7.3.5",
+    "@turf/helpers": "^7.3.5",
+    "@turf/intersect": "^7.3.5",
+    "@turf/length": "^7.3.5",
+    "@turf/nearest-point": "^7.3.5",
+    "@turf/simplify": "^7.3.5",
+    "@turf/union": "^7.3.5",
+    "@types/geojson": "^7946.0.14",
     "@types/node": "^24.3.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
@@ -392,6 +412,7 @@
     "esbuild": "^0.28.1",
     "jsdom": "^25.0.1",
     "maplibre-gl": "^5.21.1",
+    "proj4": "^2.20.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "typescript": "^5.9.2",
@@ -408,8 +429,24 @@
     "@bufbuild/protobuf": "^2.0.0",
     "@connectrpc/connect": "^2.0.0",
     "@connectrpc/connect-web": "^2.0.0",
+    "@turf/area": "^7.0.0",
+    "@turf/bbox": "^7.0.0",
+    "@turf/boolean-contains": "^7.0.0",
+    "@turf/boolean-intersects": "^7.0.0",
+    "@turf/boolean-within": "^7.0.0",
+    "@turf/buffer": "^7.0.0",
+    "@turf/centroid": "^7.0.0",
+    "@turf/convex": "^7.0.0",
+    "@turf/difference": "^7.0.0",
+    "@turf/helpers": "^7.0.0",
+    "@turf/intersect": "^7.0.0",
+    "@turf/length": "^7.0.0",
+    "@turf/nearest-point": "^7.0.0",
+    "@turf/simplify": "^7.0.0",
+    "@turf/union": "^7.0.0",
     "cesium": "^1.139.0",
     "maplibre-gl": "^5.0.0",
+    "proj4": "^2.11.0",
     "react": "^18.2.0 || ^19.0.0",
     "react-dom": "^18.2.0 || ^19.0.0"
   },
@@ -423,10 +460,28 @@
     "@connectrpc/connect-web": {
       "optional": true
     },
+    "@turf/area": { "optional": true },
+    "@turf/bbox": { "optional": true },
+    "@turf/boolean-contains": { "optional": true },
+    "@turf/boolean-intersects": { "optional": true },
+    "@turf/boolean-within": { "optional": true },
+    "@turf/buffer": { "optional": true },
+    "@turf/centroid": { "optional": true },
+    "@turf/convex": { "optional": true },
+    "@turf/difference": { "optional": true },
+    "@turf/helpers": { "optional": true },
+    "@turf/intersect": { "optional": true },
+    "@turf/length": { "optional": true },
+    "@turf/nearest-point": { "optional": true },
+    "@turf/simplify": { "optional": true },
+    "@turf/union": { "optional": true },
     "cesium": {
       "optional": true
     },
     "maplibre-gl": {
+      "optional": true
+    },
+    "proj4": {
       "optional": true
     },
     "react": {

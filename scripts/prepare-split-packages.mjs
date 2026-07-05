@@ -25,12 +25,43 @@ if (!fs.existsSync(DIST_SRC_ROOT)) {
   process.exit(1);
 }
 
+// The `@honua/geometry` split package (and the geometryEngine compat shim it
+// backs) depend on the individual `@turf/*` packages plus `proj4`. Sourced from
+// the root manifest so the published pins track the workspace.
+const GEOMETRY_TURF_PACKAGES = [
+  "@turf/area",
+  "@turf/bbox",
+  "@turf/boolean-contains",
+  "@turf/boolean-intersects",
+  "@turf/boolean-within",
+  "@turf/buffer",
+  "@turf/centroid",
+  "@turf/convex",
+  "@turf/difference",
+  "@turf/helpers",
+  "@turf/intersect",
+  "@turf/length",
+  "@turf/nearest-point",
+  "@turf/simplify",
+  "@turf/union",
+];
+
+function geometryRuntimeDependencies() {
+  const deps = {};
+  for (const name of GEOMETRY_TURF_PACKAGES) {
+    deps[name] = rootPackageJson.devDependencies[name];
+  }
+  deps.proj4 = rootPackageJson.devDependencies.proj4;
+  return deps;
+}
+
 resetOutputRoot();
 
 createSdkPackage();
 createCompatPackage();
 createMigrationPackage();
 createReactPackage();
+createGeometryPackage();
 
 process.stdout.write(`splitPackagesWritten=${OUTPUT_ROOT}\n`);
 
@@ -234,6 +265,10 @@ function createCompatPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
+  // The geometryEngine compat shim (esri-compat/geometry-engine.js) imports the
+  // geometry package, so the compat tarball ships it and pulls turf/proj4.
+  copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
 
@@ -252,6 +287,7 @@ function createCompatPackage() {
       "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
       "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
       "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
+      ...geometryRuntimeDependencies(),
     },
   });
 
@@ -261,6 +297,48 @@ function createCompatPackage() {
       "# @honua/sdk-esri-compat",
       "",
       "Compatibility bridge APIs for migrating ArcGIS JavaScript apps to Honua.",
+      "",
+      "This package is generated from `@honua/sdk-js` build artifacts.",
+    ].join("\n"),
+  );
+}
+
+function createGeometryPackage() {
+  const packageRoot = path.join(OUTPUT_ROOT, "honua-geometry");
+  fs.mkdirSync(packageRoot, { recursive: true });
+
+  // Runtime graph: geometry/*.js + core/esri-geojson.js (its type imports are
+  // erased). contract/expr/core are copied so the shipped .d.ts references
+  // resolve; only geometry + esri-geojson are actually loaded at runtime.
+  copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
+
+  writePackageJson(packageRoot, {
+    name: "@honua/geometry",
+    description: "Curated turf/proj4 client-side geometry operations for the Honua SDK",
+    main: "./geometry/index.js",
+    types: "./geometry/index.d.ts",
+    exports: {
+      ".": {
+        types: "./geometry/index.d.ts",
+        default: "./geometry/index.js",
+      },
+    },
+    dependencies: geometryRuntimeDependencies(),
+  });
+
+  writeReadme(
+    packageRoot,
+    [
+      "# @honua/geometry",
+      "",
+      "Curated, tree-shakeable client-side geometry operations (buffer, area,",
+      "length, simplify, boolean predicates, union/intersect/difference,",
+      "reprojection) wrapping the individual `@turf/*` packages and `proj4`,",
+      "typed against the Honua SDK GeoJSON contract.",
       "",
       "This package is generated from `@honua/sdk-js` build artifacts.",
     ].join("\n"),
