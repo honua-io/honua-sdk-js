@@ -22,10 +22,11 @@ import { runEval } from "./runner.js";
  *                    The named driver is run even if its key/opt-in is absent so an
  *                    explicit request yields an honest driverError, not a silent
  *                    skip. Without --driver, drivers are auto-resolved from env.
- *   --corpus <name>  Select the corpus explicitly: analyst | operator | all. This
- *                    overrides HONUA_EVAL_CORPUS and is how the `eval:live` script
- *                    targets the operator surface without relying on shell env
- *                    (cross-platform). Defaults to the env-driven selection.
+ *   --corpus <name>  Select the corpus explicitly: analyst | operator | northstar |
+ *                    all. This overrides HONUA_EVAL_CORPUS and is how the `eval:live`
+ *                    script targets the operator surface without relying on shell env
+ *                    (cross-platform). `northstar` targets the three P1-gate
+ *                    workflows. Defaults to the env-driven selection.
  *
  * Corpus selection is env-driven (see `resolveCorpus`): default is the analyst
  * corpus (in-process SDK fixture surface, the CI control); `HONUA_EVAL_CORPUS=operator`
@@ -38,7 +39,7 @@ import { runEval } from "./runner.js";
  * never hardcoded — they come from the environment.
  */
 
-const CORPUS_NAMES = ["analyst", "operator", "all"] as const;
+const CORPUS_NAMES = ["analyst", "operator", "northstar", "all"] as const;
 type CorpusName = (typeof CORPUS_NAMES)[number];
 
 interface CliOptions {
