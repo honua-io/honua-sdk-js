@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "allowSyntheticDefaultImports": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "types": ["vite/client"],
+    "paths": {
+      "@honua/sdk-js": ["../../src/index.ts"],
+      "@honua/sdk-js/react": ["../../src/react/index.ts"],
+      "@honua/sdk-js/runtime": ["../../src/runtime/index.ts"],
+      "@honua/sdk-js/contract": ["../../src/contract/index.ts"],
+      "@honua/sdk-js/honua": ["../../src/honua.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+}

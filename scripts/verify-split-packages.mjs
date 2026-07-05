@@ -17,6 +17,7 @@ const packageDirs = {
   "@honua/sdk": path.join(PACKAGES_ROOT, "honua-sdk"),
   "@honua/sdk-esri-compat": path.join(PACKAGES_ROOT, "honua-sdk-esri-compat"),
   "@honua/honua-migrate": path.join(PACKAGES_ROOT, "honua-migrate"),
+  "@honua/react": path.join(PACKAGES_ROOT, "honua-react"),
 };
 
 for (const [name, directory] of Object.entries(packageDirs)) {
@@ -61,6 +62,9 @@ try {
       "@honua/sdk": `file:${packageDirs["@honua/sdk"]}`,
       "@honua/sdk-esri-compat": `file:${packageDirs["@honua/sdk-esri-compat"]}`,
       "@honua/honua-migrate": `file:${packageDirs["@honua/honua-migrate"]}`,
+      "@honua/react": `file:${packageDirs["@honua/react"]}`,
+      react: ROOT_PACKAGE_JSON.devDependencies.react,
+      "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
     },
   };
   fs.writeFileSync(
@@ -242,6 +246,19 @@ import {
   scanArcGisUsage,
   summarizeJsParityMatrix,
 } from "@honua/honua-migrate";
+import {
+  HonuaLayer,
+  HonuaMap as HonuaReactMap,
+  HonuaPopup,
+  HonuaProvider,
+  HonuaQueryCache,
+  useCapabilities,
+  useDataset,
+  useHonuaClient,
+  useMapRuntime,
+  useQuery,
+  useRealtime,
+} from "@honua/react";
 
 if (typeof HonuaClient !== "function") throw new Error("HonuaClient export missing");
 if (typeof HonuaMapLayer !== "function") throw new Error("HonuaMapLayer export missing");
@@ -489,6 +506,17 @@ if (typeof buildJsMigrationReport !== "function") throw new Error("buildJsMigrat
 if (typeof getJsParityMatrix !== "function") throw new Error("getJsParityMatrix export missing");
 if (typeof runLayerReconciliation !== "function") throw new Error("runLayerReconciliation export missing");
 if (typeof summarizeJsParityMatrix !== "function") throw new Error("summarizeJsParityMatrix export missing");
+if (typeof HonuaProvider !== "function") throw new Error("HonuaProvider export missing from @honua/react");
+if (typeof useHonuaClient !== "function") throw new Error("useHonuaClient export missing from @honua/react");
+if (typeof useDataset !== "function") throw new Error("useDataset export missing from @honua/react");
+if (typeof useQuery !== "function") throw new Error("useQuery export missing from @honua/react");
+if (typeof useCapabilities !== "function") throw new Error("useCapabilities export missing from @honua/react");
+if (typeof useMapRuntime !== "function") throw new Error("useMapRuntime export missing from @honua/react");
+if (typeof useRealtime !== "function") throw new Error("useRealtime export missing from @honua/react");
+if (typeof HonuaReactMap !== "function") throw new Error("HonuaMap export missing from @honua/react");
+if (typeof HonuaLayer !== "function") throw new Error("HonuaLayer export missing from @honua/react");
+if (typeof HonuaPopup !== "function") throw new Error("HonuaPopup export missing from @honua/react");
+if (typeof HonuaQueryCache !== "function") throw new Error("HonuaQueryCache export missing from @honua/react");
 
 console.log("splitPackageSmoke=ok");
 `.trimStart();

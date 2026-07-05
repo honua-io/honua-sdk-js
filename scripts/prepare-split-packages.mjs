@@ -30,6 +30,7 @@ resetOutputRoot();
 createSdkPackage();
 createCompatPackage();
 createMigrationPackage();
+createReactPackage();
 
 process.stdout.write(`splitPackagesWritten=${OUTPUT_ROOT}\n`);
 
@@ -337,6 +338,79 @@ function createMigrationPackage() {
   );
 }
 
+function createReactPackage() {
+  const packageRoot = path.join(OUTPUT_ROOT, "honua-react");
+  fs.mkdirSync(packageRoot, { recursive: true });
+
+  // Precise import closure of `src/react` (react → contract + core + runtime,
+  // transitively pulling the map/style/studio stack). Copied so the package is
+  // self-contained, mirroring the esri-compat / migration split targets.
+  const reactClosureDirectories = [
+    "contract",
+    "control-plane",
+    "core",
+    "esri-compat",
+    "exploration",
+    "expr",
+    "gen",
+    "generated-app",
+    "interactions",
+    "map",
+    "react",
+    "runtime",
+    "studio",
+    "style",
+    "webmap",
+  ];
+  for (const directory of reactClosureDirectories) {
+    copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
+  }
+
+  writePackageJson(packageRoot, {
+    name: "@honua/react",
+    description: "React bindings for the Honua SDK: provider, hooks, and map components",
+    main: "./react/index.js",
+    types: "./react/index.d.ts",
+    exports: {
+      ".": {
+        types: "./react/index.d.ts",
+        default: "./react/index.js",
+      },
+    },
+    dependencies: {
+      "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
+      "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
+      "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
+      "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
+    },
+    peerDependencies: {
+      react: rootPackageJson.peerDependencies.react,
+      "react-dom": rootPackageJson.peerDependencies["react-dom"],
+      "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],
+    },
+    peerDependenciesMeta: {
+      react: { optional: true },
+      "react-dom": { optional: true },
+      "maplibre-gl": { optional: true },
+    },
+  });
+
+  writeReadme(
+    packageRoot,
+    [
+      "# @honua/react",
+      "",
+      "Idiomatic React bindings for the Honua SDK — `HonuaProvider`, hooks",
+      "(`useDataset`, `useQuery`, `useCapabilities`, ...), and map components",
+      "(`HonuaMap`, `HonuaLayer`, `HonuaPopup`).",
+      "",
+      "`react` / `react-dom` are optional peer dependencies.",
+      "",
+      "This package is generated from `@honua/sdk-js` build artifacts.",
+    ].join("\n"),
+  );
+}
+
 function copyMigrationCoreTypeSupport(packageRoot) {
   const coreRoot = path.join(packageRoot, "core");
   copyFile(path.join(DIST_SRC_ROOT, "core", "types.js"), path.join(coreRoot, "types.js"));
@@ -361,6 +435,8 @@ function writePackageJson(packageRoot, overrides) {
     exports: overrides.exports,
     bin: overrides.bin,
     dependencies: overrides.dependencies,
+    peerDependencies: overrides.peerDependencies,
+    peerDependenciesMeta: overrides.peerDependenciesMeta,
     engines: publishedEngines,
   };
 
