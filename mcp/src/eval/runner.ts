@@ -6,7 +6,7 @@ import { connectUpstream, resolveProxyOptions } from "../proxy.js";
 import { resolveCorpus } from "./corpus.js";
 import { resolveDrivers } from "./drivers/index.js";
 import { grade } from "./grade.js";
-import { type EvalReport, assembleReport } from "./report.js";
+import { type AuthMode, type EvalReport, assembleReport } from "./report.js";
 import type { ModelDriver, Scenario, ToolCallResult, WorkflowContext } from "./types.js";
 
 /**
@@ -34,7 +34,17 @@ interface SurfaceConnection {
   backend: "fixture" | "live";
   mcpTransport: string;
   remoteUrl?: string | undefined;
+  auth: AuthMode;
   close(): Promise<void>;
+}
+
+/** Truthy-flag parse shared with the driver opt-ins (0/false/no/off ⇒ false). */
+function isTruthy(value: string | undefined): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const v = value.trim().toLowerCase();
+  return v.length > 0 && v !== "0" && v !== "false" && v !== "no" && v !== "off";
 }
 
 async function connectSurface(env: NodeJS.ProcessEnv, forceOffline: boolean): Promise<SurfaceConnection> {
@@ -42,12 +52,23 @@ async function connectSurface(env: NodeJS.ProcessEnv, forceOffline: boolean): Pr
 
   if (live) {
     const options = resolveProxyOptions(env);
+    // The live lane authenticates via the proxy's real credential headers — no
+    // dev-auth bypass. `Bearer` takes precedence over `x-api-key`; anonymous means
+    // no credential was supplied at all.
+    const auth: AuthMode = options.authToken ? "bearer" : options.apiKey ? "api-key" : "anonymous";
+    if (auth === "anonymous" && isTruthy(env.HONUA_EVAL_REQUIRE_AUTH)) {
+      throw new Error(
+        "HONUA_EVAL_REQUIRE_AUTH is set but the live MCP surface would be reached anonymously " +
+          "(no HONUA_MCP_AUTH_TOKEN / HONUA_API_KEY). Refusing to run an unauthenticated live eval.",
+      );
+    }
     const client = await connectUpstream(options);
     return {
       client,
       backend: "live",
       mcpTransport: "streamable-http",
       remoteUrl: options.remoteUrl,
+      auth,
       close: async () => {
         await client.close().catch(() => {});
       },
@@ -63,6 +84,7 @@ async function connectSurface(env: NodeJS.ProcessEnv, forceOffline: boolean): Pr
     client,
     backend: "fixture",
     mcpTransport: "in-memory",
+    auth: "none",
     close: async () => {
       await client.close().catch(() => {});
       await server.close().catch(() => {});
@@ -122,6 +144,8 @@ export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport>
       backend: surface.backend,
       mcpTransport: surface.mcpTransport,
       remoteUrl: surface.remoteUrl,
+      auth: surface.auth,
+      advertisedTools: tools.map((t) => t.name),
       corpus,
       drivers,
       graded,
