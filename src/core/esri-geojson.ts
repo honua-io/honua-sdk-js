@@ -24,7 +24,16 @@ import type {
   GeoJsonMultiPolygon,
   GeoJsonPolygon,
 } from "../expr/expression.js";
-import type { EsriGeometry, GeoJsonFeature, HonuaFeature } from "./types.js";
+import type {
+  EsriGeometry,
+  EsriMultipoint,
+  EsriPoint,
+  EsriPolygon,
+  EsriPolyline,
+  GeoJsonFeature,
+  HonuaFeature,
+  HonuaSpatialReference,
+} from "./types.js";
 
 type Position = [number, number, ...number[]];
 
@@ -354,4 +363,86 @@ export function esriFeatureToGeoJSON(feature: HonuaFeature): GeoJsonFeature {
     geometry: esriGeometryToGeoJSON(feature.geometry),
     properties: feature.attributes ?? {},
   };
+}
+
+// ── GeoJSON → Esri (reverse of esriGeometryToGeoJSON) ─────────────
+//
+// The forward converter rewinds rings to the GeoJSON RFC 7946 right-hand rule
+// (counter-clockwise exterior). Esri uses the opposite convention (clockwise
+// exterior, counter-clockwise holes), so this reverse converter rewinds each
+// ring back to the Esri orientation before emitting `{ rings }`.
+
+function rewindRingForEsri(ring: readonly Position[], exterior: boolean): Position[] {
+  const copy = ring.map((position) => [...position] as Position);
+  const area = computeRingSignedArea(copy);
+  if (area === 0) {
+    return copy;
+  }
+  // Esri: exterior rings are clockwise (negative signed area), holes are
+  // counter-clockwise (positive signed area).
+  const correctlyWound = exterior ? area < 0 : area > 0;
+  return correctlyWound ? copy : copy.reverse();
+}
+
+function esriRingsFromPolygon(coordinates: readonly (readonly Position[])[]): Position[][] {
+  return coordinates.map((ring, index) => rewindRingForEsri(ring, index === 0));
+}
+
+/**
+ * Convert a standard GeoJSON geometry back into Esri-JSON geometry, the inverse
+ * of {@link esriGeometryToGeoJSON}. `GeometryCollection` is not representable as
+ * a single Esri geometry and yields `null`.
+ *
+ * Polygon/MultiPolygon rings are rewound to the Esri winding convention
+ * (clockwise exterior, counter-clockwise holes) and MultiPolygons are flattened
+ * into a single `{ rings }` list, matching how Esri encodes multi-part polygons.
+ *
+ * @param geometry A GeoJSON geometry, or `null`/`undefined`.
+ * @param spatialReference Optional spatial reference stamped onto the emitted
+ *   Esri geometry (Esri geometries are CRS-tagged; GeoJSON is implicitly WGS84).
+ * @returns The equivalent Esri geometry, or `null` when the input is empty or
+ *   unrepresentable.
+ */
+export function geoJsonToEsriGeometry(
+  geometry: GeoJsonGeometry | null | undefined,
+  spatialReference?: HonuaSpatialReference,
+): EsriGeometry | null {
+  if (!geometry || typeof geometry !== "object") {
+    return null;
+  }
+  const sr = spatialReference ? { spatialReference } : {};
+
+  switch (geometry.type) {
+    case "Point": {
+      const [x, y] = geometry.coordinates;
+      if (typeof x !== "number" || typeof y !== "number") {
+        return null;
+      }
+      return { x, y, ...sr } satisfies EsriPoint;
+    }
+    case "MultiPoint": {
+      return { points: geometry.coordinates.map((position) => [...position]), ...sr } satisfies EsriMultipoint;
+    }
+    case "LineString": {
+      return { paths: [geometry.coordinates.map((position) => [...position])], ...sr } satisfies EsriPolyline;
+    }
+    case "MultiLineString": {
+      return {
+        paths: geometry.coordinates.map((line) => line.map((position) => [...position])),
+        ...sr,
+      } satisfies EsriPolyline;
+    }
+    case "Polygon": {
+      return { rings: esriRingsFromPolygon(geometry.coordinates as Position[][]), ...sr } satisfies EsriPolygon;
+    }
+    case "MultiPolygon": {
+      const rings: Position[][] = [];
+      for (const polygon of geometry.coordinates as Position[][][]) {
+        rings.push(...esriRingsFromPolygon(polygon));
+      }
+      return { rings, ...sr } satisfies EsriPolygon;
+    }
+    default:
+      return null;
+  }
 }

@@ -582,3 +582,24 @@ export type {
   ImageryLayerLoadStatusCompat,
   ImageryLayerQueryOptions,
 } from "./esri-compat/imagery-layer.js";
+export {
+  buffer as geometryEngineBuffer,
+  contains as geometryEngineContains,
+  convexHull as geometryEngineConvexHull,
+  difference as geometryEngineDifference,
+  geodesicArea as geometryEngineGeodesicArea,
+  geodesicLength as geometryEngineGeodesicLength,
+  geometryEngineAsyncCompat,
+  geometryEngineCompat,
+  intersect as geometryEngineIntersect,
+  intersects as geometryEngineIntersects,
+  planarArea as geometryEnginePlanarArea,
+  planarLength as geometryEnginePlanarLength,
+  simplify as geometryEngineSimplify,
+  union as geometryEngineUnion,
+} from "./esri-compat/geometry-engine.js";
+export type {
+  EsriAreaUnit,
+  EsriLinearUnit,
+  GeometryEngineInput,
+} from "./esri-compat/geometry-engine.js";

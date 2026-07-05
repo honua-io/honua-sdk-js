@@ -26,6 +26,7 @@ entrypoints are stable across minor versions.
 | `@honua/sdk-js/filter-registry` | Shared filter clause registry + projections |
 | `@honua/sdk-js/style` | Honua style spec + source parsers/validators |
 | `@honua/sdk-js/map` | `HonuaMap` programmatic map container |
+| `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops (buffer/area/simplify/reproject) |
 
 ## Experimental subpath entrypoints
 
@@ -75,6 +76,7 @@ Node-only or REST-only consumer never pays the install cost:
 | MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
 | Cesium 3D adapters (`@honua/sdk-js/scene-workspace`) | `npm install cesium` |
 | gRPC-Web transport (`new HonuaClient({ transport: "grpc-web" })`) | `npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf` |
+| Geometry ops (`@honua/sdk-js/geometry`) | `npm install proj4 @turf/buffer @turf/area …` (only the ops you import) — or use the `@honua/geometry` split package |
 
 If you stay on the default REST transport with no MapLibre/Cesium scene work,
 no extra installs are required.
