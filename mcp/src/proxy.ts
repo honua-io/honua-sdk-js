@@ -150,8 +150,14 @@ export function createProxyServer(upstream: Client): Server {
    remote /mcp upstream; exercised by running the proxy, not by unit tests. The
    unit-testable logic (option/header resolution, upstream connect, catalog
    forwarding) lives in the exported functions above and is covered there. */
-async function main(): Promise<void> {
-  const options = resolveProxyOptions();
+
+/**
+ * Run the stdio proxy end-to-end: resolve the remote `/mcp` from the
+ * environment, connect upstream, and expose the mirrored catalog over stdio.
+ * Also used by the deprecated `honua-mcp` bin, which now delegates here.
+ */
+export async function runProxy(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const options = resolveProxyOptions(env);
   const upstream = await connectUpstream(options);
   const server = createProxyServer(upstream);
 
@@ -169,7 +175,7 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  main().catch((err) => {
+  runProxy().catch((err) => {
     process.stderr.write(`Fatal: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(1);
   });

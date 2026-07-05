@@ -2,6 +2,7 @@
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveCorpus } from "./corpus.js";
 import { type DriverName, parseDriverName, selectDrivers } from "./drivers/index.js";
 import { renderMarkdown } from "./report.js";
 import { runEval } from "./runner.js";
@@ -21,6 +22,10 @@ import { runEval } from "./runner.js";
  *                    The named driver is run even if its key/opt-in is absent so an
  *                    explicit request yields an honest driverError, not a silent
  *                    skip. Without --driver, drivers are auto-resolved from env.
+ *   --corpus <name>  Select the corpus explicitly: analyst | operator | all. This
+ *                    overrides HONUA_EVAL_CORPUS and is how the `eval:live` script
+ *                    targets the operator surface without relying on shell env
+ *                    (cross-platform). Defaults to the env-driven selection.
  *
  * Corpus selection is env-driven (see `resolveCorpus`): default is the analyst
  * corpus (in-process SDK fixture surface, the CI control); `HONUA_EVAL_CORPUS=operator`
@@ -33,11 +38,15 @@ import { runEval } from "./runner.js";
  * never hardcoded — they come from the environment.
  */
 
+const CORPUS_NAMES = ["analyst", "operator", "all"] as const;
+type CorpusName = (typeof CORPUS_NAMES)[number];
+
 interface CliOptions {
   artifactOnly: boolean;
   offline: boolean;
   outDir: string;
   drivers: DriverName[];
+  corpus?: CorpusName;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -45,6 +54,7 @@ function parseArgs(argv: string[]): CliOptions {
   let offline = false;
   let outDir = fileURLToPath(new URL("../../../", import.meta.url));
   const drivers: DriverName[] = [];
+  let corpus: CorpusName | undefined;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--artifact-only") {
@@ -57,6 +67,12 @@ function parseArgs(argv: string[]): CliOptions {
         throw new Error("--out-dir requires a directory argument");
       }
       outDir = resolve(value);
+    } else if (arg === "--corpus") {
+      const value = argv[++i];
+      if (!value || !(CORPUS_NAMES as readonly string[]).includes(value)) {
+        throw new Error(`--corpus requires one of: ${CORPUS_NAMES.join(", ")}`);
+      }
+      corpus = value as CorpusName;
     } else if (arg === "--driver") {
       const value = argv[++i];
       if (!value) {
@@ -70,14 +86,21 @@ function parseArgs(argv: string[]): CliOptions {
       }
     }
   }
-  return { artifactOnly, offline, outDir, drivers };
+  return { artifactOnly, offline, outDir, drivers, ...(corpus ? { corpus } : {}) };
+}
+
+/** Map the `--corpus` alias to the corresponding HONUA_EVAL_CORPUS selection. */
+function corpusForName(name: CorpusName): ReturnType<typeof resolveCorpus> {
+  const selector = name === "analyst" ? "" : name; // analyst is the env default
+  return resolveCorpus({ ...process.env, HONUA_EVAL_CORPUS: selector });
 }
 
 async function main(): Promise<void> {
-  const { artifactOnly, offline, outDir, drivers } = parseArgs(process.argv.slice(2));
+  const { artifactOnly, offline, outDir, drivers, corpus } = parseArgs(process.argv.slice(2));
   const report = await runEval({
     forceOffline: offline,
     ...(drivers.length > 0 ? { drivers: selectDrivers(drivers) } : {}),
+    ...(corpus ? { corpus: corpusForName(corpus) } : {}),
   });
 
   const jsonPath = resolve(outDir, "mcp-eval-results.json");

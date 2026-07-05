@@ -1,7 +1,13 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { buildRoundTripInputs, resolveRoundTripEnv } from "./fixtures.js";
+import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import {
+  AUTH_ERROR_CODES,
+  type ContractOutcome,
+  type ListPage,
+  checkAuthContract,
+  checkInvalidArgsContract,
+  checkPaginationContract,
+} from "./contracts.js";
+import { buildInvalidArgsInputs, buildRoundTripInputs, resolveRoundTripEnv } from "./fixtures.js";
 import { checkConformance, checkWellFormed, validateAgainstSchema } from "./json-schema.js";
 import {
   type JsonSchema,
@@ -10,6 +16,7 @@ import {
   loadSchemaFile,
   loadSchemaIndex,
 } from "./schema-index.js";
+import type { CertTargetMode } from "./target.js";
 
 /** Per-tool certification record (machine-readable). */
 export interface ToolCertification {
@@ -19,7 +26,7 @@ export interface ToolCertification {
   schemaValid: boolean;
   /** Whether the server advertises a structured-output schema for this tool. */
   hasOutputSchema: boolean;
-  /** Matched standard tool (by referenceToolName), if any. */
+  /** Matched standard tool (by referenceToolName / alias), if any. */
   standardName: string | null;
   /** Conformant to the matched standard schema. `null` when no standard match. */
   conformant: boolean | null;
@@ -27,6 +34,8 @@ export interface ToolCertification {
   readOnly: boolean;
   /** Round-trip outcome. `skipped` when not read-only or no fixture input. */
   roundTrip: "passed" | "failed" | "skipped";
+  /** Whether structuredContent validated against the advertised outputSchema. `null` when not exercised. */
+  structuredOutputValidated: boolean | null;
   errors: string[];
   notes: string[];
 }
@@ -46,11 +55,25 @@ export interface KnownGap {
   detail: string;
 }
 
+/** A cross-cutting contract check against the certified surface. */
+export interface ContractCheck {
+  contract: "output-schema" | "error-shape" | "auth-unauthenticated" | "list-pagination";
+  target: string;
+  status: "passed" | "failed" | "skipped";
+  detail: string;
+}
+
 export interface CertificationReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   generatedAt: string;
   server: { name: string; version: string };
-  protocol: { mcpTransport: string; honuaTransport: string | null; backend: "fixture" | "live" };
+  protocol: {
+    mcpTransport: string;
+    honuaTransport: string | null;
+    backend: "mock-upstream" | "live";
+    targetMode: CertTargetMode;
+    surface: string;
+  };
   standard: { source: string; indexDate: string; dialect: string };
   summary: {
     pass: boolean;
@@ -59,114 +82,48 @@ export interface CertificationReport {
     toolsConformanceChecked: number;
     toolsConformant: number;
     toolsRoundTripped: number;
+    toolsOutputValidated: number;
     resourcesDiscovered: number;
     promptsDiscovered: number;
+    contractsChecked: number;
+    contractsPassed: number;
+    contractsFailed: number;
     knownGaps: number;
     failures: number;
   };
   tools: ToolCertification[];
   resources: ResourceCertification[];
   prompts: { name: string; discovered: true }[];
+  contracts: ContractCheck[];
   knownGaps: KnownGap[];
 }
 
 export interface CertifyOptions {
-  /** MCP server to certify. */
-  server: McpServer;
-  /** Logical Honua backend transport (grpc-web/rest) for the artifact, if known. */
+  /** Authenticated, connected MCP client to certify. */
+  client: Client;
+  /** Which target the client is connected to. */
+  targetMode: CertTargetMode;
+  /** Backend behind the surface (mock upstream or a live server). */
+  backend: "mock-upstream" | "live";
+  /** Human-readable label of the certified surface. */
+  surface: string;
+  /** Logical Honua backend transport for the artifact, if known. */
   honuaTransport?: string | null;
-  /** Whether the backend is the offline fixture or a live server. */
-  backend?: "fixture" | "live";
+  /** Open a fresh, unauthenticated client for the auth contract (optional). */
+  connectUnauthenticated?: (() => Promise<Client>) | undefined;
   /** Environment used to resolve round-trip identifiers. */
   env?: NodeJS.ProcessEnv;
 }
 
-const STANDARD_SOURCE = "geospatial-mcp@968d7d7 (spec/schemas)";
+const STANDARD_SOURCE = "geospatial-mcp@54cbd49 (spec/schemas)";
 
 /** Determine whether a discovered tool is safe to round-trip (read-only). */
 export function isReadOnlyTool(tool: { name: string; annotations?: { readOnlyHint?: boolean } }): boolean {
-  // Honor an explicit server annotation when present (forward-compatible with
-  // the honua-server /mcp surface that advertises readOnlyHint).
   if (tool.annotations && typeof tool.annotations.readOnlyHint === "boolean") {
     return tool.annotations.readOnlyHint;
   }
-  // The @honua/mcp-server tool surface is read-only by construction: every tool
-  // is an inspection/projection that never mutates server state. Tools whose
-  // names imply mutation are conservatively treated as NOT read-only.
-  const mutating = /(create|update|delete|publish|apply_.*write|execute|edit|deploy|cancel)/i;
+  const mutating = /(create|update|delete|publish|apply_.*write|execute|edit|deploy|cancel|propose)/i;
   return !mutating.test(tool.name);
-}
-
-/**
- * Connect an MCP client to the given server over an in-memory transport and
- * produce a deterministic certification report. No network access, no model
- * calls — the only I/O is the in-process MCP round-trip and reading vendored
- * schema files.
- */
-export async function certify(options: CertifyOptions): Promise<CertificationReport> {
-  const { server } = options;
-  const backend = options.backend ?? "fixture";
-  const roundTripEnv = resolveRoundTripEnv(options.env);
-  const roundTripInputs = buildRoundTripInputs(roundTripEnv);
-
-  const index = loadSchemaIndex();
-  const referenceLookup = buildReferenceToolLookup(index);
-
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "honua-mcp-certifier", version: "1.0.0" });
-  await server.connect(serverTransport);
-  await client.connect(clientTransport);
-
-  try {
-    const serverInfo = client.getServerVersion() ?? { name: "unknown", version: "0.0.0" };
-
-    const toolsResponse = await client.listTools();
-    const resourcesResponse = await client.listResources();
-    const prompts = await listPromptsSafely(client);
-
-    const tools: ToolCertification[] = [];
-    const advertisedNames = new Set<string>();
-
-    for (const tool of toolsResponse.tools) {
-      advertisedNames.add(tool.name);
-      const record = await certifyTool(client, tool, referenceLookup, roundTripInputs);
-      tools.push(record);
-    }
-
-    const resources: ResourceCertification[] = resourcesResponse.resources.map((r) => ({
-      name: r.name,
-      uri: r.uri,
-      discovered: true,
-    }));
-
-    const knownGaps = collectKnownGaps(index, advertisedNames, referenceLookup);
-
-    const report = assembleReport({
-      serverInfo: serverInfo as { name: string; version: string },
-      index,
-      backend,
-      honuaTransport: options.honuaTransport ?? null,
-      tools,
-      resources,
-      prompts,
-      knownGaps,
-    });
-
-    return report;
-  } finally {
-    await client.close();
-    await server.close();
-  }
-}
-
-async function listPromptsSafely(client: Client): Promise<{ name: string; discovered: true }[]> {
-  try {
-    const response = await client.listPrompts();
-    return response.prompts.map((p) => ({ name: p.name, discovered: true as const }));
-  } catch {
-    // Server does not advertise the prompts capability — not a failure.
-    return [];
-  }
 }
 
 interface AdvertisedTool {
@@ -174,6 +131,96 @@ interface AdvertisedTool {
   inputSchema?: unknown;
   outputSchema?: unknown;
   annotations?: { readOnlyHint?: boolean };
+}
+
+/**
+ * Connect an MCP client to the certified surface and produce a deterministic
+ * certification report. The client is already connected (offline mock upstream,
+ * a live `/mcp`, or the stdio proxy); certify never owns its lifecycle.
+ */
+export async function certify(options: CertifyOptions): Promise<CertificationReport> {
+  const { client } = options;
+  const roundTripEnv = resolveRoundTripEnv(options.env);
+  const roundTripInputs = buildRoundTripInputs(roundTripEnv);
+
+  const index = loadSchemaIndex();
+  const referenceLookup = buildReferenceToolLookup(index);
+
+  const serverInfo = client.getServerVersion() ?? { name: "unknown", version: "0.0.0" };
+
+  const { tools: advertisedTools, pages: toolPages } = await listAllTools(client);
+  const { resources: advertisedResources, pages: resourcePages } = await listAllResources(client);
+  const prompts = await listPromptsSafely(client);
+
+  const tools: ToolCertification[] = [];
+  const advertisedNames = new Set<string>();
+  for (const tool of advertisedTools) {
+    advertisedNames.add(tool.name);
+    tools.push(await certifyTool(client, tool, referenceLookup, roundTripInputs));
+  }
+
+  const resources: ResourceCertification[] = advertisedResources.map((r) => ({
+    name: r.name,
+    uri: r.uri,
+    discovered: true,
+  }));
+
+  const contracts: ContractCheck[] = [];
+  contracts.push(paginationCheck("tools", toolPages));
+  contracts.push(paginationCheck("resources", resourcePages));
+  collectOutputSchemaContracts(tools, contracts);
+  contracts.push(await runErrorShapeContract(client, advertisedTools));
+  await runAuthContracts(options, advertisedTools, advertisedResources, contracts);
+
+  const knownGaps = collectKnownGaps(index, advertisedNames, referenceLookup);
+
+  return assembleReport({
+    serverInfo: serverInfo as { name: string; version: string },
+    index,
+    options,
+    tools,
+    resources,
+    prompts,
+    contracts,
+    knownGaps,
+  });
+}
+
+async function listAllTools(client: Client): Promise<{ tools: AdvertisedTool[]; pages: ListPage[] }> {
+  const tools: AdvertisedTool[] = [];
+  const pages: ListPage[] = [];
+  let cursor: string | undefined;
+  do {
+    const resp = await client.listTools(cursor ? { cursor } : undefined);
+    tools.push(...(resp.tools as AdvertisedTool[]));
+    pages.push({ keys: resp.tools.map((t) => t.name), nextCursor: resp.nextCursor });
+    cursor = resp.nextCursor;
+  } while (cursor && pages.length < 100);
+  return { tools, pages };
+}
+
+async function listAllResources(
+  client: Client,
+): Promise<{ resources: { name: string; uri: string }[]; pages: ListPage[] }> {
+  const resources: { name: string; uri: string }[] = [];
+  const pages: ListPage[] = [];
+  let cursor: string | undefined;
+  do {
+    const resp = await client.listResources(cursor ? { cursor } : undefined);
+    resources.push(...resp.resources.map((r) => ({ name: r.name, uri: r.uri })));
+    pages.push({ keys: resp.resources.map((r) => r.uri), nextCursor: resp.nextCursor });
+    cursor = resp.nextCursor;
+  } while (cursor && pages.length < 100);
+  return { resources, pages };
+}
+
+async function listPromptsSafely(client: Client): Promise<{ name: string; discovered: true }[]> {
+  try {
+    const response = await client.listPrompts();
+    return response.prompts.map((p) => ({ name: p.name, discovered: true as const }));
+  } catch {
+    return [];
+  }
 }
 
 async function certifyTool(
@@ -185,7 +232,6 @@ async function certifyTool(
   const errors: string[] = [];
   const notes: string[] = [];
 
-  // 1. inputSchema well-formedness.
   const wellFormed = checkWellFormed(tool.inputSchema);
   if (!wellFormed.wellFormed) {
     errors.push(...wellFormed.errors.map((e) => `inputSchema not well-formed: ${e}`));
@@ -201,7 +247,6 @@ async function certifyTool(
     notes.push("no structured output schema advertised");
   }
 
-  // 2. Conformance against the matched standard schema (if any).
   const standardEntry = referenceLookup.get(tool.name);
   let conformant: boolean | null = null;
   if (standardEntry) {
@@ -219,12 +264,14 @@ async function certifyTool(
     }
   }
 
-  // 3. Round-trip for read-only tools with a fixture input.
   const readOnly = isReadOnlyTool(tool);
   let roundTrip: ToolCertification["roundTrip"] = "skipped";
+  let structuredOutputValidated: boolean | null = null;
   const fixtureInput = roundTripInputs[tool.name];
   if (readOnly && fixtureInput !== undefined) {
-    roundTrip = await roundTripTool(client, tool, fixtureInput, errors, notes);
+    const outcome = await roundTripTool(client, tool, fixtureInput, errors, notes);
+    roundTrip = outcome.roundTrip;
+    structuredOutputValidated = outcome.structuredOutputValidated;
   } else if (!readOnly) {
     notes.push("round-trip skipped: tool is not read-only");
   } else {
@@ -240,6 +287,7 @@ async function certifyTool(
     conformant,
     readOnly,
     roundTrip,
+    structuredOutputValidated,
     errors,
     notes,
   };
@@ -251,7 +299,7 @@ async function roundTripTool(
   input: Record<string, unknown>,
   errors: string[],
   notes: string[],
-): Promise<ToolCertification["roundTrip"]> {
+): Promise<{ roundTrip: ToolCertification["roundTrip"]; structuredOutputValidated: boolean | null }> {
   try {
     const result = (await client.callTool({ name: tool.name, arguments: input })) as {
       isError?: boolean;
@@ -260,23 +308,190 @@ async function roundTripTool(
     };
     if (result.isError) {
       errors.push("round-trip: tool returned isError=true");
-      return "failed";
+      return { roundTrip: "failed", structuredOutputValidated: null };
     }
-    // Validate structured output against the advertised output schema, if any.
     if (tool.outputSchema && result.structuredContent !== undefined) {
       const validation = validateAgainstSchema(tool.outputSchema as JsonSchema, result.structuredContent);
       if (!validation.valid) {
-        errors.push(...validation.errors.map((e) => `round-trip output: ${e}`));
-        return "failed";
+        errors.push(...validation.errors.map((e) => `output-schema: structuredContent ${e}`));
+        return { roundTrip: "failed", structuredOutputValidated: false };
       }
-    } else if (tool.outputSchema && result.structuredContent === undefined) {
-      notes.push("round-trip: output schema advertised but no structuredContent returned");
+      return { roundTrip: "passed", structuredOutputValidated: true };
     }
-    return "passed";
+    if (tool.outputSchema && result.structuredContent === undefined) {
+      errors.push("output-schema: outputSchema advertised but no structuredContent returned");
+      return { roundTrip: "failed", structuredOutputValidated: false };
+    }
+    return { roundTrip: "passed", structuredOutputValidated: null };
   } catch (err) {
     errors.push(`round-trip: ${err instanceof Error ? err.message : String(err)}`);
-    return "failed";
+    return { roundTrip: "failed", structuredOutputValidated: null };
   }
+}
+
+function paginationCheck(target: string, pages: ListPage[]): ContractCheck {
+  const paginated = pages.length > 1 || (pages[0]?.nextCursor !== undefined && pages[0]?.nextCursor !== null);
+  if (!paginated) {
+    return {
+      contract: "list-pagination",
+      target,
+      status: "skipped",
+      detail: `${target} list is a single page (no nextCursor advertised)`,
+    };
+  }
+  const outcome = checkPaginationContract(pages);
+  return {
+    contract: "list-pagination",
+    target,
+    status: outcome.ok ? "passed" : "failed",
+    detail: outcome.ok
+      ? `${target} list paginated across ${pages.length} pages; nextCursor honored and terminated`
+      : outcome.errors.join("; "),
+  };
+}
+
+function collectOutputSchemaContracts(tools: ToolCertification[], contracts: ContractCheck[]): void {
+  for (const tool of tools) {
+    if (tool.structuredOutputValidated === null) {
+      continue;
+    }
+    contracts.push({
+      contract: "output-schema",
+      target: tool.name,
+      status: tool.structuredOutputValidated ? "passed" : "failed",
+      detail: tool.structuredOutputValidated
+        ? "structuredContent validated against advertised outputSchema"
+        : "structuredContent did not validate against advertised outputSchema",
+    });
+  }
+}
+
+async function runErrorShapeContract(client: Client, advertised: AdvertisedTool[]): Promise<ContractCheck> {
+  const invalidInputs = buildInvalidArgsInputs();
+  const advertisedNames = new Set(advertised.map((t) => t.name));
+  const target = Object.keys(invalidInputs).find((name) => advertisedNames.has(name));
+  if (!target) {
+    return {
+      contract: "error-shape",
+      target: "(none)",
+      status: "skipped",
+      detail: "no advertised tool has an invalid-args fixture",
+    };
+  }
+  try {
+    const result = (await client.callTool({ name: target, arguments: invalidInputs[target] })) as {
+      isError?: boolean;
+      structuredContent?: unknown;
+    };
+    const outcome = checkInvalidArgsContract(result);
+    return contractFromOutcome("error-shape", target, outcome);
+  } catch (err) {
+    return {
+      contract: "error-shape",
+      target,
+      status: "failed",
+      detail: `invalid arguments raised a protocol error instead of a structured tool error: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+}
+
+async function runAuthContracts(
+  options: CertifyOptions,
+  advertised: AdvertisedTool[],
+  resources: { uri: string }[],
+  contracts: ContractCheck[],
+): Promise<void> {
+  if (!options.connectUnauthenticated) {
+    contracts.push({
+      contract: "auth-unauthenticated",
+      target: "tools/call",
+      status: "skipped",
+      detail: "target does not support an unauthenticated pass",
+    });
+    contracts.push({
+      contract: "auth-unauthenticated",
+      target: "resources/read",
+      status: "skipped",
+      detail: "target does not support an unauthenticated pass",
+    });
+    return;
+  }
+
+  let unauth: Client | undefined;
+  try {
+    unauth = await options.connectUnauthenticated();
+
+    // tools/call without credentials.
+    const toolTarget = advertised.find((t) => isReadOnlyTool(t)) ?? advertised[0];
+    if (toolTarget) {
+      const roundTripInputs = buildRoundTripInputs(resolveRoundTripEnv(options.env));
+      const args = roundTripInputs[toolTarget.name] ?? {};
+      contracts.push(await authCheckToolsCall(unauth, toolTarget.name, args));
+    }
+
+    // resources/read without credentials.
+    if (resources[0]) {
+      contracts.push(await authCheckResourcesRead(unauth, resources[0].uri));
+    }
+  } catch (err) {
+    contracts.push({
+      contract: "auth-unauthenticated",
+      target: "tools/call",
+      status: "failed",
+      detail: `unauthenticated pass could not be established: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  } finally {
+    if (unauth) {
+      await unauth.close().catch(() => {});
+    }
+  }
+}
+
+async function authCheckToolsCall(client: Client, name: string, args: Record<string, unknown>): Promise<ContractCheck> {
+  try {
+    const result = await client.callTool({ name, arguments: args });
+    if ((result as { isError?: boolean }).isError !== true) {
+      return {
+        contract: "auth-unauthenticated",
+        target: "tools/call",
+        status: "failed",
+        detail: `unauthenticated tools/call on ${name} returned a non-error result — auth boundary not enforced`,
+      };
+    }
+    return contractFromOutcome("auth-unauthenticated", "tools/call", checkAuthContract(result));
+  } catch (err) {
+    // A structured McpError carrying an auth code also satisfies the contract.
+    return contractFromOutcome("auth-unauthenticated", "tools/call", checkAuthContract(err));
+  }
+}
+
+async function authCheckResourcesRead(client: Client, uri: string): Promise<ContractCheck> {
+  try {
+    await client.readResource({ uri });
+    return {
+      contract: "auth-unauthenticated",
+      target: "resources/read",
+      status: "failed",
+      detail: `unauthenticated resources/read on ${uri} succeeded — auth boundary not enforced`,
+    };
+  } catch (err) {
+    return contractFromOutcome("auth-unauthenticated", "resources/read", checkAuthContract(err));
+  }
+}
+
+function contractFromOutcome(
+  contract: ContractCheck["contract"],
+  target: string,
+  outcome: ContractOutcome,
+): ContractCheck {
+  return {
+    contract,
+    target,
+    status: outcome.ok ? "passed" : "failed",
+    detail: outcome.ok ? "contract satisfied" : outcome.errors.join("; "),
+  };
 }
 
 function collectKnownGaps(
@@ -285,12 +500,18 @@ function collectKnownGaps(
   referenceLookup: Map<string, StandardToolEntry>,
 ): KnownGap[] {
   const gaps: KnownGap[] = [];
-
-  // Standard tools not advertised by this server (absence is a gap, not a fail).
+  // Advertised names that resolve to a standard entry through the SDK-local
+  // reference aliases (e.g. honua_dry_run_plan → validate_plan) also count as
+  // covering that standard tool.
+  const coveredStandardNames = new Set<string>();
+  for (const name of advertisedNames) {
+    const entry = referenceLookup.get(name);
+    if (entry) {
+      coveredStandardNames.add(entry.standardName);
+    }
+  }
   for (const tool of index.tools) {
-    const referenceName = tool.referenceToolName;
-    const advertised = referenceName ? advertisedNames.has(referenceName) : false;
-    if (!advertised) {
+    if (!coveredStandardNames.has(tool.standardName)) {
       gaps.push({
         kind: "standard-tool",
         name: tool.standardName,
@@ -298,12 +519,10 @@ function collectKnownGaps(
         detail:
           tool.implementationStatus === "known-gap"
             ? "standard family not yet implemented as a discrete tool"
-            : `reference tool ${referenceName ?? "(unnamed)"} not advertised by @honua/mcp-server`,
+            : `reference tool ${tool.referenceToolName ?? "(unnamed)"} not advertised by the certified surface`,
       });
     }
   }
-
-  // Tools this server advertises that are not in the standard index.
   for (const name of advertisedNames) {
     if (!referenceLookup.has(name)) {
       gaps.push({
@@ -313,34 +532,46 @@ function collectKnownGaps(
       });
     }
   }
-
   return gaps;
 }
 
 function assembleReport(args: {
   serverInfo: { name: string; version: string };
   index: ReturnType<typeof loadSchemaIndex>;
-  backend: "fixture" | "live";
-  honuaTransport: string | null;
+  options: CertifyOptions;
   tools: ToolCertification[];
   resources: ResourceCertification[];
   prompts: { name: string; discovered: true }[];
+  contracts: ContractCheck[];
   knownGaps: KnownGap[];
 }): CertificationReport {
-  const { serverInfo, index, backend, honuaTransport, tools, resources, prompts, knownGaps } = args;
+  const { serverInfo, index, options, tools, resources, prompts, contracts, knownGaps } = args;
 
   const toolsSchemaValid = tools.filter((t) => t.schemaValid).length;
   const conformanceChecked = tools.filter((t) => t.conformant !== null);
   const toolsConformant = conformanceChecked.filter((t) => t.conformant === true).length;
   const toolsRoundTripped = tools.filter((t) => t.roundTrip === "passed").length;
-  const failures = tools.reduce((acc, t) => acc + t.errors.length, 0);
+  const toolsOutputValidated = tools.filter((t) => t.structuredOutputValidated === true).length;
+
+  const contractsChecked = contracts.filter((c) => c.status !== "skipped").length;
+  const contractsPassed = contracts.filter((c) => c.status === "passed").length;
+  const contractsFailed = contracts.filter((c) => c.status === "failed").length;
+
+  const toolFailures = tools.reduce((acc, t) => acc + t.errors.length, 0);
+  const failures = toolFailures + contractsFailed;
   const pass = failures === 0;
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     server: serverInfo,
-    protocol: { mcpTransport: "in-memory", honuaTransport, backend },
+    protocol: {
+      mcpTransport: options.targetMode === "stdio-proxy" ? "stdio→streamable-http" : "streamable-http",
+      honuaTransport: options.honuaTransport ?? null,
+      backend: options.backend,
+      targetMode: options.targetMode,
+      surface: options.surface,
+    },
     standard: { source: STANDARD_SOURCE, indexDate: index.date, dialect: index.dialect },
     summary: {
       pass,
@@ -349,14 +580,22 @@ function assembleReport(args: {
       toolsConformanceChecked: conformanceChecked.length,
       toolsConformant,
       toolsRoundTripped,
+      toolsOutputValidated,
       resourcesDiscovered: resources.length,
       promptsDiscovered: prompts.length,
+      contractsChecked,
+      contractsPassed,
+      contractsFailed,
       knownGaps: knownGaps.length,
       failures,
     },
     tools,
     resources,
     prompts,
+    contracts,
     knownGaps,
   };
 }
+
+// Re-export for artifact/report consumers.
+export { AUTH_ERROR_CODES };

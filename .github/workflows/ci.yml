@@ -118,10 +118,17 @@ jobs:
         run: npm test
 
       - name: MCP certification (gate)
+        # Offline mode: certifies an in-process streamable-HTTP mock of the honua
+        # /mcp operator catalog — no live server needed, gates every PR. The live
+        # lane is workflow_dispatch only (see mcp-cert-live.yml).
+        env:
+          HONUA_MCP_CERT_TARGET: offline
         run: npm run test:certification
 
       - name: MCP certification artifact
         if: always()
+        env:
+          HONUA_MCP_CERT_TARGET: offline
         run: npm run test:certification:artifact
 
       - name: Cross-model workflow eval (gate, offline)

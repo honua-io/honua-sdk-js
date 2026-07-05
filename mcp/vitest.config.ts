@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
     exclude: ["dist/**"],
+    // Certification integration tests stand up a real streamable-HTTP mock
+    // upstream and round-trip the full operator catalog over HTTP/stdio.
+    testTimeout: 30_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

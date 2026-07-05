@@ -26,6 +26,8 @@ export interface StandardResourceEntry {
   uriForm: string;
   schema: string;
   shapeFidelity: string;
+  implementationStatus?: "implemented" | "known-gap";
+  notes?: string;
 }
 
 export interface SchemaIndex {
@@ -35,7 +37,21 @@ export interface SchemaIndex {
   tools: StandardToolEntry[];
   resources: StandardResourceEntry[];
   common: { name: string; schema: string; role: string }[];
+  conformance?: { name: string; schema: string; role: string }[];
 }
+
+/**
+ * Reference-implementation aliasing decision (SDK-local, NOT part of the
+ * vendored standard): the honua-server /mcp surface advertises
+ * `honua_dry_run_plan` alongside `honua_validate_plan`, both driven by the same
+ * partial-plan input schema (see the `validate_plan` entry's notes in the
+ * vendored index). The vendored `index.json` is a byte-exact copy of the
+ * upstream standard and must never be hand-edited to encode this, so the alias
+ * lives here in code instead.
+ */
+export const REFERENCE_TOOL_ALIASES: Readonly<Record<string, string>> = {
+  honua_dry_run_plan: "honua_validate_plan",
+};
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -95,12 +111,20 @@ export function schemaRootPath(): string {
 /**
  * Build a lookup from the name a tool advertises (`referenceToolName`) to its
  * standard schema entry. Only entries that name a reference tool are included.
+ * SDK-local reference aliases (see {@link REFERENCE_TOOL_ALIASES}) map extra
+ * advertised names onto the same standard entry.
  */
 export function buildReferenceToolLookup(index: SchemaIndex): Map<string, StandardToolEntry> {
   const lookup = new Map<string, StandardToolEntry>();
   for (const tool of index.tools) {
     if (tool.referenceToolName) {
       lookup.set(tool.referenceToolName, tool);
+    }
+  }
+  for (const [alias, canonical] of Object.entries(REFERENCE_TOOL_ALIASES)) {
+    const entry = lookup.get(canonical);
+    if (entry) {
+      lookup.set(alias, entry);
     }
   }
   return lookup;

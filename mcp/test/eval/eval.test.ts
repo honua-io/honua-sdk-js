@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { CORPUS } from "../../src/eval/corpus.js";
 import { AnthropicDriver, DeterministicDriver, OpenAiDriver, resolveDrivers } from "../../src/eval/drivers/index.js";
 import { grade, isOrderedSubsequence } from "../../src/eval/grade.js";
-import { renderMarkdown } from "../../src/eval/report.js";
+import { type AssembleInput, assembleReport, renderMarkdown } from "../../src/eval/report.js";
 import { runEval } from "../../src/eval/runner.js";
-import type { Scenario, WorkflowContext, WorkflowTranscript } from "../../src/eval/types.js";
+import type { Scenario, ScenarioGrade, WorkflowContext, WorkflowTranscript } from "../../src/eval/types.js";
 
 describe("grading (#1956)", () => {
   it("detects ordered subsequences", () => {
@@ -97,6 +97,11 @@ describe("driver resolution (#1956)", () => {
   it("uses the latest Opus model id by default for the Claude driver", () => {
     expect(new AnthropicDriver().id).toBe("claude-opus-4-8");
   });
+
+  it("defaults the GPT driver to the current GA flagship and honors OPENAI_MODEL", () => {
+    expect(new OpenAiDriver({ apiKey: "k" }).id).toBe("gpt-5.5");
+    expect(new OpenAiDriver({ apiKey: "k", model: "gpt-5.6-sol" }).id).toBe("gpt-5.6-sol");
+  });
 });
 
 describe("offline eval run (#1956)", () => {
@@ -161,5 +166,92 @@ describe("deterministic driver fidelity (#1956)", () => {
     const transcript = await new DeterministicDriver().runWorkflow(scenario, ctx);
     expect(transcript.driverError).toMatch(/not advertised/);
     expect(grade(scenario, transcript).outcome).toBe("error");
+  });
+});
+
+describe("artifact metadata: auth mode, resolved model, catalog audit (#1956)", () => {
+  it("records auth=none and full catalog coverage for the offline fixture surface", async () => {
+    const report = await runEval({ forceOffline: true, drivers: [new DeterministicDriver()] });
+    expect(report.schemaVersion).toBe(3);
+    expect(report.surface.auth).toBe("none");
+    // Every analyst-corpus required tool resolves against the live fixture catalog.
+    expect(report.catalog.advertisedToolCount).toBeGreaterThan(0);
+    expect(report.catalog.requiredTools.length).toBeGreaterThan(0);
+    expect(report.catalog.unresolvedRequiredTools).toEqual([]);
+  });
+
+  it("logs the resolved model on live scorecards but not on the control", () => {
+    const graded = (id: string): { grade: ScenarioGrade; transcript: WorkflowTranscript } => ({
+      grade: { scenarioId: "s", modelId: id, outcome: "pass", violations: [], errorCount: 0 },
+      transcript: {
+        scenarioId: "s",
+        modelId: id,
+        steps: [{ tool: "honua_list_layers", args: {}, isError: false }],
+        finalAnswer: "ok",
+        clarificationRequested: false,
+        errorCount: 0,
+      },
+    });
+    const scenario: Scenario = {
+      id: "s",
+      title: "t",
+      category: "discovery",
+      prompt: "p",
+      criteria: { requiredTools: ["honua_list_layers"] },
+      script: [],
+    };
+    const input: AssembleInput = {
+      backend: "live",
+      mcpTransport: "streamable-http",
+      remoteUrl: "https://demo.honua.io/mcp",
+      auth: "bearer",
+      advertisedTools: ["honua_list_layers"],
+      corpus: [scenario],
+      drivers: [new DeterministicDriver(), new OpenAiDriver({ apiKey: "k", model: "gpt-5.5" })],
+      graded: [graded("deterministic"), graded("gpt-5.5")],
+    };
+    const report = assembleReport(input);
+    expect(report.surface.auth).toBe("bearer");
+    const control = report.models.find((m) => m.vendor === "deterministic");
+    const gpt = report.models.find((m) => m.vendor === "openai");
+    expect(control?.model).toBeUndefined();
+    expect(gpt?.model).toBe("gpt-5.5");
+  });
+
+  it("flags a required tool absent from the live catalog as unresolved (real failure, not a name bug)", () => {
+    const scenario: Scenario = {
+      id: "operator-validate-package",
+      title: "t",
+      category: "governance",
+      prompt: "p",
+      criteria: { requiredTools: ["honua_validate_package", "honua_dry_run_plan"] },
+      script: [],
+    };
+    const input: AssembleInput = {
+      backend: "live",
+      mcpTransport: "streamable-http",
+      auth: "api-key",
+      // The live surface advertises only one of the two required tools.
+      advertisedTools: ["honua_dry_run_plan"],
+      corpus: [scenario],
+      drivers: [new DeterministicDriver()],
+      graded: [],
+    };
+    const report = assembleReport(input);
+    expect(report.catalog.unresolvedRequiredTools).toEqual(["honua_validate_package"]);
+    const md = renderMarkdown(report);
+    expect(md).toContain("Auth mode: `api-key`");
+    expect(md).toContain("honua_validate_package");
+  });
+
+  it("refuses an anonymous live run when HONUA_EVAL_REQUIRE_AUTH is set (no dev-auth bypass)", async () => {
+    // The guard fires before any network connection is attempted, so no live
+    // surface is needed to prove the enforcement.
+    await expect(
+      runEval({
+        env: { HONUA_MCP_REMOTE_URL: "https://demo.honua.io/mcp", HONUA_EVAL_REQUIRE_AUTH: "1" },
+        drivers: [new DeterministicDriver()],
+      }),
+    ).rejects.toThrow(/anonymously|REQUIRE_AUTH/);
   });
 });

@@ -11,10 +11,12 @@ export function renderMarkdown(report: CertificationReport): string {
   lines.push(`**Result:** ${status}`);
   lines.push("");
   lines.push(`- Generated: \`${report.generatedAt}\``);
+  lines.push(`- Certified surface: ${report.protocol.surface}`);
+  lines.push(`- Target mode: \`${report.protocol.targetMode}\``);
   lines.push(`- MCP transport: \`${report.protocol.mcpTransport}\``);
   lines.push(
-    `- Honua backend: \`${report.protocol.backend}\`${
-      report.protocol.honuaTransport ? ` (transport: \`${report.protocol.honuaTransport}\`)` : ""
+    `- Backend: \`${report.protocol.backend}\`${
+      report.protocol.honuaTransport ? ` (Honua transport: \`${report.protocol.honuaTransport}\`)` : ""
     }`,
   );
   lines.push(
@@ -31,27 +33,49 @@ export function renderMarkdown(report: CertificationReport): string {
   lines.push(`| Tools conformance-checked | ${s.toolsConformanceChecked} |`);
   lines.push(`| Tools conformant | ${s.toolsConformant} / ${s.toolsConformanceChecked} |`);
   lines.push(`| Tools round-tripped | ${s.toolsRoundTripped} |`);
+  lines.push(`| Tools with output-schema validated | ${s.toolsOutputValidated} |`);
   lines.push(`| Resources discovered | ${s.resourcesDiscovered} |`);
   lines.push(`| Prompts discovered | ${s.promptsDiscovered} |`);
+  lines.push(`| Contracts checked | ${s.contractsPassed} / ${s.contractsChecked} passed |`);
   lines.push(`| Known gaps | ${s.knownGaps} |`);
   lines.push(`| Failures | ${s.failures} |`);
   lines.push("");
 
   lines.push("## Tools");
   lines.push("");
-  lines.push("| Tool | Schema | Standard | Conformant | Round-trip | Output schema |");
-  lines.push("| --- | :---: | --- | :---: | :---: | :---: |");
+  lines.push("| Tool | Schema | Standard | Conformant | Read-only | Round-trip | Output schema |");
+  lines.push("| --- | :---: | --- | :---: | :---: | :---: | :---: |");
   for (const t of report.tools) {
     const conformant = t.conformant === null ? "n/a" : t.conformant ? "yes" : "**NO**";
+    const outputCol =
+      t.structuredOutputValidated === true
+        ? "validated"
+        : t.structuredOutputValidated === false
+          ? "**INVALID**"
+          : t.hasOutputSchema
+            ? "advertised"
+            : "no";
     lines.push(
-      `| \`${t.name}\` | ${t.schemaValid ? "valid" : "**invalid**"} | ${t.standardName ?? "—"} | ${conformant} | ${t.roundTrip} | ${t.hasOutputSchema ? "yes" : "no"} |`,
+      `| \`${t.name}\` | ${t.schemaValid ? "valid" : "**invalid**"} | ${t.standardName ?? "—"} | ${conformant} | ${
+        t.readOnly ? "yes" : "no"
+      } | ${t.roundTrip} | ${outputCol} |`,
     );
+  }
+  lines.push("");
+
+  lines.push("## Contracts");
+  lines.push("");
+  lines.push("| Contract | Target | Status | Detail |");
+  lines.push("| --- | --- | :---: | --- |");
+  for (const c of report.contracts) {
+    const icon = c.status === "passed" ? "✅" : c.status === "failed" ? "❌" : "➖";
+    lines.push(`| \`${c.contract}\` | \`${c.target}\` | ${icon} ${c.status} | ${c.detail} |`);
   }
   lines.push("");
 
   const toolErrors = report.tools.filter((t) => t.errors.length > 0);
   if (toolErrors.length > 0) {
-    lines.push("### Failures");
+    lines.push("### Tool failures");
     lines.push("");
     for (const t of toolErrors) {
       lines.push(`- \`${t.name}\``);
@@ -75,7 +99,7 @@ export function renderMarkdown(report: CertificationReport): string {
     lines.push("## Known gaps");
     lines.push("");
     lines.push(
-      "These are standard capabilities not yet implemented as discrete tools, or advertised tools outside the standard. They are recorded, not failed.",
+      "These are standard capabilities not yet advertised as discrete tools, or advertised tools outside the standard. They are recorded, not failed.",
     );
     lines.push("");
     for (const g of report.knownGaps) {

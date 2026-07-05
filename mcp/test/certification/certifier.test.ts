@@ -1,22 +1,20 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { certify, isReadOnlyTool } from "../../src/certification/certifier.js";
-import { createFixtureClient } from "../../src/certification/fixture-client.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { type CertificationReport, certify, isReadOnlyTool } from "../../src/certification/certifier.js";
 import { checkConformance, checkWellFormed } from "../../src/certification/json-schema.js";
 import { renderMarkdown } from "../../src/certification/report.js";
-import { runCertification, writeArtifacts } from "../../src/certification/run.js";
-import { loadSchemaFile, loadSchemaIndex } from "../../src/certification/schema-index.js";
-import { createServer } from "../../src/index.js";
+import { writeArtifacts } from "../../src/certification/run.js";
+import {
+  REFERENCE_TOOL_ALIASES,
+  buildReferenceToolLookup,
+  loadSchemaFile,
+  loadSchemaIndex,
+} from "../../src/certification/schema-index.js";
+import { type CertificationTarget, openCertificationTarget } from "../../src/certification/target.js";
 
 const tmpDirs: string[] = [];
-
-afterEach(() => {
-  for (const dir of tmpDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
 
 function makeTmpDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "mcp-cert-"));
@@ -24,63 +22,98 @@ function makeTmpDir(): string {
   return dir;
 }
 
-describe("MCP certification harness", () => {
-  it("certifies the fixture-backed server with a PASS summary", async () => {
-    const server = createServer(createFixtureClient());
-    const report = await certify({ server, backend: "fixture" });
+describe("MCP certification harness — offline operator upstream", () => {
+  // Certification is a real HTTP round-trip; run it once and assert on the shared report.
+  let target: CertificationTarget;
+  let report: CertificationReport;
 
-    expect(report.summary.pass).toBe(true);
-    expect(report.summary.failures).toBe(0);
-    expect(report.summary.toolsDiscovered).toBeGreaterThan(0);
-    // Every advertised tool must expose a well-formed inputSchema.
-    expect(report.summary.toolsSchemaValid).toBe(report.summary.toolsDiscovered);
+  beforeAll(async () => {
+    target = await openCertificationTarget({ HONUA_MCP_CERT_TARGET: "offline" } as NodeJS.ProcessEnv);
+    report = await certify({
+      client: target.client,
+      targetMode: target.mode,
+      backend: target.backend,
+      surface: target.serverLabel,
+      connectUnauthenticated: () => target.connectUnauthenticated(),
+    });
+  }, 30_000);
+
+  afterAll(async () => {
+    await target.close();
+    for (const dir of tmpDirs.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
-  it("round-trips every read-only tool with a fixture input", async () => {
-    const server = createServer(createFixtureClient());
-    const report = await certify({ server, backend: "fixture" });
+  it("certifies the mock /mcp operator surface with a PASS summary", () => {
+    expect(report.summary.pass).toBe(true);
+    expect(report.summary.failures).toBe(0);
+    // The certified surface is the ~20-tool operator catalog, not the 9-tool static server.
+    expect(report.summary.toolsDiscovered).toBeGreaterThanOrEqual(18);
+    expect(report.summary.toolsSchemaValid).toBe(report.summary.toolsDiscovered);
+    expect(report.protocol.backend).toBe("mock-upstream");
+    expect(report.protocol.targetMode).toBe("offline");
+  });
 
+  it("advertises output schemas and validates structuredContent for read-only tools", () => {
     for (const tool of report.tools) {
-      if (tool.readOnly) {
-        expect(tool.roundTrip, `${tool.name} round-trip`).toBe("passed");
+      expect(tool.hasOutputSchema, `${tool.name} outputSchema`).toBe(true);
+    }
+    expect(report.summary.toolsOutputValidated).toBeGreaterThan(0);
+    for (const tool of report.tools) {
+      if (tool.readOnly && tool.roundTrip === "passed") {
+        expect(tool.structuredOutputValidated, `${tool.name} output validated`).toBe(true);
       }
-      // Certification must never report a write/destructive round-trip.
       expect(tool.roundTrip).not.toBe("failed");
     }
   });
 
-  it("conforms honua_query_features to the standard query_features schema", async () => {
-    const server = createServer(createFixtureClient());
-    const report = await certify({ server, backend: "fixture" });
-
-    const queryFeatures = report.tools.find((t) => t.name === "honua_query_features");
-    expect(queryFeatures).toBeDefined();
-    expect(queryFeatures?.standardName).toBe("query_features");
-    expect(queryFeatures?.conformant).toBe(true);
+  it("conforms the widened operator tool set to their standard schemas", () => {
+    const mapped = report.tools.filter((t) => t.standardName !== null);
+    // Many more than the single honua_query_features the old static server matched.
+    expect(mapped.length).toBeGreaterThanOrEqual(12);
+    for (const tool of mapped) {
+      expect(tool.conformant, `${tool.name} conformant`).toBe(true);
+    }
+    const names = mapped.map((t) => t.name);
+    expect(names).toContain("honua_plan_analysis");
+    expect(names).toContain("honua_execute_plan");
+    expect(names).toContain("honua_dry_run_plan");
+    expect(names).toContain("honua_create_map_package");
+    // honua_publish_service conforms to the standard's publish_service entry
+    // (documented divergence), never to the known-gap publish_result family.
+    const publishService = mapped.find((t) => t.name === "honua_publish_service");
+    expect(publishService?.standardName).toBe("publish_service");
   });
 
-  it("records known gaps for unimplemented standard tools without failing", async () => {
-    const server = createServer(createFixtureClient());
-    const report = await certify({ server, backend: "fixture" });
-
-    expect(report.summary.knownGaps).toBeGreaterThan(0);
-    const standardGap = report.knownGaps.find((g) => g.kind === "standard-tool" && g.name === "render_map");
-    expect(standardGap).toBeDefined();
-    // Absence of a standard tool is a recorded gap, not a failure.
+  it("reports publish_result as a documented, non-failing known gap", () => {
+    const gap = report.knownGaps.find((g) => g.kind === "standard-tool" && g.name === "publish_result");
+    expect(gap).toBeDefined();
+    expect(gap?.detail).toContain("not yet implemented");
+    // Known gaps never fail certification.
     expect(report.summary.pass).toBe(true);
   });
 
-  it("discovers MCP resources", async () => {
-    const server = createServer(createFixtureClient());
-    const report = await certify({ server, backend: "fixture" });
+  it("passes the pagination, error-shape, and auth contracts", () => {
+    expect(report.summary.contractsFailed).toBe(0);
+    expect(report.summary.contractsChecked).toBeGreaterThan(0);
 
-    expect(report.resources.length).toBeGreaterThan(0);
-    expect(report.resources.map((r) => r.uri)).toContain("honua://services");
+    const byContract = (name: string, target2?: string) =>
+      report.contracts.find((c) => c.contract === name && (target2 ? c.target === target2 : true));
+
+    expect(byContract("list-pagination", "tools")?.status).toBe("passed");
+    expect(byContract("error-shape")?.status).toBe("passed");
+    expect(byContract("auth-unauthenticated", "tools/call")?.status).toBe("passed");
+    expect(byContract("auth-unauthenticated", "resources/read")?.status).toBe("passed");
   });
 
-  it("writes JSON and Markdown artifacts to a stable location", async () => {
+  it("discovers operator resources", () => {
+    expect(report.resources.length).toBeGreaterThan(0);
+    expect(report.resources.map((r) => r.uri)).toContain("honua://results/res-001");
+  });
+
+  it("writes JSON and Markdown artifacts describing the operator catalog", () => {
     const dir = makeTmpDir();
-    const report = await runCertification({ forceFixture: true });
     const paths = {
       json: join(dir, "mcp-certification-results.json"),
       markdown: join(dir, "mcp-certification-results.md"),
@@ -88,12 +121,14 @@ describe("MCP certification harness", () => {
     writeArtifacts(report, paths);
 
     const json = JSON.parse(readFileSync(paths.json, "utf8"));
-    expect(json.schemaVersion).toBe(1);
+    expect(json.schemaVersion).toBe(2);
     expect(json.summary.pass).toBe(true);
 
     const md = readFileSync(paths.markdown, "utf8");
     expect(md).toContain("# MCP Certification");
     expect(md).toContain("PASS");
+    expect(md).toContain("operator catalog");
+    expect(md).toContain("## Contracts");
   });
 });
 
@@ -152,17 +187,24 @@ describe("read-only classification", () => {
 
   it("treats mutation-shaped names as not read-only by default", () => {
     expect(isReadOnlyTool({ name: "honua_create_map_package" })).toBe(false);
+    expect(isReadOnlyTool({ name: "honua_propose_operation" })).toBe(false);
     expect(isReadOnlyTool({ name: "honua_query_features" })).toBe(true);
   });
 });
 
 describe("markdown rendering", () => {
-  it("renders a FAIL report with a failures section", () => {
+  it("renders a FAIL report with a tool-failures section and contracts", () => {
     const md = renderMarkdown({
-      schemaVersion: 1,
-      generatedAt: "2026-06-21T00:00:00.000Z",
+      schemaVersion: 2,
+      generatedAt: "2026-07-05T00:00:00.000Z",
       server: { name: "honua", version: "0.0.0" },
-      protocol: { mcpTransport: "in-memory", honuaTransport: "rest", backend: "live" },
+      protocol: {
+        mcpTransport: "streamable-http",
+        honuaTransport: "rest",
+        backend: "live",
+        targetMode: "remote",
+        surface: "live honua /mcp",
+      },
       standard: { source: "x", indexDate: "2026-06-21", dialect: "draft-2020-12" },
       summary: {
         pass: false,
@@ -171,10 +213,14 @@ describe("markdown rendering", () => {
         toolsConformanceChecked: 1,
         toolsConformant: 0,
         toolsRoundTripped: 0,
+        toolsOutputValidated: 0,
         resourcesDiscovered: 0,
         promptsDiscovered: 0,
+        contractsChecked: 1,
+        contractsPassed: 0,
+        contractsFailed: 1,
         knownGaps: 0,
-        failures: 1,
+        failures: 2,
       },
       tools: [
         {
@@ -186,26 +232,60 @@ describe("markdown rendering", () => {
           conformant: false,
           readOnly: true,
           roundTrip: "failed",
+          structuredOutputValidated: false,
           errors: ["inputSchema not well-formed: boom"],
           notes: [],
         },
       ],
       resources: [],
       prompts: [],
+      contracts: [{ contract: "error-shape", target: "honua_bad", status: "failed", detail: "kaboom" }],
       knownGaps: [],
     });
     expect(md).toContain("FAIL");
-    expect(md).toContain("### Failures");
+    expect(md).toContain("### Tool failures");
     expect(md).toContain("boom");
-    expect(md).toContain("transport: `rest`");
+    expect(md).toContain("## Contracts");
+    expect(md).toContain("kaboom");
+    expect(md).toContain("Honua transport: `rest`");
   });
 });
 
 describe("vendored schema index", () => {
-  it("maps reference tool names to standard schemas", () => {
+  it("maps reference tool names to standard schemas per the upstream standard", () => {
     const index = loadSchemaIndex();
     const queryFeatures = index.tools.find((t) => t.standardName === "query_features");
     expect(queryFeatures?.referenceToolName).toBe("honua_query_features");
     expect(queryFeatures?.implementationStatus).toBe("implemented");
+
+    // publish_result is a documented known-gap upstream; honua_publish_service
+    // is a divergence mapped to its own publish_service entry, NOT an
+    // implementation of publish_result.
+    const publishResult = index.tools.find((t) => t.standardName === "publish_result");
+    expect(publishResult?.referenceToolName).toBeNull();
+    expect(publishResult?.implementationStatus).toBe("known-gap");
+    expect(index.tools.find((t) => t.standardName === "publish_service")?.referenceToolName).toBe(
+      "honua_publish_service",
+    );
+
+    expect(index.tools.find((t) => t.standardName === "create_map_package")?.referenceToolName).toBe(
+      "honua_create_map_package",
+    );
+    expect(index.tools.find((t) => t.standardName === "create_app_package")?.referenceToolName).toBe(
+      "honua_create_app_package",
+    );
+
+    // The vendored index stays byte-aligned with upstream: no SDK-invented fields.
+    for (const tool of index.tools) {
+      expect("referenceToolAliases" in tool, `${tool.standardName} must not carry referenceToolAliases`).toBe(false);
+    }
+  });
+
+  it("applies the SDK-local honua_dry_run_plan alias in the reference lookup", () => {
+    expect(REFERENCE_TOOL_ALIASES.honua_dry_run_plan).toBe("honua_validate_plan");
+    const lookup = buildReferenceToolLookup(loadSchemaIndex());
+    const viaAlias = lookup.get("honua_dry_run_plan");
+    expect(viaAlias?.standardName).toBe("validate_plan");
+    expect(viaAlias).toBe(lookup.get("honua_validate_plan"));
   });
 });
