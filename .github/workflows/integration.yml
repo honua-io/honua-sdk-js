@@ -59,7 +59,7 @@ env:
   # sha256:4c17c4feaedb880606684c5c013119fe7dfb16cab6ad663383164f31bade6157).
   HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-6d34dd1' }}
   HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT || '6d34dd1' }}
-  HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.1.0-alpha.1' }}
+  HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.1.0-alpha.3' }}
   # Deterministic container passwords for the self-contained stack. These are
   # NOT secrets (the stack is ephemeral and never exposed off the runner); the
   # encryption master-key/salt are the same fixed test values honua-server's own
