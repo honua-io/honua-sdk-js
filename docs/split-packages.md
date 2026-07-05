@@ -13,6 +13,7 @@ subset of the surface.
 | `@honua/sdk` | `@honua/sdk-js/honua` + most stable subpaths | Core client and shared contract |
 | `@honua/sdk-esri-compat` | `@honua/sdk-js/esri-compat` | Esri ArcGIS JS compatibility layer |
 | `@honua/honua-migrate` | `@honua/sdk-js/migration` | Codemod runner + migration scanner |
+| `@honua/react` | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers) |
 
 ## How to build the split tarballs
 

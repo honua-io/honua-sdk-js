@@ -48,6 +48,7 @@ default-barrel import never pulls them in.
 | `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions (MCP/OpenAI compatible) |
 | `@honua/sdk-js/realtime` | Realtime transport adapters (SSE, future WS/WebTransport) |
 | `@honua/sdk-js/web-components` | Framework-neutral custom elements |
+| `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers; published standalone as `@honua/react`) |
 | `@honua/sdk-js/operator` | Operator-native chat/plan-review/approval controllers |
 | `@honua/sdk-js/operator/controllers` | Framework-neutral controllers behind `/operator` |
 | `@honua/sdk-js/operator/workspace` | Operator workspace state container |
