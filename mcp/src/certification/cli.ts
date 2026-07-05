@@ -19,8 +19,11 @@ import { type ArtifactPaths, runCertification, writeArtifacts } from "./run.js";
  * `mcp-certification-results.{json,md}` from `honua-sdk-js/mcp`. Override with
  * `--out-dir <dir>`.
  *
- * Deterministic and offline by default: zero model/API calls. Uses a live
- * honua-server only when `HONUA_BASE_URL` is set (CI integration path).
+ * Deterministic and offline by default: zero model/API calls. The certification
+ * target is selected by `HONUA_MCP_CERT_TARGET` (`offline` | `remote` |
+ * `stdio-proxy`); offline uses an in-process streamable-HTTP mock of the honua
+ * `/mcp` operator surface and gates every PR. Remote / stdio-proxy certify a
+ * live `/mcp` (HONUA_MCP_REMOTE_URL + auth) and are workflow_dispatch only.
  */
 
 interface CliOptions {
@@ -63,8 +66,9 @@ async function main(): Promise<void> {
   const s = report.summary;
   const status = s.pass ? "PASS" : "FAIL";
   process.stdout.write(
-    `MCP certification ${status}: ${s.toolsConformant}/${s.toolsConformanceChecked} conformant, ` +
-      `${s.toolsRoundTripped} round-tripped, ${s.knownGaps} known gaps, ${s.failures} failures.\n`,
+    `MCP certification ${status} [${report.protocol.targetMode}]: ${s.toolsConformant}/${s.toolsConformanceChecked} conformant, ` +
+      `${s.toolsOutputValidated} output-validated, ${s.contractsPassed}/${s.contractsChecked} contracts, ` +
+      `${s.knownGaps} known gaps, ${s.failures} failures.\n`,
   );
   process.stdout.write(`Artifacts: ${paths.json}\n           ${paths.markdown}\n`);
 

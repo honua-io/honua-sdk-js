@@ -5,9 +5,9 @@ machine-readable schemas from the open **geospatial-mcp** standard.
 
 - **Source repo:** https://github.com/honua-io/geospatial-mcp
 - **Source path:** `spec/schemas/`
-- **Source commit:** `968d7d7709f15d0626f8f3c607532489e48f07d1`
-  (`spec(schemas): publish machine-readable JSON Schemas + conformance fixtures (#1957)`)
-- **Schema index date:** `2026-06-21`
+- **Source commit:** `54cbd49a6b8bf408024fe4d0316f79b8fa0534ab`
+  (`spec: align prose + served-family schemas to the honua-server /mcp grammar; harden strict manifest gate (#44)`)
+- **Schema index date:** `2026-07-01`
 - **Dialect:** JSON Schema draft 2020-12
 
 ## Why vendored

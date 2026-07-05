@@ -151,6 +151,13 @@ export function createClientFromEnv(env: NodeJS.ProcessEnv = process.env): Honua
   });
 }
 
+/**
+ * @deprecated Static, hand-maintained 9-tool MCP server. This is NO LONGER the
+ * product surface and is NOT on the certification trust path — the honua-server
+ * `/mcp` catalog is the source of truth, mirrored to stdio by `honua-mcp-proxy`
+ * (see {@link runProxy}). `createServer` is retained ONLY as a labeled offline
+ * test fixture (proxy parity harness). Do not ship it as the operator surface.
+ */
 export function createServer(client: HonuaClient) {
   const server = new McpServer({
     name: "honua",
@@ -242,12 +249,24 @@ export function createServer(client: HonuaClient) {
   return server;
 }
 
+/* v8 ignore start -- deprecated bin entry: delegates to the dynamic proxy at
+   runtime; the proxy's logic is unit-tested in proxy.test.ts. */
+/**
+ * Deprecated `honua-mcp` bin entry.
+ *
+ * The static 9-tool server has been retired from the product/trust path. This
+ * bin now prints a deprecation notice and launches the dynamic proxy
+ * (`honua-mcp-proxy`), which mirrors the honua-server `/mcp` catalog. It
+ * therefore requires `HONUA_MCP_REMOTE_URL` (the remote `/mcp` endpoint) instead
+ * of the old `HONUA_BASE_URL`.
+ */
 async function main() {
-  const client = createClientFromEnv();
-
-  const server = createServer(client);
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  process.stderr.write(
+    "DEPRECATION: `honua-mcp` is deprecated and now proxies the honua-server /mcp catalog. " +
+      "Use `honua-mcp-proxy` directly. Set HONUA_MCP_REMOTE_URL to the remote /mcp endpoint.\n",
+  );
+  const { runProxy } = await import("./proxy.js");
+  await runProxy();
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -256,3 +275,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(1);
   });
 }
+/* v8 ignore stop */

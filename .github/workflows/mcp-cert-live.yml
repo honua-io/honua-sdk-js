@@ -1,0 +1,74 @@
+name: MCP live certification
+
+# Manually-triggered lane that certifies a LIVE honua-server /mcp operator
+# surface (streamable-HTTP) or the stdio proxy chain against it. The PR-gating
+# offline certification lives in ci.yml (`mcp-sdk` job) and needs no live server;
+# this lane is workflow_dispatch only so it never blocks trunk merges.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Certification target mode
+        required: true
+        default: remote
+        type: choice
+        options:
+          - remote
+          - stdio-proxy
+      remote_url:
+        description: Remote /mcp endpoint (overrides the HONUA_MCP_REMOTE_URL secret when set)
+        required: false
+        type: string
+
+# This lane only reads code and publishes an artifact.
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 20.19.0
+
+jobs:
+  mcp-cert-live:
+    name: MCP live certification
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Build JS SDK dependency
+        run: |
+          npm ci --prefix ..
+          npm run build --prefix ..
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Live MCP certification
+        env:
+          HONUA_MCP_CERT_TARGET: ${{ inputs.target }}
+          HONUA_MCP_REMOTE_URL: ${{ inputs.remote_url || secrets.HONUA_MCP_REMOTE_URL }}
+          HONUA_MCP_AUTH_TOKEN: ${{ secrets.HONUA_MCP_AUTH_TOKEN }}
+          HONUA_API_KEY: ${{ secrets.HONUA_API_KEY }}
+        run: node dist/src/certification/cli.js
+
+      - name: Upload live certification artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-live-certification-artifacts
+          path: |
+            mcp/mcp-certification-results.json
+            mcp/mcp-certification-results.md
+          if-no-files-found: warn
