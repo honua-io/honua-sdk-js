@@ -192,6 +192,7 @@ recommended replacement for `curl` in docs and demos.
 | Demo | What it shows |
 |------|---------------|
 | [`maplibre-quickstart`](./examples/maplibre-quickstart/README.md) | MapLibre map + Honua FeatureServer query + popup inspection |
+| [`react-quickstart`](./examples/react-quickstart/README.md) | `@honua/react` provider + hooks + `HonuaMap` over the same fixture lane |
 | [`storytelling-25d-map`](./examples/storytelling-25d-map/README.md) | 2.5D MapLibre storytelling, OGC overlays, route replay |
 | [`kepler-analytics`](./examples/kepler-analytics/README.md) | kepler.gl analytics replay over fixture GeoJSON + KPIs |
 | [`imagery-cog-quickstart`](./examples/imagery-cog-quickstart/README.md) | WMS `GetMap`, COG ImageServer tiles, `exportImage` previews |
@@ -203,7 +204,7 @@ recommended replacement for `curl` in docs and demos.
 | [`cesium-route-playback`](./docs/examples/cesium-route-playback/README.md) | Cesium 3D route playback over one bounded Honua query |
 
 Each example documents its own env surface, mock + live lanes, browser telemetry hooks, and
-Playwright smoke coverage. The 10 above are the flagship walkthroughs; another 11 runnable
+Playwright smoke coverage. The 11 above are the flagship walkthroughs; another 11 runnable
 demos cover specialized workflows:
 
 | Demo | What it shows |

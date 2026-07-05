@@ -65,9 +65,9 @@ CI (`.github/workflows/ci.yml`) runs, in order: `typecheck`, `check`, `build`, `
 ## Architecture
 
 - Protocol-neutral core contract: `src/contract/` (`Dataset`/`Source`/`Query`/`Result`).
-- Client entry points are exposed as subpath exports in `package.json` (`.`, `./honua`, `./contract`, `./esri-compat`, `./migration`, `./expr`, `./webmap`, `./geocoding`, `./map`, `./runtime`, `./realtime`, `./scene-workspace`, `./collaboration`, etc.). Public surface roots: `src/index.ts`, `src/honua.ts`.
+- Client entry points are exposed as subpath exports in `package.json` (`.`, `./honua`, `./contract`, `./esri-compat`, `./migration`, `./expr`, `./webmap`, `./geocoding`, `./geometry`, `./react`, `./map`, `./runtime`, `./realtime`, `./scene-workspace`, `./collaboration`, etc.). Public surface roots: `src/index.ts`, `src/honua.ts`.
 - Major source areas (`src/`): `core`, `contract`, `expr` (query expressions), `webmap`, `map` + `runtime` (MapLibre runtime / `MapPackage` loading), `scene-workspace`, `style`, `geocoding`, `realtime` (subscriptions), `esri-compat` + `esri-compat-entry.ts` (ArcGIS drop-in compat), `migration` + `migration-entry.ts` (codemod + CLI), `agent-tools`, `app` / `app-controller` / `app-workspace` / `generated-app`, `collaboration`, `control-plane`, `exploration`, `interactions`, `filter-registry`, `operator`, `studio`, `web-components`. `src/gen` holds buf-generated protobuf code.
-- The package publishes as three split packages (see `scripts/prepare-split-packages.mjs`, `docs/split-packages.md`): `honua-sdk`, `honua-sdk-esri-compat`, `honua-migrate`.
+- The package publishes as five split packages (see `scripts/prepare-split-packages.mjs`, `docs/split-packages.md`): `honua-sdk`, `honua-sdk-esri-compat`, `honua-migrate`, `honua-react` (`@honua/react`), `honua-geometry` (`@honua/geometry`).
 - `mcp/` is an independent MCP server (`@honua/mcp-server`, bin `honua-mcp`) built on `@modelcontextprotocol/sdk` + `zod`; it peer-depends on `@honua/sdk-js`.
 
 ## Directory Layout
