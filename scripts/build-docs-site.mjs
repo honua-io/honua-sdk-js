@@ -120,8 +120,16 @@ function relativeUrl(fromSitePath, toSitePath) {
 // links resolve: lowercase, drop punctuation (keeping spaces/hyphens), then map
 // each space to a hyphen WITHOUT collapsing runs (so "a + b" -> "a--b").
 function slugify(text) {
-  return text
-    .replace(/<[^>]+>/g, "")
+  // Strip tags to a fixed point: a single-pass replace can leave fragments
+  // that recombine into a tag (e.g. "<scr<b>ipt>"), which CodeQL flags as
+  // js/incomplete-multi-character-sanitization. The character allowlist
+  // below removes residual "<"/">" anyway; the loop makes it airtight.
+  let stripped = text;
+  for (let prev = ""; prev !== stripped; ) {
+    prev = stripped;
+    stripped = stripped.replace(/<[^>]*>/g, "");
+  }
+  return stripped
     .trim()
     .toLowerCase()
     .replace(/[^\w\s-]/g, "")
