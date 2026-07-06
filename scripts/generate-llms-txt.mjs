@@ -110,6 +110,11 @@ const SECTIONS = [
       { path: "docs/ogc-api.md", description: "OGC API Features / Tiles / Maps / Processes and STAC cookbooks." },
       { path: "docs/wfs.md", description: "WFS 2.0 adapter usage, filters, and exception handling." },
       {
+        path: "docs/geoparquet.md",
+        description:
+          "GeoParquet / DuckDB-WASM Source: contract Query compiled to SQL over read_parquet, spatial pushdown, Overture recipe.",
+      },
+      {
         path: "docs/webmap-json-compatibility.md",
         description: "Parsing Esri WebMap JSON into Honua sources and MapLibre style.",
       },
@@ -203,6 +208,11 @@ const ENTRYPOINTS = [
     path: "src/webmap/index.ts",
     label: "@honua/sdk-js/webmap",
     fallback: "WebMap JSON parse + symbol / renderer / popup converters.",
+  },
+  {
+    path: "src/geoparquet/index.ts",
+    label: "@honua/sdk-js/geoparquet",
+    fallback: "GeoParquet / DuckDB-WASM Source: contract Query compiled to SQL over read_parquet.",
   },
 ];
 

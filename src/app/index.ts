@@ -605,6 +605,7 @@ function mapDescriptorProtocol(protocol: SourceDescriptor["protocol"]): HonuaMap
     case "geoservices-gp-service":
     case "ogc-records":
     case "stac":
+    case "geoparquet":
     case "maplibre-geojson":
       throw new HonuaMapPackageError(`SourceDescriptor protocol "${protocol}" cannot be projected to a MapPackage`, {
         stage: "source-bind",
