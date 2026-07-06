@@ -216,6 +216,8 @@
     "docs:llms": "node scripts/generate-llms-txt.mjs",
     "verify:llms": "node scripts/generate-llms-txt.mjs --check",
     "verify:skills": "node scripts/verify-skills.mjs",
+    "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",
+    "verify:api-report": "npm run build --silent && node scripts/report-api-surface.mjs --check",
     "demo:quickstart": "vite --config examples/maplibre-quickstart/vite.config.ts",
     "demo:quickstart:build": "vite build --config examples/maplibre-quickstart/vite.config.ts",
     "demo:quickstart:preview": "vite preview --config examples/maplibre-quickstart/vite.config.ts --host 127.0.0.1",
