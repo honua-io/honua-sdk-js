@@ -26,6 +26,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 
 - [OGC API Client](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/ogc-api.md): OGC API Features / Tiles / Maps / Processes and STAC cookbooks.
 - [WFS 2.0 adapter](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/wfs.md): WFS 2.0 adapter usage, filters, and exception handling.
+- [GeoParquet / DuckDB-WASM source](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/geoparquet.md): GeoParquet / DuckDB-WASM Source: contract Query compiled to SQL over read_parquet, spatial pushdown, Overture recipe.
 - [WebMap JSON Compatibility Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/webmap-json-compatibility.md): Parsing Esri WebMap JSON into Honua sources and MapLibre style.
 
 ## Map runtime
@@ -59,3 +60,4 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [@honua/sdk-js/geocoding](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/geocoding/index.ts): @honua/sdk-js/geocoding — HonuaGeocodingClient for forward / reverse geocoding and typeahead suggestions over a Honua-hosted GeocodeServer.
 - [@honua/sdk-js/expr](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/expr/index.ts): @honua/sdk-js/expr — Honua expression builder.
 - [@honua/sdk-js/webmap](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/webmap/index.ts): @honua/sdk-js/webmap — WebMap JSON parse + symbol / renderer / popup converters.
+- [@honua/sdk-js/geoparquet](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/geoparquet/index.ts): @honua/sdk-js/geoparquet — a GeoParquet / DuckDB-WASM–backed Source.

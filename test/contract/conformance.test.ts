@@ -232,6 +232,7 @@ describe("contract / Protocol enum", () => {
       "wms",
       "wmts",
       "odata",
+      "geoparquet",
       "maplibre-vector",
       "maplibre-raster",
       "maplibre-geojson",

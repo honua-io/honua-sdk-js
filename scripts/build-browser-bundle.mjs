@@ -48,6 +48,8 @@ const EXTERNAL = [
   "@bufbuild/protobuf",
   "@connectrpc/connect",
   "@connectrpc/connect-web",
+  "@duckdb/duckdb-wasm",
+  "apache-arrow",
 ];
 
 const SHARED_OPTIONS = {

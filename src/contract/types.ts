@@ -54,6 +54,7 @@ export type Protocol =
   | "wms"
   | "wmts"
   | "odata"
+  | "geoparquet"
   | "maplibre-vector"
   | "maplibre-raster"
   | "maplibre-geojson";
@@ -75,6 +76,7 @@ export const PROTOCOLS: readonly Protocol[] = [
   "wms",
   "wmts",
   "odata",
+  "geoparquet",
   "maplibre-vector",
   "maplibre-raster",
   "maplibre-geojson",
@@ -257,6 +259,7 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   wms: capabilities(["render", "tiles", "query"]),
   wmts: capabilities(["render", "tiles"]),
   odata: capabilities(["query", "queryObjectIds", "stream", "applyEdits"]),
+  geoparquet: capabilities(["query", "queryAggregate", "stream"]),
   "maplibre-vector": capabilities(["render", "tiles"]),
   "maplibre-raster": capabilities(["render", "tiles"]),
   "maplibre-geojson": capabilities(["render"]),
@@ -314,6 +317,19 @@ export interface SourceLocator {
   entitySet?: string;
   /** GP Service task identifier (for `geoservices-gp-service`). */
   taskName?: string;
+  /**
+   * GeoParquet source addressing. `url` carries the primary file or a
+   * hive-partitioned glob (e.g. an Overture theme prefix ending in
+   * `/**\/*.parquet`); `urls` lists multiple files read as one relation via
+   * `read_parquet([...])`. `geometryColumn` pins the geometry column when the
+   * file lacks GeoParquet `geo` metadata (Parquet-native GEOMETRY/GEOGRAPHY).
+   */
+  geoparquet?: {
+    /** Additional files unioned with `url` via `read_parquet([...])`. */
+    urls?: readonly string[];
+    /** Explicit geometry column name (overrides metadata detection). */
+    geometryColumn?: string;
+  };
 }
 
 /** Optional schema description; mirrors `HonuaLayerMetadata.fields`. */
@@ -731,7 +747,8 @@ export type AdapterKind =
   | "wmts"
   | "wmts-layer"
   | "wmts-tileset"
-  | "odata";
+  | "odata"
+  | "geoparquet";
 
 /**
  * Compile-time map from `AdapterKind` → underlying class instance. Adapter

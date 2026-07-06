@@ -75,6 +75,7 @@
     "wms",
     "wmts",
     "odata",
+    "geoparquet",
     "maplibre-vector",
     "maplibre-raster",
     "maplibre-geojson"
@@ -214,6 +215,11 @@
       "queryObjectIds",
       "stream",
       "applyEdits"
+    ],
+    "geoparquet": [
+      "query",
+      "queryAggregate",
+      "stream"
     ],
     "maplibre-vector": [
       "render",
@@ -636,7 +642,7 @@
       "protocol": "geoservices-geometry-service",
       "operation": "query",
       "requiredCapability": "query",
-      "reason": "Geometry Service is a stateless utility — it hosts no feature table. Operations live behind Source.protocol().",
+      "reason": "Geometry Service is a stateless utility \u2014 it hosts no feature table. Operations live behind Source.protocol().",
       "expectedError": {
         "name": "HonuaCapabilityNotSupportedError",
         "capability": "query",
