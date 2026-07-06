@@ -1,0 +1,29 @@
+name: Standalone Live Smoke
+
+# Non-blocking, scheduled probe of the PUBLIC endpoints the standalone quickstart
+# documents. It NEVER runs on pull_request/push, so it can never block a PR; a
+# real upstream regression turns the weekly run red (loud in the run summary).
+# CI's required lanes only ever replay the recorded fixtures — this is the one
+# place that touches the live third-party services.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Probe documented public endpoints
+        run: node scripts/standalone-live-smoke.mjs

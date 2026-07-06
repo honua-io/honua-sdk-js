@@ -54,7 +54,12 @@ can migrate file-by-file.
 > The protocol clients work against **any** standards-speaking server — an existing ArcGIS
 > Server/Online endpoint, any OGC API implementation, a STAC catalog. A
 > [Honua Server](https://github.com/honua-io/honua-server) adds the server-authored `MapPackage`,
-> realtime, and AI surfaces, but it is the upgrade path, not the entry fee.
+> realtime, and AI surfaces, but it is the upgrade path, not the entry fee. **When to use it
+> standalone:** if your data already sits behind an ArcGIS Server / ArcGIS Online endpoint, use it
+> today as a typed client and `esri-leaflet` successor — no server needed (see the
+> [server-optional quickstart](./docs/standalone-quickstart.md) and the
+> [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md)). Reach for a Honua
+> Server when you need authored map packages, realtime, collaboration, or MCP/AI.
 
 ```bash
 npm install @honua/sdk-js
@@ -112,46 +117,55 @@ Full per-entrypoint table (min + gzip, generated, not hand-written):
 
 ## 60-second quickstart
 
-The canonical surface is protocol-neutral: build a `Dataset` over one or more
-`Source`s, then call `queryAll()` (or `query()` / `stream()`). The same code
-works against GeoServices, OGC API Features, WFS, OData, and STAC.
+**No Honua server required.** The first block below runs against a *public* Esri
+GeoServices endpoint — no API key, no account, no infrastructure. The canonical
+surface is protocol-neutral: build a `Dataset` over one or more `Source`s, then
+call `queryAll()` (or `query()` / `stream()`).
 
 ```ts
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 
-const client = new HonuaClient({ baseUrl: "https://your-honua-server.example" });
+// A public Esri Living Atlas FeatureServer — nothing of Honua's is running.
+const client = new HonuaClient({
+  baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis",
+});
 
 const dataset = createDataset({
-  id: "parcels",
+  id: "states",
   client,
   sources: [
     {
-      id: "parcels-fs",
+      id: "apportionment",
       protocol: "geoservices-feature-service",
-      locator: { url: "https://your-honua-server.example", serviceId: "parcels", layerId: 0 },
+      locator: {
+        url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis",
+        serviceId: "2020_Census_State_Apportionment",
+        layerId: 0,
+      },
       capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
     },
   ],
 });
 
-const parcels = dataset.source("parcels-fs")!;
-const result = await parcels.queryAll({
-  where: "STATUS = 'ACTIVE'",
-  outFields: ["OBJECTID", "NAME"],
+const states = dataset.source("apportionment")!;
+const result = await states.queryAll({
+  where: "Seats_2020 > 10",
+  outFields: ["NAME", "Total_Pop_2020", "Seats_2020"],
   returnGeometry: true,
-  pagination: { limit: 500 },
+  pagination: { limit: 100 },
 });
 
-console.log(`Loaded ${result.features.length} features`);
+console.log(`Loaded ${result.features.length} states`);
 ```
 
-Prefer the raw GeoServices shape (e.g. for an ArcGIS migration)? `HonuaClient`
-still ships the protocol-specific call as a typed escape hatch:
+The same code works against any GeoServices, OGC API Features, WFS, OData, or
+STAC endpoint. Migrating from `esri-leaflet`? The raw GeoServices shape and the
+`esri-compat` drop-in point at `services.arcgis.com`-style URLs unchanged:
 
 ```ts
 const { features } = await client.queryFeatures({
-  serviceId: "natural-earth",
+  serviceId: "2020_Census_State_Apportionment",
   layerId: 0,
   where: "1=1",
   outFields: ["*"],
@@ -160,28 +174,38 @@ const { features } = await client.queryFeatures({
 });
 ```
 
-For production code, gate on `client.checkCompatibility()` so the SDK fails loudly
-when the server is older than the SDK's tested floor:
+Run the complete standalone app locally — public endpoint in, MapLibre map out:
+
+```bash
+npm install
+npm run demo:standalone:mock   # deterministic fixture lane (what CI runs)
+npm run demo:standalone        # live lane against the public Esri endpoint
+```
+
+See [`docs/standalone-quickstart.md`](./docs/standalone-quickstart.md) for the
+guided server-optional walkthrough,
+[`docs/standalone-capability-matrix.md`](./docs/standalone-capability-matrix.md)
+for the backend-agnostic vs server-enhanced breakdown, and
+[`examples/standalone-quickstart/`](./examples/standalone-quickstart/README.md)
+for the committed source.
+
+### Add a Honua Server
+
+A [Honua Server](https://github.com/honua-io/honua-server) is the **upgrade
+path**, not the entry fee. It unlocks server-authored `MapPackage`s
+(`loadMapPackage()`), realtime subscriptions, collaboration / saved maps, and the
+MCP + AI surfaces. Point the same code at a local server (`docker compose up` in a
+honua-server checkout), and gate production reads on the compatibility check:
 
 ```ts
 const { supported, reasons } = await client.checkCompatibility();
 if (!supported) throw new Error(`Unsupported Honua server: ${reasons.join("; ")}`);
 ```
 
-Want to run a complete app locally? Clone this repo and:
-
-```bash
-npm install
-npm run demo:quickstart:mock   # serves examples/maplibre-quickstart against a deterministic fixture
-```
-
-The `demo:quickstart:mock` script prints `quickstartMockUrl=http://127.0.0.1:PORT`; open that URL
-to see the same code rendering live on MapLibre.
-
-See [`docs/quickstart.md`](./docs/quickstart.md) for the guided walkthrough,
-[`docs/quickstart-troubleshooting.md`](./docs/quickstart-troubleshooting.md) for common failure
-modes, and [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) for the
-committed source.
+The server-connected lane is the [`maplibre-quickstart`](./examples/maplibre-quickstart/README.md)
+example (`npm run demo:quickstart:mock`); see
+[`docs/quickstart.md`](./docs/quickstart.md) and
+[`docs/quickstart-troubleshooting.md`](./docs/quickstart-troubleshooting.md).
 
 ## Command-line client (`honua`)
 
@@ -242,6 +266,7 @@ demos cover specialized workflows:
 | [`app-bootstrap-basic`](./examples/app-bootstrap-basic/README.md) | Minimal `@honua/sdk-js/app` bootstrap helper |
 | [`web-components-basic`](./examples/web-components-basic/README.md) | Custom-element gallery |
 | [`arcgis-source-app`](./examples/arcgis-source-app/README.md) | Drop-in ArcGIS migration target |
+| [`standalone-quickstart`](./examples/standalone-quickstart/README.md) | Server-optional front door: public Esri FeatureServer → MapLibre, no Honua server |
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
 
@@ -527,8 +552,18 @@ await runCodemod({ input: "./src", output: "./migrated" });
 
 # 5-Minute Quickstart: Query Features and Render on a Map
 
-The canonical runnable browser quickstart for this repo is the committed example app at
-[`examples/maplibre-quickstart/`](../examples/maplibre-quickstart/README.md).
+> **Start server-optional.** You do **not** need a Honua server to use this SDK.
+> The fastest path with zero infrastructure — a public GeoServices endpoint in,
+> a MapLibre map out — is the
+> [standalone quickstart](./standalone-quickstart.md) and its committed app
+> [`examples/standalone-quickstart/`](../examples/standalone-quickstart/README.md).
+> This page covers the **server-connected** lane (compatibility gate, Honua
+> fixtures/live env); see the
+> [backend-agnostic capability matrix](./standalone-capability-matrix.md) for
+> which features need a server.
+
+The canonical runnable browser quickstart for the **server-connected** lane is the committed
+example app at [`examples/maplibre-quickstart/`](../examples/maplibre-quickstart/README.md).
 
 ## Fastest Local Path
 
@@ -676,6 +711,150 @@ Keep these as follow-ons, not part of the first committed quickstart app:
 
 For problems with compatibility, auth, empty queries, geometry, basemap loading, or staging CI config, use
 [`docs/quickstart-troubleshooting.md`](./quickstart-troubleshooting.md).
+
+---
+
+# File: docs/standalone-quickstart.md
+
+# Standalone Quickstart: The SDK Against Any Public Endpoint
+
+`@honua/sdk-js` is a typed geospatial service client first and a Honua client
+second. Its protocol clients speak raw **Esri GeoServices**, so they work against
+*any* ArcGIS Server / ArcGIS Online endpoint with **no Honua server, no API key,
+and no account**. This is the maintained, MapLibre-targeting successor to
+`esri-leaflet`.
+
+Start here. A [Honua Server](https://github.com/honua-io/honua-server) is the
+*upgrade path* (authored MapPackages, realtime, collaboration, MCP) — not the
+entry fee. The [capability matrix](./standalone-capability-matrix.md) draws the
+honest line between what is backend-agnostic and what needs a Honua Server.
+
+## The first code block runs with zero Honua infrastructure
+
+Point the SDK at a public FeatureServer and get typed query results:
+
+```ts
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+// A public Esri Living Atlas FeatureServer — no key, no account, no Honua server.
+const url =
+  "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0";
+const client = new HonuaClient({ baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis" });
+
+const { features } = await client.queryFeatures({
+  serviceId: "2020_Census_State_Apportionment",
+  layerId: 0,
+  where: "1=1",
+  outFields: ["NAME", "Total_Pop_2020", "Seats_2020"],
+  returnGeometry: false,
+  resultRecordCount: 5,
+});
+
+console.log(`Loaded ${features?.length ?? 0} states`);
+```
+
+`HonuaClient` builds the standard GeoServices request path
+(`/rest/services/{serviceId}/FeatureServer/{layerId}/query`) and joins it to
+whatever origin you pass as `baseUrl`, so `services.arcgis.com`,
+`sampleserver6.arcgisonline.com`, or your own ArcGIS Server all work unchanged.
+
+### Render it on MapLibre in one call
+
+`@honua/sdk-js/map` turns a public FeatureServer URL straight into a MapLibre
+`geojson` source:
+
+```ts
+import { HonuaClient } from "@honua/sdk-js/honua";
+import { loadHonuaFeatureServiceGeoJson } from "@honua/sdk-js/map";
+import maplibregl from "maplibre-gl";
+
+const client = new HonuaClient({ baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis" });
+const source = await loadHonuaFeatureServiceGeoJson(client, url, { outFields: ["NAME"] });
+
+const map = new maplibregl.Map({ container: "map", style: "https://demotiles.maplibre.org/style.json" });
+map.on("load", () => {
+  map.addSource("states", source);
+  map.addLayer({ id: "states-fill", source: "states", type: "fill", paint: { "fill-color": "#0f766e" } });
+});
+```
+
+### The esri-leaflet migration path works standalone too
+
+Pointing `FeatureLayerCompat` (and the rest of `@honua/sdk-js/esri-compat`) at a
+`services.arcgis.com`-style URL Just Works — it parses the URL, derives the
+origin, and constructs its own client. Existing ArcGIS-shaped code migrates
+file-by-file without standing up any Honua infrastructure:
+
+```ts
+import { FeatureLayerCompat } from "@honua/sdk-js/esri-compat";
+
+// Same familiar shape as esri-leaflet / arcgis-rest — no server required.
+const layer = new FeatureLayerCompat({ url });
+const { features } = await layer.queryFeatures({ where: "Seats_2020 > 10", outFields: ["NAME"] });
+```
+
+## Run the committed example
+
+The [`examples/standalone-quickstart/`](../examples/standalone-quickstart/README.md)
+app does exactly the above — public GeoServices query → MapLibre render → the
+`FeatureLayerCompat` drop-in proof — and ships two lanes:
+
+```bash
+npm install
+
+# Live lane: hits the pinned public Esri endpoint.
+npm run demo:standalone
+
+# Deterministic lane: replays recorded fixtures on same-origin paths (what CI runs).
+npm run demo:standalone:mock   # prints standaloneMockUrl=http://127.0.0.1:PORT
+```
+
+CI only ever runs the fixture lane, so it never depends on a third party. Refresh
+the recordings from the live endpoints on demand with
+`npm run demo:standalone:refresh-fixtures`. A scheduled, non-blocking workflow
+(`.github/workflows/standalone-live-smoke.yml`) probes the live endpoints weekly
+and never gates a PR.
+
+## Documented public endpoints
+
+These are the pinned, stable public services the docs and example use. All are
+anonymous, read-only, and permitted for demonstration use.
+
+| Endpoint | Protocol | Provider / license note |
+| --- | --- | --- |
+| `https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0` | GeoServices FeatureServer | Esri Living Atlas; US Census apportionment (public-domain data), publicly shared by Esri. |
+| `https://sampleserver6.arcgisonline.com/arcgis/rest/services/SampleWorldCities/MapServer/0` | GeoServices MapServer | Esri's public sample server, hosted expressly for samples/demos. |
+| `https://demo.pygeoapi.io/master/collections` | OGC API Features | pygeoapi's official public demo (MIT project); Natural Earth (public-domain) data. |
+
+> **OGC endpoints and the typed surface.** The GeoServices client is the fully
+> backend-agnostic lane today: it targets raw ArcGIS request paths. The SDK's
+> *typed* OGC API / WFS / STAC surfaces currently address the Honua server's OGC
+> facade paths — see the [capability matrix](./standalone-capability-matrix.md)
+> for the honest, per-capability breakdown and roadmap.
+
+## Add a Honua Server (the upgrade path)
+
+When you want more than reads against open services, a
+[Honua Server](https://github.com/honua-io/honua-server) unlocks:
+
+- **Authored `MapPackage`s** — `loadMapPackage()` + `HonuaMapRuntime` render a
+  server-authored map with styles, layer order, and metadata baked in.
+- **Realtime** — subscription-backed feature updates (`@honua/sdk-js/realtime`).
+- **Collaboration** — shared/saved maps and multi-user sessions.
+- **MCP + AI** — the `@honua/mcp-server` and agent tools surface.
+
+Spin one up locally and point the same code at it:
+
+```bash
+# From a honua-server checkout:
+docker compose up
+# then set baseUrl to your local server, e.g. http://127.0.0.1:8080
+```
+
+See the [maplibre-quickstart](../examples/maplibre-quickstart/README.md) for the
+server-connected lane, [`docs/maplibre-runtime.md`](./maplibre-runtime.md) for
+the `MapPackage` runtime, and [`docs/realtime-subscriptions.md`](./realtime-subscriptions.md)
+for realtime.
 
 ---
 
@@ -2092,6 +2271,60 @@ When you add or remove a capability for any protocol:
 5. Adapters that emit `Result.degraded[]` should populate
    `DegradedReason.sourceId` with `descriptor.id` so mixed-source fan-outs
    can attribute the degradation back to the source that emitted it.
+
+---
+
+# File: docs/standalone-capability-matrix.md
+
+# Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix
+
+This is the honest line between what `@honua/sdk-js` does against **any**
+standards-speaking server (no Honua infrastructure) and what needs a
+[Honua Server](https://github.com/honua-io/honua-server). It complements the
+per-protocol [Protocol × Capability Matrix](./protocol-capability-matrix.md),
+which is the code-of-record for what each protocol's client supports; this page
+answers the orthogonal question: *does the capability require a Honua server?*
+
+See the [standalone quickstart](./standalone-quickstart.md) for the runnable
+backend-agnostic path.
+
+## Legend
+
+- `standalone` — works against any public/self-hosted standards server (an ArcGIS
+  Server / ArcGIS Online endpoint, etc.) with no Honua server, key, or account.
+  Proven live against public endpoints; replayed from fixtures in CI.
+- `honua-enhanced` — requires a Honua Server (or a server that implements Honua's
+  facade paths). These are the upgrade-path features.
+- `facade-bound` — the *typed* SDK surface exists and is protocol-correct, but it
+  currently addresses Honua's server facade paths (e.g. `/ogc/features/...`)
+  rather than a raw third-party endpoint's own path layout. Backend-agnostic
+  support for raw endpoints is roadmap; use GeoServices for the standalone lane
+  today.
+
+## Matrix
+
+| Capability | Standalone? | Backend needed | Sample app / API | Notes |
+| --- | :-: | --- | --- | --- |
+| GeoServices FeatureServer query (`queryFeatures`, `queryFeaturesAll`, streaming, count, extent) | `standalone` | Any ArcGIS Server / Online | `examples/standalone-quickstart`, `HonuaClient.queryFeatures`, `Source` (`geoservices-feature-service`) | Raw `/rest/services/.../FeatureServer/{id}/query` path; verified live against `services.arcgis.com`. |
+| GeoServices MapServer / ImageServer reads (query, export, identify, legend, find) | `standalone` | Any ArcGIS Server / Online | `HonuaClient.mapService` / `imageService` | Raw GeoServices paths; verified live against `sampleserver6.arcgisonline.com`. |
+| Esri → GeoJSON → MapLibre source | `standalone` | Any ArcGIS Server / Online | `loadHonuaFeatureServiceGeoJson` (`@honua/sdk-js/map`) | One call from a public FeatureServer URL to a MapLibre `geojson` source. |
+| Esri compat drop-in (`FeatureLayerCompat`, `MapImageLayerCompat`, query/edits API) | `standalone` | Any ArcGIS Server / Online | `@honua/sdk-js/esri-compat`, `examples/standalone-quickstart` | The `esri-leaflet` migration path; parses `services.arcgis.com`-style URLs and builds its own client. |
+| `honua-migrate` codemod / ArcGIS scanner | `standalone` | None (build-time) | `@honua/sdk-js/migration`, `npm run scan:arcgis` | Static analysis + rewrites; no server involved at all. |
+| Geometry ops (buffer/area/measure/simplify/reproject) | `standalone` | None (client-side) | `@honua/sdk-js/geometry` | Pure client-side turf/proj4 ops. |
+| OGC API Features / Tiles / Maps / Processes, WFS 2.0, STAC, OData (typed surface) | `facade-bound` | Honua Server (facade paths) today | `Source` (`ogc-features`, `wfs`, `stac`, `odata`, …), `HonuaClient` OGC/WFS/STAC methods | Protocol-correct clients that currently address Honua's `/ogc/...` facade paths; raw third-party OGC/WFS/STAC endpoints are roadmap. GeoServices is the standalone lane today. |
+| Server compatibility gate (`checkCompatibility`) | `honua-enhanced` | Honua Server | `HonuaClient.checkCompatibility` | Reads `/api/v1/admin/capabilities`; skip it for standalone reads. |
+| Authored `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) | `honua-enhanced` | Honua Server | `@honua/sdk-js/runtime`, `examples/maplibre-quickstart` | Server-authored styles/layer order/metadata. |
+| Realtime subscriptions | `honua-enhanced` | Honua Server | `@honua/sdk-js/realtime`, `examples/realtime-incident-dashboard` | Subscription-backed live updates. |
+| Collaboration / saved maps | `honua-enhanced` | Honua Server | `@honua/sdk-js/collaboration` | Shared/saved maps, multi-user sessions. |
+| MCP tools / AI surfaces | `honua-enhanced` | Honua Server + `@honua/mcp-server` | `mcp/`, `@honua/sdk-js/agent-tools` | Assistant discovery/query over MCP. |
+
+## Rule of thumb
+
+If your data already lives behind an ArcGIS Server / ArcGIS Online endpoint, the
+SDK is a drop-in typed client and `esri-leaflet` successor **today, standalone**.
+Reach for a Honua Server when you need authored map packages, realtime,
+collaboration, or the MCP/AI surfaces — or when you want raw OGC/WFS/STAC/OData
+endpoints unified behind the same typed contract (the facade lane).
 
 ---
 

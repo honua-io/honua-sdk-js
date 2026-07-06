@@ -50,6 +50,11 @@ const SECTIONS = [
       { path: "INSTALL.md", description: "Install instructions and the subpath entrypoint / stability table." },
       { path: "docs/quickstart.md", description: "5-minute quickstart: query features and render them on a map." },
       {
+        path: "docs/standalone-quickstart.md",
+        description:
+          "Server-optional front door: run the SDK against any public GeoServices endpoint with no Honua server, key, or account.",
+      },
+      {
         path: "docs/quickstart-troubleshooting.md",
         description: "Common quickstart failure modes and how to fix them.",
       },
@@ -65,6 +70,10 @@ const SECTIONS = [
       {
         path: "docs/protocol-capability-matrix.md",
         description: "Which operations each protocol supports and where capabilities fall back.",
+      },
+      {
+        path: "docs/standalone-capability-matrix.md",
+        description: "Backend-agnostic vs Honua-server-enhanced capabilities: what works with no server and what needs one.",
       },
       {
         path: "docs/sdk-surface-alignment.md",
