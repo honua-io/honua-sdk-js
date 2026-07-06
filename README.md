@@ -304,6 +304,30 @@ correctly use this SDK:
     `/control-plane`, `/controls`, `/generated-app`, `/studio`, `/agent-tools`, `/realtime`,
     `/web-components`, `/react`, `/operator`, `/operator/*`.
 
+## Support and lifecycle
+
+We publish a lifecycle because a library you build on should tell you what it promises.
+`esri-leaflet` never did, and "will this break under me?" is the question that decides adoption.
+
+- **Today (pre-1.0, `0.x`).** The **stable tier** — the subpath entrypoints listed under
+  "Stable subpath entrypoints" in [`INSTALL.md`](./INSTALL.md) — is where we invest
+  compatibility effort, and it is guarded in CI by a public-API report
+  (`npm run verify:api-report`): no symbol leaves or changes shape by accident. While we are
+  on `0.x` a minor _may_ still change a stable symbol, but only as a reviewed, called-out
+  change — never silently. Symbols marked `@experimental` in JSDoc may change in any minor.
+- **At 1.0.** The stable tier freezes under [Semantic Versioning](https://semver.org/):
+  breaking or removing a stable symbol requires a major version; minors are additive. Major
+  versions are coordinated across the Honua SDK family (JavaScript, Python, .NET) so one semver
+  line describes the contract on every platform.
+- **Application-platform surfaces move separately.** App-shell, builder, and hosted-product
+  entrypoints are being extracted to a separate `@honua/app-platform` package that versions at
+  its own pre-1.0 cadence, so the client SDK can reach a frozen 1.0 without waiting on them.
+  During the transition their old `@honua/sdk-js/*` subpaths keep working for one minor behind a
+  `@deprecated` re-export shim. See
+  [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
+- **What we don't promise.** No security-backport window or LTS branch pre-1.0; fixes land on
+  the current line. We will publish that policy when we cut 1.0.
+
 ## More guides
 
 Long-form reference material now lives in [`docs/guide.md`](./docs/guide.md):
