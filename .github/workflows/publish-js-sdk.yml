@@ -160,6 +160,7 @@ jobs:
           publish_package "./dist/packages/honua-migrate"
           publish_package "./dist/packages/honua-react"
           publish_package "./dist/packages/honua-geometry"
+          publish_package "./dist/packages/honua-app-platform"
 
       - name: Publish summary
         if: ${{ env.DRY_RUN == 'true' }}
