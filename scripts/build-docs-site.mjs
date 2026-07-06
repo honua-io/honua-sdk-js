@@ -520,6 +520,14 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
   // Disable Jekyll so paths beginning with `_` (if any) survive Pages.
   writeFile(".nojekyll", "");
 
+  // AI-discoverability manifests at the SITE root — the site (and README)
+  // advertise /llms.txt; serving 404s there undercuts the whole story.
+  // Copied verbatim from the repo copies, which verify:llms keeps fresh.
+  for (const name of ["llms.txt", "llms-full.txt"]) {
+    const src = path.join(ROOT, name);
+    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(OUT, name));
+  }
+
   // TypeDoc API reference.
   let apiPages = 0;
   if (fs.existsSync(API_SRC)) {
