@@ -321,21 +321,65 @@ overpromising them today:
 > **What we don't promise.** No security-backport window or LTS branch pre-1.0;
 > fixes land on the current line. We will publish that policy when we cut 1.0.
 
-## Open questions for review
+## Decisions
 
-1. **`/console` delete vs move.** We propose *delete* (fold into
-   `@honua/console`). If the console team wants the projection helpers to remain
-   importable during their own migration, downgrade to *move* + one-minor shim
-   instead. This is the only destructive disposition and wants an explicit sign-off.
-2. **`agent-tools` semver status.** It stays in the stable *package* (the MCP
-   server depends on it), but should its symbols be **semver-frozen at 1.0** or
-   remain **`@experimental` within the stable package**? The AI/agent surface is
-   still moving; recommendation: keep `@experimental` for now, revisit before 1.0.
-3. **`realtime` / `react` promotion.** We promote both to semver-stable at 1.0.
-   Confirm — especially `realtime`, whose WS/WebTransport adapters are named as
-   "future" in INSTALL and may not want a freeze yet.
-4. **Package name.** `@honua/app-platform` is a working name; confirm before the
-   release-please stanza is committed (it bakes the npm name into tags).
-5. **`scene-workspace` Cesium peer.** Moving it takes the optional `cesium` peer
-   out of the stable package's peer list — confirm no stable entrypoint still
-   references Cesium types.
+Recorded 2026-07-06, decided by the repo owner. These resolve the five review
+questions above and govern the execution (`#357` REQ-004, phase 2).
+
+1. **`/console` — DELETE (confirmed).** Fold nothing into the SDK; honua-console
+   owns its own parity shapes. The `./console` entrypoint and `src/console` are
+   removed outright, with **no** deprecation shim (delete means delete). The
+   removal is called out in INSTALL.md / README with the honua-console pointer.
+2. **`agent-tools` — stays in the stable package; symbols remain
+   `@experimental` within the stable package (not semver-frozen).** The in-repo
+   `@honua/mcp-server` depends on it, so it does not move to `@honua/app-platform`.
+   Revisit the freeze/label decision before 1.0.
+3. **`realtime` + `react` — promote to semver-stable at 1.0 (confirmed).** Both
+   graduate from `@experimental` and join the stable subpath table in INSTALL.md
+   (and therefore the `verify:api-report` gate). **Exclusion:** the not-yet-built
+   WS/WebTransport realtime adapters are *not* part of the frozen surface — we do
+   not freeze names that do not exist yet. Only the shipped SSE transport
+   adapters are covered; the future WS/WebTransport names are added to the frozen
+   surface when they are actually built.
+4. **Package name — `@honua/app-platform` (confirmed final).**
+5. **`scene-workspace` Cesium peer — proceed with the move; verified clean.**
+   Mechanical check (grep of `src/` and the built `dist/` for the stable
+   entrypoint set): after eviction, **no stable entrypoint imports or type-
+   references Cesium.** The only occurrences of "cesium" in stable source are two
+   prose comments (`src/contract/pmtiles.ts`, `src/map/index.ts`) that merely
+   mention the Cesium adapter; the sole real Cesium type/import usage lives in
+   `src/scene-workspace`, which moves to `@honua/app-platform`. The optional
+   `cesium` peer therefore moves to `@honua/app-platform`'s peer list and leaves
+   the stable package's peer surface.
+
+### Execution deviations from the plan above (recorded for reviewers)
+
+Two mechanical realities of the existing split-package machinery override the
+literal text of the "Extraction plan" section; the intent (a separately
+published, independently evolving app-platform package) is preserved.
+
+- **No release-please stanza for `@honua/app-platform` (§2 "release-please
+  config" superseded).** The existing split packages `@honua/react` and
+  `@honua/geometry` are the precedents, and *neither* is registered in
+  `release-please-config.json` / `.release-please-manifest.json`. release-please
+  manages in-repo package directories (`.` and `mcp/`); the split packages are
+  generated from the shared `src/` tree into `dist/packages/*` at build time and
+  publish from there, inheriting the root version. `@honua/app-platform` is
+  another such generated split target, so it is registered the same way the other
+  split packages are — via `scripts/prepare-split-packages.mjs`,
+  `docs/split-packages.md`, `verify:publish-surface`, and the publish workflow —
+  and gets **no** release-please stanza. (Adding a stanza keyed at a
+  non-existent `packages/app-platform/` directory would break release-please.)
+- **Self-contained split target, no `git mv` (§4 "git-history preservation"
+  superseded).** The split packages build from the single shared `src/` tree by
+  copying each package's import closure into `dist/packages/*` (the
+  `@honua/react` precedent); they do not relocate source into per-package
+  directories. Physically `git mv`-ing the app-platform directories out of
+  `src/` would break every downward import into the stable core and the shared
+  build. Source therefore stays in `src/`; the eviction is expressed as (a)
+  removing the moved subpaths from the stable package's advertised/contracted
+  surface, (b) one-minor `@deprecated` re-export shims under
+  `src/_deprecated/*`, and (c) the new `@honua/app-platform` split target that
+  owns the canonical subpaths. If the app platform is later extracted to its own
+  repository, use `git filter-repo --path src/<moved-dir>` from this history so
+  blame survives the boundary.
