@@ -24,7 +24,7 @@ still parsed those payloads.
   `VERSION` in `--dest` (default `./conformance-fixtures-<version>/`).
 
   ```bash
-  conformance/fetch-fixtures.sh --version 0.1.0-alpha.1 [--dest DIR] [--repo honua-io/geospatial-grpc]
+  conformance/fetch-fixtures.sh --version 0.1.0-alpha.3 [--dest DIR] [--repo honua-io/geospatial-grpc]
   ```
 
 The fixtures themselves are **not vendored** — they are pulled at CI time so a
@@ -51,22 +51,33 @@ fixture set always maps 1:1 to a `geospatial.v1` schema release (REQ-003).
     test (runs in the normal unit lane, no server needed) proving a mutated
     golden is caught. This keeps the gate from being trivially always-green.
 - Config: `vitest.conformance.config.ts`; run with `npm run test:conformance`.
-- CI: the `conformance` job in `.github/workflows/integration.yml`.
+- CI: the live round-trip runs in the `Integration + Conformance` job of
+  `.github/workflows/integration.yml` (against the in-workflow self-contained
+  server, or an external override); the always-on drift guardrail runs in the
+  separate `Conformance Drift Guardrail` job so a server-bring-up flake can
+  never mask a regression in the detector itself.
 
 ### Running locally
 
 ```bash
 # 1. pull the pinned fixtures
-conformance/fetch-fixtures.sh --version 0.1.0-alpha.1 --dest ./conformance-fixtures
+conformance/fetch-fixtures.sh --version 0.1.0-alpha.3 --dest ./conformance-fixtures
 
 # 2. point the lane at a live, seeded honua-server and the fixtures
 export HONUA_INTEGRATION_BASE_URL=http://localhost:5555
 export HONUA_INTEGRATION_API_KEY=...          # matches the server admin password
 export HONUA_CONFORMANCE_FIXTURES_DIR=$PWD/conformance-fixtures
-export HONUA_CONFORMANCE_FIXTURES_VERSION=0.1.0-alpha.1
+export HONUA_CONFORMANCE_FIXTURES_VERSION=0.1.0-alpha.3
 
 npm run test:conformance
 ```
+
+To reproduce CI's self-contained server locally (what the workflow does), run
+the pinned image plus Redis and Postgres and apply the vendored seed before the
+server boots — see the `Start self-contained Honua Server` step in
+`.github/workflows/integration.yml` and `test/integration/seed/places-roads-v1.sql`.
+That seed exposes service `test_service` / layer `0` / collection `0`, so set
+`HONUA_INTEGRATION_SERVICE_ID=test_service` and `HONUA_INTEGRATION_LAYER_ID=0`.
 
 When `HONUA_INTEGRATION_BASE_URL` or `HONUA_CONFORMANCE_FIXTURES_DIR` is unset
 the lane degrades to an explicit, labelled no-op (`describe.skip`) — forks and
@@ -74,20 +85,33 @@ unconfigured pushes never report a false green.
 
 ## Pinned server image
 
-The lane is **connect-only**: like the integration lane it does not own server
-bootstrap (the seed/admin-seed image is the honua-sdk-js#39 follow-on). It
-pins and records the server under test into `test-results/integration-meta.json`:
+The **test code** is connect-only — it round-trips against whatever
+`HONUA_INTEGRATION_BASE_URL` points at and never owns server bootstrap. What
+changed in honua-sdk-js#361 is that **CI now provides that server itself**: the
+`Integration + Conformance` job in `.github/workflows/integration.yml` spins the
+pinned image below plus Redis and Postgres inside the workflow, applies the
+vendored seed (`test/integration/seed/places-roads-v1.sql`), waits for health,
+and runs BOTH the surface matrix and this live conformance round-trip against
+it — on every push to trunk and on a nightly `schedule:` cron, with no external
+environment and no new secrets (image pulls use the workflow `GITHUB_TOKEN`).
+An external base URL (repo variable / dispatch input) still overrides for
+testing real deployments.
+
+The lane pins and records the server under test into
+`test-results/integration-meta.json`:
 
 | Field | Value |
 | --- | --- |
-| Image | `ghcr.io/honua-io/honua-server:nightly-86042bd` |
-| Server commit | `86042bd` (nightly 2026-05-30) |
+| Image | `ghcr.io/honua-io/honua-server:nightly-6d34dd1` |
+| Server commit | `6d34dd1` (nightly 2026-07-05) |
 | Digest | `sha256:080d7e87f7b1e4c36a917adddb567bfe7148d47e7d2d016480fb4e39187515db` |
-| Fixtures version | `0.1.0-alpha.1` |
+| Fixtures version | `0.1.0-alpha.3` |
 
-The pin is set in `.github/workflows/integration.yml` (`CONFORMANCE_SERVER_IMAGE`
-/ `CONFORMANCE_SERVER_COMMIT` / `CONFORMANCE_FIXTURES_VERSION`) and overridable
-via repo variables. Advancing the pin is a deliberate, reviewable change.
+The pin is set at workflow level in `.github/workflows/integration.yml`
+(`HONUA_INTEGRATION_SERVER_IMAGE` / `HONUA_INTEGRATION_SERVER_COMMIT` /
+`HONUA_CONFORMANCE_FIXTURES_VERSION`) and overridable via repo variables. The
+vendored seed is kept 1:1 with the image pin. Advancing the pin (and refreshing
+the seed alongside it) is a deliberate, reviewable change.
 
 ## Known, already-tracked server gaps (xfail)
 

@@ -130,6 +130,17 @@ describe("conformance gate effectiveness (negative drift detection)", () => {
     expect(drift.some((d) => d.kind === "geometry")).toBe(true);
   });
 
+  it("passes when SOME live features carry null geometry (nullable stored geometry, not drift)", () => {
+    const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
+    const mutated = conformantResult();
+    mutated.features = [
+      { attributes: { OBJECTID: 42, NAME: "Golden Gate Park", AREA: 44340000 }, geometry: { x: -122.486, y: 37.769 } },
+      { attributes: { OBJECTID: 43, NAME: "No Shape", AREA: 1 }, geometry: null },
+    ];
+    const drift = findQueryResultDrift(expected, mutated);
+    expect(drift.filter((d) => d.kind === "geometry")).toEqual([]);
+  });
+
   it("FAILS when exceededTransferLimit drifts from the golden", () => {
     const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
     const mutated = conformantResult();
@@ -198,6 +209,17 @@ describe("live projection conformance (seed-independent)", () => {
     mutated.fields = [];
     const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
     expect(drift.some((d) => d.kind === "missing-field")).toBe(true);
+  });
+
+  it("passes projection check when SOME live features carry null geometry", () => {
+    const expected = goldenToExpectedQueryResult(CANON_GOLDEN);
+    const mutated = liveResult();
+    mutated.features = [
+      { attributes: { objectid: 1, name: "x", area: 1 }, geometry: { x: 1, y: 2 } },
+      { attributes: { objectid: 2, name: "y", area: 2 }, geometry: null },
+    ];
+    const drift = findLiveProjectionDrift(expected, mutated, VALID_ESRI_FIELD_TYPES);
+    expect(drift.filter((d) => d.kind === "geometry")).toEqual([]);
   });
 
   it("FAILS when a live feature drops geometry that was requested", () => {

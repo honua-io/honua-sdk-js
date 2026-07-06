@@ -1,43 +1,82 @@
 name: SDK Integration
 
+# The integration lane runs the protocol surface matrix
+# (test/integration/surfaces/*.integration.ts) and the LIVE contract
+# conformance round-trip against a real Honua Server. It runs in one of two
+# modes:
+#
+#   * self-contained (default on push / schedule / dispatch): the workflow
+#     spins the PINNED `honua-server:nightly` container plus Redis and Postgres
+#     INSIDE the job, applies the vendored seed, waits for health, and points
+#     the suites at it. No external environment and no new secrets — image
+#     pulls use the workflow GITHUB_TOKEN (packages: read), superseding the
+#     old connect-only decision (honua-sdk-js#39) for CI (honua-sdk-js#361).
+#
+#   * external-override: when a base URL is configured (dispatch `base_url`
+#     input or the `HONUA_INTEGRATION_BASE_URL` repo variable) the lane connects
+#     to that already-running, already-seeded deployment instead — for testing
+#     real staging/prod servers.
+#
+# The workflow summary always states which mode ran and the executed suite/test
+# counts; a push / schedule run never reports a silent green skip.
+
 on:
   push:
     branches:
       - trunk
       - "release/**"
+  # Nightly self-contained run of the full lane (surfaces + live conformance).
+  # Failures are loud (job failure), never a summary note — REQ-004.
+  schedule:
+    - cron: "0 7 * * *"
   workflow_dispatch:
     inputs:
       base_url:
-        description: "Honua Server base URL (overrides repo variable). Server must be running and seeded."
+        description: "External Honua Server base URL (overrides self-contained mode). Server must be running and seeded."
         required: false
       seed_profile:
-        description: "Seed profile label recorded into integration-meta.json (overrides repo variable)."
+        description: "Seed profile label recorded into integration-meta.json (external mode only; overrides repo variable)."
         required: false
       server_commit:
-        description: "Honua Server commit SHA recorded into integration-meta.json (overrides repo variable). Leave blank when unknown — do not set to the SDK commit."
+        description: "Honua Server commit SHA recorded into integration-meta.json (external mode). Leave blank when unknown — do not set to the SDK commit."
         required: false
       fixtures_version:
-        description: "geospatial-grpc conformance fixtures version to pin for the conformance job (overrides repo variable / default)."
+        description: "geospatial-grpc conformance fixtures version to pin (overrides repo variable / default)."
         required: false
+
+permissions:
+  contents: read
+  packages: read
 
 env:
   NODE_VERSION: "20.19.0"
-  # NOTE: the conformance server/fixtures pins are defined as literals in the
-  # `conformance` job's `env:` block below. They are intentionally NOT defined
-  # here at workflow level, because the job-level `env:` fallbacks (`vars.X ||
-  # <pin>`) cannot reference the `env` context — GitHub only exposes `env` to
-  # step-level expressions, so a workflow/job-level `env.CONFORMANCE_*`
-  # reference fails the run at startup with a "workflow file issue".
+  # Pinned self-contained server image + fixtures. A repo variable overrides the
+  # pin so it can be advanced without a code change; advancing it is a
+  # deliberate, reviewable change. The vendored seed
+  # (test/integration/seed/places-roads-v1.sql) is refreshed 1:1 with this pin.
+  #
+  # Pinned to the 2026-07-05 honua-server nightly (commit 6d34dd1, digest
+  # sha256:4c17c4feaedb880606684c5c013119fe7dfb16cab6ad663383164f31bade6157).
+  HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-6d34dd1' }}
+  HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT || '6d34dd1' }}
+  HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.1.0-alpha.3' }}
+  # Deterministic container passwords for the self-contained stack. These are
+  # NOT secrets (the stack is ephemeral and never exposed off the runner); the
+  # encryption master-key/salt are the same fixed test values honua-server's own
+  # client-compat compose uses.
+  SELF_CONTAINED_PG_PASSWORD: ci_password
+  SELF_CONTAINED_ADMIN_PASSWORD: CiIntegrationAdmin123!
+  SELF_CONTAINED_ENC_MASTER_KEY: test-master-key-that-is-at-least-32-characters-long-for-security
+  SELF_CONTAINED_ENC_SALT: dGVzdC1zYWx0LWZvci1lbmNyeXB0aW9uLXRlc3RpbmctcHVycG9zZXM=
 
 jobs:
-  integration-tests:
-    name: Integration Tests
+  integration:
+    name: Integration + Conformance
     runs-on: ubuntu-latest
     env:
-      # Connect-only against an externally-managed seeded Honua Server.
-      # The server must be running and seeded before the workflow runs;
-      # the SDK lane does not own the bootstrap (no public seed image
-      # or admin seed API exists yet — see honua-sdk-js#39 follow-on).
+      # External-override credentials/target (empty in self-contained mode). The
+      # self-contained mode overwrites the base URL and surface coordinates via
+      # $GITHUB_ENV after the server is up.
       HONUA_INTEGRATION_BASE_URL: ${{ github.event.inputs.base_url || vars.HONUA_INTEGRATION_BASE_URL }}
       HONUA_INTEGRATION_API_KEY: ${{ secrets.HONUA_INTEGRATION_API_KEY }}
       HONUA_INTEGRATION_SEED_PROFILE: ${{ github.event.inputs.seed_profile || vars.HONUA_INTEGRATION_SEED_PROFILE || 'places-roads-v1' }}
@@ -45,61 +84,126 @@ jobs:
       HONUA_INTEGRATION_LAYER_ID: ${{ vars.HONUA_INTEGRATION_LAYER_ID || '1000' }}
       HONUA_INTEGRATION_COLLECTION_ID: ${{ vars.HONUA_INTEGRATION_COLLECTION_ID || '1000' }}
       HONUA_INTEGRATION_TILE_MATRIX_SET: ${{ vars.HONUA_INTEGRATION_TILE_MATRIX_SET || 'WebMercatorQuad' }}
-      HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE }}
-      # Honua Server commit, sourced from the workflow input or a repo
-      # variable. Never derived from `github.sha` (which is the SDK
-      # repository commit, not the server under test).
-      HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT }}
+      HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Gate on configured integration target
-        id: gate
+      # Decide mode. External when a base URL is configured (dispatch input or
+      # repo variable); self-contained otherwise. Self-contained needs no
+      # secret — that is the point.
+      - name: Resolve run mode
+        id: mode
         run: |
-          if [ -z "${HONUA_INTEGRATION_BASE_URL:-}" ]; then
-            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-              echo "::error::Manual integration runs require base_url input or HONUA_INTEGRATION_BASE_URL. Refusing to report a manual run as a passing no-op."
+          if [ -n "${HONUA_INTEGRATION_BASE_URL:-}" ]; then
+            echo "mode=external" >> "$GITHUB_OUTPUT"
+            echo "::notice::Integration lane running in EXTERNAL-OVERRIDE mode against ${HONUA_INTEGRATION_BASE_URL}"
+            if [ -z "${HONUA_INTEGRATION_API_KEY:-}" ]; then
+              echo "::error::External mode requires the HONUA_INTEGRATION_API_KEY secret (matching the server's HONUA_ADMIN_PASSWORD)."
               exit 1
             fi
-            {
-              echo "## SDK Integration"
-              echo ""
-              echo "Mode: local/unconfigured no-op."
-              echo ""
-              echo "Skipped: \`HONUA_INTEGRATION_BASE_URL\` is not configured for this push."
-              echo ""
-              echo "The integration lane is connect-only and runs against an"
-              echo "externally-managed seeded Honua Server. Configure the repo/org"
-              echo "variable \`HONUA_INTEGRATION_BASE_URL\` and the secret"
-              echo "\`HONUA_INTEGRATION_API_KEY\` (matching the server's"
-              echo "\`HONUA_ADMIN_PASSWORD\`) to enable this workflow."
-            } >> "$GITHUB_STEP_SUMMARY"
-            echo "::notice::HONUA_INTEGRATION_BASE_URL is not configured; skipping integration lane."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "mode=noop" >> "$GITHUB_OUTPUT"
-            exit 0
+          else
+            echo "mode=self-contained" >> "$GITHUB_OUTPUT"
+            echo "::notice::Integration lane running in SELF-CONTAINED mode (pinned ${HONUA_INTEGRATION_SERVER_IMAGE} + Redis + Postgres)"
           fi
-          if [ -z "${HONUA_INTEGRATION_API_KEY:-}" ]; then
-            echo "::error::HONUA_INTEGRATION_BASE_URL is set but HONUA_INTEGRATION_API_KEY secret is missing. The lane requires the secret to authenticate the admin capabilities probe; abort to surface the misconfiguration."
+
+      - name: Log in to GHCR
+        if: steps.mode.outputs.mode == 'self-contained'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Bring up Postgres + Redis + the pinned server, seed BEFORE the server
+      # boots (mirroring honua-server's client-compat compose ordering so the
+      # activated Metadata v2 snapshot covers the seeded service), then health-
+      # gate with a bounded wait and a container-log dump on timeout (NFR-002).
+      - name: Start self-contained Honua Server
+        id: server
+        if: steps.mode.outputs.mode == 'self-contained'
+        run: |
+          set -euo pipefail
+          NET=honua-integration
+          PG_DB=honua_integration
+          docker network create "$NET"
+
+          docker run -d --name honua-pg --network "$NET" \
+            -e POSTGRES_DB="$PG_DB" \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD="$SELF_CONTAINED_PG_PASSWORD" \
+            -e POSTGIS_GDAL_ENABLED_DRIVERS=ENABLE_ALL \
+            postgis/postgis:16-3.4
+
+          docker run -d --name honua-redis --network "$NET" \
+            redis:7.4-alpine redis-server --appendonly no
+
+          echo "Waiting for Postgres..."
+          for i in $(seq 1 30); do
+            if docker exec honua-pg pg_isready -U postgres >/dev/null 2>&1; then break; fi
+            sleep 2
+            if [ "$i" -eq 30 ]; then echo "::error::Postgres did not become ready"; docker logs honua-pg; exit 1; fi
+          done
+
+          echo "Applying vendored seed (registers test_service / layer 0, activates the v2 snapshot last)..."
+          docker run --rm --network "$NET" \
+            -e PGPASSWORD="$SELF_CONTAINED_PG_PASSWORD" \
+            -v "${GITHUB_WORKSPACE}/test/integration/seed:/seed:ro" \
+            postgres:16 \
+            psql -v ON_ERROR_STOP=1 -h honua-pg -U postgres -d "$PG_DB" -f /seed/places-roads-v1.sql
+
+          echo "Starting Honua Server (${HONUA_INTEGRATION_SERVER_IMAGE})..."
+          docker run -d --name honua-server --network "$NET" -p 8080:8080 \
+            -e ASPNETCORE_ENVIRONMENT=Production \
+            -e ASPNETCORE_URLS=http://+:8080 \
+            -e Kestrel__Endpoints__Http__Protocols=Http1AndHttp2 \
+            -e PUBLIC_BASE_URL=http://localhost:8080 \
+            -e HONUA_ADMIN_PASSWORD="$SELF_CONTAINED_ADMIN_PASSWORD" \
+            -e "ConnectionStrings__DefaultConnection=Server=honua-pg;Port=5432;Database=${PG_DB};User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
+            -e "ConnectionStrings__honua=Server=honua-pg;Port=5432;Database=${PG_DB};User Id=postgres;Password=${SELF_CONTAINED_PG_PASSWORD};" \
+            -e ConnectionStrings__Redis=honua-redis:6379 \
+            -e Security__ConnectionEncryption__MasterKey="$SELF_CONTAINED_ENC_MASTER_KEY" \
+            -e Security__ConnectionEncryption__Salt="$SELF_CONTAINED_ENC_SALT" \
+            -e HostValidation__AllowedHosts__0=localhost \
+            -e HostValidation__AllowedHosts__1=127.0.0.1 \
+            "$HONUA_INTEGRATION_SERVER_IMAGE"
+
+          echo "Waiting for server readiness (bounded)..."
+          ready=0
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/healthz/ready >/dev/null 2>&1; then ready=1; break; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' honua-server 2>/dev/null)" != "true" ]; then
+              echo "::error::Honua Server container exited before becoming ready"; break
+            fi
+            sleep 5
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::Honua Server did not report ready within the timeout; dumping logs"
+            docker logs honua-server || true
+            docker logs honua-pg || true
             exit 1
           fi
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-          echo "mode=live" >> "$GITHUB_OUTPUT"
 
-      - name: Record live integration mode
-        if: steps.gate.outputs.skip != 'true'
+          # Point the suites at the in-workflow server and the seed's actual
+          # coordinates (test_service / layer 0 / collection 0 — what the
+          # vendored seed registers). The admin capabilities probe authenticates
+          # with the admin password as the API key.
+          {
+            echo "HONUA_INTEGRATION_BASE_URL=http://localhost:8080"
+            echo "HONUA_INTEGRATION_API_KEY=${SELF_CONTAINED_ADMIN_PASSWORD}"
+            echo "HONUA_INTEGRATION_SERVICE_ID=test_service"
+            echo "HONUA_INTEGRATION_LAYER_ID=0"
+            echo "HONUA_INTEGRATION_COLLECTION_ID=0"
+            echo "HONUA_INTEGRATION_SERVER_IMAGE=${HONUA_INTEGRATION_SERVER_IMAGE}"
+            echo "HONUA_INTEGRATION_SERVER_COMMIT=${HONUA_INTEGRATION_SERVER_COMMIT}"
+          } >> "$GITHUB_ENV"
+
+      # In external mode, publish the pinned image/commit metadata too so the
+      # uploaded artifact records the target's provenance consistently.
+      - name: Record external-mode provenance
+        if: steps.mode.outputs.mode == 'external'
         run: |
           {
-            echo "## SDK Integration"
-            echo ""
-            echo "Mode: configured live integration."
-            echo ""
-            echo "- Base URL: \`${HONUA_INTEGRATION_BASE_URL}\`"
-            echo "- Seed profile: \`${HONUA_INTEGRATION_SEED_PROFILE}\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+            echo "HONUA_INTEGRATION_SERVER_IMAGE=${HONUA_INTEGRATION_SERVER_IMAGE}"
+            echo "HONUA_INTEGRATION_SERVER_COMMIT=${HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE:-}"
+          } >> "$GITHUB_ENV"
 
       - name: Setup Node.js
-        if: steps.gate.outputs.skip != 'true'
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -107,148 +211,23 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        if: steps.gate.outputs.skip != 'true'
         run: npm ci
 
+      # External targets may not be up yet; self-contained already waited on
+      # /healthz/ready. A quick liveness re-check keeps the failure actionable.
       - name: Wait for Honua Server health
-        if: steps.gate.outputs.skip != 'true'
         run: |
           for i in $(seq 1 60); do
             if curl -fsS "${HONUA_INTEGRATION_BASE_URL}/healthz/live" >/dev/null 2>&1; then
-              echo "Honua Server is healthy"
-              exit 0
+              echo "Honua Server is healthy"; exit 0
             fi
             sleep 2
           done
-          echo "Honua Server at ${HONUA_INTEGRATION_BASE_URL} did not report healthy within timeout" >&2
+          echo "::error::Honua Server at ${HONUA_INTEGRATION_BASE_URL} did not report healthy within timeout"
+          if [ "${{ steps.mode.outputs.mode }}" = "self-contained" ]; then docker logs honua-server || true; fi
           exit 1
 
-      - name: Run integration tests
-        if: steps.gate.outputs.skip != 'true'
-        run: npm run test:integration
-
-      - name: Upload integration metadata
-        if: ${{ steps.gate.outputs.skip != 'true' && always() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: integration-meta
-          path: test-results/integration-meta.json
-          if-no-files-found: warn
-
-      - name: Append integration summary
-        if: ${{ steps.gate.outputs.skip != 'true' && always() }}
-        run: |
-          if [ ! -f test-results/integration-meta.json ]; then
-            echo "Integration metadata file not produced." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          node --input-type=module <<'EOF'
-          import fs from "node:fs";
-          const meta = JSON.parse(fs.readFileSync("test-results/integration-meta.json", "utf8"));
-          const lines = [
-            "## SDK Integration Summary",
-            "",
-            `- SDK package: \`${meta.sdkPackage}@${meta.sdkVersion}\``,
-            `- Server version: \`${meta.serverVersion ?? "unknown"}\` (channel \`${meta.serverReleaseChannel ?? "unknown"}\`)`,
-            `- Server image: \`${meta.serverImage ?? "unknown"}\``,
-            `- Server commit: \`${meta.serverCommit ?? "unknown"}\``,
-            `- Base URL: \`${meta.baseUrl}\``,
-            `- Seed profile: \`${meta.seedProfile}\``,
-            `- Service / Layer: \`${meta.serviceId}\` / \`${meta.layerId}\``,
-            `- Collection: \`${meta.collectionId}\``,
-            "",
-            "### Surfaces",
-            "",
-            "| Surface | Status | Reason |",
-            "| --- | --- | --- |",
-            ...meta.surfaces.map((entry) => `| \`${entry.surface}\` | ${entry.status} | ${entry.reason ?? ""} |`),
-          ];
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
-          EOF
-
-  conformance:
-    name: Contract Conformance
-    runs-on: ubuntu-latest
-    # The conformance lane round-trips the shared, versioned geospatial-grpc
-    # fixtures through the real HonuaClient against a PINNED honua-server:nightly
-    # and fails on any drift in the protocol-neutral Dataset/Source/Query/Result
-    # contract (honua-sdk-js#246, epic geospatial-grpc#18). It is connect-only —
-    # like the integration lane it does not bootstrap the server (honua-sdk-js#39)
-    # — but pins + records the server image/commit and the fixtures version so a
-    # run is reproducible and traceable.
-    env:
-      HONUA_INTEGRATION_BASE_URL: ${{ github.event.inputs.base_url || vars.HONUA_INTEGRATION_BASE_URL }}
-      HONUA_INTEGRATION_API_KEY: ${{ secrets.HONUA_INTEGRATION_API_KEY }}
-      HONUA_INTEGRATION_SEED_PROFILE: ${{ github.event.inputs.seed_profile || vars.HONUA_INTEGRATION_SEED_PROFILE || 'places-roads-v1' }}
-      HONUA_INTEGRATION_SERVICE_ID: ${{ vars.HONUA_INTEGRATION_SERVICE_ID || 'test_service_gw0' }}
-      HONUA_INTEGRATION_LAYER_ID: ${{ vars.HONUA_INTEGRATION_LAYER_ID || '1000' }}
-      HONUA_INTEGRATION_COLLECTION_ID: ${{ vars.HONUA_INTEGRATION_COLLECTION_ID || '1000' }}
-      HONUA_INTEGRATION_TILE_MATRIX_SET: ${{ vars.HONUA_INTEGRATION_TILE_MATRIX_SET || 'WebMercatorQuad' }}
-      # Pin the server image/commit/fixtures by literal (REQ-002). A repo
-      # variable overrides the pin so it can be advanced without a code change.
-      # The literals below are the single source of truth for the pin — they
-      # cannot be hoisted to workflow-level `env` and referenced here, because
-      # the `env` context is not available to job-level `env:` expressions.
-      #
-      # Pinned to the 2026-05-30 honua-server nightly (commit 86042bd, digest
-      # sha256:080d7e87f7b1e4c36a917adddb567bfe7148d47e7d2d016480fb4e39187515db).
-      # Fixtures version is 1:1 with a geospatial.v1 schema release — keep it in
-      # lock-step with the SDK pin in test/conformance/fixtures.ts.
-      HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-86042bd' }}
-      HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT || '86042bd' }}
-      HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.1.0-alpha.1' }}
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      # Effectiveness guardrail — ALWAYS runs (even when the live lane is an
-      # unconfigured no-op). Proves the conformance gate catches a mutated
-      # golden (renamed/removed field, type change, dropped geometry/attribute,
-      # flipped exceededTransferLimit, wrong totalCount) and is not trivially
-      # always-green. A failure here fails the job with a non-zero exit.
-      - name: Verify drift detection (negative test)
-        run: npx vitest run test/conformance/drift-detection.test.ts
-
-      - name: Gate on configured conformance target
-        id: gate
-        run: |
-          if [ -z "${HONUA_INTEGRATION_BASE_URL:-}" ]; then
-            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-              echo "::error::Manual conformance runs require base_url input or HONUA_INTEGRATION_BASE_URL. Refusing to report a manual run as a passing no-op."
-              exit 1
-            fi
-            {
-              echo "## SDK Contract Conformance"
-              echo ""
-              echo "Mode: local/unconfigured no-op."
-              echo ""
-              echo "Skipped the LIVE conformance round-trip: \`HONUA_INTEGRATION_BASE_URL\` is not configured for this push."
-              echo ""
-              echo "The drift-detection guardrail (negative test) still ran and passed, so the gate is verified effective; only the live round-trip against the pinned \`honua-server:nightly\` was skipped."
-              echo ""
-              echo "Configure \`HONUA_INTEGRATION_BASE_URL\` + \`HONUA_INTEGRATION_API_KEY\` to enable the live lane."
-            } >> "$GITHUB_STEP_SUMMARY"
-            echo "::notice::HONUA_INTEGRATION_BASE_URL is not configured; skipping live conformance round-trip (guardrail ran)."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ -z "${HONUA_INTEGRATION_API_KEY:-}" ]; then
-            echo "::error::HONUA_INTEGRATION_BASE_URL is set but HONUA_INTEGRATION_API_KEY secret is missing. Abort to surface the misconfiguration rather than report a false green."
-            exit 1
-          fi
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-
       - name: Fetch pinned conformance fixtures
-        if: steps.gate.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -256,68 +235,116 @@ jobs:
           conformance/fetch-fixtures.sh --version "${HONUA_CONFORMANCE_FIXTURES_VERSION}" --dest "${GITHUB_WORKSPACE}/conformance-fixtures"
           echo "HONUA_CONFORMANCE_FIXTURES_DIR=${GITHUB_WORKSPACE}/conformance-fixtures" >> "$GITHUB_ENV"
 
-      - name: Wait for Honua Server health
-        if: steps.gate.outputs.skip != 'true'
-        run: |
-          for i in $(seq 1 60); do
-            if curl -fsS "${HONUA_INTEGRATION_BASE_URL}/healthz/live" >/dev/null 2>&1; then
-              echo "Honua Server is healthy"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Honua Server at ${HONUA_INTEGRATION_BASE_URL} did not report healthy within timeout" >&2
-          exit 1
-
-      - name: Record live conformance mode
-        if: steps.gate.outputs.skip != 'true'
-        run: |
-          {
-            echo "## SDK Contract Conformance"
-            echo ""
-            echo "Mode: configured live conformance."
-            echo ""
-            echo "- Base URL: \`${HONUA_INTEGRATION_BASE_URL}\`"
-            echo "- Pinned server image: \`${HONUA_INTEGRATION_SERVER_IMAGE}\`"
-            echo "- Pinned server commit: \`${HONUA_INTEGRATION_SERVER_COMMIT}\`"
-            echo "- Pinned fixtures version: \`${HONUA_CONFORMANCE_FIXTURES_VERSION}\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Run integration surfaces
+        run: npm run test:integration -- --reporter=default --reporter=json --outputFile=test-results/integration-vitest.json
 
       - name: Run live conformance round-trip
-        if: steps.gate.outputs.skip != 'true'
-        run: npm run test:conformance
+        run: npm run test:conformance -- --reporter=default --reporter=json --outputFile=test-results/conformance-vitest.json
 
-      - name: Upload conformance metadata
-        if: ${{ steps.gate.outputs.skip != 'true' && always() }}
+      - name: Dump server logs on failure
+        if: ${{ failure() && steps.mode.outputs.mode == 'self-contained' }}
+        run: |
+          echo "::group::honua-server logs"; docker logs honua-server || true; echo "::endgroup::"
+          echo "::group::postgres logs"; docker logs honua-pg || true; echo "::endgroup::"
+
+      - name: Upload integration metadata
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: conformance-meta
-          path: test-results/integration-meta.json
+          name: integration-meta
+          path: |
+            test-results/integration-meta.json
+            test-results/integration-vitest.json
+            test-results/conformance-vitest.json
           if-no-files-found: warn
 
-      - name: Append conformance summary
-        if: ${{ steps.gate.outputs.skip != 'true' && always() }}
+      # The summary distinguishes EXECUTED (self-contained | external) from a
+      # skip, and prints suite + test counts so a push / schedule run can never
+      # read as a silent green (REQ-005).
+      - name: Append integration summary
+        if: always()
+        env:
+          RUN_MODE: ${{ steps.mode.outputs.mode }}
         run: |
-          if [ ! -f test-results/integration-meta.json ]; then
-            echo "Conformance metadata file not produced." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
           node --input-type=module <<'EOF'
           import fs from "node:fs";
-          const meta = JSON.parse(fs.readFileSync("test-results/integration-meta.json", "utf8"));
-          const conformance = (meta.surfaces ?? []).filter((s) => String(s.surface).startsWith("conformance:"));
+          const read = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return undefined; } };
+          const meta = read("test-results/integration-meta.json");
+          const surfaces = read("test-results/integration-vitest.json");
+          const conf = read("test-results/conformance-vitest.json");
+          const mode = process.env.RUN_MODE ?? "unknown";
+          const counts = (r) => r
+            ? `${r.numPassedTests ?? 0} passed, ${r.numFailedTests ?? 0} failed, ${r.numPendingTests ?? 0} skipped (of ${r.numTotalTests ?? 0})`
+            : "no results file";
           const lines = [
-            "### Contract Conformance Summary",
+            "## SDK Integration",
             "",
-            `- SDK package: \`${meta.sdkPackage}@${meta.sdkVersion}\``,
-            `- Server version: \`${meta.serverVersion ?? "unknown"}\` (channel \`${meta.serverReleaseChannel ?? "unknown"}\`)`,
-            `- Pinned server image: \`${meta.serverImage ?? "unknown"}\``,
-            `- Pinned server commit: \`${meta.serverCommit ?? "unknown"}\``,
-            `- Pinned fixtures version: \`${meta.conformanceFixturesVersion ?? "unknown"}\``,
+            `**Mode: EXECUTED (${mode === "self-contained" ? "self-contained in-workflow server" : "external-override"})**`,
             "",
-            "| Conformance surface | Status | Reason (known gap) |",
-            "| --- | --- | --- |",
-            ...conformance.map((entry) => `| \`${entry.surface}\` | ${entry.status} | ${entry.reason ?? ""} |`),
+            `- Surfaces: ${counts(surfaces)}`,
+            `- Conformance round-trip: ${counts(conf)}`,
           ];
+          if (meta) {
+            const exercised = (meta.surfaces ?? []).filter((s) => s.status === "exercised").length;
+            const skipped = (meta.surfaces ?? []).filter((s) => s.status === "skipped").length;
+            lines.push(
+              "",
+              `- SDK package: \`${meta.sdkPackage}@${meta.sdkVersion}\``,
+              `- Server: \`${meta.serverVersion ?? "unknown"}\` (channel \`${meta.serverReleaseChannel ?? "unknown"}\`), image \`${meta.serverImage ?? "unknown"}\`, commit \`${meta.serverCommit ?? "unknown"}\``,
+              `- Base URL: \`${meta.baseUrl}\` · seed \`${meta.seedProfile}\` · service/layer \`${meta.serviceId}\`/\`${meta.layerId}\` · collection \`${meta.collectionId}\``,
+              `- Fixtures: \`${meta.conformanceFixturesVersion ?? "unknown"}\``,
+              "",
+              `### Surfaces (${exercised} exercised, ${skipped} skipped)`,
+              "",
+              "| Surface | Status | Reason |",
+              "| --- | --- | --- |",
+              ...(meta.surfaces ?? []).map((e) => `| \`${e.surface}\` | ${e.status} | ${e.reason ?? ""} |`),
+            );
+          } else {
+            lines.push("", "> integration-meta.json was not produced (server health / setup failed before any surface ran).");
+          }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
           EOF
+
+      - name: Tear down self-contained stack
+        if: ${{ always() && steps.mode.outputs.mode == 'self-contained' }}
+        run: |
+          docker rm -f honua-server honua-pg honua-redis >/dev/null 2>&1 || true
+          docker network rm honua-integration >/dev/null 2>&1 || true
+
+  conformance-guardrail:
+    name: Conformance Drift Guardrail
+    runs-on: ubuntu-latest
+    # Effectiveness guardrail — ALWAYS runs, independent of the server lane.
+    # Proves the conformance gate catches a mutated golden (renamed/removed
+    # field, type change, dropped geometry/attribute, flipped
+    # exceededTransferLimit, wrong totalCount) and is not trivially always-green.
+    # Kept as its own job so a server-bring-up flake in `integration` never
+    # masks a regression in the drift detector itself.
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify drift detection (negative test)
+        run: npx vitest run test/conformance/drift-detection.test.ts
+
+      - name: Record guardrail summary
+        if: always()
+        run: |
+          {
+            echo "## SDK Contract Conformance — Drift Guardrail"
+            echo ""
+            echo "The drift-detection negative test ran independently of the live lane,"
+            echo "proving the conformance gate catches a mutated golden. The LIVE"
+            echo "conformance round-trip executes in the \`Integration + Conformance\` job"
+            echo "against the in-workflow (or external) server."
+          } >> "$GITHUB_STEP_SUMMARY"
