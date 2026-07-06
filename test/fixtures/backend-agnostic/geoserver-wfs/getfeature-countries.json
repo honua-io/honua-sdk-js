@@ -1,0 +1,69 @@
+{
+  "type": "FeatureCollection",
+  "numberMatched": 280,
+  "numberReturned": 2,
+  "features": [
+    {
+      "type": "Feature",
+      "id": "ne_10m_admin_0_countries.1",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                -69.99693763,
+                12.5775821
+              ],
+              [
+                -69.93639075,
+                12.53172435
+              ],
+              [
+                -69.924672,
+                12.51923249
+              ]
+            ]
+          ]
+        ]
+      },
+      "geometry_name": "the_geom",
+      "properties": {
+        "name": "Aruba",
+        "sovereignt": "Netherlands",
+        "pop_est": 103065
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ne_10m_admin_0_countries.2",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                71.04980229,
+                38.40866445
+              ],
+              [
+                71.05714034,
+                38.40902618
+              ],
+              [
+                71.06494348,
+                38.41181671
+              ]
+            ]
+          ]
+        ]
+      },
+      "geometry_name": "the_geom",
+      "properties": {
+        "name": "Afghanistan",
+        "sovereignt": "Afghanistan",
+        "pop_est": 28400000
+      }
+    }
+  ]
+}

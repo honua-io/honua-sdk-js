@@ -1,0 +1,86 @@
+{
+  "title": "Vineyards in Rhineland-Palatinate, Germany",
+  "description": "Have you ever wondered where the wine that you are drinking comes from? If the wine comes from the wine-growing regions Mosel, Nahe, Rheinhessen, Pfalz, Ahr, or Mittelrhein you can find this information in this API.\n<br><br>\nThe dataset shared by this API is the vineyard register (Weinbergsrolle) of Rhineland-Palatinate, available under an open-data license. It is managed by the Chamber of Agriculture of Rhineland-Palatinate (Landwirtschaftskammer RLP). \n<br>\n<small>© Landwirtschaftskammer RLP (2020), dl-de/by-2-0, <a href='http://weinlagen.lwk-rlp.de/' target='_blank'>weinlagen.lwk-rlp.de</a>; <a href='http://weinlagen.lwk-rlp.de/portal/nutzungsbedingungen/gewaehrleistung-haftung.html' target=''_blank''>Regelungen zu Gewährleistung und Haftung</a></small>\n<br><br>\nThis API is a demo for APIs that can be deployed using <a href='https://github.com/interactive-instruments/ldproxy' target='_blank'>ldproxy</a> based on the <a href='https://ogcapi.ogc.org/' target='_blank'>OGC API standards</a> developed by the <a href='https://www.ogc.org/' target='_blank'>Open Geospatial Consortium</a>. A description how to set this API is available <a href='https://github.com/interactive-instruments/ldproxy/tree/master/demo/vineyards' target='_blank'>here</a>.\n",
+  "links": [
+    {
+      "rel": "alternate",
+      "type": "text/html",
+      "title": "This document as HTML",
+      "href": "https://demo.ldproxy.net/vineyards?f=html"
+    },
+    {
+      "rel": "conformance",
+      "title": "OGC API conformance classes implemented by this server",
+      "href": "https://demo.ldproxy.net/vineyards/conformance"
+    },
+    {
+      "rel": "data",
+      "title": "Access the data (Vineyards)",
+      "href": "https://demo.ldproxy.net/vineyards/collections"
+    },
+    {
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/conformance",
+      "title": "OGC API conformance classes implemented by this server",
+      "href": "https://demo.ldproxy.net/vineyards/conformance"
+    },
+    {
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/data",
+      "title": "Access the data (Vineyards)",
+      "href": "https://demo.ldproxy.net/vineyards/collections"
+    },
+    {
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/functions",
+      "title": "Additional CQL2 functions",
+      "href": "https://demo.ldproxy.net/vineyards/functions"
+    },
+    {
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/styles",
+      "title": "Styles to render the data in maps",
+      "href": "https://demo.ldproxy.net/vineyards/styles"
+    },
+    {
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/tilesets-vector",
+      "title": "Access the data as vector tiles",
+      "href": "https://demo.ldproxy.net/vineyards/tiles"
+    },
+    {
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/tiling-schemes",
+      "title": "List of tile matrix sets implemented by this API",
+      "href": "https://demo.ldproxy.net/vineyards/tileMatrixSets"
+    },
+    {
+      "rel": "ldp-map",
+      "title": "Access a web map with the data",
+      "href": "https://demo.ldproxy.net/vineyards/styles/default?f=html"
+    },
+    {
+      "rel": "license",
+      "title": "Datenlizenz Deutschland - Namensnennung - Version 2.0",
+      "href": "https://www.govdata.de/dl-de/by-2-0"
+    },
+    {
+      "rel": "self",
+      "type": "application/json",
+      "title": "This document",
+      "href": "https://demo.ldproxy.net/vineyards?f=json"
+    },
+    {
+      "rel": "service-desc",
+      "type": "application/vnd.oai.openapi+json;version=3.0",
+      "title": "Definition of the API in OpenAPI 3.0",
+      "href": "https://demo.ldproxy.net/vineyards/api?f=json"
+    },
+    {
+      "rel": "service-desc",
+      "type": "application/vnd.oai.openapi;version=3.0",
+      "title": "Definition of the API in OpenAPI 3.0",
+      "href": "https://demo.ldproxy.net/vineyards/api?f=yaml"
+    },
+    {
+      "rel": "service-doc",
+      "type": "text/html",
+      "title": "Documentation of the API",
+      "href": "https://demo.ldproxy.net/vineyards/api?f=html"
+    }
+  ]
+}

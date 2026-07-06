@@ -1,0 +1,39 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "id": "scene-b",
+  "collection": "imagery",
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      10,
+      20
+    ]
+  },
+  "bbox": [
+    10,
+    20,
+    10,
+    20
+  ],
+  "properties": {
+    "datetime": "2024-04-02T00:00:00Z",
+    "eo:cloud_cover": 40
+  },
+  "links": [
+    {
+      "rel": "collection",
+      "href": "./collection.json"
+    },
+    {
+      "rel": "root",
+      "href": "../catalog.json"
+    }
+  ],
+  "assets": {
+    "thumbnail": {
+      "href": "https://static.example.test/scene-b.png",
+      "type": "image/png"
+    }
+  }
+}

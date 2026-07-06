@@ -28,6 +28,7 @@ import type {
 import type { SourceId } from "../contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
+import type { OgcApiLayoutMode } from "./ogc-endpoint-layout.js";
 import { encodeServiceIdPath } from "./path-utils.js";
 import type {
   ApplyEditsRequest,
@@ -66,6 +67,7 @@ import type {
   OgcCollectionRequest,
   OgcCreateItemRequest,
   OgcDeleteItemRequest,
+  OgcEndpointLayout,
   OgcItemRequest,
   OgcItemsRequest,
   OgcMetadataRequest,
@@ -1077,49 +1079,82 @@ export class HonuaMapLayer {
 
 export interface HonuaOgcFeaturesOptions {
   client: HonuaClient;
+  /**
+   * Endpoint-layout discovery mode. `honua-facade` (default) uses the fixed
+   * `/ogc/features/...` fast path; `ogc-api` / `auto` discover the layout
+   * from the server landing page so the surface works against raw pygeoapi
+   * / ldproxy / GeoServer OGC API endpoints.
+   */
+  layout?: OgcApiLayoutMode;
 }
 
 export interface HonuaOgcFeatureCollectionOptions {
   client: HonuaClient;
   collectionId: string | number;
+  layout?: OgcApiLayoutMode;
+}
+
+/**
+ * Resolve the layout to inject onto a request. Returns `undefined` for the
+ * facade fast path so the wire layer keeps its zero-round-trip default.
+ */
+async function resolveInjectedLayout(
+  client: HonuaClient,
+  mode: OgcApiLayoutMode | undefined,
+): Promise<OgcEndpointLayout | undefined> {
+  if (mode === undefined || mode === "honua-facade") return undefined;
+  return client.resolveOgcFeaturesLayout(mode);
 }
 
 export class HonuaOgcFeatures {
   public readonly client: HonuaClient;
+  private readonly layoutMode: OgcApiLayoutMode | undefined;
 
   public constructor(options: HonuaOgcFeaturesOptions) {
     this.client = options.client;
+    this.layoutMode = options.layout;
+  }
+
+  private layout(): Promise<OgcEndpointLayout | undefined> {
+    return resolveInjectedLayout(this.client, this.layoutMode);
   }
 
   public collection(collectionId: string | number): HonuaOgcFeatureCollection {
     return new HonuaOgcFeatureCollection({
       client: this.client,
       collectionId,
+      ...(this.layoutMode ? { layout: this.layoutMode } : {}),
     });
   }
 
   public async landing(request: HonuaOgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
-    return this.client.getOgcFeaturesLanding(request);
+    const layout = await this.layout();
+    return this.client.getOgcFeaturesLanding({ ...request, ...(layout ? { layout } : {}) });
   }
 
   public async conformance(request: HonuaOgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
-    return this.client.getOgcFeaturesConformance(request);
+    const layout = await this.layout();
+    return this.client.getOgcFeaturesConformance({ ...request, ...(layout ? { layout } : {}) });
   }
 
   public async collections(request: HonuaOgcMetadataRequest = {}): Promise<HonuaOgcCollectionsResponse> {
-    return this.client.listOgcCollections(request);
+    const layout = await this.layout();
+    return this.client.listOgcCollections({ ...request, ...(layout ? { layout } : {}) });
   }
 
   public async getCollection(request: HonuaOgcCollectionRequest): Promise<HonuaOgcCollectionMetadata> {
-    return this.client.getOgcCollection(request);
+    const layout = await this.layout();
+    return this.client.getOgcCollection({ ...request, ...(layout ? { layout } : {}) });
   }
 
   public async queryables(request: HonuaOgcCollectionRequest): Promise<HonuaOgcQueryablesResponse> {
-    return this.client.getOgcQueryables(request);
+    const layout = await this.layout();
+    return this.client.getOgcQueryables({ ...request, ...(layout ? { layout } : {}) });
   }
 
   public async items(request: HonuaOgcItemsRequest): Promise<HonuaOgcFeatureCollectionResponse> {
-    return this.client.listOgcItems(request);
+    const layout = await this.layout();
+    return this.client.listOgcItems({ ...request, ...(layout ? { layout } : {}) });
   }
 
   public async itemsAll(request: HonuaOgcItemsAllRequest): Promise<HonuaOgcFeatureResponse[]> {
@@ -1162,53 +1197,70 @@ export class HonuaOgcFeatures {
   }
 
   public async item(request: HonuaOgcItemRequest): Promise<HonuaOgcFeatureResponse> {
-    return this.client.getOgcItem(request);
+    const layout = await this.layout();
+    return this.client.getOgcItem({ ...request, ...(layout ? { layout } : {}) });
   }
 
   public async createItem(request: HonuaOgcCreateItemRequest): Promise<HonuaOgcFeatureResponse> {
-    return this.client.createOgcItem(request);
+    const layout = await this.layout();
+    return this.client.createOgcItem({ ...request, ...(layout ? { layout } : {}) });
   }
 
   public async replaceItem(request: HonuaOgcReplaceItemRequest): Promise<HonuaOgcFeatureResponse> {
-    return this.client.replaceOgcItem(request);
+    const layout = await this.layout();
+    return this.client.replaceOgcItem({ ...request, ...(layout ? { layout } : {}) });
   }
 
   public async patchItem(request: HonuaOgcPatchItemRequest): Promise<HonuaOgcFeatureResponse> {
-    return this.client.patchOgcItem(request);
+    const layout = await this.layout();
+    return this.client.patchOgcItem({ ...request, ...(layout ? { layout } : {}) });
   }
 
   public async deleteItem(request: HonuaOgcDeleteItemRequest): Promise<void> {
-    return this.client.deleteOgcItem(request);
+    const layout = await this.layout();
+    return this.client.deleteOgcItem({ ...request, ...(layout ? { layout } : {}) });
   }
 }
 
 export class HonuaOgcFeatureCollection {
   public readonly client: HonuaClient;
   public readonly collectionId: string | number;
+  private readonly layoutMode: OgcApiLayoutMode | undefined;
 
   public constructor(options: HonuaOgcFeatureCollectionOptions) {
     this.client = options.client;
     this.collectionId = options.collectionId;
+    this.layoutMode = options.layout;
+  }
+
+  private layout(): Promise<OgcEndpointLayout | undefined> {
+    return resolveInjectedLayout(this.client, this.layoutMode);
   }
 
   public async metadata(request: HonuaOgcMetadataRequest = {}): Promise<HonuaOgcCollectionMetadata> {
+    const layout = await this.layout();
     return this.client.getOgcCollection({
       ...request,
       collectionId: this.collectionId,
+      ...(layout ? { layout } : {}),
     });
   }
 
   public async queryables(request: HonuaOgcMetadataRequest = {}): Promise<HonuaOgcQueryablesResponse> {
+    const layout = await this.layout();
     return this.client.getOgcQueryables({
       ...request,
       collectionId: this.collectionId,
+      ...(layout ? { layout } : {}),
     });
   }
 
   public async items(request: HonuaOgcCollectionItemsRequest = {}): Promise<HonuaOgcFeatureCollectionResponse> {
+    const layout = await this.layout();
     return this.client.listOgcItems({
       ...request,
       collectionId: this.collectionId,
+      ...(layout ? { layout } : {}),
     });
   }
 
@@ -1277,37 +1329,47 @@ export class HonuaOgcFeatureCollection {
   }
 
   public async item(request: HonuaOgcCollectionItemRequest): Promise<HonuaOgcFeatureResponse> {
+    const layout = await this.layout();
     return this.client.getOgcItem({
       ...request,
       collectionId: this.collectionId,
+      ...(layout ? { layout } : {}),
     });
   }
 
   public async createItem(request: HonuaOgcCollectionCreateItemRequest): Promise<HonuaOgcFeatureResponse> {
+    const layout = await this.layout();
     return this.client.createOgcItem({
       ...request,
       collectionId: this.collectionId,
+      ...(layout ? { layout } : {}),
     });
   }
 
   public async replaceItem(request: HonuaOgcCollectionReplaceItemRequest): Promise<HonuaOgcFeatureResponse> {
+    const layout = await this.layout();
     return this.client.replaceOgcItem({
       ...request,
       collectionId: this.collectionId,
+      ...(layout ? { layout } : {}),
     });
   }
 
   public async patchItem(request: HonuaOgcCollectionPatchItemRequest): Promise<HonuaOgcFeatureResponse> {
+    const layout = await this.layout();
     return this.client.patchOgcItem({
       ...request,
       collectionId: this.collectionId,
+      ...(layout ? { layout } : {}),
     });
   }
 
   public async deleteItem(request: HonuaOgcCollectionDeleteItemRequest): Promise<void> {
+    const layout = await this.layout();
     return this.client.deleteOgcItem({
       ...request,
       collectionId: this.collectionId,
+      ...(layout ? { layout } : {}),
     });
   }
 }

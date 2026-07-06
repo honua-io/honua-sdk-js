@@ -293,6 +293,22 @@ export interface SourceLocator {
   layerId?: number;
   /** OGC API Features / Tiles / Maps collection identifier, or Records catalog id. */
   collectionId?: string | number;
+  /**
+   * OGC API / STAC endpoint-layout discovery mode.
+   *
+   *  - `honua-facade` (default) addresses Honua Server's fixed facade paths
+   *    (`/ogc/features/...`, `/stac/...`) with zero discovery round-trips.
+   *  - `ogc-api` (OGC API Features/Records) / `stac-api` (STAC) treat
+   *    `url` as the service root and discover collection / item / search
+   *    paths from the landing page links (spec-driven, backend-agnostic).
+   *  - `auto` probes the facade first and falls back to discovery.
+   *  - `stac-static` (STAC only) reads a static `catalog.json` tree by
+   *    following `child` / `item` links.
+   *
+   * Existing Honua-Server callers omit this field and see no behaviour
+   * change.
+   */
+  layout?: "honua-facade" | "ogc-api" | "auto" | "stac-api" | "stac-static";
   /** OGC API Tiles tile-matrix-set identifier (e.g. `WebMercatorQuad`). */
   tileMatrixSetId?: string;
   /** OGC API Maps / Tiles style identifier for styled-output endpoints. */

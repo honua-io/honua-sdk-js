@@ -1,0 +1,48 @@
+{
+  "type": "Collection",
+  "stac_version": "1.0.0",
+  "id": "imagery",
+  "description": "Sample imagery collection",
+  "license": "proprietary",
+  "extent": {
+    "spatial": {
+      "bbox": [
+        [
+          -180,
+          -90,
+          180,
+          90
+        ]
+      ]
+    },
+    "temporal": {
+      "interval": [
+        [
+          "2024-01-01T00:00:00Z",
+          null
+        ]
+      ]
+    }
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "self",
+      "href": "https://static.example.test/imagery/collection.json"
+    },
+    {
+      "rel": "item",
+      "href": "./item-a.json",
+      "type": "application/geo+json"
+    },
+    {
+      "rel": "item",
+      "href": "./item-b.json",
+      "type": "application/geo+json"
+    }
+  ]
+}

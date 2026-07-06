@@ -23,6 +23,13 @@ import { createOgcMetadataParams, mergeHeaders } from "./wire-shared.js";
 
 export interface HonuaStacSearchOptions {
   client: HonuaClient;
+  /**
+   * Path prefix the STAC endpoints are mounted under. Defaults to `/stac`
+   * (Honua facade). Pass `""` for a raw STAC API root (e.g. Earth Search
+   * served at `.../v1`), so the search / collection paths resolve directly
+   * under the client baseUrl.
+   */
+  basePath?: string;
 }
 
 export interface HonuaStacSearchAllRequest extends StacSearchRequest {
@@ -42,21 +49,29 @@ const DEFAULT_STAC_MAX_PAGES = 100;
  */
 export class HonuaStacSearch {
   public readonly client: HonuaClient;
+  private readonly basePath: string | undefined;
 
   public constructor(options: HonuaStacSearchOptions) {
     this.client = options.client;
+    this.basePath = options.basePath;
+  }
+
+  /** Inject the configured STAC base path unless the caller already set one. */
+  private withBase<R extends { stacBasePath?: string }>(request: R): R {
+    if (this.basePath === undefined || request.stacBasePath !== undefined) return request;
+    return { ...request, stacBasePath: this.basePath };
   }
 
   public async landing(request: OgcMetadataRequest = {}): Promise<HonuaStacLandingResponse> {
-    return this.client.getStacLanding(request);
+    return this.client.getStacLanding(this.withBase(request));
   }
 
   public async collections(request: OgcMetadataRequest = {}): Promise<HonuaOgcCollectionsResponse> {
-    return this.client.listStacCollections(request);
+    return this.client.listStacCollections(this.withBase(request));
   }
 
   public async collection(request: OgcCollectionRequest): Promise<HonuaOgcCollectionMetadata> {
-    return this.client.getStacCollection(request);
+    return this.client.getStacCollection(this.withBase(request));
   }
 
   public async item(request: {
@@ -65,12 +80,13 @@ export class HonuaStacSearch {
     signal?: AbortSignal;
     responseFormat?: string;
     extraParams?: Record<string, string | number | boolean>;
+    stacBasePath?: string;
   }): Promise<HonuaStacItemResponse> {
-    return this.client.getStacItem(request);
+    return this.client.getStacItem(this.withBase(request));
   }
 
   public async search(request: StacSearchRequest = {}): Promise<HonuaStacItemCollectionResponse> {
-    return this.client.searchStac(request);
+    return this.client.searchStac(this.withBase(request));
   }
 
   public async searchAll(request: HonuaStacSearchAllRequest = {}): Promise<HonuaStacItemResponse[]> {
@@ -79,12 +95,14 @@ export class HonuaStacSearch {
     const items: HonuaStacItemResponse[] = [];
     let cursor: StacPageCursor = { offset: request.offset, next: request.next };
     for (let page = 0; page < maxPages; page += 1) {
-      const response = await this.client.searchStac({
-        ...request,
-        limit: pageSize,
-        offset: cursor.offset,
-        next: cursor.next,
-      });
+      const response = await this.client.searchStac(
+        this.withBase({
+          ...request,
+          limit: pageSize,
+          offset: cursor.offset,
+          next: cursor.next,
+        }),
+      );
       const pageItems = response.features ?? [];
       if (pageItems.length === 0) break;
       items.push(...pageItems);
@@ -105,12 +123,14 @@ export class HonuaStacSearch {
     const maxPages = request.maxPages ?? DEFAULT_STAC_MAX_PAGES;
     let cursor: StacPageCursor = { offset: request.offset, next: request.next };
     for (let page = 0; page < maxPages; page += 1) {
-      const response: HonuaStacItemCollectionResponse = await this.client.searchStac({
-        ...request,
-        limit: pageSize,
-        offset: cursor.offset,
-        next: cursor.next,
-      });
+      const response: HonuaStacItemCollectionResponse = await this.client.searchStac(
+        this.withBase({
+          ...request,
+          limit: pageSize,
+          offset: cursor.offset,
+          next: cursor.next,
+        }),
+      );
       const pageItems = response.features ?? [];
       if (pageItems.length === 0) break;
       yield pageItems;
@@ -160,14 +180,29 @@ export function createHonuaStacSearch(client: HonuaClient): HonuaStacSearch {
 
 // ── STAC API wire methods ───────────────────────────────────────
 
+/**
+ * Path prefix the STAC endpoints are mounted under. Defaults to `/stac`
+ * (the Honua Server facade). Backend-agnostic callers pointing at a raw
+ * STAC API root pass `""` so the paths resolve directly under the client
+ * baseUrl (e.g. Earth Search served at `.../v1`).
+ */
+function stacBase(request: { stacBasePath?: string }): string {
+  const base = request.stacBasePath;
+  if (base === undefined) return "/stac";
+  // Trim trailing slashes; an explicit "" means "the client baseUrl is the
+  // STAC API root".
+  return base.replace(/\/+$/, "");
+}
+
 export async function getStacLanding(
   transport: HonuaProtocolTransport,
   request: OgcMetadataRequest = {},
 ): Promise<HonuaStacLandingResponse> {
   const params = createOgcMetadataParams(request);
+  const base = stacBase(request);
   return transport.requestCachedMetadataJson<HonuaStacLandingResponse>(
-    `stac:landing:${params.toString()}`,
-    `/stac?${params.toString()}`,
+    `stac:landing:${base}:${params.toString()}`,
+    `${base}?${params.toString()}`,
     request,
   );
 }
@@ -177,9 +212,10 @@ export async function listStacCollections(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcCollectionsResponse> {
   const params = createOgcMetadataParams(request);
+  const base = stacBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcCollectionsResponse>(
-    `stac:collections:${params.toString()}`,
-    `/stac/collections?${params.toString()}`,
+    `stac:collections:${base}:${params.toString()}`,
+    `${base}/collections?${params.toString()}`,
     request,
   );
 }
@@ -189,9 +225,10 @@ export async function getStacCollection(
   request: OgcCollectionRequest,
 ): Promise<HonuaOgcCollectionMetadata> {
   const params = createOgcMetadataParams(request);
+  const base = stacBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcCollectionMetadata>(
-    `stac:collection:${request.collectionId}:${params.toString()}`,
-    `/stac/collections/${encodeURIComponent(String(request.collectionId))}?${params.toString()}`,
+    `stac:collection:${base}:${request.collectionId}:${params.toString()}`,
+    `${base}/collections/${encodeURIComponent(String(request.collectionId))}?${params.toString()}`,
     request,
   );
 }
@@ -204,11 +241,13 @@ export async function getStacItem(
     signal?: AbortSignal;
     responseFormat?: string;
     extraParams?: Record<string, string | number | boolean>;
+    stacBasePath?: string;
   },
 ): Promise<HonuaStacItemResponse> {
   const params = createOgcMetadataParams(request);
+  const base = stacBase(request);
   const path =
-    `/stac/collections/${encodeURIComponent(String(request.collectionId))}` +
+    `${base}/collections/${encodeURIComponent(String(request.collectionId))}` +
     `/items/${encodeURIComponent(String(request.itemId))}`;
   return transport.requestJson<HonuaStacItemResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
 }
@@ -217,10 +256,11 @@ export async function searchStac(
   transport: HonuaProtocolTransport,
   request: StacSearchRequest = {},
 ): Promise<HonuaStacItemCollectionResponse> {
+  const base = stacBase(request);
   if (request.usePost) {
     return transport.requestJson<HonuaStacItemCollectionResponse>(
       "POST",
-      "/stac/search",
+      `${base}/search`,
       {
         headers: mergeHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
         body: JSON.stringify(stacSearchBody(request)),
@@ -231,7 +271,7 @@ export async function searchStac(
   const params = serializeStacSearchParams(request);
   return transport.requestJson<HonuaStacItemCollectionResponse>(
     "GET",
-    `/stac/search?${params.toString()}`,
+    `${base}/search?${params.toString()}`,
     undefined,
     request.signal,
   );
