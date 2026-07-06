@@ -72,6 +72,11 @@ const SECTIONS = [
       },
       { path: "docs/errors.md", description: "Named error hierarchy, catch-narrowing, and retry policy." },
       {
+        path: "docs/auth.md",
+        description:
+          "Authentication: pluggable auth providers, OAuth2 authorization-code + PKCE, token refresh, credential stores, and security guidance.",
+      },
+      {
         path: "docs/react.md",
         description: "@honua/react bindings: HonuaProvider, useQuery/useDataset hooks, and map components.",
       },

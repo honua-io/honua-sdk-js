@@ -2360,6 +2360,7 @@ parsing message strings.
 | `HonuaNetworkError` | Any REST call | The transport itself failed (`fetch` rejected) — DNS, TLS, offline, or upstream connection reset. | Inspect `.cause` if present; back off and retry. For browsers, this is also the most common error to render as "Check your connection." |
 | `HonuaAbortError` | Any REST call | The caller's `AbortSignal` was aborted (or the SDK aborted on timeout — see `HonuaTimeoutError` for that case). | Do **not** retry. The caller asked to stop. Treat as a successful cancellation. |
 | `HonuaGrpcError` | `transport: "grpc-web"` only | A gRPC-Web call returned a non-OK `Code`. | Branch on `.code` (Connect/`google.rpc.Code`): `UNAUTHENTICATED` → refresh credentials, `PERMISSION_DENIED` → surface; `UNAVAILABLE` → retry with backoff; `DEADLINE_EXCEEDED` → increase deadline or retry; `INVALID_ARGUMENT` → fix the call site. |
+| `HonuaAuthError` | `@honua/sdk-js/auth` providers (`oauth2`, `clientCredentials`) | A credential could not be produced. | Branch on `.code`: `interaction_required` → start interactive sign-in (`auth.signIn()`); `refresh_failed` → transient token-endpoint failure, retry later; `invalid_grant` → refresh token/authorization code expired or revoked (the stored credential is cleared) → interactive sign-in. The underlying transport/parse failure, when present, is on `.cause`. |
 | `HonuaCapabilityNotSupportedError` | `Source.query` / `Source.applyEdits` / etc. | Under the default `capabilityPolicy: "strict"`, the active source does not support the requested operation (e.g. `query()` on a `wmts` source). | Either downgrade the request (drop the unsupported clause), fall back to `Source.protocol(...)` for raw protocol access, or set `capabilityPolicy: "degraded"` on `createDataset` to coerce best-effort behavior with a `degraded` reason in the `Result`. |
 | `HonuaExplorationContextError` | `@honua/sdk-js/exploration` | An exploration intent referenced a missing slice / view, or the snapshot is incompatible with the active context schema. | Surface to user (UI bug) or migrate the saved snapshot. Do not retry. |
 | `HonuaWfsExceptionError` | `wfs` adapter | The WFS server returned a `<ows:ExceptionReport>`. The original `exceptionCode`, `locator`, and `exceptionText` are preserved on the instance. | Branch on `.exceptionCode` (`InvalidParameterValue`, `OperationNotSupported`, `MissingParameterValue`, etc.). Most are caller bugs; surface to user. |
@@ -2405,6 +2406,7 @@ subset of these errors when configured:
 | `HonuaNetworkError` | Yes |
 | `HonuaTimeoutError` | Yes |
 | `HonuaGrpcError` with retryable code | **No** — the built-in `retry` policy is not applied to the gRPC-web transport; wrap these calls yourself |
+| `HonuaAuthError` | **No** — resolved by the auth provider's own silent-refresh / single-flight logic; a 401/403 additionally triggers one force-refresh + replay. Branch on `.code` to sign in or surface. |
 | `HonuaAbortError` | **No** — caller asked to stop |
 | `HonuaCapabilityNotSupportedError` | **No** — would never succeed |
 | `HonuaWfsExceptionError` | **No** — caller bug |
@@ -2418,6 +2420,234 @@ for production. It surfaces capability misses as `HonuaCapabilityNotSupportedErr
 an empty result. `capabilityPolicy: "degraded"` is intended for exploratory tools
 that prefer best-effort results with an explicit `degraded` reason annotated on
 the `Result`.
+
+---
+
+# File: docs/auth.md
+
+# Authentication
+
+`@honua/sdk-js` ships a small, pluggable authentication layer. A `HonuaClient`
+accepts an **auth provider** that resolves credentials on demand; the client
+attaches them to every request across **all transports** (REST fetch paths and
+gRPC-web calls), refreshes them transparently before they expire, and force-
+refreshes once on a replay-safe `401`/`403`.
+
+```ts
+import { HonuaClient } from "@honua/sdk-js/honua";
+import { oauth2 } from "@honua/sdk-js/auth";
+
+const auth = oauth2({
+  authorizationEndpoint: "https://idp.example/authorize",
+  tokenEndpoint: "https://idp.example/token",
+  clientId: "my-app",
+  redirectUri: `${location.origin}/callback`,
+  scopes: ["openid", "profile"],
+});
+
+const client = new HonuaClient({ baseUrl: "https://api.example", auth });
+```
+
+The auth providers live in the dedicated `@honua/sdk-js/auth` subpath so a
+`HonuaClient`-only consumer never pays the PKCE / token-exchange code size. Only
+[WebCrypto](https://developer.mozilla.org/docs/Web/API/Web_Crypto_API) is used
+for PKCE, so there are **no new runtime dependencies** (Node ≥20 exposes
+`globalThis.crypto`).
+
+## Built-in providers
+
+| Provider | Import | Use | Interactive? |
+|----------|--------|-----|--------------|
+| `apiKeyAuth(key)` | `@honua/sdk-js/auth` | Static API key → `X-API-Key`. | No |
+| `bearerTokenAuth(token)` | `@honua/sdk-js/auth` | Static bearer → `Authorization: Bearer …`. | No |
+| `oauth2(config)` | `@honua/sdk-js/auth` | OAuth2 authorization-code + PKCE (browser). | Yes |
+| `clientCredentials(config)` | `@honua/sdk-js/auth` | OAuth2 client-credentials (Node/server). | No |
+
+All four satisfy the core `HonuaAuthProvider` interface
+(`getCredentials(context) → credentials`), so they drop straight into
+`new HonuaClient({ auth })`. You can also pass a bare function
+(`auth: (ctx) => ({ bearerToken })`) for fully custom logic.
+
+## OAuth2 authorization-code + PKCE
+
+`oauth2(config)` returns an `OAuth2Provider` that is **both** the client's auth
+provider **and** the controller your app drives for the interactive flow.
+
+### Flow (redirect mode — the default)
+
+1. **Start sign-in.** `await auth.signIn()` generates a PKCE verifier
+   (`code_verifier`), its S256 challenge, and an unguessable `state`, stashes the
+   verifier + state in `sessionStorage`, and redirects the browser to the
+   authorization endpoint. (The returned promise never resolves — the page
+   unloads.)
+2. **Handle the callback.** When the browser returns to `redirectUri`, call
+   `await auth.handleRedirectCallback()`. It validates `state` (CSRF guard),
+   exchanges the `code` + verifier at the token endpoint, and persists the
+   tokens in the credential store.
+3. **Use the client.** Every request now carries `Authorization: Bearer …`. When
+   the access token nears expiry it is silently refreshed via the
+   `refresh_token` grant.
+
+```ts
+// On the page that renders your app / callback:
+if (auth.isRedirectCallback()) {
+  await auth.handleRedirectCallback();      // completes the sign-in
+} else if (!(await auth.isSignedIn())) {
+  await auth.signIn();                       // starts the sign-in (redirects away)
+}
+```
+
+### Popup mode
+
+Set `mode: "popup"`. `await auth.signIn()` opens a popup, waits for the redirect
+back to `redirectUri`, exchanges the code, and resolves with the stored
+credential — no full-page navigation. The redirect page still runs your app; it
+does not need to call `handleRedirectCallback()` because the opener reads the
+result.
+
+### Silent refresh & the no-refresh-token fallback
+
+When a request needs a token and the cached one is expiring (within the
+clock-skew window, default 60 s), the provider refreshes it using the
+`refresh_token` grant. If the authorization server did **not** issue a refresh
+token, the provider throws `HonuaAuthError` with code `interaction_required` —
+your app should catch it and call `signIn()` again (or use a hidden-iframe /
+silent-auth strategy of your own).
+
+### Single-flight refresh
+
+If _N_ concurrent requests all observe an expiring token, exactly **one**
+token-endpoint round-trip is made; the other _N − 1_ await the same refresh.
+This holds both inside the provider and at the client level.
+
+### Lifecycle events
+
+```ts
+const handle = auth.on((event) => {
+  switch (event.type) {
+    case "signed-in":       /* event.credential */ break;
+    case "token-refreshed": /* event.credential */ break;
+    case "refresh-failed":  /* event.error (HonuaAuthError) */ break;
+    case "signed-out":      break;
+  }
+});
+handle.remove(); // unsubscribe
+```
+
+`await auth.signOut()` clears the stored credential (and calls the optional
+`revocationEndpoint`), emitting `signed-out`.
+
+## Client-credentials (Node / server)
+
+For confidential server clients, use `clientCredentials`. There is no
+interactive step; tokens are fetched on demand and re-requested when they expire
+(this grant issues no refresh token). Refresh is single-flight.
+
+```ts
+import { clientCredentials } from "@honua/sdk-js/auth";
+
+const auth = clientCredentials({
+  tokenEndpoint: "https://idp.example/token",
+  clientId: process.env.CLIENT_ID!,
+  clientSecret: process.env.CLIENT_SECRET!,
+  scopes: ["honua.read"],
+});
+```
+
+> **Never use `clientCredentials` in a browser** — the client secret would be
+> exposed to every visitor. It is for Node/server processes only.
+
+## Credential stores
+
+Credentials are held in a pluggable `CredentialStore`, scoped per
+origin/service (the key defaults to `${clientId}@${token-endpoint origin}`) so a
+token for one service is never returned for another.
+
+| Store | Import | Persistence | Risk |
+|-------|--------|-------------|------|
+| `InMemoryCredentialStore` (default) | `@honua/sdk-js/auth` | JS heap; cleared on reload | Lowest — no other script/tab can read it. |
+| `sessionStorageCredentialStore()` | `@honua/sdk-js/auth` | Per-tab; cleared on tab close | Readable by any script on the origin (XSS). |
+| `localStorageCredentialStore()` | `@honua/sdk-js/auth` | Across tabs & restarts | Highest — persists the exposure window. |
+
+```ts
+import { oauth2, sessionStorageCredentialStore } from "@honua/sdk-js/auth";
+
+const auth = oauth2({
+  /* … */
+  store: sessionStorageCredentialStore(), // opt-in; understand the risk below
+});
+```
+
+### Storage & security
+
+- **Prefer the in-memory default.** Tokens never touch disk or Web Storage, so a
+  script-injection (XSS) bug cannot exfiltrate a token from another context.
+- **Web Storage is opt-in for a reason.** `sessionStorage`/`localStorage` are
+  readable by _any_ JavaScript running on the origin. A single XSS vulnerability
+  turns stored tokens into stolen tokens. `localStorage` is worse than
+  `sessionStorage` because it persists across restarts and tabs.
+- **Credentials are never sent cross-origin.** The client refuses to follow a
+  cross-origin redirect (it never replays your `X-API-Key`/`Authorization` to a
+  redirect target off the configured base origin — see
+  [`errors.md`](./errors.md) and the credential-leak tests). Absolute request
+  URLs to a different origin are rejected outright.
+- **PKCE only, always S256.** The implicit flow is not supported; the code
+  challenge method is always `S256`.
+
+## Wiring into transports
+
+The client resolves credentials through one shared pipeline, so providers apply
+uniformly:
+
+- **REST / fetch** — auth headers are merged onto every request; a replay-safe
+  `401`/`403` triggers one force-refresh and a single retry.
+- **gRPC-web** (`transport: "grpc-web"`) — a Connect interceptor re-resolves
+  credentials on every call (and every retry attempt).
+- **Realtime (SSE)** — native `EventSource` cannot set headers and reconnects
+  internally, so realtime streams that need a token should carry it as a query
+  parameter (or use a custom `eventSourceFactory`) and **re-read it on each
+  (re)connect** so a refreshed token is picked up after a drop. Use
+  `await client.getAuthToken()` / `await client.getAuthHeaders()` to obtain the
+  current (refreshed) credential at connect time.
+
+## Esri IdentityManager compatibility
+
+Migrated ArcGIS apps that call `IdentityManager.registerOAuthInfos(...)` can be
+backed by the real engine. Bind an `oauth2(...)` provider to a server and
+`getCredential(url)` drives the actual PKCE / refresh flow:
+
+```ts
+import { oauth2 } from "@honua/sdk-js/auth";
+import { identityManager, OAuthInfoCompat } from "@honua/sdk-js/esri-compat";
+
+const info = new OAuthInfoCompat({ appId: "app", portalUrl: "https://portal.example" });
+identityManager.registerOAuthInfos([info]);
+identityManager.registerOAuth2Engine(
+  info.portalUrl,
+  oauth2(info.toOAuth2Config({ redirectUri: `${location.origin}/callback` })),
+);
+
+// Drives the real flow (silent refresh, or interactive signIn on
+// interaction_required), registers the token, and returns it:
+const credential = await identityManager.getCredential("https://portal.example/sharing/rest");
+```
+
+`OAuthInfoCompat.toOAuth2Config()` derives the ArcGIS Portal endpoints
+(`<portalUrl>/sharing/rest/oauth2/authorize` and `/token`) from `portalUrl` +
+`appId`; pass explicit endpoints/overrides where needed.
+
+## Errors
+
+Auth failures are `HonuaAuthError` (in the typed error hierarchy) with a `.code`:
+
+| `.code` | Meaning | Recover by |
+|---------|---------|------------|
+| `interaction_required` | No token and no way to get one silently. | `auth.signIn()`. |
+| `refresh_failed` | Transient token-endpoint failure. | Retry later; the stored credential is kept. |
+| `invalid_grant` | Refresh token / code expired or revoked. | The credential is cleared → `auth.signIn()`. |
+
+See [`errors.md`](./errors.md) for the full hierarchy and the runnable example
+under [`examples/oauth-signin/`](../examples/oauth-signin/).
 
 ---
 
@@ -2769,15 +2999,15 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-05 at commit `6db4ece`._
+_Generated 2026-07-06 at commit `022502a`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 410.5 KiB | 451.6 KiB | 108.3 KiB | 119.3 KiB |
-| `/honua` | 413.1 KiB | 454.4 KiB | 108.8 KiB | 119.9 KiB |
+| `.` (root) | 410.9 KiB | 451.6 KiB | 108.4 KiB | 119.3 KiB |
+| `/honua` | 413.5 KiB | 454.4 KiB | 108.9 KiB | 119.9 KiB |
 | `/contract` | 213.9 KiB | 235.3 KiB | 54.2 KiB | 59.7 KiB |
 | `/runtime` | 417.0 KiB | 458.7 KiB | 108.3 KiB | 119.5 KiB |
-| `/esri-compat` | 933.0 KiB | 1026.2 KiB | 230.5 KiB | 253.6 KiB |
+| `/esri-compat` | 935.3 KiB | 1026.2 KiB | 231.2 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
 | `/geocoding` | 4.9 KiB | 5.3 KiB | 1.9 KiB | 2.1 KiB |
@@ -2785,10 +3015,10 @@ _Generated 2026-07-05 at commit `6db4ece`._
 | `/map` | 62.6 KiB | 68.8 KiB | 16.2 KiB | 17.9 KiB |
 | `/react` (react/react-dom external) | 368.8 KiB | 405.7 KiB | 95.0 KiB | 104.5 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 411.5 KiB | 452.7 KiB | 108.6 KiB | 119.7 KiB |
-| browser ESM (`./browser`) | 410.0 KiB | 451.0 KiB | 108.3 KiB | 119.3 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 185.7 KiB | 204.3 KiB | 47.2 KiB | 52.1 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 200.4 KiB | 220.4 KiB | 50.7 KiB | 55.8 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 411.9 KiB | 452.7 KiB | 108.7 KiB | 119.7 KiB |
+| browser ESM (`./browser`) | 410.4 KiB | 451.0 KiB | 108.3 KiB | 119.3 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 185.9 KiB | 204.3 KiB | 47.3 KiB | 52.1 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 200.6 KiB | 220.4 KiB | 50.7 KiB | 55.8 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 
 ---

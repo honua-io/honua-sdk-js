@@ -15,6 +15,7 @@ parsing message strings.
 | `HonuaNetworkError` | Any REST call | The transport itself failed (`fetch` rejected) — DNS, TLS, offline, or upstream connection reset. | Inspect `.cause` if present; back off and retry. For browsers, this is also the most common error to render as "Check your connection." |
 | `HonuaAbortError` | Any REST call | The caller's `AbortSignal` was aborted (or the SDK aborted on timeout — see `HonuaTimeoutError` for that case). | Do **not** retry. The caller asked to stop. Treat as a successful cancellation. |
 | `HonuaGrpcError` | `transport: "grpc-web"` only | A gRPC-Web call returned a non-OK `Code`. | Branch on `.code` (Connect/`google.rpc.Code`): `UNAUTHENTICATED` → refresh credentials, `PERMISSION_DENIED` → surface; `UNAVAILABLE` → retry with backoff; `DEADLINE_EXCEEDED` → increase deadline or retry; `INVALID_ARGUMENT` → fix the call site. |
+| `HonuaAuthError` | `@honua/sdk-js/auth` providers (`oauth2`, `clientCredentials`) | A credential could not be produced. | Branch on `.code`: `interaction_required` → start interactive sign-in (`auth.signIn()`); `refresh_failed` → transient token-endpoint failure, retry later; `invalid_grant` → refresh token/authorization code expired or revoked (the stored credential is cleared) → interactive sign-in. The underlying transport/parse failure, when present, is on `.cause`. |
 | `HonuaCapabilityNotSupportedError` | `Source.query` / `Source.applyEdits` / etc. | Under the default `capabilityPolicy: "strict"`, the active source does not support the requested operation (e.g. `query()` on a `wmts` source). | Either downgrade the request (drop the unsupported clause), fall back to `Source.protocol(...)` for raw protocol access, or set `capabilityPolicy: "degraded"` on `createDataset` to coerce best-effort behavior with a `degraded` reason in the `Result`. |
 | `HonuaExplorationContextError` | `@honua/sdk-js/exploration` | An exploration intent referenced a missing slice / view, or the snapshot is incompatible with the active context schema. | Surface to user (UI bug) or migrate the saved snapshot. Do not retry. |
 | `HonuaWfsExceptionError` | `wfs` adapter | The WFS server returned a `<ows:ExceptionReport>`. The original `exceptionCode`, `locator`, and `exceptionText` are preserved on the instance. | Branch on `.exceptionCode` (`InvalidParameterValue`, `OperationNotSupported`, `MissingParameterValue`, etc.). Most are caller bugs; surface to user. |
@@ -60,6 +61,7 @@ subset of these errors when configured:
 | `HonuaNetworkError` | Yes |
 | `HonuaTimeoutError` | Yes |
 | `HonuaGrpcError` with retryable code | **No** — the built-in `retry` policy is not applied to the gRPC-web transport; wrap these calls yourself |
+| `HonuaAuthError` | **No** — resolved by the auth provider's own silent-refresh / single-flight logic; a 401/403 additionally triggers one force-refresh + replay. Branch on `.code` to sign in or surface. |
 | `HonuaAbortError` | **No** — caller asked to stop |
 | `HonuaCapabilityNotSupportedError` | **No** — would never succeed |
 | `HonuaWfsExceptionError` | **No** — caller bug |

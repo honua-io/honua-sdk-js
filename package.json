@@ -53,6 +53,10 @@
       "types": "./dist/src/honua.d.ts",
       "default": "./dist/src/honua.js"
     },
+    "./auth": {
+      "types": "./dist/src/core/auth/index.d.ts",
+      "default": "./dist/src/core/auth/index.js"
+    },
     "./esri-compat": {
       "types": "./dist/src/esri-compat-entry.d.ts",
       "default": "./dist/src/esri-compat-entry.js"
@@ -310,14 +314,19 @@
     "demo:app-bootstrap:build": "vite build --config examples/app-bootstrap-basic/vite.config.ts",
     "demo:app-bootstrap:preview": "vite preview --config examples/app-bootstrap-basic/vite.config.ts --host 127.0.0.1",
     "demo:app-bootstrap:typecheck": "tsc -p examples/app-bootstrap-basic/tsconfig.json --noEmit",
+    "demo:oauth-signin": "vite --config examples/oauth-signin/vite.config.ts",
+    "demo:oauth-signin:build": "vite build --config examples/oauth-signin/vite.config.ts",
+    "demo:oauth-signin:preview": "vite preview --config examples/oauth-signin/vite.config.ts --host 127.0.0.1",
+    "demo:oauth-signin:mock": "node examples/oauth-signin/mock-server.mjs",
+    "demo:oauth-signin:typecheck": "tsc -p examples/oauth-signin/tsconfig.json --noEmit",
     "demo:runtime-parity": "vite --config examples/runtime-parity-showcase/vite.config.ts",
     "demo:runtime-parity:build": "vite build --config examples/runtime-parity-showcase/vite.config.ts",
     "demo:runtime-parity:preview": "vite preview --config examples/runtime-parity-showcase/vite.config.ts --host 127.0.0.1",
     "demo:runtime-parity:mock": "node examples/runtime-parity-showcase/mock-server.mjs",
     "demo:runtime-parity:typecheck": "tsc -p examples/runtime-parity-showcase/tsconfig.json --noEmit",
     "demo:primitive-matrix": "node scripts/verify-primitive-demo-matrix.mjs",
-    "demo:examples:typecheck": "npm run demo:quickstart:typecheck && npm run demo:react-quickstart:typecheck && npm run demo:incident:typecheck && npm run demo:unified-ops:typecheck && npm run demo:25d:typecheck && npm run demo:service-explorer:typecheck && npm run demo:migration-workbench:typecheck && npm run demo:mcp-gis-assistant:typecheck && npm run demo:ai-spatial-builder:typecheck && npm run demo:spatial-analytics:typecheck && npm run demo:gp-runner:typecheck && npm run demo:stac-browser:typecheck && npm run demo:imagery-cog:typecheck && npm run demo:geocoding:typecheck && npm run demo:node-backend:typecheck && npm run demo:terrain-elevation:typecheck && npm run demo:edit-workflow:typecheck && npm run demo:planning-workbench:typecheck && npm run demo:web-components:typecheck && npm run demo:app-bootstrap:typecheck && npm run demo:runtime-parity:typecheck && node scripts/ensure-kepler-demo-deps.mjs && npm --prefix examples/kepler-analytics run typecheck",
-    "demo:examples:build": "node scripts/ensure-kepler-demo-deps.mjs && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:unified-ops:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:planning-workbench:build && npm run demo:web-components:build && npm run demo:app-bootstrap:build && npm run demo:runtime-parity:build && npm run demo:kepler:build",
+    "demo:examples:typecheck": "npm run demo:quickstart:typecheck && npm run demo:react-quickstart:typecheck && npm run demo:incident:typecheck && npm run demo:unified-ops:typecheck && npm run demo:25d:typecheck && npm run demo:service-explorer:typecheck && npm run demo:migration-workbench:typecheck && npm run demo:mcp-gis-assistant:typecheck && npm run demo:ai-spatial-builder:typecheck && npm run demo:spatial-analytics:typecheck && npm run demo:gp-runner:typecheck && npm run demo:stac-browser:typecheck && npm run demo:imagery-cog:typecheck && npm run demo:geocoding:typecheck && npm run demo:node-backend:typecheck && npm run demo:terrain-elevation:typecheck && npm run demo:edit-workflow:typecheck && npm run demo:planning-workbench:typecheck && npm run demo:web-components:typecheck && npm run demo:app-bootstrap:typecheck && npm run demo:oauth-signin:typecheck && npm run demo:runtime-parity:typecheck && node scripts/ensure-kepler-demo-deps.mjs && npm --prefix examples/kepler-analytics run typecheck",
+    "demo:examples:build": "node scripts/ensure-kepler-demo-deps.mjs && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:unified-ops:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:planning-workbench:build && npm run demo:web-components:build && npm run demo:app-bootstrap:build && npm run demo:oauth-signin:build && npm run demo:runtime-parity:build && npm run demo:kepler:build",
     "test": "vitest run",
     "test:cloud-demo:config": "vitest run test/cloud-demo-services.test.ts test/demo-capability-matrix.test.ts",
     "test:cloud-demo:staging": "vitest run --config vitest.cloud-demo.config.ts",
@@ -338,6 +347,7 @@
     "test:playwright:planning-workbench": "playwright test test/playwright/planning-permitting-workbench.spec.mjs",
     "test:playwright:web-components": "playwright test test/playwright/web-components-basic.spec.mjs",
     "test:playwright:app-bootstrap": "playwright test test/playwright/app-bootstrap-basic.spec.mjs",
+    "test:playwright:oauth-signin": "playwright test test/playwright/oauth-signin.spec.mjs",
     "test:playwright:runtime-parity": "playwright test test/playwright/runtime-parity-showcase.spec.mjs",
     "test:quickstart:staging": "vitest run --config vitest.staging.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",

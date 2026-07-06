@@ -122,6 +122,44 @@ export class HonuaCapabilityNotSupportedError extends Error {
 }
 
 /**
+ * Cause codes for {@link HonuaAuthError}. They classify *why* an auth flow
+ * could not produce a usable credential so callers can branch without parsing
+ * message strings:
+ *
+ * - `interaction_required` — no cached credential and no way to obtain one
+ *   silently (no refresh token, or the refresh token is gone). The app must
+ *   start an interactive sign-in (`oauth2(...).signIn()`).
+ * - `refresh_failed` — a silent refresh attempt failed for a transient reason
+ *   (network/5xx/timeout at the token endpoint). Retrying later may succeed.
+ * - `invalid_grant` — the authorization server rejected the grant
+ *   (`error: "invalid_grant"`): the refresh token or authorization code is
+ *   expired/revoked/invalid. The stored credential is cleared and interactive
+ *   sign-in is required.
+ */
+export type HonuaAuthErrorCode = "interaction_required" | "refresh_failed" | "invalid_grant";
+
+/**
+ * Thrown by the auth providers (`oauth2`, `clientCredentials`, …) when a
+ * credential cannot be produced. Branch on `.code` (see {@link HonuaAuthErrorCode})
+ * to decide whether to start interactive sign-in, retry the refresh later, or
+ * surface the failure to the user. The underlying transport/parse failure, when
+ * present, is preserved on `.cause`.
+ *
+ * @see [`docs/errors.md`](../../docs/errors.md)
+ */
+export class HonuaAuthError extends Error {
+  public readonly code: HonuaAuthErrorCode;
+  public override readonly cause: unknown;
+
+  public constructor(code: HonuaAuthErrorCode, message: string, options: { cause?: unknown } = {}) {
+    super(message);
+    this.name = "HonuaAuthError";
+    this.code = code;
+    this.cause = options.cause;
+  }
+}
+
+/**
  * Thrown when an `ExplorationContext` operation is invalid — for example,
  * dispatching an intent against a context that has been disposed, restoring
  * an incompatible snapshot, or binding a view that requests a slice that is
@@ -168,6 +206,7 @@ export type HonuaError =
   | HonuaNetworkError
   | HonuaAbortError
   | HonuaGrpcError
+  | HonuaAuthError
   | HonuaCapabilityNotSupportedError
   | HonuaExplorationContextError
   | HonuaWfsExceptionError
@@ -183,6 +222,7 @@ export function isHonuaError(error: unknown): error is HonuaError {
     error instanceof HonuaNetworkError ||
     error instanceof HonuaAbortError ||
     error instanceof HonuaGrpcError ||
+    error instanceof HonuaAuthError ||
     error instanceof HonuaCapabilityNotSupportedError ||
     error instanceof HonuaExplorationContextError ||
     error instanceof HonuaWfsExceptionError ||

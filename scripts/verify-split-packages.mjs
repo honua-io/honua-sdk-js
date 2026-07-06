@@ -84,6 +84,7 @@ import {
   HonuaMapLayer,
 } from "@honua/sdk";
 import { HonuaGeocodingClient } from "@honua/sdk/geocoding";
+import { oauth2, clientCredentials, apiKeyAuth, InMemoryCredentialStore } from "@honua/sdk/auth";
 import {
   HONUA_CONTROL_PLANE_BASE_PATH,
   createHonuaControlPlane,
@@ -274,6 +275,16 @@ if (typeof HonuaGeoprocessingService !== "function")
   throw new Error("HonuaGeoprocessingService export missing from @honua/sdk");
 if (typeof HonuaGeocodingClient !== "function")
   throw new Error("HonuaGeocodingClient export missing from @honua/sdk/geocoding");
+if (typeof oauth2 !== "function" || typeof clientCredentials !== "function" || typeof apiKeyAuth !== "function")
+  throw new Error("auth provider exports missing from @honua/sdk/auth");
+if (typeof InMemoryCredentialStore !== "function")
+  throw new Error("InMemoryCredentialStore export missing from @honua/sdk/auth");
+{
+  const staticProvider = apiKeyAuth("k");
+  const provided = staticProvider.getCredentials({ reason: "initial", forceRefresh: false });
+  if (!provided || provided.apiKey !== "k")
+    throw new Error("apiKeyAuth from @honua/sdk/auth did not return the expected credential");
+}
 if (HONUA_CONTROL_PLANE_BASE_PATH !== "/api/v1/admin")
   throw new Error("HONUA_CONTROL_PLANE_BASE_PATH export missing from @honua/sdk/control-plane");
 if (typeof createHonuaControlPlane !== "function")
