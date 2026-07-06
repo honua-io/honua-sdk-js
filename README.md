@@ -328,11 +328,15 @@ correctly use this SDK:
     `@honua/sdk-js/contract`, `@honua/sdk-js/esri-compat`, `@honua/sdk-js/migration`,
     `@honua/sdk-js/runtime`, `@honua/sdk-js/expr`, `@honua/sdk-js/webmap`,
     `@honua/sdk-js/geocoding`, `@honua/sdk-js/exploration`, `@honua/sdk-js/interactions`,
-    `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`.
-  - **Experimental** (subpath-only — not re-exported from the root barrels):
-    `/app`, `/app-controller`, `/app-workspace`, `/scene-workspace`, `/collaboration`,
-    `/control-plane`, `/controls`, `/generated-app`, `/studio`, `/agent-tools`, `/realtime`,
-    `/web-components`, `/react`, `/operator`, `/operator/*`.
+    `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`,
+    `@honua/sdk-js/realtime`, `@honua/sdk-js/react`.
+  - **Experimental** (subpath-only — not re-exported from the root barrels): `/agent-tools`.
+  - **Application-platform surfaces** (`/app`, `/app-controller`, `/app-workspace`,
+    `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
+    `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,
+    `/operator/*`) have **moved to the separate `@honua/app-platform` package**; the old
+    `@honua/sdk-js/*` subpaths keep working for one minor behind a `@deprecated` shim. The
+    `/console` entrypoint was removed outright (no shim).
 
 ## Support and lifecycle
 

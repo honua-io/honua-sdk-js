@@ -62,6 +62,7 @@ createCompatPackage();
 createMigrationPackage();
 createReactPackage();
 createGeometryPackage();
+createAppPlatformPackage();
 
 process.stdout.write(`splitPackagesWritten=${OUTPUT_ROOT}\n`);
 
@@ -74,34 +75,25 @@ function createSdkPackage() {
   const packageRoot = path.join(OUTPUT_ROOT, "honua-sdk");
   fs.mkdirSync(packageRoot, { recursive: true });
 
+  // Stable-tier closure only. App-platform surfaces (app*, scene-workspace,
+  // collaboration, control-plane, replica-sync, share, operate, generated-app,
+  // studio, operator, controls, web-components) and the deleted `console`
+  // entrypoint moved out to `@honua/app-platform` in the 1.0 scope split
+  // (docs/decisions/scope-split-and-1.0.md).
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "controls"), path.join(packageRoot, "controls"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "control-plane"), path.join(packageRoot, "control-plane"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "collaboration"), path.join(packageRoot, "collaboration"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "console"), path.join(packageRoot, "console"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "share"), path.join(packageRoot, "share"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "app"), path.join(packageRoot, "app"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
   copyDirectory(path.join(DIST_SRC_ROOT, "filter-registry"), path.join(packageRoot, "filter-registry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "generated-app"), path.join(packageRoot, "generated-app"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "studio"), path.join(packageRoot, "studio"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "app-controller"), path.join(packageRoot, "app-controller"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "app-workspace"), path.join(packageRoot, "app-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "operator"), path.join(packageRoot, "operator"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "operate"), path.join(packageRoot, "operate"));
   copyDirectory(path.join(DIST_SRC_ROOT, "realtime"), path.join(packageRoot, "realtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "runtime"), path.join(packageRoot, "runtime"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "scene-workspace"), path.join(packageRoot, "scene-workspace"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
-  copyDirectory(path.join(DIST_SRC_ROOT, "web-components"), path.join(packageRoot, "web-components"));
   copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.d.ts"), path.join(packageRoot, "index.d.ts"));
@@ -124,69 +116,9 @@ function createSdkPackage() {
         types: "./contract/index.d.ts",
         default: "./contract/index.js",
       },
-      "./controls": {
-        types: "./controls/index.d.ts",
-        default: "./controls/index.js",
-      },
-      "./control-plane": {
-        types: "./control-plane/index.d.ts",
-        default: "./control-plane/index.js",
-      },
-      "./collaboration": {
-        types: "./collaboration/index.d.ts",
-        default: "./collaboration/index.js",
-      },
-      "./console": {
-        types: "./console/index.d.ts",
-        default: "./console/index.js",
-      },
-      "./share": {
-        types: "./share/index.d.ts",
-        default: "./share/index.js",
-      },
       "./agent-tools": {
         types: "./agent-tools/index.d.ts",
         default: "./agent-tools/index.js",
-      },
-      "./app": {
-        types: "./app/index.d.ts",
-        default: "./app/index.js",
-      },
-      "./web-components": {
-        types: "./web-components/index.d.ts",
-        default: "./web-components/index.js",
-      },
-      "./generated-app": {
-        types: "./generated-app/index.d.ts",
-        default: "./generated-app/index.js",
-      },
-      "./studio": {
-        types: "./studio/index.d.ts",
-        default: "./studio/index.js",
-      },
-      "./operator": {
-        types: "./operator/index.d.ts",
-        default: "./operator/index.js",
-      },
-      "./operator/controllers": {
-        types: "./operator/controllers/index.d.ts",
-        default: "./operator/controllers/index.js",
-      },
-      "./operator/workspace": {
-        types: "./operator/workspace/index.d.ts",
-        default: "./operator/workspace/index.js",
-      },
-      "./operator/theming": {
-        types: "./operator/theming/index.d.ts",
-        default: "./operator/theming/index.js",
-      },
-      "./operator/i18n": {
-        types: "./operator/i18n/index.d.ts",
-        default: "./operator/i18n/index.js",
-      },
-      "./operate": {
-        types: "./operate/index.d.ts",
-        default: "./operate/index.js",
       },
       "./exploration": {
         types: "./exploration/index.d.ts",
@@ -208,14 +140,6 @@ function createSdkPackage() {
         types: "./interactions/index.d.ts",
         default: "./interactions/index.js",
       },
-      "./app-controller": {
-        types: "./app-controller/index.d.ts",
-        default: "./app-controller/index.js",
-      },
-      "./app-workspace": {
-        types: "./app-workspace/index.d.ts",
-        default: "./app-workspace/index.js",
-      },
       "./realtime": {
         types: "./realtime/index.d.ts",
         default: "./realtime/index.js",
@@ -223,10 +147,6 @@ function createSdkPackage() {
       "./runtime": {
         types: "./runtime/index.d.ts",
         default: "./runtime/index.js",
-      },
-      "./scene-workspace": {
-        types: "./scene-workspace/index.d.ts",
-        default: "./scene-workspace/index.js",
       },
       "./map": {
         types: "./map/index.d.ts",
@@ -487,6 +407,117 @@ function createReactPackage() {
       "(`HonuaMap`, `HonuaLayer`, `HonuaPopup`).",
       "",
       "`react` / `react-dom` are optional peer dependencies.",
+      "",
+      "This package is generated from `@honua/sdk-js` build artifacts.",
+    ].join("\n"),
+  );
+}
+
+function createAppPlatformPackage() {
+  const packageRoot = path.join(OUTPUT_ROOT, "honua-app-platform");
+  fs.mkdirSync(packageRoot, { recursive: true });
+
+  // Application-platform surfaces evicted from the stable SDK in the 1.0 scope
+  // split (docs/decisions/scope-split-and-1.0.md). Self-contained, mirroring the
+  // esri-compat / migration / react split targets: the app-platform entrypoints
+  // plus their downward stable-tier closure are copied so the package resolves
+  // without a separate `@honua/sdk-js` install.
+  const appPlatformDirectories = [
+    "app",
+    "app-controller",
+    "app-workspace",
+    "scene-workspace",
+    "collaboration",
+    "control-plane",
+    "replica-sync",
+    "share",
+    "operate",
+    "generated-app",
+    "studio",
+    "operator",
+    "controls",
+    "web-components",
+  ];
+  const stableClosureDirectories = [
+    "contract",
+    "core",
+    "esri-compat",
+    "exploration",
+    "expr",
+    "filter-registry",
+    "gen",
+    "geocoding",
+    "interactions",
+    "map",
+    "realtime",
+    "runtime",
+    "style",
+    "webmap",
+  ];
+  for (const directory of [...appPlatformDirectories, ...stableClosureDirectories]) {
+    copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
+  }
+
+  const subpathExport = (dir) => ({
+    types: `./${dir}/index.d.ts`,
+    default: `./${dir}/index.js`,
+  });
+
+  writePackageJson(packageRoot, {
+    name: "@honua/app-platform",
+    description:
+      "Honua application-platform surfaces: app-shell, workspace, scene, operator, studio, and hosted-product clients",
+    main: "./app-workspace/index.js",
+    types: "./app-workspace/index.d.ts",
+    exports: {
+      ".": subpathExport("app-workspace"),
+      "./app": subpathExport("app"),
+      "./app-controller": subpathExport("app-controller"),
+      "./app-workspace": subpathExport("app-workspace"),
+      "./scene-workspace": subpathExport("scene-workspace"),
+      "./collaboration": subpathExport("collaboration"),
+      "./control-plane": subpathExport("control-plane"),
+      "./replica-sync": subpathExport("replica-sync"),
+      "./share": subpathExport("share"),
+      "./operate": subpathExport("operate"),
+      "./generated-app": subpathExport("generated-app"),
+      "./studio": subpathExport("studio"),
+      "./operator": subpathExport("operator"),
+      "./operator/controllers": subpathExport("operator/controllers"),
+      "./operator/workspace": subpathExport("operator/workspace"),
+      "./operator/theming": subpathExport("operator/theming"),
+      "./operator/i18n": subpathExport("operator/i18n"),
+      "./controls": subpathExport("controls"),
+      "./web-components": subpathExport("web-components"),
+    },
+    dependencies: {
+      "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
+      "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
+      "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
+      "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
+    },
+    peerDependencies: {
+      "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],
+      cesium: rootPackageJson.peerDependencies.cesium,
+    },
+    peerDependenciesMeta: {
+      "maplibre-gl": { optional: true },
+      cesium: { optional: true },
+    },
+  });
+
+  writeReadme(
+    packageRoot,
+    [
+      "# @honua/app-platform",
+      "",
+      "Honua application-platform surfaces extracted from `@honua/sdk-js` in the",
+      "1.0 scope split: app-shell bootstrap, framework-neutral workspace and scene",
+      "state, the app-builder studio/generated-app contracts, operator controllers,",
+      "native UI controls / web components, and hosted-product clients",
+      "(control-plane, collaboration, share, operate, replica-sync).",
+      "",
+      "`maplibre-gl` and `cesium` are optional peer dependencies.",
       "",
       "This package is generated from `@honua/sdk-js` build artifacts.",
     ].join("\n"),

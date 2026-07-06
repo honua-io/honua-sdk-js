@@ -169,9 +169,11 @@ describe("@honua/sdk-js/generated-app", () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
     const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
 
+    // Moved to `@honua/app-platform/generated-app` in the 1.0 scope split; the
+    // old subpath resolves through a one-minor `@deprecated` re-export shim.
     expect(packageJson.exports?.["./generated-app"]).toEqual({
-      types: "./dist/src/generated-app/index.d.ts",
-      default: "./dist/src/generated-app/index.js",
+      types: "./dist/src/_deprecated/generated-app.d.ts",
+      default: "./dist/src/_deprecated/generated-app.js",
     });
 
     const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });

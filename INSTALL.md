@@ -26,6 +26,8 @@ entrypoints are stable across minor versions.
 | `@honua/sdk-js/filter-registry` | Shared filter clause registry + projections |
 | `@honua/sdk-js/style` | Honua style spec + source parsers/validators |
 | `@honua/sdk-js/map` | `HonuaMap` programmatic map container |
+| `@honua/sdk-js/realtime` | Realtime transport adapters (SSE) — a client-transport primitive |
+| `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers; published standalone as `@honua/react`) |
 | `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops (buffer/area/simplify/reproject) |
 
 ## Experimental subpath entrypoints
@@ -37,24 +39,41 @@ default-barrel import never pulls them in.
 
 | Subpath | What it gives you |
 |---------|-------------------|
-| `@honua/sdk-js/app` | App bootstrap helper for browser shells |
-| `@honua/sdk-js/app-controller` | `HonuaController` — renderer-neutral app controller |
-| `@honua/sdk-js/app-workspace` | Framework-neutral workspace state orchestration |
-| `@honua/sdk-js/scene-workspace` | 3D scene workspace + MapLibre/Cesium adapters |
-| `@honua/sdk-js/collaboration` | Saved-map collaboration client |
-| `@honua/sdk-js/control-plane` | Hosted-product / admin client |
-| `@honua/sdk-js/controls` | Native UI control kit (`<honua-basemap-switcher>`) for MapLibre maps — no core/`maplibre-gl` imports |
-| `@honua/sdk-js/generated-app` | Manifest projection + preview runtime for generated apps |
-| `@honua/sdk-js/studio` | Studio package-family projections, validation/preview envelopes, capability manifest, publish/share/embed contracts (MCP/QGIS-safe) |
-| `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions (MCP/OpenAI compatible) |
-| `@honua/sdk-js/realtime` | Realtime transport adapters (SSE, future WS/WebTransport) |
-| `@honua/sdk-js/web-components` | Framework-neutral custom elements |
-| `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers; published standalone as `@honua/react`) |
-| `@honua/sdk-js/operator` | Operator-native chat/plan-review/approval controllers |
-| `@honua/sdk-js/operator/controllers` | Framework-neutral controllers behind `/operator` |
-| `@honua/sdk-js/operator/workspace` | Operator workspace state container |
-| `@honua/sdk-js/operator/theming` | Operator design-system theme provider + tokens |
-| `@honua/sdk-js/operator/i18n` | Operator message catalog + resolution |
+| `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions (MCP/OpenAI compatible). Stays in the stable package (the in-repo `@honua/mcp-server` depends on it) but its symbols remain `@experimental` — not semver-frozen — while the AI surface settles. |
+
+## Application-platform entrypoints (`@honua/app-platform`)
+
+App-shell, app-builder, and hosted-product surfaces have moved out of the client
+SDK into the separate **`@honua/app-platform`** package, which versions at its
+own pre-1.0 cadence so `@honua/sdk-js` can reach a frozen 1.0 without waiting on
+them (see [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md)).
+
+| `@honua/app-platform` subpath | What it gives you |
+|-------------------------------|-------------------|
+| `@honua/app-platform/app` | App bootstrap helper for browser shells |
+| `@honua/app-platform/app-controller` | `HonuaController` — renderer-neutral app controller |
+| `@honua/app-platform/app-workspace` | Framework-neutral workspace state orchestration |
+| `@honua/app-platform/scene-workspace` | 3D scene workspace + MapLibre/Cesium adapters (optional `cesium` peer) |
+| `@honua/app-platform/collaboration` | Saved-map collaboration client |
+| `@honua/app-platform/control-plane` | Hosted-product / admin client |
+| `@honua/app-platform/replica-sync` | Offline-replica sync client |
+| `@honua/app-platform/share` | Embed-token + DCAT sharing helpers |
+| `@honua/app-platform/operate` | Operations/observability client |
+| `@honua/app-platform/generated-app` | Manifest projection + preview runtime for generated apps |
+| `@honua/app-platform/studio` | Studio package-family projections, validation/preview envelopes, capability manifest, publish/share/embed contracts (MCP/QGIS-safe) |
+| `@honua/app-platform/controls` | Native UI control kit (`<honua-basemap-switcher>`) for MapLibre maps |
+| `@honua/app-platform/web-components` | Framework-neutral custom elements |
+| `@honua/app-platform/operator` | Operator-native chat/plan-review/approval controllers |
+| `@honua/app-platform/operator/controllers` | Framework-neutral controllers behind `/operator` |
+| `@honua/app-platform/operator/workspace` | Operator workspace state container |
+| `@honua/app-platform/operator/theming` | Operator design-system theme provider + tokens |
+| `@honua/app-platform/operator/i18n` | Operator message catalog + resolution |
+
+During the transition, the old `@honua/sdk-js/<subpath>` imports for these
+surfaces keep working for one minor version behind a `@deprecated` re-export
+shim; update imports to `@honua/app-platform/<subpath>`. The `@honua/sdk-js/console`
+entrypoint was removed outright (its projection helpers are owned by the
+`@honua/console` application) and has no shim.
 
 ## Prerequisites
 

@@ -19,6 +19,7 @@ const packageDirs = {
   "@honua/honua-migrate": path.join(PACKAGES_ROOT, "honua-migrate"),
   "@honua/react": path.join(PACKAGES_ROOT, "honua-react"),
   "@honua/geometry": path.join(PACKAGES_ROOT, "honua-geometry"),
+  "@honua/app-platform": path.join(PACKAGES_ROOT, "honua-app-platform"),
 };
 
 for (const [name, directory] of Object.entries(packageDirs)) {
@@ -67,6 +68,7 @@ try {
       react: ROOT_PACKAGE_JSON.devDependencies.react,
       "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
       "@honua/geometry": `file:${packageDirs["@honua/geometry"]}`,
+      "@honua/app-platform": `file:${packageDirs["@honua/app-platform"]}`,
     },
   };
   fs.writeFileSync(
@@ -88,20 +90,20 @@ import { oauth2, clientCredentials, apiKeyAuth, InMemoryCredentialStore } from "
 import {
   HONUA_CONTROL_PLANE_BASE_PATH,
   createHonuaControlPlane,
-} from "@honua/sdk/control-plane";
+} from "@honua/app-platform/control-plane";
 import {
   createFixtureSavedMapCollaborationTransport,
   createHonuaSavedMapCollaboration,
-} from "@honua/sdk/collaboration";
+} from "@honua/app-platform/collaboration";
 import {
   parseEmbedTokenFromFragment,
   toDcatDataset,
-} from "@honua/sdk/share";
+} from "@honua/app-platform/share";
 import {
   HONUA_OPERATE_BASE_PATH,
   HonuaOperateClient,
   createHonuaOperate,
-} from "@honua/sdk/operate";
+} from "@honua/app-platform/operate";
 import {
   CAPABILITIES,
   PROTOCOLS,
@@ -117,7 +119,7 @@ import {
 import {
   createHonuaApp,
   normalizeHonuaAppOptions,
-} from "@honua/sdk/app";
+} from "@honua/app-platform/app";
 import {
   EMPTY_STATE,
   LINKED_VIEW_PRESETS,
@@ -135,34 +137,33 @@ import {
 import {
   HONUA_CONTROLLER_SNAPSHOT_VERSION,
   createHonuaController,
-} from "@honua/sdk/app-controller";
+} from "@honua/app-platform/app-controller";
 import {
   createHonuaAppWorkspace,
   selectHonuaAppWorkspaceMetadataCacheModel,
-} from "@honua/sdk/app-workspace";
+} from "@honua/app-platform/app-workspace";
 import {
   createSceneWorkspace,
   sceneWorkspaceIntentFromAdapterEvent,
-} from "@honua/sdk/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 import { HonuaMap } from "@honua/sdk/map";
 import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
-import { defineHonuaWebComponents } from "@honua/sdk/web-components";
+import { defineHonuaWebComponents } from "@honua/app-platform/web-components";
 import {
   HonuaBasemapStyleBinding,
   HonuaBasemapSwitcherElement,
   HonuaLegendElement,
   defineHonuaControls,
   deriveLegendEntries,
-} from "@honua/sdk/controls";
-import { projectBuildSpecToGeneratedAppManifest } from "@honua/sdk/generated-app";
-import { chartWidgetToVegaLiteSpec, isVegaLiteSpec, projectMapPackage } from "@honua/sdk/console";
-import { HONUA_QUERY_PACKAGE_FORMAT_V1, toStudioValidationResponse } from "@honua/sdk/studio";
-import { OPERATOR_EXECUTION_OUTPUT_KEY } from "@honua/sdk/operator";
-import { ChatController } from "@honua/sdk/operator/controllers";
-import { OperatorWorkspace } from "@honua/sdk/operator/workspace";
-import { DEFAULT_OPERATOR_TOKENS } from "@honua/sdk/operator/theming";
-import { DEFAULT_MESSAGES } from "@honua/sdk/operator/i18n";
+} from "@honua/app-platform/controls";
+import { projectBuildSpecToGeneratedAppManifest } from "@honua/app-platform/generated-app";
+import { HONUA_QUERY_PACKAGE_FORMAT_V1, toStudioValidationResponse } from "@honua/app-platform/studio";
+import { OPERATOR_EXECUTION_OUTPUT_KEY } from "@honua/app-platform/operator";
+import { ChatController } from "@honua/app-platform/operator/controllers";
+import { OperatorWorkspace } from "@honua/app-platform/operator/workspace";
+import { DEFAULT_OPERATOR_TOKENS } from "@honua/app-platform/operator/theming";
+import { DEFAULT_MESSAGES } from "@honua/app-platform/operator/i18n";
 import {
   AttributionCompat,
   BasemapCompat,
@@ -390,23 +391,7 @@ if (typeof deriveLegendEntries !== "function")
     throw new Error("@honua/sdk/controls deriveLegendEntries failed to parse a match expression");
 }
 if (typeof projectBuildSpecToGeneratedAppManifest !== "function")
-  throw new Error("projectBuildSpecToGeneratedAppManifest export missing from @honua/sdk/generated-app");
-if (typeof chartWidgetToVegaLiteSpec !== "function" || typeof isVegaLiteSpec !== "function")
-  throw new Error("console chart spec exports missing from @honua/sdk/console");
-if (!isVegaLiteSpec(chartWidgetToVegaLiteSpec({ chartKind: "categories", groupBy: "status" })))
-  throw new Error("@honua/sdk/console chartWidgetToVegaLiteSpec did not produce a valid Vega-Lite spec");
-if (typeof projectMapPackage !== "function")
-  throw new Error("projectMapPackage export missing from @honua/sdk/console");
-{
-  const mapProjection = projectMapPackage({
-    mapPackageId: "verify-mp",
-    format: "honua_map_package.v1",
-    sourceBindings: [],
-    mapSpec: { version: 8, sources: {}, layers: [] },
-  });
-  if (mapProjection.kind !== "map-package" || mapProjection.id !== "verify-mp")
-    throw new Error("@honua/sdk/console projectMapPackage did not produce a MapPackage projection");
-}
+  throw new Error("projectBuildSpecToGeneratedAppManifest export missing from @honua/app-platform/generated-app");
 if (HONUA_QUERY_PACKAGE_FORMAT_V1 !== "honua_query_package.v1")
   throw new Error("HONUA_QUERY_PACKAGE_FORMAT_V1 export missing from @honua/sdk/studio");
 if (typeof toStudioValidationResponse !== "function")
