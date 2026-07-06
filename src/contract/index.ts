@@ -392,6 +392,18 @@ export type {
   JobStatus,
 } from "./jobs.js";
 export { HonuaJobPollTimeoutError, isJobTerminal } from "./jobs.js";
+export { HonuaPmtilesArchive, describePmtilesArchive, stripPmtilesScheme, toPmtilesSourceUrl } from "./pmtiles.js";
+export type {
+  DescribePmtilesArchiveDeps,
+  PmtilesArchiveDescription,
+  PmtilesArchiveLike,
+  PmtilesHeaderLike,
+  PmtilesModuleLike,
+  PmtilesRangeResponse,
+  PmtilesSourceLike,
+  PmtilesTileKind,
+  PmtilesVectorLayerInfo,
+} from "./pmtiles.js";
 
 export {
   TEMPORAL_CAPABILITY,

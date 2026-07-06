@@ -66,6 +66,7 @@ import {
 import { HonuaWfs, HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
+import { HonuaPmtilesArchive, stripPmtilesScheme } from "./pmtiles.js";
 import {
   type AdapterFor,
   type AdapterKind,
@@ -246,6 +247,8 @@ function buildBuiltInSource<T>(
       return wfsSource<T>(descriptor, client, policy);
     case "odata":
       return odataSource<T>(descriptor, client, policy);
+    case "pmtiles":
+      return pmtilesSource<T>(descriptor, client, policy);
     default:
       return undefined;
   }
@@ -901,6 +904,45 @@ export function ogcTilesSource<T>(
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
     "ogc-tiles": adapter,
+  };
+
+  return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
+}
+
+// ── PMTiles archive ───────────────────────────────────────────
+
+/**
+ * Tiles-only Source adapter for a PMTiles archive (`protocol: "pmtiles"`).
+ *
+ * PMTiles archives are immutable single-file tile stores, so the canonical
+ * query family throws `HonuaCapabilityNotSupportedError` (there is no
+ * feature-query surface on an archive). Archive metadata — bounds, min/max
+ * zoom, and vector layer names — is inspected through the typed escape hatch:
+ * `Source.protocol("pmtiles").describe()`. Rendering integrations register the
+ * `pmtiles://` protocol on the map (see `@honua/sdk-js/runtime`) and reference
+ * the archive as a MapLibre source `url`.
+ *
+ * `locator.url` may carry a leading `pmtiles://` scheme (the MapLibre form) or
+ * be a bare archive URL; both resolve to the same archive.
+ *
+ * @example
+ * ```ts
+ * const archive = dataset.source("basemap")!.protocol("pmtiles");
+ * const info = await archive!.describe();
+ * console.log(info.bounds, info.vectorLayers.map((layer) => layer.id));
+ * ```
+ */
+export function pmtilesSource<T>(
+  descriptor: SourceDescriptor,
+  _client: HonuaClient,
+  policy: CapabilityPolicy,
+): Source<T> {
+  const url = stripPmtilesScheme(requirePmtilesLocator(descriptor));
+  const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.pmtiles;
+  const archive = new HonuaPmtilesArchive(url);
+
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
+    pmtiles: archive,
   };
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, unsupportedFeatureSurface<T>(descriptor));
@@ -3245,6 +3287,14 @@ function requireOgcRecordsLocator(descriptor: SourceDescriptor): { collectionId:
   return { collectionId };
 }
 
+function requirePmtilesLocator(descriptor: SourceDescriptor): string {
+  const { url } = descriptor.locator;
+  if (typeof url !== "string" || url === "") {
+    throw new Error(`createDataset: source "${descriptor.id}" (pmtiles) requires locator.url`);
+  }
+  return url;
+}
+
 function requireImageServiceLocator(descriptor: SourceDescriptor): { serviceId: string } {
   const { serviceId } = descriptor.locator;
   if (typeof serviceId !== "string") {
@@ -4304,6 +4354,7 @@ declare module "./types.js" {
     "wmts-layer": HonuaWmtsLayer;
     "wmts-tileset": HonuaWmtsTileset;
     odata: HonuaOdataEntitySet;
+    pmtiles: HonuaPmtilesArchive;
   }
 }
 
@@ -4327,4 +4378,5 @@ export const FIRST_PARTY_PROTOCOLS: ReadonlySet<Protocol> = new Set([
   "wfs",
   "wms",
   "wmts",
+  "pmtiles",
 ] as const);

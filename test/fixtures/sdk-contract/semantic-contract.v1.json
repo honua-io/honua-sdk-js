@@ -75,6 +75,7 @@
     "wms",
     "wmts",
     "odata",
+    "pmtiles",
     "maplibre-vector",
     "maplibre-raster",
     "maplibre-geojson"
@@ -214,6 +215,9 @@
       "queryObjectIds",
       "stream",
       "applyEdits"
+    ],
+    "pmtiles": [
+      "tiles"
     ],
     "maplibre-vector": [
       "render",

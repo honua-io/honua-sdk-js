@@ -40,6 +40,7 @@ export type HonuaMapPackageProtocol =
   | "odata"
   | "vector_tile"
   | "raster_tile"
+  | "pmtiles"
   | "workspace_artifact";
 
 /** Protocol-specific endpoint information attached to a binding. */

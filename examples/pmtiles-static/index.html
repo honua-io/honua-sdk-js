@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua PMTiles Static Quickstart</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="control-panel" aria-label="PMTiles controls">
+        <header class="panel-header">
+          <p class="eyebrow">Zero-server basemap proof</p>
+          <h1>PMTiles Static Hosting</h1>
+          <p>
+            A single <code>.pmtiles</code> archive on static hosting is a complete basemap backend. The Honua runtime
+            auto-registers the <code>pmtiles://</code> protocol on map attach — no manual <code>addProtocol</code>, no
+            Honua server.
+          </p>
+        </header>
+
+        <section class="status-grid" aria-label="Demo status">
+          <div>
+            <span>Protocol</span>
+            <strong id="protocol-state">Loading</strong>
+          </div>
+          <div>
+            <span>Source</span>
+            <strong id="source-state">Loading</strong>
+          </div>
+          <div>
+            <span>Tile kind</span>
+            <strong id="tilekind-state">-</strong>
+          </div>
+          <div>
+            <span>Zoom range</span>
+            <strong id="zoom-state">-</strong>
+          </div>
+        </section>
+
+        <section class="inspector-panel" aria-label="Archive metadata">
+          <div class="section-heading">
+            <h2>Archive Inspector</h2>
+            <span id="archive-name">-</span>
+          </div>
+          <dl id="archive-metadata" class="metadata-list"></dl>
+          <div class="layer-strip" id="vector-layers"></div>
+        </section>
+
+        <section class="audit-panel" aria-label="What this proves">
+          <h2>What this proves</h2>
+          <ul class="audit-list">
+            <li><code>pmtiles://</code> auto-registered by <code>loadMapPackage</code></li>
+            <li>PMTiles source rendered with no Honua server</li>
+            <li><code>describe()</code> surfaced bounds, zooms, and layers</li>
+          </ul>
+        </section>
+      </section>
+
+      <section class="map-stage" aria-label="PMTiles map">
+        <div id="map"></div>
+        <div class="map-overlay">
+          <span id="endpoint-state">Waiting for archive</span>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

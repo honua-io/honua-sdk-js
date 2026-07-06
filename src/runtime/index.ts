@@ -159,6 +159,20 @@ export { applyStyleRefs, applyTheme, composeStyle } from "./style-compose.js";
 export type { StyleComposeOptions, StyleRefResolver, ThemeResolver } from "./style-compose.js";
 
 export {
+  PMTILES_PROTOCOL_SCHEME,
+  ensurePmtilesProtocol,
+  isPmtilesProtocolRegistered,
+  resetPmtilesProtocol,
+  styleUsesPmtiles,
+} from "./pmtiles-protocol.js";
+export type {
+  EnsurePmtilesProtocolDeps,
+  MaplibreProtocolRegistrar,
+  PmtilesProtocolLike,
+  PmtilesProtocolModuleLike,
+} from "./pmtiles-protocol.js";
+
+export {
   DEFAULT_OGC_STYLES_PATH_PREFIX,
   MAPLIBRE_STYLE_MEDIA_TYPE,
   OgcStylesClient,
