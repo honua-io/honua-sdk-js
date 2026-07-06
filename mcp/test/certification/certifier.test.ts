@@ -89,7 +89,11 @@ describe("MCP certification harness — offline operator upstream", () => {
   it("reports publish_result as a documented, non-failing known gap", () => {
     const gap = report.knownGaps.find((g) => g.kind === "standard-tool" && g.name === "publish_result");
     expect(gap).toBeDefined();
-    expect(gap?.detail).toContain("not yet implemented");
+    // The standard now ships publish_result (implemented by honua_publish_result
+    // upstream), but this SDK operator surface advertises publish_service instead
+    // (documented divergence), so publish_result is a not-advertised — still
+    // non-failing — known gap rather than a not-yet-implemented one.
+    expect(gap?.detail).toMatch(/not advertised|not yet implemented/);
     // Known gaps never fail certification.
     expect(report.summary.pass).toBe(true);
   });
@@ -258,12 +262,12 @@ describe("vendored schema index", () => {
     expect(queryFeatures?.referenceToolName).toBe("honua_query_features");
     expect(queryFeatures?.implementationStatus).toBe("implemented");
 
-    // publish_result is a documented known-gap upstream; honua_publish_service
-    // is a divergence mapped to its own publish_service entry, NOT an
-    // implementation of publish_result.
+    // publish_result is now implemented upstream by honua_publish_result; the
+    // separate honua_publish_service entry is a distinct publish_service tool
+    // (documented divergence), NOT an implementation of publish_result.
     const publishResult = index.tools.find((t) => t.standardName === "publish_result");
-    expect(publishResult?.referenceToolName).toBeNull();
-    expect(publishResult?.implementationStatus).toBe("known-gap");
+    expect(publishResult?.referenceToolName).toBe("honua_publish_result");
+    expect(publishResult?.implementationStatus).toBe("implemented");
     expect(index.tools.find((t) => t.standardName === "publish_service")?.referenceToolName).toBe(
       "honua_publish_service",
     );

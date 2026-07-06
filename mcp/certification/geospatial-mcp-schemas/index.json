@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "geospatial-mcp JSON Schema index",
-  "description": "Machine-readable map from standard MCP tool names and resource family URIs to their JSON Schema (draft 2020-12) files. 'standardName' is the bare taxonomy.md tool name; 'referenceToolName' is the name the reference implementation (Honua /mcp) advertises. 'implementationStatus' records whether the reference implementation ships the tool/resource family today (implemented) or whether it is a standard family not yet served by the reference (known-gap). For resources, 'implementationStatus' gates the FULL conformance level the same way it does for tools: a manifest must advertise every 'implemented' resource family to reach FULL; 'known-gap' families are reported as informational notes only.",
-  "date": "2026-07-01",
+  "description": "Machine-readable map from standard MCP tool names and resource family URIs to their JSON Schema (draft 2020-12) files. 'standardName' is the bare taxonomy.md tool name; 'referenceToolName' is the name the reference implementation (Honua /mcp) advertises. 'implementationStatus' records whether the reference implementation ships the tool/resource family today (implemented) or whether it is a standard family not yet served by the reference (known-gap). For resources, 'implementationStatus' gates the FULL conformance level the same way it does for tools: a manifest must advertise every 'implemented' resource family to reach FULL; 'known-gap' families are reported as informational notes only. 'profile' (optional; default 'base') assigns a tool to a conformance profile: 'base' tools are required for the base FULL verdict; tools in an additive profile such as 'mutation' are required for FULL only when a manifest declares that profile, and are otherwise reported as informational notes (see /CONFORMANCE.md §Conformance Profiles).",
+  "date": "2026-07-06",
   "dialect": "https://json-schema.org/draft/2020-12/schema",
   "tools": [
     {
@@ -58,17 +58,17 @@
     },
     {
       "standardName": "get_style",
-      "referenceToolName": null,
+      "referenceToolName": "honua_get_style",
       "family": "Style inspection",
       "schema": "tools/get_style.schema.json",
-      "implementationStatus": "known-gap"
+      "implementationStatus": "implemented"
     },
     {
       "standardName": "apply_style_preset",
-      "referenceToolName": null,
-      "family": "Map composition",
+      "referenceToolName": "honua_apply_style_preset",
+      "family": "Map composition (reference shape)",
       "schema": "tools/apply_style_preset.schema.json",
-      "implementationStatus": "known-gap"
+      "implementationStatus": "implemented"
     },
     {
       "standardName": "compose_mixed_protocol_map",
@@ -101,10 +101,11 @@
     },
     {
       "standardName": "publish_result",
-      "referenceToolName": null,
+      "referenceToolName": "honua_publish_result",
       "family": "Publishing",
       "schema": "tools/publish_result.schema.json",
-      "implementationStatus": "known-gap"
+      "implementationStatus": "implemented",
+      "notes": "honua_publish_result (honua-server#2482) promotes a completed analysis job's materialized FeatureLayer/Table artifact (sourceId = the job id) into a hosted published service + layer, routing through the same canonical service.publish promotion as honua_publish_service. The standard schema requires only sourceId; the reference tool adds honua extension selectors (artifactId / serviceName / layerName) under additionalProperties. Analyze / Publish Data (published_service) is implemented; Build App (deployment) promotion is deferred (honua-server#730/#732)."
     },
     {
       "standardName": "list_layers",
@@ -122,6 +123,15 @@
       "implementationStatus": "implemented"
     },
     {
+      "standardName": "edit_features",
+      "referenceToolName": "honua_edit_features",
+      "family": "Feature editing",
+      "schema": "tools/edit_features.schema.json",
+      "implementationStatus": "implemented",
+      "profile": "mutation",
+      "notes": "Sole member of the mutation conformance profile (docs/adr/0028-governed-feature-mutation.md). Governed transactional editing: an implementation must require an authenticated, authorized caller and authorize each edit type (insert/update/delete) independently. Base-profile (read-only) implementations conform without advertising this tool; it is required for FULL only when a manifest declares the mutation profile."
+    },
+    {
       "standardName": "render_map",
       "referenceToolName": "honua_render_map",
       "family": "Discovery and query (reference shape)",
@@ -133,6 +143,13 @@
       "referenceToolName": "honua_geocode_address",
       "family": "Analysis and geoprocessing (reference shape)",
       "schema": "tools/geocode_address.schema.json",
+      "implementationStatus": "implemented"
+    },
+    {
+      "standardName": "geocode_addresses",
+      "referenceToolName": "honua_geocode_addresses",
+      "family": "Analysis and geoprocessing (reference shape)",
+      "schema": "tools/geocode_addresses.schema.json",
       "implementationStatus": "implemented"
     },
     {
@@ -155,6 +172,14 @@
       "family": "Control-plane proposal (reference shape)",
       "schema": "tools/propose_operation.schema.json",
       "implementationStatus": "implemented"
+    },
+    {
+      "standardName": "ingest_dataset",
+      "referenceToolName": "honua_ingest_dataset",
+      "family": "Publishing",
+      "schema": "tools/ingest_dataset.schema.json",
+      "implementationStatus": "implemented",
+      "notes": "Publish Data ingest step of the reference implementation: inline CSV/GeoJSON to a catalog table whose {connectionId, schema, table} chains into publish_service. Closes the data-loading gap ahead of the standard's file/URL ingest contract."
     },
     {
       "standardName": "publish_service",
