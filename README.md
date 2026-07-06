@@ -28,12 +28,23 @@ can migrate file-by-file.
 - **Open runtime.** `loadMapPackage(...)` + `HonuaMapRuntime` render a Honua `MapPackage` on
   MapLibre GL JS. Cesium, kepler.gl, and OGC web-map sources are first-class.
 
-> **When to reach for `@honua/sdk-js`.** Pick this SDK when you need *one* typed client across
-> the GeoServices / OGC / WFS / WMS / STAC / OData stack, an ArcGIS migration path you can run
-> file-by-file, or a MapLibre runtime that loads a server-authored `MapPackage`. Pick
-> `esri-leaflet` / `arcgis-rest-js` when you only ever talk to GeoServices; pick
-> `openlayers` / `maplibre-gl` directly when you're not migrating from ArcGIS and don't need a
-> shared cross-protocol contract.
+> **What this is (and is not).** `@honua/sdk-js` is a typed geospatial *service client* and
+> migration toolkit — it is **not a rendering engine**. 2D rendering rides MapLibre GL JS and 3D
+> rides Cesium, so the honest comparisons are the service-client libraries, not the renderers:
+>
+> - vs **`@esri/arcgis-rest-js`** — that's Esri's own client for Esri services only. Honua speaks
+>   GeoServices *plus* OGC API / WFS / WMS / WMTS / STAC / OData under one typed contract, with a
+>   capability model that throws instead of returning silently-empty results.
+> - vs **`esri-leaflet`** — dormant (last release 2025) and Leaflet-bound. Honua's esri-compat +
+>   `honua-migrate` codemod is an actively maintained migration path that targets MapLibre.
+> - vs **`openlayers` / `maplibre-gl` directly** — pick those when you need a renderer and are
+>   happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
+>   client, the ArcGIS migration path, or the server-authored `MapPackage` runtime.
+>
+> The protocol clients work against **any** standards-speaking server — an existing ArcGIS
+> Server/Online endpoint, any OGC API implementation, a STAC catalog. A
+> [Honua Server](https://github.com/honua-io/honua-server) adds the server-authored `MapPackage`,
+> realtime, and AI surfaces, but it is the upgrade path, not the entry fee.
 
 ```bash
 npm install @honua/sdk-js

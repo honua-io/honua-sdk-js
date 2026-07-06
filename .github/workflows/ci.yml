@@ -54,6 +54,13 @@ jobs:
       - name: Split package verification
         run: npm run verify:split-packages
 
+      - name: Publish-surface integrity
+        # split-package build cleans dist/, so restore the browser bundle first
+        # (same ordering the publish workflow uses).
+        run: |
+          npm run build:browser --silent
+          npm run verify:publish-surface
+
       - name: Example typechecks
         run: npm run demo:examples:typecheck
 

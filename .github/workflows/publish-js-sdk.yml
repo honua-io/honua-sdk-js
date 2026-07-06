@@ -27,6 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # npm provenance (publishConfig.provenance=true) generates a Sigstore
+      # attestation from the Actions OIDC token; without id-token:write every
+      # non-dry-run publish fails with EUSAGE (the 0.0.11..0.0.19 outage).
+      id-token: write
     defaults:
       run:
         shell: bash
@@ -100,6 +104,12 @@ jobs:
           # dist/browser/*, breaking the ./browser export and every CDN path.
           npm run build:browser --silent
 
+          # Refuse to publish an artifact that does not contain the surface the
+          # README/INSTALL/exports advertise (the failure mode behind the
+          # stale-npm incident): every exports subpath, the browser bundles,
+          # and every split package documented in docs/split-packages.md.
+          npm run verify:publish-surface
+
           flags=""
           if [[ "${DRY_RUN}" == "true" ]]; then
             flags="--dry-run"
@@ -135,12 +145,21 @@ jobs:
             fi
 
             npm publish "$package_dir" --access public --tag "$dist_tag" $flags
+
+            # Pre-1.0 every release is an alpha, so the newest release must own
+            # `latest` too — otherwise `npm install` serves a months-old build
+            # (the 0.0.6-latest incident). Skipped in dry-run.
+            if [[ "${DRY_RUN}" != "true" && "$dist_tag" != "latest" ]]; then
+              npm dist-tag add "${package_name}@${package_version}" latest
+            fi
           }
 
           publish_package "."
           publish_package "./dist/packages/honua-sdk"
           publish_package "./dist/packages/honua-sdk-esri-compat"
           publish_package "./dist/packages/honua-migrate"
+          publish_package "./dist/packages/honua-react"
+          publish_package "./dist/packages/honua-geometry"
 
       - name: Publish summary
         if: ${{ env.DRY_RUN == 'true' }}
