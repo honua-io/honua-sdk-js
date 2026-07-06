@@ -39,6 +39,7 @@ export async function certifyTarget(
       backend: target.backend,
       surface: target.serverLabel,
       honuaTransport: target.honuaTransport,
+      authMode: target.authMode,
       connectUnauthenticated: target.supportsUnauthenticatedPass ? () => target.connectUnauthenticated() : undefined,
       env,
     });

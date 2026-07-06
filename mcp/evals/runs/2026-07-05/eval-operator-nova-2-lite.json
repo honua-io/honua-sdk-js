@@ -1,0 +1,281 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-07-05T22:57:02.142Z",
+  "surface": {
+    "backend": "live",
+    "mcpTransport": "streamable-http",
+    "remoteUrl": "https://demo.honua.io/mcp",
+    "auth": "api-key"
+  },
+  "corpus": {
+    "scenarios": 8,
+    "ids": [
+      "operator-list-layers",
+      "operator-discover-then-query",
+      "operator-ground-intent",
+      "operator-clarify-loop",
+      "operator-plan-validate",
+      "operator-dry-run",
+      "operator-validate-package",
+      "operator-geocode-gap"
+    ]
+  },
+  "catalog": {
+    "advertisedToolCount": 15,
+    "requiredTools": [
+      "honua_clarify_intent",
+      "honua_dry_run_plan",
+      "honua_geocode_address",
+      "honua_ground_candidates",
+      "honua_list_layers",
+      "honua_plan_analysis",
+      "honua_query_features",
+      "honua_validate_package",
+      "honua_validate_plan"
+    ],
+    "unresolvedRequiredTools": []
+  },
+  "models": [
+    {
+      "id": "deterministic",
+      "vendor": "deterministic",
+      "available": true,
+      "scenarios": 8,
+      "pass": 8,
+      "fail": 0,
+      "clarified": 0,
+      "error": 0,
+      "successRate": 1,
+      "clarificationRate": 0,
+      "editRate": 0.125,
+      "totalToolErrors": 1
+    },
+    {
+      "id": "us.amazon.nova-2-lite-v1:0",
+      "model": "us.amazon.nova-2-lite-v1:0",
+      "vendor": "bedrock",
+      "available": true,
+      "scenarios": 8,
+      "pass": 5,
+      "fail": 0,
+      "clarified": 2,
+      "error": 1,
+      "successRate": 0.625,
+      "clarificationRate": 0.25,
+      "editRate": 0.25,
+      "totalToolErrors": 2
+    }
+  ],
+  "results": [
+    {
+      "scenarioId": "operator-list-layers",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_list_layers"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-discover-then-query",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_list_layers",
+        "honua_query_features"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-ground-intent",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_ground_candidates"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-clarify-loop",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_ground_candidates",
+        "honua_clarify_intent"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-plan-validate",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_ground_candidates",
+        "honua_plan_analysis",
+        "honua_validate_plan"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-dry-run",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_dry_run_plan"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-validate-package",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_validate_package"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-geocode-gap",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_geocode_address"
+      ],
+      "errorCount": 1,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-list-layers",
+      "modelId": "us.amazon.nova-2-lite-v1:0",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_list_layers"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-discover-then-query",
+      "modelId": "us.amazon.nova-2-lite-v1:0",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_list_layers",
+        "honua_query_features"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-ground-intent",
+      "modelId": "us.amazon.nova-2-lite-v1:0",
+      "outcome": "clarified",
+      "violations": [
+        "driver requested clarification"
+      ],
+      "toolsCalled": [
+        "honua_ground_candidates",
+        "honua_list_layers",
+        "honua_geocode_address",
+        "honua_query_features",
+        "honua_query_features",
+        "honua_plan_analysis"
+      ],
+      "errorCount": 1,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-clarify-loop",
+      "modelId": "us.amazon.nova-2-lite-v1:0",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_ground_candidates",
+        "honua_clarify_intent"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-plan-validate",
+      "modelId": "us.amazon.nova-2-lite-v1:0",
+      "outcome": "error",
+      "violations": [
+        "exceeded 8 tool-use iterations without finishing"
+      ],
+      "toolsCalled": [
+        "honua_ground_candidates",
+        "honua_clarify_intent",
+        "honua_plan_analysis",
+        "honua_list_layers",
+        "honua_plan_analysis",
+        "honua_plan_analysis",
+        "honua_plan_analysis",
+        "honua_validate_plan"
+      ],
+      "errorCount": 0,
+      "driverError": "exceeded 8 tool-use iterations without finishing",
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-dry-run",
+      "modelId": "us.amazon.nova-2-lite-v1:0",
+      "outcome": "clarified",
+      "violations": [
+        "driver requested clarification"
+      ],
+      "toolsCalled": [
+        "honua_list_layers",
+        "honua_ground_candidates",
+        "honua_clarify_intent",
+        "honua_plan_analysis"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-validate-package",
+      "modelId": "us.amazon.nova-2-lite-v1:0",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_validate_package"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-geocode-gap",
+      "modelId": "us.amazon.nova-2-lite-v1:0",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_geocode_address"
+      ],
+      "errorCount": 1,
+      "missingTools": []
+    }
+  ],
+  "summary": {
+    "pass": true,
+    "modelsEvaluated": 2,
+    "liveModelsEvaluated": 1,
+    "scenarios": 8
+  }
+}

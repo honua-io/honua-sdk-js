@@ -390,8 +390,47 @@ export function buildOperatorTools(): OperatorTool[] {
       readOnly: false,
       sampleOutput: { appPackageId: "app-001", uri: "honua://apps/app-001" },
     },
+    {
+      // Honua-extension mutating tool (no standard geospatial-mcp schema — matched
+      // as an advertised-only known gap, never round-tripped by the read-only path).
+      // The mutating-round-trip contract drives its insert→update→delete lifecycle.
+      name: "honua_edit_features",
+      title: "Edit features",
+      description: "Apply feature inserts, updates, and deletes to a published editable layer.",
+      inputSchema: OBJECT_SCHEMA(
+        {
+          serviceId: { type: "string", minLength: 1 },
+          layerId: { type: "integer", minimum: 0 },
+          adds: {
+            type: "array",
+            items: OBJECT_SCHEMA({ attributes: { type: "object" } }, ["attributes"]),
+          },
+          updates: {
+            type: "array",
+            items: OBJECT_SCHEMA({ objectId: { type: "integer" }, attributes: { type: "object" } }, [
+              "objectId",
+              "attributes",
+            ]),
+          },
+          deletes: { type: "array", items: { type: "integer" } },
+        },
+        ["serviceId", "layerId"],
+      ),
+      outputSchema: OBJECT_SCHEMA({
+        addResults: { type: "array", items: EDIT_RESULT_SCHEMA },
+        updateResults: { type: "array", items: EDIT_RESULT_SCHEMA },
+        deleteResults: { type: "array", items: EDIT_RESULT_SCHEMA },
+      }),
+      readOnly: false,
+      sampleOutput: { addResults: [], updateResults: [], deleteResults: [] },
+    },
   ];
 }
+
+const EDIT_RESULT_SCHEMA: JsonSchema = OBJECT_SCHEMA({ objectId: { type: "integer" }, success: { type: "boolean" } }, [
+  "objectId",
+  "success",
+]);
 
 export interface OperatorResource {
   uri: string;
@@ -476,6 +515,123 @@ export interface OperatorCatalogOptions {
 }
 
 /**
+ * Mutable per-server state backing the deep certification contracts. The mock is
+ * a small but REAL stateful backend: `honua_edit_features` mutates an in-memory
+ * feature store that `honua_query_features` reads back (so an insert→query→
+ * update→query→delete→query round-trip observes real effects), and
+ * `honua_execute_plan` registers a job whose `honua://jobs/{id}` resource advances
+ * a documented Submitted→Running→Succeeded state machine on each poll.
+ */
+interface CatalogState {
+  /** `${serviceId}::${layerId}` → objectId → attributes. */
+  features: Map<string, Map<number, Record<string, unknown>>>;
+  nextObjectId: number;
+  jobs: Map<string, JobState>;
+  nextJobSeq: number;
+}
+
+interface JobState {
+  jobId: string;
+  /** Number of times the job resource has been polled (drives the state machine). */
+  polls: number;
+  resultPackageId: string;
+}
+
+/** Feature-store key seeded so the pagination + mutation contracts have real rows. */
+const SEED_SERVICE = "svc-parks";
+const SEED_LAYER = 0;
+
+function seedFeatureStore(): Map<string, Map<number, Record<string, unknown>>> {
+  const layer = new Map<number, Record<string, unknown>>();
+  // OBJECTID 1 first so the existing single-feature round-trip fixture is stable.
+  const names = ["Central Park", "Riverside Park", "Lincoln Park", "Golden Gate Park", "Prospect Park"];
+  names.forEach((name, i) => layer.set(i + 1, { OBJECTID: i + 1, NAME: name }));
+  return new Map([[`${SEED_SERVICE}::${SEED_LAYER}`, layer]]);
+}
+
+function newCatalogState(): CatalogState {
+  return { features: seedFeatureStore(), nextObjectId: 1000, jobs: new Map(), nextJobSeq: 1 };
+}
+
+/** Number of polls before the job lifecycle mock reports `Succeeded`. */
+const JOB_SUCCESS_AFTER_POLLS = 3;
+
+/** Stateful tool handlers keyed by tool name; absent ⇒ echo the tool's sampleOutput. */
+function buildToolHandlers(
+  state: CatalogState,
+): Map<string, (args: Record<string, unknown>) => Record<string, unknown>> {
+  const handlers = new Map<string, (args: Record<string, unknown>) => Record<string, unknown>>();
+
+  handlers.set("honua_query_features", (args) => {
+    const key = `${String(args.serviceId)}::${Number(args.layerId)}`;
+    const layer = state.features.get(key) ?? new Map<number, Record<string, unknown>>();
+    let rows = [...layer.values()].sort((a, b) => Number(a.OBJECTID) - Number(b.OBJECTID));
+    if (Array.isArray(args.objectIds)) {
+      const wanted = new Set((args.objectIds as unknown[]).map((v) => Number(v)));
+      rows = rows.filter((r) => wanted.has(Number(r.OBJECTID)));
+    }
+    const total = rows.length;
+    const offset = decodeFeatureOffset(args);
+    const limit = clampLimit(args.limit);
+    const page = rows.slice(offset, offset + limit);
+    const nextOffset = offset + page.length;
+    const out: Record<string, unknown> = {
+      features: page.map((attributes) => ({ attributes })),
+      count: page.length,
+      totalCount: total,
+      resultOffset: offset,
+    };
+    if (nextOffset < total) {
+      out.nextCursor = encodeCursor(nextOffset);
+      out.exceededTransferLimit = true;
+    } else {
+      out.exceededTransferLimit = false;
+    }
+    return out;
+  });
+
+  handlers.set("honua_edit_features", (args) => {
+    const key = `${String(args.serviceId)}::${Number(args.layerId)}`;
+    let layer = state.features.get(key);
+    if (!layer) {
+      layer = new Map<number, Record<string, unknown>>();
+      state.features.set(key, layer);
+    }
+    const addResults = (asArray(args.adds) as { attributes?: Record<string, unknown> }[]).map((add) => {
+      const objectId = state.nextObjectId++;
+      layer.set(objectId, { ...(add.attributes ?? {}), OBJECTID: objectId });
+      return { objectId, success: true };
+    });
+    const updateResults = (asArray(args.updates) as { objectId?: number; attributes?: Record<string, unknown> }[]).map(
+      (u) => {
+        const objectId = Number(u.objectId);
+        const existing = layer.get(objectId);
+        if (!existing) {
+          return { objectId, success: false };
+        }
+        layer.set(objectId, { ...existing, ...(u.attributes ?? {}), OBJECTID: objectId });
+        return { objectId, success: true };
+      },
+    );
+    const deleteResults = (asArray(args.deletes) as number[]).map((raw) => {
+      const objectId = Number(raw);
+      return { objectId, success: layer.delete(objectId) };
+    });
+    return { addResults, updateResults, deleteResults };
+  });
+
+  handlers.set("honua_execute_plan", () => {
+    const seq = state.nextJobSeq++;
+    const jobId = `job-${String(seq).padStart(3, "0")}`;
+    const resultPackageId = `res-${jobId}`;
+    state.jobs.set(jobId, { jobId, polls: 0, resultPackageId });
+    return { jobId, status: "Submitted" };
+  });
+
+  return handlers;
+}
+
+/**
  * Build the low-level MCP `Server` for the mock operator catalog. Auth is
  * enforced per request from `extra.authInfo` (populated by the HTTP transport
  * from the bearer token), so a single server instance drives both the
@@ -486,6 +642,8 @@ export function createOperatorCatalogServer(options: OperatorCatalogOptions = {}
   const tools = buildOperatorTools();
   const resources = buildOperatorResources();
   const toolsByName = new Map(tools.map((t) => [t.name, t]));
+  const state = newCatalogState();
+  const handlers = buildToolHandlers(state);
 
   const server = new Server(
     { name: "honua", version: "operator-mcp-mock" },
@@ -528,9 +686,11 @@ export function createOperatorCatalogServer(options: OperatorCatalogOptions = {}
       return toolErrorResult(invalidArgumentError(violations));
     }
 
+    const handler = handlers.get(tool.name);
+    const output = handler ? handler(request.params.arguments ?? {}) : tool.sampleOutput;
     return {
-      content: [{ type: "text", text: JSON.stringify(tool.sampleOutput) }],
-      structuredContent: tool.sampleOutput,
+      content: [{ type: "text", text: JSON.stringify(output) }],
+      structuredContent: output,
       isError: false,
     };
   });
@@ -547,11 +707,30 @@ export function createOperatorCatalogServer(options: OperatorCatalogOptions = {}
     if (!extra.authInfo) {
       throw new McpError(ErrorCode.InvalidRequest, UNAUTHENTICATED_ERROR.error.message, UNAUTHENTICATED_ERROR);
     }
-    const resource = resources.find((r) => r.uri === request.params.uri);
+
+    const uri = request.params.uri;
+
+    // Dynamic job lifecycle resource: honua://jobs/{id} advances a documented
+    // Submitted→Running→Succeeded state machine on each poll.
+    const jobMatch = /^honua:\/\/jobs\/([^/]+)$/.exec(uri);
+    if (jobMatch) {
+      return readJobResource(state, jobMatch[1], uri);
+    }
+    // Dynamic result package (produced by a Succeeded job) or the seeded packages.
+    const resultMatch = /^honua:\/\/results\/([^/]+)$/.exec(uri);
+    if (resultMatch && !resources.some((r) => r.uri === uri)) {
+      return jsonResource(uri, {
+        resultPackageId: resultMatch[1],
+        status: "Ready",
+        artifacts: [{ kind: "FeatureService", uri: `honua://services/svc-pub-${resultMatch[1]}` }],
+      });
+    }
+
+    const resource = resources.find((r) => r.uri === uri);
     if (!resource) {
-      throw new McpError(ErrorCode.InvalidParams, `Unknown resource: ${request.params.uri}`, {
+      throw new McpError(ErrorCode.InvalidParams, `Unknown resource: ${uri}`, {
         code: "not_found",
-        error: { kind: "UnknownDataset", message: `Unknown resource: ${request.params.uri}` },
+        error: { kind: "UnknownDataset", message: `Unknown resource: ${uri}` },
       } satisfies StructuredOperatorError);
     }
     return {
@@ -560,6 +739,55 @@ export function createOperatorCatalogServer(options: OperatorCatalogOptions = {}
   });
 
   return server;
+}
+
+function readJobResource(state: CatalogState, jobId: string, uri: string): { contents: unknown[] } {
+  const job = state.jobs.get(jobId);
+  if (!job) {
+    throw new McpError(ErrorCode.InvalidParams, `Unknown job: ${jobId}`, {
+      code: "not_found",
+      error: { kind: "UnknownProcess", message: `Unknown job: ${jobId}` },
+    } satisfies StructuredOperatorError);
+  }
+  job.polls++;
+  const succeeded = job.polls >= JOB_SUCCESS_AFTER_POLLS;
+  const status = succeeded ? "Succeeded" : "Running";
+  const fraction = Math.min(job.polls / JOB_SUCCESS_AFTER_POLLS, 1);
+  const body: Record<string, unknown> = {
+    jobId: job.jobId,
+    status,
+    progress: { fraction: Number(fraction.toFixed(4)), message: `step ${job.polls}` },
+  };
+  if (succeeded) {
+    body.resultPackageId = job.resultPackageId;
+    body.resultUri = `honua://results/${job.resultPackageId}`;
+  }
+  return jsonResource(uri, body);
+}
+
+function jsonResource(uri: string, body: unknown): { contents: unknown[] } {
+  return { contents: [{ uri, mimeType: "application/json", text: JSON.stringify(body) }] };
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function clampLimit(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) {
+    return 100;
+  }
+  return Math.min(Math.floor(n), 1000);
+}
+
+/** Resolve a feature-page offset from an explicit `resultOffset` or a page `cursor`. */
+function decodeFeatureOffset(args: Record<string, unknown>): number {
+  if (typeof args.cursor === "string") {
+    return decodeCursor(args.cursor);
+  }
+  const off = Number(args.resultOffset);
+  return Number.isFinite(off) && off >= 0 ? Math.floor(off) : 0;
 }
 
 function toolErrorResult(error: StructuredOperatorError) {

@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createFixtureClient } from "../certification/fixture-client.js";
 import { createServer } from "../index.js";
+import { type SuiteProvenance, readNegotiatedProtocolVersion, resolveSuiteGitSha } from "../provenance.js";
 import { connectUpstream, resolveProxyOptions } from "../proxy.js";
 import { resolveCorpus } from "./corpus.js";
 import { resolveDrivers } from "./drivers/index.js";
@@ -140,11 +141,22 @@ export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport>
       }
     }
 
+    const gitSha = resolveSuiteGitSha(env);
+    const provenance: SuiteProvenance = {
+      suiteGitSha: gitSha.sha,
+      suiteGitShaSource: gitSha.source,
+      targetUrl: surface.remoteUrl ?? `${surface.backend} (${surface.mcpTransport})`,
+      protocolVersion: readNegotiatedProtocolVersion(surface.client),
+      toolCount: tools.length,
+      authMode: surface.auth,
+    };
+
     return assembleReport({
       backend: surface.backend,
       mcpTransport: surface.mcpTransport,
       remoteUrl: surface.remoteUrl,
       auth: surface.auth,
+      provenance,
       advertisedTools: tools.map((t) => t.name),
       corpus,
       drivers,

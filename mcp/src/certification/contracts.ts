@@ -159,6 +159,112 @@ export function checkAuthContract(source: unknown): ContractOutcome {
   };
 }
 
+/** Documented job states, ordered by lifecycle rank (terminal states are highest). */
+export const JOB_STATE_RANK: Record<string, number> = {
+  Submitted: 0,
+  Queued: 0,
+  Running: 1,
+  Succeeded: 2,
+  Failed: 2,
+  Cancelled: 2,
+};
+const TERMINAL_JOB_STATES = new Set(["Succeeded", "Failed", "Cancelled"]);
+
+/** Observations gathered from a mutating insert→verify→update→verify→delete→verify round-trip. */
+export interface FeatureRoundTripObservations {
+  /** Object id assigned by the insert (undefined ⇒ insert did not return one). */
+  insertedObjectId: number | undefined;
+  /** The inserted feature was found by a follow-up query. */
+  presentAfterInsert: boolean;
+  /** Attribute value read back after the update. */
+  attributeAfterUpdate: unknown;
+  /** Attribute value the update wrote (what `attributeAfterUpdate` must equal). */
+  expectedAttribute: unknown;
+  /** The feature was absent from a follow-up query after the delete. */
+  absentAfterDelete: boolean;
+}
+
+/**
+ * mutating-round-trip contract: an insert must be observable, an update must be
+ * reflected, and a delete must remove the feature — the full edit lifecycle
+ * verified against the surface's own read path.
+ */
+export function checkFeatureRoundTrip(obs: FeatureRoundTripObservations): ContractOutcome {
+  const errors: string[] = [];
+  if (obs.insertedObjectId === undefined) {
+    errors.push("insert did not return a new objectId");
+  }
+  if (!obs.presentAfterInsert) {
+    errors.push("inserted feature was not observable via a follow-up query");
+  }
+  if (obs.attributeAfterUpdate !== obs.expectedAttribute) {
+    errors.push(
+      `updated attribute did not round-trip (expected ${JSON.stringify(obs.expectedAttribute)}, read ${JSON.stringify(
+        obs.attributeAfterUpdate,
+      )})`,
+    );
+  }
+  if (!obs.absentAfterDelete) {
+    errors.push("feature was still observable after delete");
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+/** Observations gathered from an async job execute→poll→result lifecycle. */
+export interface JobLifecycleObservations {
+  /** Status returned synchronously by execute (e.g. "Submitted"). */
+  initialStatus: string;
+  /** Statuses observed by polling the job resource, in poll order. */
+  polledStatuses: string[];
+  /** Progress fractions observed alongside the polled statuses (0..1). */
+  progressFractions: number[];
+  /** The lifecycle reached a documented terminal state. */
+  finalStatus: string;
+  /** A result package was fetchable and reported ready once the job succeeded. */
+  resultReady: boolean;
+}
+
+/**
+ * async-job-lifecycle contract: an execute → poll(honua://jobs/{id}) → fetch-result
+ * flow must follow the documented state machine — statuses are all recognized,
+ * rank never regresses, progress is monotonic within [0,1], the job terminates
+ * (Succeeded here), and the result package is retrievable.
+ */
+export function checkJobLifecycle(obs: JobLifecycleObservations): ContractOutcome {
+  const errors: string[] = [];
+  const allStatuses = [obs.initialStatus, ...obs.polledStatuses, obs.finalStatus];
+  let lastRank = -1;
+  for (const status of allStatuses) {
+    const rank = JOB_STATE_RANK[status];
+    if (rank === undefined) {
+      errors.push(`unrecognized job state "${status}" (not in the documented state machine)`);
+      continue;
+    }
+    if (rank < lastRank) {
+      errors.push(`job state regressed from rank ${lastRank} to "${status}" (rank ${rank})`);
+    }
+    lastRank = rank;
+  }
+  let lastFraction = -1;
+  for (const fraction of obs.progressFractions) {
+    if (typeof fraction !== "number" || Number.isNaN(fraction) || fraction < 0 || fraction > 1) {
+      errors.push(`progress fraction ${String(fraction)} is out of the documented [0,1] range`);
+      continue;
+    }
+    if (fraction < lastFraction) {
+      errors.push(`progress fraction regressed from ${lastFraction} to ${fraction}`);
+    }
+    lastFraction = fraction;
+  }
+  if (!TERMINAL_JOB_STATES.has(obs.finalStatus)) {
+    errors.push(`job did not reach a terminal state (ended "${obs.finalStatus}")`);
+  }
+  if (obs.finalStatus === "Succeeded" && !obs.resultReady) {
+    errors.push("job succeeded but no ready result package could be fetched");
+  }
+  return { ok: errors.length === 0, errors };
+}
+
 export interface ListPage {
   /** Distinct item identity keys observed on this page (e.g. tool names). */
   keys: string[];

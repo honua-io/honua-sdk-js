@@ -1,17 +1,30 @@
 name: MCP Live Cross-Model Eval
 
 # PAID, MANUAL-ONLY lane. This workflow makes real, billable model API calls
-# (Anthropic / OpenAI) against a live remote honua /mcp surface. It is gated to
-# `workflow_dispatch` ONLY and MUST NEVER run on push or pull_request. The
-# offline, deterministic eval that gates every PR lives in the `mcp-sdk` job of
+# (Claude / Nova via Amazon Bedrock) against a live remote honua /mcp surface. It
+# is gated to `workflow_dispatch` ONLY and MUST NEVER run on push or pull_request.
+# The offline, deterministic eval that gates every PR lives in the `mcp-sdk` job of
 # ci.yml; this is its live counterpart, run on demand to publish a cross-model
-# comparison artifact.
+# comparison artifact and refresh the committed leaderboard.
+#
+# All LLM usage goes through AWS Bedrock (the only sanctioned provider). Known-good
+# models on this account: `us.anthropic.claude-opus-4-6-v1` and
+# `us.amazon.nova-2-lite-v1:0`. Select one or both via the `models` input; each
+# runs as its own matrix leg so the artifacts compare cleanly.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   HONUA_MCP_AUTH_TOKEN  — bearer token for the live /mcp (optional; bearer wins)
+#   HONUA_MCP_API_KEY     — x-api-key for the live /mcp (used when no bearer)
+#   AWS_ACCESS_KEY_ID     — AWS credentials with Bedrock InvokeModel access
+#   AWS_SECRET_ACCESS_KEY
+#   AWS_SESSION_TOKEN     — optional, for temporary credentials
 on:
   workflow_dispatch:
     inputs:
       remote_url:
         description: "Remote honua /mcp endpoint to evaluate (e.g. https://demo.honua.io/mcp)"
         required: true
+        default: https://demo.honua.io/mcp
         type: string
       corpus:
         description: "Corpus to run against the live surface"
@@ -21,31 +34,69 @@ on:
         options:
           - operator
           - analyst
+          - northstar
           - all
-      drivers:
-        description: "Comma-separated live drivers (anthropic,openai,bedrock)"
+      models:
+        description: "Bedrock model(s) to evaluate"
         required: true
-        default: anthropic
-        type: string
+        default: both
+        type: choice
+        options:
+          - opus-4-6
+          - nova-2-lite
+          - both
       require_auth:
         description: "Refuse to run if the surface would be reached anonymously"
         required: true
         default: true
         type: boolean
+      publish_leaderboard:
+        description: "Commit the run artifacts + regenerated leaderboard back to the branch"
+        required: true
+        default: true
+        type: boolean
 
-# Never grant more than read access; this lane only reads code + publishes an artifact.
+# Never grant more than read access at the top level; only the leaderboard-commit
+# job below widens to `contents: write`, and only for itself.
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: "20.19.0"
+  AWS_REGION: us-west-2
+
 jobs:
-  mcp-eval-live:
-    name: MCP live cross-model eval
+  prep:
+    name: Resolve model matrix
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        env:
+          MODELS: ${{ inputs.models }}
+        run: |
+          case "$MODELS" in
+            opus-4-6)
+              echo 'matrix={"include":[{"model":"us.anthropic.claude-opus-4-6-v1","slug":"opus-4-6"}]}' >> "$GITHUB_OUTPUT" ;;
+            nova-2-lite)
+              echo 'matrix={"include":[{"model":"us.amazon.nova-2-lite-v1:0","slug":"nova-2-lite"}]}' >> "$GITHUB_OUTPUT" ;;
+            both)
+              echo 'matrix={"include":[{"model":"us.anthropic.claude-opus-4-6-v1","slug":"opus-4-6"},{"model":"us.amazon.nova-2-lite-v1:0","slug":"nova-2-lite"}]}' >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "unknown models input: $MODELS" >&2; exit 1 ;;
+          esac
+
+  mcp-eval-live:
+    name: MCP live eval (${{ matrix.slug }})
+    needs: prep
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prep.outputs.matrix) }}
     defaults:
       run:
         working-directory: mcp
-    env:
-      NODE_VERSION: "20.19.0"
     steps:
       - uses: actions/checkout@v7
 
@@ -64,41 +115,93 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install live model SDKs (not package dependencies)
-        # The Anthropic / OpenAI SDKs are imported dynamically by the live drivers
-        # and are intentionally NOT dependencies of @honua/mcp-server, so the
-        # offline path never needs them. Install them only for this live lane.
-        run: npm install --no-save @anthropic-ai/sdk openai
-
       - name: Build MCP package
         run: npm run build
 
-      - name: Run live cross-model eval
+      - name: Run live eval (Bedrock, ${{ matrix.model }})
         env:
           # Auth-enforced live lane: no dev-auth bypass. Bearer takes precedence;
           # the run refuses to proceed anonymously when require_auth is true. The
-          # resolved auth mode is recorded in the results artifact.
+          # resolved auth mode + suite git SHA are recorded in the results artifact.
           HONUA_MCP_REMOTE_URL: ${{ inputs.remote_url }}
           HONUA_MCP_AUTH_TOKEN: ${{ secrets.HONUA_MCP_AUTH_TOKEN }}
           HONUA_API_KEY: ${{ secrets.HONUA_MCP_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           HONUA_EVAL_REQUIRE_AUTH: ${{ inputs.require_auth }}
-          # Optional model overrides (defaults: claude-opus-4-8 / gpt-5.5).
-          HONUA_EVAL_ANTHROPIC_MODEL: ${{ vars.HONUA_EVAL_ANTHROPIC_MODEL }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          # Bedrock driver: opt-in flag + model id. Credentials come from the AWS
+          # credential chain populated by the secrets below.
+          HONUA_EVAL_BEDROCK: "1"
+          HONUA_EVAL_BEDROCK_MODEL: ${{ matrix.model }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
         run: >
           node dist/src/eval/cli.js
           --corpus ${{ inputs.corpus }}
-          --driver ${{ inputs.drivers }}
+          --driver bedrock
           --artifact-only
+
+      - name: Stage artifact for leaderboard
+        env:
+          CORPUS: ${{ inputs.corpus }}
+          SLUG: ${{ matrix.slug }}
+        run: |
+          mkdir -p staged
+          cp mcp-eval-results.json "staged/eval-${CORPUS}-${SLUG}.json"
+          cp mcp-eval-results.md "staged/eval-${CORPUS}-${SLUG}.md"
 
       - name: Upload live eval artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mcp-eval-live-results
-          path: |
-            mcp/mcp-eval-results.json
-            mcp/mcp-eval-results.md
+          name: mcp-eval-live-${{ inputs.corpus }}-${{ matrix.slug }}
+          path: mcp/staged/
           if-no-files-found: warn
+
+  publish-leaderboard:
+    name: Append runs + regenerate leaderboard
+    needs: mcp-eval-live
+    if: ${{ inputs.publish_leaderboard }}
+    runs-on: ubuntu-latest
+    # Scoped write: only this job commits the run artifacts + regenerated leaderboard.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download eval artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mcp-eval-live-*
+          path: downloaded
+          merge-multiple: true
+
+      - name: Append runs to the committed corpus
+        run: |
+          set -euo pipefail
+          dest="mcp/evals/runs/$(date -u +%Y-%m-%d)"
+          mkdir -p "$dest"
+          if compgen -G "downloaded/*.json" > /dev/null; then
+            cp downloaded/*.json "$dest"/
+            cp downloaded/*.md "$dest"/ 2>/dev/null || true
+          fi
+
+      - name: Regenerate leaderboard
+        run: node mcp/scripts/render-leaderboard.mjs
+
+      - name: Commit leaderboard + run artifacts
+        run: |
+          set -euo pipefail
+          git config user.name "honua-ci[bot]"
+          git config user.email "ci@honua.io"
+          git add mcp/evals
+          if git diff --cached --quiet; then
+            echo "No leaderboard changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(mcp): publish live-eval run + regenerate leaderboard [skip ci]"
+          git push

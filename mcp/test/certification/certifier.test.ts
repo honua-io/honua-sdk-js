@@ -107,6 +107,29 @@ describe("MCP certification harness — offline operator upstream", () => {
     expect(byContract("auth-unauthenticated", "resources/read")?.status).toBe("passed");
   });
 
+  it("certifies the deep contracts against the offline mock (mutation, job lifecycle, pagination)", () => {
+    const deep = (name: string) => report.contracts.find((c) => c.contract === name);
+
+    // The offline mock is a disposable backend, so the mutating + async contracts
+    // run for real (not skipped) and must pass.
+    expect(deep("mutating-round-trip")?.status).toBe("passed");
+    expect(deep("mutating-permission-denied")?.status).toBe("passed");
+    expect(deep("async-job-lifecycle")?.status).toBe("passed");
+    expect(deep("query-pagination")?.status).toBe("passed");
+    expect(report.summary.contractsFailed).toBe(0);
+  });
+
+  it("emits self-proving provenance", () => {
+    const p = report.provenance;
+    expect(p.toolCount).toBe(report.summary.toolsDiscovered);
+    expect(p.authMode).toBe("bearer");
+    // Offline mock connects over the streamable-HTTP client transport, which
+    // surfaces the negotiated protocol version.
+    expect(typeof p.protocolVersion === "string" || p.protocolVersion === null).toBe(true);
+    expect(p.suiteGitSha.length).toBeGreaterThan(0);
+    expect(p.targetUrl).toContain("operator catalog");
+  });
+
   it("discovers operator resources", () => {
     expect(report.resources.length).toBeGreaterThan(0);
     expect(report.resources.map((r) => r.uri)).toContain("honua://results/res-001");
@@ -206,6 +229,14 @@ describe("markdown rendering", () => {
         surface: "live honua /mcp",
       },
       standard: { source: "x", indexDate: "2026-06-21", dialect: "draft-2020-12" },
+      provenance: {
+        suiteGitSha: "deadbeef",
+        suiteGitShaSource: "git",
+        targetUrl: "live honua /mcp",
+        protocolVersion: "2025-06-18",
+        toolCount: 1,
+        authMode: "bearer",
+      },
       summary: {
         pass: false,
         toolsDiscovered: 1,
@@ -219,6 +250,7 @@ describe("markdown rendering", () => {
         contractsChecked: 1,
         contractsPassed: 0,
         contractsFailed: 1,
+        contractsSkipped: 0,
         knownGaps: 0,
         failures: 2,
       },

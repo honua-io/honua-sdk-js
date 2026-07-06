@@ -1,0 +1,392 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-05T22:58:22.129Z",
+  "server": {
+    "name": "honua.operator.mcp",
+    "version": "v1"
+  },
+  "protocol": {
+    "mcpTransport": "streamable-http",
+    "honuaTransport": null,
+    "backend": "live",
+    "targetMode": "remote",
+    "surface": "live honua /mcp (https://demo.honua.io/mcp)"
+  },
+  "standard": {
+    "source": "geospatial-mcp@54cbd49 (spec/schemas)",
+    "indexDate": "2026-07-01",
+    "dialect": "https://json-schema.org/draft/2020-12/schema"
+  },
+  "summary": {
+    "pass": false,
+    "toolsDiscovered": 15,
+    "toolsSchemaValid": 15,
+    "toolsConformanceChecked": 15,
+    "toolsConformant": 15,
+    "toolsRoundTripped": 6,
+    "toolsOutputValidated": 0,
+    "resourcesDiscovered": 1,
+    "promptsDiscovered": 0,
+    "contractsChecked": 3,
+    "contractsPassed": 2,
+    "contractsFailed": 1,
+    "knownGaps": 12,
+    "failures": 5
+  },
+  "tools": [
+    {
+      "name": "honua_cancel_job",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "cancel_job",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised",
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_clarify_intent",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "clarify_intent",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_dry_run_plan",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "validate_plan",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_execute_plan",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "execute_plan",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised",
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_geocode_address",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "geocode_address",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_ground_candidates",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "ground_candidates",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_list_layers",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "list_layers",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_plan_analysis",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "plan_analysis",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_preview_package",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "preview_package",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised",
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_propose_operation",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "propose_operation",
+      "conformant": true,
+      "readOnly": false,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised",
+        "round-trip skipped: tool is not read-only"
+      ]
+    },
+    {
+      "name": "honua_query_features",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "query_features",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_render_map",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "render_map",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_solve_route",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "solve_route",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "failed",
+      "structuredOutputValidated": null,
+      "errors": [
+        "round-trip: tool returned isError=true"
+      ],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    },
+    {
+      "name": "honua_validate_package",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "validate_package",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "skipped",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised",
+        "advertises non-standard property \"estimate\"",
+        "advertises non-standard property \"includePreviewPlan\"",
+        "round-trip skipped: no fixture input"
+      ]
+    },
+    {
+      "name": "honua_validate_plan",
+      "discovered": true,
+      "schemaValid": true,
+      "hasOutputSchema": false,
+      "standardName": "validate_plan",
+      "conformant": true,
+      "readOnly": true,
+      "roundTrip": "passed",
+      "structuredOutputValidated": null,
+      "errors": [],
+      "notes": [
+        "no structured output schema advertised"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "name": "Process catalog",
+      "uri": "honua://catalog/processes",
+      "discovered": true
+    }
+  ],
+  "prompts": [],
+  "contracts": [
+    {
+      "contract": "list-pagination",
+      "target": "tools",
+      "status": "skipped",
+      "detail": "tools list is a single page (no nextCursor advertised)"
+    },
+    {
+      "contract": "list-pagination",
+      "target": "resources",
+      "status": "skipped",
+      "detail": "resources list is a single page (no nextCursor advertised)"
+    },
+    {
+      "contract": "error-shape",
+      "target": "honua_query_features",
+      "status": "failed",
+      "detail": "structured error is missing a geoprocessing-error envelope"
+    },
+    {
+      "contract": "auth-unauthenticated",
+      "target": "tools/call",
+      "status": "passed",
+      "detail": "contract satisfied"
+    },
+    {
+      "contract": "auth-unauthenticated",
+      "target": "resources/read",
+      "status": "passed",
+      "detail": "contract satisfied"
+    }
+  ],
+  "knownGaps": [
+    {
+      "kind": "standard-tool",
+      "name": "create_map_package",
+      "family": "Map composition",
+      "detail": "reference tool honua_create_map_package not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "refine_map_package",
+      "family": "Map composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "get_style",
+      "family": "Style inspection",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "apply_style_preset",
+      "family": "Map composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "compose_mixed_protocol_map",
+      "family": "Map composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "preview_map_package",
+      "family": "Map composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "create_app_package",
+      "family": "App composition",
+      "detail": "reference tool honua_create_app_package not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "preview_app_package",
+      "family": "App composition",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "publish_result",
+      "family": "Publishing",
+      "detail": "standard family not yet implemented as a discrete tool"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "publish_service",
+      "family": "Publishing",
+      "detail": "reference tool honua_publish_service not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "resolve_entity",
+      "family": "Discovery and grounding (Honua extension)",
+      "detail": "reference tool honua_resolve_entity not advertised by the certified surface"
+    },
+    {
+      "kind": "standard-tool",
+      "name": "list_capabilities",
+      "family": "Discovery and grounding (Honua extension)",
+      "detail": "reference tool honua_list_capabilities not advertised by the certified surface"
+    }
+  ]
+}

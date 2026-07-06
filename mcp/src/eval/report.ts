@@ -1,3 +1,4 @@
+import type { SuiteProvenance } from "../provenance.js";
 import type { ModelDriver, Scenario, ScenarioGrade, WorkflowTranscript } from "./types.js";
 
 /** One graded (model, scenario) result plus a compact transcript view. */
@@ -56,6 +57,8 @@ export interface ModelScorecard {
 export interface EvalReport {
   schemaVersion: 4;
   generatedAt: string;
+  /** Self-proving provenance: target, protocol, tool count, auth, suite git SHA. */
+  provenance: SuiteProvenance;
   surface: {
     backend: "fixture" | "live";
     mcpTransport: string;
@@ -91,6 +94,8 @@ export interface AssembleInput {
   mcpTransport: string;
   remoteUrl?: string | undefined;
   auth: AuthMode;
+  /** Reproducibility fingerprint attached to the artifact (A5 provability). */
+  provenance: SuiteProvenance;
   /** Tool names advertised by the live `tools/list` (for the catalog audit). */
   advertisedTools: string[];
   corpus: Scenario[];
@@ -164,6 +169,7 @@ export function assembleReport(input: AssembleInput): EvalReport {
   return {
     schemaVersion: 4,
     generatedAt: new Date().toISOString(),
+    provenance: input.provenance,
     surface: {
       backend: input.backend,
       mcpTransport: input.mcpTransport,
@@ -203,6 +209,8 @@ export function renderMarkdown(report: EvalReport): string {
     })`,
   );
   lines.push(`- Auth mode: \`${report.surface.auth}\``);
+  lines.push(`- Negotiated protocol: \`${report.provenance.protocolVersion ?? "n/a"}\``);
+  lines.push(`- Suite git SHA: \`${report.provenance.suiteGitSha}\` (${report.provenance.suiteGitShaSource})`);
   lines.push(`- Corpus: ${report.corpus.scenarios} GIS workflows`);
   lines.push(`- Live models evaluated: ${report.summary.liveModelsEvaluated}`);
   const unresolved = report.catalog.unresolvedRequiredTools;
