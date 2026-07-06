@@ -40,7 +40,7 @@ const DOCS_FILE = path.join(PROJECT_ROOT, "docs", "bundle-sizes.md");
  * match `scripts/build-browser-bundle.mjs` and real consumer builds, instead of
  * inlining multi-megabyte map/protobuf runtimes.
  */
-const EXTERNAL = ["maplibre-gl", "cesium", "@bufbuild/protobuf", "@connectrpc/connect", "@connectrpc/connect-web"];
+const EXTERNAL = ["maplibre-gl", "cesium", "pmtiles", "@bufbuild/protobuf", "@connectrpc/connect", "@connectrpc/connect-web"];
 
 const SHARED_ESBUILD_OPTIONS = {
   bundle: true,

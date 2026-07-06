@@ -34,6 +34,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 ## Map runtime
 
 - [MapLibre GL JS Runtime (@honua/sdk-js/runtime)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/maplibre-runtime.md): loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.
+- [PMTiles](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/pmtiles.md): Native PMTiles support: auto-registered pmtiles:// protocol, lazy peer, describe() metadata, and a CDN recipe.
 - [Prebuilt browser bundle (CDN / build-less)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/browser-bundle.md): Build-less CDN / IIFE usage via the prebuilt browser bundle.
 - [Studio Package Contracts (@honua/sdk-js/studio)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/studio-package-contracts.md): Studio package-family projections, validation envelope, and capability manifest.
 

@@ -54,6 +54,11 @@ MapLibre-native sources (`maplibre-vector`, `maplibre-raster`,
 applicable) `tiles`. They are excluded from the table above because they
 do not flow through the `Source.query` path.
 
+`pmtiles` is a first-party protocol (`PROTOCOL_DEFAULT_CAPABILITIES.pmtiles`
+= `{ tiles }`) but, like the MapLibre-native sources, is tiles-only and does
+not flow through `Source.query`, so it is documented in the *PMTiles* note
+below rather than as a table column.
+
 `spatialAggregate` is an indexed analytics capability rather than the
 field-statistics `queryAggregate` path. This SDK slice defines the
 contract in `src/contract/spatial-aggregation.ts` without assigning
@@ -661,6 +666,24 @@ same way they do to every other adapter.
 
 Library posture is recorded in
 [`decisions/odata-library-selection.md`](./decisions/odata-library-selection.md).
+
+### PMTiles
+Tiles-only. A PMTiles archive is a single immutable file (raster or vector
+tile pyramid) on any static host or object storage. The default capability
+set is `{ tiles }`, so the entire canonical query family
+(`query` / `queryAll` / `queryExtent` / `queryObjectIds` / `applyEdits` /
+`stream`) throws `HonuaCapabilityNotSupportedError` — an archive has no
+feature-query surface. Archive metadata (bounds, min/max zoom, and vector
+layer names) is inspected through the typed escape hatch:
+`Source.protocol("pmtiles").describe()` (or the standalone
+`describePmtilesArchive(url)` helper), which returns a normalized
+`PmtilesArchiveDescription`.
+
+The `pmtiles` package is an optional peer dependency imported lazily — a
+build that never inspects or renders a PMTiles archive pays no cost. The
+MapLibre runtime auto-registers the `pmtiles://` protocol on map attach
+(`loadMapPackage`), so a `pmtiles` MapPackage source binding renders with no
+manual `addProtocol` wiring; see [`pmtiles.md`](./pmtiles.md).
 
 ## Multi-source negotiation
 

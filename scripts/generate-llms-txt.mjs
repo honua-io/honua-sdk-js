@@ -122,6 +122,11 @@ const SECTIONS = [
         path: "docs/maplibre-runtime.md",
         description: "loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.",
       },
+      {
+        path: "docs/pmtiles.md",
+        description:
+          "Native PMTiles support: auto-registered pmtiles:// protocol, lazy peer, describe() metadata, and a CDN recipe.",
+      },
       { path: "docs/browser-bundle.md", description: "Build-less CDN / IIFE usage via the prebuilt browser bundle." },
       {
         path: "docs/studio-package-contracts.md",

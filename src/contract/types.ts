@@ -54,6 +54,7 @@ export type Protocol =
   | "wms"
   | "wmts"
   | "odata"
+  | "pmtiles"
   | "maplibre-vector"
   | "maplibre-raster"
   | "maplibre-geojson";
@@ -75,6 +76,7 @@ export const PROTOCOLS: readonly Protocol[] = [
   "wms",
   "wmts",
   "odata",
+  "pmtiles",
   "maplibre-vector",
   "maplibre-raster",
   "maplibre-geojson",
@@ -257,6 +259,11 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   wms: capabilities(["render", "tiles", "query"]),
   wmts: capabilities(["render", "tiles"]),
   odata: capabilities(["query", "queryObjectIds", "stream", "applyEdits"]),
+  // PMTiles archives are a single immutable tile store (raster or vector).
+  // They are tiles-only: the canonical query family throws
+  // `HonuaCapabilityNotSupportedError`; archive metadata is inspected via
+  // `Source.protocol("pmtiles").describe()`.
+  pmtiles: capabilities(["tiles"]),
   "maplibre-vector": capabilities(["render", "tiles"]),
   "maplibre-raster": capabilities(["render", "tiles"]),
   "maplibre-geojson": capabilities(["render"]),
@@ -731,7 +738,8 @@ export type AdapterKind =
   | "wmts"
   | "wmts-layer"
   | "wmts-tileset"
-  | "odata";
+  | "odata"
+  | "pmtiles";
 
 /**
  * Compile-time map from `AdapterKind` → underlying class instance. Adapter
