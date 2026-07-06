@@ -37,6 +37,7 @@ import {
   queryRelatedRecords,
 } from "./geoservices.js";
 import { HonuaOdataEntitySet } from "./odata.js";
+import { type OgcApiLayoutMode, honuaFacadeFeaturesLayout, resolveOgcEndpointLayout } from "./ogc-endpoint-layout.js";
 import {
   createOgcItem,
   deleteOgcItem,
@@ -192,6 +193,7 @@ import type {
   OgcCollectionRequest,
   OgcCreateItemRequest,
   OgcDeleteItemRequest,
+  OgcEndpointLayout,
   OgcItemRequest,
   OgcItemsRequest,
   OgcMapImageRequest,
@@ -412,6 +414,7 @@ export class HonuaClient {
   private authRefreshPromise: Promise<CachedAuthCredentials | undefined> | undefined;
   private connectClient: Client<typeof FeatureService> | undefined;
   private readonly metadataCache = new Map<string, MetadataCacheEntry>();
+  private readonly ogcLayoutCache = new Map<OgcApiLayoutMode, Promise<OgcEndpointLayout>>();
 
   /**
    * Create a new `HonuaClient`.
@@ -1316,6 +1319,29 @@ export class HonuaClient {
     options: HonuaMetadataRequestOptions = {},
   ): Promise<HonuaServiceMetadata> {
     return getFeatureServiceMetadata(this.protocolTransport, serviceId, options);
+  }
+
+  /**
+   * Resolve (and memoize) the OGC API Features endpoint layout for the
+   * given discovery `mode`. `honua-facade` (default) returns the fixed
+   * `/ogc/features/...` fast path with no network access; `ogc-api` and
+   * `auto` discover the layout from the server's landing page per OGC API
+   * - Common so the same typed surface works against pygeoapi / ldproxy /
+   * GeoServer. Discovery is cached per mode for the life of the client
+   * (the layout is a function of the fixed `baseUrl`).
+   */
+  public resolveOgcFeaturesLayout(mode: OgcApiLayoutMode = "honua-facade"): Promise<OgcEndpointLayout> {
+    if (mode === "honua-facade") return Promise.resolve(honuaFacadeFeaturesLayout());
+    let cached = this.ogcLayoutCache.get(mode);
+    if (!cached) {
+      cached = resolveOgcEndpointLayout(this.protocolTransport, mode).catch((err) => {
+        // Allow a later retry after a transient discovery failure.
+        this.ogcLayoutCache.delete(mode);
+        throw err;
+      });
+      this.ogcLayoutCache.set(mode, cached);
+    }
+    return cached;
   }
 
   public async getOgcFeaturesLanding(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {

@@ -1,0 +1,23 @@
+{
+  "type": "Catalog",
+  "stac_version": "1.0.0",
+  "id": "honua-sample-catalog",
+  "description": "Static STAC catalog fixture",
+  "links": [
+    {
+      "rel": "root",
+      "href": "./catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "self",
+      "href": "https://static.example.test/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./imagery/collection.json",
+      "type": "application/json"
+    }
+  ]
+}

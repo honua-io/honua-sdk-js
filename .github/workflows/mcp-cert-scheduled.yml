@@ -77,11 +77,27 @@ jobs:
           HONUA_API_KEY: ${{ secrets.HONUA_DEMO_MCP_API_KEY }}
         run: node dist/src/certification/cli.js --artifact-only
 
+      - name: Platform-free live certification (any public FeatureServer, free)
+        # Second target (issue #369): certify the standalone surface against a LIVE
+        # public Esri FeatureServer with ZERO Honua surfaces — the census layer on
+        # services.arcgis.com (anonymous, read-only). Honua-only tools skip-with-
+        # reason. Never gates (--artifact-only); it is evidence that honua-mcp works
+        # against any public endpoint, not just Honua deployments.
+        env:
+          HONUA_MCP_CERT_TARGET: standalone
+          HONUA_BASE_URL: ${{ vars.HONUA_STANDALONE_BASE_URL || 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis' }}
+          HONUA_TRANSPORT: rest
+          HONUA_MCP_SERVICE_ID: ${{ vars.HONUA_STANDALONE_SERVICE_ID || '2020_Census_State_Apportionment' }}
+          HONUA_MCP_LAYER_ID: "0"
+        run: node dist/src/certification/cli.js --artifact-only --out-dir standalone-live
+
       - name: Stage report for leaderboard
         run: |
           mkdir -p staged
           cp mcp-certification-results.json staged/cert-demo.json
           cp mcp-certification-results.md staged/cert-demo.md
+          cp standalone-live/mcp-certification-results.json staged/cert-standalone.json
+          cp standalone-live/mcp-certification-results.md staged/cert-standalone.md
 
       - name: Upload certification artifact
         if: always()
@@ -119,6 +135,8 @@ jobs:
           mkdir -p "$dest"
           cp downloaded/cert-demo.json "$dest"/
           cp downloaded/cert-demo.md "$dest"/ 2>/dev/null || true
+          cp downloaded/cert-standalone.json "$dest"/ 2>/dev/null || true
+          cp downloaded/cert-standalone.md "$dest"/ 2>/dev/null || true
 
       - name: Regenerate leaderboard
         run: node mcp/scripts/render-leaderboard.mjs

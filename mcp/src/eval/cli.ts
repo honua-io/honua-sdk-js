@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveCorpus } from "./corpus.js";
@@ -39,7 +39,7 @@ import { runEval } from "./runner.js";
  * never hardcoded — they come from the environment.
  */
 
-const CORPUS_NAMES = ["analyst", "operator", "northstar", "all"] as const;
+const CORPUS_NAMES = ["analyst", "operator", "northstar", "standalone", "all"] as const;
 type CorpusName = (typeof CORPUS_NAMES)[number];
 
 interface CliOptions {
@@ -102,8 +102,10 @@ async function main(): Promise<void> {
     forceOffline: offline,
     ...(drivers.length > 0 ? { drivers: selectDrivers(drivers) } : {}),
     ...(corpus ? { corpus: corpusForName(corpus) } : {}),
+    ...(corpus === "standalone" ? { forceStandaloneSurface: true } : {}),
   });
 
+  mkdirSync(outDir, { recursive: true });
   const jsonPath = resolve(outDir, "mcp-eval-results.json");
   const mdPath = resolve(outDir, "mcp-eval-results.md");
   writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");

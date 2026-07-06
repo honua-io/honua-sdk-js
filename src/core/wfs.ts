@@ -91,6 +91,7 @@ export class HonuaWfs {
 
   private capabilitiesPromise: Promise<WfsCapabilitiesSnapshot> | undefined;
   private rawCapabilitiesXml: string | undefined;
+  private resolvedSnapshot: WfsCapabilitiesSnapshot | undefined;
 
   public constructor(options: HonuaWfsOptions) {
     this.client = options.client;
@@ -117,6 +118,24 @@ export class HonuaWfs {
   public refresh(): void {
     this.capabilitiesPromise = undefined;
     this.rawCapabilitiesXml = undefined;
+    this.resolvedSnapshot = undefined;
+  }
+
+  /**
+   * Resolve the concrete request URL for a WFS operation, honouring the
+   * DCP `xlink:href` a raw server advertises in GetCapabilities (e.g.
+   * GeoServer mounted at `/geoserver/ows` that advertises its operation
+   * URL at `/geoserver/wfs`). Falls back to the configured endpoint URL
+   * when capabilities have not been resolved yet or the server omits the
+   * DCP href. This peeks at the already-resolved snapshot synchronously,
+   * so it never forces an extra GetCapabilities round-trip: the canonical
+   * WFS query path resolves capabilities for output-format negotiation
+   * before issuing GetFeature.
+   */
+  public operationUrl(operation: string, method: "GET" | "POST"): string {
+    const op = this.resolvedSnapshot?.operations.get(operation);
+    const url = method === "GET" ? op?.getUrl : op?.postUrl;
+    return url ?? this.endpointUrl;
   }
 
   /** Last raw capabilities XML payload (populated after the first fetch). */
@@ -201,7 +220,9 @@ export class HonuaWfs {
     if (options?.signal) requestOptions.signal = options.signal;
     const { text } = await this.requestText("GET", appendQuery(this.endpointUrl, params), requestOptions);
     this.rawCapabilitiesXml = text;
-    return parseWfsCapabilities(text);
+    const snapshot = parseWfsCapabilities(text);
+    this.resolvedSnapshot = snapshot;
+    return snapshot;
   }
 }
 
@@ -258,7 +279,7 @@ export class HonuaWfsFeatureType {
     if (method === "POST" && params.body !== undefined) {
       requestOptions.contentType = "application/xml";
       requestOptions.body = params.body;
-      response = await this.root.requestText("POST", this.root.endpointUrl, requestOptions);
+      response = await this.root.requestText("POST", this.root.operationUrl("GetFeature", "POST"), requestOptions);
     } else {
       const search = new URLSearchParams({
         service: SERVICE_PARAM,
@@ -277,7 +298,11 @@ export class HonuaWfsFeatureType {
       if (params.resultType !== undefined) search.set("resultType", params.resultType);
       if (params.srsName !== undefined) search.set("srsName", params.srsName);
       if (params.outputFormat !== undefined) search.set("outputFormat", params.outputFormat);
-      response = await this.root.requestText("GET", appendQuery(this.root.endpointUrl, search), requestOptions);
+      response = await this.root.requestText(
+        "GET",
+        appendQuery(this.root.operationUrl("GetFeature", "GET"), search),
+        requestOptions,
+      );
     }
     if (looksLikeJson(response.contentType, response.text)) {
       return { kind: "json", data: parseJsonOrThrow(response.text), contentType: response.contentType };
@@ -331,7 +356,7 @@ export class HonuaWfsFeatureType {
       body: params.body,
     };
     if (params.signal) requestOptions.signal = params.signal;
-    const { text } = await this.root.requestText("POST", this.root.endpointUrl, requestOptions);
+    const { text } = await this.root.requestText("POST", this.root.operationUrl("Transaction", "POST"), requestOptions);
     return parseWfsTransactionResponse(text);
   }
 
@@ -427,7 +452,7 @@ export class HonuaWfsStoredQuery {
     if (params.signal) requestOptions.signal = params.signal;
     const { text, contentType } = await this.root.requestText(
       "GET",
-      appendQuery(this.root.endpointUrl, search),
+      appendQuery(this.root.operationUrl("GetFeature", "GET"), search),
       requestOptions,
     );
     if (looksLikeJson(contentType, text)) {

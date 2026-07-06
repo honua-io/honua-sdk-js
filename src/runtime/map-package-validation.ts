@@ -317,21 +317,3 @@ function parseTimestampMs(value: unknown): number | undefined {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-
-/**
- * Compatibility bridge to the unified Studio validation envelope. The map
- * family keeps {@link ValidateMapPackageResult} as its native result;
- * {@link fromMapPackageValidation} and {@link toStudioValidationResponse}
- * adapt it (and any other family result) into a
- * `StudioPackageValidationResponse` without changing existing types. See
- * `@honua/sdk-js/studio` for the full Studio contract surface.
- *
- * @experimental The Studio contract surface is not yet covered by the SDK's
- *   semver contract and may change in any minor release prior to `1.0.0`.
- */
-export { fromMapPackageValidation, toStudioValidationResponse } from "../studio/validation.js";
-export type {
-  StudioPackageDiagnostic,
-  StudioPackageDiagnosticSeverity,
-  StudioPackageValidationResponse,
-} from "../studio/validation.js";

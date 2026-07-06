@@ -32,6 +32,7 @@ import type { HonuaOgcProcesses } from "../core/ogc-processes.js";
 import { HonuaOgcRecordCollection } from "../core/ogc-records.js";
 import { HonuaOgcTiles, HonuaOgcTileset } from "../core/ogc-tiles.js";
 import { trimTrailingSlashes } from "../core/path-utils.js";
+import { HonuaStacStaticCatalog, type StacStaticSearchParams } from "../core/stac-static.js";
 import { HonuaStacSearch } from "../core/stac.js";
 import {
   HonuaFeatureLayer,
@@ -101,6 +102,7 @@ import {
   type Source,
   type SourceDescriptor,
   type SourceId,
+  type SourceLocator,
 } from "./types.js";
 
 /**
@@ -495,8 +497,13 @@ export function ogcFeaturesSource<T>(
   policy: CapabilityPolicy,
 ): Source<T> {
   const { collectionId } = requireOgcLocator(descriptor);
-  const collection = new HonuaOgcFeatureCollection({ client, collectionId });
-  const root = new HonuaOgcFeatures({ client });
+  const layoutMode = ogcFeaturesLayoutMode(descriptor.locator.layout);
+  const collection = new HonuaOgcFeatureCollection({
+    client,
+    collectionId,
+    ...(layoutMode ? { layout: layoutMode } : {}),
+  });
+  const root = new HonuaOgcFeatures({ client, ...(layoutMode ? { layout: layoutMode } : {}) });
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"];
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
@@ -1283,7 +1290,14 @@ export function stacSearchSource<T>(
   client: HonuaClient,
   policy: CapabilityPolicy,
 ): Source<T> {
-  const stac = new HonuaStacSearch({ client });
+  // Endpoint-layout selection. `stac-api` treats `locator.url` as a raw STAC
+  // API root (search / collections mounted directly under it) rather than the
+  // Honua `/stac` facade. `stac-static` reads a static catalog.json tree with
+  // no search endpoint. Omitted / `honua-facade` keeps the `/stac` facade.
+  const layout = descriptor.locator.layout;
+  const stacBasePath = layout === "stac-api" ? "" : undefined;
+  const stac = new HonuaStacSearch({ client, ...(stacBasePath !== undefined ? { basePath: stacBasePath } : {}) });
+  const staticCatalog = layout === "stac-static" ? new HonuaStacStaticCatalog(client, client.serverBaseUrl) : undefined;
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.stac;
   const collectionScope = descriptor.locator.collectionId;
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
@@ -1297,7 +1311,9 @@ export function stacSearchSource<T>(
         throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
       }
       const stacRequest = toStacRequest(request, collectionScope);
-      const response = await stac.search(stacRequest);
+      const response = staticCatalog
+        ? await staticCatalog.search(toStacStaticParams(stacRequest))
+        : await stac.search(stacRequest);
       const features = (response.features ?? []).map(toTypedFeatureFromStac<T>);
       const totalCount = response.numberMatched ?? response.context?.matched;
       const exceededTransferLimit = totalCount !== undefined && features.length < totalCount;
@@ -1310,6 +1326,12 @@ export function stacSearchSource<T>(
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
       const limit = request?.pagination?.limit;
+      if (staticCatalog) {
+        const response = await staticCatalog.search(toStacStaticParams(toStacRequest(request, collectionScope)));
+        const typed = (response.features ?? []).map(toTypedFeatureFromStac<T>);
+        const { features, exceededTransferLimit } = applyQueryAllLimit(typed, limit);
+        return { features, exceededTransferLimit, totalCount: features.length } satisfies Result<T>;
+      }
       const items = await stac.searchAll({
         ...toStacRequest(request, collectionScope),
         ...withPagingBounds({}, limit),
@@ -1331,6 +1353,16 @@ export function stacSearchSource<T>(
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
       const limit = request?.pagination?.limit;
+      if (staticCatalog) {
+        // A static catalog has no server-side paging; yield the whole
+        // filtered set as one page.
+        const response = await staticCatalog.search(toStacStaticParams(toStacRequest(request, collectionScope)));
+        yield {
+          features: (response.features ?? []).map(toTypedFeatureFromStac<T>),
+          exceededTransferLimit: false,
+        } satisfies Result<T>;
+        return;
+      }
       const stream = stac.searchStream({
         ...toStacRequest(request, collectionScope),
         pageSize: limit !== undefined ? Math.max(1, limit) : undefined,
@@ -1350,10 +1382,12 @@ export function stacSearchSource<T>(
       // routes through `withPagingBounds` so the underlying searchAll
       // fetches at most `limit + 1` rows, never a full-catalog scan.
       const limit = request?.pagination?.limit;
-      const items = await stac.searchAll({
-        ...toStacRequest(request, collectionScope),
-        ...withPagingBounds({}, limit),
-      });
+      const items = staticCatalog
+        ? ((await staticCatalog.search(toStacStaticParams(toStacRequest(request, collectionScope)))).features ?? [])
+        : await stac.searchAll({
+            ...toStacRequest(request, collectionScope),
+            ...withPagingBounds({}, limit),
+          });
       const ids: FeatureId[] = [];
       for (const item of items) {
         if (item.id !== undefined && item.id !== null) {
@@ -3279,6 +3313,19 @@ function requireOgcLocator(descriptor: SourceDescriptor): { collectionId: string
   return { collectionId };
 }
 
+/**
+ * Map a `SourceLocator.layout` hint onto the OGC API Features endpoint
+ * discovery mode. `undefined` / `honua-facade` keep the fixed facade fast
+ * path; `ogc-api` and `auto` enable spec-driven landing-page discovery.
+ * The STAC-specific modes are not applicable to Features and fall back to
+ * the facade.
+ */
+function ogcFeaturesLayoutMode(layout: SourceLocator["layout"]): "ogc-api" | "auto" | undefined {
+  if (layout === "ogc-api") return "ogc-api";
+  if (layout === "auto") return "auto";
+  return undefined;
+}
+
 function requireOgcRecordsLocator(descriptor: SourceDescriptor): { collectionId: string | number } {
   const { collectionId } = descriptor.locator;
   if (collectionId === undefined || collectionId === null || collectionId === "") {
@@ -3539,6 +3586,20 @@ function toStacRequest<T>(
     out.collections = [String(collectionScope)];
   }
   if (request?.signal) out.signal = request.signal;
+  return out;
+}
+
+/**
+ * Project a STAC API search request onto the client-side filter params a
+ * static catalog traversal applies (it has no server-side query grammar).
+ */
+function toStacStaticParams(request: StacSearchRequest): StacStaticSearchParams {
+  const out: StacStaticSearchParams = {};
+  if (request.collections && request.collections.length > 0) out.collections = request.collections;
+  if (request.bbox) out.bbox = request.bbox;
+  if (request.datetime !== undefined) out.datetime = request.datetime;
+  if (request.limit !== undefined) out.limit = request.limit;
+  if (request.signal) out.signal = request.signal;
   return out;
 }
 

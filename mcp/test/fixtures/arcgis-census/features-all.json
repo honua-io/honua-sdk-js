@@ -1,0 +1,532 @@
+{
+  "objectIdFieldName": "OBJECTID",
+  "uniqueIdField": {
+    "name": "OBJECTID",
+    "isSystemMaintained": true
+  },
+  "globalIdFieldName": "",
+  "geometryType": "esriGeometryPolygon",
+  "spatialReference": {
+    "wkid": 102100,
+    "latestWkid": 3857
+  },
+  "fields": [
+    {
+      "name": "OBJECTID",
+      "type": "esriFieldTypeOID",
+      "alias": "OBJECTID",
+      "sqlType": "sqlTypeOther",
+      "domain": null,
+      "defaultValue": null
+    },
+    {
+      "name": "NAME",
+      "type": "esriFieldTypeString",
+      "alias": "State Name",
+      "sqlType": "sqlTypeOther",
+      "length": 100,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"State Name of feature\\n\",\"fieldValueType\":\"nameOrTitle\"}"
+    },
+    {
+      "name": "STUSPS",
+      "type": "esriFieldTypeString",
+      "alias": "State Abbreviation",
+      "sqlType": "sqlTypeOther",
+      "length": 20,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"State Abbreviation of feature\",\"fieldValueType\":\"nameOrTitle\"}"
+    },
+    {
+      "name": "Total_Pop_2020",
+      "type": "esriFieldTypeInteger",
+      "alias": "Total Population, 2020",
+      "sqlType": "sqlTypeOther",
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"Apportionment Population for 50 states as of April 1, 2020. Includes the resident population, as ascertained by the 24th Decennial Census under Title 13, U.S. Code, & counts of U.S. military & federal civilian employees living overseas (and their dependents living with them overseas) allocated to their home state, as reported by the employing federal agencies. Overseas count used for apportionment purposes only. Values for DC & Puerto Rico calculated by summing resident & overseas population. \",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Seats_2020",
+      "type": "esriFieldTypeInteger",
+      "alias": "Seats in the U.S. House of Representatives, 2020",
+      "sqlType": "sqlTypeOther",
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"The U.S. Census Bureau prepared these calculations using the existing size of the U.S. House of Representatives (435 members) and the Method of Equal Proportions, as provided for in Title 2, United States Code, Sections 2a and 2b.\",\"fieldValueType\":\"countOrAmount\"}"
+    }
+  ],
+  "features": [
+    {
+      "attributes": {
+        "OBJECTID": 1,
+        "NAME": "Alabama",
+        "STUSPS": "AL",
+        "Total_Pop_2020": 5030053,
+        "Seats_2020": 7
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 2,
+        "NAME": "Alaska",
+        "STUSPS": "AK",
+        "Total_Pop_2020": 736081,
+        "Seats_2020": 1
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 3,
+        "NAME": "Arizona",
+        "STUSPS": "AZ",
+        "Total_Pop_2020": 7158923,
+        "Seats_2020": 9
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 4,
+        "NAME": "Arkansas",
+        "STUSPS": "AR",
+        "Total_Pop_2020": 3013756,
+        "Seats_2020": 4
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 5,
+        "NAME": "California",
+        "STUSPS": "CA",
+        "Total_Pop_2020": 39576757,
+        "Seats_2020": 52
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 6,
+        "NAME": "Colorado",
+        "STUSPS": "CO",
+        "Total_Pop_2020": 5782171,
+        "Seats_2020": 8
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 7,
+        "NAME": "Connecticut",
+        "STUSPS": "CT",
+        "Total_Pop_2020": 3608298,
+        "Seats_2020": 5
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 8,
+        "NAME": "Delaware",
+        "STUSPS": "DE",
+        "Total_Pop_2020": 990837,
+        "Seats_2020": 1
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 9,
+        "NAME": "District of Columbia",
+        "STUSPS": "DC",
+        "Total_Pop_2020": 691533,
+        "Seats_2020": null
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 10,
+        "NAME": "Florida",
+        "STUSPS": "FL",
+        "Total_Pop_2020": 21570527,
+        "Seats_2020": 28
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 11,
+        "NAME": "Georgia",
+        "STUSPS": "GA",
+        "Total_Pop_2020": 10725274,
+        "Seats_2020": 14
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 12,
+        "NAME": "Hawaii",
+        "STUSPS": "HI",
+        "Total_Pop_2020": 1460137,
+        "Seats_2020": 2
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 13,
+        "NAME": "Idaho",
+        "STUSPS": "ID",
+        "Total_Pop_2020": 1841377,
+        "Seats_2020": 2
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 14,
+        "NAME": "Illinois",
+        "STUSPS": "IL",
+        "Total_Pop_2020": 12822739,
+        "Seats_2020": 17
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 15,
+        "NAME": "Indiana",
+        "STUSPS": "IN",
+        "Total_Pop_2020": 6790280,
+        "Seats_2020": 9
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 16,
+        "NAME": "Iowa",
+        "STUSPS": "IA",
+        "Total_Pop_2020": 3192406,
+        "Seats_2020": 4
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 17,
+        "NAME": "Kansas",
+        "STUSPS": "KS",
+        "Total_Pop_2020": 2940865,
+        "Seats_2020": 4
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 18,
+        "NAME": "Kentucky",
+        "STUSPS": "KY",
+        "Total_Pop_2020": 4509342,
+        "Seats_2020": 6
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 19,
+        "NAME": "Louisiana",
+        "STUSPS": "LA",
+        "Total_Pop_2020": 4661468,
+        "Seats_2020": 6
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 20,
+        "NAME": "Maine",
+        "STUSPS": "ME",
+        "Total_Pop_2020": 1363582,
+        "Seats_2020": 2
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 21,
+        "NAME": "Maryland",
+        "STUSPS": "MD",
+        "Total_Pop_2020": 6185278,
+        "Seats_2020": 8
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 22,
+        "NAME": "Massachusetts",
+        "STUSPS": "MA",
+        "Total_Pop_2020": 7033469,
+        "Seats_2020": 9
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 23,
+        "NAME": "Michigan",
+        "STUSPS": "MI",
+        "Total_Pop_2020": 10084442,
+        "Seats_2020": 13
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 24,
+        "NAME": "Minnesota",
+        "STUSPS": "MN",
+        "Total_Pop_2020": 5709752,
+        "Seats_2020": 8
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 25,
+        "NAME": "Mississippi",
+        "STUSPS": "MS",
+        "Total_Pop_2020": 2963914,
+        "Seats_2020": 4
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 26,
+        "NAME": "Missouri",
+        "STUSPS": "MO",
+        "Total_Pop_2020": 6160281,
+        "Seats_2020": 8
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 27,
+        "NAME": "Montana",
+        "STUSPS": "MT",
+        "Total_Pop_2020": 1085407,
+        "Seats_2020": 2
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 28,
+        "NAME": "Nebraska",
+        "STUSPS": "NE",
+        "Total_Pop_2020": 1963333,
+        "Seats_2020": 3
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 29,
+        "NAME": "Nevada",
+        "STUSPS": "NV",
+        "Total_Pop_2020": 3108462,
+        "Seats_2020": 4
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 30,
+        "NAME": "New Hampshire",
+        "STUSPS": "NH",
+        "Total_Pop_2020": 1379089,
+        "Seats_2020": 2
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 31,
+        "NAME": "New Jersey",
+        "STUSPS": "NJ",
+        "Total_Pop_2020": 9294493,
+        "Seats_2020": 12
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 32,
+        "NAME": "New Mexico",
+        "STUSPS": "NM",
+        "Total_Pop_2020": 2120220,
+        "Seats_2020": 3
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 33,
+        "NAME": "New York",
+        "STUSPS": "NY",
+        "Total_Pop_2020": 20215751,
+        "Seats_2020": 26
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 34,
+        "NAME": "North Carolina",
+        "STUSPS": "NC",
+        "Total_Pop_2020": 10453948,
+        "Seats_2020": 14
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 35,
+        "NAME": "North Dakota",
+        "STUSPS": "ND",
+        "Total_Pop_2020": 779702,
+        "Seats_2020": 1
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 36,
+        "NAME": "Ohio",
+        "STUSPS": "OH",
+        "Total_Pop_2020": 11808848,
+        "Seats_2020": 15
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 37,
+        "NAME": "Oklahoma",
+        "STUSPS": "OK",
+        "Total_Pop_2020": 3963516,
+        "Seats_2020": 5
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 38,
+        "NAME": "Oregon",
+        "STUSPS": "OR",
+        "Total_Pop_2020": 4241500,
+        "Seats_2020": 6
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 39,
+        "NAME": "Pennsylvania",
+        "STUSPS": "PA",
+        "Total_Pop_2020": 13011844,
+        "Seats_2020": 17
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 52,
+        "NAME": "Puerto Rico",
+        "STUSPS": "PR",
+        "Total_Pop_2020": 3285874,
+        "Seats_2020": null
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 40,
+        "NAME": "Rhode Island",
+        "STUSPS": "RI",
+        "Total_Pop_2020": 1098163,
+        "Seats_2020": 2
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 41,
+        "NAME": "South Carolina",
+        "STUSPS": "SC",
+        "Total_Pop_2020": 5124712,
+        "Seats_2020": 7
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 42,
+        "NAME": "South Dakota",
+        "STUSPS": "SD",
+        "Total_Pop_2020": 887770,
+        "Seats_2020": 1
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 43,
+        "NAME": "Tennessee",
+        "STUSPS": "TN",
+        "Total_Pop_2020": 6916897,
+        "Seats_2020": 9
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 44,
+        "NAME": "Texas",
+        "STUSPS": "TX",
+        "Total_Pop_2020": 29183290,
+        "Seats_2020": 38
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 45,
+        "NAME": "Utah",
+        "STUSPS": "UT",
+        "Total_Pop_2020": 3275252,
+        "Seats_2020": 4
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 46,
+        "NAME": "Vermont",
+        "STUSPS": "VT",
+        "Total_Pop_2020": 643503,
+        "Seats_2020": 1
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 47,
+        "NAME": "Virginia",
+        "STUSPS": "VA",
+        "Total_Pop_2020": 8654542,
+        "Seats_2020": 11
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 48,
+        "NAME": "Washington",
+        "STUSPS": "WA",
+        "Total_Pop_2020": 7715946,
+        "Seats_2020": 10
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 49,
+        "NAME": "West Virginia",
+        "STUSPS": "WV",
+        "Total_Pop_2020": 1795045,
+        "Seats_2020": 2
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 50,
+        "NAME": "Wisconsin",
+        "STUSPS": "WI",
+        "Total_Pop_2020": 5897473,
+        "Seats_2020": 8
+      }
+    },
+    {
+      "attributes": {
+        "OBJECTID": 51,
+        "NAME": "Wyoming",
+        "STUSPS": "WY",
+        "Total_Pop_2020": 577719,
+        "Seats_2020": 1
+      }
+    }
+  ],
+  "exceededTransferLimit": false
+}

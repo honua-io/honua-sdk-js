@@ -1,0 +1,111 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "stac_version": "1.0.0",
+      "id": "S2B_21WWV_20260706_0_L2A",
+      "collection": "sentinel-2-l2a",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -56.19665736520372,
+              72.09792377500635
+            ],
+            [
+              -55.11875005575408,
+              71.90997313826618
+            ],
+            [
+              -53.872115219337076,
+              71.66457223538865
+            ],
+            [
+              -53.8031726388659,
+              72.0734405716145
+            ],
+            [
+              -56.19665736520372,
+              72.09792377500635
+            ]
+          ]
+        ]
+      },
+      "bbox": [
+        -56.196657,
+        71.664572,
+        -53.803173,
+        72.097924
+      ],
+      "properties": {
+        "datetime": "2026-07-06T16:02:45.822000Z",
+        "eo:cloud_cover": 7.029967,
+        "platform": "sentinel-2b"
+      }
+    },
+    {
+      "type": "Feature",
+      "stac_version": "1.0.0",
+      "id": "S2B_20XPF_20260706_0_L2A",
+      "collection": "sentinel-2-l2a",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -59.03205656765978,
+              72.95717428819785
+            ],
+            [
+              -59.613388727335035,
+              72.60782147410544
+            ],
+            [
+              -58.22171692501779,
+              72.41956644911582
+            ],
+            [
+              -56.83914577386669,
+              72.20695731840524
+            ],
+            [
+              -56.5982943920546,
+              72.8951471534736
+            ],
+            [
+              -59.03205656765978,
+              72.95717428819785
+            ]
+          ]
+        ]
+      },
+      "bbox": [
+        -59.613389,
+        72.206957,
+        -56.598294,
+        72.957174
+      ],
+      "properties": {
+        "datetime": "2026-07-06T16:02:43.540000Z",
+        "eo:cloud_cover": 20.078695,
+        "platform": "sentinel-2b"
+      }
+    }
+  ],
+  "links": [
+    {
+      "rel": "next",
+      "title": "Next page of Items",
+      "method": "GET",
+      "type": "application/geo+json",
+      "href": "https://earth-search.aws.element84.com/v1/search?collections=sentinel-2-l2a&limit=2&next=2026-07-06T16%3A02%3A43.540000Z%2CS2B_20XPF_20260706_0_L2A%2Csentinel-2-l2a"
+    },
+    {
+      "rel": "root",
+      "type": "application/json",
+      "href": "https://earth-search.aws.element84.com/v1"
+    }
+  ]
+}

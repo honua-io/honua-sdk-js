@@ -50,11 +50,15 @@ and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 > Server/Online endpoint, any OGC API implementation, a STAC catalog. A
 > [Honua Server](https://github.com/honua-io/honua-server) adds the server-authored `MapPackage`,
 > realtime, and AI surfaces, but it is the upgrade path, not the entry fee. **When to use it
-> standalone:** if your data already sits behind an ArcGIS Server / ArcGIS Online endpoint, use it
-> today as a typed client and `esri-leaflet` successor — no server needed (see the
-> [server-optional quickstart](./docs/standalone-quickstart.md) and the
+> standalone:** if your data already sits behind an ArcGIS Server / ArcGIS Online endpoint, an OGC
+> API Features server (pygeoapi, ldproxy, GeoServer OGC API), a WFS 2.0 server, a STAC API or static
+> catalog, or an OData v4 service, use it today as a typed client and `esri-leaflet` successor — no
+> server needed (the OGC API Features and STAC lanes discover the raw endpoint layout from the
+> landing page; WFS follows the capabilities DCP URLs; set `locator.layout` for non-facade servers —
+> see the [server-optional quickstart](./docs/standalone-quickstart.md) and the
 > [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md)). Reach for a Honua
-> Server when you need authored map packages, realtime, collaboration, or MCP/AI.
+> Server when you need authored map packages, realtime, collaboration, MCP/AI, or the OGC API Tiles /
+> Maps / Processes / Records families (still facade-bound today).
 
 ```bash
 npm install @honua/sdk-js
@@ -312,8 +316,13 @@ correctly use this SDK:
   `honua-arcgis-migration`, and `honua-mcp-setup` load procedural instructions
   into Claude Code and compatible agents. See [`skills/README.md`](./skills/README.md)
   for installation.
-- **MCP server** — [`@honua/mcp-server`](./mcp/README.md) exposes Honua discovery
-  and query tools to assistants over the Model Context Protocol.
+- **MCP server** — [`@honua/mcp-server`](./mcp/README.md) is the **platform-free**
+  geospatial MCP server: point `honua-mcp` at **any** public ArcGIS FeatureServer
+  or OGC API endpoint (no Honua server required) and it exposes discovery, query,
+  and analysis tools to assistants over the Model Context Protocol. Tools that need
+  a Honua-only surface degrade gracefully with a structured "not available on this
+  target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
+  via `honua-mcp-proxy`.
 - **Context7** — [`context7.json`](./context7.json) registers the library so
   [Context7](https://context7.com) serves current docs to coding agents; the
   submission steps are in [`skills/README.md`](./skills/README.md).
@@ -328,11 +337,15 @@ correctly use this SDK:
     `@honua/sdk-js/contract`, `@honua/sdk-js/esri-compat`, `@honua/sdk-js/migration`,
     `@honua/sdk-js/runtime`, `@honua/sdk-js/expr`, `@honua/sdk-js/webmap`,
     `@honua/sdk-js/geocoding`, `@honua/sdk-js/exploration`, `@honua/sdk-js/interactions`,
-    `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`.
-  - **Experimental** (subpath-only — not re-exported from the root barrels):
-    `/app`, `/app-controller`, `/app-workspace`, `/scene-workspace`, `/collaboration`,
-    `/control-plane`, `/controls`, `/generated-app`, `/studio`, `/agent-tools`, `/realtime`,
-    `/web-components`, `/react`, `/operator`, `/operator/*`.
+    `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`,
+    `@honua/sdk-js/realtime`, `@honua/sdk-js/react`.
+  - **Experimental** (subpath-only — not re-exported from the root barrels): `/agent-tools`.
+  - **Application-platform surfaces** (`/app`, `/app-controller`, `/app-workspace`,
+    `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
+    `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,
+    `/operator/*`) have **moved to the separate `@honua/app-platform` package**; the old
+    `@honua/sdk-js/*` subpaths keep working for one minor behind a `@deprecated` shim. The
+    `/console` entrypoint was removed outright (no shim).
 
 ## Support and lifecycle
 

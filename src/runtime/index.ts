@@ -94,16 +94,6 @@ export type {
   ValidateMapPackageResult,
 } from "./map-package-validation.js";
 
-// Experimental bridge to the unified Studio validation envelope. Reachable
-// from the same path map-package consumers already use; the full Studio
-// contract lives at `@honua/sdk-js/studio`.
-export { fromMapPackageValidation, toStudioValidationResponse } from "./map-package-validation.js";
-export type {
-  StudioPackageDiagnostic,
-  StudioPackageDiagnosticSeverity,
-  StudioPackageValidationResponse,
-} from "./map-package-validation.js";
-
 export { HonuaMapRuntime } from "./runtime.js";
 export type {
   HonuaMapRuntimeInternals,

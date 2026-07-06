@@ -1,4 +1,8 @@
 import type { HonuaClient } from "@honua/sdk-js";
+import { CapabilityUnavailableError } from "./capability.js";
+
+/** Human label for the Honua-only styling surface (capability degradation). */
+export const STYLE_SURFACE = "OGC API - Styles";
 
 /**
  * Thin read-only client over the server's OGC API – Styles surface
@@ -110,8 +114,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 async function getJson<T>(client: HonuaClient, path: string, accept: string): Promise<T> {
-  const response = await client.pipelineFetch("GET", path, { headers: { Accept: accept } });
-  return (await response.json()) as T;
+  let response: Response;
+  try {
+    response = await client.pipelineFetch("GET", path, { headers: { Accept: accept } });
+  } catch (err) {
+    // A plain FeatureServer / OGC-Features endpoint has no styling surface, so
+    // `GET /ogc/styles*` fails (404, network error, or the SDK's non-2xx throw).
+    // Degrade gracefully rather than surfacing a raw crash.
+    throw new CapabilityUnavailableError(STYLE_SURFACE, `request to ${path} failed: ${errorMessage(err)}`);
+  }
+  if (!response.ok) {
+    throw new CapabilityUnavailableError(STYLE_SURFACE, `${path} returned HTTP ${response.status}`);
+  }
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new CapabilityUnavailableError(
+      STYLE_SURFACE,
+      `${path} did not return JSON (target has no OGC API - Styles surface)`,
+    );
+  }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 function stylePath(styleId: string): string {
@@ -122,7 +148,10 @@ function stylePath(styleId: string): string {
 export async function listStyles(client: HonuaClient): Promise<OgcStyleList> {
   const body = await getJson<unknown>(client, OGC_STYLES_PATH, "application/json");
   if (!isRecord(body) || !Array.isArray(body.styles)) {
-    return { styles: [] };
+    // A well-formed styles document always carries a `styles` array (possibly
+    // empty). Anything else means the target is not an OGC API - Styles surface;
+    // report that honestly instead of returning a misleading empty catalog.
+    throw new CapabilityUnavailableError(STYLE_SURFACE, `${OGC_STYLES_PATH} response is not a styles document`);
   }
   const styles: OgcStyleListEntry[] = [];
   for (const entry of body.styles) {

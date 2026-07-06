@@ -1,0 +1,30 @@
+{
+  "objectIdFieldName": "OBJECTID",
+  "uniqueIdField": {
+    "name": "OBJECTID",
+    "isSystemMaintained": true
+  },
+  "globalIdFieldName": "",
+  "geometryType": "esriGeometryPolygon",
+  "spatialReference": {
+    "wkid": 102100,
+    "latestWkid": 3857
+  },
+  "fields": [
+    {
+      "name": "sum_Total_Pop_2020",
+      "type": "esriFieldTypeDouble",
+      "alias": "sum_Total_Pop_2020",
+      "sqlType": "sqlTypeFloat",
+      "domain": null,
+      "defaultValue": null
+    }
+  ],
+  "features": [
+    {
+      "attributes": {
+        "sum_Total_Pop_2020": 335085841
+      }
+    }
+  ]
+}

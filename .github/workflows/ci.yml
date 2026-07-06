@@ -141,8 +141,20 @@ jobs:
           HONUA_MCP_CERT_TARGET: offline
         run: npm run test:certification:artifact
 
+      - name: MCP platform-free certification (gate)
+        # Standalone target: certifies the direct-SDK surface against an in-process
+        # fixture of a PLAIN public FeatureServer (recorded census layer, no Honua
+        # surfaces). Proves the tools certify green with honest skips against a
+        # non-Honua endpoint. Fixture-backed, deterministic, no network.
+        run: node dist/src/certification/cli.js --target standalone --out-dir standalone-cert
+
       - name: Cross-model workflow eval (gate, offline)
         run: npm run test:eval
+
+      - name: Platform-free semantic eval (gate, offline)
+        # 50+ semantic scenarios against the plain-FeatureServer census fixture;
+        # asserts the deterministic control passes every one (offline, no models).
+        run: npm run eval:standalone
 
       - name: Cross-model workflow eval artifact
         if: always()
@@ -156,6 +168,8 @@ jobs:
           path: |
             mcp/mcp-certification-results.json
             mcp/mcp-certification-results.md
+            mcp/standalone-cert/mcp-certification-results.json
+            mcp/standalone-cert/mcp-certification-results.md
             mcp/mcp-eval-results.json
             mcp/mcp-eval-results.md
           if-no-files-found: warn

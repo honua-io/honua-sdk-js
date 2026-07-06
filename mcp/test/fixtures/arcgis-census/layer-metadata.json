@@ -1,0 +1,894 @@
+{
+  "currentVersion": 12,
+  "id": 0,
+  "name": "States 2020 Apportionment - U.S. House of Representatives Seats",
+  "inDedicatedHosting": true,
+  "preferredHost": "p3eplmys2rvchkjx.svcs.arcgis.com",
+  "type": "Feature Layer",
+  "serviceItemId": "d1e448bf3dde42338cfc97b85176b36e",
+  "cacheMaxAge": 3600,
+  "sourceSchemaChangesAllowed": false,
+  "hasViews": true,
+  "displayField": "NAME",
+  "description": "",
+  "copyrightText": "",
+  "defaultVisibility": true,
+  "editingInfo": {
+    "lastEditDate": 1763147637131,
+    "schemaLastEditDate": 1763147637131,
+    "dataLastEditDate": 1763147637131
+  },
+  "multiScaleGeometryInfo": {
+    "levels": [
+      1,
+      3,
+      5,
+      7,
+      9,
+      11
+    ],
+    "generalizationType": "Default"
+  },
+  "relationships": [],
+  "isDataVersioned": false,
+  "hasContingentValuesDefinition": false,
+  "supportsAppend": true,
+  "supportsCalculate": true,
+  "supportsASyncCalculate": true,
+  "supportsTruncate": true,
+  "supportsAttachmentsByUploadId": true,
+  "supportsAttachmentsResizing": true,
+  "supportsRollbackOnFailureParameter": true,
+  "supportsStatistics": true,
+  "supportsExceedsLimitStatistics": true,
+  "supportsAdvancedQueries": true,
+  "supportsValidateSql": true,
+  "supportsCoordinatesQuantization": true,
+  "supportsLayerOverrides": true,
+  "supportsTilesAndBasicQueriesMode": true,
+  "supportsFieldDescriptionProperty": true,
+  "supportsQuantizationEditMode": true,
+  "supportsColumnStoreIndex": true,
+  "supportsApplyEditsWithGlobalIds": false,
+  "supportsMultiScaleGeometry": true,
+  "supportsReturningQueryGeometry": true,
+  "enableNullGeometry": false,
+  "hasGeometryProperties": true,
+  "geometryProperties": {
+    "shapeAreaFieldName": "Shape__Area",
+    "shapeLengthFieldName": "Shape__Length",
+    "units": "esriMeters"
+  },
+  "advancedQueryCapabilities": {
+    "supportsPagination": true,
+    "supportsPaginationOnAggregatedQueries": true,
+    "supportsQueryRelatedPagination": true,
+    "supportsQueryWithDistance": true,
+    "supportsOutDistance": true,
+    "supportsReturningQueryExtent": true,
+    "supportsStatistics": true,
+    "supportsOrderBy": true,
+    "supportsDistinct": true,
+    "supportsQueryWithResultType": true,
+    "supportsSqlExpression": true,
+    "supportsTimeRelation": true,
+    "supportsAdvancedQueryRelated": true,
+    "supportsCountDistinct": true,
+    "supportsPercentileStatistics": true,
+    "supportsApproxPercentileStatistics": true,
+    "supportsSpatialAggregationStatistics": true,
+    "supportsTrueCurve": true,
+    "supportedSpatialAggregationStatistics": [
+      "EnvelopeAggregate",
+      "CentroidAggregate",
+      "ConvexHullAggregate"
+    ],
+    "supportsLod": true,
+    "supportsQueryWithLodSR": false,
+    "supportedLodTypes": [
+      "geohash"
+    ],
+    "supportsReturningGeometryCentroid": true,
+    "supportsReturningGeometryEnvelope": true,
+    "supportsReturningGeometryProperties": true,
+    "supportsQueryWithDatumTransformation": true,
+    "supportsCurrentUserQueries": true,
+    "supportsHavingClause": true,
+    "supportsOutFieldSQLExpression": true,
+    "supportsMaxRecordCountFactor": true,
+    "supportsTopFeaturesQuery": true,
+    "supportsDisjointSpatialRel": true,
+    "supportsQueryWithCacheHint": true,
+    "supportedOperationsWithCacheHint": [
+      "query",
+      "queryTopFilter",
+      "queryAnalytics",
+      "queryAttachments",
+      "queryRelated",
+      "queryBins",
+      "queryPivot"
+    ],
+    "supportsQueryAnalytic": true,
+    "supportsQueryPivot": true,
+    "supportsQueryBins": true,
+    "supportsDefaultSR": true,
+    "supportsTranslations": false,
+    "supportsAggIds": true,
+    "supportsQueryWithCollation": true,
+    "supportsISODOW": true,
+    "supportsISOWeek": true,
+    "supportsFullTextSearch": true,
+    "fullTextSearchCapabilities": {
+      "supportsAccentSensitivity": true,
+      "supportsStopWords": true,
+      "supportsSearchOperator": true,
+      "supportsOperator": true
+    }
+  },
+  "advancedQueryAnalyticCapabilities": {
+    "supportsLinearRegression": true,
+    "supportsTrendlineRegression": true,
+    "supportsAsync": true,
+    "supportsPercentileAnalytic": true
+  },
+  "queryBinsCapabilities": {
+    "supportsAsync": true,
+    "supportsAutoIntervalBin": true,
+    "supportsFixedIntervalBin": true,
+    "supportsFixedBoundariesBin": true,
+    "supportsDateBin": true,
+    "supportsClassificationBin": true,
+    "supportsStackBy": true,
+    "supportsSplitBy": true,
+    "supportsFirstDayOfWeek": true,
+    "supportsSnapToData": true,
+    "supportsReturnFullIntervalBin": true,
+    "supportsReturnStackValueRange": true,
+    "supportsNormalization": true,
+    "supportedStatisticTypes": [
+      "COUNT",
+      "SUM",
+      "AVG",
+      "VAR",
+      "STDDEV",
+      "MIN",
+      "MAX",
+      "PERCENTILE_CONT",
+      "PERCENTILE_DISC",
+      "APPROX_PERCENTILE_CONT",
+      "APPROX_PERCENTILE_DISC",
+      "CentroidAggregate",
+      "EnvelopeAggregate",
+      "ConvexHullAggregate"
+    ],
+    "supportedNormalizationTypes": [
+      "boxCox",
+      "field",
+      "inverse",
+      "log",
+      "naturalLog",
+      "percentOfTotal",
+      "squareRoot"
+    ]
+  },
+  "supportedOperationsWithCollation": "query,addField,updateField",
+  "advancedEditingCapabilities": {
+    "supportedSqlFormatsInCalculate": [
+      "standard"
+    ],
+    "supportsAsyncApplyEdits": true,
+    "supportsReturnEditResults": true,
+    "supportsApplyEditsbyUploadID": true,
+    "supportedApplyEditsUploadIDFormats": "JSON,PBF",
+    "supportsTranslation": false,
+    "supportsMaxTranslations": 10
+  },
+  "infoInEstimates": [
+    "extent",
+    "count"
+  ],
+  "useStandardizedQueries": true,
+  "geometryType": "esriGeometryPolygon",
+  "minScale": 0,
+  "maxScale": 0,
+  "extent": {
+    "xmin": -19942592.3656,
+    "ymin": 2024070.8216000013,
+    "xmax": 20012846.037699997,
+    "ymax": 11523911.845299996,
+    "spatialReference": {
+      "wkid": 102100,
+      "latestWkid": 3857
+    }
+  },
+  "spatialReference": {
+    "wkid": 102100,
+    "latestWkid": 3857
+  },
+  "drawingInfo": {
+    "renderer": {
+      "type": "uniqueValue",
+      "field1": "Seats_Change_2010to2020",
+      "defaultSymbol": {
+        "color": [
+          170,
+          170,
+          170,
+          255
+        ],
+        "outline": {
+          "color": [
+            153,
+            153,
+            153,
+            64
+          ],
+          "width": 0.75,
+          "type": "esriSLS",
+          "style": "esriSLSSolid"
+        },
+        "type": "esriSFS",
+        "style": "esriSFSSolid"
+      },
+      "defaultLabel": "No Seats (DC/PR)",
+      "uniqueValueInfos": [
+        {
+          "value": "2",
+          "symbol": {
+            "color": [
+              10,
+              110,
+              85,
+              255
+            ],
+            "outline": {
+              "color": [
+                173,
+                173,
+                173,
+                36
+              ],
+              "width": 0.75,
+              "type": "esriSLS",
+              "style": "esriSLSSolid"
+            },
+            "type": "esriSFS",
+            "style": "esriSFSSolid"
+          },
+          "label": "+2 Seats"
+        },
+        {
+          "value": "1",
+          "symbol": {
+            "color": [
+              16,
+              191,
+              150,
+              255
+            ],
+            "outline": {
+              "color": [
+                173,
+                173,
+                173,
+                36
+              ],
+              "width": 0.75,
+              "type": "esriSLS",
+              "style": "esriSLSSolid"
+            },
+            "type": "esriSFS",
+            "style": "esriSFSSolid"
+          },
+          "label": "+1 Seat"
+        },
+        {
+          "value": "0",
+          "symbol": {
+            "color": [
+              235,
+              235,
+              235,
+              255
+            ],
+            "outline": {
+              "color": [
+                173,
+                173,
+                173,
+                36
+              ],
+              "width": 0.75,
+              "type": "esriSLS",
+              "style": "esriSLSSolid"
+            },
+            "type": "esriSFS",
+            "style": "esriSFSSolid"
+          },
+          "label": "No change"
+        },
+        {
+          "value": "-1",
+          "symbol": {
+            "color": [
+              255,
+              61,
+              13,
+              255
+            ],
+            "outline": {
+              "color": [
+                173,
+                173,
+                173,
+                36
+              ],
+              "width": 0.75,
+              "type": "esriSLS",
+              "style": "esriSLSSolid"
+            },
+            "type": "esriSFS",
+            "style": "esriSFSSolid"
+          },
+          "label": "-1 Seat"
+        }
+      ]
+    },
+    "labelingInfo": [
+      {
+        "labelExpression": null,
+        "labelExpressionInfo": {
+          "expression": "$feature[\"Seats_2020\"]",
+          "value": "{Seats_2020}"
+        },
+        "fieldInfos": [
+          {
+            "fieldName": "Seats_2020",
+            "format": {
+              "places": 0,
+              "digitSeparator": false
+            }
+          }
+        ],
+        "useCodedValues": true,
+        "maxScale": 0,
+        "minScale": 0,
+        "where": null,
+        "labelPlacement": "esriServerPolygonPlacementAlwaysHorizontal",
+        "symbol": {
+          "color": [
+            51,
+            51,
+            51,
+            255
+          ],
+          "type": "esriTS",
+          "backgroundColor": null,
+          "borderLineColor": null,
+          "haloSize": 0,
+          "haloColor": null,
+          "horizontalAlignment": "center",
+          "rightToLeft": false,
+          "angle": 0,
+          "xoffset": 0,
+          "yoffset": 0,
+          "text": "",
+          "rotated": false,
+          "kerning": true,
+          "font": {
+            "size": 9.75,
+            "style": "normal",
+            "decoration": "none",
+            "weight": "bold",
+            "family": "Arial"
+          }
+        }
+      }
+    ],
+    "transparency": 0
+  },
+  "allowGeometryUpdates": true,
+  "trueCurveSupportMode": "OGC",
+  "supportedCurveTypes": [
+    "esriGeometryCircularArc"
+  ],
+  "supportedTrueCurvePbfFeatureEncodings": [
+    "esriCompressedShapeBuffer",
+    "esriDefault"
+  ],
+  "allowTrueCurvesUpdates": true,
+  "onlyAllowTrueCurveUpdatesByTrueCurveClients": false,
+  "hasAttachments": false,
+  "htmlPopupType": "esriServerHTMLPopupTypeAsHTMLText",
+  "hasMetadata": true,
+  "hasM": false,
+  "hasZ": false,
+  "objectIdField": "OBJECTID",
+  "uniqueIdField": {
+    "name": "OBJECTID",
+    "isSystemMaintained": true
+  },
+  "globalIdField": "",
+  "typeIdField": "Seats_Change_2010to2020",
+  "collation": {
+    "locale": "neutral",
+    "caseSensitive": false,
+    "accentSensitive": true
+  },
+  "fields": [
+    {
+      "name": "OBJECTID",
+      "type": "esriFieldTypeOID",
+      "alias": "OBJECTID",
+      "sqlType": "sqlTypeOther",
+      "nullable": false,
+      "editable": false,
+      "domain": null,
+      "defaultValue": null
+    },
+    {
+      "name": "NAME",
+      "type": "esriFieldTypeString",
+      "alias": "State Name",
+      "sqlType": "sqlTypeOther",
+      "length": 100,
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"State Name of feature\\n\",\"fieldValueType\":\"nameOrTitle\"}"
+    },
+    {
+      "name": "STUSPS",
+      "type": "esriFieldTypeString",
+      "alias": "State Abbreviation",
+      "sqlType": "sqlTypeOther",
+      "length": 20,
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"State Abbreviation of feature\",\"fieldValueType\":\"nameOrTitle\"}"
+    },
+    {
+      "name": "GEO_ID",
+      "type": "esriFieldTypeString",
+      "alias": "GEOID FIPS Code",
+      "sqlType": "sqlTypeOther",
+      "length": 8000,
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"FIPS Code uniquely identifying each feature.\",\"fieldValueType\":\"uniqueIdentifier\"}"
+    },
+    {
+      "name": "STATENS",
+      "type": "esriFieldTypeString",
+      "alias": "STATENS",
+      "sqlType": "sqlTypeOther",
+      "length": 8,
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null
+    },
+    {
+      "name": "GEOID",
+      "type": "esriFieldTypeString",
+      "alias": "GEOID FIPS Code",
+      "sqlType": "sqlTypeOther",
+      "length": 10,
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"FIPS Code uniquely identifying each feature.\",\"fieldValueType\":\"uniqueIdentifier\"}"
+    },
+    {
+      "name": "Total_Pop_2020",
+      "type": "esriFieldTypeInteger",
+      "alias": "Total Population, 2020",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"Apportionment Population for 50 states as of April 1, 2020. Includes the resident population, as ascertained by the 24th Decennial Census under Title 13, U.S. Code, & counts of U.S. military & federal civilian employees living overseas (and their dependents living with them overseas) allocated to their home state, as reported by the employing federal agencies. Overseas count used for apportionment purposes only. Values for DC & Puerto Rico calculated by summing resident & overseas population. \",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Seats_2020",
+      "type": "esriFieldTypeInteger",
+      "alias": "Seats in the U.S. House of Representatives, 2020",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"The U.S. Census Bureau prepared these calculations using the existing size of the U.S. House of Representatives (435 members) and the Method of Equal Proportions, as provided for in Title 2, United States Code, Sections 2a and 2b.\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Resident_Pop_2020",
+      "type": "esriFieldTypeInteger",
+      "alias": "Resident Population, 2020",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"Includes the resident population as of April 1st, 2020 for the 50 states and the District of Columbia, as ascertained by the Twenty-Fourth Decennial Census under Title 13, United States Code.\\n\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Overseas_Pop_2020",
+      "type": "esriFieldTypeInteger",
+      "alias": "Overseas Population, 2020",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"\\\"Includes U.S. military and federal civilian employees living overseas (and their dependents living with them overseas) \\nallocated to their home state or the District of Columbia, as reported by the employing federal agencies as of April 1st, 2020.\\\"\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Total_Pop_2010",
+      "type": "esriFieldTypeInteger",
+      "alias": "Total Population, 2010",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"Apportionment population includes the resident population for the 50 states, as ascertained by the 23rd Decennial Census under Title 13, United States Code, and counts of overseas U.S. military and federal civilian employees (and their dependents living with them) allocated to their home state, as reported by the employing federal agencies as of April 1, 2010. Values for DC and Puerto Rico calculated by summing resident population and overseas population.\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Seats_2010",
+      "type": "esriFieldTypeInteger",
+      "alias": "Seats in the U.S. House of Representatives, 2010",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"The U.S. Census Bureau prepared these calculations using the existing size of the U.S. House of Representatives (435 members) and the Method of Equal Proportions, as provided for in Title 2, United States Code, Sections 2a and 2b.\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Resident_Pop_2010",
+      "type": "esriFieldTypeInteger",
+      "alias": "Resident Population, 2010",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"Includes the resident population as of April 1st, 2010 for the 50 states and the District of Columbia, as ascertained by the Twenty-Third Decennial Census under Title 13, United States Code.\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Overseas_Pop_2010",
+      "type": "esriFieldTypeInteger",
+      "alias": "Overseas Population, 2010",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"Includes overseas U.S. military and federal civilian employees (and their dependents living with them) allocated to their home state or the District of Columbia, as reported by the employing federal agencies as of April 1st, 2010.\\n\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "TotalPopChange_2010to2020",
+      "type": "esriFieldTypeInteger",
+      "alias": "Change in Total Population, 2010 to 2020",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"Total population includes both resident and overseas population, same as apportionment population for 50 states. Change from 2010 to 2020 calculated by Esri.\\n\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Total_Pct_Change_2010to2020",
+      "type": "esriFieldTypeDouble",
+      "alias": "Percent Change in Total Population, 2010 to 2020",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"Total population includes both resident and overseas population, same as apportionment population for 50 states. Percent change from 2010 to 2020 calculated by Esri.\\n\",\"fieldValueType\":\"percentageOrRatio\"}"
+    },
+    {
+      "name": "Seats_Change_2010to2020",
+      "type": "esriFieldTypeSmallInteger",
+      "alias": "Change in Seats in the U.S. House of Representatives, 2010 to 2020",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"The U.S. Census Bureau prepared these calculations using the existing size of the U.S. House of Representatives (435 members) and the Method of Equal Proportions, as provided for in Title 2, United States Code, Sections 2a and 2b.\\n\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Seats_Change_2000to2010",
+      "type": "esriFieldTypeSmallInteger",
+      "alias": "Change in Seats in the U.S. House of Representatives, 2000 to 2010",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"The U.S. Census Bureau prepared these calculations using the existing size of the U.S. House of Representatives (435 members) and the Method of Equal Proportions, as provided for in Title 2, United States Code, Sections 2a and 2b.\\n\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Resident_Change_2010to2020",
+      "type": "esriFieldTypeInteger",
+      "alias": "Change in Resident Population, 2010 to 2020",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"Change in resident population from April 1st, 2010 to April 1st, 2020, for the 50 states and the District of Columbia, as ascertained by the Census Bureau under Title 13, United States Code.\\n\",\"fieldValueType\":\"countOrAmount\"}"
+    },
+    {
+      "name": "Resident_Pct_Change_2010to2020",
+      "type": "esriFieldTypeDouble",
+      "alias": "Percent Change in Resident Population, 2010 to 2020",
+      "sqlType": "sqlTypeOther",
+      "nullable": true,
+      "editable": true,
+      "domain": null,
+      "defaultValue": null,
+      "description": "{\"value\":\"Percent change in resident population from April 1st, 2010 to April 1st, 2020, for the 50 states and the District of Columbia, as ascertained by the Census Bureau under Title 13, United States Code.\\n\",\"fieldValueType\":\"percentageOrRatio\"}"
+    },
+    {
+      "name": "Shape__Area",
+      "type": "esriFieldTypeDouble",
+      "alias": "Shape__Area",
+      "sqlType": "sqlTypeDouble",
+      "nullable": true,
+      "editable": false,
+      "domain": null,
+      "defaultValue": null
+    },
+    {
+      "name": "Shape__Length",
+      "type": "esriFieldTypeDouble",
+      "alias": "Shape__Length",
+      "sqlType": "sqlTypeDouble",
+      "nullable": true,
+      "editable": false,
+      "domain": null,
+      "defaultValue": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "PK__T_2020_C__F4B70D85960D0901",
+      "fields": "OBJECTID",
+      "isAscending": true,
+      "isUnique": true,
+      "description": "",
+      "indexType": "Attribute"
+    },
+    {
+      "name": "user_256.T_2020_CENSUS_STATE_APPORTIONMENT_STATES_2020_APPORTIONMENT_Shape_sidx",
+      "fields": "Shape",
+      "isAscending": true,
+      "isUnique": false,
+      "description": "",
+      "indexType": "Spatial"
+    },
+    {
+      "name": "Shape__Area_Index",
+      "fields": "Shape__Area",
+      "isAscending": true,
+      "isUnique": false,
+      "description": "",
+      "indexType": "Attribute"
+    },
+    {
+      "name": "Shape__Length_Index",
+      "fields": "Shape__Length",
+      "isAscending": true,
+      "isUnique": false,
+      "description": "",
+      "indexType": "Attribute"
+    },
+    {
+      "name": "Seats_Change_2010to2020_Index",
+      "fields": "Seats_Change_2010to2020",
+      "isAscending": true,
+      "isUnique": false,
+      "description": "Seats_Change_2010to2020_Index",
+      "indexType": "Attribute"
+    },
+    {
+      "name": "STUSPS_Index",
+      "fields": "STUSPS",
+      "isAscending": true,
+      "isUnique": false,
+      "description": "STUSPS_Index",
+      "indexType": "Attribute"
+    }
+  ],
+  "dateFieldsTimeReference": {
+    "timeZone": "UTC",
+    "timeZoneIANA": "Etc/UTC",
+    "respectsDaylightSaving": false
+  },
+  "preferredTimeReference": null,
+  "types": [
+    {
+      "id": 2,
+      "name": "2",
+      "domains": {},
+      "templates": [
+        {
+          "name": "2",
+          "description": "",
+          "drawingTool": "esriFeatureEditToolNone",
+          "prototype": {
+            "attributes": {
+              "Seats_Change_2010to2020": 2,
+              "NAME": null,
+              "STUSPS": null,
+              "GEO_ID": null,
+              "STATENS": null,
+              "GEOID": null,
+              "Total_Pop_2020": null,
+              "Seats_2020": null,
+              "Resident_Pop_2020": null,
+              "Overseas_Pop_2020": null,
+              "Total_Pop_2010": null,
+              "Seats_2010": null,
+              "Resident_Pop_2010": null,
+              "Overseas_Pop_2010": null,
+              "TotalPopChange_2010to2020": null,
+              "Total_Pct_Change_2010to2020": null,
+              "Seats_Change_2000to2010": null,
+              "Resident_Change_2010to2020": null,
+              "Resident_Pct_Change_2010to2020": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "1",
+      "domains": {},
+      "templates": [
+        {
+          "name": "1",
+          "description": "",
+          "drawingTool": "esriFeatureEditToolNone",
+          "prototype": {
+            "attributes": {
+              "Seats_Change_2010to2020": 1,
+              "NAME": null,
+              "STUSPS": null,
+              "GEO_ID": null,
+              "STATENS": null,
+              "GEOID": null,
+              "Total_Pop_2020": null,
+              "Seats_2020": null,
+              "Resident_Pop_2020": null,
+              "Overseas_Pop_2020": null,
+              "Total_Pop_2010": null,
+              "Seats_2010": null,
+              "Resident_Pop_2010": null,
+              "Overseas_Pop_2010": null,
+              "TotalPopChange_2010to2020": null,
+              "Total_Pct_Change_2010to2020": null,
+              "Seats_Change_2000to2010": null,
+              "Resident_Change_2010to2020": null,
+              "Resident_Pct_Change_2010to2020": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 0,
+      "name": "0",
+      "domains": {},
+      "templates": [
+        {
+          "name": "0",
+          "description": "",
+          "drawingTool": "esriFeatureEditToolNone",
+          "prototype": {
+            "attributes": {
+              "Seats_Change_2010to2020": 0,
+              "NAME": null,
+              "STUSPS": null,
+              "GEO_ID": null,
+              "STATENS": null,
+              "GEOID": null,
+              "Total_Pop_2020": null,
+              "Seats_2020": null,
+              "Resident_Pop_2020": null,
+              "Overseas_Pop_2020": null,
+              "Total_Pop_2010": null,
+              "Seats_2010": null,
+              "Resident_Pop_2010": null,
+              "Overseas_Pop_2010": null,
+              "TotalPopChange_2010to2020": null,
+              "Total_Pct_Change_2010to2020": null,
+              "Seats_Change_2000to2010": null,
+              "Resident_Change_2010to2020": null,
+              "Resident_Pct_Change_2010to2020": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": -1,
+      "name": "-1",
+      "domains": {},
+      "templates": [
+        {
+          "name": "-1",
+          "description": "",
+          "drawingTool": "esriFeatureEditToolNone",
+          "prototype": {
+            "attributes": {
+              "Seats_Change_2010to2020": -1,
+              "NAME": null,
+              "STUSPS": null,
+              "GEO_ID": null,
+              "STATENS": null,
+              "GEOID": null,
+              "Total_Pop_2020": null,
+              "Seats_2020": null,
+              "Resident_Pop_2020": null,
+              "Overseas_Pop_2020": null,
+              "Total_Pop_2010": null,
+              "Seats_2010": null,
+              "Resident_Pop_2010": null,
+              "Overseas_Pop_2010": null,
+              "TotalPopChange_2010to2020": null,
+              "Total_Pct_Change_2010to2020": null,
+              "Seats_Change_2000to2010": null,
+              "Resident_Change_2010to2020": null,
+              "Resident_Pct_Change_2010to2020": null
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [],
+  "supportedQueryFormats": "JSON, geoJSON, PBF",
+  "supportedAppendFormats": "sqlite,geoPackage,shapefile,filegdb,featureCollection,geojson,csv,excel,jsonl,featureService,pbf",
+  "supportedAppendSourceFilterFormats": "sqlite,geoPackage,shapefile,filegdb,featureService",
+  "supportedExportFormats": "csv,shapefile,sqlite,geoPackage,filegdb,featureCollection,geojson,kml,excel,parquet",
+  "supportedConvertFileFormats": "JSON,PBF,Parquet",
+  "supportedConvertContentFormats": "LayerEditCollection,FeatureCollection",
+  "supportedSpatialRelationships": [
+    "esriSpatialRelIntersects",
+    "esriSpatialRelContains",
+    "esriSpatialRelCrosses",
+    "esriSpatialRelEnvelopeIntersects",
+    "esriSpatialRelIndexIntersects",
+    "esriSpatialRelOverlaps",
+    "esriSpatialRelTouches",
+    "esriSpatialRelWithin",
+    "esriSpatialRelDisjoint",
+    "esriSpatialRelRelation"
+  ],
+  "guidFormat": "",
+  "supportsContingentValues": true,
+  "supportsEditingContingentValues": true,
+  "supportedContingentValuesFormats": "JSON, PBF",
+  "supportsFieldGroups": true,
+  "supportedSyncDataOptions": 260,
+  "hasStaticData": true,
+  "maxRecordCount": 2000,
+  "standardMaxRecordCount": 2000,
+  "maxIdsCount": 1000000,
+  "standardMaxRecordCountNoGeometry": 32000,
+  "tileMaxRecordCount": 4000,
+  "maxRecordCountFactor": 1,
+  "capabilities": "Query,Extract"
+}

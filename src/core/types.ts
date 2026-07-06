@@ -673,9 +673,52 @@ export interface HonuaServerCompatibilityStatus {
 
 export type OgcResponseFormat = "json" | "html" | "geojson" | "gml" | "csv" | "schemajson" | "schema+json";
 
+/**
+ * Resolved OGC API endpoint layout — the concrete resource paths (or
+ * absolute URLs) a Features / Records client addresses for one server.
+ *
+ * Two shapes are produced by {@link ../ogc-endpoint-layout}:
+ *
+ *  - `honua-facade` — the fixed `/ogc/features/...` facade paths. This is
+ *    the zero-round-trip fast path and the default, so existing callers
+ *    pointing at a Honua Server see identical behaviour.
+ *  - `ogc-api` — a spec-discovered raw layout. The collections and
+ *    conformance URLs come from the landing page's `rel="data"` /
+ *    `rel="conformance"` links (OGC API - Common Requirement 5), and the
+ *    per-collection item paths follow the mandated
+ *    `{collections}/{collectionId}/items` template (OGC API - Features
+ *    Requirement 17). Lets the same typed `Query` run against pygeoapi,
+ *    ldproxy, GeoServer OGC API, etc. without a Honua facade.
+ *
+ * Every method returns a path or absolute URL WITHOUT a query string; the
+ * wire layer appends the shared `f=`/param string.
+ */
+export interface OgcEndpointLayout {
+  readonly mode: "honua-facade" | "ogc-api";
+  landing(): string;
+  conformance(): string;
+  collections(): string;
+  collection(collectionId: string | number): string;
+  queryables(collectionId: string | number): string;
+  items(collectionId: string | number): string;
+  item(collectionId: string | number, featureId: string | number): string;
+}
+
 export interface OgcMetadataRequest extends HonuaMetadataRequestOptions {
   responseFormat?: OgcResponseFormat | string;
   extraParams?: Record<string, string | number | boolean>;
+  /**
+   * Resolved endpoint layout. Omitted requests use the Honua facade fast
+   * path (`/ogc/features/...`); the backend-agnostic surfaces resolve a
+   * spec-driven layout once and thread it onto every request.
+   */
+  layout?: OgcEndpointLayout;
+  /**
+   * STAC-only: path prefix the STAC endpoints are mounted under. Defaults
+   * to `/stac` (Honua facade). A raw STAC API root passes `""`. Ignored by
+   * the OGC API Features methods (which use {@link layout}).
+   */
+  stacBasePath?: string;
 }
 
 export interface OgcCollectionRequest extends OgcMetadataRequest {
@@ -1501,6 +1544,13 @@ export interface StacSearchRequest {
   signal?: AbortSignal;
   /** When `true`, the adapter posts the body to `/search`. */
   usePost?: boolean;
+  /**
+   * Path prefix the STAC endpoints are mounted under. Defaults to `/stac`
+   * (the Honua Server facade). Backend-agnostic callers pointing at a raw
+   * STAC API root (e.g. Earth Search at `.../v1`) pass `""` so the search
+   * and collection paths resolve directly under the client baseUrl.
+   */
+  stacBasePath?: string;
 }
 
 /** Single STAC item (a GeoJSON feature with STAC-specific extensions). */

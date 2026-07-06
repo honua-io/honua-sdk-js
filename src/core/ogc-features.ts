@@ -8,6 +8,7 @@
  * @module
  */
 
+import { honuaFacadeFeaturesLayout } from "./ogc-endpoint-layout.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
   HonuaOgcCollectionMetadata,
@@ -20,6 +21,7 @@ import type {
   OgcCollectionRequest,
   OgcCreateItemRequest,
   OgcDeleteItemRequest,
+  OgcEndpointLayout,
   OgcItemRequest,
   OgcItemsRequest,
   OgcMetadataRequest,
@@ -28,14 +30,32 @@ import type {
 } from "./types.js";
 import { createOgcMetadataParams, mergeHeaders, normalizeCsv } from "./wire-shared.js";
 
+/**
+ * The endpoint layout to build paths against. Defaults to the Honua facade
+ * fast path (`/ogc/features/...`); backend-agnostic callers thread a
+ * spec-discovered layout onto `request.layout`.
+ */
+function layoutOf(request: { layout?: OgcEndpointLayout }): OgcEndpointLayout {
+  return request.layout ?? honuaFacadeFeaturesLayout();
+}
+
+/**
+ * A layout key fragment for cache keys so the facade and a discovered raw
+ * layout never collide in the metadata cache.
+ */
+function layoutKey(layout: OgcEndpointLayout): string {
+  return layout.mode === "honua-facade" ? "facade" : layout.collections();
+}
+
 export async function getOgcFeaturesLanding(
   transport: HonuaProtocolTransport,
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcLandingResponse> {
   const params = createOgcMetadataParams(request);
+  const layout = layoutOf(request);
   return transport.requestCachedMetadataJson<HonuaOgcLandingResponse>(
-    `ogc-features:landing:${params.toString()}`,
-    `/ogc/features?${params.toString()}`,
+    `ogc-features:landing:${layoutKey(layout)}:${params.toString()}`,
+    `${layout.landing()}?${params.toString()}`,
     request,
   );
 }
@@ -45,9 +65,10 @@ export async function getOgcFeaturesConformance(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcConformanceResponse> {
   const params = createOgcMetadataParams(request);
+  const layout = layoutOf(request);
   return transport.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
-    `ogc-features:conformance:${params.toString()}`,
-    `/ogc/features/conformance?${params.toString()}`,
+    `ogc-features:conformance:${layoutKey(layout)}:${params.toString()}`,
+    `${layout.conformance()}?${params.toString()}`,
     request,
   );
 }
@@ -57,9 +78,10 @@ export async function listOgcCollections(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcCollectionsResponse> {
   const params = createOgcMetadataParams(request);
+  const layout = layoutOf(request);
   return transport.requestCachedMetadataJson<HonuaOgcCollectionsResponse>(
-    `ogc-features:collections:${params.toString()}`,
-    `/ogc/features/collections?${params.toString()}`,
+    `ogc-features:collections:${layoutKey(layout)}:${params.toString()}`,
+    `${layout.collections()}?${params.toString()}`,
     request,
   );
 }
@@ -69,10 +91,10 @@ export async function getOgcCollection(
   request: OgcCollectionRequest,
 ): Promise<HonuaOgcCollectionMetadata> {
   const params = createOgcMetadataParams(request);
-  const path = `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}`;
+  const layout = layoutOf(request);
   return transport.requestCachedMetadataJson<HonuaOgcCollectionMetadata>(
-    `ogc-features:collection:${request.collectionId}:${params.toString()}`,
-    `${path}?${params.toString()}`,
+    `ogc-features:collection:${layoutKey(layout)}:${request.collectionId}:${params.toString()}`,
+    `${layout.collection(request.collectionId)}?${params.toString()}`,
     request,
   );
 }
@@ -82,10 +104,10 @@ export async function getOgcQueryables(
   request: OgcCollectionRequest,
 ): Promise<HonuaOgcQueryablesResponse> {
   const params = createOgcMetadataParams(request);
-  const path = `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}/queryables`;
+  const layout = layoutOf(request);
   return transport.requestCachedMetadataJson<HonuaOgcQueryablesResponse>(
-    `ogc-features:queryables:${request.collectionId}:${params.toString()}`,
-    `${path}?${params.toString()}`,
+    `ogc-features:queryables:${layoutKey(layout)}:${request.collectionId}:${params.toString()}`,
+    `${layout.queryables(request.collectionId)}?${params.toString()}`,
     request,
   );
 }
@@ -122,7 +144,7 @@ export async function listOgcItems(
   if (request.crs !== undefined) {
     params.set("crs", request.crs);
   }
-  const path = `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}/items`;
+  const path = layoutOf(request).items(request.collectionId);
   return transport.requestJson<HonuaOgcFeatureCollectionResponse>(
     "GET",
     `${path}?${params.toString()}`,
@@ -139,9 +161,7 @@ export async function getOgcItem(
   if (request.crs !== undefined) {
     params.set("crs", request.crs);
   }
-  const path =
-    `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}` +
-    `/items/${encodeURIComponent(String(request.featureId))}`;
+  const path = layoutOf(request).item(request.collectionId, request.featureId);
   return transport.requestJson<HonuaOgcFeatureResponse>(
     "GET",
     `${path}?${params.toString()}`,
@@ -155,7 +175,7 @@ export async function createOgcItem(
   request: OgcCreateItemRequest,
 ): Promise<HonuaOgcFeatureResponse> {
   const params = createOgcMetadataParams(request);
-  const path = `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}/items`;
+  const path = layoutOf(request).items(request.collectionId);
   return transport.requestJson<HonuaOgcFeatureResponse>(
     "POST",
     `${path}?${params.toString()}`,
@@ -175,9 +195,7 @@ export async function replaceOgcItem(
   if (request.crs !== undefined) {
     params.set("crs", request.crs);
   }
-  const path =
-    `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}` +
-    `/items/${encodeURIComponent(String(request.featureId))}`;
+  const path = layoutOf(request).item(request.collectionId, request.featureId);
   return transport.requestJson<HonuaOgcFeatureResponse>(
     "PUT",
     `${path}?${params.toString()}`,
@@ -197,9 +215,7 @@ export async function patchOgcItem(
   if (request.crs !== undefined) {
     params.set("crs", request.crs);
   }
-  const path =
-    `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}` +
-    `/items/${encodeURIComponent(String(request.featureId))}`;
+  const path = layoutOf(request).item(request.collectionId, request.featureId);
   return transport.requestJson<HonuaOgcFeatureResponse>(
     "PATCH",
     `${path}?${params.toString()}`,
@@ -216,8 +232,6 @@ export async function deleteOgcItem(transport: HonuaProtocolTransport, request: 
   if (request.crs !== undefined) {
     params.set("crs", request.crs);
   }
-  const path =
-    `/ogc/features/collections/${encodeURIComponent(String(request.collectionId))}` +
-    `/items/${encodeURIComponent(String(request.featureId))}`;
+  const path = layoutOf(request).item(request.collectionId, request.featureId);
   await transport.requestJson("DELETE", `${path}?${params.toString()}`, undefined, request.signal);
 }

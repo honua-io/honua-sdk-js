@@ -27,17 +27,26 @@ export function grade(scenario: Scenario, transcript: WorkflowTranscript): Scena
     errorCount: transcript.errorCount,
   };
 
+  const { criteria } = scenario;
+
   if (transcript.driverError) {
     return { ...base, outcome: "error", violations: [transcript.driverError] };
   }
   if (transcript.clarificationRequested) {
+    // For an ambiguity/refusal scenario, clarifying IS the correct behavior.
+    if (criteria.expectClarification) {
+      return { ...base, outcome: "pass", violations: [] };
+    }
     return { ...base, outcome: "clarified", violations: ["driver requested clarification"] };
+  }
+  if (criteria.expectClarification) {
+    // The prompt was ambiguous/unsupported but the driver answered anyway.
+    return { ...base, outcome: "fail", violations: ["expected a clarifying question but the driver completed"] };
   }
 
   const violations: string[] = [];
   const calledTools = transcript.steps.map((s) => s.tool);
   const calledSet = new Set(calledTools);
-  const { criteria } = scenario;
 
   for (const required of criteria.requiredTools) {
     if (!calledSet.has(required)) {
@@ -59,6 +68,18 @@ export function grade(scenario: Scenario, transcript: WorkflowTranscript): Scena
   for (const fragment of criteria.answerMustInclude ?? []) {
     if (!answer.includes(fragment.toLowerCase())) {
       violations.push(`answer missing expected content: "${fragment}"`);
+    }
+  }
+
+  // Semantic assertions (issue #369): meaning, not just trajectory.
+  for (const fragment of criteria.answerMustNotInclude ?? []) {
+    if (answer.includes(fragment.toLowerCase())) {
+      violations.push(`answer contains forbidden content: "${fragment}"`);
+    }
+  }
+  for (const pattern of criteria.answerMustMatch ?? []) {
+    if (!new RegExp(pattern, "i").test(transcript.finalAnswer)) {
+      violations.push(`answer did not match required pattern: /${pattern}/i`);
     }
   }
 

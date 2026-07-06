@@ -332,9 +332,11 @@ describe("HonuaController", () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
       exports?: Record<string, { types?: string; default?: string }>;
     };
+    // Moved to `@honua/app-platform/app-controller` in the 1.0 scope split; the
+    // old subpath resolves through a one-minor `@deprecated` re-export shim.
     expect(packageJson.exports?.["./app-controller"]).toEqual({
-      types: "./dist/src/app-controller/index.d.ts",
-      default: "./dist/src/app-controller/index.js",
+      types: "./dist/src/_deprecated/app-controller.d.ts",
+      default: "./dist/src/_deprecated/app-controller.js",
     });
     expect(HonuaController).toBeTypeOf("function");
     expect(createHonuaController).toBeTypeOf("function");
