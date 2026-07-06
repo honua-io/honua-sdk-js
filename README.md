@@ -50,11 +50,15 @@ and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 > Server/Online endpoint, any OGC API implementation, a STAC catalog. A
 > [Honua Server](https://github.com/honua-io/honua-server) adds the server-authored `MapPackage`,
 > realtime, and AI surfaces, but it is the upgrade path, not the entry fee. **When to use it
-> standalone:** if your data already sits behind an ArcGIS Server / ArcGIS Online endpoint, use it
-> today as a typed client and `esri-leaflet` successor — no server needed (see the
-> [server-optional quickstart](./docs/standalone-quickstart.md) and the
+> standalone:** if your data already sits behind an ArcGIS Server / ArcGIS Online endpoint, an OGC
+> API Features server (pygeoapi, ldproxy, GeoServer OGC API), a WFS 2.0 server, a STAC API or static
+> catalog, or an OData v4 service, use it today as a typed client and `esri-leaflet` successor — no
+> server needed (the OGC API Features and STAC lanes discover the raw endpoint layout from the
+> landing page; WFS follows the capabilities DCP URLs; set `locator.layout` for non-facade servers —
+> see the [server-optional quickstart](./docs/standalone-quickstart.md) and the
 > [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md)). Reach for a Honua
-> Server when you need authored map packages, realtime, collaboration, or MCP/AI.
+> Server when you need authored map packages, realtime, collaboration, MCP/AI, or the OGC API Tiles /
+> Maps / Processes / Records families (still facade-bound today).
 
 ```bash
 npm install @honua/sdk-js

@@ -48,6 +48,16 @@ export interface WfsCapabilitiesOperation {
   name: string;
   methods: ReadonlyArray<"GET" | "POST">;
   outputFormats: readonly string[];
+  /**
+   * DCP `xlink:href` advertised for the HTTP GET binding of this operation
+   * (`ows:DCP/ows:HTTP/ows:Get/@xlink:href`). Raw third-party WFS servers
+   * (e.g. GeoServer mounted at `/geoserver/ows`) frequently advertise a
+   * DIFFERENT operation URL (`/geoserver/wfs`); the adapter must honour it
+   * rather than replay the GetCapabilities endpoint path.
+   */
+  getUrl?: string;
+  /** DCP `xlink:href` for the HTTP POST binding (`ows:Post/@xlink:href`). */
+  postUrl?: string;
 }
 
 /**
@@ -128,12 +138,22 @@ export function parseWfsCapabilities(xml: string): WfsCapabilitiesSnapshot {
     const name = op.attributes.name;
     if (!name) continue;
     const methods: Array<"GET" | "POST"> = [];
+    let getUrl: string | undefined;
+    let postUrl: string | undefined;
     for (const dcp of findChildren(op, "DCP")) {
       const http = findChild(dcp, "HTTP");
       if (!http) continue;
       for (const method of http.children) {
-        if (method.local === "Get") methods.push("GET");
-        if (method.local === "Post") methods.push("POST");
+        // The XML walker strips the `xlink:` prefix, so the href attribute
+        // is keyed as `href`.
+        if (method.local === "Get") {
+          methods.push("GET");
+          if (getUrl === undefined && method.attributes.href) getUrl = method.attributes.href;
+        }
+        if (method.local === "Post") {
+          methods.push("POST");
+          if (postUrl === undefined && method.attributes.href) postUrl = method.attributes.href;
+        }
       }
     }
     const outputFormats: string[] = [];
@@ -156,6 +176,8 @@ export function parseWfsCapabilities(xml: string): WfsCapabilitiesSnapshot {
       name,
       methods: [...new Set(methods)] as ReadonlyArray<"GET" | "POST">,
       outputFormats,
+      ...(getUrl !== undefined ? { getUrl } : {}),
+      ...(postUrl !== undefined ? { postUrl } : {}),
     });
     outputFormatsByOp.set(name, outputFormats);
   }

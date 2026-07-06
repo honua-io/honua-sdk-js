@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ne="http://www.naturalearthdata.com" version="2.0.0">
+  <ows:ServiceIdentification>
+    <ows:Title>GeoServer Web Feature Service</ows:Title>
+    <ows:ServiceType>WFS</ows:ServiceType>
+    <ows:ServiceTypeVersion>2.0.0</ows:ServiceTypeVersion>
+  </ows:ServiceIdentification>
+  <ows:OperationsMetadata>
+    <ows:Operation name="GetCapabilities">
+      <ows:DCP><ows:HTTP>
+        <ows:Get xlink:href="https://ahocevar.com/geoserver/wfs"/>
+        <ows:Post xlink:href="https://ahocevar.com/geoserver/wfs"/>
+      </ows:HTTP></ows:DCP>
+    </ows:Operation>
+    <ows:Operation name="GetFeature">
+      <ows:DCP><ows:HTTP>
+        <ows:Get xlink:href="https://ahocevar.com/geoserver/wfs"/>
+        <ows:Post xlink:href="https://ahocevar.com/geoserver/wfs"/>
+      </ows:HTTP></ows:DCP>
+      <ows:Parameter name="outputFormat">
+        <ows:AllowedValues>
+          <ows:Value>application/gml+xml; version=3.2</ows:Value>
+          <ows:Value>application/json</ows:Value>
+          <ows:Value>GML2</ows:Value>
+        </ows:AllowedValues>
+      </ows:Parameter>
+    </ows:Operation>
+    <ows:Operation name="Transaction">
+      <ows:DCP><ows:HTTP>
+        <ows:Post xlink:href="https://ahocevar.com/geoserver/wfs"/>
+      </ows:HTTP></ows:DCP>
+    </ows:Operation>
+  </ows:OperationsMetadata>
+  <wfs:FeatureTypeList>
+    <wfs:FeatureType>
+      <wfs:Name>ne:ne_10m_admin_0_countries</wfs:Name>
+      <wfs:Title>Countries</wfs:Title>
+      <wfs:DefaultCRS>urn:ogc:def:crs:EPSG::4326</wfs:DefaultCRS>
+      <ows:WGS84BoundingBox>
+        <ows:LowerCorner>-180 -90</ows:LowerCorner>
+        <ows:UpperCorner>180 83.6</ows:UpperCorner>
+      </ows:WGS84BoundingBox>
+    </wfs:FeatureType>
+  </wfs:FeatureTypeList>
+  <fes:Filter_Capabilities xmlns:fes="http://www.opengis.net/fes/2.0">
+    <fes:Spatial_Capabilities>
+      <fes:SpatialOperators>
+        <fes:SpatialOperator name="BBOX"/>
+        <fes:SpatialOperator name="Intersects"/>
+      </fes:SpatialOperators>
+    </fes:Spatial_Capabilities>
+    <fes:Scalar_Capabilities>
+      <fes:ComparisonOperators>
+        <fes:ComparisonOperator>PropertyIsEqualTo</fes:ComparisonOperator>
+        <fes:ComparisonOperator>PropertyIsLike</fes:ComparisonOperator>
+      </fes:ComparisonOperators>
+    </fes:Scalar_Capabilities>
+  </fes:Filter_Capabilities>
+</wfs:WFS_Capabilities>

@@ -1,0 +1,132 @@
+{
+  "type": "FeatureCollection",
+  "numberMatched": 25,
+  "numberReturned": 3,
+  "features": [
+    {
+      "type": "Feature",
+      "id": 0,
+      "properties": {
+        "id": 0,
+        "scalerank": 0,
+        "name": "Lake Baikal",
+        "name_alt": "https://en.wikipedia.org/wiki/Lake_Baikal",
+        "admin": null,
+        "featureclass": "Lake"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.57998579307912,
+              52.79998159444554
+            ],
+            [
+              106.53998823448521,
+              52.93999888774037
+            ],
+            [
+              107.0800069519353,
+              53.18001007751998
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 1,
+      "properties": {
+        "id": 1,
+        "scalerank": 0,
+        "name": "Lake Winnipeg",
+        "name_alt": "https://en.wikipedia.org/wiki/Lake_Winnipeg",
+        "admin": null,
+        "featureclass": "Lake"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -98.95540137408423,
+              53.92978343364277
+            ],
+            [
+              -97.95799455441879,
+              54.337097072967325
+            ],
+            [
+              -97.8050064766187,
+              54.05938792583079
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 2,
+      "properties": {
+        "id": 2,
+        "scalerank": 0,
+        "name": "Great Slave Lake",
+        "name_alt": "https://en.wikipedia.org/wiki/Great_Slave_Lake",
+        "admin": null,
+        "featureclass": "Lake"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -115.00000342492967,
+              61.9723932969562
+            ],
+            [
+              -115.80669837122196,
+              62.54171255151576
+            ],
+            [
+              -116.0585951404287,
+              62.77880402287089
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "links": [
+    {
+      "rel": "self",
+      "href": "https://demo.pygeoapi.io/master/collections/lakes/items?f=json&limit=3",
+      "type": "application/geo+json"
+    },
+    {
+      "rel": "alternate",
+      "href": "https://demo.pygeoapi.io/master/collections/lakes/items?f=jsonld&limit=3",
+      "type": "application/ld+json"
+    },
+    {
+      "rel": "alternate",
+      "href": "https://demo.pygeoapi.io/master/collections/lakes/items?f=html&limit=3",
+      "type": "text/html"
+    },
+    {
+      "rel": "alternate",
+      "href": "https://demo.pygeoapi.io/master/collections/lakes/items?f=csv&limit=3",
+      "type": "text/csv; charset=utf-8"
+    },
+    {
+      "rel": "next",
+      "href": "https://demo.pygeoapi.io/master/collections/lakes/items?f=json&offset=3&limit=3",
+      "type": "application/geo+json"
+    },
+    {
+      "rel": "collection",
+      "href": "https://demo.pygeoapi.io/master/collections/lakes",
+      "type": "application/json"
+    }
+  ]
+}
