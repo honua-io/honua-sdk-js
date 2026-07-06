@@ -6,6 +6,7 @@
 [![types](https://img.shields.io/npm/types/@honua/sdk-js?color=3178c6)](https://www.npmjs.com/package/@honua/sdk-js)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
 [![node](https://img.shields.io/node/v/@honua/sdk-js?color=43853d)](./package.json)
+[![docs](https://img.shields.io/badge/docs-honua--io.github.io-2b6cb0)](https://honua-io.github.io/honua-sdk-js/)
 
 > One geospatial client for GeoServices, OGC APIs, WMS/WMTS/WFS, STAC, and OData —
 > with first-class TypeScript, a MapLibre runtime, and a drop-in ArcGIS migration path.
@@ -16,6 +17,10 @@ OGC API Features / Tiles / Maps / Processes, STAC, WMS, WMTS, WFS 2.0, OData v4)
 single protocol-neutral `Dataset` → `Source` → `Query` → `Result` contract on top of them, and
 ships a MapLibre-first map runtime plus an Esri compatibility layer so existing ArcGIS apps
 can migrate file-by-file.
+
+📚 **Hosted docs:** [honua-io.github.io/honua-sdk-js](https://honua-io.github.io/honua-sdk-js/) —
+quickstart, the full guide corpus, the [TypeDoc API reference](https://honua-io.github.io/honua-sdk-js/api/),
+and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 
 - **Protocol-neutral.** One `Source.query(...)` call works against GeoServices, OGC, WFS, OData
   and friends. Capability misses throw `HonuaCapabilityNotSupportedError` instead of returning
