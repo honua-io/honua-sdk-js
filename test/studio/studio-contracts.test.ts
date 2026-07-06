@@ -3,11 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  fromMapPackageValidation as runtimeFromMapPackageValidation,
-  toStudioValidationResponse as runtimeToStudioValidationResponse,
-  validateMapPackage,
-} from "../../src/runtime/index.js";
+import { validateMapPackage } from "../../src/runtime/index.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../../src/runtime/map-package.js";
 import {
   HONUA_ANALYSIS_PACKAGE_FORMAT_V1,
@@ -172,13 +168,16 @@ const FROZEN_MANIFEST_WIRE = JSON.stringify({
 });
 
 describe("@honua/sdk-js/studio package.json export", () => {
-  it("registers the ./studio subpath against the built barrel", () => {
+  it("registers the ./studio subpath against the one-minor deprecation shim", () => {
+    // Moved to `@honua/app-platform/studio` in the 1.0 scope split; the old
+    // `@honua/sdk-js/studio` subpath resolves through a `@deprecated` re-export
+    // shim for one minor (docs/decisions/scope-split-and-1.0.md).
     const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
       exports?: Record<string, { types?: string; default?: string }>;
     };
     expect(packageJson.exports?.["./studio"]).toEqual({
-      types: "./dist/src/studio/index.d.ts",
-      default: "./dist/src/studio/index.js",
+      types: "./dist/src/_deprecated/studio.d.ts",
+      default: "./dist/src/_deprecated/studio.js",
     });
   });
 });
@@ -217,9 +216,13 @@ describe("StudioPackageValidationResponse adapter", () => {
     expect(response.pkg?.format).toBe(HONUA_QUERY_PACKAGE_FORMAT_V1);
   });
 
-  it("is reachable from both the studio and runtime entrypoints", () => {
-    expect(runtimeToStudioValidationResponse).toBe(toStudioValidationResponse);
-    expect(runtimeFromMapPackageValidation).toBe(fromMapPackageValidation);
+  it("is reachable from the studio entrypoint (runtime bridge re-export removed in the 1.0 scope split)", () => {
+    // The stable `/runtime` entrypoint no longer re-exports the Studio
+    // validation bridge — that back-edge was severed when `studio` moved to
+    // `@honua/app-platform` (docs/decisions/scope-split-and-1.0.md). Consumers
+    // reach the bridge via the studio entrypoint.
+    expect(typeof toStudioValidationResponse).toBe("function");
+    expect(typeof fromMapPackageValidation).toBe("function");
   });
 });
 
