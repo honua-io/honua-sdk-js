@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.0.20-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.0.19-alpha.0...mcp-server-v0.0.20-alpha.0) (2026-07-06)
+
+
+### Features
+
+* **mcp/eval:** add the three P1 north-star workflows as gate scenarios ([#359](https://github.com/honua-io/honua-sdk-js/issues/359)) ([35e2cca](https://github.com/honua-io/honua-sdk-js/commit/35e2ccaf54c797c20b2aab86c8326196be3f581e))
+* **mcp:** add Bedrock-backed Claude driver for cross-model eval ([#338](https://github.com/honua-io/honua-sdk-js/issues/338)) ([3f862b4](https://github.com/honua-io/honua-sdk-js/commit/3f862b49276c9b0649eea086ed69059884b9250e))
+* **mcp:** certify the real /mcp operator surface, retire the static server ([#347](https://github.com/honua-io/honua-sdk-js/issues/347)) ([2f53cad](https://github.com/honua-io/honua-sdk-js/commit/2f53cad8ae4393f1f1dfa9ce7a33f6aa5e29c817))
+* **mcp:** live cross-model eval lane + fresh OpenAI default and catalog audit ([#346](https://github.com/honua-io/honua-sdk-js/issues/346)) ([f63f96a](https://github.com/honua-io/honua-sdk-js/commit/f63f96a0db076aa47d4e7a18223511c807325622))
+* **mcp:** operator-surface eval corpus for live cross-model AI proof ([#340](https://github.com/honua-io/honua-sdk-js/issues/340)) ([9703c4a](https://github.com/honua-io/honua-sdk-js/commit/9703c4a4f6d0a2af76aca9a3f0bb3a3d1d1a4072))
+* **mcp:** stdio-proxy transport parity + cross-model workflow eval ([#336](https://github.com/honua-io/honua-sdk-js/issues/336)) ([7d3ef7c](https://github.com/honua-io/honua-sdk-js/commit/7d3ef7cb7240b54e235c04042d838529f69a5338))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.0.20-alpha.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.0.19-alpha.0 to ^0.0.20-alpha.0
+
 ## [0.0.19-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.0.18-alpha.0...mcp-server-v0.0.19-alpha.0) (2026-06-28)
 
 

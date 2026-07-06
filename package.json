@@ -1,6 +1,6 @@
 {
   "name": "@honua/sdk-js",
-  "version": "0.0.19-alpha.0",
+  "version": "0.0.20-alpha.0",
   "description": "Honua JavaScript SDK — geospatial feature queries, Esri migration, and web mapping",
   "license": "Apache-2.0",
   "author": "Honua",
@@ -461,21 +461,51 @@
     "@connectrpc/connect-web": {
       "optional": true
     },
-    "@turf/area": { "optional": true },
-    "@turf/bbox": { "optional": true },
-    "@turf/boolean-contains": { "optional": true },
-    "@turf/boolean-intersects": { "optional": true },
-    "@turf/boolean-within": { "optional": true },
-    "@turf/buffer": { "optional": true },
-    "@turf/centroid": { "optional": true },
-    "@turf/convex": { "optional": true },
-    "@turf/difference": { "optional": true },
-    "@turf/helpers": { "optional": true },
-    "@turf/intersect": { "optional": true },
-    "@turf/length": { "optional": true },
-    "@turf/nearest-point": { "optional": true },
-    "@turf/simplify": { "optional": true },
-    "@turf/union": { "optional": true },
+    "@turf/area": {
+      "optional": true
+    },
+    "@turf/bbox": {
+      "optional": true
+    },
+    "@turf/boolean-contains": {
+      "optional": true
+    },
+    "@turf/boolean-intersects": {
+      "optional": true
+    },
+    "@turf/boolean-within": {
+      "optional": true
+    },
+    "@turf/buffer": {
+      "optional": true
+    },
+    "@turf/centroid": {
+      "optional": true
+    },
+    "@turf/convex": {
+      "optional": true
+    },
+    "@turf/difference": {
+      "optional": true
+    },
+    "@turf/helpers": {
+      "optional": true
+    },
+    "@turf/intersect": {
+      "optional": true
+    },
+    "@turf/length": {
+      "optional": true
+    },
+    "@turf/nearest-point": {
+      "optional": true
+    },
+    "@turf/simplify": {
+      "optional": true
+    },
+    "@turf/union": {
+      "optional": true
+    },
     "cesium": {
       "optional": true
     },
