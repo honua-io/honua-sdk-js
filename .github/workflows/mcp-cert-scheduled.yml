@@ -1,0 +1,137 @@
+name: MCP scheduled live certification
+
+# FREE, evidence-producing lane. Runs the deterministic MCP certifier (zero LLM /
+# model calls — pure contract checks) against the live demo /mcp surface on a
+# weekly schedule and on demand, then commits the JSON + Markdown report into
+# mcp/evals/runs/ and refreshes the leaderboard. Because it makes no paid calls it
+# is safe to run automatically; the paid cross-model eval stays workflow_dispatch
+# only (mcp-eval-live.yml).
+#
+# The certifier runs in --artifact-only mode so it completes end-to-end and still
+# publishes evidence even when some tool contracts fail against a pre-P1 image
+# (missing pagination, edit_features, etc.). Deep mutating/async contracts are NOT
+# enabled here (HONUA_MCP_CERT_ALLOW_MUTATION is unset), so the scheduled cert
+# never mutates demo data — they skip-with-reason and are recorded loudly.
+#
+# Required repo secret:
+#   HONUA_DEMO_MCP_API_KEY — x-api-key for https://demo.honua.io/mcp. Configure it
+#     under Settings → Secrets and variables → Actions. Without it the run reaches
+#     the surface anonymously and records auth mode `anonymous` in the report.
+# Optional repo variable:
+#   HONUA_DEMO_MCP_URL — overrides the default https://demo.honua.io/mcp target.
+on:
+  schedule:
+    # Mondays 07:00 UTC.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      remote_url:
+        description: "Remote /mcp endpoint to certify"
+        required: false
+        type: string
+      publish:
+        description: "Commit the report + regenerated leaderboard back to the branch"
+        required: true
+        default: true
+        type: boolean
+
+# Top-level read-only; the publish job below widens to contents: write for itself.
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  certify:
+    name: Certify demo /mcp (free)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Build JS SDK dependency
+        run: |
+          npm ci --prefix ..
+          npm run build --prefix ..
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Live certification (deterministic, free)
+        env:
+          HONUA_MCP_CERT_TARGET: remote
+          HONUA_MCP_REMOTE_URL: ${{ inputs.remote_url || vars.HONUA_DEMO_MCP_URL || 'https://demo.honua.io/mcp' }}
+          HONUA_API_KEY: ${{ secrets.HONUA_DEMO_MCP_API_KEY }}
+        run: node dist/src/certification/cli.js --artifact-only
+
+      - name: Stage report for leaderboard
+        run: |
+          mkdir -p staged
+          cp mcp-certification-results.json staged/cert-demo.json
+          cp mcp-certification-results.md staged/cert-demo.md
+
+      - name: Upload certification artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-scheduled-cert
+          path: mcp/staged/
+          if-no-files-found: warn
+
+  publish:
+    name: Commit report + regenerate leaderboard
+    needs: certify
+    if: ${{ github.event_name == 'schedule' || inputs.publish }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download certification artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mcp-scheduled-cert
+          path: downloaded
+
+      - name: Append report to the committed corpus
+        run: |
+          set -euo pipefail
+          dest="mcp/evals/runs/$(date -u +%Y-%m-%d)"
+          mkdir -p "$dest"
+          cp downloaded/cert-demo.json "$dest"/
+          cp downloaded/cert-demo.md "$dest"/ 2>/dev/null || true
+
+      - name: Regenerate leaderboard
+        run: node mcp/scripts/render-leaderboard.mjs
+
+      - name: Commit report + leaderboard
+        run: |
+          set -euo pipefail
+          git config user.name "honua-ci[bot]"
+          git config user.email "ci@honua.io"
+          git add mcp/evals
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(mcp): scheduled live-cert report + leaderboard [skip ci]"
+          git push

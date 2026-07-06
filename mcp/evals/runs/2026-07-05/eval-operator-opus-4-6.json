@@ -1,0 +1,267 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-07-05T22:55:20.729Z",
+  "surface": {
+    "backend": "live",
+    "mcpTransport": "streamable-http",
+    "remoteUrl": "https://demo.honua.io/mcp",
+    "auth": "api-key"
+  },
+  "corpus": {
+    "scenarios": 8,
+    "ids": [
+      "operator-list-layers",
+      "operator-discover-then-query",
+      "operator-ground-intent",
+      "operator-clarify-loop",
+      "operator-plan-validate",
+      "operator-dry-run",
+      "operator-validate-package",
+      "operator-geocode-gap"
+    ]
+  },
+  "catalog": {
+    "advertisedToolCount": 15,
+    "requiredTools": [
+      "honua_clarify_intent",
+      "honua_dry_run_plan",
+      "honua_geocode_address",
+      "honua_ground_candidates",
+      "honua_list_layers",
+      "honua_plan_analysis",
+      "honua_query_features",
+      "honua_validate_package",
+      "honua_validate_plan"
+    ],
+    "unresolvedRequiredTools": []
+  },
+  "models": [
+    {
+      "id": "deterministic",
+      "vendor": "deterministic",
+      "available": true,
+      "scenarios": 8,
+      "pass": 8,
+      "fail": 0,
+      "clarified": 0,
+      "error": 0,
+      "successRate": 1,
+      "clarificationRate": 0,
+      "editRate": 0.125,
+      "totalToolErrors": 1
+    },
+    {
+      "id": "us.anthropic.claude-opus-4-6-v1",
+      "model": "us.anthropic.claude-opus-4-6-v1",
+      "vendor": "bedrock",
+      "available": true,
+      "scenarios": 8,
+      "pass": 8,
+      "fail": 0,
+      "clarified": 0,
+      "error": 0,
+      "successRate": 1,
+      "clarificationRate": 0,
+      "editRate": 0.125,
+      "totalToolErrors": 1
+    }
+  ],
+  "results": [
+    {
+      "scenarioId": "operator-list-layers",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_list_layers"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-discover-then-query",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_list_layers",
+        "honua_query_features"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-ground-intent",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_ground_candidates"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-clarify-loop",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_ground_candidates",
+        "honua_clarify_intent"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-plan-validate",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_ground_candidates",
+        "honua_plan_analysis",
+        "honua_validate_plan"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-dry-run",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_dry_run_plan"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-validate-package",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_validate_package"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-geocode-gap",
+      "modelId": "deterministic",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_geocode_address"
+      ],
+      "errorCount": 1,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-list-layers",
+      "modelId": "us.anthropic.claude-opus-4-6-v1",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_list_layers"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-discover-then-query",
+      "modelId": "us.anthropic.claude-opus-4-6-v1",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_list_layers",
+        "honua_list_layers",
+        "honua_query_features"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-ground-intent",
+      "modelId": "us.anthropic.claude-opus-4-6-v1",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_ground_candidates",
+        "honua_list_layers",
+        "honua_list_layers"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-clarify-loop",
+      "modelId": "us.anthropic.claude-opus-4-6-v1",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_ground_candidates",
+        "honua_clarify_intent"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-plan-validate",
+      "modelId": "us.anthropic.claude-opus-4-6-v1",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_ground_candidates",
+        "honua_clarify_intent",
+        "honua_plan_analysis",
+        "honua_validate_plan"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-dry-run",
+      "modelId": "us.anthropic.claude-opus-4-6-v1",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_list_layers",
+        "honua_list_layers",
+        "honua_dry_run_plan"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-validate-package",
+      "modelId": "us.anthropic.claude-opus-4-6-v1",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_validate_package"
+      ],
+      "errorCount": 0,
+      "missingTools": []
+    },
+    {
+      "scenarioId": "operator-geocode-gap",
+      "modelId": "us.anthropic.claude-opus-4-6-v1",
+      "outcome": "pass",
+      "violations": [],
+      "toolsCalled": [
+        "honua_geocode_address"
+      ],
+      "errorCount": 1,
+      "missingTools": []
+    }
+  ],
+  "summary": {
+    "pass": true,
+    "modelsEvaluated": 2,
+    "liveModelsEvaluated": 1,
+    "scenarios": 8
+  }
+}
