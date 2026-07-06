@@ -316,8 +316,13 @@ correctly use this SDK:
   `honua-arcgis-migration`, and `honua-mcp-setup` load procedural instructions
   into Claude Code and compatible agents. See [`skills/README.md`](./skills/README.md)
   for installation.
-- **MCP server** — [`@honua/mcp-server`](./mcp/README.md) exposes Honua discovery
-  and query tools to assistants over the Model Context Protocol.
+- **MCP server** — [`@honua/mcp-server`](./mcp/README.md) is the **platform-free**
+  geospatial MCP server: point `honua-mcp` at **any** public ArcGIS FeatureServer
+  or OGC API endpoint (no Honua server required) and it exposes discovery, query,
+  and analysis tools to assistants over the Model Context Protocol. Tools that need
+  a Honua-only surface degrade gracefully with a structured "not available on this
+  target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
+  via `honua-mcp-proxy`.
 - **Context7** — [`context7.json`](./context7.json) registers the library so
   [Context7](https://context7.com) serves current docs to coding agents; the
   submission steps are in [`skills/README.md`](./skills/README.md).

@@ -35,6 +35,19 @@ export function resolveRoundTripEnv(env: NodeJS.ProcessEnv = process.env): Round
 export function buildRoundTripInputs(env: RoundTripEnv): Record<string, Record<string, unknown>> {
   const { serviceId, layerId, address } = env;
   return {
+    // ── Platform-free standalone surface tools (issue #369). Round-tripped by the
+    // `standalone` cert target against a plain public FeatureServer fixture. The
+    // Honua-only style tools resolve to a structured "not available on this
+    // target" result (non-error) — certifying graceful degradation, not a crash.
+    honua_list_services: {},
+    honua_describe_layer: { serviceId, layerId },
+    honua_count_features: { serviceId, layerId },
+    honua_get_extent: { serviceId, layerId },
+    honua_statistics: { serviceId, layerId, statisticType: "count", onField: "OBJECTID" },
+    honua_explain_capability_gap: { capability: "query", protocol: "wmts" },
+    honua_get_style: {},
+    honua_apply_style_preset: { styleId: "topographic" },
+    // ── Honua-enhanced operator catalog tools (offline/remote/stdio-proxy targets).
     honua_list_layers: {},
     honua_list_capabilities: {},
     honua_query_features: { serviceId, layerId, limit: 1 },

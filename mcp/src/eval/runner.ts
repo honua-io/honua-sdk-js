@@ -1,10 +1,11 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { createStandaloneFixtureClient } from "../certification/census-fixture-client.js";
 import { createFixtureClient } from "../certification/fixture-client.js";
 import { createServer } from "../index.js";
 import { type SuiteProvenance, readNegotiatedProtocolVersion, resolveSuiteGitSha } from "../provenance.js";
 import { connectUpstream, resolveProxyOptions } from "../proxy.js";
-import { resolveCorpus } from "./corpus.js";
+import { isStandaloneCorpus, resolveCorpus } from "./corpus.js";
 import { resolveDrivers } from "./drivers/index.js";
 import { grade } from "./grade.js";
 import { type AuthMode, type EvalReport, assembleReport } from "./report.js";
@@ -28,6 +29,12 @@ export interface RunEvalOptions {
   corpus?: Scenario[];
   /** Force the in-memory fixture surface even if HONUA_MCP_REMOTE_URL is set. */
   forceOffline?: boolean;
+  /**
+   * Use the PLATFORM-FREE standalone fixture surface (a plain public FeatureServer,
+   * recorded census layer) instead of the Honua operator fixture. Implies offline.
+   * Defaults to true when `HONUA_EVAL_CORPUS=standalone`.
+   */
+  forceStandaloneSurface?: boolean;
 }
 
 interface SurfaceConnection {
@@ -48,8 +55,13 @@ function isTruthy(value: string | undefined): boolean {
   return v.length > 0 && v !== "0" && v !== "false" && v !== "no" && v !== "off";
 }
 
-async function connectSurface(env: NodeJS.ProcessEnv, forceOffline: boolean): Promise<SurfaceConnection> {
-  const live = !forceOffline && typeof env.HONUA_MCP_REMOTE_URL === "string" && env.HONUA_MCP_REMOTE_URL.length > 0;
+async function connectSurface(
+  env: NodeJS.ProcessEnv,
+  forceOffline: boolean,
+  standalone: boolean,
+): Promise<SurfaceConnection> {
+  const live =
+    !forceOffline && !standalone && typeof env.HONUA_MCP_REMOTE_URL === "string" && env.HONUA_MCP_REMOTE_URL.length > 0;
 
   if (live) {
     const options = resolveProxyOptions(env);
@@ -76,7 +88,8 @@ async function connectSurface(env: NodeJS.ProcessEnv, forceOffline: boolean): Pr
     };
   }
 
-  const server = createServer(createFixtureClient());
+  const fixtureClient = standalone ? createStandaloneFixtureClient() : createFixtureClient();
+  const server = createServer(fixtureClient);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "honua-mcp-eval", version: "1.0.0" });
   await server.connect(serverTransport);
@@ -84,7 +97,7 @@ async function connectSurface(env: NodeJS.ProcessEnv, forceOffline: boolean): Pr
   return {
     client,
     backend: "fixture",
-    mcpTransport: "in-memory",
+    mcpTransport: standalone ? "in-memory (standalone FeatureServer fixture)" : "in-memory",
     auth: "none",
     close: async () => {
       await client.close().catch(() => {});
@@ -121,9 +134,10 @@ export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport>
   const env = options.env ?? process.env;
   const corpus = options.corpus ?? resolveCorpus(env);
   const drivers = options.drivers ?? resolveDrivers({ env });
-  const forceOffline = options.forceOffline ?? false;
+  const standalone = options.forceStandaloneSurface ?? isStandaloneCorpus(env);
+  const forceOffline = options.forceOffline ?? standalone;
 
-  const surface = await connectSurface(env, forceOffline);
+  const surface = await connectSurface(env, forceOffline, standalone);
   try {
     const listed = await surface.client.listTools();
     const tools: WorkflowContext["tools"] = listed.tools.map((t) => ({

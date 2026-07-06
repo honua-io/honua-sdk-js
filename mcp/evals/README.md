@@ -26,6 +26,41 @@ The generator scans every `*.json` under `runs/`, classifies each as an eval or 
 certification report, and rewrites `LEADERBOARD.md` + `leaderboard.html`. It has
 no dependencies, so CI and a dev box produce byte-identical output.
 
+## Corpus design + grading taxonomy
+
+Four corpora feed the eval, selected by `HONUA_EVAL_CORPUS` / `--corpus`:
+
+| Corpus | Source | Surface | Grading |
+| --- | --- | --- | --- |
+| `analyst` (default) | `src/eval/corpus.ts` | Honua fixture | structural |
+| `operator` | `src/eval/operator-corpus.ts` | live operator `/mcp` | structural |
+| `northstar` | `src/eval/northstar-corpus.ts` | live P1 `/mcp` | structural (gate) |
+| `standalone` | `src/eval/standalone-corpus.ts` | **plain public FeatureServer fixture** | **semantic** |
+
+The **standalone** corpus (50+ scenarios, issue #369) is the platform-free proof:
+it runs against a recorded public census FeatureServer (`services.arcgis.com`, no
+Honua surfaces) and grades the **meaning** of answers, not just the tool
+trajectory. Its grading taxonomy:
+
+- **Structural** — `requiredTools`, `expectedToolSequence`, `forbiddenTools`: was
+  the right workflow used?
+- **Semantic value** (`answerMustMatch`, regex) — is the *number* right? Grounded
+  against real recorded data (rows = 52, sum(pop) = 335,085,841, House seats = 435,
+  states with ≥20 seats = 4).
+- **Geographic reasoning** (`answerMustInclude` + `answerMustNotInclude`) — is the
+  right *place* named? (California is most populous; Wyoming least.)
+- **Tool selection** — ambiguous asks that must pick count vs. query vs. statistics
+  vs. extent (`requiredTools` + `forbiddenTools`).
+- **Refusal / clarification** (`expectClarification`) — ambiguous or unsupported
+  requests must ask a clarifying question or refuse, not guess.
+- **Anti-hallucination** (`answerMustNotInclude`) — wrong facts/numbers fail.
+- **Capability degradation** — Honua-only tools (styling) must return a structured
+  "not available on this target" result on a plain FeatureServer.
+
+The deterministic offline control must pass every standalone scenario; the
+evaluator that backs the fixture is parity-checked against the live recordings
+(`test/certification/census-fixture-client.test.ts`).
+
 ## What makes a run trustworthy
 
 Every artifact carries a self-proving `provenance` block — target URL, negotiated

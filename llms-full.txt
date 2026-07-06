@@ -326,8 +326,13 @@ correctly use this SDK:
   `honua-arcgis-migration`, and `honua-mcp-setup` load procedural instructions
   into Claude Code and compatible agents. See [`skills/README.md`](./skills/README.md)
   for installation.
-- **MCP server** — [`@honua/mcp-server`](./mcp/README.md) exposes Honua discovery
-  and query tools to assistants over the Model Context Protocol.
+- **MCP server** — [`@honua/mcp-server`](./mcp/README.md) is the **platform-free**
+  geospatial MCP server: point `honua-mcp` at **any** public ArcGIS FeatureServer
+  or OGC API endpoint (no Honua server required) and it exposes discovery, query,
+  and analysis tools to assistants over the Model Context Protocol. Tools that need
+  a Honua-only surface degrade gracefully with a structured "not available on this
+  target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
+  via `honua-mcp-proxy`.
 - **Context7** — [`context7.json`](./context7.json) registers the library so
   [Context7](https://context7.com) serves current docs to coding agents; the
   submission steps are in [`skills/README.md`](./skills/README.md).
@@ -7351,46 +7356,82 @@ for that target and is referenced from the doc.
 
 # `@honua/mcp-server`
 
-Model Context Protocol (MCP) server for Honua geospatial feature services.
+The **platform-free** Model Context Protocol (MCP) server for geospatial feature
+services. Point it at **any** public Esri FeatureServer or OGC API endpoint and it
+exposes discovery, query, and analysis workflows to any MCP client — with **zero**
+platform lock-in and no metering. Mapbox, CARTO, and Esri each ship an MCP server
+bound to their own platform; this one is bound to none.
 
-This package exposes a focused MCP surface for discovery and query workflows on top of Honua's FeatureServer APIs.
+Two modes:
+
+- **Standalone (platform-free) — the front door.** The `honua-mcp` bin runs the
+  direct-SDK surface against any public FeatureServer/OGC endpoint. No Honua
+  server, no admin API, no `/mcp` catalog required.
+- **Honua-enhanced — the upgrade path.** The `honua-mcp-proxy` bin bridges a
+  Honua deployment's full `/mcp` operator catalog (governed mutation, async jobs,
+  publishing) to stdio.
 
 ## Requirements
 
 - Node.js `>=20`
-- A reachable Honua server URL
+- Any reachable FeatureServer/OGC endpoint (public or Honua)
+
+## Platform-free mode (any ArcGIS / OGC endpoint)
+
+Point `HONUA_BASE_URL` at any origin/folder that serves the standard GeoServices
+REST paths (`/rest/services`, `/FeatureServer/{id}/query`). Example — the public
+US Census 2020 apportionment FeatureServer on `services.arcgis.com`:
+
+```bash
+npm install
+npm run build
+HONUA_BASE_URL="https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis" \
+  HONUA_TRANSPORT="rest" node dist/src/index.js
+```
+
+Tools that require a Honua-only surface (server-side styling via OGC API – Styles,
+a `/rest/services` catalog) **degrade gracefully** on a plain endpoint: they
+return a structured result
+
+```json
+{ "available": false, "surface": "OGC API - Styles", "reason": "…", "guidance": "…" }
+```
+
+instead of crashing, hanging, or returning misleading empty data. This is the
+same skip-with-reason honesty the certification suite uses.
 
 ## Environment Variables
 
-- `HONUA_BASE_URL` (required): absolute Honua base URL, for example `https://honua.example.com`
-- `HONUA_TRANSPORT` (optional): `grpc-web` (default) or `rest`
-- `HONUA_API_KEY` (optional): admin/API key when your deployment requires it
+- `HONUA_BASE_URL` (required): absolute base URL — a public ArcGIS folder
+  (`https://services.arcgis.com/<org>/arcgis`) or a Honua deployment
+  (`https://honua.example.com`).
+- `HONUA_TRANSPORT` (optional): `grpc-web` (default, Honua deployments) or `rest`.
+  Use `rest` for plain public ArcGIS/OGC endpoints.
+- `HONUA_API_KEY` (optional): API key when your deployment requires it. Public
+  endpoints need none.
 - `HONUA_TIMEOUT_MS` (optional): request timeout in milliseconds (default `30000`)
 - `HONUA_RETRY_MAX_RETRIES` (optional): retry attempts for transient failures (default `2`)
 
 When `HONUA_API_KEY` is configured, use `https://` for non-localhost servers.
 
-## Run Locally
-
-```bash
-npm install
-npm run build
-HONUA_BASE_URL="https://honua.example.com" HONUA_TRANSPORT="grpc-web" node dist/src/index.js
-```
-
 ## MCP Tools
 
-- `honua_list_services`
+All read-only:
+
+- `honua_list_services` — discover services (degrades if the target has no catalog)
 - `honua_describe_layer`
 - `honua_query_features`
 - `honua_count_features`
 - `honua_get_extent`
 - `honua_statistics`
+- `honua_explain_capability_gap`
+- `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer
 
 ## MCP Resources
 
 - `honua://services`
 - `honua://services/{encodedServiceId}/layers/{layerId}`
+- `honua://styles`, `honua://styles/{styleId}` — structured-unavailable on a plain FeatureServer
 
 ## Certification
 
@@ -7425,6 +7466,26 @@ npm run certify
 npm run test:certification            # gate: runs harness tests + certifier, exits non-zero on failure
 npm run test:certification:artifact   # evidence: writes artifacts, always exits 0
 ```
+
+### Platform-free certification lane
+
+A dedicated **standalone** target (`HONUA_MCP_CERT_TARGET=standalone`, or
+`--target standalone`) certifies the platform-free surface against an in-process
+fixture of a **plain public FeatureServer** — the recorded US Census 2020
+apportionment layer from `services.arcgis.com`, with **no** Honua surfaces. It
+proves the tools certify **green with honest skips** against a non-Honua endpoint:
+the data tools round-trip against real recorded data, the Honua-only style tools
+degrade to structured "not available" results, and the auth/mutation/job contracts
+skip-with-reason. Fixture-backed and deterministic — no network.
+
+```bash
+npm run certify:standalone            # platform-free cert (plain FeatureServer fixture)
+npm run test:certification:standalone # CI gate variant
+```
+
+The fixture is recorded by `scripts/record-census-fixtures.mjs` into
+`src/certification/census-data.ts`; the evaluator that replays it is verified for
+parity against the live recordings in `test/certification/census-fixture-client.test.ts`.
 
 Artifacts are written to the package root as
 `mcp-certification-results.json` and `mcp-certification-results.md` (gitignored;
@@ -7497,6 +7558,23 @@ Artifacts (`mcp-eval-results.json` / `mcp-eval-results.md`, gitignored, uploaded
 by CI) record the per-model scorecard. The CI gate asserts the deterministic
 control passes every scenario; live cross-model runs are recorded but
 informational.
+
+### Platform-free semantic corpus (`src/eval/standalone-corpus.ts`)
+
+The **standalone** corpus is 50+ scenarios run against the plain public
+FeatureServer fixture (the census layer) with **semantic** grading — not just tool
+trajectory. Each scenario asserts the *meaning* of the answer: correct feature
+counts (52 rows, 4 states with ≥20 seats), correct geographic facts (California is
+the most populous; Wyoming the least; the House totals 435 seats), correct tool
+selection for ambiguous asks (count vs. query vs. statistics), refusal /
+clarification behavior on ambiguous or unsupported requests, and anti-hallucination
+guards. Because the fixture replays real recorded data, a wrong number or a
+hallucinated place name fails. The grading taxonomy is documented in
+[`evals/README.md`](evals/README.md).
+
+```bash
+npm run eval:standalone       # deterministic control over the census fixture (offline)
+```
 
 ### Live lane (paid, manual only)
 
