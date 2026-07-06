@@ -25,6 +25,14 @@ import { type JsonSchema, buildReferenceToolLookup, loadSchemaFile, loadSchemaIn
  * conformance check exercises the real standard shape rather than a hand-rolled
  * approximation.
  *
+ * NOTE ON `honua_edit_features`: the real honua-server `/mcp` surface exposes NO
+ * feature-mutation tool — Honua does not support AI operational data editing
+ * (honua-server ADR-0028). This fixture nonetheless advertises `honua_edit_features`
+ * so the certifier keeps exercising the standard's OPTIONAL `mutation`-profile
+ * certification path (insert→update→delete round-trip, auth-boundary contract)
+ * for *other* adopters that choose to offer governed editing. It is a
+ * mutation-profile-adopter fixture, NOT a mirror of honua-server's product surface.
+ *
  * Nothing here is a product server. It is a labeled test fixture whose only job
  * is to give the certifier a faithful `/mcp`-shaped surface to certify offline.
  */
@@ -391,9 +399,12 @@ export function buildOperatorTools(): OperatorTool[] {
       sampleOutput: { appPackageId: "app-001", uri: "honua://apps/app-001" },
     },
     {
-      // Honua-extension mutating tool (no standard geospatial-mcp schema — matched
-      // as an advertised-only known gap, never round-tripped by the read-only path).
-      // The mutating-round-trip contract drives its insert→update→delete lifecycle.
+      // OPTIONAL mutation-profile tool (geospatial-mcp `mutation` profile) — matched
+      // as an advertised-only known gap, never round-tripped by the read-only path;
+      // the mutating-round-trip contract drives its insert→update→delete lifecycle.
+      // This fixture opts into the optional mutation profile so that path stays
+      // certified; the real honua-server surface does NOT advertise this tool —
+      // Honua does not support AI operational data editing (honua-server ADR-0028).
       name: "honua_edit_features",
       title: "Edit features",
       description: "Apply feature inserts, updates, and deletes to a published editable layer.",

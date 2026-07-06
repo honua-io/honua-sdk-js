@@ -20,8 +20,12 @@ import { type EditTarget, resolveEditTarget } from "./fixtures.js";
  * fixture). Against a live/remote target they are gated behind
  * `HONUA_MCP_CERT_ALLOW_MUTATION=1` + a caller-supplied scratch service, so a
  * scheduled cert against a shared demo never mutates real data. When a target
- * lacks the tool (e.g. the pre-P1 demo), the contract SKIPS with a loud reason
- * rather than failing — so the suite stays runnable against any revision.
+ * lacks the tool, the contract SKIPS with a loud reason rather than failing — so
+ * the suite stays runnable against any revision. Note: the reference honua-server
+ * `/mcp` surface does NOT advertise `EDIT_TOOL` — Honua does not support AI
+ * operational data editing (honua-server ADR-0028) — so against it these mutating
+ * contracts skip. `EDIT_TOOL` here represents the standard's OPTIONAL `mutation`
+ * profile, exercised via a mutation-profile-adopter fixture.
  */
 
 const MUTATION_ALLOW_ENV = "HONUA_MCP_CERT_ALLOW_MUTATION";
