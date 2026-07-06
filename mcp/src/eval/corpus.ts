@@ -1,5 +1,6 @@
 import { NORTHSTAR_CORPUS } from "./northstar-corpus.js";
 import { OPERATOR_CORPUS } from "./operator-corpus.js";
+import { STANDALONE_CORPUS } from "./standalone-corpus.js";
 import type { Scenario } from "./types.js";
 
 /**
@@ -131,9 +132,25 @@ export function resolveCorpus(env: NodeJS.ProcessEnv = process.env): Scenario[] 
       return OPERATOR_CORPUS;
     case "northstar":
       return NORTHSTAR_CORPUS;
+    case "standalone":
+      return STANDALONE_CORPUS;
     case "all":
+      // `all` spans the Honua-surface corpora only. The platform-free standalone
+      // corpus targets a DIFFERENT surface (a plain FeatureServer fixture) and is
+      // selected explicitly via `standalone`; mixing it here would run its
+      // census-specific scenarios against an operator surface.
       return [...CORPUS, ...OPERATOR_CORPUS, ...NORTHSTAR_CORPUS];
     default:
       return CORPUS;
   }
+}
+
+/**
+ * Whether a corpus selection targets the PLATFORM-FREE standalone surface (a plain
+ * public FeatureServer fixture) rather than the Honua operator/analyst surface.
+ * The offline runner uses this to pick the census fixture client so the standalone
+ * corpus resolves against real recorded non-Honua data.
+ */
+export function isStandaloneCorpus(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.HONUA_EVAL_CORPUS ?? "").trim().toLowerCase() === "standalone";
 }

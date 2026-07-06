@@ -59,6 +59,22 @@ export interface SuccessCriteria {
   forbiddenTools?: string[];
   /** Case-insensitive substrings the final answer must contain. */
   answerMustInclude?: string[];
+  /**
+   * SEMANTIC assertions (issue #369) — grade the MEANING of the answer, not just
+   * the tool trajectory. Ride on the deterministic control against grounded
+   * fixtures (known feature counts, known geographic facts), so a wrong number or
+   * a hallucinated place name fails the scenario.
+   */
+  /** Case-insensitive substrings the final answer must NOT contain (anti-hallucination / wrong-answer guard). */
+  answerMustNotInclude?: string[];
+  /** Regular-expression sources the final answer must ALL match (case-insensitive) — exact numeric / value checks. */
+  answerMustMatch?: string[];
+  /**
+   * The prompt is deliberately ambiguous or unsupported: a correct client asks a
+   * clarifying question (or refuses) instead of guessing. When true, a `clarified`
+   * transcript grades as `pass` and a completed transcript grades as `fail`.
+   */
+  expectClarification?: boolean;
 }
 
 /** One GIS workflow in the held-out corpus. */
@@ -74,6 +90,13 @@ export interface Scenario {
    * Live LLM drivers ignore this and plan their own tool calls.
    */
   script: { tool: string; args: Record<string, unknown> }[];
+  /**
+   * Ambiguity/refusal scenarios: the deterministic driver asks this clarifying
+   * question INSTEAD of running the script (an empty script is typical). Live LLM
+   * drivers decide for themselves whether to clarify from the prompt alone. Pair
+   * with `criteria.expectClarification: true`.
+   */
+  clarify?: { question: string };
 }
 
 /** Per-scenario grade for one model. */

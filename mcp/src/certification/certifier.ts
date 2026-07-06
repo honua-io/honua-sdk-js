@@ -189,7 +189,7 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
   contracts.push(paginationCheck("tools", toolPages));
   contracts.push(paginationCheck("resources", resourcePages));
   collectOutputSchemaContracts(tools, contracts);
-  contracts.push(await runErrorShapeContract(client, advertisedTools));
+  contracts.push(await runErrorShapeContract(client, advertisedTools, options.targetMode));
   await runAuthContracts(options, advertisedTools, advertisedResources, contracts);
 
   // Deep contracts: mutating round-trip, unauthenticated-write refusal, async job
@@ -409,7 +409,26 @@ function collectOutputSchemaContracts(tools: ToolCertification[], contracts: Con
   }
 }
 
-async function runErrorShapeContract(client: Client, advertised: AdvertisedTool[]): Promise<ContractCheck> {
+async function runErrorShapeContract(
+  client: Client,
+  advertised: AdvertisedTool[],
+  targetMode: CertTargetMode,
+): Promise<ContractCheck> {
+  // The platform-free standalone surface is built on the high-level MCP server,
+  // which rejects invalid arguments with a JSON-RPC -32602 (InvalidParams) error
+  // BEFORE the tool body runs — a valid MCP-native structured error, but not the
+  // Honua GeoprocessingError envelope this contract asserts. That envelope is a
+  // Honua-operator richness a plain FeatureServer does not (and need not) provide,
+  // so we skip-with-reason rather than fail. Other targets are unaffected.
+  if (targetMode === "standalone") {
+    return {
+      contract: "error-shape",
+      target: "(standalone)",
+      status: "skipped",
+      detail:
+        "standalone surface uses MCP-native input validation (JSON-RPC -32602 InvalidParams); the GeoprocessingError envelope is a Honua-operator surface feature",
+    };
+  }
   const invalidInputs = buildInvalidArgsInputs();
   const advertisedNames = new Set(advertised.map((t) => t.name));
   const target = Object.keys(invalidInputs).find((name) => advertisedNames.has(name));

@@ -23,6 +23,20 @@ export class DeterministicDriver implements ModelDriver {
     const answerParts: string[] = [];
     let errorCount = 0;
 
+    // Ambiguity/refusal scenarios: the ideal client asks for clarification rather
+    // than guessing. Honoring this deterministically lets the offline control
+    // exercise refusal/clarification behavior, not just happy-path trajectories.
+    if (scenario.clarify) {
+      return {
+        scenarioId: scenario.id,
+        modelId: this.id,
+        steps,
+        finalAnswer: scenario.clarify.question,
+        clarificationRequested: true,
+        errorCount,
+      };
+    }
+
     for (const planned of scenario.script) {
       if (!advertised.has(planned.tool)) {
         // The scripted tool is not on the surface — record a driver-visible error

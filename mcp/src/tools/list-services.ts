@@ -17,7 +17,22 @@ export type Input = z.infer<typeof schema>;
 const METADATA_CONCURRENCY = 8;
 
 export async function execute(client: HonuaClient, input: Input) {
-  const response = await client.listServices();
+  let response: Awaited<ReturnType<HonuaClient["listServices"]>>;
+  try {
+    response = await client.listServices();
+  } catch (err) {
+    // Some targets expose no service catalog at `/rest/services` — e.g. a base
+    // URL pointed straight at a single FeatureServer, or an OGC-only endpoint.
+    // Degrade to a structured note instead of crashing: the agent can still
+    // describe/query a known service+layer directly.
+    return jsonText({
+      catalogAvailable: false,
+      services: [],
+      reason: `service catalog is not available on this target: ${err instanceof Error ? err.message : String(err)}`,
+      guidance:
+        "No /rest/services directory here. Call honua_describe_layer / honua_query_features with a known serviceId and layerId, or point the base URL at an ArcGIS folder that lists services.",
+    });
+  }
   const services = (response.services ?? []).filter((s) => s.type === "FeatureServer");
 
   if (!input.includeDetails) {

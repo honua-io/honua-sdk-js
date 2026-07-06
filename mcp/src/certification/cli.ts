@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type ArtifactPaths, runCertification, writeArtifacts } from "./run.js";
@@ -29,12 +30,15 @@ import { type ArtifactPaths, runCertification, writeArtifacts } from "./run.js";
 interface CliOptions {
   artifactOnly: boolean;
   outDir: string;
+  /** Overrides HONUA_MCP_CERT_TARGET (cross-platform alternative to the env var). */
+  target?: string;
 }
 
 function parseArgs(argv: string[]): CliOptions {
   let artifactOnly = false;
   // Default to the package root (two levels up from dist/src/certification/).
   let outDir = fileURLToPath(new URL("../../../", import.meta.url));
+  let target: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--artifact-only") {
@@ -45,9 +49,15 @@ function parseArgs(argv: string[]): CliOptions {
         throw new Error("--out-dir requires a directory argument");
       }
       outDir = resolve(value);
+    } else if (arg === "--target") {
+      const value = argv[++i];
+      if (!value) {
+        throw new Error("--target requires a target mode (offline | remote | stdio-proxy | standalone)");
+      }
+      target = value;
     }
   }
-  return { artifactOnly, outDir };
+  return { artifactOnly, outDir, ...(target ? { target } : {}) };
 }
 
 function artifactPaths(outDir: string): ArtifactPaths {
@@ -58,8 +68,10 @@ function artifactPaths(outDir: string): ArtifactPaths {
 }
 
 async function main(): Promise<void> {
-  const { artifactOnly, outDir } = parseArgs(process.argv.slice(2));
-  const report = await runCertification();
+  const { artifactOnly, outDir, target } = parseArgs(process.argv.slice(2));
+  const env = target ? { ...process.env, HONUA_MCP_CERT_TARGET: target } : process.env;
+  const report = await runCertification({ env });
+  mkdirSync(outDir, { recursive: true });
   const paths = artifactPaths(outDir);
   writeArtifacts(report, paths);
 

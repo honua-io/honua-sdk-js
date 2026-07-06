@@ -2,8 +2,11 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { createClientFromEnv, createServer } from "../index.js";
 import type { AuthMode } from "../provenance.js";
 import { type ProxyOptions, connectUpstream } from "../proxy.js";
+import { createStandaloneFixtureClient } from "./census-fixture-client.js";
 import { type MockUpstream, startMockUpstream } from "./mock-upstream.js";
 
 /**
@@ -20,9 +23,14 @@ import { type MockUpstream, startMockUpstream } from "./mock-upstream.js";
  *                    Reuses the proxy's upstream connection logic verbatim.
  *   - `stdio-proxy` : spawns the `honua-mcp-proxy` binary against an upstream and
  *                     certifies through stdio, proving the proxy chain end-to-end.
+ *   - `standalone`  : the PLATFORM-FREE front door (issue #369). Certifies the
+ *                     direct-SDK `createServer` surface against an in-process fixture
+ *                     of a PLAIN public FeatureServer (recorded census layer, no
+ *                     Honua surfaces). Proves the tools certify green against a
+ *                     non-Honua endpoint, with Honua-only tools skip-with-reason.
  */
 
-export type CertTargetMode = "offline" | "remote" | "stdio-proxy";
+export type CertTargetMode = "offline" | "remote" | "stdio-proxy" | "standalone";
 
 export interface CertificationTarget {
   mode: CertTargetMode;
@@ -43,10 +51,12 @@ export interface CertificationTarget {
 
 export function resolveTargetMode(env: NodeJS.ProcessEnv = process.env): CertTargetMode {
   const raw = (env.HONUA_MCP_CERT_TARGET ?? "offline").trim().toLowerCase();
-  if (raw === "offline" || raw === "remote" || raw === "stdio-proxy") {
+  if (raw === "offline" || raw === "remote" || raw === "stdio-proxy" || raw === "standalone") {
     return raw;
   }
-  throw new Error(`HONUA_MCP_CERT_TARGET must be "offline", "remote", or "stdio-proxy", received "${raw}"`);
+  throw new Error(
+    `HONUA_MCP_CERT_TARGET must be "offline", "remote", "stdio-proxy", or "standalone", received "${raw}"`,
+  );
 }
 
 /** Resolve the remote `/mcp` endpoint + credentials from the environment. */
@@ -92,7 +102,52 @@ export async function openCertificationTarget(env: NodeJS.ProcessEnv = process.e
   if (mode === "stdio-proxy") {
     return openStdioProxyTarget(env);
   }
+  if (mode === "standalone") {
+    return openStandaloneTarget(env);
+  }
   return openOfflineTarget(env);
+}
+
+/**
+ * Open the platform-free standalone target: the direct-SDK `createServer` surface,
+ * reached over an in-memory MCP transport. By default it is wired to an in-process
+ * fixture of a plain public FeatureServer (recorded census layer, no Honua
+ * surfaces) — deterministic, no network, gates CI. When `HONUA_BASE_URL` is set
+ * (the scheduled live variant) it drives a REAL `HonuaClient` against that public
+ * FeatureServer/OGC endpoint instead. Either way there is no transport auth
+ * boundary, so the auth contracts skip-with-reason and the Honua-only style tools
+ * degrade to structured "not available on this target" results.
+ */
+async function openStandaloneTarget(env: NodeJS.ProcessEnv): Promise<CertificationTarget> {
+  const live = typeof env.HONUA_BASE_URL === "string" && env.HONUA_BASE_URL.length > 0;
+  const client_ = live ? createClientFromEnv(env) : createStandaloneFixtureClient();
+  const server = createServer(client_);
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "honua-mcp-certifier", version: "1.0.0" });
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+
+  return {
+    mode: "standalone",
+    backend: live ? "live" : "mock-upstream",
+    serverLabel: live
+      ? `honua-mcp standalone → ${env.HONUA_BASE_URL} (live public FeatureServer, no Honua surfaces)`
+      : "honua-mcp standalone → plain public FeatureServer (recorded census fixture, no Honua surfaces)",
+    authMode: "anonymous",
+    honuaTransport: env.HONUA_TRANSPORT ?? null,
+    client,
+    // A plain FeatureServer has no MCP transport auth boundary — the auth
+    // contracts skip-with-reason rather than assert an enforcement that a
+    // platform-free target does not (and should not) provide.
+    supportsUnauthenticatedPass: false,
+    connectUnauthenticated() {
+      return Promise.reject(new Error("standalone target has no auth boundary"));
+    },
+    async close() {
+      await client.close().catch(() => {});
+      await server.close().catch(() => {});
+    },
+  };
 }
 
 async function openOfflineTarget(env: NodeJS.ProcessEnv): Promise<CertificationTarget> {

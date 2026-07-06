@@ -152,11 +152,25 @@ export function createClientFromEnv(env: NodeJS.ProcessEnv = process.env): Honua
 }
 
 /**
- * @deprecated Static, hand-maintained 9-tool MCP server. This is NO LONGER the
- * product surface and is NOT on the certification trust path — the honua-server
- * `/mcp` catalog is the source of truth, mirrored to stdio by `honua-mcp-proxy`
- * (see {@link runProxy}). `createServer` is retained ONLY as a labeled offline
- * test fixture (proxy parity harness). Do not ship it as the operator surface.
+ * The PLATFORM-FREE standalone MCP surface (issue #369).
+ *
+ * This is the direct-SDK operator surface: nine read-only geospatial tools wired
+ * straight onto `@honua/sdk-js`, which speaks plain Esri GeoServices / OGC API
+ * over standard REST paths (`/rest/services`, `/FeatureServer/{id}/query`, …).
+ * Point it at ANY public FeatureServer / OGC endpoint (e.g. a `services.arcgis.com`
+ * FeatureServer) with ZERO Honua-server assumptions — no admin API, no `/healthz`,
+ * no `/mcp` catalog. This is what the `honua-mcp` bin runs (see {@link runStandalone}),
+ * and what the platform-free certification lane + eval corpus exercise.
+ *
+ * Tools that need a Honua-only surface (server-side styling via OGC API – Styles,
+ * a `/rest/services` catalog) degrade gracefully on a plain target: they return a
+ * structured "not available on this target" result rather than crashing or
+ * returning misleading empty data (see `capability.ts`).
+ *
+ * The Honua-ENHANCED surface — the full `/mcp` operator catalog with governed
+ * mutation, jobs, and publishing — is a superset reached over streamable-HTTP and
+ * mirrored to stdio by `honua-mcp-proxy` ({@link runProxy}); it requires a Honua
+ * deployment. Standalone is the front door; the proxy is the upgrade path.
  */
 export function createServer(client: HonuaClient) {
   const server = new McpServer({
@@ -168,7 +182,7 @@ export function createServer(client: HonuaClient) {
 
   server.tool(
     "honua_list_services",
-    "Discover all available feature services. Set includeDetails=true for descriptions, layer counts, and spatial references.",
+    "Discover all available feature services on any FeatureServer folder. Set includeDetails=true for descriptions, layer counts, and spatial references. Degrades gracefully when the target has no service catalog.",
     listServices.schema.shape,
     async (args) => listServices.execute(client, listServices.schema.parse(args)),
   );
@@ -210,21 +224,21 @@ export function createServer(client: HonuaClient) {
 
   server.tool(
     "honua_explain_capability_gap",
-    "Explain whether a Honua source/protocol supports a capability and suggest a safe fallback when it does not.",
+    "Explain whether a source/protocol supports a capability and suggest a safe fallback when it does not.",
     explainCapabilityGap.schema.shape,
     async (args) => explainCapabilityGap.execute(client, explainCapabilityGap.schema.parse(args)),
   );
 
   server.tool(
     "honua_get_style",
-    "Resolve a style from the server's OGC API – Styles surface. Pass styleId for the canonical StyleRef (style_id, title, encodings incl. inlined MapLibre); omit it to list available styles.",
+    "Resolve a style from a server's OGC API – Styles surface. Pass styleId for the canonical StyleRef (style_id, title, encodings incl. inlined MapLibre); omit it to list available styles. On a plain FeatureServer with no styling surface, reports a structured 'not available on this target' result.",
     getStyle.schema.shape,
     async (args) => getStyle.execute(client, getStyle.schema.parse(args)),
   );
 
   server.tool(
     "honua_apply_style_preset",
-    "Resolve a style preset and its MapLibre stylesheet for client-side application. Read-only: returns the stylesheet to apply locally; it does not mutate server state.",
+    "Resolve a style preset and its MapLibre stylesheet for client-side application. Read-only: returns the stylesheet to apply locally; it does not mutate server state. Degrades gracefully on a target with no styling surface.",
     applyStylePreset.schema.shape,
     async (args) => applyStylePreset.execute(client, applyStylePreset.schema.parse(args)),
   );
@@ -249,24 +263,29 @@ export function createServer(client: HonuaClient) {
   return server;
 }
 
-/* v8 ignore start -- deprecated bin entry: delegates to the dynamic proxy at
-   runtime; the proxy's logic is unit-tested in proxy.test.ts. */
+/* v8 ignore start -- live-process entry: wires the stdio transport to a real
+   SDK client against HONUA_BASE_URL; exercised by running the bin, not unit tests.
+   The unit-testable logic (option resolution, client construction, server wiring)
+   lives in the exported functions above and is covered there. */
 /**
- * Deprecated `honua-mcp` bin entry.
+ * Run the platform-free standalone server end-to-end over stdio.
  *
- * The static 9-tool server has been retired from the product/trust path. This
- * bin now prints a deprecation notice and launches the dynamic proxy
- * (`honua-mcp-proxy`), which mirrors the honua-server `/mcp` catalog. It
- * therefore requires `HONUA_MCP_REMOTE_URL` (the remote `/mcp` endpoint) instead
- * of the old `HONUA_BASE_URL`.
+ * Builds a `HonuaClient` from the environment (`HONUA_BASE_URL` + optional
+ * transport/auth) and exposes {@link createServer} — the nine read-only tools —
+ * to a stdio MCP client (Claude Desktop / Claude Code / any MCP agent). Point
+ * `HONUA_BASE_URL` at any public FeatureServer/OGC endpoint; no Honua server is
+ * required. For the Honua-enhanced `/mcp` catalog, use `honua-mcp-proxy` instead.
  */
+export async function runStandalone(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const client = createClientFromEnv(env);
+  const server = createServer(client);
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+/** `honua-mcp` bin entry — the platform-free standalone server. */
 async function main() {
-  process.stderr.write(
-    "DEPRECATION: `honua-mcp` is deprecated and now proxies the honua-server /mcp catalog. " +
-      "Use `honua-mcp-proxy` directly. Set HONUA_MCP_REMOTE_URL to the remote /mcp endpoint.\n",
-  );
-  const { runProxy } = await import("./proxy.js");
-  await runProxy();
+  await runStandalone();
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
