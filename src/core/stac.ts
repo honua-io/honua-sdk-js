@@ -191,7 +191,9 @@ function stacBase(request: { stacBasePath?: string }): string {
   if (base === undefined) return "/stac";
   // Trim trailing slashes; an explicit "" means "the client baseUrl is the
   // STAC API root".
-  return base.replace(/\/+$/, "");
+  let end = base.length;
+  while (end > 0 && base.charCodeAt(end - 1) === 0x2f) end--;
+  return base.slice(0, end);
 }
 
 export async function getStacLanding(

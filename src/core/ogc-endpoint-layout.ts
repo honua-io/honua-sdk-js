@@ -41,7 +41,9 @@ function enc(id: string | number): string {
 }
 
 function trimTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, "");
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 0x2f) end--;
+  return url.slice(0, end);
 }
 
 /**
