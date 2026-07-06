@@ -27,12 +27,13 @@ export {
   HonuaNetworkError,
   HonuaAbortError,
   HonuaGrpcError,
+  HonuaAuthError,
   HonuaCapabilityNotSupportedError,
   HonuaExplorationContextError,
   HonuaWfsExceptionError,
   isHonuaError,
 } from "./core/errors.js";
-export type { HonuaError } from "./core/errors.js";
+export type { HonuaError, HonuaAuthErrorCode } from "./core/errors.js";
 export { QueryBuilder, MapLayerQueryBuilder, OgcQueryBuilder } from "./core/query-builder.js";
 export {
   envelope,

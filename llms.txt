@@ -19,6 +19,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-capability-matrix.md): Backend-agnostic vs Honua-server-enhanced capabilities: what works with no server and what needs one.
 - [Cross-SDK Surface Alignment](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/sdk-surface-alignment.md): Cross-language naming parity and the semver / stability policy.
 - [Error reference](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/errors.md): Named error hierarchy, catch-narrowing, and retry policy.
+- [Authentication](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/auth.md): Authentication: pluggable auth providers, OAuth2 authorization-code + PKCE, token refresh, credential stores, and security guidance.
 - [React bindings (@honua/react)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/react.md): @honua/react bindings: HonuaProvider, useQuery/useDataset hooks, and map components.
 - [@honua/geometry — client-side geometry operations](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/geometry.md): @honua/geometry client-side ops (buffer/area/measure/simplify/reproject) and the geometryEngine compat shim coverage table.
 - [Bundle sizes](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/bundle-sizes.md): CI-enforced per-entrypoint bundle sizes (min + gzip) with budget policy.
