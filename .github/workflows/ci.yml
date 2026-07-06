@@ -45,6 +45,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify public API report (stable tier)
+        run: node scripts/report-api-surface.mjs --check
+
       - name: Build and verify browser bundle
         run: npm run verify:browser
 

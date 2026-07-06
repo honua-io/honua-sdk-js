@@ -45,9 +45,12 @@ const GLOBAL_NAME = "HonuaSDK";
 const EXTERNAL = [
   "maplibre-gl",
   "cesium",
+  "pmtiles",
   "@bufbuild/protobuf",
   "@connectrpc/connect",
   "@connectrpc/connect-web",
+  "@duckdb/duckdb-wasm",
+  "apache-arrow",
 ];
 
 const SHARED_OPTIONS = {

@@ -40,7 +40,16 @@ const DOCS_FILE = path.join(PROJECT_ROOT, "docs", "bundle-sizes.md");
  * match `scripts/build-browser-bundle.mjs` and real consumer builds, instead of
  * inlining multi-megabyte map/protobuf runtimes.
  */
-const EXTERNAL = ["maplibre-gl", "cesium", "@bufbuild/protobuf", "@connectrpc/connect", "@connectrpc/connect-web"];
+const EXTERNAL = [
+  "maplibre-gl",
+  "cesium",
+  "pmtiles",
+  "@bufbuild/protobuf",
+  "@connectrpc/connect",
+  "@connectrpc/connect-web",
+  "@duckdb/duckdb-wasm",
+  "apache-arrow",
+];
 
 const SHARED_ESBUILD_OPTIONS = {
   bundle: true,
@@ -67,8 +76,15 @@ const TARGETS = [
   { key: "/expr", kind: "bundle", entry: "dist/src/expr/index.js", label: "`/expr`" },
   { key: "/webmap", kind: "bundle", entry: "dist/src/webmap/index.js", label: "`/webmap`" },
   { key: "/geocoding", kind: "bundle", entry: "dist/src/geocoding/index.js", label: "`/geocoding`" },
+  { key: "/auth", kind: "bundle", entry: "dist/src/core/auth/index.js", label: "`/auth`" },
   { key: "/style", kind: "bundle", entry: "dist/src/style/index.js", label: "`/style`" },
   { key: "/map", kind: "bundle", entry: "dist/src/map/index.js", label: "`/map`" },
+  {
+    key: "/geoparquet",
+    kind: "bundle",
+    entry: "dist/src/geoparquet/index.js",
+    label: "`/geoparquet` (duckdb-wasm external — lazy peer)",
+  },
   {
     key: "/react",
     kind: "bundle",

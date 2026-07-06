@@ -88,6 +88,7 @@ export type { EsriConfigCompat, EsriConfigRequestCompat } from "./esri-compat/es
 export { identityManager } from "./esri-compat/identity-manager.js";
 export type {
   IdentityCredentialCompat,
+  IdentityManagerOAuth2Engine,
   IdentityTokenRegistrationCompat,
 } from "./esri-compat/identity-manager.js";
 export { OAuthInfoCompat } from "./esri-compat/oauth-info.js";
@@ -95,6 +96,7 @@ export type {
   OAuthInfoCompatOptions,
   OAuthInfoHandleCompat,
   OAuthInfoLoadStatusCompat,
+  OAuthInfoToConfigOptions,
 } from "./esri-compat/oauth-info.js";
 export { CompatEventBus } from "./esri-compat/event-bus.js";
 export type {

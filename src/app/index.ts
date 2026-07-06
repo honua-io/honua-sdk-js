@@ -557,6 +557,9 @@ function defaultLayerTypeForProtocol(protocol: SourceDescriptor["protocol"]): Ho
     case "geoservices-gp-service":
     case "ogc-records":
     case "stac":
+    // PMTiles archives may be vector or raster; the layer type is ambiguous
+    // from the protocol alone, so require explicit `source.layer.type`.
+    case "pmtiles":
       return undefined;
   }
 }
@@ -594,6 +597,7 @@ function mapDescriptorProtocol(protocol: SourceDescriptor["protocol"]): HonuaMap
     case "wms":
     case "wmts":
     case "odata":
+    case "pmtiles":
       return protocol;
     case "grpc":
     case "geoservices-image-service":
@@ -601,6 +605,7 @@ function mapDescriptorProtocol(protocol: SourceDescriptor["protocol"]): HonuaMap
     case "geoservices-gp-service":
     case "ogc-records":
     case "stac":
+    case "geoparquet":
     case "maplibre-geojson":
       throw new HonuaMapPackageError(`SourceDescriptor protocol "${protocol}" cannot be projected to a MapPackage`, {
         stage: "source-bind",

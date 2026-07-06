@@ -298,7 +298,7 @@ runtime.dispose();
 
 - Full runtime reference: [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md).
 - Protocol routing (server `SourceBinding` → MapLibre / contract adapter):
-  [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md#runtime-consumer-honuasdkjsruntime).
+  [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md#runtime-consumer-honuasdk-jsruntime).
 - `MapPackage` format tag: `honua_map_package.v1`. The loader throws
   `HonuaMapPackageError { stage: "load" }` on any other value, and `updatePackage` rejects format
   mismatches without mutating the map.

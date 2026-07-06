@@ -9,14 +9,17 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [Honua JS SDK](https://github.com/honua-io/honua-sdk-js/blob/trunk/README.md): Project overview, install, 60-second quickstart, and the demo index.
 - [Installing the Honua JavaScript SDK](https://github.com/honua-io/honua-sdk-js/blob/trunk/INSTALL.md): Install instructions and the subpath entrypoint / stability table.
 - [5-Minute Quickstart: Query Features and Render on a Map](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/quickstart.md): 5-minute quickstart: query features and render them on a map.
+- [Standalone Quickstart: The SDK Against Any Public Endpoint](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-quickstart.md): Server-optional front door: run the SDK against any public GeoServices endpoint with no Honua server, key, or account.
 - [Quickstart Troubleshooting](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/quickstart-troubleshooting.md): Common quickstart failure modes and how to fix them.
 
 ## Core contract and API
 
 - [Shared Client Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/shared-client-contract.md): Dataset / Source / Query / Result contract design and semantics.
 - [Protocol × Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/protocol-capability-matrix.md): Which operations each protocol supports and where capabilities fall back.
+- [Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-capability-matrix.md): Backend-agnostic vs Honua-server-enhanced capabilities: what works with no server and what needs one.
 - [Cross-SDK Surface Alignment](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/sdk-surface-alignment.md): Cross-language naming parity and the semver / stability policy.
 - [Error reference](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/errors.md): Named error hierarchy, catch-narrowing, and retry policy.
+- [Authentication](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/auth.md): Authentication: pluggable auth providers, OAuth2 authorization-code + PKCE, token refresh, credential stores, and security guidance.
 - [React bindings (@honua/react)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/react.md): @honua/react bindings: HonuaProvider, useQuery/useDataset hooks, and map components.
 - [@honua/geometry — client-side geometry operations](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/geometry.md): @honua/geometry client-side ops (buffer/area/measure/simplify/reproject) and the geometryEngine compat shim coverage table.
 - [Bundle sizes](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/bundle-sizes.md): CI-enforced per-entrypoint bundle sizes (min + gzip) with budget policy.
@@ -26,11 +29,13 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 
 - [OGC API Client](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/ogc-api.md): OGC API Features / Tiles / Maps / Processes and STAC cookbooks.
 - [WFS 2.0 adapter](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/wfs.md): WFS 2.0 adapter usage, filters, and exception handling.
+- [GeoParquet / DuckDB-WASM source](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/geoparquet.md): GeoParquet / DuckDB-WASM Source: contract Query compiled to SQL over read_parquet, spatial pushdown, Overture recipe.
 - [WebMap JSON Compatibility Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/webmap-json-compatibility.md): Parsing Esri WebMap JSON into Honua sources and MapLibre style.
 
 ## Map runtime
 
 - [MapLibre GL JS Runtime (@honua/sdk-js/runtime)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/maplibre-runtime.md): loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.
+- [PMTiles](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/pmtiles.md): Native PMTiles support: auto-registered pmtiles:// protocol, lazy peer, describe() metadata, and a CDN recipe.
 - [Prebuilt browser bundle (CDN / build-less)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/browser-bundle.md): Build-less CDN / IIFE usage via the prebuilt browser bundle.
 - [Studio Package Contracts (@honua/sdk-js/studio)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/studio-package-contracts.md): Studio package-family projections, validation envelope, and capability manifest.
 
@@ -59,3 +64,4 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [@honua/sdk-js/geocoding](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/geocoding/index.ts): @honua/sdk-js/geocoding — HonuaGeocodingClient for forward / reverse geocoding and typeahead suggestions over a Honua-hosted GeocodeServer.
 - [@honua/sdk-js/expr](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/expr/index.ts): @honua/sdk-js/expr — Honua expression builder.
 - [@honua/sdk-js/webmap](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/webmap/index.ts): @honua/sdk-js/webmap — WebMap JSON parse + symbol / renderer / popup converters.
+- [@honua/sdk-js/geoparquet](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/geoparquet/index.ts): @honua/sdk-js/geoparquet — a GeoParquet / DuckDB-WASM–backed Source.

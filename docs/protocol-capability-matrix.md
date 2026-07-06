@@ -28,31 +28,51 @@ without a canonical `Source` method today are negotiated for
 `◐` = supported only under `degraded` capability policy (client-side fallback).
 `—` = not supported.
 
-| Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ |
-| `queryAggregate` | ✓ | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — | — |
-| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | — | ✓ | — | — | — |
-| `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ |
-| `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
-| `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — | ✓ |
-| `attachments` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — |
-| `tiles` | — | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | ✓ | — |
-| `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
-| `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ |
-| `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `connect` | — | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — |
-| `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
-| `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — |
-| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | GeoParq |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ |
+| `queryAggregate` | ✓ | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — | — | ✓ |
+| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | — | ✓ | — | — | — | — |
+| `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — |
+| `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — | ✓ | — |
+| `attachments` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — |
+| `tiles` | — | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | ✓ | — | — |
+| `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ |
+| `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `connect` | — | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — |
+| `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
+| `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — |
+| `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
+| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 MapLibre-native sources (`maplibre-vector`, `maplibre-raster`,
 `maplibre-geojson`) are render-only and contribute `render` and (where
 applicable) `tiles`. They are excluded from the table above because they
 do not flow through the `Source.query` path.
+
+`pmtiles` is a first-party protocol (`PROTOCOL_DEFAULT_CAPABILITIES.pmtiles`
+= `{ tiles }`) but, like the MapLibre-native sources, is tiles-only and does
+not flow through `Source.query`, so it is documented in the *PMTiles* note
+below rather than as a table column.
+**GeoParquet** (`geoparquet`, column `GeoParq`) is the DuckDB-WASM-backed
+`Source` in `@honua/sdk-js/geoparquet`. The same `Query` (`where` /
+`spatialFilter` / `outFields` / `orderBy` / `pagination` / `aggregation`)
+compiles to DuckDB SQL over `read_parquet(...)`, so `query`, `queryAggregate`
+(GROUP BY), and `stream` are first-party. Envelope `spatialFilter`s push down to
+`ST_Intersects` over the native geometry (or a GeoParquet 1.1 bbox covering
+column); non-envelope filters reduce to their bbox and are reported via
+`Result.degraded`. `queryExtent`, `queryObjectIds`, `queryRelated`,
+`applyEdits`, and `attachments` are honest misses — the static-file source is
+read-only and exposes no server-side ids/extent endpoints. Metadata
+(`describe()`: schema, geometry column, CRS, row estimate) and a raw `sql()`
+escape hatch live on `Source.protocol("geoparquet")`. Because DuckDB-WASM is a
+multi-megabyte optional peer, the adapter lives behind its own entrypoint (wired
+into `createDataset` via `geoparquetResolver`) and is never in the `/contract`
+or `/honua` graph.
 
 `spatialAggregate` is an indexed analytics capability rather than the
 field-statistics `queryAggregate` path. This SDK slice defines the
@@ -661,6 +681,24 @@ same way they do to every other adapter.
 
 Library posture is recorded in
 [`decisions/odata-library-selection.md`](./decisions/odata-library-selection.md).
+
+### PMTiles
+Tiles-only. A PMTiles archive is a single immutable file (raster or vector
+tile pyramid) on any static host or object storage. The default capability
+set is `{ tiles }`, so the entire canonical query family
+(`query` / `queryAll` / `queryExtent` / `queryObjectIds` / `applyEdits` /
+`stream`) throws `HonuaCapabilityNotSupportedError` — an archive has no
+feature-query surface. Archive metadata (bounds, min/max zoom, and vector
+layer names) is inspected through the typed escape hatch:
+`Source.protocol("pmtiles").describe()` (or the standalone
+`describePmtilesArchive(url)` helper), which returns a normalized
+`PmtilesArchiveDescription`.
+
+The `pmtiles` package is an optional peer dependency imported lazily — a
+build that never inspects or renders a PMTiles archive pays no cost. The
+MapLibre runtime auto-registers the `pmtiles://` protocol on map attach
+(`loadMapPackage`), so a `pmtiles` MapPackage source binding renders with no
+manual `addProtocol` wiring; see [`pmtiles.md`](./pmtiles.md).
 
 ## Multi-source negotiation
 

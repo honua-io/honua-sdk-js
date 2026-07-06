@@ -674,6 +674,35 @@ export class HonuaClient {
     return cached?.credentials;
   }
 
+  /**
+   * Resolve the auth headers the client would attach to an outgoing request
+   * right now, refreshing provider credentials first if they are expiring.
+   *
+   * Transports that build their own connection outside the REST/gRPC pipeline —
+   * notably realtime SSE streams, which must re-authenticate on every
+   * (re)connect so a refreshed token is picked up after a drop — call this per
+   * connect to obtain fresh credentials. Returns an empty object when no
+   * credentials are configured.
+   */
+  public async getAuthHeaders(): Promise<Record<string, string>> {
+    return this.composeHeaders();
+  }
+
+  /**
+   * Resolve just the current bearer/authorization token value (without the
+   * `Bearer ` scheme prefix when a plain bearer token is configured), or
+   * `undefined` if none. Convenience for realtime transports that must carry the
+   * token as a query parameter (native `EventSource` cannot set headers).
+   */
+  public async getAuthToken(): Promise<string | undefined> {
+    const headers = await this.composeHeaders();
+    const authorization = headers.Authorization ?? headers.authorization;
+    if (authorization) {
+      return authorization.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : authorization;
+    }
+    return headers["X-API-Key"] ?? headers["x-api-key"];
+  }
+
   /** Drop cached provider credentials without calling a revocation endpoint. */
   public clearAuthCredentials(): void {
     this.authCredentialsCache = undefined;

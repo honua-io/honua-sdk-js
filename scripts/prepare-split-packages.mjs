@@ -116,6 +116,10 @@ function createSdkPackage() {
         types: "./index.d.ts",
         default: "./index.js",
       },
+      "./auth": {
+        types: "./core/auth/index.d.ts",
+        default: "./core/auth/index.js",
+      },
       "./contract": {
         types: "./contract/index.d.ts",
         default: "./contract/index.js",

@@ -1,7 +1,17 @@
 # 5-Minute Quickstart: Query Features and Render on a Map
 
-The canonical runnable browser quickstart for this repo is the committed example app at
-[`examples/maplibre-quickstart/`](../examples/maplibre-quickstart/README.md).
+> **Start server-optional.** You do **not** need a Honua server to use this SDK.
+> The fastest path with zero infrastructure — a public GeoServices endpoint in,
+> a MapLibre map out — is the
+> [standalone quickstart](./standalone-quickstart.md) and its committed app
+> [`examples/standalone-quickstart/`](../examples/standalone-quickstart/README.md).
+> This page covers the **server-connected** lane (compatibility gate, Honua
+> fixtures/live env); see the
+> [backend-agnostic capability matrix](./standalone-capability-matrix.md) for
+> which features need a server.
+
+The canonical runnable browser quickstart for the **server-connected** lane is the committed
+example app at [`examples/maplibre-quickstart/`](../examples/maplibre-quickstart/README.md).
 
 ## Fastest Local Path
 

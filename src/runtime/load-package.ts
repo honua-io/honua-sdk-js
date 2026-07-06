@@ -15,6 +15,7 @@ import type { HonuaLayerSpecification, HonuaStyleSpecification } from "../style/
 import { HonuaMapPackageError } from "./errors.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage } from "./map-package.js";
 import { createOgcStyleRefResolver } from "./ogc-styles.js";
+import { ensurePmtilesProtocol, styleUsesPmtiles } from "./pmtiles-protocol.js";
 import type { PopupFactory, PopupRenderer } from "./popups.js";
 import {
   HonuaMapRuntime,
@@ -251,6 +252,13 @@ export async function loadMapPackage(
       resolveStyleRef: styleRefResolver,
       resolveTheme: options.resolveTheme,
     });
+    // Auto-register the MapLibre `pmtiles://` protocol before the caller (or
+    // `runtime.reload`) hands this style to `map.setStyle`, so PMTiles-backed
+    // sources render with no manual `addProtocol` wiring. Idempotent across
+    // maps and no-ops (zero import cost) when no source uses PMTiles.
+    if (styleUsesPmtiles(composed)) {
+      await ensurePmtilesProtocol();
+    }
     return { composed, dataset, honuaMap, failedSources };
   };
 

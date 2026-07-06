@@ -1,0 +1,85 @@
+name: Docs site
+
+# Build and publish the SDK documentation site (guides + TypeDoc API reference +
+# demo gallery) to GitHub Pages on every trunk merge. Decision record:
+# docs/decisions/sdk-docs-hosting.md.
+
+on:
+  push:
+    branches:
+      - trunk
+    paths:
+      - "README.md"
+      - "INSTALL.md"
+      - "docs/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/build-docs-site.mjs"
+      - "scripts/check-docs-site-links.mjs"
+      - ".github/workflows/docs-site.yml"
+  workflow_dispatch:
+
+# Allow the workflow token to publish to Pages; no additional secrets needed.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel an in-progress Pages deploy; queue instead.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # REQ-004: hosted docs, repo docs, and llms.txt cannot drift apart.
+      - name: Verify llms.txt freshness (gate)
+        run: npm run verify:llms
+
+      - name: Build TypeDoc API reference
+        run: npm run docs:api
+
+      - name: Assemble docs site
+        run: npm run docs:site
+
+      - name: Link-check built site
+        run: npm run docs:site:linkcheck
+
+      - name: Configure Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: dist/docs-site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   HonuaAbortError,
+  HonuaAuthError,
   HonuaCapabilityNotSupportedError,
   HonuaClient,
   HonuaExplorationContextError,
@@ -157,9 +158,29 @@ describe("Error hierarchy", () => {
     });
   });
 
+  describe("HonuaAuthError", () => {
+    it("exposes a cause code and preserves the underlying cause", () => {
+      const underlying = { error: "invalid_grant" };
+      const err = new HonuaAuthError("invalid_grant", "refresh token revoked", { cause: underlying });
+      expect(err.name).toBe("HonuaAuthError");
+      expect(err.code).toBe("invalid_grant");
+      expect(err.cause).toBe(underlying);
+      expect(err.message).toBe("refresh token revoked");
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(HonuaAuthError);
+    });
+
+    it("supports the documented cause codes", () => {
+      for (const code of ["interaction_required", "refresh_failed", "invalid_grant"] as const) {
+        expect(new HonuaAuthError(code, code).code).toBe(code);
+      }
+    });
+  });
+
   describe("isHonuaError", () => {
     it("returns true for all SDK error types", () => {
       expect(isHonuaError(new HonuaHttpError(404, "not found", null))).toBe(true);
+      expect(isHonuaError(new HonuaAuthError("interaction_required", "sign in"))).toBe(true);
       expect(isHonuaError(new HonuaTimeoutError(1000))).toBe(true);
       expect(isHonuaError(new HonuaNetworkError("fail", null))).toBe(true);
       expect(isHonuaError(new HonuaAbortError())).toBe(true);

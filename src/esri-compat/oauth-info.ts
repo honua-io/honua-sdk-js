@@ -1,3 +1,4 @@
+import type { OAuth2Config } from "../core/auth/types.js";
 import { safeInvokeCompatListener } from "./event-bus.js";
 export interface OAuthInfoCompatOptions {
   appId?: string;
@@ -7,6 +8,14 @@ export interface OAuthInfoCompatOptions {
   expiration?: number;
   authNamespace?: string;
   preserveUrlHash?: boolean;
+}
+
+/** Overrides accepted by {@link OAuthInfoCompat.toOAuth2Config}. */
+export interface OAuthInfoToConfigOptions extends Partial<Omit<OAuth2Config, "clientId">> {
+  /** Redirect URI receiving the authorization code (required in browsers). */
+  redirectUri?: string;
+  /** Override the `clientId` (defaults to this info's `appId`). */
+  clientId?: string;
 }
 
 export type OAuthInfoLoadStatusCompat = "not-loaded" | "loading" | "loaded";
@@ -108,6 +117,34 @@ export class OAuthInfoCompat {
       this.preserveUrlHash = options.preserveUrlHash;
       this.notifyWatchers("preserveUrlHash", this.preserveUrlHash);
     }
+  }
+
+  /**
+   * Derive an {@link OAuth2Config} from this Esri-style OAuth info so it can back
+   * a real `oauth2(...)` provider from `@honua/sdk-js/auth`. Endpoints default to
+   * the ArcGIS Portal shape (`<portalUrl>/sharing/rest/oauth2/authorize` and
+   * `/token`); pass explicit endpoints or a `redirectUri` via `overrides`.
+   */
+  public toOAuth2Config(overrides: OAuthInfoToConfigOptions = {}): OAuth2Config {
+    const clientId = overrides.clientId ?? this.appId;
+    if (!clientId) {
+      throw new Error("OAuthInfoCompat.toOAuth2Config requires an appId (or an explicit clientId override).");
+    }
+    const redirectUri = overrides.redirectUri;
+    if (!redirectUri) {
+      throw new Error("OAuthInfoCompat.toOAuth2Config requires a redirectUri override.");
+    }
+    const portalBase = this.portalUrl.replace(/\/+$/, "");
+    const { redirectUri: _redirectUri, clientId: _clientId, ...rest } = overrides;
+    return {
+      authorizationEndpoint: `${portalBase}/sharing/rest/oauth2/authorize`,
+      tokenEndpoint: `${portalBase}/sharing/rest/oauth2/token`,
+      clientId,
+      redirectUri,
+      mode: this.popup ? "popup" : "redirect",
+      ...(this.expiration !== undefined ? { extraAuthorizationParams: { expiration: String(this.expiration) } } : {}),
+      ...rest,
+    };
   }
 
   public clone(): OAuthInfoCompat {

@@ -52,6 +52,10 @@
       "min": 5472,
       "gzip": 2164
     },
+    "/auth": {
+      "min": 13099,
+      "gzip": 4109
+    },
     "/style": {
       "min": 40820,
       "gzip": 9341
@@ -59,6 +63,10 @@
     "/map": {
       "min": 70492,
       "gzip": 18293
+    },
+    "/geoparquet": {
+      "min": 16143,
+      "gzip": 5967
     },
     "browser-iife": {
       "min": 463519,

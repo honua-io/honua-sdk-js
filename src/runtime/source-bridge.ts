@@ -313,9 +313,36 @@ function toMapLibreNativeSource(binding: HonuaMapPackageSourceBinding): NativeMa
           ...(binding.attribution ? { attribution: binding.attribution } : {}),
         },
       };
+    case "pmtiles":
+      return toPmtilesNativeSource(binding);
     default:
       return undefined;
   }
+}
+
+/**
+ * Project a PMTiles binding onto a MapLibre-native source. A PMTiles archive is
+ * a single immutable file addressed by MapLibre as a `pmtiles://<archive-url>`
+ * source `url` (the `pmtiles://` protocol is auto-registered by the runtime on
+ * map attach). Whether the archive is vector or raster comes from the binding's
+ * `locator.sourceType` hint (`"vector"` | `"raster"`), defaulting to vector —
+ * the common PMTiles basemap case.
+ */
+function toPmtilesNativeSource(binding: HonuaMapPackageSourceBinding): NativeMapLibreSourceEntry | undefined {
+  const url = binding.locator.url;
+  if (typeof url !== "string" || url.length === 0) return undefined;
+  const sourceUrl = url.startsWith("pmtiles://") ? url : `pmtiles://${url}`;
+  const hint = binding.locator.sourceType;
+  const type = hint === "raster" ? "raster" : "vector";
+  return {
+    sourceId: binding.sourceId,
+    attribution: binding.attribution,
+    spec: {
+      type,
+      url: sourceUrl,
+      ...(binding.attribution ? { attribution: binding.attribution } : {}),
+    },
+  };
 }
 
 function toSourceLocator(

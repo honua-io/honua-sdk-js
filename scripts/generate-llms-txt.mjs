@@ -50,6 +50,11 @@ const SECTIONS = [
       { path: "INSTALL.md", description: "Install instructions and the subpath entrypoint / stability table." },
       { path: "docs/quickstart.md", description: "5-minute quickstart: query features and render them on a map." },
       {
+        path: "docs/standalone-quickstart.md",
+        description:
+          "Server-optional front door: run the SDK against any public GeoServices endpoint with no Honua server, key, or account.",
+      },
+      {
         path: "docs/quickstart-troubleshooting.md",
         description: "Common quickstart failure modes and how to fix them.",
       },
@@ -67,10 +72,19 @@ const SECTIONS = [
         description: "Which operations each protocol supports and where capabilities fall back.",
       },
       {
+        path: "docs/standalone-capability-matrix.md",
+        description: "Backend-agnostic vs Honua-server-enhanced capabilities: what works with no server and what needs one.",
+      },
+      {
         path: "docs/sdk-surface-alignment.md",
         description: "Cross-language naming parity and the semver / stability policy.",
       },
       { path: "docs/errors.md", description: "Named error hierarchy, catch-narrowing, and retry policy." },
+      {
+        path: "docs/auth.md",
+        description:
+          "Authentication: pluggable auth providers, OAuth2 authorization-code + PKCE, token refresh, credential stores, and security guidance.",
+      },
       {
         path: "docs/react.md",
         description: "@honua/react bindings: HonuaProvider, useQuery/useDataset hooks, and map components.",
@@ -96,6 +110,11 @@ const SECTIONS = [
       { path: "docs/ogc-api.md", description: "OGC API Features / Tiles / Maps / Processes and STAC cookbooks." },
       { path: "docs/wfs.md", description: "WFS 2.0 adapter usage, filters, and exception handling." },
       {
+        path: "docs/geoparquet.md",
+        description:
+          "GeoParquet / DuckDB-WASM Source: contract Query compiled to SQL over read_parquet, spatial pushdown, Overture recipe.",
+      },
+      {
         path: "docs/webmap-json-compatibility.md",
         description: "Parsing Esri WebMap JSON into Honua sources and MapLibre style.",
       },
@@ -107,6 +126,11 @@ const SECTIONS = [
       {
         path: "docs/maplibre-runtime.md",
         description: "loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.",
+      },
+      {
+        path: "docs/pmtiles.md",
+        description:
+          "Native PMTiles support: auto-registered pmtiles:// protocol, lazy peer, describe() metadata, and a CDN recipe.",
       },
       { path: "docs/browser-bundle.md", description: "Build-less CDN / IIFE usage via the prebuilt browser bundle." },
       {
@@ -184,6 +208,11 @@ const ENTRYPOINTS = [
     path: "src/webmap/index.ts",
     label: "@honua/sdk-js/webmap",
     fallback: "WebMap JSON parse + symbol / renderer / popup converters.",
+  },
+  {
+    path: "src/geoparquet/index.ts",
+    label: "@honua/sdk-js/geoparquet",
+    fallback: "GeoParquet / DuckDB-WASM Source: contract Query compiled to SQL over read_parquet.",
   },
 ];
 
