@@ -1,5 +1,11 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
+  type AuthMode,
+  type SuiteProvenance,
+  readNegotiatedProtocolVersion,
+  resolveSuiteGitSha,
+} from "../provenance.js";
+import {
   AUTH_ERROR_CODES,
   type ContractOutcome,
   type ListPage,
@@ -9,6 +15,7 @@ import {
 } from "./contracts.js";
 import { buildInvalidArgsInputs, buildRoundTripInputs, resolveRoundTripEnv } from "./fixtures.js";
 import { checkConformance, checkWellFormed, validateAgainstSchema } from "./json-schema.js";
+import { runDeepContracts } from "./lifecycle.js";
 import {
   type JsonSchema,
   type StandardToolEntry,
@@ -57,7 +64,15 @@ export interface KnownGap {
 
 /** A cross-cutting contract check against the certified surface. */
 export interface ContractCheck {
-  contract: "output-schema" | "error-shape" | "auth-unauthenticated" | "list-pagination";
+  contract:
+    | "output-schema"
+    | "error-shape"
+    | "auth-unauthenticated"
+    | "list-pagination"
+    | "query-pagination"
+    | "mutating-round-trip"
+    | "mutating-permission-denied"
+    | "async-job-lifecycle";
   target: string;
   status: "passed" | "failed" | "skipped";
   detail: string;
@@ -75,6 +90,8 @@ export interface CertificationReport {
     surface: string;
   };
   standard: { source: string; indexDate: string; dialect: string };
+  /** Self-proving provenance: what was certified, with which suite, how authed. */
+  provenance: SuiteProvenance;
   summary: {
     pass: boolean;
     toolsDiscovered: number;
@@ -88,6 +105,7 @@ export interface CertificationReport {
     contractsChecked: number;
     contractsPassed: number;
     contractsFailed: number;
+    contractsSkipped: number;
     knownGaps: number;
     failures: number;
   };
@@ -111,6 +129,8 @@ export interface CertifyOptions {
   honuaTransport?: string | null;
   /** Open a fresh, unauthenticated client for the auth contract (optional). */
   connectUnauthenticated?: (() => Promise<Client>) | undefined;
+  /** How the authenticated client reached the surface (recorded in provenance). */
+  authMode?: AuthMode;
   /** Environment used to resolve round-trip identifiers. */
   env?: NodeJS.ProcessEnv;
 }
@@ -172,7 +192,29 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
   contracts.push(await runErrorShapeContract(client, advertisedTools));
   await runAuthContracts(options, advertisedTools, advertisedResources, contracts);
 
+  // Deep contracts: mutating round-trip, unauthenticated-write refusal, async job
+  // lifecycle, and query pagination. Safe by construction — mutations only run
+  // against the disposable offline mock or an explicit scratch target.
+  const deep = await runDeepContracts({
+    client,
+    advertisedToolNames: advertisedNames,
+    isDisposableBackend: options.backend === "mock-upstream",
+    connectUnauthenticated: options.connectUnauthenticated,
+    env: options.env,
+  });
+  contracts.push(...deep);
+
   const knownGaps = collectKnownGaps(index, advertisedNames, referenceLookup);
+
+  const gitSha = resolveSuiteGitSha(options.env);
+  const provenance: SuiteProvenance = {
+    suiteGitSha: gitSha.sha,
+    suiteGitShaSource: gitSha.source,
+    targetUrl: options.surface,
+    protocolVersion: readNegotiatedProtocolVersion(client),
+    toolCount: advertisedTools.length,
+    authMode: options.authMode ?? (options.backend === "mock-upstream" ? "bearer" : "unknown"),
+  };
 
   return assembleReport({
     serverInfo: serverInfo as { name: string; version: string },
@@ -183,6 +225,7 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
     prompts,
     contracts,
     knownGaps,
+    provenance,
   });
 }
 
@@ -544,8 +587,9 @@ function assembleReport(args: {
   prompts: { name: string; discovered: true }[];
   contracts: ContractCheck[];
   knownGaps: KnownGap[];
+  provenance: SuiteProvenance;
 }): CertificationReport {
-  const { serverInfo, index, options, tools, resources, prompts, contracts, knownGaps } = args;
+  const { serverInfo, index, options, tools, resources, prompts, contracts, knownGaps, provenance } = args;
 
   const toolsSchemaValid = tools.filter((t) => t.schemaValid).length;
   const conformanceChecked = tools.filter((t) => t.conformant !== null);
@@ -556,6 +600,7 @@ function assembleReport(args: {
   const contractsChecked = contracts.filter((c) => c.status !== "skipped").length;
   const contractsPassed = contracts.filter((c) => c.status === "passed").length;
   const contractsFailed = contracts.filter((c) => c.status === "failed").length;
+  const contractsSkipped = contracts.filter((c) => c.status === "skipped").length;
 
   const toolFailures = tools.reduce((acc, t) => acc + t.errors.length, 0);
   const failures = toolFailures + contractsFailed;
@@ -573,6 +618,7 @@ function assembleReport(args: {
       surface: options.surface,
     },
     standard: { source: STANDARD_SOURCE, indexDate: index.date, dialect: index.dialect },
+    provenance,
     summary: {
       pass,
       toolsDiscovered: tools.length,
@@ -586,6 +632,7 @@ function assembleReport(args: {
       contractsChecked,
       contractsPassed,
       contractsFailed,
+      contractsSkipped,
       knownGaps: knownGaps.length,
       failures,
     },

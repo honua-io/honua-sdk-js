@@ -24,6 +24,19 @@ export function renderMarkdown(report: CertificationReport): string {
   );
   lines.push("");
 
+  const p = report.provenance;
+  lines.push("## Provenance");
+  lines.push("");
+  lines.push("| Field | Value |");
+  lines.push("| --- | --- |");
+  lines.push(`| Target | ${p.targetUrl} |`);
+  lines.push(`| Auth mode | \`${p.authMode}\` |`);
+  lines.push(`| Negotiated protocol | \`${p.protocolVersion ?? "n/a"}\` |`);
+  lines.push(`| Tools advertised | ${p.toolCount} |`);
+  lines.push(`| Suite git SHA | \`${p.suiteGitSha}\` (${p.suiteGitShaSource}) |`);
+  lines.push(`| Generated | \`${report.generatedAt}\` |`);
+  lines.push("");
+
   lines.push("## Summary");
   lines.push("");
   lines.push("| Metric | Value |");
@@ -37,6 +50,7 @@ export function renderMarkdown(report: CertificationReport): string {
   lines.push(`| Resources discovered | ${s.resourcesDiscovered} |`);
   lines.push(`| Prompts discovered | ${s.promptsDiscovered} |`);
   lines.push(`| Contracts checked | ${s.contractsPassed} / ${s.contractsChecked} passed |`);
+  lines.push(`| Contracts skipped | ${s.contractsSkipped} |`);
   lines.push(`| Known gaps | ${s.knownGaps} |`);
   lines.push(`| Failures | ${s.failures} |`);
   lines.push("");

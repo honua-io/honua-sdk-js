@@ -59,6 +59,28 @@ export function buildRoundTripInputs(env: RoundTripEnv): Record<string, Record<s
   };
 }
 
+/** Target layer for the mutating round-trip + pagination contracts. */
+export interface EditTarget {
+  serviceId: string;
+  layerId: number;
+}
+
+/**
+ * Resolve the editable/pageable target for the deep contracts. Defaults to the
+ * offline mock's seeded `svc-parks` layer 0; override with
+ * `HONUA_MCP_EDIT_SERVICE_ID` / `HONUA_MCP_EDIT_LAYER_ID` (or the shared
+ * `HONUA_MCP_SERVICE_ID` / `HONUA_MCP_LAYER_ID`) to point a live mutating cert at
+ * a dedicated scratch service.
+ */
+export function resolveEditTarget(env: NodeJS.ProcessEnv = process.env): EditTarget {
+  const base = resolveRoundTripEnv(env);
+  const serviceId = env.HONUA_MCP_EDIT_SERVICE_ID ?? base.serviceId;
+  const layerRaw = env.HONUA_MCP_EDIT_LAYER_ID;
+  const parsedLayer = layerRaw !== undefined ? Number.parseInt(layerRaw, 10) : Number.NaN;
+  const layerId = Number.isFinite(parsedLayer) && parsedLayer >= 0 ? parsedLayer : base.layerId;
+  return { serviceId, layerId };
+}
+
 /**
  * A deliberately invalid argument set for the error-shape contract. Certification
  * picks the first advertised tool that has an entry here and calls it with these

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { AuthMode } from "../provenance.js";
 import { type ProxyOptions, connectUpstream } from "../proxy.js";
 import { type MockUpstream, startMockUpstream } from "./mock-upstream.js";
 
@@ -28,6 +29,8 @@ export interface CertificationTarget {
   backend: "mock-upstream" | "live";
   /** Human-readable label for the certified surface (artifact provenance). */
   serverLabel: string;
+  /** How the authenticated client reached the surface (recorded in provenance). */
+  authMode: AuthMode;
   honuaTransport: string | null;
   /** Authenticated, connected MCP client. */
   client: Client;
@@ -103,6 +106,7 @@ async function openOfflineTarget(env: NodeJS.ProcessEnv): Promise<CertificationT
     mode: "offline",
     backend: "mock-upstream",
     serverLabel: "honua /mcp operator catalog (in-process streamable-HTTP mock)",
+    authMode: "bearer",
     honuaTransport: env.HONUA_TRANSPORT ?? null,
     client,
     supportsUnauthenticatedPass: true,
@@ -120,6 +124,10 @@ async function openOfflineTarget(env: NodeJS.ProcessEnv): Promise<CertificationT
   };
 }
 
+function resolveAuthMode(options: ProxyOptions): AuthMode {
+  return options.authToken ? "bearer" : options.apiKey ? "api-key" : "anonymous";
+}
+
 async function openRemoteTarget(env: NodeJS.ProcessEnv): Promise<CertificationTarget> {
   const options = resolveRemoteProxyOptions(env);
   const clients: Client[] = [];
@@ -130,6 +138,7 @@ async function openRemoteTarget(env: NodeJS.ProcessEnv): Promise<CertificationTa
     mode: "remote",
     backend: "live",
     serverLabel: `live honua /mcp (${options.remoteUrl})`,
+    authMode: resolveAuthMode(options),
     honuaTransport: env.HONUA_TRANSPORT ?? null,
     client,
     supportsUnauthenticatedPass: true,
@@ -196,6 +205,7 @@ async function openStdioProxyTarget(env: NodeJS.ProcessEnv): Promise<Certificati
     mode: "stdio-proxy",
     backend,
     serverLabel: `honua-mcp-proxy → ${backend === "live" ? upstreamUrl : "in-process mock /mcp"}`,
+    authMode: upstreamToken ? "bearer" : env.HONUA_API_KEY ? "api-key" : "anonymous",
     honuaTransport: env.HONUA_TRANSPORT ?? null,
     client,
     supportsUnauthenticatedPass: true,

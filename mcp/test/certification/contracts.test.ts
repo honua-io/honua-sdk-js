@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   AUTH_ERROR_CODES,
   checkAuthContract,
+  checkFeatureRoundTrip,
   checkInvalidArgsContract,
+  checkJobLifecycle,
   checkPaginationContract,
   extractStructuredError,
   validateGeoprocessingError,
@@ -173,5 +175,93 @@ describe("checkPaginationContract", () => {
     ]);
     expect(outcome.ok).toBe(false);
     expect(outcome.errors.join(" ")).toContain("additional distinct items");
+  });
+});
+
+describe("checkFeatureRoundTrip", () => {
+  const ok = {
+    insertedObjectId: 1000,
+    presentAfterInsert: true,
+    attributeAfterUpdate: "cert-updated",
+    expectedAttribute: "cert-updated",
+    absentAfterDelete: true,
+  };
+
+  it("passes on a full insert→update→delete round-trip", () => {
+    expect(checkFeatureRoundTrip(ok).ok).toBe(true);
+  });
+
+  it("fails when the insert returned no objectId", () => {
+    const outcome = checkFeatureRoundTrip({ ...ok, insertedObjectId: undefined });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.errors.join(" ")).toContain("objectId");
+  });
+
+  it("fails when the insert is not observable", () => {
+    expect(checkFeatureRoundTrip({ ...ok, presentAfterInsert: false }).ok).toBe(false);
+  });
+
+  it("fails when the update did not round-trip", () => {
+    const outcome = checkFeatureRoundTrip({ ...ok, attributeAfterUpdate: "stale" });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.errors.join(" ")).toContain("round-trip");
+  });
+
+  it("fails when the feature survives the delete", () => {
+    expect(checkFeatureRoundTrip({ ...ok, absentAfterDelete: false }).ok).toBe(false);
+  });
+});
+
+describe("checkJobLifecycle", () => {
+  const ok = {
+    initialStatus: "Submitted",
+    polledStatuses: ["Running", "Succeeded"],
+    progressFractions: [0.3, 1],
+    finalStatus: "Succeeded",
+    resultReady: true,
+  };
+
+  it("passes on a well-formed Submitted→Running→Succeeded lifecycle", () => {
+    expect(checkJobLifecycle(ok).ok).toBe(true);
+  });
+
+  it("fails on an unrecognized state", () => {
+    const outcome = checkJobLifecycle({ ...ok, polledStatuses: ["Sleeping", "Succeeded"] });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.errors.join(" ")).toContain("unrecognized");
+  });
+
+  it("fails when the state rank regresses", () => {
+    const outcome = checkJobLifecycle({
+      ...ok,
+      polledStatuses: ["Succeeded", "Running"],
+      finalStatus: "Running",
+      progressFractions: [1, 0.5],
+    });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.errors.join(" ")).toContain("regressed");
+  });
+
+  it("fails when progress is out of range", () => {
+    const outcome = checkJobLifecycle({ ...ok, progressFractions: [0.3, 1.5] });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.errors.join(" ")).toContain("out of the documented");
+  });
+
+  it("fails when a succeeded job has no ready result", () => {
+    const outcome = checkJobLifecycle({ ...ok, resultReady: false });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.errors.join(" ")).toContain("result package");
+  });
+
+  it("fails when the job never reaches a terminal state", () => {
+    const outcome = checkJobLifecycle({
+      ...ok,
+      polledStatuses: ["Running", "Running"],
+      finalStatus: "Running",
+      progressFractions: [0.3, 0.6],
+    });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.errors.join(" ")).toContain("terminal");
   });
 });
