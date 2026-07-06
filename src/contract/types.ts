@@ -755,7 +755,7 @@ export type AdapterKind =
   | "wmts-layer"
   | "wmts-tileset"
   | "odata"
-  | "pmtiles";
+  | "pmtiles"
   | "geoparquet";
 
 /**
