@@ -53,6 +53,34 @@ export const REFERENCE_TOOL_ALIASES: Readonly<Record<string, string>> = {
   honua_dry_run_plan: "honua_validate_plan",
 };
 
+/**
+ * Platform-gated degradations (SDK-local, NOT part of the vendored standard).
+ *
+ * Some reference-shape tools require standard properties that are *platform
+ * bindings* — identifiers that only have meaning against a Honua
+ * publishing/authoring surface. The platform-free (standalone) front door
+ * (issue #369) has no such surface, so it intentionally degrades these tools to
+ * a non-error, client-side projection and legitimately omits the binding
+ * identifiers, keeping only the taxonomy essence.
+ *
+ * This maps an advertised reference tool name to the required standard
+ * properties it may shed WITHOUT counting as non-conformant on a platform-free
+ * target. It is deliberately narrow: it never relaxes read-addressing required
+ * properties (e.g. `honua_query_features` still must require serviceId+layerId),
+ * only true platform-authoring bindings. The vendored `index.json` and schema
+ * files are byte-exact copies of the upstream standard and must never be
+ * hand-edited to encode this, so the decision lives here in code instead.
+ *
+ * `honua_apply_style_preset`: the reference shape binds a StyleRef preset onto a
+ * PUBLISHED layer (serviceId+layerId) via the server OGC API – Styles authoring
+ * surface (ADR-0048). The platform-free surface resolves a preset for
+ * client-side application keyed on `styleId` alone (ADR-0028: never mutates
+ * server state), so it sheds serviceId+layerId.
+ */
+export const PLATFORM_FREE_DEGRADATIONS: Readonly<Record<string, readonly string[]>> = {
+  honua_apply_style_preset: ["serviceId", "layerId"],
+};
+
 export type JsonSchema = Record<string, unknown>;
 
 /**

@@ -18,6 +18,7 @@ import { checkConformance, checkWellFormed, validateAgainstSchema } from "./json
 import { runDeepContracts } from "./lifecycle.js";
 import {
   type JsonSchema,
+  PLATFORM_FREE_DEGRADATIONS,
   type StandardToolEntry,
   buildReferenceToolLookup,
   loadSchemaFile,
@@ -172,11 +173,16 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
   const { resources: advertisedResources, pages: resourcePages } = await listAllResources(client);
   const prompts = await listPromptsSafely(client);
 
+  // The platform-free standalone target has no Honua publishing surface, so
+  // reference-shape tools (e.g. apply_style_preset) intentionally degrade their
+  // platform-bound required properties. Conformance is evaluated accordingly.
+  const platformFree = options.targetMode === "standalone";
+
   const tools: ToolCertification[] = [];
   const advertisedNames = new Set<string>();
   for (const tool of advertisedTools) {
     advertisedNames.add(tool.name);
-    tools.push(await certifyTool(client, tool, referenceLookup, roundTripInputs));
+    tools.push(await certifyTool(client, tool, referenceLookup, roundTripInputs, platformFree));
   }
 
   const resources: ResourceCertification[] = advertisedResources.map((r) => ({
@@ -271,6 +277,7 @@ async function certifyTool(
   tool: AdvertisedTool,
   referenceLookup: Map<string, StandardToolEntry>,
   roundTripInputs: Record<string, Record<string, unknown>>,
+  platformFree: boolean,
 ): Promise<ToolCertification> {
   const errors: string[] = [];
   const notes: string[] = [];
@@ -295,7 +302,8 @@ async function certifyTool(
   if (standardEntry) {
     const standardSchema = loadSchemaFile(standardEntry.schema);
     if (wellFormed.wellFormed) {
-      const result = checkConformance(tool.inputSchema as JsonSchema, standardSchema);
+      const shedRequired = platformFree ? PLATFORM_FREE_DEGRADATIONS[tool.name] : undefined;
+      const result = checkConformance(tool.inputSchema as JsonSchema, standardSchema, { shedRequired });
       conformant = result.conformant;
       if (!result.conformant) {
         errors.push(...result.violations.map((v) => `conformance: ${v}`));
