@@ -5,10 +5,16 @@ machine-readable schemas from the open **geospatial-mcp** standard.
 
 - **Source repo:** https://github.com/honua-io/geospatial-mcp
 - **Source path:** `spec/schemas/`
-- **Source commit:** `fff3e305ff4a3cf5ab99a18b81f8442979da82d2`
-  (`feat: admit governed feature mutation into the standard (mutation profile) (#51)`)
+- **Source commit:** `eb53989cc61c856261cf017b4b5a8e721317dc41`
+  (`feat: direct geoprocessing verbs (analysis profile) + geometryPrecision/maxInlineBytes (#55)`)
 - **Schema index date:** `2026-07-06`
 - **Dialect:** JSON Schema draft 2020-12
+
+> The pin is deliberately held at `eb53989` (pre geospatial-mcp#58): the #58
+> platform-ops schemas are marked implemented in the manifest but honua-server
+> does not serve those tools yet, so re-vendoring past #58 would introduce
+> conformance failures. The post-#58 bump is owned by honua-server#2555/#2566,
+> which implement the new tools and vendor their schemas together.
 
 ## Why vendored
 
