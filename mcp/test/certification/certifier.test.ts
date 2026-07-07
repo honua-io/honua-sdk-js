@@ -7,6 +7,7 @@ import { checkConformance, checkWellFormed } from "../../src/certification/json-
 import { renderMarkdown } from "../../src/certification/report.js";
 import { writeArtifacts } from "../../src/certification/run.js";
 import {
+  PLATFORM_FREE_DEGRADATIONS,
   REFERENCE_TOOL_ALIASES,
   buildReferenceToolLookup,
   loadSchemaFile,
@@ -203,6 +204,54 @@ describe("conformance edge cases", () => {
     const result = checkConformance(advertised, standard);
     expect(result.conformant).toBe(true);
     expect(result.notes.join(" ")).toContain("extra");
+  });
+
+  it("sheds documented platform-binding required properties as degradation notes, not violations", () => {
+    // apply_style_preset requires serviceId+layerId to bind a preset onto a
+    // PUBLISHED layer. The platform-free surface degrades to a client-side,
+    // styleId-only projection; the two binding identifiers are shed per the
+    // PLATFORM_FREE_DEGRADATIONS registry and must not fail conformance.
+    const standard = loadSchemaFile("tools/apply_style_preset.schema.json");
+    const advertised = { type: "object", properties: { styleId: { type: "string" } } };
+
+    const strict = checkConformance(advertised, standard);
+    expect(strict.conformant).toBe(false);
+    expect(strict.violations.join(" ")).toContain("serviceId");
+
+    const degraded = checkConformance(advertised, standard, {
+      shedRequired: PLATFORM_FREE_DEGRADATIONS.honua_apply_style_preset,
+    });
+    expect(degraded.conformant).toBe(true);
+    expect(degraded.violations).toEqual([]);
+    expect(degraded.notes.join(" ")).toContain("serviceId");
+    expect(degraded.notes.join(" ")).toContain("layerId");
+  });
+
+  it("only sheds property names present in the supplied shed set", () => {
+    // Shedding is exact-name only: a required property NOT in the shed set still
+    // fails even when a shed set is supplied.
+    const standard = { type: "object", required: ["styleId", "mapId"], properties: {} };
+    const advertised = { type: "object", properties: {} };
+    const result = checkConformance(advertised, standard, { shedRequired: ["styleId"] });
+    expect(result.conformant).toBe(false);
+    expect(result.notes.join(" ")).toContain("styleId");
+    expect(result.violations.join(" ")).toContain("mapId");
+  });
+
+  it("scopes the degradation registry to genuine platform-authoring tools only", () => {
+    // The registry must never relax read-addressing tools: only apply_style_preset
+    // is registered, so query_features' serviceId+layerId stay enforced (it gets
+    // no shed set from the registry).
+    expect(PLATFORM_FREE_DEGRADATIONS.honua_query_features).toBeUndefined();
+    expect(PLATFORM_FREE_DEGRADATIONS.honua_apply_style_preset).toEqual(["serviceId", "layerId"]);
+
+    const standard = loadSchemaFile("tools/query_features.schema.json");
+    const advertised = { type: "object", properties: { serviceId: { type: "string" } } };
+    const result = checkConformance(advertised, standard, {
+      shedRequired: PLATFORM_FREE_DEGRADATIONS.honua_query_features,
+    });
+    expect(result.conformant).toBe(false);
+    expect(result.violations.join(" ")).toContain("layerId");
   });
 });
 

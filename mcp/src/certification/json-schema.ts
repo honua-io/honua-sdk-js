@@ -123,6 +123,29 @@ export interface ConformanceResult {
   notes: string[];
 }
 
+export interface ConformanceOptions {
+  /**
+   * Required standard properties this surface is permitted to omit because it is
+   * a documented, platform-gated degradation of the tool (see the SDK-local
+   * `PLATFORM_FREE_DEGRADATIONS` registry in `schema-index.ts`).
+   *
+   * A property listed here is a platform *binding* — an identifier that only has
+   * meaning against a Honua publishing/authoring surface (e.g. `apply_style_preset`
+   * requires `serviceId`+`layerId` to bind a preset onto a *published* layer via
+   * the server OGC API – Styles authoring surface, ADR-0048). A platform-free
+   * target has no such surface, so it degrades the tool to a non-error, client-side
+   * projection keyed on the taxonomy essence alone (e.g. `styleId`) and legitimately
+   * omits the binding identifiers.
+   *
+   * When a required standard property is absent AND listed here, it is recorded as
+   * a degradation note rather than a conformance violation. Everything else stays
+   * strict: unlisted required properties still fail, and type incompatibilities on
+   * properties the surface DOES advertise remain violations — degradation relaxes
+   * platform binding, never correctness on what is accepted.
+   */
+  shedRequired?: readonly string[];
+}
+
 /**
  * Deterministically compare an advertised tool inputSchema against a standard
  * geospatial-mcp tool schema.
@@ -141,10 +164,18 @@ export interface ConformanceResult {
  * notes, not violations: a richer reference shape is allowed to extend the
  * bare standard.
  */
-export function checkConformance(advertised: JsonSchema, standard: JsonSchema): ConformanceResult {
+export function checkConformance(
+  advertised: JsonSchema,
+  standard: JsonSchema,
+  options: ConformanceOptions = {},
+): ConformanceResult {
   const violations: string[] = [];
   const notes: string[] = [];
   const matchedRequired: string[] = [];
+
+  // Required standard properties this surface may legitimately shed as a
+  // documented platform-gated degradation. See {@link ConformanceOptions.shedRequired}.
+  const shedRequired = new Set(options.shedRequired ?? []);
 
   const standardRequired = requiredPropertyNames(standard);
   const standardProps = (standard.properties ?? {}) as Record<string, JsonSchema>;
@@ -154,7 +185,13 @@ export function checkConformance(advertised: JsonSchema, standard: JsonSchema): 
   for (const name of standardRequired) {
     const present = advertisedNames ? advertisedNames.has(name) : name in advertisedProps;
     if (!present) {
-      violations.push(`missing required standard property "${name}"`);
+      if (shedRequired.has(name)) {
+        notes.push(
+          `degrades platform binding: omits required "${name}" (platform-free target has no publishing surface)`,
+        );
+      } else {
+        violations.push(`missing required standard property "${name}"`);
+      }
       continue;
     }
 
