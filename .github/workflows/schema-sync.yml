@@ -1,0 +1,29 @@
+name: Schema sync gate
+
+# Fails if the vendored geospatial-mcp JSON Schemas under
+# mcp/certification/geospatial-mcp-schemas/ drift from the pinned upstream
+# commit. The standard is owned upstream (honua-io/geospatial-mcp) and vendored
+# byte-for-byte; drift means someone hand-edited a vendored file instead of
+# re-pinning. Remediation: scripts/sync-schemas.sh --write.
+
+on:
+  push:
+    branches:
+      - trunk
+      - "release/**"
+  pull_request:
+    branches:
+      - trunk
+      - "release/**"
+
+permissions:
+  contents: read
+
+jobs:
+  schema-sync:
+    name: Vendored schemas match pinned upstream
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify byte-identity with the pinned geospatial-mcp commit
+        run: bash scripts/sync-schemas.sh
