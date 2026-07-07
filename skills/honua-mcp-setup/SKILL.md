@@ -16,7 +16,9 @@ It ships two bins:
   at any public FeatureServer/OGC endpoint (e.g. a `services.arcgis.com`
   FeatureServer). No Honua server required.
 - `honua-mcp-proxy` — a stdio bridge to a Honua-enhanced `/mcp` catalog (the
-  upgrade path: governed mutation, jobs, publishing). Requires a Honua deployment.
+  upgrade path: planning, async jobs, publishing). Requires a Honua deployment.
+  Honua does **not** expose an AI/MCP feature-mutation tool — AI operational data
+  editing is not supported (honua-server ADR-0028).
 
 Requires Node.js `>=20`.
 

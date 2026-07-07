@@ -7368,8 +7368,9 @@ Two modes:
   direct-SDK surface against any public FeatureServer/OGC endpoint. No Honua
   server, no admin API, no `/mcp` catalog required.
 - **Honua-enhanced — the upgrade path.** The `honua-mcp-proxy` bin bridges a
-  Honua deployment's full `/mcp` operator catalog (governed mutation, async jobs,
-  publishing) to stdio.
+  Honua deployment's full `/mcp` operator catalog (planning, async jobs,
+  publishing) to stdio. Honua does **not** expose an AI/MCP feature-mutation tool
+  — AI operational data editing is not supported (honua-server ADR-0028).
 
 ## Requirements
 
