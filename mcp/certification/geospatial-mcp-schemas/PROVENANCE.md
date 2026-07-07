@@ -5,9 +5,9 @@ machine-readable schemas from the open **geospatial-mcp** standard.
 
 - **Source repo:** https://github.com/honua-io/geospatial-mcp
 - **Source path:** `spec/schemas/`
-- **Source commit:** `54cbd49a6b8bf408024fe4d0316f79b8fa0534ab`
-  (`spec: align prose + served-family schemas to the honua-server /mcp grammar; harden strict manifest gate (#44)`)
-- **Schema index date:** `2026-07-01`
+- **Source commit:** `fff3e305ff4a3cf5ab99a18b81f8442979da82d2`
+  (`feat: admit governed feature mutation into the standard (mutation profile) (#51)`)
+- **Schema index date:** `2026-07-06`
 - **Dialect:** JSON Schema draft 2020-12
 
 ## Why vendored
@@ -19,10 +19,12 @@ a known, reproducible revision and removes any cross-repo fetch at certify time.
 
 ## Refreshing
 
-To re-pin to a newer published revision, re-copy `spec/schemas/` from the
-`geospatial-mcp` repo at the desired tag/commit and update the source commit and
-index date above. Do not hand-edit individual schema files; the standard is owned
-upstream.
+To re-pin to a newer published revision, edit the **Source commit** SHA (and the
+index date) above, then run `scripts/sync-schemas.sh --write` from the repo root
+to re-copy `spec/schemas/` verbatim from that commit. Do not hand-edit individual
+schema files; the standard is owned upstream. The `schema-sync` CI workflow
+(`.github/workflows/schema-sync.yml`) runs `scripts/sync-schemas.sh` on every PR
+and fails on any byte difference from the pinned commit.
 
 ## Index
 
