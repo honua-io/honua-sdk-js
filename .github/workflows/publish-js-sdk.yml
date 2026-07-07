@@ -27,30 +27,38 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # npm provenance (publishConfig.provenance=true) generates a Sigstore
-      # attestation from the Actions OIDC token; without id-token:write every
-      # non-dry-run publish fails with EUSAGE (the 0.0.11..0.0.19 outage).
+      # Trusted publishing: npm >= 11.5 exchanges the Actions OIDC token for
+      # short-lived registry credentials at `npm publish` time (each package's
+      # npmjs.com settings name this repo + workflow file as its trusted
+      # publisher), and the same token backs the Sigstore provenance
+      # attestation. Without id-token:write every non-dry-run publish fails
+      # (the 0.0.11..0.0.19 outage). No NPM_TOKEN secret is used.
       id-token: write
     defaults:
       run:
         shell: bash
     env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
       RELEASE_VERSION: ${{ github.event.inputs.release_version || '' }}
       ALLOW_BRANCH_PUBLISH: ${{ github.event.inputs.allow_branch_publish == 'true' }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20.19.0"
           registry-url: "https://registry.npmjs.org"
           cache: "npm"
           cache-dependency-path: package-lock.json
+
+      - name: Upgrade npm for trusted publishing
+        # Node 20 bundles npm 10; the OIDC credential exchange needs npm >= 11.5.
+        run: |
+          npm install -g npm@latest
+          npm --version
 
       - name: Install dependencies
         run: npm ci
@@ -117,6 +125,16 @@ jobs:
 
           resolve_dist_tag() {
             local version="$1"
+            # Pre-1.0 every release is a prerelease but the newest one must own
+            # `latest` (the 0.0.6-stale-latest incident). Trusted publishing
+            # only authenticates `npm publish` itself — a follow-up
+            # `npm dist-tag add` would have no credentials — so tag latest at
+            # publish time. Post-1.0 prereleases keep their prerelease tag and
+            # deliberately do NOT own latest.
+            if [[ "$version" == 0.* ]]; then
+              echo "latest"
+              return
+            fi
             if [[ "$version" == *-* ]]; then
               local prerelease="${version#*-}"
               echo "${prerelease%%.*}"
@@ -139,19 +157,12 @@ jobs:
               return
             fi
 
-            if [[ "${DRY_RUN}" != "true" && -z "${NODE_AUTH_TOKEN}" ]]; then
-              echo "NPM_TOKEN secret is required for publishing ${package_name}@${package_version}."
+            if [[ "${DRY_RUN}" != "true" && -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]]; then
+              echo "Actions OIDC token unavailable (id-token: write missing?); trusted publishing cannot mint credentials for ${package_name}@${package_version}."
               exit 1
             fi
 
             npm publish "$package_dir" --access public --tag "$dist_tag" $flags
-
-            # Pre-1.0 every release is an alpha, so the newest release must own
-            # `latest` too — otherwise `npm install` serves a months-old build
-            # (the 0.0.6-latest incident). Skipped in dry-run.
-            if [[ "${DRY_RUN}" != "true" && "$dist_tag" != "latest" ]]; then
-              npm dist-tag add "${package_name}@${package_version}" latest
-            fi
           }
 
           publish_package "."
