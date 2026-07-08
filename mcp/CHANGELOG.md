@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.1.0-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.0.20-alpha.0...mcp-server-v0.1.0-beta.0) (2026-07-08)
+
+
+### Features
+
+* **mcp:** A5 provability — deep cert contracts, self-proving artifacts, evals leaderboard ([#372](https://github.com/honua-io/honua-sdk-js/issues/372)) ([6f0b6bb](https://github.com/honua-io/honua-sdk-js/commit/6f0b6bb7ca6de210c7a98bee2f3404f3865eb85b))
+
+
+### Bug Fixes
+
+* **mcp:** certify platform-free style tool degradation without conformance failure ([#376](https://github.com/honua-io/honua-sdk-js/issues/376)) ([a09735a](https://github.com/honua-io/honua-sdk-js/commit/a09735af8725be65461a329d33cd4aae45b938fd))
+
+
+### Documentation
+
+* **mcp:** stop claiming Honua supports AI feature editing (ADR-0028) ([#375](https://github.com/honua-io/honua-sdk-js/issues/375)) ([86168eb](https://github.com/honua-io/honua-sdk-js/commit/86168eb40ef7e852373a3160361be6b4bede4712))
+
+
+### Miscellaneous
+
+* graduate to beta ([#380](https://github.com/honua-io/honua-sdk-js/issues/380)) ([d28cac9](https://github.com/honua-io/honua-sdk-js/commit/d28cac9fc44dd87ad0800d663fb3aa5d5b4b8bc1))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.0-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.0.20-alpha.0 to ^0.1.0-beta.0
+
 ## [0.0.20-alpha.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.0.19-alpha.0...mcp-server-v0.0.20-alpha.0) (2026-07-06)
 
 
