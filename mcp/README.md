@@ -6,6 +6,9 @@ exposes discovery, query, and analysis workflows to any MCP client — with **ze
 platform lock-in and no metering. Mapbox, CARTO, and Esri each ship an MCP server
 bound to their own platform; this one is bound to none.
 
+**Release status: beta.** Tool contracts are certified against live and fixture
+targets on every release; remaining pre-1.0 work is hardening, not surface change.
+
 Two modes:
 
 - **Standalone (platform-free) — the front door.** The `honua-mcp` bin runs the
