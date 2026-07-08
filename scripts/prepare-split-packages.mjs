@@ -542,6 +542,9 @@ function writePackageJson(packageRoot, overrides) {
     version,
     description: overrides.description,
     license: rootPackageJson.license,
+    // npm provenance (trusted publishing) rejects tarballs whose
+    // repository.url does not match the repo the attestation names.
+    repository: rootPackageJson.repository,
     type: "module",
     main: overrides.main,
     types: overrides.types,
