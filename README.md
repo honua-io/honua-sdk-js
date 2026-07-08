@@ -11,6 +11,10 @@
 > One geospatial client for GeoServices, OGC APIs, WMS/WMTS/WFS, STAC, and OData —
 > with first-class TypeScript, a MapLibre runtime, and a drop-in ArcGIS migration path.
 
+**Release status: beta.** The 20-entrypoint stable tier is frozen and guarded by an
+API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
+[`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
+
 `@honua/sdk-js` is the JavaScript / TypeScript client for the [Honua](https://github.com/honua-io)
 geospatial platform. It speaks the open protocols your data already uses (Esri GeoServices,
 OGC API Features / Tiles / Maps / Processes, STAC, WMS, WMTS, WFS 2.0, OData v4), exposes a
