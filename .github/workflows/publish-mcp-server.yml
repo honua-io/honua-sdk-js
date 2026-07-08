@@ -44,7 +44,7 @@ jobs:
       - name: Upgrade npm for trusted publishing
         # Node 20 bundles npm 10; the OIDC credential exchange needs npm >= 11.5.
         run: |
-          npm install -g npm@latest
+          npm install -g npm@11.18.0
           npm --version
 
       - name: Build JS SDK dependency
