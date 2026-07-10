@@ -14,6 +14,10 @@
 **Release status: beta.** The 20-entrypoint stable tier is frozen and guarded by an
 API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
 [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
+The complete inventory also contains 2 experimental subpaths and 18 deprecated
+compatibility subpaths. [`config/public-surface.json`](./config/public-surface.json)
+is the machine-readable source consumed by CI, API reporting, TypeDoc, and
+downstream documentation projection.
 
 `@honua/sdk-js` is the JavaScript / TypeScript client for the [Honua](https://github.com/honua-io)
 geospatial platform. It speaks the open protocols your data already uses (Esri GeoServices,
@@ -302,8 +306,9 @@ tables, and backwards-compatibility policy live in:
 - [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage()` / `HonuaMapRuntime`
 - [`docs/react.md`](./docs/react.md) — React bindings (`@honua/react`): provider, hooks, and map components
 - [`docs/geometry.md`](./docs/geometry.md) — `@honua/sdk-js/geometry` curated turf/proj4 ops (buffer/area/measure/simplify/reproject) + the `geometryEngine` compat shim
-- [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/sdk-js/studio`)
+- [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/app-platform/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
+- [`docs/docs-samples-ownership.md`](./docs/docs-samples-ownership.md) — SDK/site ownership boundary for versioned docs and executable samples
 - [`INSTALL.md`](./INSTALL.md) — install + subpath entrypoint table
 
 ## AI assistants
@@ -337,19 +342,22 @@ correctly use this SDK:
   of symbols reachable from the documented subpath entrypoints in [`INSTALL.md`](./INSTALL.md).
 - Symbols marked `@experimental` in JSDoc may change in any minor release. The full table of
   stable and experimental subpaths lives in [`INSTALL.md`](./INSTALL.md). The short version:
-  - **Stable** (semver-protected): `@honua/sdk-js`, `@honua/sdk-js/honua`,
-    `@honua/sdk-js/contract`, `@honua/sdk-js/esri-compat`, `@honua/sdk-js/migration`,
+  - **Stable** (semver-protected): `@honua/sdk-js`, `@honua/sdk-js/browser`,
+    `@honua/sdk-js/honua`, `@honua/sdk-js/auth`, `@honua/sdk-js/contract`,
+    `@honua/sdk-js/esri-compat`, `@honua/sdk-js/migration`,
     `@honua/sdk-js/runtime`, `@honua/sdk-js/expr`, `@honua/sdk-js/webmap`,
     `@honua/sdk-js/geocoding`, `@honua/sdk-js/exploration`, `@honua/sdk-js/interactions`,
     `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`,
-    `@honua/sdk-js/realtime`, `@honua/sdk-js/react`.
-  - **Experimental** (subpath-only — not re-exported from the root barrels): `/agent-tools`.
+    `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
+    `@honua/sdk-js/cli`.
+  - **Experimental** (subpath-only — not re-exported from the root barrels): `/agent-tools`,
+    `/geoparquet`.
   - **Application-platform surfaces** (`/app`, `/app-controller`, `/app-workspace`,
     `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
     `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,
     `/operator/*`) have **moved to the separate `@honua/app-platform` package**; the old
-    `@honua/sdk-js/*` subpaths keep working for one minor behind a `@deprecated` shim. The
-    `/console` entrypoint was removed outright (no shim).
+    18 deprecated compatibility subpaths remain through `0.1.x` and are removed in
+    `0.2.0`. The `/console` entrypoint was removed outright (no shim).
 
 ## Support and lifecycle
 
@@ -369,8 +377,8 @@ We publish a lifecycle because a library you build on should tell you what it pr
 - **Application-platform surfaces move separately.** App-shell, builder, and hosted-product
   entrypoints are being extracted to a separate `@honua/app-platform` package that versions at
   its own pre-1.0 cadence, so the client SDK can reach a frozen 1.0 without waiting on them.
-  During the transition their old `@honua/sdk-js/*` subpaths keep working for one minor behind a
-  `@deprecated` re-export shim. See
+  Their old `@honua/sdk-js/*` subpaths remain as `@deprecated` re-export shims through
+  `0.1.x` and are removed in `0.2.0`. See
   [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
 - **What we don't promise.** No security-backport window or LTS branch pre-1.0; fixes land on
   the current line. We will publish that policy when we cut 1.0.

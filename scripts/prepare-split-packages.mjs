@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { entrypointsInTier, loadPublicSurface } from "./lib/public-surface.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -12,6 +13,7 @@ const OUTPUT_ROOT = path.join(DIST_ROOT, "packages");
 
 const rootPackageJsonPath = path.join(PROJECT_ROOT, "package.json");
 const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, "utf8"));
+const publicSurface = loadPublicSurface();
 const version = rootPackageJson.version;
 const ROOT_LICENSE_PATH = path.join(PROJECT_ROOT, "LICENSE");
 // Keep published package install support aligned with the SDK runtime floor,
@@ -422,22 +424,16 @@ function createAppPlatformPackage() {
   // esri-compat / migration / react split targets: the app-platform entrypoints
   // plus their downward stable-tier closure are copied so the package resolves
   // without a separate `@honua/sdk-js` install.
-  const appPlatformDirectories = [
-    "app",
-    "app-controller",
-    "app-workspace",
-    "scene-workspace",
-    "collaboration",
-    "control-plane",
-    "replica-sync",
-    "share",
-    "operate",
-    "generated-app",
-    "studio",
-    "operator",
-    "controls",
-    "web-components",
-  ];
+  const movedSubpaths = entrypointsInTier(publicSurface, "deprecated").map((entrypoint) => {
+    const prefix = "@honua/app-platform/";
+    if (!entrypoint.replacement.startsWith(prefix)) {
+      throw new Error(
+        `${entrypoint.subpath} has invalid app-platform replacement ${entrypoint.replacement}`,
+      );
+    }
+    return entrypoint.replacement.slice(prefix.length);
+  });
+  const appPlatformDirectories = [...new Set(movedSubpaths.map((subpath) => subpath.split("/")[0]))];
   const stableClosureDirectories = [
     "contract",
     "core",
@@ -462,6 +458,9 @@ function createAppPlatformPackage() {
     types: `./${dir}/index.d.ts`,
     default: `./${dir}/index.js`,
   });
+  const appPlatformExports = Object.fromEntries(
+    movedSubpaths.map((subpath) => [`./${subpath}`, subpathExport(subpath)]),
+  );
 
   writePackageJson(packageRoot, {
     name: "@honua/app-platform",
@@ -471,24 +470,7 @@ function createAppPlatformPackage() {
     types: "./app-workspace/index.d.ts",
     exports: {
       ".": subpathExport("app-workspace"),
-      "./app": subpathExport("app"),
-      "./app-controller": subpathExport("app-controller"),
-      "./app-workspace": subpathExport("app-workspace"),
-      "./scene-workspace": subpathExport("scene-workspace"),
-      "./collaboration": subpathExport("collaboration"),
-      "./control-plane": subpathExport("control-plane"),
-      "./replica-sync": subpathExport("replica-sync"),
-      "./share": subpathExport("share"),
-      "./operate": subpathExport("operate"),
-      "./generated-app": subpathExport("generated-app"),
-      "./studio": subpathExport("studio"),
-      "./operator": subpathExport("operator"),
-      "./operator/controllers": subpathExport("operator/controllers"),
-      "./operator/workspace": subpathExport("operator/workspace"),
-      "./operator/theming": subpathExport("operator/theming"),
-      "./operator/i18n": subpathExport("operator/i18n"),
-      "./controls": subpathExport("controls"),
-      "./web-components": subpathExport("web-components"),
+      ...appPlatformExports,
     },
     dependencies: {
       "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],

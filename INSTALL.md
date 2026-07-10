@@ -13,7 +13,9 @@ entrypoints are stable across minor versions.
 | Subpath | What it gives you |
 |---------|-------------------|
 | `@honua/sdk-js` | Default barrel — re-exports the most common stable symbols |
+| `@honua/sdk-js/browser` | Prebuilt browser ESM build of the default barrel (same API as `@honua/sdk-js`) |
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
+| `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
 | `@honua/sdk-js/esri-compat` | Esri ArcGIS JS-API compatibility layer for migration |
 | `@honua/sdk-js/migration` | Programmatic migration helpers (codemod runner, scan reports) |
@@ -29,6 +31,7 @@ entrypoints are stable across minor versions.
 | `@honua/sdk-js/realtime` | Realtime transport adapters (SSE) — a client-transport primitive |
 | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers; published standalone as `@honua/react`) |
 | `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops (buffer/area/simplify/reproject) |
+| `@honua/sdk-js/cli` | Programmatic `run()` entrypoint for the `honua` command-line client |
 
 ## Experimental subpath entrypoints
 
@@ -40,6 +43,34 @@ default-barrel import never pulls them in.
 | Subpath | What it gives you |
 |---------|-------------------|
 | `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions (MCP/OpenAI compatible). Stays in the stable package (the in-repo `@honua/mcp-server` depends on it) but its symbols remain `@experimental` — not semver-frozen — while the AI surface settles. |
+| `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
+
+## Deprecated compatibility entrypoints
+
+These temporary `@honua/sdk-js` shims were introduced in `0.1.0-beta.0` when
+the application platform moved. They remain available throughout `0.1.x` and
+are removed in `0.2.0`; new code must import the replacement directly.
+
+| Deprecated subpath | Replacement | Remove in |
+|--------------------|-------------|-----------|
+| `@honua/sdk-js/app` | `@honua/app-platform/app` | `0.2.0` |
+| `@honua/sdk-js/app-controller` | `@honua/app-platform/app-controller` | `0.2.0` |
+| `@honua/sdk-js/app-workspace` | `@honua/app-platform/app-workspace` | `0.2.0` |
+| `@honua/sdk-js/scene-workspace` | `@honua/app-platform/scene-workspace` | `0.2.0` |
+| `@honua/sdk-js/collaboration` | `@honua/app-platform/collaboration` | `0.2.0` |
+| `@honua/sdk-js/control-plane` | `@honua/app-platform/control-plane` | `0.2.0` |
+| `@honua/sdk-js/replica-sync` | `@honua/app-platform/replica-sync` | `0.2.0` |
+| `@honua/sdk-js/share` | `@honua/app-platform/share` | `0.2.0` |
+| `@honua/sdk-js/operate` | `@honua/app-platform/operate` | `0.2.0` |
+| `@honua/sdk-js/generated-app` | `@honua/app-platform/generated-app` | `0.2.0` |
+| `@honua/sdk-js/studio` | `@honua/app-platform/studio` | `0.2.0` |
+| `@honua/sdk-js/operator` | `@honua/app-platform/operator` | `0.2.0` |
+| `@honua/sdk-js/operator/controllers` | `@honua/app-platform/operator/controllers` | `0.2.0` |
+| `@honua/sdk-js/operator/workspace` | `@honua/app-platform/operator/workspace` | `0.2.0` |
+| `@honua/sdk-js/operator/theming` | `@honua/app-platform/operator/theming` | `0.2.0` |
+| `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.2.0` |
+| `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.2.0` |
+| `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.2.0` |
 
 ## Application-platform entrypoints (`@honua/app-platform`)
 
@@ -69,9 +100,9 @@ them (see [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split
 | `@honua/app-platform/operator/theming` | Operator design-system theme provider + tokens |
 | `@honua/app-platform/operator/i18n` | Operator message catalog + resolution |
 
-During the transition, the old `@honua/sdk-js/<subpath>` imports for these
-surfaces keep working for one minor version behind a `@deprecated` re-export
-shim; update imports to `@honua/app-platform/<subpath>`. The `@honua/sdk-js/console`
+During the transition, the deprecated imports listed above keep working through
+`0.1.x`; they are removed in `0.2.0`. Update imports to
+`@honua/app-platform/<subpath>`. The `@honua/sdk-js/console`
 entrypoint was removed outright (its projection helpers are owned by the
 `@honua/console` application) and has no shim.
 
@@ -94,7 +125,7 @@ Node-only or REST-only consumer never pays the install cost:
 | Integration | Peer to install |
 |-------------|-----------------|
 | MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
-| Cesium 3D adapters (`@honua/sdk-js/scene-workspace`) | `npm install cesium` |
+| Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
 | gRPC-Web transport (`new HonuaClient({ transport: "grpc-web" })`) | `npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf` |
 | Geometry ops (`@honua/sdk-js/geometry`) | `npm install proj4 @turf/buffer @turf/area …` (only the ops you import) — or use the `@honua/geometry` split package |
 

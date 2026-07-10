@@ -1,0 +1,59 @@
+{
+  "$comment": "Canonical @honua/sdk-js public-surface inventory. package.json exports, INSTALL.md, TypeDoc, the stable API report, and the app-platform split are verified against this file.",
+  "schemaVersion": 1,
+  "ceilings": {
+    "stableEntrypoints": 20,
+    "rootRuntimeExports": 260,
+    "rootTypeExports": 1025,
+    "rootGzipBytes": 122168
+  },
+  "downstreamProjection": {
+    "catalogOwner": "honua-io/honua-site",
+    "siteIssue": "https://github.com/honua-io/honua-site/issues/120",
+    "artifactContractIssue": "https://github.com/honua-io/honua-sdk-js/issues/401"
+  },
+  "entrypoints": [
+    { "subpath": ".", "tier": "stable" },
+    { "subpath": "./browser", "tier": "stable", "apiEquivalent": "." },
+    { "subpath": "./honua", "tier": "stable" },
+    { "subpath": "./auth", "tier": "stable" },
+    { "subpath": "./contract", "tier": "stable" },
+    { "subpath": "./esri-compat", "tier": "stable" },
+    { "subpath": "./migration", "tier": "stable" },
+    { "subpath": "./runtime", "tier": "stable" },
+    { "subpath": "./expr", "tier": "stable" },
+    { "subpath": "./webmap", "tier": "stable" },
+    { "subpath": "./geocoding", "tier": "stable" },
+    { "subpath": "./exploration", "tier": "stable" },
+    { "subpath": "./interactions", "tier": "stable" },
+    { "subpath": "./filter-registry", "tier": "stable" },
+    { "subpath": "./style", "tier": "stable" },
+    { "subpath": "./map", "tier": "stable" },
+    { "subpath": "./realtime", "tier": "stable" },
+    { "subpath": "./react", "tier": "stable" },
+    { "subpath": "./geometry", "tier": "stable" },
+    { "subpath": "./cli", "tier": "stable" },
+
+    { "subpath": "./agent-tools", "tier": "experimental" },
+    { "subpath": "./geoparquet", "tier": "experimental" },
+
+    { "subpath": "./app", "tier": "deprecated", "replacement": "@honua/app-platform/app", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./app-controller", "tier": "deprecated", "replacement": "@honua/app-platform/app-controller", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./app-workspace", "tier": "deprecated", "replacement": "@honua/app-platform/app-workspace", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./scene-workspace", "tier": "deprecated", "replacement": "@honua/app-platform/scene-workspace", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./collaboration", "tier": "deprecated", "replacement": "@honua/app-platform/collaboration", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./control-plane", "tier": "deprecated", "replacement": "@honua/app-platform/control-plane", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./replica-sync", "tier": "deprecated", "replacement": "@honua/app-platform/replica-sync", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./share", "tier": "deprecated", "replacement": "@honua/app-platform/share", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./operate", "tier": "deprecated", "replacement": "@honua/app-platform/operate", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./generated-app", "tier": "deprecated", "replacement": "@honua/app-platform/generated-app", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./studio", "tier": "deprecated", "replacement": "@honua/app-platform/studio", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./operator", "tier": "deprecated", "replacement": "@honua/app-platform/operator", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./operator/controllers", "tier": "deprecated", "replacement": "@honua/app-platform/operator/controllers", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./operator/workspace", "tier": "deprecated", "replacement": "@honua/app-platform/operator/workspace", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./operator/theming", "tier": "deprecated", "replacement": "@honua/app-platform/operator/theming", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./operator/i18n", "tier": "deprecated", "replacement": "@honua/app-platform/operator/i18n", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./controls", "tier": "deprecated", "replacement": "@honua/app-platform/controls", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
+    { "subpath": "./web-components", "tier": "deprecated", "replacement": "@honua/app-platform/web-components", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" }
+  ]
+}
