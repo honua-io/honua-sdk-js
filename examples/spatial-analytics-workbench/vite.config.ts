@@ -15,6 +15,7 @@ export default defineConfig({
       { find: "@honua/sdk-js/exploration", replacement: path.resolve(repoRoot, "src/exploration/index.ts") },
       { find: "@honua/sdk-js/honua", replacement: path.resolve(repoRoot, "src/honua.ts") },
       { find: "@honua/sdk-js/interactions", replacement: path.resolve(repoRoot, "src/interactions/index.ts") },
+      { find: "@honua/sdk-js/query-planner", replacement: path.resolve(repoRoot, "src/query-planner/index.ts") },
       { find: "@honua/sdk-js", replacement: path.resolve(repoRoot, "src/index.ts") },
     ],
   },

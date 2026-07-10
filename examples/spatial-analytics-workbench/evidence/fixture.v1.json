@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "spatial-analytics-workbench",
+  "lane": "fixture",
+  "status": "executed",
+  "reason": null,
+  "observedAt": "2026-05-05T08:00:00.000Z",
+  "authMode": "none",
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": null },
+  "source": {
+    "provider": "committed-fixture",
+    "identity": "honolulu-exposure-fixture.v2",
+    "endpoint": null,
+    "deploymentVersion": null,
+    "dataVersion": "honolulu-exposure-fixture.v2"
+  },
+  "provenance": {
+    "sourceId": "fixture:honolulu-exposure",
+    "observedAt": "2026-05-05T08:00:00.000Z",
+    "validAt": null,
+    "state": "replayed",
+    "attribution": "Honua synthetic Honolulu exposure fixture; demonstration only."
+  },
+  "semantics": {
+    "operation": "explain-accept-execute-linked-analysis",
+    "outcome": "remote-plan-replayed-and-bounded-local-executed",
+    "itemCount": 3,
+    "assertions": [
+      "geoservices-queryAggregate-compiled",
+      "bounded-local-row-and-byte-ceilings",
+      "unsafe-materialization-rejected",
+      "map-table-chart-output-share-context"
+    ]
+  },
+  "timing": { "totalMs": 25, "firstSuccessfulInteractionMs": 10 },
+  "degradation": {
+    "state": "expected",
+    "reasons": ["Remote fixture responses are labeled replayed and do not claim live execution."]
+  },
+  "artifacts": []
+}

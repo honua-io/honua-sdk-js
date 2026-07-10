@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "honua.spatial-analytics-presentation.v1",
+  "sampleId": "spatial-analytics-workbench",
+  "hero": {
+    "title": "One accepted plan. Every analytical view.",
+    "summary": "Explain GeoServices pushdown, approve one fingerprint, and carry its context through AOI, map, table, chart, evidence, and reusable output."
+  },
+  "states": [
+    { "id": "estimate", "label": "Estimate only", "claim": "No result rows read." },
+    { "id": "fixture-replay", "label": "Fixture replay", "claim": "Compiled remote path with replayed evidence." },
+    { "id": "executed-remote", "label": "Remote executed", "claim": "Configured GeoServices source observed live." },
+    { "id": "executed-local", "label": "Bounded local", "claim": "Rows and bytes checked before metrics/groupBy." },
+    { "id": "rejected", "label": "Unsafe rejected", "claim": "No partial aggregate and no silent fallback." }
+  ],
+  "evidence": {
+    "fixture": "evidence/fixture.v1.json",
+    "liveSkip": "evidence/live-skipped.v1.json"
+  }
+}

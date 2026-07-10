@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "spatial-analytics-workbench",
+  "lane": "live",
+  "status": "skipped",
+  "reason": "No public GeoServices source configuration was supplied; fixture fallback was not substituted.",
+  "observedAt": "2026-05-05T08:00:00.000Z",
+  "authMode": "anonymous",
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": null },
+  "source": {
+    "provider": "configured-geoservices",
+    "identity": "spatial-analytics-live-source",
+    "endpoint": null,
+    "deploymentVersion": null,
+    "dataVersion": null
+  },
+  "provenance": null,
+  "semantics": {
+    "operation": "geoservices-queryAggregate",
+    "outcome": null,
+    "itemCount": null,
+    "assertions": []
+  },
+  "timing": { "totalMs": null, "firstSuccessfulInteractionMs": null },
+  "degradation": { "state": "unavailable", "reasons": ["live-config-unavailable"] },
+  "artifacts": []
+}

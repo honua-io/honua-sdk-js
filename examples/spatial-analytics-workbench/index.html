@@ -6,24 +6,28 @@
     <title>Honua Cloud Spatial Analytics Workbench</title>
   </head>
   <body>
+    <a class="skip-link" href="#workbench-main">Skip to analysis results</a>
     <div class="app-shell">
       <header>
         <div>
-          <h1>Cloud Spatial Analytics Workbench</h1>
-          <p>Honua Cloud process jobs, materialized outputs, linked map/table/chart state, and cache-aware metadata.</p>
+          <p class="eyebrow">Explain · accept · execute · reuse</p>
+          <h1>Linked Spatial Analysis Workbench</h1>
+          <p>One accepted plan connects the AOI, map, table, chart, and reusable output—with provenance at every step.</p>
         </div>
-        <div class="status-strip">
+        <div class="status-strip" role="status" aria-live="polite">
+          <span>Data <strong id="data-mode"></strong></span>
+          <span>Plan <strong id="plan-state"></strong></span>
           <span>Cache <strong id="cache-state"></strong></span>
           <span>Capability <strong id="capability-state"></strong></span>
           <span>Job <strong id="job-state"></strong></span>
           <span>Results <strong id="result-count"></strong></span>
         </div>
       </header>
-      <main>
+      <main id="workbench-main">
         <aside class="stack">
           <section class="panel">
             <div class="panel-header">
-              <h2>Analysis</h2>
+              <h2>1. Define intent</h2>
             </div>
             <div class="control-grid">
               <label>
@@ -35,14 +39,6 @@
                 <span class="meta-chip" id="aoi-geometry"></span>
               </div>
               <label>
-                Workflow
-                <select id="plan-select"></select>
-              </label>
-              <div class="button-row">
-                <span class="meta-chip" id="plan-cost"></span>
-                <span class="meta-chip" id="plan-duration"></span>
-              </div>
-              <label>
                 Risk filter
                 <select id="risk-filter">
                   <option value="all">All risks</option>
@@ -52,13 +48,38 @@
                   <option value="low">Low</option>
                 </select>
               </label>
+              <label>
+                Execution policy
+                <select id="execution-lane">
+                  <option value="remote-pushdown">GeoServices remote pushdown</option>
+                  <option value="bounded-local">Bounded local metrics + groupBy</option>
+                  <option value="unsafe-rejected">Unsafe fallback rejection</option>
+                </select>
+              </label>
               <div class="button-row">
-                <button id="run-analysis" class="primary" type="button">Run Analysis</button>
-                <button id="advance-job" type="button">Advance Job</button>
-                <button id="retry-job" type="button">Retry</button>
+                <button id="explain-analysis" type="button">Explain</button>
+                <button id="accept-plan" type="button">Accept plan</button>
+                <button id="run-analysis" class="primary" type="button">Execute accepted plan</button>
               </div>
-              <button id="simulate-gap" type="button">Run Indexed Aggregation</button>
+              <div id="execution-error" class="execution-error" role="alert" hidden>
+                <strong>Execution failed</strong>
+                <span id="execution-error-message"></span>
+                <button id="retry-analysis" type="button">Retry accepted plan</button>
+              </div>
+              <p class="control-note">Changing the AOI, risk filter, or policy invalidates the prior acceptance and produces a new fingerprint.</p>
             </div>
+          </section>
+          <section class="panel" id="plan-panel">
+            <div class="panel-header">
+              <h2>2. Review plan</h2>
+              <span class="state-badge" id="plan-badge">estimate</span>
+            </div>
+            <dl class="provenance-grid" id="plan-summary"></dl>
+            <ol class="plan-steps" id="plan-steps"></ol>
+            <details>
+              <summary>Compiled request and query IR</summary>
+              <pre id="plan-json"></pre>
+            </details>
           </section>
           <section class="panel">
             <div class="panel-header">
@@ -76,25 +97,26 @@
         <section class="stack">
           <section class="panel map-panel">
             <div class="panel-header">
-              <h2>AOI Map</h2>
-              <span class="meta-chip">extent-linked table</span>
+              <h2>3. Linked AOI map</h2>
+              <span class="meta-chip" id="map-context">awaiting accepted plan</span>
             </div>
-            <div id="map-surface"></div>
+            <div id="map-surface" role="region" aria-label="Schematic AOI map with linked analysis features"></div>
           </section>
           <section class="metric-grid" id="metric-list"></section>
           <section class="panel">
             <div class="panel-header">
-              <h2>Materialized Results</h2>
+              <h2>Linked result features</h2>
               <span class="meta-chip" id="materialized-layer"></span>
             </div>
             <table>
+              <caption class="sr-only">Features linked to the accepted analysis context</caption>
               <thead>
                 <tr>
-                  <th>Feature</th>
-                  <th>Risk</th>
-                  <th>Category</th>
-                  <th>Zone</th>
-                  <th>Score</th>
+                  <th scope="col">Feature</th>
+                  <th scope="col">Risk</th>
+                  <th scope="col">Category</th>
+                  <th scope="col">Zone</th>
+                  <th scope="col">Score</th>
                 </tr>
               </thead>
               <tbody id="result-table"></tbody>
@@ -102,6 +124,18 @@
           </section>
         </section>
         <aside class="stack">
+          <section class="panel evidence-panel">
+            <div class="panel-header">
+              <h2>Execution evidence</h2>
+              <span class="state-badge" id="evidence-state">estimate</span>
+            </div>
+            <p id="execution-truth"></p>
+            <dl class="provenance-grid" id="evidence-provenance"></dl>
+            <details>
+              <summary>Reusable output artifact</summary>
+              <pre id="artifact-json"></pre>
+            </details>
+          </section>
           <section class="panel">
             <div class="panel-header">
               <h2>Risk Chart</h2>
@@ -110,9 +144,10 @@
           </section>
           <section class="panel">
             <div class="panel-header">
-              <h2>Indexed Aggregation</h2>
-              <span class="meta-chip">SDK widgets</span>
+              <h2>Advanced indexed response</h2>
+              <button id="simulate-gap" type="button">Load fixture only</button>
             </div>
+            <p class="control-note">Fixture replay only. H3/Quadbin and OGC/DuckDB planner compilers remain #389 follow-ons.</p>
             <div id="aggregation-widgets"></div>
           </section>
           <section class="panel" id="feature-detail"></section>
@@ -133,6 +168,7 @@
           </section>
         </aside>
       </main>
+      <p class="sr-only" id="analysis-announcer" aria-live="assertive"></p>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

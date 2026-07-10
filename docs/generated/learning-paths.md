@@ -110,10 +110,10 @@ Labels: `fixture` · `experimental` · `degraded`
 - Example notes: [examples/spatial-analytics-workbench/README.md](../../examples/spatial-analytics-workbench/README.md)
 - Compile check: `npm run demo:spatial-analytics:typecheck`
 - Sample contract: `flagship` · `experimental`
-- Data and auth: `fixture` · `none`
-- Provenance: Committed analysis result fixtures.
-- Freshness: Fixture version committed with the repository.
-- Catalog degradation: Unsupported indexed aggregation remains explicitly fixture-only.
+- Data and auth: `hybrid` · `anonymous`
+- Provenance: Committed analysis fixtures or a configured public GeoServices source.
+- Freshness: Fixture replay uses a fixed observation; configured live execution records its observation time.
+- Catalog degradation: Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on.
 - Live sample: [demo-analyst-workbench.html](https://honua.io/demo-analyst-workbench.html) · [sample-spatial-analytics.html](https://honua.io/sample-spatial-analytics.html)
 - Supported API imports: `@honua/sdk-js/contract` (`resolveSpatialAggregationWidgetSummary`); `@honua/sdk-js/exploration` (`createExplorationContext`)
 - honua.io journey: `linked-large-data-analysis`
