@@ -10,8 +10,8 @@
     "schemaVersion": { "const": 1 },
     "sdk": {
       "type": "object",
-      "required": ["package", "version"],
-      "properties": { "package": { "const": "@honua/sdk-js" }, "version": { "type": "string" } },
+      "required": ["package"],
+      "properties": { "package": { "const": "@honua/sdk-js" } },
       "additionalProperties": false
     },
     "configuration": {

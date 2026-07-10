@@ -68,6 +68,7 @@ jobs:
 
       - name: Validate package
         run: |
+          npm run samples:generate
           npm run typecheck
           npm run check
           npm run samples:verify

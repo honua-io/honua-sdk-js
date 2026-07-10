@@ -53,8 +53,9 @@ function parseNpmCommand(command) {
 export async function validateCatalog(catalog, packageJson) {
   invariant(catalog.format === "honua.sdk.sample-catalog.v1", "catalog format must be v1");
   invariant(catalog.schemaVersion === 1, "catalog schemaVersion must be 1");
+  invariant(catalog.sdk && typeof catalog.sdk === "object", "catalog SDK metadata is required");
   invariant(catalog.sdk?.package === packageJson.name, "catalog SDK package must match package.json");
-  invariant(catalog.sdk?.version === packageJson.version, "catalog SDK version must match package.json");
+  invariant(!Object.hasOwn(catalog.sdk, "version"), "catalog SDK version is derived from package.json and must not be pinned");
   invariant(catalog.configuration?.endpointValuePolicy === "environment-name-only", "catalog endpoint values must remain external");
   invariant(
     JSON.stringify(catalog.configuration?.allowedSchemes) === JSON.stringify(["http", "https"]),
@@ -159,6 +160,16 @@ export async function validateCatalog(catalog, packageJson) {
   invariant(catalog.siteMappings.length === 21, "the v1 site migration fixture must map all 21 current honua.io samples");
 }
 
+export function effectiveCatalog(catalog, packageJson) {
+  return {
+    ...catalog,
+    sdk: {
+      package: packageJson.name,
+      version: packageJson.version,
+    },
+  };
+}
+
 function publicSample(sample, sdk) {
   return {
     id: sample.id,
@@ -190,8 +201,9 @@ function publicSample(sample, sdk) {
   };
 }
 
-export function generateSiteProjection(catalog) {
-  const samplesById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+export function generateSiteProjection(catalog, packageJson) {
+  const effective = effectiveCatalog(catalog, packageJson);
+  const samplesById = new Map(effective.samples.map((sample) => [sample.id, sample]));
   const projectedSamples = new Map();
   const routes = catalog.siteMappings.map((mapping) => {
     if (mapping.ownership === "site-exception") {
@@ -212,7 +224,7 @@ export function generateSiteProjection(catalog) {
       };
     }
     if (!projectedSamples.has(mapping.sampleId)) {
-      projectedSamples.set(mapping.sampleId, publicSample(samplesById.get(mapping.sampleId), catalog.sdk));
+      projectedSamples.set(mapping.sampleId, publicSample(samplesById.get(mapping.sampleId), effective.sdk));
     }
     return {
       id: mapping.id,
@@ -225,10 +237,10 @@ export function generateSiteProjection(catalog) {
     format: "honua.site.sdk-sample-projection.v1",
     schemaVersion: 1,
     catalog: {
-      format: catalog.format,
-      schemaVersion: catalog.schemaVersion,
-      package: catalog.sdk.package,
-      version: catalog.sdk.version,
+      format: effective.format,
+      schemaVersion: effective.schemaVersion,
+      package: effective.sdk.package,
+      version: effective.sdk.version,
     },
     contract: {
       producer: "honua-io/honua-sdk-js#401",
@@ -268,7 +280,7 @@ function generateSiteConsumerFixture(projection) {
   };
 }
 
-function generatedCatalogMarkdown(catalog) {
+function generatedCatalogMarkdown(catalog, packageJson) {
   const rows = catalog.samples.map(
     (sample) =>
       `| [\`${sample.id}\`](../../${sample.docsPath}) | ${sample.tier} | ${sample.supportStatus} | ${sample.data.mode} | ${sample.disposition.decision} | ${sample.summary} |`,
@@ -278,7 +290,7 @@ function generatedCatalogMarkdown(catalog) {
     "",
     "This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.",
     "",
-    `Catalog contract: \`${catalog.format}\` · SDK: \`${catalog.sdk.package}@${catalog.sdk.version}\` · ${catalog.samples.length} executable examples`,
+    `Catalog contract: \`${catalog.format}\` · SDK: \`${packageJson.name}\` (effective version derived from \`package.json\`) · ${catalog.samples.length} executable examples`,
     "",
     "| Sample | Tier | Support | Data | Disposition | Demonstration |",
     "| --- | --- | --- | --- | --- | --- |",
@@ -314,15 +326,62 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-export async function generatedOutputs(catalog) {
+export async function generatedOutputs(catalog, packageJson) {
   const readme = await readFile(path.join(PROJECT_ROOT, "README.md"), "utf8");
-  const projection = generateSiteProjection(catalog);
+  const projection = generateSiteProjection(catalog, packageJson);
   return new Map([
-    [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog)],
+    [GENERATED_CATALOG_PATH, generatedCatalogMarkdown(catalog, packageJson)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
     [SITE_CONSUMER_FIXTURE_PATH, stableJson(generateSiteConsumerFixture(projection))],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
   ]);
+}
+
+function normalizeProjectionVersion(serialized) {
+  const projection = JSON.parse(serialized);
+  projection.catalog.version = "$PACKAGE_VERSION";
+  for (const sample of projection.samples) {
+    if (sample.sdk) sample.sdk.version = "$PACKAGE_VERSION";
+  }
+  return stableJson(projection);
+}
+
+function normalizeConsumerProjectionHash(serialized) {
+  const fixture = JSON.parse(serialized);
+  fixture.input.sha256 = "$PROJECTION_SHA256";
+  return stableJson(fixture);
+}
+
+export function generatedOutputDrift(expectedOutputs, currentOutputs) {
+  const failures = [];
+  const expectedProjection = expectedOutputs.get(SITE_PROJECTION_PATH);
+  const currentProjection = currentOutputs.get(SITE_PROJECTION_PATH) ?? "";
+  const projectionVersionOnly =
+    expectedProjection !== currentProjection &&
+    normalizeProjectionVersion(expectedProjection) === normalizeProjectionVersion(currentProjection);
+  const currentConsumerFixture = JSON.parse(currentOutputs.get(SITE_CONSUMER_FIXTURE_PATH) ?? "{}");
+  const expectedConsumerFixture = JSON.parse(expectedOutputs.get(SITE_CONSUMER_FIXTURE_PATH) ?? "{}");
+  const currentProjectionDigestIsValid =
+    currentConsumerFixture.input?.sha256 === sha256(Buffer.from(currentProjection));
+  const expectedProjectionDigestIsValid =
+    expectedConsumerFixture.input?.sha256 === sha256(Buffer.from(expectedProjection));
+
+  for (const [relativePath, expected] of expectedOutputs) {
+    const current = currentOutputs.get(relativePath) ?? "";
+    if (current === expected) continue;
+    if (relativePath === SITE_PROJECTION_PATH && projectionVersionOnly) continue;
+    if (
+      relativePath === SITE_CONSUMER_FIXTURE_PATH &&
+      projectionVersionOnly &&
+      currentProjectionDigestIsValid &&
+      expectedProjectionDigestIsValid &&
+      normalizeConsumerProjectionHash(expected) === normalizeConsumerProjectionHash(current)
+    ) {
+      continue;
+    }
+    failures.push(relativePath);
+  }
+  return failures;
 }
 
 function gitSha() {
@@ -472,15 +531,19 @@ async function runContract(command) {
   ]) {
     validateEvidenceEnvelope(await readJson(fixturePath));
   }
-  const outputs = await generatedOutputs(catalog);
-  for (const [relativePath, expected] of outputs) {
-    if (command === "write") {
+  const outputs = await generatedOutputs(catalog, packageJson);
+  if (command === "write") {
+    for (const [relativePath, expected] of outputs) {
       await mkdir(path.dirname(path.join(PROJECT_ROOT, relativePath)), { recursive: true });
       await writeFile(path.join(PROJECT_ROOT, relativePath), expected, "utf8");
-      continue;
     }
-    const actual = await readFile(path.join(PROJECT_ROOT, relativePath), "utf8");
-    invariant(actual === expected, `${relativePath} has drifted; run npm run samples:generate`);
+  } else {
+    const currentOutputs = new Map();
+    for (const relativePath of outputs.keys()) {
+      currentOutputs.set(relativePath, await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"));
+    }
+    const drift = generatedOutputDrift(outputs, currentOutputs);
+    invariant(drift.length === 0, `${drift.join(", ")} has drifted; run npm run samples:generate`);
   }
   process.stdout.write(
     `${command === "write" ? "Generated" : "Verified"} ${catalog.samples.length} SDK examples and ${catalog.siteMappings.length} honua.io routes (${catalog.format})\n`,

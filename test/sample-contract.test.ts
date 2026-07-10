@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildBrowserArtifactManifest,
   generateSiteProjection,
+  generatedOutputDrift,
+  generatedOutputs,
   validateCatalog,
   validateEvidenceEnvelope,
   verifyBrowserArtifactManifest,
@@ -19,7 +21,46 @@ describe("sample publication contract", () => {
     await expect(validateCatalog(catalog, packageJson)).resolves.toBeUndefined();
     expect(catalog.samples).toHaveLength(27);
     expect(catalog.siteMappings).toHaveLength(21);
-    expect(generateSiteProjection(catalog).routes).toHaveLength(21);
+    expect(generateSiteProjection(catalog, packageJson).routes).toHaveLength(21);
+  });
+
+  it("derives release versions without catalog edits and still detects semantic drift", async () => {
+    const catalog = await readJson("samples/catalog.v1.json");
+    const packageJson = await readJson("package.json");
+    const currentOutputs = await generatedOutputs(catalog, packageJson);
+    const bumpedPackage = { ...packageJson, version: "9.9.9" };
+
+    await expect(validateCatalog(catalog, bumpedPackage)).resolves.toBeUndefined();
+    const bumpedOutputs = await generatedOutputs(catalog, bumpedPackage);
+    const bumpedProjection = JSON.parse(bumpedOutputs.get("samples/dist/honua-site-samples.v1.json")!);
+    expect(bumpedProjection.catalog.version).toBe("9.9.9");
+    expect(bumpedProjection.samples.find((sample: { sdk?: { version: string } }) => sample.sdk)?.sdk?.version).toBe(
+      "9.9.9",
+    );
+    expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([]);
+
+    const semanticDrift = new Map(currentOutputs);
+    semanticDrift.set(
+      "docs/generated/sample-catalog.md",
+      currentOutputs.get("docs/generated/sample-catalog.md")!.replace("# SDK sample catalog", "# Stale catalog"),
+    );
+    expect(generatedOutputDrift(currentOutputs, semanticDrift)).toEqual(["docs/generated/sample-catalog.md"]);
+
+    const integrityDrift = new Map(currentOutputs);
+    const consumerFixture = JSON.parse(
+      currentOutputs.get("samples/contract/v1/consumer-fixtures/honua-site-consumer.v1.json")!,
+    );
+    consumerFixture.input.sha256 = "0".repeat(64);
+    integrityDrift.set(
+      "samples/contract/v1/consumer-fixtures/honua-site-consumer.v1.json",
+      `${JSON.stringify(consumerFixture, null, 2)}\n`,
+    );
+    expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([
+      "samples/contract/v1/consumer-fixtures/honua-site-consumer.v1.json",
+    ]);
+    expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
+      "samples/contract/v1/consumer-fixtures/honua-site-consumer.v1.json",
+    ]);
   });
 
   it("rejects catalog drift before projection", async () => {
@@ -28,6 +69,10 @@ describe("sample publication contract", () => {
     catalog.samples[0].capabilities = ["map", "agent-planning"];
 
     await expect(validateCatalog(catalog, packageJson)).rejects.toThrow("must be sorted");
+
+    const missingSdk = await readJson("samples/catalog.v1.json");
+    delete missingSdk.sdk;
+    await expect(validateCatalog(missingSdk, packageJson)).rejects.toThrow("catalog SDK metadata is required");
   });
 
   it("uses one evidence envelope for fixture, live, and unavailable lanes", async () => {
