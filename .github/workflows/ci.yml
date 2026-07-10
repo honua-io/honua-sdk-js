@@ -116,9 +116,6 @@ jobs:
       - name: Verify sample publication contract
         run: npm run samples:verify
 
-      - name: Compile learning-path examples
-        run: npm run docs:learning:typecheck
-
       - name: Code style
         run: npm run check
 
@@ -130,6 +127,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Compile learning-path examples
+        run: npm run docs:learning:typecheck
 
       - name: Verify public API report (stable tier)
         run: node scripts/report-api-surface.mjs --check

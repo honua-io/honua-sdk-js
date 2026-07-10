@@ -135,3 +135,18 @@ test("rejects duplicated support status and auth labels that drift from the cata
     /edit: authenticated label must match catalog authMode none/,
   );
 });
+
+test("builds package self-reference targets before compiling learning-path examples in CI", () => {
+  const workflow = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
+  const jobStart = workflow.indexOf("  js-sdk:");
+  const jobEnd = workflow.indexOf("\n  mcp-sdk:", jobStart);
+  const job = workflow.slice(jobStart, jobEnd);
+  const buildStep = job.indexOf("- name: Build\n");
+  const learningStep = job.indexOf("- name: Compile learning-path examples\n");
+
+  assert.notEqual(jobStart, -1, "JS SDK job must exist");
+  assert.notEqual(jobEnd, -1, "MCP SDK job must follow the JS SDK job");
+  assert.notEqual(buildStep, -1, "JS SDK build step must exist");
+  assert.notEqual(learningStep, -1, "learning-path compile step must exist");
+  assert.ok(buildStep < learningStep, "package exports must be built before examples resolve self-references");
+});
