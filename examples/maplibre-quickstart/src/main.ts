@@ -125,11 +125,7 @@ function renderPlan(dataset: QuickstartDataset): void {
         `<li><strong>${escapeHtml(item.engine)} / ${escapeHtml(item.operation)}</strong> — ${escapeHtml(item.reason)}</li>`,
     )
     .join("");
-  getElement<HTMLElement>("#plan-json").textContent = JSON.stringify(
-    { query: dataset.query, plan },
-    null,
-    2,
-  );
+  getElement<HTMLElement>("#plan-json").textContent = JSON.stringify({ query: dataset.query, plan }, null, 2);
 }
 
 function renderSelection(summary: QuickstartFeatureSummary): void {

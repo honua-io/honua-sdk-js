@@ -1,15 +1,16 @@
 import {
   PROTOCOL_DEFAULT_CAPABILITIES,
-  createDataset,
   type Query,
   type Result,
   type SourceDescriptor,
+  createDataset,
 } from "@honua/sdk-js/contract";
 import { HonuaClient, type HonuaLayerMetadata, type HonuaTypedQueryResponse } from "@honua/sdk-js/honua";
 import {
+  type QueryExecutionPlanV1,
+  type QueryPlanExecution,
   executeQueryPlan,
   explainQuery,
-  type QueryExecutionPlanV1,
 } from "@honua/sdk-js/query-planner";
 
 import type { QuickstartConfig } from "./config.js";
@@ -129,6 +130,11 @@ function createCompatibilitySummary(
   };
 }
 
+function createQueryLoadError(serviceId: string, layerId: number, error: unknown): Error {
+  const detail = error instanceof Error ? error.message : String(error);
+  return new Error(`Failed to query service "${serviceId}" layer ${layerId}: ${detail}`);
+}
+
 function sdkVersion(): string {
   return typeof __HONUA_SDK_VERSION__ === "string" ? __HONUA_SDK_VERSION__ : "development";
 }
@@ -149,11 +155,7 @@ function authentication(config: QuickstartConfig): QuickstartEvidence["auth"] {
   return config.mode === "fixture" ? "none" : "anonymous";
 }
 
-function stage(
-  id: QuickstartJourneyStageId,
-  detail: string,
-  durationMs: number,
-): QuickstartJourneyStage {
+function stage(id: QuickstartJourneyStageId, detail: string, durationMs: number): QuickstartJourneyStage {
   return {
     id,
     label: id[0]?.toUpperCase() + id.slice(1),
@@ -169,7 +171,10 @@ async function measure<T>(action: () => Promise<T>): Promise<{ value: T; duratio
   return { value, durationMs: Math.max(0, Math.round(performance.now() - startedAt)) };
 }
 
-function createDescriptor(config: QuickstartConfig, metadata: HonuaLayerMetadata): SourceDescriptor {
+export function createQuickstartSourceDescriptor(
+  config: QuickstartConfig,
+  metadata: HonuaLayerMetadata,
+): SourceDescriptor {
   return {
     id: config.sourceId,
     protocol: "geoservices-feature-service",
@@ -219,7 +224,9 @@ export function buildQuickstartDataset(options: {
   const { config, compatibility, metadata, descriptor, query, plan, result, journey, queryDurationMs } = options;
   const featureCount = result.features.length;
   if (featureCount < 1) {
-    throw new Error(`The feature query returned no features for service "${config.serviceId}" layer ${config.layerId}.`);
+    throw new Error(
+      `The feature query returned no features for service "${config.serviceId}" layer ${config.layerId}.`,
+    );
   }
 
   const queryResponse = toTypedQueryResponse(result, metadata);
@@ -235,10 +242,7 @@ export function buildQuickstartDataset(options: {
     features: renderableFeatures.map((summary) => summary.feature),
   };
   const observedAt = options.observedAt ?? new Date().toISOString();
-  const degradation = [
-    ...plan.warnings,
-    ...(result.degraded?.map((reason) => reason.reason) ?? []),
-  ];
+  const degradation = [...plan.warnings, ...(result.degraded?.map((reason) => reason.reason) ?? [])];
   if (degradation.length === 0) degradation.push("None — exact remote pushdown");
 
   return {
@@ -311,6 +315,10 @@ export async function loadQuickstartDataset(
   if (!connected.value.supported) throw new Error(formatCompatibilityError(connected.value.reasons));
   const compatibility = createCompatibilitySummary(connected.value);
   journey.push(stage("connect", `Honua ${compatibility.serverVersion} accepted`, connected.durationMs));
+  options.telemetry?.emit("compatibility-ok", {
+    serverVersion: compatibility.serverVersion,
+    releaseChannel: compatibility.releaseChannel,
+  });
 
   const discovered = await measure(() => client.getLayerMetadata(config.serviceId, config.layerId));
   const metadata = discovered.value;
@@ -322,7 +330,7 @@ export async function loadQuickstartDataset(
     ),
   );
 
-  const descriptor = createDescriptor(config, metadata);
+  const descriptor = createQuickstartSourceDescriptor(config, metadata);
   const dataset = createDataset({
     id: `${config.serviceId}/${config.layerId}`,
     client,
@@ -347,7 +355,13 @@ export async function loadQuickstartDataset(
     authorizationScope: [],
     estimates: { rows: config.resultRecordCount, requests: 1 },
   });
-  journey.push(stage("explain", `${plan.pushdown} pushdown · ${plan.fidelity} fidelity`, Math.round(performance.now() - explainStartedAt)));
+  journey.push(
+    stage(
+      "explain",
+      `${plan.pushdown} pushdown · ${plan.fidelity} fidelity`,
+      Math.round(performance.now() - explainStartedAt),
+    ),
+  );
 
   options.telemetry?.emit("plan-explained", {
     planId: plan.id,
@@ -357,12 +371,17 @@ export async function loadQuickstartDataset(
     steps: plan.steps.length,
   });
 
-  const executed = await measure(() =>
-    executeQueryPlan(plan, source, {
-      sourceVersion: config.dataVersion,
-      authorizationScope: [],
-    }),
-  );
+  let executed: { value: QueryPlanExecution; durationMs: number };
+  try {
+    executed = await measure(() =>
+      executeQueryPlan(plan, source, {
+        sourceVersion: config.dataVersion,
+        authorizationScope: [],
+      }),
+    );
+  } catch (error) {
+    throw createQueryLoadError(config.serviceId, config.layerId, error);
+  }
   journey.push(stage("query", `${executed.value.result.features.length} rows returned`, executed.durationMs));
 
   const quickstartDataset = buildQuickstartDataset({

@@ -1,4 +1,4 @@
-import { esriGeometryToGeoJSON, type HonuaFeature } from "@honua/sdk-js/honua";
+import { type HonuaFeature, esriGeometryToGeoJSON } from "@honua/sdk-js/honua";
 
 export type QuickstartRenderableGeometryType = "point" | "line" | "polygon";
 export type QuickstartPosition = [number, number];

@@ -5,16 +5,48 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import { resolveQuickstartConfig } from "../examples/maplibre-quickstart/src/config.js";
-import { buildQuickstartDataset, loadQuickstartDataset } from "../examples/maplibre-quickstart/src/data.js";
+import {
+  buildQuickstartDataset,
+  createQuickstartSourceDescriptor,
+  loadQuickstartDataset,
+} from "../examples/maplibre-quickstart/src/data.js";
 import {
   convertEsriFeaturesToGeoJson,
   summarizeRenderableGeometryTypes,
 } from "../examples/maplibre-quickstart/src/esri-geojson.js";
+import type { Result } from "../src/contract/types.js";
+import type { HonuaLayerMetadata } from "../src/core/types.js";
+import { explainQuery } from "../src/query-planner/index.js";
 
 const fixtureRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "honua-quickstart-demo");
 
 function readFixture<T>(fileName: string): T {
   return JSON.parse(fs.readFileSync(path.join(fixtureRoot, fileName), "utf8")) as T;
+}
+
+function buildFixtureDataset(features: Result["features"], queryDurationMs = 9) {
+  const config = resolveQuickstartConfig({});
+  const metadata = readFixture<HonuaLayerMetadata>("layer-metadata.json");
+  const descriptor = createQuickstartSourceDescriptor(config, metadata);
+  const query = {
+    where: config.where,
+    outFields: ["*"],
+    returnGeometry: true,
+    outSr: 4326,
+    pagination: { limit: config.resultRecordCount },
+  } as const;
+  return buildQuickstartDataset({
+    config,
+    compatibility: { serverVersion: "1.2.0", releaseChannel: "stable" },
+    metadata,
+    descriptor,
+    query,
+    plan: explainQuery({ descriptor, query, sourceVersion: config.dataVersion }),
+    result: { features, exceededTransferLimit: false },
+    journey: [],
+    queryDurationMs,
+    observedAt: "2026-07-10T00:00:00.000Z",
+  });
 }
 
 describe("maplibre quickstart data", () => {
@@ -74,17 +106,9 @@ describe("maplibre quickstart data", () => {
 
     expect(geojson.features.map((feature) => feature.geometry)).toEqual([null, null, null]);
     expect(summarizeRenderableGeometryTypes(geojson)).toEqual([]);
-    expect(() =>
-      buildQuickstartDataset(
-        resolveQuickstartConfig({}),
-        {
-          serverVersion: "1.2.0",
-          releaseChannel: "stable",
-        },
-        { features },
-        9,
-      ),
-    ).toThrow("The feature query returned 3 feature(s), but none included renderable geometry.");
+    expect(() => buildFixtureDataset(features)).toThrow(
+      "The feature query returned 3 feature(s), but none included renderable geometry.",
+    );
   });
 
   it("keeps disjoint Esri outer rings as a GeoJSON multipolygon", () => {
@@ -201,15 +225,8 @@ describe("maplibre quickstart data", () => {
   });
 
   it("builds a deterministic quickstart dataset from the query fixture", () => {
-    const dataset = buildQuickstartDataset(
-      resolveQuickstartConfig({}),
-      {
-        serverVersion: "1.2.0",
-        releaseChannel: "stable",
-      },
-      readFixture("query-features.json"),
-      18,
-    );
+    const response = readFixture<{ features: Result["features"] }>("query-features.json");
+    const dataset = buildFixtureDataset(response.features, 18);
 
     expect(dataset.featureCount).toBe(3);
     expect(dataset.renderableFeatureCount).toBe(3);
@@ -217,6 +234,13 @@ describe("maplibre quickstart data", () => {
     expect(dataset.featureSummaries[1]?.title).toBe("Harbor response district");
     expect(dataset.bounds?.minX).toBeLessThan(-157.88);
     expect(dataset.bounds?.maxY).toBeGreaterThan(21.3);
+    expect(dataset.evidence).toMatchObject({
+      mode: "fixture",
+      auth: "none",
+      dataVersion: "honolulu-operations-v1",
+      freshness: "snapshot captured 2026-07-01T00:00:00.000Z",
+    });
+    expect(dataset.plan.pushdown).toBe("full");
   });
 
   it("checks compatibility and queries the configured FeatureServer path", async () => {
@@ -248,6 +272,13 @@ describe("maplibre quickstart data", () => {
             });
           }
 
+          if (url.pathname === "/rest/services/natural-earth/FeatureServer/0") {
+            return new Response(fs.readFileSync(path.join(fixtureRoot, "layer-metadata.json")), {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            });
+          }
+
           if (url.pathname === "/rest/services/natural-earth/FeatureServer/0/query") {
             return new Response(fs.readFileSync(path.join(fixtureRoot, "query-features.json")), {
               status: 200,
@@ -263,6 +294,7 @@ describe("maplibre quickstart data", () => {
 
     expect(dataset.featureCount).toBe(3);
     expect(requests).toContain("/api/v1/admin/capabilities?");
+    expect(requests).toContain("/rest/services/natural-earth/FeatureServer/0?f=json");
     expect(requests.some((request) => request.startsWith("/rest/services/natural-earth/FeatureServer/0/query?"))).toBe(
       true,
     );
@@ -275,6 +307,7 @@ describe("maplibre quickstart data", () => {
       ),
     ).toBe(true);
     expect(telemetry.emit).toHaveBeenCalledWith("compatibility-ok", expect.any(Object));
+    expect(telemetry.emit).toHaveBeenCalledWith("plan-explained", expect.any(Object));
     expect(telemetry.emit).toHaveBeenCalledWith("query-finished", expect.any(Object));
   });
 
@@ -331,6 +364,12 @@ describe("maplibre quickstart data", () => {
                 headers: { "content-type": "application/json" },
               });
             }
+            if (url.pathname === "/rest/services/ops/FeatureServer/9") {
+              return new Response(fs.readFileSync(path.join(fixtureRoot, "layer-metadata.json")), {
+                status: 200,
+                headers: { "content-type": "application/json" },
+              });
+            }
             return new Response("Layer unavailable", { status: 503 });
           },
         },
@@ -340,23 +379,16 @@ describe("maplibre quickstart data", () => {
 
   it("fails fast when the query response does not include renderable geometry", () => {
     expect(() =>
-      buildQuickstartDataset(
-        resolveQuickstartConfig({}),
-        {
-          serverVersion: "1.2.0",
-          releaseChannel: "stable",
-        },
-        {
-          features: [
-            {
-              attributes: {
-                OBJECTID: 1,
-                NAME: "Broken feature",
-              },
-              geometry: null,
+      buildFixtureDataset(
+        [
+          {
+            attributes: {
+              OBJECTID: 1,
+              NAME: "Broken feature",
             },
-          ],
-        },
+            geometry: null,
+          },
+        ],
         12,
       ),
     ).toThrow("The feature query returned 1 feature(s), but none included renderable geometry.");
