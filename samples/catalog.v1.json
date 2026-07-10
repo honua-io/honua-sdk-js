@@ -355,19 +355,19 @@
     {
       "id": "spatial-analytics-workbench",
       "title": "Spatial analytics workbench",
-      "summary": "Links AOI analysis jobs to map, table, chart, and reusable output artifacts.",
+      "summary": "Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output.",
       "tier": "flagship",
       "supportStatus": "experimental",
       "disposition": { "decision": "rework", "reason": "Join the large-data journey and distinguish fixture estimates from executed plans." },
       "sourcePath": "examples/spatial-analytics-workbench",
       "docsPath": "examples/spatial-analytics-workbench/README.md",
-      "capabilities": ["aggregation", "analysis", "linked-views"],
-      "protocols": ["honua", "ogc-processes"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed analysis result fixtures.", "attribution": "Input and output dataset attribution is retained.", "freshness": "Fixture version committed with the repository." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:spatial-analytics:build"] }, "live": { "status": "planned", "commands": [] } },
-      "expectedDegradation": "Unsupported indexed aggregation remains explicitly fixture-only.",
-      "validation": ["npm run demo:spatial-analytics:typecheck", "npm run demo:spatial-analytics:build"]
+      "capabilities": ["aggregation", "analysis", "bounded-local", "explain-plan", "linked-views", "provenance"],
+      "protocols": ["geoservices", "ogc"],
+      "renderers": ["none"],
+      "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["VITE_HONUA_SPATIAL_ANALYTICS_BASE_URL", "VITE_HONUA_SPATIAL_ANALYTICS_LAYER_ID", "VITE_HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION", "VITE_HONUA_SPATIAL_ANALYTICS_SERVICE_ID", "VITE_HONUA_SPATIAL_ANALYTICS_SOURCE_VERSION"], "provenance": "Committed analysis fixtures or a configured public GeoServices source.", "attribution": "Input/output attribution, source/schema versions, observation time, cache decision, and plan fingerprint are retained.", "freshness": "Fixture replay uses a fixed observation; configured live execution records its observation time." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:spatial-analytics:build", "npm run demo:spatial-analytics:evidence"] }, "live": { "status": "planned", "commands": ["npm run demo:spatial-analytics:live-evidence"] } },
+      "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on.",
+      "validation": ["npm run demo:spatial-analytics:typecheck", "npm run demo:spatial-analytics:build", "npm run demo:spatial-analytics:evidence", "npm run test:playwright:spatial-analytics"]
     },
     {
       "id": "stac-imagery-browser",

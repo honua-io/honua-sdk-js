@@ -17,7 +17,7 @@
     {
       "id": "spatial-analytics-workbench",
       "title": "Spatial analytics workbench",
-      "summary": "Links AOI analysis jobs to map, table, chart, and reusable output artifacts.",
+      "summary": "Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output.",
       "tier": "flagship",
       "supportStatus": "experimental",
       "source": {
@@ -32,21 +32,24 @@
       "capabilities": [
         "aggregation",
         "analysis",
-        "linked-views"
+        "bounded-local",
+        "explain-plan",
+        "linked-views",
+        "provenance"
       ],
       "protocols": [
-        "honua",
-        "ogc-processes"
+        "geoservices",
+        "ogc"
       ],
       "renderers": [
-        "maplibre"
+        "none"
       ],
       "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed analysis result fixtures.",
-        "attribution": "Input and output dataset attribution is retained.",
-        "freshness": "Fixture version committed with the repository."
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "provenance": "Committed analysis fixtures or a configured public GeoServices source.",
+        "attribution": "Input/output attribution, source/schema versions, observation time, cache decision, and plan fingerprint are retained.",
+        "freshness": "Fixture replay uses a fixed observation; configured live execution records its observation time."
       },
       "lanes": {
         "fixture": {
@@ -56,7 +59,7 @@
           "status": "planned"
         }
       },
-      "expectedDegradation": "Unsupported indexed aggregation remains explicitly fixture-only."
+      "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on."
     },
     {
       "id": "migration-workbench",

@@ -29,6 +29,39 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 3px solid #2f78a5;
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  transform: translateY(-160%);
+  border-radius: 6px;
+  background: #172026;
+  color: #ffffff;
+  padding: 8px 12px;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
@@ -75,6 +108,15 @@ small {
   color: #5f6966;
 }
 
+.eyebrow {
+  margin-bottom: 4px;
+  color: #17644c;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .status-strip {
   display: flex;
   flex-wrap: wrap;
@@ -93,6 +135,10 @@ small {
   background: #f7f9f8;
   color: #34413d;
   font-size: 0.82rem;
+}
+
+.status-strip span {
+  gap: 4px;
 }
 
 #job-state[data-status="failed"] {
@@ -116,9 +162,120 @@ small {
 
 main {
   display: grid;
-  grid-template-columns: 310px minmax(480px, 1fr) 360px;
+  grid-template-columns: 340px minmax(480px, 1fr) 390px;
   gap: 14px;
   padding: 14px;
+}
+
+.control-note,
+#execution-truth {
+  color: #5f6966;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.state-badge {
+  border-radius: 999px;
+  background: #eef2f0;
+  color: #34413d;
+  padding: 4px 9px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.state-badge[data-state="accepted"] {
+  background: #fff4ce;
+  color: #664d00;
+}
+
+.state-badge[data-state="fixture-replay"],
+.state-badge[data-state="executed-local"],
+.state-badge[data-state="executed-remote"] {
+  background: #e8f7ed;
+  color: #18572e;
+}
+
+.state-badge[data-state="rejected"],
+.state-badge[data-state="skipped"] {
+  background: #fff1ef;
+  color: #8b2118;
+}
+
+.provenance-grid {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.provenance-grid div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 8px;
+  border-bottom: 1px solid #edf1ef;
+  padding-bottom: 6px;
+}
+
+.provenance-grid dt {
+  color: #65706c;
+  font-size: 0.74rem;
+}
+
+.provenance-grid dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.plan-steps {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding-left: 22px;
+}
+
+.plan-steps li {
+  border-left: 3px solid #2f78a5;
+  padding: 6px 8px;
+}
+
+.plan-steps li[data-engine="client"] {
+  border-left-color: #97762d;
+}
+
+.plan-steps li[data-engine="rejected"] {
+  border-left-color: #a43a2e;
+}
+
+.plan-steps strong,
+.plan-steps span {
+  display: block;
+}
+
+.plan-steps span {
+  margin-top: 3px;
+  color: #5f6966;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+details {
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 12px;
+}
+
+summary {
+  cursor: pointer;
+  color: #17644c;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.evidence-panel {
+  border-top: 4px solid #17644c;
 }
 
 .stack {
@@ -129,10 +286,15 @@ main {
 }
 
 .panel {
+  min-width: 0;
   border: 1px solid #d4dad7;
   border-radius: 8px;
   background: #ffffff;
   padding: 14px;
+}
+
+main > * {
+  min-width: 0;
 }
 
 .panel-header {
@@ -415,6 +577,7 @@ select {
 table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: 0.86rem;
 }
 
@@ -431,6 +594,12 @@ td button {
   min-height: 30px;
   padding: 4px 8px;
   text-align: left;
+}
+
+th,
+td,
+td button {
+  overflow-wrap: anywhere;
 }
 
 #risk-chart {
@@ -567,6 +736,8 @@ td button {
 }
 
 pre {
+  width: 100%;
+  max-width: 100%;
   max-height: 260px;
   overflow: auto;
   border: 1px solid #d8dfdb;

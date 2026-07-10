@@ -5,16 +5,25 @@ import type {
   SpatialAggregationRangeValue,
   SpatialAggregationSummaryValue,
 } from "@honua/sdk-js/contract";
+import { createLinkedAnalysisController, linkedAnalysisConfigFromLocation } from "./linked-analysis.js";
 import { createSpatialAnalyticsWorkbenchSession, selectAnalyticsUiModels } from "./model.js";
-import type { AnalyticsFeature, AnalyticsPlanId, AnalyticsRisk, SpatialAnalyticsWorkbenchSession } from "./types.js";
+import type {
+  AnalyticsFeature,
+  AnalyticsRisk,
+  LinkedAnalysisContext,
+  LinkedAnalysisLane,
+  SpatialAnalyticsWorkbenchSession,
+} from "./types.js";
 
 import "./styles.css";
 
 interface SpatialAnalyticsWorkbenchRuntime {
   readonly ready: boolean;
   readonly visibleResultCount: number;
-  runAnalysis(): string;
-  advanceJob(): string;
+  readonly linkedAnalysisState: string;
+  explain(lane?: LinkedAnalysisLane): string;
+  accept(): string;
+  execute(): Promise<string>;
   selectAoi(aoiId: string): void;
   exportWorkspace(): string;
 }
@@ -26,7 +35,19 @@ declare global {
 }
 
 const session = createSpatialAnalyticsWorkbenchSession();
+const linkedConfig = linkedAnalysisConfigFromLocation(window.location, {
+  VITE_HONUA_SPATIAL_ANALYTICS_BASE_URL: import.meta.env.VITE_HONUA_SPATIAL_ANALYTICS_BASE_URL,
+  VITE_HONUA_SPATIAL_ANALYTICS_SERVICE_ID: import.meta.env.VITE_HONUA_SPATIAL_ANALYTICS_SERVICE_ID,
+  VITE_HONUA_SPATIAL_ANALYTICS_LAYER_ID: import.meta.env.VITE_HONUA_SPATIAL_ANALYTICS_LAYER_ID,
+  VITE_HONUA_SPATIAL_ANALYTICS_SOURCE_VERSION: import.meta.env.VITE_HONUA_SPATIAL_ANALYTICS_SOURCE_VERSION,
+  VITE_HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION: import.meta.env.VITE_HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION,
+});
+const linkedController = createLinkedAnalysisController(session.dataset, linkedConfig);
+let selectedLane: LinkedAnalysisLane = "remote-pushdown";
+let linkedContext = linkedController.explain(selectedLane, session.activeAoi, session.currentProjection());
+session.setLinkedAnalysisContext(linkedContext);
 let workspaceExport = "";
+let executing = false;
 
 function getElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -66,13 +87,15 @@ function render(): void {
   renderMetrics();
   renderDetail();
   renderJobs();
+  renderPlan();
+  renderEvidence();
   renderReport();
 }
 
 function renderSelectors(): void {
   const aoiSelect = getElement<HTMLSelectElement>("#aoi-select");
-  const planSelect = getElement<HTMLSelectElement>("#plan-select");
   const riskFilter = getElement<HTMLSelectElement>("#risk-filter");
+  const executionLane = getElement<HTMLSelectElement>("#execution-lane");
 
   aoiSelect.innerHTML = session.dataset.aois
     .map(
@@ -80,19 +103,12 @@ function renderSelectors(): void {
         `<option value="${escapeHtml(aoi.id)}" ${aoi.id === session.activeAoi.id ? "selected" : ""}>${escapeHtml(aoi.title)}</option>`,
     )
     .join("");
-  planSelect.innerHTML = session.dataset.plans
-    .map(
-      (plan) =>
-        `<option value="${escapeHtml(plan.id)}" ${plan.id === session.activePlan.id ? "selected" : ""}>${escapeHtml(plan.title)}</option>`,
-    )
-    .join("");
   const risk = session.currentProjection().filters.risk?.value;
   riskFilter.value = typeof risk === "string" ? risk : "all";
+  executionLane.value = selectedLane;
 
   setText("#aoi-area", `${session.activeAoi.areaSqKm.toFixed(1)} sq km`);
   setText("#aoi-geometry", session.activeAoi.geometryLabel);
-  setText("#plan-cost", session.activePlan.estimatedCost);
-  setText("#plan-duration", session.activePlan.estimatedDuration);
 }
 
 function renderStatus(): void {
@@ -105,6 +121,8 @@ function renderStatus(): void {
   const degradedCount = session.dataset.processes.filter((process) => process.capabilityState === "degraded").length;
 
   setText("#cache-state", `${cacheReady} ready / ${cacheStale} stale`);
+  setText("#data-mode", linkedController.dataMode === "fixture" ? "Fixture replay" : "Configured live");
+  setText("#plan-state", titleCase(linkedContext.state));
   setText("#job-state", titleCase(latestStatus));
   setText(
     "#capability-state",
@@ -113,9 +131,10 @@ function renderStatus(): void {
   getElement<HTMLElement>("#job-state").dataset.status = latestStatus;
 
   const runButton = getElement<HTMLButtonElement>("#run-analysis");
-  const advanceButton = getElement<HTMLButtonElement>("#advance-job");
-  runButton.disabled = latestStatus === "accepted" || latestStatus === "running";
-  advanceButton.disabled = latestStatus !== "accepted" && latestStatus !== "running";
+  const acceptButton = getElement<HTMLButtonElement>("#accept-plan");
+  runButton.disabled = linkedContext.state !== "accepted" || executing;
+  acceptButton.disabled = linkedContext.state !== "estimate" || !linkedContext.plan;
+  runButton.textContent = executing ? "Executing…" : "Execute accepted plan";
 }
 
 function renderLayers(): void {
@@ -153,6 +172,10 @@ function renderCapabilities(): void {
 }
 
 function renderMap(): void {
+  setText(
+    "#map-context",
+    linkedContext.plan ? `${linkedContext.id} · ${titleCase(linkedContext.state)}` : titleCase(linkedContext.state),
+  );
   const aggregation = session.latestAggregation();
   if (aggregation && session.activePlan.id === "indexed-aggregation") {
     renderAggregationMap(aggregation.cells);
@@ -267,7 +290,7 @@ function renderTable(): void {
 
 function renderChart(): void {
   const chart = getElement<HTMLElement>("#risk-chart");
-  const buckets = session.chartBuckets();
+  const buckets = linkedChartBuckets();
   const maxCount = Math.max(1, ...buckets.map((bucket) => bucket.count));
   chart.innerHTML = buckets
     .map(
@@ -288,6 +311,24 @@ function renderChart(): void {
       render();
     });
   }
+}
+
+function linkedChartBuckets(): ReadonlyArray<{
+  readonly risk: AnalyticsRisk;
+  readonly count: number;
+  readonly score: number;
+}> {
+  const rows = linkedContext.aggregateRows;
+  if (!rows || rows.length === 0) return session.chartBuckets();
+  const byRisk = new Map(rows.map((row) => [String(row.risk), row]));
+  return (["critical", "high", "moderate", "low"] as const).map((risk) => {
+    const row = byRisk.get(risk);
+    return {
+      risk,
+      count: Number(row?.feature_count ?? 0),
+      score: Math.round(Number(row?.average_score ?? 0)),
+    };
+  });
 }
 
 function renderAggregationWidgets(): void {
@@ -460,6 +501,89 @@ function renderJobs(): void {
   diagnostics.textContent = error ? `${error.code}: ${error.message}` : "No failed-job diagnostics";
 }
 
+function renderPlan(): void {
+  const plan = linkedContext.plan;
+  const badge = getElement<HTMLElement>("#plan-badge");
+  badge.textContent = titleCase(linkedContext.state);
+  badge.dataset.state = linkedContext.state;
+  const summary = getElement<HTMLElement>("#plan-summary");
+  summary.innerHTML = [
+    ["Policy", titleCase(linkedContext.lane)],
+    ["Context", linkedContext.id],
+    ["Fingerprint", plan?.fingerprint ?? "rejected before plan creation"],
+    ["Estimate", `${linkedContext.estimatedRows} rows · ${linkedContext.estimatedBytes.toLocaleString()} bytes`],
+    ["Pushdown", plan?.pushdown ?? "none"],
+    ["Cache", plan?.cache ?? linkedContext.provenance.cacheDecision],
+  ]
+    .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`)
+    .join("");
+
+  const steps = getElement<HTMLOListElement>("#plan-steps");
+  steps.innerHTML = plan
+    ? plan.steps
+        .map(
+          (step) => `
+            <li data-engine="${escapeHtml(step.engine)}">
+              <strong>${escapeHtml(step.engine)} · ${escapeHtml(step.operation)}</strong>
+              <span>${escapeHtml(step.reason)}</span>
+            </li>
+          `,
+        )
+        .join("")
+    : `<li data-engine="rejected"><strong>${escapeHtml(linkedContext.rejection?.code ?? "unavailable")}</strong><span>${escapeHtml(linkedContext.rejection?.reason ?? "No plan is available")}</span></li>`;
+  getElement<HTMLPreElement>("#plan-json").textContent = JSON.stringify(
+    plan
+      ? { ir: plan.ir, compiled: plan.steps[0]?.engine === "remote" ? plan.steps[0].compiled : undefined }
+      : linkedContext.rejection,
+    null,
+    2,
+  );
+}
+
+function renderEvidence(): void {
+  const badge = getElement<HTMLElement>("#evidence-state");
+  badge.textContent = titleCase(linkedContext.state);
+  badge.dataset.state = linkedContext.state;
+  setText("#execution-truth", executionTruth(linkedContext));
+  const provenance = linkedContext.provenance;
+  getElement<HTMLElement>("#evidence-provenance").innerHTML = [
+    ["Observation", provenance.observationState],
+    ["Observed", provenance.observedAt],
+    ["Source version", provenance.sourceVersion],
+    ["Schema", provenance.schemaVersion],
+    ["Attribution", provenance.attribution],
+    ["Cache", provenance.cacheDecision],
+    [
+      "Execution",
+      linkedContext.executionMs === undefined ? "not executed" : `${linkedContext.executionMs.toFixed(2)} ms`,
+    ],
+  ]
+    .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`)
+    .join("");
+  getElement<HTMLPreElement>("#artifact-json").textContent = linkedContext.outputArtifact
+    ? JSON.stringify(linkedContext.outputArtifact, null, 2)
+    : "No output artifact until an accepted plan executes.";
+}
+
+function executionTruth(context: LinkedAnalysisContext): string {
+  switch (context.state) {
+    case "estimate":
+      return "Estimate only. No result rows were read and no renderer or output was mutated.";
+    case "accepted":
+      return "Accepted plan. Execution has not started; changing intent invalidates this acceptance.";
+    case "fixture-replay":
+      return "GeoServices pushdown was compiled and executed against a committed response fixture. This is replay evidence, not a live remote claim.";
+    case "executed-remote":
+      return "Executed remotely against the configured public GeoServices source with live observation evidence.";
+    case "executed-local":
+      return "Executed bounded local metrics/groupBy after the remote query enforced row and byte ceilings.";
+    case "rejected":
+      return `Rejected before execution: ${context.rejection?.reason ?? "unsafe or unsupported fallback"}`;
+    case "skipped":
+      return `Structured live skip: ${context.rejection?.reason ?? "live configuration unavailable"}`;
+  }
+}
+
 function renderReport(): void {
   const output = session.latestOutput();
   setText("#materialized-layer", output?.resultLayer.id ?? "none");
@@ -485,43 +609,71 @@ function clamp(value: number, min: number, max: number): number {
 function wireEvents(activeSession: SpatialAnalyticsWorkbenchSession): void {
   getElement<HTMLSelectElement>("#aoi-select").addEventListener("change", (event) => {
     activeSession.selectAoi((event.currentTarget as HTMLSelectElement).value);
+    explainCurrent();
     render();
   });
-  getElement<HTMLSelectElement>("#plan-select").addEventListener("change", (event) => {
-    activeSession.selectPlan((event.currentTarget as HTMLSelectElement).value as AnalyticsPlanId);
+  getElement<HTMLSelectElement>("#execution-lane").addEventListener("change", (event) => {
+    selectedLane = (event.currentTarget as HTMLSelectElement).value as LinkedAnalysisLane;
+    explainCurrent();
     render();
   });
   getElement<HTMLSelectElement>("#risk-filter").addEventListener("change", (event) => {
     activeSession.setRiskFilter((event.currentTarget as HTMLSelectElement).value as AnalyticsRisk | "all");
+    explainCurrent();
     render();
   });
-  getElement<HTMLButtonElement>("#run-analysis").addEventListener("click", () => {
-    activeSession.startAnalysis();
+  getElement<HTMLButtonElement>("#explain-analysis").addEventListener("click", () => {
+    explainCurrent();
     render();
   });
-  getElement<HTMLButtonElement>("#advance-job").addEventListener("click", () => {
-    activeSession.advanceJob();
+  getElement<HTMLButtonElement>("#accept-plan").addEventListener("click", () => {
+    linkedContext = linkedController.accept(linkedContext);
+    activeSession.setLinkedAnalysisContext(linkedContext);
     render();
   });
+  getElement<HTMLButtonElement>("#run-analysis").addEventListener("click", () => void executeAcceptedPlan());
   getElement<HTMLButtonElement>("#simulate-gap").addEventListener("click", () => {
+    activeSession.setLinkedAnalysisContext(undefined);
     activeSession.selectPlan("indexed-aggregation");
     activeSession.startAnalysis();
     activeSession.advanceJob();
     activeSession.advanceJob();
     render();
   });
-  getElement<HTMLButtonElement>("#retry-job").addEventListener("click", () => {
-    try {
-      activeSession.retryJob();
-      render();
-    } catch {
-      return;
-    }
-  });
   getElement<HTMLButtonElement>("#export-workspace").addEventListener("click", () => {
     workspaceExport = activeSession.exportWorkspace();
     render();
   });
+}
+
+function explainCurrent(): void {
+  linkedContext = linkedController.explain(selectedLane, session.activeAoi, session.currentProjection());
+  session.setLinkedAnalysisContext(linkedContext);
+  workspaceExport = "";
+}
+
+async function executeAcceptedPlan(): Promise<string> {
+  if (executing) return linkedContext.state;
+  executing = true;
+  render();
+  try {
+    linkedContext = await linkedController.execute(linkedContext);
+    session.setLinkedAnalysisContext(linkedContext);
+    if (linkedController.dataMode === "fixture") {
+      session.selectPlan("linked-risk-summary");
+      const jobId = session.startAnalysis();
+      session.advanceJob(jobId);
+      session.advanceJob(jobId);
+    }
+    setText("#analysis-announcer", executionTruth(linkedContext));
+    return linkedContext.state;
+  } catch (error) {
+    setText("#analysis-announcer", error instanceof Error ? error.message : String(error));
+    throw error;
+  } finally {
+    executing = false;
+    render();
+  }
 }
 
 wireEvents(session);
@@ -532,15 +684,23 @@ window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__ = {
   get visibleResultCount() {
     return session.visibleFeatures().length;
   },
-  runAnalysis(): string {
-    const jobId = session.startAnalysis();
-    render();
-    return jobId;
+  get linkedAnalysisState() {
+    return linkedContext.state;
   },
-  advanceJob(): string {
-    const snapshot = session.advanceJob();
+  explain(lane = selectedLane): string {
+    selectedLane = lane;
+    explainCurrent();
     render();
-    return snapshot.status;
+    return linkedContext.state;
+  },
+  accept(): string {
+    linkedContext = linkedController.accept(linkedContext);
+    session.setLinkedAnalysisContext(linkedContext);
+    render();
+    return linkedContext.state;
+  },
+  execute(): Promise<string> {
+    return executeAcceptedPlan();
   },
   selectAoi(aoiId: string): void {
     session.selectAoi(aoiId);

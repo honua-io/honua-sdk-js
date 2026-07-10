@@ -8,11 +8,79 @@ import type {
 import type { ExplorationContext, ExplorationViewController } from "@honua/sdk-js/exploration";
 import type { HonuaCacheState, HonuaExtent, JobSnapshot } from "@honua/sdk-js/honua";
 import type { LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
+import type { QueryExecutionPlanV1, QueryPlanningErrorCode } from "@honua/sdk-js/query-planner";
 
-export type AnalyticsPlanId = "buffer-overlay" | "indexed-aggregation";
+export type AnalyticsPlanId = "linked-risk-summary" | "indexed-aggregation";
 export type AnalyticsRisk = "critical" | "high" | "moderate" | "low";
 export type AnalyticsLayerKind = "feature" | "hazard" | "asset" | "incident";
 export type AnalyticsCapabilityState = "available" | "degraded" | "missing";
+export type LinkedAnalysisLane = "remote-pushdown" | "bounded-local" | "unsafe-rejected";
+export type LinkedAnalysisDataMode = "fixture" | "live";
+export type LinkedAnalysisState =
+  | "estimate"
+  | "accepted"
+  | "fixture-replay"
+  | "executed-remote"
+  | "executed-local"
+  | "rejected"
+  | "skipped";
+
+export interface LinkedAnalysisLiveConfig {
+  readonly protocol: "geoservices-feature-service" | "ogc-features";
+  readonly baseUrl?: string;
+  readonly serviceId?: string;
+  readonly layerId?: number;
+  readonly sourceVersion?: string;
+  readonly schemaVersion?: string;
+}
+
+export interface LinkedAnalysisProvenance {
+  readonly sourceId: string;
+  readonly sourceUrl: string | null;
+  readonly sourceVersion: string;
+  readonly schemaVersion: string;
+  readonly observedAt: string;
+  readonly observationState: "replayed" | "live" | "pending-local";
+  readonly attribution: string;
+  readonly cacheDecision: "bypass";
+}
+
+export interface LinkedAnalysisOutputArtifact {
+  readonly schemaVersion: "honua.linked-analysis-output.v1";
+  readonly id: string;
+  readonly contextId: string;
+  readonly planId: string;
+  readonly planFingerprint: string;
+  readonly generatedAt: string;
+  readonly aoiId: string;
+  readonly aggregateRows: readonly Record<string, unknown>[];
+  readonly provenance: LinkedAnalysisProvenance;
+}
+
+export interface LinkedAnalysisContext {
+  readonly schemaVersion: "honua.linked-analysis-context.v1";
+  readonly id: string;
+  readonly lane: LinkedAnalysisLane;
+  readonly dataMode: LinkedAnalysisDataMode;
+  readonly state: LinkedAnalysisState;
+  readonly aoiId: string;
+  readonly projection: LinkedViewQueryProjection;
+  readonly plan?: QueryExecutionPlanV1;
+  readonly rejection?: { readonly code: QueryPlanningErrorCode | "live-config-unavailable"; readonly reason: string };
+  readonly provenance: LinkedAnalysisProvenance;
+  readonly estimatedRows: number;
+  readonly estimatedBytes: number;
+  readonly executionMs?: number;
+  readonly aggregateRows?: readonly Record<string, unknown>[];
+  readonly outputArtifact?: LinkedAnalysisOutputArtifact;
+}
+
+export interface LinkedAnalysisController {
+  readonly dataMode: LinkedAnalysisDataMode;
+  explain(lane: LinkedAnalysisLane, aoi: AnalyticsAoi, projection: LinkedViewQueryProjection): LinkedAnalysisContext;
+  accept(context: LinkedAnalysisContext): LinkedAnalysisContext;
+  execute(context: LinkedAnalysisContext, signal?: AbortSignal): Promise<LinkedAnalysisContext>;
+}
 
 export interface AnalyticsAoi {
   readonly id: string;
@@ -99,6 +167,7 @@ export interface AnalyticsJobOutput {
   readonly aggregation?: SpatialAggregationResult;
   readonly warnings: ReadonlyArray<string>;
   readonly report: AnalyticsReport;
+  readonly linkedAnalysis?: LinkedAnalysisContext;
 }
 
 export interface AnalyticsReport {
@@ -112,6 +181,14 @@ export interface AnalyticsReport {
   readonly resultLayer?: AnalyticsResultLayer;
   readonly aggregation?: AnalyticsAggregationReport;
   readonly warnings: ReadonlyArray<string>;
+  readonly linkedAnalysis?: {
+    readonly contextId: string;
+    readonly state: LinkedAnalysisState;
+    readonly lane: LinkedAnalysisLane;
+    readonly planId?: string;
+    readonly planFingerprint?: string;
+    readonly provenance: LinkedAnalysisProvenance;
+  };
 }
 
 export interface AnalyticsAggregationReport {
@@ -196,6 +273,7 @@ export interface SpatialAnalyticsWorkbenchSession {
   readonly activeAoi: AnalyticsAoi;
   readonly activePlan: AnalyticsPlan;
   readonly activeJobId?: string;
+  readonly linkedAnalysisContext?: LinkedAnalysisContext;
   selectAoi(aoiId: string): void;
   selectPlan(planId: AnalyticsPlanId): void;
   setRiskFilter(risk: AnalyticsRisk | "all"): void;
@@ -213,6 +291,7 @@ export interface SpatialAnalyticsWorkbenchSession {
   latestAggregation(): SpatialAggregationResult | undefined;
   latestOutput(): AnalyticsJobOutput | undefined;
   createReport(): AnalyticsReport;
+  setLinkedAnalysisContext(context: LinkedAnalysisContext | undefined): void;
   exportWorkspace(): string;
   dispose(): void;
 }

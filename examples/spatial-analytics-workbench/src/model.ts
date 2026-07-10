@@ -43,6 +43,7 @@ import type {
   AnalyticsRisk,
   AnalyticsSourceMetadata,
   HonuaCloudAnalysisRequest,
+  LinkedAnalysisContext,
   SpatialAnalyticsWorkbenchSession,
 } from "./types.js";
 
@@ -84,11 +85,12 @@ export function createSpatialAnalyticsWorkbenchSession(
   };
 
   let activeAoiId = dataset.aois[0]?.id ?? "";
-  let activePlanId = dataset.plans[0]?.id ?? "buffer-overlay";
+  let activePlanId = dataset.plans[0]?.id ?? "linked-risk-summary";
   let activeJobId: string | undefined;
   let jobCounter = 0;
   const jobs = new Map<string, JobRecord>();
   let latestOutput: AnalyticsJobOutput | undefined;
+  let linkedAnalysisContext: LinkedAnalysisContext | undefined;
 
   workspace.dispatch({ kind: "attach-exploration-context", context: exploration });
   workspace.dispatch({
@@ -134,6 +136,9 @@ export function createSpatialAnalyticsWorkbenchSession(
     },
     get activeJobId() {
       return activeJobId;
+    },
+    get linkedAnalysisContext() {
+      return linkedAnalysisContext;
     },
     selectAoi(aoiId: string): void {
       const aoi = requireAoi(dataset, aoiId);
@@ -216,8 +221,8 @@ export function createSpatialAnalyticsWorkbenchSession(
 
       latestOutput =
         plan.fixtureMode === "fixture-indexed-aggregation"
-          ? materializeAggregationOutput(dataset, plan, aoi, session.currentProjection(), jobId)
-          : materializeOutput(dataset, plan, aoi, session.currentProjection(), jobId);
+          ? materializeAggregationOutput(dataset, plan, aoi, session.currentProjection(), jobId, linkedAnalysisContext)
+          : materializeOutput(dataset, plan, aoi, session.currentProjection(), jobId, linkedAnalysisContext);
       const snapshot = successfulSnapshot(latestOutput);
       workspace.dispatch({ kind: "set-job-snapshot", jobId, type: plan.processIds.join("+"), snapshot });
       publishOutput(dataset, workspace, latestOutput, jobId, record.step);
@@ -268,7 +273,11 @@ export function createSpatialAnalyticsWorkbenchSession(
         requireAoi(dataset, activeAoiId),
         this.currentProjection(),
         latestOutput,
+        linkedAnalysisContext,
       );
+    },
+    setLinkedAnalysisContext(context): void {
+      linkedAnalysisContext = context;
     },
     exportWorkspace(): string {
       syncWorkspaceExploration(dataset, workspace, exploration);
@@ -305,7 +314,13 @@ export function createSpatialAnalyticsWorkbenchSession(
               grouping: exploration.state.grouping,
               aggregation: exploration.state.aggregation,
               createdAt: dataset.generatedAt,
-              metadata: { aoiId: activeAoiId, planId: activePlanId },
+              metadata: {
+                aoiId: activeAoiId,
+                planId: activePlanId,
+                linkedAnalysisContextId: linkedAnalysisContext?.id,
+                executionPlanId: linkedAnalysisContext?.plan?.id,
+                executionPlanFingerprint: linkedAnalysisContext?.plan?.fingerprint,
+              },
             },
           ],
           analysisOutputs: output
@@ -319,8 +334,17 @@ export function createSpatialAnalyticsWorkbenchSession(
                   layerId: output.resultLayer.id,
                   href: output.resultLayer.href,
                   createdAt: dataset.generatedAt,
-                  data: { metrics: output.metrics, featureCount: output.features.length },
-                  metadata: { materialized: output.resultLayer.materialized, cache: output.resultLayer.cache },
+                  data: {
+                    metrics: output.metrics,
+                    featureCount: output.features.length,
+                    linkedAnalysisArtifact: output.linkedAnalysis?.outputArtifact,
+                  },
+                  metadata: {
+                    materialized: output.resultLayer.materialized,
+                    cache: output.resultLayer.cache,
+                    linkedAnalysisContextId: output.linkedAnalysis?.id,
+                    executionPlanFingerprint: output.linkedAnalysis?.plan?.fingerprint,
+                  },
                 },
               ]
             : [],
@@ -328,6 +352,16 @@ export function createSpatialAnalyticsWorkbenchSession(
             capabilityGaps: dataset.capabilityGaps,
             cachePolicy:
               "Layer metadata and process descriptions are cacheable; arbitrary AOI results are reusable only after materialization.",
+            linkedAnalysis: linkedAnalysisContext
+              ? {
+                  contextId: linkedAnalysisContext.id,
+                  state: linkedAnalysisContext.state,
+                  lane: linkedAnalysisContext.lane,
+                  planId: linkedAnalysisContext.plan?.id,
+                  planFingerprint: linkedAnalysisContext.plan?.fingerprint,
+                  provenance: linkedAnalysisContext.provenance,
+                }
+              : undefined,
           },
         },
       );
@@ -564,6 +598,7 @@ function materializeOutput(
   aoi: AnalyticsAoi,
   projection: LinkedViewQueryProjection,
   jobId: string,
+  linkedAnalysis?: LinkedAnalysisContext,
 ): AnalyticsJobOutput {
   const features = dataset.features.filter((feature) => feature.aoiIds.includes(aoi.id));
   const filteredFeatures = applyProjection(features, {
@@ -585,13 +620,15 @@ function materializeOutput(
       revalidatedAt: dataset.generatedAt,
       sourceUpdatedAt: dataset.generatedAt,
     }),
-    lineage: [aoi.id, ...plan.layerIds, ...plan.processIds],
+    lineage: [
+      aoi.id,
+      ...plan.layerIds,
+      ...plan.processIds,
+      ...(linkedAnalysis?.plan ? [`plan:${linkedAnalysis.plan.fingerprint}`] : []),
+    ],
   };
   const metrics = metricsForFeatures(filteredFeatures);
-  const report = createAnalyticsReport(dataset, plan, aoi, projection, {
-    metrics,
-    resultLayer,
-  });
+  const report = createAnalyticsReport(dataset, plan, aoi, projection, { metrics, resultLayer }, linkedAnalysis);
   return {
     planId: plan.id,
     aoiId: aoi.id,
@@ -603,6 +640,7 @@ function materializeOutput(
       "AOI-specific analysis results are not reused unless the job output is explicitly materialized.",
     ],
     report,
+    linkedAnalysis,
   };
 }
 
@@ -612,6 +650,7 @@ function materializeAggregationOutput(
   aoi: AnalyticsAoi,
   projection: LinkedViewQueryProjection,
   jobId: string,
+  linkedAnalysis?: LinkedAnalysisContext,
 ): AnalyticsJobOutput {
   const request = buildIndexedAggregationRequest(aoi, projection);
   assertValidSpatialAggregationRequest(request);
@@ -644,14 +683,23 @@ function materializeAggregationOutput(
       revalidatedAt: dataset.generatedAt,
       invalidationReason: "fixture result is viewport-specific and not cached as a reusable feature result",
     }),
-    lineage: [aoi.id, ...plan.layerIds, ...plan.processIds, aggregation.index.model.id],
+    lineage: [
+      aoi.id,
+      ...plan.layerIds,
+      ...plan.processIds,
+      aggregation.index.model.id,
+      ...(linkedAnalysis?.plan ? [`plan:${linkedAnalysis.plan.fingerprint}`] : []),
+    ],
   };
   const metrics = metricsForAggregation(aggregation);
-  const report = createAnalyticsReport(dataset, plan, aoi, projection, {
-    metrics,
-    resultLayer,
-    aggregation,
-  });
+  const report = createAnalyticsReport(
+    dataset,
+    plan,
+    aoi,
+    projection,
+    { metrics, resultLayer, aggregation },
+    linkedAnalysis,
+  );
   return {
     planId: plan.id,
     aoiId: aoi.id,
@@ -665,6 +713,7 @@ function materializeAggregationOutput(
       `Progressive status is ${spatialAggregationProgress(aggregation).status}; complete=${isSpatialAggregationComplete(aggregation)}`,
     ],
     report,
+    linkedAnalysis,
   };
 }
 
@@ -674,6 +723,7 @@ function createAnalyticsReport(
   aoi: AnalyticsAoi,
   projection: LinkedViewQueryProjection,
   output: Pick<AnalyticsJobOutput, "metrics" | "resultLayer" | "aggregation"> | undefined,
+  linkedAnalysis?: LinkedAnalysisContext,
 ): AnalyticsReport {
   return {
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -691,6 +741,16 @@ function createAnalyticsReport(
       "Spatial analysis result reuse requires a materialized job artifact.",
       ...dataset.capabilityGaps.map((gap) => `${gap.ticket}: ${gap.title}`),
     ],
+    linkedAnalysis: linkedAnalysis
+      ? {
+          contextId: linkedAnalysis.id,
+          state: linkedAnalysis.state,
+          lane: linkedAnalysis.lane,
+          planId: linkedAnalysis.plan?.id,
+          planFingerprint: linkedAnalysis.plan?.fingerprint,
+          provenance: linkedAnalysis.provenance,
+        }
+      : undefined,
   };
 }
 

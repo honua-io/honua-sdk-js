@@ -129,36 +129,12 @@ export const ANALYTICS_LAYERS: readonly AnalyticsLayer[] = [
 
 export const ANALYTICS_PROCESSES: readonly AnalyticsProcess[] = [
   {
-    id: "honua.analytics.buffer",
-    title: "Buffer AOI",
-    description: "Builds a server-side buffer envelope for distance predicates and downstream overlay.",
-    operation: "buffer",
-    capabilityState: "available",
-    cache: readyMetadataCache("process:buffer:v1"),
-  },
-  {
-    id: "honua.analytics.intersect",
-    title: "Intersect overlay",
-    description: "Intersects AOI, hazard, parcel, asset, and incident layers and records lineage.",
-    operation: "intersect",
-    capabilityState: "available",
-    cache: readyMetadataCache("process:intersect:v1"),
-  },
-  {
     id: "honua.analytics.summarize",
-    title: "Summarize counts",
-    description: "Summarizes affected features by risk, zone, and layer type.",
+    title: "Metrics and groupBy",
+    description: "Planner-backed feature count and average score grouped by risk.",
     operation: "summarize",
     capabilityState: "available",
     cache: readyMetadataCache("process:summarize:v1"),
-  },
-  {
-    id: "honua.analytics.materialize",
-    title: "Materialize result layer",
-    description: "Persists selected job output as a reusable workspace artifact.",
-    operation: "materialize",
-    capabilityState: "available",
-    cache: readyMetadataCache("process:materialize:v1"),
   },
   {
     id: "honua.analytics.indexed-aggregation",
@@ -173,21 +149,16 @@ export const ANALYTICS_PROCESSES: readonly AnalyticsProcess[] = [
 
 export const ANALYTICS_PLANS: readonly AnalyticsPlan[] = [
   {
-    id: "buffer-overlay",
-    title: "AOI buffer, overlay, and summarize",
-    summary: "Fixture-backed Honua Cloud process chain for buffer, intersect, summarize/count, and materialize.",
-    processIds: [
-      "honua.analytics.buffer",
-      "honua.analytics.intersect",
-      "honua.analytics.summarize",
-      "honua.analytics.materialize",
-    ],
+    id: "linked-risk-summary",
+    title: "AOI risk summary",
+    summary: "Planner-backed metrics and groupBy summary with one linked AOI/map/table/chart context.",
+    processIds: ["honua.analytics.summarize"],
     layerIds: ["parcels", "flood-hazard", "critical-assets", "live-incidents"],
     defaultAoiId: "honolulu-urban-core",
-    estimatedDuration: "42 seconds",
-    estimatedCost: "$0.18 fixture estimate",
-    materializes: true,
-    requiresCapabilities: ["bbox", "intersects", "within-distance", "count", "overlay"],
+    estimatedDuration: "Planner estimate; execution measured separately",
+    estimatedCost: "No billing claim in fixture mode",
+    materializes: false,
+    requiresCapabilities: ["bbox", "query", "queryAggregate"],
     fixtureMode: "supported",
   },
   {
