@@ -68,6 +68,11 @@ const SECTIONS = [
         description: "Dataset / Source / Query / Result contract design and semantics.",
       },
       {
+        path: "docs/decisions/north-star-sdk-application-kernel.md",
+        description:
+          "Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.",
+      },
+      {
         path: "docs/protocol-capability-matrix.md",
         description: "Which operations each protocol supports and where capabilities fall back.",
       },
