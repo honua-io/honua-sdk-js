@@ -37,7 +37,8 @@ export type MapLibreSourceDiagnosticCode =
   | "geometry-unsupported"
   | "geometry-mismatch"
   | "mixed-geometry"
-  | "incremental-update";
+  | "incremental-update"
+  | "incremental-update-failed";
 
 export interface MapLibreSourceDiagnostic {
   readonly code: MapLibreSourceDiagnosticCode;
@@ -401,7 +402,44 @@ export async function mountSourceToMapLibre<T>(
       );
     }
     throwIfAborted(effectiveSignal);
-    handle.setData(next.source.data as AdapterGeoJsonFeatureCollection);
+    const previousData = projection.source.data as AdapterGeoJsonFeatureCollection;
+    try {
+      handle.setData(next.source.data as AdapterGeoJsonFeatureCollection);
+    } catch (cause) {
+      let rollbackFailure: unknown;
+      try {
+        handle.setData(previousData);
+      } catch (error) {
+        rollbackFailure = error;
+      }
+      state = "degraded";
+      diagnostics = [
+        ...diagnostics,
+        diagnostic(
+          source,
+          plan,
+          "incremental-update-failed",
+          "warning",
+          "update",
+          "unsupported",
+          rollbackFailure
+            ? "MapLibre setData failed and the previous projection could not be restored."
+            : "MapLibre setData failed; the previous projection was restored.",
+          { rollbackSucceeded: rollbackFailure === undefined },
+        ),
+      ];
+      throw new HonuaMapLibreSourceAdapterError(
+        "map-mutation-failed",
+        `Failed to refresh mounted source "${projection.sourceId}" through setData().`,
+        {
+          sourceId: projection.sourceId,
+          planId: plan.id,
+          rollbackSucceeded: rollbackFailure === undefined,
+          ...(rollbackFailure ? { rollbackFailure: errorMessage(rollbackFailure) } : {}),
+        },
+        { cause },
+      );
+    }
     diagnostics = [
       ...next.diagnostics,
       diagnostic(

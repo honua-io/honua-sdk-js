@@ -307,6 +307,56 @@ describe("mountSourceToMapLibre", () => {
     expect(map.operations).toEqual([]);
   });
 
+  it.each(["throw", "mutate-then-throw"] as const)(
+    "wraps setData %s failures and restores the previous projection",
+    async (failureMode) => {
+      const source = fakeSource([mixedResult, pointResult(50)]);
+      const map = fakeMap();
+      const mounted = await mountSourceToMapLibre(map, source, plan, context);
+      map.failNextSetData = failureMode;
+
+      await expect(mounted.refresh()).rejects.toThrowError(
+        expect.objectContaining({
+          code: "map-mutation-failed",
+          detail: expect.objectContaining({ rollbackSucceeded: true }),
+          cause: expect.any(Error),
+        }),
+      );
+      expect(mounted.state).toBe("degraded");
+      expect(mounted.diagnostics.at(-1)).toMatchObject({
+        code: "incremental-update-failed",
+        detail: { rollbackSucceeded: true },
+      });
+      expect(map.currentSourceFeatureId("honua-mixed-parcels")).toBe(1);
+      mounted.dispose();
+    },
+  );
+
+  it("reports a mutate-then-throw setData restoration failure as partial mutation", async () => {
+    const source = fakeSource([mixedResult, pointResult(60)]);
+    const map = fakeMap();
+    const mounted = await mountSourceToMapLibre(map, source, plan, context);
+    map.failNextSetData = "mutate-then-throw";
+    map.failRollbackSetData = true;
+
+    await expect(mounted.refresh()).rejects.toThrowError(
+      expect.objectContaining({
+        code: "map-mutation-failed",
+        detail: expect.objectContaining({
+          rollbackSucceeded: false,
+          rollbackFailure: "renderer rejected setData restoration",
+        }),
+      }),
+    );
+    expect(mounted.state).toBe("degraded");
+    expect(mounted.diagnostics.at(-1)).toMatchObject({
+      code: "incremental-update-failed",
+      detail: { rollbackSucceeded: false },
+    });
+    expect(map.currentSourceFeatureId("honua-mixed-parcels")).toBe(60);
+    mounted.dispose();
+  });
+
   it("rejects runtime/descriptor capability drift and source conflicts before query effects", async () => {
     const noQuery = fakeSource([mixedResult], { ...descriptor, capabilities: capabilities([]) });
     await expect(mountSourceToMapLibre(fakeMap(), noQuery, plan, context)).rejects.toThrowError(
@@ -482,7 +532,13 @@ function fakeMap() {
     failLayerId: undefined as string | undefined,
     mutateThenFailLayerId: undefined as string | undefined,
     failRemoveLayerId: undefined as string | undefined,
+    failNextSetData: undefined as "throw" | "mutate-then-throw" | undefined,
+    failRollbackSetData: false,
     setDataFeatureIds: [] as Array<string | number | undefined>,
+    currentSourceFeatureId(id: string): string | number | undefined {
+      const handle = sources.get(id) as { currentData?: { features?: Array<{ id?: string | number }> } } | undefined;
+      return handle?.currentData?.features?.[0]?.id;
+    },
     getSource: (id: string) => sources.get(id),
     addSource: (id: string, specification: unknown) => {
       operations.push(`addSource:${id}`);
@@ -491,6 +547,20 @@ function fakeMap() {
         currentData: (specification as { data: unknown }).data,
         setData(data: unknown) {
           operations.push(`setData:${id}`);
+          const failureMode = map.failNextSetData;
+          if (failureMode) {
+            map.failNextSetData = undefined;
+            if (failureMode === "mutate-then-throw") {
+              (this as { currentData: unknown }).currentData = data;
+              const features = (data as { features?: Array<{ id?: string | number }> }).features ?? [];
+              map.setDataFeatureIds.push(features[0]?.id);
+            }
+            throw new Error(`renderer ${failureMode} setData`);
+          }
+          if (map.failRollbackSetData) {
+            map.failRollbackSetData = false;
+            throw new Error("renderer rejected setData restoration");
+          }
           (this as { currentData: unknown }).currentData = data;
           const features = (data as { features?: Array<{ id?: string | number }> }).features ?? [];
           map.setDataFeatureIds.push(features[0]?.id);
