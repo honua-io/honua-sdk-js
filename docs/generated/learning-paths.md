@@ -78,24 +78,24 @@ Labels: `fixture` · `demo-live` · `authenticated` · `degraded`
 - honua.io journey: `query-map-style`
 - Degradation: The live endpoint may omit requested query capabilities; the sample keeps the typed capability error visible.
 
-### 4. Map and style query results
+### 4. Connect, explain, and map query results
 
-Bind queried features to MapLibre with selection, popup, filter, and style behavior.
+Connect, discover, explain, query, and mount one source with linked MapLibre views and visible runtime evidence.
 
-Labels: `fixture` · `demo-live` · `authenticated`
+Labels: `fixture` · `demo-live` · `experimental`
 
-- Guide: [docs/maplibre-runtime.md](../maplibre-runtime.md)
+- Guide: [docs/quickstart.md](../quickstart.md)
 - Runnable example: [maplibre-quickstart](../../examples/maplibre-quickstart)
 - Executable entry: [examples/maplibre-quickstart/src/main.ts](../../examples/maplibre-quickstart/src/main.ts)
 - Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
 - Compile check: `npm run demo:quickstart:typecheck`
 - Sample contract: `flagship` · `supported`
-- Data and auth: `hybrid` · `api-key`
-- Provenance: Committed quickstart fixture or configured Honua service.
-- Freshness: Fixture capture metadata or live result observation time.
-- Catalog degradation: Fixture fallback and capability misses are shown in diagnostics.
+- Data and auth: `hybrid` · `anonymous`
+- Provenance: Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.
+- Freshness: Fixture capture time and data version, or live response observation time.
+- Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
 - Live sample: [demo.html](https://honua.io/demo.html)
-- Supported API imports: `@honua/sdk-js/map` (`HonuaMap`); `@honua/sdk-js/style` (`validateHonuaStyle`)
+- Supported API imports: `@honua/sdk-js/contract` (`createDataset`); `@honua/sdk-js/exploration` (`createExplorationContext`); `@honua/sdk-js/honua` (`HonuaClient`); `@honua/sdk-js/query-planner` (`executeQueryPlan`, `explainQuery`)
 - honua.io journey: `query-map-style`
 
 ### 5. Analyze linked spatial views
