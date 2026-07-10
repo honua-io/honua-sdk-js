@@ -25,7 +25,7 @@ Checks:
 
 The quickstart app intentionally fails before the feature query when this contract is not satisfied.
 
-## Missing Or Invalid Auth
+## Protected Endpoint Or Invalid Auth
 
 Symptoms:
 
@@ -34,13 +34,12 @@ Symptoms:
 
 Checks:
 
-- set `VITE_HONUA_QUICKSTART_API_KEY` when the server expects `X-API-Key`
-- use `VITE_HONUA_QUICKSTART_BEARER_TOKEN` only with
-  `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true`; prefer `VITE_HONUA_QUICKSTART_API_KEY` or a backend-issued browser
-  session for live browser demos
-- for staging CI, set `HONUA_STAGING_API_KEY` or `HONUA_STAGING_BEARER_TOKEN` if the environment is protected
+- use a CORS-enabled endpoint that permits anonymous reads for the browser flagship
+- do not add browser API keys or bearer tokens; the app rejects them because Vite would publish their values
+- put protected browser traffic behind an application backend or session flow
+- for server-only staging CI, set `HONUA_STAGING_API_KEY` or `HONUA_STAGING_BEARER_TOKEN` when required
 
-The quickstart app forwards auth directly into `HonuaClient`; it does not add custom example-only header behavior.
+The page always reports its auth mode. It never renders credential values.
 
 ## CORS Or Browser Network Failures
 
@@ -166,14 +165,17 @@ For browser debugging and Playwright smoke assertions, inspect:
 
 - `window.__HONUA_QUICKSTART_EVENTS__`
 - `window.__HONUA_QUICKSTART_RUNTIME__`
+- `window.__HONUA_QUICKSTART_DISPOSE__()`
 
 Useful fields:
 
 - `baseUrl`, `serviceId`, `layerId`
 - `serverVersion`, `releaseChannel`
+- `sdkVersion`, `dataVersion`, `planId`, `planFingerprint`, `planPushdown`
 - `featureCount`, `renderableFeatureCount`, `geometryTypes`
 - `queryDurationMs`
 - `layerIds`, `mapReady`, `selectedFeatureId`, `popupOpen`, `lastError`
+- `journeyComplete`, `disposed`
 
 Every telemetry event is also dispatched as `CustomEvent("honua:quickstart")`.
 
