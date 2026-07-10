@@ -16,6 +16,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 ## Core contract and API
 
 - [Shared Client Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/shared-client-contract.md): Dataset / Source / Query / Result contract design and semantics.
+- [Deterministic query planner](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/query-planner.md): Deterministic query IR and explain plans, GeoServices pushdown, and safe bounded-local execution policy.
 - [North-star SDK application-kernel contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/decisions/north-star-sdk-application-kernel.md): Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.
 - [Protocol × Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/protocol-capability-matrix.md): Which operations each protocol supports and where capabilities fall back.
 - [Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-capability-matrix.md): Backend-agnostic vs Honua-server-enhanced capabilities: what works with no server and what needs one.
@@ -60,6 +61,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [@honua/sdk-js](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/index.ts): @honua/sdk-js — root barrel.
 - [@honua/sdk-js/honua](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/honua.ts): @honua/sdk-js/honua — the Honua-first SDK entrypoint.
 - [@honua/sdk-js/contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/contract/index.ts): Shared client contract — canonical types and source factories that all protocol adapters speak.
+- [@honua/sdk-js/query-planner](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/query-planner/index.ts): @honua/sdk-js/query-planner — deterministic query IR, explain plans, and bounded execution for the protocol-neutral contract.
 - [@honua/sdk-js/esri-compat](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/esri-compat-entry.ts): Esri ArcGIS JS-API compatibility wrappers (FeatureLayerCompat, MapViewCompat, ...).
 - [@honua/sdk-js/migration](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/migration-entry.ts): Codemod, scanner, and reporting used by the honua-migrate CLI.
 - [@honua/sdk-js/runtime](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/runtime/index.ts): @honua/sdk-js/runtime — MapLibre GL JS-first runtime for Honua MapPackage.

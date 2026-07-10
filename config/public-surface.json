@@ -36,6 +36,7 @@
 
     { "subpath": "./agent-tools", "tier": "experimental" },
     { "subpath": "./geoparquet", "tier": "experimental" },
+    { "subpath": "./query-planner", "tier": "experimental" },
 
     { "subpath": "./app", "tier": "deprecated", "replacement": "@honua/app-platform/app", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
     { "subpath": "./app-controller", "tier": "deprecated", "replacement": "@honua/app-platform/app-controller", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
