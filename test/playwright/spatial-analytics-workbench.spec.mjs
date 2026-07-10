@@ -31,12 +31,26 @@ test("one accepted plan drives linked map, table, chart, evidence, and output", 
     await expect(page.locator("#artifact-json")).toContainText("honua.linked-analysis-output.v1");
     await expect(page.locator("#lineage")).toContainText("plan:sha256:");
 
-    await page.locator("#risk-filter").selectOption("high");
+    await page.locator('#risk-chart button[data-risk="high"]').click();
     await expect(page.locator("#plan-state")).toHaveText("Estimate");
+    await expect(page.locator("#risk-filter")).toHaveValue("high");
+    await expect(page.locator('#risk-chart button[data-risk="high"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#result-count")).toHaveText("1");
+    await expect(page.locator("#result-table")).toContainText("Kakaako mixed-use parcel cluster");
+    await expect(page.locator('.map-marker[aria-label="Open Kakaako mixed-use parcel cluster"]')).toHaveCount(1);
     await page.getByRole("button", { name: "Accept plan" }).click();
     await page.getByRole("button", { name: "Execute accepted plan" }).click();
     await expect(page.locator("#result-count")).toHaveText("1");
     await expect(page.locator("#result-table")).toContainText("Kakaako mixed-use parcel cluster");
+    await page.getByRole("button", { name: "Open Kakaako mixed-use parcel cluster" }).last().click();
+    await expect(page.locator("#feature-detail")).toContainText("Kakaako mixed-use parcel cluster");
+    await expect(page.locator('#result-table button[aria-pressed="true"]')).toHaveText(
+      "Open Kakaako mixed-use parcel cluster",
+    );
+    await expect(page.locator('.map-marker[aria-pressed="true"]')).toHaveAttribute(
+      "aria-label",
+      "Open Kakaako mixed-use parcel cluster",
+    );
 
     await page.locator("#execution-lane").selectOption("bounded-local");
     await expect(page.locator("#plan-steps")).toContainText("remote · queryAll");
@@ -60,6 +74,16 @@ test("one accepted plan drives linked map, table, chart, evidence, and output", 
       body: await page.screenshot({ fullPage: true }),
       contentType: "image/png",
     });
+    const stateBeforeDispose = await page.locator("#plan-state").textContent();
+    await page.evaluate(() => window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__?.dispose());
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__?.disposed)).toBe(
+      true,
+    );
+    await page.getByRole("button", { name: "Explain" }).click();
+    await expect(page.locator("#plan-state")).toHaveText(stateBeforeDispose ?? "");
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__?.explain()))
+      .toBe("disposed");
     expect(pageErrors).toEqual([]);
   } finally {
     await server.close();
@@ -94,6 +118,7 @@ test("workbench remains keyboard-operable and responsive at a narrow viewport", 
     expect(overflow).toBeLessThanOrEqual(1);
     await expect(page.getByLabel("Area of interest")).toBeVisible();
     await expect(page.getByLabel("Execution policy")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Schematic AOI map with linked analysis features" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Accept plan" })).toBeVisible();
   } finally {
     await server.close();

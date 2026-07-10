@@ -19,6 +19,7 @@ import "./styles.css";
 
 interface SpatialAnalyticsWorkbenchRuntime {
   readonly ready: boolean;
+  readonly disposed: boolean;
   readonly visibleResultCount: number;
   readonly linkedAnalysisState: string;
   explain(lane?: LinkedAnalysisLane): string;
@@ -26,6 +27,7 @@ interface SpatialAnalyticsWorkbenchRuntime {
   execute(): Promise<string>;
   selectAoi(aoiId: string): void;
   exportWorkspace(): string;
+  dispose(): void;
 }
 
 declare global {
@@ -48,6 +50,10 @@ let linkedContext = linkedController.explain(selectedLane, session.activeAoi, se
 session.setLinkedAnalysisContext(linkedContext);
 let workspaceExport = "";
 let executing = false;
+let disposed = false;
+let executionController: AbortController | undefined;
+const uiEvents = new AbortController();
+const uiEventOptions = { signal: uiEvents.signal };
 
 function getElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -76,6 +82,7 @@ function titleCase(value: string): string {
 }
 
 function render(): void {
+  if (disposed) return;
   renderSelectors();
   renderStatus();
   renderLayers();
@@ -183,6 +190,7 @@ function renderMap(): void {
   }
 
   const visible = session.visibleFeatures();
+  const selectedId = selectAnalyticsUiModels(session).detail.selectedRecords[0]?.feature.id;
   const map = getElement<HTMLElement>("#map-surface");
   const markers = visible
     .map((feature) => {
@@ -193,8 +201,10 @@ function renderMap(): void {
           class="map-marker"
           data-risk="${escapeHtml(feature.risk)}"
           data-feature-id="${escapeHtml(feature.id)}"
+          data-selected="${feature.id === selectedId}"
           style="left:${position.x}%; top:${position.y}%"
           aria-label="Open ${escapeHtml(feature.title)}"
+          aria-pressed="${feature.id === selectedId}"
         >
           <span>${escapeHtml(feature.score)}</span>
         </button>
@@ -212,12 +222,16 @@ function renderMap(): void {
   `;
 
   for (const button of Array.from(map.querySelectorAll<HTMLButtonElement>(".map-marker"))) {
-    button.addEventListener("click", () => {
-      const featureId = button.dataset.featureId;
-      if (!featureId) return;
-      session.selectFeature(featureId);
-      render();
-    });
+    button.addEventListener(
+      "click",
+      () => {
+        const featureId = button.dataset.featureId;
+        if (!featureId) return;
+        session.selectFeature(featureId);
+        render();
+      },
+      uiEventOptions,
+    );
   }
   setText("#result-count", String(visible.length));
 }
@@ -260,6 +274,7 @@ function renderAggregationCell(cell: SpatialAggregationCell, maxCount: number): 
 
 function renderTable(): void {
   const rows = session.visibleFeatures();
+  const selectedId = selectAnalyticsUiModels(session).detail.selectedRecords[0]?.feature.id;
   const body = getElement<HTMLElement>("#result-table");
   body.innerHTML =
     rows.length === 0
@@ -267,8 +282,8 @@ function renderTable(): void {
       : rows
           .map(
             (feature) => `
-              <tr>
-                <td><button type="button" data-feature-id="${escapeHtml(feature.id)}">Open ${escapeHtml(feature.title)}</button></td>
+              <tr data-selected="${feature.id === selectedId}">
+                <td><button type="button" data-feature-id="${escapeHtml(feature.id)}" aria-pressed="${feature.id === selectedId}">Open ${escapeHtml(feature.title)}</button></td>
                 <td>${escapeHtml(titleCase(feature.risk))}</td>
                 <td>${escapeHtml(feature.category)}</td>
                 <td>${escapeHtml(feature.zone)}</td>
@@ -279,12 +294,16 @@ function renderTable(): void {
           .join("");
 
   for (const button of Array.from(body.querySelectorAll<HTMLButtonElement>("button[data-feature-id]"))) {
-    button.addEventListener("click", () => {
-      const featureId = button.dataset.featureId;
-      if (!featureId) return;
-      session.selectFeature(featureId);
-      render();
-    });
+    button.addEventListener(
+      "click",
+      () => {
+        const featureId = button.dataset.featureId;
+        if (!featureId) return;
+        session.selectFeature(featureId);
+        render();
+      },
+      uiEventOptions,
+    );
   }
 }
 
@@ -292,10 +311,11 @@ function renderChart(): void {
   const chart = getElement<HTMLElement>("#risk-chart");
   const buckets = linkedChartBuckets();
   const maxCount = Math.max(1, ...buckets.map((bucket) => bucket.count));
+  const selectedRisk = session.currentProjection().filters.risk?.value;
   chart.innerHTML = buckets
     .map(
       (bucket) => `
-        <button type="button" data-risk="${escapeHtml(bucket.risk)}">
+        <button type="button" data-risk="${escapeHtml(bucket.risk)}" aria-pressed="${selectedRisk === bucket.risk}">
           <span>${escapeHtml(titleCase(bucket.risk))}</span>
           <strong>${escapeHtml(bucket.count)}</strong>
           <i style="width:${Math.max(8, (bucket.count / maxCount) * 100)}%"></i>
@@ -306,10 +326,15 @@ function renderChart(): void {
     .join("");
 
   for (const button of Array.from(chart.querySelectorAll<HTMLButtonElement>("button[data-risk]"))) {
-    button.addEventListener("click", () => {
-      session.selectChartBucket(button.dataset.risk as AnalyticsRisk);
-      render();
-    });
+    button.addEventListener(
+      "click",
+      () => {
+        session.selectChartBucket(button.dataset.risk as AnalyticsRisk);
+        explainCurrent();
+        render();
+      },
+      uiEventOptions,
+    );
   }
 }
 
@@ -607,43 +632,75 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function wireEvents(activeSession: SpatialAnalyticsWorkbenchSession): void {
-  getElement<HTMLSelectElement>("#aoi-select").addEventListener("change", (event) => {
-    activeSession.selectAoi((event.currentTarget as HTMLSelectElement).value);
-    explainCurrent();
-    render();
-  });
-  getElement<HTMLSelectElement>("#execution-lane").addEventListener("change", (event) => {
-    selectedLane = (event.currentTarget as HTMLSelectElement).value as LinkedAnalysisLane;
-    explainCurrent();
-    render();
-  });
-  getElement<HTMLSelectElement>("#risk-filter").addEventListener("change", (event) => {
-    activeSession.setRiskFilter((event.currentTarget as HTMLSelectElement).value as AnalyticsRisk | "all");
-    explainCurrent();
-    render();
-  });
-  getElement<HTMLButtonElement>("#explain-analysis").addEventListener("click", () => {
-    explainCurrent();
-    render();
-  });
-  getElement<HTMLButtonElement>("#accept-plan").addEventListener("click", () => {
-    linkedContext = linkedController.accept(linkedContext);
-    activeSession.setLinkedAnalysisContext(linkedContext);
-    render();
-  });
-  getElement<HTMLButtonElement>("#run-analysis").addEventListener("click", () => void executeAcceptedPlan());
-  getElement<HTMLButtonElement>("#simulate-gap").addEventListener("click", () => {
-    activeSession.setLinkedAnalysisContext(undefined);
-    activeSession.selectPlan("indexed-aggregation");
-    activeSession.startAnalysis();
-    activeSession.advanceJob();
-    activeSession.advanceJob();
-    render();
-  });
-  getElement<HTMLButtonElement>("#export-workspace").addEventListener("click", () => {
-    workspaceExport = activeSession.exportWorkspace();
-    render();
-  });
+  getElement<HTMLSelectElement>("#aoi-select").addEventListener(
+    "change",
+    (event) => {
+      activeSession.selectAoi((event.currentTarget as HTMLSelectElement).value);
+      explainCurrent();
+      render();
+    },
+    uiEventOptions,
+  );
+  getElement<HTMLSelectElement>("#execution-lane").addEventListener(
+    "change",
+    (event) => {
+      selectedLane = (event.currentTarget as HTMLSelectElement).value as LinkedAnalysisLane;
+      explainCurrent();
+      render();
+    },
+    uiEventOptions,
+  );
+  getElement<HTMLSelectElement>("#risk-filter").addEventListener(
+    "change",
+    (event) => {
+      activeSession.setRiskFilter((event.currentTarget as HTMLSelectElement).value as AnalyticsRisk | "all");
+      explainCurrent();
+      render();
+    },
+    uiEventOptions,
+  );
+  getElement<HTMLButtonElement>("#explain-analysis").addEventListener(
+    "click",
+    () => {
+      explainCurrent();
+      render();
+    },
+    uiEventOptions,
+  );
+  getElement<HTMLButtonElement>("#accept-plan").addEventListener(
+    "click",
+    () => {
+      linkedContext = linkedController.accept(linkedContext);
+      activeSession.setLinkedAnalysisContext(linkedContext);
+      render();
+    },
+    uiEventOptions,
+  );
+  getElement<HTMLButtonElement>("#run-analysis").addEventListener(
+    "click",
+    () => void executeAcceptedPlan().catch(() => undefined),
+    uiEventOptions,
+  );
+  getElement<HTMLButtonElement>("#simulate-gap").addEventListener(
+    "click",
+    () => {
+      activeSession.setLinkedAnalysisContext(undefined);
+      activeSession.selectPlan("indexed-aggregation");
+      activeSession.startAnalysis();
+      activeSession.advanceJob();
+      activeSession.advanceJob();
+      render();
+    },
+    uiEventOptions,
+  );
+  getElement<HTMLButtonElement>("#export-workspace").addEventListener(
+    "click",
+    () => {
+      workspaceExport = activeSession.exportWorkspace();
+      render();
+    },
+    uiEventOptions,
+  );
 }
 
 function explainCurrent(): void {
@@ -653,11 +710,15 @@ function explainCurrent(): void {
 }
 
 async function executeAcceptedPlan(): Promise<string> {
+  if (disposed) return "disposed";
   if (executing) return linkedContext.state;
   executing = true;
+  const controller = new AbortController();
+  executionController = controller;
   render();
   try {
-    linkedContext = await linkedController.execute(linkedContext);
+    linkedContext = await linkedController.execute(linkedContext, controller.signal);
+    if (disposed) return "disposed";
     session.setLinkedAnalysisContext(linkedContext);
     if (linkedController.dataMode === "fixture") {
       session.selectPlan("linked-risk-summary");
@@ -668,32 +729,49 @@ async function executeAcceptedPlan(): Promise<string> {
     setText("#analysis-announcer", executionTruth(linkedContext));
     return linkedContext.state;
   } catch (error) {
+    if (disposed) return "disposed";
     setText("#analysis-announcer", error instanceof Error ? error.message : String(error));
     throw error;
   } finally {
+    if (executionController === controller) executionController = undefined;
     executing = false;
     render();
   }
+}
+
+function dispose(): void {
+  if (disposed) return;
+  disposed = true;
+  executionController?.abort();
+  uiEvents.abort();
+  session.dispose();
 }
 
 wireEvents(session);
 render();
 
 window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__ = {
-  ready: true,
+  get ready() {
+    return !disposed;
+  },
+  get disposed() {
+    return disposed;
+  },
   get visibleResultCount() {
-    return session.visibleFeatures().length;
+    return disposed ? 0 : session.visibleFeatures().length;
   },
   get linkedAnalysisState() {
-    return linkedContext.state;
+    return disposed ? "disposed" : linkedContext.state;
   },
   explain(lane = selectedLane): string {
+    if (disposed) return "disposed";
     selectedLane = lane;
     explainCurrent();
     render();
     return linkedContext.state;
   },
   accept(): string {
+    if (disposed) return "disposed";
     linkedContext = linkedController.accept(linkedContext);
     session.setLinkedAnalysisContext(linkedContext);
     render();
@@ -703,15 +781,21 @@ window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__ = {
     return executeAcceptedPlan();
   },
   selectAoi(aoiId: string): void {
+    if (disposed) return;
     session.selectAoi(aoiId);
+    explainCurrent();
     render();
   },
   exportWorkspace(): string {
+    if (disposed) return "";
     workspaceExport = session.exportWorkspace();
     render();
     return workspaceExport;
   },
+  dispose,
 };
+
+window.addEventListener("beforeunload", dispose, { once: true, signal: uiEvents.signal });
 
 function countValue(summary: SpatialAggregationSummaryValue | undefined): number {
   return summary && "value" in summary && typeof summary.value === "number" ? summary.value : 0;

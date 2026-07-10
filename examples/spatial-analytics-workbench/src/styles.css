@@ -488,6 +488,15 @@ select {
   background: #17644c;
 }
 
+.map-marker[data-selected="true"] {
+  outline: 3px solid #172026;
+  outline-offset: 2px;
+}
+
+#result-table tr[data-selected="true"] {
+  background: #e7f2ed;
+}
+
 .aggregation-cell {
   position: absolute;
   min-width: 54px;

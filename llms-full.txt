@@ -660,7 +660,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | flagship | supported | hybrid | keep | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | [`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | reference | experimental | fixture | replace | Compares supported rendering paths and makes fidelity differences explicit. |
 | [`service-explorer`](../../examples/service-explorer/README.md) | flagship | supported | hybrid | rework | Browses heterogeneous spatial services with capability and cache diagnostics. |
-| [`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | flagship | experimental | fixture | rework | Links AOI analysis jobs to map, table, chart, and reusable output artifacts. |
+| [`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | flagship | experimental | hybrid | rework | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
 | [`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | advanced | supported | fixture | merge | Discovers STAC collections and previews supported imagery assets. |
 | [`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | flagship | supported | hybrid | merge | Connects a public Esri service directly to MapLibre without a Honua server. |
 | [`storytelling-25d-map`](../../examples/storytelling-25d-map/README.md) | advanced | supported | hybrid | merge | Combines terrain, extrusion, OGC overlays, and route playback in a guided story. |
@@ -897,10 +897,10 @@ Labels: `fixture` · `experimental` · `degraded`
 - Example notes: [examples/spatial-analytics-workbench/README.md](../../examples/spatial-analytics-workbench/README.md)
 - Compile check: `npm run demo:spatial-analytics:typecheck`
 - Sample contract: `flagship` · `experimental`
-- Data and auth: `fixture` · `none`
-- Provenance: Committed analysis result fixtures.
-- Freshness: Fixture version committed with the repository.
-- Catalog degradation: Unsupported indexed aggregation remains explicitly fixture-only.
+- Data and auth: `hybrid` · `anonymous`
+- Provenance: Committed analysis fixtures or a configured public GeoServices source.
+- Freshness: Fixture replay uses a fixed observation; configured live execution records its observation time.
+- Catalog degradation: Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on.
 - Live sample: [demo-analyst-workbench.html](https://honua.io/demo-analyst-workbench.html) · [sample-spatial-analytics.html](https://honua.io/sample-spatial-analytics.html)
 - Supported API imports: `@honua/sdk-js/contract` (`resolveSpatialAggregationWidgetSummary`); `@honua/sdk-js/exploration` (`createExplorationContext`)
 - honua.io journey: `linked-large-data-analysis`
