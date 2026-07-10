@@ -52,7 +52,7 @@ describe("AI Spatial App Builder safe-agent kernel", () => {
     const narrowed = createSafeAgentSession(fixtureProposal, undefined, {
       source: testSource(async (request) => {
         requestedLimit = request.pagination?.limit;
-        return parcelResult(5);
+        return parcelResult(request.pagination?.limit ?? 5);
       }),
       sourceBinding: fixtureSourceBinding,
     });
@@ -205,7 +205,7 @@ describe("AI Spatial App Builder safe-agent kernel", () => {
       fixtureProposal,
       { ...fixturePolicy, maxBytes: 5_000 },
       {
-        source: testSource(async () => parcelResult(1, "x".repeat(10_000))),
+        source: testSource(async () => parcelResult(1, "🌊".repeat(3_000))),
         sourceBinding: fixtureSourceBinding,
       },
     );
@@ -232,10 +232,175 @@ describe("AI Spatial App Builder safe-agent kernel", () => {
         attribution: "Host-mediated parcel service",
       },
     };
-    const live = createSafeAgentSession(fixtureProposal, fixturePolicy, { source, sourceBinding: liveBinding });
+    const live = createSafeAgentSession(fixtureProposal, fixturePolicy, {
+      source,
+      sourceBinding: liveBinding,
+      executionClock: () => "2026-07-10T19:00:01.000Z",
+    });
     live.validate();
     live.decide("approve");
-    expect(await live.execute()).toMatchObject(liveBinding.provenance);
+    expect(await live.execute()).toMatchObject({ ...liveBinding.provenance, executedAt: "2026-07-10T19:00:01.000Z" });
+  });
+
+  it.each([
+    [
+      "binding without source",
+      () => createSafeAgentSession(fixtureProposal, fixturePolicy, { sourceBinding: fixtureSourceBinding }),
+    ],
+    [
+      "scope outside policy",
+      () =>
+        createSafeAgentSession(fixtureProposal, fixturePolicy, {
+          source: testSource(async () => parcelResult(1)),
+          sourceBinding: { ...fixtureSourceBinding, authorizationScope: ["parcels:admin"] },
+        }),
+    ],
+    [
+      "empty binding version",
+      () =>
+        createSafeAgentSession(fixtureProposal, fixturePolicy, {
+          source: testSource(async () => parcelResult(1)),
+          sourceBinding: { ...fixtureSourceBinding, sourceVersion: "" },
+        }),
+    ],
+    [
+      "empty provenance",
+      () =>
+        createSafeAgentSession(fixtureProposal, fixturePolicy, {
+          source: testSource(async () => parcelResult(1)),
+          sourceBinding: {
+            ...fixtureSourceBinding,
+            provenance: { ...fixtureSourceBinding.provenance, attribution: "" },
+          },
+        }),
+    ],
+    [
+      "invalid data mode",
+      () =>
+        createSafeAgentSession(fixtureProposal, fixturePolicy, {
+          source: testSource(async () => parcelResult(1)),
+          sourceBinding: {
+            ...fixtureSourceBinding,
+            provenance: { ...fixtureSourceBinding.provenance, dataMode: "pretend-live" },
+          } as never,
+        }),
+    ],
+  ])("rejects malformed source binding before effects: %s", (_label, create) => {
+    expect(create).toThrow(/binding|scope|provenance|dataMode/i);
+  });
+
+  it("deep-freezes the fixture binding and rejects a live execution clock before observation", async () => {
+    expect(Object.isFrozen(fixtureSourceBinding)).toBe(true);
+    expect(Object.isFrozen(fixtureSourceBinding.authorizationScope)).toBe(true);
+    expect(Object.isFrozen(fixtureSourceBinding.provenance)).toBe(true);
+
+    const source = testSource(async () => parcelResult(1));
+    const binding = {
+      ...fixtureSourceBinding,
+      provenance: {
+        dataMode: "live-host" as const,
+        observedAt: "2026-07-10T20:00:00.000Z",
+        attribution: "Live parcel host",
+      },
+    };
+    expect(() => createSafeAgentSession(fixtureProposal, fixturePolicy, { source, sourceBinding: binding })).toThrow(
+      /executionClock/,
+    );
+    const session = createSafeAgentSession(fixtureProposal, fixturePolicy, {
+      source,
+      sourceBinding: binding,
+      executionClock: () => "2026-07-10T19:59:59.000Z",
+    });
+    session.validate();
+    session.decide("approve");
+    await expect(session.execute()).rejects.toThrow(/pre-date/);
+    expect(session.receipt).toBeUndefined();
+    expect(session.rows).toEqual([]);
+  });
+
+  it.each([
+    ["over-returned rows", { ...parcelResult(3) }],
+    ["partial transfer", { ...parcelResult(1), exceededTransferLimit: true }],
+    ["unexpected aggregates", { ...parcelResult(0), aggregateRows: [{ count: 1 }] }],
+  ])("rejects the complete hostile materialized result without partial success: %s", async (_label, result) => {
+    const session = createSafeAgentSession(fixtureProposal, fixturePolicy, {
+      source: testSource(async () => result as never),
+      sourceBinding: fixtureSourceBinding,
+    });
+    session.validate();
+    session.decide("narrow", 2);
+    await expect(session.execute()).rejects.toThrow(/exceeding|incomplete transfer|aggregate/i);
+    expect(session.executionCount).toBe(1);
+    expect(session.rows).toEqual([]);
+    expect(session.receipt).toBeUndefined();
+  });
+
+  it("snapshots the plan, grant context, provenance, and source binding before deferred execution", async () => {
+    let release = () => {};
+    const deferred = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const mutableBinding = structuredClone(fixtureSourceBinding);
+    const session = createSafeAgentSession(fixtureProposal, fixturePolicy, {
+      source: testSource(async () => {
+        await deferred;
+        return parcelResult(1);
+      }),
+      sourceBinding: mutableBinding,
+    });
+    const planOverride = structuredClone(session.validate());
+    const mutablePlanOverride = planOverride as unknown as {
+      sourceProvenance: { attribution: string };
+      queryPlan: { ir: { source: { authorizationScope: string[] } } };
+    };
+    const mutableBindingInput = mutableBinding as unknown as {
+      provenance: { attribution: string };
+      authorizationScope: string[];
+    };
+    const grant = session.decide("approve");
+    const scope = ["parcels:read"];
+    const execution = session.execute({ planOverride, authorizationScope: scope });
+
+    mutablePlanOverride.sourceProvenance.attribution = "mutated after dispatch";
+    mutablePlanOverride.queryPlan.ir.source.authorizationScope[0] = "parcels:admin";
+    scope[0] = "parcels:admin";
+    mutableBindingInput.provenance.attribution = "mutated binding";
+    mutableBindingInput.authorizationScope[0] = "parcels:admin";
+    expect(Object.isFrozen(grant)).toBe(true);
+    expect(Object.isFrozen(session.validatedPlan?.queryPlan.ir.source.authorizationScope)).toBe(true);
+    release();
+
+    const result = await execution;
+    expect(result).toMatchObject({
+      attribution: fixtureSourceBinding.provenance.attribution,
+      authorizationScope: ["parcels:read"],
+      approvalDigest: grant.approvalDigest,
+    });
+  });
+
+  it("refuses aggregate operations and requested-effect drift before any source effect", () => {
+    const aggregate = createSafeAgentSession(
+      createProposal({
+        query: {
+          ...fixtureProposal.query,
+          aggregation: { metrics: [{ fn: "count", field: "OBJECTID" }] },
+        },
+        toolCalls: [{ name: "queryAggregate", effect: "read", reason: "aggregate" }],
+      }),
+    );
+    expect(aggregate.validate()).toMatchObject({ valid: false });
+    expect(aggregate.executionCount).toBe(0);
+
+    const drift = createSafeAgentSession(createProposal({ requestedEffect: "mutation" }), {
+      ...fixturePolicy,
+      allowedEffects: ["read", "mutation"],
+      mutationEnabled: true,
+    });
+    expect(drift.validate()).toMatchObject({
+      valid: false,
+      refusals: expect.arrayContaining([expect.stringContaining("does not match the planned 'read' effect")]),
+    });
+    expect(drift.executionCount).toBe(0);
   });
 
   it("rejects a pre-aborted signal before planning execution or source access", async () => {

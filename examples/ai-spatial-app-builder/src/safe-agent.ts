@@ -131,6 +131,8 @@ export interface CreateSafeAgentSessionOptions {
   readonly source?: Source<ParcelAttributes>;
   /** Required with an injected source so receipts never mislabel arbitrary data as fixture output. */
   readonly sourceBinding?: SourceBindingV1;
+  /** Required for live-host sources; evaluated after materialization succeeds. */
+  readonly executionClock?: () => string;
 }
 
 export interface SourceProvenanceV1 {
@@ -150,7 +152,7 @@ export const FIXTURE_TIME = "2026-07-10T18:00:00.000Z";
 export const SOURCE_VERSION = "parcels-snapshot-2026-07-10";
 export const SCHEMA_VERSION = "parcels-schema-v5";
 
-export const fixtureSourceBinding: SourceBindingV1 = Object.freeze({
+export const fixtureSourceBinding: SourceBindingV1 = deepFreeze({
   sourceVersion: SOURCE_VERSION,
   schemaVersion: SCHEMA_VERSION,
   authorizationScope: ["parcels:read"],
@@ -161,7 +163,7 @@ export const fixtureSourceBinding: SourceBindingV1 = Object.freeze({
   },
 } satisfies SourceBindingV1);
 
-export const fixturePolicy: ExecutionPolicyV1 = Object.freeze({
+export const fixturePolicy: ExecutionPolicyV1 = deepFreeze({
   kind: "honua.agent-execution-policy",
   version: "1.0",
   id: "fixture-read-only-v1",
@@ -185,7 +187,7 @@ export const fixtureDescriptor: SourceDescriptor = Object.freeze({
   attribution: "City and County of Honolulu — deterministic demonstration fixture",
 });
 
-export const fixtureProposal: AgentProposalV1 = Object.freeze({
+export const fixtureProposal: AgentProposalV1 = deepFreeze({
   kind: "honua.agent-proposal",
   version: "1.0",
   id: "proposal-pre1970-flood-risk",
@@ -224,15 +226,20 @@ export function createSafeAgentSession(
   let executionCount = 0;
   let executionGeneration = 0;
   let activeExecution: AbortController | undefined;
+  if (!options.source && options.sourceBinding) {
+    throw new Error("sourceBinding is only valid with an explicitly injected source.");
+  }
   if (options.source && !options.sourceBinding) {
     throw new Error("Injected sources require an explicit sourceBinding with truthful provenance.");
   }
-  const suppliedBinding = options.sourceBinding ?? fixtureSourceBinding;
-  const sourceBinding: SourceBindingV1 = Object.freeze({
-    ...suppliedBinding,
-    authorizationScope: Object.freeze([...suppliedBinding.authorizationScope]),
-    provenance: Object.freeze({ ...suppliedBinding.provenance }),
-  });
+  const boundPolicy = immutableSnapshot(policy);
+  const sessionProposal = immutableSnapshot(proposal);
+  const sourceBinding = immutableSnapshot(options.sourceBinding ?? fixtureSourceBinding);
+  validateSourceBinding(sourceBinding, boundPolicy, Boolean(options.source));
+  if (sourceBinding.provenance.dataMode === "live-host" && !options.executionClock) {
+    throw new Error("live-host sources require an injected executionClock.");
+  }
+  const executionClock = options.executionClock ?? (() => FIXTURE_TIME);
   const source = countReads(options.source ?? createFixtureSource(), () => {
     executionCount += 1;
   });
@@ -252,7 +259,7 @@ export function createSafeAgentSession(
     get executionCount() {
       return executionCount;
     },
-    proposal,
+    proposal: sessionProposal,
     get validatedPlan() {
       return validatedPlan;
     },
@@ -265,15 +272,16 @@ export function createSafeAgentSession(
     get rows() {
       return rows;
     },
-    validate(proposalOverride = proposal) {
+    validate(proposalOverride = sessionProposal) {
       invalidateExecution("Plan validation invalidated the active execution");
       approval = undefined;
-      const refusals = validateProposalPolicy(proposalOverride, policy);
+      const proposalSnapshot = immutableSnapshot(proposalOverride);
+      const refusals = validateProposalPolicy(proposalSnapshot, boundPolicy);
       let queryPlan: QueryExecutionPlanV1;
       try {
         queryPlan = explainQuery({
           descriptor: source.descriptor,
-          query: proposalOverride.query,
+          query: proposalSnapshot.query,
           capabilityPolicy: "strict",
           fallback: { mode: "disabled" },
           schemaVersion: sourceBinding.schemaVersion,
@@ -291,26 +299,27 @@ export function createSafeAgentSession(
           authorizationScope: sourceBinding.authorizationScope,
         });
       }
-      refusals.push(...validatePlanBindings(proposalOverride, queryPlan, policy));
-      const unsigned = {
+      const queryPlanSnapshot = immutableSnapshot(queryPlan);
+      refusals.push(...validatePlanBindings(proposalSnapshot, queryPlanSnapshot, boundPolicy));
+      const unsigned = immutableSnapshot({
         kind: "honua.validated-agent-plan" as const,
         version: "1.0" as const,
-        proposal: proposalOverride,
-        queryPlan,
-        policy,
+        proposal: proposalSnapshot,
+        queryPlan: queryPlanSnapshot,
+        policy: boundPolicy,
         sourceProvenance: sourceBinding.provenance,
         validatedAt: FIXTURE_TIME,
         valid: refusals.length === 0,
         refusals,
-      };
-      validatedPlan = Object.freeze({ ...unsigned, approvalDigest: digest(unsigned) });
+      });
+      validatedPlan = deepFreeze({ ...unsigned, approvalDigest: digest(unsigned) });
       state = validatedPlan.valid ? "validated" : "refused";
       return validatedPlan;
     },
     decide(decision, narrowedMaxRows) {
       if (!validatedPlan?.valid || state !== "validated")
         throw new Error("Only a valid, freshly validated plan can be reviewed.");
-      const proposedLimit = validatedPlan.queryPlan.ir.query.pagination?.limit ?? policy.maxRows;
+      const proposedLimit = validatedPlan.queryPlan.ir.query.pagination?.limit ?? boundPolicy.maxRows;
       const approvedMaxRows =
         decision === "narrow" ? (narrowedMaxRows ?? Math.max(1, Math.floor(proposedLimit / 2))) : proposedLimit;
       if (!Number.isInteger(approvedMaxRows) || approvedMaxRows < 1 || approvedMaxRows > proposedLimit) {
@@ -326,15 +335,17 @@ export function createSafeAgentSession(
         actor: "fixture-reviewer" as const,
         approvedAt: FIXTURE_TIME,
       };
-      approval = Object.freeze({ ...unsigned, approvalDigest: digest(unsigned) });
+      approval = deepFreeze({ ...unsigned, approvalDigest: digest(unsigned) });
       state = decision === "reject" ? "rejected" : "approved";
       return approval;
     },
     async execute(options = {}) {
-      const candidate = options.planOverride ?? validatedPlan;
-      const candidateApproval = approval;
-      if (!candidate || !candidateApproval || state !== "approved")
+      const rawCandidate = options.planOverride ?? validatedPlan;
+      const rawApproval = approval;
+      if (!rawCandidate || !rawApproval || state !== "approved")
         throw new Error("Execution requires explicit approval of a valid plan.");
+      const candidate = immutableSnapshot(rawCandidate);
+      const candidateApproval = immutableSnapshot(rawApproval);
       if (digest(withoutApprovalDigest(candidate)) !== candidate.approvalDigest)
         throw new Error("Validated plan was tampered after review.");
       if (
@@ -345,11 +356,11 @@ export function createSafeAgentSession(
       }
       if (candidateApproval.decision === "reject") throw new Error("Rejected plans cannot execute.");
       if (options.signal?.aborted) throw abortError(options.signal.reason);
-      const context = {
+      const context = immutableSnapshot({
         sourceVersion: options.sourceVersion ?? sourceBinding.sourceVersion,
         schemaVersion: options.schemaVersion ?? sourceBinding.schemaVersion,
         authorizationScope: options.authorizationScope ?? sourceBinding.authorizationScope,
-      };
+      });
       executionGeneration += 1;
       const generation = executionGeneration;
       const controller = new AbortController();
@@ -373,8 +384,22 @@ export function createSafeAgentSession(
         if (generation !== executionGeneration || controller.signal.aborted) {
           throw new Error("Execution was cancelled before its result could be committed.");
         }
-        const boundedFeatures = execution.result.features.slice(0, candidateApproval.approvedMaxRows);
-        const resultBytes = byteLength(boundedFeatures);
+        const materializedResult = immutableSnapshot(execution.result);
+        if (!Array.isArray(materializedResult.features)) throw new Error("Source returned an invalid feature payload.");
+        const aggregateRows = materializedResult.aggregateRows ?? [];
+        if (!Array.isArray(aggregateRows)) throw new Error("Source returned an invalid aggregate payload.");
+        const resultBytes = byteLength(materializedResult);
+        if (materializedResult.exceededTransferLimit) {
+          throw new Error("Source reported an incomplete transfer; partial results cannot be receipted.");
+        }
+        if (aggregateRows.length > 0) {
+          throw new Error("Query-only execution refused unexpected aggregate rows.");
+        }
+        if (materializedResult.features.length > candidateApproval.approvedMaxRows) {
+          throw new Error(
+            `Source returned ${materializedResult.features.length} rows, exceeding approved maximum ${candidateApproval.approvedMaxRows}.`,
+          );
+        }
         if (resultBytes > candidateApproval.approvedMaxBytes) {
           throw new Error(
             `Result payload ${resultBytes} bytes exceeds approved maximum ${candidateApproval.approvedMaxBytes} bytes.`,
@@ -383,15 +408,16 @@ export function createSafeAgentSession(
         if (generation !== executionGeneration || controller.signal.aborted) {
           throw new Error("Execution was cancelled before its result could be committed.");
         }
-        const candidateRows = boundedFeatures.map((feature) => feature.attributes);
-        rows = candidateRows;
+        const candidateRows = immutableSnapshot(materializedResult.features.map((feature) => feature.attributes));
+        const executedAt = executionClock();
+        assertExecutionTime(executedAt, candidate.sourceProvenance.observedAt);
         const unsignedReceipt = {
           kind: "honua.agent-execution-receipt" as const,
           version: "1.0" as const,
           id: `receipt-${candidate.queryPlan.id}`,
           planDigest: candidate.approvalDigest,
           approvalDigest: candidateApproval.approvalDigest,
-          resultDigest: digest(rows),
+          resultDigest: digest(candidateRows),
           sourceId: candidate.queryPlan.ir.source.id,
           sourceVersion: context.sourceVersion,
           schemaVersion: context.schemaVersion,
@@ -403,11 +429,13 @@ export function createSafeAgentSession(
           approvedMaxRows: candidateApproval.approvedMaxRows,
           approvedMaxBytes: candidateApproval.approvedMaxBytes,
           resultBytes,
-          rowCount: rows.length,
-          executedAt: FIXTURE_TIME,
+          rowCount: candidateRows.length,
+          executedAt,
           previousReceiptDigest: null,
         };
-        receipt = Object.freeze({ ...unsignedReceipt, receiptDigest: digest(unsignedReceipt) });
+        const candidateReceipt = deepFreeze({ ...unsignedReceipt, receiptDigest: digest(unsignedReceipt) });
+        rows = candidateRows;
+        receipt = candidateReceipt;
         state = "executed";
         return receipt;
       } catch (error) {
@@ -450,6 +478,8 @@ export function createProposal(overrides: Partial<AgentProposalV1>): AgentPropos
 
 function validateProposalPolicy(proposal: AgentProposalV1, policy: ExecutionPolicyV1): string[] {
   const refusals: string[] = [];
+  if (proposal.query.aggregation)
+    refusals.push("This safe-agent sample permits query-only plans; aggregation is refused.");
   if (!policy.allowedEffects.includes(proposal.requestedEffect))
     refusals.push(`Effect '${proposal.requestedEffect}' is not allowed by host policy.`);
   if (proposal.requestedEffect === "mutation" && !policy.mutationEnabled)
@@ -476,6 +506,16 @@ function validatePlanBindings(
   policy: ExecutionPolicyV1,
 ): string[] {
   const refusals = validateCanonicalQueryFields(queryPlan.ir.query, policy.allowedFields.map(String), proposal.origin);
+  if (proposal.requestedEffect !== "read") {
+    refusals.push(`Proposal effect '${proposal.requestedEffect}' does not match the planned 'read' effect.`);
+  }
+  if (
+    queryPlan.steps.length !== 1 ||
+    queryPlan.steps[0]?.engine !== "remote" ||
+    queryPlan.steps[0].operation !== "query"
+  ) {
+    refusals.push("This safe-agent sample permits exactly one remote query operation.");
+  }
   if (queryPlan.estimates.bytes !== undefined && queryPlan.estimates.bytes > policy.maxBytes) {
     refusals.push(`Estimated payload exceeds the policy-bound ${policy.maxBytes}-byte ceiling.`);
   }
@@ -668,6 +708,63 @@ function byteLength(value: unknown): number {
 function abortError(reason: unknown): Error {
   const message = typeof reason === "string" ? reason : "Execution was aborted before it started.";
   return new DOMException(message, "AbortError");
+}
+
+function validateSourceBinding(binding: SourceBindingV1, policy: ExecutionPolicyV1, injectedSource: boolean): void {
+  if (!isNonEmpty(binding.sourceVersion) || !isNonEmpty(binding.schemaVersion)) {
+    throw new Error("Source bindings require non-empty sourceVersion and schemaVersion fields.");
+  }
+  if (
+    !Array.isArray(binding.authorizationScope) ||
+    binding.authorizationScope.length === 0 ||
+    binding.authorizationScope.some((scope) => !isNonEmpty(scope) || !policy.authorizationScope.includes(scope))
+  ) {
+    throw new Error("Source binding authorizationScope must be a non-empty subset of host policy.");
+  }
+  if (binding.provenance.dataMode !== "fixture-replay" && binding.provenance.dataMode !== "live-host") {
+    throw new Error("Source binding dataMode must be fixture-replay or live-host.");
+  }
+  if (!isNonEmpty(binding.provenance.attribution) || !isValidTimestamp(binding.provenance.observedAt)) {
+    throw new Error("Source binding provenance requires non-empty attribution and a valid observedAt timestamp.");
+  }
+  if (
+    !injectedSource &&
+    (binding.provenance.dataMode !== "fixture-replay" ||
+      binding.sourceVersion !== SOURCE_VERSION ||
+      binding.schemaVersion !== SCHEMA_VERSION)
+  ) {
+    throw new Error("Only the default fixture binding may be used without an injected source.");
+  }
+}
+
+function assertExecutionTime(executedAt: string, observedAt: string): void {
+  if (!isValidTimestamp(executedAt)) throw new Error("Execution clock returned an invalid timestamp.");
+  if (Date.parse(executedAt) < Date.parse(observedAt)) {
+    throw new Error("Execution time cannot pre-date the source observation time.");
+  }
+}
+
+function isValidTimestamp(value: unknown): value is string {
+  if (!isNonEmpty(value)) return false;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+}
+
+function isNonEmpty(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function immutableSnapshot<T>(value: T): T {
+  return deepFreeze(structuredClone(value));
+}
+
+function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
+  if (value === null || typeof value !== "object" || seen.has(value)) return value;
+  seen.add(value);
+  for (const key of Reflect.ownKeys(value)) {
+    deepFreeze((value as Record<PropertyKey, unknown>)[key], seen);
+  }
+  return Object.freeze(value);
 }
 
 function digest(value: unknown): `sha256:${string}` {
