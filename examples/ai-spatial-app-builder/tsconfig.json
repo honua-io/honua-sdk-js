@@ -5,6 +5,8 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
+      "@honua/sdk-js/query-planner": ["../../src/query-planner/index.ts"],
+      "@honua/sdk-js/contract": ["../../src/contract/index.ts"],
       "@honua/sdk-js/agent-tools": ["../../src/agent-tools/index.ts"],
       "@honua/sdk-js/app-workspace": ["../../src/app-workspace/index.ts"],
       "@honua/sdk-js/exploration": ["../../src/exploration/index.ts"],

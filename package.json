@@ -300,6 +300,8 @@
     "demo:ai-spatial-builder:build": "vite build --config examples/ai-spatial-app-builder/vite.config.ts",
     "demo:ai-spatial-builder:preview": "vite preview --config examples/ai-spatial-app-builder/vite.config.ts --host 127.0.0.1",
     "demo:ai-spatial-builder:typecheck": "tsc -p examples/ai-spatial-app-builder/tsconfig.json --noEmit",
+    "demo:ai-spatial-builder:evidence": "node examples/ai-spatial-app-builder/evidence-check.mjs",
+    "demo:ai-spatial-builder:live-evidence": "node examples/ai-spatial-app-builder/live-evidence.mjs",
     "demo:spatial-analytics": "vite --config examples/spatial-analytics-workbench/vite.config.ts",
     "demo:spatial-analytics:build": "vite build --config examples/spatial-analytics-workbench/vite.config.ts",
     "demo:spatial-analytics:preview": "vite preview --config examples/spatial-analytics-workbench/vite.config.ts --host 127.0.0.1",

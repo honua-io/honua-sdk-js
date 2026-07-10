@@ -4,51 +4,72 @@ import { startAiSpatialAppBuilderFixtureServer } from "../../examples/ai-spatial
 
 test.setTimeout(90_000);
 
-test("AI Spatial App Builder runs prompt to generated linked mini-app", async ({ page }) => {
-  const pageErrors = [];
-  page.on("pageerror", (error) => {
-    pageErrors.push(error.message);
-  });
-
+async function withServer(run) {
   const server = await startAiSpatialAppBuilderFixtureServer();
   try {
-    await page.goto(server.url);
-    await expect
-      .poll(async () => page.evaluate(() => window.__HONUA_AI_SPATIAL_APP_BUILDER__?.ready === true))
-      .toBe(true);
-
-    await expect(page.locator("#fixture-state")).toContainText("Fixture safe mode");
-    await expect(page.locator("#capability-state")).toContainText("unsupported");
-
-    await page.getByRole("button", { name: "Draft" }).click();
-    await expect(page.locator("#clarification")).toContainText("Use FEMA flood zones");
-    await page.getByRole("button", { name: "FEMA flood zones" }).click();
-    await expect(page.locator("#draft-review")).toContainText("Pre-1970 parcels near fire stations");
-    await expect(page.locator("#draft-review")).toContainText("within-distance");
-
-    await page.getByRole("button", { name: "Preview Plan" }).click();
-    await expect(page.locator("#plan-preview")).toContainText("Spatial result query is not cached");
-    await expect(page.locator("#plan-preview")).toContainText("degraded cloud mode");
-
-    await page.getByRole("button", { name: "Apply Plan" }).click();
-    await expect(page.locator("#job-state")).toHaveText("Accepted");
-    await page.getByRole("button", { name: "Advance Job" }).click();
-    await expect(page.locator("#job-state")).toHaveText("Running");
-    await page.getByRole("button", { name: "Advance Job" }).click();
-    await expect(page.locator("#job-state")).toHaveText("Successful");
-    await expect(page.locator("#generated-app-state")).toHaveText("linked");
-    await expect(page.locator("#result-count")).toHaveText("5");
-    await expect(page.locator("#result-table")).toContainText("Kalihi warehouse parcel");
-
-    await page.getByRole("button", { name: /X 2/ }).click();
-    await expect(page.locator("#result-count")).toHaveText("2");
-    await page.getByRole("button", { name: /Open Airport logistics parcel/ }).click();
-    await expect(page.locator("#feature-detail")).toContainText("Airport logistics parcel");
-    await expect(page.locator("#workspace-export")).toContainText("honua.saved-workspace");
-    await expect(page.locator("#workspace-export")).toContainText("linkedViewSync");
-
-    expect(pageErrors).toEqual([]);
+    await run(server.url);
   } finally {
     await server.close();
   }
+}
+
+test("safe-agent journey requires validation and approval before one bounded read", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  await withServer(async (url) => {
+    await page.goto(url);
+    await expect(page.locator("#effect-count")).toHaveText("0");
+    await expect(page.locator("#live-status")).toHaveText("skipped");
+    await expect(page.getByRole("button", { name: "Execute approved read" })).toBeDisabled();
+
+    await page.getByRole("button", { name: "Validate against policy" }).click();
+    await expect(page.locator("#plan-state")).toContainText("Validated");
+    await expect(page.locator("#plan-details")).toContainText("parcels-snapshot-2026-07-10");
+    await expect(page.locator("#plan-details")).toContainText("parcels:read");
+    await expect(page.locator("#effect-count")).toHaveText("0");
+
+    await page.getByRole("button", { name: "Approve 5-row read" }).click();
+    await expect(page.locator("#effect-count")).toHaveText("0");
+    await page.getByRole("button", { name: "Execute approved read" }).click();
+    await expect(page.locator("#effect-count")).toHaveText("1");
+    await expect(page.locator("#row-count")).toHaveText("5");
+    await expect(page.locator("#receipt-integrity")).toHaveText("true");
+    await expect(page.locator("#receipt-json")).toContainText("honua.agent-execution-receipt");
+    expect(errors).toEqual([]);
+  });
+});
+
+test("narrow and refusal paths remain explicit and effect-free", async ({ page }) => {
+  await withServer(async (url) => {
+    await page.goto(url);
+    await page.getByRole("button", { name: "Validate against policy" }).click();
+    await page.getByRole("button", { name: "Narrow to 2 rows" }).click();
+    await page.getByRole("button", { name: "Execute approved read" }).click();
+    await expect(page.locator("#row-count")).toHaveText("2");
+
+    await page.getByRole("button", { name: "Mutation", exact: true }).click();
+    await expect(page.locator("#plan-state")).toContainText("Refused");
+    await expect(page.locator("#plan-details")).toContainText("Mutation requires a separate host capability");
+    await expect(page.locator("#effect-count")).toHaveText("0");
+    await expect(page.getByRole("button", { name: "Execute approved read" })).toBeDisabled();
+  });
+});
+
+test("keyboard workflow and mobile layout expose status without console errors", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await withServer(async (url) => {
+    await page.goto(url);
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Skip to workflow" })).toBeFocused();
+    await page.getByRole("link", { name: "Skip to workflow" }).press("Enter");
+    await expect(page.locator("#workflow")).toBeInViewport();
+    await expect(page.getByRole("heading", { name: "Agent proposal" })).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("No source or tool effect");
+    expect(errors).toEqual([]);
+  });
 });

@@ -1,0 +1,25 @@
+{
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "ai-spatial-app-builder",
+  "lane": "fixture",
+  "status": "executed",
+  "observedAt": "2026-07-10T18:00:00.000Z",
+  "authMode": "none",
+  "provenance": {
+    "sourceId": "honolulu-parcels",
+    "sourceVersion": "parcels-snapshot-2026-07-10",
+    "schemaVersion": "parcels-schema-v5",
+    "attribution": "City and County of Honolulu — deterministic demonstration fixture"
+  },
+  "semantics": {
+    "outcome": "Proposal validated and explicitly approved before one five-row read; receipt integrity verified.",
+    "planKind": "honua.query-plan",
+    "approvalKind": "honua.agent-approval",
+    "receiptKind": "honua.agent-execution-receipt",
+    "effectsBeforeApproval": 0,
+    "effectsAfterApproval": 1,
+    "rowCount": 5
+  },
+  "timing": { "totalMs": 1 }
+}

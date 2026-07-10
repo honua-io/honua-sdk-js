@@ -1,113 +1,129 @@
 import { describe, expect, it } from "vitest";
 
-import { createAiSpatialAppBuilderSession } from "../examples/ai-spatial-app-builder/src/model.js";
+import {
+  SCHEMA_VERSION,
+  SOURCE_VERSION,
+  createProposal,
+  createSafeAgentSession,
+  describeHostLane,
+  fixtureProposal,
+} from "../examples/ai-spatial-app-builder/src/safe-agent.js";
 
-describe("AI Spatial App Builder sample", () => {
-  it("turns an ambiguous prompt into clarification, deterministic draft, plan, and generated linked app", () => {
-    const session = createAiSpatialAppBuilderSession();
+describe("AI Spatial App Builder safe-agent kernel", () => {
+  it("runs deterministic proposal → validation → approval → execution → receipt without early effects", async () => {
+    const session = createSafeAgentSession();
+    expect(session.state).toBe("proposed");
+    expect(session.executionCount).toBe(0);
 
-    const clarification = session.submitPrompt("Show parcels within 500m of fire stations built before 1970");
-    expect(clarification.clarification?.id).toBe("flood-zone-source");
-
-    const drafted = session.answerClarification("fema");
-    expect(drafted.draft?.id).toBe("draft-parcels-flood");
-    expect(session.activeDraft?.views).toEqual(["map", "table", "chart", "filter", "detail"]);
-
-    const plan = session.previewPlan();
-    expect(plan.steps.map((step) => step.status)).toContain("degraded");
-    expect(plan.cacheNotes.join(" ")).toContain("Metadata/schema cache hit");
-
-    const jobId = session.applyPlan();
-    expect(session.advanceJob(jobId).status).toBe("running");
-    expect(session.advanceJob(jobId).status).toBe("successful");
-    expect(session.generatedApp()?.viewIds).toMatchObject({
-      map: "builder-map",
-      table: "builder-table",
-      chart: "builder-chart",
-      filter: "builder-filters",
-      detail: "builder-detail",
+    const plan = session.validate();
+    expect(plan.valid).toBe(true);
+    expect(plan.queryPlan.ir.source).toMatchObject({
+      sourceVersion: SOURCE_VERSION,
+      schemaVersion: SCHEMA_VERSION,
+      authorizationScope: ["parcels:read"],
+      capabilities: ["query"],
     });
-    expect(session.visibleFeatures().map((feature) => feature.id)).toEqual([
-      "parcel-1001",
-      "parcel-1002",
-      "parcel-1003",
-      "parcel-1005",
-      "parcel-1006",
-    ]);
+    expect(plan.queryPlan.ir.query.outSr).toBe(4326);
+    expect(session.executionCount).toBe(0);
 
-    session.dispose();
+    const grant = session.decide("approve");
+    expect(grant.planDigest).toBe(plan.approvalDigest);
+    expect(session.executionCount).toBe(0);
+
+    const receipt = await session.execute();
+    expect(session.executionCount).toBe(1);
+    expect(receipt.rowCount).toBe(5);
+    expect(receipt.effect).toBe("read");
+    expect(session.verifyReceipt(receipt)).toBe(true);
   });
 
-  it("keeps filter, chart, table, and detail views synchronized through linked exploration state", () => {
-    const session = createAiSpatialAppBuilderSession();
-    session.submitPrompt("Join parcels to nearby fire stations and summarize count by flood zone.");
-    session.previewPlan();
-    const jobId = session.applyPlan();
-    session.advanceJob(jobId);
-    session.advanceJob(jobId);
+  it("supports narrowing and rejection without widening or executing", async () => {
+    const narrowed = createSafeAgentSession();
+    narrowed.validate();
+    narrowed.decide("narrow", 2);
+    expect((await narrowed.execute()).rowCount).toBe(2);
 
-    session.selectChartBucket("X");
-    expect(session.visibleFeatures().map((feature) => feature.id)).toEqual(["parcel-1002", "parcel-1006"]);
+    const rejected = createSafeAgentSession();
+    rejected.validate();
+    rejected.decide("reject");
+    await expect(rejected.execute()).rejects.toThrow(/explicit approval/);
+    expect(rejected.executionCount).toBe(0);
 
-    session.selectFeature("parcel-1006");
-    const exported = JSON.parse(session.exportState());
-    expect(exported.selectedFeatures).toEqual([{ sourceId: "honua-cloud:ai-builder-results", id: "parcel-1006" }]);
-    expect(exported.analysisOutputs[0].metadata.linkedViewSync).toBe(true);
-    expect(exported.savedQueries[0].metadata.spatialPredicate).toBe("spatial-join");
-
-    session.dispose();
+    const invalidNarrow = createSafeAgentSession();
+    invalidNarrow.validate();
+    expect(() => invalidNarrow.decide("narrow", 6)).toThrow(/between 1 and 5/);
   });
 
-  it("exposes AI map kit tools for inspect, filter, select, widget query, and dry-run layer actions", async () => {
-    const session = createAiSpatialAppBuilderSession();
-    session.submitPrompt("Join parcels to nearby fire stations and summarize count by flood zone.");
-    session.previewPlan();
-    const jobId = session.applyPlan();
-    session.advanceJob(jobId);
-    session.advanceJob(jobId);
-
-    const results = await session.runAiMapKitDemo();
-
-    expect(session.aiMapKit.mcpTools.map((tool) => tool.name)).toEqual([
-      "inspectMap",
-      "listSources",
-      "listCapabilities",
-      "addLayer",
-      "setFilter",
-      "selectFeature",
-      "runWidgetQuery",
-    ]);
-    expect(results.map((result) => (result as { status: string }).status)).toEqual(["ok", "ok", "ok", "ok", "dry-run"]);
-    expect(session.agentAudit.map((event) => [event.tool, event.outcome, event.dryRun])).toEqual([
-      ["inspectMap", "allowed", false],
-      ["runWidgetQuery", "allowed", false],
-      ["setFilter", "allowed", false],
-      ["selectFeature", "allowed", false],
-      ["addLayer", "dry-run", true],
-    ]);
-    expect(session.visibleFeatures().map((feature) => feature.id)).toEqual(["parcel-1006", "parcel-1002"]);
-
-    session.dispose();
+  it.each([
+    [
+      "mutation",
+      createProposal({
+        requestedEffect: "mutation",
+        toolCalls: [{ name: "applyEdits", effect: "mutation", reason: "write" }],
+      }),
+    ],
+    [
+      "realtime",
+      createProposal({
+        requestedEffect: "realtime",
+        toolCalls: [{ name: "subscribe", effect: "realtime", reason: "stream" }],
+      }),
+    ],
+    ["excessive limit", createProposal({ query: { ...fixtureProposal.query, pagination: { limit: 500 } } })],
+    [
+      "unsupported capability",
+      createProposal({ toolCalls: [{ name: "publishLayer", effect: "generated-app", reason: "publish" }] }),
+    ],
+  ])("refuses %s proposals before effects", (_label, proposal) => {
+    const session = createSafeAgentSession(proposal);
+    expect(session.validate().valid).toBe(false);
+    expect(session.state).toBe("refused");
+    expect(session.executionCount).toBe(0);
+    expect(() => session.decide("approve")).toThrow(/valid/);
   });
 
-  it("covers five fixture prompt patterns and unsupported/degraded cloud capability notes", () => {
-    const session = createAiSpatialAppBuilderSession();
+  it("rejects plan tampering and approval replay before source access", async () => {
+    const first = createSafeAgentSession();
+    const plan = first.validate();
+    first.decide("approve");
+    const tampered = {
+      ...plan,
+      policy: { ...plan.policy, maxRows: 500 },
+    };
+    await expect(first.execute({ planOverride: tampered })).rejects.toThrow(/tampered/);
+    expect(first.executionCount).toBe(0);
 
-    expect(session.dataset.prompts.map((prompt) => prompt.id)).toEqual([
-      "parcels-flood",
-      "station-distance",
-      "spatial-join",
-      "bbox-filter",
-      "grouped-chart",
-    ]);
-    expect(session.dataset.capabilityNotes.map((note) => note.state)).toEqual(["available", "degraded", "unsupported"]);
+    const other = createSafeAgentSession(createProposal({ id: "other-proposal" }));
+    const otherPlan = other.validate();
+    other.decide("approve");
+    await expect(other.execute({ planOverride: plan })).rejects.toThrow(/Approval does not match/);
+    expect(otherPlan.approvalDigest).not.toBe(plan.approvalDigest);
+    expect(other.executionCount).toBe(0);
+  });
 
-    const direct = session.submitPrompt(
-      "Show only the downtown extent and keep residential parcels in a map and table.",
-    );
-    expect(direct.draft?.spatialPredicate).toBe("bbox");
-    expect(direct.draft?.cacheNotes.join(" ")).toContain("not blindly cached");
+  it.each([
+    ["stale source", { sourceVersion: "stale-source" }],
+    ["stale schema", { schemaVersion: "stale-schema" }],
+    ["authorization drift", { authorizationScope: ["parcels:admin"] }],
+  ])("rejects %s context before source access", async (_label, context) => {
+    const session = createSafeAgentSession();
+    session.validate();
+    session.decide("approve");
+    await expect(session.execute(context)).rejects.toThrow(/context|changed/i);
+    expect(session.executionCount).toBe(0);
+  });
 
-    session.dispose();
+  it("detects receipt tampering and reports host lanes honestly", async () => {
+    const session = createSafeAgentSession();
+    session.validate();
+    session.decide("approve");
+    const receipt = await session.execute();
+    expect(session.verifyReceipt({ ...receipt, rowCount: 99 })).toBe(false);
+    expect(describeHostLane()).toMatchObject({ state: "skipped", browserSecrets: false });
+    expect(describeHostLane({ proposalEndpoint: "/host/proposal", liveDataEndpoint: "/host/data" })).toMatchObject({
+      state: "available",
+      model: "host-mediated",
+      browserSecrets: false,
+    });
   });
 });

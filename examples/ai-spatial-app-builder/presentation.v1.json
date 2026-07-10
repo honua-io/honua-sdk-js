@@ -1,0 +1,12 @@
+{
+  "format": "honua.sdk.sample-presentation.v1",
+  "schemaVersion": 1,
+  "sampleId": "ai-spatial-app-builder",
+  "title": "Safe Agent Workbench",
+  "tagline": "Agents propose. Policy validates. You approve. Honua executes.",
+  "theme": "safe-agent",
+  "viewport": { "desktop": [1440, 1000], "mobile": [390, 844] },
+  "journey": ["proposal", "validation", "approval", "execution", "receipt"],
+  "truthLabels": ["deterministic fixture", "host-mediated", "structured skip", "no browser secrets"],
+  "evidence": ["evidence/fixture.v1.json", "evidence/live-skipped.v1.json"]
+}
