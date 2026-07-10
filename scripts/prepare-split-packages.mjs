@@ -93,6 +93,9 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
+  // The production map adapter executes accepted plans and its emitted .d.ts
+  // references the planner contract, so keep this dependency closure intact.
+  copyDirectory(path.join(DIST_SRC_ROOT, "query-planner"), path.join(packageRoot, "query-planner"));
   copyDirectory(path.join(DIST_SRC_ROOT, "realtime"), path.join(packageRoot, "realtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "runtime"), path.join(packageRoot, "runtime"));
   copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
@@ -153,6 +156,10 @@ function createSdkPackage() {
       "./map": {
         types: "./map/index.d.ts",
         default: "./map/index.js",
+      },
+      "./query-planner": {
+        types: "./query-planner/index.d.ts",
+        default: "./query-planner/index.js",
       },
       "./style": {
         types: "./style/index.d.ts",

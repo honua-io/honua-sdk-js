@@ -146,7 +146,8 @@ import {
   createSceneWorkspace,
   sceneWorkspaceIntentFromAdapterEvent,
 } from "@honua/app-platform/scene-workspace";
-import { HonuaMap } from "@honua/sdk/map";
+import { HonuaMap, mountSourceToMapLibre } from "@honua/sdk/map";
+import { explainQuery } from "@honua/sdk/query-planner";
 import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import { defineHonuaWebComponents } from "@honua/app-platform/web-components";
@@ -406,6 +407,10 @@ if (typeof DEFAULT_OPERATOR_TOKENS !== "object" || DEFAULT_OPERATOR_TOKENS === n
   throw new Error("DEFAULT_OPERATOR_TOKENS export missing from @honua/sdk/operator/theming");
 if (typeof DEFAULT_MESSAGES !== "object" || DEFAULT_MESSAGES === null)
   throw new Error("DEFAULT_MESSAGES export missing from @honua/sdk/operator/i18n");
+if (typeof mountSourceToMapLibre !== "function")
+  throw new Error("mountSourceToMapLibre export missing from @honua/sdk/map");
+if (typeof explainQuery !== "function")
+  throw new Error("explainQuery export missing from @honua/sdk/query-planner");
 const styleSpecDiagnostics = await validateRuntimeStyleSpec({
   version: 8,
   sources: {},
