@@ -116,6 +116,9 @@ jobs:
       - name: Verify sample publication contract
         run: npm run samples:verify
 
+      - name: Compile learning-path examples
+        run: npm run docs:learning:typecheck
+
       - name: Code style
         run: npm run check
 
@@ -139,6 +142,9 @@ jobs:
 
       - name: Verify browser artifact publication manifest
         run: node scripts/sample-contract.mjs artifacts
+
+      - name: Verify task-oriented learning paths
+        run: npm run docs:learning:verify
 
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets

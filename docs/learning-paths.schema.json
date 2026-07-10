@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk-learning-paths.v1.json",
+  "title": "Honua SDK learning paths v1",
+  "type": "object",
+  "required": ["format", "schemaVersion", "ownership", "executionLabels", "siteJourneys", "paths"],
+  "properties": {
+    "format": { "const": "honua.sdk.learning-paths.v1" },
+    "schemaVersion": { "const": 1 },
+    "ownership": { "type": "object" },
+    "executionLabels": { "type": "array", "minItems": 6 },
+    "siteJourneys": { "type": "array", "minItems": 7, "items": { "type": "string" } },
+    "paths": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "outcome",
+          "supportStatus",
+          "labels",
+          "siteJourneyId",
+          "guidePath",
+          "sampleId",
+          "sourcePath",
+          "sourceEntry",
+          "docsPath",
+          "typecheckScript",
+          "api"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "supportStatus": { "enum": ["supported", "experimental"] },
+          "degradationReason": { "type": "string", "minLength": 1 },
+          "labels": {
+            "type": "array",
+            "items": {
+              "enum": ["fixture", "public-live", "demo-live", "authenticated", "degraded", "experimental"]
+            }
+          },
+          "api": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["specifier", "symbols"],
+              "properties": {
+                "specifier": { "type": "string", "pattern": "^@honua/sdk-js(?:/[-a-z0-9/]+)?$" },
+                "symbols": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
