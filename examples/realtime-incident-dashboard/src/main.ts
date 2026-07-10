@@ -64,6 +64,7 @@ import "./styles.css";
 interface IncidentRuntime {
   ready: boolean;
   mapReady: boolean;
+  disposed: boolean;
   status: string;
   cursor: string | null;
   visibleIncidentCount: number;
@@ -89,6 +90,7 @@ interface IncidentRuntime {
   resetEdit(): string | null;
   duplicateLast(): void;
   staleCursor(): void;
+  dispose(): void;
 }
 
 declare global {
@@ -617,6 +619,7 @@ async function bootstrap(): Promise<void> {
   const runtime: IncidentRuntime = {
     ready: false,
     mapReady: false,
+    disposed: false,
     status: "idle",
     cursor: null,
     visibleIncidentCount: 0,
@@ -642,6 +645,7 @@ async function bootstrap(): Promise<void> {
     resetEdit: () => null,
     duplicateLast: () => undefined,
     staleCursor: () => undefined,
+    dispose: () => undefined,
   };
   window.__HONUA_INCIDENT_RUNTIME__ = runtime;
 
@@ -960,14 +964,22 @@ async function bootstrap(): Promise<void> {
     runtime.ready = true;
     runtime.mapReady = true;
 
-    window.addEventListener("beforeunload", () => {
+    let disposed = false;
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
       for (const unsubscribe of unsubscribeHandles) unsubscribe();
       for (const handle of removableHandles) handle.remove();
       context.dispose();
       store.close();
       activePopup?.remove();
       map.remove();
-    });
+      runtime.ready = false;
+      runtime.mapReady = false;
+      runtime.disposed = true;
+    };
+    runtime.dispose = dispose;
+    window.addEventListener("beforeunload", dispose, { once: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     overlay.dataset.state = "error";

@@ -43,6 +43,12 @@ npm run demo:incident
 The default `auto` mode probes `https://demo.honua.io` and uses the Honua server
 SSE adapter when realtime is available. Force a configured live endpoint with:
 
+Current deployment status: the canonical incident realtime endpoint returns
+HTTP 404, so it is unavailable and `auto` enters the visibly labeled,
+read-only replay lane. The opt-in evidence probe records that failure rather
+than treating the separate successful AWS Earth Search STAC probe as incident
+realtime evidence.
+
 ```sh
 VITE_HONUA_INCIDENT_TRANSPORT=live \
 VITE_HONUA_INCIDENT_BASE_URL=https://honua.example \

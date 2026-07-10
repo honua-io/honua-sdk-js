@@ -86,6 +86,10 @@ the configured `VITE_HONUA_INCIDENT_STREAM_URL` for diagnostics and never
 enables writes by itself. Source and layer identity come from
 `VITE_HONUA_INCIDENT_SOURCE_ID` and `VITE_HONUA_INCIDENT_LAYER_ID`.
 
+The current canonical incident stream probe returns HTTP 404. That failed
+target remains explicit in scheduled evidence; successful OGC and AWS Earth
+Search STAC probes do not make incident feature state live or authoritative.
+
 Incident rows, geometries, counts, and actions are authoritative only when they
 come from:
 

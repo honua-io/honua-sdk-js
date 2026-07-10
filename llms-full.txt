@@ -940,9 +940,9 @@ Labels: `fixture` · `demo-live` · `degraded`
 - Compile check: `npm run demo:incident:typecheck`
 - Sample contract: `flagship` · `supported`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Deterministic incident stream or deployed demo stream.
-- Freshness: Snapshot time, cursor, lag, and observation window.
-- Catalog degradation: Disconnected or replayed state is visually distinct and mutation controls remain disabled.
+- Provenance: Deployed demo stream when advertised; otherwise visibly labeled deterministic replay. Edits are limited to an isolated resettable fixture profile.
+- Freshness: Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes.
+- Catalog degradation: Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile.
 - Live sample: [demo-public-safety.html](https://honua.io/demo-public-safety.html)
 - Supported API imports: `@honua/sdk-js/realtime` (`createRealtimeServerSentEventsTransport`)
 - honua.io journey: `realtime-operations`

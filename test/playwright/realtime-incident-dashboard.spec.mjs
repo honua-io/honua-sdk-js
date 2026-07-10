@@ -116,6 +116,10 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
       .toBe(true);
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
+
+    await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.dispose());
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.disposed)).toBe(true);
+    await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
   } finally {
     await fixtureServer.close();
   }
