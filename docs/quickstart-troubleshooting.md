@@ -25,7 +25,7 @@ Checks:
 
 The quickstart app intentionally fails before the feature query when this contract is not satisfied.
 
-## Missing Or Invalid Auth
+## Protected Endpoint Or Invalid Auth
 
 Symptoms:
 
@@ -34,13 +34,12 @@ Symptoms:
 
 Checks:
 
-- set `VITE_HONUA_QUICKSTART_API_KEY` when the server expects `X-API-Key`
-- use `VITE_HONUA_QUICKSTART_BEARER_TOKEN` only with
-  `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true`; prefer `VITE_HONUA_QUICKSTART_API_KEY` or a backend-issued browser
-  session for live browser demos
-- for staging CI, set `HONUA_STAGING_API_KEY` or `HONUA_STAGING_BEARER_TOKEN` if the environment is protected
+- use a CORS-enabled endpoint that permits anonymous reads for the browser flagship
+- do not add browser API keys or bearer tokens; the app rejects them because Vite would publish their values
+- put protected browser traffic behind an application backend or session flow
+- for server-only staging CI, set `HONUA_STAGING_API_KEY` or `HONUA_STAGING_BEARER_TOKEN` when required
 
-The quickstart app forwards auth directly into `HonuaClient`; it does not add custom example-only header behavior.
+The page always reports its auth mode. It never renders credential values.
 
 ## CORS Or Browser Network Failures
 
@@ -69,6 +68,7 @@ Symptoms:
 - the app fails before the compatibility check runs
 - the overlay or inline status reports `A quickstart layer id must be an integer.`
 - the overlay or inline status reports `A quickstart result record count must be greater than zero.`
+- the overlay reports that the browser quickstart is intentionally secret-free
 - local staging runs fail with `HONUA_STAGING_BASE_URL is required.` or the matching `HONUA_STAGING_*` required-variable message
 - the staging workflow fails during its validation step with `Missing HONUA_STAGING_BASE_URL`, `Missing HONUA_STAGING_SERVICE_ID`, or `Missing HONUA_STAGING_LAYER_ID`
 - `npm run test:quickstart:staging` fails before issuing any network requests when staging env values are malformed
@@ -77,6 +77,7 @@ Checks:
 
 - set `VITE_HONUA_QUICKSTART_LAYER_ID` to an integer
 - set `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT` to a positive integer
+- remove `VITE_HONUA_QUICKSTART_API_KEY` and `VITE_HONUA_QUICKSTART_BEARER_TOKEN`; use an anonymous endpoint or proxy
 - set `HONUA_STAGING_BASE_URL`, `HONUA_STAGING_SERVICE_ID`, and `HONUA_STAGING_LAYER_ID` for local or CI staging runs
 - for staging CI, keep `HONUA_STAGING_LAYER_ID` integer-valued and `HONUA_STAGING_RESULT_RECORD_COUNT` positive when overridden
 
@@ -166,14 +167,17 @@ For browser debugging and Playwright smoke assertions, inspect:
 
 - `window.__HONUA_QUICKSTART_EVENTS__`
 - `window.__HONUA_QUICKSTART_RUNTIME__`
+- `window.__HONUA_QUICKSTART_DISPOSE__()`
 
 Useful fields:
 
 - `baseUrl`, `serviceId`, `layerId`
 - `serverVersion`, `releaseChannel`
+- `sdkVersion`, `dataVersion`, `planId`, `planFingerprint`, `planPushdown`
 - `featureCount`, `renderableFeatureCount`, `geometryTypes`
 - `queryDurationMs`
 - `layerIds`, `mapReady`, `selectedFeatureId`, `popupOpen`, `lastError`
+- `journeyComplete`, `disposed`
 
 Every telemetry event is also dispatched as `CustomEvent("honua:quickstart")`.
 

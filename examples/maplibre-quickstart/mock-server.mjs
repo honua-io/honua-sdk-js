@@ -1,7 +1,7 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -96,8 +96,10 @@ export async function startQuickstartFixtureServer({ build = true } = {}) {
 
   const capabilities = readFixture("capabilities.json");
   const queryFeatures = readFixture("query-features.json");
+  const layerMetadata = readFixture("layer-metadata.json");
   const basemapStyle = createBasemapStyle();
   const queryPath = `/rest/services/${FIXTURE_BUILD_ENV.VITE_HONUA_QUICKSTART_SERVICE_ID}/FeatureServer/${FIXTURE_BUILD_ENV.VITE_HONUA_QUICKSTART_LAYER_ID}/query`;
+  const layerPath = `/rest/services/${FIXTURE_BUILD_ENV.VITE_HONUA_QUICKSTART_SERVICE_ID}/FeatureServer/${FIXTURE_BUILD_ENV.VITE_HONUA_QUICKSTART_LAYER_ID}`;
 
   const server = http.createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -120,6 +122,11 @@ export async function startQuickstartFixtureServer({ build = true } = {}) {
 
     if (requestUrl.pathname === queryPath) {
       serveText(res, queryFeatures, "application/json; charset=utf-8");
+      return;
+    }
+
+    if (requestUrl.pathname === layerPath) {
+      serveText(res, layerMetadata, "application/json; charset=utf-8");
       return;
     }
 

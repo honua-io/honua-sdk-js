@@ -71,6 +71,9 @@ function formatTarget(baseUrl: string): string {
 }
 
 function renderStatus(config: ReturnType<typeof resolveQuickstartConfig>, dataset: QuickstartDataset): void {
+  const modeBadge = getElement<HTMLElement>("#mode-badge");
+  modeBadge.dataset.mode = config.mode;
+  modeBadge.textContent = config.mode === "fixture" ? "Fixture replay" : "Anonymous live";
   setText(
     "#status-compatibility",
     `Compatible (${dataset.compatibility.serverVersion}, ${dataset.compatibility.releaseChannel})`,
@@ -84,6 +87,45 @@ function renderStatus(config: ReturnType<typeof resolveQuickstartConfig>, datase
     "#demo-status",
     `Loaded ${dataset.renderableFeatureCount} renderable feature(s) from ${config.serviceId}/${config.layerId} in ${dataset.queryDurationMs} ms.`,
   );
+}
+
+function renderJourney(dataset: QuickstartDataset): void {
+  for (const item of dataset.journey) {
+    const element = getElement<HTMLElement>(`#journey-${item.id}`);
+    element.dataset.state = item.status;
+    const detail = element.querySelector<HTMLElement>("small");
+    if (detail) detail.textContent = `${item.durationMs} ms · ${item.detail}`;
+  }
+}
+
+function renderEvidence(dataset: QuickstartDataset): void {
+  const { evidence } = dataset;
+  setText("#evidence-endpoint", evidence.endpoint);
+  setText("#evidence-source", `${evidence.protocol} · ${evidence.source}`);
+  setText("#evidence-freshness", evidence.freshness);
+  setText("#evidence-observed", `Observed ${evidence.observedAt}`);
+  setText("#evidence-auth", evidence.auth.replaceAll("-", " "));
+  setText("#evidence-versions", `SDK ${evidence.sdkVersion} · server ${evidence.serverVersion}`);
+  setText("#evidence-data-version", `Data ${evidence.dataVersion}`);
+  setText("#evidence-cache", evidence.metadataCache);
+  setText("#evidence-degradation", evidence.degradation.join(" · "));
+  const capabilities = getElement<HTMLElement>("#capability-list");
+  capabilities.innerHTML = evidence.capabilities.map((item) => `<span>${escapeHtml(item)}</span>`).join("");
+}
+
+function renderPlan(dataset: QuickstartDataset): void {
+  const { plan } = dataset;
+  setText("#plan-id", plan.id);
+  setText("#plan-pushdown", plan.pushdown);
+  setText("#plan-fidelity", plan.fidelity);
+  setText("#plan-cache", plan.cache);
+  getElement<HTMLElement>("#plan-steps").innerHTML = plan.steps
+    .map(
+      (item) =>
+        `<li><strong>${escapeHtml(item.engine)} / ${escapeHtml(item.operation)}</strong> — ${escapeHtml(item.reason)}</li>`,
+    )
+    .join("");
+  getElement<HTMLElement>("#plan-json").textContent = JSON.stringify({ query: dataset.query, plan }, null, 2);
 }
 
 function renderSelection(summary: QuickstartFeatureSummary): void {
@@ -159,21 +201,15 @@ function renderFeatureList(
   featureList.innerHTML = "";
 
   if (summaries.length === 0) {
-    featureList.innerHTML = '<div class="empty-copy">No features match the linked context.</div>';
+    featureList.innerHTML = '<tr><td colspan="3" class="empty-copy">No features match the linked context.</td></tr>';
     return;
   }
 
   for (const summary of summaries) {
-    const item = document.createElement("article");
-    item.className = "feature-list-item";
-    item.innerHTML = `
-      <div>
-        <p class="feature-list-kicker">${escapeHtml(summary.geometryKind ?? "feature")}</p>
-        <h3>${escapeHtml(summary.title)}</h3>
-        <p>${escapeHtml(summary.subtitle)}</p>
-      </div>
-    `;
+    const item = document.createElement("tr");
+    item.innerHTML = `<td><span class="feature-name">${escapeHtml(summary.title)}</span><span class="feature-kind">${escapeHtml(summary.geometryKind ?? "feature")}</span></td><td>${escapeHtml(summary.subtitle)}</td>`;
 
+    const actionCell = document.createElement("td");
     const button = document.createElement("button");
     button.type = "button";
     button.className = "feature-inspect-button";
@@ -181,9 +217,11 @@ function renderFeatureList(
     button.dataset.selected = summary.id === selectedFeatureId ? "true" : "false";
     button.dataset.testid = `inspect-feature-${summary.id}`;
     button.setAttribute("aria-pressed", summary.id === selectedFeatureId ? "true" : "false");
-    button.textContent = `Inspect ${summary.title}`;
+    button.textContent = "View";
+    button.setAttribute("aria-label", `Inspect ${summary.title}`);
     button.addEventListener("click", () => onInspect(summary));
-    item.append(button);
+    actionCell.append(button);
+    item.append(actionCell);
     featureList.append(item);
   }
 }
@@ -413,12 +451,14 @@ async function bootstrap(): Promise<void> {
   let activePopup: maplibregl.Popup | null = null;
 
   try {
-    overlayTitle.textContent = "Checking Honua compatibility";
-    overlayBody.textContent =
-      "Running the SDK compatibility gate, querying one layer, and loading the result into MapLibre.";
+    overlayTitle.textContent = "Connect → discover → explain → query";
+    overlayBody.textContent = "Negotiating compatibility and capabilities before any rows reach the map.";
 
     const dataset = await loadQuickstartDataset(config, { telemetry });
     renderStatus(config, dataset);
+    renderJourney(dataset);
+    renderEvidence(dataset);
+    renderPlan(dataset);
     renderFilterOptions(filterSelect, dataset);
     const firstFeature = dataset.featureSummaries[0];
     if (firstFeature) {
@@ -428,7 +468,16 @@ async function bootstrap(): Promise<void> {
     overlayTitle.textContent = "Loading the map";
     overlayBody.textContent = "Adding a GeoJSON source, creating render layers, and fitting to the queried features.";
 
+    const mountStartedAt = performance.now();
     const { map, layerIds, layerFilterBindings } = await createMap(config, dataset);
+    dataset.journey.push({
+      id: "mount",
+      label: "Mount",
+      detail: `${layerIds.length} MapLibre layers linked`,
+      durationMs: Math.max(0, Math.round(performance.now() - mountStartedAt)),
+      status: "complete",
+    });
+    renderJourney(dataset);
     const featureById = new Map(dataset.featureSummaries.map((summary) => [summary.id, summary]));
     const context = createExplorationContext({
       datasetId: `${config.serviceId}/${config.layerId}`,
@@ -452,6 +501,8 @@ async function bootstrap(): Promise<void> {
       latestProjection = projection;
       const projectedSummaries = applyQuickstartProjection(dataset.featureSummaries, projection);
       renderLinkedProjection(projection, projectedSummaries.length);
+      setText("#map-visible-count", `${projectedSummaries.length} visible`);
+      setText("#map-filter-count", `${Object.keys(projection.filters).length} filters`);
       renderFeatureList(projectedSummaries, selectedFeatureId, (summary) => {
         tableSelection.select([sourceFeatureSelectionTarget(config.sourceId, summary.id)], { replace: true });
       });
@@ -576,7 +627,7 @@ async function bootstrap(): Promise<void> {
       }),
     );
 
-    filterSelect.addEventListener("change", () => {
+    const onFilterChange = () => {
       const selected = parseFilterValue(filterSelect.value);
       if (!selected) {
         filterControls.clearFilter("attribute");
@@ -594,12 +645,14 @@ async function bootstrap(): Promise<void> {
         field: selected.field,
         value: selected.value,
       });
-    });
-    clearFilterButton.addEventListener("click", () => {
+    };
+    const onClearFilter = () => {
       filterSelect.value = "";
       filterControls.clearFilter("attribute");
       telemetry.emit("linked-filter-changed", { active: false });
-    });
+    };
+    filterSelect.addEventListener("change", onFilterChange);
+    clearFilterButton.addEventListener("click", onClearFilter);
 
     if (latestProjection) {
       renderProjectedResults(latestProjection);
@@ -611,6 +664,7 @@ async function bootstrap(): Promise<void> {
     telemetry.patchRuntime({
       layerIds,
       mapReady: true,
+      journeyComplete: true,
     });
     telemetry.emit("map-ready", {
       layerIds,
@@ -619,15 +673,23 @@ async function bootstrap(): Promise<void> {
 
     overlay.dataset.state = "ready";
     overlayTitle.textContent = "Map ready";
-    overlayBody.textContent = "Linked map, filter, result, and detail context is ready.";
+    overlayBody.textContent = "Map, table, filter, selection, popup, and evidence are linked.";
 
-    window.addEventListener("beforeunload", () => {
+    let disposed = false;
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      filterSelect.removeEventListener("change", onFilterChange);
+      clearFilterButton.removeEventListener("click", onClearFilter);
       for (const unsubscribe of unsubscribeHandles) unsubscribe();
       for (const handle of removableHandles) handle.remove();
       context.dispose();
       activePopup?.remove();
       map.remove();
-    });
+      telemetry.patchRuntime({ mapReady: false, popupOpen: false, disposed: true });
+    };
+    window.__HONUA_QUICKSTART_DISPOSE__ = dispose;
+    window.addEventListener("beforeunload", dispose, { once: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     overlay.dataset.state = "error";

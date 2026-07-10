@@ -1,161 +1,106 @@
-# 5-Minute Quickstart: Query Features and Render on a Map
+# Five-minute quickstart: endpoint to linked MapLibre map
 
-> **Start server-optional.** You do **not** need a Honua server to use this SDK.
-> The fastest path with zero infrastructure — a public GeoServices endpoint in,
-> a MapLibre map out — is the
-> [standalone quickstart](./standalone-quickstart.md) and its committed app
-> [`examples/standalone-quickstart/`](../examples/standalone-quickstart/README.md).
-> This page covers the **server-connected** lane (compatibility gate, Honua
-> fixtures/live env); see the
-> [backend-agnostic capability matrix](./standalone-capability-matrix.md) for
-> which features need a server.
+The canonical server-connected browser workflow is the tested app in
+[`examples/maplibre-quickstart`](../examples/maplibre-quickstart/README.md). It makes the SDK's five-stage journey
+visible instead of hiding network and fallback decisions:
 
-The canonical runnable browser quickstart for the **server-connected** lane is the committed
-example app at [`examples/maplibre-quickstart/`](../examples/maplibre-quickstart/README.md).
+```text
+connect → discover → explain → query → mount
+```
 
-## Fastest Local Path
+If you do not need a Honua server, start with the
+[`standalone quickstart`](./standalone-quickstart.md). It connects directly to a public GeoServices endpoint. This page
+covers the protocol-neutral Honua lane with compatibility, discovery, planning, evidence, and linked views.
 
-Run the fixture-backed app from this repo:
+## Run the deterministic lane
 
 ```bash
-npm install
+npm ci
 npm run demo:quickstart:mock
 ```
 
-The command builds the example, serves deterministic Honua fixture responses on same-origin paths, and prints
-`quickstartMockUrl=http://127.0.0.1:PORT`.
+Open the printed `quickstartMockUrl`. No account, credential, or network-hosted basemap is required. The app:
 
-What this committed app exercises:
+1. checks SDK/server compatibility;
+2. discovers layer metadata and constructs the protocol capability contract;
+3. explains a deterministic query plan before fetching rows;
+4. executes that accepted plan through `Dataset → Source → Query → Result`;
+5. mounts the result in MapLibre and links map, table, filter, detail, and popup state.
 
-1. `HonuaClient.checkCompatibility()`
-2. one read-only `queryFeatures()` call
-3. Esri JSON to GeoJSON conversion in the example
-4. MapLibre rendering
-5. popup-backed feature inspection
+The page also exposes provenance, capture/observation time, auth mode, SDK/server/data versions, metadata cache state,
+plan fingerprint, pushdown, fidelity, and degradation. Fixture replay is labeled explicitly and never presented as live
+data.
 
-Use the example README for the full local and live lanes:
+## Use an anonymous live endpoint
 
-- [`examples/maplibre-quickstart/README.md`](../examples/maplibre-quickstart/README.md)
-- [`docs/quickstart-troubleshooting.md`](./quickstart-troubleshooting.md)
-
-For the more advanced demo lanes, use the dedicated guides instead of expanding this quickstart:
-
-- [`examples/storytelling-25d-map/README.md`](../examples/storytelling-25d-map/README.md)
-- [`examples/kepler-analytics/README.md`](../examples/kepler-analytics/README.md)
-- [`docs/examples/cesium-route-playback/README.md`](./examples/cesium-route-playback/README.md)
-
-## Live Honua Path
-
-Point the same app at a prepared Honua environment:
+Copy [`.env.example`](../examples/maplibre-quickstart/.env.example), point it at a public CORS-enabled Honua layer, then
+run the same app:
 
 ```bash
 cp examples/maplibre-quickstart/.env.example examples/maplibre-quickstart/.env
 npm run demo:quickstart
 ```
 
-The live app accepts:
+The required live values are:
 
-- `VITE_HONUA_QUICKSTART_BASE_URL` for live runs. Leave it empty only for the same-origin fixture lane.
-- optional `VITE_HONUA_QUICKSTART_SERVICE_ID`. Default: `natural-earth`.
-- optional `VITE_HONUA_QUICKSTART_LAYER_ID`. Default: `0`. Must parse as an integer.
-- optional `VITE_HONUA_QUICKSTART_WHERE`. Default: `1=1`.
-- optional `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT`. Default: `25`. Must be greater than `0`.
-- optional `VITE_HONUA_QUICKSTART_BASEMAP_STYLE`. Default: `https://demotiles.maplibre.org/style.json`.
-- optional `VITE_HONUA_QUICKSTART_API_KEY`
-- optional `VITE_HONUA_QUICKSTART_BEARER_TOKEN`, ignored in browser demos unless
-  `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true` is also set. Prefer short-lived API keys or backend-issued sessions for
-  browser demos.
+- `VITE_HONUA_QUICKSTART_BASE_URL`
+- `VITE_HONUA_QUICKSTART_SERVICE_ID`
+- `VITE_HONUA_QUICKSTART_LAYER_ID`
+- `VITE_HONUA_QUICKSTART_DATA_VERSION`
 
-Invalid layer-id or result-count overrides fail startup before the app makes any Honua API requests.
+The filter, bounded record count, basemap style, and optional snapshot timestamp are documented in the
+[sample README](../examples/maplibre-quickstart/README.md#secret-free-live-run).
 
-## Minimal SDK Snippet
+The browser quickstart rejects API keys and bearer tokens because Vite embeds environment values in public JavaScript.
+Use an anonymous endpoint or a server-side proxy/session. Protected server-only staging validation remains separate.
 
-Use the same SDK flow directly in your own app:
+## The SDK shape
+
+The sample uses stable subpath imports and the explicitly experimental planner:
 
 ```ts
+import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
+import { executeQueryPlan, explainQuery } from "@honua/sdk-js/query-planner";
 
-const client = new HonuaClient({ baseUrl: "https://your-honua-server.example" });
-const compatibility = await client.checkCompatibility();
+const client = new HonuaClient({ baseUrl: "https://your-public-honua.example" });
+const metadata = await client.getLayerMetadata("public-service", 0);
+const descriptor = {
+  id: "public-features",
+  protocol: "geoservices-feature-service" as const,
+  locator: { url: "https://your-public-honua.example", serviceId: "public-service", layerId: 0 },
+  capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+  schema: { fields: metadata.fields },
+};
+const dataset = createDataset({ id: "public-map", client, sources: [descriptor] });
+const source = dataset.source("public-features");
+if (!source) throw new Error("Source resolution failed");
 
-if (!compatibility.supported) {
-  throw new Error(
-    `Unsupported Honua server. Minimum supported version: ${HonuaClient.minimumSupportedServerVersion}. ` +
-      `Reasons: ${compatibility.reasons.join("; ")}`,
-  );
-}
-
-const result = await client.queryFeatures({
-  serviceId: "natural-earth",
-  layerId: 0,
-  where: "1=1",
-  returnGeometry: true,
-  outFields: ["*"],
-  outSr: 4326,
-  resultRecordCount: 25,
-});
-
-const featureCount = result.features?.length ?? 0;
-console.log(`Found ${featureCount} feature(s)`);
+const query = { where: "1=1", outFields: ["*"], returnGeometry: true, pagination: { limit: 25 } };
+const plan = explainQuery({ descriptor, query, sourceVersion: "public-service-2026-07" });
+const execution = await executeQueryPlan(plan, source, { sourceVersion: "public-service-2026-07" });
+console.log(execution.result.features);
 ```
 
-The committed example adds the browser pieces around this SDK path: GeoJSON conversion, bounds fitting, render
-layers, popup inspection, and browser telemetry for smoke coverage.
+Planning is synchronous and side-effect free. Execution validates plan integrity and source context before invoking the
+accepted step. Capability gaps and unsafe fallback bounds throw structured errors; they do not become silent empty maps.
 
-## Runtime And Response Contract
+## Requests and validation
 
-The committed app performs exactly two Honua API requests on a healthy startup before MapLibre loads the configured
-basemap style and any dependent assets:
+A healthy startup performs three Honua requests before the basemap's own assets:
 
-1. `GET /api/v1/admin/capabilities` through `HonuaClient.checkCompatibility()`
-2. `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query` through `client.queryFeatures(...)`
+1. `GET /api/v1/admin/capabilities`
+2. `GET /rest/services/{serviceId}/FeatureServer/{layerId}?f=json`
+3. `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query?...`
 
-The compatibility request must resolve to a JSON object whose SDK-relevant payload lives at `data.compatibility`.
-That object is parsed strictly and must include:
+The required CI lane is fixture-only:
 
-- `serverVersion` and `releaseChannel`
-- `controlPlaneApi.major` as integer `1`, `controlPlaneApi.basePath`, and `controlPlaneApi.deprecated`
-- `metadataSchemas[]` entries with `version` and `deprecated`
-- `features.metadataResources`, `features.manifestExport`, `features.manifestApply`, `features.manifestDryRun`, and `features.manifestPrune`
+```bash
+npm run demo:quickstart:typecheck
+npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts test/quickstart-linked-exploration.test.ts
+npm run demo:quickstart:build
+npm run test:playwright:quickstart
+```
 
-The quickstart only proceeds when that compatibility contract reports:
-
-- server version `>= 1.0.0`
-- control-plane API major integer `1` with base path `/api/v1/admin`
-- control-plane API deprecation flag `false`
-- release channel `preview` or newer
-
-The quickstart query is fixed to:
-
-- `where`: configured filter, default `1=1`
-- `returnGeometry: true`
-- `outFields: ["*"]`
-- `outSr: 4326`
-- `resultRecordCount`: bounded by config, default `25`
-
-MapLibre then fetches `VITE_HONUA_QUICKSTART_BASEMAP_STYLE` and any referenced sprites, glyphs, or tiles separately
-from the Honua API contract above.
-
-The app then expects the response to include:
-
-- a `features` array with at least one record
-- at least one record whose geometry converts into the rendered point, line, or polygon buckets
-- raw query records without renderable geometry may still be present, but they are dropped before the app builds the rendered GeoJSON dataset
-
-If the query returns zero features, or only features without renderable geometry, startup stops with a visible error
-instead of rendering an empty map.
-
-The staging integration reuses the same `loadQuickstartDataset(...)` helper and validates only the compatibility plus
-single-query portion of this contract. It does not boot MapLibre or fetch the basemap style.
-
-## Optional Next Steps
-
-Keep these as follow-ons, not part of the first committed quickstart app:
-
-- geocoding search through `@honua/sdk-js/geocoding`
-- `HonuaMap` source and layer management
-- direct OGC API Features flows
-- richer browser demos through the storytelling, kepler, or Cesium example lanes
-
-For problems with compatibility, auth, empty queries, geometry, basemap loading, or staging CI config, use
-[`docs/quickstart-troubleshooting.md`](./quickstart-troubleshooting.md).
+See [`quickstart-troubleshooting.md`](./quickstart-troubleshooting.md) for compatibility, discovery, configuration,
+geometry, plan, CORS, and staging diagnostics.

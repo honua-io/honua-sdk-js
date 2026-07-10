@@ -1,175 +1,112 @@
-# Honua MapLibre Quickstart App
+# Honua × MapLibre flagship workflow
 
-Committed runnable browser quickstart for the SDK’s `checkCompatibility() + queryFeatures() + MapLibre render`
-path.
+This is the canonical five-minute browser journey for the Honua JavaScript SDK:
 
-What it exercises:
+```text
+connect → discover → explain → query → mount
+```
 
-- `HonuaClient.checkCompatibility()`
-- one read-only `queryFeatures()` call against a configured FeatureServer layer
-- Esri JSON to GeoJSON conversion inside the example
-- MapLibre rendering and popup-backed feature inspection
-- `ExplorationContext` plus interaction bindings for map, result list, filters, query projection, and details
+It composes the accepted north-star journey from the SDK's public, protocol-neutral `Dataset → Source → Query → Result`
+contract, the experimental deterministic query planner, and a small MapLibre mounting function. The future application
+kernel facade remains design-stage; this sample does not pretend that facade has shipped.
 
-## Fast Local Run
+The result is more than a map. The page makes endpoint provenance, snapshot/live freshness, authorization mode,
+capabilities, SDK/server/data versions, query fingerprint, pushdown, fidelity, cache behavior, and degradation visible.
+The map, table, attribute filter, detail panel, and popup share one linked exploration context.
 
-This repo ships a deterministic same-origin review lane for the quickstart app.
+## Five-minute fixture run
+
+Requirements: Node 20.19 and the repository dependencies installed with `npm ci`.
 
 ```bash
-npm install
 npm run demo:quickstart:mock
 ```
 
-The script:
+Open the printed `quickstartMockUrl`. The fixture lane is deterministic and self-contained:
 
-1. builds the example app
-2. serves the built app locally
-3. serves fixture responses for `GET /api/v1/admin/capabilities`
-4. serves a fixture response for `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query`
-5. overrides the basemap style to `/__honua-quickstart__/basemap-style.json` so the local lane stays self-contained
+1. `connect` checks the SDK/server compatibility contract.
+2. `discover` reads committed layer metadata and reports metadata-cache state.
+3. `explain` creates a deterministic query IR, plan, and SHA-256 fingerprint without fetching rows.
+4. `query` executes that accepted plan through a protocol-neutral `Source`.
+5. `mount` converts the result geometry and links MapLibre to the exploration context.
 
-The local URL is printed as `quickstartMockUrl=http://127.0.0.1:PORT`.
+The fixture is clearly labeled **Fixture replay**, uses no authentication, reports its committed data version and capture
+time, and does not make external network requests. Fixture responses live in
+[`test/fixtures/honua-quickstart-demo`](../../test/fixtures/honua-quickstart-demo).
 
-## Live Honua Run
+## Secret-free live run
 
-Point the same app at a prepared Honua environment:
+The same code path can use any CORS-enabled Honua FeatureServer layer that allows anonymous reads:
 
 ```bash
-cp examples/maplibre-quickstart/.env.example examples/maplibre-quickstart/.env
+VITE_HONUA_QUICKSTART_BASE_URL=https://your-public-honua.example \
+VITE_HONUA_QUICKSTART_SERVICE_ID=public-service \
+VITE_HONUA_QUICKSTART_LAYER_ID=0 \
+VITE_HONUA_QUICKSTART_DATA_VERSION=public-service-2026-07 \
 npm run demo:quickstart
 ```
 
-Supported env vars:
+Optional browser settings:
 
-- `VITE_HONUA_QUICKSTART_BASE_URL`: Honua base URL. Leave empty only for the same-origin fixture lane.
-- `VITE_HONUA_QUICKSTART_SERVICE_ID`: FeatureServer service id. Default: `natural-earth`.
-- `VITE_HONUA_QUICKSTART_LAYER_ID`: FeatureServer layer id. Default: `0`. Must parse as an integer.
-- `VITE_HONUA_QUICKSTART_WHERE`: read-only filter. Default: `1=1`.
-- `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT`: bounded query size. Default: `25`. Must be greater than `0`.
-- `VITE_HONUA_QUICKSTART_BASEMAP_STYLE`: MapLibre style URL. Default: `https://demotiles.maplibre.org/style.json`.
-- `VITE_HONUA_QUICKSTART_API_KEY`: optional API key forwarded as `X-API-Key`.
-- `VITE_HONUA_QUICKSTART_BEARER_TOKEN`: browser bearer-token forwarding is disabled unless
-  `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true` is also set. Prefer short-lived API keys or backend-issued sessions for
-  browser demos.
+- `VITE_HONUA_QUICKSTART_WHERE` — source-native filter, default `1=1`.
+- `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT` — positive bounded row limit, default `25`.
+- `VITE_HONUA_QUICKSTART_BASEMAP_STYLE` — MapLibre style URL.
+- `VITE_HONUA_QUICKSTART_CAPTURED_AT` — ISO timestamp when the configured dataset is a published snapshot.
 
-The app trims trailing slashes from `VITE_HONUA_QUICKSTART_BASE_URL` before instantiating `HonuaClient`.
-Layer-id and result-count overrides are validated during startup before the app makes any Honua API requests.
+Browser API keys and bearer tokens are intentionally rejected. Do not put durable credentials in Vite environment
+variables: Vite embeds them in public JavaScript. Use an anonymous demo endpoint or a server-side proxy/session flow.
+Server-only staging validation may still use `HONUA_STAGING_API_KEY` or `HONUA_STAGING_BEARER_TOKEN`; those values never
+enter the browser bundle or runtime evidence.
 
-## Network And Runtime Contract
+## Runtime contract
 
-The browser runtime makes one compatibility request before it queries the layer:
+The workflow uses only stable subpath imports plus the explicitly experimental planner subpath:
 
-- `GET /api/v1/admin/capabilities` through `HonuaClient.checkCompatibility()`
+- `@honua/sdk-js/honua` for `HonuaClient` and GeoServices geometry conversion.
+- `@honua/sdk-js/contract` for `createDataset`, `SourceDescriptor`, `Query`, and `Result`.
+- `@honua/sdk-js/query-planner` for `explainQuery()` and `executeQueryPlan()`.
+- `@honua/sdk-js/exploration` and `@honua/sdk-js/interactions` for linked views.
 
-The SDK reads the compatibility contract from `data.compatibility` inside that JSON response. The parsed object must
-include `serverVersion`, `releaseChannel`, `controlPlaneApi.major`/`basePath`/`deprecated`, `metadataSchemas[]`
-entries with `version` and `deprecated`, and the boolean `features` map.
+It does not use the deprecated package-root convenience surface.
 
-The app continues only when the server satisfies the SDK compatibility baseline already enforced by the client:
+For a GeoServices layer, the initial workflow performs:
 
-- server version `>= 1.0.0`
-- control-plane API major integer `1` with base path `/api/v1/admin`
-- control-plane API deprecation flag `false`
-- release channel `preview` or newer
+- `GET /api/v1/admin/capabilities`
+- `GET /rest/services/{serviceId}/FeatureServer/{layerId}?f=json`
+- `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query?...`
 
-After compatibility passes, the app performs one bounded feature query:
+Planning is synchronous and side-effect free. Execution validates that the plan fingerprint and source context still
+match, then invokes the accepted remote step. Unsupported capability or unsafe fallback paths fail visibly; they do not
+produce silent empty results.
 
-- `GET /rest/services/{serviceId}/FeatureServer/{layerId}/query`
+## Evidence and teardown
 
-Query shape:
-
-- `where`: configured by env, default `1=1`
-- `returnGeometry: true`
-- `outFields: ["*"]`
-- `outSr: 4326`
-- `resultRecordCount`: bounded by env, default `25`
-
-MapLibre then fetches the configured basemap style and any dependent assets separately from the Honua API calls above.
-After the initial bounded query, the browser app wires the returned features into a linked exploration context:
-
-- map `moveend` events update the shared extent and spatial filter
-- attribute filter controls update the shared filter slice
-- map clicks and result-list buttons update one shared source-qualified selection
-- the result list and diagnostics panel render from `LinkedViewQueryProjection`
-- MapLibre layer filters are translated from the same projection used by the result list
-
-Response handling:
-
-- the app expects `queryResponse.features` to contain at least one record
-- non-renderable records are dropped during Esri JSON to GeoJSON conversion
-- `featureCount` tracks the raw query response while `renderableFeatureCount` tracks the post-conversion dataset used for rendering
-- startup fails with a visible error if no record converts into the rendered point, line, or polygon buckets
-- feature titles prefer `NAME`, `TITLE`, `name`, `title`, `LABEL`, then `label`, else `Feature N`
-- subtitles prefer `STATUS`, `CATEGORY`, `status`, `category`, `TYPE`, then `type`, else a geometry summary
-
-The app renders only the geometry layers needed by the returned data:
-
-- `fill` plus outline for polygons
-- `line` for polylines
-- `circle` for points
-
-## Observability And Error Surfaces
-
-For browser smoke tests and troubleshooting, the quickstart exposes:
+The page exposes test-friendly runtime state without credentials or full query-bearing endpoint URLs:
 
 - `window.__HONUA_QUICKSTART_EVENTS__`
 - `window.__HONUA_QUICKSTART_RUNTIME__`
+- `window.__HONUA_QUICKSTART_DISPOSE__()`
 - `CustomEvent("honua:quickstart")`
 
-Expected event types:
+The browser smoke calls the disposer and verifies the map, linked bindings, popup, and exploration context are released.
 
-- `init`
-- `compatibility-ok`
-- `query-started`
-- `query-finished`
-- `map-ready`
-- `feature-selected`
-- `linked-filter-changed`
-- `linked-query-updated`
-- `error`
+## Validation
 
-Runtime state includes:
-
-- resolved `baseUrl`, `serviceId`, and `layerId`
-- compatibility `serverVersion` and `releaseChannel`
-- `featureCount`, `renderableFeatureCount`, and `geometryTypes`
-- `queryDurationMs`
-- `layerIds`, `mapReady`, `selectedFeatureId`, `popupOpen`, and `lastError`
-- `linkedVisibleFeatureCount`, `linkedFilterCount`, and `linkedExtent`
-
-Startup failures are surfaced in the overlay and the inline status panel. For common fixes, use the troubleshooting
-guide at [`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md).
-
-## Verification
+Required fixture validation is independent of a live environment:
 
 ```bash
 npm run demo:quickstart:typecheck
 npx vitest run test/quickstart-config.test.ts test/quickstart-data.test.ts test/quickstart-linked-exploration.test.ts
+npm run demo:quickstart:build
 npm run test:playwright:quickstart
 ```
 
-Live staging validation is wired separately:
+The Playwright lane verifies all five stages, evidence and plan fields, table/filter/popup linkage, keyboard selection,
+mobile layout, zero page/console errors, and explicit cleanup. Live validation remains separate:
 
 ```bash
 npm run test:quickstart:staging
 ```
 
-The staging suite expects the `HONUA_STAGING_*` environment described in
-[`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md#staging-ci-config-drift) and can
-write a JSON summary to `HONUA_QUICKSTART_STAGING_SUMMARY_FILE` for CI step reporting. It reuses
-`loadQuickstartDataset()` and validates the compatibility plus single-query contract only, so it does not start the
-browser app or fetch the basemap style.
-
-GitHub Actions coverage for this committed app is split across two workflows:
-
-- `.github/workflows/ci.yml`: runs the quickstart typecheck, build, and Playwright smoke lane on `trunk` and
-  `release/**` pushes and pull requests
-- `.github/workflows/quickstart-staging.yml`: runs the live staging integration on `trunk` and `release/**` pushes,
-  plus `workflow_dispatch`
-
-## External Follow-on
-
-Bounded child ticket outside this repo, intentionally not implemented here:
-
-- `honua-server`: expose and document a stable staging quickstart dataset for JS SDK CI, including the canonical
-  `serviceId`, `layerId`, auth policy, and non-empty geometry-bearing data contract.
+See [`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md) for compatibility and staging
+diagnostics.

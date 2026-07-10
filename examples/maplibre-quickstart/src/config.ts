@@ -1,4 +1,5 @@
 export interface QuickstartConfig {
+  mode: "fixture" | "live";
   honuaBaseUrl: string;
   apiKey?: string;
   bearerToken?: string;
@@ -7,6 +8,8 @@ export interface QuickstartConfig {
   where: string;
   resultRecordCount: number;
   basemapStyle: string;
+  dataVersion: string;
+  capturedAt?: string;
   sourceId: string;
   layerIds: {
     fill: string;
@@ -21,7 +24,8 @@ export const DEFAULT_QUICKSTART_SERVICE_ID = "natural-earth";
 export const DEFAULT_QUICKSTART_LAYER_ID = 0;
 export const DEFAULT_QUICKSTART_WHERE = "1=1";
 export const DEFAULT_QUICKSTART_RESULT_RECORD_COUNT = 25;
-const BROWSER_BEARER_TOKEN_OPT_IN = "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN";
+export const QUICKSTART_FIXTURE_DATA_VERSION = "honolulu-operations-v1";
+export const QUICKSTART_FIXTURE_CAPTURED_AT = "2026-07-01T00:00:00.000Z";
 
 function readOptional(env: Record<string, string | undefined>, key: string): string | undefined {
   const value = env[key]?.trim();
@@ -78,14 +82,17 @@ function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
-function readBrowserBearerToken(env: Record<string, string | undefined>, key: string): string | undefined {
-  const token = readOptional(env, key);
-  if (!token) return undefined;
-  if (typeof globalThis.window === "undefined" || readOptional(env, BROWSER_BEARER_TOKEN_OPT_IN) === "true") {
-    return token;
+function assertSecretFreeBrowserBaseUrl(value: string): void {
+  if (!value) return;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("The browser quickstart base URL must be a valid absolute URL.");
   }
-  console.warn(`${key} is ignored in browser demos unless ${BROWSER_BEARER_TOKEN_OPT_IN}=true is set.`);
-  return undefined;
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("The browser quickstart base URL must not contain userinfo, query parameters, or a fragment.");
+  }
 }
 
 function createQuickstartConfig({
@@ -97,6 +104,8 @@ function createQuickstartConfig({
   where,
   resultRecordCount,
   basemapStyle,
+  dataVersion,
+  capturedAt,
 }: {
   baseUrl: string;
   apiKey?: string;
@@ -106,9 +115,13 @@ function createQuickstartConfig({
   where: string;
   resultRecordCount: number;
   basemapStyle: string;
+  dataVersion: string;
+  capturedAt?: string;
 }): QuickstartConfig {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
   return {
-    honuaBaseUrl: normalizeBaseUrl(baseUrl),
+    mode: normalizedBaseUrl.length > 0 ? "live" : "fixture",
+    honuaBaseUrl: normalizedBaseUrl,
     apiKey,
     bearerToken,
     serviceId,
@@ -116,6 +129,8 @@ function createQuickstartConfig({
     where,
     resultRecordCount,
     basemapStyle,
+    dataVersion,
+    capturedAt,
     sourceId: "quickstart-features",
     layerIds: {
       fill: "quickstart-fill",
@@ -127,10 +142,15 @@ function createQuickstartConfig({
 }
 
 export function resolveQuickstartConfig(env: Record<string, string | undefined>): QuickstartConfig {
+  const baseUrl = readOptional(env, "VITE_HONUA_QUICKSTART_BASE_URL") ?? "";
+  assertSecretFreeBrowserBaseUrl(baseUrl);
+  if (readOptional(env, "VITE_HONUA_QUICKSTART_API_KEY") || readOptional(env, "VITE_HONUA_QUICKSTART_BEARER_TOKEN")) {
+    throw new Error(
+      "The browser quickstart is intentionally secret-free. Use an anonymous live endpoint or a server-side proxy.",
+    );
+  }
   return createQuickstartConfig({
-    baseUrl: readOptional(env, "VITE_HONUA_QUICKSTART_BASE_URL") ?? "",
-    apiKey: readOptional(env, "VITE_HONUA_QUICKSTART_API_KEY"),
-    bearerToken: readBrowserBearerToken(env, "VITE_HONUA_QUICKSTART_BEARER_TOKEN"),
+    baseUrl,
     serviceId: readOptional(env, "VITE_HONUA_QUICKSTART_SERVICE_ID") ?? DEFAULT_QUICKSTART_SERVICE_ID,
     layerId: readIntegerWithFallback(
       env,
@@ -146,6 +166,12 @@ export function resolveQuickstartConfig(env: Record<string, string | undefined>)
       "A quickstart result record count",
     ),
     basemapStyle: readOptional(env, "VITE_HONUA_QUICKSTART_BASEMAP_STYLE") ?? DEFAULT_QUICKSTART_BASEMAP_STYLE,
+    dataVersion:
+      readOptional(env, "VITE_HONUA_QUICKSTART_DATA_VERSION") ??
+      (baseUrl.length > 0 ? "live-unversioned" : QUICKSTART_FIXTURE_DATA_VERSION),
+    capturedAt:
+      readOptional(env, "VITE_HONUA_QUICKSTART_CAPTURED_AT") ??
+      (baseUrl.length > 0 ? undefined : QUICKSTART_FIXTURE_CAPTURED_AT),
   });
 }
 
@@ -167,5 +193,7 @@ export function resolveQuickstartStagingConfig(env: Record<string, string | unde
       "HONUA_STAGING_RESULT_RECORD_COUNT",
     ),
     basemapStyle: DEFAULT_QUICKSTART_BASEMAP_STYLE,
+    dataVersion: readOptional(env, "HONUA_STAGING_DATA_VERSION") ?? "live-unversioned",
+    capturedAt: readOptional(env, "HONUA_STAGING_CAPTURED_AT"),
   });
 }

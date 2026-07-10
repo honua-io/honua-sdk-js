@@ -12,9 +12,11 @@
     "types": ["vite/client"],
     "paths": {
       "@honua/sdk-js": ["../../src/index.ts"],
+      "@honua/sdk-js/contract": ["../../src/contract/index.ts"],
       "@honua/sdk-js/exploration": ["../../src/exploration/index.ts"],
       "@honua/sdk-js/interactions": ["../../src/interactions/index.ts"],
-      "@honua/sdk-js/honua": ["../../src/honua.ts"]
+      "@honua/sdk-js/honua": ["../../src/honua.ts"],
+      "@honua/sdk-js/query-planner": ["../../src/query-planner/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "vite.config.ts"]

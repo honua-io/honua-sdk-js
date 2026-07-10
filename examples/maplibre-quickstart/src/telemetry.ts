@@ -4,6 +4,7 @@ export interface QuickstartTelemetryEvent {
   type:
     | "init"
     | "compatibility-ok"
+    | "plan-explained"
     | "query-started"
     | "query-finished"
     | "map-ready"
@@ -16,6 +17,7 @@ export interface QuickstartTelemetryEvent {
 }
 
 export interface QuickstartRuntimeState {
+  mode?: "fixture" | "live";
   baseUrl?: string;
   serviceId?: string;
   layerId?: number;
@@ -25,6 +27,11 @@ export interface QuickstartRuntimeState {
   serverVersion?: string;
   releaseChannel?: string;
   queryDurationMs?: number;
+  sdkVersion?: string;
+  dataVersion?: string;
+  planId?: string;
+  planFingerprint?: string;
+  planPushdown?: "full" | "partial";
   mapReady?: boolean;
   selectedFeatureId?: string | null;
   lastError?: string | null;
@@ -33,12 +40,15 @@ export interface QuickstartRuntimeState {
   linkedVisibleFeatureCount?: number;
   linkedFilterCount?: number;
   linkedExtent?: string | null;
+  journeyComplete?: boolean;
+  disposed?: boolean;
 }
 
 declare global {
   interface Window {
     __HONUA_QUICKSTART_EVENTS__?: QuickstartTelemetryEvent[];
     __HONUA_QUICKSTART_RUNTIME__?: QuickstartRuntimeState;
+    __HONUA_QUICKSTART_DISPOSE__?: () => void;
   }
 }
 

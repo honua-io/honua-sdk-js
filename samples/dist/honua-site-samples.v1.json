@@ -513,8 +513,8 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "MapLibre quickstart",
-      "summary": "Queries a feature service and connects map, table, filters, and popup inspection.",
+      "title": "Honua × MapLibre flagship workflow",
+      "summary": "Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence.",
       "tier": "flagship",
       "supportStatus": "supported",
       "source": {
@@ -527,8 +527,11 @@
         "version": "0.1.0-beta.0"
       },
       "capabilities": [
+        "discovery",
+        "explain-plan",
         "linked-views",
         "map",
+        "provenance",
         "query"
       ],
       "protocols": [
@@ -540,10 +543,10 @@
       ],
       "data": {
         "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed quickstart fixture or configured Honua service.",
-        "attribution": "Service attribution shown in the map runtime.",
-        "freshness": "Fixture capture metadata or live result observation time."
+        "authMode": "anonymous",
+        "provenance": "Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.",
+        "attribution": "Source attribution and protocol identity are shown beside the map.",
+        "freshness": "Fixture capture time and data version, or live response observation time."
       },
       "lanes": {
         "fixture": {
@@ -553,7 +556,7 @@
           "status": "planned"
         }
       },
-      "expectedDegradation": "Fixture fallback and capability misses are shown in diagnostics."
+      "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
     },
     {
       "id": "planning-permitting-workbench",

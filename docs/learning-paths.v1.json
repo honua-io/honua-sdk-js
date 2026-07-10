@@ -87,19 +87,21 @@
     },
     {
       "id": "map-style",
-      "title": "Map and style query results",
-      "outcome": "Bind queried features to MapLibre with selection, popup, filter, and style behavior.",
-      "labels": ["fixture", "demo-live", "authenticated"],
+      "title": "Connect, explain, and map query results",
+      "outcome": "Connect, discover, explain, query, and mount one source with linked MapLibre views and visible runtime evidence.",
+      "labels": ["fixture", "demo-live", "experimental"],
       "siteJourneyId": "query-map-style",
-      "guidePath": "docs/maplibre-runtime.md",
+      "guidePath": "docs/quickstart.md",
       "sampleId": "maplibre-quickstart",
       "sourcePath": "examples/maplibre-quickstart",
       "sourceEntry": "examples/maplibre-quickstart/src/main.ts",
       "docsPath": "examples/maplibre-quickstart/README.md",
       "typecheckScript": "demo:quickstart:typecheck",
       "api": [
-        { "specifier": "@honua/sdk-js/map", "symbols": ["HonuaMap"] },
-        { "specifier": "@honua/sdk-js/style", "symbols": ["validateHonuaStyle"] }
+        { "specifier": "@honua/sdk-js/contract", "symbols": ["createDataset"] },
+        { "specifier": "@honua/sdk-js/exploration", "symbols": ["createExplorationContext"] },
+        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaClient"] },
+        { "specifier": "@honua/sdk-js/query-planner", "symbols": ["executeQueryPlan", "explainQuery"] }
       ]
     },
     {

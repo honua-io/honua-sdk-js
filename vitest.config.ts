@@ -85,6 +85,10 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/contract/index.ts"),
       },
       {
+        find: "@honua/sdk-js/query-planner",
+        replacement: path.resolve(import.meta.dirname, "src/query-planner/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/controls",
         replacement: path.resolve(import.meta.dirname, "src/controls/index.ts"),
       },
