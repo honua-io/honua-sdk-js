@@ -123,6 +123,12 @@ const TARGETS = [
     entry: "scripts/bundle-size-fixtures/tree-shake-geometry-buffer.mjs",
     label: "tree-shake guard (`{ buffer }` from `/geometry`, turf bundled)",
   },
+  {
+    key: "tree-shake:map-source-workflow",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-map-source-workflow.mjs",
+    label: "tree-shake guard (`{ mountSourceToMapLibre }` from `/map`)",
+  },
 ];
 
 function loadBudgets() {
