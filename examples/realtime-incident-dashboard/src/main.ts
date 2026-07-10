@@ -585,6 +585,21 @@ function renderEditReceipt(receipt: IncidentEditReceipt): string {
   return `${statusLabel(receipt.outcome)}: ${receipt.reason}${revision}`;
 }
 
+function neutralizeRuntimeActions(runtime: IncidentRuntime): void {
+  runtime.step = () => null;
+  runtime.reconnect = () => undefined;
+  runtime.resume = () => undefined;
+  runtime.markStale = () => undefined;
+  runtime.refresh = () => undefined;
+  runtime.stageEdit = () => null;
+  runtime.submitEdit = () => null;
+  runtime.repeatEdit = () => null;
+  runtime.simulateConflict = () => undefined;
+  runtime.resetEdit = () => null;
+  runtime.duplicateLast = () => undefined;
+  runtime.staleCursor = () => undefined;
+}
+
 async function bootstrap(): Promise<void> {
   const overlay = getElement<HTMLElement>("#map-overlay");
   const severityFilter = getElement<HTMLSelectElement>("#severity-filter");
@@ -640,6 +655,7 @@ async function bootstrap(): Promise<void> {
   const lifecycle = createIncidentLifecycle();
   const dispose = () => {
     lifecycle.dispose();
+    neutralizeRuntimeActions(runtime);
     runtime.ready = false;
     runtime.mapReady = false;
     runtime.disposed = true;
@@ -887,37 +903,64 @@ async function bootstrap(): Promise<void> {
       }),
     );
 
-    severityFilter.addEventListener("change", () => {
-      setFieldFilter(filterControls, "severity", "severity", severityFilter.value);
-    });
-    statusFilter.addEventListener("change", () => {
-      setFieldFilter(filterControls, "status", "status", statusFilter.value);
-    });
-    typeFilter.addEventListener("change", () => {
-      setFieldFilter(filterControls, "type", "type", typeFilter.value);
-    });
-    stepButton.addEventListener("click", () => {
-      const step = incidentTransport.controls.step();
-      runtime.lastStep = step?.label ?? null;
-      setText("#last-scenario-step", step ? step.label : "No live step");
-    });
-    reconnectButton.addEventListener("click", () => incidentTransport.controls.reconnect());
-    resumeButton.addEventListener("click", () => incidentTransport.controls.resume());
-    staleButton.addEventListener("click", () => {
-      const lastLiveAt = store.state.lastHeartbeatAt ?? store.state.lastEventAt ?? Date.now();
-      store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });
-    });
-    refreshButton.addEventListener("click", () => incidentTransport.controls.refresh());
-    duplicateButton.addEventListener("click", () => incidentTransport.controls.duplicateLast());
-    staleCursorButton.addEventListener("click", () => incidentTransport.controls.staleCursor());
-    stageEditButton.addEventListener("click", () => stageEdit());
-    submitEditButton.addEventListener("click", () => submitEdit());
-    repeatEditButton.addEventListener("click", () => repeatEdit());
-    simulateConflictButton.addEventListener("click", () => {
-      incidentTransport.controls.simulateConcurrentUpdate();
-      setText("#edit-outcome", "Concurrent update published. Submit the staged edit to observe a revision conflict.");
-    });
-    resetEditButton.addEventListener("click", () => resetEdit());
+    const controlListeners = new AbortController();
+    lifecycle.own(() => controlListeners.abort());
+    const controlListenerOptions = { signal: controlListeners.signal };
+    severityFilter.addEventListener(
+      "change",
+      () => {
+        setFieldFilter(filterControls, "severity", "severity", severityFilter.value);
+      },
+      controlListenerOptions,
+    );
+    statusFilter.addEventListener(
+      "change",
+      () => {
+        setFieldFilter(filterControls, "status", "status", statusFilter.value);
+      },
+      controlListenerOptions,
+    );
+    typeFilter.addEventListener(
+      "change",
+      () => {
+        setFieldFilter(filterControls, "type", "type", typeFilter.value);
+      },
+      controlListenerOptions,
+    );
+    stepButton.addEventListener(
+      "click",
+      () => {
+        const step = incidentTransport.controls.step();
+        runtime.lastStep = step?.label ?? null;
+        setText("#last-scenario-step", step ? step.label : "No live step");
+      },
+      controlListenerOptions,
+    );
+    reconnectButton.addEventListener("click", () => incidentTransport.controls.reconnect(), controlListenerOptions);
+    resumeButton.addEventListener("click", () => incidentTransport.controls.resume(), controlListenerOptions);
+    staleButton.addEventListener(
+      "click",
+      () => {
+        const lastLiveAt = store.state.lastHeartbeatAt ?? store.state.lastEventAt ?? Date.now();
+        store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });
+      },
+      controlListenerOptions,
+    );
+    refreshButton.addEventListener("click", () => incidentTransport.controls.refresh(), controlListenerOptions);
+    duplicateButton.addEventListener("click", () => incidentTransport.controls.duplicateLast(), controlListenerOptions);
+    staleCursorButton.addEventListener("click", () => incidentTransport.controls.staleCursor(), controlListenerOptions);
+    stageEditButton.addEventListener("click", () => stageEdit(), controlListenerOptions);
+    submitEditButton.addEventListener("click", () => submitEdit(), controlListenerOptions);
+    repeatEditButton.addEventListener("click", () => repeatEdit(), controlListenerOptions);
+    simulateConflictButton.addEventListener(
+      "click",
+      () => {
+        incidentTransport.controls.simulateConcurrentUpdate();
+        setText("#edit-outcome", "Concurrent update published. Submit the staged edit to observe a revision conflict.");
+      },
+      controlListenerOptions,
+    );
+    resetEditButton.addEventListener("click", () => resetEdit(), controlListenerOptions);
 
     const scenarioControlsEnabled = lane !== "live";
     for (const button of [

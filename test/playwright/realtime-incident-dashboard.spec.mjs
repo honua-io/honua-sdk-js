@@ -120,9 +120,19 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
 
+    const lastStepBeforeDispose = await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.lastStep);
     await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.dispose());
     await expect.poll(async () => page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.disposed)).toBe(true);
     await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
+    await page.getByRole("button", { name: "Step Event" }).click();
+    expect(
+      await page.evaluate(() => ({
+        lastStep: window.__HONUA_INCIDENT_RUNTIME__?.lastStep,
+        runtimeStep: window.__HONUA_INCIDENT_RUNTIME__?.step(),
+      })),
+    ).toEqual({ lastStep: lastStepBeforeDispose, runtimeStep: null });
+    expect(pageErrors).toEqual([]);
+    expect(consoleErrors).toEqual([]);
   } finally {
     await fixtureServer.close();
   }
