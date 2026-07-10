@@ -10,10 +10,11 @@ export async function safeAgentProposal(host: AgentHost): Promise<ExecutionRecei
     policy: { allow: ["data:read", "map:write"], deny: ["data:write", "publish"] },
   });
   const preview = await proposal.dryRun();
-  if (false) {
+  const executeWithoutApproval = async (): Promise<ExecutionReceipt> => {
     // @ts-expect-error Agent proposals require a host-issued, plan-bound approval grant.
-    await proposal.execute();
-  }
+    return proposal.execute();
+  };
+  void executeWithoutApproval;
   const approval = preview.allowed ? await host.requestApproval(proposal.approval) : undefined;
   const result = approval ? await proposal.execute({ approval }) : undefined;
   await honua.dispose();
