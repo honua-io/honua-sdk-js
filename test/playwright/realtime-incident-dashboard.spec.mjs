@@ -83,7 +83,10 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await expect(page.locator("#detail-title")).toHaveText("No selected incident");
     await expect(page.locator("#stream-tombstones")).toHaveText("1");
 
-    await expect(page.getByRole("button", { name: "Open Harbor fuel sheen" })).toBeEnabled();
+    await expect(
+      page.getByRole("button", { name: "Open Harbor fuel sheen, Critical severity, Monitoring status", exact: true }),
+    ).toBeEnabled();
+    await expect(page.locator("#incident-list")).toContainText("Critical severity");
 
     await page.getByRole("button", { name: "Mark Stale" }).click();
     await expect(page.locator("#connection-status")).toHaveText("Stale");

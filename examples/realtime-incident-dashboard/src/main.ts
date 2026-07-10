@@ -33,6 +33,7 @@ import {
   reconcileIncidentDiagnostics,
 } from "./diagnostics.js";
 import { HONOLULU_CENTER, INCIDENT_LAYER_ID, INCIDENT_SOURCE_ID, INITIAL_INCIDENTS } from "./fixtures.js";
+import { type IncidentMapLoadTarget, createIncidentLifecycle, initializeIncidentMap } from "./lifecycle.js";
 import {
   INCIDENT_METADATA_CACHE_STATE,
   type IncidentLiveStateAuthority,
@@ -41,6 +42,7 @@ import {
   formatIncidentFeatureProvenance,
   formatIncidentMetadataCacheState,
 } from "./live-state.js";
+import { formatIncidentAccessibleName, presentIncidentConnection } from "./presentation.js";
 import {
   applyIncidentProjection,
   createIncidentLayerFilter,
@@ -191,80 +193,62 @@ async function createMap(): Promise<MapHandle> {
     zoom: 11,
   });
 
-  return await new Promise((resolve, reject) => {
-    const onLoad = () => {
-      try {
-        map.addSource(INCIDENT_SOURCE_ID, {
-          type: "geojson",
-          data: incidentFeatureCollection(INITIAL_INCIDENTS) as never,
-        });
-        map.addLayer({
-          id: INCIDENT_LAYER_ID,
-          source: INCIDENT_SOURCE_ID,
-          type: "circle",
-          filter: ["==", "$type", "Point"],
-          paint: {
-            "circle-radius": [
-              "case",
-              ["boolean", ["feature-state", "selected"], false],
-              12,
-              ["interpolate", ["linear"], ["get", "affectedAssets"], 0, 7, 18, 13],
-            ],
-            "circle-color": [
-              "match",
-              ["get", "severity"],
-              "critical",
-              "#b91c1c",
-              "high",
-              "#d97706",
-              "medium",
-              "#2563eb",
-              "#0f766e",
-            ],
-            "circle-opacity": ["case", ["==", ["get", "status"], "resolved"], 0.45, 0.92],
-            "circle-stroke-color": ["case", ["boolean", ["feature-state", "selected"], false], "#0f172a", "#ffffff"],
-            "circle-stroke-width": ["case", ["boolean", ["feature-state", "selected"], false], 4, 2],
-          },
-        });
-        map.addLayer({
-          id: `${INCIDENT_LAYER_ID}-labels`,
-          source: INCIDENT_SOURCE_ID,
-          type: "symbol",
-          filter: ["==", "$type", "Point"],
-          layout: {
-            "text-field": ["get", "id"],
-            "text-size": 11,
-            "text-offset": [0, 1.5],
-            "text-anchor": "top",
-          },
-          paint: {
-            "text-color": "#0f172a",
-            "text-halo-color": "#ffffff",
-            "text-halo-width": 1.2,
-          },
-        });
-        map.fitBounds(incidentBounds(INITIAL_INCIDENTS), {
-          padding: 92,
-          duration: 0,
-          maxZoom: 12,
-        });
-        cleanup();
-        resolve({ map, layerIds: [INCIDENT_LAYER_ID, `${INCIDENT_LAYER_ID}-labels`] });
-      } catch (error) {
-        cleanup();
-        reject(error);
-      }
-    };
-    const onError = (event: { error?: { message?: string } }) => {
-      cleanup();
-      reject(new Error(event.error?.message ?? "Map failed to load"));
-    };
-    const cleanup = () => {
-      map.off("load", onLoad);
-      map.off("error", onError);
-    };
-    map.on("load", onLoad);
-    map.on("error", onError);
+  return await initializeIncidentMap(map as unknown as IncidentMapLoadTarget, () => {
+    map.addSource(INCIDENT_SOURCE_ID, {
+      type: "geojson",
+      data: incidentFeatureCollection(INITIAL_INCIDENTS) as never,
+    });
+    map.addLayer({
+      id: INCIDENT_LAYER_ID,
+      source: INCIDENT_SOURCE_ID,
+      type: "circle",
+      filter: ["==", "$type", "Point"],
+      paint: {
+        "circle-radius": [
+          "case",
+          ["boolean", ["feature-state", "selected"], false],
+          12,
+          ["interpolate", ["linear"], ["get", "affectedAssets"], 0, 7, 18, 13],
+        ],
+        "circle-color": [
+          "match",
+          ["get", "severity"],
+          "critical",
+          "#b91c1c",
+          "high",
+          "#d97706",
+          "medium",
+          "#2563eb",
+          "#0f766e",
+        ],
+        "circle-opacity": ["case", ["==", ["get", "status"], "resolved"], 0.45, 0.92],
+        "circle-stroke-color": ["case", ["boolean", ["feature-state", "selected"], false], "#0f172a", "#ffffff"],
+        "circle-stroke-width": ["case", ["boolean", ["feature-state", "selected"], false], 4, 2],
+      },
+    });
+    map.addLayer({
+      id: `${INCIDENT_LAYER_ID}-labels`,
+      source: INCIDENT_SOURCE_ID,
+      type: "symbol",
+      filter: ["==", "$type", "Point"],
+      layout: {
+        "text-field": ["get", "id"],
+        "text-size": 11,
+        "text-offset": [0, 1.5],
+        "text-anchor": "top",
+      },
+      paint: {
+        "text-color": "#0f172a",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.2,
+      },
+    });
+    map.fitBounds(incidentBounds(INITIAL_INCIDENTS), {
+      padding: 92,
+      duration: 0,
+      maxZoom: 12,
+    });
+    return { map, layerIds: [INCIDENT_LAYER_ID, `${INCIDENT_LAYER_ID}-labels`] };
   });
 }
 
@@ -277,7 +261,10 @@ function renderConnection(
   state: RealtimeFeatureState<IncidentFeature>,
   authority: IncidentLiveStateAuthority,
   diagnostics: IncidentRealtimeDiagnostics,
+  lane: "live" | "replay" | "fixture-edit",
+  fallbackReason: string | undefined,
 ): void {
+  renderExecutionState(lane, state.status, authority.authoritative, fallbackReason);
   const badge = getElement<HTMLElement>("#connection-status");
   badge.dataset.status = state.status;
   badge.textContent = statusLabel(state.status);
@@ -380,6 +367,7 @@ function renderIncidentList(
         <span class="severity-dot" data-severity="${escapeHtml(incident.severity)}"></span>
         <div>
           <h3>${escapeHtml(incident.title)}</h3>
+          <span class="severity-label">${escapeHtml(statusLabel(incident.severity))} severity</span>
           <p>${escapeHtml(incident.id)} / ${escapeHtml(incident.type)} / ${escapeHtml(incident.assignedTo)}</p>
         </div>
       </div>
@@ -394,7 +382,7 @@ function renderIncidentList(
     button.className = "row-select-button";
     button.textContent = "Open";
     button.dataset.testid = `select-${incident.id}`;
-    button.setAttribute("aria-label", `Open ${incident.title}`);
+    button.setAttribute("aria-label", formatIncidentAccessibleName(incident));
     button.title = authority.actionsEnabled ? `Open ${incident.title}` : `Open read-only detail. ${authority.reason}`;
     button.addEventListener("click", () => onSelect(incident));
     row.append(button);
@@ -556,20 +544,21 @@ function setFieldFilter(
   });
 }
 
-function renderExecutionLane(lane: "live" | "replay" | "fixture-edit", fallbackReason: string | undefined): void {
+function renderExecutionState(
+  lane: "live" | "replay" | "fixture-edit",
+  status: RealtimeFeatureState<IncidentFeature>["status"],
+  authoritative: boolean,
+  fallbackReason: string | undefined,
+): void {
+  const presentation = presentIncidentConnection(lane, status, authoritative, fallbackReason);
   const badge = getElement<HTMLElement>("#data-lane");
   badge.dataset.lane = lane;
-  badge.textContent =
-    lane === "live" ? "Live authoritative" : lane === "fixture-edit" ? "Isolated fixture lab" : "Replay fallback";
-  setText(
-    "#execution-disclosure",
-    lane === "live"
-      ? "Connected to the deployed realtime source. Live observations are authoritative."
-      : lane === "fixture-edit"
-        ? "Deterministic isolated stream/edit lab. This is fixture evidence, never a live-data claim."
-        : "Live was preferred but is unavailable. Scripted replay is visibly read-only.",
-  );
+  badge.textContent = presentation.laneLabel;
+  setText("#execution-disclosure", presentation.disclosure);
   setText("#fallback-reason", fallbackReason ?? "");
+  const overlay = getElement<HTMLElement>("#map-overlay");
+  overlay.dataset.state = presentation.overlayState;
+  overlay.textContent = presentation.overlay;
 }
 
 function authorityForLane(
@@ -648,36 +637,57 @@ async function bootstrap(): Promise<void> {
     dispose: () => undefined,
   };
   window.__HONUA_INCIDENT_RUNTIME__ = runtime;
+  const lifecycle = createIncidentLifecycle();
+  const dispose = () => {
+    lifecycle.dispose();
+    runtime.ready = false;
+    runtime.mapReady = false;
+    runtime.disposed = true;
+  };
+  const onBeforeUnload = () => dispose();
+  runtime.dispose = dispose;
+  window.addEventListener("beforeunload", onBeforeUnload, { once: true });
+  lifecycle.own(() => window.removeEventListener("beforeunload", onBeforeUnload));
 
   try {
     const resolvedTransportConfig = await resolveIncidentTransportConfig(readIncidentTransportConfig());
     const { map, layerIds } = await createMap();
+    lifecycle.own(() => map.remove());
     const store = createRealtimeFeatureStore<IncidentFeature>();
+    lifecycle.own(() => store.close());
     const incidentTransport = createIncidentDashboardTransport(resolvedTransportConfig);
     const lane = incidentTransport.controls.mode;
     let diagnostics = initialIncidentRealtimeDiagnostics(lane);
-    renderExecutionLane(lane, incidentTransport.controls.fallbackReason);
     runtime.lane = lane;
     const context = createExplorationContext({
       datasetId: "honua-cloud-incident-operations",
       sourceIds: [INCIDENT_SOURCE_ID],
       preset: "globalLinked",
     });
+    lifecycle.own(() => context.dispose());
     const mapView = context.connectView({ id: "incident-map", role: "map" });
     const tableView = context.connectView({ id: "incident-table", role: "grid" });
     const filterView = context.connectView({ id: "incident-filters", role: "filter" });
     const detailView = context.connectView({ id: "incident-detail", role: "detail" });
     const filterControls = bindFilterControlsToExploration(filterView);
     const tableSelection = bindTableSelectionToExploration(tableView);
-    const removableHandles = [
-      syncFeatureStateSelection(map as unknown as FeatureStateMap, mapView, { source: INCIDENT_SOURCE_ID }),
+    const ownRemovable = <T extends { remove(): void }>(handle: T): T => {
+      lifecycle.own(() => handle.remove());
+      return handle;
+    };
+    ownRemovable(syncFeatureStateSelection(map as unknown as FeatureStateMap, mapView, { source: INCIDENT_SOURCE_ID }));
+    ownRemovable(
       bindMapSelectionToExploration(map as unknown as InteractiveMap, mapView, {
         source: INCIDENT_SOURCE_ID,
         layer: INCIDENT_LAYER_ID,
       }),
+    );
+    ownRemovable(
       bindMapExtentToExploration(mapView, createMapExtentSource(map), {
         publishSpatialFilter: true,
       }),
+    );
+    ownRemovable(
       syncMapLayerFilterToExploration(
         {
           setFilter(layerId, filter) {
@@ -690,6 +700,8 @@ async function bootstrap(): Promise<void> {
           translate: createIncidentLayerFilter,
         },
       ),
+    );
+    ownRemovable(
       syncMapLayerFilterToExploration(
         {
           setFilter(layerId, filter) {
@@ -702,11 +714,11 @@ async function bootstrap(): Promise<void> {
           translate: createIncidentLayerFilter,
         },
       ),
-    ];
-    const unsubscribeHandles: Array<() => void> = [];
+    );
     let latestProjection: LinkedViewQueryProjection | undefined;
     let selectedIncidentId: string | undefined;
     let activePopup: maplibregl.Popup | undefined;
+    lifecycle.own(() => activePopup?.remove());
     let latestAuthority = authorityForLane(store.state, lane);
     let latestMutationGuard: IncidentMutationGuard = {
       enabled: false,
@@ -838,33 +850,37 @@ async function bootstrap(): Promise<void> {
       }
     }
 
-    store.subscribe(
-      (state, event) => {
-        diagnostics = reconcileIncidentDiagnostics(diagnostics, state, event);
-        latestAuthority = authorityForLane(state, lane);
-        renderConnection(state, latestAuthority, diagnostics);
-        updateMapSource(map, state);
-        pushEventLog(event);
-        renderEventLog();
-        reconcileRealtimeSelection(tableView, state, { requireLiveRecord: false });
-        runtime.status = state.status;
-        runtime.cursor = state.cursor ?? null;
-        runtime.authoritative = latestAuthority.authoritative;
-        runtime.featureProvenance = formatIncidentFeatureProvenance(latestAuthority.featureProvenance);
-        runtime.metadataCacheStatus = formatIncidentMetadataCacheState(latestAuthority.metadataCache);
-        runtime.ignoredEventCount = diagnostics.ignoredEventCount;
-        runtime.reconciliationOutcome = diagnostics.reconciliationOutcome;
-        runtime.reconnectOutcome = diagnostics.reconnectOutcome;
-        if (latestProjection) renderProjectedIncidents(latestProjection);
-        renderSelectedIncident(selectedIncidentId);
-      },
-      { fireImmediately: true },
+    lifecycle.own(
+      store.subscribe(
+        (state, event) => {
+          diagnostics = reconcileIncidentDiagnostics(diagnostics, state, event);
+          latestAuthority = authorityForLane(state, lane);
+          renderConnection(state, latestAuthority, diagnostics, lane, incidentTransport.controls.fallbackReason);
+          updateMapSource(map, state);
+          pushEventLog(event);
+          renderEventLog();
+          reconcileRealtimeSelection(tableView, state, { requireLiveRecord: false });
+          runtime.status = state.status;
+          runtime.cursor = state.cursor ?? null;
+          runtime.authoritative = latestAuthority.authoritative;
+          runtime.featureProvenance = formatIncidentFeatureProvenance(latestAuthority.featureProvenance);
+          runtime.metadataCacheStatus = formatIncidentMetadataCacheState(latestAuthority.metadataCache);
+          runtime.ignoredEventCount = diagnostics.ignoredEventCount;
+          runtime.reconciliationOutcome = diagnostics.reconciliationOutcome;
+          runtime.reconnectOutcome = diagnostics.reconnectOutcome;
+          if (latestProjection) renderProjectedIncidents(latestProjection);
+          renderSelectedIncident(selectedIncidentId);
+        },
+        { fireImmediately: true },
+      ),
     );
 
-    unsubscribeHandles.push(
+    lifecycle.own(
       bindDetailToSelection(detailView, (selection) => {
         renderSelectedIncident(readSelectedIncidentId(selection));
       }),
+    );
+    lifecycle.own(
       bindQueryProjectionToExploration(tableView, renderProjectedIncidents, {
         includeSelf: true,
         sourceId: INCIDENT_SOURCE_ID,
@@ -954,42 +970,15 @@ async function bootstrap(): Promise<void> {
     tableSelection.select([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, SAFE_DEMO_INCIDENT_ID)], {
       replace: true,
     });
-    overlay.dataset.state = "ready";
-    overlay.textContent =
-      lane === "live"
-        ? "Live incident stream connected"
-        : lane === "fixture-edit"
-          ? "Isolated fixture stream/edit lab"
-          : "Read-only replay fallback";
     runtime.ready = true;
     runtime.mapReady = true;
-
-    let disposed = false;
-    const dispose = () => {
-      if (disposed) return;
-      disposed = true;
-      for (const unsubscribe of unsubscribeHandles) unsubscribe();
-      for (const handle of removableHandles) handle.remove();
-      context.dispose();
-      store.close();
-      activePopup?.remove();
-      map.remove();
-      runtime.ready = false;
-      runtime.mapReady = false;
-      runtime.disposed = true;
-    };
-    runtime.dispose = dispose;
-    window.addEventListener("beforeunload", dispose, { once: true });
   } catch (error) {
+    dispose();
     const message = error instanceof Error ? error.message : String(error);
     overlay.dataset.state = "error";
     overlay.textContent = message;
     setText("#connection-status", "Error");
-    window.__HONUA_INCIDENT_RUNTIME__ = {
-      ...runtime,
-      ready: false,
-      status: "error",
-    };
+    runtime.status = "error";
   }
 }
 

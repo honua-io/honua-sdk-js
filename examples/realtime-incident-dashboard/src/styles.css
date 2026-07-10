@@ -397,6 +397,14 @@ input {
   line-height: 1.35;
 }
 
+.severity-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .severity-dot {
   width: 0.8rem;
   height: 0.8rem;

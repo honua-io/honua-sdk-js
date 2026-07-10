@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   INCIDENT_LAYER_ID,
@@ -6,10 +6,19 @@ import {
   INITIAL_INCIDENTS,
 } from "../examples/realtime-incident-dashboard/src/fixtures.js";
 import {
+  type IncidentMapLoadErrorEvent,
+  createIncidentLifecycle,
+  initializeIncidentMap,
+} from "../examples/realtime-incident-dashboard/src/lifecycle.js";
+import {
   INCIDENT_METADATA_CACHE_STATE,
   evaluateIncidentLiveStateAuthority,
   formatIncidentMetadataCacheState,
 } from "../examples/realtime-incident-dashboard/src/live-state.js";
+import {
+  formatIncidentAccessibleName,
+  presentIncidentConnection,
+} from "../examples/realtime-incident-dashboard/src/presentation.js";
 import { applyIncidentProjection, incidentRecords } from "../examples/realtime-incident-dashboard/src/projection.js";
 import { createFixtureIncidentTransport } from "../examples/realtime-incident-dashboard/src/realtime-fixture.js";
 import {
@@ -36,6 +45,98 @@ import {
   reconcileRealtimeSelection,
   reduceRealtimeFeatureState,
 } from "../src/realtime/index.js";
+
+describe("realtime incident dashboard presentation", () => {
+  it("does not claim live authority while connecting, reconnecting, or failed", () => {
+    const connecting = presentIncidentConnection("live", "connecting", false);
+    expect(connecting).toMatchObject({ laneLabel: "Live source selected", overlayState: "loading" });
+    expect(connecting.disclosure).toMatch(/read-only and non-authoritative/i);
+    expect(`${connecting.disclosure} ${connecting.overlay}`).not.toMatch(/connected/i);
+
+    const reconnecting = presentIncidentConnection("live", "reconnecting", false);
+    expect(reconnecting).toMatchObject({ laneLabel: "Live source reconnecting", overlayState: "degraded" });
+    expect(`${reconnecting.disclosure} ${reconnecting.overlay}`).toMatch(/read-only and non-authoritative/i);
+
+    const failed = presentIncidentConnection("live", "error", false);
+    expect(failed).toMatchObject({ laneLabel: "Live source error", overlayState: "error" });
+    expect(failed.disclosure).toMatch(/read-only and non-authoritative/i);
+  });
+
+  it("claims authority only for an open authoritative source and always labels replay read-only", () => {
+    expect(presentIncidentConnection("live", "live", true)).toMatchObject({
+      laneLabel: "Live authoritative",
+      overlayState: "ready",
+    });
+    expect(presentIncidentConnection("live", "live", false)).toMatchObject({
+      laneLabel: "Live source unverified",
+      overlayState: "degraded",
+    });
+
+    const replay = presentIncidentConnection("replay", "live", true, "Streaming is unavailable.");
+    expect(replay).toMatchObject({ laneLabel: "Replay fallback", overlayState: "degraded" });
+    expect(`${replay.disclosure} ${replay.overlay}`).toMatch(/read-only/i);
+  });
+
+  it("includes severity and status in each queue action's accessible name", () => {
+    expect(formatIncidentAccessibleName(INITIAL_INCIDENTS[0])).toBe(
+      "Open Harbor fuel sheen, Critical severity, Open status",
+    );
+  });
+});
+
+describe("realtime incident dashboard lifecycle", () => {
+  it("cleans every incrementally owned resource once even if one cleanup fails", () => {
+    const lifecycle = createIncidentLifecycle();
+    const mapRemove = vi.fn();
+    const storeClose = vi.fn(() => {
+      throw new Error("close failed");
+    });
+    const unsubscribe = vi.fn();
+    lifecycle.own(mapRemove);
+    lifecycle.own(storeClose);
+    lifecycle.own(unsubscribe);
+
+    expect(lifecycle.dispose()).toHaveLength(1);
+    expect(lifecycle.disposed).toBe(true);
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(storeClose).toHaveBeenCalledOnce();
+    expect(mapRemove).toHaveBeenCalledOnce();
+    expect(lifecycle.dispose()).toEqual([]);
+  });
+
+  it.each(["initializer", "style"] as const)(
+    "removes the partial map and load listeners after a %s failure",
+    async (failure) => {
+      let loadListener: (() => void) | undefined;
+      let errorListener: ((event: IncidentMapLoadErrorEvent) => void) | undefined;
+      const off = vi.fn();
+      const remove = vi.fn();
+      const map = {
+        on(type: "load" | "error", listener: (() => void) | ((event: IncidentMapLoadErrorEvent) => void)) {
+          if (type === "load") loadListener = listener as () => void;
+          else errorListener = listener as (event: IncidentMapLoadErrorEvent) => void;
+        },
+        off,
+        remove,
+      };
+      const initialization = initializeIncidentMap(map, () => {
+        if (failure === "initializer") throw new Error("layer initialization failed");
+        return "ready";
+      });
+
+      if (failure === "initializer") loadListener?.();
+      else errorListener?.({ error: { message: "style failed" } });
+
+      await expect(initialization).rejects.toThrow(
+        failure === "initializer" ? "layer initialization failed" : "style failed",
+      );
+      expect(remove).toHaveBeenCalledOnce();
+      expect(off).toHaveBeenCalledTimes(2);
+      expect(off).toHaveBeenCalledWith("load", loadListener);
+      expect(off).toHaveBeenCalledWith("error", errorListener);
+    },
+  );
+});
 
 describe("realtime incident dashboard fixture", () => {
   it("prefers deployed live streaming and falls back to visibly labeled replay", async () => {
