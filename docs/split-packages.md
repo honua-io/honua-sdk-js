@@ -10,7 +10,7 @@ subset of the surface.
 
 | Package | Subpath equivalent | What it contains |
 |---------|--------------------|------------------|
-| `@honua/sdk` | `@honua/sdk-js/honua` + most stable subpaths | Core client and shared contract |
+| `@honua/sdk` | `@honua/sdk-js/honua` + most stable subpaths | Core client, shared contract, query planner, and plan-bound MapLibre adapter |
 | `@honua/sdk-esri-compat` | `@honua/sdk-js/esri-compat` | Esri ArcGIS JS compatibility layer (incl. the `geometryEngine` shim) |
 | `@honua/honua-migrate` | `@honua/sdk-js/migration` | Codemod runner + migration scanner |
 | `@honua/react` | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers) |

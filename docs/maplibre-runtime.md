@@ -18,6 +18,52 @@ writes, or duplicate query logic — `maplibre-gl` stays a peer
 dependency, edits flow through the existing adapters, and queries go
 through the contract's `Source` handles.
 
+## Accepted plan to native GeoJSON
+
+`@honua/sdk-js/map` includes the first production slice of the automatic
+source-to-map workflow. It executes an already-accepted query plan against a
+canonical `Source`, projects the result to a native MapLibre GeoJSON source,
+generates geometry-aware default layers, and owns refresh/disposal without
+importing `maplibre-gl`:
+
+```ts
+import { mountSourceToMapLibre } from "@honua/sdk-js/map";
+import { explainQuery } from "@honua/sdk-js/query-planner";
+
+const plan = explainQuery({ descriptor: parcels.descriptor, query: { pagination: { limit: 5_000 }, outSr: 4326 } });
+const mounted = await mountSourceToMapLibre(map, parcels, plan);
+console.table(mounted.diagnostics);
+await mounted.refresh();
+mounted.dispose();
+```
+
+The mount is peer-injected and therefore safe to import in browser, SSR, Node,
+and worker builds. `executeQueryPlan` verifies the accepted fingerprint and
+source context before querying. The adapter then:
+
+- selects the exact `geojson-query` strategy and records plan fingerprint,
+  source/schema versions, authorization scope, attribution, and strategy on the
+  projection;
+- promotes the descriptor primary key to MapLibre feature identity;
+- emits point, line, and polygon layers with stable ids and default paint,
+  including filtered layers for mixed-geometry results;
+- reports empty, mixed, and unsupported-geometry states through stable
+  machine-readable diagnostics rather than hiding fidelity loss;
+- rejects descriptor/runtime capability drift, aggregate or attribute-only
+  plans, existing source/layer ids, invalid clustering, stale plan context, and
+  renderer mutation failures with typed errors;
+- treats invalid, missing, and explicitly mismatched geometry as visible
+  degraded diagnostics rather than an exact-ready map;
+- rolls back partial source/layer mutation (including renderers that mutate and
+  then throw), serializes refreshes through `setData`, cancels in-flight work,
+  and disposes its layers/source idempotently.
+
+This is intentionally not the whole #390 strategy matrix. Automatic vector or
+raster tiles, PMTiles, WMS/WMTS, dynamic query tiles, owned Map construction,
+labels/popups/selection, edits, and realtime subscriptions remain on their
+existing lower-level APIs until later slices can bind them to the same accepted
+plan and lifecycle contract without ambiguous fallback.
+
 ## Module layout
 
 ```

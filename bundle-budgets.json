@@ -17,7 +17,8 @@
     "'tree-shake:HonuaClient' is a deep-import-hygiene guard: a fixture importing ONLY",
     "{ HonuaClient } from the root entry must stay under its ceiling, proving a single",
     "symbol does not drag the whole SDK into a consumer bundle.",
-    "/react and /geometry landed with the adoption-wave-1 bundle (issues #349/#351). /esri-compat's budget was reset for the geometryEngine shim's turf/proj4 backing; 'tree-shake:esri-compat-FeatureLayerCompat' guards that compat consumers who never touch geometryEngine keep paying only the pre-shim cost. 'tree-shake:geometry-buffer' is intentionally large: @turf/buffer carries a JSTS port (~66 KiB gzip); light ops like area() shake down to ~1 KiB."
+    "/react and /geometry landed with the adoption-wave-1 bundle (issues #349/#351). /esri-compat's budget was reset for the geometryEngine shim's turf/proj4 backing; 'tree-shake:esri-compat-FeatureLayerCompat' guards that compat consumers who never touch geometryEngine keep paying only the pre-shim cost. 'tree-shake:geometry-buffer' is intentionally large: @turf/buffer carries a JSTS port (~66 KiB gzip); light ops like area() shake down to ~1 KiB.",
+    "/map was reset for the accepted-plan source workflow (#390): 62.6 to 79.5 KiB min and 16.2 to 21.8 KiB gzip after removing the generic aggregate executor. Keeping the adapter on /map preserves the canonical endpoint-to-map import; 'tree-shake:map-source-workflow' isolates its 17.1 KiB min / 6.4 KiB gzip consumer cost."
   ],
   "entrypoints": {
     ".": {
@@ -61,8 +62,8 @@
       "gzip": 9341
     },
     "/map": {
-      "min": 70492,
-      "gzip": 18293
+      "min": 89525,
+      "gzip": 24559
     },
     "/geoparquet": {
       "min": 16143,
@@ -95,6 +96,10 @@
     "tree-shake:esri-compat-FeatureLayerCompat": {
       "min": 225732,
       "gzip": 57109
+    },
+    "tree-shake:map-source-workflow": {
+      "min": 19209,
+      "gzip": 7214
     }
   }
 }

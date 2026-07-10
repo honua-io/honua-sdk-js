@@ -56,6 +56,24 @@ export type {
   MapLibreGeoJsonSourceSpecification,
   RegisterHonuaFeatureServiceSourcesResult,
 } from "./feature-service-adapter.js";
+export {
+  HonuaMapLibreSourceAdapterError,
+  mountSourceToMapLibre,
+  projectSourceToMapLibre,
+} from "./source-to-maplibre.js";
+export type {
+  MapLibreGeometryKind,
+  MapLibreSourceAdapterErrorCode,
+  MapLibreSourceDiagnostic,
+  MapLibreSourceDiagnosticCode,
+  MapLibreSourceProjection,
+  MapLibreSourceStrategy,
+  MapLibreSourceWorkflowState,
+  MountedMapLibreSource,
+  MountSourceToMapLibreOptions,
+  ProjectSourceToMapLibreOptions,
+  SourceToMapLibreMap,
+} from "./source-to-maplibre.js";
 export { webmapJsonToMapLibreStyle } from "./webmap-maplibre.js";
 export type {
   WebMapJsonToMapLibreStyleOptions,
