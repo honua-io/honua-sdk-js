@@ -28,7 +28,7 @@ entrypoints are stable across minor versions.
 | `@honua/sdk-js/filter-registry` | Shared filter clause registry + projections |
 | `@honua/sdk-js/style` | Honua style spec + source parsers/validators |
 | `@honua/sdk-js/map` | `HonuaMap` programmatic map container |
-| `@honua/sdk-js/realtime` | Realtime transport adapters (SSE) — a client-transport primitive |
+| `@honua/sdk-js/realtime` | SSE transport plus a transport-neutral, bounded snapshot/delta checkpoint and resume gate ([semantics](./docs/realtime-resume.md)) |
 | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers; published standalone as `@honua/react`) |
 | `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops (buffer/area/simplify/reproject) |
 | `@honua/sdk-js/cli` | Programmatic `run()` entrypoint for the `honua` command-line client |

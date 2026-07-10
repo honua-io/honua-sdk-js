@@ -16,6 +16,7 @@ _Generated 2026-07-11 at commit `cb80273`._
 | `/honua` | 433.4 KiB | 454.4 KiB | 115.5 KiB | 119.9 KiB |
 | `/contract` | 232.0 KiB | 235.3 KiB | 60.1 KiB | 66.1 KiB |
 | `/runtime` | 425.3 KiB | 458.7 KiB | 110.9 KiB | 119.5 KiB |
+| `/realtime` | 23.2 KiB | 25.5 KiB | 7.0 KiB | 7.7 KiB |
 | `/esri-compat` | 943.4 KiB | 1026.2 KiB | 233.7 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |

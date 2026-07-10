@@ -150,6 +150,10 @@ import { HonuaMap, mountSourceToMapLibre } from "@honua/sdk/map";
 import { explainQuery } from "@honua/sdk/query-planner";
 import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
+import {
+  REALTIME_DURABLE_CHECKPOINT_VERSION,
+  createResumableRealtimeSubscription,
+} from "@honua/sdk/realtime";
 import { defineHonuaWebComponents } from "@honua/app-platform/web-components";
 import {
   HonuaBasemapStyleBinding,
@@ -359,6 +363,10 @@ if (typeof loadMapPackage !== "function")
   throw new Error("loadMapPackage export missing from @honua/sdk/runtime");
 if (typeof validateRuntimeStyleSpec !== "function")
   throw new Error("validateRuntimeStyleSpec export missing from @honua/sdk/runtime");
+if (typeof createResumableRealtimeSubscription !== "function")
+  throw new Error("createResumableRealtimeSubscription export missing from @honua/sdk/realtime");
+if (REALTIME_DURABLE_CHECKPOINT_VERSION !== 1)
+  throw new Error("REALTIME_DURABLE_CHECKPOINT_VERSION export missing from @honua/sdk/realtime");
 if (typeof defineHonuaWebComponents !== "function")
   throw new Error("defineHonuaWebComponents export missing from @honua/sdk/web-components");
 if (typeof defineHonuaControls !== "function")
