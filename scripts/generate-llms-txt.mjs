@@ -48,6 +48,11 @@ const SECTIONS = [
     entries: [
       { path: "README.md", description: "Project overview, install, 60-second quickstart, and the demo index." },
       { path: "INSTALL.md", description: "Install instructions and the subpath entrypoint / stability table." },
+      {
+        path: "docs/generated/sample-catalog.md",
+        description:
+          "Generated inventory of every executable SDK example, including support, data mode, lifecycle, and demonstration intent.",
+      },
       { path: "docs/quickstart.md", description: "5-minute quickstart: query features and render them on a map." },
       {
         path: "docs/standalone-quickstart.md",

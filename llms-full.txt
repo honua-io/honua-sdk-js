@@ -251,39 +251,9 @@ recommended replacement for `curl` in docs and demos.
 
 ## What you can build
 
-| Demo | What it shows |
-|------|---------------|
-| [`maplibre-quickstart`](./examples/maplibre-quickstart/README.md) | MapLibre map + Honua FeatureServer query + popup inspection |
-| [`react-quickstart`](./examples/react-quickstart/README.md) | `@honua/react` provider + hooks + `HonuaMap` over the same fixture lane |
-| [`storytelling-25d-map`](./examples/storytelling-25d-map/README.md) | 2.5D MapLibre storytelling, OGC overlays, route replay |
-| [`kepler-analytics`](./examples/kepler-analytics/README.md) | kepler.gl analytics replay over fixture GeoJSON + KPIs |
-| [`imagery-cog-quickstart`](./examples/imagery-cog-quickstart/README.md) | WMS `GetMap`, COG ImageServer tiles, `exportImage` previews |
-| [`spatial-analytics-workbench`](./examples/spatial-analytics-workbench/README.md) | Honua Cloud AOI jobs + linked map/table/chart workbench |
-| [`edit-workflow-demo`](./examples/edit-workflow-demo/README.md) | Optimistic create/update/delete with conflicts & attachments |
-| [`geocoding-quickstart`](./examples/geocoding-quickstart/README.md) | Forward / reverse / typeahead via `HonuaGeocodingClient` |
-| [`terrain-rgb-elevation`](./examples/terrain-rgb-elevation/README.md) | Terrain-RGB DEM tiles, point elevation, profile lookup |
-| [`unified-ops-workspace`](./examples/unified-ops-workspace/README.md) | Composed incident-command + analysis workspace shell |
-| [`cesium-route-playback`](./docs/examples/cesium-route-playback/README.md) | Cesium 3D route playback over one bounded Honua query |
-
-Each example documents its own env surface, mock + live lanes, browser telemetry hooks, and
-Playwright smoke coverage. The 11 above are the flagship walkthroughs; another 11 runnable
-demos cover specialized workflows:
-
-| Demo | What it shows |
-|------|---------------|
-| [`service-explorer`](./examples/service-explorer/README.md) | Catalog/service browse + linked-view explore over fixtures |
-| [`migration-workbench`](./examples/migration-workbench/README.md) | Interactive Esri → Honua migration with `honua-migrate` |
-| [`ai-spatial-app-builder`](./examples/ai-spatial-app-builder/README.md) | LLM-driven spatial app builder using `agent-tools` |
-| [`mcp-gis-assistant`](./examples/mcp-gis-assistant/README.md) | MCP server exposing Honua tools to assistants |
-| [`runtime-parity-showcase`](./examples/runtime-parity-showcase/README.md) | Parity matrix demo across MapLibre / kepler / Cesium runtimes |
-| [`realtime-incident-dashboard`](./examples/realtime-incident-dashboard/README.md) | SSE-backed realtime ops dashboard |
-| [`geoprocessing-job-runner`](./examples/geoprocessing-job-runner/README.md) | Async GP job submit / poll / cancel |
-| [`stac-imagery-browser`](./examples/stac-imagery-browser/README.md) | STAC search + COG preview |
-| [`node-backend-quickstart`](./examples/node-backend-quickstart/README.md) | Server-side Honua client (Node) |
-| [`app-bootstrap-basic`](./examples/app-bootstrap-basic/README.md) | Minimal `@honua/sdk-js/app` bootstrap helper |
-| [`web-components-basic`](./examples/web-components-basic/README.md) | Custom-element gallery |
-| [`arcgis-source-app`](./examples/arcgis-source-app/README.md) | Drop-in ArcGIS migration target |
-| [`standalone-quickstart`](./examples/standalone-quickstart/README.md) | Server-optional front door: public Esri FeatureServer → MapLibre, no Honua server |
+<!-- sample-catalog:start -->
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 27 executable examples: 10 flagship, 5 recipe, 8 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+<!-- sample-catalog:end -->
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
 
@@ -649,6 +619,48 @@ await runCodemod({ input: "./src", output: "./migrated" });
 > `npm run build:split-packages`. This is an opt-in build target, not the default
 > consumer install. See [`docs/split-packages.md`](./docs/split-packages.md) if you
 > are integrating with a downstream registry that needs the smaller surfaces.
+
+---
+
+# File: docs/generated/sample-catalog.md
+
+# SDK sample catalog
+
+This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
+
+Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js@0.1.0-beta.0` · 27 executable examples
+
+| Sample | Tier | Support | Data | Disposition | Demonstration |
+| --- | --- | --- | --- | --- | --- |
+| [`ai-spatial-app-builder`](../../examples/ai-spatial-app-builder/README.md) | advanced | experimental | fixture | rework | Builds a reviewable spatial application plan with the SDK agent-tool surface. |
+| [`app-bootstrap-basic`](../../examples/app-bootstrap-basic/README.md) | reference | deprecated | fixture | retire | Bootstraps a minimal application through the legacy app-platform compatibility surface. |
+| [`arcgis-source-app`](../../examples/arcgis-source-app/README.md) | reference | internal | fixture | keep | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
+| [`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | flagship | supported | fixture | rework | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
+| [`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | supported | hybrid | keep | Runs forward, reverse, and suggestion workflows with map feedback. |
+| [`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | advanced | supported | hybrid | merge | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
+| [`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | flagship | supported | hybrid | merge | Compares WMS imagery, COG-backed ImageServer tiles, and export previews. |
+| [`kepler-analytics`](../../examples/kepler-analytics/README.md) | advanced | experimental | hybrid | rework | Replays operations data through kepler.gl with linked filters and KPI evidence. |
+| [`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | flagship | supported | hybrid | rework | Queries a feature service and connects map, table, filters, and popup inspection. |
+| [`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | advanced | experimental | fixture | rework | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
+| [`migration-workbench`](../../docs/migration-honua-maplibre.md) | flagship | supported | fixture | rework | Scans and transforms ArcGIS application source with auditable compatibility results. |
+| [`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the protocol-neutral client from a Node service without browser dependencies. |
+| [`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | supported | fixture | keep | Demonstrates browser authentication and session lifecycle without embedding credentials. |
+| [`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | flagship | experimental | fixture | rework | Loads Overture GeoParquet data through browser columnar query and visualization. |
+| [`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | flagship | supported | fixture | rework | Combines parcels, hazards, sketching, editing, and export in a task-oriented application. |
+| [`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | supported | fixture | keep | Loads a static PMTiles archive without a Honua server. |
+| [`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the React provider, hooks, and map component over the same quickstart contract. |
+| [`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | flagship | supported | hybrid | rework | Reconciles a snapshot and SSE deltas in an operational incident dashboard. |
+| [`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | reference | experimental | fixture | replace | Compares supported rendering paths and makes fidelity differences explicit. |
+| [`service-explorer`](../../examples/service-explorer/README.md) | flagship | supported | hybrid | rework | Browses heterogeneous spatial services with capability and cache diagnostics. |
+| [`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | flagship | experimental | fixture | rework | Links AOI analysis jobs to map, table, chart, and reusable output artifacts. |
+| [`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | advanced | supported | fixture | merge | Discovers STAC collections and previews supported imagery assets. |
+| [`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | flagship | supported | hybrid | merge | Connects a public Esri service directly to MapLibre without a Honua server. |
+| [`storytelling-25d-map`](../../examples/storytelling-25d-map/README.md) | advanced | supported | hybrid | merge | Combines terrain, extrusion, OGC overlays, and route playback in a guided story. |
+| [`terrain-rgb-elevation`](../../examples/terrain-rgb-elevation/README.md) | advanced | supported | hybrid | merge | Reads Terrain-RGB tiles for point elevation and route profiles. |
+| [`unified-ops-workspace`](../../examples/unified-ops-workspace/README.md) | advanced | deprecated | fixture | retire | Composes incident command, analysis, and shared workspace state. |
+| [`web-components-basic`](../../examples/web-components-basic/README.md) | reference | deprecated | fixture | retire | Demonstrates the SDK custom-element controls against a map. |
+
+The catalog also carries fixture/live commands, endpoint configuration names, provenance, attribution, freshness, validation, and the complete 21-route honua.io migration mapping. The presentation-safe projection is [`samples/dist/honua-site-samples.v1.json`](../../samples/dist/honua-site-samples.v1.json).
 
 ---
 
