@@ -215,9 +215,10 @@
     "build:split-packages": "npm run build --silent && node scripts/prepare-split-packages.mjs",
     "verify:split-packages": "npm run build:split-packages --silent && node scripts/verify-split-packages.mjs",
     "verify:publish-surface": "node scripts/verify-publish-surface.mjs",
+    "verify:public-surface": "node scripts/verify-public-surface.mjs",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat && npm pack ./dist/packages/honua-migrate",
     "typecheck": "tsc --noEmit",
-    "docs:api": "npx --yes typedoc@^0.26 --tsconfig tsconfig.json --out dist/docs-api --excludeInternal --excludePrivate --readme README.md --name '@honua/sdk-js' src/index.ts src/honua.ts src/contract/index.ts src/controls/index.ts src/expr/index.ts src/webmap/index.ts src/geocoding/index.ts src/runtime/index.ts src/studio/index.ts src/migration-entry.ts src/esri-compat-entry.ts",
+    "docs:api": "node scripts/docs-api.mjs",
     "docs:llms": "node scripts/generate-llms-txt.mjs",
     "docs:site": "node scripts/build-docs-site.mjs",
     "docs:site:build": "npm run docs:api && npm run docs:site",
@@ -461,6 +462,7 @@
   "files": [
     "dist/src",
     "dist/browser",
+    "config/public-surface.json",
     "README.md",
     "CHANGELOG.md"
   ],

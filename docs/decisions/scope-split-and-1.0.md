@@ -1,9 +1,8 @@
 # Scope split and the road to 1.0
 
-Status: accepted-for-planning for `honua-sdk-js#357` (arch: 1.0 scope split —
-evict app-platform surfaces, API-report gate, support policy). This ADR is the
-reviewed decision record; the mechanical eviction it authorizes is executed
-separately (`#357` REQ-004) once this document is approved.
+Status: accepted and executed by `honua-sdk-js#357`. The current inventory and
+compatibility-removal release are recorded below and enforced from
+`config/public-surface.json`.
 
 ## Context
 
@@ -109,6 +108,21 @@ Three dispositions: **stable-1.0** (stays in `@honua/sdk-js`, in scope for the
 (removed; folded into its true owner). Counts: **20 stable / 18 move / 1 delete**
 = 39. The stable count of 20 meets the review's ≤ 20 target and cuts the stable
 package's entrypoints by nearly half.
+
+### Post-execution inventory
+
+Later adoption work added `/auth` and `/geoparquet` while the split was being
+executed. The resulting package has 40 exports: 20 semver-protected stable
+entrypoints, 2 subpath-only experimental entrypoints (`/agent-tools` and
+`/geoparquet`), and 18 deprecated app-platform compatibility shims. The stable
+count remains at the accepted ceiling because `/agent-tools` is explicitly
+experimental, while `/auth`, `/browser`, and `/cli` are included in the stable
+API report. `config/public-surface.json` supersedes the historical table below
+as the exact current inventory.
+
+The app-platform shims first shipped in `0.1.0-beta.0`, remain for the complete
+`0.1.x` line, and are removed in `0.2.0`. CI rejects a `0.2.x` package while any
+shim remains.
 
 ### Stable-1.0 (20)
 

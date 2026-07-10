@@ -30,6 +30,8 @@
  * under ~2 GiB. Parquet footers / row-group metadata are cached per source-URL
  * set within the runtime; there is no on-disk persistence.
  *
+ * @experimental This entrypoint is not yet covered by the SDK's semver contract
+ *   — the surface may change in any minor release prior to `1.0.0`.
  * @module
  */
 
