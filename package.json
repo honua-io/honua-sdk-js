@@ -215,7 +215,7 @@
     "build:split-packages": "npm run build --silent && node scripts/prepare-split-packages.mjs",
     "verify:split-packages": "npm run build:split-packages --silent && node scripts/verify-split-packages.mjs",
     "verify:publish-surface": "node scripts/verify-publish-surface.mjs",
-    "verify:public-surface": "node scripts/verify-public-surface.mjs",
+    "verify:public-surface": "node --test test/scripts/verify-public-surface.test.mjs && node scripts/verify-public-surface.mjs",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat && npm pack ./dist/packages/honua-migrate",
     "typecheck": "tsc --noEmit",
     "docs:api": "node scripts/docs-api.mjs",

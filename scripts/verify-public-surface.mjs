@@ -2,7 +2,6 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import {
   PROJECT_ROOT,
   entrypointsInTier,
@@ -10,6 +9,7 @@ import {
   packageSubpath,
   sourceFileForExport,
 } from "./lib/public-surface.mjs";
+import { verifyBuiltEntrypoints } from "./lib/verify-built-entrypoints.mjs";
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
 const surface = loadPublicSurface();
@@ -145,29 +145,13 @@ if (fs.existsSync(reportFile)) {
   }
 }
 
-const builtRoot = path.join(PROJECT_ROOT, packageJson.exports["."].default);
-const builtTargets = [...stable, ...experimental].map((entrypoint) => ({
-  entrypoint,
-  target: path.join(PROJECT_ROOT, packageJson.exports[entrypoint.subpath].default),
-}));
-let builtImportCount = 0;
-if (fs.existsSync(builtRoot) && builtTargets.every(({ target }) => fs.existsSync(target))) {
-  for (const { entrypoint, target } of builtTargets) {
-    try {
-      const imported = await import(pathToFileURL(target).href);
-      if (entrypoint.subpath === "." && Object.keys(imported).length > surface.ceilings.rootRuntimeExports) {
-        fail(
-          `root runtime exports ${Object.keys(imported).length} exceed reviewed ceiling ${surface.ceilings.rootRuntimeExports}`,
-        );
-      }
-      builtImportCount += 1;
-    } catch (error) {
-      fail(
-        `${entrypoint.subpath} built-entrypoint import failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-}
+const builtVerification = await verifyBuiltEntrypoints({
+  entrypoints: [...stable, ...experimental],
+  packageJson,
+  projectRoot: PROJECT_ROOT,
+  rootRuntimeExportCeiling: surface.ceilings.rootRuntimeExports,
+});
+failures.push(...builtVerification.failures);
 
 const budgets = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "bundle-budgets.json"), "utf8"));
 if (budgets.entrypoints?.["."]?.gzip !== surface.ceilings.rootGzipBytes) {
@@ -194,5 +178,5 @@ if (failures.length > 0) {
 }
 
 process.stdout.write(
-  `publicSurface=ok stable=${stable.length} experimental=${experimental.length} deprecated=${deprecated.length} total=${surface.entrypoints.length} imports=${builtImportCount || "skipped"}\n`,
+  `publicSurface=ok stable=${stable.length} experimental=${experimental.length} deprecated=${deprecated.length} total=${surface.entrypoints.length} imports=${builtVerification.importCount}\n`,
 );
