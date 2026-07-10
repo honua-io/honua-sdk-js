@@ -55,6 +55,7 @@ export interface ValidatedAgentPlanV1 {
   readonly proposal: AgentProposalV1;
   readonly queryPlan: QueryExecutionPlanV1;
   readonly policy: ExecutionPolicyV1;
+  readonly sourceProvenance: SourceProvenanceV1;
   readonly approvalDigest: `sha256:${string}`;
   readonly validatedAt: string;
   readonly valid: boolean;
@@ -67,6 +68,7 @@ export interface AgentApprovalV1 {
   readonly decision: Decision;
   readonly planDigest: `sha256:${string}`;
   readonly approvedMaxRows: number;
+  readonly approvedMaxBytes: number;
   readonly actor: "fixture-reviewer";
   readonly approvedAt: string;
   readonly approvalDigest: `sha256:${string}`;
@@ -84,10 +86,12 @@ export interface AgentExecutionReceiptV1 {
   readonly schemaVersion: string;
   readonly authorizationScope: readonly string[];
   readonly effect: "read";
-  readonly dataMode: "fixture-replay";
+  readonly dataMode: SourceProvenanceV1["dataMode"];
   readonly observedAt: string;
   readonly attribution: string;
   readonly approvedMaxRows: number;
+  readonly approvedMaxBytes: number;
+  readonly resultBytes: number;
   readonly rowCount: number;
   readonly executedAt: string;
   readonly previousReceiptDigest: null;
@@ -125,18 +129,44 @@ export interface SafeAgentSession {
 
 export interface CreateSafeAgentSessionOptions {
   readonly source?: Source<ParcelAttributes>;
+  /** Required with an injected source so receipts never mislabel arbitrary data as fixture output. */
+  readonly sourceBinding?: SourceBindingV1;
+}
+
+export interface SourceProvenanceV1 {
+  readonly dataMode: "fixture-replay" | "live-host";
+  readonly observedAt: string;
+  readonly attribution: string;
+}
+
+export interface SourceBindingV1 {
+  readonly sourceVersion: string;
+  readonly schemaVersion: string;
+  readonly authorizationScope: readonly string[];
+  readonly provenance: SourceProvenanceV1;
 }
 
 export const FIXTURE_TIME = "2026-07-10T18:00:00.000Z";
 export const SOURCE_VERSION = "parcels-snapshot-2026-07-10";
 export const SCHEMA_VERSION = "parcels-schema-v5";
 
+export const fixtureSourceBinding: SourceBindingV1 = Object.freeze({
+  sourceVersion: SOURCE_VERSION,
+  schemaVersion: SCHEMA_VERSION,
+  authorizationScope: ["parcels:read"],
+  provenance: {
+    dataMode: "fixture-replay",
+    observedAt: FIXTURE_TIME,
+    attribution: "City and County of Honolulu — deterministic demonstration fixture",
+  },
+} satisfies SourceBindingV1);
+
 export const fixturePolicy: ExecutionPolicyV1 = Object.freeze({
   kind: "honua.agent-execution-policy",
   version: "1.0",
   id: "fixture-read-only-v1",
   allowedEffects: ["read"],
-  allowedTools: ["listCapabilities", "query"],
+  allowedTools: ["query"],
   allowedFields: ["OBJECTID", "title", "floodZone", "builtYear", "assessedValue"],
   authorizationScope: ["parcels:read"],
   maxRows: 25,
@@ -170,10 +200,7 @@ export const fixtureProposal: AgentProposalV1 = Object.freeze({
     returnGeometry: true,
     outSr: 4326,
   },
-  toolCalls: [
-    { name: "listCapabilities", effect: "read", reason: "Bind the proposal to discovered source capabilities." },
-    { name: "query", effect: "read", reason: "Read only the approved, bounded parcel rows." },
-  ],
+  toolCalls: [{ name: "query", effect: "read", reason: "Read only the approved, bounded parcel rows." }],
 } satisfies AgentProposalV1);
 
 const fixtureRows: readonly ParcelAttributes[] = Object.freeze([
@@ -197,9 +224,26 @@ export function createSafeAgentSession(
   let executionCount = 0;
   let executionGeneration = 0;
   let activeExecution: AbortController | undefined;
+  if (options.source && !options.sourceBinding) {
+    throw new Error("Injected sources require an explicit sourceBinding with truthful provenance.");
+  }
+  const suppliedBinding = options.sourceBinding ?? fixtureSourceBinding;
+  const sourceBinding: SourceBindingV1 = Object.freeze({
+    ...suppliedBinding,
+    authorizationScope: Object.freeze([...suppliedBinding.authorizationScope]),
+    provenance: Object.freeze({ ...suppliedBinding.provenance }),
+  });
   const source = countReads(options.source ?? createFixtureSource(), () => {
     executionCount += 1;
   });
+
+  const invalidateExecution = (reason: string): void => {
+    executionGeneration += 1;
+    activeExecution?.abort(reason);
+    activeExecution = undefined;
+    rows = [];
+    receipt = undefined;
+  };
 
   const session: SafeAgentSession = {
     get state() {
@@ -222,43 +266,44 @@ export function createSafeAgentSession(
       return rows;
     },
     validate(proposalOverride = proposal) {
+      invalidateExecution("Plan validation invalidated the active execution");
+      approval = undefined;
       const refusals = validateProposalPolicy(proposalOverride, policy);
       let queryPlan: QueryExecutionPlanV1;
       try {
         queryPlan = explainQuery({
-          descriptor: fixtureDescriptor,
+          descriptor: source.descriptor,
           query: proposalOverride.query,
           capabilityPolicy: "strict",
           fallback: { mode: "disabled" },
-          schemaVersion: SCHEMA_VERSION,
-          sourceVersion: SOURCE_VERSION,
-          authorizationScope: policy.authorizationScope,
+          schemaVersion: sourceBinding.schemaVersion,
+          sourceVersion: sourceBinding.sourceVersion,
+          authorizationScope: sourceBinding.authorizationScope,
           estimates: { rows: fixtureRows.length, bytes: 4_096, requests: 1 },
         });
       } catch (error) {
         refusals.push(error instanceof Error ? error.message : "Query planning failed.");
         queryPlan = explainQuery({
-          descriptor: fixtureDescriptor,
+          descriptor: source.descriptor,
           query: { where: "1=0", pagination: { limit: 1 }, outSr: 4326 },
-          schemaVersion: SCHEMA_VERSION,
-          sourceVersion: SOURCE_VERSION,
-          authorizationScope: policy.authorizationScope,
+          schemaVersion: sourceBinding.schemaVersion,
+          sourceVersion: sourceBinding.sourceVersion,
+          authorizationScope: sourceBinding.authorizationScope,
         });
       }
+      refusals.push(...validatePlanBindings(proposalOverride, queryPlan, policy));
       const unsigned = {
         kind: "honua.validated-agent-plan" as const,
         version: "1.0" as const,
         proposal: proposalOverride,
         queryPlan,
         policy,
+        sourceProvenance: sourceBinding.provenance,
         validatedAt: FIXTURE_TIME,
         valid: refusals.length === 0,
         refusals,
       };
       validatedPlan = Object.freeze({ ...unsigned, approvalDigest: digest(unsigned) });
-      approval = undefined;
-      receipt = undefined;
-      rows = [];
       state = validatedPlan.valid ? "validated" : "refused";
       return validatedPlan;
     },
@@ -277,6 +322,7 @@ export function createSafeAgentSession(
         decision,
         planDigest: validatedPlan.approvalDigest,
         approvedMaxRows,
+        approvedMaxBytes: validatedPlan.policy.maxBytes,
         actor: "fixture-reviewer" as const,
         approvedAt: FIXTURE_TIME,
       };
@@ -286,21 +332,23 @@ export function createSafeAgentSession(
     },
     async execute(options = {}) {
       const candidate = options.planOverride ?? validatedPlan;
-      if (!candidate || !approval || state !== "approved")
+      const candidateApproval = approval;
+      if (!candidate || !candidateApproval || state !== "approved")
         throw new Error("Execution requires explicit approval of a valid plan.");
       if (digest(withoutApprovalDigest(candidate)) !== candidate.approvalDigest)
         throw new Error("Validated plan was tampered after review.");
       if (
-        approval.planDigest !== candidate.approvalDigest ||
-        digest(withoutApprovalSignature(approval)) !== approval.approvalDigest
+        candidateApproval.planDigest !== candidate.approvalDigest ||
+        digest(withoutApprovalSignature(candidateApproval)) !== candidateApproval.approvalDigest
       ) {
         throw new Error("Approval does not match the reviewed plan.");
       }
-      if (approval.decision === "reject") throw new Error("Rejected plans cannot execute.");
+      if (candidateApproval.decision === "reject") throw new Error("Rejected plans cannot execute.");
+      if (options.signal?.aborted) throw abortError(options.signal.reason);
       const context = {
-        sourceVersion: options.sourceVersion ?? SOURCE_VERSION,
-        schemaVersion: options.schemaVersion ?? SCHEMA_VERSION,
-        authorizationScope: options.authorizationScope ?? policy.authorizationScope,
+        sourceVersion: options.sourceVersion ?? sourceBinding.sourceVersion,
+        schemaVersion: options.schemaVersion ?? sourceBinding.schemaVersion,
+        authorizationScope: options.authorizationScope ?? sourceBinding.authorizationScope,
       };
       executionGeneration += 1;
       const generation = executionGeneration;
@@ -314,29 +362,47 @@ export function createSafeAgentSession(
       try {
         const execution = await executeQueryPlan(
           candidate.queryPlan,
-          approvalBoundSource(source, approval.approvedMaxRows),
+          approvalBoundSource(
+            source,
+            candidateApproval.approvedMaxRows,
+            candidate.policy.allowedFields.map(String),
+            candidate.proposal.origin,
+          ),
           { ...context, signal: controller.signal },
         );
         if (generation !== executionGeneration || controller.signal.aborted) {
           throw new Error("Execution was cancelled before its result could be committed.");
         }
-        rows = execution.result.features.slice(0, approval.approvedMaxRows).map((feature) => feature.attributes);
+        const boundedFeatures = execution.result.features.slice(0, candidateApproval.approvedMaxRows);
+        const resultBytes = byteLength(boundedFeatures);
+        if (resultBytes > candidateApproval.approvedMaxBytes) {
+          throw new Error(
+            `Result payload ${resultBytes} bytes exceeds approved maximum ${candidateApproval.approvedMaxBytes} bytes.`,
+          );
+        }
+        if (generation !== executionGeneration || controller.signal.aborted) {
+          throw new Error("Execution was cancelled before its result could be committed.");
+        }
+        const candidateRows = boundedFeatures.map((feature) => feature.attributes);
+        rows = candidateRows;
         const unsignedReceipt = {
           kind: "honua.agent-execution-receipt" as const,
           version: "1.0" as const,
           id: `receipt-${candidate.queryPlan.id}`,
           planDigest: candidate.approvalDigest,
-          approvalDigest: approval.approvalDigest,
+          approvalDigest: candidateApproval.approvalDigest,
           resultDigest: digest(rows),
-          sourceId: source.descriptor.id,
+          sourceId: candidate.queryPlan.ir.source.id,
           sourceVersion: context.sourceVersion,
           schemaVersion: context.schemaVersion,
           authorizationScope: context.authorizationScope,
           effect: "read" as const,
-          dataMode: "fixture-replay" as const,
-          observedAt: FIXTURE_TIME,
-          attribution: source.descriptor.attribution ?? "Deterministic demonstration fixture",
-          approvedMaxRows: approval.approvedMaxRows,
+          dataMode: candidate.sourceProvenance.dataMode,
+          observedAt: candidate.sourceProvenance.observedAt,
+          attribution: candidate.sourceProvenance.attribution,
+          approvedMaxRows: candidateApproval.approvedMaxRows,
+          approvedMaxBytes: candidateApproval.approvedMaxBytes,
+          resultBytes,
           rowCount: rows.length,
           executedAt: FIXTURE_TIME,
           previousReceiptDigest: null,
@@ -356,11 +422,7 @@ export function createSafeAgentSession(
       return Boolean(candidate && digest(withoutReceiptDigest(candidate)) === candidate.receiptDigest);
     },
     dispose() {
-      executionGeneration += 1;
-      activeExecution?.abort("Safe-agent session disposed");
-      activeExecution = undefined;
-      rows = [];
-      receipt = undefined;
+      invalidateExecution("Safe-agent session disposed");
       state = "cancelled";
     },
   };
@@ -399,19 +461,144 @@ function validateProposalPolicy(proposal: AgentProposalV1, policy: ExecutionPoli
     refusals.push(`Requested row limit exceeds host maximum ${policy.maxRows}.`);
   if (proposal.query.outSr !== 4326 && proposal.query.outSr !== "EPSG:4326")
     refusals.push("Requested CRS does not match policy-bound EPSG:4326.");
-  const requestedFields = proposal.query.outFields?.map(String);
-  if (
-    !requestedFields ||
-    requestedFields.some((field) => !policy.allowedFields.includes(field as keyof ParcelAttributes))
-  ) {
-    refusals.push("Requested fields exceed the policy-bound parcel field allowlist.");
-  }
+  refusals.push(...validateQueryFields(proposal.query, policy.allowedFields.map(String), proposal.origin));
   for (const tool of proposal.toolCalls) {
     if (!policy.allowedTools.includes(tool.name)) refusals.push(`Tool '${tool.name}' is not in the host allowlist.`);
     if (!policy.allowedEffects.includes(tool.effect))
       refusals.push(`Tool '${tool.name}' requests unsupported '${tool.effect}' capability.`);
   }
   return refusals;
+}
+
+function validatePlanBindings(
+  proposal: AgentProposalV1,
+  queryPlan: QueryExecutionPlanV1,
+  policy: ExecutionPolicyV1,
+): string[] {
+  const refusals = validateCanonicalQueryFields(queryPlan.ir.query, policy.allowedFields.map(String), proposal.origin);
+  if (queryPlan.estimates.bytes !== undefined && queryPlan.estimates.bytes > policy.maxBytes) {
+    refusals.push(`Estimated payload exceeds the policy-bound ${policy.maxBytes}-byte ceiling.`);
+  }
+  const plannedTools = queryPlan.steps.filter((step) => step.engine === "remote").map((step) => step.operation);
+  if (
+    proposal.toolCalls.length !== plannedTools.length ||
+    plannedTools.some((name, index) => {
+      const declared = proposal.toolCalls[index];
+      return declared?.name !== name || declared.effect !== "read";
+    })
+  ) {
+    refusals.push(
+      `Declared tool/effect sequence must exactly match planned read operations: ${plannedTools.join(" → ")}.`,
+    );
+  }
+  return refusals;
+}
+
+function validateQueryFields(
+  query: Readonly<Query<ParcelAttributes>>,
+  allowedFields: readonly string[],
+  origin: AgentProposalV1["origin"],
+): string[] {
+  const refusals: string[] = [];
+  if (!query.outFields || query.outFields.some((field) => !allowedFields.includes(String(field)))) {
+    refusals.push("Requested outFields exceed the policy-bound parcel field allowlist.");
+  }
+  if (query.orderBy?.some((sort) => !allowedFields.includes(String(sort.field)))) {
+    refusals.push("Requested orderBy fields exceed the policy-bound parcel field allowlist.");
+  }
+  if (query.where) refusals.push(...validateWhere(query.where, allowedFields, origin));
+  return refusals;
+}
+
+function validateCanonicalQueryFields(
+  query: QueryExecutionPlanV1["ir"]["query"],
+  allowedFields: readonly string[],
+  origin: AgentProposalV1["origin"],
+): string[] {
+  const refusals: string[] = [];
+  if (!query.outFields || query.outFields.some((field) => !allowedFields.includes(field))) {
+    refusals.push("Planned outFields exceed the approved field boundary.");
+  }
+  if (query.orderBy?.some((sort) => !allowedFields.includes(sort.field))) {
+    refusals.push("Planned orderBy fields exceed the approved field boundary.");
+  }
+  if (query.where) refusals.push(...validateWhere(query.where.expression, allowedFields, origin));
+  return refusals;
+}
+
+/**
+ * Accept only a deliberately small SQL predicate grammar. This rejects comments,
+ * functions, statement separators, and unconsumed tokens before a source-native
+ * expression can cross the host boundary.
+ */
+function validateWhere(
+  expression: string,
+  allowedFields: readonly string[],
+  origin: AgentProposalV1["origin"],
+): string[] {
+  type Token = { readonly kind: "word" | "literal" | "operator" | "(" | ")"; readonly value: string };
+  const matcher = /\s*(?:([A-Za-z_][A-Za-z0-9_]*)|(-?\d+(?:\.\d+)?)|('(?:''|[^'])*')|(<=|>=|<>|!=|=|<|>)|(\()|(\)))/gy;
+  const tokens: Token[] = [];
+  let cursor = 0;
+  while (cursor < expression.length) {
+    if (expression.slice(cursor).trim() === "") break;
+    matcher.lastIndex = cursor;
+    const match = matcher.exec(expression);
+    if (!match || match.index !== cursor) {
+      return [`${origin} where expression is not in the trusted predicate grammar.`];
+    }
+    cursor = matcher.lastIndex;
+    if (match[1]) tokens.push({ kind: "word", value: match[1] });
+    else if (match[2] || match[3]) tokens.push({ kind: "literal", value: match[2] ?? match[3] });
+    else if (match[4]) tokens.push({ kind: "operator", value: match[4] });
+    else if (match[5]) tokens.push({ kind: "(", value: match[5] });
+    else if (match[6]) tokens.push({ kind: ")", value: match[6] });
+  }
+
+  let index = 0;
+  const consumeWord = (value: string): boolean => {
+    if (tokens[index]?.kind !== "word" || tokens[index]?.value.toUpperCase() !== value) return false;
+    index += 1;
+    return true;
+  };
+  const parsePredicate = (): boolean => {
+    const field = tokens[index];
+    if (field?.kind !== "word" || !allowedFields.includes(field.value)) return false;
+    index += 1;
+    if (consumeWord("IS")) {
+      consumeWord("NOT");
+      return consumeWord("NULL");
+    }
+    if (tokens[index]?.kind !== "operator") return false;
+    index += 1;
+    if (tokens[index]?.kind !== "literal") return false;
+    index += 1;
+    return true;
+  };
+  const parseFactor = (): boolean => {
+    if (consumeWord("NOT")) return parseFactor();
+    if (tokens[index]?.kind === "(") {
+      index += 1;
+      if (!parseOr() || tokens[index]?.kind !== ")") return false;
+      index += 1;
+      return true;
+    }
+    return parsePredicate();
+  };
+  const parseAnd = (): boolean => {
+    if (!parseFactor()) return false;
+    while (consumeWord("AND")) if (!parseFactor()) return false;
+    return true;
+  };
+  function parseOr(): boolean {
+    if (!parseAnd()) return false;
+    while (consumeWord("OR")) if (!parseAnd()) return false;
+    return true;
+  }
+  if (tokens.length === 0 || !parseOr() || index !== tokens.length) {
+    return [`${origin} where expression is not in the trusted predicate grammar or references an unapproved field.`];
+  }
+  return [];
 }
 
 function createFixtureSource(): Source<ParcelAttributes> {
@@ -450,19 +637,37 @@ function countReads(source: Source<ParcelAttributes>, onRead: () => void): Sourc
   };
 }
 
-function approvalBoundSource(source: Source<ParcelAttributes>, approvedMaxRows: number): Source<ParcelAttributes> {
-  const boundedQuery = (request: Query<ParcelAttributes> = {}): Query<ParcelAttributes> => ({
-    ...request,
-    pagination: {
-      ...request.pagination,
-      limit: Math.min(request.pagination?.limit ?? approvedMaxRows, approvedMaxRows),
-    },
-  });
+function approvalBoundSource(
+  source: Source<ParcelAttributes>,
+  approvedMaxRows: number,
+  allowedFields: readonly string[],
+  origin: AgentProposalV1["origin"],
+): Source<ParcelAttributes> {
+  const boundedQuery = (request: Query<ParcelAttributes> = {}): Query<ParcelAttributes> => {
+    const refusals = validateQueryFields(request, allowedFields, origin);
+    if (refusals.length > 0) throw new Error(`Final source request refused: ${refusals.join(" ")}`);
+    return {
+      ...request,
+      pagination: {
+        ...request.pagination,
+        limit: Math.min(request.pagination?.limit ?? approvedMaxRows, approvedMaxRows),
+      },
+    };
+  };
   return {
     ...source,
     query: (request) => source.query(boundedQuery(request)),
     queryAll: (request) => source.queryAll(boundedQuery(request)),
   };
+}
+
+function byteLength(value: unknown): number {
+  return new TextEncoder().encode(canonicalStringify(toJsonValue(value))).byteLength;
+}
+
+function abortError(reason: unknown): Error {
+  const message = typeof reason === "string" ? reason : "Execution was aborted before it started.";
+  return new DOMException(message, "AbortError");
 }
 
 function digest(value: unknown): `sha256:${string}` {

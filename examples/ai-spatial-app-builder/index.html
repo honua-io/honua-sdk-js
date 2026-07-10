@@ -39,7 +39,7 @@
         </section>
         <section class="panel approval-panel">
           <div class="panel-heading"><div><p class="step">03 · Human control</p><h2>Explicit approval</h2></div><span class="badge warning" id="approval-state">No approval grant exists</span></div>
-          <p>Approval binds the exact plan digest, reviewer, effect, context, and maximum rows. Narrowing cannot widen the proposal.</p>
+          <p>Approval binds the exact plan digest, reviewer, effect, context, maximum rows, and maximum bytes. Inspect the request/row/byte estimate, fidelity, cache policy, and provenance in the dry-run plan before granting it. Narrowing cannot widen the proposal.</p>
           <div class="button-row"><button id="approve" type="button" disabled>Approve 5-row read</button><button id="narrow" class="secondary" type="button" disabled>Narrow to 2 rows</button><button id="reject" class="danger" type="button" disabled>Reject</button><button id="execute" class="execute" type="button" disabled>Execute approved read</button></div>
         </section>
         <section class="panel refusal-panel">

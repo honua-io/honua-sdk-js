@@ -6,18 +6,18 @@ This flagship demonstrates the difference between an agent proposing spatial wor
 
 1. An untrusted deterministic proposal declares typed tool calls and requested effects.
 2. `explainQuery` builds an immutable plan bound to the source locator, capabilities, schema/source versions, authorization scope, query, CRS, limits, estimates, and execution policy.
-3. Policy validation is side-effect free. Unsupported tools, excessive limits, mutation, realtime, or generated-app effects are visibly refused.
-4. A reviewer can approve, narrow, or reject. The approval grant binds the exact validated-plan digest and cannot widen its limits.
-5. `executeQueryPlan` rechecks plan integrity and current source context before the first read. Tampering, stale context, or authorization drift fails before source access.
-6. Successful execution creates a tamper-evident `honua.agent-execution-receipt` binding the plan, approval, result, provenance, scope, and deterministic observation time.
+3. Policy validation is side-effect free. Unsupported tools, tool/operation mismatches, excessive limits, unapproved fields, mutation, realtime, or generated-app effects are visibly refused. Source-native predicates must pass a restricted parser; comments, functions, statement separators, unapproved fields, and widening fragments such as `OR 1=1` fail closed.
+4. A reviewer can inspect request/row/byte estimates, fidelity, cache behavior, provenance, and row/byte ceilings before approving, narrowing, or rejecting. The approval grant binds the exact validated-plan digest and cannot widen its limits.
+5. `executeQueryPlan` rechecks plan integrity and current source context before the first read. Tampering, stale context, pre-abort, or authorization drift fails before source access. Revalidation, reset, and disposal abort and invalidate in-flight generations so late results cannot commit.
+6. Successful execution creates a tamper-evident `honua.agent-execution-receipt` binding the plan, approval, result byte count, provenance, scope, and deterministic observation time. Oversized payloads fail before rows or a success receipt commit.
 
 Mutation and realtime are not disguised as read-only operations. They require separate host capabilities and approvals and remain disabled in this sample policy.
 
-Prompt text is never authority. Tool names, effects, fields, CRS, authorization scope, and row limits are independently checked against host policy even when a prompt attempts to relabel or bypass them.
+Prompt text is never authority. Tool names, effects, planned operations, projected/filter/sort fields, CRS, authorization scope, row limits, and byte limits are independently checked against host policy even when a prompt attempts to relabel or bypass them.
 
 ## Fixture and optional host lanes
 
-Fixture mode replays committed parcel rows and an honest GeoServices query plan. “AI” means the proposal boundary being demonstrated; no model is called or implied.
+Fixture mode replays committed parcel rows and an honest GeoServices query plan. “AI” means the proposal boundary being demonstrated; no model is called or implied. Injected sources must supply an explicit source binding, including data mode, observation time, attribution, versions, and authorization scope; arbitrary sources cannot inherit the fixture provenance label.
 
 Optional model and live-data integrations must be mediated by a trusted same-origin host. Provider keys, bearer tokens, and approval credentials must never be placed in Vite variables or browser storage. The scheduled evidence runner accepts only host endpoint locations:
 

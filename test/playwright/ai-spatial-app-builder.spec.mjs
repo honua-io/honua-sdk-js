@@ -29,9 +29,15 @@ test("safe-agent journey requires validation and approval before one bounded rea
     await expect(page.locator("#plan-state")).toContainText("Validated");
     await expect(page.locator("#plan-details")).toContainText("parcels-snapshot-2026-07-10");
     await expect(page.locator("#plan-details")).toContainText("parcels:read");
+    await expect(page.locator("#plan-details")).toContainText("Request / row / byte estimate");
+    await expect(page.locator("#plan-details")).toContainText("Approved byte ceiling");
+    await expect(page.locator("#plan-details")).toContainText("Fidelity / cache");
+    await expect(page.locator("#plan-details")).toContainText("exact / bypass");
+    await expect(page.locator("#plan-details")).toContainText("fixture-replay");
     await expect(page.locator("#effect-count")).toHaveText("0");
 
     await page.getByRole("button", { name: "Approve 5-row read" }).click();
+    await expect(page.locator("#approval-state")).toContainText("128000 bytes");
     await expect(page.locator("#effect-count")).toHaveText("0");
     await page.getByRole("button", { name: "Execute approved read" }).click();
     await expect(page.locator("#effect-count")).toHaveText("1");
@@ -39,6 +45,8 @@ test("safe-agent journey requires validation and approval before one bounded rea
     await expect(page.locator("#receipt-integrity")).toHaveText("true");
     await expect(page.locator("#receipt-json")).toContainText("honua.agent-execution-receipt");
     await expect(page.locator("#receipt-json")).toContainText("fixture-replay");
+    await expect(page.locator("#receipt-json")).toContainText('"approvedMaxBytes": 128000');
+    await expect(page.locator("#receipt-json")).toContainText('"resultBytes"');
     await page.evaluate(() => window.__HONUA_SAFE_AGENT__?.dispose());
     await expect.poll(async () => page.evaluate(() => window.__HONUA_SAFE_AGENT__?.disposed)).toBe(true);
     await expect.poll(async () => page.evaluate(() => window.__HONUA_SAFE_AGENT__?.state)).toBe("cancelled");

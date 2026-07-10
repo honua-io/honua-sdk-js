@@ -90,6 +90,10 @@ function renderPlan(): void {
       <div><dt>Source / schema</dt><dd>${escapeHtml(plan.queryPlan.ir.source.sourceVersion)} / ${escapeHtml(plan.queryPlan.ir.source.schemaVersion)}</dd></div>
       <div><dt>Authorization</dt><dd>${escapeHtml(plan.queryPlan.ir.source.authorizationScope.join(", "))}</dd></div>
       <div><dt>CRS / row limit</dt><dd>EPSG:${escapeHtml(plan.queryPlan.ir.query.outSr)} / ${escapeHtml(plan.queryPlan.ir.query.pagination?.limit)}</dd></div>
+      <div><dt>Request / row / byte estimate</dt><dd>${escapeHtml(plan.queryPlan.estimates.requests ?? "unknown")} / ${escapeHtml(plan.queryPlan.estimates.rows ?? "unknown")} / ${escapeHtml(plan.queryPlan.estimates.bytes ?? "unknown")} bytes</dd></div>
+      <div><dt>Approved byte ceiling</dt><dd>${escapeHtml(plan.policy.maxBytes)} bytes</dd></div>
+      <div><dt>Fidelity / cache</dt><dd>${escapeHtml(plan.queryPlan.fidelity)} / ${escapeHtml(plan.queryPlan.cache)}</dd></div>
+      <div><dt>Data provenance</dt><dd>${escapeHtml(plan.sourceProvenance.dataMode)} · observed ${escapeHtml(plan.sourceProvenance.observedAt)} · ${escapeHtml(plan.sourceProvenance.attribution)}</dd></div>
       <div><dt>Capabilities</dt><dd>${escapeHtml(plan.queryPlan.ir.source.capabilities.join(", "))}</dd></div>
       <div><dt>Policy</dt><dd>${escapeHtml(plan.policy.id)} · ${escapeHtml(plan.policy.allowedEffects.join(", "))}</dd></div>
       <div><dt>Compiled step</dt><dd>${escapeHtml(plan.queryPlan.steps.map((step) => `${step.engine}:${step.operation}`).join(" → "))}</dd></div>
@@ -103,8 +107,12 @@ function renderPlan(): void {
 function renderApproval(): void {
   const approval = session.approval;
   element("#approval-state").textContent = approval
-    ? `${approval.decision} · ${approval.approvedMaxRows} rows · ${approval.actor}`
+    ? `${approval.decision} · ${approval.approvedMaxRows} rows · ${approval.approvedMaxBytes} bytes · ${approval.actor}`
     : "No approval grant exists";
+  const executing = session.state === "executing";
+  element<HTMLButtonElement>("#validate").disabled = executing;
+  element<HTMLButtonElement>("#reset").textContent = executing ? "Cancel & reset fixture" : "Reset fixture";
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-refusal]")) button.disabled = executing;
   element<HTMLButtonElement>("#approve").disabled = session.state !== "validated";
   element<HTMLButtonElement>("#narrow").disabled = session.state !== "validated";
   element<HTMLButtonElement>("#reject").disabled = session.state !== "validated";

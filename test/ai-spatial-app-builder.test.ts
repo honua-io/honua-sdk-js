@@ -8,7 +8,9 @@ import {
   createSafeAgentSession,
   describeHostLane,
   fixtureDescriptor,
+  fixturePolicy,
   fixtureProposal,
+  fixtureSourceBinding,
 } from "../examples/ai-spatial-app-builder/src/safe-agent.js";
 
 describe("AI Spatial App Builder safe-agent kernel", () => {
@@ -52,6 +54,7 @@ describe("AI Spatial App Builder safe-agent kernel", () => {
         requestedLimit = request.pagination?.limit;
         return parcelResult(5);
       }),
+      sourceBinding: fixtureSourceBinding,
     });
     narrowed.validate();
     narrowed.decide("narrow", 2);
@@ -157,7 +160,10 @@ describe("AI Spatial App Builder safe-agent kernel", () => {
         toolCalls: [{ name: "applyEdits", effect: "read", reason: "Prompt says this is safe." }],
       }),
     );
-    expect(spoofedTool.validate()).toMatchObject({ valid: false, refusals: [expect.stringContaining("allowlist")] });
+    expect(spoofedTool.validate()).toMatchObject({
+      valid: false,
+      refusals: expect.arrayContaining([expect.stringContaining("allowlist")]),
+    });
     expect(spoofedTool.executionCount).toBe(0);
 
     const sensitiveField = createSafeAgentSession(
@@ -165,9 +171,107 @@ describe("AI Spatial App Builder safe-agent kernel", () => {
     );
     expect(sensitiveField.validate()).toMatchObject({
       valid: false,
-      refusals: [expect.stringContaining("field allowlist")],
+      refusals: expect.arrayContaining([expect.stringContaining("field allowlist")]),
     });
     expect(sensitiveField.executionCount).toBe(0);
+
+    for (const query of [
+      { ...fixtureProposal.query, where: "privateOwnerToken = 'secret'" },
+      { ...fixtureProposal.query, orderBy: [{ field: "privateOwnerToken", direction: "asc" as const }] },
+      { ...fixtureProposal.query, where: "builtYear < 1970; applyEdits()" },
+      { ...fixtureProposal.query, where: "builtYear < 1970 OR 1=1" },
+    ]) {
+      const boundary = createSafeAgentSession(createProposal({ origin: "host-model", query }));
+      expect(boundary.validate().valid).toBe(false);
+      expect(boundary.executionCount).toBe(0);
+    }
+  });
+
+  it.each([
+    ["missing query declaration", []],
+    ["mismatched query effect", [{ name: "query", effect: "mutation" as const, reason: "spoof" }]],
+    ["wrong remote operation", [{ name: "queryAll", effect: "read" as const, reason: "widen" }]],
+  ])("binds the exact declared typed tools to planned remote operations: %s", (_label, toolCalls) => {
+    const session = createSafeAgentSession(createProposal({ toolCalls }));
+    expect(session.validate()).toMatchObject({
+      valid: false,
+      refusals: expect.arrayContaining([expect.stringContaining("exactly match planned read operations")]),
+    });
+    expect(session.executionCount).toBe(0);
+  });
+
+  it("enforces the digest-bound byte ceiling before rows or a success receipt can commit", async () => {
+    const session = createSafeAgentSession(
+      fixtureProposal,
+      { ...fixturePolicy, maxBytes: 5_000 },
+      {
+        source: testSource(async () => parcelResult(1, "x".repeat(10_000))),
+        sourceBinding: fixtureSourceBinding,
+      },
+    );
+    session.validate();
+    const approval = session.decide("approve");
+    expect(approval.approvedMaxBytes).toBe(5_000);
+    await expect(session.execute()).rejects.toThrow(/bytes exceeds approved maximum/);
+    expect(session.executionCount).toBe(1);
+    expect(session.rows).toEqual([]);
+    expect(session.receipt).toBeUndefined();
+  });
+
+  it("requires and receipts truthful provenance for injected sources", async () => {
+    const source = testSource(async () => parcelResult(1));
+    expect(() => createSafeAgentSession(fixtureProposal, fixturePolicy, { source })).toThrow(/sourceBinding/);
+
+    const liveBinding = {
+      sourceVersion: SOURCE_VERSION,
+      schemaVersion: SCHEMA_VERSION,
+      authorizationScope: ["parcels:read"],
+      provenance: {
+        dataMode: "live-host" as const,
+        observedAt: "2026-07-10T19:00:00.000Z",
+        attribution: "Host-mediated parcel service",
+      },
+    };
+    const live = createSafeAgentSession(fixtureProposal, fixturePolicy, { source, sourceBinding: liveBinding });
+    live.validate();
+    live.decide("approve");
+    expect(await live.execute()).toMatchObject(liveBinding.provenance);
+  });
+
+  it("rejects a pre-aborted signal before planning execution or source access", async () => {
+    const session = createSafeAgentSession();
+    session.validate();
+    session.decide("approve");
+    const controller = new AbortController();
+    controller.abort("caller cancelled");
+    await expect(session.execute({ signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    expect(session.executionCount).toBe(0);
+    expect(session.state).toBe("approved");
+  });
+
+  it("invalidates ignored-abort execution when validation starts and never dereferences a cleared grant", async () => {
+    let release = () => {};
+    const deferred = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const session = createSafeAgentSession(fixtureProposal, fixturePolicy, {
+      source: testSource(async () => {
+        await deferred;
+        return parcelResult(5);
+      }),
+      sourceBinding: fixtureSourceBinding,
+    });
+    session.validate();
+    session.decide("approve");
+    const execution = session.execute();
+    expect(session.state).toBe("executing");
+    expect(session.validate().valid).toBe(true);
+    expect(session.state).toBe("validated");
+    expect(session.approval).toBeUndefined();
+    release();
+    await expect(execution).rejects.toThrow(/cancel/i);
+    expect(session.rows).toEqual([]);
+    expect(session.receipt).toBeUndefined();
   });
 
   it("prevents double execution and stale ignored-abort completion after disposal", async () => {
@@ -180,6 +284,7 @@ describe("AI Spatial App Builder safe-agent kernel", () => {
         await deferred;
         return parcelResult(5);
       }),
+      sourceBinding: fixtureSourceBinding,
     });
     session.validate();
     session.decide("approve");
@@ -213,13 +318,14 @@ function testSource(
 
 function parcelResult(
   count: number,
+  title = "Parcel",
 ): Result<import("../examples/ai-spatial-app-builder/src/safe-agent.js").ParcelAttributes> {
   return {
     features: Array.from({ length: count }, (_, index) => ({
       id: index + 1,
       attributes: {
         OBJECTID: index + 1,
-        title: `Parcel ${index + 1}`,
+        title: `${title} ${index + 1}`,
         floodZone: "AE",
         builtYear: 1960,
         assessedValue: 100_000,
