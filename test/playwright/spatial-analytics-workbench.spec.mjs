@@ -193,6 +193,53 @@ for (const mutation of ["AOI", "risk filter", "execution policy", "new acceptanc
   });
 }
 
+test("loading the indexed fixture invalidates a deferred live execution and keeps its evidence isolated", async ({ page }) => {
+  const server = await startSpatialAnalyticsWorkbenchFixtureServer();
+  let requestCount = 0;
+  let releaseRequest = () => {};
+  let settleRequest = () => {};
+  const release = new Promise((resolve) => {
+    releaseRequest = resolve;
+  });
+  const settled = new Promise((resolve) => {
+    settleRequest = resolve;
+  });
+  await page.route("https://fixture-race.test/**", async (route) => {
+    requestCount += 1;
+    await release;
+    await route
+      .fulfill({ status: 200, contentType: "application/json", body: '{"features":[],"exceededTransferLimit":false}' })
+      .catch(() => undefined);
+    settleRequest();
+  });
+  try {
+    await page.goto(
+      `${server.url}/?mode=live&baseUrl=https://fixture-race.test&serviceId=incidents&layerId=0&sourceVersion=v1&schemaVersion=v1`,
+    );
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__?.ready)).toBe(true);
+    await page.getByRole("button", { name: "Accept plan" }).click();
+    await page.getByRole("button", { name: "Execute accepted plan" }).click();
+    await expect.poll(() => requestCount).toBe(1);
+
+    await page.getByRole("button", { name: "Load fixture only" }).click();
+    await expect(page.locator("#result-count")).toHaveText("2");
+    await expect(page.locator("#materialized-layer")).toContainText("indexed-aggregation");
+    await expect(page.locator("#aggregation-widgets")).not.toContainText("No analysis output yet");
+    await expect(page.locator("#evidence-state")).toHaveText("Estimate");
+    await expect(page.locator("#execution-truth")).toContainText("has not been requested or observed");
+    await expect(page.locator("#artifact-json")).toHaveText("No output artifact until an accepted plan executes.");
+
+    releaseRequest();
+    await settled;
+    await expect(page.locator("#result-count")).toHaveText("2");
+    await expect(page.locator("#evidence-state")).toHaveText("Estimate");
+    await expect(page.locator("#artifact-json")).toHaveText("No output artifact until an accepted plan executes.");
+  } finally {
+    releaseRequest();
+    await server.close();
+  }
+});
+
 test("workbench remains keyboard-operable and responsive at a narrow viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const server = await startSpatialAnalyticsWorkbenchFixtureServer();

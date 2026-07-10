@@ -699,12 +699,7 @@ function wireEvents(activeSession: SpatialAnalyticsWorkbenchSession): void {
   getElement<HTMLButtonElement>("#simulate-gap").addEventListener(
     "click",
     () => {
-      activeSession.setLinkedAnalysisContext(undefined);
-      activeSession.selectPlan("indexed-aggregation");
-      activeSession.startAnalysis();
-      activeSession.advanceJob();
-      activeSession.advanceJob();
-      render();
+      loadIndexedFixture(activeSession);
     },
     uiEventOptions,
   );
@@ -716,6 +711,20 @@ function wireEvents(activeSession: SpatialAnalyticsWorkbenchSession): void {
     },
     uiEventOptions,
   );
+}
+
+function loadIndexedFixture(activeSession: SpatialAnalyticsWorkbenchSession): void {
+  invalidateExecution();
+  activeSession.clearOutput();
+  linkedContext = linkedController.explain(selectedLane, activeSession.activeAoi, activeSession.currentProjection());
+  workspaceExport = "";
+  activeSession.setLinkedAnalysisContext(undefined);
+  activeSession.selectPlan("indexed-aggregation");
+  activeSession.startAnalysis();
+  activeSession.advanceJob();
+  activeSession.advanceJob();
+  activeSession.setLinkedAnalysisContext(linkedContext);
+  render();
 }
 
 function explainCurrent(): void {
