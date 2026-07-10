@@ -22,7 +22,7 @@ npm run demo:quickstart:mock
 Open the printed `quickstartMockUrl`. No account, credential, or network-hosted basemap is required. The app:
 
 1. checks SDK/server compatibility;
-2. discovers layer metadata and capabilities;
+2. discovers layer metadata and constructs the protocol capability contract;
 3. explains a deterministic query plan before fetching rows;
 4. executes that accepted plan through `Dataset → Source → Query → Result`;
 5. mounts the result in MapLibre and links map, table, filter, detail, and popup state.

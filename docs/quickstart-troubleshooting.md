@@ -68,6 +68,7 @@ Symptoms:
 - the app fails before the compatibility check runs
 - the overlay or inline status reports `A quickstart layer id must be an integer.`
 - the overlay or inline status reports `A quickstart result record count must be greater than zero.`
+- the overlay reports that the browser quickstart is intentionally secret-free
 - local staging runs fail with `HONUA_STAGING_BASE_URL is required.` or the matching `HONUA_STAGING_*` required-variable message
 - the staging workflow fails during its validation step with `Missing HONUA_STAGING_BASE_URL`, `Missing HONUA_STAGING_SERVICE_ID`, or `Missing HONUA_STAGING_LAYER_ID`
 - `npm run test:quickstart:staging` fails before issuing any network requests when staging env values are malformed
@@ -76,6 +77,7 @@ Checks:
 
 - set `VITE_HONUA_QUICKSTART_LAYER_ID` to an integer
 - set `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT` to a positive integer
+- remove `VITE_HONUA_QUICKSTART_API_KEY` and `VITE_HONUA_QUICKSTART_BEARER_TOKEN`; use an anonymous endpoint or proxy
 - set `HONUA_STAGING_BASE_URL`, `HONUA_STAGING_SERVICE_ID`, and `HONUA_STAGING_LAYER_ID` for local or CI staging runs
 - for staging CI, keep `HONUA_STAGING_LAYER_ID` integer-valued and `HONUA_STAGING_RESULT_RECORD_COUNT` positive when overridden
 
