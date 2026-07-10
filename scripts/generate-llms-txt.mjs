@@ -73,6 +73,11 @@ const SECTIONS = [
         description: "Dataset / Source / Query / Result contract design and semantics.",
       },
       {
+        path: "docs/query-planner.md",
+        description:
+          "Deterministic query IR and explain plans, GeoServices pushdown, and safe bounded-local execution policy.",
+      },
+      {
         path: "docs/decisions/north-star-sdk-application-kernel.md",
         description:
           "Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.",
@@ -192,6 +197,11 @@ const ENTRYPOINTS = [
     path: "src/contract/index.ts",
     label: "@honua/sdk-js/contract",
     fallback: "Protocol-neutral Dataset / Source / Query / Result vocabulary.",
+  },
+  {
+    path: "src/query-planner/index.ts",
+    label: "@honua/sdk-js/query-planner",
+    fallback: "Deterministic query IR, explain plans, and bounded execution.",
   },
   {
     path: "src/esri-compat-entry.ts",

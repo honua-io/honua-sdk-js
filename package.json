@@ -85,6 +85,10 @@
       "types": "./dist/src/contract/index.d.ts",
       "default": "./dist/src/contract/index.js"
     },
+    "./query-planner": {
+      "types": "./dist/src/query-planner/index.d.ts",
+      "default": "./dist/src/query-planner/index.js"
+    },
     "./control-plane": {
       "types": "./dist/src/_deprecated/control-plane.d.ts",
       "default": "./dist/src/_deprecated/control-plane.js"
