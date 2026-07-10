@@ -158,6 +158,32 @@ export {
 } from "./types.js";
 
 export {
+  createDiscoveryCacheIdentity,
+  inspectDiscoveredSource,
+  normalizeDiscoveryEndpoint,
+  resolveDiscoveryCapabilities,
+} from "./discovery.js";
+export type {
+  DiscoveryCacheIdentity,
+  DiscoveryCacheIdentityOptions,
+  DiscoveryCacheResourceIdentity,
+  DiscoveryCapabilityDecision,
+  DiscoveryCapabilityDecisionCode,
+  DiscoveryCapabilityEvidence,
+  DiscoveryCapabilityEvidenceSummary,
+  DiscoveryCapabilityPolicy,
+  DiscoveryCapabilityResolution,
+  DiscoveryDiagnostic,
+  DiscoveryDiagnosticCode,
+  DiscoveryEvidenceKind,
+  DiscoveryProvenance,
+  DiscoveryState,
+  SourceDiscoveryInspection,
+} from "./discovery.js";
+export { HonuaDiscoveryError } from "../core/errors.js";
+export type { HonuaDiscoveryErrorCode } from "../core/errors.js";
+
+export {
   ANALYTICS_SOURCE_SCHEMA_VERSION,
   analyticsSourceDegradedReason,
   analyticsSourceId,
