@@ -82,6 +82,19 @@ function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
+function assertSecretFreeBrowserBaseUrl(value: string): void {
+  if (!value) return;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("The browser quickstart base URL must be a valid absolute URL.");
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("The browser quickstart base URL must not contain userinfo, query parameters, or a fragment.");
+  }
+}
+
 function createQuickstartConfig({
   baseUrl,
   apiKey,
@@ -130,6 +143,7 @@ function createQuickstartConfig({
 
 export function resolveQuickstartConfig(env: Record<string, string | undefined>): QuickstartConfig {
   const baseUrl = readOptional(env, "VITE_HONUA_QUICKSTART_BASE_URL") ?? "";
+  assertSecretFreeBrowserBaseUrl(baseUrl);
   if (readOptional(env, "VITE_HONUA_QUICKSTART_API_KEY") || readOptional(env, "VITE_HONUA_QUICKSTART_BEARER_TOKEN")) {
     throw new Error(
       "The browser quickstart is intentionally secret-free. Use an anonymous live endpoint or a server-side proxy.",

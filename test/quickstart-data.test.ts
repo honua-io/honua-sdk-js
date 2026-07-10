@@ -241,6 +241,9 @@ describe("maplibre quickstart data", () => {
       freshness: "snapshot captured 2026-07-01T00:00:00.000Z",
     });
     expect(dataset.plan.pushdown).toBe("full");
+    expect(dataset.evidence.capabilities).toEqual(["connect", "query"]);
+    expect(dataset.evidence.capabilities).not.toContain("attachments");
+    expect(dataset.evidence.capabilities).not.toContain("applyEdits");
   });
 
   it("checks compatibility and queries the configured FeatureServer path", async () => {

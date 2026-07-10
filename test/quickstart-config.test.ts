@@ -49,6 +49,19 @@ describe("maplibre quickstart config", () => {
     ).toThrow("browser quickstart is intentionally secret-free");
   });
 
+  it("rejects credentials embedded in the browser endpoint URL", () => {
+    expect(() =>
+      resolveQuickstartConfig({
+        VITE_HONUA_QUICKSTART_BASE_URL: "https://user:secret@demo.honua.example",
+      }),
+    ).toThrow("base URL must not contain userinfo");
+    expect(() =>
+      resolveQuickstartConfig({
+        VITE_HONUA_QUICKSTART_BASE_URL: "https://demo.honua.example?token=secret",
+      }),
+    ).toThrow("base URL must not contain userinfo");
+  });
+
   it("requires the staging contract keys", () => {
     expect(() => resolveQuickstartStagingConfig({})).toThrow("HONUA_STAGING_BASE_URL is required.");
   });

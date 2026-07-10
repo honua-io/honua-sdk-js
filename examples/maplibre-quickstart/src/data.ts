@@ -1,8 +1,9 @@
 import {
-  PROTOCOL_DEFAULT_CAPABILITIES,
+  type Capability,
   type Query,
   type Result,
   type SourceDescriptor,
+  capabilities,
   createDataset,
 } from "@honua/sdk-js/contract";
 import { HonuaClient, type HonuaLayerMetadata, type HonuaTypedQueryResponse } from "@honua/sdk-js/honua";
@@ -175,6 +176,8 @@ export function createQuickstartSourceDescriptor(
   config: QuickstartConfig,
   metadata: HonuaLayerMetadata,
 ): SourceDescriptor {
+  const verifiedCapabilities: Capability[] = ["connect", "query"];
+  if (metadata.supportsAttachments === true) verifiedCapabilities.push("attachments");
   return {
     id: config.sourceId,
     protocol: "geoservices-feature-service",
@@ -183,7 +186,7 @@ export function createQuickstartSourceDescriptor(
       serviceId: config.serviceId,
       layerId: config.layerId,
     },
-    capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+    capabilities: capabilities(verifiedCapabilities),
     schema: {
       fields: metadata.fields,
       primaryKey: metadata.fields?.find((field) => field.type === "esriFieldTypeOID")?.name,
