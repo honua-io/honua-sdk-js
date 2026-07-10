@@ -1,0 +1,77 @@
+name: SDK Live Benchmark Evidence
+
+# Live endpoints are evidence, never a pull-request dependency. The offline
+# benchmark lab in ci.yml is the only benchmark lane used for PR gating.
+on:
+  schedule:
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Canonical Honua demo base URL
+        required: false
+        default: https://demo.honua.io
+      skip_aws_reason:
+        description: Optional reason to skip the AWS Earth Search probe
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  live-evidence:
+    name: Demo + AWS live evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Probe canonical live sources
+        env:
+          HONUA_BENCH_LIVE_ENABLED: "true"
+          HONUA_BENCH_LIVE_BASE_URL: ${{ inputs.base_url || 'https://demo.honua.io' }}
+          HONUA_BENCH_LIVE_API_KEY: ${{ secrets.HONUA_CLOUD_DEMO_API_KEY || secrets.HONUA_DEMO_API_KEY }}
+          HONUA_BENCH_LIVE_SKIP_AWS_REASON: ${{ inputs.skip_aws_reason }}
+        run: npm run bench:live -- --strict
+
+      - name: Upload versioned live evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: honua-sdk-live-benchmark-evidence
+          path: test-results/live-benchmark-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Summarize live evidence
+        if: always()
+        run: |
+          node --input-type=module <<'EOF'
+          import fs from "node:fs";
+          const file = "test-results/live-benchmark-evidence.json";
+          if (!fs.existsSync(file)) {
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "## SDK live benchmark evidence\n\nNo evidence artifact was produced.\n");
+            process.exit(0);
+          }
+          const report = JSON.parse(fs.readFileSync(file, "utf8"));
+          const rows = report.targets.map((target) =>
+            `| ${target.id} | ${target.status} | ${target.provider} | ${target.endpointVersion ?? "unknown"} | ${target.latencyMs?.toFixed(2) ?? "—"} | ${target.skipReason ?? target.error ?? ""} |`,
+          );
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            "## SDK live benchmark evidence",
+            "",
+            `Run status: **${report.run.status}** · format \`${report.format}\``,
+            "",
+            "| Target | Status | Provider | Version | Latency (ms) | Note |",
+            "| --- | --- | --- | --- | ---: | --- |",
+            ...rows,
+            "",
+          ].join("\n"));
+          EOF

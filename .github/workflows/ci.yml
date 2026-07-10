@@ -14,6 +14,80 @@ env:
   NODE_VERSION: "20.19.0"
 
 jobs:
+  pr-fast:
+    name: PR Fast (under 2 minutes)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The measured budget includes runtime setup and dependency installation,
+      # but excludes GitHub queue/VM provisioning and checkout action overhead.
+      - name: Start validation budget clock
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_at=$(awk '{ printf "%.0f", $1 * 1000 }' /proc/uptime)
+          if [[ ! "$started_at" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Could not capture a positive monotonic start timestamp"
+            exit 1
+          fi
+          echo "PR_FAST_STARTED_AT_MONOTONIC_MS=$started_at" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run representative validation tier
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${PR_FAST_STARTED_AT_MONOTONIC_MS:?validation budget clock was not initialized}"
+          npm run validate:pr-fast -- \
+            --started-at-monotonic-ms "$PR_FAST_STARTED_AT_MONOTONIC_MS" \
+            --output test-results/pr-fast.json
+
+      - name: Upload PR-fast timing evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-fast-timing
+          path: test-results/pr-fast.json
+          if-no-files-found: warn
+
+  benchmark-lab:
+    name: Deterministic Benchmark Lab
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run offline benchmark corpus
+        run: npm run bench:lab
+
+      - name: Upload benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sdk-benchmark-lab
+          path: test-results/benchmark-lab.json
+          if-no-files-found: error
+
   js-sdk:
     name: JS SDK
     runs-on: ubuntu-latest
