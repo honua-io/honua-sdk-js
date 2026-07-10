@@ -13,6 +13,8 @@ const repoRoot = path.resolve(exampleRoot, "../..");
 // jsDelivr CDN fetch — CI-deterministic).
 const duckdbDist = path.resolve(repoRoot, "node_modules/@duckdb/duckdb-wasm/dist");
 const DUCKDB_ASSETS = ["duckdb-eh.wasm", "duckdb-browser-eh.worker.js"];
+const extensionRoot = path.join(exampleRoot, "vendor", "extensions");
+const PARQUET_EXTENSION_PATH = "v1.4.3/wasm_eh/parquet.duckdb_extension.wasm";
 
 function selfHostDuckDb(): Plugin {
   return {
@@ -20,9 +22,10 @@ function selfHostDuckDb(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const match = DUCKDB_ASSETS.find((asset) => req.url === `/duckdb/${asset}`);
-        if (!match) return next();
-        const file = path.join(duckdbDist, match);
-        res.setHeader("content-type", match.endsWith(".wasm") ? "application/wasm" : "text/javascript");
+        const extensionMatch = req.url === `/duckdb/extensions/${PARQUET_EXTENSION_PATH}`;
+        if (!match && !extensionMatch) return next();
+        const file = match ? path.join(duckdbDist, match) : path.join(extensionRoot, PARQUET_EXTENSION_PATH);
+        res.setHeader("content-type", match && !match.endsWith(".wasm") ? "text/javascript" : "application/wasm");
         fs.createReadStream(file).pipe(res);
       });
     },
@@ -33,6 +36,9 @@ function selfHostDuckDb(): Plugin {
       for (const asset of DUCKDB_ASSETS) {
         fs.copyFileSync(path.join(duckdbDist, asset), path.join(target, asset));
       }
+      const extensionTarget = path.join(target, "extensions", PARQUET_EXTENSION_PATH);
+      fs.mkdirSync(path.dirname(extensionTarget), { recursive: true });
+      fs.copyFileSync(path.join(extensionRoot, PARQUET_EXTENSION_PATH), extensionTarget);
     },
   };
 }

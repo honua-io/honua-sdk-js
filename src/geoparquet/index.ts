@@ -84,7 +84,7 @@ export {
 } from "../core/geoparquet-sql.js";
 
 import { createBrowserDuckDbDriver } from "./driver.js";
-import type { DuckDbDriver, DuckRow } from "./driver.js";
+import type { DuckDbDriver, DuckDbQueryOptions, DuckRow } from "./driver.js";
 
 const GEOPARQUET_ALIAS = "__geometry_geojson";
 
@@ -122,9 +122,19 @@ export class GeoparquetRuntime {
   }
 
   /** Run a query and return raw rows. Escape hatch for advanced callers. */
-  async query(sql: string): Promise<DuckRow[]> {
+  async query(sql: string, options?: DuckDbQueryOptions): Promise<DuckRow[]> {
     const driver = await this.driver();
-    return driver.query(sql);
+    return driver.query(sql, options);
+  }
+
+  /** Stream Arrow record batches when supported, falling back to one materialized batch. */
+  async *stream(sql: string, options?: DuckDbQueryOptions): AsyncIterable<DuckRow[]> {
+    const driver = await this.driver();
+    if (driver.streamQuery) {
+      yield* driver.streamQuery(sql, options);
+      return;
+    }
+    yield await driver.query(sql, options);
   }
 
   /** Register parquet bytes under a name usable in `read_parquet('name')`. */
@@ -369,7 +379,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
     }
     const wantGeometry = request?.returnGeometry !== false && profile.geometry !== undefined;
     const compiled = compileQuery(request ?? {}, opts);
-    const rows = await runtime.query(compiled.sql);
+    const rows = await runtime.query(compiled.sql, { signal: request?.signal });
     const features = rows.map((row) => rowToFeature<T>(row, wantGeometry));
     const limit = request?.pagination?.limit;
     const exceededTransferLimit = typeof limit === "number" && features.length >= limit;
@@ -395,7 +405,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
         }
       : (await compileOptions()).opts;
     const compiled = compileAggregate(request, opts);
-    const rows = await runtime.query(compiled.sql);
+    const rows = await runtime.query(compiled.sql, { signal: request.signal });
     const aggregateRows = rows.map((row) => {
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(row)) out[k] = normalizeScalar(v);
@@ -434,11 +444,22 @@ export function geoparquetSource<T = Record<string, unknown>>(
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
-      // DuckDB materializes the full relation; emit it as a single page. The
-      // async-generator shape lets callers treat it like any other streaming
-      // source without special-casing geoparquet.
-      const result = await runQuery(request);
-      yield result;
+      if (request?.aggregation) {
+        yield await runAggregate({ ...(request as Query<T>), aggregation: request.aggregation });
+        return;
+      }
+      const { profile, opts } = await compileOptions();
+      const wantGeometry = request?.returnGeometry !== false && profile.geometry !== undefined;
+      const compiled = compileQuery(request ?? {}, opts);
+      for await (const rows of runtime.stream(compiled.sql, { signal: request?.signal })) {
+        const features = rows.map((row) => rowToFeature<T>(row, wantGeometry));
+        const degraded = degradedFor(compiled.bboxApproximated);
+        yield {
+          features,
+          exceededTransferLimit: false,
+          ...(degraded ? { degraded } : {}),
+        };
+      }
     },
     async queryObjectIds() {
       return unsupported("queryObjectIds");

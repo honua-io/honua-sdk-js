@@ -163,6 +163,12 @@ const summary = await places.queryAggregate({
   `pagination.limit` on large Overture extracts.
 - Parquet footers / row-group metadata are cached per source-URL set **inside
   the runtime**; there is no on-disk persistence.
+- `Source.stream()` uses DuckDB-WASM Arrow record batches when the driver
+  supports them; `Source.query()` intentionally materializes its bounded result.
+  `Query.signal` is forwarded to the browser driver's `cancelSent()` path.
+- Browser deployments can set `loadSpatial: false` when a GeoParquet `bbox`
+  covering is sufficient, and can pin `extensionRepository` plus
+  `preloadExtensions` to keep Parquet execution self-hosted.
 
 ## Capability honesty
 
@@ -179,13 +185,15 @@ Overture Maps ships monthly GeoParquet releases. The
 entirely against a **fixture-sized extract committed to the repo** (no Honua
 server, CI-deterministic) and preserves GERS ids in results.
 
-To point it at live Overture data, replace the fixture URL with an Overture
-release path and let DuckDB read it directly over HTTP(S) — no download step:
+For live Overture data, resolve a pinned file from Overture's STAC catalog
+before constructing the source. Do not hand a global glob to a browser without
+an AOI, projection, result limit, memory budget, cancellation, and file-level
+STAC selection:
 
 ```ts
 // Overture release layout (see https://docs.overturemaps.org/):
-const THEME =
-  "https://overturemaps-us-west-2.s3.amazonaws.com/release/2025-06-25.0/theme=places/type=place/*.parquet";
+const PINNED_ITEM =
+  "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-06-17.0/theme=places/type=place/part-00000-6c973aba-862d-590f-a178-70bcd31cde1c-c000.zstd.parquet";
 
 createDataset({
   id: "overture-live",
@@ -196,15 +204,20 @@ createDataset({
     {
       id: "places",
       protocol: "geoparquet",
-      locator: { url: THEME },
+      locator: { url: PINNED_ITEM },
       capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
     },
   ],
 });
 ```
 
-Always send a `spatialFilter` (and narrow `outFields`) against live Overture:
-the theme is global and only the row groups intersecting your bbox are scanned.
+Always send a `spatialFilter`, narrow `outFields`, `pagination.limit`, and
+`signal` against live Overture. A bbox predicate creates a pruning opportunity;
+it does not by itself prove bytes avoided or row groups skipped. The current
+browser driver does not expose its internal HTTP bytes/ranges, rows scanned, or
+row-group pruning metrics. The flagship sample reports those as unverified and
+uses an explicit execution deadline rather than falling back to full
+materialization.
 
 ## Regenerating the test fixtures
 

@@ -19,7 +19,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`migration-workbench`](../../docs/migration-honua-maplibre.md) | flagship | supported | fixture | rework | Scans and transforms ArcGIS application source with auditable compatibility results. |
 | [`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | [`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | supported | fixture | keep | Demonstrates browser authentication and session lifecycle without embedding credentials. |
-| [`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | flagship | experimental | fixture | rework | Loads Overture GeoParquet data through browser columnar query and visualization. |
+| [`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | flagship | experimental | hybrid | keep | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
 | [`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | flagship | supported | fixture | rework | Combines parcels, hazards, sketching, editing, and export in a task-oriented application. |
 | [`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | supported | fixture | keep | Loads a static PMTiles archive without a Honua server. |
 | [`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the React provider, hooks, and map component over the same quickstart contract. |
