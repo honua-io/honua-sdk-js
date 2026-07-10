@@ -4,6 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { validateCatalog } from "./sample-contract.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MANIFEST_PATH = "docs/learning-paths.v1.json";
 const OUTPUT_PATH = "docs/generated/learning-paths.md";
@@ -85,6 +87,14 @@ export async function validateLearningManifest({
     fail("learning path JSON Schema is missing");
   }
 
+  if (sampleCatalog) {
+    try {
+      await validateCatalog(sampleCatalog, packageJson);
+    } catch (error) {
+      fail(`sample catalog contract is invalid: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   const ownership = manifest.ownership ?? {};
   if (ownership.executableSourceOwner !== "honua-io/honua-sdk-js") {
     fail("executable source must remain owned by honua-io/honua-sdk-js");
@@ -117,15 +127,17 @@ export async function validateLearningManifest({
     fail(`learning path order must be ${REQUIRED_PATH_IDS.join(", ")}`);
   }
   const surfaceBySubpath = new Map(publicSurface.entrypoints.map((entrypoint) => [entrypoint.subpath, entrypoint]));
-  const sampleIds = sampleCatalog ? new Set(sampleCatalog.samples.map((sample) => sample.id)) : undefined;
+  const samplesById = sampleCatalog
+    ? new Map(sampleCatalog.samples.map((sample) => [sample.id, sample]))
+    : undefined;
   const usedLabels = new Set();
   const runtimeModules = new Map();
   let runtimeImportCount = 0;
 
   for (const learningPath of paths) {
     if (!learningPath.title || !learningPath.outcome) fail(`${learningPath.id}: title and outcome are required`);
-    if (!["supported", "experimental"].includes(learningPath.supportStatus)) {
-      fail(`${learningPath.id}: supportStatus must be supported or experimental`);
+    if (Object.hasOwn(learningPath, "supportStatus")) {
+      fail(`${learningPath.id}: supportStatus is catalog-owned and must not be duplicated`);
     }
     if (!siteJourneys.includes(learningPath.siteJourneyId)) {
       fail(`${learningPath.id}: unknown site journey ${learningPath.siteJourneyId}`);
@@ -134,9 +146,6 @@ export async function validateLearningManifest({
     for (const label of learningPath.labels ?? []) {
       usedLabels.add(label);
       if (!EXECUTION_LABEL_IDS.includes(label)) fail(`${learningPath.id}: unknown execution label ${label}`);
-    }
-    if (learningPath.supportStatus === "experimental" && !learningPath.labels?.includes("experimental")) {
-      fail(`${learningPath.id}: experimental paths must carry the experimental label`);
     }
     if (learningPath.labels?.includes("degraded") && !learningPath.degradationReason) {
       fail(`${learningPath.id}: degraded paths must state a degradationReason`);
@@ -152,8 +161,30 @@ export async function validateLearningManifest({
     if (!packageJson.scripts?.[learningPath.typecheckScript]) {
       fail(`${learningPath.id}: unknown typecheck script ${learningPath.typecheckScript}`);
     }
-    if (sampleIds && !sampleIds.has(learningPath.sampleId)) {
+    const sample = samplesById?.get(learningPath.sampleId);
+    if (samplesById && !sample) {
       fail(`${learningPath.id}: sampleId ${learningPath.sampleId} is absent from samples/catalog.v1.json`);
+    }
+    if (sample) {
+      if (sample.sourcePath !== learningPath.sourcePath) {
+        fail(`${learningPath.id}: sourcePath must match the sample catalog (${sample.sourcePath})`);
+      }
+      if (sample.docsPath !== learningPath.docsPath) {
+        fail(`${learningPath.id}: docsPath must match the sample catalog (${sample.docsPath})`);
+      }
+      if (!["supported", "experimental"].includes(sample.supportStatus)) {
+        fail(`${learningPath.id}: sample support status ${sample.supportStatus} cannot be taught`);
+      }
+      if (sample.supportStatus === "experimental" && !learningPath.labels?.includes("experimental")) {
+        fail(`${learningPath.id}: experimental sample must carry the experimental label`);
+      }
+      const requiresCredentials = !["none", "anonymous"].includes(sample.data.authMode);
+      if (learningPath.labels?.includes("authenticated") !== requiresCredentials) {
+        fail(`${learningPath.id}: authenticated label must match catalog authMode ${sample.data.authMode}`);
+      }
+      if (!sample.validation.includes(`npm run ${learningPath.typecheckScript}`)) {
+        fail(`${learningPath.id}: typecheckScript must be declared by the sample catalog`);
+      }
     }
 
     for (const api of learningPath.api ?? []) {
@@ -204,7 +235,7 @@ export async function validateLearningManifest({
     paths: paths.length,
     labels: usedLabels.size,
     runtimeImports: runtimeImportCount,
-    sampleCatalog: sampleCatalog ? sampleCatalog.format : "pending-honua-sdk-js#401",
+    sampleCatalog: sampleCatalog ? sampleCatalog.format : "not-checked",
   };
 }
 
@@ -212,7 +243,15 @@ function markdownLink(fromPath, targetPath) {
   return path.posix.relative(path.posix.dirname(fromPath), targetPath);
 }
 
-export function generateLearningMarkdown(manifest) {
+export function generateLearningMarkdown(manifest, sampleCatalog) {
+  const samplesById = new Map(sampleCatalog.samples.map((sample) => [sample.id, sample]));
+  const siteRoutesBySample = new Map();
+  for (const mapping of sampleCatalog.siteMappings) {
+    if (mapping.ownership !== "sdk-projection" || !mapping.sampleId) continue;
+    const routes = siteRoutesBySample.get(mapping.sampleId) ?? [];
+    if (!routes.includes(mapping.route)) routes.push(mapping.route);
+    siteRoutesBySample.set(mapping.sampleId, routes);
+  }
   const output = [];
   output.push("# Learn the Honua SDK by task");
   output.push("");
@@ -222,6 +261,10 @@ export function generateLearningMarkdown(manifest) {
   output.push("");
   output.push(
     `API reference is SDK-owned at [${manifest.ownership.apiReference}](${manifest.ownership.apiReference}); the task narrative and deployed sample catalog are site-owned at [${manifest.ownership.narrativeCatalog}](${manifest.ownership.narrativeCatalog}).`,
+  );
+  output.push("");
+  output.push(
+    `These paths describe the SDK version in [\`package.json\`](../../package.json). Sample support, tier, data, provenance, freshness, and degradation metadata comes from the [versioned sample catalog](../../samples/contract/v1/README.md); use the [installation and compatibility guide](../../INSTALL.md) when reading docs for another release.`,
   );
   output.push("");
   output.push("## Execution labels");
@@ -234,6 +277,8 @@ export function generateLearningMarkdown(manifest) {
   output.push("");
 
   manifest.paths.forEach((learningPath, index) => {
+    const sample = samplesById.get(learningPath.sampleId);
+    if (!sample) throw new Error(`missing sample catalog entry for ${learningPath.sampleId}`);
     const guide = markdownLink(OUTPUT_PATH, learningPath.guidePath);
     const docs = markdownLink(OUTPUT_PATH, learningPath.docsPath);
     const source = markdownLink(OUTPUT_PATH, learningPath.sourcePath);
@@ -249,6 +294,19 @@ export function generateLearningMarkdown(manifest) {
     output.push(`- Executable entry: [${learningPath.sourceEntry}](${entry})`);
     output.push(`- Example notes: [${learningPath.docsPath}](${docs})`);
     output.push(`- Compile check: \`npm run ${learningPath.typecheckScript}\``);
+    output.push(`- Sample contract: \`${sample.tier}\` · \`${sample.supportStatus}\``);
+    output.push(`- Data and auth: \`${sample.data.mode}\` · \`${sample.data.authMode}\``);
+    output.push(`- Provenance: ${sample.data.provenance}`);
+    output.push(`- Freshness: ${sample.data.freshness}`);
+    output.push(`- Catalog degradation: ${sample.expectedDegradation}`);
+    const siteRoutes = siteRoutesBySample.get(sample.id) ?? [];
+    if (siteRoutes.length > 0) {
+      output.push(
+        `- Live sample: ${siteRoutes
+          .map((route) => `[${route}](${new URL(route, manifest.ownership.narrativeCatalog).href})`)
+          .join(" · ")}`,
+      );
+    }
     output.push(
       `- Supported API imports: ${learningPath.api.map((api) => `\`${api.specifier}\` (${api.symbols.map((symbol) => `\`${symbol}\``).join(", ")})`).join("; ")}`,
     );
@@ -261,6 +319,9 @@ export function generateLearningMarkdown(manifest) {
   output.push("");
   output.push(`- ${manifest.ownership.sourceReusePolicy}`);
   output.push(`- ${manifest.ownership.internalLinkPolicy}`);
+  output.push(
+    "- Site consumers join the [learning navigation manifest](../learning-paths.v1.json) to the [static sample projection](../../samples/dist/honua-site-samples.v1.json) by `sampleId`; catalog-owned metadata is not copied into another source file.",
+  );
   output.push(
     `- Sample metadata/artifact/evidence projection is coordinated by [SDK issue #401](${manifest.ownership.sampleContractIssue}) and [honua-site issue #120](${manifest.ownership.siteProjectionIssue}).`,
   );
@@ -285,7 +346,8 @@ async function main() {
   if (!["check", "write"].includes(command)) throw new Error(`unknown command: ${command}`);
   const manifest = readJson(ROOT, MANIFEST_PATH);
   const validation = await validateLearningManifest({ manifest, checkRuntimeImports: command === "check" });
-  const generated = `${generateLearningMarkdown(manifest).replace(/\s+$/, "")}\n`;
+  const sampleCatalog = readJson(ROOT, "samples/catalog.v1.json");
+  const generated = `${generateLearningMarkdown(manifest, sampleCatalog).replace(/\s+$/, "")}\n`;
   const outputFile = path.join(ROOT, OUTPUT_PATH);
   if (command === "write") {
     fs.mkdirSync(path.dirname(outputFile), { recursive: true });

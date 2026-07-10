@@ -19,7 +19,6 @@
           "id",
           "title",
           "outcome",
-          "supportStatus",
           "labels",
           "siteJourneyId",
           "guidePath",
@@ -32,7 +31,6 @@
         ],
         "properties": {
           "id": { "type": "string" },
-          "supportStatus": { "enum": ["supported", "experimental"] },
           "degradationReason": { "type": "string", "minLength": 1 },
           "labels": {
             "type": "array",

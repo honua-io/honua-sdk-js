@@ -4,13 +4,14 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { validateLearningManifest } from "../../scripts/docs-learning.mjs";
+import { generateLearningMarkdown, validateLearningManifest } from "../../scripts/docs-learning.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const readJson = (relativePath) => JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"));
 const manifest = readJson("docs/learning-paths.v1.json");
 const packageJson = readJson("package.json");
 const publicSurface = readJson("config/public-surface.json");
+const sampleCatalog = readJson("samples/catalog.v1.json");
 
 function copyManifest() {
   return structuredClone(manifest);
@@ -45,5 +46,92 @@ test("rejects a broken canonical guide link", async () => {
       checkRuntimeImports: false,
     }),
     /guidePath does not exist: docs\/does-not-exist.md/,
+  );
+});
+
+test("derives learning-card metadata from the versioned sample catalog", async () => {
+  await assert.doesNotReject(
+    validateLearningManifest({
+      manifest,
+      projectRoot: root,
+      packageJson,
+      publicSurface,
+      sampleCatalog,
+      checkRuntimeImports: false,
+    }),
+  );
+
+  const markdown = generateLearningMarkdown(manifest, sampleCatalog);
+  assert.match(markdown, /spatial-analytics-workbench[\s\S]*Sample contract: `flagship` · `experimental`/);
+  assert.match(markdown, /storytelling-25d-map[\s\S]*Sample contract: `advanced` · `supported`/);
+  assert.match(markdown, /Data and auth: `hybrid` · `anonymous`/);
+  assert.match(markdown, /Live sample: \[demo\.html\]\(https:\/\/honua\.io\/demo\.html\)/);
+  assert.match(markdown, /effective version derived from `package\.json`|version in \[`package\.json`\]/);
+});
+
+test("rejects learning paths that drift from catalog-owned source metadata", async () => {
+  const invalid = copyManifest();
+  invalid.paths[0].sourcePath = "examples/maplibre-quickstart";
+  invalid.paths[0].sourceEntry = "examples/maplibre-quickstart/src/main.ts";
+
+  await assert.rejects(
+    validateLearningManifest({
+      manifest: invalid,
+      projectRoot: root,
+      packageJson,
+      publicSurface,
+      sampleCatalog,
+      checkRuntimeImports: false,
+    }),
+    /start: sourcePath must match the sample catalog \(examples\/standalone-quickstart\)/,
+  );
+});
+
+test("requires experimental catalog samples to carry the learning label", async () => {
+  const invalid = copyManifest();
+  const analyze = invalid.paths.find((learningPath) => learningPath.id === "analyze");
+  analyze.labels = analyze.labels.filter((label) => label !== "experimental");
+
+  await assert.rejects(
+    validateLearningManifest({
+      manifest: invalid,
+      projectRoot: root,
+      packageJson,
+      publicSurface,
+      sampleCatalog,
+      checkRuntimeImports: false,
+    }),
+    /analyze: experimental sample must carry the experimental label/,
+  );
+});
+
+test("rejects duplicated support status and auth labels that drift from the catalog", async () => {
+  const duplicated = copyManifest();
+  duplicated.paths[0].supportStatus = "experimental";
+  await assert.rejects(
+    validateLearningManifest({
+      manifest: duplicated,
+      projectRoot: root,
+      packageJson,
+      publicSurface,
+      sampleCatalog,
+      checkRuntimeImports: false,
+    }),
+    /start: supportStatus is catalog-owned and must not be duplicated/,
+  );
+
+  const mislabeled = copyManifest();
+  const edit = mislabeled.paths.find((learningPath) => learningPath.id === "edit");
+  edit.labels.push("authenticated");
+  await assert.rejects(
+    validateLearningManifest({
+      manifest: mislabeled,
+      projectRoot: root,
+      packageJson,
+      publicSurface,
+      sampleCatalog,
+      checkRuntimeImports: false,
+    }),
+    /edit: authenticated label must match catalog authMode none/,
   );
 });
