@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/sample-evidence.v1.schema.json",
+  "title": "Honua SDK sample execution evidence",
+  "type": "object",
+  "required": ["format", "schemaVersion", "sampleId", "lane", "status", "observedAt", "authMode", "sdk", "source", "provenance", "semantics", "timing", "degradation", "artifacts"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.sample-evidence.v1" },
+    "schemaVersion": { "const": 1 },
+    "sampleId": { "type": "string" },
+    "lane": { "enum": ["fixture", "live"] },
+    "status": { "enum": ["executed", "failed", "skipped", "credential-unavailable"] },
+    "reason": { "type": ["string", "null"] },
+    "observedAt": { "type": "string", "format": "date-time" },
+    "authMode": { "enum": ["none", "anonymous", "api-key", "bearer", "oauth", "host-mediated"] },
+    "sdk": {
+      "type": "object",
+      "required": ["package", "version", "gitCommit"],
+      "properties": { "package": { "const": "@honua/sdk-js" }, "version": { "type": "string" }, "gitCommit": { "type": ["string", "null"] } },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["provider", "identity", "endpoint", "deploymentVersion", "dataVersion"],
+      "properties": {
+        "provider": { "type": "string" },
+        "identity": { "type": "string" },
+        "endpoint": { "type": ["string", "null"] },
+        "deploymentVersion": { "type": ["string", "null"] },
+        "dataVersion": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["sourceId", "observedAt", "validAt", "state", "attribution"],
+          "properties": {
+            "sourceId": { "type": "string" },
+            "observedAt": { "type": "string", "format": "date-time" },
+            "validAt": { "type": ["string", "null"] },
+            "state": { "enum": ["live", "cached", "replayed", "pending-local"] },
+            "attribution": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        { "type": "null" }
+      ]
+    },
+    "semantics": {
+      "type": "object",
+      "required": ["operation", "outcome", "itemCount", "assertions"],
+      "properties": {
+        "operation": { "type": "string" },
+        "outcome": { "type": ["string", "null"] },
+        "itemCount": { "type": ["integer", "null"], "minimum": 0 },
+        "assertions": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "timing": {
+      "type": "object",
+      "required": ["totalMs", "firstSuccessfulInteractionMs"],
+      "properties": {
+        "totalMs": { "type": ["number", "null"], "minimum": 0 },
+        "firstSuccessfulInteractionMs": { "type": ["number", "null"], "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "degradation": {
+      "type": "object",
+      "required": ["state", "reasons"],
+      "properties": { "state": { "enum": ["none", "expected", "unexpected", "unavailable"] }, "reasons": { "type": "array", "items": { "type": "string" } } },
+      "additionalProperties": false
+    },
+    "realtime": {
+      "type": "object",
+      "required": ["snapshotAt", "cursor", "lagMs", "observationWindowMs", "reconnectOutcome"],
+      "properties": {
+        "snapshotAt": { "type": ["string", "null"] },
+        "cursor": { "type": ["string", "null"] },
+        "lagMs": { "type": ["number", "null"], "minimum": 0 },
+        "observationWindowMs": { "type": "number", "minimum": 0 },
+        "reconnectOutcome": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "path", "sha256"],
+        "properties": { "kind": { "type": "string" }, "path": { "type": "string" }, "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" } },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

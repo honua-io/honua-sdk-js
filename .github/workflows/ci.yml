@@ -113,6 +113,9 @@ jobs:
       - name: Verify north-star API design fixtures
         run: npm run verify:north-star-api
 
+      - name: Verify sample publication contract
+        run: npm run samples:verify
+
       - name: Code style
         run: npm run check
 
@@ -134,6 +137,9 @@ jobs:
       - name: Verify public-surface inventory and imports
         run: npm run verify:public-surface
 
+      - name: Verify browser artifact publication manifest
+        run: node scripts/sample-contract.mjs artifacts
+
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets
 
@@ -145,6 +151,7 @@ jobs:
         # (same ordering the publish workflow uses).
         run: |
           npm run build:browser --silent
+          node scripts/sample-contract.mjs artifacts
           npm run verify:publish-surface
 
       - name: Example typechecks

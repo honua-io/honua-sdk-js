@@ -1,0 +1,18 @@
+{
+  "$schema": "../schemas/sample-evidence.schema.json",
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "lane": "fixture",
+  "status": "executed",
+  "reason": null,
+  "observedAt": "2026-01-01T00:00:00.000Z",
+  "authMode": "none",
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": null },
+  "source": { "provider": "committed-fixture", "identity": "honua-quickstart-demo:v1", "endpoint": null, "deploymentVersion": null, "dataVersion": "v1" },
+  "provenance": { "sourceId": "fixture:honua-quickstart-demo:v1", "observedAt": "2026-01-01T00:00:00.000Z", "validAt": null, "state": "replayed", "attribution": "Honua deterministic quickstart fixture" },
+  "semantics": { "operation": "query-and-render", "outcome": "feature-collection-rendered", "itemCount": 3, "assertions": ["map-ready", "query-result-visible"] },
+  "timing": { "totalMs": 125, "firstSuccessfulInteractionMs": 90 },
+  "degradation": { "state": "expected", "reasons": ["Fixture evidence does not claim live freshness."] },
+  "artifacts": []
+}

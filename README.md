@@ -241,39 +241,9 @@ recommended replacement for `curl` in docs and demos.
 
 ## What you can build
 
-| Demo | What it shows |
-|------|---------------|
-| [`maplibre-quickstart`](./examples/maplibre-quickstart/README.md) | MapLibre map + Honua FeatureServer query + popup inspection |
-| [`react-quickstart`](./examples/react-quickstart/README.md) | `@honua/react` provider + hooks + `HonuaMap` over the same fixture lane |
-| [`storytelling-25d-map`](./examples/storytelling-25d-map/README.md) | 2.5D MapLibre storytelling, OGC overlays, route replay |
-| [`kepler-analytics`](./examples/kepler-analytics/README.md) | kepler.gl analytics replay over fixture GeoJSON + KPIs |
-| [`imagery-cog-quickstart`](./examples/imagery-cog-quickstart/README.md) | WMS `GetMap`, COG ImageServer tiles, `exportImage` previews |
-| [`spatial-analytics-workbench`](./examples/spatial-analytics-workbench/README.md) | Honua Cloud AOI jobs + linked map/table/chart workbench |
-| [`edit-workflow-demo`](./examples/edit-workflow-demo/README.md) | Optimistic create/update/delete with conflicts & attachments |
-| [`geocoding-quickstart`](./examples/geocoding-quickstart/README.md) | Forward / reverse / typeahead via `HonuaGeocodingClient` |
-| [`terrain-rgb-elevation`](./examples/terrain-rgb-elevation/README.md) | Terrain-RGB DEM tiles, point elevation, profile lookup |
-| [`unified-ops-workspace`](./examples/unified-ops-workspace/README.md) | Composed incident-command + analysis workspace shell |
-| [`cesium-route-playback`](./docs/examples/cesium-route-playback/README.md) | Cesium 3D route playback over one bounded Honua query |
-
-Each example documents its own env surface, mock + live lanes, browser telemetry hooks, and
-Playwright smoke coverage. The 11 above are the flagship walkthroughs; another 11 runnable
-demos cover specialized workflows:
-
-| Demo | What it shows |
-|------|---------------|
-| [`service-explorer`](./examples/service-explorer/README.md) | Catalog/service browse + linked-view explore over fixtures |
-| [`migration-workbench`](./examples/migration-workbench/README.md) | Interactive Esri → Honua migration with `honua-migrate` |
-| [`ai-spatial-app-builder`](./examples/ai-spatial-app-builder/README.md) | LLM-driven spatial app builder using `agent-tools` |
-| [`mcp-gis-assistant`](./examples/mcp-gis-assistant/README.md) | MCP server exposing Honua tools to assistants |
-| [`runtime-parity-showcase`](./examples/runtime-parity-showcase/README.md) | Parity matrix demo across MapLibre / kepler / Cesium runtimes |
-| [`realtime-incident-dashboard`](./examples/realtime-incident-dashboard/README.md) | SSE-backed realtime ops dashboard |
-| [`geoprocessing-job-runner`](./examples/geoprocessing-job-runner/README.md) | Async GP job submit / poll / cancel |
-| [`stac-imagery-browser`](./examples/stac-imagery-browser/README.md) | STAC search + COG preview |
-| [`node-backend-quickstart`](./examples/node-backend-quickstart/README.md) | Server-side Honua client (Node) |
-| [`app-bootstrap-basic`](./examples/app-bootstrap-basic/README.md) | Minimal `@honua/sdk-js/app` bootstrap helper |
-| [`web-components-basic`](./examples/web-components-basic/README.md) | Custom-element gallery |
-| [`arcgis-source-app`](./examples/arcgis-source-app/README.md) | Drop-in ArcGIS migration target |
-| [`standalone-quickstart`](./examples/standalone-quickstart/README.md) | Server-optional front door: public Esri FeatureServer → MapLibre, no Honua server |
+<!-- sample-catalog:start -->
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 27 executable examples: 10 flagship, 5 recipe, 8 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+<!-- sample-catalog:end -->
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
 

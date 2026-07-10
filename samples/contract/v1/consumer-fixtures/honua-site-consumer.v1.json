@@ -1,0 +1,28 @@
+{
+  "format": "honua.site.sdk-sample-consumer-fixture.v1",
+  "schemaVersion": 1,
+  "accepts": {
+    "projectionFormat": "honua.site.sdk-sample-projection.v1",
+    "projectionSchemaVersion": 1,
+    "catalogFormat": "honua.sdk.sample-catalog.v1",
+    "catalogSchemaVersion": 1
+  },
+  "input": {
+    "path": "samples/dist/honua-site-samples.v1.json",
+    "schemaPath": "samples/contract/v1/schemas/site-projection.schema.json",
+    "sha256": "10c7c5dabcc1e44a8bec8cf601f014f01b8e17d5c0cb7a5fae56789ae4f5d963"
+  },
+  "assertions": {
+    "routeCount": 21,
+    "routeIdsUnique": true,
+    "routesEndInHtml": true,
+    "executableSourceOwner": "honua-io/honua-sdk-js",
+    "presentationOwner": "honua-io/honua-site",
+    "credentialValuesForbidden": true
+  },
+  "representativeRoutes": [
+    "quickstart-map",
+    "public-safety",
+    "two-protocols"
+  ]
+}

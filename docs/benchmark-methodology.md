@@ -55,7 +55,12 @@ push. Locally, `npm run bench:live` produces a `skipped` report unless
 The artifact contract is
 `honua.sdk.benchmark-live-evidence.v1`; its JSON Schema is
 [`bench/live-evidence.schema.json`](../bench/live-evidence.schema.json). Every
-target records:
+target also embeds `honua.sdk.sample-evidence.v1`, the same envelope used by
+deterministic fixture lanes, so site consumers do not infer a second freshness,
+provenance, degradation, or result-semantics model from benchmark-only fields.
+The shared schema is published at
+[`samples/contract/v1/schemas/sample-evidence.schema.json`](../samples/contract/v1/schemas/sample-evidence.schema.json).
+Every target records:
 
 - passed, failed, or skipped status, with a reason for skips
 - sanitized endpoint and provider identity

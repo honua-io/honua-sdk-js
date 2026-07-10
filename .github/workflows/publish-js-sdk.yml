@@ -70,6 +70,7 @@ jobs:
         run: |
           npm run typecheck
           npm run check
+          npm run samples:verify
           npm test
           npm run build:split-packages
           npm run verify:split-packages
@@ -111,6 +112,7 @@ jobs:
           # afterwards. Without this the root package publishes without
           # dist/browser/*, breaking the ./browser export and every CDN path.
           npm run build:browser --silent
+          node scripts/sample-contract.mjs artifacts
 
           # Refuse to publish an artifact that does not contain the surface the
           # README/INSTALL/exports advertise (the failure mode behind the

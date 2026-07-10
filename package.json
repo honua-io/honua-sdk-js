@@ -226,6 +226,9 @@
     "verify:llms": "node scripts/generate-llms-txt.mjs --check",
     "verify:skills": "node scripts/verify-skills.mjs",
     "verify:north-star-api": "tsc -p test/design/north-star-api/tsconfig.json --noEmit",
+    "samples:generate": "node scripts/sample-contract.mjs write",
+    "samples:verify": "node scripts/sample-contract.mjs check",
+    "samples:artifacts": "npm run build:browser --silent && node scripts/sample-contract.mjs artifacts",
     "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",
     "verify:api-report": "npm run build --silent && node scripts/report-api-surface.mjs --check",
     "demo:quickstart": "vite --config examples/maplibre-quickstart/vite.config.ts",
@@ -467,6 +470,8 @@
     "dist/src",
     "dist/browser",
     "config/public-surface.json",
+    "samples/dist",
+    "samples/contract/v1/schemas",
     "README.md",
     "CHANGELOG.md"
   ],

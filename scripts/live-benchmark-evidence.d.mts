@@ -15,3 +15,8 @@ export interface LiveEvidenceReport {
 }
 
 export function collectLiveEvidence(env?: Record<string, string | undefined>): Promise<LiveEvidenceReport>;
+export function toSampleEvidence(
+  target: Record<string, unknown>,
+  sdk: { package: string; version: string; gitCommit: string | null },
+  generatedAt: string,
+): Record<string, unknown>;

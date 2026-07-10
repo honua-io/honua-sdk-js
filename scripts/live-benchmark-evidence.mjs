@@ -9,6 +9,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
+import { validateEvidenceEnvelope } from "./sample-contract.mjs";
+
 const TIMEOUT_MS = 30_000;
 
 function parseArgs(argv) {
@@ -70,10 +72,13 @@ async function probeTarget(definition) {
   if (definition.skipReason) {
     return {
       id: definition.id,
+      sampleId: definition.sampleId,
+      journeyId: definition.journeyId,
       status: "skipped",
       provider: definition.provider,
       endpoint: definition.endpoint,
       authMode: definition.authMode,
+      attribution: definition.attribution,
       skipReason: definition.skipReason,
     };
   }
@@ -83,10 +88,13 @@ async function probeTarget(definition) {
     const evidence = await definition.run();
     return {
       id: definition.id,
+      sampleId: definition.sampleId,
+      journeyId: definition.journeyId,
       status: "passed",
       provider: definition.provider,
       endpoint: definition.endpoint,
       authMode: definition.authMode,
+      attribution: definition.attribution,
       startedAt,
       completedAt: new Date().toISOString(),
       ...evidence,
@@ -94,15 +102,70 @@ async function probeTarget(definition) {
   } catch (error) {
     return {
       id: definition.id,
+      sampleId: definition.sampleId,
+      journeyId: definition.journeyId,
       status: "failed",
       provider: definition.provider,
       endpoint: definition.endpoint,
       authMode: definition.authMode,
+      attribution: definition.attribution,
       startedAt,
       completedAt: new Date().toISOString(),
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function assertionStrings(checks) {
+  return Object.entries(checks ?? {}).map(([name, value]) => `${name}=${JSON.stringify(value)}`);
+}
+
+export function toSampleEvidence(target, sdk, generatedAt) {
+  const executed = target.status === "passed";
+  const failed = target.status === "failed";
+  const observedAt = target.freshness?.observedAt ?? target.completedAt ?? generatedAt;
+  return validateEvidenceEnvelope({
+    format: "honua.sdk.sample-evidence.v1",
+    schemaVersion: 1,
+    sampleId: target.sampleId,
+    lane: "live",
+    status: executed ? "executed" : failed ? "failed" : "skipped",
+    reason: executed ? null : target.error ?? target.skipReason ?? "Live target did not execute.",
+    observedAt,
+    authMode: target.authMode,
+    sdk,
+    source: {
+      provider: target.provider,
+      identity: target.provenance?.source ?? target.id,
+      endpoint: target.endpoint,
+      deploymentVersion: target.endpointVersion ?? null,
+      dataVersion: target.freshness?.sourceDataTimestamp ?? target.protocolVersion ?? null,
+    },
+    provenance: executed
+      ? {
+          sourceId: target.provenance.source,
+          observedAt,
+          validAt: target.freshness?.sourceDataTimestamp ?? null,
+          state: "live",
+          attribution: target.attribution,
+        }
+      : null,
+    semantics: {
+      operation: target.journeyId,
+      outcome: executed ? target.journey?.visibleOutcome.kind ?? "live-check-passed" : null,
+      itemCount: executed ? target.journey?.visibleOutcome.itemCount ?? null : null,
+      assertions: executed ? assertionStrings(target.checks) : [],
+    },
+    timing: {
+      totalMs: executed ? target.latencyMs : null,
+      firstSuccessfulInteractionMs: executed ? target.journey?.timeToFirstSuccessfulInteractionMs ?? null : null,
+    },
+    degradation: {
+      state: executed ? "none" : failed ? "unexpected" : "unavailable",
+      reasons: executed ? [] : [target.error ?? target.skipReason ?? "Live target did not execute."],
+    },
+    artifacts: [],
+  });
 }
 
 export async function collectLiveEvidence(env = process.env) {
@@ -133,12 +196,16 @@ export async function collectLiveEvidence(env = process.env) {
   const authMode = apiKey ? "api-key" : "anonymous";
   const authHeaders = apiKey ? { "x-api-key": apiKey } : {};
   const awsBaseUrl = "https://earth-search.aws.element84.com/v1";
-  const targets = await Promise.all([
+  const sdk = { package: packageJson.name, version: packageJson.version, gitCommit: gitCommit() };
+  const rawTargets = await Promise.all([
     probeTarget({
       id: "honua-demo-ogc-query",
+      sampleId: "service-explorer",
+      journeyId: "discover-and-query-first-feature",
       provider: "honua-demo",
       endpoint: `${honuaBaseUrl}/ogc/features`,
       authMode,
+      attribution: "Honua canonical demo data",
       async run() {
         const capabilities = await requestJson(`${honuaBaseUrl}/api/v1/admin/capabilities`, authHeaders);
         const collections = await requestJson(`${honuaBaseUrl}/ogc/features/collections?f=json`, authHeaders);
@@ -195,9 +262,12 @@ export async function collectLiveEvidence(env = process.env) {
     }),
     probeTarget({
       id: "aws-earth-search-stac",
+      sampleId: "stac-imagery-browser",
+      journeyId: "discover-and-search-first-item",
       provider: "element84-earth-search-aws",
       endpoint: awsBaseUrl,
       authMode: "anonymous",
+      attribution: "Element 84 Earth Search and source collection providers",
       skipReason: env.HONUA_BENCH_LIVE_SKIP_AWS_REASON || undefined,
       async run() {
         const landing = await requestJson(awsBaseUrl);
@@ -242,6 +312,10 @@ export async function collectLiveEvidence(env = process.env) {
       },
     }),
   ]);
+  const targets = rawTargets.map((rawTarget) => {
+    const { sampleId: _sampleId, journeyId: _journeyId, attribution: _attribution, ...target } = rawTarget;
+    return { ...target, sampleEvidence: toSampleEvidence(rawTarget, sdk, generatedAt) };
+  });
 
   const failed = targets.filter((target) => target.status === "failed").length;
   const passed = targets.filter((target) => target.status === "passed").length;
@@ -253,7 +327,7 @@ export async function collectLiveEvidence(env = process.env) {
       producerIssue: "https://github.com/honua-io/honua-sdk-js/issues/401",
       consumerIssue: "https://github.com/honua-io/honua-site/issues/120",
     },
-    sdk: { package: packageJson.name, version: packageJson.version, gitCommit: gitCommit() },
+    sdk,
     run: {
       status: failed > 0 ? "failed" : passed > 0 ? "passed" : "skipped",
       trigger: env.GITHUB_EVENT_NAME ?? "local",
