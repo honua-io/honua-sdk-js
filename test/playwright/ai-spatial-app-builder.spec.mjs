@@ -38,6 +38,13 @@ test("safe-agent journey requires validation and approval before one bounded rea
     await expect(page.locator("#row-count")).toHaveText("5");
     await expect(page.locator("#receipt-integrity")).toHaveText("true");
     await expect(page.locator("#receipt-json")).toContainText("honua.agent-execution-receipt");
+    await expect(page.locator("#receipt-json")).toContainText("fixture-replay");
+    await page.evaluate(() => window.__HONUA_SAFE_AGENT__?.dispose());
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SAFE_AGENT__?.disposed)).toBe(true);
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SAFE_AGENT__?.state)).toBe("cancelled");
+    await expect(page.locator("#state-value")).toHaveText("executed");
+    await page.getByRole("button", { name: "Reset fixture" }).click();
+    await expect(page.locator("#state-value")).toHaveText("executed");
     expect(errors).toEqual([]);
   });
 });
@@ -70,6 +77,9 @@ test("keyboard workflow and mobile layout expose status without console errors",
     await expect(page.locator("#workflow")).toBeInViewport();
     await expect(page.getByRole("heading", { name: "Agent proposal" })).toBeVisible();
     await expect(page.getByRole("status")).toContainText("No source or tool effect");
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
+      .toBe(true);
     expect(errors).toEqual([]);
   });
 });

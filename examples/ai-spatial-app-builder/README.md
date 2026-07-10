@@ -13,6 +13,8 @@ This flagship demonstrates the difference between an agent proposing spatial wor
 
 Mutation and realtime are not disguised as read-only operations. They require separate host capabilities and approvals and remain disabled in this sample policy.
 
+Prompt text is never authority. Tool names, effects, fields, CRS, authorization scope, and row limits are independently checked against host policy even when a prompt attempts to relabel or bypass them.
+
 ## Fixture and optional host lanes
 
 Fixture mode replays committed parcel rows and an honest GeoServices query plan. “AI” means the proposal boundary being demonstrated; no model is called or implied.
@@ -26,6 +28,8 @@ npm run demo:ai-spatial-builder:live-evidence
 ```
 
 Without both endpoints the runner emits a structured `skipped` record and never substitutes fixture output while claiming live execution.
+
+This sample demonstrates the browser-side contract boundary; it does not implement or claim completion of the production host integration tracked in #397.
 
 ## Validation
 

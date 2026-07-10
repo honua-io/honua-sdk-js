@@ -13,9 +13,11 @@ declare global {
   interface Window {
     __HONUA_SAFE_AGENT__?: {
       readonly ready: boolean;
+      readonly disposed: boolean;
       runHappyPath(decision?: Decision, narrowedMaxRows?: number): Promise<void>;
       runRefusal(kind: "mutation" | "realtime" | "excessive-limit" | "unsupported-tool"): void;
       reset(): void;
+      dispose(): void;
       readonly state: string;
       readonly executionCount: number;
     };
@@ -24,6 +26,9 @@ declare global {
 
 let session = createSafeAgentSession();
 const hostLane = describeHostLane();
+let disposed = false;
+const uiEvents = new AbortController();
+const uiEventOptions = { signal: uiEvents.signal };
 
 function element<T extends Element>(selector: string): T {
   const match = document.querySelector<T>(selector);
@@ -41,6 +46,7 @@ function escapeHtml(value: unknown): string {
 }
 
 function render(): void {
+  if (disposed) return;
   element("#state-value").textContent = session.state;
   element("#effect-count").textContent = String(session.executionCount);
   element("#live-status").textContent = hostLane.state;
@@ -125,6 +131,8 @@ function renderResults(): void {
 }
 
 function reset(proposal: AgentProposalV1 = fixtureProposal): void {
+  if (disposed) return;
+  session.dispose();
   session = createSafeAgentSession(proposal, fixturePolicy);
   element("#event-log").textContent = "Proposal loaded. No source or tool effect has run.";
   render();
@@ -148,10 +156,16 @@ function decide(decision: Decision, maxRows?: number): void {
 }
 
 async function execute(): Promise<void> {
+  if (disposed) return;
+  const activeSession = session;
+  const execution = activeSession.execute();
+  render();
   try {
-    const receipt = await session.execute();
+    const receipt = await execution;
+    if (disposed || session !== activeSession) return;
     element("#event-log").textContent = `Executed one approved read and verified ${receipt.receiptDigest}.`;
   } catch (error) {
+    if (disposed || session !== activeSession) return;
     element("#event-log").textContent = `Execution refused: ${error instanceof Error ? error.message : String(error)}`;
   }
   render();
@@ -179,31 +193,52 @@ function refusalProposal(kind: "mutation" | "realtime" | "excessive-limit" | "un
   });
 }
 
-element("#validate").addEventListener("click", validate);
-element("#approve").addEventListener("click", () => decide("approve"));
-element("#narrow").addEventListener("click", () => decide("narrow", 2));
-element("#reject").addEventListener("click", () => decide("reject"));
-element("#execute").addEventListener("click", () => void execute());
-element("#reset").addEventListener("click", () => reset());
+element("#validate").addEventListener("click", validate, uiEventOptions);
+element("#approve").addEventListener("click", () => decide("approve"), uiEventOptions);
+element("#narrow").addEventListener("click", () => decide("narrow", 2), uiEventOptions);
+element("#reject").addEventListener("click", () => decide("reject"), uiEventOptions);
+element("#execute").addEventListener("click", () => void execute(), uiEventOptions);
+element("#reset").addEventListener("click", () => reset(), uiEventOptions);
 for (const button of document.querySelectorAll<HTMLButtonElement>("[data-refusal]")) {
-  button.addEventListener("click", () => {
-    reset(refusalProposal(button.dataset.refusal as "mutation" | "realtime" | "excessive-limit" | "unsupported-tool"));
-    validate();
-  });
+  button.addEventListener(
+    "click",
+    () => {
+      reset(
+        refusalProposal(button.dataset.refusal as "mutation" | "realtime" | "excessive-limit" | "unsupported-tool"),
+      );
+      validate();
+    },
+    uiEventOptions,
+  );
+}
+
+function dispose(): void {
+  if (disposed) return;
+  disposed = true;
+  uiEvents.abort();
+  session.dispose();
 }
 
 window.__HONUA_SAFE_AGENT__ = {
-  ready: true,
+  get ready() {
+    return !disposed;
+  },
+  get disposed() {
+    return disposed;
+  },
   async runHappyPath(decision: Decision = "approve", narrowedMaxRows?: number) {
+    if (disposed) return;
     validate();
     decide(decision, narrowedMaxRows);
     if (decision !== "reject") await execute();
   },
   runRefusal(kind) {
+    if (disposed) return;
     reset(refusalProposal(kind));
     validate();
   },
   reset,
+  dispose,
   get state() {
     return session.state;
   },
@@ -211,5 +246,7 @@ window.__HONUA_SAFE_AGENT__ = {
     return session.executionCount;
   },
 };
+
+window.addEventListener("beforeunload", dispose, { once: true, signal: uiEvents.signal });
 
 render();

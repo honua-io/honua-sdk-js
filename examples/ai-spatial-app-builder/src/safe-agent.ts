@@ -5,7 +5,15 @@ import type { QueryExecutionPlanV1 } from "@honua/sdk-js/query-planner";
 
 export type AgentEffect = "read" | "mutation" | "realtime" | "generated-app";
 export type Decision = "approve" | "narrow" | "reject";
-export type SafetyState = "proposed" | "validated" | "approved" | "rejected" | "executed" | "refused";
+export type SafetyState =
+  | "proposed"
+  | "validated"
+  | "approved"
+  | "executing"
+  | "rejected"
+  | "executed"
+  | "refused"
+  | "cancelled";
 
 export interface ParcelAttributes {
   readonly OBJECTID: number;
@@ -31,6 +39,8 @@ export interface ExecutionPolicyV1 {
   readonly version: "1.0";
   readonly id: string;
   readonly allowedEffects: readonly AgentEffect[];
+  readonly allowedTools: readonly string[];
+  readonly allowedFields: readonly (keyof ParcelAttributes)[];
   readonly authorizationScope: readonly string[];
   readonly maxRows: number;
   readonly maxBytes: number;
@@ -74,6 +84,10 @@ export interface AgentExecutionReceiptV1 {
   readonly schemaVersion: string;
   readonly authorizationScope: readonly string[];
   readonly effect: "read";
+  readonly dataMode: "fixture-replay";
+  readonly observedAt: string;
+  readonly attribution: string;
+  readonly approvedMaxRows: number;
   readonly rowCount: number;
   readonly executedAt: string;
   readonly previousReceiptDigest: null;
@@ -103,8 +117,14 @@ export interface SafeAgentSession {
     readonly sourceVersion?: string;
     readonly schemaVersion?: string;
     readonly authorizationScope?: readonly string[];
+    readonly signal?: AbortSignal;
   }): Promise<AgentExecutionReceiptV1>;
   verifyReceipt(receipt?: AgentExecutionReceiptV1): boolean;
+  dispose(): void;
+}
+
+export interface CreateSafeAgentSessionOptions {
+  readonly source?: Source<ParcelAttributes>;
 }
 
 export const FIXTURE_TIME = "2026-07-10T18:00:00.000Z";
@@ -116,6 +136,8 @@ export const fixturePolicy: ExecutionPolicyV1 = Object.freeze({
   version: "1.0",
   id: "fixture-read-only-v1",
   allowedEffects: ["read"],
+  allowedTools: ["listCapabilities", "query"],
+  allowedFields: ["OBJECTID", "title", "floodZone", "builtYear", "assessedValue"],
   authorizationScope: ["parcels:read"],
   maxRows: 25,
   maxBytes: 128_000,
@@ -165,6 +187,7 @@ const fixtureRows: readonly ParcelAttributes[] = Object.freeze([
 export function createSafeAgentSession(
   proposal: AgentProposalV1 = fixtureProposal,
   policy: ExecutionPolicyV1 = fixturePolicy,
+  options: CreateSafeAgentSessionOptions = {},
 ): SafeAgentSession {
   let state: SafetyState = "proposed";
   let validatedPlan: ValidatedAgentPlanV1 | undefined;
@@ -172,7 +195,9 @@ export function createSafeAgentSession(
   let receipt: AgentExecutionReceiptV1 | undefined;
   let rows: readonly ParcelAttributes[] = [];
   let executionCount = 0;
-  const source = createFixtureSource(() => {
+  let executionGeneration = 0;
+  let activeExecution: AbortController | undefined;
+  const source = countReads(options.source ?? createFixtureSource(), () => {
     executionCount += 1;
   });
 
@@ -277,30 +302,66 @@ export function createSafeAgentSession(
         schemaVersion: options.schemaVersion ?? SCHEMA_VERSION,
         authorizationScope: options.authorizationScope ?? policy.authorizationScope,
       };
-      const execution = await executeQueryPlan(candidate.queryPlan, source, context);
-      rows = execution.result.features.slice(0, approval.approvedMaxRows).map((feature) => feature.attributes);
-      const unsignedReceipt = {
-        kind: "honua.agent-execution-receipt" as const,
-        version: "1.0" as const,
-        id: `receipt-${candidate.queryPlan.id}`,
-        planDigest: candidate.approvalDigest,
-        approvalDigest: approval.approvalDigest,
-        resultDigest: digest(rows),
-        sourceId: fixtureDescriptor.id,
-        sourceVersion: SOURCE_VERSION,
-        schemaVersion: SCHEMA_VERSION,
-        authorizationScope: policy.authorizationScope,
-        effect: "read" as const,
-        rowCount: rows.length,
-        executedAt: FIXTURE_TIME,
-        previousReceiptDigest: null,
-      };
-      receipt = Object.freeze({ ...unsignedReceipt, receiptDigest: digest(unsignedReceipt) });
-      state = "executed";
-      return receipt;
+      executionGeneration += 1;
+      const generation = executionGeneration;
+      const controller = new AbortController();
+      activeExecution?.abort();
+      activeExecution = controller;
+      const onExternalAbort = () => controller.abort(options.signal?.reason);
+      if (options.signal?.aborted) onExternalAbort();
+      else options.signal?.addEventListener("abort", onExternalAbort, { once: true });
+      state = "executing";
+      try {
+        const execution = await executeQueryPlan(
+          candidate.queryPlan,
+          approvalBoundSource(source, approval.approvedMaxRows),
+          { ...context, signal: controller.signal },
+        );
+        if (generation !== executionGeneration || controller.signal.aborted) {
+          throw new Error("Execution was cancelled before its result could be committed.");
+        }
+        rows = execution.result.features.slice(0, approval.approvedMaxRows).map((feature) => feature.attributes);
+        const unsignedReceipt = {
+          kind: "honua.agent-execution-receipt" as const,
+          version: "1.0" as const,
+          id: `receipt-${candidate.queryPlan.id}`,
+          planDigest: candidate.approvalDigest,
+          approvalDigest: approval.approvalDigest,
+          resultDigest: digest(rows),
+          sourceId: source.descriptor.id,
+          sourceVersion: context.sourceVersion,
+          schemaVersion: context.schemaVersion,
+          authorizationScope: context.authorizationScope,
+          effect: "read" as const,
+          dataMode: "fixture-replay" as const,
+          observedAt: FIXTURE_TIME,
+          attribution: source.descriptor.attribution ?? "Deterministic demonstration fixture",
+          approvedMaxRows: approval.approvedMaxRows,
+          rowCount: rows.length,
+          executedAt: FIXTURE_TIME,
+          previousReceiptDigest: null,
+        };
+        receipt = Object.freeze({ ...unsignedReceipt, receiptDigest: digest(unsignedReceipt) });
+        state = "executed";
+        return receipt;
+      } catch (error) {
+        if (generation === executionGeneration && state === "executing") state = "approved";
+        throw error;
+      } finally {
+        options.signal?.removeEventListener("abort", onExternalAbort);
+        if (activeExecution === controller) activeExecution = undefined;
+      }
     },
     verifyReceipt(candidate = receipt) {
       return Boolean(candidate && digest(withoutReceiptDigest(candidate)) === candidate.receiptDigest);
+    },
+    dispose() {
+      executionGeneration += 1;
+      activeExecution?.abort("Safe-agent session disposed");
+      activeExecution = undefined;
+      rows = [];
+      receipt = undefined;
+      state = "cancelled";
     },
   };
   return session;
@@ -338,16 +399,23 @@ function validateProposalPolicy(proposal: AgentProposalV1, policy: ExecutionPoli
     refusals.push(`Requested row limit exceeds host maximum ${policy.maxRows}.`);
   if (proposal.query.outSr !== 4326 && proposal.query.outSr !== "EPSG:4326")
     refusals.push("Requested CRS does not match policy-bound EPSG:4326.");
+  const requestedFields = proposal.query.outFields?.map(String);
+  if (
+    !requestedFields ||
+    requestedFields.some((field) => !policy.allowedFields.includes(field as keyof ParcelAttributes))
+  ) {
+    refusals.push("Requested fields exceed the policy-bound parcel field allowlist.");
+  }
   for (const tool of proposal.toolCalls) {
+    if (!policy.allowedTools.includes(tool.name)) refusals.push(`Tool '${tool.name}' is not in the host allowlist.`);
     if (!policy.allowedEffects.includes(tool.effect))
       refusals.push(`Tool '${tool.name}' requests unsupported '${tool.effect}' capability.`);
   }
   return refusals;
 }
 
-function createFixtureSource(onRead: () => void): Source<ParcelAttributes> {
+function createFixtureSource(): Source<ParcelAttributes> {
   const query = async (request: Query<ParcelAttributes> = {}): Promise<Result<ParcelAttributes>> => {
-    onRead();
     const limit = request.pagination?.limit ?? fixtureRows.length;
     return {
       features: fixtureRows.slice(0, limit).map((attributes) => ({ id: attributes.OBJECTID, attributes })),
@@ -362,6 +430,39 @@ function createFixtureSource(onRead: () => void): Source<ParcelAttributes> {
     queryAll: query,
     queryAggregate: async () => ({ features: [], exceededTransferLimit: false, aggregateRows: [] }),
   } as unknown as Source<ParcelAttributes>;
+}
+
+function countReads(source: Source<ParcelAttributes>, onRead: () => void): Source<ParcelAttributes> {
+  return {
+    ...source,
+    query: async (request) => {
+      onRead();
+      return await source.query(request);
+    },
+    queryAll: async (request) => {
+      onRead();
+      return await source.queryAll(request);
+    },
+    queryAggregate: async (request) => {
+      onRead();
+      return await source.queryAggregate(request);
+    },
+  };
+}
+
+function approvalBoundSource(source: Source<ParcelAttributes>, approvedMaxRows: number): Source<ParcelAttributes> {
+  const boundedQuery = (request: Query<ParcelAttributes> = {}): Query<ParcelAttributes> => ({
+    ...request,
+    pagination: {
+      ...request.pagination,
+      limit: Math.min(request.pagination?.limit ?? approvedMaxRows, approvedMaxRows),
+    },
+  });
+  return {
+    ...source,
+    query: (request) => source.query(boundedQuery(request)),
+    queryAll: (request) => source.queryAll(boundedQuery(request)),
+  };
 }
 
 function digest(value: unknown): `sha256:${string}` {
