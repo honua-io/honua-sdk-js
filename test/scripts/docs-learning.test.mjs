@@ -136,17 +136,30 @@ test("rejects duplicated support status and auth labels that drift from the cata
   );
 });
 
-test("builds package self-reference targets before compiling learning-path examples in CI", () => {
+test("keeps clean-checkout verification and CI build prerequisites coherent", () => {
   const workflow = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
   const jobStart = workflow.indexOf("  js-sdk:");
   const jobEnd = workflow.indexOf("\n  mcp-sdk:", jobStart);
   const job = workflow.slice(jobStart, jobEnd);
   const buildStep = job.indexOf("- name: Build\n");
   const learningStep = job.indexOf("- name: Compile learning-path examples\n");
+  const verifyStep = job.indexOf("- name: Verify task-oriented learning paths\n");
 
   assert.notEqual(jobStart, -1, "JS SDK job must exist");
   assert.notEqual(jobEnd, -1, "MCP SDK job must follow the JS SDK job");
   assert.notEqual(buildStep, -1, "JS SDK build step must exist");
   assert.notEqual(learningStep, -1, "learning-path compile step must exist");
+  assert.notEqual(verifyStep, -1, "learning-path verification step must exist");
   assert.ok(buildStep < learningStep, "package exports must be built before examples resolve self-references");
+  assert.ok(buildStep < verifyStep, "package exports must be built before runtime import verification");
+  assert.match(job.slice(verifyStep), /run: npm run docs:learning:check/, "CI must reuse its existing build");
+  assert.equal(
+    packageJson.scripts["docs:learning:check"],
+    "node --test test/scripts/docs-learning.test.mjs && node scripts/docs-learning.mjs check",
+  );
+  assert.equal(
+    packageJson.scripts["docs:learning:verify"],
+    "npm run build --silent && npm run docs:learning:check",
+    "the public verify command must materialize runtime import targets on a clean checkout",
+  );
 });

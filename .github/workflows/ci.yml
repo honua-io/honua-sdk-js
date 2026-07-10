@@ -144,7 +144,7 @@ jobs:
         run: node scripts/sample-contract.mjs artifacts
 
       - name: Verify task-oriented learning paths
-        run: npm run docs:learning:verify
+        run: npm run docs:learning:check
 
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets
