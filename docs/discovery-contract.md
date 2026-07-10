@@ -48,7 +48,7 @@ operations, and a failed optional metadata endpoint at the same time. Every
 capability decision preserves the records and provenance that supported or
 excluded it; conflicting metadata is resolved conservatively.
 
-The resolver also rejects unknown capability identifiers, reports metadata
+The resolver also rejects unknown capability identifiers, reports evidence
 that exceeds the adapter implementation, and applies allow/deny policy after
 the adapter/evidence intersection. A failed optional metadata endpoint does
 not erase explicitly `declared` known-safe operations; callers must preserve
@@ -79,11 +79,29 @@ const identity = await createDiscoveryCacheIdentity({
 
 URL user information, fragments, OAuth/session/API-key parameters, and cloud
 signed-URL credentials are removed. Stable query parameters are sorted and
-remain identity-bearing, so generic resource parameters such as `key=roads`
-do not collide with `key=buildings`. Adapters classify additional vendor cache
-busters with `transientQueryParameters`. The caller fingerprint is hashed
-again internally, but it should still be a stable identity derived from the
-caller, grants, audience, and ACL version rather than a token.
+remain identity-bearing inside the opaque endpoint digest. Ambiguous credential
+aliases such as `key`, `api-key`, `subscription-key`, `auth`, `code`, and
+`session` are redacted from the display endpoint while their values remain in
+the hash input, so `key=roads` cannot collide with `key=buildings`. Adapters
+classify additional vendor cache busters with `transientQueryParameters`. The
+caller fingerprint is hashed again internally, but it should still be a stable
+identity derived from the caller, grants, audience, and ACL version rather than
+a token.
+
+Omitting `adapterVersion` and `projectionVersion` uses the exported
+`HONUA_DISCOVERY_ADAPTER_VERSION` and
+`HONUA_DISCOVERY_PROJECTION_VERSION` constants. Both dimensions are always in
+the cache key, so adapter or normalized-schema upgrades cannot reuse older
+entries accidentally.
+
+## Public surface
+
+The root and `/honua` barrels expose the curated workflow: the four primary
+evidence/policy/resolution/cache-option types, error, and helper functions.
+`@honua/sdk-js/contract` additionally exports the version constants and the
+complete decision, diagnostic, provenance, cache-result, and inspection type
+vocabulary for adapter authors. This keeps the beginner surface bounded while
+preserving a fully typed protocol integration seam.
 
 ## Remaining #391 work
 

@@ -158,6 +158,8 @@ export {
 } from "./types.js";
 
 export {
+  HONUA_DISCOVERY_ADAPTER_VERSION,
+  HONUA_DISCOVERY_PROJECTION_VERSION,
   createDiscoveryCacheIdentity,
   inspectDiscoveredSource,
   normalizeDiscoveryEndpoint,

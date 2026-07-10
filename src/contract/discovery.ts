@@ -7,6 +7,11 @@
  */
 
 import { HonuaDiscoveryError } from "../core/errors.js";
+
+/** Default adapter implementation version included in every discovery cache identity. */
+export const HONUA_DISCOVERY_ADAPTER_VERSION = "honua-discovery-adapter@1";
+/** Default normalized inspection projection version included in every discovery cache identity. */
+export const HONUA_DISCOVERY_PROJECTION_VERSION = "honua-source-inspection@1";
 import {
   CAPABILITIES,
   type Capabilities,
@@ -79,7 +84,8 @@ export interface DiscoveryCapabilityDecision {
   readonly code: DiscoveryCapabilityDecisionCode;
   readonly evidence: readonly DiscoveryCapabilityEvidenceSummary[];
   readonly adapterSupported: boolean;
-  readonly endpointSupported?: boolean;
+  /** At least one evidence record asserted support; this is not the resolved truth decision. */
+  readonly positiveEvidence: boolean;
   readonly policyAllowed: boolean;
   readonly reason: string;
 }
@@ -89,7 +95,7 @@ export type DiscoveryDiagnosticCode =
   | "partial-discovery"
   | "conflicting-evidence"
   | "inferred-capabilities-rejected"
-  | "metadata-exceeds-adapter"
+  | "evidence-exceeds-adapter"
   | "capability-policy-restricted";
 
 export interface DiscoveryDiagnostic {
@@ -129,7 +135,7 @@ export function resolveDiscoveryCapabilities(
   evidence: DiscoveryCapabilityEvidence | readonly DiscoveryCapabilityEvidence[],
   policy: DiscoveryCapabilityPolicy = {},
 ): DiscoveryCapabilityResolution {
-  const adapter = (PROTOCOL_DEFAULT_CAPABILITIES as Partial<Record<Protocol, Capabilities>>)[protocol];
+  const adapter = DISCOVERY_ADAPTER_MAXIMA.get(protocol);
   if (!adapter) {
     throw new HonuaDiscoveryError("unsupported-protocol", `Unknown discovery protocol "${String(protocol)}".`, {
       protocol,
@@ -150,7 +156,7 @@ export function resolveDiscoveryCapabilities(
     const declaredPositive = positive.some((record) => record.kind === "declared");
     const inferredPositive = positive.some((record) => record.kind === "inferred");
     const unavailable = relevant.some((record) => record.kind === "unavailable");
-    const endpointSupported = metadataPositive || declaredPositive || inferredPositive;
+    const positiveEvidence = metadataPositive || declaredPositive || inferredPositive;
     const policyAllowed = (allow === undefined || allow.has(capability)) && !deny.has(capability);
     const code = !adapterSupported
       ? "adapter-unsupported"
@@ -181,7 +187,7 @@ export function resolveDiscoveryCapabilities(
       code,
       evidence: Object.freeze(relevant.map((record) => evidenceSummary(record, capability))),
       adapterSupported,
-      ...(endpointSupported !== undefined ? { endpointSupported } : {}),
+      positiveEvidence,
       policyAllowed,
       reason: capabilityDecisionReason(code, capability),
     });
@@ -240,9 +246,9 @@ export function resolveDiscoveryCapabilities(
   }
   if (outsideAdapter.length > 0) {
     diagnostics.push({
-      code: "metadata-exceeds-adapter",
+      code: "evidence-exceeds-adapter",
       severity: "warning",
-      message: "Endpoint metadata advertises operations that this SDK adapter cannot implement.",
+      message: "Discovery evidence asserts operations that this SDK adapter cannot implement.",
       capabilities: orderedCapabilities(new Set(outsideAdapter)),
     });
   }
@@ -262,7 +268,7 @@ export function resolveDiscoveryCapabilities(
     provenance: Object.freeze(uniqueProvenance(evidenceRecords.flatMap((record) => record.provenance))),
     capabilities: immutableCapabilities(effective),
     decisions: Object.freeze(decisions),
-    diagnostics: Object.freeze(diagnostics.map((diagnostic) => Object.freeze(diagnostic))),
+    diagnostics: Object.freeze(diagnostics.map(freezeDiagnostic)),
   });
 }
 
@@ -280,7 +286,7 @@ export function inspectDiscoveredSource(
   }
   assertResolutionIntegrity(resolution);
   return Object.freeze({
-    descriptor: Object.freeze({ ...descriptor, capabilities: immutableCapabilities([...resolution.capabilities]) }),
+    descriptor: immutableDescriptor(descriptor, resolution.capabilities),
     discovery: resolution.discovery,
     provenance: resolution.provenance,
     capabilityDecisions: resolution.decisions,
@@ -327,7 +333,9 @@ export interface DiscoveryCacheIdentityOptions extends DiscoveryCacheResourceIde
   readonly protocol: Protocol | "auto";
   /** Stable opaque fingerprint for the auth/ACL scope; never pass a token. */
   readonly authorizationScopeFingerprint: string;
+  /** Defaults to {@link HONUA_DISCOVERY_ADAPTER_VERSION}; never omitted from the key. */
   readonly adapterVersion?: string;
+  /** Defaults to {@link HONUA_DISCOVERY_PROJECTION_VERSION}; never omitted from the key. */
   readonly projectionVersion?: string;
   /** Additional endpoint query names the owning adapter classifies as transient. */
   readonly transientQueryParameters?: readonly string[];
@@ -363,7 +371,22 @@ const CREDENTIAL_ENDPOINT_PARAMETERS = new Set([
   "token",
 ]);
 
-const AMBIGUOUS_CREDENTIAL_ENDPOINT_PARAMETERS = new Set(["code", "secret", "session", "session_id", "sessionid"]);
+const AMBIGUOUS_CREDENTIAL_ENDPOINT_PARAMETERS = new Set([
+  "api-key",
+  "api_key",
+  "apikey",
+  "auth",
+  "code",
+  "credential",
+  "key",
+  "ocp-apim-subscription-key",
+  "secret",
+  "session",
+  "session_id",
+  "sessionid",
+  "subscription-key",
+  "subscription_key",
+]);
 
 /** Normalize an endpoint for discovery identity without retaining credentials. */
 export function normalizeDiscoveryEndpoint(
@@ -389,6 +412,14 @@ export async function createDiscoveryCacheIdentity(
     options.authorizationScopeFingerprint,
     "authorizationScopeFingerprint",
   );
+  const adapterVersion =
+    options.adapterVersion === undefined
+      ? HONUA_DISCOVERY_ADAPTER_VERSION
+      : requiredIdentity(options.adapterVersion, "adapterVersion");
+  const projectionVersion =
+    options.projectionVersion === undefined
+      ? HONUA_DISCOVERY_PROJECTION_VERSION
+      : requiredIdentity(options.projectionVersion, "projectionVersion");
   if (options.protocol !== "auto" && !(PROTOCOLS as readonly string[]).includes(options.protocol)) {
     throw new HonuaDiscoveryError("unsupported-protocol", `Unknown discovery protocol "${String(options.protocol)}".`, {
       protocol: options.protocol,
@@ -411,8 +442,8 @@ export async function createDiscoveryCacheIdentity(
     endpointDigest,
     protocol: options.protocol,
     authorizationScopeDigest,
-    ...(options.adapterVersion ? { adapterVersion: options.adapterVersion } : {}),
-    ...(options.projectionVersion ? { projectionVersion: options.projectionVersion } : {}),
+    adapterVersion,
+    projectionVersion,
   };
   for (const key of DISCOVERY_RESOURCE_KEYS) {
     const value = options[key];
@@ -602,6 +633,53 @@ class ImmutableCapabilitySet implements ReadonlySet<Capability> {
   public readonly [Symbol.toStringTag] = "Set";
 }
 
+const DISCOVERY_ADAPTER_MAXIMA: ReadonlyMap<Protocol, Capabilities> = new Map(
+  PROTOCOLS.map((protocol) => [protocol, immutableCapabilities([...PROTOCOL_DEFAULT_CAPABILITIES[protocol]])]),
+);
+
+function freezeDiagnostic(diagnostic: DiscoveryDiagnostic): DiscoveryDiagnostic {
+  return Object.freeze({
+    ...diagnostic,
+    ...(diagnostic.capabilities ? { capabilities: Object.freeze([...diagnostic.capabilities]) } : {}),
+  });
+}
+
+function immutableDescriptor(descriptor: SourceDescriptor, effectiveCapabilities: Capabilities): SourceDescriptor {
+  return Object.freeze({
+    ...descriptor,
+    locator: cloneAndDeepFreeze(descriptor.locator),
+    capabilities: immutableCapabilities([...effectiveCapabilities]),
+    ...(descriptor.schema ? { schema: cloneAndDeepFreeze(descriptor.schema) } : {}),
+    ...(descriptor.analytics ? { analytics: cloneAndDeepFreeze(descriptor.analytics) } : {}),
+  });
+}
+
+function cloneAndDeepFreeze<T>(value: T): T {
+  try {
+    return deepFreeze(structuredClone(value));
+  } catch (cause) {
+    throw new HonuaDiscoveryError(
+      "invalid-capability",
+      "Source discovery descriptors must contain structured-clone-compatible metadata.",
+      undefined,
+      { cause },
+    );
+  }
+}
+
+function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
+  if (seen.has(value)) return value;
+  seen.add(value);
+  const prototype = Object.getPrototypeOf(value);
+  if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError("Discovery descriptor metadata must contain only arrays and plain objects.");
+  }
+  for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child, seen);
+  Object.freeze(value);
+  return value;
+}
+
 function capabilityDecisionReason(code: DiscoveryCapabilityDecisionCode, capability: Capability): string {
   switch (code) {
     case "enabled":
@@ -650,10 +728,8 @@ function normalizeEndpoint(endpoint: string | URL, omit: (key: string) => boolea
   let parsed: URL;
   try {
     parsed = new URL(endpoint.toString());
-  } catch (cause) {
-    throw new HonuaDiscoveryError("invalid-endpoint", "Discovery endpoints must be absolute URLs.", undefined, {
-      cause,
-    });
+  } catch {
+    throw new HonuaDiscoveryError("invalid-endpoint", "Discovery endpoints must be absolute URLs.");
   }
   parsed.username = "";
   parsed.password = "";

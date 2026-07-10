@@ -3126,8 +3126,8 @@
     {
       "subpath": "@honua/sdk-js/contract",
       "types": "dist/src/contract/index.d.ts",
-      "exportCount": 404,
-      "signatureSha256": "c07b46f95caac52f6cd95130fe00e37e7ca56671608c472cb4062cbeea8c1dfa",
+      "exportCount": 406,
+      "signatureSha256": "be2117177f32890d5cb601162dda7bfdc64cfeccc31597d2cc9d9e4697c0877b",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -3239,6 +3239,8 @@
         "FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID — const",
         "FIRST_PARTY_PROTOCOLS — const",
         "FeatureId — type",
+        "HONUA_DISCOVERY_ADAPTER_VERSION — const",
+        "HONUA_DISCOVERY_PROJECTION_VERSION — const",
         "HonuaDiscoveryError — class",
         "HonuaDiscoveryErrorCode — type",
         "HonuaJobPollTimeoutError — class",

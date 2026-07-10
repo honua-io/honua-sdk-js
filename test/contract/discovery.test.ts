@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  HONUA_DISCOVERY_ADAPTER_VERSION,
+  HONUA_DISCOVERY_PROJECTION_VERSION,
   HonuaDiscoveryError,
+  PROTOCOL_DEFAULT_CAPABILITIES,
   capabilities,
   createDiscoveryCacheIdentity,
   inspectDiscoveredSource,
@@ -21,14 +24,14 @@ describe("contract / discovery capability truth", () => {
     expect([...resolution.capabilities]).toEqual(["query"]);
     expect(resolution.decisions.find((decision) => decision.capability === "queryAggregate")).toMatchObject({
       code: "policy-denied",
-      endpointSupported: true,
+      positiveEvidence: true,
     });
     expect(resolution.decisions.find((decision) => decision.capability === "render")).toMatchObject({
       code: "adapter-unsupported",
-      endpointSupported: true,
+      positiveEvidence: true,
     });
     expect(resolution.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
-      "metadata-exceeds-adapter",
+      "evidence-exceeds-adapter",
       "capability-policy-restricted",
     ]);
   });
@@ -71,6 +74,11 @@ describe("contract / discovery capability truth", () => {
 
     expect([...strict.capabilities]).toEqual([]);
     expect(strict.diagnostics[0]?.code).toBe("inferred-capabilities-rejected");
+    expect(strict.decisions.find((decision) => decision.capability === "render")).toMatchObject({
+      positiveEvidence: true,
+      effective: false,
+      code: "inferred-not-accepted",
+    });
     expect([...accepted.capabilities]).toEqual(["render", "tiles"]);
   });
 
@@ -138,6 +146,8 @@ describe("contract / discovery capability truth", () => {
     expect([...resolution.capabilities]).toEqual([]);
     expect(resolution.decisions.find((decision) => decision.capability === "query")).toMatchObject({
       code: "not-advertised",
+      positiveEvidence: true,
+      effective: false,
       evidence: [
         { supported: true, provenance: [{ source: "GET /conformance" }] },
         { supported: false, provenance: [{ source: "GET /collections/parcels" }] },
@@ -157,17 +167,44 @@ describe("contract / discovery capability truth", () => {
     expect(resolution.diagnostics).toContainEqual(expect.objectContaining({ code: "conflicting-evidence" }));
   });
 
+  it("uses a private immutable adapter maximum even if exported defaults are mutated", () => {
+    const exported = PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"] as Set<string>;
+    exported.add("render");
+    try {
+      const resolution = resolveDiscoveryCapabilities("ogc-features", {
+        kind: "metadata",
+        capabilities: ["render"],
+        scope: ["render"],
+      });
+      expect(resolution.capabilities.has("render")).toBe(false);
+      expect(resolution.decisions.find((decision) => decision.capability === "render")).toMatchObject({
+        code: "adapter-unsupported",
+        positiveEvidence: true,
+      });
+    } finally {
+      exported.delete("render");
+    }
+  });
+
   it("projects only the reviewed capability set onto the source descriptor", () => {
     const resolution = resolveDiscoveryCapabilities("ogc-features", {
       kind: "metadata",
       capabilities: ["query"],
     });
+    const locator = { url: "https://geo.example.test/collections/parcels", collectionId: "parcels" };
+    const schema = {
+      fields: [{ name: "status", type: "esriFieldTypeString" as const, alias: "Status" }],
+      primaryKey: "id",
+    };
+    const analytics = { histogram: { fields: ["value"], maxBins: 20 } };
     const inspection = inspectDiscoveredSource(
       {
         id: "parcels",
         protocol: "ogc-features",
-        locator: { url: "https://geo.example.test/collections/parcels", collectionId: "parcels" },
+        locator,
         capabilities: capabilities(["query", "queryObjectIds", "applyEdits", "stream"]),
+        schema,
+        analytics,
       },
       resolution,
     );
@@ -180,6 +217,51 @@ describe("contract / discovery capability truth", () => {
 
     expect(() => (resolution.capabilities as Set<string>).add("applyEdits")).toThrow(TypeError);
     expect([...resolution.capabilities]).toEqual(["query"]);
+    expect(() => {
+      (inspection.descriptor.locator as { url: string }).url = "https://evil.test";
+    }).toThrow(TypeError);
+    expect(() => (inspection.descriptor.schema?.fields as unknown[]).push({})).toThrow(TypeError);
+    expect(() => {
+      (inspection.descriptor.analytics?.histogram as { maxBins: number }).maxBins = 999;
+    }).toThrow(TypeError);
+    locator.url = "https://caller-mutated.test";
+    schema.fields[0]!.alias = "Caller mutated";
+    analytics.histogram.fields.push("caller-mutated");
+    expect(inspection.descriptor.locator.url).toBe("https://geo.example.test/collections/parcels");
+    expect(inspection.descriptor.schema?.fields?.[0]?.alias).toBe("Status");
+    expect(inspection.descriptor.analytics?.histogram).toEqual({ fields: ["value"], maxBins: 20 });
+  });
+
+  it("rejects non-plain nested descriptor metadata instead of returning mutable objects", () => {
+    const resolution = resolveDiscoveryCapabilities("ogc-features", {
+      kind: "metadata",
+      capabilities: ["query"],
+    });
+    expect(() =>
+      inspectDiscoveredSource(
+        {
+          id: "non-plain",
+          protocol: "ogc-features",
+          locator: { url: "https://geo.example.test" },
+          capabilities: capabilities(["query"]),
+          schema: {
+            fields: [{ name: "value", type: "esriFieldTypeString", defaultValue: new Map([["mutable", true]]) }],
+          },
+        },
+        resolution,
+      ),
+    ).toThrowError(expect.objectContaining({ code: "invalid-capability" }));
+  });
+
+  it("deep-freezes diagnostic capability arrays", () => {
+    const resolution = resolveDiscoveryCapabilities("ogc-features", {
+      kind: "declared",
+      capabilities: ["render"],
+      scope: ["render"],
+    });
+    const diagnostic = resolution.diagnostics.find((entry) => entry.code === "evidence-exceeds-adapter");
+    expect(diagnostic?.capabilities).toEqual(["render"]);
+    expect(() => (diagnostic?.capabilities as string[]).push("tiles")).toThrow(TypeError);
   });
 
   it("rejects unknown runtime capability strings", () => {
@@ -208,16 +290,16 @@ describe("contract / discovery cache identity", () => {
     expect(normalized).not.toContain("signed");
   });
 
-  it("redacts OAuth, session, and cloud signing parameters without collapsing generic resource keys", () => {
+  it("redacts OAuth, session, key, subscription, auth, and cloud signing aliases from display", () => {
     const secrets = normalizeDiscoveryEndpoint(
-      "https://geo.example.test/data?client_secret=c&refresh_token=r&id_token=i&password=p&sessionid=s&X-Goog-Signature=g&layer=roads",
+      "https://geo.example.test/data?client_secret=c&refresh_token=r&id_token=i&password=p&sessionid=s&key=k&api-key=a&subscription-key=u&auth=h&X-Goog-Signature=g&layer=roads",
     );
     const roads = normalizeDiscoveryEndpoint("https://geo.example.test/data?key=roads");
     const buildings = normalizeDiscoveryEndpoint("https://geo.example.test/data?key=buildings");
 
     expect(secrets).toBe("https://geo.example.test/data?layer=roads");
-    expect(roads).not.toBe(buildings);
-    expect(roads).toContain("key=roads");
+    expect(roads).toBe(buildings);
+    expect(roads).toBe("https://geo.example.test/data");
   });
 
   it("creates stable scope- and resource-separated keys", async () => {
@@ -271,16 +353,62 @@ describe("contract / discovery cache identity", () => {
       ...base,
       endpoint: "https://geo.test/data?code=buildings",
     });
+    const subscriptionRoads = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint: "https://geo.test/data?subscription-key=roads",
+    });
+    const subscriptionBuildings = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint: "https://geo.test/data?subscription-key=buildings",
+    });
 
+    expect(roads.endpoint).toBe(buildings.endpoint);
     expect(roads.key).not.toBe(buildings.key);
     expect(codeRoads.endpoint).toBe(codeBuildings.endpoint);
     expect(codeRoads.key).not.toBe(codeBuildings.key);
+    expect(subscriptionRoads.endpoint).toBe(subscriptionBuildings.endpoint);
+    expect(subscriptionRoads.key).not.toBe(subscriptionBuildings.key);
     expect(firstBust).toEqual(secondBust);
     expect(firstBust.key).not.toContain("one");
   });
 
+  it("always partitions cache identity by stable adapter and projection versions", async () => {
+    const base = {
+      endpoint: "https://geo.test/data",
+      protocol: "auto" as const,
+      authorizationScopeFingerprint: "scope:anonymous:v1",
+    };
+    const omitted = await createDiscoveryCacheIdentity(base);
+    const explicitDefaults = await createDiscoveryCacheIdentity({
+      ...base,
+      adapterVersion: HONUA_DISCOVERY_ADAPTER_VERSION,
+      projectionVersion: HONUA_DISCOVERY_PROJECTION_VERSION,
+    });
+    const adapterUpgrade = await createDiscoveryCacheIdentity({ ...base, adapterVersion: "adapter@2" });
+    const projectionUpgrade = await createDiscoveryCacheIdentity({ ...base, projectionVersion: "projection@2" });
+
+    expect(omitted).toEqual(explicitDefaults);
+    expect(omitted.key).toContain("adapterVersion=");
+    expect(omitted.key).toContain("projectionVersion=");
+    expect(adapterUpgrade.key).not.toBe(omitted.key);
+    expect(projectionUpgrade.key).not.toBe(omitted.key);
+    await expect(createDiscoveryCacheIdentity({ ...base, adapterVersion: " " })).rejects.toMatchObject({
+      code: "invalid-cache-identity",
+    });
+  });
+
   it("rejects relative endpoints and missing auth-scope identity", async () => {
-    expect(() => normalizeDiscoveryEndpoint("/collections/parcels")).toThrowError(HonuaDiscoveryError);
+    const rawInvalid = "https://[invalid]/?token=TOP_SECRET_TOKEN";
+    try {
+      normalizeDiscoveryEndpoint(rawInvalid);
+      throw new Error("expected invalid endpoint");
+    } catch (error) {
+      expect(error).toBeInstanceOf(HonuaDiscoveryError);
+      expect(String(error)).not.toContain(rawInvalid);
+      expect(String(error)).not.toContain("TOP_SECRET_TOKEN");
+      expect((error as Error).cause).toBeUndefined();
+      expect((error as HonuaDiscoveryError).detail).toBeUndefined();
+    }
     await expect(
       createDiscoveryCacheIdentity({
         endpoint: "https://geo.example.test",
