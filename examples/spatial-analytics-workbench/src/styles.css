@@ -310,6 +310,20 @@ main > * {
   gap: 10px;
 }
 
+.execution-error {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #a43a2e;
+  border-radius: 6px;
+  background: #fff2ef;
+  color: #8b2118;
+  padding: 10px;
+}
+
+.execution-error[hidden] {
+  display: none;
+}
+
 label {
   display: grid;
   gap: 5px;

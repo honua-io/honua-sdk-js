@@ -65,7 +65,7 @@ export function createLinkedAnalysisController(
         lane === "unsafe-rejected" ? Math.max(matching.length, sourceWideEstimate) : matching.length;
       const estimateBytes =
         lane === "unsafe-rejected" ? Math.max(measuredFixtureBytes, estimatedRows * 240) : measuredFixtureBytes;
-      const provenance = provenanceFor(dataMode, dataset, options.live, now);
+      const provenance = provenanceFor(dataMode, dataset, options.live);
       const unavailable = liveUnavailable(dataMode, options.live);
       if (unavailable) {
         return contextWithoutPlan({
@@ -74,7 +74,7 @@ export function createLinkedAnalysisController(
           state: "skipped",
           aoi,
           projection,
-          provenance,
+          provenance: { ...provenance, observedAt: null, observationState: "skipped" },
           estimatedRows,
           estimatedBytes: estimateBytes,
           code: "live-config-unavailable",
@@ -363,15 +363,14 @@ function provenanceFor(
   dataMode: LinkedAnalysisDataMode,
   dataset: AnalyticsDataset,
   live: LinkedAnalysisLiveConfig | undefined,
-  now: () => number,
 ): LinkedAnalysisProvenance {
   return {
     sourceId: dataMode === "fixture" ? "fixture:honolulu-exposure" : `live:${live?.serviceId}:layer:${live?.layerId}`,
     sourceUrl: dataMode === "fixture" ? null : safeDisplayUrl(live?.baseUrl),
     sourceVersion: dataMode === "fixture" ? FIXTURE_SOURCE_VERSION : (live?.sourceVersion ?? "unreported-live-version"),
     schemaVersion: dataMode === "fixture" ? FIXTURE_SCHEMA_VERSION : (live?.schemaVersion ?? "unreported-live-schema"),
-    observedAt: dataMode === "fixture" ? dataset.generatedAt : new Date(now()).toISOString(),
-    observationState: dataMode === "fixture" ? "replayed" : "live",
+    observedAt: dataMode === "fixture" ? dataset.generatedAt : null,
+    observationState: dataMode === "fixture" ? "replayed" : "pending",
     attribution:
       dataMode === "fixture" ? FIXTURE_ATTRIBUTION : "Attribution supplied by the configured GeoServices source.",
     cacheDecision: "bypass",

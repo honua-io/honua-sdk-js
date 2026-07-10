@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createAnalysisExecutionCoordinator } from "../examples/spatial-analytics-workbench/src/execution-coordinator.js";
 import { createFixtureSpatialAnalyticsDataset } from "../examples/spatial-analytics-workbench/src/fixtures.js";
 import { createLinkedAnalysisController } from "../examples/spatial-analytics-workbench/src/linked-analysis.js";
 import {
@@ -46,6 +47,21 @@ describe("Spatial Analytics Workbench sample", () => {
     expect(exported.selectedFeatures).toEqual([{ sourceId: "honua-cloud:analytics-results", id: "facility-1006" }]);
     expect(exported.analysisOutputs[0].metadata.materialized).toBe(true);
     expect(exported.metadata.cachePolicy).toContain("Layer metadata");
+
+    session.setRiskFilter("high");
+    expect(session.currentProjection().selection).toEqual([]);
+    expect(JSON.parse(session.exportWorkspace()).selectedFeatures).toEqual([]);
+
+    session.setRiskFilter("all");
+    session.selectFeature("facility-1006");
+    session.selectAoi("honolulu-harbor");
+    expect(session.currentProjection().selection).toEqual([]);
+    expect(JSON.parse(session.exportWorkspace()).selectedFeatures).toEqual([]);
+
+    session.clearOutput();
+    expect(session.visibleFeatures()).toEqual([]);
+    expect(session.latestOutput()).toBeUndefined();
+    expect(JSON.parse(session.exportWorkspace()).analysisOutputs).toEqual([]);
 
     session.dispose();
   });
@@ -131,9 +147,56 @@ describe("Spatial Analytics Workbench sample", () => {
     expect(skipped.state).toBe("skipped");
     expect(skipped.rejection?.reason).toContain("#389 follow-on");
     expect(skipped.plan).toBeUndefined();
+    expect(skipped.provenance).toMatchObject({ observationState: "skipped", observedAt: null });
 
     session.dispose();
   });
+
+  it("keeps configured live provenance unobserved until a request succeeds", () => {
+    const session = createSpatialAnalyticsWorkbenchSession();
+    const controller = createLinkedAnalysisController(session.dataset, {
+      dataMode: "live",
+      live: {
+        protocol: "geoservices-feature-service",
+        baseUrl: "https://demo.example",
+        serviceId: "incidents",
+        layerId: 0,
+      },
+    });
+
+    const estimate = controller.explain("remote-pushdown", session.activeAoi, session.currentProjection());
+    expect(estimate.state).toBe("estimate");
+    expect(estimate.provenance).toMatchObject({ observationState: "pending", observedAt: null });
+
+    session.dispose();
+  });
+
+  it.each(["AOI", "risk filter", "execution policy", "new acceptance"])(
+    "rejects a deferred stale completion after %s changes even when the source ignores abort",
+    async () => {
+      const coordinator = createAnalysisExecutionCoordinator<{ readonly id: string }>();
+      const accepted = { id: "accepted-old" };
+      const ticket = coordinator.begin(accepted);
+      let resolveExecution: ((value: string) => void) | undefined;
+      const ignoredAbortExecution = new Promise<string>((resolve) => {
+        resolveExecution = resolve;
+      });
+      let currentContext = accepted;
+      let committed: string | undefined;
+      const completion = ignoredAbortExecution.then((value) => {
+        if (coordinator.isCurrent(ticket, currentContext)) committed = value;
+      });
+
+      coordinator.invalidate();
+      currentContext = { id: "accepted-new" };
+      resolveExecution?.("stale-result");
+      await completion;
+
+      expect(ticket.signal.aborted).toBe(true);
+      expect(committed).toBeUndefined();
+      expect(coordinator.finish(ticket)).toBe(false);
+    },
+  );
 
   it("renders indexed aggregation cells and SDK widget metadata from the fixture contract", () => {
     const session = createSpatialAnalyticsWorkbenchSession();

@@ -146,6 +146,7 @@ export function createSpatialAnalyticsWorkbenchSession(
       views.map.setExtent(aoi.extent);
       views.map.setSpatialFilter(envelopeFromExtent(aoi.extent));
       syncWorkspaceExploration(dataset, workspace, exploration);
+      reconcileVisibleSelection(session);
     },
     selectPlan(planId: AnalyticsPlanId): void {
       activePlanId = requirePlan(dataset, planId).id;
@@ -157,6 +158,7 @@ export function createSpatialAnalyticsWorkbenchSession(
         views.filters.setFilter("risk", { field: "risk", operator: "=", value: risk });
       }
       syncWorkspaceExploration(dataset, workspace, exploration);
+      reconcileVisibleSelection(session);
     },
     selectFeature(featureId: string): void {
       views.table.select([sourceFeatureSelectionTarget(dataset.resultSourceId, featureId)], { replace: true });
@@ -174,6 +176,7 @@ export function createSpatialAnalyticsWorkbenchSession(
         views.chart.setFilter("risk", { field: "risk", operator: "=", value: risk });
       }
       syncWorkspaceExploration(dataset, workspace, exploration);
+      reconcileVisibleSelection(session);
     },
     currentProjection(): LinkedViewQueryProjection {
       return selectLinkedViewQueryProjection(exploration.state, { sourceId: dataset.resultSourceId });
@@ -226,6 +229,7 @@ export function createSpatialAnalyticsWorkbenchSession(
       const snapshot = successfulSnapshot(latestOutput);
       workspace.dispatch({ kind: "set-job-snapshot", jobId, type: plan.processIds.join("+"), snapshot });
       publishOutput(dataset, workspace, latestOutput, jobId, record.step);
+      reconcileVisibleSelection(session);
       return snapshot;
     },
     retryJob(jobId: string = requireActiveJobId(activeJobId)): string {
@@ -265,6 +269,22 @@ export function createSpatialAnalyticsWorkbenchSession(
     },
     latestOutput(): AnalyticsJobOutput | undefined {
       return latestOutput;
+    },
+    clearOutput(): void {
+      latestOutput = undefined;
+      activeJobId = undefined;
+      views.table.select([], { replace: true });
+      workspace.dispatch({
+        kind: "apply-realtime-event",
+        event: {
+          type: "snapshot",
+          eventId: `analysis-cleared:${jobCounter}`,
+          cursor: `analysis-cleared:${jobCounter}`,
+          receivedAt: Date.parse(dataset.generatedAt) + jobCounter + 10_000,
+          features: [],
+        },
+      });
+      syncWorkspaceExploration(dataset, workspace, exploration);
     },
     createReport(): AnalyticsReport {
       return createAnalyticsReport(
@@ -934,6 +954,18 @@ function syncWorkspaceExploration(
     reference: { datasetId: dataset.workspaceId, sourceIds: [dataset.resultSourceId] },
     snapshot: exploration.snapshot(),
   });
+}
+
+function reconcileVisibleSelection(session: SpatialAnalyticsWorkbenchSession): void {
+  const selection = session.currentProjection().selection;
+  if (selection.length === 0) return;
+  const visibleIds = new Set(session.visibleFeatures().map((feature) => feature.id));
+  const selectionIsVisible = selection.every((target) =>
+    visibleIds.has(typeof target === "object" ? String(target.id) : String(target)),
+  );
+  if (selectionIsVisible) return;
+  session.views.table.select([], { replace: true });
+  syncWorkspaceExploration(session.dataset, session.workspace, session.exploration);
 }
 
 function requireAoi(dataset: AnalyticsDataset, aoiId: string): AnalyticsAoi {

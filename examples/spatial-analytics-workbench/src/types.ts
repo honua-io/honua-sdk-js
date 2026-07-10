@@ -39,8 +39,8 @@ export interface LinkedAnalysisProvenance {
   readonly sourceUrl: string | null;
   readonly sourceVersion: string;
   readonly schemaVersion: string;
-  readonly observedAt: string;
-  readonly observationState: "replayed" | "live" | "pending-local";
+  readonly observedAt: string | null;
+  readonly observationState: "replayed" | "pending" | "skipped" | "live";
   readonly attribution: string;
   readonly cacheDecision: "bypass";
 }
@@ -290,6 +290,7 @@ export interface SpatialAnalyticsWorkbenchSession {
   aggregationWidgets(): readonly SpatialAggregationWidgetMetadata[];
   latestAggregation(): SpatialAggregationResult | undefined;
   latestOutput(): AnalyticsJobOutput | undefined;
+  clearOutput(): void;
   createReport(): AnalyticsReport;
   setLinkedAnalysisContext(context: LinkedAnalysisContext | undefined): void;
   exportWorkspace(): string;

@@ -61,6 +61,11 @@
                 <button id="accept-plan" type="button">Accept plan</button>
                 <button id="run-analysis" class="primary" type="button">Execute accepted plan</button>
               </div>
+              <div id="execution-error" class="execution-error" role="alert" hidden>
+                <strong>Execution failed</strong>
+                <span id="execution-error-message"></span>
+                <button id="retry-analysis" type="button">Retry accepted plan</button>
+              </div>
               <p class="control-note">Changing the AOI, risk filter, or policy invalidates the prior acceptance and produces a new fingerprint.</p>
             </div>
           </section>

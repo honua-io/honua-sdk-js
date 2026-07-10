@@ -5,6 +5,7 @@ import type {
   SpatialAggregationRangeValue,
   SpatialAggregationSummaryValue,
 } from "@honua/sdk-js/contract";
+import { createAnalysisExecutionCoordinator } from "./execution-coordinator.js";
 import { createLinkedAnalysisController, linkedAnalysisConfigFromLocation } from "./linked-analysis.js";
 import { createSpatialAnalyticsWorkbenchSession, selectAnalyticsUiModels } from "./model.js";
 import type {
@@ -51,7 +52,9 @@ session.setLinkedAnalysisContext(linkedContext);
 let workspaceExport = "";
 let executing = false;
 let disposed = false;
-let executionController: AbortController | undefined;
+let executionError: string | undefined;
+let retryContext: LinkedAnalysisContext | undefined;
+const executionCoordinator = createAnalysisExecutionCoordinator<LinkedAnalysisContext>();
 const uiEvents = new AbortController();
 const uiEventOptions = { signal: uiEvents.signal };
 
@@ -139,9 +142,14 @@ function renderStatus(): void {
 
   const runButton = getElement<HTMLButtonElement>("#run-analysis");
   const acceptButton = getElement<HTMLButtonElement>("#accept-plan");
+  const retryButton = getElement<HTMLButtonElement>("#retry-analysis");
   runButton.disabled = linkedContext.state !== "accepted" || executing;
   acceptButton.disabled = linkedContext.state !== "estimate" || !linkedContext.plan;
+  retryButton.disabled = !retryContext || retryContext !== linkedContext || executing;
   runButton.textContent = executing ? "Executing…" : "Execute accepted plan";
+  const errorPanel = getElement<HTMLElement>("#execution-error");
+  errorPanel.hidden = !executionError;
+  setText("#execution-error-message", executionError ?? "");
 }
 
 function renderLayers(): void {
@@ -573,7 +581,7 @@ function renderEvidence(): void {
   const provenance = linkedContext.provenance;
   getElement<HTMLElement>("#evidence-provenance").innerHTML = [
     ["Observation", provenance.observationState],
-    ["Observed", provenance.observedAt],
+    ["Observed", provenance.observedAt ?? "not observed"],
     ["Source version", provenance.sourceVersion],
     ["Schema", provenance.schemaVersion],
     ["Attribution", provenance.attribution],
@@ -593,9 +601,13 @@ function renderEvidence(): void {
 function executionTruth(context: LinkedAnalysisContext): string {
   switch (context.state) {
     case "estimate":
-      return "Estimate only. No result rows were read and no renderer or output was mutated.";
+      return context.dataMode === "live"
+        ? "Estimate only. The configured live source has not been requested or observed; no result rows or output exist."
+        : "Estimate only. No result rows were read and no renderer or output was mutated.";
     case "accepted":
-      return "Accepted plan. Execution has not started; changing intent invalidates this acceptance.";
+      return context.dataMode === "live"
+        ? "Accepted plan. The configured live source remains unobserved until execution succeeds; changing intent invalidates this acceptance."
+        : "Accepted plan. Execution has not started; changing intent invalidates this acceptance.";
     case "fixture-replay":
       return "GeoServices pushdown was compiled and executed against a committed response fixture. This is replay evidence, not a live remote claim.";
     case "executed-remote":
@@ -605,7 +617,7 @@ function executionTruth(context: LinkedAnalysisContext): string {
     case "rejected":
       return `Rejected before execution: ${context.rejection?.reason ?? "unsafe or unsupported fallback"}`;
     case "skipped":
-      return `Structured live skip: ${context.rejection?.reason ?? "live configuration unavailable"}`;
+      return `Structured live skip with no source observation: ${context.rejection?.reason ?? "live configuration unavailable"}`;
   }
 }
 
@@ -670,13 +682,16 @@ function wireEvents(activeSession: SpatialAnalyticsWorkbenchSession): void {
   getElement<HTMLButtonElement>("#accept-plan").addEventListener(
     "click",
     () => {
-      linkedContext = linkedController.accept(linkedContext);
-      activeSession.setLinkedAnalysisContext(linkedContext);
-      render();
+      acceptCurrent();
     },
     uiEventOptions,
   );
   getElement<HTMLButtonElement>("#run-analysis").addEventListener(
+    "click",
+    () => void executeAcceptedPlan().catch(() => undefined),
+    uiEventOptions,
+  );
+  getElement<HTMLButtonElement>("#retry-analysis").addEventListener(
     "click",
     () => void executeAcceptedPlan().catch(() => undefined),
     uiEventOptions,
@@ -704,21 +719,43 @@ function wireEvents(activeSession: SpatialAnalyticsWorkbenchSession): void {
 }
 
 function explainCurrent(): void {
+  invalidateExecution();
+  session.clearOutput();
   linkedContext = linkedController.explain(selectedLane, session.activeAoi, session.currentProjection());
   session.setLinkedAnalysisContext(linkedContext);
   workspaceExport = "";
 }
 
+function acceptCurrent(): string {
+  invalidateExecution();
+  session.clearOutput();
+  linkedContext = linkedController.accept(linkedContext);
+  session.setLinkedAnalysisContext(linkedContext);
+  render();
+  return linkedContext.state;
+}
+
+function invalidateExecution(): void {
+  executionCoordinator.invalidate();
+  executing = false;
+  executionError = undefined;
+  retryContext = undefined;
+}
+
 async function executeAcceptedPlan(): Promise<string> {
   if (disposed) return "disposed";
   if (executing) return linkedContext.state;
+  const acceptedContext = linkedContext;
+  const ticket = executionCoordinator.begin(acceptedContext);
   executing = true;
-  const controller = new AbortController();
-  executionController = controller;
+  executionError = undefined;
+  retryContext = undefined;
   render();
   try {
-    linkedContext = await linkedController.execute(linkedContext, controller.signal);
+    const executedContext = await linkedController.execute(acceptedContext, ticket.signal);
     if (disposed) return "disposed";
+    if (!executionCoordinator.isCurrent(ticket, linkedContext)) return linkedContext.state;
+    linkedContext = executedContext;
     session.setLinkedAnalysisContext(linkedContext);
     if (linkedController.dataMode === "fixture") {
       session.selectPlan("linked-risk-summary");
@@ -730,19 +767,23 @@ async function executeAcceptedPlan(): Promise<string> {
     return linkedContext.state;
   } catch (error) {
     if (disposed) return "disposed";
-    setText("#analysis-announcer", error instanceof Error ? error.message : String(error));
+    if (!executionCoordinator.isCurrent(ticket, linkedContext)) return linkedContext.state;
+    executionError = error instanceof Error ? error.message : String(error);
+    retryContext = acceptedContext;
+    setText("#analysis-announcer", executionError);
     throw error;
   } finally {
-    if (executionController === controller) executionController = undefined;
-    executing = false;
-    render();
+    if (executionCoordinator.finish(ticket)) {
+      executing = false;
+      render();
+    }
   }
 }
 
 function dispose(): void {
   if (disposed) return;
   disposed = true;
-  executionController?.abort();
+  executionCoordinator.invalidate();
   uiEvents.abort();
   session.dispose();
 }
@@ -772,10 +813,7 @@ window.__HONUA_SPATIAL_ANALYTICS_WORKBENCH__ = {
   },
   accept(): string {
     if (disposed) return "disposed";
-    linkedContext = linkedController.accept(linkedContext);
-    session.setLinkedAnalysisContext(linkedContext);
-    render();
-    return linkedContext.state;
+    return acceptCurrent();
   },
   execute(): Promise<string> {
     return executeAcceptedPlan();
