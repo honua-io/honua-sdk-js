@@ -60,7 +60,8 @@ that provenance instead of relabeling defaults as observed metadata.
 connection caches. It requires an opaque authorization-scope fingerprint so
 authenticated metadata cannot accidentally share an anonymous cache entry.
 The identity includes opaque SHA-256 endpoint/auth-scope digests, protocol,
-source resource dimensions, and adapter/projection versions. The returned
+source resource dimensions (including WFS/WMS `typeName`), and
+adapter/projection versions. The returned
 display endpoint is credential-redacted; the logical key never embeds raw URL
 or authorization-scope values.
 

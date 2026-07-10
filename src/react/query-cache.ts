@@ -221,8 +221,8 @@ function stableStringify(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
   }
-  if (value instanceof Set) {
-    return `[${[...value]
+  if (isReadonlySet(value)) {
+    return `[${[...value.values()]
       .map((entry) => stableStringify(entry))
       .sort()
       .join(",")}]`;
@@ -232,4 +232,23 @@ function stableStringify(value: unknown): string {
     .filter((key) => record[key] !== undefined && !(record[key] instanceof AbortSignal))
     .sort();
   return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(",")}}`;
+}
+
+/**
+ * Recognize native, cross-realm, and intentionally branded immutable sets.
+ * Requiring the complete ReadonlySet surface plus the Set brand avoids
+ * consuming strings, maps, generators, or arbitrary domain iterables.
+ */
+function isReadonlySet(value: object): value is ReadonlySet<unknown> {
+  const candidate = value as Partial<ReadonlySet<unknown>> & { readonly [Symbol.toStringTag]?: unknown };
+  return (
+    candidate[Symbol.toStringTag] === "Set" &&
+    typeof candidate.size === "number" &&
+    typeof candidate.has === "function" &&
+    typeof candidate.entries === "function" &&
+    typeof candidate.keys === "function" &&
+    typeof candidate.values === "function" &&
+    typeof candidate.forEach === "function" &&
+    typeof candidate[Symbol.iterator] === "function"
+  );
 }

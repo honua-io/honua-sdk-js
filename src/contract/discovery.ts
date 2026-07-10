@@ -318,6 +318,8 @@ export interface DiscoveryCacheResourceIdentity {
   readonly serviceId?: string;
   readonly layerId?: string | number;
   readonly collectionId?: string | number;
+  /** WFS feature type or WMS layer name at a shared service endpoint. */
+  readonly typeName?: string;
   readonly tileMatrixSetId?: string;
   readonly styleId?: string;
   readonly entitySet?: string;
@@ -469,6 +471,7 @@ const DISCOVERY_RESOURCE_KEYS: readonly (keyof DiscoveryCacheResourceIdentity)[]
   "serviceId",
   "layerId",
   "collectionId",
+  "typeName",
   "tileMatrixSetId",
   "styleId",
   "entitySet",
@@ -750,7 +753,7 @@ async function sha256(value: string): Promise<`sha256:${string}`> {
   if (!globalThis.crypto?.subtle) {
     throw new HonuaDiscoveryError(
       "invalid-cache-identity",
-      "Discovery cache identity requires the Web Crypto SHA-256 implementation.",
+      "Discovery cache identity requires Web Crypto SHA-256.",
     );
   }
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));

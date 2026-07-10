@@ -331,6 +331,35 @@ describe("contract / discovery cache identity", () => {
     expect(otherCollection.key).not.toBe(first.key);
   });
 
+  it("partitions WFS and WMS layers by typeName without weakening secret or version partitioning", async () => {
+    const base = {
+      endpoint: "https://geo.example.test/ows?service=WFS&access_token=first",
+      protocol: "wfs" as const,
+      authorizationScopeFingerprint: "scope:reader:v2",
+      adapterVersion: "wfs@1",
+      projectionVersion: "source-inspection@1",
+    };
+    const parcels = await createDiscoveryCacheIdentity({ ...base, typeName: "cadastre:parcels" });
+    const roads = await createDiscoveryCacheIdentity({ ...base, typeName: "transport:roads" });
+    const sameParcelsWithRotatedSecret = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint: "https://geo.example.test/ows?access_token=second&service=WFS",
+      typeName: "cadastre:parcels",
+    });
+    const upgradedAdapter = await createDiscoveryCacheIdentity({
+      ...base,
+      typeName: "cadastre:parcels",
+      adapterVersion: "wfs@2",
+    });
+
+    expect(parcels.endpoint).toBe(roads.endpoint);
+    expect(parcels.key).not.toBe(roads.key);
+    expect(parcels).toEqual(sameParcelsWithRotatedSecret);
+    expect(parcels.key).not.toContain("first");
+    expect(parcels.key).not.toContain("second");
+    expect(upgradedAdapter.key).not.toBe(parcels.key);
+  });
+
   it("keeps custom stable query values collision-safe and hashes caller-classified transient values", async () => {
     const base = {
       protocol: "auto" as const,
