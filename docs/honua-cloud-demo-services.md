@@ -49,7 +49,7 @@ exposes those names to client code.
 | `service-explorer-feature-readonly` | `examples/service-explorer` | FeatureServer `natural-earth`, layer `0`, source discovery and linked query through `VITE_HONUA_SERVICE_EXPLORER_BASE_URL`, `VITE_HONUA_SERVICE_EXPLORER_MODE`, `VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID`, and `VITE_HONUA_SERVICE_EXPLORER_LAYER_ID`. | `auto` mode falls back to fixtures without credentials; fixture server: `npm run demo:service-explorer:mock`. | Fixture: `npm run test:playwright:service-explorer`; cloud scaffold: `npm run test:cloud-demo:staging`. |
 | `storytelling-25d-readonly` | `examples/storytelling-25d-map` | OGC collection ids `story-25d-assets`, `story-25d-route`, and `story-25d-stops` through `VITE_HONUA_25D_BASE_URL`, `VITE_HONUA_25D_ASSETS_COLLECTION`, `VITE_HONUA_25D_ROUTE_COLLECTION`, and `VITE_HONUA_25D_STOPS_COLLECTION`. | Same-origin collection fixtures via `npm run demo:25d:mock`. | Fixture: `npm run test:playwright:25d`; cloud scaffold: `npm run test:cloud-demo:staging`. |
 | `kepler-analytics-materialized` | `examples/kepler-analytics` | FeatureServer `ops-analytics` layers `0`, `1`, and `2` for incidents, unit tracks, and coverage zones through `HONUA_DEMO_BASE_URL`, `HONUA_DEMO_INCIDENTS_SERVICE_ID`, `HONUA_DEMO_INCIDENTS_LAYER_ID`, `HONUA_DEMO_UNIT_TRACKS_SERVICE_ID`, `HONUA_DEMO_UNIT_TRACKS_LAYER_ID`, `HONUA_DEMO_COVERAGE_ZONES_SERVICE_ID`, and `HONUA_DEMO_COVERAGE_ZONES_LAYER_ID`. | Committed GeoJSON export fixtures via `npm run demo:kepler:smoke`. | Fixture: `npm run demo:kepler:smoke`; cloud scaffold: `npm run test:cloud-demo:staging`. |
-| `incident-realtime-stream` | `examples/realtime-incident-dashboard` | SSE realtime incident stream through `VITE_HONUA_INCIDENT_TRANSPORT=cloud` and `VITE_HONUA_INCIDENT_STREAM_URL`. The stream is the authority for incident feature state. | Scripted realtime fixture via `npm run demo:incident:mock`. | Fixture: `npm run test:playwright:incident`; cloud scaffold: `npm run test:cloud-demo:staging`. |
+| `incident-realtime-stream` | `examples/realtime-incident-dashboard` | Live-first Honua server SSE stream selected by an anonymous capabilities probe. Public configuration includes base, capabilities, stream, source, layer, and transport env names. The stream is the authority for incident feature state. | Visibly labeled read-only replay in `auto`; isolated editable fixture via `npm run demo:incident:mock`. | Fixture: `npm run test:playwright:incident`; scheduled live evidence: `npm run bench:live`. |
 | `edit-workflow-writable-guarded` | `examples/edit-workflow-demo` | Guarded FeatureServer `field-inspections-demo-writable`, layer `0`, plus read-only comparison service `field-inspections-demo-readonly`. The reserved live-lane env vars are `VITE_HONUA_EDIT_WORKFLOW_BASE_URL`, `VITE_HONUA_EDIT_WORKFLOW_SERVICE_ID`, `VITE_HONUA_EDIT_WORKFLOW_LAYER_ID`, and `VITE_HONUA_EDIT_WORKFLOW_READONLY_SERVICE_ID`. | Local edit-session fixture via `npm run test:playwright:edit-workflow`. | Fixture: `npm run test:playwright:edit-workflow`; cloud scaffold: `npm run test:cloud-demo:staging`. |
 
 The service and collection ids above are the JS sample seed contract. A cloud
@@ -78,9 +78,17 @@ automation, and future app wiring use one shared vocabulary.
 
 ## Realtime Authority
 
-The incident operations dashboard is realtime by default. In cloud mode,
-`VITE_HONUA_INCIDENT_STREAM_URL` points at the seeded SSE endpoint and
-`VITE_HONUA_INCIDENT_TRANSPORT=cloud` selects the cloud transport.
+The incident operations dashboard is realtime by default. In `auto` mode it
+probes `VITE_HONUA_INCIDENT_CAPABILITIES_URL`, connects the Honua server SSE
+adapter when available, and otherwise enters a visibly labeled read-only replay
+with the capability failure reason. `VITE_HONUA_INCIDENT_TRANSPORT=live` forces
+the configured `VITE_HONUA_INCIDENT_STREAM_URL` for diagnostics and never
+enables writes by itself. Source and layer identity come from
+`VITE_HONUA_INCIDENT_SOURCE_ID` and `VITE_HONUA_INCIDENT_LAYER_ID`.
+
+The current canonical incident stream probe returns HTTP 404. That failed
+target remains explicit in scheduled evidence; successful OGC and AWS Earth
+Search STAC probes do not make incident feature state live or authoritative.
 
 Incident rows, geometries, counts, and actions are authoritative only when they
 come from:
@@ -92,6 +100,13 @@ come from:
 Feature-result caches are never authoritative incident state. If the stream is
 stale or offline, the UI may keep the last reconciled in-memory features visible
 as read-only context with an explicit stale/offline state.
+
+Live incident edits additionally require an authorized, isolated, resettable
+`maui-incidents-demo-edits` profile. Until that contract exists, the live lane
+fails closed while the deterministic fixture lane demonstrates revisions,
+idempotency, conflicts, realtime reconciliation, and reset. Platform delivery
+is tracked by [honua-server#2309](https://github.com/honua-io/honua-server/issues/2309)
+and [honua-server#2310](https://github.com/honua-io/honua-server/issues/2310).
 
 ## Cache Boundaries
 

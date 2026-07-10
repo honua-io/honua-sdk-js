@@ -98,6 +98,24 @@ export const INITIAL_INCIDENTS: readonly IncidentFeature[] = [
     relatedRecords: [{ id: "CASE-7785", label: "Cargo hold note", status: "Assigned" }],
     attachments: [{ id: "ATT-2040", name: "Cargo manifest", kind: "document" }],
   },
+  {
+    id: "DEMO-EDIT-0001",
+    title: "Isolated demo coordination record",
+    type: "Exercise",
+    severity: "medium",
+    status: "assigned",
+    assignedTo: "Demo Operations",
+    updatedAt: "2026-05-05T18:00:00.000Z",
+    reportedAt: "2026-05-05T17:59:00.000Z",
+    coordinate: [-157.8619, 21.3047],
+    etaMinutes: 12,
+    affectedAssets: 0,
+    summary: "Dedicated resettable record for optimistic-concurrency and realtime reconciliation demonstrations.",
+    relatedRecords: [{ id: "DEMO-SANDBOX", label: "Isolated demo-edit profile", status: "Resettable" }],
+    attachments: [],
+    revision: 1,
+    safeDemoRecord: true,
+  },
 ];
 
 export const INCIDENT_SCENARIO_STEPS: readonly IncidentScenarioStep[] = [

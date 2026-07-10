@@ -657,7 +657,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | flagship | supported | fixture | rework | Combines parcels, hazards, sketching, editing, and export in a task-oriented application. |
 | [`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | supported | fixture | keep | Loads a static PMTiles archive without a Honua server. |
 | [`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the React provider, hooks, and map component over the same quickstart contract. |
-| [`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | flagship | supported | hybrid | rework | Reconciles a snapshot and SSE deltas in an operational incident dashboard. |
+| [`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | flagship | supported | hybrid | keep | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | [`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | reference | experimental | fixture | replace | Compares supported rendering paths and makes fidelity differences explicit. |
 | [`service-explorer`](../../examples/service-explorer/README.md) | flagship | supported | hybrid | rework | Browses heterogeneous spatial services with capability and cache diagnostics. |
 | [`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | flagship | experimental | fixture | rework | Links AOI analysis jobs to map, table, chart, and reusable output artifacts. |
@@ -940,9 +940,9 @@ Labels: `fixture` · `demo-live` · `degraded`
 - Compile check: `npm run demo:incident:typecheck`
 - Sample contract: `flagship` · `supported`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Deterministic incident stream or deployed demo stream.
-- Freshness: Snapshot time, cursor, lag, and observation window.
-- Catalog degradation: Disconnected or replayed state is visually distinct and mutation controls remain disabled.
+- Provenance: Deployed demo stream when advertised; otherwise visibly labeled deterministic replay. Edits are limited to an isolated resettable fixture profile.
+- Freshness: Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes.
+- Catalog degradation: Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile.
 - Live sample: [demo-public-safety.html](https://honua.io/demo-public-safety.html)
 - Supported API imports: `@honua/sdk-js/realtime` (`createRealtimeServerSentEventsTransport`)
 - honua.io journey: `realtime-operations`

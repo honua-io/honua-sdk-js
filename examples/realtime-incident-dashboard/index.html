@@ -12,8 +12,14 @@
           <div>
             <p class="eyebrow">Honua Cloud / Realtime Operations</p>
             <h1>Incident command</h1>
+            <p id="execution-disclosure" class="execution-disclosure" aria-live="polite">
+              Live-first capability check pending.
+            </p>
           </div>
-          <strong id="connection-status" class="status-badge" data-status="idle">Idle</strong>
+          <div class="status-stack">
+            <strong id="data-lane" class="lane-badge" data-lane="pending">Live preferred</strong>
+            <strong id="connection-status" class="status-badge" data-status="idle">Idle</strong>
+          </div>
         </header>
 
         <section class="summary-grid" aria-label="Incident summary">
@@ -45,10 +51,18 @@
           </div>
           <dl class="stream-grid">
             <div><dt>Cursor</dt><dd id="stream-cursor">-</dd></div>
+            <div><dt>Sequence</dt><dd id="stream-sequence">-</dd></div>
             <div><dt>Records</dt><dd id="stream-records">0</dd></div>
             <div><dt>Tombstones</dt><dd id="stream-tombstones">0</dd></div>
-            <div><dt>Ignored</dt><dd id="stream-ignored">0</dd></div>
+            <div><dt>Deduplicated</dt><dd id="stream-ignored">0</dd></div>
             <div><dt>Watermark</dt><dd id="stream-watermark">-</dd></div>
+            <div><dt>Snapshot</dt><dd id="stream-snapshot-at">-</dd></div>
+            <div><dt>Observed</dt><dd id="stream-observed-at">-</dd></div>
+            <div><dt>Event Time</dt><dd id="stream-event-time">-</dd></div>
+            <div><dt>Lag</dt><dd id="stream-lag">-</dd></div>
+            <div><dt>Reconnect</dt><dd id="stream-reconnect">Not attempted</dd></div>
+            <div><dt>Backoff</dt><dd id="stream-backoff">-</dd></div>
+            <div><dt>Reconciliation</dt><dd id="stream-reconciliation">Waiting for snapshot</dd></div>
             <div><dt>Stale Since</dt><dd id="stream-stale-since">-</dd></div>
             <div><dt>Authority</dt><dd id="live-authority" data-authoritative="false">Read-only</dd></div>
             <div><dt>Feature Source</dt><dd id="feature-provenance">-</dd></div>
@@ -60,7 +74,10 @@
             <button id="resume-stream" type="button">Resume</button>
             <button id="mark-stale" type="button">Mark Stale</button>
             <button id="manual-refresh" type="button">Refresh</button>
+            <button id="duplicate-event" type="button">Replay Duplicate</button>
+            <button id="stale-cursor" type="button">Inject Stale Cursor</button>
           </div>
+          <p id="fallback-reason" class="degraded-note" role="status"></p>
         </section>
 
         <section class="filter-panel" aria-label="Incident filters">
@@ -101,6 +118,7 @@
                 <option value="Flooding">Flooding</option>
                 <option value="Logistics">Logistics</option>
                 <option value="Fire">Fire</option>
+                <option value="Exercise">Exercise</option>
               </select>
             </label>
           </div>
@@ -147,6 +165,43 @@
             <div><dt>Updated</dt><dd id="detail-updated">-</dd></div>
           </dl>
           <p id="detail-summary" class="detail-summary"></p>
+        </section>
+
+        <section class="detail-card edit-card" aria-labelledby="edit-heading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Isolated demo editing</p>
+              <h2 id="edit-heading">Stage a safe update</h2>
+            </div>
+            <span id="edit-profile">Unavailable</span>
+          </div>
+          <p id="edit-guard-reason">Select the dedicated demo record.</p>
+          <div class="edit-grid">
+            <label>
+              <span>Status</span>
+              <select id="edit-status">
+                <option value="assigned">Assigned</option>
+                <option value="monitoring">Monitoring</option>
+                <option value="resolved">Resolved</option>
+              </select>
+            </label>
+            <label>
+              <span>Assigned to</span>
+              <input id="edit-assigned" type="text" maxlength="80" value="Demo Operations" />
+            </label>
+          </div>
+          <dl class="detail-grid edit-metadata">
+            <div><dt>Expected revision</dt><dd id="edit-revision">-</dd></div>
+            <div><dt>Idempotency key</dt><dd id="edit-idempotency">-</dd></div>
+          </dl>
+          <div class="edit-actions">
+            <button id="stage-edit" type="button">Stage Edit</button>
+            <button id="submit-edit" type="button" disabled>Submit Staged Edit</button>
+            <button id="repeat-edit" type="button" disabled>Repeat Same Request</button>
+            <button id="simulate-conflict" type="button" disabled>Simulate Conflict</button>
+            <button id="reset-edit" type="button" disabled>Reset Demo Record</button>
+          </div>
+          <p id="edit-outcome" class="edit-outcome" role="status" aria-live="polite">No edit staged.</p>
         </section>
 
         <section class="detail-card">

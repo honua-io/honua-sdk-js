@@ -237,20 +237,28 @@
       "title": "Realtime incident stream",
       "sampleDir": "examples/realtime-incident-dashboard",
       "mode": "realtime",
-      "capabilities": ["metadata", "realtime-stream", "snapshot-then-delta"],
+      "capabilities": ["metadata", "realtime-stream", "snapshot-then-delta", "cursor-resume", "isolated-safe-edit"],
       "cloud": {
         "authEnv": {
           "apiKey": "HONUA_CLOUD_DEMO_API_KEY",
           "bearerToken": "HONUA_CLOUD_DEMO_BEARER_TOKEN"
         },
         "transportEnv": "VITE_HONUA_INCIDENT_TRANSPORT",
+        "baseUrlEnv": "VITE_HONUA_INCIDENT_BASE_URL",
+        "capabilitiesUrlEnv": "VITE_HONUA_INCIDENT_CAPABILITIES_URL",
         "stream": {
           "kind": "sse",
-          "url": "https://cloud.honua.io/api/v1/realtime/incidents/sse",
+          "url": "https://demo.honua.io/api/v1/streaming/features",
           "urlEnv": "VITE_HONUA_INCIDENT_STREAM_URL",
           "authority": "realtime-stream",
-          "sourceId": "honua-cloud:incidents",
-          "layerId": "incidents"
+          "sourceId": "maui-incidents",
+          "sourceIdEnv": "VITE_HONUA_INCIDENT_SOURCE_ID",
+          "layerId": 0,
+          "layerIdEnv": "VITE_HONUA_INCIDENT_LAYER_ID"
+        },
+        "safeEdit": {
+          "requiredSourceId": "maui-incidents-demo-edits",
+          "requirements": ["authorized", "isolated", "resettable", "optimistic-concurrency", "idempotency"]
         }
       },
       "fixtureFallback": {
@@ -261,7 +269,7 @@
       "smoke": {
         "fixtureCommand": "npm run test:playwright:incident",
         "cloudCommand": "npm run test:cloud-demo:staging",
-        "requiresEnv": ["HONUA_CLOUD_DEMO_BASE_URL", "VITE_HONUA_INCIDENT_TRANSPORT", "VITE_HONUA_INCIDENT_STREAM_URL"]
+        "requiresEnv": ["VITE_HONUA_INCIDENT_BASE_URL", "VITE_HONUA_INCIDENT_CAPABILITIES_URL", "VITE_HONUA_INCIDENT_STREAM_URL"]
       },
       "cacheNotes": {
         "metadata": "cacheable-metadata",

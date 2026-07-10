@@ -81,7 +81,9 @@ export async function startIncidentDashboardFixtureServer({ build = true } = {})
     throw new Error("Failed to bind the incident dashboard fixture server.");
   }
 
-  const url = `http://127.0.0.1:${address.port}`;
+  // Required CI lane: isolated deterministic editing, never the public replay
+  // fallback and never a deployed/shared source.
+  const url = `http://127.0.0.1:${address.port}/?transport=fixture-edit`;
   return {
     server,
     url,

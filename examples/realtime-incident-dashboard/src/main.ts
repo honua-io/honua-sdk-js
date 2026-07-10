@@ -27,7 +27,13 @@ import {
   reconcileRealtimeSelection,
 } from "@honua/sdk-js/realtime";
 
+import {
+  type IncidentRealtimeDiagnostics,
+  initialIncidentRealtimeDiagnostics,
+  reconcileIncidentDiagnostics,
+} from "./diagnostics.js";
 import { HONOLULU_CENTER, INCIDENT_LAYER_ID, INCIDENT_SOURCE_ID, INITIAL_INCIDENTS } from "./fixtures.js";
+import { type IncidentMapLoadTarget, createIncidentLifecycle, initializeIncidentMap } from "./lifecycle.js";
 import {
   INCIDENT_METADATA_CACHE_STATE,
   type IncidentLiveStateAuthority,
@@ -36,6 +42,7 @@ import {
   formatIncidentFeatureProvenance,
   formatIncidentMetadataCacheState,
 } from "./live-state.js";
+import { formatIncidentAccessibleName, presentIncidentConnection } from "./presentation.js";
 import {
   applyIncidentProjection,
   createIncidentLayerFilter,
@@ -45,14 +52,21 @@ import {
   incidentRecords,
   statusLabel,
 } from "./projection.js";
-import { createIncidentDashboardTransport } from "./realtime-transport.js";
-import type { IncidentFeature, IncidentSummary } from "./types.js";
+import {
+  createIncidentDashboardTransport,
+  readIncidentTransportConfig,
+  resolveIncidentTransportConfig,
+} from "./realtime-transport.js";
+import { SAFE_DEMO_INCIDENT_ID, evaluateIncidentMutationGuard } from "./safe-edit.js";
+import type { IncidentMutationGuard } from "./safe-edit.js";
+import type { IncidentEditReceipt, IncidentEditRequest, IncidentFeature, IncidentSummary } from "./types.js";
 
 import "./styles.css";
 
 interface IncidentRuntime {
   ready: boolean;
   mapReady: boolean;
+  disposed: boolean;
   status: string;
   cursor: string | null;
   visibleIncidentCount: number;
@@ -66,6 +80,19 @@ interface IncidentRuntime {
   authoritative: boolean;
   featureProvenance: string;
   metadataCacheStatus: string;
+  lane: "live" | "replay" | "fixture-edit" | "pending";
+  ignoredEventCount: number;
+  reconciliationOutcome: string;
+  reconnectOutcome: string;
+  lastEditOutcome: string | null;
+  stageEdit(): string | null;
+  submitEdit(): string | null;
+  repeatEdit(): string | null;
+  simulateConflict(): void;
+  resetEdit(): string | null;
+  duplicateLast(): void;
+  staleCursor(): void;
+  dispose(): void;
 }
 
 declare global {
@@ -166,80 +193,62 @@ async function createMap(): Promise<MapHandle> {
     zoom: 11,
   });
 
-  return await new Promise((resolve, reject) => {
-    const onLoad = () => {
-      try {
-        map.addSource(INCIDENT_SOURCE_ID, {
-          type: "geojson",
-          data: incidentFeatureCollection(INITIAL_INCIDENTS) as never,
-        });
-        map.addLayer({
-          id: INCIDENT_LAYER_ID,
-          source: INCIDENT_SOURCE_ID,
-          type: "circle",
-          filter: ["==", "$type", "Point"],
-          paint: {
-            "circle-radius": [
-              "case",
-              ["boolean", ["feature-state", "selected"], false],
-              12,
-              ["interpolate", ["linear"], ["get", "affectedAssets"], 0, 7, 18, 13],
-            ],
-            "circle-color": [
-              "match",
-              ["get", "severity"],
-              "critical",
-              "#b91c1c",
-              "high",
-              "#d97706",
-              "medium",
-              "#2563eb",
-              "#0f766e",
-            ],
-            "circle-opacity": ["case", ["==", ["get", "status"], "resolved"], 0.45, 0.92],
-            "circle-stroke-color": ["case", ["boolean", ["feature-state", "selected"], false], "#0f172a", "#ffffff"],
-            "circle-stroke-width": ["case", ["boolean", ["feature-state", "selected"], false], 4, 2],
-          },
-        });
-        map.addLayer({
-          id: `${INCIDENT_LAYER_ID}-labels`,
-          source: INCIDENT_SOURCE_ID,
-          type: "symbol",
-          filter: ["==", "$type", "Point"],
-          layout: {
-            "text-field": ["get", "id"],
-            "text-size": 11,
-            "text-offset": [0, 1.5],
-            "text-anchor": "top",
-          },
-          paint: {
-            "text-color": "#0f172a",
-            "text-halo-color": "#ffffff",
-            "text-halo-width": 1.2,
-          },
-        });
-        map.fitBounds(incidentBounds(INITIAL_INCIDENTS), {
-          padding: 92,
-          duration: 0,
-          maxZoom: 12,
-        });
-        cleanup();
-        resolve({ map, layerIds: [INCIDENT_LAYER_ID, `${INCIDENT_LAYER_ID}-labels`] });
-      } catch (error) {
-        cleanup();
-        reject(error);
-      }
-    };
-    const onError = (event: { error?: { message?: string } }) => {
-      cleanup();
-      reject(new Error(event.error?.message ?? "Map failed to load"));
-    };
-    const cleanup = () => {
-      map.off("load", onLoad);
-      map.off("error", onError);
-    };
-    map.on("load", onLoad);
-    map.on("error", onError);
+  return await initializeIncidentMap(map as unknown as IncidentMapLoadTarget, () => {
+    map.addSource(INCIDENT_SOURCE_ID, {
+      type: "geojson",
+      data: incidentFeatureCollection(INITIAL_INCIDENTS) as never,
+    });
+    map.addLayer({
+      id: INCIDENT_LAYER_ID,
+      source: INCIDENT_SOURCE_ID,
+      type: "circle",
+      filter: ["==", "$type", "Point"],
+      paint: {
+        "circle-radius": [
+          "case",
+          ["boolean", ["feature-state", "selected"], false],
+          12,
+          ["interpolate", ["linear"], ["get", "affectedAssets"], 0, 7, 18, 13],
+        ],
+        "circle-color": [
+          "match",
+          ["get", "severity"],
+          "critical",
+          "#b91c1c",
+          "high",
+          "#d97706",
+          "medium",
+          "#2563eb",
+          "#0f766e",
+        ],
+        "circle-opacity": ["case", ["==", ["get", "status"], "resolved"], 0.45, 0.92],
+        "circle-stroke-color": ["case", ["boolean", ["feature-state", "selected"], false], "#0f172a", "#ffffff"],
+        "circle-stroke-width": ["case", ["boolean", ["feature-state", "selected"], false], 4, 2],
+      },
+    });
+    map.addLayer({
+      id: `${INCIDENT_LAYER_ID}-labels`,
+      source: INCIDENT_SOURCE_ID,
+      type: "symbol",
+      filter: ["==", "$type", "Point"],
+      layout: {
+        "text-field": ["get", "id"],
+        "text-size": 11,
+        "text-offset": [0, 1.5],
+        "text-anchor": "top",
+      },
+      paint: {
+        "text-color": "#0f172a",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.2,
+      },
+    });
+    map.fitBounds(incidentBounds(INITIAL_INCIDENTS), {
+      padding: 92,
+      duration: 0,
+      maxZoom: 12,
+    });
+    return { map, layerIds: [INCIDENT_LAYER_ID, `${INCIDENT_LAYER_ID}-labels`] };
   });
 }
 
@@ -248,7 +257,14 @@ function updateMapSource(map: maplibregl.Map, state: RealtimeFeatureState<Incide
   source?.setData(incidentFeatureCollection(incidentRecords(state)) as never);
 }
 
-function renderConnection(state: RealtimeFeatureState<IncidentFeature>, authority: IncidentLiveStateAuthority): void {
+function renderConnection(
+  state: RealtimeFeatureState<IncidentFeature>,
+  authority: IncidentLiveStateAuthority,
+  diagnostics: IncidentRealtimeDiagnostics,
+  lane: "live" | "replay" | "fixture-edit",
+  fallbackReason: string | undefined,
+): void {
+  renderExecutionState(lane, state.status, authority.authoritative, fallbackReason);
   const badge = getElement<HTMLElement>("#connection-status");
   badge.dataset.status = state.status;
   badge.textContent = statusLabel(state.status);
@@ -256,6 +272,7 @@ function renderConnection(state: RealtimeFeatureState<IncidentFeature>, authorit
   authorityBadge.dataset.authoritative = String(authority.authoritative);
   authorityBadge.textContent = formatIncidentAuthorityLabel(authority);
   setText("#stream-cursor", state.cursor ?? "-");
+  setText("#stream-sequence", state.lastSequence === undefined ? "-" : String(state.lastSequence));
   setText("#stream-ignored", String(state.ignoredEventCount));
   setText("#stream-records", String(Object.keys(state.records).length));
   setText("#stream-tombstones", String(Object.keys(state.tombstones).length));
@@ -263,9 +280,29 @@ function renderConnection(state: RealtimeFeatureState<IncidentFeature>, authorit
     "#stream-watermark",
     state.watermark ?? formatTimestamp(new Date(state.lastEventAt ?? Date.now()).toISOString()),
   );
+  setText("#stream-snapshot-at", formatObservedTime(diagnostics.snapshotAt));
+  setText("#stream-observed-at", formatObservedTime(diagnostics.observationAt));
+  setText("#stream-event-time", diagnostics.eventTime ? formatTimestamp(diagnostics.eventTime) : "-");
+  setText("#stream-lag", diagnostics.lagMs === undefined ? "-" : formatLag(diagnostics.lagMs));
+  setText(
+    "#stream-reconnect",
+    diagnostics.reconnectAttempt > 0
+      ? `${statusLabel(diagnostics.reconnectOutcome)} / attempt ${diagnostics.reconnectAttempt}`
+      : statusLabel(diagnostics.reconnectOutcome),
+  );
+  setText("#stream-backoff", diagnostics.retryAfterMs === undefined ? "-" : `${diagnostics.retryAfterMs} ms`);
+  setText("#stream-reconciliation", statusLabel(diagnostics.reconciliationOutcome));
   setText("#stream-stale-since", state.staleSince ? formatTimestamp(new Date(state.staleSince).toISOString()) : "-");
   setText("#feature-provenance", formatIncidentFeatureProvenance(authority.featureProvenance));
   setText("#metadata-cache", formatIncidentMetadataCacheState(authority.metadataCache));
+}
+
+function formatObservedTime(value: number | undefined): string {
+  return value === undefined ? "-" : formatTimestamp(new Date(value).toISOString());
+}
+
+function formatLag(value: number): string {
+  return value < 1_000 ? `${Math.round(value)} ms` : `${(value / 1_000).toFixed(1)} s`;
 }
 
 function renderSummary(summary: IncidentSummary, visibleCount: number): void {
@@ -330,6 +367,7 @@ function renderIncidentList(
         <span class="severity-dot" data-severity="${escapeHtml(incident.severity)}"></span>
         <div>
           <h3>${escapeHtml(incident.title)}</h3>
+          <span class="severity-label">${escapeHtml(statusLabel(incident.severity))} severity</span>
           <p>${escapeHtml(incident.id)} / ${escapeHtml(incident.type)} / ${escapeHtml(incident.assignedTo)}</p>
         </div>
       </div>
@@ -344,9 +382,8 @@ function renderIncidentList(
     button.className = "row-select-button";
     button.textContent = "Open";
     button.dataset.testid = `select-${incident.id}`;
-    button.setAttribute("aria-label", `Open ${incident.title}`);
-    button.disabled = !authority.actionsEnabled;
-    button.title = authority.actionsEnabled ? `Open ${incident.title}` : authority.reason;
+    button.setAttribute("aria-label", formatIncidentAccessibleName(incident));
+    button.title = authority.actionsEnabled ? `Open ${incident.title}` : `Open read-only detail. ${authority.reason}`;
     button.addEventListener("click", () => onSelect(incident));
     row.append(button);
     list.append(row);
@@ -477,7 +514,13 @@ function eventDetail(event: RealtimeFeatureEvent<IncidentFeature>): string {
     case "heartbeat":
       return event.cursor ?? "No cursor";
     case "status":
-      return event.cursor ?? "Connection state changed";
+      return [
+        event.reason ?? event.cursor ?? "Connection state changed",
+        event.reconnectAttempt ? `attempt ${event.reconnectAttempt}` : undefined,
+        event.retryAfterMs ? `retry in ${event.retryAfterMs} ms` : undefined,
+      ]
+        .filter(Boolean)
+        .join(" / ");
     case "error":
       return event.error instanceof Error ? event.error.message : String(event.error);
   }
@@ -501,6 +544,62 @@ function setFieldFilter(
   });
 }
 
+function renderExecutionState(
+  lane: "live" | "replay" | "fixture-edit",
+  status: RealtimeFeatureState<IncidentFeature>["status"],
+  authoritative: boolean,
+  fallbackReason: string | undefined,
+): void {
+  const presentation = presentIncidentConnection(lane, status, authoritative, fallbackReason);
+  const badge = getElement<HTMLElement>("#data-lane");
+  badge.dataset.lane = lane;
+  badge.textContent = presentation.laneLabel;
+  setText("#execution-disclosure", presentation.disclosure);
+  setText("#fallback-reason", fallbackReason ?? "");
+  const overlay = getElement<HTMLElement>("#map-overlay");
+  overlay.dataset.state = presentation.overlayState;
+  overlay.textContent = presentation.overlay;
+}
+
+function authorityForLane(
+  state: RealtimeFeatureState<IncidentFeature>,
+  lane: "live" | "replay" | "fixture-edit",
+): IncidentLiveStateAuthority {
+  const authority = evaluateIncidentLiveStateAuthority(state, {
+    metadataCache: INCIDENT_METADATA_CACHE_STATE,
+  });
+  if (lane !== "replay") return authority;
+  return {
+    ...authority,
+    authoritative: false,
+    actionsEnabled: false,
+    reason: "Scripted replay is read-only and is not authoritative live incident state.",
+    featureProvenance: state.checkpoint
+      ? { source: "cursor-watermark-replay", checkpoint: state.checkpoint }
+      : { source: "unknown", reason: "Replay has not received a checkpoint." },
+  };
+}
+
+function renderEditReceipt(receipt: IncidentEditReceipt): string {
+  const revision = receipt.actualRevision === undefined ? "" : ` Revision ${receipt.actualRevision}.`;
+  return `${statusLabel(receipt.outcome)}: ${receipt.reason}${revision}`;
+}
+
+function neutralizeRuntimeActions(runtime: IncidentRuntime): void {
+  runtime.step = () => null;
+  runtime.reconnect = () => undefined;
+  runtime.resume = () => undefined;
+  runtime.markStale = () => undefined;
+  runtime.refresh = () => undefined;
+  runtime.stageEdit = () => null;
+  runtime.submitEdit = () => null;
+  runtime.repeatEdit = () => null;
+  runtime.simulateConflict = () => undefined;
+  runtime.resetEdit = () => null;
+  runtime.duplicateLast = () => undefined;
+  runtime.staleCursor = () => undefined;
+}
+
 async function bootstrap(): Promise<void> {
   const overlay = getElement<HTMLElement>("#map-overlay");
   const severityFilter = getElement<HTMLSelectElement>("#severity-filter");
@@ -511,10 +610,20 @@ async function bootstrap(): Promise<void> {
   const resumeButton = getElement<HTMLButtonElement>("#resume-stream");
   const staleButton = getElement<HTMLButtonElement>("#mark-stale");
   const refreshButton = getElement<HTMLButtonElement>("#manual-refresh");
+  const duplicateButton = getElement<HTMLButtonElement>("#duplicate-event");
+  const staleCursorButton = getElement<HTMLButtonElement>("#stale-cursor");
+  const stageEditButton = getElement<HTMLButtonElement>("#stage-edit");
+  const submitEditButton = getElement<HTMLButtonElement>("#submit-edit");
+  const repeatEditButton = getElement<HTMLButtonElement>("#repeat-edit");
+  const simulateConflictButton = getElement<HTMLButtonElement>("#simulate-conflict");
+  const resetEditButton = getElement<HTMLButtonElement>("#reset-edit");
+  const editStatus = getElement<HTMLSelectElement>("#edit-status");
+  const editAssigned = getElement<HTMLInputElement>("#edit-assigned");
 
   const runtime: IncidentRuntime = {
     ready: false,
     mapReady: false,
+    disposed: false,
     status: "idle",
     cursor: null,
     visibleIncidentCount: 0,
@@ -528,33 +637,73 @@ async function bootstrap(): Promise<void> {
     authoritative: false,
     featureProvenance: "Unknown feature provenance",
     metadataCacheStatus: "Metadata cache not used",
+    lane: "pending",
+    ignoredEventCount: 0,
+    reconciliationOutcome: "waiting-for-snapshot",
+    reconnectOutcome: "not-attempted",
+    lastEditOutcome: null,
+    stageEdit: () => null,
+    submitEdit: () => null,
+    repeatEdit: () => null,
+    simulateConflict: () => undefined,
+    resetEdit: () => null,
+    duplicateLast: () => undefined,
+    staleCursor: () => undefined,
+    dispose: () => undefined,
   };
   window.__HONUA_INCIDENT_RUNTIME__ = runtime;
+  const lifecycle = createIncidentLifecycle();
+  const dispose = () => {
+    lifecycle.dispose();
+    neutralizeRuntimeActions(runtime);
+    runtime.ready = false;
+    runtime.mapReady = false;
+    runtime.disposed = true;
+  };
+  const onBeforeUnload = () => dispose();
+  runtime.dispose = dispose;
+  window.addEventListener("beforeunload", onBeforeUnload, { once: true });
+  lifecycle.own(() => window.removeEventListener("beforeunload", onBeforeUnload));
 
   try {
+    const resolvedTransportConfig = await resolveIncidentTransportConfig(readIncidentTransportConfig());
     const { map, layerIds } = await createMap();
+    lifecycle.own(() => map.remove());
     const store = createRealtimeFeatureStore<IncidentFeature>();
-    const incidentTransport = createIncidentDashboardTransport();
+    lifecycle.own(() => store.close());
+    const incidentTransport = createIncidentDashboardTransport(resolvedTransportConfig);
+    const lane = incidentTransport.controls.mode;
+    let diagnostics = initialIncidentRealtimeDiagnostics(lane);
+    runtime.lane = lane;
     const context = createExplorationContext({
       datasetId: "honua-cloud-incident-operations",
       sourceIds: [INCIDENT_SOURCE_ID],
       preset: "globalLinked",
     });
+    lifecycle.own(() => context.dispose());
     const mapView = context.connectView({ id: "incident-map", role: "map" });
     const tableView = context.connectView({ id: "incident-table", role: "grid" });
     const filterView = context.connectView({ id: "incident-filters", role: "filter" });
     const detailView = context.connectView({ id: "incident-detail", role: "detail" });
     const filterControls = bindFilterControlsToExploration(filterView);
     const tableSelection = bindTableSelectionToExploration(tableView);
-    const removableHandles = [
-      syncFeatureStateSelection(map as unknown as FeatureStateMap, mapView, { source: INCIDENT_SOURCE_ID }),
+    const ownRemovable = <T extends { remove(): void }>(handle: T): T => {
+      lifecycle.own(() => handle.remove());
+      return handle;
+    };
+    ownRemovable(syncFeatureStateSelection(map as unknown as FeatureStateMap, mapView, { source: INCIDENT_SOURCE_ID }));
+    ownRemovable(
       bindMapSelectionToExploration(map as unknown as InteractiveMap, mapView, {
         source: INCIDENT_SOURCE_ID,
         layer: INCIDENT_LAYER_ID,
       }),
+    );
+    ownRemovable(
       bindMapExtentToExploration(mapView, createMapExtentSource(map), {
         publishSpatialFilter: true,
       }),
+    );
+    ownRemovable(
       syncMapLayerFilterToExploration(
         {
           setFilter(layerId, filter) {
@@ -567,6 +716,8 @@ async function bootstrap(): Promise<void> {
           translate: createIncidentLayerFilter,
         },
       ),
+    );
+    ownRemovable(
       syncMapLayerFilterToExploration(
         {
           setFilter(layerId, filter) {
@@ -579,18 +730,104 @@ async function bootstrap(): Promise<void> {
           translate: createIncidentLayerFilter,
         },
       ),
-    ];
-    const unsubscribeHandles: Array<() => void> = [];
+    );
     let latestProjection: LinkedViewQueryProjection | undefined;
     let selectedIncidentId: string | undefined;
     let activePopup: maplibregl.Popup | undefined;
-    let latestAuthority = evaluateIncidentLiveStateAuthority(store.state, {
-      metadataCache: INCIDENT_METADATA_CACHE_STATE,
-    });
+    lifecycle.own(() => activePopup?.remove());
+    let latestAuthority = authorityForLane(store.state, lane);
+    let latestMutationGuard: IncidentMutationGuard = {
+      enabled: false,
+      reason: "Select the isolated demo record to stage an edit.",
+    };
+    let stagedEdit: IncidentEditRequest | undefined;
+    let lastSubmittedEdit: IncidentEditRequest | undefined;
+    let idempotencySequence = 0;
 
     function currentIncidentById(id: string | undefined): IncidentFeature | undefined {
       if (!id) return undefined;
       return incidentRecords(store.state).find((incident) => incident.id === id);
+    }
+
+    function updateEditPanel(): void {
+      const incident = currentIncidentById(selectedIncidentId);
+      latestMutationGuard = evaluateIncidentMutationGuard({
+        lane,
+        live: latestAuthority.authoritative,
+        authorized: incidentTransport.controls.authorized,
+        safeEditProfile: incidentTransport.controls.safeDemoEditing,
+        sourceIdentity: incidentTransport.controls.sourceIdentity,
+        incident,
+      });
+      setText("#edit-profile", incidentTransport.controls.safeDemoEditing ? "Isolated + resettable" : "Unavailable");
+      setText("#edit-guard-reason", latestMutationGuard.reason);
+      setText("#edit-revision", incident?.revision === undefined ? "-" : String(incident.revision));
+      stageEditButton.disabled = !latestMutationGuard.enabled;
+      submitEditButton.disabled = !latestMutationGuard.enabled || !stagedEdit;
+      repeatEditButton.disabled = !latestMutationGuard.enabled || !lastSubmittedEdit;
+      simulateConflictButton.disabled = !latestMutationGuard.enabled || !stagedEdit;
+      resetEditButton.disabled = !latestMutationGuard.enabled;
+    }
+
+    function stageEdit(): string | null {
+      const incident = currentIncidentById(selectedIncidentId);
+      if (!latestMutationGuard.enabled || !incident) {
+        setText("#edit-outcome", latestMutationGuard.reason);
+        return null;
+      }
+      idempotencySequence += 1;
+      stagedEdit = {
+        incidentId: incident.id,
+        expectedRevision: incident.revision ?? 0,
+        idempotencyKey: `fixture-edit-${idempotencySequence}`,
+        patch: {
+          status: editStatus.value as IncidentFeature["status"],
+          assignedTo: editAssigned.value.trim() || "Demo Operations",
+        },
+      };
+      setText("#edit-revision", String(stagedEdit.expectedRevision));
+      setText("#edit-idempotency", stagedEdit.idempotencyKey);
+      setText("#edit-outcome", `Staged against revision ${stagedEdit.expectedRevision}.`);
+      submitEditButton.disabled = false;
+      simulateConflictButton.disabled = false;
+      return stagedEdit.idempotencyKey;
+    }
+
+    function submitEdit(request = stagedEdit): string | null {
+      if (!request || !latestMutationGuard.enabled) {
+        setText("#edit-outcome", latestMutationGuard.reason);
+        return null;
+      }
+      const receipt = incidentTransport.controls.edit(request);
+      lastSubmittedEdit = request;
+      stagedEdit = undefined;
+      runtime.lastEditOutcome = receipt.outcome;
+      setText("#edit-outcome", renderEditReceipt(receipt));
+      updateEditPanel();
+      return receipt.outcome;
+    }
+
+    function repeatEdit(): string | null {
+      if (!lastSubmittedEdit) return null;
+      const receipt = incidentTransport.controls.edit(lastSubmittedEdit);
+      runtime.lastEditOutcome = receipt.outcome;
+      setText("#edit-outcome", renderEditReceipt(receipt));
+      return receipt.outcome;
+    }
+
+    function resetEdit(): string | null {
+      const incident = currentIncidentById(selectedIncidentId);
+      if (!incident || !latestMutationGuard.enabled) return null;
+      idempotencySequence += 1;
+      const receipt = incidentTransport.controls.reset({
+        incidentId: incident.id,
+        idempotencyKey: `fixture-reset-${idempotencySequence}`,
+      });
+      runtime.lastEditOutcome = receipt.outcome;
+      setText("#edit-idempotency", receipt.idempotencyKey);
+      setText("#edit-outcome", renderEditReceipt(receipt));
+      updateEditPanel();
+      return receipt.outcome;
     }
 
     function renderProjectedIncidents(projection: LinkedViewQueryProjection): void {
@@ -610,6 +847,11 @@ async function bootstrap(): Promise<void> {
       setListSelection(incidentId);
       const incident = currentIncidentById(incidentId);
       renderDetail(incident);
+      if (incident?.safeDemoRecord && !stagedEdit) {
+        editStatus.value = incident.status;
+        editAssigned.value = incident.assignedTo;
+      }
+      updateEditPanel();
       activePopup?.remove();
       activePopup = undefined;
       if (incident) {
@@ -624,58 +866,115 @@ async function bootstrap(): Promise<void> {
       }
     }
 
-    store.subscribe(
-      (state, event) => {
-        latestAuthority = evaluateIncidentLiveStateAuthority(state, {
-          metadataCache: INCIDENT_METADATA_CACHE_STATE,
-        });
-        renderConnection(state, latestAuthority);
-        updateMapSource(map, state);
-        pushEventLog(event);
-        renderEventLog();
-        reconcileRealtimeSelection(tableView, state, { requireLiveRecord: false });
-        runtime.status = state.status;
-        runtime.cursor = state.cursor ?? null;
-        runtime.authoritative = latestAuthority.authoritative;
-        runtime.featureProvenance = formatIncidentFeatureProvenance(latestAuthority.featureProvenance);
-        runtime.metadataCacheStatus = formatIncidentMetadataCacheState(latestAuthority.metadataCache);
-        if (latestProjection) renderProjectedIncidents(latestProjection);
-        renderSelectedIncident(selectedIncidentId);
-      },
-      { fireImmediately: true },
+    lifecycle.own(
+      store.subscribe(
+        (state, event) => {
+          diagnostics = reconcileIncidentDiagnostics(diagnostics, state, event);
+          latestAuthority = authorityForLane(state, lane);
+          renderConnection(state, latestAuthority, diagnostics, lane, incidentTransport.controls.fallbackReason);
+          updateMapSource(map, state);
+          pushEventLog(event);
+          renderEventLog();
+          reconcileRealtimeSelection(tableView, state, { requireLiveRecord: false });
+          runtime.status = state.status;
+          runtime.cursor = state.cursor ?? null;
+          runtime.authoritative = latestAuthority.authoritative;
+          runtime.featureProvenance = formatIncidentFeatureProvenance(latestAuthority.featureProvenance);
+          runtime.metadataCacheStatus = formatIncidentMetadataCacheState(latestAuthority.metadataCache);
+          runtime.ignoredEventCount = diagnostics.ignoredEventCount;
+          runtime.reconciliationOutcome = diagnostics.reconciliationOutcome;
+          runtime.reconnectOutcome = diagnostics.reconnectOutcome;
+          if (latestProjection) renderProjectedIncidents(latestProjection);
+          renderSelectedIncident(selectedIncidentId);
+        },
+        { fireImmediately: true },
+      ),
     );
 
-    unsubscribeHandles.push(
+    lifecycle.own(
       bindDetailToSelection(detailView, (selection) => {
         renderSelectedIncident(readSelectedIncidentId(selection));
       }),
+    );
+    lifecycle.own(
       bindQueryProjectionToExploration(tableView, renderProjectedIncidents, {
         includeSelf: true,
         sourceId: INCIDENT_SOURCE_ID,
       }),
     );
 
-    severityFilter.addEventListener("change", () => {
-      setFieldFilter(filterControls, "severity", "severity", severityFilter.value);
-    });
-    statusFilter.addEventListener("change", () => {
-      setFieldFilter(filterControls, "status", "status", statusFilter.value);
-    });
-    typeFilter.addEventListener("change", () => {
-      setFieldFilter(filterControls, "type", "type", typeFilter.value);
-    });
-    stepButton.addEventListener("click", () => {
-      const step = incidentTransport.controls.step();
-      runtime.lastStep = step?.label ?? null;
-      setText("#last-scenario-step", step ? step.label : "No live step");
-    });
-    reconnectButton.addEventListener("click", () => incidentTransport.controls.reconnect());
-    resumeButton.addEventListener("click", () => incidentTransport.controls.resume());
-    staleButton.addEventListener("click", () => {
-      const lastLiveAt = store.state.lastHeartbeatAt ?? store.state.lastEventAt ?? Date.now();
-      store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });
-    });
-    refreshButton.addEventListener("click", () => incidentTransport.controls.refresh());
+    const controlListeners = new AbortController();
+    lifecycle.own(() => controlListeners.abort());
+    const controlListenerOptions = { signal: controlListeners.signal };
+    severityFilter.addEventListener(
+      "change",
+      () => {
+        setFieldFilter(filterControls, "severity", "severity", severityFilter.value);
+      },
+      controlListenerOptions,
+    );
+    statusFilter.addEventListener(
+      "change",
+      () => {
+        setFieldFilter(filterControls, "status", "status", statusFilter.value);
+      },
+      controlListenerOptions,
+    );
+    typeFilter.addEventListener(
+      "change",
+      () => {
+        setFieldFilter(filterControls, "type", "type", typeFilter.value);
+      },
+      controlListenerOptions,
+    );
+    stepButton.addEventListener(
+      "click",
+      () => {
+        const step = incidentTransport.controls.step();
+        runtime.lastStep = step?.label ?? null;
+        setText("#last-scenario-step", step ? step.label : "No live step");
+      },
+      controlListenerOptions,
+    );
+    reconnectButton.addEventListener("click", () => incidentTransport.controls.reconnect(), controlListenerOptions);
+    resumeButton.addEventListener("click", () => incidentTransport.controls.resume(), controlListenerOptions);
+    staleButton.addEventListener(
+      "click",
+      () => {
+        const lastLiveAt = store.state.lastHeartbeatAt ?? store.state.lastEventAt ?? Date.now();
+        store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });
+      },
+      controlListenerOptions,
+    );
+    refreshButton.addEventListener("click", () => incidentTransport.controls.refresh(), controlListenerOptions);
+    duplicateButton.addEventListener("click", () => incidentTransport.controls.duplicateLast(), controlListenerOptions);
+    staleCursorButton.addEventListener("click", () => incidentTransport.controls.staleCursor(), controlListenerOptions);
+    stageEditButton.addEventListener("click", () => stageEdit(), controlListenerOptions);
+    submitEditButton.addEventListener("click", () => submitEdit(), controlListenerOptions);
+    repeatEditButton.addEventListener("click", () => repeatEdit(), controlListenerOptions);
+    simulateConflictButton.addEventListener(
+      "click",
+      () => {
+        incidentTransport.controls.simulateConcurrentUpdate();
+        setText("#edit-outcome", "Concurrent update published. Submit the staged edit to observe a revision conflict.");
+      },
+      controlListenerOptions,
+    );
+    resetEditButton.addEventListener("click", () => resetEdit(), controlListenerOptions);
+
+    const scenarioControlsEnabled = lane !== "live";
+    for (const button of [
+      stepButton,
+      reconnectButton,
+      resumeButton,
+      staleButton,
+      refreshButton,
+      duplicateButton,
+      staleCursorButton,
+    ]) {
+      button.disabled = !scenarioControlsEnabled;
+      if (!scenarioControlsEnabled) button.title = "Scenario controls are available only in deterministic lanes.";
+    }
 
     runtime.step = () => {
       const step = incidentTransport.controls.step();
@@ -690,6 +989,15 @@ async function bootstrap(): Promise<void> {
       store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });
     };
     runtime.refresh = () => incidentTransport.controls.refresh();
+    runtime.duplicateLast = () => incidentTransport.controls.duplicateLast();
+    runtime.staleCursor = () => incidentTransport.controls.staleCursor();
+    runtime.stageEdit = stageEdit;
+    runtime.submitEdit = () => submitEdit();
+    runtime.repeatEdit = repeatEdit;
+    runtime.simulateConflict = () => {
+      incidentTransport.controls.simulateConcurrentUpdate();
+    };
+    runtime.resetEdit = resetEdit;
 
     for (const layerId of layerIds) {
       map.on("mouseenter", layerId, () => {
@@ -702,32 +1010,18 @@ async function bootstrap(): Promise<void> {
 
     store.connect(incidentTransport.transport, incidentTransport.request);
 
-    tableSelection.select([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, INITIAL_INCIDENTS[0].id)], {
+    tableSelection.select([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, SAFE_DEMO_INCIDENT_ID)], {
       replace: true,
     });
-    overlay.dataset.state = "ready";
-    overlay.textContent = "Live incident stream connected";
     runtime.ready = true;
     runtime.mapReady = true;
-
-    window.addEventListener("beforeunload", () => {
-      for (const unsubscribe of unsubscribeHandles) unsubscribe();
-      for (const handle of removableHandles) handle.remove();
-      context.dispose();
-      store.close();
-      activePopup?.remove();
-      map.remove();
-    });
   } catch (error) {
+    dispose();
     const message = error instanceof Error ? error.message : String(error);
     overlay.dataset.state = "error";
     overlay.textContent = message;
     setText("#connection-status", "Error");
-    window.__HONUA_INCIDENT_RUNTIME__ = {
-      ...runtime,
-      ready: false,
-      status: "error",
-    };
+    runtime.status = "error";
   }
 }
 

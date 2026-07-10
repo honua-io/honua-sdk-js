@@ -606,7 +606,7 @@
     {
       "id": "realtime-incident-dashboard",
       "title": "Realtime incident operations",
-      "summary": "Reconciles a snapshot and SSE deltas in an operational incident dashboard.",
+      "summary": "Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab.",
       "tier": "flagship",
       "supportStatus": "supported",
       "source": {
@@ -619,8 +619,11 @@
         "version": "0.1.0-beta.0"
       },
       "capabilities": [
+        "idempotency",
+        "optimistic-concurrency",
         "realtime",
         "reconciliation",
+        "safe-editing",
         "sse"
       ],
       "protocols": [
@@ -633,9 +636,9 @@
       "data": {
         "mode": "hybrid",
         "authMode": "anonymous",
-        "provenance": "Deterministic incident stream or deployed demo stream.",
+        "provenance": "Deployed demo stream when advertised; otherwise visibly labeled deterministic replay. Edits are limited to an isolated resettable fixture profile.",
         "attribution": "Synthetic incident operations data.",
-        "freshness": "Snapshot time, cursor, lag, and observation window."
+        "freshness": "Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes."
       },
       "lanes": {
         "fixture": {
@@ -645,7 +648,7 @@
           "status": "planned"
         }
       },
-      "expectedDegradation": "Disconnected or replayed state is visually distinct and mutation controls remain disabled."
+      "expectedDegradation": "Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile."
     },
     {
       "id": "service-explorer",
