@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/site-sample-projection.v1.schema.json",
+  "title": "Honua site SDK sample projection",
+  "type": "object",
+  "required": ["format", "schemaVersion", "catalog", "contract", "samples", "routes"],
+  "properties": {
+    "format": { "const": "honua.site.sdk-sample-projection.v1" },
+    "schemaVersion": { "const": 1 },
+    "catalog": {
+      "type": "object",
+      "required": ["format", "schemaVersion", "package", "version"],
+      "properties": {
+        "format": { "const": "honua.sdk.sample-catalog.v1" },
+        "schemaVersion": { "const": 1 },
+        "package": { "const": "@honua/sdk-js" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "contract": {
+      "type": "object",
+      "required": ["producer", "consumer", "executableSourceOwner", "presentationOwner"],
+      "properties": {
+        "producer": { "const": "honua-io/honua-sdk-js#401" },
+        "consumer": { "const": "honua-io/honua-site#120" },
+        "executableSourceOwner": { "const": "honua-io/honua-sdk-js" },
+        "presentationOwner": { "const": "honua-io/honua-site" }
+      },
+      "additionalProperties": false
+    },
+    "samples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "summary", "tier", "supportStatus", "capabilities"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "tier": { "enum": ["flagship", "recipe", "advanced", "reference"] },
+          "supportStatus": { "enum": ["supported", "experimental", "internal", "deprecated"] },
+          "source": { "type": "object" },
+          "sdk": { "type": "object" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "protocols": { "type": "array", "items": { "type": "string" } },
+          "renderers": { "type": "array", "items": { "type": "string" } },
+          "data": { "type": "object" },
+          "lanes": { "type": "object" },
+          "expectedDegradation": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "route", "ownership", "sampleId"],
+        "properties": {
+          "id": { "type": "string" },
+          "route": { "type": "string" },
+          "ownership": { "enum": ["sdk-projection", "site-exception"] },
+          "exceptionReason": { "type": "string" },
+          "sampleId": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

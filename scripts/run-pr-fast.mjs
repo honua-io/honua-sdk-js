@@ -78,6 +78,7 @@ function run(command, args) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const steps = [
+    ["npm", ["run", "samples:verify"]],
     ["npm", ["run", "typecheck"]],
     ["npm", ["run", "check"]],
     ["npm", ["run", "test:pr-fast"]],

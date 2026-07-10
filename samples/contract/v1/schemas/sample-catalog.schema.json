@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/sample-catalog.v1.schema.json",
+  "title": "Honua SDK sample catalog",
+  "type": "object",
+  "required": ["format", "schemaVersion", "sdk", "configuration", "samples", "siteMappings"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.sample-catalog.v1" },
+    "schemaVersion": { "const": 1 },
+    "sdk": {
+      "type": "object",
+      "required": ["package"],
+      "properties": { "package": { "const": "@honua/sdk-js" } },
+      "additionalProperties": false
+    },
+    "configuration": {
+      "type": "object",
+      "required": ["endpointValuePolicy", "allowedSchemes", "browserSecretPolicy", "credentialQueryParameters"],
+      "properties": {
+        "endpointValuePolicy": { "const": "environment-name-only" },
+        "allowedSchemes": { "const": ["http", "https"] },
+        "browserSecretPolicy": { "type": "string", "minLength": 1 },
+        "credentialQueryParameters": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "samples": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sample" }
+    },
+    "siteMappings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/siteMapping" }
+    }
+  },
+  "$defs": {
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "commandLane": {
+      "type": "object",
+      "required": ["status", "commands"],
+      "properties": {
+        "status": { "enum": ["executed", "not-applicable", "planned", "credential-unavailable"] },
+        "commands": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "sample": {
+      "type": "object",
+      "required": ["id", "title", "summary", "tier", "supportStatus", "disposition", "sourcePath", "docsPath", "capabilities", "protocols", "renderers", "data", "lanes", "expectedDegradation", "validation"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "tier": { "enum": ["flagship", "recipe", "advanced", "reference"] },
+        "supportStatus": { "enum": ["supported", "experimental", "internal", "deprecated"] },
+        "disposition": {
+          "type": "object",
+          "required": ["decision", "reason"],
+          "properties": { "decision": { "enum": ["keep", "rework", "merge", "replace", "retire"] }, "reason": { "type": "string", "minLength": 1 } },
+          "additionalProperties": false
+        },
+        "sourcePath": { "type": "string" },
+        "docsPath": { "type": "string" },
+        "capabilities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+        "protocols": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+        "renderers": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+        "data": {
+          "type": "object",
+          "required": ["mode", "authMode", "config", "provenance", "attribution", "freshness"],
+          "properties": {
+            "mode": { "enum": ["fixture", "public-live", "demo-live", "authenticated-live", "hybrid", "none"] },
+            "authMode": { "enum": ["none", "anonymous", "api-key", "bearer", "oauth", "host-mediated"] },
+            "config": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" } },
+            "provenance": { "type": "string", "minLength": 1 },
+            "attribution": { "type": "string", "minLength": 1 },
+            "freshness": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "lanes": {
+          "type": "object",
+          "required": ["fixture", "live"],
+          "properties": { "fixture": { "$ref": "#/$defs/commandLane" }, "live": { "$ref": "#/$defs/commandLane" } },
+          "additionalProperties": false
+        },
+        "expectedDegradation": { "type": "string" },
+        "validation": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "siteMapping": {
+      "type": "object",
+      "required": ["id", "route", "ownership"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "route": { "type": "string", "pattern": "^[-a-z0-9]+\\.html$" },
+        "ownership": { "enum": ["sdk-projection", "site-exception"] },
+        "sampleId": { "$ref": "#/$defs/slug" },
+        "exceptionReason": { "type": "string" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "tier": { "enum": ["flagship", "recipe", "advanced", "reference"] },
+        "supportStatus": { "enum": ["supported", "experimental", "internal", "deprecated"] },
+        "capabilities": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

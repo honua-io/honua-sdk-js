@@ -1,0 +1,107 @@
+import { readFile } from "node:fs/promises";
+import { describe, expect, it } from "vitest";
+
+import {
+  buildBrowserArtifactManifest,
+  generateSiteProjection,
+  generatedOutputDrift,
+  generatedOutputs,
+  validateCatalog,
+  validateEvidenceEnvelope,
+  verifyBrowserArtifactManifest,
+} from "../scripts/sample-contract.mjs";
+
+const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
+
+describe("sample publication contract", () => {
+  it("covers every SDK example and all 21 legacy site routes", async () => {
+    const catalog = await readJson("samples/catalog.v1.json");
+    const packageJson = await readJson("package.json");
+
+    await expect(validateCatalog(catalog, packageJson)).resolves.toBeUndefined();
+    expect(catalog.samples).toHaveLength(27);
+    expect(catalog.siteMappings).toHaveLength(21);
+    expect(generateSiteProjection(catalog, packageJson).routes).toHaveLength(21);
+  });
+
+  it("derives release versions without catalog edits and still detects semantic drift", async () => {
+    const catalog = await readJson("samples/catalog.v1.json");
+    const packageJson = await readJson("package.json");
+    const currentOutputs = await generatedOutputs(catalog, packageJson);
+    const bumpedPackage = { ...packageJson, version: "9.9.9" };
+
+    await expect(validateCatalog(catalog, bumpedPackage)).resolves.toBeUndefined();
+    const bumpedOutputs = await generatedOutputs(catalog, bumpedPackage);
+    const bumpedProjection = JSON.parse(bumpedOutputs.get("samples/dist/honua-site-samples.v1.json")!);
+    expect(bumpedProjection.catalog.version).toBe("9.9.9");
+    expect(bumpedProjection.samples.find((sample: { sdk?: { version: string } }) => sample.sdk)?.sdk?.version).toBe(
+      "9.9.9",
+    );
+    expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([]);
+
+    const semanticDrift = new Map(currentOutputs);
+    semanticDrift.set(
+      "docs/generated/sample-catalog.md",
+      currentOutputs.get("docs/generated/sample-catalog.md")!.replace("# SDK sample catalog", "# Stale catalog"),
+    );
+    expect(generatedOutputDrift(currentOutputs, semanticDrift)).toEqual(["docs/generated/sample-catalog.md"]);
+
+    const integrityDrift = new Map(currentOutputs);
+    const consumerFixture = JSON.parse(
+      currentOutputs.get("samples/contract/v1/consumer-fixtures/honua-site-consumer.v1.json")!,
+    );
+    consumerFixture.input.sha256 = "0".repeat(64);
+    integrityDrift.set(
+      "samples/contract/v1/consumer-fixtures/honua-site-consumer.v1.json",
+      `${JSON.stringify(consumerFixture, null, 2)}\n`,
+    );
+    expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([
+      "samples/contract/v1/consumer-fixtures/honua-site-consumer.v1.json",
+    ]);
+    expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
+      "samples/contract/v1/consumer-fixtures/honua-site-consumer.v1.json",
+    ]);
+  });
+
+  it("rejects catalog drift before projection", async () => {
+    const catalog = await readJson("samples/catalog.v1.json");
+    const packageJson = await readJson("package.json");
+    catalog.samples[0].capabilities = ["map", "agent-planning"];
+
+    await expect(validateCatalog(catalog, packageJson)).rejects.toThrow("must be sorted");
+
+    const missingSdk = await readJson("samples/catalog.v1.json");
+    delete missingSdk.sdk;
+    await expect(validateCatalog(missingSdk, packageJson)).rejects.toThrow("catalog SDK metadata is required");
+  });
+
+  it("uses one evidence envelope for fixture, live, and unavailable lanes", async () => {
+    for (const name of ["fixture", "live", "skipped"]) {
+      const evidence = await readJson(`samples/contract/v1/fixtures/sample-evidence.${name}.json`);
+      expect(validateEvidenceEnvelope(evidence)).toBe(evidence);
+    }
+
+    const invalid = await readJson("samples/contract/v1/fixtures/sample-evidence.skipped.json");
+    invalid.reason = null;
+    expect(() => validateEvidenceEnvelope(invalid)).toThrow("requires a reason");
+  });
+
+  it("binds browser artifacts to build inputs, peers, SHA-256, and SRI", async () => {
+    const manifest = await buildBrowserArtifactManifest({
+      artifacts: [{ path: "test/fixtures/sample-contract/browser.js", entrypoint: "fixture" }],
+      gitCommit: "1111111111111111111111111111111111111111",
+    });
+
+    expect(manifest.files[0]).toMatchObject({
+      entrypoint: "fixture",
+      integrity: expect.stringMatching(/^sha256-/),
+      sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    expect(manifest.build.inputs.length).toBeGreaterThan(250);
+    expect(manifest.compatibility.peers).toHaveProperty("maplibre-gl");
+    await expect(verifyBrowserArtifactManifest(manifest)).resolves.toBeUndefined();
+
+    manifest.files[0].sha256 = "0".repeat(64);
+    await expect(verifyBrowserArtifactManifest(manifest)).rejects.toThrow("SHA-256 drift");
+  });
+});

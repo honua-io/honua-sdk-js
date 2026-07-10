@@ -41,7 +41,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "status", "provider", "endpoint", "authMode"],
+        "required": ["id", "status", "provider", "endpoint", "authMode", "sampleEvidence"],
         "properties": {
           "id": { "type": "string" },
           "status": { "enum": ["passed", "failed", "skipped"] },
@@ -121,7 +121,8 @@
               }
             },
             "additionalProperties": false
-          }
+          },
+          "sampleEvidence": { "$ref": "https://honua.io/schemas/sdk/sample-evidence.v1.schema.json" }
         },
         "additionalProperties": false
       }

@@ -1,0 +1,18 @@
+{
+  "$schema": "../schemas/sample-evidence.schema.json",
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "oauth-signin",
+  "lane": "live",
+  "status": "credential-unavailable",
+  "reason": "The scheduled runner did not receive an OAuth test identity.",
+  "observedAt": "2026-01-01T00:00:00.000Z",
+  "authMode": "oauth",
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": null },
+  "source": { "provider": "configured-host", "identity": "oauth-test-host", "endpoint": null, "deploymentVersion": null, "dataVersion": null },
+  "provenance": null,
+  "semantics": { "operation": "oauth-signin", "outcome": null, "itemCount": null, "assertions": [] },
+  "timing": { "totalMs": null, "firstSuccessfulInteractionMs": null },
+  "degradation": { "state": "unavailable", "reasons": ["credential-unavailable"] },
+  "artifacts": []
+}

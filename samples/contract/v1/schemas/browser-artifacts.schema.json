@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/browser-artifacts.v1.schema.json",
+  "title": "Honua SDK browser artifacts",
+  "type": "object",
+  "required": ["format", "schemaVersion", "package", "build", "compatibility", "files"],
+  "properties": {
+    "format": { "const": "honua.sdk.browser-artifacts.v1" },
+    "schemaVersion": { "const": 1 },
+    "package": {
+      "type": "object",
+      "required": ["name", "version", "gitCommit"],
+      "properties": { "name": { "const": "@honua/sdk-js" }, "version": { "type": "string" }, "gitCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" } },
+      "additionalProperties": false
+    },
+    "build": {
+      "type": "object",
+      "required": ["command", "node", "lockfileSha256", "inputs"],
+      "properties": {
+        "command": { "const": "npm run build:browser" },
+        "node": { "type": "string" },
+        "lockfileSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "inputs": { "type": "array", "items": { "$ref": "#/$defs/digest" } }
+      },
+      "additionalProperties": false
+    },
+    "compatibility": {
+      "type": "object",
+      "required": ["exports", "peers", "optionalPeers"],
+      "properties": {
+        "exports": { "type": "array", "items": { "type": "string" } },
+        "browsers": { "type": ["array", "string", "null"] },
+        "peers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "optionalPeers": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "entrypoint", "mediaType", "bytes", "integrity", "sha256"],
+        "properties": {
+          "path": { "type": "string" },
+          "entrypoint": { "type": "string" },
+          "mediaType": { "enum": ["text/javascript", "application/json"] },
+          "bytes": { "type": "integer", "minimum": 1 },
+          "integrity": { "type": "string", "pattern": "^sha256-" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": { "path": { "type": "string" }, "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" } },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
