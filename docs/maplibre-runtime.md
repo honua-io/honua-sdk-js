@@ -49,11 +49,14 @@ source context before querying. The adapter then:
   including filtered layers for mixed-geometry results;
 - reports empty, mixed, and unsupported-geometry states through stable
   machine-readable diagnostics rather than hiding fidelity loss;
-- rejects missing query capability, existing source/layer ids, invalid
-  clustering, stale plan context, and renderer mutation failures with typed
-  errors;
-- rolls back partial source/layer mutation, updates data through `setData`, and
-  disposes its layers/source idempotently.
+- rejects descriptor/runtime capability drift, aggregate or attribute-only
+  plans, existing source/layer ids, invalid clustering, stale plan context, and
+  renderer mutation failures with typed errors;
+- treats invalid, missing, and explicitly mismatched geometry as visible
+  degraded diagnostics rather than an exact-ready map;
+- rolls back partial source/layer mutation (including renderers that mutate and
+  then throw), serializes refreshes through `setData`, cancels in-flight work,
+  and disposes its layers/source idempotently.
 
 This is intentionally not the whole #390 strategy matrix. Automatic vector or
 raster tiles, PMTiles, WMS/WMTS, dynamic query tiles, owned Map construction,

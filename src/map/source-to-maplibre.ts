@@ -35,6 +35,7 @@ export type MapLibreSourceDiagnosticCode =
   | "transfer-limit"
   | "source-degraded"
   | "geometry-unsupported"
+  | "geometry-mismatch"
   | "mixed-geometry"
   | "incremental-update";
 
@@ -53,6 +54,7 @@ export type MapLibreSourceAdapterErrorCode =
   | "disposed"
   | "source-conflict"
   | "layer-conflict"
+  | "unsupported-plan"
   | "invalid-option"
   | "map-mutation-failed";
 
@@ -134,8 +136,9 @@ export function projectSourceToMapLibre<T>(
   result: Result<T>,
   options: ProjectSourceToMapLibreOptions = {},
 ): MapLibreSourceProjection {
-  assertQueryable(source);
   assertProjectionPlanContext(source, plan);
+  assertFeaturePlan(plan, result);
+  assertQueryable(source);
   validateStaticOptions(options);
   const sourceId = options.sourceId ?? `honua-${safeId(source.descriptor.id)}`;
   const layerId = options.layerId ?? `${sourceId}-features`;
@@ -220,6 +223,30 @@ export function projectSourceToMapLibre<T>(
       ),
     );
   }
+  const mismatchedGeometryCount = requestedKind
+    ? converted.data.features.filter((feature) => {
+        const kind = geometryKind(feature.geometry);
+        return kind !== undefined && kind !== requestedKind;
+      }).length
+    : 0;
+  if (requestedKind && mismatchedGeometryCount > 0) {
+    diagnostics.push(
+      diagnostic(
+        source,
+        plan,
+        "geometry-mismatch",
+        "warning",
+        "project",
+        "unsupported",
+        `${mismatchedGeometryCount} feature(s) do not match the explicit ${requestedKind} geometry layer and will not render.`,
+        {
+          requestedGeometry: requestedKind,
+          mismatchedGeometryCount,
+          renderedGeometryCount: result.features.length - mismatchedGeometryCount - converted.unsupported,
+        },
+      ),
+    );
+  }
   if (presentKinds.length > 1 && !requestedKind) {
     diagnostics.push(
       diagnostic(
@@ -293,6 +320,8 @@ export async function mountSourceToMapLibre<T>(
   plan: QueryExecutionPlanV1,
   options: MountSourceToMapLibreOptions = {},
 ): Promise<MountedMapLibreSource> {
+  assertProjectionPlanContext(source, plan);
+  assertFeaturePlan(plan);
   assertQueryable(source);
   validateStaticOptions(options);
   const intendedSourceId = options.sourceId ?? `honua-${safeId(source.descriptor.id)}`;
@@ -318,21 +347,28 @@ export async function mountSourceToMapLibre<T>(
     signal: combineSignals([lifecycleController.signal, options.signal]),
   };
   const execution = await executeQueryPlan(plan, source, executeOptions);
+  throwIfAborted(executeOptions.signal);
   let projection = projectSourceToMapLibre(source, plan, execution.result, options);
+  throwIfAborted(executeOptions.signal);
   assertMapIdsAvailable(map, projection);
-  const addedLayers: string[] = [];
+  const attemptedLayerIds: string[] = [];
   try {
     map.addSource(projection.sourceId, projection.source);
     for (const layer of projection.layers) {
+      attemptedLayerIds.push(String(layer.id));
       map.addLayer(layer, options.beforeId);
-      addedLayers.push(String(layer.id));
     }
   } catch (cause) {
-    rollbackMapMutation(map, projection.sourceId, addedLayers);
+    const rollbackFailures = rollbackMapMutation(map, projection.sourceId, attemptedLayerIds);
     throw new HonuaMapLibreSourceAdapterError(
       "map-mutation-failed",
       `Failed to mount source "${projection.sourceId}" transactionally.`,
-      { sourceId: projection.sourceId, addedLayers },
+      {
+        sourceId: projection.sourceId,
+        attemptedLayerIds,
+        rollbackFailureCount: rollbackFailures.length,
+        rollbackFailures: rollbackFailures.map(errorMessage),
+      },
       { cause },
     );
   }
@@ -341,6 +377,55 @@ export async function mountSourceToMapLibre<T>(
   let diagnostics = [...projection.diagnostics];
   const layerIds = projection.layers.map((layer) => String(layer.id));
   const isDisposed = (): boolean => state === "disposed";
+  let refreshTail: Promise<void> = Promise.resolve();
+  const runRefresh = async (refreshOptions: ExecuteQueryPlanOptions): Promise<MapLibreSourceProjection> => {
+    if (isDisposed())
+      throw new HonuaMapLibreSourceAdapterError("disposed", "Cannot refresh a disposed MapLibre source mount.");
+    const effectiveSignal = combineSignals([lifecycleController.signal, refreshOptions.signal]);
+    throwIfAborted(effectiveSignal);
+    const nextExecution = await executeQueryPlan(plan, source, {
+      ...executeOptions,
+      ...refreshOptions,
+      signal: effectiveSignal,
+    });
+    throwIfAborted(effectiveSignal);
+    if (isDisposed())
+      throw new HonuaMapLibreSourceAdapterError("disposed", "MapLibre source mount was disposed during refresh.");
+    const next = projectSourceToMapLibre(source, plan, nextExecution.result, options);
+    throwIfAborted(effectiveSignal);
+    const handle = map.getSource(projection.sourceId) as GeoJsonSourceHandle | undefined;
+    if (!handle || typeof handle.setData !== "function") {
+      throw new HonuaMapLibreSourceAdapterError(
+        "map-mutation-failed",
+        `Mounted source "${projection.sourceId}" no longer exposes setData().`,
+      );
+    }
+    throwIfAborted(effectiveSignal);
+    handle.setData(next.source.data as AdapterGeoJsonFeatureCollection);
+    diagnostics = [
+      ...next.diagnostics,
+      diagnostic(
+        source,
+        plan,
+        "incremental-update",
+        "info",
+        "update",
+        "exact",
+        "Updated GeoJSON data in place with setData().",
+      ),
+    ];
+    projection = { ...next, diagnostics };
+    state = next.state;
+    return projection;
+  };
+  const enqueueRefresh = (refreshOptions: ExecuteQueryPlanOptions): Promise<MapLibreSourceProjection> => {
+    const result = refreshTail.then(() => runRefresh(refreshOptions));
+    refreshTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  };
   return {
     strategy: "geojson-query",
     sourceId: projection.sourceId,
@@ -353,44 +438,12 @@ export async function mountSourceToMapLibre<T>(
     get diagnostics() {
       return diagnostics;
     },
-    async refresh(refreshOptions = {}) {
-      if (isDisposed())
-        throw new HonuaMapLibreSourceAdapterError("disposed", "Cannot refresh a disposed MapLibre source mount.");
-      const nextExecution = await executeQueryPlan(plan, source, {
-        ...executeOptions,
-        ...refreshOptions,
-        signal: combineSignals([lifecycleController.signal, refreshOptions.signal]),
-      });
-      if (isDisposed())
-        throw new HonuaMapLibreSourceAdapterError("disposed", "MapLibre source mount was disposed during refresh.");
-      const next = projectSourceToMapLibre(source, plan, nextExecution.result, options);
-      const handle = map.getSource(projection.sourceId) as GeoJsonSourceHandle | undefined;
-      if (!handle || typeof handle.setData !== "function") {
-        throw new HonuaMapLibreSourceAdapterError(
-          "map-mutation-failed",
-          `Mounted source "${projection.sourceId}" no longer exposes setData().`,
-        );
-      }
-      handle.setData(next.source.data as AdapterGeoJsonFeatureCollection);
-      diagnostics = [
-        ...next.diagnostics,
-        diagnostic(
-          source,
-          plan,
-          "incremental-update",
-          "info",
-          "update",
-          "exact",
-          "Updated GeoJSON data in place with setData().",
-        ),
-      ];
-      projection = { ...next, diagnostics };
-      state = next.state;
-      return projection;
+    refresh(refreshOptions = {}) {
+      return enqueueRefresh(refreshOptions);
     },
     dispose() {
       if (state === "disposed") return;
-      lifecycleController.abort("MapLibre source mount disposed");
+      lifecycleController.abort(new DOMException("MapLibre source mount disposed", "AbortError"));
       const failures: unknown[] = [];
       for (const layerId of [...layerIds].reverse()) {
         try {
@@ -435,10 +488,34 @@ function assertProjectionPlanContext<T>(source: Source<T>, plan: QueryExecutionP
     sourceVersion: plan.ir.source.sourceVersion,
     authorizationScope: plan.ir.source.authorizationScope,
   });
-  if (canonicalStringify(toJsonValue(identity)) !== canonicalStringify(toJsonValue(plan.ir.source))) {
+  const runtimeCapabilities = [...source.capabilities].sort();
+  const descriptorCapabilities = [...source.descriptor.capabilities].sort();
+  const planCapabilities = [...plan.ir.source.capabilities].sort();
+  if (
+    canonicalStringify(toJsonValue(identity)) !== canonicalStringify(toJsonValue(plan.ir.source)) ||
+    canonicalStringify(toJsonValue(runtimeCapabilities)) !== canonicalStringify(toJsonValue(descriptorCapabilities)) ||
+    canonicalStringify(toJsonValue(runtimeCapabilities)) !== canonicalStringify(toJsonValue(planCapabilities))
+  ) {
     throw new HonuaQueryPlanExecutionError(
       "plan-context-mismatch",
-      "Source identity or capabilities do not match the accepted plan projection context.",
+      "Source identity, descriptor capabilities, or runtime capabilities do not match the accepted plan projection context.",
+    );
+  }
+}
+
+function assertFeaturePlan<T>(plan: QueryExecutionPlanV1, result?: Result<T>): void {
+  const first = plan.steps[0];
+  const featureShape =
+    plan.ir.query.aggregation === undefined &&
+    plan.ir.query.returnGeometry !== false &&
+    plan.steps.length === 1 &&
+    first?.engine === "remote" &&
+    (first.operation === "query" || first.operation === "queryAll");
+  if (!featureShape || result?.aggregateRows !== undefined) {
+    throw new HonuaMapLibreSourceAdapterError(
+      "unsupported-plan",
+      "MapLibre GeoJSON mounting requires a feature-query plan; aggregate or client-materialization plans are not renderable by this strategy.",
+      { planId: plan.id, operations: plan.steps.map((step) => step.operation) },
     );
   }
 }
@@ -450,7 +527,7 @@ function canonicalFeaturesToGeoJson<T>(
   let unsupported = 0;
   const converted = features.map((feature): AdapterGeoJsonFeature => {
     const geometry = toGeoJsonGeometry(feature.geometry);
-    if (feature.geometry && !geometry) unsupported += 1;
+    if (!geometry) unsupported += 1;
     const attributes = asAttributes(feature.attributes);
     const id = primaryKey ? attributes[primaryKey] : undefined;
     return {
@@ -466,7 +543,7 @@ function canonicalFeaturesToGeoJson<T>(
 function toGeoJsonGeometry(geometry: unknown): AdapterGeoJsonGeometry | null {
   if (!geometry || typeof geometry !== "object") return null;
   const record = geometry as Record<string, unknown>;
-  if (typeof record.type === "string" && "coordinates" in record) {
+  if (isGeoJsonGeometryType(record.type) && "coordinates" in record) {
     return { type: record.type, coordinates: record.coordinates };
   }
   if (Array.isArray(record.points)) return esriGeometryToGeoJson(record, "esriGeometryMultipoint");
@@ -481,13 +558,30 @@ function toGeoJsonGeometry(geometry: unknown): AdapterGeoJsonGeometry | null {
 function geometryKinds(features: readonly AdapterGeoJsonFeature[]): MapLibreGeometryKind[] {
   const kinds = new Set<MapLibreGeometryKind>();
   for (const feature of features) {
-    const type = feature.geometry?.type;
-    if (type === "Point" || type === "MultiPoint") kinds.add("point");
-    else if (type === "LineString" || type === "MultiLineString") kinds.add("line");
-    else if (type === "Polygon" || type === "MultiPolygon") kinds.add("polygon");
+    const kind = geometryKind(feature.geometry);
+    if (kind) kinds.add(kind);
   }
   const order: readonly MapLibreGeometryKind[] = ["point", "line", "polygon"];
   return order.filter((kind) => kinds.has(kind));
+}
+
+function geometryKind(geometry: AdapterGeoJsonGeometry | null): MapLibreGeometryKind | undefined {
+  const type = geometry?.type;
+  if (type === "Point" || type === "MultiPoint") return "point";
+  if (type === "LineString" || type === "MultiLineString") return "line";
+  if (type === "Polygon" || type === "MultiPolygon") return "polygon";
+  return undefined;
+}
+
+function isGeoJsonGeometryType(value: unknown): value is AdapterGeoJsonGeometry["type"] {
+  return (
+    value === "Point" ||
+    value === "MultiPoint" ||
+    value === "LineString" ||
+    value === "MultiLineString" ||
+    value === "Polygon" ||
+    value === "MultiPolygon"
+  );
 }
 
 function defaultPaint(kind: MapLibreGeometryKind): Readonly<Record<string, unknown>> {
@@ -533,19 +627,21 @@ function assertMapIdsAvailable(map: SourceToMapLibreMap, projection: MapLibreSou
   }
 }
 
-function rollbackMapMutation(map: SourceToMapLibreMap, sourceId: string, layerIds: readonly string[]): void {
+function rollbackMapMutation(map: SourceToMapLibreMap, sourceId: string, layerIds: readonly string[]): unknown[] {
+  const failures: unknown[] = [];
   for (const layerId of [...layerIds].reverse()) {
     try {
       if (map.getLayer(layerId)) map.removeLayer(layerId);
-    } catch {
-      // Best-effort rollback preserves the original mutation error as cause.
+    } catch (error) {
+      failures.push(error);
     }
   }
   try {
     if (map.getSource(sourceId)) map.removeSource(sourceId);
-  } catch {
-    // Best-effort rollback preserves the original mutation error as cause.
+  } catch (error) {
+    failures.push(error);
   }
+  return failures;
 }
 
 function diagnostic<T>(
@@ -582,6 +678,14 @@ function executionOptions(options: MountSourceToMapLibreOptions): ExecuteQueryPl
 function combineSignals(signals: readonly (AbortSignal | undefined)[]): AbortSignal {
   const available = signals.filter((signal): signal is AbortSignal => signal !== undefined);
   return available.length === 1 ? (available[0] as AbortSignal) : AbortSignal.any(available);
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  signal.throwIfAborted();
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function positiveInteger(value: number | undefined, fallback: number, name: string): number {
@@ -628,10 +732,12 @@ function asAttributes(value: unknown): Record<string, unknown> {
 }
 
 function safeId(value: string): string {
-  const id = value
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9_-]+/g, "-")
-    .replaceAll(/^-+|-+$/g, "");
+  const normalized = value.toLowerCase().replaceAll(/[^a-z0-9_-]+/g, "-");
+  let start = 0;
+  let end = normalized.length;
+  while (start < end && normalized[start] === "-") start += 1;
+  while (end > start && normalized[end - 1] === "-") end -= 1;
+  const id = normalized.slice(start, end);
   return id || "source";
 }
 
