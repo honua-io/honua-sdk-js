@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "honua-sdk-js-deterministic-v1",
+  "description": "Fixture-backed SDK overhead scenarios. No network or renderer time is included.",
+  "scenarios": [
+    {
+      "id": "stream.pagination.geometry",
+      "kind": "stream-pagination",
+      "featureCount": 10000,
+      "pageSize": 1000,
+      "pageLatencyMs": 0,
+      "returnGeometry": true,
+      "warmupRuns": 1,
+      "measurementRuns": 5
+    },
+    {
+      "id": "stream.pagination.attributes-only",
+      "kind": "stream-pagination",
+      "featureCount": 10000,
+      "pageSize": 1000,
+      "pageLatencyMs": 0,
+      "returnGeometry": false,
+      "warmupRuns": 1,
+      "measurementRuns": 5
+    }
+  ]
+}

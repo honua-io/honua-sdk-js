@@ -1,6 +1,9 @@
 dist/
 mcp/dist/
 coverage/
+test-results/benchmark-lab*.json
+test-results/live-benchmark-evidence.json
+test-results/pr-fast*.json
 .tmp/
 node_modules
 *.tgz

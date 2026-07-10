@@ -1,4 +1,40 @@
-# Stream / pagination performance benchmark
+# SDK benchmark lab
+
+The default benchmark lab is deterministic, offline, and machine-readable. It
+runs the scenarios in [`corpus.json`](./corpus.json), applies the reviewed rules
+in [`budgets.json`](./budgets.json), and writes a versioned JSON report with the
+fixture hash, Git commit, Node/OS/CPU metadata, repeated samples, summary
+statistics, and budget outcomes.
+
+```sh
+npm run bench:lab
+```
+
+The report is written to `test-results/benchmark-lab.json`. CI uploads it as the
+`sdk-benchmark-lab` artifact. To compare a candidate with an intentionally
+captured baseline on the same runner class:
+
+```sh
+npm run build
+node dist/bench/lab.js --check \
+  --baseline path/to/benchmark-lab.json \
+  --output test-results/benchmark-lab.json
+```
+
+Relative budgets are not evaluated when the corpus hash, SDK implementation,
+OS/kernel release, architecture, Node major, CPU model, CI/local mode, or
+available GitHub runner-image identifier differs. Two local reports may both
+omit a runner-image identifier; a report with one present is never compared to
+one without it. A skipped comparison is reported as `not-compared`; it is never
+presented as a pass. Review the complete baseline diff before committing or
+publishing a replacement.
+
+The current corpus measures SDK stream/decode overhead. It does **not** measure
+network, server, first map render, renderer frame rate, or another SDK. See
+[`docs/benchmark-methodology.md`](../docs/benchmark-methodology.md) for the
+comparison and live-evidence rules.
+
+## Stream / pagination scenario
 
 A deterministic, server-free harness that measures throughput and latency of
 draining large paginated feature streams through the **stable** contract surface
@@ -36,7 +72,7 @@ You can model server round-trips with `--latency <ms>` (artificial per-page
 delay) to see how time-to-first-page and throughput shift with fewer, larger
 pages vs. many small ones.
 
-## Running it
+## Running the legacy stream sweep
 
 The benchmark is compiled by the normal build (`tsconfig.json` includes
 `bench/`), emitting to `dist/bench/`.

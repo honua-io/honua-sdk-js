@@ -1,0 +1,25 @@
+{
+  "$comment": [
+    "Correctness and repeated-run stability are gated on every benchmark run.",
+    "Relative performance budgets are evaluated only when --baseline points to a",
+    "report with the same corpus hash, implementation, OS, architecture, Node major,",
+    "and CPU model. This prevents results from unlike machines becoming a false gate."
+  ],
+  "schemaVersion": 1,
+  "variability": {
+    "warningCoefficientOfVariation": 0.2,
+    "failureCoefficientOfVariation": 0.5
+  },
+  "relativeRegression": {
+    "totalDurationMs": {
+      "direction": "lower-is-better",
+      "warningPercent": 15,
+      "failurePercent": 30
+    },
+    "featuresPerSecond": {
+      "direction": "higher-is-better",
+      "warningPercent": 15,
+      "failurePercent": 30
+    }
+  }
+}
