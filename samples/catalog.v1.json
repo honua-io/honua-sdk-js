@@ -150,20 +150,20 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "MapLibre quickstart",
-      "summary": "Queries a feature service and connects map, table, filters, and popup inspection.",
+      "title": "Honua × MapLibre flagship workflow",
+      "summary": "Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence.",
       "tier": "flagship",
       "supportStatus": "supported",
-      "disposition": { "decision": "rework", "reason": "Become the canonical north-star connect, explain, query, and mount journey." },
+      "disposition": { "decision": "keep", "reason": "Canonical five-minute north-star journey with deterministic fixture and secret-free live modes." },
       "sourcePath": "examples/maplibre-quickstart",
       "docsPath": "examples/maplibre-quickstart/README.md",
-      "capabilities": ["linked-views", "map", "query"],
+      "capabilities": ["discovery", "explain-plan", "linked-views", "map", "provenance", "query"],
       "protocols": ["geoservices", "honua"],
       "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "api-key", "config": ["VITE_HONUA_QUICKSTART_BASE_URL"], "provenance": "Committed quickstart fixture or configured Honua service.", "attribution": "Service attribution shown in the map runtime.", "freshness": "Fixture capture metadata or live result observation time." },
+      "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["VITE_HONUA_QUICKSTART_BASE_URL", "VITE_HONUA_QUICKSTART_CAPTURED_AT", "VITE_HONUA_QUICKSTART_DATA_VERSION", "VITE_HONUA_QUICKSTART_LAYER_ID", "VITE_HONUA_QUICKSTART_SERVICE_ID"], "provenance": "Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.", "attribution": "Source attribution and protocol identity are shown beside the map.", "freshness": "Fixture capture time and data version, or live response observation time." },
       "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:quickstart:mock"] }, "live": { "status": "planned", "commands": [] } },
-      "expectedDegradation": "Fixture fallback and capability misses are shown in diagnostics.",
-      "validation": ["npm run demo:quickstart:typecheck", "npm run demo:quickstart:build"]
+      "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
+      "validation": ["npm run demo:quickstart:typecheck", "npm run demo:quickstart:build", "npm run test:playwright:quickstart"]
     },
     {
       "id": "mcp-gis-assistant",

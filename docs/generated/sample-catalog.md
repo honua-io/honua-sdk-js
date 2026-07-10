@@ -14,7 +14,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | advanced | supported | hybrid | merge | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
 | [`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | flagship | supported | hybrid | merge | Compares WMS imagery, COG-backed ImageServer tiles, and export previews. |
 | [`kepler-analytics`](../../examples/kepler-analytics/README.md) | advanced | experimental | hybrid | rework | Replays operations data through kepler.gl with linked filters and KPI evidence. |
-| [`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | flagship | supported | hybrid | rework | Queries a feature service and connects map, table, filters, and popup inspection. |
+| [`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | flagship | supported | hybrid | keep | Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence. |
 | [`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | advanced | experimental | fixture | rework | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
 | [`migration-workbench`](../../docs/migration-honua-maplibre.md) | flagship | supported | fixture | rework | Scans and transforms ArcGIS application source with auditable compatibility results. |
 | [`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the protocol-neutral client from a Node service without browser dependencies. |
