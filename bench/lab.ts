@@ -272,9 +272,26 @@ function baselineCompatibility(
 ): { comparable: boolean; reasons: string[] } {
   const reasons: string[] = [];
   if (candidate.corpus.sha256 !== baseline.corpus.sha256) reasons.push("corpus hash differs");
-  const keys: Array<keyof EnvironmentMetadata> = ["implementation", "platform", "arch", "nodeMajor", "cpuModel"];
+  const keys: Array<keyof EnvironmentMetadata> = [
+    "implementation",
+    "platform",
+    "release",
+    "arch",
+    "nodeMajor",
+    "cpuModel",
+    "ci",
+  ];
   for (const key of keys) {
     if (candidate.environment[key] !== baseline.environment[key]) reasons.push(`${key} differs`);
+  }
+  const candidateRunnerImage = candidate.environment.githubRunnerImage;
+  const baselineRunnerImage = baseline.environment.githubRunnerImage;
+  const candidateHasRunnerImage = typeof candidateRunnerImage === "string" && candidateRunnerImage.length > 0;
+  const baselineHasRunnerImage = typeof baselineRunnerImage === "string" && baselineRunnerImage.length > 0;
+  if (candidateHasRunnerImage !== baselineHasRunnerImage) {
+    reasons.push("githubRunnerImage availability differs");
+  } else if (candidateHasRunnerImage && candidateRunnerImage !== baselineRunnerImage) {
+    reasons.push("githubRunnerImage differs");
   }
   return { comparable: reasons.length === 0, reasons };
 }
@@ -297,8 +314,12 @@ export function evaluateRelativeBudget(
   return { level, regressionPercent: regression };
 }
 
-function worstLevel(items: readonly EvaluationItem[]): EvaluationLevel {
+function overallLevel(
+  items: readonly EvaluationItem[],
+  compatibility: BenchmarkReport["evaluation"]["baselineCompatibility"],
+): EvaluationLevel {
   if (items.some((item) => item.level === "failure")) return "failure";
+  if (compatibility && !compatibility.comparable) return "not-compared";
   if (items.some((item) => item.level === "warning")) return "warning";
   if (items.length > 0 && items.every((item) => item.level === "not-compared")) {
     return "not-compared";
@@ -376,7 +397,7 @@ export function evaluateReport(
     });
   }
 
-  return { level: worstLevel(items), baselineCompatibility: compatibility, items };
+  return { level: overallLevel(items, compatibility), baselineCompatibility: compatibility, items };
 }
 
 function parseArgs(argv: readonly string[]): CliOptions {

@@ -22,9 +22,12 @@ node dist/bench/lab.js --check \
 ```
 
 Relative budgets are not evaluated when the corpus hash, SDK implementation,
-OS, architecture, Node major, or CPU model differs. A skipped comparison is
-reported as `not-compared`; it is never presented as a pass. Review the complete
-baseline diff before committing or publishing a replacement.
+OS/kernel release, architecture, Node major, CPU model, CI/local mode, or
+available GitHub runner-image identifier differs. Two local reports may both
+omit a runner-image identifier; a report with one present is never compared to
+one without it. A skipped comparison is reported as `not-compared`; it is never
+presented as a pass. Review the complete baseline diff before committing or
+publishing a replacement.
 
 The current corpus measures SDK stream/decode overhead. It does **not** measure
 network, server, first map render, renderer frame rate, or another SDK. See

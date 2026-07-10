@@ -17,6 +17,13 @@ and throughput budgets apply only when `--baseline` identifies a report with an
 identical corpus and compatible environment. Hardware-dependent absolute
 timings are not committed as universal SLAs.
 
+Compatibility requires identical platform and kernel release, architecture,
+Node major, CPU model, and CI/local mode. GitHub runner-image identifiers must
+match when present. Two like-mode local or self-hosted reports may both omit the
+identifier, but a report that has one is never compared with a report that does
+not. A rejected supplied baseline makes the overall result `not-compared`
+unless an independent correctness gate fails.
+
 Baseline changes are intentional code-review events:
 
 1. Run the old and candidate commits on the same pinned runner class.
