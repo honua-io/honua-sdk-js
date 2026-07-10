@@ -33,6 +33,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Verify north-star API design fixtures
+        run: npm run verify:north-star-api
+
       - name: Code style
         run: npm run check
 

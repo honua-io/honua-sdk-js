@@ -15,6 +15,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 ## Core contract and API
 
 - [Shared Client Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/shared-client-contract.md): Dataset / Source / Query / Result contract design and semantics.
+- [North-star SDK application-kernel contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/decisions/north-star-sdk-application-kernel.md): Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.
 - [Protocol × Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/protocol-capability-matrix.md): Which operations each protocol supports and where capabilities fall back.
 - [Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-capability-matrix.md): Backend-agnostic vs Honua-server-enhanced capabilities: what works with no server and what needs one.
 - [Cross-SDK Surface Alignment](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/sdk-surface-alignment.md): Cross-language naming parity and the semver / stability policy.
