@@ -1,0 +1,211 @@
+{
+  "$schema": "./learning-paths.schema.json",
+  "format": "honua.sdk.learning-paths.v1",
+  "schemaVersion": 1,
+  "ownership": {
+    "executableSourceOwner": "honua-io/honua-sdk-js",
+    "apiReferenceOwner": "honua-io/honua-sdk-js",
+    "narrativeCatalogOwner": "honua-io/honua-site",
+    "apiReference": "https://honua-io.github.io/honua-sdk-js/api/",
+    "narrativeCatalog": "https://honua.io/samples",
+    "siteProjectionIssue": "https://github.com/honua-io/honua-site/issues/120",
+    "sampleContractIssue": "https://github.com/honua-io/honua-sdk-js/issues/401",
+    "sourceReusePolicy": "Guides link to runnable example source and never maintain a copied implementation snippet.",
+    "internalLinkPolicy": "Repository documentation uses relative links; canonical API and site narrative links use the declared owners."
+  },
+  "executionLabels": [
+    { "id": "fixture", "label": "Fixture", "description": "Deterministic committed data; no live-service claim." },
+    { "id": "public-live", "label": "Public live", "description": "Reads a public standards endpoint without a Honua account." },
+    { "id": "demo-live", "label": "Demo live", "description": "Can read the deployed demo.honua.io service when configured and reports availability and freshness." },
+    { "id": "authenticated", "label": "Authenticated", "description": "Requires caller-supplied credentials; documentation never embeds a secret." },
+    { "id": "degraded", "label": "Degraded", "description": "A reduced capability remains visible with a structured reason and recovery path." },
+    { "id": "experimental", "label": "Experimental", "description": "Uses a pre-1.0 surface that may change in a minor release." }
+  ],
+  "siteJourneys": [
+    "connect-existing-gis",
+    "query-map-style",
+    "linked-large-data-analysis",
+    "realtime-operations",
+    "imagery-terrain-3d",
+    "migrate-arcgis",
+    "safe-agent-automation"
+  ],
+  "paths": [
+    {
+      "id": "start",
+      "title": "Start with a public map",
+      "outcome": "Open a public GeoServices endpoint and render useful data without an account.",
+      "labels": ["fixture", "public-live"],
+      "siteJourneyId": "connect-existing-gis",
+      "guidePath": "docs/standalone-quickstart.md",
+      "sampleId": "standalone-quickstart",
+      "sourcePath": "examples/standalone-quickstart",
+      "sourceEntry": "examples/standalone-quickstart/src/main.ts",
+      "docsPath": "examples/standalone-quickstart/README.md",
+      "typecheckScript": "demo:standalone:typecheck",
+      "api": [
+        { "specifier": "@honua/sdk-js/esri-compat", "symbols": ["FeatureLayerCompat"] },
+        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaClient"] },
+        { "specifier": "@honua/sdk-js/map", "symbols": ["loadHonuaFeatureServiceGeoJson"] }
+      ]
+    },
+    {
+      "id": "connect",
+      "title": "Connect and inspect sources",
+      "outcome": "Discover services, layers, schemas, and capability gaps before choosing a workflow.",
+      "labels": ["fixture", "demo-live", "authenticated", "degraded"],
+      "degradationReason": "The current shell still uses the 0.1.x app-workspace compatibility shim; #399 owns its supported-import migration.",
+      "siteJourneyId": "connect-existing-gis",
+      "guidePath": "docs/shared-client-contract.md",
+      "sampleId": "service-explorer",
+      "sourcePath": "examples/service-explorer",
+      "sourceEntry": "examples/service-explorer/src/data.ts",
+      "docsPath": "examples/service-explorer/README.md",
+      "typecheckScript": "demo:service-explorer:typecheck",
+      "api": [
+        { "specifier": "@honua/sdk-js/contract", "symbols": ["createDataset"] },
+        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaClient"] }
+      ]
+    },
+    {
+      "id": "query",
+      "title": "Query from Node or browser code",
+      "outcome": "Issue bounded queries, inspect typed results, and keep capability failures explicit.",
+      "labels": ["fixture", "demo-live", "authenticated", "degraded"],
+      "degradationReason": "The live endpoint may omit requested query capabilities; the sample keeps the typed capability error visible.",
+      "siteJourneyId": "query-map-style",
+      "guidePath": "docs/composition.md",
+      "sampleId": "node-backend-quickstart",
+      "sourcePath": "examples/node-backend-quickstart",
+      "sourceEntry": "examples/node-backend-quickstart/src/server.ts",
+      "docsPath": "examples/node-backend-quickstart/README.md",
+      "typecheckScript": "demo:node-backend:typecheck",
+      "api": [
+        { "specifier": "@honua/sdk-js", "symbols": ["QueryBuilder"] },
+        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaClient"] }
+      ]
+    },
+    {
+      "id": "map-style",
+      "title": "Map and style query results",
+      "outcome": "Bind queried features to MapLibre with selection, popup, filter, and style behavior.",
+      "labels": ["fixture", "demo-live", "authenticated"],
+      "siteJourneyId": "query-map-style",
+      "guidePath": "docs/maplibre-runtime.md",
+      "sampleId": "maplibre-quickstart",
+      "sourcePath": "examples/maplibre-quickstart",
+      "sourceEntry": "examples/maplibre-quickstart/src/main.ts",
+      "docsPath": "examples/maplibre-quickstart/README.md",
+      "typecheckScript": "demo:quickstart:typecheck",
+      "api": [
+        { "specifier": "@honua/sdk-js/map", "symbols": ["HonuaMap"] },
+        { "specifier": "@honua/sdk-js/style", "symbols": ["validateHonuaStyle"] }
+      ]
+    },
+    {
+      "id": "analyze",
+      "title": "Analyze linked spatial views",
+      "outcome": "Keep map, table, chart, and spatial aggregation state aligned with visible fallback evidence.",
+      "labels": ["fixture", "experimental", "degraded"],
+      "degradationReason": "The current shell still uses the 0.1.x app-workspace compatibility shim; #399 owns its supported-import migration.",
+      "siteJourneyId": "linked-large-data-analysis",
+      "guidePath": "docs/warehouse-analytics-sources.md",
+      "sampleId": "spatial-analytics-workbench",
+      "sourcePath": "examples/spatial-analytics-workbench",
+      "sourceEntry": "examples/spatial-analytics-workbench/src/main.ts",
+      "docsPath": "examples/spatial-analytics-workbench/README.md",
+      "typecheckScript": "demo:spatial-analytics:typecheck",
+      "api": [
+        { "specifier": "@honua/sdk-js/contract", "symbols": ["resolveSpatialAggregationWidgetSummary"] },
+        { "specifier": "@honua/sdk-js/exploration", "symbols": ["createExplorationContext"] }
+      ]
+    },
+    {
+      "id": "edit",
+      "title": "Edit with recovery and capability checks",
+      "outcome": "Apply optimistic edits, attachments, and conflict recovery without hiding unsupported mutations.",
+      "labels": ["fixture", "degraded"],
+      "degradationReason": "The current shell still uses the 0.1.x app-workspace compatibility shim, and mutations become read-only when capability or auth is absent.",
+      "siteJourneyId": "realtime-operations",
+      "guidePath": "docs/shared-client-contract.md",
+      "sampleId": "edit-workflow-demo",
+      "sourcePath": "examples/edit-workflow-demo",
+      "sourceEntry": "examples/edit-workflow-demo/src/main.ts",
+      "docsPath": "examples/edit-workflow-demo/README.md",
+      "typecheckScript": "demo:edit-workflow:typecheck",
+      "api": [
+        { "specifier": "@honua/sdk-js/contract", "symbols": ["createEditSession"] },
+        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaCapabilityNotSupportedError"] }
+      ]
+    },
+    {
+      "id": "realtime-offline",
+      "title": "Operate through realtime and offline transitions",
+      "outcome": "Reconcile snapshots and deltas while showing reconnect, staleness, and deterministic fixture fallback.",
+      "labels": ["fixture", "demo-live", "degraded"],
+      "degradationReason": "The production offline persistence path is not complete; reconnect and stale-state behavior remains explicit while fixture replay stays deterministic.",
+      "siteJourneyId": "realtime-operations",
+      "guidePath": "docs/realtime-subscriptions.md",
+      "sampleId": "realtime-incident-dashboard",
+      "sourcePath": "examples/realtime-incident-dashboard",
+      "sourceEntry": "examples/realtime-incident-dashboard/src/realtime-transport.ts",
+      "docsPath": "examples/realtime-incident-dashboard/README.md",
+      "typecheckScript": "demo:incident:typecheck",
+      "api": [
+        { "specifier": "@honua/sdk-js/realtime", "symbols": ["createRealtimeServerSentEventsTransport"] }
+      ]
+    },
+    {
+      "id": "3d",
+      "title": "Add terrain and 3D context",
+      "outcome": "Progress from stable 2D map primitives to an explicitly experimental 2.5D/3D experience.",
+      "labels": ["fixture", "authenticated", "experimental", "degraded"],
+      "degradationReason": "The runnable 2.5D shell still reaches the scene-workspace compatibility surface; stable map/runtime imports are the taught foundation until #399 migrates it.",
+      "siteJourneyId": "imagery-terrain-3d",
+      "guidePath": "docs/scene-workspace.md",
+      "sampleId": "storytelling-25d-map",
+      "sourcePath": "examples/storytelling-25d-map",
+      "sourceEntry": "examples/storytelling-25d-map/src/map.ts",
+      "docsPath": "examples/storytelling-25d-map/README.md",
+      "typecheckScript": "demo:25d:typecheck",
+      "api": [
+        { "specifier": "@honua/sdk-js/map", "symbols": ["HonuaMap"] },
+        { "specifier": "@honua/sdk-js/runtime", "symbols": ["HonuaMapRuntime"] }
+      ]
+    },
+    {
+      "id": "migrate",
+      "title": "Migrate an ArcGIS application",
+      "outcome": "Scan and transform one file at a time with explicit compatibility evidence and manual gaps.",
+      "labels": ["fixture", "public-live", "degraded"],
+      "degradationReason": "Unsupported ArcGIS modules remain manual migration work and are reported rather than removed silently.",
+      "siteJourneyId": "migrate-arcgis",
+      "guidePath": "docs/migration-honua-maplibre.md",
+      "sampleId": "migration-workbench",
+      "sourcePath": "examples/migration-workbench",
+      "sourceEntry": "examples/migration-workbench/src/main.ts",
+      "docsPath": "docs/migration-honua-maplibre.md",
+      "typecheckScript": "demo:migration-workbench:typecheck",
+      "api": [
+        { "specifier": "@honua/sdk-js/migration", "symbols": ["runEsriCompatCodemod", "scanArcGisUsage"] }
+      ]
+    },
+    {
+      "id": "automate",
+      "title": "Automate safely with agent tools",
+      "outcome": "Expose bounded map actions with capability explanations while keeping writes behind host approval.",
+      "labels": ["fixture", "experimental", "degraded"],
+      "degradationReason": "The current assistant shell still uses the app-workspace compatibility surface, and write execution stays disabled without explicit host approval.",
+      "siteJourneyId": "safe-agent-automation",
+      "guidePath": "docs/ai-map-kit.md",
+      "sampleId": "mcp-gis-assistant",
+      "sourcePath": "examples/mcp-gis-assistant",
+      "sourceEntry": "examples/mcp-gis-assistant/src/assistant.ts",
+      "docsPath": "examples/mcp-gis-assistant/README.md",
+      "typecheckScript": "demo:mcp-gis-assistant:typecheck",
+      "api": [
+        { "specifier": "@honua/sdk-js/agent-tools", "symbols": ["HONUA_AGENT_TOOL_DEFINITIONS", "createHonuaAgentToolExecutor"] }
+      ]
+    }
+  ]
+}

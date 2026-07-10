@@ -266,6 +266,7 @@ tables, and backwards-compatibility policy live in:
 
 ## Documentation
 
+- [`docs/generated/learning-paths.md`](./docs/generated/learning-paths.md) — task-oriented progression backed by runnable examples and checked SDK imports
 - [`docs/quickstart.md`](./docs/quickstart.md) — guided quickstart walkthrough
 - [`docs/guide.md`](./docs/guide.md) — long-form reference (server compatibility, subpath
   entrypoints, OGC / WFS / OData cookbooks, MapLibre runtime, migration CLI, request/auth bridge)
@@ -280,6 +281,12 @@ tables, and backwards-compatibility policy live in:
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
 - [`docs/docs-samples-ownership.md`](./docs/docs-samples-ownership.md) — SDK/site ownership boundary for versioned docs and executable samples
 - [`INSTALL.md`](./INSTALL.md) — install + subpath entrypoint table
+
+Run `npm run docs:learning:verify` from a fresh checkout to build the SDK and
+validate learning-path metadata, internal links, generated Markdown, and runtime
+imports. CI reuses its existing build with the internal
+`npm run docs:learning:check` command, then separately compiles every selected
+example through `npm run docs:learning:typecheck`.
 
 ## AI assistants
 

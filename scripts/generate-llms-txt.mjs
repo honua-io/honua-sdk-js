@@ -55,6 +55,11 @@ const SECTIONS = [
       },
       { path: "docs/quickstart.md", description: "5-minute quickstart: query features and render them on a map." },
       {
+        path: "docs/generated/learning-paths.md",
+        description:
+          "Task-oriented progression from first public map through connect, query, styling, analysis, editing, realtime/offline, 3D, migration, and safe automation.",
+      },
+      {
         path: "docs/standalone-quickstart.md",
         description:
           "Server-optional front door: run the SDK against any public GeoServices endpoint with no Honua server, key, or account.",
