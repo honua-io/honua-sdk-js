@@ -7,7 +7,14 @@ import type {
 } from "@honua/sdk-js/realtime";
 
 import { INCIDENT_SCENARIO_STEPS, INCIDENT_SOURCE_ID, INITIAL_INCIDENTS } from "./fixtures.js";
-import type { IncidentFeature, IncidentScenarioStep } from "./types.js";
+import { SAFE_DEMO_INCIDENT_ID, createSafeIncidentEditor } from "./safe-edit.js";
+import type {
+  IncidentEditReceipt,
+  IncidentEditRequest,
+  IncidentFeature,
+  IncidentResetRequest,
+  IncidentScenarioStep,
+} from "./types.js";
 
 export interface FixtureIncidentTransportOptions {
   readonly now?: () => number;
@@ -22,6 +29,11 @@ export interface FixtureIncidentTransport extends RealtimeFeatureTransport<Incid
   resume(): void;
   heartbeat(): void;
   offline(): void;
+  duplicateLast(): void;
+  staleCursor(): void;
+  edit(request: IncidentEditRequest): IncidentEditReceipt;
+  reset(request: IncidentResetRequest): IncidentEditReceipt;
+  simulateConcurrentUpdate(): IncidentFeature;
 }
 
 export function createFixtureIncidentTransport(
@@ -33,6 +45,7 @@ export function createFixtureIncidentTransport(
   let sequence = 0;
   let stepIndex = 0;
   let closed = false;
+  let lastDataEvent: Parameters<RealtimeFeatureObserver<IncidentFeature>["next"]>[0] | undefined;
   const current = new Map<string, IncidentFeature>(INITIAL_INCIDENTS.map((incident) => [incident.id, incident]));
 
   function receivedAt(): number {
@@ -61,7 +74,44 @@ export function createFixtureIncidentTransport(
     return closed ? undefined : observer;
   }
 
+  function emitDataEvent(event: Parameters<RealtimeFeatureObserver<IncidentFeature>["next"]>[0]): void {
+    lastDataEvent = event;
+    ensureObserver()?.next(event);
+  }
+
+  function publishSafeIncident(
+    incident: IncidentFeature,
+    idempotencyKey: string,
+    operation: "edit" | "reset" | "external",
+  ): void {
+    current.set(incident.id, incident);
+    const eventSequence = nextSequence();
+    emitDataEvent({
+      type: "upsert",
+      eventId: `${operation}-${idempotencyKey}`,
+      cursor: cursor(operation),
+      sequence: eventSequence,
+      timestamp: incident.updatedAt,
+      receivedAt: receivedAt(),
+      feature: patch(incident),
+    });
+  }
+
+  const safeBaseline = current.get(SAFE_DEMO_INCIDENT_ID);
+  if (!safeBaseline) throw new Error("Incident fixture is missing its isolated demo-edit record.");
+  const safeEditor = createSafeIncidentEditor({
+    baseline: safeBaseline,
+    now,
+    publish: publishSafeIncident,
+  });
+
   return {
+    capabilities: {
+      kind: "mock",
+      resumeModes: ["cursor", "sequence"],
+      emitsHeartbeats: true,
+      emitsWatermarks: true,
+    },
     get currentStepIndex() {
       return stepIndex;
     },
@@ -73,12 +123,15 @@ export function createFixtureIncidentTransport(
       request = nextRequest;
       closed = false;
       const eventSequence = nextSequence();
-      nextObserver.next({
+      const snapshotAt = receivedAt();
+      emitDataEvent({
         type: "snapshot",
         eventId: `snapshot-${eventSequence}`,
         cursor: cursor("snapshot"),
+        watermark: new Date(snapshotAt).toISOString(),
+        timestamp: new Date(snapshotAt).toISOString(),
         sequence: eventSequence,
-        receivedAt: receivedAt(),
+        receivedAt: snapshotAt,
         features: [...current.values()].map(patch),
         replace: true,
       });
@@ -104,12 +157,13 @@ export function createFixtureIncidentTransport(
       if (step.kind === "delete") {
         const id = String(step.id);
         current.delete(id);
-        target.next({
+        emitDataEvent({
           type: "delete",
           eventId: `step-${eventSequence}`,
           cursor: cursor("step"),
           sequence: eventSequence,
           receivedAt: receivedAt(),
+          timestamp: new Date(receivedAt()).toISOString(),
           sourceId: INCIDENT_SOURCE_ID,
           id,
         });
@@ -118,12 +172,13 @@ export function createFixtureIncidentTransport(
 
       if (!step.incident) return step;
       current.set(step.incident.id, step.incident);
-      target.next({
+      emitDataEvent({
         type: "upsert",
         eventId: `step-${eventSequence}`,
         cursor: cursor("step"),
         sequence: eventSequence,
         receivedAt: receivedAt(),
+        timestamp: new Date(receivedAt()).toISOString(),
         feature: patch(step.incident),
       });
       return step;
@@ -132,20 +187,25 @@ export function createFixtureIncidentTransport(
       const target = ensureObserver();
       if (!target) return;
       const eventSequence = nextSequence();
-      target.next({
+      const observedAt = receivedAt();
+      emitDataEvent({
         type: "snapshot",
         eventId: `refresh-${eventSequence}`,
         cursor: cursor("refresh"),
         sequence: eventSequence,
-        receivedAt: receivedAt(),
+        receivedAt: observedAt,
         features: [...current.values()].map(patch),
-        replace: false,
+        timestamp: new Date(observedAt).toISOString(),
+        replace: true,
       });
     },
     reconnect() {
       ensureObserver()?.next({
         type: "status",
         status: "reconnecting",
+        reason: "fixture-network-interruption",
+        reconnectAttempt: 1,
+        retryAfterMs: 750,
         receivedAt: receivedAt(),
       });
     },
@@ -155,7 +215,9 @@ export function createFixtureIncidentTransport(
       target.next({
         type: "status",
         status: "live",
-        cursor: request?.cursor,
+        cursor: cursor("resume"),
+        reason: "fixture-resume-succeeded",
+        reconnectAttempt: 1,
         receivedAt: receivedAt(),
       });
       this.heartbeat();
@@ -176,6 +238,32 @@ export function createFixtureIncidentTransport(
         status: "offline",
         receivedAt: receivedAt(),
       });
+    },
+    duplicateLast() {
+      if (!lastDataEvent) return;
+      ensureObserver()?.next({ ...lastDataEvent, receivedAt: receivedAt() });
+    },
+    staleCursor() {
+      const target = ensureObserver();
+      const incident = current.get(SAFE_DEMO_INCIDENT_ID);
+      if (!target || !incident) return;
+      target.next({
+        type: "upsert",
+        eventId: `stale-cursor-${sequence + 1}`,
+        cursor: `stale-${Math.max(0, sequence - 1)}`,
+        sequence: Math.max(0, sequence - 1),
+        receivedAt: receivedAt(),
+        feature: patch(incident),
+      });
+    },
+    edit(request) {
+      return safeEditor.edit(request);
+    },
+    reset(request) {
+      return safeEditor.reset(request);
+    },
+    simulateConcurrentUpdate() {
+      return safeEditor.simulateConcurrentUpdate();
     },
   };
 }

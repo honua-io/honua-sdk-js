@@ -304,19 +304,19 @@
     {
       "id": "realtime-incident-dashboard",
       "title": "Realtime incident operations",
-      "summary": "Reconciles a snapshot and SSE deltas in an operational incident dashboard.",
+      "summary": "Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab.",
       "tier": "flagship",
       "supportStatus": "supported",
-      "disposition": { "decision": "rework", "reason": "Keep realtime authoritative and add reconnect, lag, and stale-state proof." },
+      "disposition": { "decision": "keep", "reason": "Flagship realtime journey now proves authority, diagnostics, degradation, concurrency, idempotency, and safe reset." },
       "sourcePath": "examples/realtime-incident-dashboard",
       "docsPath": "examples/realtime-incident-dashboard/README.md",
-      "capabilities": ["realtime", "reconciliation", "sse"],
+      "capabilities": ["idempotency", "optimistic-concurrency", "realtime", "reconciliation", "safe-editing", "sse"],
       "protocols": ["geoservices", "sse"],
       "renderers": ["maplibre"],
-      "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["VITE_HONUA_INCIDENT_STREAM_URL", "VITE_HONUA_INCIDENT_TRANSPORT"], "provenance": "Deterministic incident stream or deployed demo stream.", "attribution": "Synthetic incident operations data.", "freshness": "Snapshot time, cursor, lag, and observation window." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:incident:mock"] }, "live": { "status": "planned", "commands": [] } },
-      "expectedDegradation": "Disconnected or replayed state is visually distinct and mutation controls remain disabled.",
-      "validation": ["npm run demo:incident:typecheck", "npm run demo:incident:build"]
+      "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["VITE_HONUA_INCIDENT_BASE_URL", "VITE_HONUA_INCIDENT_CAPABILITIES_URL", "VITE_HONUA_INCIDENT_LAYER_ID", "VITE_HONUA_INCIDENT_SOURCE_ID", "VITE_HONUA_INCIDENT_STREAM_URL", "VITE_HONUA_INCIDENT_TRANSPORT"], "provenance": "Deployed demo stream when advertised; otherwise visibly labeled deterministic replay. Edits are limited to an isolated resettable fixture profile.", "attribution": "Synthetic incident operations data.", "freshness": "Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:incident:mock", "npm run test:playwright:incident"] }, "live": { "status": "planned", "commands": ["npm run bench:live"] } },
+      "expectedDegradation": "Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile.",
+      "validation": ["npm run demo:incident:typecheck", "npm run demo:incident:build", "npx vitest run test/realtime-incident-dashboard.test.ts", "npm run test:playwright:incident"]
     },
     {
       "id": "runtime-parity-showcase",

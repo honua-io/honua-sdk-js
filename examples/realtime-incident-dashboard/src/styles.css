@@ -25,7 +25,8 @@ body {
 }
 
 button,
-select {
+select,
+input {
   font: inherit;
 }
 
@@ -116,6 +117,48 @@ h3 {
   background: #e5e7eb;
   color: #374151;
   font-size: 0.82rem;
+}
+
+.status-stack {
+  display: grid;
+  justify-items: end;
+  gap: 0.45rem;
+}
+
+.lane-badge {
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+}
+
+.lane-badge[data-lane="live"] {
+  background: #ccfbf1;
+  color: #115e59;
+}
+
+.lane-badge[data-lane="replay"] {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.lane-badge[data-lane="fixture-edit"] {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.execution-disclosure,
+.degraded-note {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.degraded-note:not(:empty) {
+  border-left: 3px solid var(--amber);
+  padding-left: 0.65rem;
 }
 
 .status-badge[data-status="live"] {
@@ -209,7 +252,7 @@ dd {
 
 .button-row {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(6.4rem, 1fr));
   gap: 0.45rem;
 }
 
@@ -226,6 +269,13 @@ button {
 button:hover {
   border-color: var(--green);
   background: rgba(15, 118, 110, 0.08);
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.38);
+  outline-offset: 2px;
 }
 
 button:disabled,
@@ -255,6 +305,43 @@ select {
   background: #ffffff;
   color: var(--ink);
   padding: 0.55rem;
+}
+
+input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  padding: 0.55rem;
+}
+
+.edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.edit-metadata {
+  margin-top: 0.75rem;
+}
+
+.edit-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.edit-actions button:last-child {
+  grid-column: 1 / -1;
+}
+
+.edit-outcome {
+  min-height: 2.6rem;
+  margin: 0.75rem 0 0;
+  border-radius: 6px;
+  background: var(--surface-soft);
+  padding: 0.65rem;
 }
 
 .projection-grid {
@@ -503,7 +590,17 @@ select {
 
   .filter-grid,
   .button-row,
+  .edit-grid,
+  .edit-actions,
   .detail-panel {
     grid-template-columns: 1fr;
+  }
+
+  .edit-actions button:last-child {
+    grid-column: auto;
+  }
+
+  .ops-header {
+    align-items: stretch;
   }
 }

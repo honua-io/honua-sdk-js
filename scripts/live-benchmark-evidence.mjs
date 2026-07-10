@@ -68,6 +68,60 @@ async function requestJson(url, headers = {}) {
   }
 }
 
+async function observeIncidentDelta(url, headers = {}, observationWindowMs = 12_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), observationWindowMs);
+  const startedAt = performance.now();
+  try {
+    const response = await fetch(url, {
+      headers: { accept: "text/event-stream", ...headers },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.body) throw new Error("SSE response did not expose a readable body");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true }).replaceAll("\r\n", "\n");
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() ?? "";
+      for (const block of blocks) {
+        const data = block
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trimStart())
+          .join("\n");
+        if (!data) continue;
+        const payload = JSON.parse(data);
+        const kind = payload.type ?? payload.kind ?? payload.op;
+        const hasChanges = Array.isArray(payload.changes) && payload.changes.length > 0;
+        if (!["change", "feature-change", "delta", "upsert", "delete", "insert", "update"].includes(kind) && !hasChanges) {
+          continue;
+        }
+        return {
+          kind: String(kind ?? "change"),
+          cursorPresent: typeof payload.cursor === "string" && payload.cursor.length > 0,
+          sequencePresent: typeof payload.sequence === "number",
+          timestamp: typeof payload.timestamp === "string" ? payload.timestamp : null,
+          latencyMs: performance.now() - startedAt,
+        };
+      }
+    }
+    throw new Error("SSE stream closed before a feature delta was observed");
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`No feature delta was observed within ${observationWindowMs} ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+}
+
 async function probeTarget(definition) {
   if (definition.skipReason) {
     return {
@@ -164,6 +218,7 @@ export function toSampleEvidence(target, sdk, generatedAt) {
       state: executed ? "none" : failed ? "unexpected" : "unavailable",
       reasons: executed ? [] : [target.error ?? target.skipReason ?? "Live target did not execute."],
     },
+    ...(target.realtime ? { realtime: target.realtime } : {}),
     artifacts: [],
   });
 }
@@ -198,6 +253,71 @@ export async function collectLiveEvidence(env = process.env) {
   const awsBaseUrl = "https://earth-search.aws.element84.com/v1";
   const sdk = { package: packageJson.name, version: packageJson.version, gitCommit: gitCommit() };
   const rawTargets = await Promise.all([
+    probeTarget({
+      id: "honua-demo-incident-realtime",
+      sampleId: "realtime-incident-dashboard",
+      journeyId: "snapshot-observe-and-reconcile-delta",
+      provider: "honua-demo",
+      endpoint: `${honuaBaseUrl}/api/v1/streaming/features`,
+      authMode,
+      attribution: "Honua demo synthetic incident operations data",
+      async run() {
+        const capabilitiesUrl = `${honuaBaseUrl}/api/v1/streaming/features/capabilities`;
+        const capabilities = await requestJson(capabilitiesUrl, authHeaders);
+        const advertised = capabilities.body?.data ?? capabilities.body;
+        if (advertised?.enabled !== true) {
+          throw new Error(`Realtime feature streams are not enabled${advertised?.minimumEdition ? `; requires ${advertised.minimumEdition}` : ""}`);
+        }
+        const snapshotUrl = `${honuaBaseUrl}/rest/services/maui-incidents/FeatureServer/0/query?where=1%3D1&outFields=*&resultRecordCount=10&f=json`;
+        const snapshot = await requestJson(snapshotUrl, authHeaders);
+        if (!Array.isArray(snapshot.body?.features)) throw new Error("Incident snapshot did not contain features");
+        const streamUrl = new URL(`${honuaBaseUrl}/api/v1/streaming/features`);
+        streamUrl.searchParams.set("serviceId", "maui-incidents");
+        streamUrl.searchParams.set("layers", "0");
+        streamUrl.searchParams.set("requestId", "scheduled-incident-evidence");
+        streamUrl.searchParams.set("mode", "snapshot-then-delta");
+        const delta = await observeIncidentDelta(streamUrl, authHeaders);
+        const observedAt = new Date().toISOString();
+        const eventAt = delta.timestamp ? Date.parse(delta.timestamp) : Number.NaN;
+        return {
+          endpointVersion: advertised.serverVersion ?? null,
+          protocolVersion: "honua-feature-stream-v1",
+          latencyMs: capabilities.latencyMs + snapshot.latencyMs + delta.latencyMs,
+          checks: {
+            capabilityEnabled: true,
+            snapshotFeatureCount: snapshot.body.features.length,
+            deltaKind: delta.kind,
+            cursorPresent: delta.cursorPresent,
+            sequencePresent: delta.sequencePresent,
+          },
+          journey: {
+            id: "snapshot-observe-and-reconcile-delta",
+            timeToFirstSuccessfulInteractionMs: capabilities.latencyMs + snapshot.latencyMs,
+            visibleOutcome: { kind: "snapshot-and-live-delta", itemCount: snapshot.body.features.length },
+            console: { applicable: false, reason: "Protocol probe has no browser console" },
+            accessibility: { applicable: false, reason: "Protocol probe has no rendered user interface" },
+          },
+          freshness: {
+            observedAt,
+            serverDate: snapshot.serverDate,
+            sourceDataTimestamp: delta.timestamp,
+            etag: snapshot.etag,
+            lastModified: snapshot.lastModified,
+          },
+          provenance: {
+            source: "honua-demo:maui-incidents:0",
+            requestedUrls: [capabilitiesUrl, snapshotUrl, streamUrl.toString()],
+          },
+          realtime: {
+            snapshotAt: snapshot.observedAt,
+            cursor: delta.cursorPresent ? "present" : null,
+            lagMs: Number.isFinite(eventAt) ? Math.max(0, Date.parse(observedAt) - eventAt) : null,
+            observationWindowMs: 12_000,
+            reconnectOutcome: null,
+          },
+        };
+      },
+    }),
     probeTarget({
       id: "honua-demo-ogc-query",
       sampleId: "service-explorer",

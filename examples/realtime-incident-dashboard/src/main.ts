@@ -27,6 +27,11 @@ import {
   reconcileRealtimeSelection,
 } from "@honua/sdk-js/realtime";
 
+import {
+  type IncidentRealtimeDiagnostics,
+  initialIncidentRealtimeDiagnostics,
+  reconcileIncidentDiagnostics,
+} from "./diagnostics.js";
 import { HONOLULU_CENTER, INCIDENT_LAYER_ID, INCIDENT_SOURCE_ID, INITIAL_INCIDENTS } from "./fixtures.js";
 import {
   INCIDENT_METADATA_CACHE_STATE,
@@ -45,8 +50,14 @@ import {
   incidentRecords,
   statusLabel,
 } from "./projection.js";
-import { createIncidentDashboardTransport } from "./realtime-transport.js";
-import type { IncidentFeature, IncidentSummary } from "./types.js";
+import {
+  createIncidentDashboardTransport,
+  readIncidentTransportConfig,
+  resolveIncidentTransportConfig,
+} from "./realtime-transport.js";
+import { SAFE_DEMO_INCIDENT_ID, evaluateIncidentMutationGuard } from "./safe-edit.js";
+import type { IncidentMutationGuard } from "./safe-edit.js";
+import type { IncidentEditReceipt, IncidentEditRequest, IncidentFeature, IncidentSummary } from "./types.js";
 
 import "./styles.css";
 
@@ -66,6 +77,18 @@ interface IncidentRuntime {
   authoritative: boolean;
   featureProvenance: string;
   metadataCacheStatus: string;
+  lane: "live" | "replay" | "fixture-edit" | "pending";
+  ignoredEventCount: number;
+  reconciliationOutcome: string;
+  reconnectOutcome: string;
+  lastEditOutcome: string | null;
+  stageEdit(): string | null;
+  submitEdit(): string | null;
+  repeatEdit(): string | null;
+  simulateConflict(): void;
+  resetEdit(): string | null;
+  duplicateLast(): void;
+  staleCursor(): void;
 }
 
 declare global {
@@ -248,7 +271,11 @@ function updateMapSource(map: maplibregl.Map, state: RealtimeFeatureState<Incide
   source?.setData(incidentFeatureCollection(incidentRecords(state)) as never);
 }
 
-function renderConnection(state: RealtimeFeatureState<IncidentFeature>, authority: IncidentLiveStateAuthority): void {
+function renderConnection(
+  state: RealtimeFeatureState<IncidentFeature>,
+  authority: IncidentLiveStateAuthority,
+  diagnostics: IncidentRealtimeDiagnostics,
+): void {
   const badge = getElement<HTMLElement>("#connection-status");
   badge.dataset.status = state.status;
   badge.textContent = statusLabel(state.status);
@@ -256,6 +283,7 @@ function renderConnection(state: RealtimeFeatureState<IncidentFeature>, authorit
   authorityBadge.dataset.authoritative = String(authority.authoritative);
   authorityBadge.textContent = formatIncidentAuthorityLabel(authority);
   setText("#stream-cursor", state.cursor ?? "-");
+  setText("#stream-sequence", state.lastSequence === undefined ? "-" : String(state.lastSequence));
   setText("#stream-ignored", String(state.ignoredEventCount));
   setText("#stream-records", String(Object.keys(state.records).length));
   setText("#stream-tombstones", String(Object.keys(state.tombstones).length));
@@ -263,9 +291,29 @@ function renderConnection(state: RealtimeFeatureState<IncidentFeature>, authorit
     "#stream-watermark",
     state.watermark ?? formatTimestamp(new Date(state.lastEventAt ?? Date.now()).toISOString()),
   );
+  setText("#stream-snapshot-at", formatObservedTime(diagnostics.snapshotAt));
+  setText("#stream-observed-at", formatObservedTime(diagnostics.observationAt));
+  setText("#stream-event-time", diagnostics.eventTime ? formatTimestamp(diagnostics.eventTime) : "-");
+  setText("#stream-lag", diagnostics.lagMs === undefined ? "-" : formatLag(diagnostics.lagMs));
+  setText(
+    "#stream-reconnect",
+    diagnostics.reconnectAttempt > 0
+      ? `${statusLabel(diagnostics.reconnectOutcome)} / attempt ${diagnostics.reconnectAttempt}`
+      : statusLabel(diagnostics.reconnectOutcome),
+  );
+  setText("#stream-backoff", diagnostics.retryAfterMs === undefined ? "-" : `${diagnostics.retryAfterMs} ms`);
+  setText("#stream-reconciliation", statusLabel(diagnostics.reconciliationOutcome));
   setText("#stream-stale-since", state.staleSince ? formatTimestamp(new Date(state.staleSince).toISOString()) : "-");
   setText("#feature-provenance", formatIncidentFeatureProvenance(authority.featureProvenance));
   setText("#metadata-cache", formatIncidentMetadataCacheState(authority.metadataCache));
+}
+
+function formatObservedTime(value: number | undefined): string {
+  return value === undefined ? "-" : formatTimestamp(new Date(value).toISOString());
+}
+
+function formatLag(value: number): string {
+  return value < 1_000 ? `${Math.round(value)} ms` : `${(value / 1_000).toFixed(1)} s`;
 }
 
 function renderSummary(summary: IncidentSummary, visibleCount: number): void {
@@ -345,8 +393,7 @@ function renderIncidentList(
     button.textContent = "Open";
     button.dataset.testid = `select-${incident.id}`;
     button.setAttribute("aria-label", `Open ${incident.title}`);
-    button.disabled = !authority.actionsEnabled;
-    button.title = authority.actionsEnabled ? `Open ${incident.title}` : authority.reason;
+    button.title = authority.actionsEnabled ? `Open ${incident.title}` : `Open read-only detail. ${authority.reason}`;
     button.addEventListener("click", () => onSelect(incident));
     row.append(button);
     list.append(row);
@@ -477,7 +524,13 @@ function eventDetail(event: RealtimeFeatureEvent<IncidentFeature>): string {
     case "heartbeat":
       return event.cursor ?? "No cursor";
     case "status":
-      return event.cursor ?? "Connection state changed";
+      return [
+        event.reason ?? event.cursor ?? "Connection state changed",
+        event.reconnectAttempt ? `attempt ${event.reconnectAttempt}` : undefined,
+        event.retryAfterMs ? `retry in ${event.retryAfterMs} ms` : undefined,
+      ]
+        .filter(Boolean)
+        .join(" / ");
     case "error":
       return event.error instanceof Error ? event.error.message : String(event.error);
   }
@@ -501,6 +554,46 @@ function setFieldFilter(
   });
 }
 
+function renderExecutionLane(lane: "live" | "replay" | "fixture-edit", fallbackReason: string | undefined): void {
+  const badge = getElement<HTMLElement>("#data-lane");
+  badge.dataset.lane = lane;
+  badge.textContent =
+    lane === "live" ? "Live authoritative" : lane === "fixture-edit" ? "Isolated fixture lab" : "Replay fallback";
+  setText(
+    "#execution-disclosure",
+    lane === "live"
+      ? "Connected to the deployed realtime source. Live observations are authoritative."
+      : lane === "fixture-edit"
+        ? "Deterministic isolated stream/edit lab. This is fixture evidence, never a live-data claim."
+        : "Live was preferred but is unavailable. Scripted replay is visibly read-only.",
+  );
+  setText("#fallback-reason", fallbackReason ?? "");
+}
+
+function authorityForLane(
+  state: RealtimeFeatureState<IncidentFeature>,
+  lane: "live" | "replay" | "fixture-edit",
+): IncidentLiveStateAuthority {
+  const authority = evaluateIncidentLiveStateAuthority(state, {
+    metadataCache: INCIDENT_METADATA_CACHE_STATE,
+  });
+  if (lane !== "replay") return authority;
+  return {
+    ...authority,
+    authoritative: false,
+    actionsEnabled: false,
+    reason: "Scripted replay is read-only and is not authoritative live incident state.",
+    featureProvenance: state.checkpoint
+      ? { source: "cursor-watermark-replay", checkpoint: state.checkpoint }
+      : { source: "unknown", reason: "Replay has not received a checkpoint." },
+  };
+}
+
+function renderEditReceipt(receipt: IncidentEditReceipt): string {
+  const revision = receipt.actualRevision === undefined ? "" : ` Revision ${receipt.actualRevision}.`;
+  return `${statusLabel(receipt.outcome)}: ${receipt.reason}${revision}`;
+}
+
 async function bootstrap(): Promise<void> {
   const overlay = getElement<HTMLElement>("#map-overlay");
   const severityFilter = getElement<HTMLSelectElement>("#severity-filter");
@@ -511,6 +604,15 @@ async function bootstrap(): Promise<void> {
   const resumeButton = getElement<HTMLButtonElement>("#resume-stream");
   const staleButton = getElement<HTMLButtonElement>("#mark-stale");
   const refreshButton = getElement<HTMLButtonElement>("#manual-refresh");
+  const duplicateButton = getElement<HTMLButtonElement>("#duplicate-event");
+  const staleCursorButton = getElement<HTMLButtonElement>("#stale-cursor");
+  const stageEditButton = getElement<HTMLButtonElement>("#stage-edit");
+  const submitEditButton = getElement<HTMLButtonElement>("#submit-edit");
+  const repeatEditButton = getElement<HTMLButtonElement>("#repeat-edit");
+  const simulateConflictButton = getElement<HTMLButtonElement>("#simulate-conflict");
+  const resetEditButton = getElement<HTMLButtonElement>("#reset-edit");
+  const editStatus = getElement<HTMLSelectElement>("#edit-status");
+  const editAssigned = getElement<HTMLInputElement>("#edit-assigned");
 
   const runtime: IncidentRuntime = {
     ready: false,
@@ -528,13 +630,30 @@ async function bootstrap(): Promise<void> {
     authoritative: false,
     featureProvenance: "Unknown feature provenance",
     metadataCacheStatus: "Metadata cache not used",
+    lane: "pending",
+    ignoredEventCount: 0,
+    reconciliationOutcome: "waiting-for-snapshot",
+    reconnectOutcome: "not-attempted",
+    lastEditOutcome: null,
+    stageEdit: () => null,
+    submitEdit: () => null,
+    repeatEdit: () => null,
+    simulateConflict: () => undefined,
+    resetEdit: () => null,
+    duplicateLast: () => undefined,
+    staleCursor: () => undefined,
   };
   window.__HONUA_INCIDENT_RUNTIME__ = runtime;
 
   try {
+    const resolvedTransportConfig = await resolveIncidentTransportConfig(readIncidentTransportConfig());
     const { map, layerIds } = await createMap();
     const store = createRealtimeFeatureStore<IncidentFeature>();
-    const incidentTransport = createIncidentDashboardTransport();
+    const incidentTransport = createIncidentDashboardTransport(resolvedTransportConfig);
+    const lane = incidentTransport.controls.mode;
+    let diagnostics = initialIncidentRealtimeDiagnostics(lane);
+    renderExecutionLane(lane, incidentTransport.controls.fallbackReason);
+    runtime.lane = lane;
     const context = createExplorationContext({
       datasetId: "honua-cloud-incident-operations",
       sourceIds: [INCIDENT_SOURCE_ID],
@@ -584,13 +703,99 @@ async function bootstrap(): Promise<void> {
     let latestProjection: LinkedViewQueryProjection | undefined;
     let selectedIncidentId: string | undefined;
     let activePopup: maplibregl.Popup | undefined;
-    let latestAuthority = evaluateIncidentLiveStateAuthority(store.state, {
-      metadataCache: INCIDENT_METADATA_CACHE_STATE,
-    });
+    let latestAuthority = authorityForLane(store.state, lane);
+    let latestMutationGuard: IncidentMutationGuard = {
+      enabled: false,
+      reason: "Select the isolated demo record to stage an edit.",
+    };
+    let stagedEdit: IncidentEditRequest | undefined;
+    let lastSubmittedEdit: IncidentEditRequest | undefined;
+    let idempotencySequence = 0;
 
     function currentIncidentById(id: string | undefined): IncidentFeature | undefined {
       if (!id) return undefined;
       return incidentRecords(store.state).find((incident) => incident.id === id);
+    }
+
+    function updateEditPanel(): void {
+      const incident = currentIncidentById(selectedIncidentId);
+      latestMutationGuard = evaluateIncidentMutationGuard({
+        lane,
+        live: latestAuthority.authoritative,
+        authorized: incidentTransport.controls.authorized,
+        safeEditProfile: incidentTransport.controls.safeDemoEditing,
+        sourceIdentity: incidentTransport.controls.sourceIdentity,
+        incident,
+      });
+      setText("#edit-profile", incidentTransport.controls.safeDemoEditing ? "Isolated + resettable" : "Unavailable");
+      setText("#edit-guard-reason", latestMutationGuard.reason);
+      setText("#edit-revision", incident?.revision === undefined ? "-" : String(incident.revision));
+      stageEditButton.disabled = !latestMutationGuard.enabled;
+      submitEditButton.disabled = !latestMutationGuard.enabled || !stagedEdit;
+      repeatEditButton.disabled = !latestMutationGuard.enabled || !lastSubmittedEdit;
+      simulateConflictButton.disabled = !latestMutationGuard.enabled || !stagedEdit;
+      resetEditButton.disabled = !latestMutationGuard.enabled;
+    }
+
+    function stageEdit(): string | null {
+      const incident = currentIncidentById(selectedIncidentId);
+      if (!latestMutationGuard.enabled || !incident) {
+        setText("#edit-outcome", latestMutationGuard.reason);
+        return null;
+      }
+      idempotencySequence += 1;
+      stagedEdit = {
+        incidentId: incident.id,
+        expectedRevision: incident.revision ?? 0,
+        idempotencyKey: `fixture-edit-${idempotencySequence}`,
+        patch: {
+          status: editStatus.value as IncidentFeature["status"],
+          assignedTo: editAssigned.value.trim() || "Demo Operations",
+        },
+      };
+      setText("#edit-revision", String(stagedEdit.expectedRevision));
+      setText("#edit-idempotency", stagedEdit.idempotencyKey);
+      setText("#edit-outcome", `Staged against revision ${stagedEdit.expectedRevision}.`);
+      submitEditButton.disabled = false;
+      simulateConflictButton.disabled = false;
+      return stagedEdit.idempotencyKey;
+    }
+
+    function submitEdit(request = stagedEdit): string | null {
+      if (!request || !latestMutationGuard.enabled) {
+        setText("#edit-outcome", latestMutationGuard.reason);
+        return null;
+      }
+      const receipt = incidentTransport.controls.edit(request);
+      lastSubmittedEdit = request;
+      stagedEdit = undefined;
+      runtime.lastEditOutcome = receipt.outcome;
+      setText("#edit-outcome", renderEditReceipt(receipt));
+      updateEditPanel();
+      return receipt.outcome;
+    }
+
+    function repeatEdit(): string | null {
+      if (!lastSubmittedEdit) return null;
+      const receipt = incidentTransport.controls.edit(lastSubmittedEdit);
+      runtime.lastEditOutcome = receipt.outcome;
+      setText("#edit-outcome", renderEditReceipt(receipt));
+      return receipt.outcome;
+    }
+
+    function resetEdit(): string | null {
+      const incident = currentIncidentById(selectedIncidentId);
+      if (!incident || !latestMutationGuard.enabled) return null;
+      idempotencySequence += 1;
+      const receipt = incidentTransport.controls.reset({
+        incidentId: incident.id,
+        idempotencyKey: `fixture-reset-${idempotencySequence}`,
+      });
+      runtime.lastEditOutcome = receipt.outcome;
+      setText("#edit-idempotency", receipt.idempotencyKey);
+      setText("#edit-outcome", renderEditReceipt(receipt));
+      updateEditPanel();
+      return receipt.outcome;
     }
 
     function renderProjectedIncidents(projection: LinkedViewQueryProjection): void {
@@ -610,6 +815,11 @@ async function bootstrap(): Promise<void> {
       setListSelection(incidentId);
       const incident = currentIncidentById(incidentId);
       renderDetail(incident);
+      if (incident?.safeDemoRecord && !stagedEdit) {
+        editStatus.value = incident.status;
+        editAssigned.value = incident.assignedTo;
+      }
+      updateEditPanel();
       activePopup?.remove();
       activePopup = undefined;
       if (incident) {
@@ -626,10 +836,9 @@ async function bootstrap(): Promise<void> {
 
     store.subscribe(
       (state, event) => {
-        latestAuthority = evaluateIncidentLiveStateAuthority(state, {
-          metadataCache: INCIDENT_METADATA_CACHE_STATE,
-        });
-        renderConnection(state, latestAuthority);
+        diagnostics = reconcileIncidentDiagnostics(diagnostics, state, event);
+        latestAuthority = authorityForLane(state, lane);
+        renderConnection(state, latestAuthority, diagnostics);
         updateMapSource(map, state);
         pushEventLog(event);
         renderEventLog();
@@ -639,6 +848,9 @@ async function bootstrap(): Promise<void> {
         runtime.authoritative = latestAuthority.authoritative;
         runtime.featureProvenance = formatIncidentFeatureProvenance(latestAuthority.featureProvenance);
         runtime.metadataCacheStatus = formatIncidentMetadataCacheState(latestAuthority.metadataCache);
+        runtime.ignoredEventCount = diagnostics.ignoredEventCount;
+        runtime.reconciliationOutcome = diagnostics.reconciliationOutcome;
+        runtime.reconnectOutcome = diagnostics.reconnectOutcome;
         if (latestProjection) renderProjectedIncidents(latestProjection);
         renderSelectedIncident(selectedIncidentId);
       },
@@ -676,6 +888,30 @@ async function bootstrap(): Promise<void> {
       store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });
     });
     refreshButton.addEventListener("click", () => incidentTransport.controls.refresh());
+    duplicateButton.addEventListener("click", () => incidentTransport.controls.duplicateLast());
+    staleCursorButton.addEventListener("click", () => incidentTransport.controls.staleCursor());
+    stageEditButton.addEventListener("click", () => stageEdit());
+    submitEditButton.addEventListener("click", () => submitEdit());
+    repeatEditButton.addEventListener("click", () => repeatEdit());
+    simulateConflictButton.addEventListener("click", () => {
+      incidentTransport.controls.simulateConcurrentUpdate();
+      setText("#edit-outcome", "Concurrent update published. Submit the staged edit to observe a revision conflict.");
+    });
+    resetEditButton.addEventListener("click", () => resetEdit());
+
+    const scenarioControlsEnabled = lane !== "live";
+    for (const button of [
+      stepButton,
+      reconnectButton,
+      resumeButton,
+      staleButton,
+      refreshButton,
+      duplicateButton,
+      staleCursorButton,
+    ]) {
+      button.disabled = !scenarioControlsEnabled;
+      if (!scenarioControlsEnabled) button.title = "Scenario controls are available only in deterministic lanes.";
+    }
 
     runtime.step = () => {
       const step = incidentTransport.controls.step();
@@ -690,6 +926,15 @@ async function bootstrap(): Promise<void> {
       store.checkStale({ staleAfterMs: 1_000, now: lastLiveAt + 1_500 });
     };
     runtime.refresh = () => incidentTransport.controls.refresh();
+    runtime.duplicateLast = () => incidentTransport.controls.duplicateLast();
+    runtime.staleCursor = () => incidentTransport.controls.staleCursor();
+    runtime.stageEdit = stageEdit;
+    runtime.submitEdit = () => submitEdit();
+    runtime.repeatEdit = repeatEdit;
+    runtime.simulateConflict = () => {
+      incidentTransport.controls.simulateConcurrentUpdate();
+    };
+    runtime.resetEdit = resetEdit;
 
     for (const layerId of layerIds) {
       map.on("mouseenter", layerId, () => {
@@ -702,11 +947,16 @@ async function bootstrap(): Promise<void> {
 
     store.connect(incidentTransport.transport, incidentTransport.request);
 
-    tableSelection.select([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, INITIAL_INCIDENTS[0].id)], {
+    tableSelection.select([sourceFeatureSelectionTarget(INCIDENT_SOURCE_ID, SAFE_DEMO_INCIDENT_ID)], {
       replace: true,
     });
     overlay.dataset.state = "ready";
-    overlay.textContent = "Live incident stream connected";
+    overlay.textContent =
+      lane === "live"
+        ? "Live incident stream connected"
+        : lane === "fixture-edit"
+          ? "Isolated fixture stream/edit lab"
+          : "Read-only replay fallback";
     runtime.ready = true;
     runtime.mapReady = true;
 
