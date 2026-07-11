@@ -221,6 +221,76 @@ describe("connect", () => {
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
+  it("fails canonical query and streaming closed when a layer explicitly rejects pagination", async () => {
+    const fetchFn = vi.fn(async () =>
+      json({
+        id: 0,
+        name: "Legacy parcels",
+        capabilities: "Query",
+        advancedQueryCapabilities: {
+          supportsPagination: false,
+          supportsReturningQueryExtent: true,
+        },
+        fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }],
+      }),
+    );
+    const connection = await connect({
+      endpoint: "https://example.test/arcgis/rest/services/Legacy/Parcels/FeatureServer/0",
+      protocol: "auto",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    expect([...connection.source().capabilities]).toEqual(expect.arrayContaining(["queryExtent", "queryObjectIds"]));
+    expect(connection.source().capabilities.has("query")).toBe(false);
+    expect(connection.source().capabilities.has("stream")).toBe(false);
+    await expect(connection.source().queryAll()).rejects.toMatchObject({
+      name: "HonuaCapabilityNotSupportedError",
+      capability: "query",
+    });
+    expect(fetchFn).toHaveBeenCalledOnce();
+  });
+
+  it("lets layer pagination metadata override service-root query evidence", async () => {
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(new Request(input, init).url);
+      if (url.pathname.endsWith("/FeatureServer")) {
+        return json({
+          capabilities: "Query",
+          layers: [
+            { id: 0, name: "Paged parcels" },
+            { id: 1, name: "Legacy parcels" },
+          ],
+        });
+      }
+      const id = Number.parseInt(url.pathname.split("/").at(-1) ?? "", 10);
+      return json({
+        id,
+        name: id === 0 ? "Paged parcels" : "Legacy parcels",
+        capabilities: "Query",
+        advancedQueryCapabilities: { supportsPagination: id === 0 },
+        fields: [],
+      });
+    });
+    const connection = await connect({
+      endpoint: "https://example.test/arcgis/rest/services/Mixed/Parcels/FeatureServer",
+      protocol: "auto",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    expect(connection.source("0").capabilities.has("query")).toBe(true);
+    expect(connection.source("0").capabilities.has("stream")).toBe(true);
+    expect(connection.source("1").capabilities.has("query")).toBe(false);
+    expect(connection.source("1").capabilities.has("stream")).toBe(false);
+    expect(connection.source("1").capabilities.has("queryObjectIds")).toBe(true);
+    await expect(connection.source("1").queryAll()).rejects.toMatchObject({
+      name: "HonuaCapabilityNotSupportedError",
+      capability: "query",
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+  });
+
   it("does not substitute adapter defaults when GeoServices capability metadata is absent", async () => {
     const connection = await connect({
       endpoint: "https://example.test/rest/services/Parcels/FeatureServer/0",
@@ -269,7 +339,9 @@ describe("connect", () => {
       clientOptions: { fetchFn },
     });
 
-    expect(connection.source().capabilities.has("query")).toBe(true);
+    expect(connection.source().capabilities.has("query")).toBe(false);
+    expect(connection.source().capabilities.has("stream")).toBe(false);
+    expect(connection.source().capabilities.has("queryObjectIds")).toBe(true);
     expect(connection.source().capabilities.has("applyEdits")).toBe(false);
     expect(connection.inspection.sources[0]?.discovery).toBe("mixed");
     expect(connection.inspection.diagnostics.map((entry) => entry.code)).toEqual(

@@ -279,21 +279,8 @@ const MAP_LAYER_SCOPE: readonly Capability[] = Object.freeze(
   [...PROTOCOL_DEFAULT_CAPABILITIES["geoservices-map-service"]].filter((capability) => capability !== "tiles"),
 );
 
-const FEATURE_SERVICE_SCOPE: readonly Capability[] = Object.freeze([
-  "query",
-  "queryExtent",
-  "queryObjectIds",
-  "applyEdits",
-  "stream",
-]);
-const MAP_SERVICE_SCOPE: readonly Capability[] = Object.freeze([
-  "query",
-  "queryExtent",
-  "queryObjectIds",
-  "render",
-  "tiles",
-  "stream",
-]);
+const FEATURE_SERVICE_SCOPE: readonly Capability[] = Object.freeze(["queryObjectIds", "applyEdits"]);
+const MAP_SERVICE_SCOPE: readonly Capability[] = Object.freeze(["queryObjectIds", "render", "tiles"]);
 
 function serviceCapabilityEvidence(
   target: ConnectTarget,
@@ -336,9 +323,18 @@ function capabilitiesFromMetadata(
   );
   const capabilities = new Set<Capability>();
   if (advertised.has("query")) {
-    capabilities.add("query");
     capabilities.add("queryObjectIds");
-    capabilities.add("stream");
+    const paginationUnsupported =
+      "advancedQueryCapabilities" in metadata && metadata.advancedQueryCapabilities?.supportsPagination === false;
+    // The canonical `query` capability also promises a safe `queryAll()`.
+    // A layer that explicitly rejects pagination cannot uphold that contract:
+    // servers commonly ignore resultOffset and repeat the first page forever.
+    // Keep independently safe query operations, but fail closed for canonical
+    // query/stream until the contract can represent a single-page-only query.
+    if (!paginationUnsupported) {
+      capabilities.add("query");
+      capabilities.add("stream");
+    }
     if (
       !("advancedQueryCapabilities" in metadata) ||
       metadata.advancedQueryCapabilities?.supportsReturningQueryExtent !== false
