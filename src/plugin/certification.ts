@@ -30,10 +30,6 @@ const CHECKS: readonly HonuaPluginCertificationCheck[] = [
 
 type JsonObject = Readonly<Record<string, HonuaPluginJsonValue>>;
 
-const IDENTIFIER = /^(?:@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*|[a-z0-9][a-z0-9._-]*(?:\.[a-z0-9][a-z0-9._-]*)+)$/;
-const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*|[a-z0-9][a-z0-9._-]*)$/;
-const CREDENTIAL_SCOPE = /^[a-zA-Z0-9][a-zA-Z0-9:._/-]{0,127}$/;
-
 function object(value: HonuaPluginJsonValue | undefined): JsonObject | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : undefined;
 }
@@ -151,7 +147,7 @@ function validateManifestSnapshot(snapshot: HonuaPluginJsonValue): HonuaPluginMa
     push(diagnostics, "MANIFEST_VERSION_UNSUPPORTED", "/manifestVersion", `Expected ${HONUA_PLUGIN_MANIFEST_VERSION}.`);
   }
   const id = requiredString(manifest.id, "/id", diagnostics);
-  if (id && !IDENTIFIER.test(id))
+  if (id && !validPluginId(id))
     push(diagnostics, "PLUGIN_ID_INVALID", "/id", "Use a lowercase package name or reverse-DNS identifier.");
   validateExactSemver(manifest.version, "/version", diagnostics);
 
@@ -162,7 +158,7 @@ function validateManifestSnapshot(snapshot: HonuaPluginJsonValue): HonuaPluginMa
   const packageInfo = requiredObject(manifest.package, "/package", diagnostics);
   allowedKeys(packageInfo, ["name", "entrypoint"], "/package", diagnostics);
   const packageName = requiredString(packageInfo?.name, "/package/name", diagnostics);
-  if (packageName && !PACKAGE_NAME.test(packageName))
+  if (packageName && !validPackageName(packageName))
     push(diagnostics, "PACKAGE_NAME_INVALID", "/package/name", "Expected an npm package name.");
   const entrypoint = requiredString(packageInfo?.entrypoint, "/package/entrypoint", diagnostics);
   const normalizedEntrypoint = entrypoint ? normalizeEntrypoint(entrypoint, diagnostics) : undefined;
@@ -299,7 +295,7 @@ function validateGrants(
       ? []
       : stringArray(grants.credentialScopes, `${path}/credentialScopes`, diagnostics);
   for (const [index, scope] of (scopes ?? []).entries()) {
-    if (!CREDENTIAL_SCOPE.test(scope))
+    if (!validCredentialScope(scope))
       push(
         diagnostics,
         "CREDENTIAL_SCOPE_INVALID",
@@ -354,7 +350,7 @@ function validatePeers(
     const peer = requiredObject(rawPeer, path, diagnostics);
     allowedKeys(peer, ["name", "minimumVersion", "optional"], path, diagnostics);
     const name = requiredString(peer?.name, `${path}/name`, diagnostics);
-    if (name && !PACKAGE_NAME.test(name))
+    if (name && !validPackageName(name))
       push(diagnostics, "PACKAGE_NAME_INVALID", `${path}/name`, "Expected an npm package name.");
     if (name && names.has(name)) push(diagnostics, "PEER_DUPLICATE", `${path}/name`, "Peer names must be unique.");
     if (name) names.add(name);
@@ -564,7 +560,7 @@ function requiredPeersObject(
   const peers = requiredObject(value, "/host/peers", diagnostics);
   if (!peers) return {};
   for (const [name, version] of Object.entries(peers)) {
-    if (!PACKAGE_NAME.test(name))
+    if (!validPackageName(name))
       push(diagnostics, "PACKAGE_NAME_INVALID", `/host/peers/${escapePointer(name)}`, "Expected an npm package name.");
     validateExactSemver(version, `/host/peers/${escapePointer(name)}`, diagnostics);
   }
@@ -732,4 +728,51 @@ function asciiCompare(left: string, right: string): number {
 
 function escapePointer(value: string): string {
   return value.split("~").join("~0").split("/").join("~1");
+}
+
+function validPluginId(value: string): boolean {
+  if (validPackageName(value) && value.startsWith("@")) return true;
+  const segments = value.split(".");
+  return segments.length >= 2 && segments.every(validLowercaseNameSegment);
+}
+
+function validPackageName(value: string): boolean {
+  if (value.startsWith("@")) {
+    const slash = value.indexOf("/");
+    return (
+      slash > 1 &&
+      value.indexOf("/", slash + 1) === -1 &&
+      validLowercaseNameSegment(value.slice(1, slash)) &&
+      validLowercaseNameSegment(value.slice(slash + 1))
+    );
+  }
+  return !value.includes("/") && validLowercaseNameSegment(value);
+}
+
+function validLowercaseNameSegment(value: string): boolean {
+  if (value.length === 0 || !asciiLowercaseAlphanumeric(value.charCodeAt(0))) return false;
+  for (let index = 1; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (!asciiLowercaseAlphanumeric(code) && code !== 45 && code !== 46 && code !== 95) return false;
+  }
+  return true;
+}
+
+function validCredentialScope(value: string): boolean {
+  if (value.length === 0 || value.length > 128 || !asciiAlphanumeric(value.charCodeAt(0))) return false;
+  for (let index = 1; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (!asciiAlphanumeric(code) && code !== 45 && code !== 46 && code !== 47 && code !== 58 && code !== 95) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function asciiLowercaseAlphanumeric(code: number): boolean {
+  return (code >= 48 && code <= 57) || (code >= 97 && code <= 122);
+}
+
+function asciiAlphanumeric(code: number): boolean {
+  return asciiLowercaseAlphanumeric(code) || (code >= 65 && code <= 90);
 }
