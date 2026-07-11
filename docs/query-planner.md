@@ -59,7 +59,10 @@ For an OGC API Features source, the same `explainQuery()` call selects
 CRS, and envelope-intersects filters compile to `properties`, `sortby`,
 `limit`/`offset`, `crs`, and `bbox` respectively:
 
-```ts
+```ts doc-test=compile
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { explainQuery } from "@honua/sdk-js/query-planner";
+
 const ogcPlan = explainQuery({
   descriptor: {
     id: "parcels",
@@ -79,7 +82,9 @@ const ogcPlan = explainQuery({
   },
 });
 
-console.log(ogcPlan.steps[0]?.compiled);
+const firstStep = ogcPlan.steps[0];
+if (!firstStep || firstStep.engine !== "remote") throw new Error("Expected a remote query step");
+console.log(firstStep.compiled);
 // { compiler: "ogc-api-features-query-v1", collectionId: "parcels",
 //   filter: "status = 'active'", filterLang: "cql2-text", ... }
 ```
