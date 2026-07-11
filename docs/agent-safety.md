@@ -2,7 +2,7 @@
 
 `@honua/sdk-js/agent-safety` is an experimental, deterministic trust boundary
 between untrusted plan proposals and host-owned effect execution. It validates
-plain runtime JavaScript values, produces an immutable dry run and effect
+JSON-compatible structured data, produces an immutable dry run and effect
 budget, binds a reviewer signature to the exact plan and policy, revalidates
 current source context, and signs/verifies execution evidence.
 
@@ -42,11 +42,19 @@ const policy = {
       sourceVersions: ["snapshot-9"],
       dataModes: ["live"],
       maxProvenanceAgeMs: 60_000,
+      citationOrigins: ["https://data.example.test"],
+      citationResourcePrefixes: ["/incidents"],
     },
   },
   maxSteps: 1,
   maxRows: 500,
   maxBytes: 2_000_000,
+  maxFieldsPerStep: 16,
+  maxAuthorizationScopesPerSource: 8,
+  maxCitationsPerSource: 4,
+  maxOperationParameterBytes: 16_384,
+  maxOperationParameterNodes: 256,
+  maxOperationParameterDepth: 8,
 };
 const dryRun = dryRunAgentPlan(untrustedPlan, policy, {
   now: "2026-07-10T20:00:00.000Z",
@@ -64,6 +72,7 @@ const approval = await issueAgentApproval(
     maxRows: 100, // single-step shorthand; may narrow, never widen
   },
   hostSigner,
+  { now: "2026-07-10T20:00:00.000Z", maxClockSkewMs: 5_000 },
 );
 
 // Immediately before an effect, compare exact current bindings and operation
@@ -89,6 +98,14 @@ disallowed effects or fields, scope/version/data-mode drift, stale provenance,
 and row/byte overflow.
 Its default effect allowlist is only `read`.
 
+Foreign policy data is descriptor-snapshotted and frozen exactly once per
+public operation. That same snapshot supplies the signed policy digest,
+dry-run revalidation, freshness check, and parameter limits. Reflection errors
+are reported as `HonuaAgentSafetyError`; a raw Proxy trap error is not exposed.
+Policy ceilings are themselves capped by `AGENT_SAFETY_HARD_LIMITS`. Collection
+lengths are rejected before indexed descriptors are read, and operation JSON is
+bounded by node count, depth, object/array count, and cumulative UTF-8 bytes.
+
 ## Signatures, cancellation, and receipts
 
 Signer/verifier interfaces carry an algorithm and key ID and receive canonical
@@ -102,8 +119,10 @@ across awaited signer/verifier boundaries, and before a successful value is
 returned. Aborted work cannot return a usable approval or receipt.
 
 Approval envelopes are explicitly single-use per step. The required
-`AgentApprovalUseConsumer` must atomically consume the approval-digest/step key;
-returning anything except `true` denies authorization. This host-owned replay
+`AgentApprovalUseConsumer` must atomically consume the approval-digest/step key
+and return an unforgeable host record containing a nonce, consumption time,
+opaque authentication token, and exact approval/step/input binding. The SDK
+immediately asks the same store to verify that record. This host-owned replay
 store is the concurrency boundary that prevents duplicate mutation, publish,
 share, subscription, and job effects.
 
@@ -119,17 +138,27 @@ row/byte ceilings, and signs the plan, policy, source bindings, approval,
 step ID, operation-input digest, atomic-use digest, outcome, result digest, and
 completion time. `verifyAgentExecutionReceipt`
 repeats those checks deterministically and rejects any modified field. Receipt
+issuance and verification require a host consumption verifier; public digests
+alone cannot create a receipt. The authenticated consumption record and token
+are included under the receipt signature. Receipt
 verification evaluates the historical approval at the signed completion time,
 so an authentic receipt remains verifiable after approval expiry. Supply the
 bound historical source context, not newly discovered current metadata.
 
-Trust-boundary values should come from JSON parsing or an equivalent structured
-clone. Indexed accessors and object accessors are rejected without invocation,
-and values are descriptor-snapshotted before use. JavaScript `Proxy` traps are
-executable by language-level reflection itself and cannot be made inert by a
-library validator; do not pass Proxies across this boundary. Citation URLs must
-be HTTPS, contain no user info, query, or fragment, and should use public stable
-resource paths rather than secret-bearing opaque paths.
+The API precondition is JSON-compatible structured data produced by JSON parsing
+or an equivalent structured clone. Indexed and object accessors are rejected
+without invocation. JavaScript `Proxy` traps are executable by language-level
+reflection itself and cannot be made side-effect free by a portable library;
+do not pass Proxies across this boundary. When reflection nevertheless fails,
+the failure is typed and no partially normalized authority escapes.
+
+Citation URLs must be HTTPS and contain no user info, query, or fragment. Paths
+are repeatedly percent-decoded within a fixed bound, Unicode-normalized,
+checked for traversal, and canonicalized before identity hashing. Every citation
+must match the source policy's exact origin and decoded resource-prefix
+allowlist. The SDK does not claim to recognize secrets embedded in arbitrary
+opaque path text; hosts prevent those paths by choosing narrow resource IDs or
+prefixes.
 
 ## Deliberate boundaries
 

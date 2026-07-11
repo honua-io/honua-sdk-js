@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  AGENT_CONSUMPTION_KIND,
   AGENT_PLAN_KIND,
   AGENT_SAFETY_VERSION,
+  type AgentApprovalUseConsumer,
   type AgentEnvelopeSigner,
   type AgentEnvelopeVerifier,
   HonuaAgentSafetyError,
@@ -97,11 +99,19 @@ function policy(overrides: Record<string, unknown> = {}) {
         sourceVersions: ["snapshot-9"],
         dataModes: ["live"],
         maxProvenanceAgeMs: 60_000,
+        citationOrigins: ["https://data.example.test"],
+        citationResourcePrefixes: ["/incidents"],
       },
     },
     maxSteps: 1,
     maxRows: 100,
     maxBytes: 50_000,
+    maxFieldsPerStep: 16,
+    maxAuthorizationScopesPerSource: 8,
+    maxCitationsPerSource: 4,
+    maxOperationParameterBytes: 4_096,
+    maxOperationParameterNodes: 128,
+    maxOperationParameterDepth: 8,
     ...overrides,
   };
 }
@@ -123,6 +133,50 @@ function cryptoPair(secret = "test-secret"): {
     verifier: { algorithm: "test-sha256", keyId: "test-key-1", verify },
     sign,
     verify,
+  };
+}
+
+function approvalUseStore(secret = "use-secret"): AgentApprovalUseConsumer {
+  const consumed = new Set<string>();
+  const tokenFor = (record: {
+    approvalDigest: string;
+    stepId: string;
+    inputDigest: string;
+    nonce: string;
+    consumedAt: string;
+  }) =>
+    sha256(
+      `${secret}:${record.approvalDigest}:${record.stepId}:${record.inputDigest}:${record.nonce}:${record.consumedAt}`,
+    );
+  return {
+    async consume(use) {
+      const key = `${use.approvalDigest}:${use.stepId}`;
+      if (consumed.has(key)) return undefined;
+      consumed.add(key);
+      const record = {
+        kind: AGENT_CONSUMPTION_KIND,
+        version: AGENT_SAFETY_VERSION,
+        id: `use-${consumed.size}`,
+        nonce: `nonce-${consumed.size}`,
+        consumedAt: NOW,
+        ...use,
+      };
+      return { ...record, token: tokenFor(record) };
+    },
+    async verify(input) {
+      if (input === null || typeof input !== "object") return false;
+      const record = input as Record<string, unknown>;
+      if (
+        typeof record.approvalDigest !== "string" ||
+        typeof record.stepId !== "string" ||
+        typeof record.inputDigest !== "string" ||
+        typeof record.nonce !== "string" ||
+        typeof record.consumedAt !== "string" ||
+        typeof record.token !== "string"
+      )
+        return false;
+      return record.token === tokenFor(record as Parameters<typeof tokenFor>[0]);
+    },
   };
 }
 
@@ -148,7 +202,7 @@ async function authorizationFor(fixture: Awaited<ReturnType<typeof approvedFixtu
     context(),
     "query-incidents",
     OPERATION_INPUT,
-    { consume: async () => true },
+    approvalUseStore(),
     { now: NOW },
   );
 }
@@ -251,7 +305,7 @@ describe("agent safety dry run", () => {
     const getter = vi.fn(() => "secret");
     const operationInput = {};
     Object.defineProperty(operationInput, "token", { get: getter, enumerable: true });
-    expect(() => digestAgentOperationInput(operationInput)).toThrow(/accessor/);
+    expect(() => digestAgentOperationInput(operationInput)).toThrow(/accessor|not supported/);
     expect(getter).not.toHaveBeenCalled();
 
     const inconsistent = plan({
@@ -278,9 +332,124 @@ describe("agent safety dry run", () => {
       ),
     ).toThrow(/conflicting bindings/);
   });
+
+  it("snapshots each foreign policy object once and types reflection failures", () => {
+    let rootOwnKeys = 0;
+    let sourceOwnKeys = 0;
+    const input = policy();
+    input.sources = new Proxy(input.sources, {
+      ownKeys(target) {
+        sourceOwnKeys += 1;
+        return Reflect.ownKeys(target);
+      },
+    });
+    const proxiedPolicy = new Proxy(input, {
+      ownKeys(target) {
+        rootOwnKeys += 1;
+        return Reflect.ownKeys(target);
+      },
+    });
+
+    dryRunAgentPlan(plan(), proxiedPolicy, { now: NOW });
+    expect(rootOwnKeys).toBe(1);
+    expect(sourceOwnKeys).toBe(1);
+
+    const throwing = new Proxy(policy(), {
+      ownKeys() {
+        throw new Error("proxy escaped");
+      },
+    });
+    expect(() => dryRunAgentPlan(plan(), throwing, { now: NOW })).toThrow(
+      expect.objectContaining({ name: "HonuaAgentSafetyError", code: "invalid-input" }),
+    );
+    const revoked = Proxy.revocable(policy(), {});
+    revoked.revoke();
+    expect(() => dryRunAgentPlan(plan(), revoked.proxy, { now: NOW })).toThrow(
+      expect.objectContaining({ name: "HonuaAgentSafetyError", code: "invalid-input" }),
+    );
+
+    const accessorPolicy = policy();
+    const getter = vi.fn(() => ["query"]);
+    Object.defineProperty(accessorPolicy, "allowedTools", { get: getter, enumerable: true });
+    expect(() => dryRunAgentPlan(plan(), accessorPolicy, { now: NOW })).toThrow(/accessor/);
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized collections before reading an element and enforces policy counts", () => {
+    const oversized: unknown[] = [];
+    oversized.length = 1_000_000;
+    const getter = vi.fn(() => plan().steps[0]);
+    Object.defineProperty(oversized, "0", { get: getter, enumerable: true });
+    expect(() => dryRunAgentPlan(plan({ steps: oversized }), policy(), { now: NOW })).toThrow(/128 entry limit/);
+    expect(getter).not.toHaveBeenCalled();
+
+    expect(() => dryRunAgentPlan(plan(), policy({ maxFieldsPerStep: 1 }), { now: NOW })).toThrow(/field.*count/i);
+    const twoCitations = sourceBinding({
+      provenance: {
+        ...sourceBinding().provenance,
+        citations: [
+          { uri: "https://data.example.test/incidents/one" },
+          { uri: "https://data.example.test/incidents/two" },
+        ],
+      },
+    });
+    expect(() =>
+      dryRunAgentPlan(
+        plan({ steps: [{ ...plan().steps[0], source: twoCitations }] }),
+        policy({ maxCitationsPerSource: 1 }),
+        { now: NOW },
+      ),
+    ).toThrow(/citation.*count/i);
+  });
+
+  it("normalizes allowlisted citation resources and rejects encoded traversal, foreign origins, and opaque paths", () => {
+    const encoded = sourceBinding({
+      provenance: {
+        ...sourceBinding().provenance,
+        citations: [{ uri: "https://data.example.test/%2569ncidents" }],
+      },
+    });
+    const normalized = dryRunAgentPlan(plan({ steps: [{ ...plan().steps[0], source: encoded }] }), policy(), {
+      now: NOW,
+    });
+    expect(normalized.plan.steps[0]?.source.provenance.citations[0]?.uri).toBe("https://data.example.test/incidents");
+
+    for (const uri of [
+      "https://data.example.test/%252e%252e/private",
+      "https://evil.example.test/incidents",
+      "https://data.example.test/private/opaque-value",
+    ]) {
+      const source = sourceBinding({
+        provenance: { ...sourceBinding().provenance, citations: [{ uri }] },
+      });
+      expect(() => dryRunAgentPlan(plan({ steps: [{ ...plan().steps[0], source }] }), policy(), { now: NOW })).toThrow(
+        /path|origin|resource|traversal/i,
+      );
+    }
+  });
 });
 
 describe("agent approval envelope", () => {
+  it("uses one frozen policy snapshot throughout approval issuance", async () => {
+    const basePolicy = policy();
+    const dryRun = dryRunAgentPlan(plan(), basePolicy, { now: NOW });
+    let ownKeys = 0;
+    const proxied = new Proxy(basePolicy, {
+      ownKeys(target) {
+        ownKeys += 1;
+        return Reflect.ownKeys(target);
+      },
+    });
+    await issueAgentApproval(
+      dryRun,
+      proxied,
+      { id: "snapshot", approver: "reviewer", issuedAt: NOW, expiresAt: EXPIRES },
+      cryptoPair("snapshot").signer,
+      { now: NOW },
+    );
+    expect(ownKeys).toBe(1);
+  });
+
   it("binds the exact plan/policy/context and permits only budget narrowing", async () => {
     const { dryRun, approval, approvalCrypto } = await approvedFixture();
     expect(approval).toMatchObject({
@@ -380,16 +549,107 @@ describe("agent approval envelope", () => {
     ).rejects.toMatchObject({ code: "aborted" });
   });
 
+  it("uses an explicit trusted signing clock for future, expiry, and freshness checks", async () => {
+    const dryRun = dryRunAgentPlan(plan(), policy(), { now: NOW });
+    const crypto = cryptoPair("clock");
+    const request = { id: "clock", approver: "reviewer", issuedAt: NOW, expiresAt: EXPIRES };
+    await expect(issueAgentApproval(dryRun, policy(), request, crypto.signer)).rejects.toMatchObject({
+      code: "invalid-input",
+    });
+    await expect(
+      issueAgentApproval(dryRun, policy(), { ...request, issuedAt: "2026-07-10T20:01:00.000Z" }, crypto.signer, {
+        now: NOW,
+        maxClockSkewMs: 30_000,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    await expect(
+      issueAgentApproval(dryRun, policy(), request, crypto.signer, {
+        now: "2026-07-10T20:01:00.000Z",
+      }),
+    ).rejects.toMatchObject({ code: "policy-denied" });
+    expect(crypto.sign).not.toHaveBeenCalled();
+
+    const relaxedPolicy = policy({
+      sources: {
+        incidents: { ...policy().sources.incidents, maxProvenanceAgeMs: 7_200_000 },
+      },
+    });
+    const relaxedDryRun = dryRunAgentPlan(plan(), relaxedPolicy, { now: NOW });
+    await expect(
+      issueAgentApproval(
+        relaxedDryRun,
+        relaxedPolicy,
+        { ...request, expiresAt: "2026-07-10T20:00:30.000Z" },
+        crypto.signer,
+        { now: "2026-07-10T20:01:00.000Z" },
+      ),
+    ).rejects.toMatchObject({ code: "approval-expired" });
+    expect(crypto.sign).not.toHaveBeenCalled();
+  });
+
+  it("enforces the policy operation-parameter budget before replay-store consumption", async () => {
+    const boundedPolicy = policy({ maxOperationParameterBytes: 24 });
+    const dryRun = dryRunAgentPlan(plan(), boundedPolicy, { now: NOW });
+    const crypto = cryptoPair("parameter-budget");
+    const approval = await issueAgentApproval(
+      dryRun,
+      boundedPolicy,
+      { id: "bounded", approver: "reviewer", issuedAt: NOW, expiresAt: EXPIRES },
+      crypto.signer,
+      { now: NOW },
+    );
+    const store = approvalUseStore();
+    const consume = vi.fn(store.consume.bind(store));
+    await expect(
+      verifyAgentStepAuthorization(
+        dryRun,
+        boundedPolicy,
+        approval,
+        crypto.verifier,
+        context(),
+        "query-incidents",
+        OPERATION_INPUT,
+        { consume, verify: store.verify.bind(store) },
+        { now: NOW },
+      ),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    expect(consume).not.toHaveBeenCalled();
+
+    const nodePolicy = policy({ maxOperationParameterNodes: 2 });
+    const nodeDryRun = dryRunAgentPlan(plan(), nodePolicy, { now: NOW });
+    const nodeApproval = await issueAgentApproval(
+      nodeDryRun,
+      nodePolicy,
+      { id: "nodes", approver: "reviewer", issuedAt: NOW, expiresAt: EXPIRES },
+      crypto.signer,
+      { now: NOW },
+    );
+    const oversized: unknown[] = [];
+    oversized.length = 100;
+    const getter = vi.fn(() => "unread");
+    Object.defineProperty(oversized, "0", { get: getter, enumerable: true });
+    await expect(
+      verifyAgentStepAuthorization(
+        nodeDryRun,
+        nodePolicy,
+        nodeApproval,
+        crypto.verifier,
+        context(),
+        "query-incidents",
+        { ...OPERATION_INPUT, parameters: oversized },
+        approvalUseStore(),
+        { now: NOW },
+      ),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    expect(getter).not.toHaveBeenCalled();
+  });
+
   it("binds exact operation input and atomically consumes each approved step once", async () => {
     const { dryRun, approval, approvalCrypto } = await approvedFixture();
-    const consumed = new Set<string>();
-    const consume = vi.fn(async ({ approvalDigest, stepId }: { approvalDigest: string; stepId: string }) => {
-      const key = `${approvalDigest}:${stepId}`;
-      if (consumed.has(key)) return false;
-      consumed.add(key);
-      return true;
-    });
-    const consumer = { consume };
+    const backingStore = approvalUseStore();
+    const consume = vi.fn(backingStore.consume.bind(backingStore));
+    const verify = vi.fn(backingStore.verify.bind(backingStore));
+    const consumer = { consume, verify };
 
     await expect(
       verifyAgentStepAuthorization(
@@ -422,6 +682,12 @@ describe("agent approval envelope", () => {
       inputDigest: dryRun.plan.steps[0]?.inputDigest,
       step: { limits: { rows: 80 } },
     });
+    expect(authorization.consumption).toMatchObject({
+      approvalDigest: approval.envelopeDigest,
+      stepId: "query-incidents",
+      inputDigest: authorization.inputDigest,
+    });
+    expect(verify).toHaveBeenCalledOnce();
     mutableOperation.parameters.where = "1=1";
     expect(authorization.operation.parameters).toEqual({ where: "status = 'open'" });
     expect(Object.isFrozen(authorization.operation.parameters)).toBe(true);
@@ -516,12 +782,14 @@ describe("agent execution receipts", () => {
         stepId: authorization.step.id,
         inputDigest: authorization.inputDigest,
         useDigest: authorization.useDigest,
+        consumption: authorization.consumption,
         outcome: "succeeded",
         completedAt: "2026-07-10T20:00:20.000Z",
         rows: 70,
         bytes: 40_000,
         resultDigest: RESULT_DIGEST,
       },
+      approvalUseStore(),
       receiptCrypto.signer,
       { now: "2026-07-11T20:00:20.000Z" },
     );
@@ -533,6 +801,7 @@ describe("agent execution receipts", () => {
         approvalCrypto.verifier,
         context(),
         receipt,
+        approvalUseStore(),
         receiptCrypto.verifier,
         { now: "2026-07-11T20:01:00.000Z" },
       ),
@@ -558,12 +827,14 @@ describe("agent execution receipts", () => {
           stepId: authorization.step.id,
           inputDigest: authorization.inputDigest,
           useDigest: authorization.useDigest,
+          consumption: authorization.consumption,
           outcome: "succeeded",
           completedAt: "2026-07-10T20:00:20.000Z",
           rows: 81,
           bytes: 1,
           resultDigest: RESULT_DIGEST,
         },
+        approvalUseStore(),
         receiptCrypto.signer,
         { now: "2026-07-10T20:00:20.000Z" },
       ),
@@ -581,12 +852,14 @@ describe("agent execution receipts", () => {
         stepId: authorization.step.id,
         inputDigest: authorization.inputDigest,
         useDigest: authorization.useDigest,
+        consumption: authorization.consumption,
         outcome: "succeeded",
         completedAt: "2026-07-10T20:00:20.000Z",
         rows: 1,
         bytes: 1,
         resultDigest: RESULT_DIGEST,
       },
+      approvalUseStore(),
       receiptCrypto.signer,
       { now: "2026-07-10T20:00:20.000Z" },
     );
@@ -606,11 +879,42 @@ describe("agent execution receipts", () => {
           approvalCrypto.verifier,
           context(),
           forged,
+          approvalUseStore(),
           receiptCrypto.verifier,
           { now: "2026-07-10T20:01:00.000Z" },
         ),
       ).rejects.toBeInstanceOf(HonuaAgentSafetyError);
     }
+  });
+
+  it("cannot issue a receipt from public digests without host-authenticated consumption evidence", async () => {
+    const fixture = await approvedFixture();
+    const authorization = await authorizationFor(fixture);
+    const receiptCrypto = cryptoPair("unconsumed");
+    await expect(
+      issueAgentExecutionReceipt(
+        fixture.dryRun,
+        policy(),
+        fixture.approval,
+        fixture.approvalCrypto.verifier,
+        context(),
+        {
+          id: "receipt-unverified-use",
+          stepId: authorization.step.id,
+          inputDigest: authorization.inputDigest,
+          useDigest: authorization.useDigest,
+          consumption: authorization.consumption,
+          outcome: "failed",
+          completedAt: "2026-07-10T20:00:20.000Z",
+          rows: 0,
+          bytes: 0,
+        },
+        { verify: async () => false },
+        receiptCrypto.signer,
+        { now: "2026-07-10T20:00:20.000Z" },
+      ),
+    ).rejects.toMatchObject({ code: "signature-invalid" });
+    expect(receiptCrypto.sign).not.toHaveBeenCalled();
   });
 
   it("rejects future and post-expiry completion evidence", async () => {
@@ -623,6 +927,7 @@ describe("agent execution receipts", () => {
       stepId: authorization.step.id,
       inputDigest: authorization.inputDigest,
       useDigest: authorization.useDigest,
+      consumption: authorization.consumption,
       outcome: "failed",
       rows: 0,
       bytes: 0,
@@ -635,6 +940,7 @@ describe("agent execution receipts", () => {
         approvalCrypto.verifier,
         context(),
         { ...base, completedAt: "2026-07-10T20:02:00.000Z" },
+        approvalUseStore(),
         receiptCrypto.signer,
         { now: "2026-07-10T20:01:00.000Z" },
       ),
@@ -647,6 +953,7 @@ describe("agent execution receipts", () => {
         approvalCrypto.verifier,
         context(),
         { ...base, completedAt: EXPIRES },
+        approvalUseStore(),
         receiptCrypto.signer,
         { now: EXPIRES },
       ),

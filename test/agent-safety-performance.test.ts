@@ -50,10 +50,23 @@ it("keeps 500 strict dry runs inside the deterministic in-process budget", () =>
   };
   const policy = {
     allowedTools: ["query"],
-    sources: { incidents: { fields: ["status", "OBJECTID"], authorizationScope: ["read"] } },
+    sources: {
+      incidents: {
+        fields: ["status", "OBJECTID"],
+        authorizationScope: ["read"],
+        citationOrigins: ["https://example.test"],
+        citationResourcePrefixes: ["/data"],
+      },
+    },
     maxSteps: 1,
     maxRows: 100,
     maxBytes: 10_000,
+    maxFieldsPerStep: 8,
+    maxAuthorizationScopesPerSource: 4,
+    maxCitationsPerSource: 2,
+    maxOperationParameterBytes: 1_024,
+    maxOperationParameterNodes: 32,
+    maxOperationParameterDepth: 4,
   };
 
   const started = performance.now();

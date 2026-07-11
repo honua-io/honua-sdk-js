@@ -4,6 +4,7 @@ export const AGENT_PLAN_KIND = "honua.agent-plan" as const;
 export const AGENT_DRY_RUN_KIND = "honua.agent-dry-run" as const;
 export const AGENT_APPROVAL_KIND = "honua.agent-approval" as const;
 export const AGENT_RECEIPT_KIND = "honua.agent-execution-receipt" as const;
+export const AGENT_CONSUMPTION_KIND = "honua.agent-approval-consumption" as const;
 export const AGENT_SAFETY_VERSION = "1.0" as const;
 
 export type AgentDigest = `sha256:${string}`;
@@ -68,6 +69,7 @@ export interface AgentStepAuthorizationV1 {
   readonly approvalDigest: AgentDigest;
   readonly inputDigest: AgentDigest;
   readonly useDigest: AgentDigest;
+  readonly consumption: AgentApprovalConsumptionV1;
 }
 
 export interface AgentPlanV1 {
@@ -87,6 +89,10 @@ export interface AgentSourcePolicyV1 {
   readonly sourceVersions?: readonly string[];
   readonly dataModes?: readonly AgentDataMode[];
   readonly maxProvenanceAgeMs?: number;
+  /** Exact normalized HTTPS origins allowed for provenance citations. */
+  readonly citationOrigins: readonly string[];
+  /** Decoded, normalized absolute path prefixes allowed at those origins. */
+  readonly citationResourcePrefixes: readonly string[];
 }
 
 export interface AgentPlanPolicyV1 {
@@ -96,6 +102,12 @@ export interface AgentPlanPolicyV1 {
   readonly maxSteps: number;
   readonly maxRows: number;
   readonly maxBytes: number;
+  readonly maxFieldsPerStep: number;
+  readonly maxAuthorizationScopesPerSource: number;
+  readonly maxCitationsPerSource: number;
+  readonly maxOperationParameterBytes: number;
+  readonly maxOperationParameterNodes: number;
+  readonly maxOperationParameterDepth: number;
 }
 
 export interface AgentEffectBudgetV1 {
@@ -155,7 +167,7 @@ export interface AgentApprovalV1 {
 }
 
 export interface AgentApprovalUseConsumer {
-  /** Atomically return true only for the first consumption of this key. */
+  /** Atomically create an unforgeable record only for the first use. */
   consume(
     use: {
       readonly approvalDigest: AgentDigest;
@@ -163,7 +175,22 @@ export interface AgentApprovalUseConsumer {
       readonly inputDigest: AgentDigest;
     },
     signal?: AbortSignal,
-  ): Promise<boolean>;
+  ): Promise<unknown>;
+  /** Verify that a record/token was minted by this host store and still binds. */
+  verify(record: unknown, signal?: AbortSignal): Promise<boolean>;
+}
+
+export interface AgentApprovalConsumptionV1 {
+  readonly kind: typeof AGENT_CONSUMPTION_KIND;
+  readonly version: typeof AGENT_SAFETY_VERSION;
+  readonly id: string;
+  readonly nonce: string;
+  readonly consumedAt: string;
+  readonly approvalDigest: AgentDigest;
+  readonly stepId: string;
+  readonly inputDigest: AgentDigest;
+  /** Opaque host-authenticated token; its format is store-owned. */
+  readonly token: string;
 }
 
 export interface AgentExecutionContextV1 {
@@ -175,6 +202,7 @@ export interface AgentExecutionEvidenceV1 {
   readonly stepId: string;
   readonly inputDigest: AgentDigest;
   readonly useDigest: AgentDigest;
+  readonly consumption: AgentApprovalConsumptionV1;
   readonly outcome: "succeeded" | "failed" | "cancelled";
   readonly completedAt: string;
   readonly rows: number;
@@ -189,6 +217,7 @@ export interface AgentExecutionReceiptV1 {
   readonly stepId: string;
   readonly inputDigest: AgentDigest;
   readonly useDigest: AgentDigest;
+  readonly consumption: AgentApprovalConsumptionV1;
   readonly outcome: AgentExecutionEvidenceV1["outcome"];
   readonly completedAt: string;
   readonly rows: number;
@@ -219,6 +248,7 @@ export interface AgentEnvelopeVerifier {
 export interface AgentSafetyOptions {
   readonly signal?: AbortSignal;
   readonly now?: string;
+  readonly maxClockSkewMs?: number;
 }
 
 export type AgentSafetyErrorCode =

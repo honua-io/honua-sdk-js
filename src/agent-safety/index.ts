@@ -13,10 +13,12 @@
 import { type JsonValue, canonicalStringify, sha256, toJsonValue } from "../query-planner/index.js";
 import {
   AGENT_APPROVAL_KIND,
+  AGENT_CONSUMPTION_KIND,
   AGENT_DRY_RUN_KIND,
   AGENT_PLAN_KIND,
   AGENT_RECEIPT_KIND,
   AGENT_SAFETY_VERSION,
+  type AgentApprovalConsumptionV1,
   type AgentApprovalRequestV1,
   type AgentApprovalUseConsumer,
   type AgentApprovalV1,
@@ -44,6 +46,7 @@ import {
 
 export {
   AGENT_APPROVAL_KIND,
+  AGENT_CONSUMPTION_KIND,
   AGENT_DRY_RUN_KIND,
   AGENT_PLAN_KIND,
   AGENT_RECEIPT_KIND,
@@ -52,6 +55,7 @@ export {
 } from "./types.js";
 export type {
   AgentApprovalRequestV1,
+  AgentApprovalConsumptionV1,
   AgentApprovalUseConsumer,
   AgentApprovalV1,
   AgentApprovedStepV1,
@@ -82,7 +86,20 @@ export type {
 const EFFECTS = ["read", "render", "mutation", "publish", "share", "realtime", "job"] as const;
 const DATA_MODES = ["cached", "offline", "replayed", "live"] as const;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
-const SENSITIVE_QUERY_KEY = /(?:token|key|signature|credential|password|secret|auth)/i;
+
+export const AGENT_SAFETY_HARD_LIMITS = deepFreeze({
+  steps: 128,
+  sources: 128,
+  fieldsPerStep: 512,
+  authorizationScopesPerSource: 128,
+  citationsPerSource: 64,
+  listEntries: 1_024,
+  parameterNodes: 8_192,
+  parameterDepth: 32,
+  parameterBytes: 1_048_576,
+  objectProperties: 128,
+  stringBytes: 65_536,
+} as const);
 
 /**
  * Validate and snapshot a JSON-compatible plan, returning an immutable dry run.
@@ -91,9 +108,18 @@ const SENSITIVE_QUERY_KEY = /(?:token|key|signature|credential|password|secret|a
 export function dryRunAgentPlan(input: unknown, policyInput: unknown, options: AgentSafetyOptions = {}): AgentDryRunV1 {
   checkAbort(options.signal);
   const policy = parsePolicy(policyInput);
-  // Snapshot and freeze authority before inspecting the untrusted proposal.
-  const plan = parsePlan(input);
   const evaluatedAt = parseIso(options.now ?? new Date().toISOString(), "$options.now");
+  return buildDryRun(input, policy, evaluatedAt, options.signal);
+}
+
+function buildDryRun(
+  input: unknown,
+  policy: AgentPlanPolicyV1,
+  evaluatedAt: string,
+  signal?: AbortSignal,
+): AgentDryRunV1 {
+  // Authority is already snapshotted and frozen before proposal inspection.
+  const plan = parsePlan(input);
   const effectBudget = validatePolicy(plan, policy, evaluatedAt);
   const bindings = uniqueBindings(plan.steps);
   const dryRun = {
@@ -106,7 +132,7 @@ export function dryRunAgentPlan(input: unknown, policyInput: unknown, options: A
     bindingsDigest: digest(bindings),
     effectBudget,
   } satisfies AgentDryRunV1;
-  checkAbort(options.signal);
+  checkAbort(signal);
   return deepFreeze(dryRun);
 }
 
@@ -130,28 +156,36 @@ export async function verifyAgentStepAuthorization(
   useConsumer: AgentApprovalUseConsumer,
   options: AgentSafetyOptions = {},
 ): Promise<AgentStepAuthorizationV1> {
-  const dryRun = revalidateDryRun(dryRunInput, policyInput, options);
-  const approval = await verifyAgentApproval(dryRun, policyInput, approvalInput, verifier, contextInput, options);
+  const { dryRun, policy } = revalidateDryRun(dryRunInput, policyInput, options);
+  const approval = await verifyAgentApprovalWithPolicy(dryRun, policy, approvalInput, verifier, contextInput, options);
   const stepId = text(stepIdInput, "$stepId");
   const step = dryRun.plan.steps.find((candidate) => candidate.id === stepId);
   if (!step) fail("policy-denied", `step ${stepId} is not in the approved plan`);
-  const operation = parseOperationInput(operationInput);
+  const operation = parseOperationInput(operationInput, policy);
   const inputDigest = operation.inputDigest;
   if (inputDigest !== step.inputDigest) {
     fail("integrity-failed", `operation input does not match approved step ${stepId}`);
   }
   checkAbort(options.signal);
-  if (!useConsumer || typeof useConsumer.consume !== "function") invalid("useConsumer.consume must be a function");
+  if (!useConsumer || typeof useConsumer.consume !== "function" || typeof useConsumer.verify !== "function")
+    invalid("useConsumer must provide consume and verify functions");
   checkAbort(options.signal);
-  const consumed = await useConsumer.consume(
+  const consumedInput = await useConsumer.consume(
     { approvalDigest: approval.envelopeDigest, stepId, inputDigest },
     options.signal,
   );
   checkAbort(options.signal);
-  if (consumed !== true) fail("policy-denied", `approval use for step ${stepId} was already consumed`);
+  if (consumedInput === undefined || consumedInput === null || consumedInput === false)
+    fail("policy-denied", `approval use for step ${stepId} was already consumed`);
+  const consumption = parseConsumption(consumedInput);
+  validateConsumptionBinding(consumption, approval, stepId, inputDigest, options.now, options.maxClockSkewMs);
+  checkAbort(options.signal);
+  if ((await useConsumer.verify(consumption, options.signal)) !== true)
+    fail("signature-invalid", "approval consumption record was not authenticated by the host store");
+  checkAbort(options.signal);
   const approvedStep = approval.steps.find((candidate) => candidate.id === stepId);
   if (!approvedStep) fail("integrity-failed", `approval is missing step ${stepId}`);
-  const useDigest = digest({ approvalDigest: approval.envelopeDigest, stepId, inputDigest });
+  const useDigest = digest(consumption);
   return deepFreeze({
     step: { ...step, limits: { rows: approvedStep.rows, bytes: approvedStep.bytes } },
     operation: operation.input,
@@ -159,6 +193,7 @@ export async function verifyAgentStepAuthorization(
     approvalDigest: approval.envelopeDigest,
     inputDigest,
     useDigest,
+    consumption,
   });
 }
 
@@ -171,7 +206,9 @@ export async function issueAgentApproval(
   options: AgentSafetyOptions = {},
 ): Promise<AgentApprovalV1> {
   checkAbort(options.signal);
-  const dryRun = revalidateDryRun(dryRunInput, policyInput, options);
+  const { dryRun, policy } = revalidateDryRun(dryRunInput, policyInput, options);
+  const clock = trustedClock(options, "$approval");
+  validatePolicy(dryRun.plan, policy, clock.now);
   const request = parseApprovalRequest(requestInput);
   if (dryRun.plan.steps.length > 1 && (request.maxRows !== undefined || request.maxBytes !== undefined))
     fail("invalid-input", "multi-step approval narrowing requires explicit stepLimits");
@@ -195,6 +232,10 @@ export async function issueAgentApproval(
   if (Date.parse(request.issuedAt) < Date.parse(dryRun.evaluatedAt)) {
     fail("invalid-input", "approval issuedAt must not predate dry-run evaluation");
   }
+  if (Date.parse(request.issuedAt) > clock.time + clock.skewMs)
+    fail("invalid-input", "approval issuedAt is beyond the trusted clock skew");
+  if (Date.parse(request.expiresAt) <= clock.time - clock.skewMs)
+    fail("approval-expired", "approval is expired at signing time");
   const identity = parseSignerIdentity(signer);
   const unsigned = {
     kind: AGENT_APPROVAL_KIND,
@@ -238,12 +279,23 @@ export async function verifyAgentApproval(
   options: AgentSafetyOptions = {},
 ): Promise<AgentApprovalV1> {
   checkAbort(options.signal);
-  const dryRun = revalidateDryRun(dryRunInput, policyInput, options);
+  const { dryRun, policy } = revalidateDryRun(dryRunInput, policyInput, options);
+  return verifyAgentApprovalWithPolicy(dryRun, policy, approvalInput, verifier, contextInput, options);
+}
+
+async function verifyAgentApprovalWithPolicy(
+  dryRun: AgentDryRunV1,
+  policy: AgentPlanPolicyV1,
+  approvalInput: unknown,
+  verifier: AgentEnvelopeVerifier,
+  contextInput: unknown,
+  options: AgentSafetyOptions,
+): Promise<AgentApprovalV1> {
   const approval = parseApproval(approvalInput);
-  assertApprovalBinding(dryRun, approval, options.now);
+  assertApprovalBinding(dryRun, approval, options.now, options.maxClockSkewMs);
   // Re-run time-sensitive policy checks at authorization time. Integrity was
   // evaluated at dry-run time; freshness is an execution-time property.
-  validatePolicy(dryRun.plan, parsePolicy(policyInput), options.now);
+  validatePolicy(dryRun.plan, policy, options.now);
   validateContext(dryRun, contextInput);
   const identity = parseVerifierIdentity(verifier);
   if (approval.algorithm !== identity.algorithm || approval.keyId !== identity.keyId) {
@@ -267,6 +319,7 @@ export async function issueAgentExecutionReceipt(
   approvalVerifier: AgentEnvelopeVerifier,
   contextInput: unknown,
   evidenceInput: unknown,
+  useVerifier: Pick<AgentApprovalUseConsumer, "verify">,
   receiptSigner: AgentEnvelopeSigner,
   options: AgentSafetyOptions = {},
 ): Promise<AgentExecutionReceiptV1> {
@@ -276,12 +329,13 @@ export async function issueAgentExecutionReceipt(
   if (Date.parse(evidence.completedAt) > Date.parse(receiptClock)) {
     fail("invalid-input", "receipt completedAt must not be in the future");
   }
-  const dryRun = revalidateDryRun(dryRunInput, policyInput, options);
-  const approval = await verifyAgentApproval(dryRun, policyInput, approvalInput, approvalVerifier, contextInput, {
+  const { dryRun, policy } = revalidateDryRun(dryRunInput, policyInput, options);
+  const approval = await verifyAgentApprovalWithPolicy(dryRun, policy, approvalInput, approvalVerifier, contextInput, {
     ...options,
     now: evidence.completedAt,
   });
   validateReceiptOperation(evidence, dryRun, approval);
+  await verifyConsumptionRecord(useVerifier, evidence.consumption, options.signal);
   if (evidence.outcome === "succeeded" && !evidence.resultDigest) {
     fail("invalid-input", "successful execution evidence requires resultDigest");
   }
@@ -317,6 +371,7 @@ export async function verifyAgentExecutionReceipt(
   approvalVerifier: AgentEnvelopeVerifier,
   contextInput: unknown,
   receiptInput: unknown,
+  useVerifier: Pick<AgentApprovalUseConsumer, "verify">,
   receiptVerifier: AgentEnvelopeVerifier,
   options: AgentSafetyOptions = {},
 ): Promise<AgentExecutionReceiptV1> {
@@ -326,8 +381,8 @@ export async function verifyAgentExecutionReceipt(
   if (Date.parse(receipt.completedAt) > Date.parse(receiptClock)) {
     fail("invalid-input", "receipt completedAt must not be in the future");
   }
-  const dryRun = revalidateDryRun(dryRunInput, policyInput, options);
-  const approval = await verifyAgentApproval(dryRun, policyInput, approvalInput, approvalVerifier, contextInput, {
+  const { dryRun, policy } = revalidateDryRun(dryRunInput, policyInput, options);
+  const approval = await verifyAgentApprovalWithPolicy(dryRun, policy, approvalInput, approvalVerifier, contextInput, {
     ...options,
     now: receipt.completedAt,
   });
@@ -340,6 +395,7 @@ export async function verifyAgentExecutionReceipt(
     fail("integrity-failed", "receipt is not bound to the supplied plan, policy, context, and approval");
   }
   validateReceiptOperation(receipt, dryRun, approval);
+  await verifyConsumptionRecord(useVerifier, receipt.consumption, options.signal);
   if (receipt.outcome === "succeeded" && !receipt.resultDigest) {
     fail("invalid-input", "successful receipt requires resultDigest");
   }
@@ -358,7 +414,10 @@ export async function verifyAgentExecutionReceipt(
 }
 
 function validateReceiptOperation(
-  evidence: Pick<AgentExecutionEvidenceV1, "stepId" | "inputDigest" | "useDigest" | "rows" | "bytes">,
+  evidence: Pick<
+    AgentExecutionEvidenceV1,
+    "stepId" | "inputDigest" | "useDigest" | "consumption" | "completedAt" | "rows" | "bytes"
+  >,
   dryRun: AgentDryRunV1,
   approval: AgentApprovalV1,
 ): void {
@@ -366,17 +425,47 @@ function validateReceiptOperation(
   const approved = approval.steps.find((candidate) => candidate.id === evidence.stepId);
   if (!step || !approved || evidence.inputDigest !== step.inputDigest || evidence.inputDigest !== approved.inputDigest)
     fail("integrity-failed", `receipt operation binding mismatch for ${evidence.stepId}`);
-  const expectedUseDigest = digest({
-    approvalDigest: approval.envelopeDigest,
-    stepId: evidence.stepId,
-    inputDigest: evidence.inputDigest,
-  });
+  validateConsumptionBinding(
+    evidence.consumption,
+    approval,
+    evidence.stepId,
+    evidence.inputDigest,
+    evidence.consumption.consumedAt,
+  );
+  const expectedUseDigest = digest(evidence.consumption);
   if (evidence.useDigest !== expectedUseDigest) fail("integrity-failed", "receipt approval-use digest mismatch");
+  if (Date.parse(evidence.consumption.consumedAt) > Date.parse(evidence.completedAt))
+    fail("invalid-input", "receipt completion predates approval consumption");
   if (evidence.rows > approved.rows || evidence.bytes > approved.bytes)
     fail("policy-denied", `receipt exceeds the approved budget for step ${evidence.stepId}`);
 }
 
-function revalidateDryRun(input: unknown, policy: unknown, options: AgentSafetyOptions): AgentDryRunV1 {
+async function verifyConsumptionRecord(
+  verifier: Pick<AgentApprovalUseConsumer, "verify">,
+  consumption: AgentApprovalConsumptionV1,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (!verifier || typeof verifier.verify !== "function") invalid("consumption verifier must provide verify");
+  checkAbort(signal);
+  if ((await verifier.verify(consumption, signal)) !== true)
+    fail("signature-invalid", "approval consumption record was not authenticated by the host store");
+  checkAbort(signal);
+}
+
+function revalidateDryRun(
+  input: unknown,
+  policyInput: unknown,
+  options: AgentSafetyOptions,
+): { readonly dryRun: AgentDryRunV1; readonly policy: AgentPlanPolicyV1 } {
+  const policy = parsePolicy(policyInput);
+  return { dryRun: revalidateDryRunWithPolicy(input, policy, options), policy };
+}
+
+function revalidateDryRunWithPolicy(
+  input: unknown,
+  policy: AgentPlanPolicyV1,
+  options: AgentSafetyOptions,
+): AgentDryRunV1 {
   const record = object(input, "$dryRun", [
     "kind",
     "version",
@@ -390,7 +479,7 @@ function revalidateDryRun(input: unknown, policy: unknown, options: AgentSafetyO
   literal(record.kind, AGENT_DRY_RUN_KIND, "$dryRun.kind");
   literal(record.version, AGENT_SAFETY_VERSION, "$dryRun.version");
   const evaluatedAt = parseIso(record.evaluatedAt, "$dryRun.evaluatedAt");
-  const expected = dryRunAgentPlan(record.plan, policy, { ...options, now: evaluatedAt });
+  const expected = buildDryRun(record.plan, policy, evaluatedAt, options.signal);
   if (
     record.planDigest !== expected.planDigest ||
     record.policyDigest !== expected.policyDigest ||
@@ -415,6 +504,12 @@ function validatePolicy(plan: AgentPlanV1, policy: AgentPlanPolicyV1, now?: stri
     if (!allowedEffects.has(step.effect)) fail("policy-denied", `effect ${step.effect} is not allowed`);
     const sourcePolicy = policy.sources[step.source.id];
     if (!sourcePolicy) fail("policy-denied", `source ${step.source.id} is not allowed`);
+    if (step.fields.length > policy.maxFieldsPerStep)
+      fail("policy-denied", `fields for ${step.source.id} exceed the policy count limit`);
+    if (step.source.authorizationScope.length > policy.maxAuthorizationScopesPerSource)
+      fail("policy-denied", `authorization scopes for ${step.source.id} exceed the policy count limit`);
+    if (step.source.provenance.citations.length > policy.maxCitationsPerSource)
+      fail("policy-denied", `citations for ${step.source.id} exceed the policy count limit`);
     assertSubset(step.fields, sourcePolicy.fields, `fields for ${step.source.id}`);
     assertSubset(
       step.source.authorizationScope,
@@ -427,6 +522,14 @@ function validatePolicy(plan: AgentPlanV1, policy: AgentPlanPolicyV1, now?: stri
       fail("policy-denied", `source version for ${step.source.id} is not allowed`);
     if (sourcePolicy.dataModes && !sourcePolicy.dataModes.includes(step.source.provenance.dataMode))
       fail("policy-denied", `data mode for ${step.source.id} is not allowed`);
+    for (const citation of step.source.provenance.citations) {
+      const url = new URL(citation.uri);
+      const resourcePath = normalizeResourcePath(url.pathname, `citation for ${step.source.id}`);
+      if (!sourcePolicy.citationOrigins.includes(url.origin))
+        fail("policy-denied", `citation origin for ${step.source.id} is not allowed`);
+      if (!sourcePolicy.citationResourcePrefixes.some((prefix) => resourcePathIsWithin(resourcePath, prefix)))
+        fail("policy-denied", `citation resource for ${step.source.id} is not allowed`);
+    }
     if (sourcePolicy.maxProvenanceAgeMs !== undefined) {
       const reference = parseIso(now ?? new Date().toISOString(), "$options.now");
       const age = Date.parse(reference) - Date.parse(step.source.provenance.observedAt);
@@ -440,6 +543,10 @@ function validatePolicy(plan: AgentPlanV1, policy: AgentPlanPolicyV1, now?: stri
   if (rows > policy.maxRows || bytes > policy.maxBytes)
     fail("policy-denied", "plan exceeds the total row or byte budget");
   return deepFreeze({ steps: plan.steps.length, rows, bytes, byEffect });
+}
+
+function resourcePathIsWithin(path: string, prefix: string): boolean {
+  return path === prefix || prefix === "/" || path.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`);
 }
 
 function validateContext(dryRun: AgentDryRunV1, input: unknown): AgentExecutionContextV1 {
@@ -457,7 +564,12 @@ function validateContext(dryRun: AgentDryRunV1, input: unknown): AgentExecutionC
   return deepFreeze({ sources });
 }
 
-function assertApprovalBinding(dryRun: AgentDryRunV1, approval: AgentApprovalV1, now?: string): void {
+function assertApprovalBinding(
+  dryRun: AgentDryRunV1,
+  approval: AgentApprovalV1,
+  now?: string,
+  maxClockSkewMs = 0,
+): void {
   if (
     approval.planDigest !== dryRun.planDigest ||
     approval.policyDigest !== dryRun.policyDigest ||
@@ -481,16 +593,44 @@ function assertApprovalBinding(dryRun: AgentDryRunV1, approval: AgentApprovalV1,
   }
   if (approvedRows !== approval.approvedRows || approvedBytes !== approval.approvedBytes)
     fail("integrity-failed", "approval aggregate budget does not match its step budgets");
+  if (!Number.isSafeInteger(maxClockSkewMs) || maxClockSkewMs < 0 || maxClockSkewMs > 300_000)
+    invalid("$options.maxClockSkewMs is outside the supported range");
   const clock = parseIso(now ?? new Date().toISOString(), "$options.now");
-  if (Date.parse(clock) >= Date.parse(approval.expiresAt)) fail("approval-expired", "approval has expired");
-  if (Date.parse(clock) < Date.parse(approval.issuedAt)) fail("invalid-input", "approval is not yet valid");
+  if (Date.parse(clock) >= Date.parse(approval.expiresAt) + maxClockSkewMs)
+    fail("approval-expired", "approval has expired");
+  if (Date.parse(clock) < Date.parse(approval.issuedAt) - maxClockSkewMs)
+    fail("invalid-input", "approval is not yet valid");
 }
 
 function parsePlan(input: unknown): AgentPlanV1 {
+  const outer = object(input, "$plan", ["kind", "version", "id", "actor", "provider", "model", "steps"]);
+  Object.defineProperty(outer, "steps", {
+    value: array(outer.steps, "$plan.steps", AGENT_SAFETY_HARD_LIMITS.steps),
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+  const normalized = snapshotJson(
+    outer,
+    "$plan",
+    new WeakSet<object>(),
+    createJsonBudget(
+      AGENT_SAFETY_HARD_LIMITS.parameterNodes,
+      AGENT_SAFETY_HARD_LIMITS.parameterDepth,
+      AGENT_SAFETY_HARD_LIMITS.parameterBytes,
+    ),
+    0,
+  );
+  return parsePlanSnapshot(normalized);
+}
+
+function parsePlanSnapshot(input: unknown): AgentPlanV1 {
   const record = object(input, "$plan", ["kind", "version", "id", "actor", "provider", "model", "steps"]);
   literal(record.kind, AGENT_PLAN_KIND, "$plan.kind");
   literal(record.version, AGENT_SAFETY_VERSION, "$plan.version");
-  const steps = array(record.steps, "$plan.steps").map((entry, index) => parseStep(entry, `$plan.steps[${index}]`));
+  const steps = array(record.steps, "$plan.steps", AGENT_SAFETY_HARD_LIMITS.steps).map((entry, index) =>
+    parseStep(entry, `$plan.steps[${index}]`),
+  );
   if (steps.length === 0) invalid("$plan.steps must not be empty");
   unique(
     steps.map((step) => step.id),
@@ -521,7 +661,7 @@ function parseStep(input: unknown, path: string): AgentPlanStepV1 {
   ]);
   const queryPlan = object(record.queryPlan, `${path}.queryPlan`, ["id", "fingerprint"]);
   const limits = object(record.limits, `${path}.limits`, ["rows", "bytes"]);
-  const fields = stringList(record.fields, `${path}.fields`, false);
+  const fields = stringList(record.fields, `${path}.fields`, false, AGENT_SAFETY_HARD_LIMITS.fieldsPerStep);
   const tool = text(record.tool, `${path}.tool`);
   const effect = oneOf(record.effect, EFFECTS, `${path}.effect`);
   const source = parseSourceBinding(record.source, `${path}.source`);
@@ -556,7 +696,17 @@ function parseStep(input: unknown, path: string): AgentPlanStepV1 {
   });
 }
 
-function parseOperationInput(input: unknown): {
+function parseOperationInput(
+  input: unknown,
+  limits: Pick<
+    AgentPlanPolicyV1,
+    "maxOperationParameterBytes" | "maxOperationParameterNodes" | "maxOperationParameterDepth"
+  > = {
+    maxOperationParameterBytes: AGENT_SAFETY_HARD_LIMITS.parameterBytes,
+    maxOperationParameterNodes: AGENT_SAFETY_HARD_LIMITS.parameterNodes,
+    maxOperationParameterDepth: AGENT_SAFETY_HARD_LIMITS.parameterDepth,
+  },
+): {
   readonly input: AgentOperationInputV1;
   readonly inputDigest: AgentDigest;
 } {
@@ -570,8 +720,18 @@ function parseOperationInput(input: unknown): {
       id: text(queryPlan.id, "$operation.queryPlan.id"),
       fingerprint: parseDigest(queryPlan.fingerprint, "$operation.queryPlan.fingerprint"),
     },
-    fields: stringList(record.fields, "$operation.fields", false),
-    parameters: snapshotJson(record.parameters, "$operation.parameters", new WeakSet<object>()),
+    fields: stringList(record.fields, "$operation.fields", false, AGENT_SAFETY_HARD_LIMITS.fieldsPerStep),
+    parameters: snapshotJson(
+      record.parameters,
+      "$operation.parameters",
+      new WeakSet<object>(),
+      createJsonBudget(
+        limits.maxOperationParameterNodes,
+        limits.maxOperationParameterDepth,
+        limits.maxOperationParameterBytes,
+      ),
+      0,
+    ),
   } satisfies AgentOperationInputV1);
   const parametersDigest = digest(parsed.parameters);
   return deepFreeze({
@@ -604,23 +764,30 @@ function parseSourceBinding(input: unknown, path: string): AgentSourceBindingV1 
     id: text(record.id, `${path}.id`),
     schemaVersion: text(record.schemaVersion, `${path}.schemaVersion`),
     sourceVersion: text(record.sourceVersion, `${path}.sourceVersion`),
-    authorizationScope: stringList(record.authorizationScope, `${path}.authorizationScope`, true),
+    authorizationScope: stringList(
+      record.authorizationScope,
+      `${path}.authorizationScope`,
+      true,
+      AGENT_SAFETY_HARD_LIMITS.authorizationScopesPerSource,
+    ),
     provenance: parseProvenance(record.provenance, `${path}.provenance`),
   });
 }
 
 function parseProvenance(input: unknown, path: string): AgentProvenanceV1 {
   const record = object(input, path, ["dataMode", "observedAt", "attribution", "citations"]);
-  const citations = array(record.citations, `${path}.citations`).map((entry, index) => {
-    const citation = object(entry, `${path}.citations[${index}]`, ["uri", "digest"]);
-    const uri = citationUri(citation.uri, `${path}.citations[${index}].uri`);
-    return deepFreeze({
-      uri,
-      ...(citation.digest === undefined
-        ? {}
-        : { digest: parseDigest(citation.digest, `${path}.citations[${index}].digest`) }),
-    });
-  });
+  const citations = array(record.citations, `${path}.citations`, AGENT_SAFETY_HARD_LIMITS.citationsPerSource).map(
+    (entry, index) => {
+      const citation = object(entry, `${path}.citations[${index}]`, ["uri", "digest"]);
+      const uri = citationUri(citation.uri, `${path}.citations[${index}].uri`);
+      return deepFreeze({
+        uri,
+        ...(citation.digest === undefined
+          ? {}
+          : { digest: parseDigest(citation.digest, `${path}.citations[${index}].digest`) }),
+      });
+    },
+  );
   if (citations.length === 0) invalid(`${path}.citations must not be empty`);
   return deepFreeze({
     dataMode: oneOf(record.dataMode, DATA_MODES, `${path}.dataMode`),
@@ -631,6 +798,35 @@ function parseProvenance(input: unknown, path: string): AgentProvenanceV1 {
 }
 
 function parsePolicy(input: unknown): AgentPlanPolicyV1 {
+  const outer = object(input, "$policy", [
+    "allowedTools",
+    "allowedEffects",
+    "sources",
+    "maxSteps",
+    "maxRows",
+    "maxBytes",
+    "maxFieldsPerStep",
+    "maxAuthorizationScopesPerSource",
+    "maxCitationsPerSource",
+    "maxOperationParameterBytes",
+    "maxOperationParameterNodes",
+    "maxOperationParameterDepth",
+  ]);
+  const normalized = snapshotJson(
+    outer,
+    "$policy",
+    new WeakSet<object>(),
+    createJsonBudget(
+      AGENT_SAFETY_HARD_LIMITS.parameterNodes,
+      AGENT_SAFETY_HARD_LIMITS.parameterDepth,
+      AGENT_SAFETY_HARD_LIMITS.parameterBytes,
+    ),
+    0,
+  );
+  return parsePolicySnapshot(normalized);
+}
+
+function parsePolicySnapshot(input: unknown): AgentPlanPolicyV1 {
   const record = object(input, "$policy", [
     "allowedTools",
     "allowedEffects",
@@ -638,8 +834,14 @@ function parsePolicy(input: unknown): AgentPlanPolicyV1 {
     "maxSteps",
     "maxRows",
     "maxBytes",
+    "maxFieldsPerStep",
+    "maxAuthorizationScopesPerSource",
+    "maxCitationsPerSource",
+    "maxOperationParameterBytes",
+    "maxOperationParameterNodes",
+    "maxOperationParameterDepth",
   ]);
-  const sourcesInput = object(record.sources, "$policy.sources");
+  const sourcesInput = object(record.sources, "$policy.sources", undefined, AGENT_SAFETY_HARD_LIMITS.sources);
   const sources: Record<string, AgentSourcePolicyV1> = {};
   for (const id of Object.keys(sourcesInput).sort())
     sources[id] = parseSourcePolicy(sourcesInput[id], `$policy.sources.${id}`);
@@ -650,9 +852,45 @@ function parsePolicy(input: unknown): AgentPlanPolicyV1 {
       ? {}
       : { allowedEffects: enumList(record.allowedEffects, EFFECTS, "$policy.allowedEffects") }),
     sources,
-    maxSteps: integer(record.maxSteps, "$policy.maxSteps", 1),
+    maxSteps: boundedInteger(record.maxSteps, "$policy.maxSteps", 1, AGENT_SAFETY_HARD_LIMITS.steps),
     maxRows: integer(record.maxRows, "$policy.maxRows", 0),
     maxBytes: integer(record.maxBytes, "$policy.maxBytes", 0),
+    maxFieldsPerStep: boundedInteger(
+      record.maxFieldsPerStep,
+      "$policy.maxFieldsPerStep",
+      0,
+      AGENT_SAFETY_HARD_LIMITS.fieldsPerStep,
+    ),
+    maxAuthorizationScopesPerSource: boundedInteger(
+      record.maxAuthorizationScopesPerSource,
+      "$policy.maxAuthorizationScopesPerSource",
+      1,
+      AGENT_SAFETY_HARD_LIMITS.authorizationScopesPerSource,
+    ),
+    maxCitationsPerSource: boundedInteger(
+      record.maxCitationsPerSource,
+      "$policy.maxCitationsPerSource",
+      1,
+      AGENT_SAFETY_HARD_LIMITS.citationsPerSource,
+    ),
+    maxOperationParameterBytes: boundedInteger(
+      record.maxOperationParameterBytes,
+      "$policy.maxOperationParameterBytes",
+      1,
+      AGENT_SAFETY_HARD_LIMITS.parameterBytes,
+    ),
+    maxOperationParameterNodes: boundedInteger(
+      record.maxOperationParameterNodes,
+      "$policy.maxOperationParameterNodes",
+      1,
+      AGENT_SAFETY_HARD_LIMITS.parameterNodes,
+    ),
+    maxOperationParameterDepth: boundedInteger(
+      record.maxOperationParameterDepth,
+      "$policy.maxOperationParameterDepth",
+      1,
+      AGENT_SAFETY_HARD_LIMITS.parameterDepth,
+    ),
   });
 }
 
@@ -664,10 +902,17 @@ function parseSourcePolicy(input: unknown, path: string): AgentSourcePolicyV1 {
     "sourceVersions",
     "dataModes",
     "maxProvenanceAgeMs",
+    "citationOrigins",
+    "citationResourcePrefixes",
   ]);
   return deepFreeze({
-    fields: stringList(record.fields, `${path}.fields`, false),
-    authorizationScope: stringList(record.authorizationScope, `${path}.authorizationScope`, true),
+    fields: stringList(record.fields, `${path}.fields`, false, AGENT_SAFETY_HARD_LIMITS.fieldsPerStep),
+    authorizationScope: stringList(
+      record.authorizationScope,
+      `${path}.authorizationScope`,
+      true,
+      AGENT_SAFETY_HARD_LIMITS.authorizationScopesPerSource,
+    ),
     ...(record.schemaVersions === undefined
       ? {}
       : { schemaVersions: stringList(record.schemaVersions, `${path}.schemaVersions`, true) }),
@@ -680,6 +925,21 @@ function parseSourcePolicy(input: unknown, path: string): AgentSourcePolicyV1 {
     ...(record.maxProvenanceAgeMs === undefined
       ? {}
       : { maxProvenanceAgeMs: integer(record.maxProvenanceAgeMs, `${path}.maxProvenanceAgeMs`, 0) }),
+    citationOrigins: deepFreeze(
+      stringList(record.citationOrigins, `${path}.citationOrigins`, true, AGENT_SAFETY_HARD_LIMITS.citationsPerSource)
+        .map((origin, index) => normalizeCitationOrigin(origin, `${path}.citationOrigins[${index}]`))
+        .sort(),
+    ),
+    citationResourcePrefixes: deepFreeze(
+      stringList(
+        record.citationResourcePrefixes,
+        `${path}.citationResourcePrefixes`,
+        true,
+        AGENT_SAFETY_HARD_LIMITS.citationsPerSource,
+      )
+        .map((prefix, index) => normalizeResourcePath(prefix, `${path}.citationResourcePrefixes[${index}]`))
+        .sort(),
+    ),
   });
 }
 
@@ -782,6 +1042,7 @@ function parseEvidence(input: unknown): AgentExecutionEvidenceV1 {
     "stepId",
     "inputDigest",
     "useDigest",
+    "consumption",
     "outcome",
     "completedAt",
     "rows",
@@ -793,6 +1054,7 @@ function parseEvidence(input: unknown): AgentExecutionEvidenceV1 {
     stepId: text(record.stepId, "$evidence.stepId"),
     inputDigest: parseDigest(record.inputDigest, "$evidence.inputDigest"),
     useDigest: parseDigest(record.useDigest, "$evidence.useDigest"),
+    consumption: parseConsumption(record.consumption),
     outcome: oneOf(record.outcome, ["succeeded", "failed", "cancelled"] as const, "$evidence.outcome"),
     completedAt: parseIso(record.completedAt, "$evidence.completedAt"),
     rows: integer(record.rows, "$evidence.rows", 0),
@@ -803,6 +1065,59 @@ function parseEvidence(input: unknown): AgentExecutionEvidenceV1 {
   });
 }
 
+function parseConsumption(input: unknown): AgentApprovalConsumptionV1 {
+  const record = object(input, "$consumption", [
+    "kind",
+    "version",
+    "id",
+    "nonce",
+    "consumedAt",
+    "approvalDigest",
+    "stepId",
+    "inputDigest",
+    "token",
+  ]);
+  literal(record.kind, AGENT_CONSUMPTION_KIND, "$consumption.kind");
+  literal(record.version, AGENT_SAFETY_VERSION, "$consumption.version");
+  return deepFreeze({
+    kind: AGENT_CONSUMPTION_KIND,
+    version: AGENT_SAFETY_VERSION,
+    id: text(record.id, "$consumption.id"),
+    nonce: text(record.nonce, "$consumption.nonce"),
+    consumedAt: parseIso(record.consumedAt, "$consumption.consumedAt"),
+    approvalDigest: parseDigest(record.approvalDigest, "$consumption.approvalDigest"),
+    stepId: text(record.stepId, "$consumption.stepId"),
+    inputDigest: parseDigest(record.inputDigest, "$consumption.inputDigest"),
+    token: parseSignature(record.token),
+  });
+}
+
+function validateConsumptionBinding(
+  consumption: AgentApprovalConsumptionV1,
+  approval: AgentApprovalV1,
+  stepId: string,
+  inputDigest: AgentDigest,
+  now?: string,
+  maxClockSkewMs = 0,
+): void {
+  if (
+    consumption.approvalDigest !== approval.envelopeDigest ||
+    consumption.stepId !== stepId ||
+    consumption.inputDigest !== inputDigest
+  )
+    fail("integrity-failed", "approval consumption record binding mismatch");
+  const clock = parseIso(now ?? new Date().toISOString(), "$options.now");
+  if (!Number.isSafeInteger(maxClockSkewMs) || maxClockSkewMs < 0 || maxClockSkewMs > 300_000)
+    invalid("$options.maxClockSkewMs is outside the supported range");
+  const consumedAt = Date.parse(consumption.consumedAt);
+  if (consumedAt < Date.parse(approval.issuedAt) - maxClockSkewMs)
+    fail("invalid-input", "approval consumption predates approval issuance");
+  if (consumedAt >= Date.parse(approval.expiresAt))
+    fail("approval-expired", "approval consumption occurred after expiry");
+  if (consumedAt > Date.parse(clock) + maxClockSkewMs)
+    fail("invalid-input", "approval consumption is beyond the trusted clock skew");
+}
+
 function parseReceipt(input: unknown): AgentExecutionReceiptV1 {
   const record = object(input, "$receipt", [
     "kind",
@@ -811,6 +1126,7 @@ function parseReceipt(input: unknown): AgentExecutionReceiptV1 {
     "stepId",
     "inputDigest",
     "useDigest",
+    "consumption",
     "outcome",
     "completedAt",
     "rows",
@@ -832,6 +1148,7 @@ function parseReceipt(input: unknown): AgentExecutionReceiptV1 {
     stepId: record.stepId,
     inputDigest: record.inputDigest,
     useDigest: record.useDigest,
+    consumption: record.consumption,
     outcome: record.outcome,
     completedAt: record.completedAt,
     rows: record.rows,
@@ -870,7 +1187,11 @@ function uniqueBindings(steps: readonly AgentPlanStepV1[]): readonly AgentSource
     if (prior && digest(prior) !== digest(step.source)) invalid(`source ${step.source.id} has conflicting bindings`);
     bindings.set(step.source.id, step.source);
   }
-  return deepFreeze([...bindings.values()].sort((a, b) => a.id.localeCompare(b.id)));
+  return deepFreeze([...bindings.values()].sort((a, b) => compareCodeUnits(a.id, b.id)));
+}
+
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function parseSignerIdentity(value: AgentEnvelopeSigner): { readonly algorithm: string; readonly keyId: string } {
@@ -883,49 +1204,67 @@ function parseVerifierIdentity(value: AgentEnvelopeVerifier): { readonly algorit
   return { algorithm: text(value.algorithm, "$verifier.algorithm"), keyId: text(value.keyId, "$verifier.keyId") };
 }
 
-function object(input: unknown, path: string, allowed?: readonly string[]): Record<string, unknown> {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) invalid(`${path} must be a plain object`);
-  const prototype = Object.getPrototypeOf(input);
-  if (prototype !== Object.prototype && prototype !== null) invalid(`${path} must be a plain object`);
-  if (Object.getOwnPropertySymbols(input).length > 0) invalid(`${path} must not contain symbol properties`);
-  const descriptors = Object.getOwnPropertyDescriptors(input);
-  const snapshot: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
-  for (const [key, descriptor] of Object.entries(descriptors)) {
-    if (descriptor.get || descriptor.set) invalid(`${path}.${key} must not be an accessor`);
-    if (allowed && !allowed.includes(key)) invalid(`${path}.${key} is not supported`);
-    Object.defineProperty(snapshot, key, {
-      value: descriptor.value,
-      enumerable: true,
-      writable: true,
-      configurable: true,
-    });
-  }
-  return snapshot;
+function object(
+  input: unknown,
+  path: string,
+  allowed?: readonly string[],
+  maxProperties: number = allowed?.length ?? AGENT_SAFETY_HARD_LIMITS.objectProperties,
+): Record<string, unknown> {
+  return reflect(path, () => {
+    if (input === null || typeof input !== "object" || Array.isArray(input)) invalid(`${path} must be a plain object`);
+    const prototype = Object.getPrototypeOf(input);
+    if (prototype !== Object.prototype && prototype !== null) invalid(`${path} must be a plain object`);
+    const snapshot: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    let count = 0;
+    for (const key in input) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(input, key);
+      if (!descriptor) continue;
+      if (allowed && !allowed.includes(key)) invalid(`${path}.${key} is not supported`);
+      count += 1;
+      if (count > maxProperties) invalid(`${path} exceeds the ${maxProperties} property limit`);
+      if (descriptor.get || descriptor.set) invalid(`${path}.${key} must not be an accessor`);
+      Object.defineProperty(snapshot, key, {
+        value: descriptor.value,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return snapshot;
+  });
 }
 
-function array(input: unknown, path: string): readonly unknown[] {
-  if (!Array.isArray(input)) invalid(`${path} must be an array`);
-  if (Object.getPrototypeOf(input) !== Array.prototype) invalid(`${path} must be a plain array`);
-  if (Object.getOwnPropertySymbols(input).length > 0) invalid(`${path} must not contain symbol properties`);
-  const descriptors = Object.getOwnPropertyDescriptors(input);
-  const lengthValue: unknown = Reflect.getOwnPropertyDescriptor(input, "length")?.value;
-  if (!Number.isSafeInteger(lengthValue) || (lengthValue as number) < 0) invalid(`${path} has an invalid length`);
-  const length = lengthValue as number;
-  const snapshot: unknown[] = [];
-  for (let index = 0; index < length; index++) {
-    const descriptor = descriptors[String(index)];
-    if (!descriptor) invalid(`${path} must not be sparse`);
-    if (descriptor.get || descriptor.set) invalid(`${path}[${index}] must not be an accessor`);
-    snapshot.push(descriptor.value);
-  }
-  for (const key of Object.keys(descriptors)) {
-    if (key !== "length" && !/^(0|[1-9][0-9]*)$/.test(key)) invalid(`${path}.${key} is not supported`);
-  }
-  return snapshot;
+function array(
+  input: unknown,
+  path: string,
+  maxLength: number = AGENT_SAFETY_HARD_LIMITS.listEntries,
+): readonly unknown[] {
+  return reflect(path, () => {
+    if (!Array.isArray(input)) invalid(`${path} must be an array`);
+    if (Object.getPrototypeOf(input) !== Array.prototype) invalid(`${path} must be a plain array`);
+    const lengthValue: unknown = Reflect.getOwnPropertyDescriptor(input, "length")?.value;
+    if (!Number.isSafeInteger(lengthValue) || (lengthValue as number) < 0) invalid(`${path} has an invalid length`);
+    const length = lengthValue as number;
+    if (length > maxLength) invalid(`${path} exceeds the ${maxLength} entry limit`);
+    const snapshot: unknown[] = [];
+    for (let index = 0; index < length; index++) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(input, String(index));
+      if (!descriptor) invalid(`${path} must not be sparse`);
+      if (descriptor.get || descriptor.set) invalid(`${path}[${index}] must not be an accessor`);
+      snapshot.push(descriptor.value);
+    }
+    return snapshot;
+  });
 }
 
 function text(input: unknown, path: string): string {
-  if (typeof input !== "string" || input.length === 0 || input.length > 1_024 || hasControlCharacters(input))
+  if (
+    typeof input !== "string" ||
+    input.length === 0 ||
+    input.length > AGENT_SAFETY_HARD_LIMITS.stringBytes ||
+    utf8Bytes(input) > AGENT_SAFETY_HARD_LIMITS.stringBytes ||
+    hasControlCharacters(input)
+  )
     invalid(`${path} must be a non-empty bounded string without control characters`);
   return input;
 }
@@ -938,10 +1277,28 @@ function parseIso(input: unknown, path: string): string {
   return value;
 }
 
+function trustedClock(
+  options: AgentSafetyOptions,
+  path: string,
+): { readonly now: string; readonly time: number; readonly skewMs: number } {
+  if (options.now === undefined) invalid(`${path} requires an explicit trusted now timestamp`);
+  const now = parseIso(options.now, `${path}.now`);
+  const skewMs = options.maxClockSkewMs ?? 0;
+  if (!Number.isSafeInteger(skewMs) || skewMs < 0 || skewMs > 300_000)
+    invalid(`${path}.maxClockSkewMs must be a safe integer between 0 and 300000`);
+  return { now, time: Date.parse(now), skewMs };
+}
+
 function integer(input: unknown, path: string, minimum: number): number {
   if (!Number.isSafeInteger(input) || (input as number) < minimum)
     invalid(`${path} must be a safe integer >= ${minimum}`);
   return input as number;
+}
+
+function boundedInteger(input: unknown, path: string, minimum: number, maximum: number): number {
+  const value = integer(input, path, minimum);
+  if (value > maximum) invalid(`${path} must be <= ${maximum}`);
+  return value;
 }
 
 function parseDigest(input: unknown, path: string): AgentDigest {
@@ -966,12 +1323,60 @@ function citationUri(input: unknown, path: string): string {
   if (!url || url.protocol !== "https:" || url.username || url.password)
     invalid(`${path} must be a credential-free HTTPS URL`);
   if (url.search || url.hash) invalid(`${path} must not contain query parameters or fragments`);
-  if (SENSITIVE_QUERY_KEY.test(url.pathname)) invalid(`${path} path appears to contain credential material`);
-  return value;
+  const resourcePath = normalizeResourcePath(url.pathname, `${path}.pathname`);
+  return `${url.origin}${encodeResourcePath(resourcePath)}`;
 }
 
-function stringList(input: unknown, path: string, nonEmpty: boolean): readonly string[] {
-  const values = array(input, path).map((entry, index) => text(entry, `${path}[${index}]`));
+function normalizeCitationOrigin(input: unknown, path: string): string {
+  const value = text(input, path);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    invalid(`${path} must be an absolute HTTPS origin`);
+  }
+  if (!url || url.protocol !== "https:" || url.username || url.password || url.search || url.hash)
+    invalid(`${path} must be a credential-free HTTPS origin`);
+  if (url.pathname !== "/") invalid(`${path} must not include a resource path`);
+  return url.origin;
+}
+
+function normalizeResourcePath(input: unknown, path: string): string {
+  let value = text(input, path);
+  if (!value.startsWith("/")) invalid(`${path} must be an absolute resource path`);
+  for (let pass = 0; pass < 3; pass++) {
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(value);
+    } catch {
+      invalid(`${path} contains invalid percent encoding`);
+    }
+    if (decoded === value) break;
+    value = decoded;
+  }
+  if (/%[0-9a-f]{2}/i.test(value)) invalid(`${path} is excessively percent encoded`);
+  if (value.includes("\\") || value.includes("?") || value.includes("#") || hasControlCharacters(value))
+    invalid(`${path} contains unsafe path characters`);
+  const segments = value.normalize("NFC").split("/");
+  if (segments.some((segment) => segment === "." || segment === ".."))
+    invalid(`${path} must not contain traversal segments`);
+  return segments.join("/");
+}
+
+function encodeResourcePath(path: string): string {
+  return path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
+function stringList(
+  input: unknown,
+  path: string,
+  nonEmpty: boolean,
+  maxLength: number = AGENT_SAFETY_HARD_LIMITS.listEntries,
+): readonly string[] {
+  const values = array(input, path, maxLength).map((entry, index) => text(entry, `${path}[${index}]`));
   if (nonEmpty && values.length === 0) invalid(`${path} must not be empty`);
   unique(values, path);
   return deepFreeze([...values].sort());
@@ -1007,6 +1412,19 @@ function hasControlCharacters(value: string): boolean {
   return false;
 }
 
+function utf8Bytes(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
+}
+
+function reflect<T>(path: string, operation: () => T): T {
+  try {
+    return operation();
+  } catch (error) {
+    if (error instanceof HonuaAgentSafetyError) throw error;
+    invalid(`${path} could not be safely normalized`);
+  }
+}
+
 function assertSubset(actual: readonly string[], allowed: readonly string[], label: string): void {
   const allowedSet = new Set(allowed);
   if (actual.some((value) => !allowedSet.has(value))) fail("policy-denied", `${label} exceeds the allowlist`);
@@ -1020,14 +1438,56 @@ function safeAdd(total: number, value: number, label: string): number {
 
 function canonical(value: unknown): string {
   try {
-    return canonicalStringify(toJsonValue(snapshotJson(value, "$payload", new WeakSet<object>())));
+    return canonicalStringify(
+      toJsonValue(
+        snapshotJson(
+          value,
+          "$payload",
+          new WeakSet<object>(),
+          createJsonBudget(
+            AGENT_SAFETY_HARD_LIMITS.parameterNodes,
+            AGENT_SAFETY_HARD_LIMITS.parameterDepth,
+            AGENT_SAFETY_HARD_LIMITS.parameterBytes,
+          ),
+          0,
+        ),
+      ),
+    );
   } catch (error) {
     invalid(error instanceof Error ? error.message : "value is not canonical JSON");
   }
 }
 
-function snapshotJson(value: unknown, path: string, ancestors: WeakSet<object>): JsonValue {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+interface JsonBudget {
+  nodes: number;
+  bytes: number;
+  readonly maxNodes: number;
+  readonly maxDepth: number;
+  readonly maxBytes: number;
+}
+
+function createJsonBudget(maxNodes: number, maxDepth: number, maxBytes: number): JsonBudget {
+  return { nodes: 0, bytes: 0, maxNodes, maxDepth, maxBytes };
+}
+
+function snapshotJson(
+  value: unknown,
+  path: string,
+  ancestors: WeakSet<object>,
+  budget: JsonBudget,
+  depth: number,
+): JsonValue {
+  budget.nodes += 1;
+  if (budget.nodes > budget.maxNodes) invalid(`${path} exceeds the ${budget.maxNodes} node limit`);
+  if (depth > budget.maxDepth) invalid(`${path} exceeds the ${budget.maxDepth} depth limit`);
+  budget.bytes = safeAdd(budget.bytes, 8, "JSON UTF-8 budget");
+  if (budget.bytes > budget.maxBytes) invalid(`${path} exceeds the ${budget.maxBytes} byte limit`);
+  if (typeof value === "string") {
+    budget.bytes = safeAdd(budget.bytes, utf8Bytes(value), "JSON UTF-8 budget");
+    if (budget.bytes > budget.maxBytes) invalid(`${path} exceeds the ${budget.maxBytes} byte limit`);
+    return value;
+  }
+  if (value === null || typeof value === "boolean") return value;
   if (typeof value === "number") {
     if (!Number.isFinite(value)) invalid(`${path} must contain only finite numbers`);
     return Object.is(value, -0) ? 0 : value;
@@ -1035,18 +1495,28 @@ function snapshotJson(value: unknown, path: string, ancestors: WeakSet<object>):
   if (typeof value !== "object") invalid(`${path} contains unsupported ${typeof value}`);
   if (ancestors.has(value)) invalid(`${path} must not contain cycles`);
   ancestors.add(value);
-  if (Array.isArray(value)) {
-    const result = array(value, path).map((entry, index) => snapshotJson(entry, `${path}[${index}]`, ancestors));
+  if (reflect(path, () => Array.isArray(value))) {
+    const remainingNodes = Math.max(0, budget.maxNodes - budget.nodes);
+    const result = array(value, path, Math.min(remainingNodes, AGENT_SAFETY_HARD_LIMITS.listEntries)).map(
+      (entry, index) => snapshotJson(entry, `${path}[${index}]`, ancestors, budget, depth + 1),
+    );
     ancestors.delete(value);
     return result;
   }
-  const record = object(value, path);
+  const record = object(
+    value,
+    path,
+    undefined,
+    Math.min(Math.max(0, budget.maxNodes - budget.nodes), AGENT_SAFETY_HARD_LIMITS.objectProperties),
+  );
   const result: Record<string, JsonValue> = Object.create(null) as Record<string, JsonValue>;
   for (const key of Object.keys(record).sort()) {
+    budget.bytes = safeAdd(budget.bytes, utf8Bytes(key), "JSON UTF-8 budget");
+    if (budget.bytes > budget.maxBytes) invalid(`${path} exceeds the ${budget.maxBytes} byte limit`);
     const entry = record[key];
     if (entry === undefined) invalid(`${path}.${key} must not be undefined`);
     Object.defineProperty(result, key, {
-      value: snapshotJson(entry, `${path}.${key}`, ancestors),
+      value: snapshotJson(entry, `${path}.${key}`, ancestors, budget, depth + 1),
       enumerable: true,
       writable: true,
       configurable: true,
