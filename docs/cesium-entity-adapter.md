@@ -48,6 +48,10 @@ entrypoint in Node/SSR therefore does not initialize a browser or WebGL runtime.
   `verticalDatum: "ellipsoidal-wgs84"`; otherwise the feature is omitted with
   a stable fidelity diagnostic.
 - Stable entity identity from `featureIdField` or the source primary key.
+- Attributes are copied into deeply frozen JSON-like scalar, dense-array, and
+  plain-object snapshots. Dates, class instances, sparse arrays, accessors, and
+  other non-JSON values omit the feature with an unsupported-fidelity
+  diagnostic rather than retaining mutable caller-owned objects.
 - Optional offset-bearing ISO instants with at most millisecond precision, or
   integer Unix epoch-millisecond start/end attributes, mapped to Cesium
   availability intervals. Ambiguous local-time strings and precision-losing

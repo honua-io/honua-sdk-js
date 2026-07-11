@@ -30,6 +30,7 @@ export type CesiumEntityDiagnosticCode =
   | "source-degraded"
   | "geometry-unsupported"
   | "vertical-datum-unsupported"
+  | "attributes-unsupported"
   | "identity-missing"
   | "time-interval-invalid"
   | "incremental-update"
@@ -191,10 +192,15 @@ export function projectSourceToCesium<T>(
   let missingIdentity = 0;
   let invalidIntervals = 0;
   let unsupportedVerticalDatum = 0;
+  let unsupportedAttributes = 0;
   const entityIds = new Set<string>();
 
   for (const feature of result.features) {
-    const attributes = asAttributes(feature.attributes);
+    const attributes = snapshotJsonAttributes(feature.attributes);
+    if (!attributes) {
+      unsupportedAttributes += 1;
+      continue;
+    }
     const featureId = idField ? attributes[idField] : undefined;
     if (typeof featureId !== "string" && typeof featureId !== "number") {
       missingIdentity += 1;
@@ -227,9 +233,9 @@ export function projectSourceToCesium<T>(
       Object.freeze({
         id: entityId,
         featureId,
-        properties: immutableSnapshot(attributes),
-        geometry: immutableSnapshot(geometry),
-        ...(interval ? { interval: immutableSnapshot(interval) } : {}),
+        properties: attributes,
+        geometry: immutableJsonSnapshot(geometry),
+        ...(interval ? { interval: immutableJsonSnapshot(interval) } : {}),
       }),
     );
     if (entities.length > maxEntities) {
@@ -295,6 +301,20 @@ export function projectSourceToCesium<T>(
       ),
     );
   }
+  if (unsupportedAttributes > 0) {
+    diagnostics.push(
+      diagnostic(
+        source,
+        plan,
+        "attributes-unsupported",
+        "warning",
+        "project",
+        "unsupported",
+        `${unsupportedAttributes} feature attribute object(s) were not strict JSON-like values and were omitted.`,
+        { omittedFeatureCount: unsupportedAttributes },
+      ),
+    );
+  }
   if (unsupportedGeometry > 0) {
     diagnostics.push(
       diagnostic(
@@ -349,7 +369,7 @@ export function projectSourceToCesium<T>(
     planFingerprint: plan.fingerprint,
     sourceVersion: plan.ir.source.sourceVersion,
     schemaVersion: plan.ir.source.schemaVersion,
-    authorizationScope: plan.ir.source.authorizationScope,
+    authorizationScope: Object.freeze([...plan.ir.source.authorizationScope]),
     entities: Object.freeze(entities),
     diagnostics: Object.freeze(diagnostics),
     state: diagnostics.some((entry) => entry.severity === "warning")
@@ -687,6 +707,9 @@ function coordinate3(value: unknown): readonly [number, number, number] | undefi
     !Array.isArray(value) ||
     value.length < 2 ||
     value.length > 3 ||
+    !(0 in value) ||
+    !(1 in value) ||
+    (value.length === 3 && !(2 in value)) ||
     !isFiniteNumber(value[0]) ||
     !isFiniteNumber(value[1]) ||
     !validLongitudeLatitude(value[0], value[1]) ||
@@ -698,10 +721,14 @@ function coordinate3(value: unknown): readonly [number, number, number] | undefi
 
 function coordinates3(value: unknown): readonly (readonly [number, number, number])[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  const result = value.map(coordinate3);
-  return result.every((coordinate) => coordinate !== undefined)
-    ? (result as readonly (readonly [number, number, number])[])
-    : undefined;
+  const result: (readonly [number, number, number])[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    if (!(index in value)) return undefined;
+    const coordinate = coordinate3(value[index]);
+    if (!coordinate) return undefined;
+    result.push(coordinate);
+  }
+  return result;
 }
 
 function validLongitudeLatitude(longitude: number, latitude: number): boolean {
@@ -891,7 +918,7 @@ function diagnostic<T>(
     sourceId: source.descriptor.id,
     planId: plan.id,
     message,
-    ...(detail ? { detail: immutableSnapshot(detail) } : {}),
+    ...(detail ? { detail: immutableJsonSnapshot(detail) } : {}),
   });
 }
 
@@ -962,22 +989,79 @@ function assertCesiumRuntime(value: unknown): asserts value is CesiumEntityRunti
   }
 }
 
-function immutableSnapshot<T>(value: T, seen = new WeakMap<object, unknown>()): T {
-  if (value === null || (typeof value !== "object" && typeof value !== "function")) return value;
-  if (typeof value === "function") return value;
-  const known = seen.get(value);
-  if (known !== undefined) return known as T;
-  if (value instanceof Date) return Object.freeze(new Date(value.getTime())) as T;
+const INVALID_JSON_ATTRIBUTE = Symbol("invalid-json-attribute");
+
+function immutableJsonSnapshot<T>(value: T): T {
+  const snapshot = snapshotJsonValue(value, new Set());
+  if (snapshot === INVALID_JSON_ATTRIBUTE) throw new TypeError("Internal value is not JSON-like.");
+  return snapshot as T;
+}
+
+function snapshotJsonAttributes(value: unknown): Readonly<Record<string, unknown>> | undefined {
+  const snapshot = snapshotJsonValue(value, new Set());
+  return snapshot !== INVALID_JSON_ATTRIBUTE && isPlainObject(snapshot)
+    ? (snapshot as Readonly<Record<string, unknown>>)
+    : undefined;
+}
+
+function snapshotJsonValue(value: unknown, ancestors: Set<object>): unknown | typeof INVALID_JSON_ATTRIBUTE {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : INVALID_JSON_ATTRIBUTE;
+  if (typeof value !== "object") return INVALID_JSON_ATTRIBUTE;
+  if (ancestors.has(value)) return INVALID_JSON_ATTRIBUTE;
+  ancestors.add(value);
   if (Array.isArray(value)) {
     const copy: unknown[] = [];
-    seen.set(value, copy);
-    for (const entry of value) copy.push(immutableSnapshot(entry, seen));
-    return Object.freeze(copy) as T;
+    for (let index = 0; index < value.length; index += 1) {
+      if (!(index in value)) {
+        ancestors.delete(value);
+        return INVALID_JSON_ATTRIBUTE;
+      }
+      const entry = snapshotJsonValue(value[index], ancestors);
+      if (entry === INVALID_JSON_ATTRIBUTE) {
+        ancestors.delete(value);
+        return INVALID_JSON_ATTRIBUTE;
+      }
+      copy.push(entry);
+    }
+    ancestors.delete(value);
+    return Object.freeze(copy);
+  }
+  if (!isPlainObject(value)) {
+    ancestors.delete(value);
+    return INVALID_JSON_ATTRIBUTE;
   }
   const copy: Record<string, unknown> = {};
-  seen.set(value, copy);
-  for (const [key, entry] of Object.entries(value)) copy[key] = immutableSnapshot(entry, seen);
-  return Object.freeze(copy) as T;
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== "string") {
+      ancestors.delete(value);
+      return INVALID_JSON_ATTRIBUTE;
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor?.enumerable || !("value" in descriptor)) {
+      ancestors.delete(value);
+      return INVALID_JSON_ATTRIBUTE;
+    }
+    const entry = snapshotJsonValue(descriptor.value, ancestors);
+    if (entry === INVALID_JSON_ATTRIBUTE) {
+      ancestors.delete(value);
+      return INVALID_JSON_ATTRIBUTE;
+    }
+    Object.defineProperty(copy, key, {
+      value: entry,
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    });
+  }
+  ancestors.delete(value);
+  return Object.freeze(copy);
+}
+
+function isPlainObject(value: unknown): value is Readonly<Record<string, unknown>> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 function removeIds(collection: CesiumEntityCollectionTarget, ids: readonly string[]): unknown[] {
@@ -1057,10 +1141,6 @@ function positiveInteger(value: number | undefined, fallback: number, name: stri
     });
   }
   return candidate;
-}
-
-function asAttributes(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 function isFiniteNumber(value: unknown): value is number {

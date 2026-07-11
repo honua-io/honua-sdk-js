@@ -171,6 +171,34 @@ describe("projectSourceToCesium", () => {
     );
   });
 
+  it("rejects sparse line and polygon coordinate arrays without renderer effects", async () => {
+    const sparseLine = new Array<unknown>(2);
+    sparseLine[0] = [-157, 21];
+    const sparseRing = new Array<unknown>(4);
+    sparseRing[0] = [-158, 21];
+    sparseRing[1] = [-157, 21];
+    sparseRing[3] = [-158, 21];
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        { attributes: { unit_id: 1 }, geometry: { type: "LineString", coordinates: sparseLine } },
+        { attributes: { unit_id: 2 }, geometry: { type: "Polygon", coordinates: [sparseRing] } },
+      ],
+    };
+    const source = fakeSource([result]);
+    const projection = projectSourceToCesium(source, plan, result);
+    expect(projection.entities).toEqual([]);
+    expect(projection.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "geometry-unsupported", detail: { omittedFeatureCount: 2 } }),
+    );
+
+    const collection = fakeCollection();
+    const mounted = await mountSourceToCesium(collection, source, plan, { ...context, cesium: cesiumModule });
+    expect(mounted.entityIds).toEqual([]);
+    expect(collection.entities.size).toBe(0);
+    mounted.dispose();
+  });
+
   it("accepts epoch milliseconds and offset-bearing millisecond ISO instants only", () => {
     const source = fakeSource([firstResult]);
     const result: Result<Record<string, unknown>> = {
@@ -222,6 +250,36 @@ describe("projectSourceToCesium", () => {
       projection.diagnostics.filter((entry) => entry.severity === "warning").map((entry) => entry.fidelity),
     ).toEqual(["unsupported", "unsupported"]);
     expect(Object.isFrozen(projection.diagnostics[1]?.detail)).toBe(true);
+  });
+
+  it("rejects Date and custom attribute objects instead of exposing mutable internal slots", () => {
+    class CustomAttribute {
+      public constructor(public value: string) {}
+    }
+    const source = fakeSource([firstResult]);
+    const projection = projectSourceToCesium(source, plan, {
+      exceededTransferLimit: false,
+      features: [
+        { attributes: { unit_id: 1, status: { code: "ready" } }, geometry: { x: -157, y: 21 } },
+        { attributes: { unit_id: 2, observed: new Date("2026-07-15T10:00:00Z") }, geometry: { x: -157, y: 21 } },
+        { attributes: { unit_id: 3, custom: new CustomAttribute("unsafe") }, geometry: { x: -157, y: 21 } },
+      ],
+    });
+    expect(projection.entities.map((entity) => entity.featureId)).toEqual([1]);
+    expect(projection.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "attributes-unsupported", detail: { omittedFeatureCount: 2 } }),
+    );
+  });
+
+  it("copies and freezes authorization scope in the projection receipt", () => {
+    const mutablePlan = JSON.parse(JSON.stringify(plan)) as QueryExecutionPlanV1;
+    const mutableScope = mutablePlan.ir.source.authorizationScope as string[];
+    const projection = projectSourceToCesium(fakeSource([firstResult]), mutablePlan, firstResult, {
+      verticalDatum: "ellipsoidal-wgs84",
+    });
+    mutableScope.push("units:write");
+    expect(projection.authorizationScope).toEqual(["units:read"]);
+    expect(Object.isFrozen(projection.authorizationScope)).toBe(true);
   });
 
   it("projects 10k point entities within the renderer-neutral projection budget", () => {
