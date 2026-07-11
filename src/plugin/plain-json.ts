@@ -11,31 +11,159 @@ export interface PlainJsonSnapshot {
 }
 
 /**
- * Copy an untrusted value into inert JSON without reading properties through
- * ordinary `get` operations. Accessors, custom prototypes, cycles, sparse
- * arrays, symbols and non-JSON primitives fail closed. A native structured
- * clone probe rejects Proxy objects before the snapshot is trusted.
+ * Parse untrusted JSON text into an inert snapshot. Requiring text is the only
+ * portable JavaScript boundary that can reject Proxy/accessor-bearing objects
+ * without first executing their reflection traps or getters. A bounded lexical
+ * pass enforces node/depth limits before `JSON.parse` materializes the value.
  */
 export function snapshotPlainJson(input: unknown, rootPath: string): PlainJsonSnapshot {
-  const diagnostics: HonuaPluginDiagnostic[] = [];
-  const state = { nodes: 0, ancestors: new WeakSet<object>() };
-  const value = copyJson(input, rootPath, 0, state, diagnostics);
-  if (value === undefined || diagnostics.length > 0) return { ok: false, diagnostics };
+  if (typeof input !== "string") {
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic(
+          "INPUT_JSON_TEXT_REQUIRED",
+          rootPath,
+          "Expected JSON text; object values, proxies, accessors, and other executable inputs are forbidden.",
+        ),
+      ],
+    };
+  }
+  if (input.length > MAX_STRING_LENGTH) {
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic("INPUT_JSON_TEXT_TOO_LONG", rootPath, `JSON text must not exceed ${MAX_STRING_LENGTH} code units.`),
+      ],
+    };
+  }
+  const preflight = preflightJsonText(input, rootPath);
+  if (preflight) return { ok: false, diagnostics: [preflight] };
 
-  // Proxies are not valid structured-clone input. The copy above rejects
-  // accessors before this probe, so genuine plain objects cannot execute user
-  // getters here. The cloned value is intentionally discarded: all validation
-  // uses the descriptor-derived snapshot created exactly once above.
+  let parsed: unknown;
   try {
-    structuredClone(input);
+    parsed = JSON.parse(input);
   } catch {
     return {
       ok: false,
-      diagnostics: [diagnostic("INPUT_NOT_INERT_JSON", rootPath, "Expected inert plain JSON; proxies are forbidden.")],
+      diagnostics: [diagnostic("INPUT_JSON_SYNTAX", rootPath, "Expected syntactically valid JSON text.")],
     };
   }
 
+  const diagnostics: HonuaPluginDiagnostic[] = [];
+  const state = { nodes: 0, ancestors: new WeakSet<object>() };
+  const value = copyJson(parsed, rootPath, 0, state, diagnostics);
+  if (value === undefined || diagnostics.length > 0) return { ok: false, diagnostics };
   return { ok: true, value: deepFreeze(value), diagnostics: [] };
+}
+
+function preflightJsonText(text: string, path: string): HonuaPluginDiagnostic | undefined {
+  let index = 0;
+  let nodes = 0;
+
+  function skipWhitespace(): void {
+    while (index < text.length) {
+      const code = text.charCodeAt(index);
+      if (code !== 9 && code !== 10 && code !== 13 && code !== 32) break;
+      index += 1;
+    }
+  }
+
+  function scanString(): boolean {
+    if (text[index] !== '"') return false;
+    index += 1;
+    while (index < text.length) {
+      const code = text.charCodeAt(index);
+      if (code === 34) {
+        index += 1;
+        return true;
+      }
+      if (code < 32) return false;
+      if (code === 92) {
+        index += 1;
+        if (index >= text.length) return false;
+        if (text[index] === "u") index += 4;
+      }
+      index += 1;
+    }
+    return false;
+  }
+
+  function parseValue(depth: number): HonuaPluginDiagnostic | undefined {
+    skipWhitespace();
+    nodes += 1;
+    if (nodes > MAX_NODES) return diagnostic("INPUT_TOO_LARGE", path, `JSON input exceeds ${MAX_NODES} values.`);
+    if (depth > MAX_DEPTH) return diagnostic("INPUT_TOO_DEEP", path, `JSON input exceeds ${MAX_DEPTH} levels.`);
+    const token = text[index];
+    if (token === '"') return scanString() ? undefined : syntax();
+    if (token === "{") {
+      index += 1;
+      skipWhitespace();
+      if (text[index] === "}") {
+        index += 1;
+        return undefined;
+      }
+      while (index < text.length) {
+        if (!scanString()) return syntax();
+        skipWhitespace();
+        if (text[index] !== ":") return syntax();
+        index += 1;
+        const failure = parseValue(depth + 1);
+        if (failure) return failure;
+        skipWhitespace();
+        if (text[index] === "}") {
+          index += 1;
+          return undefined;
+        }
+        if (text[index] !== ",") return syntax();
+        index += 1;
+        skipWhitespace();
+      }
+      return syntax();
+    }
+    if (token === "[") {
+      index += 1;
+      skipWhitespace();
+      if (text[index] === "]") {
+        index += 1;
+        return undefined;
+      }
+      while (index < text.length) {
+        const failure = parseValue(depth + 1);
+        if (failure) return failure;
+        skipWhitespace();
+        if (text[index] === "]") {
+          index += 1;
+          return undefined;
+        }
+        if (text[index] !== ",") return syntax();
+        index += 1;
+      }
+      return syntax();
+    }
+    for (const literal of ["true", "false", "null"]) {
+      if (text.startsWith(literal, index)) {
+        index += literal.length;
+        return undefined;
+      }
+    }
+    const start = index;
+    while (index < text.length) {
+      const code = text.charCodeAt(index);
+      if (code === 9 || code === 10 || code === 13 || code === 32 || code === 44 || code === 93 || code === 125) break;
+      index += 1;
+    }
+    return index > start ? undefined : syntax();
+  }
+
+  function syntax(): HonuaPluginDiagnostic {
+    return diagnostic("INPUT_JSON_SYNTAX", path, "Expected syntactically valid JSON text.");
+  }
+
+  const failure = parseValue(0);
+  if (failure) return failure;
+  skipWhitespace();
+  return index === text.length ? undefined : syntax();
 }
 
 function copyJson(

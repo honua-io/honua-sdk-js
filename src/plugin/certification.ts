@@ -112,8 +112,8 @@ function sortDiagnostics(diagnostics: HonuaPluginDiagnostic[]): readonly HonuaPl
   );
 }
 
-/** Validate and normalize one untrusted manifest snapshot. No entrypoint is imported. */
-export function validateHonuaPluginManifest(input: unknown): HonuaPluginManifestValidation {
+/** Validate and normalize untrusted manifest JSON text. No entrypoint is imported. */
+export function validateHonuaPluginManifest(input: string): HonuaPluginManifestValidation {
   const inert = snapshotPlainJson(input, "/");
   if (!inert.ok || inert.value === undefined) return { ok: false, diagnostics: inert.diagnostics };
   return validateManifestSnapshot(inert.value);
@@ -520,7 +520,7 @@ function compactGrants(grants: NormalizedGrants): HonuaPluginJsonValue {
 }
 
 /** Validate an untrusted host snapshot without throwing or coercing values. */
-export function validateHonuaPluginCertificationHost(input: unknown): HonuaPluginHostValidation {
+export function validateHonuaPluginCertificationHost(input: string): HonuaPluginHostValidation {
   const inert = snapshotPlainJson(input, "/host");
   if (!inert.ok || inert.value === undefined) return { ok: false, diagnostics: inert.diagnostics };
   const diagnostics: HonuaPluginDiagnostic[] = [];
@@ -571,7 +571,7 @@ function requiredPeersObject(
  * Certify a manifest against one explicit host snapshot. The returned report
  * is deeply frozen and binds both complete canonical snapshots by SHA-256.
  */
-export function certifyHonuaPluginManifest(input: unknown, hostInput: unknown): HonuaPluginCertificationReport {
+export function certifyHonuaPluginManifest(input: string, hostInput: string): HonuaPluginCertificationReport {
   const manifestValidation = validateHonuaPluginManifest(input);
   const hostValidation = validateHonuaPluginCertificationHost(hostInput);
   const diagnostics = [...manifestValidation.diagnostics, ...hostValidation.diagnostics];

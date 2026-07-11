@@ -48,13 +48,22 @@ const manifest = {
   support: "community",
 } as const satisfies HonuaPluginManifest<"protocol">;
 
-const report = certifyHonuaPluginManifest(manifest, {
+const host = {
   pluginApi: HONUA_PLUGIN_API_VERSION,
   sdkVersion: "0.1.0-beta.0",
   environment: "browser",
   grants: { networkOrigins: ["https://tiles.example.com"] },
-});
+};
+
+// The trust boundary accepts JSON text, never executable object values.
+const report = certifyHonuaPluginManifest(JSON.stringify(manifest), JSON.stringify(host));
 ```
+
+`JSON.stringify` is appropriate for trusted application-owned literals like
+the example above. Do not import an untrusted plugin module and stringify its
+exports: serialization itself can run getters or Proxy traps before the SDK is
+called. Read third-party manifest bytes as text (for example, from the package
+file or an HTTP response) and pass that text directly to the validator.
 
 The report contains no time, machine path, or random identifier, so the same
 manifest and host snapshot serialize identically. Its `manifest` and `host`
@@ -103,11 +112,13 @@ receipt for externally archived evidence, not a signature or proof of issuer.
   validation, normalized in the certified snapshot, and rejected on encoded or
   literal traversal, absolute escape, backslashes, query/fragment suffixes, or
   malformed/excessive encoding. This API never resolves or executes it.
-- Manifest and host inputs are copied through a bounded plain-JSON trust
-  boundary. Accessors, proxies, inherited/custom prototypes, symbols,
-  non-finite numbers, sparse/extended arrays, cycles, and oversized structures
-  are rejected with structured diagnostics. Validation and fingerprinting use
-  only the detached, deeply frozen snapshot; caller objects are never returned.
+- Manifest and host inputs must be JSON text. Raw objects—including accessors,
+  proxies, custom prototypes, symbols, functions, and other executable or
+  noncloneable values—are rejected from their primitive `typeof` result before
+  any reflection or user code can run. A side-effect-free lexical pass enforces
+  text, depth, and node-count bounds before `JSON.parse` materializes values.
+  Validation and fingerprinting then use only the parser-created, detached,
+  deeply frozen snapshot; caller objects are never reflected on or returned.
 
 ## Extension inventory
 

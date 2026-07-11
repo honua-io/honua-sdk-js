@@ -1,13 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   HONUA_PLUGIN_API_VERSION,
   HONUA_PLUGIN_CAPABILITY_REQUIRED_GRANTS,
   HONUA_PLUGIN_MANIFEST_VERSION,
   type HonuaPluginCertificationHost,
   type HonuaPluginManifest,
-  certifyHonuaPluginManifest,
-  validateHonuaPluginManifest,
+  certifyHonuaPluginManifest as certifyJsonText,
+  validateHonuaPluginManifest as validateJsonText,
 } from "../src/plugin/index.js";
+
+function validateHonuaPluginManifest(value: unknown) {
+  return validateJsonText(jsonText(value));
+}
+
+function certifyHonuaPluginManifest(manifestValue: unknown, hostValue: unknown) {
+  return certifyJsonText(jsonText(manifestValue), jsonText(hostValue));
+}
+
+function jsonText(value: unknown): string {
+  const text = JSON.stringify(value);
+  if (text === undefined) throw new TypeError("test fixture is not JSON serializable");
+  return text;
+}
 
 const manifest = {
   manifestVersion: HONUA_PLUGIN_MANIFEST_VERSION,
@@ -171,7 +185,7 @@ describe("plugin manifest validation", () => {
     ).toBe(true);
   });
 
-  it("rejects accessors, proxies, inherited objects, and non-JSON values without invoking getters", () => {
+  it("rejects raw objects, accessors, proxies, and noncloneable values without invoking user code", () => {
     let getterCalls = 0;
     const withGetter = { ...manifest } as Record<string, unknown>;
     Object.defineProperty(withGetter, "id", {
@@ -181,55 +195,52 @@ describe("plugin manifest validation", () => {
         return manifest.id;
       },
     });
-    expect(validateHonuaPluginManifest(withGetter).diagnostics[0]?.code).toBe("INPUT_ACCESSOR_OR_HIDDEN_PROPERTY");
+    expect(validateJsonText(withGetter as never).diagnostics[0]?.code).toBe("INPUT_JSON_TEXT_REQUIRED");
     expect(getterCalls).toBe(0);
 
-    expect(validateHonuaPluginManifest(new Proxy({ ...manifest }, {})).diagnostics[0]?.code).toBe(
-      "INPUT_NOT_INERT_JSON",
+    const traps = { getPrototypeOf: 0, ownKeys: 0, getOwnPropertyDescriptor: 0, get: 0 };
+    const proxy = new Proxy(
+      {},
+      {
+        getPrototypeOf() {
+          traps.getPrototypeOf += 1;
+          return Object.prototype;
+        },
+        ownKeys() {
+          traps.ownKeys += 1;
+          return [];
+        },
+        getOwnPropertyDescriptor() {
+          traps.getOwnPropertyDescriptor += 1;
+          return undefined;
+        },
+        get() {
+          traps.get += 1;
+          return undefined;
+        },
+      },
     );
-    expect(
-      validateHonuaPluginManifest(Object.assign(Object.create({ inherited: true }), manifest)).diagnostics[0]?.code,
-    ).toBe("INPUT_NON_PLAIN_OBJECT");
-    expect(validateHonuaPluginManifest(Symbol("manifest")).diagnostics[0]?.code).toBe("INPUT_NON_JSON_VALUE");
+    expect(validateJsonText(proxy as never).diagnostics[0]?.code).toBe("INPUT_JSON_TEXT_REQUIRED");
+    expect(traps).toEqual({ getPrototypeOf: 0, ownKeys: 0, getOwnPropertyDescriptor: 0, get: 0 });
+
+    for (const value of [Symbol("manifest"), 1n, () => undefined, new Date()]) {
+      expect(validateJsonText(value as never).diagnostics[0]?.code).toBe("INPUT_JSON_TEXT_REQUIRED");
+    }
   });
 
-  it("rejects wide dense arrays before materializing any property descriptors", () => {
-    let descriptorReads = 0;
-    const wide = new Proxy(new Array(20_000).fill(0), {
-      getOwnPropertyDescriptor(target, key) {
-        descriptorReads += 1;
-        return Reflect.getOwnPropertyDescriptor(target, key);
-      },
-    });
+  it("rejects wide dense array and object text before JSON.parse materializes values", () => {
+    const parse = vi.spyOn(JSON, "parse");
+    const wideArray = `[${new Array(20_000).fill("0").join(",")}]`;
+    const wideObject = `{${Array.from({ length: 20_000 }, (_, index) => `"field-${index}":${index}`).join(",")}}`;
 
-    const result = validateHonuaPluginManifest(wide);
-    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "INPUT_TOO_LARGE", path: "/" })]);
-    expect(descriptorReads).toBe(0);
-  });
-
-  it("rejects wide objects before reading descriptors or getter-backed values", () => {
-    let getterCalls = 0;
-    let descriptorReads = 0;
-    const target: Record<string, unknown> = {};
-    Object.defineProperty(target, "getter-backed", {
-      enumerable: true,
-      get() {
-        getterCalls += 1;
-        return "secret";
-      },
-    });
-    for (let index = 1; index < 20_000; index += 1) target[`field-${index}`] = index;
-    const wide = new Proxy(target, {
-      getOwnPropertyDescriptor(object, key) {
-        descriptorReads += 1;
-        return Reflect.getOwnPropertyDescriptor(object, key);
-      },
-    });
-
-    const result = validateHonuaPluginManifest(wide);
-    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "INPUT_TOO_LARGE", path: "/" })]);
-    expect(descriptorReads).toBe(0);
-    expect(getterCalls).toBe(0);
+    expect(validateJsonText(wideArray).diagnostics).toEqual([
+      expect.objectContaining({ code: "INPUT_TOO_LARGE", path: "/" }),
+    ]);
+    expect(validateJsonText(wideObject).diagnostics).toEqual([
+      expect.objectContaining({ code: "INPUT_TOO_LARGE", path: "/" }),
+    ]);
+    expect(parse).not.toHaveBeenCalled();
+    parse.mockRestore();
   });
 
   it("decodes the entrypoint before rejecting traversal and absolute escapes", () => {
@@ -395,18 +406,39 @@ describe("plugin manifest certification", () => {
         return host.sdkVersion;
       },
     });
-    const getterReport = certifyHonuaPluginManifest(manifest, getterHost);
+    const getterReport = certifyJsonText(jsonText(manifest), getterHost as never);
     expect(getterReport.status).toBe("rejected");
-    expect(getterReport.diagnostics[0]?.code).toBe("INPUT_ACCESSOR_OR_HIDDEN_PROPERTY");
+    expect(getterReport.diagnostics[0]?.code).toBe("INPUT_JSON_TEXT_REQUIRED");
     expect(getterCalls).toBe(0);
 
-    for (const hostile of [
-      Symbol("host"),
-      new Proxy({ ...host }, {}),
-      { ...host, peers: { "apache-arrow": Symbol("v") } },
-    ]) {
-      expect(() => certifyHonuaPluginManifest(manifest, hostile)).not.toThrow();
-      expect(certifyHonuaPluginManifest(manifest, hostile).status).toBe("rejected");
+    const trapCalls = { getPrototypeOf: 0, ownKeys: 0, getOwnPropertyDescriptor: 0, get: 0 };
+    const proxyHost = new Proxy(
+      {},
+      {
+        getPrototypeOf() {
+          trapCalls.getPrototypeOf += 1;
+          return Object.prototype;
+        },
+        ownKeys() {
+          trapCalls.ownKeys += 1;
+          return [];
+        },
+        getOwnPropertyDescriptor() {
+          trapCalls.getOwnPropertyDescriptor += 1;
+          return undefined;
+        },
+        get() {
+          trapCalls.get += 1;
+          return undefined;
+        },
+      },
+    );
+    expect(certifyJsonText(jsonText(manifest), proxyHost as never).status).toBe("rejected");
+    expect(trapCalls).toEqual({ getPrototypeOf: 0, ownKeys: 0, getOwnPropertyDescriptor: 0, get: 0 });
+
+    for (const hostile of [Symbol("host"), 1n, () => undefined]) {
+      expect(() => certifyJsonText(jsonText(manifest), hostile as never)).not.toThrow();
+      expect(certifyJsonText(jsonText(manifest), hostile as never).status).toBe("rejected");
     }
   });
 
