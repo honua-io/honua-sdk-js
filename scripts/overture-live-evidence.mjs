@@ -11,6 +11,7 @@ import { startOvertureFixtureServer } from "../examples/overture-geoparquet/mock
 import { validateEvidenceEnvelope } from "./sample-contract.mjs";
 
 const MAX_OBSERVED_RANGE_BYTES = 32 * 1024 * 1024;
+const OVERTURE_OBJECT_ORIGIN = "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com";
 
 function parseArgs(argv) {
   const options = { output: "test-results/overture-live-evidence.json", strict: false };
@@ -143,7 +144,7 @@ export async function collectOvertureLiveEvidence() {
     const trafficByRequest = new Map();
     const trafficTasks = [];
     page.on("request", (request) => {
-      if (!request.url().includes("overturemaps-us-west-2.s3.us-west-2.amazonaws.com/")) return;
+      if (new URL(request.url()).origin !== OVERTURE_OBJECT_ORIGIN) return;
       const entry = {
         method: request.method(),
         range: request.headers().range ?? null,
