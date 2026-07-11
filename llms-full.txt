@@ -1899,9 +1899,10 @@ land. It is intentionally not exported from the root barrel.
 
 ## Remote pushdown
 
-The first compiler targets an existing GeoServices FeatureServer query path.
-The compiled request is included in the plan so diagnostics, CLIs, agents, and
-future renderers can inspect the same decision before execution.
+The first compiler targets an existing GeoServices FeatureServer query path,
+and the OGC API Features compiler targets a collection `/items` request. The
+compiled request is included in the plan so diagnostics, CLIs, agents, and
+renderers can inspect the same decision before execution.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
@@ -1937,6 +1938,45 @@ const execution = await executeQueryPlan(plan, source, {
 });
 console.log(execution.result.aggregateRows);
 ```
+
+For an OGC API Features source, the same `explainQuery()` call selects
+`ogc-api-features-query-v1` from the descriptor protocol. Source-native
+`Query.where` is identified as CQL2 text; projection, sorting, pagination,
+CRS, and envelope-intersects filters compile to `properties`, `sortby`,
+`limit`/`offset`, `crs`, and `bbox` respectively:
+
+```ts
+const ogcPlan = explainQuery({
+  descriptor: {
+    id: "parcels",
+    protocol: "ogc-features",
+    locator: { url: "https://example.test/ogc", collectionId: "parcels" },
+    capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+  },
+  query: {
+    where: "status = 'active'",
+    outFields: ["parcel_id", "owner"],
+    orderBy: [{ field: "updated_at", direction: "desc" }],
+    spatialFilter: {
+      geometryType: "esriGeometryEnvelope",
+      geometry: { xmin: -158.4, ymin: 20.5, xmax: -157.6, ymax: 21.8 },
+    },
+    pagination: { limit: 100 },
+  },
+});
+
+console.log(ogcPlan.steps[0]?.compiled);
+// { compiler: "ogc-api-features-query-v1", collectionId: "parcels",
+//   filter: "status = 'active'", filterLang: "cql2-text", ... }
+```
+
+The OGC compiler rejects non-envelope spatial filters, relationships other
+than envelope-intersects/intersects, non-EPSG:4326 or malformed bounds,
+portable geometry-suppression claims, and claimed remote aggregation. It never
+weakens those requests to a broader bbox query.
+Aggregation remains available through the explicit bounded-local policy below:
+the CQL2 filter and required-field projection stay remote while the exact
+aggregate runs only after the materialization ceilings pass.
 
 `Query.signal` never enters the IR or fingerprint. Supply cancellation only to
 `executeQueryPlan`. Source URLs in plan identity are stripped of credentials,
@@ -1986,8 +2026,8 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
 ## Deliberate first-slice boundaries
 
 This foundation does not close the full planner workstream. Follow-on slices
-must add typed semantic predicates and temporal windows, CQL2/OGC, WFS FES,
-OData, gRPC, and DuckDB compilers, spatial aggregation, joins/composition,
+must add typed semantic predicates and temporal windows, CQL2 JSON and richer
+OGC filter negotiation, WFS FES, OData, gRPC, and DuckDB compilers, spatial aggregation, joins/composition,
 columnar/worker execution, cache/freshness decisions, cost models, realtime
 snapshot/delta plans, receipts, golden cross-protocol fixtures, and shared
 CLI/renderer/MCP consumption. Histogram and time-series aggregation are
@@ -6315,6 +6355,12 @@ This document is the developer reference for the first-party OGC API
 adapter. It complements the design notes in
 [`shared-client-contract.md`](./shared-client-contract.md) and the
 capability matrix in [`protocol-capability-matrix.md`](./protocol-capability-matrix.md).
+
+Canonical OGC API Features queries can be explained before execution through
+`@honua/sdk-js/query-planner`. The deterministic
+`ogc-api-features-query-v1` output exposes the collection, CQL2 text filter,
+properties, sort, bbox, CRS, and paging request without fetching metadata or
+rows. See [Deterministic query planner](./query-planner.md#remote-pushdown).
 
 ## Conformance areas covered
 

@@ -132,6 +132,9 @@ export async function listOgcItems(
   if (request.filter !== undefined) {
     params.set("filter", request.filter);
   }
+  if (request.filterLang !== undefined) {
+    params.set("filter-lang", request.filterLang);
+  }
   if (request.ids !== undefined) {
     params.set("ids", normalizeCsv(request.ids));
   }

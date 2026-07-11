@@ -1376,6 +1376,7 @@ describe("HonuaClient", () => {
       bbox: "-180,-90,180,90",
       datetime: "2025-01-01/2025-12-31",
       filter: "name = 'A'",
+      filterLang: "cql2-text",
       ids: [1, 2, 3],
       properties: ["name", "category"],
       sortby: "-name",
@@ -1396,6 +1397,7 @@ describe("HonuaClient", () => {
     expect(requestedUrls[0]).toContain("bbox=-180%2C-90%2C180%2C90");
     expect(requestedUrls[0]).toContain("datetime=2025-01-01%2F2025-12-31");
     expect(requestedUrls[0]).toContain("filter=name+%3D+%27A%27");
+    expect(requestedUrls[0]).toContain("filter-lang=cql2-text");
     expect(requestedUrls[0]).toContain("ids=1%2C2%2C3");
     expect(requestedUrls[0]).toContain("properties=name%2Ccategory");
     expect(requestedUrls[0]).toContain("sortby=-name");
