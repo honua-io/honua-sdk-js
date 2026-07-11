@@ -41,6 +41,10 @@ Chromium/WebGL journeys: Honua's MapLibre path renders the quickstart and opens
 a linked feature popup, while Honua's deck.gl adapter projects 10,000 binary
 points without copying their attribute buffers, renders them, and resolves a
 stable picked feature. Each journey has one warm-up and three measured runs.
+Install the repository's pinned Chromium once with
+`npx playwright install chromium` when the normal Playwright setup has not
+already done so; the benchmark itself never downloads a browser or reaches a
+data service.
 
 The report and PNG evidence are written beneath
 `test-results/browser-benchmark/`. The JSON records raw samples, median, p95,
