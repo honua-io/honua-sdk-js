@@ -120,6 +120,9 @@ jobs:
           # stale-npm incident): every exports subpath, the browser bundles,
           # and every split package documented in docs/split-packages.md.
           npm run verify:publish-surface
+          # Exercise the exact root tarball through offline npm installation,
+          # Node/TypeScript package resolution, and its packaged CLI shim.
+          npm run verify:packed-sdk
 
           flags=""
           if [[ "${DRY_RUN}" == "true" ]]; then

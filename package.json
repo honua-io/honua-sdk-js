@@ -235,6 +235,7 @@
     "build:split-packages": "npm run build --silent && node scripts/prepare-split-packages.mjs",
     "verify:split-packages": "npm run build:split-packages --silent && node scripts/verify-split-packages.mjs",
     "verify:publish-surface": "node scripts/verify-publish-surface.mjs",
+    "verify:packed-sdk": "node --test test/scripts/verify-packed-sdk.test.mjs && node scripts/verify-packed-sdk.mjs",
     "verify:public-surface": "node --test test/scripts/verify-public-surface.test.mjs && node scripts/verify-public-surface.mjs",
     "pack:split-packages": "npm run build:split-packages --silent && npm pack ./dist/packages/honua-sdk && npm pack ./dist/packages/honua-sdk-esri-compat && npm pack ./dist/packages/honua-migrate",
     "typecheck": "tsc --noEmit",
@@ -527,7 +528,8 @@
     "pmtiles": "^4.0.0",
     "proj4": "^2.11.0",
     "react": "^18.2.0 || ^19.0.0",
-    "react-dom": "^18.2.0 || ^19.0.0"
+    "react-dom": "^18.2.0 || ^19.0.0",
+    "typescript": "^5.9.2"
   },
   "peerDependenciesMeta": {
     "@bufbuild/protobuf": {
@@ -606,6 +608,9 @@
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "typescript": {
       "optional": true
     }
   },

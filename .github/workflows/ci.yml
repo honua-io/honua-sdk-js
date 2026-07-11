@@ -160,6 +160,9 @@ jobs:
           node scripts/sample-contract.mjs artifacts
           npm run verify:publish-surface
 
+      - name: Installed packed-SDK smoke
+        run: npm run verify:packed-sdk
+
       - name: Example typechecks
         run: npm run demo:examples:typecheck
 
