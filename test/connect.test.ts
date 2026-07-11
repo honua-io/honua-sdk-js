@@ -114,6 +114,7 @@ describe("connect", () => {
             supportsStatistics: true,
             useStandardizedQueries: true,
             supportedQueryFormats: "JSON, geoJSON, PBF",
+            advancedQueryCapabilities: { supportsPagination: true },
             relationships: [{ id: 1, relatedTableId: 3 }],
             fields: [
               { name: "OBJECTID", type: "esriFieldTypeOID" },
@@ -124,7 +125,13 @@ describe("connect", () => {
         );
       }
       if (url.pathname.endsWith("/FeatureServer/3")) {
-        return json({ id: 3, name: "Owners", capabilities: "Query", fields: [] });
+        return json({
+          id: 3,
+          name: "Owners",
+          capabilities: "Query",
+          advancedQueryCapabilities: { supportsPagination: true },
+          fields: [],
+        });
       }
       return new Response("not found", { status: 404 });
     });
@@ -179,7 +186,13 @@ describe("connect", () => {
       const request = new Request(input, init);
       const url = new URL(request.url);
       requests.push(url.pathname);
-      return json({ id: 2, name: "Cities", capabilities: "Map,Query", fields: [] });
+      return json({
+        id: 2,
+        name: "Cities",
+        capabilities: "Map,Query",
+        advancedQueryCapabilities: { supportsPagination: true },
+        fields: [],
+      });
     });
     const connection = await connect({
       endpoint: "https://example.test/arcgis/rest/services/Maps/Cities/MapServer/2",
@@ -260,15 +273,16 @@ describe("connect", () => {
           layers: [
             { id: 0, name: "Paged parcels" },
             { id: 1, name: "Legacy parcels" },
+            { id: 2, name: "Unknown parcels" },
           ],
         });
       }
       const id = Number.parseInt(url.pathname.split("/").at(-1) ?? "", 10);
       return json({
         id,
-        name: id === 0 ? "Paged parcels" : "Legacy parcels",
+        name: id === 0 ? "Paged parcels" : id === 1 ? "Legacy parcels" : "Unknown parcels",
         capabilities: "Query",
-        advancedQueryCapabilities: { supportsPagination: id === 0 },
+        ...(id === 2 ? {} : { advancedQueryCapabilities: { supportsPagination: id === 0 } }),
         fields: [],
       });
     });
@@ -284,11 +298,18 @@ describe("connect", () => {
     expect(connection.source("1").capabilities.has("query")).toBe(false);
     expect(connection.source("1").capabilities.has("stream")).toBe(false);
     expect(connection.source("1").capabilities.has("queryObjectIds")).toBe(true);
+    expect(connection.source("2").capabilities.has("query")).toBe(false);
+    expect(connection.source("2").capabilities.has("stream")).toBe(false);
+    expect(connection.source("2").capabilities.has("queryObjectIds")).toBe(true);
     await expect(connection.source("1").queryAll()).rejects.toMatchObject({
       name: "HonuaCapabilityNotSupportedError",
       capability: "query",
     });
-    expect(fetchFn).toHaveBeenCalledTimes(3);
+    await expect(connection.source("2").queryAll()).rejects.toMatchObject({
+      name: "HonuaCapabilityNotSupportedError",
+      capability: "query",
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(4);
   });
 
   it("does not substitute adapter defaults when GeoServices capability metadata is absent", async () => {

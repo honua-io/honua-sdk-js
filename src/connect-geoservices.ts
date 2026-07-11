@@ -324,14 +324,14 @@ function capabilitiesFromMetadata(
   const capabilities = new Set<Capability>();
   if (advertised.has("query")) {
     capabilities.add("queryObjectIds");
-    const paginationUnsupported =
-      "advancedQueryCapabilities" in metadata && metadata.advancedQueryCapabilities?.supportsPagination === false;
+    const paginationSupported =
+      "advancedQueryCapabilities" in metadata && metadata.advancedQueryCapabilities?.supportsPagination === true;
     // The canonical `query` capability also promises a safe `queryAll()`.
-    // A layer that explicitly rejects pagination cannot uphold that contract:
+    // A layer that does not explicitly affirm pagination cannot uphold that contract:
     // servers commonly ignore resultOffset and repeat the first page forever.
     // Keep independently safe query operations, but fail closed for canonical
     // query/stream until the contract can represent a single-page-only query.
-    if (!paginationUnsupported) {
+    if (paginationSupported) {
       capabilities.add("query");
       capabilities.add("stream");
     }

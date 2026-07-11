@@ -165,11 +165,11 @@ standardized queries, and PBF formats). MapServer tile-cache status is retained
 from service metadata; a selected layer URL reports it as unavailable rather
 than performing a second request. Missing capability
 metadata produces `discovery-unavailable` and enables nothing by assumption.
-If layer metadata explicitly reports `supportsPagination: false`, discovery
-does not advertise canonical `query` or `stream`: canonical `query` also
-promises a safe `queryAll()`, and repeatedly sending an unsupported offset can
-duplicate the first page indefinitely. Independently safe operations such as
-`queryObjectIds` and `queryExtent` remain available when advertised.
+Discovery only advertises canonical `query` and `stream` when layer metadata
+explicitly reports `supportsPagination: true`: canonical `query` also promises
+a safe `queryAll()`, and repeatedly sending an unsupported or unverified offset
+can duplicate the first page indefinitely. Independently safe operations such
+as `queryObjectIds` and `queryExtent` remain available when advertised.
 At a service root, if one optional layer metadata request fails, service-level
 evidence retains known-safe operations and the affected source reports
 `partial-discovery`; no adapter default is silently substituted. Layer fields
