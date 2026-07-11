@@ -751,10 +751,7 @@ function normalizeEndpoint(endpoint: string | URL, omit: (key: string) => boolea
 
 async function sha256(value: string): Promise<`sha256:${string}`> {
   if (!globalThis.crypto?.subtle) {
-    throw new HonuaDiscoveryError(
-      "invalid-cache-identity",
-      "Discovery cache identity requires Web Crypto SHA-256.",
-    );
+    throw new HonuaDiscoveryError("invalid-cache-identity", "Discovery cache identity requires Web Crypto SHA-256.");
   }
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
