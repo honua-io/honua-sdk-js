@@ -30,7 +30,7 @@ await session.publishCursor({ x: 320, y: 184, sourceId: "parcels" });
 Server adapters should map each server message to `SavedMapCollaborationEnvelope`:
 
 ```ts
-{
+const envelope = {
   envelopeVersion: "honua.saved-map-collaboration.v1",
   mapId: "map-ops",
   eventId: "evt-42",
@@ -40,7 +40,7 @@ Server adapters should map each server message to `SavedMapCollaborationEnvelope
   sessionId: "session-a",
   actorId: "user-a",
   event: { type: "cursor", participantId: "user-a", cursor: { x: 10, y: 20 } },
-}
+};
 ```
 
 `sequence` is stream ordering. `cursor` is the server replay token. Consumers keep the latest `snapshot.cursor` and pass it back through `joinSavedMap({ resumeFrom: { cursor } })`, `replayOperations({ afterCursor })`, or `reconnect()`.

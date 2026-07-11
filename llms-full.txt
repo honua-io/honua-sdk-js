@@ -290,6 +290,7 @@ tables, and backwards-compatibility policy live in:
 - [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/app-platform/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
 - [`docs/docs-samples-ownership.md`](./docs/docs-samples-ownership.md) — SDK/site ownership boundary for versioned docs and executable samples
+- [`docs/documentation-snippets.md`](./docs/documentation-snippets.md) — supported code-fence validation and explicit pseudocode directives
 - [`INSTALL.md`](./INSTALL.md) — install + subpath entrypoint table
 
 Run `npm run docs:learning:verify` from a fresh checkout to build the SDK and
@@ -297,6 +298,8 @@ validate learning-path metadata, internal links, generated Markdown, and runtime
 imports. CI reuses its existing build with the internal
 `npm run docs:learning:check` command, then separately compiles every selected
 example through `npm run docs:learning:typecheck`.
+Run `npm run docs:snippets:verify` to build the public declarations and validate
+all supported JavaScript and TypeScript documentation fences.
 
 ## AI assistants
 
@@ -610,10 +613,10 @@ The migration helpers live behind the `@honua/sdk-js/migration` subpath. They
 power the same codemod that the standalone CLI runs:
 
 ```typescript
-import { runCodemod, scanProject } from "@honua/sdk-js/migration";
+import { runEsriCompatCodemod, scanArcGisUsage } from "@honua/sdk-js/migration";
 
-const report = await scanProject({ input: "./src" });
-await runCodemod({ input: "./src", output: "./migrated" });
+const report = scanArcGisUsage("./src");
+const migration = runEsriCompatCodemod({ rootDir: "./src", write: true });
 ```
 
 ## Version Policy
@@ -3220,7 +3223,7 @@ contract under `test/design`; no production API was added for this ADR.
 This is the normative basic workflow: nine application lines including imports,
 inspection, first-frame readiness, and cleanup; no key or Honua account.
 
-```ts
+```ts doc-test=skip reason="normative future API; compile fixture lives under test/design"
 import maplibregl from "maplibre-gl";
 import { createHonua } from "@honua/sdk-js";
 import { maplibreRenderer } from "@honua/sdk-js/runtime";
@@ -4966,7 +4969,7 @@ function HonuaOverlay({ mapPackage }) {
   if (!map) return null;
   return (
     <HonuaMap package={mapPackage} map={map}>
-      <HonuaLayer {...} />
+      <HonuaLayer layer={{ id: "incidents", type: "circle", source: "incidents" }} />
     </HonuaMap>
   );
 }
@@ -5671,11 +5674,8 @@ CI publish workflow:
 ## Request/Auth Bridge
 
 ```ts
-import {
-  HonuaClient,
-  createArcGisTokenInterceptor,
-  createEsriRequestInterceptors,
-} from "@honua/sdk-js";
+import { HonuaClient } from "@honua/sdk-js";
+import { createArcGisTokenInterceptor, createEsriRequestInterceptors } from "@honua/sdk-js/esri-compat";
 
 const client = new HonuaClient({
   baseUrl: "https://example.test",
@@ -6679,7 +6679,7 @@ server-side aggregation, related-records, or feature attachments.
 ## Locator
 
 ```ts
-{
+interface WfsLocator {
   url: string;                 // Fully qualified WFS endpoint (e.g. https://server/wfs)
   typeName: string;            // Namespace-qualified feature-type name (e.g. parcels:lot)
   featureNamespace?: string;   // URI bound to the typeName prefix (required for prefixed applyEdits)

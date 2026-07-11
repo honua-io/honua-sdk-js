@@ -188,7 +188,9 @@ emit `degraded[]` should follow the same pattern.
 `loadMapPackage` accepts an additional option:
 
 ```ts
-sourceErrorPolicy?: "tolerant" | "fail-fast"; // default: "tolerant"
+interface LoadOptions {
+  sourceErrorPolicy?: "tolerant" | "fail-fast"; // default: "tolerant"
+}
 ```
 
 | Policy        | Behaviour |

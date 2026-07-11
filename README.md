@@ -280,6 +280,7 @@ tables, and backwards-compatibility policy live in:
 - [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/app-platform/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
 - [`docs/docs-samples-ownership.md`](./docs/docs-samples-ownership.md) — SDK/site ownership boundary for versioned docs and executable samples
+- [`docs/documentation-snippets.md`](./docs/documentation-snippets.md) — supported code-fence validation and explicit pseudocode directives
 - [`INSTALL.md`](./INSTALL.md) — install + subpath entrypoint table
 
 Run `npm run docs:learning:verify` from a fresh checkout to build the SDK and
@@ -287,6 +288,8 @@ validate learning-path metadata, internal links, generated Markdown, and runtime
 imports. CI reuses its existing build with the internal
 `npm run docs:learning:check` command, then separately compiles every selected
 example through `npm run docs:learning:typecheck`.
+Run `npm run docs:snippets:verify` to build the public declarations and validate
+all supported JavaScript and TypeScript documentation fences.
 
 ## AI assistants
 

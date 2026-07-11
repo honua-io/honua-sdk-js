@@ -100,8 +100,8 @@ the **merged** changed-slice set, the **latest** state, and the
 **previous** state at the start of the tick. This means:
 
 ```ts
-ctx.dispatch({ kind: "set-filter", id: "state", clause: ... });
-ctx.dispatch({ kind: "set-sort", sort: [...] });
+ctx.dispatch({ kind: "set-filter", id: "state", clause: stateClause });
+ctx.dispatch({ kind: "set-sort", sort: [prioritySort] });
 // → one microtask, listeners on "filters" and "sort" each fire once,
 //   listeners on "all" fire once with changedSlices = { filters, sort }.
 ```
@@ -309,7 +309,7 @@ sets, and rejects subsequent `dispatch` / `bind` / `subscribe` /
 import { createDataset } from "@honua/sdk-js/contract";
 import { createExplorationContext } from "@honua/sdk-js/exploration";
 
-const dataset = createDataset({ id: "parcels", client, sources: [...] });
+const dataset = createDataset({ id: "parcels", client, sources: [parcelSource] });
 const ctx = createExplorationContext({
   datasetId: dataset.id,
   sourceIds: dataset.sourceIds(),

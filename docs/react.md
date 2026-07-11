@@ -146,7 +146,7 @@ function HonuaOverlay({ mapPackage }) {
   if (!map) return null;
   return (
     <HonuaMap package={mapPackage} map={map}>
-      <HonuaLayer {...} />
+      <HonuaLayer layer={{ id: "incidents", type: "circle", source: "incidents" }} />
     </HonuaMap>
   );
 }

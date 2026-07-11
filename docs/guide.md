@@ -473,11 +473,8 @@ CI publish workflow:
 ## Request/Auth Bridge
 
 ```ts
-import {
-  HonuaClient,
-  createArcGisTokenInterceptor,
-  createEsriRequestInterceptors,
-} from "@honua/sdk-js";
+import { HonuaClient } from "@honua/sdk-js";
+import { createArcGisTokenInterceptor, createEsriRequestInterceptors } from "@honua/sdk-js/esri-compat";
 
 const client = new HonuaClient({
   baseUrl: "https://example.test",

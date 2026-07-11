@@ -164,13 +164,13 @@ methods.
 serializable diagnostics:
 
 ```ts
-{
+const diagnostic = {
   name: "HonuaGeneratedAppError",
   code: "missing-manifest-artifact",
   stage: "projection",
   message: "AppPackage is missing manifest_artifact for generated-app preview",
   detail: { path: "AppPackage.manifest_artifact" }
-}
+};
 ```
 
 Call `loadGeneratedAppRuntime` directly when the host wants exceptions instead

@@ -46,7 +46,7 @@ server-side aggregation, related-records, or feature attachments.
 ## Locator
 
 ```ts
-{
+interface WfsLocator {
   url: string;                 // Fully qualified WFS endpoint (e.g. https://server/wfs)
   typeName: string;            // Namespace-qualified feature-type name (e.g. parcels:lot)
   featureNamespace?: string;   // URI bound to the typeName prefix (required for prefixed applyEdits)

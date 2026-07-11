@@ -346,7 +346,7 @@ contract under `test/design`; no production API was added for this ADR.
 This is the normative basic workflow: nine application lines including imports,
 inspection, first-frame readiness, and cleanup; no key or Honua account.
 
-```ts
+```ts doc-test=skip reason="normative future API; compile fixture lives under test/design"
 import maplibregl from "maplibre-gl";
 import { createHonua } from "@honua/sdk-js";
 import { maplibreRenderer } from "@honua/sdk-js/runtime";

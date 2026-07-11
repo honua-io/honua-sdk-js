@@ -243,6 +243,8 @@
     "docs:learning:check": "node --test test/scripts/docs-learning.test.mjs && node scripts/docs-learning.mjs check",
     "docs:learning:verify": "npm run build --silent && npm run docs:learning:check",
     "docs:learning:typecheck": "node scripts/typecheck-learning-paths.mjs",
+    "docs:snippets:check": "node --test test/scripts/docs-snippets.test.mjs && node scripts/docs-snippets.mjs",
+    "docs:snippets:verify": "npm run build --silent && npm run docs:snippets:check",
     "docs:llms": "node scripts/generate-llms-txt.mjs",
     "docs:site": "node scripts/build-docs-site.mjs",
     "docs:site:build": "npm run docs:api && npm run docs:site",

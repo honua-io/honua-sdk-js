@@ -146,6 +146,9 @@ jobs:
       - name: Verify task-oriented learning paths
         run: npm run docs:learning:check
 
+      - name: Validate documentation snippets
+        run: npm run docs:snippets:check
+
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets
 

@@ -203,10 +203,10 @@ The migration helpers live behind the `@honua/sdk-js/migration` subpath. They
 power the same codemod that the standalone CLI runs:
 
 ```typescript
-import { runCodemod, scanProject } from "@honua/sdk-js/migration";
+import { runEsriCompatCodemod, scanArcGisUsage } from "@honua/sdk-js/migration";
 
-const report = await scanProject({ input: "./src" });
-await runCodemod({ input: "./src", output: "./migrated" });
+const report = scanArcGisUsage("./src");
+const migration = runEsriCompatCodemod({ rootDir: "./src", write: true });
 ```
 
 ## Version Policy

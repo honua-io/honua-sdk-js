@@ -1,13 +1,14 @@
 # Console SDK contracts: ownership and parity (`honua-sdk-js#225`)
 
-Status: experimental. The `@honua/sdk-js/console` subpath exposes browser-safe
-contracts so [`honua-console`](https://github.com/honua-io/honua-console) can
-consume the shared metadata / content / package model without copying server
-DTOs or Portal-only types. The decision source is
+Status: historical design reference. The experimental `@honua/sdk-js/console`
+subpath shown below is no longer exported by the stable SDK surface. Current
+Console integrations should use the supported application-kernel entrypoints
+listed in [`config/public-surface.json`](../config/public-surface.json) rather
+than copying this former contract. The decision source is
 `honua-console/docs/adr/0001-unified-honua-console-runtime.md`; the server
 baseline is `honua-server#1162` (Console metadata v2 content + RBAC API).
 
-```ts
+```ts doc-test=skip reason="historical removed console subpath"
 import {
   // content + metadata v2
   type HonuaConsoleContentItem,
