@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Query, Result, Source, SourceDescriptor } from "../src/contract/types.js";
 import { capabilities } from "../src/contract/types.js";
-import { explainQuery } from "../src/query-planner/index.js";
+import { explainQuery, hashQueryPlan } from "../src/query-planner/index.js";
+import type { QueryExecutionPlanV1 } from "../src/query-planner/types.js";
 import {
   type CesiumEntityCollectionTarget,
   type CesiumEntityRuntimeModule,
@@ -107,6 +108,22 @@ describe("projectSourceToCesium", () => {
     ).toThrowError(expect.objectContaining({ code: "invalid-option" }));
   });
 
+  it("binds the executable remote step to the accepted canonical query", () => {
+    const source = fakeSource([firstResult]);
+    const mismatched = planWithStepQuery({ returnGeometry: false, outSr: 3857 });
+    expect(() => projectSourceToCesium(source, mismatched, firstResult)).toThrowError(
+      expect.objectContaining({ code: "invalid-plan" }),
+    );
+    const implicitGeometry = explainQuery({
+      descriptor,
+      query: { pagination: { limit: 10 }, outSr: 4326 },
+      ...context,
+    });
+    expect(() => projectSourceToCesium(source, implicitGeometry, firstResult)).toThrowError(
+      expect.objectContaining({ code: "unsupported-plan" }),
+    );
+  });
+
   it("does not guess the vertical datum for Z coordinates", () => {
     const source = fakeSource([firstResult]);
     const projection = projectSourceToCesium(source, plan, {
@@ -117,6 +134,94 @@ describe("projectSourceToCesium", () => {
     expect(projection.diagnostics).toContainEqual(
       expect.objectContaining({ code: "vertical-datum-unsupported", fidelity: "unsupported" }),
     );
+  });
+
+  it("omits invalid coordinate ranges, Z values, and unclosed rings", () => {
+    const source = fakeSource([firstResult]);
+    const projection = projectSourceToCesium(
+      source,
+      plan,
+      {
+        exceededTransferLimit: false,
+        features: [
+          { attributes: { unit_id: 1 }, geometry: { x: 181, y: 21 } },
+          { attributes: { unit_id: 2 }, geometry: { type: "Point", coordinates: [-157, 91] } },
+          { attributes: { unit_id: 3 }, geometry: { type: "Point", coordinates: [-157, 21, Number.NaN] } },
+          {
+            attributes: { unit_id: 4 },
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [-158, 21],
+                  [-157, 21],
+                  [-157, 22],
+                  [-158, 22],
+                ],
+              ],
+            },
+          },
+        ],
+      },
+      { verticalDatum: "ellipsoidal-wgs84" },
+    );
+    expect(projection.entities).toEqual([]);
+    expect(projection.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "geometry-unsupported", detail: { omittedFeatureCount: 4 } }),
+    );
+  });
+
+  it("accepts epoch milliseconds and offset-bearing millisecond ISO instants only", () => {
+    const source = fakeSource([firstResult]);
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        { attributes: { unit_id: 1, start: 1_784_192_400_000, end: 1_784_192_460_000 }, geometry: { x: -157, y: 21 } },
+        {
+          attributes: { unit_id: 2, start: "2026-07-15T10:00:00-10:00", end: "2026-07-15T10:01:00-10:00" },
+          geometry: { x: -157, y: 21 },
+        },
+        {
+          attributes: { unit_id: 3, start: "2026-07-15T10:00:00", end: "2026-07-15T10:01:00" },
+          geometry: { x: -157, y: 21 },
+        },
+        {
+          attributes: { unit_id: 4, start: "2026-07-15T10:00:00.0001Z", end: "2026-07-15T10:01:00Z" },
+          geometry: { x: -157, y: 21 },
+        },
+      ],
+    };
+    const projection = projectSourceToCesium(source, plan, result, {
+      time: { startField: "start", endField: "end" },
+    });
+    expect(projection.entities.map((entity) => entity.featureId)).toEqual([1, 2]);
+    expect(projection.entities[1]?.interval).toEqual({
+      start: "2026-07-15T20:00:00.000Z",
+      end: "2026-07-15T20:01:00.000Z",
+    });
+    expect(projection.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "time-interval-invalid", detail: { omittedFeatureCount: 2 } }),
+    );
+  });
+
+  it("deeply snapshots caller attributes and reports incomplete fidelity truthfully", () => {
+    const nested = { dispatch: { priority: 1 }, tags: ["live"] };
+    const source = fakeSource([firstResult]);
+    const projection = projectSourceToCesium(source, plan, {
+      exceededTransferLimit: true,
+      degraded: [
+        { capability: "query", reason: "replica lag", protocol: descriptor.protocol, sourceId: descriptor.id },
+      ],
+      features: [{ attributes: { unit_id: 1, nested }, geometry: { x: -157, y: 21 } }],
+    });
+    nested.dispatch.priority = 9;
+    nested.tags.push("changed");
+    expect(projection.entities[0]?.properties.nested).toEqual({ dispatch: { priority: 1 }, tags: ["live"] });
+    expect(Object.isFrozen(projection.entities[0]?.properties.nested)).toBe(true);
+    expect(
+      projection.diagnostics.filter((entry) => entry.severity === "warning").map((entry) => entry.fidelity),
+    ).toEqual(["unsupported", "unsupported"]);
+    expect(Object.isFrozen(projection.diagnostics[1]?.detail)).toBe(true);
   });
 
   it("projects 10k point entities within the renderer-neutral projection budget", () => {
@@ -154,6 +259,41 @@ describe("mountSourceToCesium", () => {
     expect(source.query).not.toHaveBeenCalled();
   });
 
+  it("rejects pre-aborted and malformed peers before reading the source", async () => {
+    const source = fakeSource([firstResult]);
+    const loader = vi.fn(async () => cesiumModule);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      mountSourceToCesium(fakeCollection(), source, plan, { ...context, signal: controller.signal, cesium: loader }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(loader).not.toHaveBeenCalled();
+    await expect(
+      mountSourceToCesium(fakeCollection(), source, plan, {
+        ...context,
+        cesium: async () => ({}) as CesiumEntityRuntimeModule,
+      }),
+    ).rejects.toThrowError(expect.objectContaining({ code: "peer-unavailable" }));
+    expect(source.query).not.toHaveBeenCalled();
+  });
+
+  it("snapshots mutable mount options before awaiting the peer", async () => {
+    const source = fakeSource([firstResult]);
+    const peer = deferred<CesiumEntityRuntimeModule>();
+    const options = {
+      ...context,
+      featureIdField: "unit_id",
+      cesium: () => peer.promise,
+      verticalDatum: "ellipsoidal-wgs84" as const,
+    };
+    const mounting = mountSourceToCesium(fakeCollection(), source, plan, options);
+    options.featureIdField = "changed_after_call";
+    peer.resolve(cesiumModule);
+    const mounted = await mounting;
+    expect(mounted.entityIds).toContain("honua-response-units:s:medic%2F1");
+    mounted.dispose();
+  });
+
   it("uses an injected lazy peer, rebuilds by stable id, and disposes idempotently", async () => {
     const nextResult: Result<Record<string, unknown>> = {
       exceededTransferLimit: false,
@@ -174,8 +314,11 @@ describe("mountSourceToCesium", () => {
       position: { longitude: -157.8583, latitude: 21.3069, height: 12 },
     });
 
-    await mounted.refresh();
+    const refreshed = await mounted.refresh();
     expect(mounted.entityIds).toEqual(["honua-response-units:s:medic%2F1"]);
+    expect(Object.isFrozen(refreshed)).toBe(true);
+    expect(Object.isFrozen(refreshed.diagnostics)).toBe(true);
+    expect(Object.isFrozen(mounted.diagnostics)).toBe(true);
     expect(mounted.diagnostics.at(-1)).toMatchObject({
       code: "incremental-update",
       detail: { rebuildBoundary: "entity-snapshot" },
@@ -232,6 +375,42 @@ describe("mountSourceToCesium", () => {
     });
     collection.failAddId = undefined;
     mounted.dispose();
+  });
+
+  it("cannot resurrect entities when collection listeners dispose during refresh", async () => {
+    const nextResult: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [{ attributes: { unit_id: 99 }, geometry: { x: -157.7, y: 21.2 } }],
+    };
+    const source = fakeSource([firstResult, nextResult]);
+    const collection = fakeCollection();
+    const mounted = await mountSourceToCesium(collection, source, plan, {
+      ...context,
+      cesium: cesiumModule,
+      verticalDatum: "ellipsoidal-wgs84",
+    });
+    collection.onAdd = (id) => {
+      if (id === "honua-response-units:n:99") mounted.dispose();
+    };
+    await expect(mounted.refresh()).rejects.toMatchObject({ name: "AbortError" });
+    expect(mounted.state).toBe("disposed");
+    expect(mounted.entityIds).toEqual([]);
+    expect(collection.entities.size).toBe(0);
+  });
+
+  it("does not restore a snapshot when collection removal reenters disposal", async () => {
+    const source = fakeSource([firstResult, firstResult]);
+    const collection = fakeCollection();
+    const mounted = await mountSourceToCesium(collection, source, plan, {
+      ...context,
+      cesium: cesiumModule,
+      verticalDatum: "ellipsoidal-wgs84",
+    });
+    collection.onRemove = () => mounted.dispose();
+    await expect(mounted.refresh()).rejects.toMatchObject({ name: "AbortError" });
+    expect(mounted.state).toBe("disposed");
+    expect(mounted.entityIds).toEqual([]);
+    expect(collection.entities.size).toBe(0);
   });
 
   it("keeps failed disposal retryable and completes cleanup on a later call", async () => {
@@ -293,26 +472,42 @@ function fakeCollection(): CesiumEntityCollectionTarget & {
   entities: Map<string, Readonly<Record<string, unknown>>>;
   failRemoveId?: string;
   failAddId?: string;
+  onAdd?: (id: string) => void;
+  onRemove?: (id: string) => void;
 } {
   const entities = new Map<string, Readonly<Record<string, unknown>>>();
   const collection = {
     entities,
     failRemoveId: undefined as string | undefined,
     failAddId: undefined as string | undefined,
+    onAdd: undefined as ((id: string) => void) | undefined,
+    onRemove: undefined as ((id: string) => void) | undefined,
     getById: (id: string) => entities.get(id),
     add: (entity: Readonly<Record<string, unknown>>) => {
       const id = String(entity.id);
       if (entities.has(id)) throw new Error(`duplicate ${id}`);
       if (collection.failAddId === id) throw new Error(`cannot add ${id}`);
       entities.set(id, entity);
+      collection.onAdd?.(id);
       return entity;
     },
     removeById: (id: string) => {
       if (collection.failRemoveId === id) throw new Error(`cannot remove ${id}`);
-      return entities.delete(id);
+      const removed = entities.delete(id);
+      if (removed) collection.onRemove?.(id);
+      return removed;
     },
   };
   return collection;
+}
+
+function planWithStepQuery(query: QueryExecutionPlanV1["ir"]["query"]): QueryExecutionPlanV1 {
+  const changed = {
+    ...plan,
+    steps: [{ ...plan.steps[0], query }],
+  } as QueryExecutionPlanV1;
+  const fingerprint = hashQueryPlan(changed);
+  return { ...changed, fingerprint };
 }
 
 function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {

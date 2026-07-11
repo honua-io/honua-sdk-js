@@ -227,9 +227,9 @@ export function projectSourceToCesium<T>(
       Object.freeze({
         id: entityId,
         featureId,
-        properties: Object.freeze({ ...attributes }),
-        geometry,
-        ...(interval ? { interval } : {}),
+        properties: immutableSnapshot(attributes),
+        geometry: immutableSnapshot(geometry),
+        ...(interval ? { interval: immutableSnapshot(interval) } : {}),
       }),
     );
     if (entities.length > maxEntities) {
@@ -254,7 +254,7 @@ export function projectSourceToCesium<T>(
         "transfer-limit",
         "warning",
         "execute",
-        "equivalent",
+        "unsupported",
         "The rendered page is not the complete source result.",
         {
           renderedEntityCount: entities.length,
@@ -270,7 +270,7 @@ export function projectSourceToCesium<T>(
         "source-degraded",
         "warning",
         "execute",
-        "equivalent",
+        "unsupported",
         "The source reported degraded execution semantics.",
         {
           reasons: result.degraded.map((entry) => entry.reason),
@@ -366,47 +366,60 @@ export async function mountSourceToCesium<T>(
   plan: QueryExecutionPlanV1,
   options: MountSourceToCesiumOptions = {},
 ): Promise<MountedCesiumEntitySource> {
+  const mountOptions = snapshotMountOptions(options);
   assertProjectionPlanContext(source, plan);
-  validatePlanAndOptions(source, plan, options);
+  validatePlanAndOptions(source, plan, mountOptions);
   const lifecycle = new AbortController();
-  const initialSignal = combineSignals([lifecycle.signal, options.signal]);
-  assertExecutionContext(source, plan, executionOptions(options));
-  const cesium = await resolveCesium(options.cesium);
+  const initialSignal = combineSignals([lifecycle.signal, mountOptions.signal]);
+  initialSignal.throwIfAborted();
+  assertExecutionContext(source, plan, executionOptions(mountOptions));
+  const cesium = await resolveCesium(mountOptions.cesium);
   initialSignal.throwIfAborted();
   const result = await executeAcceptedPlan(source, plan, initialSignal);
   initialSignal.throwIfAborted();
-  let projection = projectSourceToCesium(source, plan, result, options);
+  let projection = projectSourceToCesium(source, plan, result, mountOptions);
   const initialSpecs = materializeProjection(cesium, projection);
   assertEntityIdsAvailable(collection, initialSpecs.keys());
   let mounted = new Map<string, Readonly<Record<string, unknown>>>();
+  const attemptedInitialIds: string[] = [];
   try {
     for (const [id, spec] of initialSpecs) {
-      collection.add(spec);
+      initialSignal.throwIfAborted();
+      attemptedInitialIds.push(id);
       mounted.set(id, spec);
+      collection.add(spec);
+      initialSignal.throwIfAborted();
     }
   } catch (cause) {
-    // Include every intended id: some renderer wrappers mutate and then throw.
-    const failures = removeIds(collection, [...initialSpecs.keys()]);
+    // Include each attempted id: some renderer wrappers mutate and then throw.
+    const failures = removeIds(collection, attemptedInitialIds);
+    mounted = new Map();
+    if (initialSignal.aborted && failures.length === 0) throw initialSignal.reason;
     throw mutationError("Failed to mount Cesium entities transactionally.", cause, failures);
   }
 
   let state: CesiumEntityWorkflowState = projection.state;
-  let diagnostics = [...projection.diagnostics];
+  let diagnostics: readonly CesiumEntityDiagnostic[] = projection.diagnostics;
   let refreshTail: Promise<void> = Promise.resolve();
+  let lifecycleEpoch = 0;
+  let disposeActive = false;
 
   const runRefresh = async (refreshOptions: ExecuteQueryPlanOptions): Promise<CesiumEntityProjection> => {
     if (state === "disposed" || state === "disposing") {
       throw new HonuaCesiumEntityAdapterError("disposed", "Cannot refresh a disposed Cesium entity mount.");
     }
-    const signal = combineSignals([lifecycle.signal, refreshOptions.signal]);
+    const currentEpoch = lifecycleEpoch;
+    const refreshContext = snapshotExecutionOptions(refreshOptions);
+    const signal = combineSignals([lifecycle.signal, refreshContext.signal]);
     signal.throwIfAborted();
-    assertExecutionContext(source, plan, { ...executionOptions(options), ...refreshOptions });
+    assertExecutionContext(source, plan, { ...executionOptions(mountOptions), ...refreshContext });
     const nextResult = await executeAcceptedPlan(source, plan, signal);
     signal.throwIfAborted();
-    const next = projectSourceToCesium(source, plan, nextResult, options);
+    assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
+    const next = projectSourceToCesium(source, plan, nextResult, mountOptions);
     signal.throwIfAborted();
     const nextSpecs = materializeProjection(cesium, next);
-    const previous = mounted;
+    const previous = new Map(mounted);
     assertEntityIdsAvailable(
       collection,
       [...nextSpecs.keys()].filter((id) => !previous.has(id)),
@@ -414,27 +427,58 @@ export async function mountSourceToCesium<T>(
     const attemptedNextIds: string[] = [];
     try {
       removeIdsOrThrow(collection, [...previous.keys()]);
+      assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
       mounted = new Map();
       for (const [id, spec] of nextSpecs) {
-        signal.throwIfAborted();
+        assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
         attemptedNextIds.push(id);
-        collection.add(spec);
         mounted.set(id, spec);
+        collection.add(spec);
+        assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
       }
     } catch (cause) {
+      const ownedSpecs = new Map([...previous, ...nextSpecs]);
       const cleanupFailures = removeIds(collection, [...mounted.keys(), ...attemptedNextIds]);
-      mounted = new Map();
+      mounted = presentOwnedSpecs(collection, ownedSpecs);
+      if (lifecycleInvalidated(currentEpoch, lifecycleEpoch, state)) {
+        if (cleanupFailures.length > 0) {
+          throw mutationError(
+            "Cesium entity disposal interrupted refresh and cleanup was incomplete.",
+            cause,
+            cleanupFailures,
+          );
+        }
+        throw lifecycle.signal.reason;
+      }
       const restoreFailures: unknown[] = [];
       for (const [id, spec] of previous) {
         try {
-          if (!collection.getById(id)) collection.add(spec);
+          assertLifecycleActive(currentEpoch, lifecycleEpoch, state, lifecycle.signal);
           mounted.set(id, spec);
+          if (!collection.getById(id)) collection.add(spec);
+          assertLifecycleActive(currentEpoch, lifecycleEpoch, state, lifecycle.signal);
         } catch (error) {
+          mounted.delete(id);
           restoreFailures.push(error);
+          if (lifecycleInvalidated(currentEpoch, lifecycleEpoch, state)) break;
         }
       }
+      if (lifecycleInvalidated(currentEpoch, lifecycleEpoch, state)) {
+        const rollbackOwnedSpecs = new Map(mounted);
+        const disposalCleanupFailures = removeIds(collection, [...rollbackOwnedSpecs.keys()]);
+        mounted = presentOwnedSpecs(collection, rollbackOwnedSpecs);
+        if (disposalCleanupFailures.length > 0) {
+          throw mutationError("Cesium entity disposal interrupted rollback and cleanup was incomplete.", cause, [
+            ...cleanupFailures,
+            ...restoreFailures,
+            ...disposalCleanupFailures,
+          ]);
+        }
+        throw lifecycle.signal.reason;
+      }
+      if (signal.aborted && cleanupFailures.length === 0 && restoreFailures.length === 0) throw signal.reason;
       state = "degraded";
-      diagnostics = [
+      diagnostics = Object.freeze([
         ...diagnostics,
         diagnostic(
           source,
@@ -448,13 +492,14 @@ export async function mountSourceToCesium<T>(
             rollbackSucceeded: cleanupFailures.length === 0 && restoreFailures.length === 0,
           },
         ),
-      ];
+      ]);
       throw mutationError("Failed to rebuild the mounted Cesium entity snapshot.", cause, [
         ...cleanupFailures,
         ...restoreFailures,
       ]);
     }
-    diagnostics = [
+    assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
+    diagnostics = Object.freeze([
       ...next.diagnostics,
       diagnostic(
         source,
@@ -470,8 +515,8 @@ export async function mountSourceToCesium<T>(
           rebuildBoundary: "entity-snapshot",
         },
       ),
-    ];
-    projection = { ...next, diagnostics };
+    ]);
+    projection = Object.freeze({ ...next, diagnostics });
     state = next.state;
     return projection;
   };
@@ -491,7 +536,8 @@ export async function mountSourceToCesium<T>(
       return diagnostics;
     },
     refresh(refreshOptions = {}) {
-      const value = refreshTail.then(() => runRefresh(refreshOptions));
+      const refreshContext = snapshotExecutionOptions(refreshOptions);
+      const value = refreshTail.then(() => runRefresh(refreshContext));
       refreshTail = value.then(
         () => undefined,
         () => undefined,
@@ -500,21 +546,28 @@ export async function mountSourceToCesium<T>(
     },
     dispose() {
       if (state === "disposed") return;
+      if (disposeActive) return;
+      disposeActive = true;
+      lifecycleEpoch += 1;
       lifecycle.abort(new DOMException("Cesium entity mount disposed", "AbortError"));
       state = "disposing";
-      const failures: unknown[] = [];
-      for (const id of [...mounted.keys()]) {
-        try {
-          if (!collection.getById(id) || collection.removeById(id)) mounted.delete(id);
-          else failures.push(new Error(`Cesium refused to remove entity "${id}".`));
-        } catch (error) {
-          failures.push(error);
+      try {
+        const failures: unknown[] = [];
+        for (const id of [...mounted.keys()]) {
+          try {
+            if (!collection.getById(id) || collection.removeById(id)) mounted.delete(id);
+            else failures.push(new Error(`Cesium refused to remove entity "${id}".`));
+          } catch (error) {
+            failures.push(error);
+          }
         }
+        if (failures.length > 0) {
+          throw mutationError("Cesium entity disposal is incomplete and may be retried.", failures[0], failures);
+        }
+        state = "disposed";
+      } finally {
+        disposeActive = false;
       }
-      if (failures.length > 0) {
-        throw mutationError("Cesium entity disposal is incomplete and may be retried.", failures[0], failures);
-      }
-      state = "disposed";
     },
   };
 }
@@ -523,10 +576,14 @@ async function resolveCesium(
   injected: CesiumEntityRuntimeModule | CesiumEntityRuntimeLoader | undefined,
 ): Promise<CesiumEntityRuntimeModule> {
   try {
-    if (typeof injected === "function") return await injected();
-    if (injected) return injected;
-    return (await import("cesium")) as unknown as CesiumEntityRuntimeModule;
+    const runtime =
+      typeof injected === "function"
+        ? await injected()
+        : (injected ?? ((await import("cesium")) as unknown as CesiumEntityRuntimeModule));
+    assertCesiumRuntime(runtime);
+    return runtime;
   } catch (cause) {
+    if (cause instanceof HonuaCesiumEntityAdapterError) throw cause;
     throw new HonuaCesiumEntityAdapterError(
       "peer-unavailable",
       "Cesium entity mounting requires the optional cesium peer or an injected runtime module.",
@@ -582,7 +639,9 @@ function projectGeometry<T>(feature: HonuaTypedFeature<T>): CesiumEntityGeometry
   if (!value || typeof value !== "object") return undefined;
   const geometry = value as Record<string, unknown>;
   if (isFiniteNumber(geometry.x) && isFiniteNumber(geometry.y)) {
-    return { kind: "point", coordinates: [geometry.x, geometry.y, finiteHeight(geometry.z)] };
+    if (!validLongitudeLatitude(geometry.x, geometry.y) || !validOptionalHeight(geometry, "z")) return undefined;
+    const height = isFiniteNumber(geometry.z) ? geometry.z : 0;
+    return { kind: "point", coordinates: [geometry.x, geometry.y, height] };
   }
   if (geometry.type === "Point") {
     const coordinate = coordinate3(geometry.coordinates);
@@ -596,7 +655,7 @@ function projectGeometry<T>(feature: HonuaTypedFeature<T>): CesiumEntityGeometry
     const rings = geometry.coordinates;
     if (!Array.isArray(rings) || rings.length !== 1) return undefined;
     const coordinates = coordinates3(rings[0]);
-    return coordinates && coordinates.length >= 4 ? { kind: "polygon", coordinates } : undefined;
+    return coordinates && validRing(coordinates) ? { kind: "polygon", coordinates } : undefined;
   }
   if (Array.isArray(geometry.paths) && geometry.paths.length === 1) {
     const coordinates = coordinates3(geometry.paths[0]);
@@ -604,7 +663,7 @@ function projectGeometry<T>(feature: HonuaTypedFeature<T>): CesiumEntityGeometry
   }
   if (Array.isArray(geometry.rings) && geometry.rings.length === 1) {
     const coordinates = coordinates3(geometry.rings[0]);
-    return coordinates && coordinates.length >= 4 ? { kind: "polygon", coordinates } : undefined;
+    return coordinates && validRing(coordinates) ? { kind: "polygon", coordinates } : undefined;
   }
   return undefined;
 }
@@ -612,20 +671,29 @@ function projectGeometry<T>(feature: HonuaTypedFeature<T>): CesiumEntityGeometry
 function geometryHasZ(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   const geometry = value as Record<string, unknown>;
-  if (isFiniteNumber(geometry.z)) return true;
+  if (Object.hasOwn(geometry, "z")) return true;
   const candidate = geometry.coordinates ?? geometry.paths ?? geometry.rings;
   return coordinateTreeHasZ(candidate);
 }
 
 function coordinateTreeHasZ(value: unknown): boolean {
   if (!Array.isArray(value)) return false;
-  if (isFiniteNumber(value[0]) && isFiniteNumber(value[1])) return isFiniteNumber(value[2]);
+  if (isFiniteNumber(value[0]) && isFiniteNumber(value[1])) return value.length >= 3;
   return value.some(coordinateTreeHasZ);
 }
 
 function coordinate3(value: unknown): readonly [number, number, number] | undefined {
-  if (!Array.isArray(value) || !isFiniteNumber(value[0]) || !isFiniteNumber(value[1])) return undefined;
-  return [value[0], value[1], finiteHeight(value[2])];
+  if (
+    !Array.isArray(value) ||
+    value.length < 2 ||
+    value.length > 3 ||
+    !isFiniteNumber(value[0]) ||
+    !isFiniteNumber(value[1]) ||
+    !validLongitudeLatitude(value[0], value[1]) ||
+    (value.length === 3 && !isFiniteNumber(value[2]))
+  )
+    return undefined;
+  return [value[0], value[1], value.length === 3 ? (value[2] as number) : 0];
 }
 
 function coordinates3(value: unknown): readonly (readonly [number, number, number])[] | undefined {
@@ -634,6 +702,21 @@ function coordinates3(value: unknown): readonly (readonly [number, number, numbe
   return result.every((coordinate) => coordinate !== undefined)
     ? (result as readonly (readonly [number, number, number])[])
     : undefined;
+}
+
+function validLongitudeLatitude(longitude: number, latitude: number): boolean {
+  return longitude >= -180 && longitude <= 180 && latitude >= -90 && latitude <= 90;
+}
+
+function validOptionalHeight(geometry: Readonly<Record<string, unknown>>, key: string): boolean {
+  return !Object.hasOwn(geometry, key) || geometry[key] === undefined || isFiniteNumber(geometry[key]);
+}
+
+function validRing(coordinates: readonly (readonly [number, number, number])[]): boolean {
+  if (coordinates.length < 4) return false;
+  const first = coordinates[0];
+  const last = coordinates.at(-1);
+  return first !== undefined && last !== undefined && first.every((value, index) => value === last[index]);
 }
 
 function projectInterval(
@@ -647,8 +730,37 @@ function projectInterval(
 }
 
 function isoInstant(value: unknown): string | undefined {
+  if (typeof value === "number" && !Number.isSafeInteger(value)) return undefined;
+  if (typeof value === "string" && !validOffsetIsoInstant(value)) return undefined;
   const date = typeof value === "number" || typeof value === "string" ? new Date(value) : undefined;
   return date && Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
+}
+
+const OFFSET_ISO_INSTANT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|([+-])(\d{2}):(\d{2}))$/;
+
+function validOffsetIsoInstant(value: string): boolean {
+  const match = OFFSET_ISO_INSTANT.exec(value);
+  if (!match) return false;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, , offsetHourText, offsetMinuteText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const offsetHour = offsetHourText === undefined ? 0 : Number(offsetHourText);
+  const offsetMinute = offsetMinuteText === undefined ? 0 : Number(offsetMinuteText);
+  const daysInMonth = month >= 1 && month <= 12 ? new Date(Date.UTC(year, month, 0)).getUTCDate() : 0;
+  return (
+    day >= 1 &&
+    day <= daysInMonth &&
+    hour <= 23 &&
+    minute <= 59 &&
+    second <= 59 &&
+    offsetHour <= 14 &&
+    offsetMinute <= 59 &&
+    (offsetHour < 14 || offsetMinute === 0)
+  );
 }
 
 function validatePlanAndOptions<T>(
@@ -666,11 +778,17 @@ function validatePlanAndOptions<T>(
     step?.engine !== "remote" ||
     step.operation !== "query" ||
     plan.ir.query.aggregation !== undefined ||
-    plan.ir.query.returnGeometry === false ||
-    !Number.isInteger(limit) ||
+    plan.ir.query.returnGeometry !== true ||
+    !Number.isSafeInteger(limit) ||
     (limit as number) <= 0
   ) {
     throw unsupportedPlan(plan);
+  }
+  if (canonicalStringify(toJsonValue(step.query)) !== canonicalStringify(toJsonValue(plan.ir.query))) {
+    throw new HonuaQueryPlanExecutionError(
+      "invalid-plan",
+      "Remote query step does not match the accepted canonical query IR.",
+    );
   }
   const maxEntities = positiveInteger(options.maxEntities, DEFAULT_CESIUM_ENTITY_LIMIT, "maxEntities");
   if ((limit as number) > maxEntities) {
@@ -765,7 +883,7 @@ function diagnostic<T>(
   message: string,
   detail?: Readonly<Record<string, unknown>>,
 ): CesiumEntityDiagnostic {
-  return {
+  return Object.freeze({
     code,
     severity,
     stage,
@@ -773,8 +891,8 @@ function diagnostic<T>(
     sourceId: source.descriptor.id,
     planId: plan.id,
     message,
-    ...(detail ? { detail } : {}),
-  };
+    ...(detail ? { detail: immutableSnapshot(detail) } : {}),
+  });
 }
 
 function executionOptions(options: MountSourceToCesiumOptions): ExecuteQueryPlanOptions {
@@ -784,6 +902,82 @@ function executionOptions(options: MountSourceToCesiumOptions): ExecuteQueryPlan
     ...(options.sourceVersion ? { sourceVersion: options.sourceVersion } : {}),
     ...(options.authorizationScope ? { authorizationScope: options.authorizationScope } : {}),
   };
+}
+
+function snapshotExecutionOptions(options: ExecuteQueryPlanOptions): ExecuteQueryPlanOptions {
+  return Object.freeze({
+    ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.schemaVersion !== undefined ? { schemaVersion: options.schemaVersion } : {}),
+    ...(options.sourceVersion !== undefined ? { sourceVersion: options.sourceVersion } : {}),
+    ...(options.authorizationScope ? { authorizationScope: Object.freeze([...options.authorizationScope]) } : {}),
+  });
+}
+
+function snapshotMountOptions(options: MountSourceToCesiumOptions): MountSourceToCesiumOptions {
+  const execution = snapshotExecutionOptions(options);
+  return Object.freeze({
+    ...execution,
+    ...(options.cesium ? { cesium: options.cesium } : {}),
+    ...(options.featureIdField !== undefined ? { featureIdField: options.featureIdField } : {}),
+    ...(options.maxEntities !== undefined ? { maxEntities: options.maxEntities } : {}),
+    ...(options.verticalDatum !== undefined ? { verticalDatum: options.verticalDatum } : {}),
+    ...(options.time
+      ? {
+          time: Object.freeze({ startField: options.time.startField, endField: options.time.endField }),
+        }
+      : {}),
+  });
+}
+
+function assertLifecycleActive(
+  expectedEpoch: number,
+  currentEpoch: number,
+  state: CesiumEntityWorkflowState,
+  signal: AbortSignal,
+): void {
+  if (lifecycleInvalidated(expectedEpoch, currentEpoch, state)) {
+    throw new DOMException("Cesium entity mount disposed", "AbortError");
+  }
+  signal.throwIfAborted();
+}
+
+function lifecycleInvalidated(expectedEpoch: number, currentEpoch: number, state: CesiumEntityWorkflowState): boolean {
+  return expectedEpoch !== currentEpoch || state === "disposed" || state === "disposing";
+}
+
+function assertCesiumRuntime(value: unknown): asserts value is CesiumEntityRuntimeModule {
+  const runtime = value as Partial<CesiumEntityRuntimeModule> | null | undefined;
+  if (
+    !runtime ||
+    typeof runtime.Cartesian3?.fromDegrees !== "function" ||
+    typeof runtime.JulianDate?.fromIso8601 !== "function" ||
+    typeof runtime.TimeInterval !== "function" ||
+    typeof runtime.TimeIntervalCollection !== "function" ||
+    typeof runtime.PolygonHierarchy !== "function"
+  ) {
+    throw new HonuaCesiumEntityAdapterError(
+      "peer-unavailable",
+      "The Cesium runtime does not provide the entity adapter APIs required by this mount.",
+    );
+  }
+}
+
+function immutableSnapshot<T>(value: T, seen = new WeakMap<object, unknown>()): T {
+  if (value === null || (typeof value !== "object" && typeof value !== "function")) return value;
+  if (typeof value === "function") return value;
+  const known = seen.get(value);
+  if (known !== undefined) return known as T;
+  if (value instanceof Date) return Object.freeze(new Date(value.getTime())) as T;
+  if (Array.isArray(value)) {
+    const copy: unknown[] = [];
+    seen.set(value, copy);
+    for (const entry of value) copy.push(immutableSnapshot(entry, seen));
+    return Object.freeze(copy) as T;
+  }
+  const copy: Record<string, unknown> = {};
+  seen.set(value, copy);
+  for (const [key, entry] of Object.entries(value)) copy[key] = immutableSnapshot(entry, seen);
+  return Object.freeze(copy) as T;
 }
 
 function removeIds(collection: CesiumEntityCollectionTarget, ids: readonly string[]): unknown[] {
@@ -802,6 +996,22 @@ function removeIds(collection: CesiumEntityCollectionTarget, ids: readonly strin
 function removeIdsOrThrow(collection: CesiumEntityCollectionTarget, ids: readonly string[]): void {
   const failures = removeIds(collection, ids);
   if (failures.length > 0) throw failures[0];
+}
+
+function presentOwnedSpecs(
+  collection: CesiumEntityCollectionTarget,
+  specs: ReadonlyMap<string, Readonly<Record<string, unknown>>>,
+): Map<string, Readonly<Record<string, unknown>>> {
+  const present = new Map<string, Readonly<Record<string, unknown>>>();
+  for (const [id, spec] of specs) {
+    try {
+      if (collection.getById(id)) present.set(id, spec);
+    } catch {
+      // Conservatively retain ownership so a later disposal can retry the id.
+      present.set(id, spec);
+    }
+  }
+  return present;
 }
 
 function mutationError(message: string, cause: unknown, failures: readonly unknown[]): HonuaCesiumEntityAdapterError {
@@ -855,10 +1065,6 @@ function asAttributes(value: unknown): Record<string, unknown> {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
-}
-
-function finiteHeight(value: unknown): number {
-  return isFiniteNumber(value) ? value : 0;
 }
 
 function errorMessage(error: unknown): string {

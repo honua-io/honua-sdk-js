@@ -38,8 +38,9 @@ entrypoint in Node/SSR therefore does not initialize a browser or WebGL runtime.
 
 ## Supported slice
 
-- One accepted, remote `query` step with an explicit positive row limit no
-  greater than `maxEntities` (10,000 by default).
+- One accepted, remote `query` step whose executable query exactly matches the
+  canonical IR, with explicit geometry and a positive row limit no greater than
+  `maxEntities` (10,000 by default).
 - Explicit WGS84 output (`outSr: 4326`). Coordinates are never silently
   reinterpreted or reprojected.
 - Point, single-part line, and single-ring polygon geometries in GeoJSON or
@@ -47,10 +48,13 @@ entrypoint in Node/SSR therefore does not initialize a browser or WebGL runtime.
   `verticalDatum: "ellipsoidal-wgs84"`; otherwise the feature is omitted with
   a stable fidelity diagnostic.
 - Stable entity identity from `featureIdField` or the source primary key.
-- Optional ISO/date/epoch start and end attributes mapped to Cesium
-  availability intervals.
+- Optional offset-bearing ISO instants with at most millisecond precision, or
+  integer Unix epoch-millisecond start/end attributes, mapped to Cesium
+  availability intervals. Ambiguous local-time strings and precision-losing
+  timestamps are omitted with a fidelity diagnostic.
 - Serialized snapshot refresh, cancellation checks before renderer mutation,
-  rollback attempts, deterministic cleanup, and retryable failed disposal.
+  reentrant-disposal guards, rollback attempts, deterministic cleanup, and
+  retryable failed disposal.
 - Stable diagnostics for transfer-limited results, source degradation, missing
   identity, unsupported geometry, invalid time intervals, and snapshot rebuilds.
 
