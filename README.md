@@ -328,7 +328,7 @@ correctly use this SDK:
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
     `@honua/sdk-js/cli`.
   - **Experimental** (subpath-only — not re-exported from the root barrels): `/agent-tools`,
-    `/geoparquet`, `/query-planner`, `/plugin`, `/deckgl`.
+    `/agent-safety`, `/geoparquet`, `/query-planner`, `/plugin`, `/deckgl`.
   - **Application-platform surfaces** (`/app`, `/app-controller`, `/app-workspace`,
     `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
     `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,
