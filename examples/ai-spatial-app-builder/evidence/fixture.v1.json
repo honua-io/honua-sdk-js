@@ -1,0 +1,27 @@
+{
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "ai-spatial-app-builder",
+  "lane": "fixture",
+  "status": "executed",
+  "observedAt": "2026-07-10T18:00:00.000Z",
+  "authMode": "none",
+  "provenance": {
+    "sourceId": "honolulu-parcels",
+    "sourceVersion": "parcels-snapshot-2026-07-10",
+    "schemaVersion": "parcels-schema-v5",
+    "attribution": "City and County of Honolulu — deterministic demonstration fixture"
+  },
+  "semantics": {
+    "outcome": "Shared safety contract validated the proposal, issued a signed single-use approval, authorized one five-row read, and verified a signed receipt.",
+    "planKind": "honua.query-plan",
+    "approvalKind": "honua.agent-approval",
+    "receiptKind": "honua.agent-execution-receipt",
+    "effectsBeforeApproval": 0,
+    "effectsAfterApproval": 1,
+    "rowCount": 5,
+    "approvalUse": "authenticated-single-use",
+    "receiptVerification": "approval-signature+consumption+receipt-signature"
+  },
+  "timing": { "totalMs": 1 }
+}

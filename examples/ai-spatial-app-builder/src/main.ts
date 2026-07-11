@@ -1,28 +1,39 @@
-import { createAiSpatialAppBuilderSession, selectAiSpatialBuilderUiModels } from "./model.js";
-import type { BuilderPlan, BuilderTurn } from "./types.js";
+import {
+  createProposal,
+  createSafeAgentSession,
+  describeHostLane,
+  fixturePolicy,
+  fixtureProposal,
+} from "./safe-agent.js";
+import type { AgentProposalV1, Decision, SafeAgentSession } from "./safe-agent.js";
 
 import "./styles.css";
 
 declare global {
   interface Window {
-    __HONUA_AI_SPATIAL_APP_BUILDER__?: {
-      ready: boolean;
-      submitPrompt(text: string): BuilderTurn;
-      answerClarification(choiceId: string): BuilderTurn;
-      previewPlan(): BuilderPlan;
-      applyAndComplete(): void;
-      visibleFeatureCount: number;
+    __HONUA_SAFE_AGENT__?: {
+      readonly ready: boolean;
+      readonly disposed: boolean;
+      runHappyPath(decision?: Decision, narrowedMaxRows?: number): Promise<void>;
+      runRefusal(kind: "mutation" | "realtime" | "excessive-limit" | "unsupported-tool"): void;
+      reset(): void;
+      dispose(): void;
+      readonly state: string;
+      readonly executionCount: number;
     };
   }
 }
 
-const session = createAiSpatialAppBuilderSession();
-let lastJobState = "Not started";
+let session = createSafeAgentSession();
+const hostLane = describeHostLane();
+let disposed = false;
+const uiEvents = new AbortController();
+const uiEventOptions = { signal: uiEvents.signal };
 
-function getElement<T extends Element>(selector: string): T {
-  const element = document.querySelector<T>(selector);
-  if (!element) throw new Error(`Missing required element: ${selector}`);
-  return element;
+function element<T extends Element>(selector: string): T {
+  const match = document.querySelector<T>(selector);
+  if (!match) throw new Error(`Missing required element: ${selector}`);
+  return match;
 }
 
 function escapeHtml(value: unknown): string {
@@ -35,218 +46,217 @@ function escapeHtml(value: unknown): string {
 }
 
 function render(): void {
-  renderStatus();
-  renderPromptFixtures();
-  renderTurn();
-  renderDraft();
+  if (disposed) return;
+  element("#state-value").textContent = session.state;
+  element("#effect-count").textContent = String(session.executionCount);
+  element("#live-status").textContent = hostLane.state;
+  element("#live-detail").textContent =
+    hostLane.reason ?? "Host-mediated endpoints available; credentials remain server-side.";
+  renderProposal();
   renderPlan();
-  renderMiniApp();
+  renderApproval();
+  renderReceipt();
+  renderResults();
 }
 
-function renderStatus(): void {
-  getElement("#fixture-state").textContent = "Fixture safe mode";
-  getElement("#cache-state").textContent = session.dataset.sources.map((source) => source.cache.status).join(" / ");
-  getElement("#capability-state").textContent = session.dataset.capabilityNotes
-    .map((note) => `${note.title}: ${note.state}`)
-    .join(" | ");
-  getElement("#job-state").textContent = lastJobState;
-}
-
-function renderPromptFixtures(): void {
-  getElement("#prompt-fixtures").innerHTML = session.dataset.prompts
+function renderProposal(): void {
+  const proposal = session.proposal;
+  element("#proposal-origin").textContent = proposal.origin;
+  element("#proposal-effect").textContent = proposal.requestedEffect;
+  element("#proposal-prompt").textContent = proposal.prompt;
+  element("#tool-calls").innerHTML = proposal.toolCalls
     .map(
-      (fixture) => `
-        <button class="secondary" type="button" data-prompt="${escapeHtml(fixture.prompt)}">
-          ${escapeHtml(fixture.id)}
-        </button>
-      `,
+      (tool) =>
+        `<li><code>${escapeHtml(tool.name)}</code><span>${escapeHtml(tool.effect)}</span><p>${escapeHtml(tool.reason)}</p></li>`,
     )
     .join("");
-  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-prompt]")) {
-    button.addEventListener("click", () => submitPrompt(button.dataset.prompt ?? ""));
-  }
-}
-
-function renderTurn(): void {
-  const turn = session.lastTurn;
-  getElement("#assistant-answer").textContent = turn?.assistantText ?? "Enter a natural-language spatial app request.";
-  const clarification = turn?.clarification;
-  const panel = getElement<HTMLElement>("#clarification");
-  if (!clarification) {
-    panel.innerHTML = "";
-    panel.dataset.state = "empty";
-    return;
-  }
-  panel.dataset.state = "ready";
-  panel.innerHTML = `
-    <h2>Clarification</h2>
-    <p>${escapeHtml(clarification.question)}</p>
-    <div class="button-row">
-      ${clarification.choices
-        .map(
-          (choice) => `
-            <button type="button" data-choice="${escapeHtml(choice.id)}">${escapeHtml(choice.label)}</button>
-          `,
-        )
-        .join("")}
-    </div>
-  `;
-  for (const button of panel.querySelectorAll<HTMLButtonElement>("[data-choice]")) {
-    button.addEventListener("click", () => {
-      session.answerClarification(button.dataset.choice ?? "");
-      render();
-    });
-  }
-}
-
-function renderDraft(): void {
-  const draft = session.activeDraft;
-  const panel = getElement<HTMLElement>("#draft-review");
-  if (!draft) {
-    panel.dataset.state = "empty";
-    panel.innerHTML = "<h2>Draft</h2><p>No structured draft yet.</p>";
-    return;
-  }
-  panel.dataset.state = "ready";
-  panel.innerHTML = `
-    <h2>Draft</h2>
-    <h3>${escapeHtml(draft.title)}</h3>
-    <dl>
-      <dt>Predicate</dt><dd>${escapeHtml(draft.spatialPredicate)}</dd>
-      <dt>Views</dt><dd>${escapeHtml(draft.views.join(", "))}</dd>
-      <dt>Grouping</dt><dd>${escapeHtml(draft.grouping.join(", ") || "none")}</dd>
-      <dt>Filters</dt><dd><code>${escapeHtml(JSON.stringify(draft.filters))}</code></dd>
-    </dl>
-    <button id="preview-plan" type="button">Preview Plan</button>
-  `;
-  getElement<HTMLButtonElement>("#preview-plan").addEventListener("click", () => {
-    session.previewPlan();
-    render();
-  });
 }
 
 function renderPlan(): void {
-  const plan = session.activePlan;
-  const panel = getElement<HTMLElement>("#plan-preview");
+  const plan = session.validatedPlan;
+  const panel = element<HTMLElement>("#plan-panel");
   if (!plan) {
-    panel.dataset.state = "empty";
-    panel.innerHTML = "<h2>Plan</h2><p>No plan preview yet.</p>";
+    panel.dataset.state = "pending";
+    element("#plan-state").textContent = "Waiting for policy validation";
+    element("#plan-details").innerHTML = "";
     return;
   }
-  panel.dataset.state = "ready";
-  panel.innerHTML = `
-    <h2>Plan</h2>
-    <p><strong>${escapeHtml(plan.estimatedCost)}</strong> / ${escapeHtml(plan.estimatedDuration)}</p>
-    <ol>${plan.steps.map((step) => `<li data-status="${step.status}">${escapeHtml(step.title)}</li>`).join("")}</ol>
-    <h3>Cache</h3>
-    <ul>${plan.cacheNotes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}</ul>
-    <h3>Warnings</h3>
-    <ul>${plan.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("") || "<li>None</li>"}</ul>
-    <button id="apply-plan" type="button">Apply Plan</button>
-    <button id="advance-job" type="button">Advance Job</button>
-  `;
-  getElement<HTMLButtonElement>("#apply-plan").addEventListener("click", () => {
-    session.applyPlan();
-    lastJobState = "Accepted";
-    render();
-  });
-  getElement<HTMLButtonElement>("#advance-job").addEventListener("click", () => {
-    const snapshot = session.advanceJob();
-    lastJobState = titleCase(snapshot.status);
-    render();
-  });
+  panel.dataset.state = plan.valid ? "valid" : "refused";
+  element("#plan-state").textContent = plan.valid ? "Validated — no effects occurred" : "Refused before execution";
+  element("#plan-details").innerHTML = `
+    <dl class="binding-grid">
+      <div><dt>Plan fingerprint</dt><dd><code>${escapeHtml(plan.queryPlan.fingerprint)}</code></dd></div>
+      <div><dt>Approval digest</dt><dd><code>${escapeHtml(plan.approvalDigest)}</code></dd></div>
+      <div><dt>Shared safety envelope</dt><dd>${escapeHtml(plan.dryRun?.kind ?? "not-issued")} · ${escapeHtml(plan.dryRun?.effectBudget.rows ?? 0)} rows / ${escapeHtml(plan.dryRun?.effectBudget.bytes ?? 0)} bytes</dd></div>
+      <div><dt>Policy / bindings digest</dt><dd><code>${escapeHtml(plan.dryRun?.policyDigest ?? "-")} / ${escapeHtml(plan.dryRun?.bindingsDigest ?? "-")}</code></dd></div>
+      <div><dt>Source / schema</dt><dd>${escapeHtml(plan.queryPlan.ir.source.sourceVersion)} / ${escapeHtml(plan.queryPlan.ir.source.schemaVersion)}</dd></div>
+      <div><dt>Authorization</dt><dd>${escapeHtml(plan.queryPlan.ir.source.authorizationScope.join(", "))}</dd></div>
+      <div><dt>CRS / row limit</dt><dd>EPSG:${escapeHtml(plan.queryPlan.ir.query.outSr)} / ${escapeHtml(plan.queryPlan.ir.query.pagination?.limit)}</dd></div>
+      <div><dt>Request / row / byte estimate</dt><dd>${escapeHtml(plan.queryPlan.estimates.requests ?? "unknown")} / ${escapeHtml(plan.queryPlan.estimates.rows ?? "unknown")} / ${escapeHtml(plan.queryPlan.estimates.bytes ?? "unknown")} bytes</dd></div>
+      <div><dt>Approved byte ceiling</dt><dd>${escapeHtml(plan.policy.maxBytes)} bytes</dd></div>
+      <div><dt>Fidelity / cache</dt><dd>${escapeHtml(plan.queryPlan.fidelity)} / ${escapeHtml(plan.queryPlan.cache)}</dd></div>
+      <div><dt>Data provenance</dt><dd>${escapeHtml(plan.sourceProvenance.dataMode)} · observed ${escapeHtml(plan.sourceProvenance.observedAt)} · ${escapeHtml(plan.sourceProvenance.attribution)}</dd></div>
+      <div><dt>Capabilities</dt><dd>${escapeHtml(plan.queryPlan.ir.source.capabilities.join(", "))}</dd></div>
+      <div><dt>Policy</dt><dd>${escapeHtml(plan.policy.id)} · ${escapeHtml(plan.policy.allowedEffects.join(", "))}</dd></div>
+      <div><dt>Compiled step</dt><dd>${escapeHtml(plan.queryPlan.steps.map((step) => `${step.engine}:${step.operation}`).join(" → "))}</dd></div>
+    </dl>
+    <div class="refusal-list" ${plan.refusals.length ? "" : "hidden"}>
+      <h3>Why this proposal was refused</h3>
+      <ul>${plan.refusals.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
+    </div>`;
 }
 
-function renderMiniApp(): void {
-  const app = session.generatedApp();
-  const rows = session.visibleFeatures();
-  getElement("#generated-app-title").textContent = app?.title ?? "No generated app";
-  getElement("#generated-app-state").textContent = app ? "linked" : "waiting";
-  getElement("#result-count").textContent = String(rows.length);
-  getElement("#result-table").innerHTML = rows.map(renderRow).join("");
-  getElement("#chart-buckets").innerHTML = session
-    .chartBuckets()
+function renderApproval(): void {
+  const approval = session.approval;
+  element("#approval-state").textContent = approval
+    ? `${approval.decision} · ${approval.approvedMaxRows} rows · ${approval.approvedMaxBytes} bytes · ${approval.grant ? `${approval.grant.algorithm}/${approval.grant.keyId} · single use · expires ${approval.grant.expiresAt}` : "no grant issued"}`
+    : "No approval grant exists";
+  const executing = session.state === "executing";
+  element<HTMLButtonElement>("#validate").disabled = executing;
+  element<HTMLButtonElement>("#reset").textContent = executing ? "Cancel & reset fixture" : "Reset fixture";
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-refusal]")) button.disabled = executing;
+  element<HTMLButtonElement>("#approve").disabled = session.state !== "validated";
+  element<HTMLButtonElement>("#narrow").disabled = session.state !== "validated";
+  element<HTMLButtonElement>("#reject").disabled = session.state !== "validated";
+  element<HTMLButtonElement>("#execute").disabled = session.state !== "approved";
+}
+
+function renderReceipt(): void {
+  const receipt = session.receipt;
+  element("#receipt-state").textContent = receipt ? "Verified tamper-evident receipt" : "No execution receipt";
+  element("#receipt-json").textContent = receipt
+    ? JSON.stringify(receipt, null, 2)
+    : "Execution is intentionally unavailable before approval.";
+  element("#receipt-integrity").textContent = receipt ? String(session.receiptVerified) : "not-run";
+}
+
+function renderResults(): void {
+  element("#row-count").textContent = String(session.rows.length);
+  element("#result-rows").innerHTML = session.rows
     .map(
-      (bucket) => `
-        <button class="bucket" type="button" data-zone="${escapeHtml(bucket.floodZone)}">
-          <strong>${escapeHtml(bucket.floodZone)}</strong>
-          <span>${bucket.count} / $${Math.round(bucket.value / 1000)}k</span>
-        </button>
-      `,
+      (row) =>
+        `<tr><td>${row.OBJECTID}</td><td>${escapeHtml(row.title)}</td><td>${escapeHtml(row.floodZone)}</td><td>${row.builtYear}</td><td>$${Math.round(row.assessedValue / 1000)}k</td></tr>`,
     )
     .join("");
-  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-zone]")) {
-    button.addEventListener("click", () => {
-      session.selectChartBucket(button.dataset.zone ?? "all");
-      render();
+}
+
+function reset(proposal: AgentProposalV1 = fixtureProposal): void {
+  if (disposed) return;
+  session.dispose();
+  session = createSafeAgentSession(proposal, fixturePolicy);
+  element("#event-log").textContent = "Proposal loaded. No source or tool effect has run.";
+  render();
+}
+
+function validate(): void {
+  session.validate();
+  element("#event-log").textContent = session.validatedPlan?.valid
+    ? "Policy and planner validation passed. Source reads remain at zero."
+    : `Refused: ${session.validatedPlan?.refusals.join(" ")}`;
+  render();
+}
+
+async function decide(decision: Decision, maxRows?: number): Promise<void> {
+  await session.decide(decision, maxRows);
+  element("#event-log").textContent =
+    decision === "reject"
+      ? "Reviewer rejected the plan. Execution remains disabled."
+      : `Reviewer ${decision}d a digest-bound read grant.`;
+  render();
+}
+
+async function execute(): Promise<void> {
+  if (disposed) return;
+  const activeSession = session;
+  const execution = activeSession.execute();
+  render();
+  try {
+    const receipt = await execution;
+    if (disposed || session !== activeSession) return;
+    element("#event-log").textContent = `Executed one approved read and verified ${receipt.receiptDigest}.`;
+  } catch (error) {
+    if (disposed || session !== activeSession) return;
+    element("#event-log").textContent = `Execution refused: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  render();
+}
+
+function refusalProposal(kind: "mutation" | "realtime" | "excessive-limit" | "unsupported-tool"): AgentProposalV1 {
+  if (kind === "excessive-limit")
+    return createProposal({ id: "proposal-excess", query: { ...fixtureProposal.query, pagination: { limit: 500 } } });
+  if (kind === "unsupported-tool") {
+    return createProposal({
+      id: "proposal-publish",
+      toolCalls: [{ name: "publishLayer", effect: "generated-app", reason: "Attempt a generated-app effect." }],
     });
   }
-  const detail = selectAiSpatialBuilderUiModels(session).detail;
-  getElement("#feature-detail").textContent =
-    detail.selectedRecords[0]?.feature.title ?? "Select a table row to populate detail.";
-  getElement("#workspace-export").textContent = session.exportState();
+  return createProposal({
+    id: `proposal-${kind}`,
+    requestedEffect: kind,
+    toolCalls: [
+      {
+        name: kind === "mutation" ? "applyEdits" : "subscribe",
+        effect: kind,
+        reason: "Requires separate host policy.",
+      },
+    ],
+  });
 }
 
-function renderRow(feature: (typeof session.dataset.features)[number]): string {
-  return `
-    <tr>
-      <td><button type="button" data-feature="${escapeHtml(feature.id)}">Open ${escapeHtml(feature.title)}</button></td>
-      <td>${escapeHtml(feature.parcelUse)}</td>
-      <td>${escapeHtml(feature.floodZone)}</td>
-      <td>${escapeHtml(feature.builtYear)}</td>
-      <td>${escapeHtml(feature.distanceMeters)}</td>
-    </tr>
-  `;
+element("#validate").addEventListener("click", validate, uiEventOptions);
+element("#approve").addEventListener("click", () => void decide("approve"), uiEventOptions);
+element("#narrow").addEventListener("click", () => void decide("narrow", 2), uiEventOptions);
+element("#reject").addEventListener("click", () => void decide("reject"), uiEventOptions);
+element("#execute").addEventListener("click", () => void execute(), uiEventOptions);
+element("#reset").addEventListener("click", () => reset(), uiEventOptions);
+for (const button of document.querySelectorAll<HTMLButtonElement>("[data-refusal]")) {
+  button.addEventListener(
+    "click",
+    () => {
+      reset(
+        refusalProposal(button.dataset.refusal as "mutation" | "realtime" | "excessive-limit" | "unsupported-tool"),
+      );
+      validate();
+    },
+    uiEventOptions,
+  );
 }
 
-function submitPrompt(text: string): BuilderTurn {
-  const turn = session.submitPrompt(text);
-  lastJobState = "Not started";
-  render();
-  return turn;
+function dispose(): void {
+  if (disposed) return;
+  disposed = true;
+  uiEvents.abort();
+  session.dispose();
 }
 
-getElement<HTMLFormElement>("#builder-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  submitPrompt(getElement<HTMLInputElement>("#builder-input").value);
-});
-
-getElement("#result-table").addEventListener("click", (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLButtonElement)) return;
-  const featureId = target.dataset.feature;
-  if (!featureId) return;
-  session.selectFeature(featureId);
-  render();
-});
-
-window.__HONUA_AI_SPATIAL_APP_BUILDER__ = {
-  ready: true,
-  submitPrompt,
-  answerClarification(choiceId: string) {
-    const turn = session.answerClarification(choiceId);
-    render();
-    return turn;
+window.__HONUA_SAFE_AGENT__ = {
+  get ready() {
+    return !disposed;
   },
-  previewPlan() {
-    const plan = session.previewPlan();
-    render();
-    return plan;
+  get disposed() {
+    return disposed;
   },
-  applyAndComplete() {
-    session.applyPlan();
-    session.advanceJob();
-    session.advanceJob();
-    lastJobState = "Successful";
-    render();
+  async runHappyPath(decision: Decision = "approve", narrowedMaxRows?: number) {
+    if (disposed) return;
+    validate();
+    await decide(decision, narrowedMaxRows);
+    if (decision !== "reject") await execute();
   },
-  get visibleFeatureCount() {
-    return Number(getElement("#result-count").textContent ?? "0");
+  runRefusal(kind) {
+    if (disposed) return;
+    reset(refusalProposal(kind));
+    validate();
+  },
+  reset,
+  dispose,
+  get state() {
+    return session.state;
+  },
+  get executionCount() {
+    return session.executionCount;
   },
 };
 
-function titleCase(value: string): string {
-  return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
-}
+window.addEventListener("beforeunload", dispose, { once: true, signal: uiEvents.signal });
 
 render();

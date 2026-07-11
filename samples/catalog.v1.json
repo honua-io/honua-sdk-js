@@ -14,20 +14,20 @@
   "samples": [
     {
       "id": "ai-spatial-app-builder",
-      "title": "AI spatial app builder",
-      "summary": "Builds a reviewable spatial application plan with the SDK agent-tool surface.",
-      "tier": "advanced",
+      "title": "Safe Agent Workbench",
+      "summary": "Proves typed proposals, shared policy validation, signed single-use approval, bounded execution, refusal, and verified receipt states.",
+      "tier": "flagship",
       "supportStatus": "experimental",
-      "disposition": { "decision": "rework", "reason": "Align with the plan-bound north-star agent approval workflow." },
+      "disposition": { "decision": "keep", "reason": "North-star safe-agent flagship rebuilt around plan-bound approval and receipts." },
       "sourcePath": "examples/ai-spatial-app-builder",
       "docsPath": "examples/ai-spatial-app-builder/README.md",
-      "capabilities": ["agent-planning", "generated-app", "map"],
-      "protocols": ["honua"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed plan fixtures.", "attribution": "Source-specific attribution is shown by the host.", "freshness": "Deterministic fixture replay time." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:ai-spatial-builder:build"] }, "live": { "status": "planned", "commands": [] } },
-      "expectedDegradation": "Model execution and mutation stay disabled without a host provider and approval policy.",
-      "validation": ["npm run demo:ai-spatial-builder:typecheck", "npm run demo:ai-spatial-builder:build"]
+      "capabilities": ["agent-approval", "agent-planning", "atomic-authorization", "query-planning", "receipts", "typed-agent-tools"],
+      "protocols": ["geoservices", "honua"],
+      "renderers": ["none"],
+      "data": { "mode": "hybrid", "authMode": "host-mediated", "config": ["HONUA_AGENT_HOST_URL", "HONUA_LIVE_DATA_URL"], "provenance": "Committed parcel fixture plus optional host-mediated proposal and live-data endpoints.", "attribution": "City and County of Honolulu — deterministic demonstration fixture.", "freshness": "Fixture snapshot 2026-07-10; optional live lane records its observation time." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:ai-spatial-builder:build", "npm run demo:ai-spatial-builder:evidence"] }, "live": { "status": "credential-unavailable", "commands": ["npm run demo:ai-spatial-builder:live-evidence"] } },
+      "expectedDegradation": "Missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy.",
+      "validation": ["npm run demo:ai-spatial-builder:typecheck", "npm run demo:ai-spatial-builder:build", "npm run demo:ai-spatial-builder:evidence", "npm run test:playwright:ai-spatial-builder"]
     },
     {
       "id": "app-bootstrap-basic",

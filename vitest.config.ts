@@ -81,6 +81,10 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/agent-tools/index.ts"),
       },
       {
+        find: "@honua/sdk-js/agent-safety",
+        replacement: path.resolve(import.meta.dirname, "src/agent-safety/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/query-planner",
         replacement: path.resolve(import.meta.dirname, "src/query-planner/index.ts"),
       },
