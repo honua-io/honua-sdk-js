@@ -174,12 +174,11 @@ export async function collectOvertureLiveEvidence() {
     page.on("request", (request) => {
       const requestUrl = new URL(request.url());
       if (requestUrl.origin !== OVERTURE_OBJECT_ORIGIN) return;
-      const headers = request.headers();
       const entry = {
         url: requestUrl.href,
         method: request.method(),
-        range: headers.range ?? null,
-        hasCredentials: Boolean(headers.authorization || headers.cookie),
+        range: null,
+        hasCredentials: false,
         hasCredentialQuery: requestUrl.username !== "" || requestUrl.password !== "" || requestUrl.search !== "",
         status: null,
         contentRange: null,
@@ -187,6 +186,12 @@ export async function collectOvertureLiveEvidence() {
       };
       traffic.push(entry);
       trafficByRequest.set(request, entry);
+      trafficTasks.push(
+        request.allHeaders().then((headers) => {
+          entry.range = headers.range ?? null;
+          entry.hasCredentials = Boolean(headers.authorization || headers.cookie);
+        }),
+      );
     });
     page.on("response", (response) => {
       const entry = trafficByRequest.get(response.request());
