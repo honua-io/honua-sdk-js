@@ -6,17 +6,37 @@ import { validateEvidenceEnvelope } from "../../scripts/sample-contract.mjs";
 const observedAt = new Date().toISOString();
 const proposalEndpoint = process.env.HONUA_AGENT_HOST_URL;
 const dataEndpoint = process.env.HONUA_LIVE_DATA_URL;
+const baseEvidence = {
+  format: "honua.sdk.sample-evidence.v1",
+  schemaVersion: 1,
+  sampleId: "ai-spatial-app-builder",
+  lane: "live",
+  status: "skipped",
+  observedAt,
+  authMode: "host-mediated",
+  sdk: { package: "@honua/sdk-js", version: "0.1.0-beta.0", gitCommit: null },
+  provenance: null,
+  semantics: {
+    operation: "safe-agent-plan-approve-query-receipt",
+    outcome: null,
+    itemCount: null,
+    assertions: [],
+  },
+  timing: { totalMs: null, firstSuccessfulInteractionMs: null },
+  degradation: { state: "unavailable", reasons: ["host-adapter-unavailable"] },
+  artifacts: [],
+};
 let evidence;
 if (!proposalEndpoint || !dataEndpoint) {
   evidence = {
-    format: "honua.sdk.sample-evidence.v1",
-    schemaVersion: 1,
-    sampleId: "ai-spatial-app-builder",
-    lane: "live",
-    status: "skipped",
-    observedAt,
-    authMode: "host-mediated",
-    provenance: null,
+    ...baseEvidence,
+    source: {
+      provider: "host-mediated-honua",
+      identity: "safe-agent-live-source",
+      endpoint: null,
+      deploymentVersion: null,
+      dataVersion: null,
+    },
     reason: "HONUA_AGENT_HOST_URL and HONUA_LIVE_DATA_URL are not configured; no fixture data was substituted.",
   };
 } else {
@@ -30,14 +50,14 @@ if (!proposalEndpoint || !dataEndpoint) {
     throw new Error("Configured host endpoints must be credential-free HTTPS URLs without query strings or fragments.");
   }
   evidence = {
-    format: "honua.sdk.sample-evidence.v1",
-    schemaVersion: 1,
-    sampleId: "ai-spatial-app-builder",
-    lane: "live",
-    status: "skipped",
-    observedAt,
-    authMode: "host-mediated",
-    provenance: null,
+    ...baseEvidence,
+    source: {
+      provider: "host-mediated-honua",
+      identity: "safe-agent-live-source",
+      endpoint: proposalEndpoint,
+      deploymentVersion: null,
+      dataVersion: null,
+    },
     reason:
       "Credential-free host endpoints were configured, but the external proposal/data adapter and scheduled-run authorization are not available in this repository; no request was sent and no fixture data was substituted.",
   };

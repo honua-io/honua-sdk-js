@@ -84,6 +84,15 @@ describe("sample publication contract", () => {
     const invalid = await readJson("samples/contract/v1/fixtures/sample-evidence.skipped.json");
     invalid.reason = null;
     expect(() => validateEvidenceEnvelope(invalid)).toThrow("requires a reason");
+
+    for (const lane of ["fixture.v1", "live-skipped.v1"]) {
+      const safeAgentEvidence = await readJson(`examples/ai-spatial-app-builder/evidence/${lane}.json`);
+      expect(validateEvidenceEnvelope(safeAgentEvidence)).toBe(safeAgentEvidence);
+    }
+
+    const missingSource = await readJson("examples/ai-spatial-app-builder/evidence/fixture.v1.json");
+    delete missingSource.source;
+    expect(() => validateEvidenceEnvelope(missingSource)).toThrow("source.provider is required");
   });
 
   it("binds browser artifacts to build inputs, peers, SHA-256, and SRI", async () => {

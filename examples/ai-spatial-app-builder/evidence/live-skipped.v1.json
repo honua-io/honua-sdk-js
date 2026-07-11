@@ -1,11 +1,29 @@
 {
+  "$schema": "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
   "format": "honua.sdk.sample-evidence.v1",
   "schemaVersion": 1,
   "sampleId": "ai-spatial-app-builder",
   "lane": "live",
   "status": "skipped",
+  "reason": "HONUA_AGENT_HOST_URL and HONUA_LIVE_DATA_URL are not configured; no fixture data was substituted.",
   "observedAt": "2026-07-10T18:00:00.000Z",
   "authMode": "host-mediated",
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": null },
+  "source": {
+    "provider": "host-mediated-honua",
+    "identity": "safe-agent-live-source",
+    "endpoint": null,
+    "deploymentVersion": null,
+    "dataVersion": null
+  },
   "provenance": null,
-  "reason": "HONUA_AGENT_HOST_URL and HONUA_LIVE_DATA_URL are not configured; no fixture data was substituted."
+  "semantics": {
+    "operation": "safe-agent-plan-approve-query-receipt",
+    "outcome": null,
+    "itemCount": null,
+    "assertions": []
+  },
+  "timing": { "totalMs": null, "firstSuccessfulInteractionMs": null },
+  "degradation": { "state": "unavailable", "reasons": ["host-adapter-unavailable"] },
+  "artifacts": []
 }
