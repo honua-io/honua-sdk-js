@@ -36,6 +36,28 @@ export {
 } from "./reducer.js";
 export { createRealtimeFeatureStore } from "./store.js";
 export type { RealtimeFeatureStore } from "./store.js";
+export {
+  REALTIME_DURABLE_CHECKPOINT_VERSION,
+  HonuaRealtimeResumeError,
+  createResumableRealtimeSubscription,
+  evaluateRealtimeCheckpoint,
+} from "./resumable.js";
+export type {
+  CreateResumableRealtimeSubscriptionOptions,
+  RealtimeCheckpointCompatibility,
+  RealtimeCheckpointCompatibilityCode,
+  RealtimeCheckpointStore,
+  RealtimeDurableCheckpointV1,
+  RealtimeExternalResnapshotReason,
+  RealtimeResumeContextV1,
+  RealtimeSequencedEvent,
+  ResumableRealtimeDelivery,
+  ResumableRealtimeDeliveryStatus,
+  ResumableRealtimePhase,
+  ResumableRealtimeReasonCode,
+  ResumableRealtimeState,
+  ResumableRealtimeSubscription,
+} from "./resumable.js";
 export { filterRealtimeSelection, reconcileRealtimeSelection } from "./exploration.js";
 export {
   selectRealtimeDetail,
