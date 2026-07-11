@@ -147,7 +147,7 @@ import {
   sceneWorkspaceIntentFromAdapterEvent,
 } from "@honua/app-platform/scene-workspace";
 import { HonuaMap, mountSourceToMapLibre } from "@honua/sdk/map";
-import { explainQuery } from "@honua/sdk/query-planner";
+import { createColumnarBatch, explainQuery, inspectColumnarBatch } from "@honua/sdk/query-planner";
 import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import {
@@ -419,6 +419,20 @@ if (typeof mountSourceToMapLibre !== "function")
   throw new Error("mountSourceToMapLibre export missing from @honua/sdk/map");
 if (typeof explainQuery !== "function")
   throw new Error("explainQuery export missing from @honua/sdk/query-planner");
+if (typeof createColumnarBatch !== "function" || typeof inspectColumnarBatch !== "function")
+  throw new Error("columnar exports missing from @honua/sdk/query-planner");
+{
+  const bytes = new ArrayBuffer(8);
+  const batch = createColumnarBatch({
+    id: "split-smoke",
+    sequence: 0,
+    rowCount: 1,
+    schema: { id: "split-smoke-v1", fields: [{ name: "value", type: { name: "float64" }, nullable: false }] },
+    buffers: [{ id: "values", field: "value", role: "values", data: bytes, byteOffset: 0, byteLength: 8 }],
+  });
+  if (inspectColumnarBatch(batch).copiedBytes !== 0)
+    throw new Error("@honua/sdk/query-planner columnar transfer introduced a payload copy");
+}
 const styleSpecDiagnostics = await validateRuntimeStyleSpec({
   version: 8,
   sources: {},

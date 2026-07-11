@@ -1,0 +1,44 @@
+/**
+ * Dependency-free columnar batch and worker-transfer contracts exported by
+ * `@honua/sdk-js/query-planner` for large geospatial results.
+ *
+ * The Honua envelope can carry buffers and metadata from Arrow/GeoArrow
+ * adapters without importing an Arrow implementation; it does not define a
+ * standalone Arrow layout. Transfers expose exact backing-allocation and
+ * payload-copy metrics, deduplicate shared backing buffers, enforce conservative default
+ * ceilings, and use a one-owner lease with deterministic cancellation,
+ * acknowledgement, error, and disposal behavior.
+ *
+ * @experimental
+ */
+
+export { ColumnarBatchLease, createColumnarBatch, inspectColumnarBatch, leaseColumnarBatch } from "./transfer.js";
+export {
+  COLUMNAR_BATCH_KIND,
+  COLUMNAR_BATCH_VERSION,
+  COLUMNAR_TRANSFER_KIND,
+  DEFAULT_COLUMNAR_BATCH_MAX_BACKING_BYTES,
+  DEFAULT_COLUMNAR_BATCH_MAX_BUFFER_VIEWS,
+  DEFAULT_COLUMNAR_BATCH_MAX_METADATA_ENTRIES,
+  DEFAULT_COLUMNAR_BATCH_MAX_ROWS,
+  DEFAULT_COLUMNAR_BATCH_MAX_SCHEMA_NODES,
+  DEFAULT_COLUMNAR_BATCH_MAX_STRING_BYTES,
+  HonuaColumnarTransferError,
+} from "./types.js";
+export type {
+  ColumnarBatchLeaseState,
+  ColumnarBatchLimits,
+  ColumnarBatchMetrics,
+  ColumnarBatchV1,
+  ColumnarBufferRole,
+  ColumnarBufferV1,
+  ColumnarFieldV1,
+  ColumnarSchemaV1,
+  ColumnarTransferErrorCode,
+  ColumnarTransferMessageV1,
+  ColumnarTransferOptions,
+  ColumnarTransferReceipt,
+  ColumnarTransferTarget,
+  ColumnarTypeV1,
+  CreateColumnarBatchInput,
+} from "./types.js";
