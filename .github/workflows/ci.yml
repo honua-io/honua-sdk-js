@@ -191,10 +191,11 @@ jobs:
         run: npm run test:playwright
 
       - name: Deterministic browser rendering benchmark
+        id: browser-benchmark
         run: npm run bench:browser
 
       - name: Upload browser benchmark evidence
-        if: always()
+        if: always() && steps.browser-benchmark.outcome != 'skipped'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: sdk-browser-benchmark

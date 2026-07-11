@@ -45,9 +45,7 @@ function buildBinaryFixture(rows: number) {
     const isInteractionTarget = index === 4_949;
     // Keep one unambiguous point at viewport center. The rest remain visible in
     // a nearby grid but outside the center picking radius.
-    positions[index * 2] = isInteractionTarget
-      ? CENTER_LONGITUDE
-      : CENTER_LONGITUDE + 0.05 + (column - 49.5) * 0.0005;
+    positions[index * 2] = isInteractionTarget ? CENTER_LONGITUDE : CENTER_LONGITUDE + 0.05 + (column - 49.5) * 0.0005;
     positions[index * 2 + 1] = isInteractionTarget ? CENTER_LATITUDE : CENTER_LATITUDE + (row - 49.5) * 0.0005;
     radii[index] = index === 4_949 ? 220 : 70;
     colors.set(index === 4_949 ? [255, 218, 92, 255] : [52, 195, 181, 210], index * 4);
