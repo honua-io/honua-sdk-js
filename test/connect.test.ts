@@ -6,6 +6,7 @@ import {
   HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
   connect,
 } from "../src/connect.js";
+import { HonuaClient } from "../src/core/client.js";
 import { HonuaAbortError } from "../src/core/errors.js";
 
 const landing = {
@@ -126,7 +127,7 @@ describe("connect", () => {
     };
     const fetchFn = discoveryFetch();
     const first = await connect({
-      endpoint: "https://example.test/api?access_token=redacted-by-identity",
+      endpoint: "https://example.test/api",
       protocol: "ogc-features",
       collectionId: "parcels",
       authorizationScopeFingerprint: "role:viewer:v1",
@@ -134,7 +135,7 @@ describe("connect", () => {
       cache,
     });
     const hit = await connect({
-      endpoint: "https://example.test/api?access_token=redacted-by-identity",
+      endpoint: "https://example.test/api",
       protocol: "ogc-features",
       collectionId: "parcels",
       authorizationScopeFingerprint: "role:viewer:v1",
@@ -143,7 +144,7 @@ describe("connect", () => {
       cache,
     });
     const anotherScope = await connect({
-      endpoint: "https://example.test/api?access_token=redacted-by-identity",
+      endpoint: "https://example.test/api",
       protocol: "ogc-features",
       collectionId: "parcels",
       authorizationScopeFingerprint: "role:editor:v1",
@@ -210,6 +211,50 @@ describe("connect", () => {
         cache,
       }),
     ).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("rejects query-bearing endpoints and mismatched injected clients before hooks or network", async () => {
+    const fetchFn = discoveryFetch();
+    const cache: ConnectDiscoveryCache = { get: vi.fn(), set: vi.fn() };
+    await expect(
+      connect({
+        endpoint: "https://example.test/api?tenant=a",
+        protocol: "ogc-features",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn },
+        cache,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-endpoint" });
+
+    const client = new HonuaClient({ baseUrl: "https://example.test/another-api", fetchFn });
+    await expect(
+      connect({
+        endpoint: "https://example.test/api",
+        protocol: "ogc-features",
+        authorizationScopeFingerprint: "anonymous",
+        client,
+        cache,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-endpoint" });
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(cache.get).not.toHaveBeenCalled();
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it("settles cancellation when a caller cache hook ignores its signal", async () => {
+    const controller = new AbortController();
+    const fetchFn = discoveryFetch();
+    const pending = connect({
+      endpoint: "https://example.test/api",
+      protocol: "ogc-features",
+      authorizationScopeFingerprint: "anonymous",
+      signal: controller.signal,
+      clientOptions: { fetchFn },
+      cache: { get: () => new Promise<ConnectDiscoverySnapshot | undefined>(() => {}), set: vi.fn() },
+    });
+    controller.abort();
+    await expect(pending).rejects.toBeInstanceOf(HonuaAbortError);
     expect(fetchFn).not.toHaveBeenCalled();
   });
 

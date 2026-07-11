@@ -138,7 +138,11 @@ was selected; otherwise it throws `ambiguous-source` and lists the valid IDs.
 
 Authentication, retry, timeout, interceptors, and transport fetch overrides
 are passed in `clientOptions`, or callers may inject an existing `HonuaClient`
-configured for the same endpoint. `signal` cancels cache and metadata work.
+whose normalized base URL exactly matches the endpoint. Landing endpoints must
+be absolute HTTP(S) URLs without user info, query parameters, or fragments;
+authentication belongs in `clientOptions`. `signal` cancels metadata work and
+settles `connect()` even when a caller cache hook ignores its supplied signal.
+Cache implementations remain responsible for stopping their own late work.
 `refresh: true` skips the caller cache read and forwards conditional-refresh
 semantics to the client's metadata cache.
 

@@ -137,24 +137,26 @@ export interface HonuaConnection {
 export async function connect(options: ConnectOptions): Promise<HonuaConnection> {
   assertExplicitSupportedProtocol(options.protocol);
   throwIfAborted(options.signal);
+  const endpoint = validateConnectEndpoint(options.endpoint);
   if (options.client && options.clientOptions) {
     throw new HonuaDiscoveryError("invalid-endpoint", "Pass either client or clientOptions to connect(), not both.");
   }
 
   const identity = await createDiscoveryCacheIdentity({
-    endpoint: options.endpoint,
+    endpoint,
     protocol: options.protocol,
     authorizationScopeFingerprint: options.authorizationScopeFingerprint,
     adapterVersion: HONUA_CONNECT_ADAPTER_VERSION,
     projectionVersion: HONUA_CONNECT_PROJECTION_VERSION,
     ...(options.collectionId ? { collectionId: options.collectionId } : {}),
   });
+  if (options.client) assertClientEndpoint(options.client, identity.endpoint);
   const cacheContext = Object.freeze({ ...(options.signal ? { signal: options.signal } : {}) });
   let snapshot: ConnectDiscoverySnapshot | undefined;
   let cacheStatus: ConnectCacheStatus = options.cache ? "miss" : "bypass";
 
   if (options.cache && options.refresh !== true) {
-    snapshot = await options.cache.get(identity, cacheContext);
+    snapshot = await awaitAbortable(options.cache.get(identity, cacheContext), options.signal);
     throwIfAborted(options.signal);
     if (snapshot) {
       snapshot = validateSnapshot(snapshot, identity, options.collectionId);
@@ -162,11 +164,11 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     }
   }
 
-  const client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: String(options.endpoint) });
+  const client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: identity.endpoint });
   if (!snapshot) {
     snapshot = await discoverOgcFeatures(client, identity, options);
     if (options.cache) {
-      await options.cache.set(identity, snapshot, cacheContext);
+      await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
     }
     cacheStatus = options.refresh === true ? "refreshed" : cacheStatus;
@@ -250,6 +252,64 @@ function assertExplicitSupportedProtocol(protocol: ConnectProtocolHint): asserts
       { protocol, supportedProtocols: ["ogc-features"] },
     );
   }
+}
+
+function validateConnectEndpoint(input: string | URL): string {
+  let endpoint: URL;
+  try {
+    endpoint = new URL(input.toString());
+  } catch {
+    throw new HonuaDiscoveryError("invalid-endpoint", "connect() endpoints must be absolute HTTP(S) URLs.");
+  }
+  if (endpoint.protocol !== "https:" && endpoint.protocol !== "http:") {
+    throw new HonuaDiscoveryError("invalid-endpoint", "connect() endpoints must use HTTP or HTTPS.");
+  }
+  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "connect() endpoints must not contain credentials, query parameters, or fragments; configure authentication through clientOptions.",
+    );
+  }
+  while (endpoint.pathname.length > 1 && endpoint.pathname.endsWith("/")) {
+    endpoint.pathname = endpoint.pathname.slice(0, -1);
+  }
+  const normalized = endpoint.toString();
+  return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
+}
+
+function assertClientEndpoint(client: HonuaClient, endpoint: string): void {
+  const clientEndpoint = validateConnectEndpoint(client.serverBaseUrl);
+  if (clientEndpoint !== endpoint) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "The injected HonuaClient base URL must exactly match the connect() endpoint.",
+      { endpoint, clientEndpoint },
+    );
+  }
+}
+
+function awaitAbortable<T>(value: T | Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  const pending = Promise.resolve(value);
+  if (!signal) return pending;
+  if (signal.aborted) {
+    void pending.catch(() => undefined);
+    throw new HonuaAbortError();
+  }
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", abort);
+      callback();
+    };
+    const abort = () => finish(() => reject(new HonuaAbortError()));
+    signal.addEventListener("abort", abort, { once: true });
+    pending.then(
+      (result) => finish(() => resolve(result)),
+      (error: unknown) => finish(() => reject(error)),
+    );
+  });
 }
 
 async function discoverOgcFeatures(
