@@ -3,7 +3,11 @@ import { cleanup, render, renderHook, screen, waitFor } from "@testing-library/r
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { SourceDescriptor } from "../../src/contract/index.js";
+import {
+  inspectDiscoveredSource,
+  resolveDiscoveryCapabilities,
+  type SourceDescriptor,
+} from "../../src/contract/index.js";
 import type { HonuaClient } from "../../src/core/client.js";
 import {
   HonuaProvider,
@@ -69,6 +73,42 @@ describe("useDataset", () => {
     rerender({ id: "ops-2" });
     expect(result.current).not.toBe(first);
     expect(result.current.id).toBe("ops-2");
+  });
+
+  it("rebuilds when only an inspected immutable capability set changes", () => {
+    const fake = fakeClient();
+    const descriptor: SourceDescriptor = {
+      id: "incidents",
+      protocol: "geoservices-feature-service",
+      locator: { url: "https://honua.example.com", serviceId: "incidents", layerId: 0 },
+      capabilities: new Set(),
+    };
+    const queryOnly = inspectDiscoveredSource(
+      descriptor,
+      resolveDiscoveryCapabilities("geoservices-feature-service", {
+        kind: "metadata",
+        capabilities: ["query"],
+        scope: ["query", "queryAggregate"],
+      }),
+    ).descriptor;
+    const queryAndAggregate = inspectDiscoveredSource(
+      descriptor,
+      resolveDiscoveryCapabilities("geoservices-feature-service", {
+        kind: "metadata",
+        capabilities: ["query", "queryAggregate"],
+        scope: ["query", "queryAggregate"],
+      }),
+    ).descriptor;
+    const { result, rerender } = renderHook(
+      ({ source }: { source: SourceDescriptor }) => useDataset({ id: "ops", sources: [source] }),
+      { wrapper: wrapper(fake.client), initialProps: { source: queryOnly } },
+    );
+    const first = result.current;
+
+    rerender({ source: queryAndAggregate });
+
+    expect(result.current).not.toBe(first);
+    expect(result.current.sourceDescriptors[0]?.capabilities.has("queryAggregate")).toBe(true);
   });
 });
 

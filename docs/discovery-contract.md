@@ -1,0 +1,122 @@
+# Discovery truth and cache identity
+
+Issue [#391](https://github.com/honua-io/honua-sdk-js/issues/391) introduces a
+universal connect workflow in protocol-sized slices. The first production
+slice is the protocol-neutral truth contract used by endpoint detectors and
+metadata adapters. It does not claim that every protocol can already be
+passed to one `connect()` implementation.
+
+## Capability truth
+
+`PROTOCOL_DEFAULT_CAPABILITIES` describes the maximum operations implemented
+by an SDK adapter. It is not proof that a particular server or asset enables
+those operations. Discovery code should pass endpoint evidence to
+`resolveDiscoveryCapabilities()` and use the returned intersection:
+
+```ts
+import {
+  inspectDiscoveredSource,
+  resolveDiscoveryCapabilities,
+} from "@honua/sdk-js/contract";
+
+const resolution = resolveDiscoveryCapabilities(
+  "ogc-features",
+  {
+    kind: "metadata",
+    capabilities: ["query", "queryObjectIds"],
+    provenance: [{ source: "GET /conformance" }],
+  },
+  { deny: ["queryObjectIds"] },
+);
+
+const inspection = inspectDiscoveredSource(sourceDescriptor, resolution);
+// inspection.descriptor.capabilities contains only "query".
+// inspection.capabilityDecisions explains every enabled or excluded operation.
+```
+
+Evidence is explicit and may be supplied as multiple capability-scoped records:
+
+- `metadata` means a server or asset document advertised support.
+- `declared` means trusted caller/source configuration guarantees support.
+- `inferred` is recorded but enables nothing unless the caller sets
+  `acceptInferred: true`.
+- `unavailable` enables nothing and emits a structured diagnostic. Protocol
+  defaults are never silently substituted.
+
+This lets a connection retain declared known-safe operations, metadata-backed
+operations, and a failed optional metadata endpoint at the same time. Every
+capability decision preserves the records and provenance that supported or
+excluded it; conflicting metadata is resolved conservatively.
+
+The resolver also rejects unknown capability identifiers, reports evidence
+that exceeds the adapter implementation, and applies allow/deny policy after
+the adapter/evidence intersection. A failed optional metadata endpoint does
+not erase explicitly `declared` known-safe operations; callers must preserve
+that provenance instead of relabeling defaults as observed metadata.
+
+## Cache identity
+
+`createDiscoveryCacheIdentity()` builds the common logical key for later
+connection caches. It requires an opaque authorization-scope fingerprint so
+authenticated metadata cannot accidentally share an anonymous cache entry.
+The identity includes opaque SHA-256 endpoint/auth-scope digests, protocol,
+source resource dimensions (including WFS/WMS `typeName`), and
+adapter/projection versions. The returned
+display endpoint is credential-redacted; the logical key never embeds raw URL
+or authorization-scope values.
+
+```ts
+import { createDiscoveryCacheIdentity } from "@honua/sdk-js/contract";
+
+const identity = await createDiscoveryCacheIdentity({
+  endpoint: collectionUrl,
+  protocol: "ogc-features",
+  authorizationScopeFingerprint: aclFingerprint,
+  collectionId: "parcels",
+  adapterVersion: "ogc-features@1",
+  projectionVersion: "source-inspection@1",
+});
+```
+
+URL user information, fragments, OAuth/session/API-key parameters, and cloud
+signed-URL credentials are removed. Stable query parameters are sorted and
+remain identity-bearing inside the opaque endpoint digest. Ambiguous credential
+aliases such as `key`, `api-key`, `subscription-key`, `auth`, `code`, and
+`session` are redacted from the display endpoint while their values remain in
+the hash input, so `key=roads` cannot collide with `key=buildings`. Adapters
+classify additional vendor cache busters with `transientQueryParameters`. The
+caller fingerprint is hashed again internally, but it should still be a stable
+identity derived from the caller, grants, audience, and ACL version rather than
+a token.
+
+Omitting `adapterVersion` and `projectionVersion` uses the exported
+`HONUA_DISCOVERY_ADAPTER_VERSION` and
+`HONUA_DISCOVERY_PROJECTION_VERSION` constants. Both dimensions are always in
+the cache key, so adapter or normalized-schema upgrades cannot reuse older
+entries accidentally.
+
+## Public surface
+
+The root and `/honua` barrels expose the curated workflow: the four primary
+evidence/policy/resolution/cache-option types, error, and helper functions.
+`@honua/sdk-js/contract` additionally exports the version constants and the
+complete decision, diagnostic, provenance, cache-result, and inspection type
+vocabulary for adapter authors. This keeps the beginner surface bounded while
+preserving a fully typed protocol integration seam.
+
+## Remaining #391 work
+
+- URL/asset classification and ambiguity recovery.
+- Per-protocol metadata projections and raw OGC Tiles, Maps, Records, and
+  Processes endpoint discovery.
+- The owning `createHonua().connect()` lifecycle, refresh/cache storage,
+  conditional requests, timeout/retry, abort, and partial discovery.
+- Cross-language semantic descriptor fixtures and scheduled third-party smoke.
+
+Those layers should consume this contract rather than publish capabilities or
+cache keys through protocol-specific conventions.
+
+Invalid locators, protocols, capability identifiers, mismatched resolutions,
+and cache identities throw `HonuaDiscoveryError`. Its stable `.code` is also
+recognized by the root `isHonuaError()` guard; these input/metadata failures
+are not retryable until the declaration or discovery projection is corrected.

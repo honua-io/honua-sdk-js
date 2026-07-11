@@ -34,6 +34,26 @@ import { HonuaJobFailedError } from "./ogc-processes.js";
 import { HonuaWmsCapabilitiesParseError } from "./wms-capabilities.js";
 import { HonuaWmtsCapabilitiesParseError } from "./wmts-capabilities.js";
 
+export type HonuaDiscoveryErrorCode =
+  | "invalid-endpoint"
+  | "invalid-cache-identity"
+  | "invalid-capability"
+  | "unsupported-protocol"
+  | "protocol-mismatch";
+
+/** Discovery input, metadata, or cache identity is invalid or inconsistent. */
+export class HonuaDiscoveryError extends Error {
+  public constructor(
+    public readonly code: HonuaDiscoveryErrorCode,
+    message: string,
+    public readonly detail?: Readonly<Record<string, unknown>>,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "HonuaDiscoveryError";
+  }
+}
+
 /**
  * Thrown when the server returns a non-2xx HTTP status. Branch on
  * `.statusCode` to decide recovery: refresh credentials on 401/403, respect
@@ -212,7 +232,8 @@ export type HonuaError =
   | HonuaWfsExceptionError
   | HonuaJobFailedError
   | HonuaWmsCapabilitiesParseError
-  | HonuaWmtsCapabilitiesParseError;
+  | HonuaWmtsCapabilitiesParseError
+  | HonuaDiscoveryError;
 
 /** Type guard that narrows any value to one of the Honua SDK error types. */
 export function isHonuaError(error: unknown): error is HonuaError {
@@ -228,6 +249,7 @@ export function isHonuaError(error: unknown): error is HonuaError {
     error instanceof HonuaWfsExceptionError ||
     error instanceof HonuaJobFailedError ||
     error instanceof HonuaWmsCapabilitiesParseError ||
-    error instanceof HonuaWmtsCapabilitiesParseError
+    error instanceof HonuaWmtsCapabilitiesParseError ||
+    error instanceof HonuaDiscoveryError
   );
 }
