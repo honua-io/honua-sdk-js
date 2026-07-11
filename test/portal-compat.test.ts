@@ -234,6 +234,9 @@ describe("PortalCompat.openFeatureLayer", () => {
 
     expect(opened.type).toBe("feature-service");
     expect(opened.serviceId).toBe("Hosted/Roads");
+    if (opened.type !== "feature-service") {
+      throw new Error("expected a feature-service result");
+    }
     expect(opened.layerId).toBe(3000);
   });
 
