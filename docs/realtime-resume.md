@@ -62,7 +62,25 @@ After a baseline exists, only the next contiguous safe-integer sequence can
 advance it. Older sequences are reported as duplicates. Missing sequences,
 conflicting top-level/nested checkpoint fields, or reuse of a recent event id
 at a new sequence stop delivery and require a replacement snapshot. A
-replacement snapshot resets the sequence baseline and bounded event-id window.
+replacement snapshot received during ordinary live delivery must advance the
+existing sequence; a stale or equal snapshot cannot regress the baseline. A
+replacement snapshot may establish a lower sequence only after an explicit
+`requireResnapshot(...)` transition, which marks a deliberate new recovery
+epoch. Accepted replacement snapshots reset the bounded event-id window.
+
+`enqueue` treats transport input as untrusted at runtime. Only snapshot,
+upsert, delete, and delta discriminators reach the consumer. The SDK captures
+event identity and resume metadata synchronously, projects only cursor,
+watermark, timestamp, sequence, and delta-token fields into the versioned
+checkpoint envelope, and drops unrelated fields before application or
+persistence. Caller mutation after enqueue therefore cannot change durable
+deduplication identity, and credentials or adapter metadata cannot hitchhike
+inside a saved checkpoint.
+
+The persisted recent-event-id history defaults to 256 entries and has an
+absolute 4,096-entry safety ceiling. Oversized loaded histories are rejected
+before their elements are scanned; accepted histories are copied directly from
+their configured bounded tail.
 
 This first gate requires a trustworthy monotonic sequence on every snapshot or
 delta. Cursor-only and delta-token-only protocols are not silently assigned a

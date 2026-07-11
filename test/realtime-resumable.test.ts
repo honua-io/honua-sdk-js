@@ -202,6 +202,197 @@ describe("resumable realtime subscription", () => {
     ).resolves.toMatchObject({ status: "applied" });
   });
 
+  it("does not let an unsolicited replacement snapshot regress a live baseline", async () => {
+    const apply = vi.fn();
+    const gate = await createResumableRealtimeSubscription<Feature>({
+      context,
+      initialCheckpoint: durableCheckpoint(),
+      apply,
+    });
+
+    await expect(gate.enqueue({ type: "snapshot", sequence: 9, features: [patch(1, "stale")] })).resolves.toMatchObject(
+      { status: "duplicate", checkpoint: { resume: { sequence: 10 } } },
+    );
+    expect(apply).not.toHaveBeenCalled();
+
+    await expect(
+      gate.enqueue({ type: "snapshot", sequence: 12, cursor: "cursor-12", features: [patch(1, "fresh")] }),
+    ).resolves.toMatchObject({ status: "applied", checkpoint: { resume: { sequence: 12, cursor: "cursor-12" } } });
+
+    gate.requireResnapshot("cursor-expired");
+    await expect(
+      gate.enqueue({ type: "snapshot", sequence: 1, cursor: "new-epoch-1", features: [patch(1, "reset")] }),
+    ).resolves.toMatchObject({ status: "applied", checkpoint: { resume: { sequence: 1, cursor: "new-epoch-1" } } });
+    expect(apply).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects non-data and unknown event discriminators before consumer effects or checkpoint advancement", async () => {
+    for (const invalid of [
+      { type: "status", status: "live", sequence: 11 },
+      { type: "credential-refresh", sequence: 11 },
+    ]) {
+      const apply = vi.fn();
+      const gate = await createResumableRealtimeSubscription<Feature>({
+        context,
+        initialCheckpoint: durableCheckpoint(),
+        apply,
+      });
+      await expect(gate.enqueue(invalid as unknown as RealtimeSequencedEvent<Feature>)).resolves.toMatchObject({
+        status: "resnapshot-required",
+        reason: "invalid-event",
+      });
+      expect(apply).not.toHaveBeenCalled();
+      expect(gate.state).toMatchObject({
+        acceptedEventCount: 0,
+        duplicateEventCount: 0,
+        checkpoint: { resume: { sequence: 10 } },
+      });
+    }
+  });
+
+  it("projects credential-free checkpoint envelopes across load, event delivery, and save", async () => {
+    const loaded = {
+      ...durableCheckpoint(),
+      resume: { sequence: 10, cursor: "cursor-10", secretToken: "loaded-secret" },
+      secretToken: "envelope-secret",
+    } as unknown as RealtimeDurableCheckpointV1;
+    const applied: Array<Record<string, unknown>> = [];
+    const saved: RealtimeDurableCheckpointV1[] = [];
+    const gate = await createResumableRealtimeSubscription<Feature>({
+      context,
+      apply(event) {
+        applied.push(event as unknown as Record<string, unknown>);
+      },
+      checkpointStore: {
+        async load() {
+          return loaded;
+        },
+        async save(checkpoint) {
+          saved.push(checkpoint);
+        },
+      },
+    });
+
+    expect(gate.state.checkpoint).not.toHaveProperty("secretToken");
+    expect(gate.state.checkpoint?.resume).not.toHaveProperty("secretToken");
+    await gate.enqueue({
+      type: "upsert",
+      eventId: "event-11",
+      sequence: 11,
+      cursor: "cursor-11",
+      checkpoint: { sequence: 11, cursor: "cursor-11", secretToken: "event-secret" } as never,
+      feature: patch(1, "safe"),
+      secretToken: "top-level-secret",
+    } as RealtimeSequencedEvent<Feature>);
+
+    expect(applied[0]).not.toHaveProperty("secretToken");
+    expect(applied[0]?.checkpoint).not.toHaveProperty("secretToken");
+    expect(saved[0]).toMatchObject({ kind: "honua.realtime-checkpoint", version: 1 });
+    expect(saved[0]).not.toHaveProperty("secretToken");
+    expect(saved[0]?.resume).not.toHaveProperty("secretToken");
+  });
+
+  it("captures event identity and resume metadata before queueing", async () => {
+    let release = () => {};
+    const deferred = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const seen: RealtimeSequencedEvent<Feature>[] = [];
+    const gate = await createResumableRealtimeSubscription<Feature>({
+      context,
+      initialCheckpoint: durableCheckpoint(),
+      apply: async (event) => {
+        seen.push(event);
+        if (event.sequence === 11) await deferred;
+      },
+    });
+    const active = gate.enqueue({ type: "upsert", sequence: 11, feature: patch(1, "blocking") });
+    const mutable = {
+      type: "upsert" as const,
+      eventId: "immutable-id",
+      sequence: 12,
+      cursor: "cursor-12",
+      checkpoint: { sequence: 12, cursor: "cursor-12" },
+      feature: patch(1, "queued"),
+    };
+    const queued = gate.enqueue(mutable);
+    mutable.eventId = "mutated-id";
+    mutable.cursor = "mutated-cursor";
+    mutable.checkpoint.cursor = "mutated-checkpoint";
+    release();
+
+    await expect(active).resolves.toMatchObject({ status: "applied" });
+    await expect(queued).resolves.toMatchObject({
+      status: "applied",
+      checkpoint: { resume: { cursor: "cursor-12" }, recentEventIds: ["event-10", "immutable-id"] },
+    });
+    expect(seen[1]).toMatchObject({ eventId: "immutable-id", cursor: "cursor-12" });
+    await expect(
+      gate.enqueue({ type: "upsert", eventId: "immutable-id", sequence: 13, feature: patch(1, "reused") }),
+    ).resolves.toMatchObject({ status: "resnapshot-required", reason: "event-id-reused" });
+  });
+
+  it("bounds persisted event-id histories before scanning and copies only the configured tail", async () => {
+    const oversized = new Array<string>(4097);
+    Object.defineProperty(oversized, 0, {
+      get() {
+        throw new Error("must not scan oversized history");
+      },
+    });
+    expect(evaluateRealtimeCheckpoint(context, durableCheckpoint({ recentEventIds: oversized }))).toMatchObject({
+      compatible: false,
+      code: "invalid-checkpoint",
+    });
+
+    const gate = await createResumableRealtimeSubscription({
+      context,
+      initialCheckpoint: durableCheckpoint({ recentEventIds: ["a", "b", "c"] }),
+      maxRecentEventIds: 2,
+      apply: vi.fn(),
+    });
+    expect(gate.state.checkpoint?.recentEventIds).toEqual(["b", "c"]);
+    await expect(
+      createResumableRealtimeSubscription({ context, maxRecentEventIds: 4097, apply: vi.fn() }),
+    ).rejects.toThrow("4096-entry safety ceiling");
+  });
+
+  it("reports same-sequence cursor and delta-token conflicts before classifying duplicates", async () => {
+    for (const incoming of [
+      { type: "upsert", sequence: 10, cursor: "different-cursor", feature: patch(1, "unsafe") },
+      {
+        type: "upsert",
+        sequence: 10,
+        deltaToken: "different-token",
+        feature: patch(1, "unsafe"),
+      },
+    ] as const) {
+      const apply = vi.fn();
+      const gate = await createResumableRealtimeSubscription<Feature>({
+        context,
+        initialCheckpoint: {
+          ...durableCheckpoint(),
+          resume: { sequence: 10, cursor: "cursor-10", deltaToken: "token-10" },
+        },
+        apply,
+      });
+      await expect(gate.enqueue(incoming)).resolves.toMatchObject({
+        status: "resnapshot-required",
+        reason: "checkpoint-conflict",
+      });
+      expect(gate.state.duplicateEventCount).toBe(0);
+      expect(apply).not.toHaveBeenCalled();
+    }
+  });
+
+  it("does not install an abort listener when initialization starts pre-aborted", async () => {
+    const controller = new AbortController();
+    controller.abort("already cancelled");
+    const add = vi.spyOn(controller.signal, "addEventListener");
+    const gate = await createResumableRealtimeSubscription({ context, signal: controller.signal, apply: vi.fn() });
+    expect(add).not.toHaveBeenCalled();
+    expect(gate.state).toMatchObject({ phase: "closed", reason: "cancelled" });
+  });
+
   it("bounds slow-consumer buffering and explicitly requires a resnapshot without committing stale queued events", async () => {
     let release = () => {};
     const deferred = new Promise<void>((resolve) => {

@@ -74,6 +74,7 @@ export type ResumableRealtimeReasonCode =
   | RealtimeCheckpointCompatibilityCode
   | "snapshot-required"
   | "replacement-snapshot-required"
+  | "invalid-event"
   | "sequence-missing"
   | "checkpoint-conflict"
   | "sequence-gap"
@@ -152,10 +153,24 @@ export class HonuaRealtimeResumeError extends Error {
 
 const DEFAULT_MAX_PENDING_EVENTS = 64;
 const DEFAULT_MAX_RECENT_EVENT_IDS = 256;
+const MAX_RECENT_EVENT_IDS = 4096;
 
 interface PendingDelivery<TFeature> {
-  readonly event: RealtimeSequencedEvent<TFeature>;
+  readonly captured: CapturedRealtimeEvent<TFeature>;
   readonly resolve: (delivery: ResumableRealtimeDelivery) => void;
+}
+
+interface CapturedRealtimeEvent<TFeature> {
+  readonly event: RealtimeSequencedEvent<TFeature>;
+  readonly eventId?: string;
+  readonly position: EventPosition;
+  readonly replacementSnapshot: boolean;
+  readonly recoverySnapshot: boolean;
+}
+
+interface EventCaptureFailure {
+  readonly conflict: string;
+  readonly reason?: "invalid-event" | "checkpoint-conflict";
 }
 
 interface EventPosition {
@@ -207,6 +222,12 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
     options.maxRecentEventIds ?? DEFAULT_MAX_RECENT_EVENT_IDS,
     "maxRecentEventIds",
   );
+  if (maxRecentEventIds > MAX_RECENT_EVENT_IDS) {
+    throw new HonuaRealtimeResumeError(
+      "invalid-checkpoint",
+      `maxRecentEventIds cannot exceed the ${MAX_RECENT_EVENT_IDS}-entry safety ceiling.`,
+    );
+  }
   const lifecycle = new AbortController();
   const externalAbort = () => lifecycle.abort(options.signal?.reason);
   if (options.signal?.aborted) externalAbort();
@@ -266,7 +287,13 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
       if (state.phase === "closed") return Promise.resolve(delivery("cancelled", state.reason ?? "closed", state));
       if (state.phase === "error") return Promise.resolve(delivery("error", state.reason, state));
 
-      const replacementSnapshot = event.type === "snapshot" && event.replace !== false;
+      const capture = captureRealtimeEvent<TFeature>(event);
+      if ("conflict" in capture) {
+        const reason = capture.reason ?? "invalid-event";
+        transitionToResnapshot(reason, capture.conflict);
+        return Promise.resolve(delivery("resnapshot-required", reason, state));
+      }
+      const replacementSnapshot = capture.replacementSnapshot;
       if (state.phase === "resnapshot-required" && !replacementSnapshot) {
         return Promise.resolve(delivery("resnapshot-required", state.reason, state));
       }
@@ -289,7 +316,7 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
       }
 
       return new Promise<ResumableRealtimeDelivery>((resolve) => {
-        queue.push({ event, resolve });
+        queue.push({ captured: Object.freeze({ ...capture, recoverySnapshot: recoveringFromGap }), resolve });
         setState({ pendingEvents: queue.length + (active ? 1 : 0) });
         pump();
       });
@@ -303,14 +330,16 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
     },
   };
 
-  if (lifecycle.signal.aborted && state.phase !== "closed") {
-    closeSubscription("Subscription signal was aborted.", "cancelled", false);
-  } else
+  if (lifecycle.signal.aborted) {
+    options.signal?.removeEventListener("abort", externalAbort);
+    if (state.phase !== "closed") closeSubscription("Subscription signal was aborted.", "cancelled", false);
+  } else {
     lifecycle.signal.addEventListener(
       "abort",
       () => closeSubscription("Subscription signal was aborted.", "cancelled", false),
       { once: true },
     );
+  }
   return subscription;
 
   function pump(): void {
@@ -324,7 +353,7 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
     activeAbort = new AbortController();
     const operationGeneration = generation;
     setState({ pendingEvents: queue.length + 1 });
-    void process(next.event, activeAbort.signal, operationGeneration)
+    void process(next.captured, activeAbort.signal, operationGeneration)
       .then(next.resolve, (cause) => {
         transitionToError("delivery-failed", errorMessage(cause));
         next.resolve(delivery("error", "delivery-failed", state));
@@ -338,14 +367,14 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
   }
 
   async function process(
-    event: RealtimeSequencedEvent<TFeature>,
+    captured: CapturedRealtimeEvent<TFeature>,
     signal: AbortSignal,
     operationGeneration: number,
   ): Promise<ResumableRealtimeDelivery> {
     if (signal.aborted || lifecycle.signal.aborted || operationGeneration !== generation) {
       return delivery("cancelled", "cancelled", state);
     }
-    const position = eventPosition(event);
+    const { event, eventId, position, replacementSnapshot, recoverySnapshot } = captured;
     if (position.conflict) {
       transitionToResnapshot("checkpoint-conflict", position.conflict);
       return delivery("resnapshot-required", "checkpoint-conflict", state);
@@ -357,12 +386,6 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
       );
       return delivery("resnapshot-required", "sequence-missing", state);
     }
-    if (event.eventId !== undefined && typeof event.eventId !== "string") {
-      transitionToResnapshot("checkpoint-conflict", "Realtime eventId must be a string when provided.");
-      return delivery("resnapshot-required", "checkpoint-conflict", state);
-    }
-
-    const replacementSnapshot = event.type === "snapshot" && event.replace !== false;
     const previousSequence = state.checkpoint?.resume.sequence;
     if (!state.checkpoint && !replacementSnapshot) {
       transitionToResnapshot("snapshot-required", "A replacement snapshot is required before delta delivery.");
@@ -373,12 +396,23 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
       return delivery("resnapshot-required", "replacement-snapshot-required", state);
     }
 
-    if (!replacementSnapshot && previousSequence !== undefined) {
+    if (previousSequence !== undefined && position.sequence === previousSequence) {
+      const conflict = sameSequenceCheckpointConflict(state.checkpoint?.resume, position.resume);
+      if (conflict) {
+        transitionToResnapshot("checkpoint-conflict", conflict);
+        return delivery("resnapshot-required", "checkpoint-conflict", state);
+      }
+    }
+
+    if (previousSequence !== undefined && !recoverySnapshot) {
       if (position.sequence <= previousSequence) {
         setState({ duplicateEventCount: state.duplicateEventCount + 1 });
         return delivery("duplicate", undefined, state);
       }
-      if (previousSequence === Number.MAX_SAFE_INTEGER || position.sequence !== previousSequence + 1) {
+      if (
+        !replacementSnapshot &&
+        (previousSequence === Number.MAX_SAFE_INTEGER || position.sequence !== previousSequence + 1)
+      ) {
         transitionToResnapshot(
           "sequence-gap",
           `Expected realtime sequence ${previousSequence + 1}, received ${position.sequence}.`,
@@ -388,8 +422,8 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
     }
 
     const recentIds = replacementSnapshot ? [] : (state.checkpoint?.recentEventIds ?? []);
-    if (event.eventId && recentIds.includes(event.eventId)) {
-      transitionToResnapshot("event-id-reused", `Event id "${event.eventId}" was reused at a new sequence.`);
+    if (eventId && recentIds.includes(eventId)) {
+      transitionToResnapshot("event-id-reused", `Event id "${eventId}" was reused at a new sequence.`);
       return delivery("resnapshot-required", "event-id-reused", state);
     }
 
@@ -410,7 +444,7 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
       context,
       replacementSnapshot ? undefined : state.checkpoint,
       { ...position, sequence: position.sequence },
-      event.eventId,
+      eventId,
       maxRecentEventIds,
       options.now?.() ?? Date.now(),
     );
@@ -526,9 +560,109 @@ function createCheckpoint(
     kind: "honua.realtime-checkpoint",
     version: REALTIME_DURABLE_CHECKPOINT_VERSION,
     context,
-    resume: Object.freeze({ ...(previous?.resume ?? {}), ...position.resume, sequence: position.sequence }),
+    resume: Object.freeze({
+      ...projectResumeCheckpoint(previous?.resume),
+      ...projectResumeCheckpoint(position.resume),
+      sequence: position.sequence,
+    }),
     recentEventIds: Object.freeze(recentEventIds),
     savedAt: new Date(finiteNow(now)).toISOString(),
+  });
+}
+
+function captureRealtimeEvent<TFeature>(input: unknown): CapturedRealtimeEvent<TFeature> | EventCaptureFailure {
+  if (!isRecord(input)) return { conflict: "Realtime delivery must be an event object." };
+  if (!isSequencedEventType(input.type)) {
+    return { conflict: `Realtime event type "${String(input.type)}" is not a sequenced data event.` };
+  }
+  if (input.eventId !== undefined && typeof input.eventId !== "string") {
+    return { conflict: "Realtime eventId must be a string when provided." };
+  }
+  if (input.checkpoint !== undefined && !isRecord(input.checkpoint)) {
+    return { conflict: "Realtime event checkpoint must be an object when provided." };
+  }
+  if (input.receivedAt !== undefined && typeof input.receivedAt !== "number") {
+    return { conflict: "Realtime event receivedAt must be a number when provided." };
+  }
+
+  const checkpoint = input.checkpoint ? Object.freeze(projectResumeCheckpoint(input.checkpoint)) : undefined;
+  const base = {
+    ...(input.eventId !== undefined ? { eventId: input.eventId } : {}),
+    ...(input.cursor !== undefined ? { cursor: input.cursor as string } : {}),
+    ...(input.watermark !== undefined ? { watermark: input.watermark as string } : {}),
+    ...(input.timestamp !== undefined ? { timestamp: input.timestamp as string } : {}),
+    ...(input.deltaToken !== undefined ? { deltaToken: input.deltaToken as string } : {}),
+    ...(checkpoint ? { checkpoint } : {}),
+    ...(input.sequence !== undefined ? { sequence: input.sequence as number } : {}),
+    ...(input.receivedAt !== undefined ? { receivedAt: input.receivedAt } : {}),
+  };
+
+  let event: RealtimeSequencedEvent<TFeature>;
+  switch (input.type) {
+    case "snapshot":
+      if (!Array.isArray(input.features)) return { conflict: "Realtime snapshot features must be an array." };
+      if (input.replace !== undefined && typeof input.replace !== "boolean") {
+        return { conflict: "Realtime snapshot replace must be a boolean when provided." };
+      }
+      event = Object.freeze({
+        ...base,
+        type: "snapshot",
+        features: Object.freeze(input.features.slice()) as RealtimeSnapshotEvent<TFeature>["features"],
+        ...(input.replace !== undefined ? { replace: input.replace } : {}),
+      });
+      break;
+    case "upsert":
+      if (!isRecord(input.feature)) return { conflict: "Realtime upsert feature must be an object." };
+      event = Object.freeze({
+        ...base,
+        type: "upsert",
+        feature: input.feature as unknown as RealtimeUpsertEvent<TFeature>["feature"],
+      });
+      break;
+    case "delete":
+      if (!isFeatureId(input.id)) return { conflict: "Realtime delete id must be a string or number." };
+      event = Object.freeze({
+        ...base,
+        type: "delete",
+        id: input.id,
+        ...(typeof input.sourceId === "string" ? { sourceId: input.sourceId } : {}),
+        ...(typeof input.version === "number" ? { version: input.version } : {}),
+        ...(typeof input.updatedAt === "string" ? { updatedAt: input.updatedAt } : {}),
+        ...(typeof input.deletedAt === "number" ? { deletedAt: input.deletedAt } : {}),
+      });
+      break;
+    case "delta":
+      if (input.upserts !== undefined && !Array.isArray(input.upserts)) {
+        return { conflict: "Realtime delta upserts must be an array when provided." };
+      }
+      if (input.deletes !== undefined && !Array.isArray(input.deletes)) {
+        return { conflict: "Realtime delta deletes must be an array when provided." };
+      }
+      event = Object.freeze({
+        ...base,
+        type: "delta",
+        ...(input.upserts !== undefined
+          ? {
+              upserts: Object.freeze(input.upserts.slice()) as RealtimeDeltaEvent<TFeature>["upserts"],
+            }
+          : {}),
+        ...(input.deletes !== undefined
+          ? {
+              deletes: Object.freeze(input.deletes.slice()) as RealtimeDeltaEvent<TFeature>["deletes"],
+            }
+          : {}),
+      });
+      break;
+  }
+
+  const position = eventPosition(event);
+  if (position.conflict) return { conflict: position.conflict, reason: "checkpoint-conflict" };
+  return Object.freeze({
+    event,
+    ...(input.eventId !== undefined ? { eventId: input.eventId } : {}),
+    position,
+    replacementSnapshot: event.type === "snapshot" && event.replace !== false,
+    recoverySnapshot: false,
   });
 }
 
@@ -558,7 +692,7 @@ function eventPosition<TFeature>(event: RealtimeSequencedEvent<TFeature>): Event
   return {
     sequence,
     resume: Object.freeze({
-      ...(event.checkpoint ?? {}),
+      ...projectResumeCheckpoint(event.checkpoint),
       ...(event.cursor !== undefined ? { cursor: event.cursor } : {}),
       ...(event.watermark !== undefined ? { watermark: event.watermark } : {}),
       ...(event.timestamp !== undefined ? { timestamp: event.timestamp } : {}),
@@ -566,6 +700,39 @@ function eventPosition<TFeature>(event: RealtimeSequencedEvent<TFeature>): Event
       ...(sequence !== undefined ? { sequence } : {}),
     }),
   };
+}
+
+function sameSequenceCheckpointConflict(
+  previous: RealtimeResumeCheckpoint | undefined,
+  incoming: RealtimeResumeCheckpoint,
+): string | undefined {
+  for (const name of ["cursor", "deltaToken"] as const) {
+    const previousValue = previous?.[name];
+    const incomingValue = incoming[name];
+    if (previousValue !== undefined && incomingValue !== undefined && previousValue !== incomingValue) {
+      return `Realtime sequence ${String(incoming.sequence)} reuses ${name} with a conflicting value.`;
+    }
+  }
+  return undefined;
+}
+
+function projectResumeCheckpoint(value: unknown): RealtimeResumeCheckpoint {
+  if (!isRecord(value)) return {};
+  return {
+    ...(value.cursor !== undefined ? { cursor: value.cursor as string } : {}),
+    ...(value.watermark !== undefined ? { watermark: value.watermark as string } : {}),
+    ...(value.timestamp !== undefined ? { timestamp: value.timestamp as string } : {}),
+    ...(value.sequence !== undefined ? { sequence: value.sequence as number } : {}),
+    ...(value.deltaToken !== undefined ? { deltaToken: value.deltaToken as string } : {}),
+  };
+}
+
+function isSequencedEventType(value: unknown): value is RealtimeSequencedEvent["type"] {
+  return value === "snapshot" || value === "upsert" || value === "delete" || value === "delta";
+}
+
+function isFeatureId(value: unknown): value is string | number {
+  return typeof value === "string" || typeof value === "number";
 }
 
 function cloneCheckpoint(
@@ -576,8 +743,8 @@ function cloneCheckpoint(
     kind: checkpoint.kind,
     version: checkpoint.version,
     context: normalizeContext(checkpoint.context),
-    resume: Object.freeze({ ...checkpoint.resume }),
-    recentEventIds: Object.freeze([...checkpoint.recentEventIds].slice(-maxRecentEventIds)),
+    resume: Object.freeze(projectResumeCheckpoint(checkpoint.resume)) as RealtimeDurableCheckpointV1["resume"],
+    recentEventIds: Object.freeze(checkpoint.recentEventIds.slice(-maxRecentEventIds)),
     savedAt: checkpoint.savedAt,
   });
 }
@@ -635,7 +802,11 @@ function isCheckpointShape(value: unknown): value is RealtimeDurableCheckpointV1
   for (const name of ["cursor", "watermark", "timestamp", "deltaToken"] as const) {
     if (value.resume[name] !== undefined && typeof value.resume[name] !== "string") return false;
   }
-  if (!Array.isArray(value.recentEventIds) || value.recentEventIds.some((entry) => typeof entry !== "string"))
+  if (
+    !Array.isArray(value.recentEventIds) ||
+    value.recentEventIds.length > MAX_RECENT_EVENT_IDS ||
+    value.recentEventIds.some((entry) => typeof entry !== "string")
+  )
     return false;
   return typeof value.savedAt === "string" && Number.isFinite(Date.parse(value.savedAt));
 }
