@@ -81,11 +81,9 @@ function copyJson(
   }
 
   let prototype: object | null;
-  let descriptors: PropertyDescriptorMap;
   let ownKeys: readonly PropertyKey[];
   try {
     prototype = Object.getPrototypeOf(input);
-    descriptors = Object.getOwnPropertyDescriptors(input);
     ownKeys = Reflect.ownKeys(input);
   } catch {
     diagnostics.push(diagnostic("INPUT_NOT_INERT_JSON", path, "Could not inspect inert plain JSON."));
@@ -102,34 +100,43 @@ function copyJson(
     return undefined;
   }
 
+  // Every own value consumes at least one node. Reject breadth before asking
+  // the object for any property descriptor; Object.getOwnPropertyDescriptors
+  // would otherwise allocate and materialize every descriptor first.
+  const directValueCount = ownKeys.length - (array && ownKeys.includes("length") ? 1 : 0);
+  if (directValueCount > MAX_NODES - state.nodes) {
+    diagnostics.push(diagnostic("INPUT_TOO_LARGE", path, `JSON input exceeds ${MAX_NODES} values.`));
+    return undefined;
+  }
+
   state.ancestors.add(input);
   const result = array
-    ? copyArray(descriptors, ownKeys as readonly string[], path, depth, state, diagnostics)
-    : copyObject(descriptors, ownKeys as readonly string[], path, depth, state, diagnostics);
+    ? copyArray(input, ownKeys as readonly string[], path, depth, state, diagnostics)
+    : copyObject(input, ownKeys as readonly string[], path, depth, state, diagnostics);
   state.ancestors.delete(input);
   return result;
 }
 
 function copyArray(
-  descriptors: PropertyDescriptorMap,
+  input: object,
   ownKeys: readonly string[],
   path: string,
   depth: number,
   state: { nodes: number; ancestors: WeakSet<object> },
   diagnostics: HonuaPluginDiagnostic[],
 ): readonly HonuaPluginJsonValue[] | undefined {
-  const lengthDescriptor = descriptors.length;
+  const lengthDescriptor = descriptor(input, "length", path, diagnostics);
   if (!lengthDescriptor || !("value" in lengthDescriptor) || typeof lengthDescriptor.value !== "number") {
     diagnostics.push(diagnostic("INPUT_NOT_INERT_JSON", path, "Invalid JSON array length."));
     return undefined;
   }
   const length = lengthDescriptor.value;
-  if (!Number.isSafeInteger(length) || length > MAX_NODES) {
+  if (!Number.isSafeInteger(length) || length > MAX_NODES - state.nodes) {
     diagnostics.push(diagnostic("INPUT_TOO_LARGE", path, `JSON arrays must not exceed ${MAX_NODES} values.`));
     return undefined;
   }
-  const allowedKeys = new Set(["length", ...Array.from({ length }, (_, index) => String(index))]);
-  if (ownKeys.some((key) => !allowedKeys.has(key)) || ownKeys.length !== length + 1) {
+  const keySet = new Set(ownKeys);
+  if (!keySet.has("length") || ownKeys.length !== length + 1) {
     diagnostics.push(
       diagnostic("INPUT_SPARSE_OR_EXTENDED_ARRAY", path, "JSON arrays must be dense and have no named properties."),
     );
@@ -138,14 +145,14 @@ function copyArray(
   const result: HonuaPluginJsonValue[] = [];
   for (let index = 0; index < length; index += 1) {
     const childPath = `${path}/${index}`;
-    const descriptor = descriptors[String(index)];
-    if (!isEnumerableDataDescriptor(descriptor)) {
+    const entryDescriptor = descriptor(input, String(index), childPath, diagnostics);
+    if (!isEnumerableDataDescriptor(entryDescriptor)) {
       diagnostics.push(
         diagnostic("INPUT_ACCESSOR_OR_HIDDEN_PROPERTY", childPath, "JSON values must be enumerable data properties."),
       );
       return undefined;
     }
-    const copied = copyJson(descriptor.value, childPath, depth + 1, state, diagnostics);
+    const copied = copyJson(entryDescriptor.value, childPath, depth + 1, state, diagnostics);
     if (copied === undefined) return undefined;
     result.push(copied);
   }
@@ -153,7 +160,7 @@ function copyArray(
 }
 
 function copyObject(
-  descriptors: PropertyDescriptorMap,
+  input: object,
   ownKeys: readonly string[],
   path: string,
   depth: number,
@@ -163,18 +170,32 @@ function copyObject(
   const result: Record<string, HonuaPluginJsonValue> = {};
   for (const key of [...ownKeys].sort(asciiCompare)) {
     const childPath = `${path}/${escapePointer(key)}`;
-    const descriptor = descriptors[key];
-    if (!isEnumerableDataDescriptor(descriptor)) {
+    const entryDescriptor = descriptor(input, key, childPath, diagnostics);
+    if (!isEnumerableDataDescriptor(entryDescriptor)) {
       diagnostics.push(
         diagnostic("INPUT_ACCESSOR_OR_HIDDEN_PROPERTY", childPath, "JSON values must be enumerable data properties."),
       );
       return undefined;
     }
-    const copied = copyJson(descriptor.value, childPath, depth + 1, state, diagnostics);
+    const copied = copyJson(entryDescriptor.value, childPath, depth + 1, state, diagnostics);
     if (copied === undefined) return undefined;
     Object.defineProperty(result, key, { value: copied, enumerable: true, writable: true, configurable: true });
   }
   return result;
+}
+
+function descriptor(
+  input: object,
+  key: PropertyKey,
+  path: string,
+  diagnostics: HonuaPluginDiagnostic[],
+): PropertyDescriptor | undefined {
+  try {
+    return Object.getOwnPropertyDescriptor(input, key);
+  } catch {
+    diagnostics.push(diagnostic("INPUT_NOT_INERT_JSON", path, "Could not inspect inert plain JSON."));
+    return undefined;
+  }
 }
 
 function isEnumerableDataDescriptor(

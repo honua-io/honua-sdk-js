@@ -193,6 +193,45 @@ describe("plugin manifest validation", () => {
     expect(validateHonuaPluginManifest(Symbol("manifest")).diagnostics[0]?.code).toBe("INPUT_NON_JSON_VALUE");
   });
 
+  it("rejects wide dense arrays before materializing any property descriptors", () => {
+    let descriptorReads = 0;
+    const wide = new Proxy(new Array(20_000).fill(0), {
+      getOwnPropertyDescriptor(target, key) {
+        descriptorReads += 1;
+        return Reflect.getOwnPropertyDescriptor(target, key);
+      },
+    });
+
+    const result = validateHonuaPluginManifest(wide);
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "INPUT_TOO_LARGE", path: "/" })]);
+    expect(descriptorReads).toBe(0);
+  });
+
+  it("rejects wide objects before reading descriptors or getter-backed values", () => {
+    let getterCalls = 0;
+    let descriptorReads = 0;
+    const target: Record<string, unknown> = {};
+    Object.defineProperty(target, "getter-backed", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return "secret";
+      },
+    });
+    for (let index = 1; index < 20_000; index += 1) target[`field-${index}`] = index;
+    const wide = new Proxy(target, {
+      getOwnPropertyDescriptor(object, key) {
+        descriptorReads += 1;
+        return Reflect.getOwnPropertyDescriptor(object, key);
+      },
+    });
+
+    const result = validateHonuaPluginManifest(wide);
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: "INPUT_TOO_LARGE", path: "/" })]);
+    expect(descriptorReads).toBe(0);
+    expect(getterCalls).toBe(0);
+  });
+
   it("decodes the entrypoint before rejecting traversal and absolute escapes", () => {
     for (const entrypoint of ["./%2e%2e/secret.js", "./%252e%252e/secret.js", "%2fetc/passwd", "./C:%5csecret.js"]) {
       const result = validateHonuaPluginManifest({ ...manifest, package: { ...manifest.package, entrypoint } });
