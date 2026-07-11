@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createDataset } from "../src/contract/source.js";
 import type { Query, Result, Source, SourceDescriptor } from "../src/contract/types.js";
 import { capabilities } from "../src/contract/types.js";
+import { HonuaClient } from "../src/core/client.js";
 import {
   compileOgcApiFeaturesQuery,
   createQueryIr,
@@ -116,6 +118,7 @@ describe("OGC API Features query planner", () => {
     expect(plan.pushdown).toBe("partial");
     expect(plan.steps[0]).toMatchObject({
       operation: "queryAll",
+      query: { pagination: { offset: 0, limit: 100 } },
       compiled: {
         compiler: "ogc-api-features-query-v1",
         collectionId: "county/parcels",
@@ -130,6 +133,55 @@ describe("OGC API Features query planner", () => {
     expect(plan.warnings).toContain(
       "OGC API Features may transfer geometry because /items has no portable geometry-suppression parameter.",
     );
+  });
+
+  it("keeps the bounded fallback explain request identical to the OGC wire lookahead", async () => {
+    let observed: URL | undefined;
+    const sourceDescriptor: SourceDescriptor = {
+      ...descriptor(),
+      locator: { url: "https://features.example.test", collectionId: "parcels" },
+    };
+    const client = new HonuaClient({
+      baseUrl: sourceDescriptor.locator.url,
+      fetchFn: vi.fn(async (input) => {
+        observed = new URL(String(input));
+        return new Response(
+          JSON.stringify({
+            type: "FeatureCollection",
+            features: Array.from({ length: 101 }, (_, id) => ({
+              type: "Feature",
+              id,
+              geometry: null,
+              properties: { parcel_id: id, district: "a" },
+            })),
+          }),
+          { status: 200, headers: { "content-type": "application/geo+json" } },
+        );
+      }),
+    });
+    const source = createDataset({
+      id: "ogc",
+      client,
+      sources: [sourceDescriptor],
+      skipCompatibilityCheck: true,
+    }).source("parcels")!;
+    const plan = explainQuery({
+      descriptor: sourceDescriptor,
+      capabilityPolicy: "degraded",
+      fallback: { mode: "bounded-local", maxRows: 100 },
+      query: {
+        where: "status = 'active'",
+        aggregation: { groupBy: ["district"], metrics: [{ fn: "count", field: "parcel_id" }] },
+      },
+    });
+
+    await expect(executeQueryPlan(plan, source)).rejects.toMatchObject({ code: "unsafe-materialization" });
+    expect(observed?.searchParams.get("limit")).toBe("101");
+    expect(observed?.searchParams.get("filter-lang")).toBe("cql2-text");
+    expect(plan.steps[0]).toMatchObject({
+      query: { pagination: { limit: 100 } },
+      compiled: { compiler: "ogc-api-features-query-v1", limit: 101 },
+    });
   });
 
   it("rejects unsupported or weaker spatial semantics before execution", () => {
@@ -177,6 +229,24 @@ describe("OGC API Features query planner", () => {
               xmax: 1,
               ymax: 1,
               spatialReference: { wkid: 3857 },
+            },
+          },
+        },
+      }),
+    ).toThrowError(/default OGC bbox CRS/);
+
+    expect(() =>
+      explainQuery({
+        descriptor: descriptor(),
+        query: {
+          spatialFilter: {
+            geometryType: "esriGeometryEnvelope",
+            geometry: {
+              xmin: 0,
+              ymin: 0,
+              xmax: 1,
+              ymax: 1,
+              spatialReference: { wkid: 3857, latestWkid: 4326 },
             },
           },
         },

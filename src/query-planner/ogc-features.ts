@@ -93,8 +93,10 @@ function assertDefaultBboxCrs(spatialReference: unknown, sourceId: string): void
     throw unsupportedBboxCrs(sourceId);
   }
   const reference = spatialReference as Record<string, unknown>;
-  const wkid = reference.latestWkid ?? reference.wkid;
-  if (wkid === 4326 && reference.wkt === undefined) return;
+  const declaredWkids = [reference.wkid, reference.latestWkid].filter((value) => value !== undefined);
+  if (declaredWkids.length > 0 && declaredWkids.every((value) => value === 4326) && reference.wkt === undefined) {
+    return;
+  }
   throw unsupportedBboxCrs(sourceId);
 }
 

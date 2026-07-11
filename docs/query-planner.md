@@ -121,9 +121,11 @@ const plan = explainQuery({
 });
 ```
 
-The plan pushes filters and required-field projection to the server, requests
-at most `maxRows + 1` records, then aggregates locally only after checking the
-row and byte ceilings. Planning rejects a known over-budget estimate.
+The plan pushes filters and required-field projection to the server. Its
+logical input limit is `maxRows`; the compiled wire request exposes the
+adapter-owned `maxRows + 1` overflow sentinel. Aggregation runs locally only
+after the row and byte ceilings pass. Planning rejects a known over-budget
+estimate.
 Execution rejects an overflow sentinel or transfer-limit response; it never
 silently reports a partial aggregate. `maxRows` is also capped by the SDK at
 `MAX_LOCAL_MATERIALIZATION_ROWS`.
