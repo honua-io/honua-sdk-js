@@ -46,6 +46,7 @@ default-barrel import never pulls them in.
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
+| `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
 
 ## Deprecated compatibility entrypoints
 
@@ -127,6 +128,7 @@ Node-only or REST-only consumer never pays the install cost:
 | Integration | Peer to install |
 |-------------|-----------------|
 | MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
+| deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
 | gRPC-Web transport (`new HonuaClient({ transport: "grpc-web" })`) | `npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf` |
 | Geometry ops (`@honua/sdk-js/geometry`) | `npm install proj4 @turf/buffer @turf/area …` (only the ops you import) — or use the `@honua/geometry` split package |

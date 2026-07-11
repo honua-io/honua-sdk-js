@@ -48,6 +48,7 @@ const EXTERNAL = [
   "@connectrpc/connect",
   "@connectrpc/connect-web",
   "@duckdb/duckdb-wasm",
+  "@deck.gl/layers",
   "apache-arrow",
 ];
 
@@ -85,6 +86,12 @@ const TARGETS = [
     kind: "bundle",
     entry: "dist/src/geoparquet/index.js",
     label: "`/geoparquet` (duckdb-wasm external — lazy peer)",
+  },
+  {
+    key: "/deckgl",
+    kind: "bundle",
+    entry: "dist/src/deckgl/index.js",
+    label: "`/deckgl` (deck.gl external — lazy peer)",
   },
   {
     key: "/react",

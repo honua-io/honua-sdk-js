@@ -85,6 +85,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copyDirectory(path.join(DIST_SRC_ROOT, "columnar"), path.join(packageRoot, "columnar"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "deckgl"), path.join(packageRoot, "deckgl"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
@@ -122,6 +123,10 @@ function createSdkPackage() {
       "./contract": {
         types: "./contract/index.d.ts",
         default: "./contract/index.js",
+      },
+      "./deckgl": {
+        types: "./deckgl/index.d.ts",
+        default: "./deckgl/index.js",
       },
       "./agent-tools": {
         types: "./agent-tools/index.d.ts",
@@ -181,6 +186,12 @@ function createSdkPackage() {
       "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
       "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
+    },
+    peerDependencies: {
+      "@deck.gl/layers": rootPackageJson.peerDependencies["@deck.gl/layers"],
+    },
+    peerDependenciesMeta: {
+      "@deck.gl/layers": { optional: true },
     },
   });
 
