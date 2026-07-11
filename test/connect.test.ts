@@ -312,4 +312,38 @@ describe("connect", () => {
     ).rejects.toThrow("Cross-origin request URL is not allowed");
     expect(requests).toEqual(["https://example.test/api?f=json"]);
   });
+
+  it("normalizes advertised format queries before metadata wire parameters are added", async () => {
+    const requests: string[] = [];
+    const fetchFn = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      requests.push(url.toString());
+      if (url.pathname === "/api") {
+        return json({
+          links: [
+            { rel: "data", href: "./collections?f=json" },
+            { rel: "conformance", href: "./conformance?format=json" },
+          ],
+        });
+      }
+      if (url.pathname === "/api/conformance") return json(conformance);
+      if (url.pathname === "/api/collections") return json(collections);
+      return new Response("unexpected", { status: 500 });
+    });
+
+    await connect({
+      endpoint: "https://example.test/api",
+      protocol: "ogc-features",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+    expect(requests).toHaveLength(3);
+    expect(requests).toEqual(
+      expect.arrayContaining([
+        "https://example.test/api?f=json",
+        "https://example.test/api/conformance?f=json",
+        "https://example.test/api/collections?f=json",
+      ]),
+    );
+  });
 });

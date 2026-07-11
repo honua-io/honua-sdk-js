@@ -370,8 +370,23 @@ function layoutFromLanding(endpoint: string, landing: HonuaOgcLandingResponse): 
 function resolveAdvertisedUrl(href: string | undefined, endpoint: string, fallback: string): string {
   if (!href) return `${endpoint}/${fallback}`;
   try {
-    return new URL(href, endpoint.endsWith("/") ? endpoint : `${endpoint}/`).toString();
+    const resolved = new URL(href, endpoint.endsWith("/") ? endpoint : `${endpoint}/`);
+    if (resolved.username || resolved.password) {
+      throw new HonuaDiscoveryError("invalid-endpoint", `OGC ${fallback} links must not contain credentials.`);
+    }
+    const queryNames = [...resolved.searchParams.keys()].map((name) => name.toLowerCase());
+    if (queryNames.some((name) => name !== "f" && name !== "format")) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `OGC ${fallback} links may only carry a removable format query parameter.`,
+        { href },
+      );
+    }
+    resolved.search = "";
+    resolved.hash = "";
+    return resolved.toString();
   } catch (cause) {
+    if (cause instanceof HonuaDiscoveryError) throw cause;
     throw new HonuaDiscoveryError("invalid-endpoint", `OGC landing page contains an invalid ${fallback} link.`, {
       href,
       cause: cause instanceof Error ? cause.message : String(cause),
