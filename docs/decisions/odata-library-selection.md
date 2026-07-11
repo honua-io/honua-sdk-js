@@ -99,7 +99,7 @@ stable through that swap.
 
 For service-specific TypeScript ergonomics layered over the SDK:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const entity = source.protocol("odata")!;
 const raw = entity.raw.bind(entity); // fetch-hook–wrapped passthrough
 // Plug in odata2ts here against `raw(...)` for codegen'd typings.

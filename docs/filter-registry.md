@@ -10,7 +10,7 @@ explicit filter controls register clauses with an owner and optional source
 scope. Components can clear their own filters without touching unrelated
 application filters.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createFilterRegistry,
   projectFilterRegistryToQuery,
@@ -79,7 +79,7 @@ cache keys. It omits disabled and transient clauses, omits values marked
 
 ## Example Crossfilter Flow
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const registry = createFilterRegistry();
 
 function onChartBucket(values: readonly string[]) {

@@ -26,7 +26,7 @@ canonical `Source`, projects the result to a native MapLibre GeoJSON source,
 generates geometry-aware default layers, and owns refresh/disposal without
 importing `maplibre-gl`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { mountSourceToMapLibre } from "@honua/sdk-js/map";
 import { explainQuery } from "@honua/sdk-js/query-planner";
 
@@ -86,7 +86,7 @@ src/runtime/
 
 ## Public surface
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
 import { loadMapPackage } from "@honua/sdk-js/runtime";
@@ -132,7 +132,7 @@ runtime.dispose();
 
 ## Loader options
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface LoadMapPackageOptions {
   client: HonuaClient;
   resolveStyleRef?: (styleId: string, presetId?: string) => Promise<HonuaStyleRefBody>;
@@ -175,7 +175,7 @@ reports invalid values.
 `HonuaController`'s app-level CRUD surface. The API follows Mapbox GL source
 and layer concepts:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 runtime.addSource("dispatch", {
   type: "geojson",
   data: { type: "FeatureCollection", features: [] },
@@ -219,7 +219,7 @@ true })`.
 Builder-style usage starts from a package id instead of an inline
 `MapPackage`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js";
 import { loadMapPackageFromId, watchMapPackage } from "@honua/sdk-js/runtime";
 
@@ -313,7 +313,7 @@ failures. The full guide lives in [`composition.md`](./composition.md).
 DOM pointer event. It returns screen point, optional longitude/latitude,
 and a feature stack normalized to Honua source identity:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const hit = await runtime.hitTest(event, {
   layers: ["incidents-symbol", "incidents-fill"],
   sourceIds: ["incidents"],
@@ -337,7 +337,7 @@ also has `degraded[]`; for example, non-MapLibre renderers without
 
 Optional detail loading is bounded by the caller's `AbortSignal`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const controller = new AbortController();
 const hit = await runtime.hitTest(event, {
   layers: ["incidents-symbol"],
@@ -357,7 +357,7 @@ instead of rejecting the whole hit-test result.
 Apps that do not use `HonuaMapRuntime` can use the neutral helpers
 directly:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { hitTestMap } from "@honua/sdk-js/interactions";
 
 map.on("click", async (event) => {

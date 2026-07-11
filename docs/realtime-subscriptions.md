@@ -8,7 +8,7 @@ A `RealtimeSubscriptionRequest` identifies the logical live stream with `sourceI
 
 Use `realtimeSubscriptionKey(request)` when a runtime needs a stable client key for one source/layer/filter subscription:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const request = {
   requestId: "incident-ops",
   sourceId: "incidents",
@@ -25,7 +25,7 @@ const key = realtimeSubscriptionKey(request);
 
 Events may carry `eventId`, `sequence`, `cursor`, `watermark`, `timestamp`, `deltaToken`, or a normalized `checkpoint`. The reducer copies those values into state and exposes `realtimeResumeCheckpoint(state)` so callers can resume where the backend supports it:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const store = createRealtimeFeatureStore();
 
 store.connect(transport, {
@@ -73,7 +73,7 @@ Deletes remove the live record and write a tombstone keyed by `sourceId:id`. Tom
 
 Use the projection helpers to keep app code protocol-neutral:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const mapFeatures = selectRealtimeFeatures(store.state, { sourceId: "incidents" });
 const tableRows = selectRealtimeFeatureRecords(store.state, {
   sourceId: "incidents",
@@ -89,7 +89,7 @@ Use `reconcileRealtimeSelection(view, state)` with an `ExplorationViewController
 
 honua-server exposes live feature changes at `/api/v1/streaming/features`. That endpoint expects `serviceId=` / `layers=` query params (not the default `sourceId=` / `layerId=`) and emits its own feature-change envelopes. The `honuaServerRealtimePreset` packages the matching `encodeRequest` and `decodeEvent` hooks so consumers do not re-write the adapter:
 
-```ts
+```ts doc-test=compile
 import {
   createRealtimeServerSentEventsTransport,
   honuaServerRealtimePreset,
@@ -103,7 +103,7 @@ const transport = createRealtimeServerSentEventsTransport({
 
 Or use the convenience factory, which appends the default streaming path to a server origin:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createHonuaServerRealtimeSubscription } from "@honua/sdk-js/realtime";
 
 const transport = createHonuaServerRealtimeSubscription({

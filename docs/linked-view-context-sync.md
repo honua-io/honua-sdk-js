@@ -14,7 +14,7 @@ clauses.
 
 ## Core Pattern
 
-```ts
+```ts doc-test=compile
 import { createExplorationContext, sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
 import {
   bindChartToExploration,
@@ -48,7 +48,7 @@ default, and releases subscriptions on `unbind()`.
 
 Maps publish viewport and selection intents:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 bindMapExtentToExploration(mapView, mapExtentSource, {
   publishSpatialFilter: false,
 });
@@ -58,7 +58,7 @@ mapView.select([sourceFeatureSelectionTarget("incidents", 101)], { replace: true
 
 Tables and charts subscribe to a query projection rather than to the map:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 bindQueryProjectionToExploration(tableView, async (projection) => {
   const rows = await source.query({
     spatialFilter: projection.spatialFilter,
@@ -82,7 +82,7 @@ bindChartToExploration(chartView).subscribeQuery((projection) => {
 Filter controls publish structured `FilterClause` values. Map, table, and
 chart adapters translate the same projection at their protocol edge:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const filters = bindFilterControlsToExploration(filterView);
 
 syncMapLayerFilterToExploration(maplibreMap, mapView, {
@@ -102,7 +102,7 @@ filters.setFilter("status", {
 Charts or graphs can drive grouped exploration by dispatching grouping,
 aggregation, selected feature targets, and bucket filters:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const chart = bindChartToExploration(chartView);
 
 chart.setGrouping(["SEVERITY"]);
@@ -120,7 +120,7 @@ chart.selectBucket({
 
 Detail panels subscribe to selection:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 bindDetailToSelection(detailView, ([selected]) => {
   renderDetail(selected);
 });
@@ -142,7 +142,7 @@ every reducer change for devtools, persistence, and snapshot writing.
 | `chartDriven` | A chart or graph bucket controls the working set. | Chart publishes `grouping`, `aggregation`, `filters`, and `selection`; filter controls publish `filters`. |
 | `decoupled` | Components should keep local interaction state while sharing one serializable context. | No peer slice notifications; snapshots still contain central state. |
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 ctx.connectView({ id: "map", role: "map" }).applyPreset("chartDriven");
 ```
 
@@ -157,7 +157,7 @@ Realtime feature stores are another producer of typed state. Transport adapters
 emit normalized deltas through `@honua/sdk-js/realtime`; UI adapters reconcile
 the resulting live set against `ExplorationContext` selection.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 store.subscribe((state) => {
   reconcileRealtimeSelection(detailView, state, {
     sourceId: "incidents",

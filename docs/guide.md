@@ -112,7 +112,7 @@ Use the linked example READMEs for the `2.5D` collection contract, the Cesium li
 
 Use the server compatibility contract before enabling admin/control-plane flows:
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({ baseUrl: "https://your-honua-server.com" });
@@ -234,7 +234,7 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
 - Live SDK ↔ Honua Server protocol integration lane:
   [`docs/integration-tests.md`](./docs/integration-tests.md).
 
-```ts
+```ts doc-test=compile
 import { createDataset } from "@honua/sdk-js/contract";
 import { createExplorationContext } from "@honua/sdk-js/exploration";
 import { HonuaClient } from "@honua/sdk-js/honua";
@@ -279,7 +279,7 @@ projects `sourceBindings[]` through the `@honua/sdk-js/contract` adapters, and e
 that `honua-io/honua-sdk-js#22` and `#29` build on. The runtime never instantiates the map (`maplibre-gl`
 stays a peer dependency) and never issues edit writes.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { loadMapPackage } from "@honua/sdk-js/runtime";
@@ -327,7 +327,7 @@ canonical `BuildSpec`, `AppPackage.manifest_artifact`, and `MapPackage` inputs i
 `honua_generated_app_manifest.v1` manifest with the `operations-dashboard.v1` profile, then binds the generated
 map/table or list/count/chart/filter widgets through `@honua/sdk-js/runtime` and the shared `ExplorationContext`.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { previewGeneratedApp } from "@honua/sdk-js/generated-app";
 
 const preview = await previewGeneratedApp(
@@ -472,12 +472,9 @@ CI publish workflow:
 
 ## Request/Auth Bridge
 
-```ts
-import {
-  HonuaClient,
-  createArcGisTokenInterceptor,
-  createEsriRequestInterceptors,
-} from "@honua/sdk-js";
+```ts doc-test=compile
+import { HonuaClient } from "@honua/sdk-js";
+import { createArcGisTokenInterceptor, createEsriRequestInterceptors } from "@honua/sdk-js/esri-compat";
 
 const client = new HonuaClient({
   baseUrl: "https://example.test",
@@ -507,7 +504,7 @@ secrets in SDK configuration. The provider owns secure storage, refresh, and
 revocation; the SDK keeps only an in-memory cache and refreshes before
 `expiresAt` enters the configured skew window.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const client = new HonuaClient({
   baseUrl: "https://example.test",
   authRefreshSkewMs: 60_000,
@@ -542,7 +539,7 @@ Network, timeout, and retry behavior still flows through the same
 
 ## OGC API Features (Honua-first)
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({ baseUrl: "https://example.test" });
@@ -561,7 +558,7 @@ The first-party OGC client covers the OGC conformance areas that
 operator apps need. Everything is exposed through canonical Honua types
 — OGC conformance class identifiers stay internal.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js/honua";
 import type { IJobRun } from "@honua/sdk-js/honua";
 
@@ -604,7 +601,7 @@ re-exported from both the root barrel (`@honua/sdk-js`) and the
 `@honua/sdk-js/honua` subpath, so it bundles with esbuild/Vite/Rollup like the
 rest of the client:
 
-```ts
+```ts doc-test=compile
 // Browser app (esbuild / Vite / Rollup). No Node-only imports.
 import { HonuaClient, HonuaStacSearch } from "@honua/sdk-js";
 
@@ -636,7 +633,7 @@ for capability coverage.
 
 ## WFS 2.0
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 
@@ -686,7 +683,7 @@ throws `HonuaCapabilityNotSupportedError` and points callers at
 
 ## OData v4
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 
@@ -748,7 +745,7 @@ for the runtime-library posture.
 
 ## Mixed Esri + OGC in one app
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({ baseUrl: "https://example.test" });
@@ -764,7 +761,7 @@ const [features, items] = await Promise.all([
 
 ## MapServer query helpers
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({
@@ -797,7 +794,7 @@ const mapLayerRelated = await mapLayer.queryRelatedFeatures({
 
 ## Streaming Pagination
 
-```ts
+```ts doc-test=compile
 import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
 
 const layer = new FeatureLayerCompat({
@@ -815,7 +812,7 @@ for await (const page of layer.queryFeaturesStream({ pageSize: 500 })) {
 
 ## Event Lifecycle (.on)
 
-```ts
+```ts doc-test=compile
 import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
 
 const eventBus = new CompatEventBus();
@@ -837,7 +834,7 @@ handle.remove();
 
 ## TimeSlider Integration
 
-```ts
+```ts doc-test=compile
 import { FeatureLayerCompat, TimeSliderCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
 
 const eventBus = new CompatEventBus();
@@ -932,7 +929,7 @@ node dist/src/migration/cli.js content-webmap --input ./export/webmap.json --out
 `HonuaClient.scanMigrationSource()` wraps the stable admin scan endpoint for
 source-system migration planning:
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import type { MigrationSourceInventoryArtifact } from "@honua/sdk-js/honua";
 

@@ -32,7 +32,7 @@ opaquely.
 Wire the resolver into `createDataset`. One `GeoparquetRuntime` — one shared
 DuckDB Web Worker — backs every geoparquet source in the dataset.
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { geoparquetResolver } from "@honua/sdk-js/geoparquet";
 import { envelope } from "@honua/sdk-js";
@@ -69,7 +69,7 @@ const result = await places.query({
 });
 
 for (const feature of result.features) {
-  console.log(feature.attributes.id /* GERS id preserved */, feature.geometry?.type);
+  console.log(feature.attributes.id /* GERS id preserved */, feature.geometry);
 }
 
 // Tear down the shared worker when the client is disposed:
@@ -127,7 +127,7 @@ DuckDB actually returns, so both styles produce an identical `Result` shape.
 
 Reach the metadata through the typed escape hatch:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const handle = places.protocol("geoparquet")!;
 const description = await handle.describe();
 // { schema: HonuaFieldInfo[], geometryColumns: ["geometry"],
@@ -139,7 +139,7 @@ const rows = await handle.sql("SELECT count(*) FROM read_parquet('...')"); // ra
 
 ## Aggregation
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const summary = await places.queryAggregate({
   aggregation: {
     groupBy: ["categories.primary"],
@@ -194,7 +194,7 @@ before constructing the source. Do not hand a global glob to a browser without
 an AOI, projection, result limit, memory budget, cancellation, and file-level
 STAC selection:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 // Overture release layout (see https://docs.overturemaps.org/):
 const PINNED_ITEM =
   "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-06-17.0/theme=places/type=place/part-00000-6c973aba-862d-590f-a178-70bcd31cde1c-c000.zstd.parquet";

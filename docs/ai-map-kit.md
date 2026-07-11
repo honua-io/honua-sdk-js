@@ -9,7 +9,7 @@ then adds:
 - semantic map context and system prompt helpers.
 - policy controls for read-only/dry-run mode, allowed tools, source/layer allowlists, max result limits, and audit sinks.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createHonuaAiMapKit } from "@honua/sdk-js/agent-tools";
 
 const kit = createHonuaAiMapKit({

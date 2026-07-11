@@ -8,7 +8,7 @@ canonical `Source<T>` / `Query<T>` / `Result<T>` / `EditEnvelope<T>` /
 `EditResult` shapes as the GeoServices and OGC Features adapters, so
 mixed-source operator apps do not have to learn WFS / XML specifics.
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js";
 
@@ -45,8 +45,8 @@ server-side aggregation, related-records, or feature attachments.
 
 ## Locator
 
-```ts
-{
+```ts doc-test=compile
+interface WfsLocator {
   url: string;                 // Fully qualified WFS endpoint (e.g. https://server/wfs)
   typeName: string;            // Namespace-qualified feature-type name (e.g. parcels:lot)
   featureNamespace?: string;   // URI bound to the typeName prefix (required for prefixed applyEdits)
@@ -304,7 +304,7 @@ transaction.
 `ListStoredQueries` and `DescribeStoredQueries` are reachable through
 the protocol escape hatch:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const wfs = source.protocol("wfs")!;     // HonuaWfsFeatureType
 const ids = await wfs.root.storedQueries();
 const sq = wfs.root.storedQuery("byKey");
@@ -324,7 +324,7 @@ level. The escape hatch above still returns the raw GML payload.
 `Source.protocol("wfs")` returns a bound `HonuaWfsFeatureType` whose
 methods carry the raw WFS-shaped payloads:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const wfs = source.protocol("wfs")!;
 // Raw XML capabilities payload (cached after the first call).
 const snapshot = await wfs.capabilities();

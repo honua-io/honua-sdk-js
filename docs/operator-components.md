@@ -5,7 +5,7 @@ orchestrator under `@honua/sdk-js/operator`. Hosts can render the surfaces in
 React, Web Components, plain DOM, or native shells while reusing the same state
 and transport contract.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { OperatorWorkspace } from "@honua/sdk-js/operator";
 import { HonuaClient } from "@honua/sdk-js";
 

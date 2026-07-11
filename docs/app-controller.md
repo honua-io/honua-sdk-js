@@ -4,7 +4,7 @@
 flows. It composes existing `HonuaMapRuntime`, generated-app runtime, and
 `ExplorationContext` primitives instead of owning a separate state engine.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createHonuaController } from "@honua/sdk-js/app-controller";
 import { loadMapPackage } from "@honua/sdk-js/runtime";
 
@@ -60,7 +60,7 @@ application boundary. When the controller wraps `HonuaMapRuntime`, these
 methods delegate to the runtime's MapLibre adapter; custom adapters can provide
 the same methods without exposing a renderer directly.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const controller = createHonuaController({
   runtime,
   layerSourcePersistence: {
@@ -127,7 +127,7 @@ server or restore a previous renderer style.
 Snapshots carry exploration state, viewport, visibility, overlays, and
 annotations:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const snapshot = controller.snapshot();
 controller.restore(snapshot);
 controller.dispose();

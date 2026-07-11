@@ -26,7 +26,7 @@ Inside this monorepo the same surface is available at the subpath
 Wrap your app once with a `HonuaClient`. The provider owns a session-scoped
 query cache shared by every hook below it.
 
-```tsx
+```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { HonuaProvider } from "@honua/react";
 
@@ -52,7 +52,7 @@ export function Root() {
 | `useMapRuntime()` | The `HonuaMapRuntime` owned by the enclosing `HonuaMap`. |
 | `useRealtime(factory, deps?)` | Open a realtime subscription and tear it down on unmount. |
 
-```tsx
+```tsx doc-test=compile
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { useDataset, useQuery } from "@honua/react";
 
@@ -104,7 +104,7 @@ exposes `invalidate(key)` / `clear()` for manual cache control.
 `HonuaPopup` declaratively add a runtime source/layer and a click popup; they
 add on mount and remove on unmount.
 
-```tsx
+```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaMap, HonuaLayer, HonuaPopup } from "@honua/react";
 import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "@honua/sdk-js/runtime";
 
@@ -136,7 +136,7 @@ pass the existing instance to `HonuaMap` via `map`. `HonuaMap` then attaches its
 runtime to that map and **does not** remove it on unmount — the owner keeps
 control of the map lifecycle; Honua only disposes its runtime.
 
-```tsx
+```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { Map, useMap } from "@vis.gl/react-maplibre";
 import { HonuaMap, HonuaLayer } from "@honua/react";
 
@@ -146,7 +146,7 @@ function HonuaOverlay({ mapPackage }) {
   if (!map) return null;
   return (
     <HonuaMap package={mapPackage} map={map}>
-      <HonuaLayer {...} />
+      <HonuaLayer layer={{ id: "incidents", type: "circle", source: "incidents" }} />
     </HonuaMap>
   );
 }

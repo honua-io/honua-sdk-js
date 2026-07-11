@@ -15,7 +15,7 @@ honest line between what is backend-agnostic and what needs a Honua Server.
 
 Point the SDK at a public FeatureServer and get typed query results:
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 // A public Esri Living Atlas FeatureServer — no key, no account, no Honua server.
@@ -45,7 +45,7 @@ whatever origin you pass as `baseUrl`, so `services.arcgis.com`,
 `@honua/sdk-js/map` turns a public FeatureServer URL straight into a MapLibre
 `geojson` source:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { loadHonuaFeatureServiceGeoJson } from "@honua/sdk-js/map";
 import maplibregl from "maplibre-gl";
@@ -67,7 +67,7 @@ Pointing `FeatureLayerCompat` (and the rest of `@honua/sdk-js/esri-compat`) at a
 origin, and constructs its own client. Existing ArcGIS-shaped code migrates
 file-by-file without standing up any Honua infrastructure:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { FeatureLayerCompat } from "@honua/sdk-js/esri-compat";
 
 // Same familiar shape as esri-leaflet / arcgis-rest — no server required.

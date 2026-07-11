@@ -23,7 +23,7 @@ Import the subpath once in a browser module. The module auto-registers the
 elements when `customElements` is available and also exports
 `defineHonuaWebComponents()` for scoped registries.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createHonuaWebComponentController,
   defineHonuaWebComponents,
@@ -50,7 +50,7 @@ contains a package.
 <honua-map id="map" package-url="/fixtures/response-map-package.json"></honua-map>
 ```
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const map = document.querySelector("honua-map")!;
 map.mapPackage = mapPackage;
 map.controller = createHonuaWebComponentController({ mapPackage });
@@ -59,7 +59,7 @@ map.controller = createHonuaWebComponentController({ mapPackage });
 If an application already created a `HonuaMapRuntime`, adapt it through
 the existing controller bridge and bind that controller to the element:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createHonuaWebComponentControllerFromRuntime } from "@honua/sdk-js/web-components";
 
 document.querySelector("honua-map")!.controller = createHonuaWebComponentControllerFromRuntime(runtime);

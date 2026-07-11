@@ -25,7 +25,7 @@ listed in `INSTALL.md`. Import from the named subpath (e.g.
 
 ## Client + Dataset/Source/Query/Result contract
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 
@@ -70,7 +70,7 @@ Contract idioms to keep straight:
 Prefer the raw GeoServices shape (for example during an ArcGIS migration)?
 `HonuaClient` ships the protocol-specific call directly:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const { features } = await client.queryFeatures({
   serviceId: "natural-earth",
   layerId: 0,
@@ -85,7 +85,7 @@ const { features } = await client.queryFeatures({
 
 For production code, verify the server meets the SDK's tested floor:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const { supported, reasons } = await client.checkCompatibility();
 if (!supported) throw new Error(`Unsupported Honua server: ${reasons.join("; ")}`);
 ```
@@ -96,7 +96,7 @@ Capability misses throw `HonuaCapabilityNotSupportedError` under the default
 `capabilityPolicy: "strict"` rather than silently returning empty results. Use
 the `isHonuaError` guard so unrelated exceptions propagate:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaCapabilityNotSupportedError, isHonuaError } from "@honua/sdk-js";
 
 try {

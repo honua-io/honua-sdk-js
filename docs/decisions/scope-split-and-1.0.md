@@ -236,7 +236,7 @@ transition)** — and to give the app-platform demo consumers a soft landing —
 each moved subpath keeps a **thin re-export shim at its old `@honua/sdk-js`
 subpath for exactly one minor-version window**:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 /**
  * @deprecated Moved to `@honua/app-platform/app-workspace`. This re-export is
  *   retained for one minor version and will be removed in the next minor.

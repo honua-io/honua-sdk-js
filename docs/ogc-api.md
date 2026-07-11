@@ -29,7 +29,7 @@ substring gate for callers that want to branch on a specific extension.
 
 ## Getting started
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const baseUrl = "https://your-honua-server.example";
@@ -38,14 +38,14 @@ const client = new HonuaClient({ baseUrl });
 
 ### OGC API Features (already shipped)
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const ogc = client.ogcFeatures();
 const items = await ogc.collection("parcels").items({ limit: 50, filter: "STATUS = 'ACTIVE'" });
 ```
 
 ### OGC API Tiles
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const tiles = client.ogcTiles();
 
 // 1) Discover tilesets the server advertises for a collection
@@ -69,7 +69,7 @@ will be added when the server endpoint ships.
 
 ### OGC API Maps
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const maps = client.ogcMaps();
 
 // Dataset-level render across multiple collections
@@ -98,7 +98,7 @@ custom query parameter can still pass one through `extraParams`.
 
 ### OGC API Processes
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import type { IJobRun } from "@honua/sdk-js/honua";
 
 const processes = client.ogcProcesses();
@@ -149,7 +149,7 @@ resulting `HonuaJobFailedError.message` carries the server's reason text.
 
 ### STAC API
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const stac = client.stac();
 
 // GET /search
@@ -190,7 +190,7 @@ in addition to the POST body.
 
 ### OGC API Records
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const records = client.ogcRecords();
 
 // Discover available metadata catalogs.
@@ -239,7 +239,7 @@ Source-shaped OGC adapters register through the shared client contract
 from `@honua/sdk-js/contract`. Cross-protocol code consumes them through
 the same `Dataset` / `Source` vocabulary as GeoServices / OData:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 
 const dataset = createDataset({
@@ -294,7 +294,7 @@ reach the underlying class through `Source.adapter("ogc-tiles")` /
 
 ## Capability negotiation and graceful degradation
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { negotiateOgcCapabilities, hasOgcConformanceClass } from "@honua/sdk-js/honua";
 

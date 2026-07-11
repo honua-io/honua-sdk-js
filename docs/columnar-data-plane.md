@@ -12,7 +12,7 @@ and realtime work in issue #394 is completed.
 
 ## Create a batch without copying payload bytes
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createColumnarBatch, leaseColumnarBatch } from "@honua/sdk-js/query-planner";
 
 const coordinates = new Float64Array([21.31, -157.86, 21.44, -157.77]);

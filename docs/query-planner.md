@@ -17,7 +17,7 @@ The first compiler targets an existing GeoServices FeatureServer query path.
 The compiled request is included in the plan so diagnostics, CLIs, agents, and
 future renderers can inspect the same decision before execution.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { executeQueryPlan, explainQuery } from "@honua/sdk-js/query-planner";
 
@@ -63,7 +63,7 @@ Fallback is disabled by default. When a source can query features but cannot
 push down aggregation, local execution requires both `capabilityPolicy:
 "degraded"` and an explicit `bounded-local` budget:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const plan = explainQuery({
   descriptor,
   capabilityPolicy: "degraded",

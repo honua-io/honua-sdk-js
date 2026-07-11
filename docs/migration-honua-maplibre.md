@@ -75,7 +75,7 @@ adapter exported from `@honua/sdk-js/map`. It fetches features via the
 SDK query path and produces a standard `geojson` source MapLibre renders
 natively:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
 import {

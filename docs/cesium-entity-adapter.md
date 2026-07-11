@@ -3,7 +3,7 @@
 `@honua/sdk-js/scene-workspace` exposes an experimental accepted-plan workflow
 for projecting a canonical `Source` query into a Cesium `EntityCollection`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { explainQuery } from "@honua/sdk-js/query-planner";
 import { mountSourceToCesium } from "@honua/sdk-js/scene-workspace";
 

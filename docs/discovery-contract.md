@@ -13,7 +13,7 @@ by an SDK adapter. It is not proof that a particular server or asset enables
 those operations. Discovery code should pass endpoint evidence to
 `resolveDiscoveryCapabilities()` and use the returned intersection:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
@@ -65,7 +65,7 @@ adapter/projection versions. The returned
 display endpoint is credential-redacted; the logical key never embeds raw URL
 or authorization-scope values.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createDiscoveryCacheIdentity } from "@honua/sdk-js/contract";
 
 const identity = await createDiscoveryCacheIdentity({
@@ -114,7 +114,7 @@ run; passing a protocol without a reviewed connect adapter throws
 `unsupported-protocol`. Discovery never probes a Honua facade or a second
 authenticated protocol endpoint as fallback.
 
-```ts
+```ts doc-test=compile
 import { connect } from "@honua/sdk-js/honua";
 
 const connection = await connect({

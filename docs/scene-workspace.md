@@ -8,7 +8,7 @@ and subscribe to narrow slices or selectors.
 
 ## Sample Pattern
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createMapLibreSceneAdapter,
   createSceneWorkspace,
@@ -105,7 +105,7 @@ layers, point clouds, precise ground clamping, or scene-layer symbology.
 Adapters declare `SceneRuntimeCapabilities` and can run
 `diagnoseScenePrimitives()` before applying state:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const adapter = createMapLibreSceneAdapter();
 const diagnostics = diagnoseScenePrimitives(
   selectScenePrimitivesByKind(workspace.state, "elevation-source"),

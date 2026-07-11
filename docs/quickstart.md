@@ -58,7 +58,7 @@ Use an anonymous endpoint or a server-side proxy/session. Protected server-only 
 
 The sample uses stable subpath imports and the explicitly experimental planner:
 
-```ts
+```ts doc-test=compile
 import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { executeQueryPlan, explainQuery } from "@honua/sdk-js/query-planner";
