@@ -4,8 +4,8 @@
     {
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
-      "exportCount": 1038,
-      "signatureSha256": "5165bc34093c7e6dbfab8e2ed26f70c2c6e20dcd13e054a1a528cea7e04c3159",
+      "exportCount": 1039,
+      "signatureSha256": "58c9c460e3e98b88d6e355e1bc6c9d27c2508eb5795b36bac2b35192236c53c5",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -72,6 +72,7 @@
         "ConnectDiscoverySourceSnapshot — interface",
         "ConnectOptions — interface",
         "ConnectProtocolHint — type",
+        "ConnectResolvedProtocol — type",
         "CreateDatasetOptions — interface",
         "CreateEditSessionOptions — interface",
         "CreateExplorationContextOptions — interface",
@@ -1050,8 +1051,8 @@
     {
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
-      "exportCount": 1038,
-      "signatureSha256": "5165bc34093c7e6dbfab8e2ed26f70c2c6e20dcd13e054a1a528cea7e04c3159",
+      "exportCount": 1039,
+      "signatureSha256": "58c9c460e3e98b88d6e355e1bc6c9d27c2508eb5795b36bac2b35192236c53c5",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -1118,6 +1119,7 @@
         "ConnectDiscoverySourceSnapshot — interface",
         "ConnectOptions — interface",
         "ConnectProtocolHint — type",
+        "ConnectResolvedProtocol — type",
         "CreateDatasetOptions — interface",
         "CreateEditSessionOptions — interface",
         "CreateExplorationContextOptions — interface",
@@ -2096,8 +2098,8 @@
     {
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
-      "exportCount": 1032,
-      "signatureSha256": "6a87436ae2e8aadfa0489db3160557a85340a0b4262f7133d213b85a55642003",
+      "exportCount": 1033,
+      "signatureSha256": "14a3c4b2e78c395bf75d9a8e73551762ccfc7a438313822ce5abdf2702c734ac",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -2169,6 +2171,7 @@
         "ConnectDiscoverySourceSnapshot — interface",
         "ConnectOptions — interface",
         "ConnectProtocolHint — type",
+        "ConnectResolvedProtocol — type",
         "ContractEntry — interface",
         "ContractSummary — interface",
         "ContractSupport — type",

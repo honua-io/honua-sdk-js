@@ -91,7 +91,223 @@ describe("connect", () => {
     expect(connection.dataset.sourceIds()).toEqual(["roads"]);
   });
 
-  it("rejects auto and unsupported protocols before auth, fetch, or cache hooks run", async () => {
+  it("auto-detects canonical FeatureServer URLs and projects layer metadata truth", async () => {
+    const requests: string[] = [];
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      const url = new URL(request.url);
+      requests.push(`${url.pathname}${url.search}`);
+      if (url.pathname === "/arcgis/rest/services/Public/Parcels/FeatureServer") {
+        return json({
+          capabilities: "Query,Create,Update,Delete",
+          layers: [{ id: 0, name: "Parcels" }],
+          tables: [{ id: 3, name: "Owners" }],
+        });
+      }
+      if (url.pathname.endsWith("/FeatureServer/0")) {
+        return json(
+          {
+            id: 0,
+            name: "Parcels",
+            capabilities: "Query,Create,Update,Delete",
+            supportsAttachments: true,
+            supportsStatistics: true,
+            useStandardizedQueries: true,
+            supportedQueryFormats: "JSON, geoJSON, PBF",
+            relationships: [{ id: 1, relatedTableId: 3 }],
+            fields: [
+              { name: "OBJECTID", type: "esriFieldTypeOID" },
+              { name: "STATUS", type: "esriFieldTypeString" },
+            ],
+          },
+          { ETag: '"parcels-v2"' },
+        );
+      }
+      if (url.pathname.endsWith("/FeatureServer/3")) {
+        return json({ id: 3, name: "Owners", capabilities: "Query", fields: [] });
+      }
+      return new Response("not found", { status: 404 });
+    });
+
+    const connection = await connect({
+      endpoint: "https://example.test/arcgis/rest/services/Public/Parcels/FeatureServer?f=pjson",
+      protocol: "auto",
+      authorizationScopeFingerprint: "role:viewer:v1",
+      clientOptions: { fetchFn },
+    });
+
+    expect(connection.inspection.protocol).toBe("geoservices-feature-service");
+    expect(connection.inspection.endpoint).toBe(
+      "https://example.test/arcgis/rest/services/Public/Parcels/FeatureServer",
+    );
+    expect(connection.dataset.client.serverBaseUrl).toBe("https://example.test/arcgis");
+    expect(connection.dataset.sourceIds()).toEqual(["0", "3"]);
+    expect(connection.inspection.defaultSourceId).toBeUndefined();
+    expect(connection.inspection.sources[0]?.descriptor).toMatchObject({
+      id: "0",
+      protocol: "geoservices-feature-service",
+      locator: {
+        url: "https://example.test/arcgis",
+        serviceId: "Public/Parcels",
+        layerId: 0,
+      },
+      schema: { primaryKey: "OBJECTID" },
+    });
+    expect([...connection.inspection.sources[0]!.descriptor.capabilities]).toEqual(
+      expect.arrayContaining([
+        "query",
+        "queryAggregate",
+        "queryExtent",
+        "queryObjectIds",
+        "queryRelated",
+        "applyEdits",
+        "attachments",
+        "sql",
+        "stream",
+        "pbf",
+      ]),
+    );
+    expect(connection.inspection.sources[0]?.provenance).toEqual(
+      expect.arrayContaining([expect.objectContaining({ validator: '"parcels-v2"' })]),
+    );
+    expect(requests).toHaveLength(3);
+  });
+
+  it("auto-detects a selected MapServer layer without probing other protocols", async () => {
+    const requests: string[] = [];
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      const url = new URL(request.url);
+      requests.push(url.pathname);
+      return json({ id: 2, name: "Cities", capabilities: "Map,Query", fields: [] });
+    });
+    const connection = await connect({
+      endpoint: "https://example.test/arcgis/rest/services/Maps/Cities/MapServer/2",
+      protocol: "auto",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    expect(requests).toEqual(["/arcgis/rest/services/Maps/Cities/MapServer/2"]);
+    expect(connection.inspection.protocol).toBe("geoservices-map-service");
+    expect(connection.inspection.defaultSourceId).toBe("2");
+    expect([...connection.source().capabilities]).toEqual(
+      expect.arrayContaining(["query", "queryExtent", "queryObjectIds", "render", "stream"]),
+    );
+    expect(connection.source().capabilities.has("tiles")).toBe(false);
+  });
+
+  it("combines MapServer service tile-cache truth with layer capability metadata", async () => {
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(new Request(input, init).url);
+      if (url.pathname.endsWith("/MapServer")) {
+        return json({
+          capabilities: "Map,Query",
+          singleFusedMapCache: true,
+          layers: [{ id: 2, name: "Cities" }],
+        });
+      }
+      return json({ id: 2, name: "Cities", capabilities: "Map,Query", fields: [] });
+    });
+    const connection = await connect({
+      endpoint: "https://example.test/arcgis/rest/services/Maps/Cities/MapServer",
+      protocol: "auto",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    expect(connection.source().capabilities.has("render")).toBe(true);
+    expect(connection.source().capabilities.has("tiles")).toBe(true);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not substitute adapter defaults when GeoServices capability metadata is absent", async () => {
+    const connection = await connect({
+      endpoint: "https://example.test/rest/services/Parcels/FeatureServer/0",
+      protocol: "auto",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: vi.fn(async () => json({ id: 0, name: "Parcels", fields: [] })) },
+    });
+
+    expect([...connection.source().capabilities]).toEqual([]);
+    expect(connection.inspection.sources[0]?.discovery).toBe("unavailable");
+    expect(connection.inspection.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "discovery-unavailable" }),
+    );
+  });
+
+  it("rejects mismatched GeoServices hints before auth, fetch, or cache hooks", async () => {
+    const fetchFn = vi.fn<typeof fetch>();
+    const auth = vi.fn(async () => "secret");
+    const get = vi.fn();
+    await expect(
+      connect({
+        endpoint: "https://example.test/rest/services/Parcels/FeatureServer",
+        protocol: "geoservices-map-service",
+        authorizationScopeFingerprint: "scope-a",
+        clientOptions: { fetchFn, auth },
+        cache: { get, set: vi.fn() },
+      }),
+    ).rejects.toMatchObject({ code: "invalid-endpoint" });
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(auth).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("retains service-level truth and diagnostics when optional layer metadata fails", async () => {
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(new Request(input, init).url);
+      if (url.pathname.endsWith("/FeatureServer")) {
+        return json({ capabilities: "Query", layers: [{ id: 7, name: "Roads" }] });
+      }
+      return new Response("temporarily unavailable", { status: 503 });
+    });
+    const connection = await connect({
+      endpoint: "https://example.test/arcgis/rest/services/Roads/FeatureServer",
+      protocol: "auto",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    expect(connection.source().capabilities.has("query")).toBe(true);
+    expect(connection.source().capabilities.has("applyEdits")).toBe(false);
+    expect(connection.inspection.sources[0]?.discovery).toBe("mixed");
+    expect(connection.inspection.diagnostics.map((entry) => entry.code)).toEqual(
+      expect.arrayContaining(["discovery-unavailable", "partial-discovery"]),
+    );
+  });
+
+  it("bounds service-root layer metadata discovery to four concurrent requests", async () => {
+    let active = 0;
+    let maxActive = 0;
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(new Request(input, init).url);
+      if (url.pathname.endsWith("/FeatureServer")) {
+        return json({
+          capabilities: "Query",
+          layers: Array.from({ length: 6 }, (_, id) => ({ id, name: `Layer ${id}` })),
+        });
+      }
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      active -= 1;
+      const id = Number.parseInt(url.pathname.split("/").at(-1) ?? "", 10);
+      return json({ id, name: `Layer ${id}`, capabilities: "Query", fields: [] });
+    });
+
+    const connection = await connect({
+      endpoint: "https://example.test/rest/services/Many/FeatureServer",
+      protocol: "auto",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    expect(connection.dataset.sourceIds()).toHaveLength(6);
+    expect(maxActive).toBe(4);
+  });
+
+  it("rejects ambiguous auto and unsupported protocols before auth, fetch, or cache hooks run", async () => {
     const fetchFn = vi.fn<typeof fetch>();
     const auth = vi.fn(async () => "secret");
     const get = vi.fn();
@@ -269,7 +485,12 @@ describe("connect", () => {
           protocol: "ogc-features",
           retrievedAt: new Date().toISOString(),
           evidence: [{ kind: "metadata", capabilities: ["query"] }],
-          sources: [{ id: "parcels", collectionId: "parcels" }],
+          sources: [
+            {
+              id: "parcels",
+              locator: { url: "https://example.test/api", collectionId: "parcels", layout: "ogc-api" },
+            },
+          ],
         }) satisfies ConnectDiscoverySnapshot,
       set: vi.fn(),
     };

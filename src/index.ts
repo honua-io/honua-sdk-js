@@ -35,6 +35,7 @@ export type {
   ConnectDiscoverySourceSnapshot,
   ConnectOptions,
   ConnectProtocolHint,
+  ConnectResolvedProtocol,
   HonuaConnection,
   HonuaConnectionInspection,
 } from "./connect.js";
