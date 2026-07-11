@@ -5,6 +5,7 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
+      "@honua/sdk-js/agent-safety": ["../../src/agent-safety/index.ts"],
       "@honua/sdk-js/query-planner": ["../../src/query-planner/index.ts"],
       "@honua/sdk-js/contract": ["../../src/contract/index.ts"],
       "@honua/sdk-js/agent-tools": ["../../src/agent-tools/index.ts"],

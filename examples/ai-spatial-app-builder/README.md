@@ -4,12 +4,12 @@ This flagship demonstrates the difference between an agent proposing spatial wor
 
 ## Safety workflow
 
-1. An untrusted deterministic proposal declares typed tool calls and requested effects.
-2. `explainQuery` builds an immutable plan bound to the source locator, capabilities, schema/source versions, authorization scope, query, CRS, limits, estimates, and execution policy.
-3. Policy validation is side-effect free. This sample accepts exactly one remote `query` read; aggregation, query-all, unsupported tools, tool/operation/effect mismatches, excessive limits, unapproved fields, mutation, realtime, or generated-app effects are visibly refused. Source-native predicates must pass a restricted parser; comments, functions, statement separators, unapproved fields, and widening fragments such as `OR 1=1` fail closed.
-4. A reviewer can inspect request/row/byte estimates, fidelity, cache behavior, provenance, and row/byte ceilings before approving, narrowing, or rejecting. The approval grant binds the exact validated-plan digest and cannot widen its limits.
-5. `executeQueryPlan` rechecks plan integrity and current source context before the first read. The execution envelope, grant, authorization scope, and provenance are deep-cloned and frozen before the first await. Tampering, stale context, pre-abort, or authorization drift fails before source access. Revalidation, reset, and disposal abort and invalidate in-flight generations so late results cannot commit.
-6. The complete materialized result is measured before any slicing or commit. Over-returned rows, transfer-limit truncation, unexpected aggregate rows, and oversized payloads (including multibyte data) fail without rows or a success receipt. Successful execution creates a tamper-evident `honua.agent-execution-receipt` binding the plan, approval, full payload byte count, provenance, scope, observation time, and a validated execution time.
+1. An untrusted deterministic proposal declares a typed `@honua/sdk-js/agent-tools` `runWidgetQuery` call and requested effect.
+2. `explainQuery` builds an immutable query plan bound to the source locator, capabilities, schema/source versions, authorization scope, query, CRS, limits, estimates, and execution policy.
+3. `dryRunAgentPlan` translates that plan into the shared `@honua/sdk-js/agent-safety` envelope and validates the exact operation-input digest, source binding, field/scope/version/data-mode policy, citation allowlist, and row/byte budget without effects. Sample-specific predicate parsing remains explicit because the shared boundary deliberately does not infer SQL fields.
+4. A reviewer can inspect request/row/byte estimates, fidelity, cache behavior, provenance, and effect budgets before approving, narrowing, or rejecting. `issueAgentApproval` signs a single-use grant with an expiry and can narrow but never widen per-step limits. Rejection creates no grant.
+5. Immediately before the first source call, `verifyAgentStepAuthorization` verifies the signed approval, current source context, exact operation snapshot, and an authenticated atomic consumption record. The executor consumes only the frozen authorized operation and limits returned by that function. Tampering, replay, stale context, pre-abort, or authorization drift fails before source access.
+6. The complete materialized result is measured before commit. Over-returned rows, transfer-limit truncation, unexpected aggregate rows, and oversized payloads fail without rows or a success receipt. `issueAgentExecutionReceipt` signs the full-result digest, count, bytes, approval-use record, plan/policy/binding digests, and completion time; `verifyAgentExecutionReceipt` verifies both signatures and authenticated consumption before the UI reports success.
 
 Mutation and realtime are not disguised as read-only operations. They require separate host capabilities and approvals and remain disabled in this sample policy.
 
@@ -17,9 +17,11 @@ Prompt text is never authority. Tool names, effects, planned operations, project
 
 ## Fixture and optional host lanes
 
-Fixture mode replays committed parcel rows and an honest GeoServices query plan. “AI” means the proposal boundary being demonstrated; no model is called or implied. Injected sources must supply an explicit source binding, including data mode, observation time, attribution, versions, and a non-empty authorization scope contained by host policy; arbitrary sources cannot inherit the fixture provenance label. Live-host sources must also inject an execution clock whose receipt time is valid and does not pre-date observation.
+Fixture mode replays committed parcel rows and an honest GeoServices query plan. “AI” means the proposal boundary being demonstrated; no model is called or implied. The browser creates ephemeral, in-memory fixture signer and approval-use capabilities only to exercise the shared interfaces; they are not production authority and are discarded with the session. Production hosts keep signing keys and the atomic replay store server-side.
 
-Optional model and live-data integrations must be mediated by a trusted same-origin host. Provider keys, bearer tokens, and approval credentials must never be placed in Vite variables or browser storage. The scheduled evidence runner accepts only host endpoint locations:
+Injected sources must supply an explicit live-host binding with a credential-free HTTPS citation, observation time, attribution, versions, and a non-empty authorization scope contained by host policy. `fixture-replay` is reserved for the default committed source, so arbitrary injected rows cannot inherit fixture provenance. Live-host sources must also inject a trusted execution clock whose receipt time is valid and does not pre-date observation.
+
+Optional model and live-data integrations must be mediated by a trusted same-origin host. Provider keys, bearer tokens, signing keys, replay-store tokens, and approval credentials must never be placed in Vite variables or browser storage. The scheduled evidence runner accepts only credential-free HTTPS endpoint locations; until the external host adapter and scheduled-run authority exist, configured endpoints still produce an explicit skip without sending a request:
 
 ```bash
 HONUA_AGENT_HOST_URL=https://host.example.test/proposal \
@@ -29,7 +31,7 @@ npm run demo:ai-spatial-builder:live-evidence
 
 Without both endpoints the runner emits a structured `skipped` record and never substitutes fixture output while claiming live execution.
 
-This sample demonstrates the browser-side contract boundary; it does not implement or claim completion of the production host integration tracked in #397.
+This sample demonstrates the browser-side proposal/review experience and the production SDK contract boundary. It does not place provider credentials, persistent approval authority, or model execution in the browser, and does not claim completion of the production host integration tracked in #397.
 
 ## Validation
 

@@ -44,9 +44,10 @@ test("safe-agent journey requires validation and approval before one bounded rea
     await expect(page.locator("#row-count")).toHaveText("5");
     await expect(page.locator("#receipt-integrity")).toHaveText("true");
     await expect(page.locator("#receipt-json")).toContainText("honua.agent-execution-receipt");
-    await expect(page.locator("#receipt-json")).toContainText("fixture-replay");
-    await expect(page.locator("#receipt-json")).toContainText('"approvedMaxBytes": 128000');
-    await expect(page.locator("#receipt-json")).toContainText('"resultBytes"');
+    await expect(page.locator("#receipt-json")).toContainText("HMAC-SHA256");
+    await expect(page.locator("#receipt-json")).toContainText("honua.agent-approval-consumption");
+    await expect(page.locator("#receipt-json")).toContainText('"rows": 5');
+    await expect(page.locator("#receipt-json")).toContainText('"bytes"');
     await page.evaluate(() => window.__HONUA_SAFE_AGENT__?.dispose());
     await expect.poll(async () => page.evaluate(() => window.__HONUA_SAFE_AGENT__?.disposed)).toBe(true);
     await expect.poll(async () => page.evaluate(() => window.__HONUA_SAFE_AGENT__?.state)).toBe("cancelled");
@@ -88,6 +89,22 @@ test("keyboard workflow and mobile layout expose status without console errors",
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
       .toBe(true);
+    const accessibilityFailures = await page.evaluate(() => {
+      const failures = [];
+      const ids = [...document.querySelectorAll("[id]")].map((element) => element.id);
+      if (new Set(ids).size !== ids.length) failures.push("duplicate ids");
+      if (document.querySelectorAll("h1").length !== 1) failures.push("page must have one h1");
+      if (!document.querySelector("main") || !document.querySelector("[role='status']"))
+        failures.push("main/status landmark missing");
+      for (const button of document.querySelectorAll("button")) {
+        if (!(button.textContent?.trim() || button.getAttribute("aria-label"))) failures.push("unnamed button");
+      }
+      for (const table of document.querySelectorAll("table")) {
+        if (!table.querySelector("caption")) failures.push("table caption missing");
+      }
+      return failures;
+    });
+    expect(accessibilityFailures).toEqual([]);
     expect(errors).toEqual([]);
   });
 });

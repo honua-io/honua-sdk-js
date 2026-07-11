@@ -87,6 +87,8 @@ function renderPlan(): void {
     <dl class="binding-grid">
       <div><dt>Plan fingerprint</dt><dd><code>${escapeHtml(plan.queryPlan.fingerprint)}</code></dd></div>
       <div><dt>Approval digest</dt><dd><code>${escapeHtml(plan.approvalDigest)}</code></dd></div>
+      <div><dt>Shared safety envelope</dt><dd>${escapeHtml(plan.dryRun?.kind ?? "not-issued")} · ${escapeHtml(plan.dryRun?.effectBudget.rows ?? 0)} rows / ${escapeHtml(plan.dryRun?.effectBudget.bytes ?? 0)} bytes</dd></div>
+      <div><dt>Policy / bindings digest</dt><dd><code>${escapeHtml(plan.dryRun?.policyDigest ?? "-")} / ${escapeHtml(plan.dryRun?.bindingsDigest ?? "-")}</code></dd></div>
       <div><dt>Source / schema</dt><dd>${escapeHtml(plan.queryPlan.ir.source.sourceVersion)} / ${escapeHtml(plan.queryPlan.ir.source.schemaVersion)}</dd></div>
       <div><dt>Authorization</dt><dd>${escapeHtml(plan.queryPlan.ir.source.authorizationScope.join(", "))}</dd></div>
       <div><dt>CRS / row limit</dt><dd>EPSG:${escapeHtml(plan.queryPlan.ir.query.outSr)} / ${escapeHtml(plan.queryPlan.ir.query.pagination?.limit)}</dd></div>
@@ -107,7 +109,7 @@ function renderPlan(): void {
 function renderApproval(): void {
   const approval = session.approval;
   element("#approval-state").textContent = approval
-    ? `${approval.decision} · ${approval.approvedMaxRows} rows · ${approval.approvedMaxBytes} bytes · ${approval.actor}`
+    ? `${approval.decision} · ${approval.approvedMaxRows} rows · ${approval.approvedMaxBytes} bytes · ${approval.grant ? `${approval.grant.algorithm}/${approval.grant.keyId} · single use · expires ${approval.grant.expiresAt}` : "no grant issued"}`
     : "No approval grant exists";
   const executing = session.state === "executing";
   element<HTMLButtonElement>("#validate").disabled = executing;
@@ -125,7 +127,7 @@ function renderReceipt(): void {
   element("#receipt-json").textContent = receipt
     ? JSON.stringify(receipt, null, 2)
     : "Execution is intentionally unavailable before approval.";
-  element("#receipt-integrity").textContent = receipt ? String(session.verifyReceipt(receipt)) : "not-run";
+  element("#receipt-integrity").textContent = receipt ? String(session.receiptVerified) : "not-run";
 }
 
 function renderResults(): void {
@@ -154,8 +156,8 @@ function validate(): void {
   render();
 }
 
-function decide(decision: Decision, maxRows?: number): void {
-  session.decide(decision, maxRows);
+async function decide(decision: Decision, maxRows?: number): Promise<void> {
+  await session.decide(decision, maxRows);
   element("#event-log").textContent =
     decision === "reject"
       ? "Reviewer rejected the plan. Execution remains disabled."
@@ -202,9 +204,9 @@ function refusalProposal(kind: "mutation" | "realtime" | "excessive-limit" | "un
 }
 
 element("#validate").addEventListener("click", validate, uiEventOptions);
-element("#approve").addEventListener("click", () => decide("approve"), uiEventOptions);
-element("#narrow").addEventListener("click", () => decide("narrow", 2), uiEventOptions);
-element("#reject").addEventListener("click", () => decide("reject"), uiEventOptions);
+element("#approve").addEventListener("click", () => void decide("approve"), uiEventOptions);
+element("#narrow").addEventListener("click", () => void decide("narrow", 2), uiEventOptions);
+element("#reject").addEventListener("click", () => void decide("reject"), uiEventOptions);
 element("#execute").addEventListener("click", () => void execute(), uiEventOptions);
 element("#reset").addEventListener("click", () => reset(), uiEventOptions);
 for (const button of document.querySelectorAll<HTMLButtonElement>("[data-refusal]")) {
@@ -237,7 +239,7 @@ window.__HONUA_SAFE_AGENT__ = {
   async runHappyPath(decision: Decision = "approve", narrowedMaxRows?: number) {
     if (disposed) return;
     validate();
-    decide(decision, narrowedMaxRows);
+    await decide(decision, narrowedMaxRows);
     if (decision !== "reject") await execute();
   },
   runRefusal(kind) {
