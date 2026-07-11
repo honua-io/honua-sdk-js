@@ -65,6 +65,9 @@ describe("Overture large-data flagship", () => {
         FIXTURE_MANIFEST,
       ),
     ).toThrow("no object");
+    expect(() =>
+      planOvertureQuery({ lane: "live", aoi: [-77, 28.47, -76.9, 28.48], category: "all", limit: 10 }, OVERTURE_POLICY),
+    ).toThrow("requires exactly one object");
   });
 
   it("keys cache identity by release, object version, AOI, projection, category, and policy", () => {

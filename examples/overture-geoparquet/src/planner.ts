@@ -8,7 +8,7 @@ import type {
 } from "./types.js";
 
 export class OverturePlanRejectedError extends Error {
-  readonly code: "invalid-aoi" | "aoi-budget" | "row-budget" | "projection-budget" | "no-object";
+  readonly code: "invalid-aoi" | "aoi-budget" | "row-budget" | "projection-budget" | "no-object" | "file-budget";
 
   constructor(code: OverturePlanRejectedError["code"], message: string) {
     super(message);
@@ -55,6 +55,12 @@ export function planOvertureQuery(
   const selectedObjects = manifest.objects.filter((object) => intersects(input.aoi, object.bbox));
   if (selectedObjects.length === 0) {
     throw new OverturePlanRejectedError("no-object", "The pinned STAC manifest has no object intersecting this AOI.");
+  }
+  if (selectedObjects.length !== 1) {
+    throw new OverturePlanRejectedError(
+      "file-budget",
+      `AOI selects ${selectedObjects.length} objects; this bounded flagship requires exactly one object per query.`,
+    );
   }
   const cacheKey = JSON.stringify({
     release: manifest.release,
