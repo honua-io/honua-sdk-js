@@ -176,10 +176,13 @@ describe("PortalCompat.getPortalSelf", () => {
 describe("PortalCompat.openFeatureLayer", () => {
   it("resolves a portal item URL to a /rest/services FeatureServer base and attaches the token to layer requests", async () => {
     const { fetchFn, requests } = makeFakeFetch([
-      { match: "/content/items/item-1", body: samplePortalItem() },
+      {
+        match: "/content/items/item-1",
+        body: samplePortalItem({ url: "https://honua.example/rest/services/roads/FeatureServer////" }),
+      },
       { match: "/FeatureServer/0/query", body: { features: [] } },
     ]);
-    const portal = new PortalCompat({ portalUrl: "https://honua.example", token: "layer-tok", fetchFn });
+    const portal = new PortalCompat({ portalUrl: "https://honua.example////", token: "layer-tok", fetchFn });
 
     const opened = await portal.openFeatureLayer("item-1");
 

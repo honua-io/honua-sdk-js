@@ -298,7 +298,7 @@ export class PortalCompat {
     if (!item.url) {
       throw new PortalError(`Portal item ${item.id} has no service URL to open.`);
     }
-    const serviceUrl = item.url.replace(/\/+$/, "");
+    const serviceUrl = trimTrailingSlashes(item.url);
 
     if (isFeatureService(item.type, serviceUrl)) {
       const layerId = options.layerId ?? 0;
@@ -380,11 +380,19 @@ export class PortalCompat {
 }
 
 function normalizeSharingRestBase(portalUrl: string): string {
-  const trimmed = portalUrl.replace(/\/+$/, "");
+  const trimmed = trimTrailingSlashes(portalUrl);
   if (/\/sharing\/rest$/i.test(trimmed)) {
     return trimmed;
   }
   return `${trimmed}/sharing/rest`;
+}
+
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end--;
+  }
+  return value.slice(0, end);
 }
 
 function defaultReferer(sharingRestBase: string): string | undefined {
