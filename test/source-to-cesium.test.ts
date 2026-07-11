@@ -199,6 +199,43 @@ describe("projectSourceToCesium", () => {
     mounted.dispose();
   });
 
+  it("rejects prototype-filled coordinate and attribute holes without renderer effects", async () => {
+    const line = prototypeFilledArray<unknown>(2, 1, [-156, 22]);
+    line[0] = [-157, 21];
+    const ring = prototypeFilledArray<unknown>(4, 2, [-157, 22]);
+    ring[0] = [-158, 21];
+    ring[1] = [-157, 21];
+    ring[3] = [-158, 21];
+    const tuple = prototypeFilledArray<unknown>(2, 1, 21);
+    tuple[0] = -157;
+    const tags = prototypeFilledArray<unknown>(2, 1, "prototype-value");
+    tags[0] = "own-value";
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        { attributes: { unit_id: 1 }, geometry: { type: "LineString", coordinates: line } },
+        { attributes: { unit_id: 2 }, geometry: { type: "Polygon", coordinates: [ring] } },
+        { attributes: { unit_id: 3 }, geometry: { type: "Point", coordinates: tuple } },
+        { attributes: { unit_id: 4, tags }, geometry: { x: -157, y: 21 } },
+      ],
+    };
+    const source = fakeSource([result]);
+    const projection = projectSourceToCesium(source, plan, result);
+    expect(projection.entities).toEqual([]);
+    expect(projection.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "geometry-unsupported", detail: { omittedFeatureCount: 3 } }),
+    );
+    expect(projection.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "attributes-unsupported", detail: { omittedFeatureCount: 1 } }),
+    );
+
+    const collection = fakeCollection();
+    const mounted = await mountSourceToCesium(collection, source, plan, { ...context, cesium: cesiumModule });
+    expect(mounted.entityIds).toEqual([]);
+    expect(collection.entities.size).toBe(0);
+    mounted.dispose();
+  });
+
   it("accepts epoch milliseconds and offset-bearing millisecond ISO instants only", () => {
     const source = fakeSource([firstResult]);
     const result: Result<Record<string, unknown>> = {
@@ -566,6 +603,17 @@ function planWithStepQuery(query: QueryExecutionPlanV1["ir"]["query"]): QueryExe
   } as QueryExecutionPlanV1;
   const fingerprint = hashQueryPlan(changed);
   return { ...changed, fingerprint };
+}
+
+function prototypeFilledArray<T>(length: number, inheritedIndex: number, inheritedValue: T): T[] {
+  const value = new Array<T>(length);
+  const prototype = Object.create(Array.prototype) as T[];
+  Object.defineProperty(prototype, inheritedIndex, {
+    value: inheritedValue,
+    configurable: true,
+  });
+  Object.setPrototypeOf(value, prototype);
+  return value;
 }
 
 function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {

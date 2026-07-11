@@ -673,15 +673,15 @@ function projectGeometry<T>(feature: HonuaTypedFeature<T>): CesiumEntityGeometry
   }
   if (geometry.type === "Polygon") {
     const rings = geometry.coordinates;
-    if (!Array.isArray(rings) || rings.length !== 1) return undefined;
+    if (!Array.isArray(rings) || rings.length !== 1 || !Object.hasOwn(rings, 0)) return undefined;
     const coordinates = coordinates3(rings[0]);
     return coordinates && validRing(coordinates) ? { kind: "polygon", coordinates } : undefined;
   }
-  if (Array.isArray(geometry.paths) && geometry.paths.length === 1) {
+  if (Array.isArray(geometry.paths) && geometry.paths.length === 1 && Object.hasOwn(geometry.paths, 0)) {
     const coordinates = coordinates3(geometry.paths[0]);
     return coordinates && coordinates.length >= 2 ? { kind: "polyline", coordinates } : undefined;
   }
-  if (Array.isArray(geometry.rings) && geometry.rings.length === 1) {
+  if (Array.isArray(geometry.rings) && geometry.rings.length === 1 && Object.hasOwn(geometry.rings, 0)) {
     const coordinates = coordinates3(geometry.rings[0]);
     return coordinates && validRing(coordinates) ? { kind: "polygon", coordinates } : undefined;
   }
@@ -698,8 +698,13 @@ function geometryHasZ(value: unknown): boolean {
 
 function coordinateTreeHasZ(value: unknown): boolean {
   if (!Array.isArray(value)) return false;
-  if (isFiniteNumber(value[0]) && isFiniteNumber(value[1])) return value.length >= 3;
-  return value.some(coordinateTreeHasZ);
+  if (Object.hasOwn(value, 0) && Object.hasOwn(value, 1) && isFiniteNumber(value[0]) && isFiniteNumber(value[1]))
+    return value.length >= 3 && Object.hasOwn(value, 2);
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index)) return false;
+    if (coordinateTreeHasZ(value[index])) return true;
+  }
+  return false;
 }
 
 function coordinate3(value: unknown): readonly [number, number, number] | undefined {
@@ -707,9 +712,9 @@ function coordinate3(value: unknown): readonly [number, number, number] | undefi
     !Array.isArray(value) ||
     value.length < 2 ||
     value.length > 3 ||
-    !(0 in value) ||
-    !(1 in value) ||
-    (value.length === 3 && !(2 in value)) ||
+    !Object.hasOwn(value, 0) ||
+    !Object.hasOwn(value, 1) ||
+    (value.length === 3 && !Object.hasOwn(value, 2)) ||
     !isFiniteNumber(value[0]) ||
     !isFiniteNumber(value[1]) ||
     !validLongitudeLatitude(value[0], value[1]) ||
@@ -723,7 +728,7 @@ function coordinates3(value: unknown): readonly (readonly [number, number, numbe
   if (!Array.isArray(value)) return undefined;
   const result: (readonly [number, number, number])[] = [];
   for (let index = 0; index < value.length; index += 1) {
-    if (!(index in value)) return undefined;
+    if (!Object.hasOwn(value, index)) return undefined;
     const coordinate = coordinate3(value[index]);
     if (!coordinate) return undefined;
     result.push(coordinate);
@@ -1013,7 +1018,7 @@ function snapshotJsonValue(value: unknown, ancestors: Set<object>): unknown | ty
   if (Array.isArray(value)) {
     const copy: unknown[] = [];
     for (let index = 0; index < value.length; index += 1) {
-      if (!(index in value)) {
+      if (!Object.hasOwn(value, index)) {
         ancestors.delete(value);
         return INVALID_JSON_ATTRIBUTE;
       }
