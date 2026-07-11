@@ -149,6 +149,7 @@ import {
 } from "@honua/app-platform/scene-workspace";
 import { HonuaMap, mountSourceToMapLibre } from "@honua/sdk/map";
 import { createColumnarBatch, explainQuery, inspectColumnarBatch } from "@honua/sdk/query-planner";
+import { DECK_GL_ADAPTER_CONTRACT_VERSION } from "@honua/sdk/deckgl";
 import { validateHonuaStyle } from "@honua/sdk/style";
 import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import {
@@ -436,6 +437,8 @@ if (typeof createColumnarBatch !== "function" || typeof inspectColumnarBatch !==
   if (inspectColumnarBatch(batch).copiedBytes !== 0)
     throw new Error("@honua/sdk/query-planner columnar transfer introduced a payload copy");
 }
+if (DECK_GL_ADAPTER_CONTRACT_VERSION !== "1.0")
+  throw new Error("DECK_GL_ADAPTER_CONTRACT_VERSION export missing from @honua/sdk/deckgl");
 const styleSpecDiagnostics = await validateRuntimeStyleSpec({
   version: 8,
   sources: {},

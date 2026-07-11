@@ -14,7 +14,7 @@
 **Release status: beta.** The 20-entrypoint stable tier is frozen and guarded by an
 API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
 [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
-The complete inventory also contains 4 experimental subpaths and 18 deprecated
+The complete inventory also contains 5 experimental subpaths and 18 deprecated
 compatibility subpaths. [`config/public-surface.json`](./config/public-surface.json)
 is the machine-readable source consumed by CI, API reporting, TypeDoc, and
 downstream documentation projection.
@@ -328,7 +328,7 @@ correctly use this SDK:
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
     `@honua/sdk-js/cli`.
   - **Experimental** (subpath-only — not re-exported from the root barrels): `/agent-tools`,
-    `/geoparquet`, `/query-planner`, `/plugin`.
+    `/geoparquet`, `/query-planner`, `/plugin`, `/deckgl`.
   - **Application-platform surfaces** (`/app`, `/app-controller`, `/app-workspace`,
     `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
     `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,
