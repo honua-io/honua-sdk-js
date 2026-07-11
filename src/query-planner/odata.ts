@@ -1,0 +1,121 @@
+import { buildOdataSpatialFilter, rewriteWhereToOdataFilter } from "../core/odata.js";
+import type { CanonicalQuery, OdataCompiledQueryV1, QueryIrSourceIdentity } from "./types.js";
+import { HonuaQueryPlanningError } from "./types.js";
+
+/** Compile canonical query IR to a deterministic OData v4 entity-set request. */
+export function compileOdataQuery(source: QueryIrSourceIdentity, query: CanonicalQuery): OdataCompiledQueryV1 {
+  if (source.protocol !== "odata") {
+    throw new HonuaQueryPlanningError(
+      "unsupported-compiler",
+      `odata-v4-query-v1 does not compile protocol "${source.protocol}"`,
+    );
+  }
+  if (!source.entitySet) {
+    throw new HonuaQueryPlanningError(
+      "invalid-query",
+      `Source "${source.id}" requires locator.entitySet for OData planning`,
+    );
+  }
+  if (query.aggregation) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "Canonical OData aggregation is not portable; use the typed $apply escape hatch",
+    );
+  }
+
+  const filterParts: string[] = [];
+  try {
+    if (query.where) {
+      const rewritten = rewriteWhereToOdataFilter(query.where.expression);
+      if (rewritten) filterParts.push(rewritten);
+    }
+    if (query.spatialFilter) {
+      if (!source.geometryProperty) {
+        throw new Error("descriptor schema does not identify the OData geometry column");
+      }
+      filterParts.push(
+        buildOdataSpatialFilter(
+          {
+            geometry: query.spatialFilter.geometry as Record<string, unknown>,
+            geometryType: query.spatialFilter.geometryType,
+            ...(query.spatialFilter.spatialRel ? { spatialRel: query.spatialFilter.spatialRel } : {}),
+          },
+          { geometryColumn: source.geometryProperty },
+        ),
+      );
+    }
+  } catch (error) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      `OData query cannot preserve the requested predicate: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  let projection: { select: readonly string[]; expand: readonly string[] } | undefined;
+  if (query.outFields && query.outFields.length > 0) {
+    projection = splitProjection(query.outFields, query.returnGeometry === false ? source.geometryProperty : undefined);
+  } else if (query.returnGeometry === false) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "Metadata-free OData planning requires explicit outFields to prove returnGeometry=false on the wire",
+    );
+  }
+
+  return {
+    compiler: "odata-v4-query-v1",
+    entitySet: source.entitySet,
+    ...(filterParts.length > 0 ? { filter: filterParts.join(" and ") } : {}),
+    ...(projection && projection.select.length > 0 ? { select: projection.select } : {}),
+    ...(projection && projection.expand.length > 0 ? { expand: projection.expand } : {}),
+    ...(query.orderBy && query.orderBy.length > 0
+      ? { orderBy: query.orderBy.map((sort) => `${sort.field}${sort.direction === "desc" ? " desc" : ""}`) }
+      : {}),
+    ...(query.pagination?.offset !== undefined ? { skip: query.pagination.offset } : {}),
+    ...(query.pagination?.limit !== undefined ? { top: query.pagination.limit } : {}),
+  };
+}
+
+function splitProjection(
+  fields: readonly string[],
+  excludedGeometry: string | undefined,
+): { select: readonly string[]; expand: readonly string[] } {
+  type Node = { select: string[]; children: Map<string, Node> };
+  const root: Node = { select: [], children: new Map() };
+  for (const field of fields) {
+    if (excludedGeometry && field === excludedGeometry) continue;
+    const segments = field.split(".").filter(Boolean);
+    if (segments.length === 0) continue;
+    let cursor = root;
+    for (let index = 0; index < segments.length - 1; index += 1) {
+      const segment = segments[index];
+      if (!segment) continue;
+      let child = cursor.children.get(segment);
+      if (!child) {
+        child = { select: [], children: new Map() };
+        cursor.children.set(segment, child);
+      }
+      cursor = child;
+    }
+    const leaf = segments.at(-1);
+    if (leaf) cursor.select.push(leaf);
+  }
+  const serialize = (node: Node): string => {
+    const parts: string[] = [];
+    if (node.select.length > 0) parts.push(`$select=${node.select.join(",")}`);
+    if (node.children.size > 0) {
+      const children = [...node.children.entries()].map(([name, child]) => {
+        const inner = serialize(child);
+        return inner ? `${name}(${inner})` : name;
+      });
+      parts.push(`$expand=${children.join(",")}`);
+    }
+    return parts.join(";");
+  };
+  return {
+    select: root.select,
+    expand: [...root.children.entries()].map(([name, child]) => {
+      const inner = serialize(child);
+      return inner ? `${name}(${inner})` : name;
+    }),
+  };
+}

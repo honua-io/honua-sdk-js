@@ -98,6 +98,7 @@ export function queryIrSourceIdentity(
   context: Pick<ExplainQueryOptions, "authorizationScope" | "schemaVersion" | "sourceVersion"> = {},
 ): QueryIrSourceIdentity {
   const authorizationScope = [...new Set(context.authorizationScope ?? [])].sort();
+  const geometryProperty = descriptor.schema?.fields?.find((field) => field.type === "esriFieldTypeGeometry")?.name;
   return deepFreeze({
     id: descriptor.id,
     protocol: descriptor.protocol,
@@ -107,6 +108,8 @@ export function queryIrSourceIdentity(
     ...(descriptor.locator.collectionId !== undefined ? { collectionId: descriptor.locator.collectionId } : {}),
     ...(descriptor.locator.typeName !== undefined ? { typeName: descriptor.locator.typeName } : {}),
     ...(descriptor.locator.entitySet !== undefined ? { entitySet: descriptor.locator.entitySet } : {}),
+    ...(geometryProperty ? { geometryProperty } : {}),
+    ...(descriptor.locator.srsName !== undefined ? { srsName: String(descriptor.locator.srsName) } : {}),
     ...(context.schemaVersion !== undefined ? { schemaVersion: context.schemaVersion } : {}),
     ...(context.sourceVersion !== undefined ? { sourceVersion: context.sourceVersion } : {}),
     authorizationScope,

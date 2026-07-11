@@ -53,6 +53,9 @@ export interface QueryIrSourceIdentity {
   readonly collectionId?: string | number;
   readonly typeName?: string;
   readonly entitySet?: string;
+  /** Descriptor-derived geometry property used by the metadata-free OData compiler. */
+  readonly geometryProperty?: string;
+  readonly srsName?: string;
   readonly schemaVersion?: string;
   readonly sourceVersion?: string;
   readonly authorizationScope: readonly string[];
@@ -131,7 +134,35 @@ export interface OgcApiFeaturesCompiledQueryV1 {
   readonly limit?: number;
 }
 
-export type RemoteCompiledQueryV1 = GeoServicesCompiledQueryV1 | OgcApiFeaturesCompiledQueryV1;
+/** Inspectable WFS 2.0 GetFeature request produced without I/O. */
+export interface WfsCompiledQueryV1 {
+  readonly compiler: "wfs-2.0-get-feature-v1";
+  readonly typeName: string;
+  readonly filter?: string;
+  readonly propertyName?: readonly string[];
+  readonly sortBy?: string;
+  readonly startIndex?: number;
+  readonly count?: number;
+  readonly srsName?: string;
+}
+
+/** Inspectable OData v4 entity-set query produced without I/O. */
+export interface OdataCompiledQueryV1 {
+  readonly compiler: "odata-v4-query-v1";
+  readonly entitySet: string;
+  readonly filter?: string;
+  readonly select?: readonly string[];
+  readonly expand?: readonly string[];
+  readonly orderBy?: readonly string[];
+  readonly skip?: number;
+  readonly top?: number;
+}
+
+export type RemoteCompiledQueryV1 =
+  | GeoServicesCompiledQueryV1
+  | OgcApiFeaturesCompiledQueryV1
+  | WfsCompiledQueryV1
+  | OdataCompiledQueryV1;
 
 export interface RemoteQueryPlanStep {
   readonly id: string;

@@ -15,6 +15,8 @@ export { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
 export { executeQueryPlan } from "./executor.js";
 export { compileGeoServicesQuery } from "./geoservices.js";
 export { compileOgcApiFeaturesQuery } from "./ogc-features.js";
+export { compileOdataQuery } from "./odata.js";
+export { compileWfsQuery } from "./wfs.js";
 export { canonicalizeQuery, createQueryIr, hashQueryIr, queryFromCanonical } from "./ir.js";
 export { explainQuery, hashQueryPlan } from "./planner.js";
 export {
@@ -71,6 +73,7 @@ export type {
   JsonValue,
   LocalAggregatePlanStep,
   OgcApiFeaturesCompiledQueryV1,
+  OdataCompiledQueryV1,
   QueryExecutionPlanV1,
   QueryFallbackPolicy,
   QueryIrSourceIdentity,
@@ -83,4 +86,5 @@ export type {
   RemoteCompiledQueryV1,
   QueryPlanStep,
   RemoteQueryPlanStep,
+  WfsCompiledQueryV1,
 } from "./types.js";
