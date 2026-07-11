@@ -18,6 +18,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 
 - [Shared Client Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/shared-client-contract.md): Dataset / Source / Query / Result contract design and semantics.
 - [Deterministic query planner](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/query-planner.md): Deterministic query IR and explain plans, GeoServices pushdown, and safe bounded-local execution policy.
+- [Downloadable offline regions (experimental)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/offline-regions.md): Bounded downloadable-region manifests, logical-byte quota CAS, byte isolation, integrity, and storage-neutral transactions.
 - [North-star SDK application-kernel contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/decisions/north-star-sdk-application-kernel.md): Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.
 - [Protocol × Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/protocol-capability-matrix.md): Which operations each protocol supports and where capabilities fall back.
 - [Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-capability-matrix.md): Backend-agnostic vs Honua-server-enhanced capabilities: what works with no server and what needs one.

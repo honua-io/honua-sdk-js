@@ -29,7 +29,7 @@ const manifest = await createOfflineRegionManifest({
 const receipt = await downloadOfflineRegion(manifest, {
   store: applicationStore,
   load: applicationResourceLoader,
-  quotaBytes: 512 * 1024 * 1024,
+  logicalQuotaBytes: 512 * 1024 * 1024,
   signal: abortController.signal,
   onProgress: renderProgress,
 });
@@ -37,26 +37,36 @@ const receipt = await downloadOfflineRegion(manifest, {
 
 ## Contract guarantees
 
-- Manifest identity is deterministic over normalized content. Resource and
-  attribution maps are sorted before hashing.
+- Manifest identity is deterministic over normalized content. Resource ids,
+  attribution ids, and object keys use locale-independent code-unit ordering.
 - URL credentials and recognized signed/auth query parameters are removed.
   Only a domain-separated SHA-256 digest of the caller's authorization scope
   fingerprint is persisted.
-- Every resource has an exact byte length and required SHA-256 digest. The
-  coordinator validates both before writing it. Each resource also carries
+- Every resource has an exact logical byte length and required SHA-256 digest.
+  Loader output is copied into coordinator-owned memory before hashing, progress,
+  or writing, so later loader mutation cannot alter committed bytes. Each resource also carries
   source, schema, plan, and attribution identities inherited from the manifest
   unless the planner supplies more specific versions. Snapshot observation,
   validity, expiration, and HTTP validators remain explicit instead of making
   cached bytes appear live.
-- Manifest allocation is bounded by resource count, total bytes, and
-  descriptor-string bytes. Quota admission is deterministic: expired regions,
-  then least-recently-used regions, then lexical id. Pinned regions are never
-  automatically evicted.
+- Untrusted manifests are synchronously normalized into an owned snapshot before
+  any hash or adapter await. Plain shapes, dense arrays, resource/attribution/
+  metadata counts, logical bytes, and incremental UTF-8 string bytes are bounded
+  before copying, sorting, or canonical JSON construction.
+- Quota is explicitly **logical payload-byte quota**: it sums declared resource
+  payload lengths and does not claim physical disk occupancy, unique backing
+  bytes, compression, deduplication, or store overhead. Admission is deterministic:
+  expired regions, then least-recently-used regions, then code-unit id order.
+  Pinned regions are never automatically evicted.
 - The injected transaction stages evictions and writes, then publishes them
-  atomically with the manifest and receipt. Cancellation or failure requires a
-  rollback. Storage implementations must satisfy that atomicity contract.
+  atomically with the manifest and receipt. Commit compares the inventory
+  revision used for planning and independently enforces logical quota in the
+  same atomic mutation; a concurrent winner makes the loser return typed
+  `inventory-changed` and roll back. Storage implementations must copy bytes
+  before `write()` resolves and satisfy this CAS/atomicity contract.
 - Progress is explicit across planning, download, write, commit, and completion.
-  A successful receipt always reports `integrity: "verified"`.
+  A successful receipt reports `integrity: "verified"` and
+  `quotaAccounting: "logical-payload-bytes"`.
 
 The manifest contains logical resource ids, not request URLs. The injected
 loader may resolve short-lived signed URLs or authorization at download time;

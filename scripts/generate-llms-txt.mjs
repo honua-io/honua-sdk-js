@@ -83,6 +83,11 @@ const SECTIONS = [
           "Deterministic query IR and explain plans, GeoServices pushdown, and safe bounded-local execution policy.",
       },
       {
+        path: "docs/offline-regions.md",
+        description:
+          "Bounded downloadable-region manifests, logical-byte quota CAS, byte isolation, integrity, and storage-neutral transactions.",
+      },
+      {
         path: "docs/decisions/north-star-sdk-application-kernel.md",
         description:
           "Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.",

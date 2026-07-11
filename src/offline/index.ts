@@ -16,7 +16,9 @@ export {
   planOfflineRegionAdmission,
 } from "./region.js";
 export {
-  DEFAULT_OFFLINE_REGION_MAX_BYTES,
+  DEFAULT_OFFLINE_REGION_MAX_ATTRIBUTIONS,
+  DEFAULT_OFFLINE_REGION_MAX_LOGICAL_BYTES,
+  DEFAULT_OFFLINE_REGION_MAX_METADATA_ENTRIES,
   DEFAULT_OFFLINE_REGION_MAX_RESOURCES,
   DEFAULT_OFFLINE_REGION_MAX_STRING_BYTES,
   HONUA_OFFLINE_REGION_KIND,
@@ -28,6 +30,7 @@ export type {
   OfflineRegionAdmissionPlan,
   OfflineRegionBounds,
   OfflineRegionCacheInventory,
+  OfflineRegionCommitGuard,
   OfflineRegionDownloadOptions,
   OfflineRegionDownloadProgress,
   OfflineRegionDownloadReceipt,

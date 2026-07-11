@@ -4,10 +4,12 @@ export const HONUA_OFFLINE_REGION_VERSION = "1.0" as const;
 /** Stable discriminator for serialized downloadable-region manifests. */
 export const HONUA_OFFLINE_REGION_KIND = "honua.offline-region" as const;
 
-/** Conservative bounds applied before a manifest is allocated or downloaded. */
+/** Conservative bounds applied before descriptors are copied or sorted. */
 export const DEFAULT_OFFLINE_REGION_MAX_RESOURCES = 100_000;
-export const DEFAULT_OFFLINE_REGION_MAX_BYTES = 1024 * 1024 * 1024;
+export const DEFAULT_OFFLINE_REGION_MAX_LOGICAL_BYTES = 1024 * 1024 * 1024;
 export const DEFAULT_OFFLINE_REGION_MAX_STRING_BYTES = 1024 * 1024;
+export const DEFAULT_OFFLINE_REGION_MAX_ATTRIBUTIONS = 4_096;
+export const DEFAULT_OFFLINE_REGION_MAX_METADATA_ENTRIES = 200_000;
 
 export type OfflineRegionResourceKind = "metadata" | "features" | "tile" | "asset" | "attribution";
 
@@ -24,6 +26,7 @@ export interface OfflineRegionResourceInput {
   /** Stable non-secret identity used by the injected loader and store. */
   readonly id: string;
   readonly kind: OfflineRegionResourceKind;
+  /** Logical payload bytes; physical storage may deduplicate or add overhead. */
   readonly byteLength: number;
   readonly integrity: `sha256:${string}`;
   readonly contentType?: string;
@@ -101,19 +104,23 @@ export interface OfflineRegionManifestV1 {
   readonly expiresAt?: string;
   readonly attribution: Readonly<Record<string, string>>;
   readonly resources: readonly OfflineRegionResourceV1[];
-  readonly totalBytes: number;
+  /** Sum of resource payload lengths; not physical or unique backing-store bytes. */
+  readonly totalLogicalBytes: number;
 }
 
 /** Caller limits can tighten, but never raise, the SDK's conservative ceilings. */
 export interface OfflineRegionLimits {
   readonly maxResources?: number;
-  readonly maxBytes?: number;
+  readonly maxLogicalBytes?: number;
   readonly maxStringBytes?: number;
+  readonly maxAttributions?: number;
+  readonly maxMetadataEntries?: number;
 }
 
 export interface OfflineRegionStoredRegion {
   readonly id: string;
-  readonly byteLength: number;
+  /** Logical payload bytes charged to quota, regardless of physical deduplication. */
+  readonly logicalByteLength: number;
   readonly lastAccessedAt: string;
   readonly expiresAt?: string;
   /** Pinned regions are never selected for automatic eviction. */
@@ -121,27 +128,41 @@ export interface OfflineRegionStoredRegion {
 }
 
 export interface OfflineRegionCacheInventory {
+  /** Opaque revision changed atomically by every committed store mutation. */
+  readonly revision: string;
   readonly regions: readonly OfflineRegionStoredRegion[];
 }
 
 export interface OfflineRegionAdmissionPlan {
-  readonly quotaBytes: number;
-  readonly usedBytesBefore: number;
-  readonly replacementBytes: number;
-  readonly requiredBytes: number;
+  readonly logicalQuotaBytes: number;
+  readonly logicalBytesBefore: number;
+  readonly replacementLogicalBytes: number;
+  readonly requiredLogicalBytes: number;
   readonly evictRegionIds: readonly string[];
-  readonly evictedBytes: number;
-  readonly usedBytesAfter: number;
+  readonly evictedLogicalBytes: number;
+  readonly logicalBytesAfter: number;
+}
+
+export interface OfflineRegionCommitGuard {
+  readonly expectedInventoryRevision: string;
+  readonly logicalQuotaBytes: number;
+  readonly admission: OfflineRegionAdmissionPlan;
 }
 
 /**
- * One atomic update. Implementations must make evictions, resource writes, and
- * the final region record visible together at commit, or not at all at rollback.
+ * One atomic update. Implementations stage evictions and copied resource bytes.
+ * `commit` must atomically compare `expectedInventoryRevision`, independently
+ * verify resulting logical quota, then publish or return `inventory-changed`.
  */
 export interface OfflineRegionWriteTransaction {
   evict(regionId: string): Promise<void>;
-  write(resource: OfflineRegionResourceV1, bytes: Uint8Array): Promise<void>;
-  commit(manifest: OfflineRegionManifestV1, receipt: OfflineRegionDownloadReceipt): Promise<void>;
+  /** Resolve only after the store no longer depends on caller mutation of `bytes`. */
+  write(resource: OfflineRegionResourceV1, bytes: Readonly<Uint8Array>): Promise<void>;
+  commit(
+    manifest: OfflineRegionManifestV1,
+    receipt: OfflineRegionDownloadReceipt,
+    guard: OfflineRegionCommitGuard,
+  ): Promise<"committed" | "inventory-changed">;
   rollback(): Promise<void>;
 }
 
@@ -151,7 +172,7 @@ export interface OfflineRegionStore {
   beginWrite(regionId: string): Promise<OfflineRegionWriteTransaction>;
 }
 
-/** Loader resolves a manifest identity to bytes without putting URLs or tokens in the manifest. */
+/** Loader resolves logical resource identity without persisting URLs or tokens. */
 export type OfflineRegionResourceLoader = (
   resource: OfflineRegionResourceV1,
   context: { readonly manifest: OfflineRegionManifestV1; readonly signal?: AbortSignal },
@@ -162,39 +183,41 @@ export type OfflineRegionDownloadProgress =
       readonly phase: "planned";
       readonly completedResources: 0;
       readonly totalResources: number;
-      readonly completedBytes: 0;
-      readonly totalBytes: number;
+      readonly completedLogicalBytes: 0;
+      readonly totalLogicalBytes: number;
       readonly evictionRegionIds: readonly string[];
     }
   | {
       readonly phase: "downloading" | "writing";
       readonly completedResources: number;
       readonly totalResources: number;
-      readonly completedBytes: number;
-      readonly totalBytes: number;
+      readonly completedLogicalBytes: number;
+      readonly totalLogicalBytes: number;
       readonly resourceId: string;
     }
   | {
       readonly phase: "committing" | "complete";
       readonly completedResources: number;
       readonly totalResources: number;
-      readonly completedBytes: number;
-      readonly totalBytes: number;
+      readonly completedLogicalBytes: number;
+      readonly totalLogicalBytes: number;
     };
 
 export interface OfflineRegionDownloadReceipt {
   readonly regionId: string;
   readonly resourceCount: number;
-  readonly byteLength: number;
+  readonly logicalByteLength: number;
   readonly evictedRegionIds: readonly string[];
   readonly integrity: "verified";
+  readonly quotaAccounting: "logical-payload-bytes";
   readonly completedAt: string;
 }
 
 export interface OfflineRegionDownloadOptions {
   readonly store: OfflineRegionStore;
   readonly load: OfflineRegionResourceLoader;
-  readonly quotaBytes: number;
+  /** Logical payload-byte ceiling, not a claim about physical store occupancy. */
+  readonly logicalQuotaBytes: number;
   readonly signal?: AbortSignal;
   readonly now?: () => Date;
   /** Observational callback; exceptions are ignored and never alter transaction state. */
@@ -209,18 +232,21 @@ export type OfflineRegionErrorCode =
   | "integrity-mismatch"
   | "aborted"
   | "resource-load-failed"
+  | "inventory-changed"
   | "store-failed";
 
 export class HonuaOfflineRegionError extends Error {
   public constructor(
     public readonly code: OfflineRegionErrorCode,
     message: string,
-    options: { readonly cause?: unknown; readonly resourceId?: string } = {},
+    options: { readonly cause?: unknown; readonly resourceId?: string; readonly path?: string } = {},
   ) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = "HonuaOfflineRegionError";
     this.resourceId = options.resourceId;
+    this.path = options.path;
   }
 
   public readonly resourceId?: string;
+  public readonly path?: string;
 }
