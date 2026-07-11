@@ -65,6 +65,41 @@ describe("Overture live evidence", () => {
     ).toThrow("exceeding the 100-byte evidence budget");
   });
 
+  it("counts duplicate probe ranges as engine traffic and rejects credentials", () => {
+    const objectBytes = 1_000_000;
+    const footer: {
+      method: string;
+      range: string;
+      status: number;
+      contentRange: string;
+      contentLength: string;
+      hasCredentials?: boolean;
+      hasCredentialQuery?: boolean;
+    } = {
+      method: "GET",
+      range: "bytes=934464-999999",
+      status: 206,
+      contentRange: "bytes 934464-999999/1000000",
+      contentLength: "65536",
+    };
+    expect(
+      summarizeOvertureRangeTraffic(
+        [
+          { method: "GET", range: "bytes=0-0", status: 206, contentRange: "bytes 0-0/1000000", contentLength: "1" },
+          footer,
+          footer,
+        ],
+        objectBytes,
+      ),
+    ).toMatchObject({ engineRequests: 1, engineBytes: 65_536 });
+    expect(() =>
+      summarizeOvertureRangeTraffic([Object.assign({}, footer, { hasCredentials: true })], objectBytes),
+    ).toThrow("credential-bearing Overture request");
+    expect(() =>
+      summarizeOvertureRangeTraffic([Object.assign({}, footer, { hasCredentialQuery: true })], objectBytes),
+    ).toThrow("credential-bearing Overture request");
+  });
+
   it("is opt-in and emits a valid shared skipped envelope without network access", async () => {
     delete process.env.HONUA_OVERTURE_LIVE_ENABLED;
     const evidence = await collectOvertureLiveEvidence();

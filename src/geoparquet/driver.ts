@@ -40,6 +40,8 @@ export interface DuckDbDriver {
 
 /** Options for constructing the browser (duckdb-wasm) driver. */
 export interface BrowserDriverOptions {
+  /** Cancels driver initialization and synchronously terminates any worker already created. */
+  readonly signal?: AbortSignal;
   /**
    * Explicit CDN/base bundle to instantiate. When omitted, the default jsDelivr
    * bundles that ship with `@duckdb/duckdb-wasm` are selected by
@@ -76,6 +78,9 @@ export interface BrowserDriverOptions {
  * @throws if `@duckdb/duckdb-wasm` is not installed.
  */
 export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = {}): Promise<DuckDbDriver> {
+  const initializationSignal = options.signal;
+  const initializationAbortError = () => new DOMException("DuckDB initialization was aborted.", "AbortError");
+  if (initializationSignal?.aborted) throw initializationAbortError();
   let duckdb: typeof import("@duckdb/duckdb-wasm");
   try {
     duckdb = await import("@duckdb/duckdb-wasm");
@@ -86,8 +91,10 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
       { cause: cause instanceof Error ? cause : undefined },
     );
   }
+  if (initializationSignal?.aborted) throw initializationAbortError();
 
   const bundle = options.bundle ?? (await duckdb.selectBundle(duckdb.getJsDelivrBundles()));
+  if (initializationSignal?.aborted) throw initializationAbortError();
   const logLevelName = options.logLevel ?? "WARNING";
   const logger = new duckdb.ConsoleLogger(duckdb.LogLevel[logLevelName]);
 
@@ -129,6 +136,8 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
     if (connection) void connection.close().catch(() => undefined);
     void db.terminate().catch(() => undefined);
   }
+  const abortInitialization = () => terminateNow();
+  initializationSignal?.addEventListener("abort", abortInitialization, { once: true });
 
   try {
     await db.instantiate(mainModuleUrl, pthreadWorkerUrl);
@@ -143,14 +152,14 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
     }
   } catch (cause) {
     terminateNow();
-    throw cause;
+    throw initializationSignal?.aborted ? initializationAbortError() : cause;
   } finally {
     URL.revokeObjectURL(workerUrl);
   }
 
   const conn = await db.connect().catch((cause) => {
     terminateNow();
-    throw cause;
+    throw initializationSignal?.aborted ? initializationAbortError() : cause;
   });
   try {
     if (options.extensionRepository) {
@@ -164,8 +173,9 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
     if (options.loadSpatial !== false) await conn.query("INSTALL spatial; LOAD spatial;");
   } catch (cause) {
     terminateNow(conn);
-    throw cause;
+    throw initializationSignal?.aborted ? initializationAbortError() : cause;
   }
+  initializationSignal?.removeEventListener("abort", abortInitialization);
   let closePromise: Promise<void> | undefined;
 
   function abortError(): DOMException {

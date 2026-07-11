@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { OverturePlanRejectedError, parseAoi, planOvertureQuery } from "../examples/overture-geoparquet/src/planner.js";
 import { probeAwsRanges } from "../examples/overture-geoparquet/src/range-evidence.js";
@@ -229,6 +229,37 @@ describe("Overture large-data flagship", () => {
     finishClose();
     await Promise.all([firstDispose, secondDispose]);
     expect(closeCalls).toBe(1);
+  });
+
+  it("disposes immediately while driver initialization is pending", async () => {
+    let initializationSignal: AbortSignal | undefined;
+    let resolveDriver!: (driver: DuckDbDriver) => void;
+    const pendingDriver = new Promise<DuckDbDriver>((resolve) => {
+      resolveDriver = resolve;
+    });
+    let closeCalls = 0;
+    const runtime = new GeoparquetRuntime({
+      driverFactory: ({ signal } = { signal: new AbortController().signal }) => {
+        initializationSignal = signal;
+        return pendingDriver;
+      },
+    });
+    const query = runtime.query("SELECT 1");
+    await Promise.resolve();
+    await runtime.dispose();
+    expect(initializationSignal?.aborted).toBe(true);
+    resolveDriver({
+      async run() {},
+      async query() {
+        return [];
+      },
+      async registerFileBuffer() {},
+      async close() {
+        closeCalls += 1;
+      },
+    });
+    await expect(query).rejects.toThrow("disposed");
+    await vi.waitFor(() => expect(closeCalls).toBe(1));
   });
 
   it("pins the deterministic fixture and self-hosted Parquet extension by digest", () => {

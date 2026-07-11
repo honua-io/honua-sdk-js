@@ -88,8 +88,13 @@ import type { DuckDbDriver, DuckDbQueryOptions, DuckRow } from "./driver.js";
 
 const GEOPARQUET_ALIAS = "__geometry_geojson";
 
+/** Lifecycle options supplied while a fresh {@link DuckDbDriver} is initialized. */
+export interface DuckDbDriverFactoryOptions {
+  readonly signal: AbortSignal;
+}
+
 /** Factory that produces a fresh {@link DuckDbDriver}. */
-export type DuckDbDriverFactory = () => Promise<DuckDbDriver>;
+export type DuckDbDriverFactory = (options?: DuckDbDriverFactoryOptions) => Promise<DuckDbDriver>;
 
 export interface GeoparquetRuntimeOptions {
   /**
@@ -108,6 +113,8 @@ export interface GeoparquetRuntimeOptions {
 export class GeoparquetRuntime {
   private readonly driverFactory: DuckDbDriverFactory;
   private driverPromise: Promise<DuckDbDriver> | undefined;
+  private driverInstance: DuckDbDriver | undefined;
+  private readonly initializationAbort = new AbortController();
   private disposed = false;
   private disposePromise: Promise<void> | undefined;
   private readonly profiles = new Map<string, Promise<SourceProfile>>();
@@ -116,10 +123,21 @@ export class GeoparquetRuntime {
     this.driverFactory = options.driverFactory ?? createBrowserDuckDbDriver;
   }
 
-  private driver(): Promise<DuckDbDriver> {
+  private async driver(): Promise<DuckDbDriver> {
     if (this.disposed) throw new Error("geoparquet: runtime has been disposed");
-    if (!this.driverPromise) this.driverPromise = this.driverFactory();
-    return this.driverPromise;
+    if (!this.driverPromise) {
+      this.driverPromise = this.driverFactory({ signal: this.initializationAbort.signal }).then(async (driver) => {
+        if (this.disposed) {
+          await driver.close().catch(() => undefined);
+          throw new Error("geoparquet: runtime has been disposed");
+        }
+        this.driverInstance = driver;
+        return driver;
+      });
+    }
+    const driver = await this.driverPromise;
+    if (this.disposed) throw new Error("geoparquet: runtime has been disposed");
+    return driver;
   }
 
   /** Run a query and return raw rows. Escape hatch for advanced callers. */
@@ -185,13 +203,21 @@ export class GeoparquetRuntime {
   async dispose(): Promise<void> {
     if (this.disposePromise) return this.disposePromise;
     this.disposed = true;
+    this.initializationAbort.abort();
     const pending = this.driverPromise;
+    const initialized = this.driverInstance;
+    this.driverInstance = undefined;
     this.driverPromise = undefined;
     this.profiles.clear();
     this.disposePromise = (async () => {
-      if (!pending) return;
-      const driver = await pending.catch(() => undefined);
-      await driver?.close().catch(() => undefined);
+      if (initialized) {
+        await initialized.close().catch(() => undefined);
+        return;
+      }
+      // Do not await an initialization promise that may be stalled in a peer,
+      // extension loader, or injected factory. The lifecycle signal hard-stops
+      // the browser worker; ignored-signal factories are closed if they settle.
+      if (pending) void pending.then((driver) => driver.close()).catch(() => undefined);
     })();
     await this.disposePromise;
   }

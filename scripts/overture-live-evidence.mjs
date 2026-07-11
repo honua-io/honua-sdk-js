@@ -76,8 +76,28 @@ function parseResponseRange(value) {
   return [start, end, total].every(Number.isSafeInteger) && start <= end && end < total ? { start, end, total } : null;
 }
 
+/**
+ * @typedef {object} OvertureTrafficEntry
+ * @property {string} method
+ * @property {string | null} range
+ * @property {number | null} status
+ * @property {string | null} contentRange
+ * @property {string | null} contentLength
+ * @property {boolean} [hasCredentials]
+ * @property {boolean} [hasCredentialQuery]
+ */
+
+/**
+ * @param {readonly OvertureTrafficEntry[]} entries
+ * @param {number} objectBytes
+ * @param {number} [maxObservedBytes]
+ */
 export function summarizeOvertureRangeTraffic(entries, objectBytes, maxObservedBytes = MAX_OBSERVED_RANGE_BYTES) {
   const gets = entries.filter((entry) => entry.method === "GET");
+  const credentialed = entries.filter((entry) => entry.hasCredentials || entry.hasCredentialQuery);
+  if (credentialed.length > 0) {
+    throw new Error(`Observed ${credentialed.length} credential-bearing Overture request(s); live evidence is rejected.`);
+  }
   const unboundedGets = gets.filter((entry) => !entry.range);
   if (unboundedGets.length > 0) {
     throw new Error(`Observed ${unboundedGets.length} unbounded Overture GET request(s); live evidence is rejected.`);
@@ -107,8 +127,16 @@ export function summarizeOvertureRangeTraffic(entries, objectBytes, maxObservedB
   if (observedBytes > maxObservedBytes) {
     throw new Error(`Observed ${observedBytes} ranged bytes, exceeding the ${maxObservedBytes}-byte evidence budget.`);
   }
-  const preflight = new Set(["bytes=0-0", `bytes=${Math.max(0, objectBytes - 65_536)}-${objectBytes - 1}`]);
-  const engine = gets.filter((entry) => !preflight.has(entry.range));
+  const preflightRemaining = new Map([
+    ["bytes=0-0", 1],
+    [`bytes=${Math.max(0, objectBytes - 65_536)}-${objectBytes - 1}`, 1],
+  ]);
+  const engine = gets.filter((entry) => {
+    const remaining = preflightRemaining.get(entry.range) ?? 0;
+    if (remaining === 0) return true;
+    preflightRemaining.set(entry.range, remaining - 1);
+    return false;
+  });
   return {
     observedRequests: gets.length,
     observedBytes,
@@ -144,10 +172,15 @@ export async function collectOvertureLiveEvidence() {
     const trafficByRequest = new Map();
     const trafficTasks = [];
     page.on("request", (request) => {
-      if (new URL(request.url()).origin !== OVERTURE_OBJECT_ORIGIN) return;
+      const requestUrl = new URL(request.url());
+      if (requestUrl.origin !== OVERTURE_OBJECT_ORIGIN) return;
+      const headers = request.headers();
       const entry = {
+        url: requestUrl.href,
         method: request.method(),
-        range: request.headers().range ?? null,
+        range: headers.range ?? null,
+        hasCredentials: Boolean(headers.authorization || headers.cookie),
+        hasCredentialQuery: requestUrl.username !== "" || requestUrl.password !== "" || requestUrl.search !== "",
         status: null,
         contentRange: null,
         contentLength: null,

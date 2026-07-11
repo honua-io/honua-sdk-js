@@ -253,8 +253,9 @@ async function executePlan(
   signal: AbortSignal,
 ): Promise<{ rows: OverturePlaceRow[]; engineMs: number; estimatedResultBytes: number }> {
   const runtime = new GeoparquetRuntime({
-    driverFactory: () =>
+    driverFactory: ({ signal: initializationSignal } = { signal }) =>
       createBrowserDuckDbDriver({
+        signal: initializationSignal,
         bundle: DUCKDB_BUNDLE,
         extensionRepository: "/duckdb/extensions",
         preloadExtensions: ["parquet"],
