@@ -12,16 +12,22 @@
  * @packageDocumentation
  */
 
-export { certifyHonuaPluginManifest, validateHonuaPluginManifest } from "./certification.js";
+export {
+  certifyHonuaPluginManifest,
+  validateHonuaPluginCertificationHost,
+  validateHonuaPluginManifest,
+} from "./certification.js";
 export {
   HONUA_PLUGIN_API_VERSION,
   HONUA_PLUGIN_CAPABILITIES,
+  HONUA_PLUGIN_CAPABILITY_REQUIRED_GRANTS,
   HONUA_PLUGIN_ENVIRONMENTS,
   HONUA_PLUGIN_KINDS,
   HONUA_PLUGIN_MANIFEST_VERSION,
 } from "./types.js";
 export type {
   HonuaPluginCapability,
+  HonuaPluginCapabilityRequiredGrant,
   HonuaPluginCertificationCheck,
   HonuaPluginCertificationHost,
   HonuaPluginCertificationReport,
@@ -32,6 +38,9 @@ export type {
   HonuaPluginDiagnosticSeverity,
   HonuaPluginEnvironment,
   HonuaPluginGrantedAuthorities,
+  HonuaPluginHostValidation,
+  HonuaPluginJsonPrimitive,
+  HonuaPluginJsonValue,
   HonuaPluginKind,
   HonuaPluginLifecycle,
   HonuaPluginManifest,

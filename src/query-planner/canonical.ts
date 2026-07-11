@@ -35,7 +35,14 @@ function convertJson(value: unknown, path: string, ancestors: WeakSet<object>): 
     const converted: Record<string, JsonValue> = {};
     for (const key of Object.keys(value as Record<string, unknown>).sort()) {
       const entry = (value as Record<string, unknown>)[key];
-      if (entry !== undefined) converted[key] = convertJson(entry, `${path}.${key}`, ancestors);
+      if (entry !== undefined) {
+        Object.defineProperty(converted, key, {
+          value: convertJson(entry, `${path}.${key}`, ancestors),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
+      }
     }
     ancestors.delete(value);
     return converted;
@@ -48,7 +55,14 @@ function sortJson(value: JsonValue): JsonValue {
   if (value !== null && typeof value === "object") {
     const object = value as { readonly [key: string]: JsonValue };
     const sorted: Record<string, JsonValue> = {};
-    for (const key of Object.keys(object).sort()) sorted[key] = sortJson(object[key] as JsonValue);
+    for (const key of Object.keys(object).sort()) {
+      Object.defineProperty(sorted, key, {
+        value: sortJson(object[key] as JsonValue),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
     return sorted;
   }
   return value;

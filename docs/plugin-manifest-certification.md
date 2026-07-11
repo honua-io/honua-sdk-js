@@ -57,8 +57,15 @@ const report = certifyHonuaPluginManifest(manifest, {
 ```
 
 The report contains no time, machine path, or random identifier, so the same
-manifest and host snapshot serialize identically. CI can reject when `status`
-is `"rejected"` and archive the JSON as certification evidence.
+manifest and host snapshot serialize identically. Its `manifest` and `host`
+blocks contain the complete canonical snapshots plus SHA-256 fingerprints;
+changing an entrypoint, capability, data semantic, requested authority, peer,
+grant, environment, API version, or SDK version changes the corresponding
+fingerprint. CI can reject when `status` is `"rejected"` and archive the deeply
+frozen JSON as certification evidence without permitting manifest/host swaps.
+The top-level `sha256` covers every other report field, including both complete
+snapshots, their hashes, status, checks, and diagnostics. It is an integrity
+receipt for externally archived evidence, not a signature or proof of issuer.
 
 ## Compatibility policy
 
@@ -68,6 +75,8 @@ is `"rejected"` and archive the JSON as certification evidence.
   expressions. `minimumSdk` is inclusive and `maximumSdkExclusive` is optional.
 - Prerelease ordering follows SemVer, so `0.1.0-beta.2` satisfies a
   `0.1.0-beta.0` minimum but does not satisfy `0.1.0`.
+- SemVer parsing is linear-time over ASCII input and comparison uses SemVer's
+  deterministic ASCII identifier order rather than the process locale.
 - Environment and peer checks use only the explicit host snapshot. A missing
   required peer rejects certification; a missing optional peer is a warning.
 - This experimental API is not yet the GA compatibility promise requested by
@@ -81,12 +90,24 @@ is `"rejected"` and archive the JSON as certification evidence.
   headers, environment-variable names, or credential values.
 - Persistent data requires scoped storage. Declared mutation requires an
   explicit mutation grant. Authenticated access requires credential scopes.
+- Capability semantics also fail closed. `protocol:edit` and
+  `source-format:write` require both `data.mutation: "explicit"` and a mutation
+  grant; `cache:write` and `cache:invalidate` require persistent-cache semantics
+  and scoped storage. The full machine-readable mapping is exported as
+  `HONUA_PLUGIN_CAPABILITY_REQUIRED_GRANTS`.
 - Certification fails if the application grant set is weaker than the plugin
   request. A report is not itself an enforcement mechanism; the future host
   runtime must inject only the certified grants and must never expose ambient
   credentials or mutation authority.
-- The package entrypoint is validated as a traversal-free package-relative
-  path, but this API never resolves or executes it.
+- The package entrypoint is repeatedly percent-decoded to a stable form before
+  validation, normalized in the certified snapshot, and rejected on encoded or
+  literal traversal, absolute escape, backslashes, query/fragment suffixes, or
+  malformed/excessive encoding. This API never resolves or executes it.
+- Manifest and host inputs are copied through a bounded plain-JSON trust
+  boundary. Accessors, proxies, inherited/custom prototypes, symbols,
+  non-finite numbers, sparse/extended arrays, cycles, and oversized structures
+  are rejected with structured diagnostics. Validation and fingerprinting use
+  only the detached, deeply frozen snapshot; caller objects are never returned.
 
 ## Extension inventory
 
