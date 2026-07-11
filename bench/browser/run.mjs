@@ -163,6 +163,18 @@ async function instrumentedPage(browser) {
   const page = await context.newPage();
   const pageErrors = [];
   const consoleErrors = [];
+  const externalRequests = [];
+  await page.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    const isNetworkRequest = url.protocol === "http:" || url.protocol === "https:";
+    const isLoopback = url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1";
+    if (isNetworkRequest && !isLoopback) {
+      externalRequests.push(`${url.origin}${url.pathname}`);
+      await route.abort("blockedbyclient");
+      return;
+    }
+    await route.continue();
+  });
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -170,11 +182,11 @@ async function instrumentedPage(browser) {
   await page.addInitScript(() => {
     window.__HONUA_BROWSER_BENCH_STARTED__ = performance.now();
   });
-  return { context, page, pageErrors, consoleErrors };
+  return { context, page, pageErrors, consoleErrors, externalRequests };
 }
 
 async function runMapLibreSample(browser, url, screenshotPath) {
-  const { context, page, pageErrors, consoleErrors } = await instrumentedPage(browser);
+  const { context, page, pageErrors, consoleErrors, externalRequests } = await instrumentedPage(browser);
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => window.__HONUA_QUICKSTART_RUNTIME__?.journeyComplete === true, undefined, {
@@ -208,7 +220,7 @@ async function runMapLibreSample(browser, url, screenshotPath) {
       firstVisibleMs,
       interactionLatencyMs: interaction.interactionLatencyMs,
       evidence: { screenshot, layerCount, selectedFeatureId: interaction.selectedFeatureId, popupOpen: interaction.popupOpen },
-      errors: { page: pageErrors, console: consoleErrors },
+      errors: { page: pageErrors, console: consoleErrors, externalRequests },
       passed:
         visible &&
         layerCount > 0 &&
@@ -216,7 +228,8 @@ async function runMapLibreSample(browser, url, screenshotPath) {
         interaction.popupOpen &&
         screenshot.bytes > 5_000 &&
         pageErrors.length === 0 &&
-        consoleErrors.length === 0,
+        consoleErrors.length === 0 &&
+        externalRequests.length === 0,
     };
   } finally {
     await context.close();
@@ -224,7 +237,7 @@ async function runMapLibreSample(browser, url, screenshotPath) {
 }
 
 async function runDeckGlSample(browser, url, screenshotPath) {
-  const { context, page, pageErrors, consoleErrors } = await instrumentedPage(browser);
+  const { context, page, pageErrors, consoleErrors, externalRequests } = await instrumentedPage(browser);
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => Boolean(window.__HONUA_BROWSER_BENCHMARK__), undefined, { timeout: 20_000 });
@@ -257,7 +270,7 @@ async function runDeckGlSample(browser, url, screenshotPath) {
         visibleOutcome: interaction.visibleOutcome,
         webglRenderer: ready.webglRenderer,
       },
-      errors: { page: pageErrors, console: consoleErrors },
+      errors: { page: pageErrors, console: consoleErrors, externalRequests },
       passed:
         visible &&
         ready.rows === 10_000 &&
@@ -267,7 +280,8 @@ async function runDeckGlSample(browser, url, screenshotPath) {
         interaction.visibleOutcome === "Selected feature 104949" &&
         screenshot.bytes > 5_000 &&
         pageErrors.length === 0 &&
-        consoleErrors.length === 0,
+        consoleErrors.length === 0 &&
+        externalRequests.length === 0,
     };
   } finally {
     await context.close();

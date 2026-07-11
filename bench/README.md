@@ -44,7 +44,8 @@ stable picked feature. Each journey has one warm-up and three measured runs.
 Install the repository's pinned Chromium once with
 `npx playwright install chromium` when the normal Playwright setup has not
 already done so; the benchmark itself never downloads a browser or reaches a
-data service.
+data service. The runner blocks and records any non-loopback browser request so
+an accidental external basemap or API dependency fails the journey invariant.
 
 The report and PNG evidence are written beneath
 `test-results/browser-benchmark/`. The JSON records raw samples, median, p95,
