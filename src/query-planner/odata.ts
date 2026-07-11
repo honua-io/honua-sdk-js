@@ -61,6 +61,13 @@ export function compileOdataQuery(source: QueryIrSourceIdentity, query: Canonica
   let projection: { select: readonly string[]; expand: readonly string[] } | undefined;
   if (query.outFields && query.outFields.length > 0) {
     projection = splitProjection(query.outFields, query.returnGeometry === false ? source.geometryProperty : undefined);
+    if (
+      query.returnGeometry !== false &&
+      source.geometryProperty &&
+      !projection.select.includes(source.geometryProperty)
+    ) {
+      projection = { ...projection, select: [...projection.select, source.geometryProperty] };
+    }
   } else if (query.returnGeometry === false) {
     throw new HonuaQueryPlanningError(
       "unsupported-query",

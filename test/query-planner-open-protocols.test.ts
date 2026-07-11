@@ -143,7 +143,7 @@ describe("OData query planning", () => {
         entitySet: "Incidents",
         filter:
           "Severity ge 3 and Status eq 'open' and geo.intersects(Location,geography'SRID=4326;POINT(-157.8 21.3)')",
-        select: ["Id", "Status"],
+        select: ["Id", "Status", "Location"],
         expand: ["Reporter($select=Name)"],
         orderBy: ["ReportedAt desc"],
         skip: 10,
@@ -194,6 +194,24 @@ describe("OData query planning", () => {
     expect(() => explainQuery({ descriptor: odataDescriptor(), query: { outSr: 4326 } })).toThrowError(
       expect.objectContaining({ code: "unsupported-query" }),
     );
+  });
+
+  it("preserves the geometry column for explicit projections unless geometry is disabled", () => {
+    for (const returnGeometry of [undefined, true]) {
+      const plan = explainQuery({
+        descriptor: odataDescriptor(),
+        query: { outFields: ["Id", "Location"], ...(returnGeometry === undefined ? {} : { returnGeometry }) },
+      });
+      expect(plan.steps[0]).toMatchObject({
+        compiled: { select: ["Id", "Location"] },
+      });
+    }
+
+    const withoutGeometry = explainQuery({
+      descriptor: odataDescriptor(),
+      query: { outFields: ["Id", "Location"], returnGeometry: false },
+    });
+    expect(withoutGeometry.steps[0]).toMatchObject({ compiled: { select: ["Id"] } });
   });
 });
 

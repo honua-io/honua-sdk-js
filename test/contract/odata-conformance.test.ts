@@ -269,7 +269,7 @@ describe("odata / canonical Source surface translation", () => {
     });
     const url = captured[0];
     expect(url.searchParams.get("$filter")).toBe("STATE eq 'CA'");
-    expect(url.searchParams.get("$select")).toBe("STATE,ACRES");
+    expect(url.searchParams.get("$select")).toBe("STATE,ACRES,Geometry");
     expect(url.searchParams.get("$orderby")).toBe("ACRES desc");
     expect(url.searchParams.get("$top")).toBe("2");
     expect(url.searchParams.get("$count")).toBe("true");
@@ -1398,7 +1398,7 @@ describe("odata / outFields → $select + $expand (review fix)", () => {
       ],
     ]);
     await source.query({ outFields: ["Owner.name"] });
-    expect(observedSelect).toBeNull();
+    expect(observedSelect).toBe("Geometry");
     expect(observedExpand).toBe("Owner($select=name)");
   });
 
@@ -1416,7 +1416,7 @@ describe("odata / outFields → $select + $expand (review fix)", () => {
       ],
     ]);
     await source.query({ outFields: ["STATE", "Owner.name", "Owner.email"] });
-    expect(observedSelect).toBe("STATE");
+    expect(observedSelect).toBe("STATE,Geometry");
     expect(observedExpand).toBe("Owner($select=name,email)");
   });
 
@@ -1455,6 +1455,22 @@ describe("odata / outFields → $select + $expand (review fix)", () => {
     // Geometry is dropped from the root select; the navigation expand is preserved.
     expect(observedSelect).toBe("STATE");
     expect(observedExpand).toBe("Owner($select=name)");
+  });
+
+  it("includes the geometry column exactly once for default and explicit returnGeometry", async () => {
+    const observed: Array<string | null> = [];
+    const source = buildSource([
+      [
+        "/odata/Parcels",
+        (url) => {
+          observed.push(url.searchParams.get("$select"));
+          return jsonResponse(odataParcelsResponse());
+        },
+      ],
+    ]);
+    await source.query({ outFields: ["STATE"] });
+    await source.query({ outFields: ["STATE", "Geometry"], returnGeometry: true });
+    expect(observed).toEqual(["STATE,Geometry", "STATE,Geometry"]);
   });
 });
 
