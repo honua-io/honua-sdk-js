@@ -87,6 +87,7 @@ import {
 } from "@honua/sdk";
 import { HonuaGeocodingClient } from "@honua/sdk/geocoding";
 import { oauth2, clientCredentials, apiKeyAuth, InMemoryCredentialStore } from "@honua/sdk/auth";
+import { HONUA_PLUGIN_MANIFEST_VERSION, validateHonuaPluginManifest } from "@honua/sdk/plugin";
 import {
   HONUA_CONTROL_PLANE_BASE_PATH,
   createHonuaControlPlane,
@@ -285,6 +286,8 @@ if (typeof oauth2 !== "function" || typeof clientCredentials !== "function" || t
   throw new Error("auth provider exports missing from @honua/sdk/auth");
 if (typeof InMemoryCredentialStore !== "function")
   throw new Error("InMemoryCredentialStore export missing from @honua/sdk/auth");
+if (HONUA_PLUGIN_MANIFEST_VERSION !== 1 || typeof validateHonuaPluginManifest !== "function")
+  throw new Error("plugin certification exports missing from @honua/sdk/plugin");
 {
   const staticProvider = apiKeyAuth("k");
   const provided = staticProvider.getCredentials({ reason: "initial", forceRefresh: false });
