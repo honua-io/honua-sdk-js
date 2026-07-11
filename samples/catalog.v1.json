@@ -246,8 +246,8 @@
       "protocols": ["geoparquet", "s3"],
       "renderers": ["svg"],
       "data": { "mode": "hybrid", "authMode": "anonymous", "config": [], "provenance": "Committed deterministic GeoParquet fixture or pinned Overture STAC item 2026-06-17.0/places/place/00000 on public AWS Open Data.", "attribution": "Overture Maps Foundation Open Map Data with per-feature upstream sources preserved by the live schema.", "freshness": "Pinned release, schema, object ETag, last modification, and execution observation time are shown separately." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run test:playwright:overture"] }, "live": { "status": "planned", "commands": ["npm run evidence:overture:live -- --strict"] } },
-      "expectedDegradation": "Unsupported or malformed ranges, expired objects, unsafe plans, worker failures, the 10-second source-probe deadline, and the 30-second engine budget stop explicitly without an application-level full-download fallback; opaque engine range/pruning metrics remain labeled unverified.",
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run test:playwright:overture"] }, "live": { "status": "executed", "commands": ["npm run evidence:overture:live -- --strict"] } },
+      "expectedDegradation": "Unsupported or malformed ranges, expired objects, unsafe plans, worker failures, the 10-second source-probe deadline, and the 30-second engine budget stop explicitly. DuckDB full-HTTP fallback is disabled; scheduled evidence rejects un-ranged GETs and measures browser range bytes, while rows scanned and row groups pruned remain unverified.",
       "validation": ["npm run demo:overture:typecheck", "npm run demo:overture:build", "npx vitest run test/overture-large-data.test.ts", "npm run test:playwright:overture"]
     },
     {

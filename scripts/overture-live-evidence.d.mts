@@ -13,3 +13,21 @@ export interface OvertureLiveEvidenceEnvelope {
 }
 
 export function collectOvertureLiveEvidence(): Promise<OvertureLiveEvidenceEnvelope>;
+export function summarizeOvertureRangeTraffic(
+  entries: readonly {
+    readonly method: string;
+    readonly range: string | null;
+    readonly status: number | null;
+    readonly contentRange: string | null;
+    readonly contentLength: string | null;
+  }[],
+  objectBytes: number,
+  maxObservedBytes?: number,
+): {
+  readonly observedRequests: number;
+  readonly observedBytes: number;
+  readonly engineRequests: number;
+  readonly engineBytes: number;
+  readonly byteBudget: number;
+  readonly unboundedGets: 0;
+};

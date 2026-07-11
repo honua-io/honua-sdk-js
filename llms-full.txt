@@ -5164,7 +5164,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-11 at commit `04969f0`._
+_Generated 2026-07-11 at commit `e154234`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -5181,7 +5181,7 @@ _Generated 2026-07-11 at commit `04969f0`._
 | `/auth` | 12.0 KiB | 12.8 KiB | 3.8 KiB | 4.0 KiB |
 | `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
 | `/map` | 79.6 KiB | 87.4 KiB | 21.8 KiB | 24.0 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 16.3 KiB | 17.8 KiB | 5.9 KiB | 6.5 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 16.5 KiB | 17.8 KiB | 6.0 KiB | 6.5 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 11.5 KiB | 12.5 KiB | 4.1 KiB | 4.4 KiB |
 | `/react` (react/react-dom external) | 377.3 KiB | 405.7 KiB | 97.6 KiB | 104.5 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
@@ -7184,6 +7184,10 @@ const summary = await places.queryAggregate({
 - Browser deployments can set `loadSpatial: false` when a GeoParquet `bbox`
   covering is sufficient, and can pin `extensionRepository` plus
   `preloadExtensions` to keep Parquet execution self-hosted.
+- Browser deployments reading large remote objects can set
+  `filesystem: { reliableHeadRequests: true, allowFullHttpReads: false }` to
+  require range-capable HTTP I/O and fail closed instead of allowing
+  DuckDB-WASM's full-file fallback.
 
 ## Capability honesty
 

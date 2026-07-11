@@ -10,6 +10,8 @@ import { chromium } from "@playwright/test";
 import { startOvertureFixtureServer } from "../examples/overture-geoparquet/mock-server.mjs";
 import { validateEvidenceEnvelope } from "./sample-contract.mjs";
 
+const MAX_OBSERVED_RANGE_BYTES = 32 * 1024 * 1024;
+
 function parseArgs(argv) {
   const options = { output: "test-results/overture-live-evidence.json", strict: false };
   for (let index = 0; index < argv.length; index += 1) {
@@ -56,6 +58,66 @@ function emptyEnvelope(packageJson, observedAt, reason) {
   };
 }
 
+function parseRequestRange(value) {
+  const match = /^bytes=(\d+)-(\d+)$/.exec(value ?? "");
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  return Number.isSafeInteger(start) && Number.isSafeInteger(end) && start <= end ? { start, end } : null;
+}
+
+function parseResponseRange(value) {
+  const match = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(value ?? "");
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  const total = Number(match[3]);
+  return [start, end, total].every(Number.isSafeInteger) && start <= end && end < total ? { start, end, total } : null;
+}
+
+export function summarizeOvertureRangeTraffic(entries, objectBytes, maxObservedBytes = MAX_OBSERVED_RANGE_BYTES) {
+  const gets = entries.filter((entry) => entry.method === "GET");
+  const unboundedGets = gets.filter((entry) => !entry.range);
+  if (unboundedGets.length > 0) {
+    throw new Error(`Observed ${unboundedGets.length} unbounded Overture GET request(s); live evidence is rejected.`);
+  }
+  let observedBytes = 0;
+  for (const entry of gets) {
+    const requested = parseRequestRange(entry.range);
+    const returned = parseResponseRange(entry.contentRange);
+    const responseBytes = Number(entry.contentLength);
+    if (
+      !requested ||
+      !returned ||
+      entry.status !== 206 ||
+      !Number.isSafeInteger(responseBytes) ||
+      returned.total !== objectBytes ||
+      returned.start < requested.start ||
+      returned.end > requested.end ||
+      responseBytes !== returned.end - returned.start + 1
+    ) {
+      throw new Error(`Invalid Overture range response for ${entry.range ?? "missing range"}.`);
+    }
+    observedBytes += responseBytes;
+  }
+  if (observedBytes >= objectBytes) {
+    throw new Error(`Observed ${observedBytes} ranged bytes, which does not prove bounded I/O below the object size.`);
+  }
+  if (observedBytes > maxObservedBytes) {
+    throw new Error(`Observed ${observedBytes} ranged bytes, exceeding the ${maxObservedBytes}-byte evidence budget.`);
+  }
+  const preflight = new Set(["bytes=0-0", `bytes=${Math.max(0, objectBytes - 65_536)}-${objectBytes - 1}`]);
+  const engine = gets.filter((entry) => !preflight.has(entry.range));
+  return {
+    observedRequests: gets.length,
+    observedBytes,
+    engineRequests: engine.length,
+    engineBytes: engine.reduce((total, entry) => total + Number(entry.contentLength), 0),
+    byteBudget: maxObservedBytes,
+    unboundedGets: 0,
+  };
+}
+
 export async function collectOvertureLiveEvidence() {
   const packageJson = JSON.parse(await readFile("package.json", "utf8"));
   const observedAt = new Date().toISOString();
@@ -77,6 +139,32 @@ export async function collectOvertureLiveEvidence() {
   try {
     const page = await browser.newPage();
     const consoleErrors = [];
+    const traffic = [];
+    const trafficByRequest = new Map();
+    const trafficTasks = [];
+    page.on("request", (request) => {
+      if (!request.url().includes("overturemaps-us-west-2.s3.us-west-2.amazonaws.com/")) return;
+      const entry = {
+        method: request.method(),
+        range: request.headers().range ?? null,
+        status: null,
+        contentRange: null,
+        contentLength: null,
+      };
+      traffic.push(entry);
+      trafficByRequest.set(request, entry);
+    });
+    page.on("response", (response) => {
+      const entry = trafficByRequest.get(response.request());
+      if (!entry) return;
+      trafficTasks.push(
+        response.allHeaders().then((headers) => {
+          entry.status = response.status();
+          entry.contentRange = headers["content-range"] ?? null;
+          entry.contentLength = headers["content-length"] ?? null;
+        }),
+      );
+    });
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
@@ -87,6 +175,7 @@ export async function collectOvertureLiveEvidence() {
       undefined,
       { timeout: 180_000 },
     );
+    await Promise.all(trafficTasks);
     const runtime = await page.evaluate(() => window.__HONUA_OVERTURE__);
     if (runtime?.status !== "completed" || !runtime.lastEvidence) {
       const message = await page.locator("#query-message").textContent();
@@ -120,7 +209,7 @@ export async function collectOvertureLiveEvidence() {
               `verified-probe-ranges=${failed.range.ranges}`,
               "engine-budget=exceeded",
               "application-full-download-fallback=absent",
-              "engine-transport=opaque",
+              "engine-row-group-metrics=opaque",
             ],
           },
           timing: {
@@ -138,6 +227,7 @@ export async function collectOvertureLiveEvidence() {
     }
     if (evidence.rowsReturned > evidence.plan.limit) throw new Error("Live result exceeded the planned row limit.");
     const object = evidence.plan.selectedObjects[0];
+    const rangeTraffic = summarizeOvertureRangeTraffic(traffic, object.bytes);
     return validateEvidenceEnvelope({
       format: "honua.sdk.sample-evidence.v1",
       schemaVersion: 1,
@@ -164,14 +254,20 @@ export async function collectOvertureLiveEvidence() {
       },
       semantics: {
         operation: "bounded-aoi-columnar-query",
-        outcome: "bounded-result-engine-transport-opaque",
+        outcome: "bounded-range-result-engine-pruning-unverified",
         itemCount: evidence.rowsReturned,
         assertions: [
           `files-selected=${evidence.plan.filesSelected}/${evidence.plan.filesAvailable}`,
           `verified-probe-bytes=${evidence.range.bytes}`,
           `verified-probe-ranges=${evidence.range.ranges}`,
-          `candidate-row-groups=${evidence.plan.candidateRowGroups}`,
-          "engine-ranges=not-exposed",
+          `object-row-groups=${evidence.plan.selectedObjectRowGroups}`,
+          `observed-http-range-requests=${rangeTraffic.observedRequests}`,
+          `observed-http-range-bytes=${rangeTraffic.observedBytes}`,
+          `observed-engine-range-requests=${rangeTraffic.engineRequests}`,
+          `observed-engine-range-bytes=${rangeTraffic.engineBytes}`,
+          `observed-http-range-byte-budget=${rangeTraffic.byteBudget}`,
+          "unbounded-http-gets=0",
+          "duckdb-full-http-fallback=disabled",
           "rows-scanned=not-exposed",
           "row-groups-pruned=not-exposed",
         ],
@@ -180,7 +276,12 @@ export async function collectOvertureLiveEvidence() {
         totalMs: evidence.timing.totalMs,
         firstSuccessfulInteractionMs: evidence.timing.sdkPlanMs + evidence.timing.sourceProbeMs,
       },
-      degradation: { state: "expected", reasons: [evidence.range.limitation] },
+      degradation: {
+        state: "expected",
+        reasons: [
+          "Playwright observed exact HTTP range requests and response bytes; DuckDB does not expose rows scanned or a row-group-pruned counter.",
+        ],
+      },
       artifacts: [],
     });
   } catch (error) {

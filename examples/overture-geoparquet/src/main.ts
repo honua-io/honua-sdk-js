@@ -106,7 +106,7 @@ function renderLane(lane: OvertureLane): void {
   text(
     "#execution-disclosure",
     lane === "live"
-      ? "Opt-in live execution uses a pinned Overture STAC item in the public AWS us-west-2 bucket. Range support is verified before DuckDB runs; engine transport metrics remain explicitly opaque."
+      ? "Opt-in live execution uses a pinned Overture STAC item in the public AWS us-west-2 bucket. Range support is verified and full-HTTP fallback is disabled; scheduled evidence observes browser range traffic while engine pruning metrics remain opaque."
       : "Required CI uses a 1.9 KB committed fixture, self-hosted DuckDB-WASM, bbox predicates, and no cross-origin requests.",
   );
 }
@@ -120,8 +120,8 @@ function renderPlan(plan: OvertureQueryPlan): void {
       plan.filePruning === "pinned-stac-manifest-bbox" ? "pinned STAC manifest bbox" : "fixture manifest bbox"
     }`,
   );
-  text("#metric-candidate-rows", number(plan.candidateRows));
-  text("#metric-row-groups", `${number(plan.candidateRowGroups)} candidates`);
+  text("#metric-candidate-rows", number(plan.selectedObjectRows));
+  text("#metric-row-groups", `${number(plan.selectedObjectRowGroups)} in selected object · pruning unverified`);
   text("#metric-memory-policy", `${plan.memoryLimitMiB} MiB`);
   text("#metric-cache-key", abbreviatedKey(plan.cacheKey));
   text("#metric-range-plan", plan.rangeReadPlan.replaceAll("-", " "));
@@ -260,6 +260,7 @@ async function executePlan(
         preloadExtensions: ["parquet"],
         loadSpatial: false,
         logLevel: "ERROR",
+        filesystem: { reliableHeadRequests: true, allowFullHttpReads: OVERTURE_POLICY.allowFullHttpReads },
       }),
   });
   activeRuntime = runtime;
@@ -434,7 +435,7 @@ async function bootstrap(): Promise<void> {
           plan,
           range,
           rowsReturned: rows.length,
-          rowsScanned: lane === "fixture" ? plan.candidateRows : null,
+          rowsScanned: lane === "fixture" ? plan.selectedObjectRows : null,
           rowGroupsPruned: lane === "fixture" ? 0 : null,
           estimatedResultBytes,
           cacheStatus,

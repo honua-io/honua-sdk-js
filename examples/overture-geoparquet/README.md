@@ -11,7 +11,7 @@ DuckDB-WASM's worker with one bounded policy in two lanes:
 
 The UI separates measured evidence from plans and estimates. It shows release,
 schema, object key, ETag, last modification, observation time, STAC file
-selection, candidate rows/row groups, verified probe bytes/ranges, result rows,
+selection, selected-object rows/row groups, verified probe bytes/ranges, result rows,
 memory ceiling, cache identity, SDK planning time, network probe time, combined
 engine/source time, and progressive rendering time.
 
@@ -37,9 +37,11 @@ memory/output policy, source deadline, and engine deadline.
 Unsafe AOIs, projection/row overages, missing STAC intersections, unsupported
 HTTP ranges, oversized/truncated probe bodies, engine failures, and deadline
 overruns stop explicitly. The application never retries with a full-object
-download. DuckDB's internal transport remains opaque, so the sample does not
-claim that engine range behavior or row-group pruning was independently
-verified.
+download, and DuckDB-WASM is opened with `allowFullHTTPReads: false` so its
+browser filesystem cannot fall back to full materialization. The scheduled
+Playwright evidence observes every AWS request and rejects any un-ranged GET.
+DuckDB does not expose rows scanned or a row-group-pruned counter, so the sample
+does not claim those engine metrics were verified.
 
 ## What the Live Lane Proves
 
@@ -51,19 +53,24 @@ https://stac.overturemaps.org/2026-06-17.0/places/place/00000/00000.json
 https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-06-17.0/theme=places/type=place/part-00000-6c973aba-862d-590f-a178-70bcd31cde1c-c000.zstd.parquet
 ```
 
-The item contains 4,717,270 candidate rows in 256 row groups and is 656,568,610
+The selected object contains 4,717,270 rows in 256 row groups and is 656,568,610
 bytes. The committed manifest pins identity and bbox metadata for all 16 STAC
 items; exactly item `00000` intersects the Oahu AOI. The browser requires exact
 `206 Partial Content` intervals for a one-byte header probe and a 64 KiB footer
 probe, streams both through hard body-byte caps, and sends no credentials
 before starting DuckDB.
 
-The current DuckDB-WASM driver does **not** expose its internal HTTP byte/range
-requests, rows scanned, or row groups pruned. Those fields are deliberately
-shown as unverified. A live audit on 2026-07-10 verified both AWS range probes
-but the engine did not return the bounded Oahu result inside 30 seconds, so the
-worker was terminated and live evidence was recorded as failed. The sample does
-not claim successful row-group pruning until scheduled evidence proves it.
+DuckDB-WASM's connection API does **not** expose HTTP byte/range requests, rows
+scanned, or row groups pruned to the in-page UI. Scheduled Playwright evidence
+can observe browser network requests independently. A strict live audit on
+2026-07-11 returned 100 Oahu rows in 11.9 seconds using 32 HTTP range requests
+and 7,135,813 response bytes, with zero un-ranged GETs. Of that total, the two
+explicit preflight probes accounted for 65,537 bytes and the engine accounted
+for 7,070,276 bytes. An independent Parquet-footer audit found three bbox-stat
+candidate row groups (68–70), 55,591 candidate rows, and about 2.84 MB of
+compressed projected columns. That metadata establishes the pruning
+opportunity, not the engine's actual pruned-row-group count; the latter remains
+unverified.
 
 Official source references:
 

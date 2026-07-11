@@ -9,6 +9,7 @@ export const OVERTURE_POLICY: OvertureExecutionPolicy = {
   renderBatchSize: 25,
   maxEngineMs: 30_000,
   maxSourceProbeMs: 10_000,
+  allowFullHttpReads: false,
 };
 
 export const FIXTURE_MANIFEST: OvertureSourceManifest = {

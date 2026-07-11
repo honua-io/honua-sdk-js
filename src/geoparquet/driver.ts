@@ -59,6 +59,11 @@ export interface BrowserDriverOptions {
   readonly extensionRepository?: string;
   /** Extensions to install and load before use (for example `parquet`). */
   readonly preloadExtensions?: readonly string[];
+  /** Browser filesystem policy. Set `allowFullHttpReads: false` to fail closed when range I/O is unavailable. */
+  readonly filesystem?: {
+    readonly reliableHeadRequests?: boolean;
+    readonly allowFullHttpReads?: boolean;
+  };
 }
 
 /**
@@ -127,6 +132,15 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
 
   try {
     await db.instantiate(mainModuleUrl, pthreadWorkerUrl);
+    if (options.filesystem) {
+      await db.open({
+        filesystem: {
+          reliableHeadRequests: options.filesystem.reliableHeadRequests,
+          allowFullHTTPReads: options.filesystem.allowFullHttpReads,
+          forceFullHTTPReads: false,
+        },
+      });
+    }
   } catch (cause) {
     terminateNow();
     throw cause;

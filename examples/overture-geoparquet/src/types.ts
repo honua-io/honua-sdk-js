@@ -35,6 +35,7 @@ export interface OvertureExecutionPolicy {
   readonly renderBatchSize: number;
   readonly maxEngineMs: number;
   readonly maxSourceProbeMs: number;
+  readonly allowFullHttpReads: false;
 }
 
 export interface OvertureQueryInput {
@@ -54,16 +55,17 @@ export interface OvertureQueryPlan {
   readonly selectedObjects: readonly OvertureObjectManifest[];
   readonly filesSelected: number;
   readonly filesAvailable: number;
-  readonly candidateRows: number;
-  readonly candidateRowGroups: number;
+  readonly selectedObjectRows: number;
+  readonly selectedObjectRowGroups: number;
   readonly filePruning: "fixture-manifest-bbox" | "pinned-stac-manifest-bbox";
   readonly rowGroupPruning: "bbox-predicate-planned-unverified";
-  readonly rangeReadPlan: "local-buffer" | "aws-bounded-probes-plus-opaque-engine-transport";
+  readonly rangeReadPlan: "local-buffer" | "aws-fail-closed-range-io";
   readonly cacheKey: string;
   readonly memoryLimitMiB: number;
   readonly maxResultBytes: number;
   readonly maxEngineMs: number;
   readonly maxSourceProbeMs: number;
+  readonly allowFullHttpReads: false;
   readonly warning: string;
 }
 

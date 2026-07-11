@@ -169,6 +169,10 @@ const summary = await places.queryAggregate({
 - Browser deployments can set `loadSpatial: false` when a GeoParquet `bbox`
   covering is sufficient, and can pin `extensionRepository` plus
   `preloadExtensions` to keep Parquet execution self-hosted.
+- Browser deployments reading large remote objects can set
+  `filesystem: { reliableHeadRequests: true, allowFullHttpReads: false }` to
+  require range-capable HTTP I/O and fail closed instead of allowing
+  DuckDB-WASM's full-file fallback.
 
 ## Capability honesty
 

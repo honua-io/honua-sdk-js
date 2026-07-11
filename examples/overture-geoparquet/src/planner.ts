@@ -73,6 +73,7 @@ export function planOvertureQuery(
     maxResultBytes: policy.maxResultBytes,
     maxEngineMs: policy.maxEngineMs,
     maxSourceProbeMs: policy.maxSourceProbeMs,
+    allowFullHttpReads: policy.allowFullHttpReads,
   });
   return {
     lane: input.lane,
@@ -84,19 +85,20 @@ export function planOvertureQuery(
     selectedObjects,
     filesSelected: selectedObjects.length,
     filesAvailable: manifest.totalFiles,
-    candidateRows: selectedObjects.reduce((total, object) => total + object.rows, 0),
-    candidateRowGroups: selectedObjects.reduce((total, object) => total + object.rowGroups, 0),
+    selectedObjectRows: selectedObjects.reduce((total, object) => total + object.rows, 0),
+    selectedObjectRowGroups: selectedObjects.reduce((total, object) => total + object.rowGroups, 0),
     filePruning: input.lane === "live" ? "pinned-stac-manifest-bbox" : "fixture-manifest-bbox",
     rowGroupPruning: "bbox-predicate-planned-unverified",
-    rangeReadPlan: input.lane === "live" ? "aws-bounded-probes-plus-opaque-engine-transport" : "local-buffer",
+    rangeReadPlan: input.lane === "live" ? "aws-fail-closed-range-io" : "local-buffer",
     cacheKey,
     memoryLimitMiB: policy.memoryLimitMiB,
     maxResultBytes: policy.maxResultBytes,
     maxEngineMs: policy.maxEngineMs,
     maxSourceProbeMs: policy.maxSourceProbeMs,
+    allowFullHttpReads: policy.allowFullHttpReads,
     warning:
       input.lane === "live"
-        ? "The pinned 16-item STAC manifest proves file selection and the query pushes a bbox predicate. DuckDB-WASM does not expose engine HTTP ranges, bytes, rows scanned, or row groups pruned, so those metrics remain unverified."
+        ? "The pinned 16-item STAC manifest proves file selection and the query pushes a bbox predicate. Scheduled evidence observes browser range traffic; DuckDB-WASM does not expose rows scanned or row groups pruned, so those engine metrics remain unverified."
         : "The tiny committed file is intentionally buffered in full; the same AOI, projection, bbox predicate, limit, and result contract are used as the live lane.",
   };
 }
