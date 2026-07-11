@@ -672,6 +672,7 @@ describe("agent approval envelope", () => {
     oversized.length = 100;
     const getter = vi.fn(() => "unread");
     Object.defineProperty(oversized, "0", { get: getter, enumerable: true });
+    crypto.verify.mockClear();
     await expect(
       verifyAgentStepAuthorization(
         nodeDryRun,
@@ -686,6 +687,7 @@ describe("agent approval envelope", () => {
       ),
     ).rejects.toMatchObject({ code: "invalid-input" });
     expect(getter).not.toHaveBeenCalled();
+    expect(crypto.verify).not.toHaveBeenCalled();
   });
 
   it("binds exact operation input and atomically consumes each approved step once", async () => {
@@ -1025,6 +1027,23 @@ describe("agent execution receipts", () => {
     expect(storeVerify).not.toHaveBeenCalled();
     expect(receiptCrypto.verify).not.toHaveBeenCalled();
     expect(fixture.approvalCrypto.verify).not.toHaveBeenCalled();
+
+    await expect(
+      verifyAgentExecutionReceipt(
+        fixture.dryRun,
+        policy(),
+        fixture.approval,
+        fixture.approvalCrypto.verifier,
+        context(),
+        { ...validReceipt, signature: "forged" },
+        { verify: storeVerify },
+        receiptCrypto.verifier,
+        { now: "2026-07-10T20:00:20.000Z" },
+      ),
+    ).rejects.toMatchObject({ code: "signature-invalid" });
+    expect(receiptCrypto.verify).toHaveBeenCalledOnce();
+    expect(fixture.approvalCrypto.verify).not.toHaveBeenCalled();
+    expect(storeVerify).not.toHaveBeenCalled();
   });
 
   it("rejects future and post-expiry completion evidence", async () => {

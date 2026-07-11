@@ -157,7 +157,6 @@ export async function verifyAgentStepAuthorization(
   options: AgentSafetyOptions = {},
 ): Promise<AgentStepAuthorizationV1> {
   const { dryRun, policy } = revalidateDryRun(dryRunInput, policyInput, options);
-  const approval = await verifyAgentApprovalWithPolicy(dryRun, policy, approvalInput, verifier, contextInput, options);
   const stepId = text(stepIdInput, "$stepId");
   const step = dryRun.plan.steps.find((candidate) => candidate.id === stepId);
   if (!step) fail("policy-denied", `step ${stepId} is not in the approved plan`);
@@ -166,9 +165,11 @@ export async function verifyAgentStepAuthorization(
   if (inputDigest !== step.inputDigest) {
     fail("integrity-failed", `operation input does not match approved step ${stepId}`);
   }
-  checkAbort(options.signal);
   if (!useConsumer || typeof useConsumer.consume !== "function" || typeof useConsumer.verify !== "function")
     invalid("useConsumer must provide consume and verify functions");
+  const approval = await verifyAgentApprovalWithPolicy(dryRun, policy, approvalInput, verifier, contextInput, options);
+  const approvedStep = approval.steps.find((candidate) => candidate.id === stepId);
+  if (!approvedStep) fail("integrity-failed", `approval is missing step ${stepId}`);
   checkAbort(options.signal);
   const consumedInput = await useConsumer.consume(
     { approvalDigest: approval.envelopeDigest, stepId, inputDigest },
@@ -183,8 +184,6 @@ export async function verifyAgentStepAuthorization(
   if ((await useConsumer.verify(consumption, options.signal)) !== true)
     fail("signature-invalid", "approval consumption record was not authenticated by the host store");
   checkAbort(options.signal);
-  const approvedStep = approval.steps.find((candidate) => candidate.id === stepId);
-  if (!approvedStep) fail("integrity-failed", `approval is missing step ${stepId}`);
   const useDigest = digest(consumption);
   return deepFreeze({
     step: { ...step, limits: { rows: approvedStep.rows, bytes: approvedStep.bytes } },
@@ -291,6 +290,24 @@ async function verifyAgentApprovalWithPolicy(
   contextInput: unknown,
   options: AgentSafetyOptions,
 ): Promise<AgentApprovalV1> {
+  const prepared = prepareAgentApprovalVerification(dryRun, policy, approvalInput, verifier, contextInput, options);
+  await verifyPreparedApproval(prepared, verifier, options.signal);
+  return prepared.approval;
+}
+
+interface PreparedApprovalVerification {
+  readonly approval: AgentApprovalV1;
+  readonly payload: string;
+}
+
+function prepareAgentApprovalVerification(
+  dryRun: AgentDryRunV1,
+  policy: AgentPlanPolicyV1,
+  approvalInput: unknown,
+  verifier: AgentEnvelopeVerifier,
+  contextInput: unknown,
+  options: AgentSafetyOptions,
+): PreparedApprovalVerification {
   const approval = parseApproval(approvalInput);
   assertApprovalBinding(dryRun, approval, options.now, options.maxClockSkewMs);
   // Re-run time-sensitive policy checks at authorization time. Integrity was
@@ -303,12 +320,20 @@ async function verifyAgentApprovalWithPolicy(
   }
   const payload = canonical(unsignedApproval(approval));
   if (approval.envelopeDigest !== sha256(payload)) fail("integrity-failed", "approval envelope digest mismatch");
-  checkAbort(options.signal);
-  if ((await verifier.verify(payload, approval.signature, options.signal)) !== true) {
+  return { approval, payload };
+}
+
+async function verifyPreparedApproval(
+  prepared: PreparedApprovalVerification,
+  verifier: AgentEnvelopeVerifier,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  checkAbort(signal);
+  const { approval, payload } = prepared;
+  if ((await verifier.verify(payload, approval.signature, signal)) !== true) {
     fail("signature-invalid", "approval signature verification failed");
   }
-  checkAbort(options.signal);
-  return approval;
+  checkAbort(signal);
 }
 
 /** Create signed outcome evidence without invoking the approved operation. */
@@ -382,10 +407,18 @@ export async function verifyAgentExecutionReceipt(
     fail("invalid-input", "receipt completedAt must not be in the future");
   }
   const { dryRun, policy } = revalidateDryRun(dryRunInput, policyInput, options);
-  const approval = await verifyAgentApprovalWithPolicy(dryRun, policy, approvalInput, approvalVerifier, contextInput, {
-    ...options,
-    now: receipt.completedAt,
-  });
+  const preparedApproval = prepareAgentApprovalVerification(
+    dryRun,
+    policy,
+    approvalInput,
+    approvalVerifier,
+    contextInput,
+    {
+      ...options,
+      now: receipt.completedAt,
+    },
+  );
+  const { approval } = preparedApproval;
   if (
     receipt.planDigest !== dryRun.planDigest ||
     receipt.policyDigest !== dryRun.policyDigest ||
@@ -395,7 +428,6 @@ export async function verifyAgentExecutionReceipt(
     fail("integrity-failed", "receipt is not bound to the supplied plan, policy, context, and approval");
   }
   validateReceiptOperation(receipt, dryRun, approval);
-  await verifyConsumptionRecord(useVerifier, receipt.consumption, options.signal);
   if (receipt.outcome === "succeeded" && !receipt.resultDigest) {
     fail("invalid-input", "successful receipt requires resultDigest");
   }
@@ -410,6 +442,8 @@ export async function verifyAgentExecutionReceipt(
     fail("signature-invalid", "receipt signature verification failed");
   }
   checkAbort(options.signal);
+  await verifyPreparedApproval(preparedApproval, approvalVerifier, options.signal);
+  await verifyConsumptionRecord(useVerifier, receipt.consumption, options.signal);
   return receipt;
 }
 
