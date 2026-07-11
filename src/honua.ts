@@ -21,6 +21,23 @@
  */
 export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
 export {
+  HONUA_CONNECT_ADAPTER_VERSION,
+  HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+  HONUA_CONNECT_PROJECTION_VERSION,
+  connect,
+} from "./connect.js";
+export type {
+  ConnectCacheStatus,
+  ConnectDiscoveryCache,
+  ConnectDiscoveryCacheContext,
+  ConnectDiscoverySnapshot,
+  ConnectDiscoverySourceSnapshot,
+  ConnectOptions,
+  ConnectProtocolHint,
+  HonuaConnection,
+  HonuaConnectionInspection,
+} from "./connect.js";
+export {
   MIGRATION_EVIDENCE_STATES,
   MIGRATION_MANIFEST_ARTIFACT_KIND,
   MIGRATION_MANIFEST_ARTIFACT_VERSION,

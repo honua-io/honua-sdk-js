@@ -35,8 +35,11 @@ import { HonuaWmsCapabilitiesParseError } from "./wms-capabilities.js";
 import { HonuaWmtsCapabilitiesParseError } from "./wmts-capabilities.js";
 
 export type HonuaDiscoveryErrorCode =
+  | "ambiguous-protocol"
+  | "ambiguous-source"
   | "invalid-endpoint"
   | "invalid-cache-identity"
+  | "invalid-discovery-cache"
   | "invalid-capability"
   | "unsupported-protocol"
   | "protocol-mismatch";

@@ -22,6 +22,23 @@
  */
 export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
 export {
+  HONUA_CONNECT_ADAPTER_VERSION,
+  HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+  HONUA_CONNECT_PROJECTION_VERSION,
+  connect,
+} from "./connect.js";
+export type {
+  ConnectCacheStatus,
+  ConnectDiscoveryCache,
+  ConnectDiscoveryCacheContext,
+  ConnectDiscoverySnapshot,
+  ConnectDiscoverySourceSnapshot,
+  ConnectOptions,
+  ConnectProtocolHint,
+  HonuaConnection,
+  HonuaConnectionInspection,
+} from "./connect.js";
+export {
   HonuaHttpError,
   HonuaTimeoutError,
   HonuaNetworkError,
