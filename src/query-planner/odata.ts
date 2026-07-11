@@ -22,10 +22,17 @@ export function compileOdataQuery(source: QueryIrSourceIdentity, query: Canonica
       "Canonical OData aggregation is not portable; use the typed $apply escape hatch",
     );
   }
+  if (query.outSr !== undefined) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "OData v4 has no portable output-CRS query option; omit outSr or use the typed OData escape hatch",
+    );
+  }
 
   const filterParts: string[] = [];
   try {
     if (query.where) {
+      assertSupportedWhere(query.where.expression);
       const rewritten = rewriteWhereToOdataFilter(query.where.expression);
       if (rewritten) filterParts.push(rewritten);
     }
@@ -73,6 +80,42 @@ export function compileOdataQuery(source: QueryIrSourceIdentity, query: Canonica
     ...(query.pagination?.offset !== undefined ? { skip: query.pagination.offset } : {}),
     ...(query.pagination?.limit !== undefined ? { top: query.pagination.limit } : {}),
   };
+}
+
+function assertSupportedWhere(where: string): void {
+  const code = outsideQuotedStrings(where);
+  if (code === undefined) throw new Error("unterminated OData string literal");
+  const unsupported = [
+    { expression: /\bLIKE\b/i, name: "LIKE" },
+    { expression: /\bBETWEEN\b/i, name: "BETWEEN" },
+    { expression: /==/, name: "==" },
+    { expression: /!=/, name: "!=" },
+    { expression: /;/, name: ";" },
+  ];
+  for (const candidate of unsupported) {
+    if (candidate.expression.test(code)) {
+      throw new Error(`operator ${candidate.name} is not translated by the OData compiler`);
+    }
+  }
+}
+
+/** Return only non-literal spans, or undefined for an unterminated literal. */
+function outsideQuotedStrings(input: string): string | undefined {
+  let output = "";
+  let quoted = false;
+  for (let index = 0; index < input.length; index += 1) {
+    const character = input[index];
+    if (character !== "'") {
+      if (!quoted) output += character;
+      continue;
+    }
+    if (quoted && input[index + 1] === "'") {
+      index += 1;
+      continue;
+    }
+    quoted = !quoted;
+  }
+  return quoted ? undefined : output;
 }
 
 function splitProjection(

@@ -23,6 +23,12 @@ export function compileWfsQuery(source: QueryIrSourceIdentity, query: CanonicalQ
       "WFS 2.0 has no portable remote aggregation; use degraded policy with an explicit bounded-local fallback",
     );
   }
+  if (query.spatialFilter && query.outSr !== undefined) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "WFS planning cannot use outSr to label input filter coordinates; stamp the input geometry through the typed WFS escape hatch",
+    );
+  }
 
   // Keep this aligned with the current WFS adapter's reviewed default. A
   // vendor-specific geometry property requires the typed WFS escape hatch
@@ -45,11 +51,6 @@ export function compileWfsQuery(source: QueryIrSourceIdentity, query: CanonicalQ
       } as SpatialFilter,
       {
         geometryProperty,
-        ...(query.outSr !== undefined
-          ? { srsName: String(query.outSr) }
-          : source.srsName
-            ? { srsName: source.srsName }
-            : {}),
       },
     );
     if (spatial === UNSUPPORTED_FES) {
@@ -61,6 +62,12 @@ export function compileWfsQuery(source: QueryIrSourceIdentity, query: CanonicalQ
   let propertyName: readonly string[] | undefined;
   if (query.outFields && query.outFields.length > 0) {
     const fields = [...query.outFields];
+    if (query.returnGeometry === false && fields.includes(geometryProperty)) {
+      throw new HonuaQueryPlanningError(
+        "unsupported-query",
+        `WFS returnGeometry=false conflicts with outFields containing the geometry property "${geometryProperty}"`,
+      );
+    }
     if (query.returnGeometry !== false && !fields.includes(geometryProperty)) fields.push(geometryProperty);
     propertyName = fields;
   } else if (query.returnGeometry === false) {
@@ -80,10 +87,6 @@ export function compileWfsQuery(source: QueryIrSourceIdentity, query: CanonicalQ
       : {}),
     ...(query.pagination?.offset !== undefined ? { startIndex: query.pagination.offset } : {}),
     ...(query.pagination?.limit !== undefined ? { count: query.pagination.limit } : {}),
-    ...(query.outSr !== undefined
-      ? { srsName: String(query.outSr) }
-      : source.srsName
-        ? { srsName: source.srsName }
-        : {}),
+    ...(query.outSr !== undefined ? { srsName: String(query.outSr) } : {}),
   };
 }

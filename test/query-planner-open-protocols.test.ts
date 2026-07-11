@@ -53,7 +53,6 @@ describe("WFS query planning", () => {
       outFields: ["parcel_id", "status"],
       orderBy: [{ field: "parcel_id", direction: "desc" }],
       pagination: { offset: 5, limit: 25 },
-      outSr: "EPSG:3857",
     };
 
     const plan = explainQuery({ descriptor: wfsDescriptor(), query, authorizationScope: ["read"] });
@@ -66,7 +65,6 @@ describe("WFS query planning", () => {
         sortBy: "parcel_id D",
         startIndex: 5,
         count: 25,
-        srsName: "EPSG:3857",
       },
     });
     const step = plan.steps[0];
@@ -83,6 +81,24 @@ describe("WFS query planning", () => {
     expect(() =>
       explainQuery({ descriptor: wfsDescriptor(), query: { where: "UPPER(status) = 'OPEN'" } }),
     ).toThrowError(expect.objectContaining({ code: "unsupported-query" }));
+    expect(() =>
+      explainQuery({
+        descriptor: wfsDescriptor(),
+        query: {
+          spatialFilter: {
+            geometry: { xmin: -158, ymin: 20, xmax: -157, ymax: 21 },
+            geometryType: "esriGeometryEnvelope",
+          },
+          outSr: "EPSG:3857",
+        },
+      }),
+    ).toThrowError(expect.objectContaining({ code: "unsupported-query" }));
+
+    const responseCrs = explainQuery({
+      descriptor: wfsDescriptor(),
+      query: { outSr: "EPSG:3857" },
+    });
+    expect(responseCrs.steps[0]).toMatchObject({ compiled: { srsName: "EPSG:3857" } });
 
     const plan = explainQuery({
       descriptor: wfsDescriptor(),
@@ -96,6 +112,12 @@ describe("WFS query planning", () => {
       operation: "queryAll",
       compiled: { compiler: "wfs-2.0-get-feature-v1", count: 101 },
     });
+    expect(() =>
+      explainQuery({
+        descriptor: wfsDescriptor(),
+        query: { outFields: ["parcel_id", "the_geom"], returnGeometry: false },
+      }),
+    ).toThrowError(expect.objectContaining({ code: "unsupported-query" }));
   });
 });
 
@@ -149,6 +171,11 @@ describe("OData query planning", () => {
         }).query,
       ),
     ).toThrowError(expect.objectContaining({ code: "unsupported-query" }));
+    for (const where of ["Name LIKE 'A%'", "Id BETWEEN 1 AND 3", "Name = 'unterminated", "Id != 2", "Id == 2"]) {
+      expect(() => explainQuery({ descriptor: odataDescriptor(), query: { where } })).toThrowError(
+        expect.objectContaining({ code: "unsupported-query" }),
+      );
+    }
   });
 
   it("requires an explicit projection to prove geometry suppression", () => {
@@ -164,6 +191,9 @@ describe("OData query planning", () => {
         },
       }),
     ).toThrowError(expect.objectContaining({ code: "unsupported-query" }));
+    expect(() => explainQuery({ descriptor: odataDescriptor(), query: { outSr: 4326 } })).toThrowError(
+      expect.objectContaining({ code: "unsupported-query" }),
+    );
   });
 });
 

@@ -107,7 +107,12 @@ adapter's reviewed `the_geom` default. OData plans translate the canonical predi
 closed when exact translation is impossible. In particular, metadata-free
 planning requires explicit `outFields` before it can prove geometry
 suppression, and a descriptor geometry field before it can compile an OData
-spatial predicate. It never claims exact execution based on guessed schema.
+spatial predicate. OData output-CRS requests, untranslatable SQL predicates,
+unterminated literals, contradictory WFS geometry projections, and WFS spatial
+filters that would misuse response `outSr` as an input-geometry label also fail
+closed. The planner never claims exact execution based on guessed or silently
+ignored protocol behavior. A descriptor WFS `srsName` remains transaction
+metadata and is not invented as a GetFeature response CRS.
 
 `Query.signal` never enters the IR or fingerprint. Supply cancellation only to
 `executeQueryPlan`. Source URLs in plan identity are stripped of credentials,
