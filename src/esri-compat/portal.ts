@@ -119,7 +119,7 @@ export interface PortalGetItemOptions {
 
 /** Options for {@link PortalCompat.openFeatureLayer}. */
 export interface PortalOpenOptions {
-  /** Layer id to open for Feature Service items (default `0`). */
+  /** Layer id to open for Feature Service items. Defaults to the service's first advertised layer. */
   layerId?: number;
 }
 
@@ -301,10 +301,24 @@ export class PortalCompat {
     const serviceUrl = trimTrailingSlashes(item.url);
 
     if (isFeatureService(item.type, serviceUrl)) {
-      const layerId = options.layerId ?? 0;
-      const layerUrl = /\/FeatureServer\/\d+$/i.test(serviceUrl) ? serviceUrl : `${serviceUrl}/${layerId}`;
+      const hasLayerId = /\/FeatureServer\/\d+$/i.test(serviceUrl);
+      const service = parseFeatureLayerUrl(hasLayerId ? serviceUrl : `${serviceUrl}/0`);
+      const client = this.buildAuthenticatedClient(service.baseUrl);
+      let layerId = service.layerId;
+      if (!hasLayerId) {
+        if (options.layerId !== undefined) {
+          layerId = options.layerId;
+        } else {
+          const metadata = await client.getFeatureServiceMetadata(service.serviceId);
+          const firstLayerId = metadata.layers?.[0]?.id;
+          if (typeof firstLayerId !== "number" || !Number.isSafeInteger(firstLayerId)) {
+            throw new PortalError(`Portal Feature Service item ${item.id} does not advertise a layer to open.`);
+          }
+          layerId = firstLayerId;
+        }
+      }
+      const layerUrl = hasLayerId ? serviceUrl : `${serviceUrl}/${layerId}`;
       const parsed = parseFeatureLayerUrl(layerUrl);
-      const client = this.buildAuthenticatedClient(parsed.baseUrl);
       const layer = new FeatureLayerCompat({ url: layerUrl, client, title: item.title, id: item.id });
       return {
         type: "feature-service",
