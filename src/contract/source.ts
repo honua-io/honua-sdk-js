@@ -2843,6 +2843,12 @@ async function buildOdataParams<T>(
     let rootSelect = split.select;
     if (request.returnGeometry === false) {
       rootSelect = rootSelect.filter((f) => !isOdataGeometryFieldName(f, options.geomColumn));
+    } else if (options.geomColumn && !rootSelect.includes(options.geomColumn)) {
+      // OData `$select` is exclusive: once callers project attributes the
+      // service omits every unlisted property. Preserve canonical
+      // `returnGeometry` (default true) by explicitly retaining the resolved
+      // geometry column.
+      rootSelect = [...rootSelect, options.geomColumn];
     }
     if (rootSelect.length > 0) out.select = rootSelect;
     if (split.expand.length > 0) out.expand = split.expand;

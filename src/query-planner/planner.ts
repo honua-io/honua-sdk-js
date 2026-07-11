@@ -2,6 +2,7 @@ import type { AggregationSpec } from "../contract/types.js";
 import { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
 import { compileGeoServicesQuery } from "./geoservices.js";
 import { createQueryIr, deepFreeze } from "./ir.js";
+import { compileOdataQuery } from "./odata.js";
 import { compileOgcApiFeaturesQuery } from "./ogc-features.js";
 import {
   type CanonicalQuery,
@@ -16,6 +17,7 @@ import {
   type QueryPlanStep,
   type RemoteCompiledQueryV1,
 } from "./types.js";
+import { compileWfsQuery } from "./wfs.js";
 
 export function explainQuery<T>(options: ExplainQueryOptions<T>): QueryExecutionPlanV1 {
   const ir = createQueryIr(options);
@@ -135,6 +137,10 @@ function compileRemoteQuery(
       return compileGeoServicesQuery(source, query);
     case "ogc-features":
       return ogcQueryAllWireRequest(compileOgcApiFeaturesQuery(source, query), operation);
+    case "wfs":
+      return compileWfsQuery(source, query);
+    case "odata":
+      return compileOdataQuery(source, query);
     default:
       throw new HonuaQueryPlanningError(
         "unsupported-compiler",
@@ -152,7 +158,18 @@ function ogcQueryAllWireRequest(
 }
 
 function remoteEngineName(protocol: QueryIrSourceIdentity["protocol"]): string {
-  return protocol === "ogc-features" ? "OGC API Features" : "GeoServices";
+  switch (protocol) {
+    case "ogc-features":
+      return "OGC API Features";
+    case "geoservices-feature-service":
+      return "GeoServices";
+    case "wfs":
+      return "WFS 2.0";
+    case "odata":
+      return "OData v4";
+    default:
+      return protocol;
+  }
 }
 
 export function hashQueryPlan(plan: QueryExecutionPlanV1): `sha256:${string}` {

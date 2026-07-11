@@ -1899,8 +1899,8 @@ land. It is intentionally not exported from the root barrel.
 
 ## Remote pushdown
 
-The first compiler targets an existing GeoServices FeatureServer query path,
-and the OGC API Features compiler targets a collection `/items` request. The
+The remote compilers target existing GeoServices FeatureServer, OGC API
+Features `/items`, WFS 2.0 GetFeature, and OData v4 entity-set query paths. The
 compiled request is included in the plan so diagnostics, CLIs, agents, and
 renderers can inspect the same decision before execution.
 
@@ -1983,6 +1983,23 @@ Aggregation remains available through the explicit bounded-local policy below:
 the CQL2 filter and required-field projection stay remote while the exact
 aggregate runs only after the materialization ceilings pass.
 
+WFS plans compile the supported SQL-92 subset and spatial predicates to FES
+2.0 XML, and expose `propertyName`, `sortBy`, `startIndex`, `count`, and
+`srsName`. XML literals and identifiers go through the same escaping compiler
+used by the WFS adapter; the portable compiler deliberately retains that
+adapter's reviewed `the_geom` default. OData plans translate the canonical predicate to
+`$filter`, including supported `geo.intersects` geometry, and expose
+`$select`/`$expand`, `$orderby`, `$skip`, and `$top`. Both compilers fail
+closed when exact translation is impossible. In particular, metadata-free
+planning requires explicit `outFields` before it can prove geometry
+suppression, and a descriptor geometry field before it can compile an OData
+spatial predicate. OData output-CRS requests, untranslatable SQL predicates,
+unterminated literals, contradictory WFS geometry projections, and WFS spatial
+filters that would misuse response `outSr` as an input-geometry label also fail
+closed. The planner never claims exact execution based on guessed or silently
+ignored protocol behavior. A descriptor WFS `srsName` remains transaction
+metadata and is not invented as a GetFeature response CRS.
+
 `Query.signal` never enters the IR or fingerprint. Supply cancellation only to
 `executeQueryPlan`. Source URLs in plan identity are stripped of credentials,
 query strings, and fragments; pass stable authorization scope identifiers, not
@@ -2034,7 +2051,7 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
 
 This foundation does not close the full planner workstream. Follow-on slices
 must add typed semantic predicates and temporal windows, CQL2 JSON and richer
-OGC filter negotiation, WFS FES, OData, gRPC, and DuckDB compilers, spatial aggregation, joins/composition,
+OGC filter negotiation, gRPC and DuckDB compilers, spatial aggregation, joins/composition,
 columnar/worker execution, cache/freshness decisions, cost models, realtime
 snapshot/delta plans, receipts, golden cross-protocol fixtures, and shared
 CLI/renderer/MCP consumption. Histogram and time-series aggregation are
