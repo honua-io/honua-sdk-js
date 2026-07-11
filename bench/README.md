@@ -34,6 +34,29 @@ network, server, first map render, renderer frame rate, or another SDK. See
 [`docs/benchmark-methodology.md`](../docs/benchmark-methodology.md) for the
 comparison and live-evidence rules.
 
+## Deterministic browser rendering corpus
+
+`npm run bench:browser` builds the fixture-backed flagship and runs two real
+Chromium/WebGL journeys: Honua's MapLibre path renders the quickstart and opens
+a linked feature popup, while Honua's deck.gl adapter projects 10,000 binary
+points without copying their attribute buffers, renders them, and resolves a
+stable picked feature. Each journey has one warm-up and three measured runs.
+
+The report and PNG evidence are written beneath
+`test-results/browser-benchmark/`. The JSON records raw samples, median, p95,
+coefficient of variation, browser/OS/CPU/viewport/WebGL metadata, screenshot
+hashes, fixture and Git hashes, console and page errors, visible outcomes, and
+budget decisions. The
+committed [`browser/budgets.json`](./browser/budgets.json) bounds hangs, extreme
+latency, variance, and broken rendering/interaction invariants. CI uploads the
+complete directory as `sdk-browser-benchmark`.
+
+These measurements are only a same-Honua regression gate. They are not an Esri,
+Mapbox, CARTO, MapLibre, or deck.gl comparison: the applications, data paths,
+renderer configuration, licensing constraints, and host/service conditions are
+not equivalent. A chart, README, website, or sales claim must not rank vendors
+from this report or combine it with separately collected competitor numbers.
+
 ## Stream / pagination scenario
 
 A deterministic, server-free harness that measures throughput and latency of

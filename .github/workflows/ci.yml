@@ -190,6 +190,17 @@ jobs:
       - name: Browser smoke suite
         run: npm run test:playwright
 
+      - name: Deterministic browser rendering benchmark
+        run: npm run bench:browser
+
+      - name: Upload browser benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sdk-browser-benchmark
+          path: test-results/browser-benchmark/
+          if-no-files-found: error
+
   mcp-sdk:
     name: MCP SDK
     runs-on: ubuntu-latest
