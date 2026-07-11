@@ -140,9 +140,7 @@ describe("PortalCompat.search", () => {
 
 describe("PortalCompat.getItem", () => {
   it("fetches a single item and attaches the token", async () => {
-    const { fetchFn, requests } = makeFakeFetch([
-      { match: "/content/items/item-1", body: samplePortalItem() },
-    ]);
+    const { fetchFn, requests } = makeFakeFetch([{ match: "/content/items/item-1", body: samplePortalItem() }]);
     const portal = new PortalCompat({ portalUrl: "https://honua.example", token: "tok-item", fetchFn });
 
     const item = await portal.getItem("item-1");

@@ -1,10 +1,10 @@
 import { HonuaClient } from "../core/client.js";
 import type { HonuaRequestInterceptor } from "../core/types.js";
 import { esriConfig } from "./esri-config.js";
+import { FeatureLayerCompat } from "./feature-layer.js";
 import { identityManager } from "./identity-manager.js";
 import { createArcGisTokenInterceptor } from "./request.js";
 import { parseFeatureLayerUrl, parseImageServiceUrl, parseMapServiceUrl } from "./url.js";
-import { FeatureLayerCompat } from "./feature-layer.js";
 
 /**
  * A single item as returned by the Honua Portal facade
@@ -268,16 +268,12 @@ export class PortalCompat {
       start: options.start,
       num: options.num,
     };
-    const raw = await this.getJson<Partial<PortalSearchResult>>(
-      "/search",
-      params,
-      options.token ?? this.token,
-    );
+    const raw = await this.getJson<Partial<PortalSearchResult>>("/search", params, options.token ?? this.token);
     return {
-      query: raw.query ?? (options.q ?? ""),
+      query: raw.query ?? options.q ?? "",
       total: raw.total ?? 0,
-      start: raw.start ?? (options.start ?? 1),
-      num: raw.num ?? (options.num ?? 0),
+      start: raw.start ?? options.start ?? 1,
+      num: raw.num ?? options.num ?? 0,
       nextStart: raw.nextStart ?? -1,
       results: Array.isArray(raw.results) ? raw.results : [],
     };
@@ -285,11 +281,7 @@ export class PortalCompat {
 
   /** `GET /sharing/rest/content/items/{id}`. */
   public async getItem(itemId: string, options: PortalGetItemOptions = {}): Promise<PortalItem> {
-    return this.getJson<PortalItem>(
-      `/content/items/${encodeURIComponent(itemId)}`,
-      {},
-      options.token ?? this.token,
-    );
+    return this.getJson<PortalItem>(`/content/items/${encodeURIComponent(itemId)}`, {}, options.token ?? this.token);
   }
 
   /**
