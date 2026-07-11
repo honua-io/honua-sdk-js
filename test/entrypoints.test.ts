@@ -246,6 +246,8 @@ import {
 import {
   createMapLibreSceneAdapter,
   createSceneWorkspace,
+  mountSourceToCesium,
+  projectSourceToCesium,
   sceneWorkspaceIntentFromAdapterEvent,
 } from "../src/scene-workspace/index.js";
 
@@ -528,6 +530,8 @@ describe("entrypoint modules", () => {
   it("exposes the scene workspace entrypoint", () => {
     expect(createSceneWorkspace).toBeTypeOf("function");
     expect(createMapLibreSceneAdapter).toBeTypeOf("function");
+    expect(projectSourceToCesium).toBeTypeOf("function");
+    expect(mountSourceToCesium).toBeTypeOf("function");
     expect(sceneWorkspaceIntentFromAdapterEvent).toBeTypeOf("function");
   });
 

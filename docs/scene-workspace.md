@@ -123,6 +123,14 @@ SceneServer layer as metadata while the MapLibre map keeps terrain and
 extrusions active. Unsupported means the primitive should be routed to another
 adapter or retained in migration diagnostics rather than silently dropped.
 
+## Cesium entity queries
+
+The experimental accepted-plan `Source` to Cesium entity lifecycle is
+documented in [Experimental Cesium entity adapter](./cesium-entity-adapter.md).
+It is a bounded feature/entity slice alongside the existing terrain, model,
+and 3D Tiles primitive adapter; it is not yet the production adapter described
+by issue `#395`.
+
 ## Demo Fit
 
 The incident operations dashboard can use this workspace when the map expands

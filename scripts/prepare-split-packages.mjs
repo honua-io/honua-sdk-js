@@ -469,6 +469,7 @@ function createAppPlatformPackage() {
     "geocoding",
     "interactions",
     "map",
+    "query-planner",
     "realtime",
     "runtime",
     "style",

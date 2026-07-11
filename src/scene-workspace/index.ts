@@ -67,6 +67,28 @@ export type {
   Honua3DStyleSpec,
 } from "./cesium-adapter.js";
 export {
+  DEFAULT_CESIUM_ENTITY_LIMIT,
+  HonuaCesiumEntityAdapterError,
+  mountSourceToCesium,
+  projectSourceToCesium,
+} from "./source-to-cesium.js";
+export type {
+  CesiumEntityAdapterErrorCode,
+  CesiumEntityCollectionTarget,
+  CesiumEntityDiagnostic,
+  CesiumEntityDiagnosticCode,
+  CesiumEntityGeometry,
+  CesiumEntityInterval,
+  CesiumEntityProjection,
+  CesiumEntityProjectionItem,
+  CesiumEntityRuntimeLoader,
+  CesiumEntityRuntimeModule,
+  CesiumEntityWorkflowState,
+  MountedCesiumEntitySource,
+  MountSourceToCesiumOptions,
+  ProjectSourceToCesiumOptions,
+} from "./source-to-cesium.js";
+export {
   buildElevationProfilePath,
   buildLineOfSightBody,
   buildViewshedBody,
