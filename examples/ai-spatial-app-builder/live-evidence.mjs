@@ -54,7 +54,7 @@ if (!proposalEndpoint || !dataEndpoint) {
     source: {
       provider: "host-mediated-honua",
       identity: "safe-agent-live-source",
-      endpoint: proposalEndpoint,
+      endpoint: dataEndpoint,
       deploymentVersion: null,
       dataVersion: null,
     },

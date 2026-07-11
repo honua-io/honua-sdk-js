@@ -489,6 +489,10 @@ export async function verifyBrowserArtifactManifest(manifest) {
 }
 
 export function validateEvidenceEnvelope(evidence) {
+  const isDateTime = (value) =>
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+    !Number.isNaN(Date.parse(value));
   invariant(evidence.format === "honua.sdk.sample-evidence.v1", "evidence format must be v1");
   invariant(evidence.schemaVersion === 1, "evidence schemaVersion must be 1");
   invariant(["fixture", "live"].includes(evidence.lane), "evidence lane must be fixture or live");
@@ -497,7 +501,7 @@ export function validateEvidenceEnvelope(evidence) {
     "evidence status is invalid",
   );
   invariant(typeof evidence.sampleId === "string", "evidence sampleId is required");
-  invariant(typeof evidence.observedAt === "string" && !Number.isNaN(Date.parse(evidence.observedAt)), "evidence observedAt must be an ISO date-time");
+  invariant(isDateTime(evidence.observedAt), "evidence observedAt must be an RFC 3339 date-time");
   invariant(["none", "anonymous", "api-key", "bearer", "oauth", "host-mediated"].includes(evidence.authMode), "evidence authMode is invalid");
   invariant(evidence.sdk?.package === "@honua/sdk-js", "evidence sdk.package is invalid");
   invariant(typeof evidence.sdk?.version === "string", "evidence sdk.version is required");
@@ -519,10 +523,10 @@ export function validateEvidenceEnvelope(evidence) {
     invariant(typeof evidence.provenance?.sourceId === "string", "evidence provenance.sourceId is invalid");
   }
   if (evidence.provenance !== null) {
-    invariant(typeof evidence.provenance?.observedAt === "string", "evidence provenance.observedAt is required");
+    invariant(isDateTime(evidence.provenance?.observedAt), "evidence provenance.observedAt must be an RFC 3339 date-time");
     invariant(
-      evidence.provenance?.validAt === null || typeof evidence.provenance?.validAt === "string",
-      "evidence provenance.validAt is invalid",
+      evidence.provenance?.validAt === null || isDateTime(evidence.provenance?.validAt),
+      "evidence provenance.validAt must be null or an RFC 3339 date-time",
     );
     invariant(
       ["live", "cached", "replayed", "pending-local"].includes(evidence.provenance?.state),

@@ -1,4 +1,6 @@
+import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -12,6 +14,7 @@ import {
 } from "../scripts/sample-contract.mjs";
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
+const execFileAsync = promisify(execFile);
 
 describe("sample publication contract", () => {
   it("covers every SDK example and all 21 legacy site routes", async () => {
@@ -93,6 +96,30 @@ describe("sample publication contract", () => {
     const missingSource = await readJson("examples/ai-spatial-app-builder/evidence/fixture.v1.json");
     delete missingSource.source;
     expect(() => validateEvidenceEnvelope(missingSource)).toThrow("source.provider is required");
+
+    const invalidProvenanceTime = await readJson("examples/ai-spatial-app-builder/evidence/fixture.v1.json");
+    invalidProvenanceTime.provenance.observedAt = "not-a-date";
+    expect(() => validateEvidenceEnvelope(invalidProvenanceTime)).toThrow(
+      "provenance.observedAt must be an RFC 3339 date-time",
+    );
+    invalidProvenanceTime.provenance.observedAt = "2026-07-10T18:00:00.000Z";
+    invalidProvenanceTime.provenance.validAt = "2026-07-10";
+    expect(() => validateEvidenceEnvelope(invalidProvenanceTime)).toThrow(
+      "provenance.validAt must be null or an RFC 3339 date-time",
+    );
+  });
+
+  it("records the configured live-data endpoint instead of the proposal host", async () => {
+    const { stdout } = await execFileAsync(process.execPath, ["examples/ai-spatial-app-builder/live-evidence.mjs"], {
+      env: {
+        ...process.env,
+        HONUA_AGENT_HOST_URL: "https://agent.example.test/proposals",
+        HONUA_LIVE_DATA_URL: "https://data.example.test/features",
+      },
+    });
+    const evidence = JSON.parse(stdout);
+    expect(evidence.source.endpoint).toBe("https://data.example.test/features");
+    expect(evidence.reason).toContain("no request was sent");
   });
 
   it("binds browser artifacts to build inputs, peers, SHA-256, and SRI", async () => {
