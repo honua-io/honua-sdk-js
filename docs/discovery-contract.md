@@ -104,13 +104,68 @@ complete decision, diagnostic, provenance, cache-result, and inspection type
 vocabulary for adapter authors. This keeps the beginner surface bounded while
 preserving a fully typed protocol integration seam.
 
+## Explicit connect facade (bounded OGC Features slice)
+
+The experimental `connect()` facade now composes this truth contract for raw
+OGC API Features landing pages. The protocol hint is mandatory. Passing
+`protocol: "auto"` throws `HonuaDiscoveryError` with code
+`ambiguous-protocol` before cache hooks, authentication, or network requests
+run; passing a protocol without a reviewed connect adapter throws
+`unsupported-protocol`. Discovery never probes a Honua facade or a second
+authenticated protocol endpoint as fallback.
+
+```ts
+import { connect } from "@honua/sdk-js/honua";
+
+const connection = await connect({
+  endpoint: "https://demo.pygeoapi.io/master",
+  protocol: "ogc-features",
+  authorizationScopeFingerprint: "anonymous",
+  collectionId: "lakes",
+});
+
+const inspection = connection.inspection.sources[0];
+// Capabilities are the intersection of the SDK adapter and advertised
+// conformance evidence, never PROTOCOL_DEFAULT_CAPABILITIES by assumption.
+const lakes = connection.source();
+```
+
+At a service root, all advertised collections become `Dataset` source
+descriptors. `connection.source()` is only implicit when exactly one source
+was selected; otherwise it throws `ambiguous-source` and lists the valid IDs.
+`connection.source(id)` and `connection.dataset` retain the existing reviewed
+`Dataset` / `Source` execution contract.
+
+Authentication, retry, timeout, interceptors, and transport fetch overrides
+are passed in `clientOptions`, or callers may inject an existing `HonuaClient`
+whose normalized base URL exactly matches the endpoint. Landing endpoints must
+be absolute HTTP(S) URLs without user info, query parameters, or fragments;
+authentication belongs in `clientOptions`. `signal` cancels metadata work and
+settles `connect()` even when a caller cache hook ignores its supplied signal.
+Cache implementations remain responsible for stopping their own late work.
+`refresh: true` skips the caller cache read and forwards conditional-refresh
+semantics to the client's metadata cache.
+
+`ConnectDiscoveryCache` is an optional caller-owned cache hook. Its logical
+identity uses `createDiscoveryCacheIdentity()`, including the opaque
+authorization-scope fingerprint plus connect adapter and projection versions.
+Stored values are raw, versioned observations; capability policy is reapplied
+after every cache read. Cross-version, cross-endpoint, cross-scope, and
+cross-collection snapshots are rejected as `invalid-discovery-cache` instead
+of being trusted. Cache hooks must not persist access tokens, API keys, or raw
+authorization material.
+
+This slice is intentionally not universal-connect completion: WFS, STAC,
+GeoServices, static files, and the remaining raw OGC families still fail as
+unsupported rather than falling through to heuristic detection.
+
 ## Remaining #391 work
 
 - URL/asset classification and ambiguity recovery.
 - Per-protocol metadata projections and raw OGC Tiles, Maps, Records, and
   Processes endpoint discovery.
-- The owning `createHonua().connect()` lifecycle, refresh/cache storage,
-  conditional requests, timeout/retry, abort, and partial discovery.
+- Remaining protocol adapters, normalized schema/queryables, partial metadata
+  diagnostics, and the owning `createHonua()` disposal lifecycle.
 - Cross-language semantic descriptor fixtures and scheduled third-party smoke.
 
 Those layers should consume this contract rather than publish capabilities or

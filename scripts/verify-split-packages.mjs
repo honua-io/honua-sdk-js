@@ -84,6 +84,7 @@ import {
   HonuaGeoprocessingService,
   HonuaImageService,
   HonuaMapLayer,
+  connect,
 } from "@honua/sdk";
 import { HonuaGeocodingClient } from "@honua/sdk/geocoding";
 import { oauth2, clientCredentials, apiKeyAuth, InMemoryCredentialStore } from "@honua/sdk/auth";
@@ -281,6 +282,7 @@ import { area, buffer, project, toWgs84 } from "@honua/geometry";
 import { geometryEngineCompat } from "@honua/sdk-esri-compat";
 
 if (typeof HonuaClient !== "function") throw new Error("HonuaClient export missing");
+if (typeof connect !== "function") throw new Error("connect export missing from @honua/sdk");
 if (typeof HonuaMapLayer !== "function") throw new Error("HonuaMapLayer export missing");
 if (typeof HonuaImageService !== "function")
   throw new Error("HonuaImageService export missing from @honua/sdk");
