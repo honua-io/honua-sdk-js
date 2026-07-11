@@ -181,6 +181,10 @@
       "types": "./dist/src/agent-tools/index.d.ts",
       "default": "./dist/src/agent-tools/index.js"
     },
+    "./agent-safety": {
+      "types": "./dist/src/agent-safety/index.d.ts",
+      "default": "./dist/src/agent-safety/index.js"
+    },
     "./operator": {
       "types": "./dist/src/_deprecated/operator.d.ts",
       "default": "./dist/src/_deprecated/operator.js"

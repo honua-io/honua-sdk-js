@@ -113,6 +113,11 @@ const SECTIONS = [
           "Bounded downloadable-region manifests, logical-byte quota CAS, byte isolation, integrity, and storage-neutral transactions.",
       },
       {
+        path: "docs/agent-safety.md",
+        description:
+          "Bounded safe-agent plan normalization, signed approvals, authenticated single-use consumption, and verifiable receipts.",
+      },
+      {
         path: "docs/decisions/north-star-sdk-application-kernel.md",
         description:
           "Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.",
@@ -237,6 +242,11 @@ const ENTRYPOINTS = [
     path: "src/query-planner/index.ts",
     label: "@honua/sdk-js/query-planner",
     fallback: "Deterministic query IR, explain plans, and bounded execution.",
+  },
+  {
+    path: "src/agent-safety/index.ts",
+    label: "@honua/sdk-js/agent-safety",
+    fallback: "Bounded plan validation, signed approvals, atomic consumption evidence, and receipts.",
   },
   {
     path: "src/esri-compat-entry.ts",

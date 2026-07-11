@@ -118,6 +118,12 @@ import {
   explainHonuaCapabilityGap,
 } from "@honua/sdk/agent-tools";
 import {
+  AGENT_CONSUMPTION_KIND,
+  AGENT_SAFETY_HARD_LIMITS,
+  AGENT_SAFETY_VERSION,
+  dryRunAgentPlan,
+} from "@honua/sdk/agent-safety";
+import {
   createHonuaApp,
   normalizeHonuaAppOptions,
 } from "@honua/app-platform/app";
@@ -316,6 +322,10 @@ if (!Array.isArray(HONUA_AGENT_TOOL_NAMES) || !HONUA_AGENT_TOOL_NAMES.includes("
   throw new Error("agent tool exports missing from @honua/sdk/agent-tools");
 if (explainHonuaCapabilityGap({ protocol: "wmts", capability: "query" }).supported)
   throw new Error("agent tool capability explanation failed to flag unsupported WMTS query");
+if (AGENT_SAFETY_VERSION !== "1.0" || typeof dryRunAgentPlan !== "function")
+  throw new Error("agent safety exports missing from @honua/sdk/agent-safety");
+if (AGENT_CONSUMPTION_KIND !== "honua.agent-approval-consumption" || AGENT_SAFETY_HARD_LIMITS.steps !== 128)
+  throw new Error("agent safety consumption or hard-limit exports missing from @honua/sdk/agent-safety");
 if (typeof createHonuaApp !== "function")
   throw new Error("createHonuaApp export missing from @honua/sdk/app");
 if (typeof normalizeHonuaAppOptions !== "function")

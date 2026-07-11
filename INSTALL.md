@@ -43,6 +43,7 @@ default-barrel import never pulls them in.
 | Subpath | What it gives you |
 |---------|-------------------|
 | `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions (MCP/OpenAI compatible). Stays in the stable package (the in-repo `@honua/mcp-server` depends on it) but its symbols remain `@experimental` — not semver-frozen — while the AI surface settles. |
+| `@honua/sdk-js/agent-safety` | Bounded runtime validation, effect budgets, signed approval envelopes, authenticated single-use consumption, context revalidation, and deterministic execution-receipt verification for JSON-compatible plans. |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
