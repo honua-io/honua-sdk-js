@@ -14,7 +14,7 @@
 **Release status: beta.** The 20-entrypoint stable tier is frozen and guarded by an
 API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
 [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
-The complete inventory also contains 5 experimental subpaths and 18 deprecated
+The complete inventory also contains 6 experimental subpaths and 18 deprecated
 compatibility subpaths. [`config/public-surface.json`](./config/public-surface.json)
 is the machine-readable source consumed by CI, API reporting, TypeDoc, and
 downstream documentation projection.

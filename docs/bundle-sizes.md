@@ -17,6 +17,7 @@ _Generated 2026-07-11 at commit `6307dd6`._
 | `/contract` | 232.0 KiB | 235.3 KiB | 60.1 KiB | 66.1 KiB |
 | `/runtime` | 425.3 KiB | 458.7 KiB | 110.9 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
+| `/offline` | 16.1 KiB | 17.8 KiB | 5.7 KiB | 6.3 KiB |
 | `/esri-compat` | 943.4 KiB | 1026.2 KiB | 233.7 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
