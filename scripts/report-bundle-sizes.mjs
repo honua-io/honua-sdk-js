@@ -74,6 +74,7 @@ const TARGETS = [
   { key: "/contract", kind: "bundle", entry: "dist/src/contract/index.js", label: "`/contract`" },
   { key: "/runtime", kind: "bundle", entry: "dist/src/runtime/index.js", label: "`/runtime`" },
   { key: "/realtime", kind: "bundle", entry: "dist/src/realtime/index.js", label: "`/realtime`" },
+  { key: "/offline", kind: "bundle", entry: "dist/src/offline/index.js", label: "`/offline`" },
   { key: "/esri-compat", kind: "bundle", entry: "dist/src/esri-compat-entry.js", label: "`/esri-compat`" },
   { key: "/expr", kind: "bundle", entry: "dist/src/expr/index.js", label: "`/expr`" },
   { key: "/webmap", kind: "bundle", entry: "dist/src/webmap/index.js", label: "`/webmap`" },

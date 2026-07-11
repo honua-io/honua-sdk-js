@@ -83,6 +83,36 @@ const SECTIONS = [
           "Deterministic query IR and explain plans, GeoServices pushdown, and safe bounded-local execution policy.",
       },
       {
+        path: "docs/columnar-data-plane.md",
+        description:
+          "Bounded dependency-free columnar batches, transferable backing buffers, ownership, cancellation, and receipts.",
+      },
+      {
+        path: "docs/realtime-resume.md",
+        description:
+          "Durable realtime checkpoints, ordered resume, deduplication, gap handling, cancellation, and credential-free envelopes.",
+      },
+      {
+        path: "docs/plugin-manifest-certification.md",
+        description:
+          "Versioned data-only plugin manifests with deterministic compatibility and authority-boundary certification.",
+      },
+      {
+        path: "docs/deckgl-adapter.md",
+        description:
+          "Bounded zero-copy typed-array projection into an optional deck.gl peer with deterministic lifecycle semantics.",
+      },
+      {
+        path: "docs/cesium-entity-adapter.md",
+        description:
+          "Bounded accepted-plan projection into an optional Cesium peer with stable entity identity and disposal.",
+      },
+      {
+        path: "docs/offline-regions.md",
+        description:
+          "Bounded downloadable-region manifests, logical-byte quota CAS, byte isolation, integrity, and storage-neutral transactions.",
+      },
+      {
         path: "docs/decisions/north-star-sdk-application-kernel.md",
         description:
           "Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.",

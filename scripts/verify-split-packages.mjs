@@ -148,6 +148,7 @@ import {
   sceneWorkspaceIntentFromAdapterEvent,
 } from "@honua/app-platform/scene-workspace";
 import { HonuaMap, mountSourceToMapLibre } from "@honua/sdk/map";
+import { HONUA_OFFLINE_REGION_VERSION, planOfflineRegionAdmission } from "@honua/sdk/offline";
 import { createColumnarBatch, explainQuery, inspectColumnarBatch } from "@honua/sdk/query-planner";
 import { DECK_GL_ADAPTER_CONTRACT_VERSION } from "@honua/sdk/deckgl";
 import { validateHonuaStyle } from "@honua/sdk/style";
@@ -371,6 +372,8 @@ if (typeof createResumableRealtimeSubscription !== "function")
   throw new Error("createResumableRealtimeSubscription export missing from @honua/sdk/realtime");
 if (REALTIME_DURABLE_CHECKPOINT_VERSION !== 1)
   throw new Error("REALTIME_DURABLE_CHECKPOINT_VERSION export missing from @honua/sdk/realtime");
+if (HONUA_OFFLINE_REGION_VERSION !== "1.0" || typeof planOfflineRegionAdmission !== "function")
+  throw new Error("offline region exports missing from @honua/sdk/offline");
 if (typeof defineHonuaWebComponents !== "function")
   throw new Error("defineHonuaWebComponents export missing from @honua/sdk/web-components");
 if (typeof defineHonuaControls !== "function")

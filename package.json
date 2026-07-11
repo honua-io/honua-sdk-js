@@ -129,6 +129,10 @@
       "types": "./dist/src/realtime/index.d.ts",
       "default": "./dist/src/realtime/index.js"
     },
+    "./offline": {
+      "types": "./dist/src/offline/index.d.ts",
+      "default": "./dist/src/offline/index.js"
+    },
     "./app-controller": {
       "types": "./dist/src/_deprecated/app-controller.d.ts",
       "default": "./dist/src/_deprecated/app-controller.js"
