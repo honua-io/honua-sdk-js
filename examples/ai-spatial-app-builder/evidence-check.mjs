@@ -51,8 +51,8 @@ try {
     throw new Error("Executable fixture evidence did not preserve the zero-effects-before-approval invariant.");
   if (
     !observed.receiptVerified ||
-    observed.rowCount !== fixture.semantics.rowCount ||
-    observed.receipt.kind !== fixture.semantics.receiptKind ||
+    observed.rowCount !== fixture.semantics.itemCount ||
+    observed.receipt.kind !== "honua.agent-execution-receipt" ||
     observed.receipt.outcome !== "succeeded" ||
     observed.receipt.rows !== observed.rowCount ||
     typeof observed.receipt.signature !== "string" ||
@@ -64,7 +64,10 @@ try {
   await server.close();
 }
 
-if (fixture.semantics.effectsBeforeApproval !== 0 || fixture.semantics.effectsAfterApproval !== 1)
+if (
+  !fixture.semantics.assertions.includes("zero-effects-before-approval") ||
+  !fixture.semantics.assertions.includes("exactly-one-approved-source-read")
+)
   throw new Error("Fixture evidence must claim zero pre-approval effects and one approved effect.");
 if (live.status !== "skipped" || !live.reason.includes("no fixture data was substituted"))
   throw new Error("Unavailable live/model evidence must be an honest structured skip.");

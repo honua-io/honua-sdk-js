@@ -1,27 +1,40 @@
 {
+  "$schema": "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
   "format": "honua.sdk.sample-evidence.v1",
   "schemaVersion": 1,
   "sampleId": "ai-spatial-app-builder",
   "lane": "fixture",
   "status": "executed",
+  "reason": null,
   "observedAt": "2026-07-10T18:00:00.000Z",
   "authMode": "none",
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": null },
+  "source": {
+    "provider": "committed-fixture",
+    "identity": "honolulu-parcels",
+    "endpoint": null,
+    "deploymentVersion": null,
+    "dataVersion": "parcels-snapshot-2026-07-10"
+  },
   "provenance": {
-    "sourceId": "honolulu-parcels",
-    "sourceVersion": "parcels-snapshot-2026-07-10",
-    "schemaVersion": "parcels-schema-v5",
+    "sourceId": "fixture:honolulu-parcels",
+    "observedAt": "2026-07-10T18:00:00.000Z",
+    "validAt": null,
+    "state": "replayed",
     "attribution": "City and County of Honolulu — deterministic demonstration fixture"
   },
   "semantics": {
-    "outcome": "Shared safety contract validated the proposal, issued a signed single-use approval, authorized one five-row read, and verified a signed receipt.",
-    "planKind": "honua.query-plan",
-    "approvalKind": "honua.agent-approval",
-    "receiptKind": "honua.agent-execution-receipt",
-    "effectsBeforeApproval": 0,
-    "effectsAfterApproval": 1,
-    "rowCount": 5,
-    "approvalUse": "authenticated-single-use",
-    "receiptVerification": "approval-signature+consumption+receipt-signature"
+    "operation": "safe-agent-plan-approve-query-receipt",
+    "outcome": "shared-safety-contract-authorized-one-bounded-read-and-verified-the-signed-receipt",
+    "itemCount": 5,
+    "assertions": [
+      "zero-effects-before-approval",
+      "authenticated-atomic-single-use-authorization",
+      "exactly-one-approved-source-read",
+      "approval-and-receipt-signatures-verified"
+    ]
   },
-  "timing": { "totalMs": 1 }
+  "timing": { "totalMs": 1, "firstSuccessfulInteractionMs": 1 },
+  "degradation": { "state": "none", "reasons": [] },
+  "artifacts": []
 }

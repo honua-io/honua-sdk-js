@@ -489,6 +489,10 @@ export async function verifyBrowserArtifactManifest(manifest) {
 }
 
 export function validateEvidenceEnvelope(evidence) {
+  const isDateTime = (value) =>
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+    !Number.isNaN(Date.parse(value));
   invariant(evidence.format === "honua.sdk.sample-evidence.v1", "evidence format must be v1");
   invariant(evidence.schemaVersion === 1, "evidence schemaVersion must be 1");
   invariant(["fixture", "live"].includes(evidence.lane), "evidence lane must be fixture or live");
@@ -497,14 +501,78 @@ export function validateEvidenceEnvelope(evidence) {
     "evidence status is invalid",
   );
   invariant(typeof evidence.sampleId === "string", "evidence sampleId is required");
-  invariant(typeof evidence.observedAt === "string" && !Number.isNaN(Date.parse(evidence.observedAt)), "evidence observedAt must be an ISO date-time");
+  invariant(isDateTime(evidence.observedAt), "evidence observedAt must be an RFC 3339 date-time");
   invariant(["none", "anonymous", "api-key", "bearer", "oauth", "host-mediated"].includes(evidence.authMode), "evidence authMode is invalid");
+  invariant(evidence.sdk?.package === "@honua/sdk-js", "evidence sdk.package is invalid");
+  invariant(typeof evidence.sdk?.version === "string", "evidence sdk.version is required");
+  invariant(
+    evidence.sdk?.gitCommit === null || typeof evidence.sdk?.gitCommit === "string",
+    "evidence sdk.gitCommit is invalid",
+  );
+  invariant(typeof evidence.source?.provider === "string", "evidence source.provider is required");
+  invariant(typeof evidence.source?.identity === "string", "evidence source.identity is required");
+  for (const field of ["endpoint", "deploymentVersion", "dataVersion"]) {
+    invariant(
+      evidence.source?.[field] === null || typeof evidence.source?.[field] === "string",
+      `evidence source.${field} is invalid`,
+    );
+  }
   if (evidence.status === "executed") {
     invariant(typeof evidence.provenance?.sourceId === "string", "executed evidence requires provenance.sourceId");
   } else if (evidence.provenance !== null) {
     invariant(typeof evidence.provenance?.sourceId === "string", "evidence provenance.sourceId is invalid");
   }
+  if (evidence.provenance !== null) {
+    invariant(isDateTime(evidence.provenance?.observedAt), "evidence provenance.observedAt must be an RFC 3339 date-time");
+    invariant(
+      evidence.provenance?.validAt === null || isDateTime(evidence.provenance?.validAt),
+      "evidence provenance.validAt must be null or an RFC 3339 date-time",
+    );
+    invariant(
+      ["live", "cached", "replayed", "pending-local"].includes(evidence.provenance?.state),
+      "evidence provenance.state is invalid",
+    );
+    invariant(typeof evidence.provenance?.attribution === "string", "evidence provenance.attribution is required");
+  }
   invariant(!JSON.stringify(evidence).match(/(?:AKIA|Bearer\s|[?&](?:token|key|signature)=)/i), "evidence appears to contain a credential");
+  invariant(typeof evidence.semantics?.operation === "string", "evidence semantics.operation is required");
+  invariant(
+    evidence.semantics?.outcome === null || typeof evidence.semantics?.outcome === "string",
+    "evidence semantics.outcome is invalid",
+  );
+  invariant(
+    evidence.semantics?.itemCount === null ||
+      (Number.isInteger(evidence.semantics?.itemCount) && evidence.semantics.itemCount >= 0),
+    "evidence semantics.itemCount is invalid",
+  );
+  invariant(
+    Array.isArray(evidence.semantics?.assertions) && evidence.semantics.assertions.every((value) => typeof value === "string"),
+    "evidence semantics.assertions is invalid",
+  );
+  invariant(
+    evidence.timing?.totalMs === null || (typeof evidence.timing?.totalMs === "number" && evidence.timing.totalMs >= 0),
+    "evidence timing.totalMs is invalid",
+  );
+  invariant(
+    evidence.timing?.firstSuccessfulInteractionMs === null ||
+      (typeof evidence.timing?.firstSuccessfulInteractionMs === "number" &&
+        evidence.timing.firstSuccessfulInteractionMs >= 0),
+    "evidence timing.firstSuccessfulInteractionMs is invalid",
+  );
+  invariant(
+    ["none", "expected", "unexpected", "unavailable"].includes(evidence.degradation?.state),
+    "evidence degradation.state is invalid",
+  );
+  invariant(
+    Array.isArray(evidence.degradation?.reasons) && evidence.degradation.reasons.every((value) => typeof value === "string"),
+    "evidence degradation.reasons is invalid",
+  );
+  invariant(Array.isArray(evidence.artifacts), "evidence artifacts must be an array");
+  for (const artifact of evidence.artifacts ?? []) {
+    invariant(typeof artifact?.kind === "string", "evidence artifact.kind is required");
+    invariant(typeof artifact?.path === "string", "evidence artifact.path is required");
+    invariant(/^[a-f0-9]{64}$/.test(artifact?.sha256), "evidence artifact.sha256 is invalid");
+  }
   if (evidence.status === "executed") {
     invariant(typeof evidence.semantics?.outcome === "string", "executed evidence requires semantic outcome");
     invariant(typeof evidence.timing?.totalMs === "number" && evidence.timing.totalMs >= 0, "executed evidence requires timing");
