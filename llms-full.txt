@@ -541,6 +541,7 @@ Node-only or REST-only consumer never pays the install cost:
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
 | gRPC-Web transport (`new HonuaClient({ transport: "grpc-web" })`) | `npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf` |
 | Geometry ops (`@honua/sdk-js/geometry`) | `npm install proj4 @turf/buffer @turf/area …` (only the ops you import) — or use the `@honua/geometry` split package |
+| Migration API (`@honua/sdk-js/migration`) | `npm install typescript` |
 
 If you stay on the default REST transport with no MapLibre/Cesium scene work,
 no extra installs are required.
@@ -632,6 +633,13 @@ await runCodemod({ input: "./src", output: "./migrated" });
 > `npm run build:split-packages`. This is an opt-in build target, not the default
 > consumer install. See [`docs/split-packages.md`](./docs/split-packages.md) if you
 > are integrating with a downstream registry that needs the smaller surfaces.
+
+Maintainers can verify the artifact consumers actually install with
+`npm run verify:packed-sdk` after the library and browser builds. The gate packs
+the root package, installs it offline into an isolated ESM project, imports every
+stable and experimental subpath, typechecks every shipped declaration target,
+and runs the packaged `honua --help` command. Temporary package and consumer
+directories are removed after both successful and failed runs.
 
 ---
 
