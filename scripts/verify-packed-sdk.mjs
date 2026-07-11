@@ -77,6 +77,12 @@ function linkPeerFixtures(installedPackageJson) {
 try {
   fs.mkdirSync(consumerRoot, { recursive: true });
   fs.mkdirSync(packRoot, { recursive: true });
+  const offlineNpmEnv = {
+    ...process.env,
+    npm_config_cache: path.join(tempRoot, "npm-cache"),
+    npm_config_offline: "true",
+    npm_config_update_notifier: "false",
+  };
 
   const productionDependencyRoots = Object.entries(packageLock.packages ?? {})
     .filter(
@@ -87,7 +93,7 @@ try {
     "npm pack",
     "npm",
     ["pack", "--json", "--ignore-scripts", "--pack-destination", packRoot, projectRoot],
-    { timeout: 120_000 },
+    { env: offlineNpmEnv, timeout: 120_000 },
   );
   const packed = JSON.parse(packedOutput);
   const tarballName = packed.find((artifact) => artifact.name === packageJson.name)?.filename;
@@ -122,12 +128,7 @@ try {
     {
       cwd: consumerRoot,
       timeout: 600_000,
-      env: {
-        ...process.env,
-        npm_config_cache: path.join(tempRoot, "npm-cache"),
-        npm_config_offline: "true",
-        npm_config_update_notifier: "false",
-      },
+      env: offlineNpmEnv,
     },
   );
 
