@@ -1,0 +1,43 @@
+name: Overture AWS Live Evidence
+
+on:
+  schedule:
+    - cron: "15 7 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  live-evidence:
+    name: Bounded AWS semantic workflow
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run demo:overture:build
+
+      - name: Execute pinned Overture AWS journey
+        env:
+          HONUA_OVERTURE_LIVE_ENABLED: "true"
+        run: npm run evidence:overture:live -- --strict
+
+      - name: Upload shared sample evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: honua-sdk-overture-live-evidence
+          path: test-results/overture-live-evidence.json
+          if-no-files-found: error
+          retention-days: 90

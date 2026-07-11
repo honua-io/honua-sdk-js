@@ -3,115 +3,158 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Honua Overture GeoParquet Explorer</title>
-    <style>
-      :root {
-        color-scheme: light dark;
-        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      }
-      body {
-        margin: 0;
-        padding: 1.5rem;
-        line-height: 1.4;
-      }
-      header p {
-        max-width: 60ch;
-        opacity: 0.85;
-      }
-      .status-strip span {
-        display: inline-block;
-        margin-right: 1rem;
-        font-variant-numeric: tabular-nums;
-        font-size: 0.9rem;
-      }
-      .status-strip strong {
-        font-weight: 600;
-      }
-      form {
-        margin: 1rem 0;
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-        align-items: end;
-      }
-      label {
-        display: flex;
-        flex-direction: column;
-        font-size: 0.8rem;
-        gap: 0.25rem;
-      }
-      input,
-      select,
-      button {
-        padding: 0.4rem 0.6rem;
-        font: inherit;
-      }
-      table {
-        border-collapse: collapse;
-        width: 100%;
-        max-width: 900px;
-      }
-      th,
-      td {
-        border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-        padding: 0.35rem 0.5rem;
-        text-align: left;
-        font-size: 0.9rem;
-      }
-      code {
-        font-size: 0.85em;
-      }
-    </style>
+    <title>Honua Overture Columnar Lab</title>
   </head>
   <body>
-    <header>
-      <h1>Honua Overture GeoParquet Explorer</h1>
-      <p>
-        The same protocol-neutral <code>Query</code> you'd send to a FeatureServer, executed against a
-        committed, fixture-sized Overture <code>places</code> extract via DuckDB-WASM — compiled to SQL over
-        <code>read_parquet(...)</code> with spatial predicate pushdown. No Honua server required.
-      </p>
-      <div class="status-strip">
-        <span id="engine-state">Booting DuckDB-WASM…</span>
-        <span id="schema-state"></span>
-        <span id="crs-state"></span>
-        <span id="rows-state"></span>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Honua / large-data proof</p>
+          <h1>Overture columnar lab</h1>
+          <p class="lede">
+            Plan a bounded AOI query, run it in DuckDB-WASM’s worker, and inspect what was measured versus what
+            remains opaque. Engine range behavior and row-group pruning are not claimed as verified.
+          </p>
+        </div>
+        <div class="status-stack">
+          <strong id="lane-badge" data-lane="fixture">Deterministic fixture</strong>
+          <span id="engine-state" role="status" aria-live="polite">Planner ready</span>
+        </div>
+      </header>
+
+      <section class="disclosure" aria-labelledby="disclosure-title">
+        <h2 id="disclosure-title">Execution disclosure</h2>
+        <p id="execution-disclosure">
+          Required CI uses a 1.9 KB committed fixture with no cross-origin requests. AWS is opt-in.
+        </p>
+      </section>
+
+      <div class="workspace">
+        <section class="controls card" aria-labelledby="query-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">01 / constrain</p>
+              <h2 id="query-title">Bounded query</h2>
+            </div>
+            <span>CRS84</span>
+          </div>
+          <form id="query-form">
+            <label>
+              Data lane
+              <select id="lane">
+                <option value="fixture">Fixture · offline</option>
+                <option value="live">AWS · approved public object</option>
+              </select>
+            </label>
+            <label>
+              Category
+              <select id="category">
+                <option value="all">All categories</option>
+                <option value="beach">beach</option>
+                <option value="landmark">landmark</option>
+                <option value="civic">civic</option>
+                <option value="retail">retail</option>
+              </select>
+            </label>
+            <label class="wide-field">
+              AOI · xmin,ymin,xmax,ymax
+              <input id="aoi" value="-158.30,21.20,-157.65,21.60" inputmode="decimal" autocomplete="off" />
+            </label>
+            <label>
+              Row limit
+              <input id="row-limit" type="number" min="1" max="200" value="100" />
+            </label>
+            <div class="actions">
+              <button id="run-query" type="submit">Plan + run</button>
+              <button id="cancel-query" type="button" class="secondary" disabled>Cancel worker</button>
+            </div>
+          </form>
+          <p id="query-message" role="status" aria-live="polite">Queries require an AOI, narrow projection, and limit.</p>
+        </section>
+
+        <section class="card plan-card" aria-labelledby="plan-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">02 / inspect</p>
+              <h2 id="plan-title">Plan evidence</h2>
+            </div>
+          </div>
+          <dl class="metric-grid compact">
+            <div><dt>Projection</dt><dd id="metric-projection">-</dd></div>
+            <div><dt>AOI</dt><dd id="metric-aoi">-</dd></div>
+            <div><dt>Files</dt><dd id="metric-files">-</dd></div>
+            <div><dt>Selected-object rows</dt><dd id="metric-candidate-rows">-</dd></div>
+            <div><dt>Selected-object row groups</dt><dd id="metric-row-groups">-</dd></div>
+            <div><dt>Memory ceiling</dt><dd id="metric-memory-policy">256 MiB</dd></div>
+            <div><dt>Cache key</dt><dd id="metric-cache-key">-</dd></div>
+            <div><dt>Range plan</dt><dd id="metric-range-plan">-</dd></div>
+          </dl>
+          <p id="plan-warning" class="warning">No plan yet.</p>
+          <details>
+            <summary>Canonical plan JSON</summary>
+            <pre id="plan-json">{}</pre>
+          </details>
+        </section>
       </div>
-    </header>
-    <main>
-      <form id="query-form">
-        <label>
-          Category
-          <select id="category">
-            <option value="all">All categories</option>
-            <option value="beach">beach</option>
-            <option value="landmark">landmark</option>
-            <option value="civic">civic</option>
-            <option value="retail">retail</option>
-            <option value="historic">historic</option>
-            <option value="education">education</option>
-            <option value="attraction">attraction</option>
-          </select>
-        </label>
-        <label>
-          AOI xmin,ymin,xmax,ymax
-          <input id="aoi" size="34" value="-158.6,21.0,-157.5,21.7" />
-        </label>
-        <button type="submit">Run Query</button>
-      </form>
-      <p id="result-summary"></p>
-      <table>
-        <thead>
-          <tr>
-            <th>GERS id</th>
-            <th>name</th>
-            <th>category</th>
-            <th>confidence</th>
-            <th>lon, lat</th>
-          </tr>
-        </thead>
-        <tbody id="result-body"></tbody>
-      </table>
+
+      <section class="card" aria-labelledby="evidence-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">03 / prove</p>
+            <h2 id="evidence-title">Execution evidence</h2>
+          </div>
+          <span id="cache-badge">Not run</span>
+        </div>
+        <dl class="metric-grid">
+          <div><dt>Release / schema</dt><dd id="evidence-release">-</dd></div>
+          <div><dt>Object</dt><dd id="evidence-object">-</dd></div>
+          <div><dt>STAC provenance</dt><dd id="evidence-stac">-</dd></div>
+          <div><dt>Object version</dt><dd id="evidence-version">-</dd></div>
+          <div><dt>Observed</dt><dd id="evidence-observed">-</dd></div>
+          <div><dt>Verified bytes / ranges</dt><dd id="evidence-ranges">-</dd></div>
+          <div><dt>Rows scanned / returned</dt><dd id="evidence-rows">-</dd></div>
+          <div><dt>Row groups pruned</dt><dd id="evidence-pruning">Unverified</dd></div>
+          <div><dt>Bounded result memory</dt><dd id="evidence-memory">-</dd></div>
+          <div><dt>SDK planning</dt><dd id="timing-sdk">-</dd></div>
+          <div><dt>Source range probe</dt><dd id="timing-network">-</dd></div>
+          <div><dt>Engine + opaque source</dt><dd id="timing-engine">-</dd></div>
+          <div><dt>Progressive render</dt><dd id="timing-render">-</dd></div>
+        </dl>
+        <p id="range-limitation" class="warning">Engine byte/range telemetry has not been observed.</p>
+        <p id="attribution">Attribution pending.</p>
+      </section>
+
+      <section class="result-layout">
+        <section class="card map-card" aria-labelledby="map-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">04 / visualize</p>
+              <h2 id="map-title">Progressive AOI view</h2>
+            </div>
+            <span id="render-progress">0 rendered</span>
+          </div>
+          <svg id="result-map" viewBox="0 0 800 400" role="img" aria-label="Returned Overture places inside the selected area">
+            <rect width="800" height="400" class="map-background"></rect>
+            <g id="result-points"></g>
+          </svg>
+        </section>
+
+        <section class="card table-card" aria-labelledby="result-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">05 / inspect rows</p>
+              <h2 id="result-title">Bounded result</h2>
+            </div>
+            <span id="result-summary">0 rows</span>
+          </div>
+          <div class="table-scroll" tabindex="0" aria-label="Scrollable query results">
+            <table>
+              <thead><tr><th>GERS id</th><th>Name</th><th>Category</th><th>Confidence</th><th>Location</th></tr></thead>
+              <tbody id="result-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

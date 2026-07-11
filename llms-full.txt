@@ -658,7 +658,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`migration-workbench`](../../docs/migration-honua-maplibre.md) | flagship | supported | fixture | rework | Scans and transforms ArcGIS application source with auditable compatibility results. |
 | [`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | [`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | supported | fixture | keep | Demonstrates browser authentication and session lifecycle without embedding credentials. |
-| [`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | flagship | experimental | fixture | rework | Loads Overture GeoParquet data through browser columnar query and visualization. |
+| [`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | flagship | experimental | hybrid | keep | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
 | [`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | flagship | supported | fixture | rework | Combines parcels, hazards, sketching, editing, and export in a task-oriented application. |
 | [`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | supported | fixture | keep | Loads a static PMTiles archive without a Honua server. |
 | [`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the React provider, hooks, and map component over the same quickstart contract. |
@@ -5164,7 +5164,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-11 at commit `36281ba`._
+_Generated 2026-07-11 at commit `e154234`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -5181,7 +5181,7 @@ _Generated 2026-07-11 at commit `36281ba`._
 | `/auth` | 12.0 KiB | 12.8 KiB | 3.8 KiB | 4.0 KiB |
 | `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
 | `/map` | 79.6 KiB | 87.4 KiB | 21.8 KiB | 24.0 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 14.6 KiB | 15.8 KiB | 5.4 KiB | 5.8 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 16.5 KiB | 17.8 KiB | 6.0 KiB | 6.5 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 11.5 KiB | 12.5 KiB | 4.1 KiB | 4.4 KiB |
 | `/react` (react/react-dom external) | 377.3 KiB | 405.7 KiB | 97.6 KiB | 104.5 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
@@ -7178,6 +7178,16 @@ const summary = await places.queryAggregate({
   `pagination.limit` on large Overture extracts.
 - Parquet footers / row-group metadata are cached per source-URL set **inside
   the runtime**; there is no on-disk persistence.
+- `Source.stream()` uses DuckDB-WASM Arrow record batches when the driver
+  supports them; `Source.query()` intentionally materializes its bounded result.
+  `Query.signal` is forwarded to the browser driver's `cancelSent()` path.
+- Browser deployments can set `loadSpatial: false` when a GeoParquet `bbox`
+  covering is sufficient, and can pin `extensionRepository` plus
+  `preloadExtensions` to keep Parquet execution self-hosted.
+- Browser deployments reading large remote objects can set
+  `filesystem: { reliableHeadRequests: true, allowFullHttpReads: false }` to
+  require range-capable HTTP I/O and fail closed instead of allowing
+  DuckDB-WASM's full-file fallback.
 
 ## Capability honesty
 
@@ -7194,13 +7204,15 @@ Overture Maps ships monthly GeoParquet releases. The
 entirely against a **fixture-sized extract committed to the repo** (no Honua
 server, CI-deterministic) and preserves GERS ids in results.
 
-To point it at live Overture data, replace the fixture URL with an Overture
-release path and let DuckDB read it directly over HTTP(S) — no download step:
+For live Overture data, resolve a pinned file from Overture's STAC catalog
+before constructing the source. Do not hand a global glob to a browser without
+an AOI, projection, result limit, memory budget, cancellation, and file-level
+STAC selection:
 
 ```ts
 // Overture release layout (see https://docs.overturemaps.org/):
-const THEME =
-  "https://overturemaps-us-west-2.s3.amazonaws.com/release/2025-06-25.0/theme=places/type=place/*.parquet";
+const PINNED_ITEM =
+  "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-06-17.0/theme=places/type=place/part-00000-6c973aba-862d-590f-a178-70bcd31cde1c-c000.zstd.parquet";
 
 createDataset({
   id: "overture-live",
@@ -7211,15 +7223,20 @@ createDataset({
     {
       id: "places",
       protocol: "geoparquet",
-      locator: { url: THEME },
+      locator: { url: PINNED_ITEM },
       capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
     },
   ],
 });
 ```
 
-Always send a `spatialFilter` (and narrow `outFields`) against live Overture:
-the theme is global and only the row groups intersecting your bbox are scanned.
+Always send a `spatialFilter`, narrow `outFields`, `pagination.limit`, and
+`signal` against live Overture. A bbox predicate creates a pruning opportunity;
+it does not by itself prove bytes avoided or row groups skipped. The current
+browser driver does not expose its internal HTTP bytes/ranges, rows scanned, or
+row-group pruning metrics. The flagship sample reports those as unverified and
+uses an explicit execution deadline rather than falling back to full
+materialization.
 
 ## Regenerating the test fixtures
 

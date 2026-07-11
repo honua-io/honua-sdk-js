@@ -236,19 +236,19 @@
     {
       "id": "overture-geoparquet",
       "title": "Overture GeoParquet",
-      "summary": "Loads Overture GeoParquet data through browser columnar query and visualization.",
+      "summary": "Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence.",
       "tier": "flagship",
       "supportStatus": "experimental",
-      "disposition": { "decision": "rework", "reason": "Anchor the large-data and columnar execution journey on a public AWS asset." },
+      "disposition": { "decision": "keep", "reason": "Large-data flagship now shares one bounded semantic workflow across deterministic fixture and pinned AWS lanes." },
       "sourcePath": "examples/overture-geoparquet",
       "docsPath": "examples/overture-geoparquet/README.md",
-      "capabilities": ["columnar", "geoparquet", "large-data"],
+      "capabilities": ["cancellation", "columnar", "geoparquet", "large-data", "progressive-rendering", "range-reads"],
       "protocols": ["geoparquet", "s3"],
-      "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed fixture-sized Overture places extract.", "attribution": "Overture Maps Foundation data attribution.", "freshness": "Fixture version committed with the repository." },
-      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:overture:build"] }, "live": { "status": "planned", "commands": [] } },
-      "expectedDegradation": "The app reports when range requests, DuckDB, or the experimental loader are unavailable.",
-      "validation": ["npm run demo:overture:typecheck", "npm run demo:overture:build"]
+      "renderers": ["svg"],
+      "data": { "mode": "hybrid", "authMode": "anonymous", "config": [], "provenance": "Committed deterministic GeoParquet fixture or pinned Overture STAC item 2026-06-17.0/places/place/00000 on public AWS Open Data.", "attribution": "Overture Maps Foundation Open Map Data with per-feature upstream sources preserved by the live schema.", "freshness": "Pinned release, schema, object ETag, last modification, and execution observation time are shown separately." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run test:playwright:overture"] }, "live": { "status": "executed", "commands": ["npm run evidence:overture:live -- --strict"] } },
+      "expectedDegradation": "Unsupported or malformed ranges, expired objects, unsafe plans, worker failures, the 10-second source-probe deadline, and the 30-second engine budget stop explicitly. DuckDB full-HTTP fallback is disabled; scheduled evidence rejects un-ranged GETs and measures browser range bytes, while rows scanned and row groups pruned remain unverified.",
+      "validation": ["npm run demo:overture:typecheck", "npm run demo:overture:build", "npx vitest run test/overture-large-data.test.ts", "npm run test:playwright:overture"]
     },
     {
       "id": "planning-permitting-workbench",
