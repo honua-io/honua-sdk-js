@@ -1140,6 +1140,19 @@ export interface HonuaLayerMetadata {
   maxRecordCount?: number;
   supportsAttachments?: boolean;
   relationships?: HonuaRelationshipInfo[];
+  /** Comma-delimited GeoServices operation names advertised by the layer. */
+  capabilities?: string;
+  /** Wire formats accepted by the query operation (for example JSON, geoJSON, PBF). */
+  supportedQueryFormats?: string;
+  supportsStatistics?: boolean;
+  useStandardizedQueries?: boolean;
+  advancedQueryCapabilities?: {
+    supportsPagination?: boolean;
+    supportsStatistics?: boolean;
+    supportsOrderBy?: boolean;
+    supportsDistinct?: boolean;
+    supportsReturningQueryExtent?: boolean;
+  };
   cache?: HonuaCacheState;
 }
 
@@ -1151,6 +1164,12 @@ export interface HonuaServiceMetadata {
   spatialReference?: HonuaSpatialReference;
   fullExtent?: HonuaExtent;
   maxRecordCount?: number;
+  /** Comma-delimited GeoServices operation names advertised by the service. */
+  capabilities?: string;
+  supportedQueryFormats?: string;
+  supportsStatistics?: boolean;
+  useStandardizedQueries?: boolean;
+  singleFusedMapCache?: boolean;
   cache?: HonuaCacheState;
 }
 

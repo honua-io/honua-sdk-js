@@ -1,13 +1,15 @@
 /**
  * Explicit, fail-closed connection discovery facade.
  *
- * This is a bounded first facade slice: callers must name a protocol and the
- * only built-in discovery adapter currently reviewed here is OGC API Features.
- * No endpoint is probed as a different protocol when discovery fails.
+ * Automatic detection is deliberately structural: canonical GeoServices
+ * FeatureServer and MapServer URLs are recognized without trial requests.
+ * Ambiguous URLs still require an explicit protocol. No endpoint is probed as
+ * a different protocol when discovery fails.
  *
  * @experimental
  */
 
+import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
 import {
   type DiscoveryCacheIdentity,
   type DiscoveryCapabilityEvidence,
@@ -20,7 +22,15 @@ import {
   resolveDiscoveryCapabilities,
 } from "./contract/discovery.js";
 import { createDataset } from "./contract/source.js";
-import type { Dataset, Protocol, Source, SourceDescriptor, SourceId } from "./contract/types.js";
+import type {
+  Dataset,
+  Protocol,
+  Source,
+  SourceDescriptor,
+  SourceId,
+  SourceLocator,
+  SourceSchema,
+} from "./contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
@@ -36,9 +46,9 @@ import type {
 } from "./core/types.js";
 
 /** Schema version for values stored through {@link ConnectDiscoveryCache}. */
-export const HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION = 1 as const;
+export const HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION = 2 as const;
 /** Adapter version used to invalidate logical discovery identities. */
-export const HONUA_CONNECT_ADAPTER_VERSION = "honua-connect-ogc-features@1";
+export const HONUA_CONNECT_ADAPTER_VERSION = "honua-connect@2";
 /** Normalized facade projection version used to invalidate cached snapshots. */
 export const HONUA_CONNECT_PROJECTION_VERSION = "honua-connect-source-descriptor@1";
 
@@ -67,10 +77,12 @@ export interface ConnectDiscoveryCache {
 
 export interface ConnectDiscoverySourceSnapshot {
   readonly id: string;
-  readonly collectionId: string;
+  readonly locator: SourceLocator;
   readonly title?: string;
   readonly description?: string;
   readonly crs?: readonly string[];
+  readonly schema?: SourceSchema;
+  readonly evidence?: readonly DiscoveryCapabilityEvidence[];
 }
 
 /** Serializable, versioned observation persisted through a discovery cache. */
@@ -78,16 +90,16 @@ export interface ConnectDiscoverySnapshot {
   readonly version: typeof HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION;
   readonly identityKey: string;
   readonly endpoint: string;
-  readonly protocol: "ogc-features";
+  readonly protocol: ConnectResolvedProtocol;
   readonly retrievedAt: string;
   readonly evidence: readonly DiscoveryCapabilityEvidence[];
   readonly sources: readonly ConnectDiscoverySourceSnapshot[];
 }
 
 export interface ConnectOptions {
-  /** OGC API landing-page URL. */
+  /** OGC API landing page or canonical GeoServices service/layer URL. */
   readonly endpoint: string | URL;
-  /** Required protocol hint. `auto` fails without performing network probes. */
+  /** Protocol hint. `auto` recognizes canonical GeoServices URL structure without probing. */
   readonly protocol: ConnectProtocolHint;
   /** Restrict discovery to one collection while retaining the service root URL. */
   readonly collectionId?: string;
@@ -95,7 +107,7 @@ export interface ConnectOptions {
   readonly id?: string;
   /** Stable ACL/audience fingerprint. Never pass a bearer token or API key. */
   readonly authorizationScopeFingerprint: string;
-  /** Existing client configured for `endpoint`, useful for persistent metadata validators. */
+  /** Existing client configured for the endpoint's service root, useful for persistent metadata validators. */
   readonly client?: HonuaClient;
   /** Auth, retry, timeout, interceptor, and fetch options for an owned client. */
   readonly clientOptions?: Omit<HonuaClientOptions, "baseUrl">;
@@ -110,7 +122,7 @@ export interface ConnectOptions {
 export interface HonuaConnectionInspection {
   readonly id: string;
   readonly endpoint: string;
-  readonly protocol: "ogc-features";
+  readonly protocol: ConnectResolvedProtocol;
   readonly defaultSourceId?: SourceId;
   readonly sources: readonly SourceDiscoveryInspection[];
   readonly diagnostics: readonly DiscoveryDiagnostic[];
@@ -125,32 +137,43 @@ export interface HonuaConnection {
   source<T = Record<string, unknown>>(id?: SourceId): Source<T>;
 }
 
+export type ConnectResolvedProtocol = "ogc-features" | "geoservices-feature-service" | "geoservices-map-service";
+
 /**
  * Discover an explicitly identified endpoint and return reviewed descriptors.
  *
- * This function never guesses a protocol and never falls back to another
- * authenticated endpoint layout. Unsupported hints fail before client/auth or
- * cache hooks are invoked.
+ * `auto` uses canonical URL structure only; it never sends trial requests to
+ * guess a protocol and never falls back to another authenticated endpoint
+ * layout. Unsupported or ambiguous hints fail before client/auth or cache
+ * hooks are invoked.
  *
  * @experimental
  */
 export async function connect(options: ConnectOptions): Promise<HonuaConnection> {
-  assertExplicitSupportedProtocol(options.protocol);
   throwIfAborted(options.signal);
   const endpoint = validateConnectEndpoint(options.endpoint);
+  const target = resolveConnectTarget(endpoint, options.protocol);
+  if (target.protocol !== "ogc-features" && options.collectionId !== undefined) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "collectionId is only valid for OGC API Features connections; select a GeoServices layer in the endpoint URL.",
+    );
+  }
   if (options.client && options.clientOptions) {
     throw new HonuaDiscoveryError("invalid-endpoint", "Pass either client or clientOptions to connect(), not both.");
   }
 
   const identity = await createDiscoveryCacheIdentity({
-    endpoint,
-    protocol: options.protocol,
+    endpoint: target.endpoint,
+    protocol: target.protocol,
     authorizationScopeFingerprint: options.authorizationScopeFingerprint,
     adapterVersion: HONUA_CONNECT_ADAPTER_VERSION,
     projectionVersion: HONUA_CONNECT_PROJECTION_VERSION,
     ...(options.collectionId ? { collectionId: options.collectionId } : {}),
+    ...(target.serviceId ? { serviceId: target.serviceId } : {}),
+    ...(target.layerId !== undefined ? { layerId: target.layerId } : {}),
   });
-  if (options.client) assertClientEndpoint(options.client, identity.endpoint);
+  if (options.client) assertClientEndpoint(options.client, target.clientBaseUrl);
   const cacheContext = Object.freeze({ ...(options.signal ? { signal: options.signal } : {}) });
   let snapshot: ConnectDiscoverySnapshot | undefined;
   let cacheStatus: ConnectCacheStatus = options.cache ? "miss" : "bypass";
@@ -159,14 +182,17 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     snapshot = await awaitAbortable(options.cache.get(identity, cacheContext), options.signal);
     throwIfAborted(options.signal);
     if (snapshot) {
-      snapshot = validateSnapshot(snapshot, identity, options.collectionId);
+      snapshot = validateSnapshot(snapshot, identity, target, options.collectionId);
       cacheStatus = "hit";
     }
   }
 
-  const client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: identity.endpoint });
+  const client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: target.clientBaseUrl });
   if (!snapshot) {
-    snapshot = await discoverOgcFeatures(client, identity, options);
+    snapshot =
+      target.protocol === "ogc-features"
+        ? await discoverOgcFeatures(client, identity, options)
+        : await discoverGeoServices(client, identity, target, options);
     if (options.cache) {
       await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
@@ -174,18 +200,19 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     cacheStatus = options.refresh === true ? "refreshed" : cacheStatus;
   }
 
-  const resolution = resolveDiscoveryCapabilities("ogc-features", snapshot.evidence, options.capabilityPolicy);
   const inspections = Object.freeze(
     snapshot.sources.map((source) => {
+      const resolution = resolveDiscoveryCapabilities(
+        snapshot.protocol,
+        source.evidence ?? snapshot.evidence,
+        options.capabilityPolicy,
+      );
       const descriptor: SourceDescriptor = {
         id: source.id,
-        protocol: "ogc-features",
-        locator: {
-          url: identity.endpoint,
-          collectionId: source.collectionId,
-          layout: "ogc-api",
-        },
+        protocol: snapshot.protocol,
+        locator: source.locator,
         capabilities: resolution.capabilities,
+        ...(source.schema ? { schema: source.schema } : {}),
         ...(source.title ? { attribution: source.title } : {}),
       };
       return inspectDiscoveredSource(descriptor, resolution);
@@ -202,10 +229,10 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
   const inspection: HonuaConnectionInspection = Object.freeze({
     id,
     endpoint: identity.endpoint,
-    protocol: "ogc-features",
+    protocol: snapshot.protocol,
     ...(defaultSourceId ? { defaultSourceId } : {}),
     sources: inspections,
-    diagnostics: Object.freeze([...resolution.diagnostics]),
+    diagnostics: uniqueDiagnostics(inspections.flatMap((entry) => [...entry.diagnostics])),
     cacheIdentity: identity,
     cacheStatus,
   });
@@ -237,23 +264,6 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
   });
 }
 
-function assertExplicitSupportedProtocol(protocol: ConnectProtocolHint): asserts protocol is "ogc-features" {
-  if (protocol === "auto") {
-    throw new HonuaDiscoveryError(
-      "ambiguous-protocol",
-      "connect() requires an explicit protocol hint; automatic authenticated endpoint probing is disabled.",
-      { supportedProtocols: ["ogc-features"] },
-    );
-  }
-  if (protocol !== "ogc-features") {
-    throw new HonuaDiscoveryError(
-      "unsupported-protocol",
-      `connect() does not yet include a reviewed discovery adapter for "${String(protocol)}".`,
-      { protocol, supportedProtocols: ["ogc-features"] },
-    );
-  }
-}
-
 function validateConnectEndpoint(input: string | URL): string {
   let endpoint: URL;
   try {
@@ -264,12 +274,20 @@ function validateConnectEndpoint(input: string | URL): string {
   if (endpoint.protocol !== "https:" && endpoint.protocol !== "http:") {
     throw new HonuaDiscoveryError("invalid-endpoint", "connect() endpoints must use HTTP or HTTPS.");
   }
-  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+  const formatQueryIsRemovable =
+    endpoint.searchParams.size > 0 &&
+    [...endpoint.searchParams].every(
+      ([name, value]) =>
+        (name.toLowerCase() === "f" || name.toLowerCase() === "format") &&
+        (value.toLowerCase() === "json" || value.toLowerCase() === "pjson"),
+    );
+  if (endpoint.username || endpoint.password || (endpoint.search && !formatQueryIsRemovable) || endpoint.hash) {
     throw new HonuaDiscoveryError(
       "invalid-endpoint",
-      "connect() endpoints must not contain credentials, query parameters, or fragments; configure authentication through clientOptions.",
+      "connect() endpoints must not contain credentials, identity-bearing query parameters, or fragments; configure authentication through clientOptions.",
     );
   }
+  if (formatQueryIsRemovable) endpoint.search = "";
   while (endpoint.pathname.length > 1 && endpoint.pathname.endsWith("/")) {
     endpoint.pathname = endpoint.pathname.slice(0, -1);
   }
@@ -345,7 +363,25 @@ async function discoverOgcFeatures(
     protocol: "ogc-features",
     retrievedAt,
     evidence,
-    sources: Object.freeze(selected.map(discoveredSourceSnapshot)),
+    sources: Object.freeze(selected.map((source) => discoveredOgcSourceSnapshot(identity.endpoint, source))),
+  });
+}
+
+async function discoverGeoServices(
+  client: HonuaClient,
+  identity: DiscoveryCacheIdentity,
+  target: ConnectTarget,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const discovered = await discoverGeoServicesSources(client, target, options);
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: target.protocol,
+    retrievedAt: discovered.retrievedAt,
+    evidence: Object.freeze([]),
+    sources: discovered.sources,
   });
 }
 
@@ -425,10 +461,13 @@ function selectCollections(
   return [selected];
 }
 
-function discoveredSourceSnapshot(source: HonuaOgcCollectionSummary): ConnectDiscoverySourceSnapshot {
+function discoveredOgcSourceSnapshot(
+  endpoint: string,
+  source: HonuaOgcCollectionSummary,
+): ConnectDiscoverySourceSnapshot {
   return Object.freeze({
     id: source.id,
-    collectionId: source.id,
+    locator: Object.freeze({ url: endpoint, collectionId: source.id, layout: "ogc-api" as const }),
     ...(source.title ? { title: source.title } : {}),
     ...(source.description ? { description: source.description } : {}),
     ...(source.crs ? { crs: Object.freeze([...source.crs]) } : {}),
@@ -458,13 +497,14 @@ function metadataProvenance(
 function validateSnapshot(
   value: ConnectDiscoverySnapshot,
   identity: DiscoveryCacheIdentity,
+  target: ConnectTarget,
   collectionId: string | undefined,
 ): ConnectDiscoverySnapshot {
   if (
     value?.version !== HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION ||
     value.identityKey !== identity.key ||
     value.endpoint !== identity.endpoint ||
-    value.protocol !== "ogc-features" ||
+    value.protocol !== target.protocol ||
     !Array.isArray(value.evidence) ||
     !Array.isArray(value.sources) ||
     value.sources.length === 0
@@ -475,28 +515,45 @@ function validateSnapshot(
     });
   }
   const sourceIds = new Set<string>();
-  const collectionIds = new Set<string>();
   const sources = value.sources.map((source) => {
-    if (!source || typeof source.id !== "string" || typeof source.collectionId !== "string") {
+    if (!source || typeof source.id !== "string" || !source.id || !isPlainObject(source.locator)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache contains an invalid source.");
     }
-    if (!source.id || !source.collectionId || sourceIds.has(source.id) || collectionIds.has(source.collectionId)) {
+    if (sourceIds.has(source.id)) {
       throw new HonuaDiscoveryError(
         "invalid-discovery-cache",
         "Discovery cache source identifiers must be unique non-empty strings.",
       );
     }
     sourceIds.add(source.id);
-    collectionIds.add(source.collectionId);
+    validateSnapshotLocator(source.id, source.locator, target);
+    if (source.schema?.fields !== undefined && !Array.isArray(source.schema.fields)) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source schema fields must be an array.");
+    }
+    if (source.evidence !== undefined && (!Array.isArray(source.evidence) || source.evidence.length === 0)) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source evidence must be a non-empty array.");
+    }
+    if (source.evidence === undefined && value.evidence.length === 0) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source has no capability evidence.");
+    }
     return Object.freeze({
       id: source.id,
-      collectionId: source.collectionId,
+      locator: Object.freeze({ ...source.locator }),
       ...(source.title ? { title: source.title } : {}),
       ...(source.description ? { description: source.description } : {}),
       ...(source.crs ? { crs: Object.freeze([...source.crs]) } : {}),
+      ...(source.schema
+        ? {
+            schema: Object.freeze({
+              ...source.schema,
+              ...(source.schema.fields ? { fields: Object.freeze([...source.schema.fields]) } : {}),
+            }),
+          }
+        : {}),
+      ...(source.evidence ? { evidence: Object.freeze([...source.evidence]) } : {}),
     });
   });
-  if (collectionId && (sources.length !== 1 || sources[0]?.collectionId !== collectionId)) {
+  if (collectionId && (sources.length !== 1 || String(sources[0]?.locator.collectionId ?? "") !== collectionId)) {
     throw new HonuaDiscoveryError(
       "invalid-discovery-cache",
       "Discovery cache snapshot does not match the requested collection.",
@@ -506,6 +563,54 @@ function validateSnapshot(
   return Object.freeze({ ...value, evidence: Object.freeze([...value.evidence]), sources: Object.freeze(sources) });
 }
 
+function validateSnapshotLocator(sourceId: string, locator: SourceLocator, target: ConnectTarget): void {
+  if (target.protocol === "ogc-features") {
+    if (
+      locator.url !== target.endpoint ||
+      locator.layout !== "ogc-api" ||
+      typeof locator.collectionId !== "string" ||
+      !locator.collectionId ||
+      sourceId !== locator.collectionId
+    ) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Cached OGC source locator does not match the endpoint.",
+      );
+    }
+    return;
+  }
+  if (
+    locator.url !== target.clientBaseUrl ||
+    locator.serviceId !== target.serviceId ||
+    !Number.isInteger(locator.layerId) ||
+    sourceId !== String(locator.layerId) ||
+    (target.layerId !== undefined && locator.layerId !== target.layerId)
+  ) {
+    throw new HonuaDiscoveryError(
+      "invalid-discovery-cache",
+      "Cached GeoServices source locator does not match the service endpoint.",
+    );
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new HonuaAbortError();
+}
+
+function uniqueDiagnostics(values: readonly DiscoveryDiagnostic[]): readonly DiscoveryDiagnostic[] {
+  const seen = new Set<string>();
+  return Object.freeze(
+    values.filter((value) => {
+      const key = `${value.code}\u0000${value.message}\u0000${value.capabilities?.join(",") ?? ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }),
+  );
 }
