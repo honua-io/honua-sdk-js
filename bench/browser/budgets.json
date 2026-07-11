@@ -1,0 +1,22 @@
+{
+  "$comment": [
+    "These are regression-safety budgets for deterministic headless browser journeys, not product SLAs.",
+    "They intentionally detect hangs, missing output, interaction breakage, and extreme instability.",
+    "They must never be used to claim performance superiority over another SDK."
+  ],
+  "schemaVersion": 1,
+  "variability": {
+    "warningCoefficientOfVariation": 0.35,
+    "failureCoefficientOfVariation": 0.75
+  },
+  "scenarios": {
+    "maplibre.flagship-render-interact": {
+      "firstVisibleMs": { "warning": 5000, "failure": 15000 },
+      "interactionLatencyMs": { "warning": 750, "failure": 2000 }
+    },
+    "deckgl.binary-render-interact": {
+      "firstVisibleMs": { "warning": 5000, "failure": 15000 },
+      "interactionLatencyMs": { "warning": 750, "failure": 2000 }
+    }
+  }
+}

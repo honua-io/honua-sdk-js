@@ -1,6 +1,6 @@
 # SDK benchmark methodology
 
-The benchmark program has three deliberately separate lanes. Keeping them
+The benchmark program has four deliberately separate lanes. Keeping them
 separate prevents a fast local regression check from being confused with a live
 service SLA or a competitor comparison.
 
@@ -44,6 +44,40 @@ migration harness, browser smoke, bundle/API gates, and split-package checks.
 The MCP, integration/conformance, security, staging, and scheduled workflows are
 unchanged.
 
+## Browser rendering and interaction lane
+
+`npm run bench:browser` runs credential-free Chromium journeys against only
+local deterministic fixtures. The MapLibre scenario exercises the shipped
+flagship through first visible WebGL output and linked popup selection. The
+deck.gl scenario sends 10,000 binary points through the supported Honua adapter,
+asserts zero SDK attribute-buffer copies, waits for a rendered frame, and proves
+picking resolves the expected stable feature identity. Console/page errors,
+visible state, PNG hashes, raw timings, browser/WebGL/host metadata, and repeated
+sample variance are retained in the CI artifact.
+
+The absolute warning/failure values in `bench/browser/budgets.json` are broad
+regression-safety bounds for the pinned headless environment. They detect hangs,
+lost output, broken interaction, and severe instability; they are not latency
+SLAs. The initial interaction bounds include the next visible animation frame,
+which is materially slower under software-rendered SwiftShader than an event
+handler alone. Budget changes require a reviewed diff with old and candidate
+artifacts.
+
+The browser report always declares `crossSdkComparable: false`. In particular:
+
+- do not compare these results with numbers from vendor marketing, different
+  examples, different data, or a separately timed live service;
+- do not label the Honua MapLibre scenario as a Mapbox comparison merely because
+  both use related style or rendering concepts;
+- do not label the Honua deck.gl adapter scenario as a CARTO comparison merely
+  because CARTO applications may use deck.gl;
+- do not publish a vendor ranking until equivalent, license-compliant reference
+  applications, one fixture, one interaction definition, one host, and a
+  reviewed statistical protocol exist in this repository.
+
+Until those conditions are met, the only valid statement is that a candidate
+Honua commit stayed within or exceeded Honua's own reviewed regression budget.
+
 ## Scheduled live evidence
 
 `.github/workflows/benchmark-live.yml` is schedule/manual only. It probes the
@@ -71,11 +105,9 @@ Every target records:
 - journey time to the first successful query and its visible data outcome
 
 These HTTP probes explicitly mark browser console and accessibility evidence as
-not applicable. The future browser journey corpus should record time to the
-first successful interaction, visible map/application outcome, console errors,
-accessibility results, and user-facing performance as distinct metrics. It may
-fully rework the current sample portfolio; existing pages are not benchmark
-preservation constraints.
+not applicable. Browser rendering and interaction evidence is recorded only by
+the separate deterministic lane above; an HTTP probe must never imply that a
+page was rendered or interacted with.
 
 `honua-site` may consume the uploaded artifact for its public samples/gallery,
 but must preserve the status and freshness fields. Missing, stale, failed, or
