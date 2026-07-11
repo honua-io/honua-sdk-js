@@ -18,6 +18,11 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 
 - [Shared Client Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/shared-client-contract.md): Dataset / Source / Query / Result contract design and semantics.
 - [Deterministic query planner](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/query-planner.md): Deterministic query IR and explain plans, GeoServices pushdown, and safe bounded-local execution policy.
+- [Columnar batch transfer contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/columnar-data-plane.md): Bounded dependency-free columnar batches, transferable backing buffers, ownership, cancellation, and receipts.
+- [Resumable realtime delivery](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/realtime-resume.md): Durable realtime checkpoints, ordered resume, deduplication, gap handling, cancellation, and credential-free envelopes.
+- [Plugin manifest and certification contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/plugin-manifest-certification.md): Versioned data-only plugin manifests with deterministic compatibility and authority-boundary certification.
+- [deck.gl binary adapter (experimental)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/deckgl-adapter.md): Bounded zero-copy typed-array projection into an optional deck.gl peer with deterministic lifecycle semantics.
+- [Experimental Cesium entity adapter](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/cesium-entity-adapter.md): Bounded accepted-plan projection into an optional Cesium peer with stable entity identity and disposal.
 - [Downloadable offline regions (experimental)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/offline-regions.md): Bounded downloadable-region manifests, logical-byte quota CAS, byte isolation, integrity, and storage-neutral transactions.
 - [North-star SDK application-kernel contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/decisions/north-star-sdk-application-kernel.md): Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.
 - [Protocol × Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/protocol-capability-matrix.md): Which operations each protocol supports and where capabilities fall back.

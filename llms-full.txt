@@ -24,7 +24,7 @@ This file concatenates the documents indexed in `llms.txt` for single-fetch inge
 **Release status: beta.** The 20-entrypoint stable tier is frozen and guarded by an
 API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
 [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
-The complete inventory also contains 5 experimental subpaths and 18 deprecated
+The complete inventory also contains 6 experimental subpaths and 18 deprecated
 compatibility subpaths. [`config/public-surface.json`](./config/public-surface.json)
 is the machine-readable source consumed by CI, API reporting, TypeDoc, and
 downstream documentation projection.
@@ -454,6 +454,7 @@ default-barrel import never pulls them in.
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
+| `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
 
 ## Deprecated compatibility entrypoints
 
@@ -1979,6 +1980,714 @@ columnar/worker execution, cache/freshness decisions, cost models, realtime
 snapshot/delta plans, receipts, golden cross-protocol fixtures, and shared
 CLI/renderer/MCP consumption. Histogram and time-series aggregation are
 rejected by this compiler rather than silently ignored.
+
+---
+
+# File: docs/columnar-data-plane.md
+
+# Columnar batch transfer contract
+
+`@honua/sdk-js/query-planner` includes the first bounded data-plane slice for large query
+results. It defines a dependency-free Honua batch envelope and an ownership
+transfer primitive. Arrow/GeoArrow adapters may populate its buffers and
+metadata, but the envelope does not define a standalone Arrow layout and is not
+independently interoperable without the originating adapter's layout contract.
+It does not decode Arrow, execute queries, or create workers.
+
+The entrypoint is experimental while the broader planner, streaming, renderer,
+and realtime work in issue #394 is completed.
+
+## Create a batch without copying payload bytes
+
+```ts
+import { createColumnarBatch, leaseColumnarBatch } from "@honua/sdk-js/query-planner";
+
+const coordinates = new Float64Array([21.31, -157.86, 21.44, -157.77]);
+const batch = createColumnarBatch({
+  id: "places:0",
+  sequence: 0,
+  rowCount: 2,
+  schema: {
+    id: "places-schema-v1",
+    fields: [
+      {
+        name: "geometry",
+        type: { name: "geoarrow.point", parameters: { dimensions: 2 } },
+        nullable: false,
+        metadata: { "ARROW:extension:name": "geoarrow.point" },
+      },
+    ],
+    metadata: { crs: "EPSG:4326" },
+  },
+  buffers: [
+    {
+      id: "geometry.values",
+      field: "geometry",
+      role: "geometry",
+      data: coordinates.buffer,
+      byteOffset: coordinates.byteOffset,
+      byteLength: coordinates.byteLength,
+    },
+  ],
+});
+
+const lease = leaseColumnarBatch(batch);
+const receipt = await lease.transfer((message, transfer) => {
+  worker.postMessage(message, { transfer: [...transfer] });
+});
+
+console.log(receipt.metrics);
+// { rows: 2, logicalBytes: 32, backingBytes: 32,
+//   transferBytes: 32, copiedBytes: 0, ... }
+```
+
+Payload bytes are never copied. Schema and metadata descriptors are normalized
+and frozen, while batch creation retains each caller-provided `ArrayBuffer`.
+Multiple views over one buffer produce one transfer-list entry. Zero-byte
+backing buffers are valid; detached buffers are rejected using an attachment
+check that distinguishes the two cases.
+
+## Memory ceilings
+
+Creation and transfer default to at most 1,000,000 rows and 64 MiB of unique
+backing allocations per batch. Descriptor normalization also defaults to at
+most 4,096 total schema fields, 8,192 metadata/type-parameter entries, 16,384
+buffer views, and 1 MiB of UTF-8 descriptor identifiers, keys, and string
+values. The corresponding `maxRows`, `maxBackingBytes`, `maxSchemaNodes`,
+`maxMetadataEntries`, `maxBufferViews`, and `maxStringBytes` limits may be
+lowered or explicitly raised; there is no unbounded mode.
+
+Array widths are checked from one captured length before element access, and
+metadata keys are accumulated only to the configured bound. Normalization
+therefore fails before copying an oversized schema or descriptor list. Empty
+views and many views sharing one small backing allocation still count against
+`maxBufferViews`; they cannot bypass the CPU/heap ceiling by keeping
+`backingBytes` low.
+
+Limits supplied when a lease is created remain its transfer defaults, so a
+deliberately raised ceiling is not accidentally replaced by the global default.
+A transfer may tighten either ceiling; a pre-handoff limit failure leaves the
+lease owned and invokes no target.
+
+`backingBytes` sums `ArrayBuffer.byteLength` for every unique backing allocation.
+It does not claim operating-system resident or physical memory usage.
+This intentionally rejects a tiny view backed by an unexpectedly large buffer.
+`logicalBytes` is the sum of described view lengths and can differ when views
+overlap or share memory. `copiedBytes` is always zero for this API.
+
+## Ownership, cancellation, and acknowledgement
+
+A `ColumnarBatchLease` starts in `owned` and can be transferred once. Live
+leases reserve their unique backing buffers, so the same batch—or another batch
+sharing one buffer—cannot be leased concurrently. Disposal releases the
+reservation.
+
+The SDK checks an `AbortSignal`, then performs a structured-clone ownership
+transfer itself before invoking the consumer. The original buffers are detached,
+the lease becomes `transferred`, and the consumer receives the SDK-owned clone
+plus its exact transfer list for an optional subsequent worker/port handoff. The
+optional promise returned by the consumer is an acknowledgement and
+backpressure boundary.
+
+Cancellation only applies before ownership handoff. If the consumer throws or
+acknowledgement fails, the error is `transport-failed`, but the lease stays
+`transferred`: the original buffers are already detached and retrying them would
+be unsafe. A limit or structured-clone failure before handoff leaves the lease
+owned.
+
+`dispose()` is idempotent for an owned or transferred lease and releases the
+lease's references. It cannot revoke other references held by the caller.
+
+## Typed errors
+
+`HonuaColumnarTransferError.code` is one of:
+
+- `invalid-batch`
+- `row-limit-exceeded`
+- `memory-limit-exceeded`
+- `schema-limit-exceeded`
+- `metadata-limit-exceeded`
+- `buffer-view-limit-exceeded`
+- `string-limit-exceeded`
+- `already-leased`
+- `aborted`
+- `already-transferred`
+- `disposed`
+- `transport-failed`
+
+## Deliberate remaining scope
+
+This slice does not claim the full #394 workstream. Arrow IPC decoding,
+filter/projection/reprojection/aggregation workers, multi-batch streaming,
+planner integration, renderer consumption, batch cache identity, realtime
+patches, CSP worker factories, and bounded conversion back to feature objects
+remain separate work.
+
+---
+
+# File: docs/realtime-resume.md
+
+# Resumable realtime delivery
+
+The `@honua/sdk-js/realtime` subpath includes an opt-in, transport-neutral
+delivery gate for snapshot-plus-delta streams. It sits between a transport and
+the existing realtime reducer/store. The gate does not open or reconnect a
+network transport; it decides whether an event is safe to apply and whether a
+durable cursor can resume the exact accepted subscription.
+
+```ts
+import {
+  createRealtimeFeatureStore,
+  createResumableRealtimeSubscription,
+} from "@honua/sdk-js/realtime";
+
+const featureStore = createRealtimeFeatureStore();
+const delivery = await createResumableRealtimeSubscription({
+  context: {
+    kind: "honua.realtime-resume-context",
+    version: 1,
+    sourceId: "incidents",
+    queryFingerprint: acceptedPlan.fingerprint,
+    sourceVersion: "incident-snapshot-v7",
+    schemaVersion: "incident-schema-v3",
+    authorizationScopeFingerprint: aclFingerprint,
+  },
+  checkpointStore: durableCheckpointStore,
+  apply: (event, signal) => {
+    if (signal.aborted) return;
+    featureStore.apply(event);
+  },
+});
+
+transportObserver.next = (event) => {
+  if (event.type === "snapshot" || event.type === "delta" || event.type === "upsert" || event.type === "delete") {
+    void delivery.enqueue(event);
+  }
+};
+```
+
+## Safety model
+
+A `honua.realtime-checkpoint@1` binds all resume positions to:
+
+- source identity and source version;
+- accepted query/plan fingerprint;
+- schema version;
+- an opaque authorization-scope fingerprint;
+- the last contiguous sequence plus available cursor, watermark, timestamp,
+  and delta-token positions;
+- a bounded recent event-id window.
+
+Changing any bound identity produces `resnapshot-required`; the SDK never
+silently reuses the cursor. A new subscription without a compatible checkpoint
+also requires a replacement snapshot before deltas can apply.
+
+Adapters project a server-expired cursor, an unsupported resume mode, or a
+transport-detected gap through `delivery.requireResnapshot(...)`. That method
+invalidates queued work and accepts only a replacement snapshot next; it does
+not silently restart from the newest delta.
+
+After a baseline exists, only the next contiguous safe-integer sequence can
+advance it. Older sequences are reported as duplicates. Missing sequences,
+conflicting top-level/nested checkpoint fields, or reuse of a recent event id
+at a new sequence stop delivery and require a replacement snapshot. A
+replacement snapshot received during ordinary live delivery must advance the
+existing sequence; a stale or equal snapshot cannot regress the baseline. A
+replacement snapshot may establish a lower sequence only after an explicit
+`requireResnapshot(...)` transition, which marks a deliberate new recovery
+epoch. Accepted replacement snapshots reset the bounded event-id window.
+
+`enqueue` treats transport input as untrusted at runtime. Only snapshot,
+upsert, delete, and delta discriminators reach the consumer. The SDK captures
+event identity and resume metadata synchronously, projects only cursor,
+watermark, timestamp, sequence, and delta-token fields into the versioned
+checkpoint envelope, and drops unrelated fields before application or
+persistence. Caller mutation after enqueue therefore cannot change durable
+deduplication identity, and credentials or adapter metadata cannot hitchhike
+inside a saved checkpoint.
+
+The persisted recent-event-id history defaults to 256 entries and has an
+absolute 4,096-entry safety ceiling. Oversized loaded histories are rejected
+before their elements are scanned; accepted histories are copied directly from
+their configured bounded tail.
+
+This first gate requires a trustworthy monotonic sequence on every snapshot or
+delta. Cursor-only and delta-token-only protocols are not silently assigned a
+client sequence: their future adapters must obtain an ordering guarantee from
+the server or report resume as unsupported and resnapshot.
+
+## Backpressure and cancellation
+
+`maxPendingEvents` bounds the applying event plus queued data events (default
+64). Overflow aborts the active delivery, resolves queued work as
+`resnapshot-required`, and refuses more deltas. One replacement snapshot may
+wait behind an abort-ignoring consumer because it is the only recovery path;
+ordinary data remains bounded. Consumers should honor the supplied
+`AbortSignal` and make application idempotent, because JavaScript cannot undo a
+side effect already performed by a callback that ignores cancellation.
+
+Closing or aborting the gate prevents any later result from advancing its
+checkpoint. Consumer errors leave the prior checkpoint unchanged. Checkpoint
+save errors are explicit: the in-memory accepted position remains visible with
+`checkpointPersisted: false`, phase becomes `error`, and no further events are
+accepted by that gate.
+
+Without a `checkpointStore`, accepted checkpoints remain available in memory
+but `checkpointPersisted` stays false. Callers may persist them as part of their
+own atomic application transaction; the SDK does not claim durability it did
+not observe.
+
+Checkpoint persistence occurs after successful consumer application. This is
+an at-least-once boundary, not a transaction spanning an arbitrary application
+store and checkpoint database. Applications that require atomic exactly-once
+effects must persist their materialized state and checkpoint transactionally,
+or use event ids/versions to make replay idempotent.
+
+## Scope and remaining work
+
+This is the first production slice of issue
+[#393](https://github.com/honua-io/honua-sdk-js/issues/393), not completion of
+the full workstream. It does not claim:
+
+- automatic SSE, WebSocket, OData-delta, or protocol-feed reconnection;
+- cursor-only protocol adaptation where no trustworthy ordering sequence is
+  available;
+- server support for cursor retention or expiry negotiation;
+- renderer, cache, columnar-batch, or offline-store patch integration;
+- lag/retry transport telemetry or a shared transport conformance suite.
+
+Adapters should declare unsupported resume behavior before subscription when
+the protocol can determine it. Expired server cursors must be projected as an
+explicit replacement-snapshot transition rather than fixture fallback or an
+unverified continuation.
+
+---
+
+# File: docs/plugin-manifest-certification.md
+
+# Plugin manifest and certification contract
+
+The experimental `@honua/sdk-js/plugin` entrypoint is the first bounded slice
+of the plugin SDK tracked by [issue #392](https://github.com/honua-io/honua-sdk-js/issues/392).
+It lets a third-party package describe its compatibility and authority boundary
+as inert JSON, then produces a deterministic report for a specific host.
+
+This slice does **not** import plugin code, install packages, maintain a global
+registry, or pass credentials to an extension. A certified manifest means only
+that its declaration is well formed and compatible with the supplied host
+snapshot. Behavioral fixtures, cancellation, retries, cleanup, performance,
+runtime registration, and support-program review remain future certification
+phases.
+
+## Authoring a manifest
+
+```ts
+import {
+  HONUA_PLUGIN_API_VERSION,
+  HONUA_PLUGIN_MANIFEST_VERSION,
+  certifyHonuaPluginManifest,
+  type HonuaPluginManifest,
+} from "@honua/sdk-js/plugin";
+
+const manifest = {
+  manifestVersion: HONUA_PLUGIN_MANIFEST_VERSION,
+  id: "com.example.cloud-tiles",
+  version: "1.0.0",
+  kind: "protocol",
+  package: { name: "@example/honua-cloud-tiles", entrypoint: "./plugin.js" },
+  compatibility: {
+    pluginApi: HONUA_PLUGIN_API_VERSION,
+    minimumSdk: "0.1.0-beta.0",
+    maximumSdkExclusive: "0.2.0",
+    environments: ["browser", "worker"],
+  },
+  capabilities: ["tiles"],
+  requestedGrants: { networkOrigins: ["https://tiles.example.com"] },
+  data: {
+    cache: "memory",
+    freshness: "ttl",
+    authentication: "none",
+    provenance: "preserved",
+    mutation: "none",
+    realtime: "none",
+  },
+  lifecycle: { initialization: "explicit", disposal: "required" },
+  support: "community",
+} as const satisfies HonuaPluginManifest<"protocol">;
+
+const host = {
+  pluginApi: HONUA_PLUGIN_API_VERSION,
+  sdkVersion: "0.1.0-beta.0",
+  environment: "browser",
+  grants: { networkOrigins: ["https://tiles.example.com"] },
+};
+
+// The trust boundary accepts JSON text, never executable object values.
+const report = certifyHonuaPluginManifest(JSON.stringify(manifest), JSON.stringify(host));
+```
+
+`JSON.stringify` is appropriate for trusted application-owned literals like
+the example above. Do not import an untrusted plugin module and stringify its
+exports: serialization itself can run getters or Proxy traps before the SDK is
+called. Read third-party manifest bytes as text (for example, from the package
+file or an HTTP response) and pass that text directly to the validator.
+
+The report contains no time, machine path, or random identifier, so the same
+manifest and host snapshot serialize identically. Its `manifest` and `host`
+blocks contain the complete canonical snapshots plus SHA-256 fingerprints;
+changing an entrypoint, capability, data semantic, requested authority, peer,
+grant, environment, API version, or SDK version changes the corresponding
+fingerprint. CI can reject when `status` is `"rejected"` and archive the deeply
+frozen JSON as certification evidence without permitting manifest/host swaps.
+The top-level `sha256` covers every other report field, including both complete
+snapshots, their hashes, status, checks, and diagnostics. It is an integrity
+receipt for externally archived evidence, not a signature or proof of issuer.
+
+## Compatibility policy
+
+- `manifestVersion` and `pluginApi` are exact versions. Unknown versions fail
+  closed; consumers must not guess how to reinterpret them.
+- SDK and peer bounds use exact SemVer values rather than arbitrary range
+  expressions. `minimumSdk` is inclusive and `maximumSdkExclusive` is optional.
+- Prerelease ordering follows SemVer, so `0.1.0-beta.2` satisfies a
+  `0.1.0-beta.0` minimum but does not satisfy `0.1.0`.
+- SemVer parsing is linear-time over ASCII input and comparison uses SemVer's
+  deterministic ASCII identifier order rather than the process locale.
+- Environment and peer checks use only the explicit host snapshot. A missing
+  required peer rejects certification; a missing optional peer is a warning.
+- This experimental API is not yet the GA compatibility promise requested by
+  #392. Promotion requires the remaining runtime and independent-kit phases.
+
+## Security boundary
+
+- Network grants are exact HTTPS origins. Wildcards, paths, embedded
+  credentials, and non-TLS origins are rejected.
+- Credential grants contain scope identifiers only—never tokens, passwords,
+  headers, environment-variable names, or credential values.
+- Persistent data requires scoped storage. Declared mutation requires an
+  explicit mutation grant. Authenticated access requires credential scopes.
+- Capability semantics also fail closed. `protocol:edit` and
+  `source-format:write` require both `data.mutation: "explicit"` and a mutation
+  grant; `cache:write` and `cache:invalidate` require persistent-cache semantics
+  and scoped storage. The full machine-readable mapping is exported as
+  `HONUA_PLUGIN_CAPABILITY_REQUIRED_GRANTS`.
+- Certification fails if the application grant set is weaker than the plugin
+  request. A report is not itself an enforcement mechanism; the future host
+  runtime must inject only the certified grants and must never expose ambient
+  credentials or mutation authority.
+- The package entrypoint is repeatedly percent-decoded to a stable form before
+  validation, normalized in the certified snapshot, and rejected on encoded or
+  literal traversal, absolute escape, backslashes, query/fragment suffixes, or
+  malformed/excessive encoding. This API never resolves or executes it.
+- Manifest and host inputs must be JSON text. Raw objects—including accessors,
+  proxies, custom prototypes, symbols, functions, and other executable or
+  noncloneable values—are rejected from their primitive `typeof` result before
+  any reflection or user code can run. A side-effect-free lexical pass enforces
+  text, depth, and node-count bounds before `JSON.parse` materializes values.
+  Validation and fingerprinting then use only the parser-created, detached,
+  deeply frozen snapshot; caller objects are never reflected on or returned.
+
+## Extension inventory
+
+The closed `HONUA_PLUGIN_KINDS` and `HONUA_PLUGIN_CAPABILITIES` registries cover
+protocol, source/format, renderer, auth, geocoder/routing, analysis, style,
+cache, and realtime declarations. Capability names are kind-specific so a
+manifest cannot inflate its advertised surface with unknown strings. The
+manifest also records support status and cache, freshness, auth, provenance,
+mutation, realtime, peer, environment, and disposal semantics for inventory
+tools.
+
+## Remaining work in #392
+
+- typed lifecycle hooks and explicit per-application registration/DI;
+- behavioral conformance fixtures for semantics, cancellation, retries,
+  cleanup, bundle metadata, and performance;
+- an independently installable runner/CLI and signed or golden reports;
+- an external-style plugin proving runtime registration without core imports;
+- deprecation, naming, support, security-review, and certification governance.
+
+---
+
+# File: docs/deckgl-adapter.md
+
+# deck.gl binary adapter (experimental)
+
+`@honua/sdk-js/deckgl` is a renderer-neutral boundary between Honua plan/source
+identity and deck.gl binary layer data. It is an experimental first slice of
+[#388](https://github.com/honua-io/honua-sdk-js/issues/388), not the complete
+GPU analytics workstream.
+
+The adapter currently projects scatterplot data from caller-owned typed arrays.
+It does not convert to GeoJSON or create one object per feature. Array views are
+forwarded to deck.gl unchanged and `projection.metrics.copiedBytes` is always
+zero. Default ceilings reject more than 1,000,000 rows, 32 attributes, 64
+forwarded properties, or 256 MiB of unique backing allocations before a deck.gl
+layer is constructed.
+
+The adapter reads foreign request, data, identity, attribute, and property
+descriptors once into a bounded frozen snapshot. Typed-array byte length,
+offset, component width, and backing allocation metrics come from JavaScript
+intrinsics rather than overridable getters. Attribute offsets and strides must
+be component-aligned, and `normalized`, when present, must be boolean.
+
+## Optional peer
+
+deck.gl is not part of the root SDK dependency graph:
+
+```sh
+npm install @deck.gl/layers
+```
+
+Load the peer lazily or inject the constructor from an existing deck.gl install:
+
+```ts
+import { createDeckGlAdapter, loadDeckGlPeers } from "@honua/sdk-js/deckgl";
+
+const adapter = createDeckGlAdapter({ peers: await loadDeckGlPeers() });
+```
+
+Injecting peers is useful for import maps, custom builds, and tests. The lazy
+loader never chooses a CDN and reports `HonuaDeckGlAdapterError` with code
+`missing-peer` when the package or required export is unavailable.
+
+## Binary projection and picking identity
+
+```ts
+const positions = new Float32Array([157.85, 21.3, 157.86, 21.31]);
+const featureIds = new Uint32Array([301, 302]);
+
+const projection = adapter.project({
+  layer: "scatterplot",
+  layerId: "incidents",
+  data: {
+    length: 2,
+    attributes: {
+      getPosition: { value: positions, size: 2 },
+    },
+  },
+  identity: {
+    sourceId: "incidents-live",
+    planId: "plan:sha256:…",
+    sourceVersion: "42",
+    featureIds,
+  },
+  props: { radiusUnits: "meters" },
+});
+
+projection.selectionForPick(1);
+// { sourceId, planId, sourceVersion, featureId: 302, rowIndex: 1 }
+```
+
+`featureIds` is copied once into a private bounded scalar array at projection
+construction. Picks never reread caller-owned identity or row-count objects, so
+later caller mutation cannot change selection identity. This identity copy is
+separate from the binary payload; geometry and attribute buffers remain
+zero-copy. A caller can map the pick result into exploration/selection state
+without relying on unstable deck.gl object identity.
+
+Mounting uses a small host contract so standalone Deck instances and MapLibre
+overlay owners can retain control of their own layer collections:
+
+```ts
+const mounted = projection.mount(host); // host implements addLayer/removeLayer
+mounted.dispose();
+adapter.dispose(); // also disposes every still-owned mount
+```
+
+Successful removal is idempotent. If a host removal throws, the handle stays
+owned and reports `dispose-failed`; calling `mounted.dispose()` or
+`adapter.dispose()` again retries it. Mount registration happens before the
+foreign `addLayer` callback, so synchronous adapter disposal rolls the newly
+added layer back before `mount()` returns.
+
+## Diagnostics and boundaries
+
+`DECK_GL_CAPABILITIES` is the capability truth for this contract version.
+Scatterplot is `gpu-binary`; feature path/polygon, vector tile, H3, Quadbin,
+heatmap, cluster, contour, and trips are explicitly `not-implemented`. The
+projection diagnostic reports the chosen strategy, input-array precision,
+fidelity, and absence of an implicit fallback. Unsupported or malformed paths
+throw a typed error rather than materializing feature objects or silently
+downgrading.
+
+Remaining #388 work includes normative Arrow/GeoArrow mappings after the
+columnar data-plane contract lands, indexed and aggregate layer families,
+realtime buffer patch/rebuild rules, direct MapLibre overlay and standalone Deck
+hosts, WebGPU boundaries, and the million-feature browser benchmark against
+[#387](https://github.com/honua-io/honua-sdk-js/issues/387).
+
+---
+
+# File: docs/cesium-entity-adapter.md
+
+# Experimental Cesium entity adapter
+
+`@honua/sdk-js/scene-workspace` exposes an experimental accepted-plan workflow
+for projecting a canonical `Source` query into a Cesium `EntityCollection`:
+
+```ts
+import { explainQuery } from "@honua/sdk-js/query-planner";
+import { mountSourceToCesium } from "@honua/sdk-js/scene-workspace";
+
+const plan = explainQuery({
+  descriptor: source.descriptor,
+  query: {
+    pagination: { limit: 5_000 },
+    returnGeometry: true,
+    outSr: 4326,
+  },
+  sourceVersion,
+  schemaVersion,
+  authorizationScope,
+});
+
+const mounted = await mountSourceToCesium(viewer.entities, source, plan, {
+  sourceVersion,
+  schemaVersion,
+  authorizationScope,
+  time: { startField: "observed_at", endField: "expires_at" },
+  verticalDatum: "ellipsoidal-wgs84",
+});
+
+await mounted.refresh();
+mounted.dispose();
+```
+
+The core projection (`projectSourceToCesium`) does not import Cesium. Mounting
+accepts either a minimal injected Cesium module or async loader; if neither is
+provided, the optional `cesium` peer is imported lazily. Importing the
+entrypoint in Node/SSR therefore does not initialize a browser or WebGL runtime.
+
+## Supported slice
+
+- One accepted, remote `query` step whose executable query exactly matches the
+  canonical IR, with explicit geometry and a positive row limit no greater than
+  `maxEntities` (10,000 by default).
+- Explicit WGS84 output (`outSr: 4326`). Coordinates are never silently
+  reinterpreted or reprojected.
+- Point, single-part line, and single-ring polygon geometries in GeoJSON or
+  common Esri shapes. Finite Z values require an explicit
+  `verticalDatum: "ellipsoidal-wgs84"`; otherwise the feature is omitted with
+  a stable fidelity diagnostic.
+- Stable entity identity from `featureIdField` or the source primary key.
+- Attributes are copied into deeply frozen JSON-like scalar, dense-array, and
+  plain-object snapshots. Dates, class instances, sparse arrays, accessors, and
+  other non-JSON values omit the feature with an unsupported-fidelity
+  diagnostic rather than retaining mutable caller-owned objects.
+- Optional offset-bearing ISO instants with at most millisecond precision, or
+  integer Unix epoch-millisecond start/end attributes, mapped to Cesium
+  availability intervals. Ambiguous local-time strings and precision-losing
+  timestamps are omitted with a fidelity diagnostic.
+- Serialized snapshot refresh, cancellation checks before renderer mutation,
+  reentrant-disposal guards, rollback attempts, deterministic cleanup, and
+  retryable failed disposal.
+- Stable diagnostics for transfer-limited results, source degradation, missing
+  identity, unsupported geometry, invalid time intervals, and snapshot rebuilds.
+
+Unsupported features are omitted with `fidelity: "unsupported"`; they are not
+rendered as plausible substitutes. Invalid plans, CRS, limits, and adapter
+options fail before mounting.
+
+## Deliberate non-goals for this slice
+
+This is not completion of issue #395 and is not yet a beta Cesium adapter.
+Terrain and imagery providers, glTF/models, point clouds and 3D Tiles continue
+through the existing scene primitive adapter. Multi-part geometry and polygon
+holes, vertical datum transforms, styling, clustering, streaming/tiled
+execution, live deltas, camera/selection/filter synchronization, attribution
+UI, asset authorization/caching, browser examples, and WebGL leak/performance
+certification remain future work.
+
+Refresh currently declares an `entity-snapshot` rebuild boundary. Stable IDs
+are preserved across rebuilds, but this first slice does not claim fine-grained
+property or sampled-position delta application.
+
+---
+
+# File: docs/offline-regions.md
+
+# Downloadable offline regions (experimental)
+
+`@honua/sdk-js/offline` is the first bounded slice of issue
+[#396](https://github.com/honua-io/honua-sdk-js/issues/396). It defines a
+versioned manifest and a storage-neutral download coordinator. It does not make
+the broader local-first feature complete.
+
+```ts
+import {
+  createOfflineRegionManifest,
+  downloadOfflineRegion,
+} from "@honua/sdk-js/offline";
+
+const manifest = await createOfflineRegionManifest({
+  name: "Field area",
+  sourceId: "incidents",
+  endpoint: "https://example.test/FeatureServer/0",
+  authorizationScopeFingerprint: currentAclFingerprint,
+  bounds: { minX: -158.3, minY: 21.4, maxX: -157.6, maxY: 21.8, crs: "EPSG:4326" },
+  minZoom: 8,
+  maxZoom: 14,
+  sourceVersion: "source-v3",
+  schemaVersion: "schema-v7",
+  planVersion: "plan-v2",
+  observation: { state: "live", observedAt: "2026-07-10T10:00:00Z" },
+  resources: plannedResources,
+});
+
+const receipt = await downloadOfflineRegion(manifest, {
+  store: applicationStore,
+  load: applicationResourceLoader,
+  logicalQuotaBytes: 512 * 1024 * 1024,
+  signal: abortController.signal,
+  onProgress: renderProgress,
+});
+```
+
+## Contract guarantees
+
+- Manifest identity is deterministic over normalized content. Resource ids,
+  attribution ids, and object keys use locale-independent code-unit ordering.
+- URL credentials and recognized signed/auth query parameters are removed.
+  Only a domain-separated SHA-256 digest of the caller's authorization scope
+  fingerprint is persisted.
+- Every resource has an exact logical byte length and required SHA-256 digest.
+  Loader output is copied into coordinator-owned memory before hashing, progress,
+  or writing, so later loader mutation cannot alter committed bytes. Each resource also carries
+  source, schema, plan, and attribution identities inherited from the manifest
+  unless the planner supplies more specific versions. Snapshot observation,
+  validity, expiration, and HTTP validators remain explicit instead of making
+  cached bytes appear live.
+- Untrusted manifests are synchronously normalized into an owned snapshot before
+  any hash or adapter await. Plain shapes, dense arrays, resource/attribution/
+  metadata counts, logical bytes, and incremental UTF-8 string bytes are bounded
+  before copying, sorting, or canonical JSON construction.
+- Quota is explicitly **logical payload-byte quota**: it sums declared resource
+  payload lengths and does not claim physical disk occupancy, unique backing
+  bytes, compression, deduplication, or store overhead. Admission is deterministic:
+  expired regions, then least-recently-used regions, then code-unit id order.
+  Pinned regions are never automatically evicted.
+- The injected transaction stages evictions and writes, then publishes them
+  atomically with the manifest and receipt. Commit compares the inventory
+  revision used for planning and independently enforces logical quota in the
+  same atomic mutation; a concurrent winner makes the loser return typed
+  `inventory-changed` and roll back. Storage implementations must copy bytes
+  before `write()` resolves and satisfy this CAS/atomicity contract.
+- Progress is explicit across planning, download, write, commit, and completion.
+  A successful receipt reports `integrity: "verified"` and
+  `quotaAccounting: "logical-payload-bytes"`.
+
+The manifest contains logical resource ids, not request URLs. The injected
+loader may resolve short-lived signed URLs or authorization at download time;
+those values never cross the persistent-store boundary.
+
+## Non-goals and remaining work
+
+This slice intentionally provides no IndexedDB or service-worker adapter, no
+network reachability policy, no resumable partial transaction, no encryption
+policy, no storage schema migration, no cached query/read integration, and no
+local edit queue or replica conflict replay. Those remain required before issue
+#396 can satisfy its GA acceptance criteria. This entrypoint is `@experimental`
+and subpath-only so the root and browser bundles do not absorb it.
 
 ---
 
@@ -4275,7 +4984,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-11 at commit `6307dd6`._
+_Generated 2026-07-11 at commit `36281ba`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -4284,6 +4993,7 @@ _Generated 2026-07-11 at commit `6307dd6`._
 | `/contract` | 232.0 KiB | 235.3 KiB | 60.1 KiB | 66.1 KiB |
 | `/runtime` | 425.3 KiB | 458.7 KiB | 110.9 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
+| `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/esri-compat` | 943.4 KiB | 1026.2 KiB | 233.7 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
