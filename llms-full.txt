@@ -24,7 +24,7 @@ This file concatenates the documents indexed in `llms.txt` for single-fetch inge
 **Release status: beta.** The 20-entrypoint stable tier is frozen and guarded by an
 API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
 [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
-The complete inventory also contains 4 experimental subpaths and 18 deprecated
+The complete inventory also contains 5 experimental subpaths and 18 deprecated
 compatibility subpaths. [`config/public-surface.json`](./config/public-surface.json)
 is the machine-readable source consumed by CI, API reporting, TypeDoc, and
 downstream documentation projection.
@@ -338,7 +338,7 @@ correctly use this SDK:
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
     `@honua/sdk-js/cli`.
   - **Experimental** (subpath-only — not re-exported from the root barrels): `/agent-tools`,
-    `/geoparquet`, `/query-planner`, `/plugin`.
+    `/geoparquet`, `/query-planner`, `/plugin`, `/deckgl`.
   - **Application-platform surfaces** (`/app`, `/app-controller`, `/app-workspace`,
     `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
     `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,
@@ -453,6 +453,7 @@ default-barrel import never pulls them in.
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
+| `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
 
 ## Deprecated compatibility entrypoints
 
@@ -534,6 +535,7 @@ Node-only or REST-only consumer never pays the install cost:
 | Integration | Peer to install |
 |-------------|-----------------|
 | MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
+| deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
 | gRPC-Web transport (`new HonuaClient({ transport: "grpc-web" })`) | `npm install @connectrpc/connect @connectrpc/connect-web @bufbuild/protobuf` |
 | Geometry ops (`@honua/sdk-js/geometry`) | `npm install proj4 @turf/buffer @turf/area …` (only the ops you import) — or use the `@honua/geometry` split package |
@@ -4273,7 +4275,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-11 at commit `0e2601f`._
+_Generated 2026-07-11 at commit `ac22dd0`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -4290,6 +4292,7 @@ _Generated 2026-07-11 at commit `0e2601f`._
 | `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
 | `/map` | 79.5 KiB | 87.4 KiB | 21.8 KiB | 24.0 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 14.6 KiB | 15.8 KiB | 5.4 KiB | 5.8 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 11.5 KiB | 12.5 KiB | 4.1 KiB | 4.4 KiB |
 | `/react` (react/react-dom external) | 377.3 KiB | 405.7 KiB | 97.6 KiB | 104.5 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 431.8 KiB | 452.7 KiB | 115.4 KiB | 119.7 KiB |

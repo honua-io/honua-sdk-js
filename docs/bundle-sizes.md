@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-11 at commit `0e2601f`._
+_Generated 2026-07-11 at commit `ac22dd0`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -25,6 +25,7 @@ _Generated 2026-07-11 at commit `0e2601f`._
 | `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
 | `/map` | 79.5 KiB | 87.4 KiB | 21.8 KiB | 24.0 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 14.6 KiB | 15.8 KiB | 5.4 KiB | 5.8 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 11.5 KiB | 12.5 KiB | 4.1 KiB | 4.4 KiB |
 | `/react` (react/react-dom external) | 377.3 KiB | 405.7 KiB | 97.6 KiB | 104.5 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 431.8 KiB | 452.7 KiB | 115.4 KiB | 119.7 KiB |

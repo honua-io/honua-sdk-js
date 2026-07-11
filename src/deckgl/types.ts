@@ -53,6 +53,7 @@ export interface DeckGlProjectionRequest {
 export interface DeckGlProjectionLimits {
   readonly maxRows: number;
   readonly maxAttributes: number;
+  readonly maxProps: number;
   /** Unique `ArrayBuffer` backing allocations, not the sum of overlapping views. */
   readonly maxBackingBytes: number;
 }
@@ -62,6 +63,7 @@ export interface DeckGlProjectionMetrics {
   readonly attributes: number;
   readonly logicalViewBytes: number;
   readonly uniqueBackingBytes: number;
+  /** Binary attribute payload bytes copied by the SDK; excludes scalar picking identity. */
   readonly copiedBytes: 0;
 }
 
@@ -106,7 +108,9 @@ export interface DeckGlLayerHost {
 
 export interface DeckGlMountedProjection {
   readonly layer: DeckGlLayer;
+  /** False while removal has failed and remains retryable. */
   readonly disposed: boolean;
+  /** Idempotent after success; a failed removal can be retried. */
   dispose(): void;
 }
 
@@ -132,6 +136,7 @@ export type HonuaDeckGlAdapterErrorCode =
   | "invalid-data"
   | "limit-exceeded"
   | "unsupported-layer"
+  | "dispose-failed"
   | "disposed";
 
 export class HonuaDeckGlAdapterError extends Error {

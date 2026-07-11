@@ -8,8 +8,15 @@ GPU analytics workstream.
 The adapter currently projects scatterplot data from caller-owned typed arrays.
 It does not convert to GeoJSON or create one object per feature. Array views are
 forwarded to deck.gl unchanged and `projection.metrics.copiedBytes` is always
-zero. Default ceilings reject more than 1,000,000 rows, 32 attributes, or 256
-MiB of unique backing allocations before a deck.gl layer is constructed.
+zero. Default ceilings reject more than 1,000,000 rows, 32 attributes, 64
+forwarded properties, or 256 MiB of unique backing allocations before a deck.gl
+layer is constructed.
+
+The adapter reads foreign request, data, identity, attribute, and property
+descriptors once into a bounded frozen snapshot. Typed-array byte length,
+offset, component width, and backing allocation metrics come from JavaScript
+intrinsics rather than overridable getters. Attribute offsets and strides must
+be component-aligned, and `normalized`, when present, must be boolean.
 
 ## Optional peer
 
@@ -59,9 +66,12 @@ projection.selectionForPick(1);
 // { sourceId, planId, sourceVersion, featureId: 302, rowIndex: 1 }
 ```
 
-`featureIds` stays columnar and is only read for a picked row. A caller can map
-that result into its exploration/selection state without relying on unstable
-deck.gl object identity.
+`featureIds` is copied once into a private bounded scalar array at projection
+construction. Picks never reread caller-owned identity or row-count objects, so
+later caller mutation cannot change selection identity. This identity copy is
+separate from the binary payload; geometry and attribute buffers remain
+zero-copy. A caller can map the pick result into exploration/selection state
+without relying on unstable deck.gl object identity.
 
 Mounting uses a small host contract so standalone Deck instances and MapLibre
 overlay owners can retain control of their own layer collections:
@@ -69,8 +79,14 @@ overlay owners can retain control of their own layer collections:
 ```ts
 const mounted = projection.mount(host); // host implements addLayer/removeLayer
 mounted.dispose();
-adapter.dispose(); // also disposes every still-owned mount; idempotent
+adapter.dispose(); // also disposes every still-owned mount
 ```
+
+Successful removal is idempotent. If a host removal throws, the handle stays
+owned and reports `dispose-failed`; calling `mounted.dispose()` or
+`adapter.dispose()` again retries it. Mount registration happens before the
+foreign `addLayer` callback, so synchronous adapter disposal rolls the newly
+added layer back before `mount()` returns.
 
 ## Diagnostics and boundaries
 
