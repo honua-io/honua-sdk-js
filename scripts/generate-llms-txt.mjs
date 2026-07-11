@@ -80,7 +80,7 @@ const SECTIONS = [
       {
         path: "docs/query-planner.md",
         description:
-          "Deterministic query IR and explain plans, GeoServices pushdown, and safe bounded-local execution policy.",
+          "Deterministic query IR and explain plans, GeoServices and OGC API Features pushdown, and safe bounded-local execution policy.",
       },
       {
         path: "docs/columnar-data-plane.md",

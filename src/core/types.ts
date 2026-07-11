@@ -731,6 +731,8 @@ export interface OgcItemsRequest extends OgcCollectionRequest {
   bbox?: string;
   datetime?: string;
   filter?: string;
+  /** CQL2 encoding used by `filter` when the server advertises Part 3 filtering. */
+  filterLang?: "cql2-text" | "cql2-json" | (string & {});
   ids?: string | readonly (string | number)[];
   properties?: string | readonly string[];
   sortby?: string;

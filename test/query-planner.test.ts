@@ -118,6 +118,7 @@ describe("explainQuery", () => {
     });
     const remote = plan.steps[0];
     if (!remote || remote.engine !== "remote") throw new Error("expected a remote plan step");
+    if (remote.compiled.compiler !== "geoservices-rest-query-v1") throw new Error("expected GeoServices compiler");
     expect(remote.compiled.outStatistics).toEqual([
       { statisticType: "count", onStatisticField: "OBJECTID", outStatisticFieldName: "incident_count" },
       { statisticType: "avg", onStatisticField: "duration", outStatisticFieldName: "average_duration" },

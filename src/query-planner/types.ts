@@ -117,6 +117,22 @@ export interface GeoServicesCompiledQueryV1 {
   readonly groupByFieldsForStatistics?: string;
 }
 
+/** Inspectable OGC API Features `/items` request produced without I/O. */
+export interface OgcApiFeaturesCompiledQueryV1 {
+  readonly compiler: "ogc-api-features-query-v1";
+  readonly collectionId: string | number;
+  readonly filter?: string;
+  readonly filterLang?: "cql2-text";
+  readonly properties?: readonly string[];
+  readonly sortby?: string;
+  readonly bbox?: string;
+  readonly crs?: string;
+  readonly offset?: number;
+  readonly limit?: number;
+}
+
+export type RemoteCompiledQueryV1 = GeoServicesCompiledQueryV1 | OgcApiFeaturesCompiledQueryV1;
+
 export interface RemoteQueryPlanStep {
   readonly id: string;
   readonly engine: "remote";
@@ -126,7 +142,7 @@ export interface RemoteQueryPlanStep {
   readonly reason: string;
   readonly requests: number;
   readonly query: CanonicalQuery;
-  readonly compiled: GeoServicesCompiledQueryV1;
+  readonly compiled: RemoteCompiledQueryV1;
 }
 
 export interface LocalAggregatePlanStep {

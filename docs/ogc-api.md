@@ -9,6 +9,12 @@ adapter. It complements the design notes in
 [`shared-client-contract.md`](./shared-client-contract.md) and the
 capability matrix in [`protocol-capability-matrix.md`](./protocol-capability-matrix.md).
 
+Canonical OGC API Features queries can be explained before execution through
+`@honua/sdk-js/query-planner`. The deterministic
+`ogc-api-features-query-v1` output exposes the collection, CQL2 text filter,
+properties, sort, bbox, CRS, and paging request without fetching metadata or
+rows. See [Deterministic query planner](./query-planner.md#remote-pushdown).
+
 ## Conformance areas covered
 
 | Area | Surface | Source protocol | Notes |

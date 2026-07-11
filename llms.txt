@@ -17,7 +17,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 ## Core contract and API
 
 - [Shared Client Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/shared-client-contract.md): Dataset / Source / Query / Result contract design and semantics.
-- [Deterministic query planner](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/query-planner.md): Deterministic query IR and explain plans, GeoServices pushdown, and safe bounded-local execution policy.
+- [Deterministic query planner](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/query-planner.md): Deterministic query IR and explain plans, GeoServices and OGC API Features pushdown, and safe bounded-local execution policy.
 - [Columnar batch transfer contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/columnar-data-plane.md): Bounded dependency-free columnar batches, transferable backing buffers, ownership, cancellation, and receipts.
 - [Resumable realtime delivery](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/realtime-resume.md): Durable realtime checkpoints, ordered resume, deduplication, gap handling, cancellation, and credential-free envelopes.
 - [Plugin manifest and certification contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/plugin-manifest-certification.md): Versioned data-only plugin manifests with deterministic compatibility and authority-boundary certification.

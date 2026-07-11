@@ -2,6 +2,7 @@ import type { AggregationSpec } from "../contract/types.js";
 import { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
 import { compileGeoServicesQuery } from "./geoservices.js";
 import { createQueryIr, deepFreeze } from "./ir.js";
+import { compileOgcApiFeaturesQuery } from "./ogc-features.js";
 import {
   type CanonicalQuery,
   type ExplainQueryOptions,
@@ -11,7 +12,9 @@ import {
   QUERY_PLAN_VERSION,
   type QueryExecutionPlanV1,
   type QueryFallbackPolicy,
+  type QueryIrSourceIdentity,
   type QueryPlanStep,
+  type RemoteCompiledQueryV1,
 } from "./types.js";
 
 export function explainQuery<T>(options: ExplainQueryOptions<T>): QueryExecutionPlanV1 {
@@ -37,11 +40,13 @@ export function explainQuery<T>(options: ExplainQueryOptions<T>): QueryExecution
       );
     }
     rejectUnsafeEstimate(fallback, estimates.rows, estimates.bytes);
+    const ogcFallback = ir.source.protocol === "ogc-features";
     const inputQuery = localAggregateInputQuery(
       ir.query,
       ir.query.aggregation,
       fallback.maxRows,
       options.descriptor.schema?.primaryKey,
+      { preserveGeometry: ogcFallback, adapterOwnsLookahead: ogcFallback },
     );
     steps = [
       {
@@ -50,10 +55,10 @@ export function explainQuery<T>(options: ExplainQueryOptions<T>): QueryExecution
         operation: "queryAll",
         pushdown: "partial",
         fidelity: "exact",
-        reason: `Push filters and projection to GeoServices, fetching at most ${fallback.maxRows + 1} rows as an overflow sentinel.`,
+        reason: `Push filters and projection to ${remoteEngineName(ir.source.protocol)}, fetching at most ${fallback.maxRows + 1} rows as an overflow sentinel.`,
         requests: estimates.requests ?? 1,
         query: inputQuery,
-        compiled: compileGeoServicesQuery(ir.source, inputQuery),
+        compiled: compileRemoteQuery(ir.source, inputQuery, "queryAll"),
       },
       {
         id: "local-aggregate",
@@ -70,6 +75,11 @@ export function explainQuery<T>(options: ExplainQueryOptions<T>): QueryExecution
     ];
     pushdown = "partial";
     warnings.push("Execution is degraded and will be rejected if the bounded input ceiling is exceeded.");
+    if (ir.source.protocol === "ogc-features") {
+      warnings.push(
+        "OGC API Features may transfer geometry because /items has no portable geometry-suppression parameter.",
+      );
+    }
   } else {
     const capability = ir.query.aggregation ? "queryAggregate" : "query";
     if (!ir.source.capabilities.includes(capability)) {
@@ -85,10 +95,10 @@ export function explainQuery<T>(options: ExplainQueryOptions<T>): QueryExecution
         operation: ir.query.aggregation ? "queryAggregate" : "query",
         pushdown: "full",
         fidelity: "exact",
-        reason: "GeoServices can execute the complete canonical query remotely.",
+        reason: `${remoteEngineName(ir.source.protocol)} can execute the complete canonical query remotely.`,
         requests: estimates.requests ?? 1,
         query: ir.query,
-        compiled: compileGeoServicesQuery(ir.source, ir.query),
+        compiled: compileRemoteQuery(ir.source, ir.query),
       },
     ];
     pushdown = "full";
@@ -113,6 +123,36 @@ export function explainQuery<T>(options: ExplainQueryOptions<T>): QueryExecution
     id: `plan_${fingerprint.slice("sha256:".length, "sha256:".length + 16)}`,
     fingerprint,
   });
+}
+
+function compileRemoteQuery(
+  source: QueryIrSourceIdentity,
+  query: CanonicalQuery,
+  operation: "query" | "queryAll" | "queryAggregate" = "query",
+): RemoteCompiledQueryV1 {
+  switch (source.protocol) {
+    case "geoservices-feature-service":
+      return compileGeoServicesQuery(source, query);
+    case "ogc-features":
+      return ogcQueryAllWireRequest(compileOgcApiFeaturesQuery(source, query), operation);
+    default:
+      throw new HonuaQueryPlanningError(
+        "unsupported-compiler",
+        `No deterministic query compiler is registered for protocol "${source.protocol}"`,
+      );
+  }
+}
+
+function ogcQueryAllWireRequest(
+  compiled: Extract<RemoteCompiledQueryV1, { compiler: "ogc-api-features-query-v1" }>,
+  operation: "query" | "queryAll" | "queryAggregate",
+): RemoteCompiledQueryV1 {
+  if (operation !== "queryAll" || compiled.limit === undefined) return compiled;
+  return deepFreeze({ ...compiled, limit: compiled.limit + 1 });
+}
+
+function remoteEngineName(protocol: QueryIrSourceIdentity["protocol"]): string {
+  return protocol === "ogc-features" ? "OGC API Features" : "GeoServices";
 }
 
 export function hashQueryPlan(plan: QueryExecutionPlanV1): `sha256:${string}` {
@@ -184,6 +224,7 @@ function localAggregateInputQuery(
   aggregation: AggregationSpec,
   maxRows: number,
   primaryKey?: string,
+  options: { preserveGeometry?: boolean; adapterOwnsLookahead?: boolean } = {},
 ): CanonicalQuery {
   if (aggregation.histogram || aggregation.timeSeries) {
     throw new HonuaQueryPlanningError(
@@ -206,7 +247,11 @@ function localAggregateInputQuery(
   return deepFreeze({
     ...base,
     ...(requiredFields.size > 0 ? { outFields: [...requiredFields].sort() } : {}),
-    returnGeometry: false,
-    pagination: { offset: 0, limit: maxRows + 1 },
+    ...(!options.preserveGeometry ? { returnGeometry: false } : {}),
+    // The OGC Source.queryAll adapter owns the overflow sentinel: a logical
+    // N-row ceiling becomes an N + 1 wire request and is reported through
+    // exceededTransferLimit. GeoServices retains its established explicit
+    // sentinel in the canonical step for backward-compatible plan output.
+    pagination: { offset: 0, limit: maxRows + (options.adapterOwnsLookahead ? 0 : 1) },
   });
 }

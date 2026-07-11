@@ -3864,7 +3864,10 @@ function extractExtentEnvelope(response: unknown): {
 function toOgcRequest<T>(request?: Query<T>): Record<string, unknown> {
   if (!request) return {};
   const out: Record<string, unknown> = {};
-  if (request.where !== undefined) out.filter = request.where;
+  if (request.where !== undefined) {
+    out.filter = request.where;
+    out.filterLang = "cql2-text";
+  }
   if (request.outFields && request.outFields.length > 0) out.properties = [...request.outFields];
   if (request.outSr !== undefined) out.crs = String(request.outSr);
   if (request.pagination) {

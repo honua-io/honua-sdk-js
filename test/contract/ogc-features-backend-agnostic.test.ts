@@ -99,6 +99,35 @@ describe("ogc-features backend-agnostic / layout resolver", () => {
 });
 
 describe("ogc-features backend-agnostic / identical Result across layouts", () => {
+  it("labels canonical where expressions as CQL2 text on the wire", async () => {
+    let observed: URL | undefined;
+    const client = routeClient({
+      baseUrl: "https://facade.honua.test",
+      onRequest: (url) => {
+        observed = url;
+      },
+      routes: [["/ogc/features/collections/lakes/items", () => fixture("pygeoapi/items-lakes.json")]],
+    });
+    const source = createDataset({
+      id: "facade",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "lakes",
+          protocol: "ogc-features",
+          locator: { url: "https://facade.honua.test", collectionId: "lakes" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES["ogc-features"],
+        } satisfies SourceDescriptor,
+      ],
+    }).source("lakes")!;
+
+    await source.query({ where: "featureclass = 'Lake'", pagination: { limit: 3 } });
+
+    expect(observed?.searchParams.get("filter")).toBe("featureclass = 'Lake'");
+    expect(observed?.searchParams.get("filter-lang")).toBe("cql2-text");
+  });
+
   function facadeSource() {
     const client = routeClient({
       baseUrl: "https://facade.honua.test",
