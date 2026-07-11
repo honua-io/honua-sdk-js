@@ -18,7 +18,8 @@
     "{ HonuaClient } from the root entry must stay under its ceiling, proving a single",
     "symbol does not drag the whole SDK into a consumer bundle.",
     "/react and /geometry landed with the adoption-wave-1 bundle (issues #349/#351). /esri-compat's budget was reset for the geometryEngine shim's turf/proj4 backing; 'tree-shake:esri-compat-FeatureLayerCompat' guards that compat consumers who never touch geometryEngine keep paying only the pre-shim cost. 'tree-shake:geometry-buffer' is intentionally large: @turf/buffer carries a JSTS port (~66 KiB gzip); light ops like area() shake down to ~1 KiB.",
-    "/map was reset for the accepted-plan source workflow (#390): 62.6 to 79.5 KiB min and 16.2 to 21.8 KiB gzip after removing the generic aggregate executor. Keeping the adapter on /map preserves the canonical endpoint-to-map import; 'tree-shake:map-source-workflow' isolates its 17.1 KiB min / 6.4 KiB gzip consumer cost."
+    "/map was reset for the accepted-plan source workflow (#390): 62.6 to 79.5 KiB min and 16.2 to 21.8 KiB gzip after removing the generic aggregate executor. Keeping the adapter on /map preserves the canonical endpoint-to-map import; 'tree-shake:map-source-workflow' isolates its 17.1 KiB min / 6.4 KiB gzip consumer cost.",
+    "/contract gzip was reset for credential-safe discovery (#391): provider-aware Azure SAS, CloudFront, AWS, and GCS signed-URL normalization plus runtime evidence-kind validation. The measured 61,493 bytes gzip is budgeted at 67,643 bytes per the 10% headroom policy."
   ],
   "entrypoints": {
     ".": {
@@ -31,7 +32,7 @@
     },
     "/contract": {
       "min": 240908,
-      "gzip": 61140
+      "gzip": 67643
     },
     "/runtime": {
       "min": 469747,

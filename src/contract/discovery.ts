@@ -25,6 +25,8 @@ import {
 export type DiscoveryEvidenceKind = "metadata" | "declared" | "inferred" | "unavailable";
 export type DiscoveryState = DiscoveryEvidenceKind | "mixed";
 
+const DISCOVERY_EVIDENCE_KINDS: readonly DiscoveryEvidenceKind[] = ["metadata", "declared", "inferred", "unavailable"];
+
 export interface DiscoveryProvenance {
   readonly source: string;
   readonly retrievedAt?: string;
@@ -519,7 +521,11 @@ function normalizeEvidence(
   return Object.freeze(
     values.map((value, index): NormalizedEvidenceRecord => {
       const path = `evidence[${index}]`;
-      const observed = value.kind === "unavailable" ? new Set<Capability>() : capabilitySet(value.capabilities, path);
+      const kind = discoveryEvidenceKind(value, path);
+      const observed =
+        kind === "unavailable"
+          ? new Set<Capability>()
+          : capabilitySet((value as { readonly capabilities: readonly Capability[] }).capabilities, path);
       const scope = value.scope
         ? capabilitySet(value.scope, `${path}.scope`)
         : new Set<Capability>([...adapter, ...observed]);
@@ -539,20 +545,34 @@ function normalizeEvidence(
       );
       const original = Object.freeze({
         ...value,
-        ...(value.kind !== "unavailable" ? { capabilities: Object.freeze([...observed]) } : {}),
+        ...(kind !== "unavailable" ? { capabilities: Object.freeze([...observed]) } : {}),
         ...(value.scope ? { scope: Object.freeze([...scope]) } : {}),
         ...(provenance.length > 0 ? { provenance } : {}),
       }) as DiscoveryCapabilityEvidence;
       return Object.freeze({
-        kind: value.kind,
+        kind,
         capabilities: observed,
         scope,
-        ...(value.kind === "inferred" || value.kind === "unavailable" ? { reason: value.reason } : {}),
+        ...(kind === "inferred" || kind === "unavailable"
+          ? { reason: (value as { readonly reason: string }).reason }
+          : {}),
         provenance,
         original,
       });
     }),
   );
+}
+
+function discoveryEvidenceKind(value: unknown, path: string): DiscoveryEvidenceKind {
+  const kind = value !== null && typeof value === "object" ? (value as { readonly kind?: unknown }).kind : undefined;
+  if (!(DISCOVERY_EVIDENCE_KINDS as readonly unknown[]).includes(kind)) {
+    throw new HonuaDiscoveryError(
+      "invalid-capability",
+      `${path}.kind must be one of ${DISCOVERY_EVIDENCE_KINDS.join(", ")}; received "${String(kind)}".`,
+      { path: `${path}.kind`, kind },
+    );
+  }
+  return kind as DiscoveryEvidenceKind;
 }
 
 function evidenceSummary(record: NormalizedEvidenceRecord, capability: Capability): DiscoveryCapabilityEvidenceSummary {
@@ -727,6 +747,26 @@ function isCredentialEndpointParameter(normalized: string): boolean {
   );
 }
 
+const AZURE_SAS_PARAMETER =
+  /^(?:rscc|rscd|rsce|rscl|rsct|saoid|scid|sdd|se|ses|sig|sip|si|ske|skoid|sks|skt|sktid|skv|sp|spr|sr|srt|ss|st|suoid|sv)$/;
+const CLOUDFRONT_SIGNED_URL_PARAMETER = /^(?:expires|key-pair-id|policy|signature)$/;
+const AWS_V2_SIGNED_URL_PARAMETER = /^(?:awsaccesskeyid|expires|securitytoken|signature)$/;
+const GCS_V2_SIGNED_URL_PARAMETER = /^(?:expires|googleaccessid|signature)$/;
+
+function signedUrlTransientParameter(parameters: URLSearchParams): (name: string) => boolean {
+  const names = new Set([...parameters.keys()].map((name) => name.toLowerCase()));
+  const azure = names.has("sig") && [...names].some((name) => name !== "sig" && AZURE_SAS_PARAMETER.test(name));
+  const signedV2 = names.has("signature");
+  const cloudFront = signedV2 && names.has("key-pair-id");
+  const aws = signedV2 && names.has("awsaccesskeyid");
+  const gcs = signedV2 && names.has("googleaccessid");
+  return (name) =>
+    (azure && AZURE_SAS_PARAMETER.test(name)) ||
+    (cloudFront && CLOUDFRONT_SIGNED_URL_PARAMETER.test(name)) ||
+    (aws && AWS_V2_SIGNED_URL_PARAMETER.test(name)) ||
+    (gcs && GCS_V2_SIGNED_URL_PARAMETER.test(name));
+}
+
 function normalizeEndpoint(endpoint: string | URL, omit: (key: string) => boolean): string {
   let parsed: URL;
   try {
@@ -737,8 +777,9 @@ function normalizeEndpoint(endpoint: string | URL, omit: (key: string) => boolea
   parsed.username = "";
   parsed.password = "";
   parsed.hash = "";
+  const isSignedUrlTransient = signedUrlTransientParameter(parsed.searchParams);
   const retained = [...parsed.searchParams.entries()]
-    .filter(([key]) => !omit(key))
+    .filter(([key]) => !omit(key) && !isSignedUrlTransient(key.toLowerCase()))
     .sort(([leftKey, leftValue], [rightKey, rightValue]) =>
       leftKey === rightKey ? compareText(leftValue, rightValue) : compareText(leftKey, rightKey),
     );

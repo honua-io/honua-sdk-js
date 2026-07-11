@@ -276,6 +276,19 @@ describe("contract / discovery capability truth", () => {
       expect(isHonuaError(error)).toBe(true);
     }
   });
+
+  it("rejects unknown runtime evidence kinds before reading the record payload", () => {
+    const evidence = {
+      kind: "metdata",
+      get capabilities(): never {
+        throw new Error("capabilities must not be read for an invalid evidence kind");
+      },
+    };
+
+    expect(() => resolveDiscoveryCapabilities("ogc-features", evidence as never)).toThrowError(
+      expect.objectContaining({ name: "HonuaDiscoveryError", code: "invalid-capability" }),
+    );
+  });
 });
 
 describe("contract / discovery cache identity", () => {
@@ -300,6 +313,86 @@ describe("contract / discovery cache identity", () => {
     expect(secrets).toBe("https://geo.example.test/data?layer=roads");
     expect(roads).toBe(buildings);
     expect(roads).toBe("https://geo.example.test/data");
+  });
+
+  it("redacts complete Azure SAS and CloudFront signing families without changing logical cache identity", async () => {
+    const base = {
+      protocol: "auto" as const,
+      authorizationScopeFingerprint: "scope:cdn-reader:v1",
+    };
+    const azureFirst = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint:
+        "https://storage.example.test/container/roads.pmtiles?dataset=roads&sv=2024-11-04&se=2026-07-10T23%3A00Z&sp=r&sr=b&st=2026-07-10T22%3A00Z&spr=https&sip=192.0.2.1&skoid=object-one&sktid=tenant-one&skt=one&ske=two&sks=b&skv=2024-11-04&sig=AZURE_SECRET_ONE",
+    });
+    const azureRotated = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint:
+        "https://storage.example.test/container/roads.pmtiles?sig=AZURE_SECRET_TWO&skv=2025-01-05&sks=c&ske=four&skt=three&sktid=tenant-two&skoid=object-two&sip=198.51.100.2&spr=https&st=2026-07-11T00%3A00Z&sr=c&sp=rw&se=2026-07-12T00%3A00Z&sv=2025-01-05&dataset=roads",
+    });
+    const cloudFrontFirst = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint:
+        "https://cdn.example.test/tiles/archive.pmtiles?variant=web&Expires=1780000000&Policy=POLICY_ONE&Signature=CLOUDFRONT_SECRET_ONE&Key-Pair-Id=KONE",
+    });
+    const cloudFrontRotated = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint:
+        "https://cdn.example.test/tiles/archive.pmtiles?Key-Pair-Id=KTWO&Signature=CLOUDFRONT_SECRET_TWO&Policy=POLICY_TWO&Expires=1790000000&variant=web",
+    });
+
+    expect(azureFirst).toEqual(azureRotated);
+    expect(azureFirst.endpoint).toBe("https://storage.example.test/container/roads.pmtiles?dataset=roads");
+    expect(cloudFrontFirst).toEqual(cloudFrontRotated);
+    expect(cloudFrontFirst.endpoint).toBe("https://cdn.example.test/tiles/archive.pmtiles?variant=web");
+    for (const identity of [azureFirst, azureRotated, cloudFrontFirst, cloudFrontRotated]) {
+      expect(JSON.stringify(identity)).not.toMatch(
+        /AZURE_SECRET|CLOUDFRONT_SECRET|object-|tenant-|POLICY_|KONE|KTWO|Expires|Policy|Key-Pair-Id/,
+      );
+    }
+  });
+
+  it("normalizes AWS and GCS v2 signed URLs while preserving unsigned resource query distinctions", async () => {
+    const base = {
+      protocol: "auto" as const,
+      authorizationScopeFingerprint: "scope:object-reader:v1",
+    };
+    const awsFirst = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint:
+        "https://objects.example.test/roads?resource=roads&AWSAccessKeyId=AKIA_FIRST&Expires=1780000000&Signature=AWS_SECRET_ONE",
+    });
+    const awsRotated = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint:
+        "https://objects.example.test/roads?Signature=AWS_SECRET_TWO&Expires=1790000000&AWSAccessKeyId=AKIA_SECOND&resource=roads",
+    });
+    const gcsFirst = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint:
+        "https://storage.googleapis.test/roads?resource=roads&GoogleAccessId=first@example.test&Expires=1780000000&Signature=GCS_SECRET_ONE",
+    });
+    const gcsRotated = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint:
+        "https://storage.googleapis.test/roads?Signature=GCS_SECRET_TWO&Expires=1790000000&GoogleAccessId=second@example.test&resource=roads",
+    });
+    const unsignedRoads = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint: "https://geo.example.test/data?sv=resource-v1&Expires=revision-one&dataset=roads",
+    });
+    const unsignedBuildings = await createDiscoveryCacheIdentity({
+      ...base,
+      endpoint: "https://geo.example.test/data?sv=resource-v2&Expires=revision-two&dataset=buildings",
+    });
+
+    expect(awsFirst).toEqual(awsRotated);
+    expect(gcsFirst).toEqual(gcsRotated);
+    expect(awsFirst.endpoint).toBe("https://objects.example.test/roads?resource=roads");
+    expect(gcsFirst.endpoint).toBe("https://storage.googleapis.test/roads?resource=roads");
+    expect(unsignedRoads.endpoint).toContain("sv=resource-v1");
+    expect(unsignedRoads.endpoint).toContain("Expires=revision-one");
+    expect(unsignedRoads.key).not.toBe(unsignedBuildings.key);
   });
 
   it("creates stable scope- and resource-separated keys", async () => {
