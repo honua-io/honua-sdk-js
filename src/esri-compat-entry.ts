@@ -60,6 +60,22 @@ export type {
 } from "./esri-compat/color.js";
 export { parseFeatureLayerUrl, parseMapServiceUrl } from "./esri-compat/url.js";
 export type { ParsedFeatureLayerUrl, ParsedMapServiceUrl } from "./esri-compat/url.js";
+export { PortalCompat, PortalError } from "./esri-compat/portal.js";
+export type {
+  PortalCompatOptions,
+  PortalFeatureServiceOpenResult,
+  PortalGenerateTokenOptions,
+  PortalGetItemOptions,
+  PortalInfo,
+  PortalItem,
+  PortalOpenOptions,
+  PortalOpenResult,
+  PortalSearchOptions,
+  PortalSearchResult,
+  PortalSelf,
+  PortalServiceOpenResult,
+  PortalTokenCredential,
+} from "./esri-compat/portal.js";
 export {
   createArcGisTokenInterceptor,
   createEsriRequestInterceptors,
