@@ -17,6 +17,37 @@ export { compileGeoServicesQuery } from "./geoservices.js";
 export { canonicalizeQuery, createQueryIr, hashQueryIr, queryFromCanonical } from "./ir.js";
 export { explainQuery, hashQueryPlan } from "./planner.js";
 export {
+  ColumnarBatchLease,
+  createColumnarBatch,
+  inspectColumnarBatch,
+  leaseColumnarBatch,
+} from "../columnar/index.js";
+export {
+  COLUMNAR_BATCH_KIND,
+  COLUMNAR_BATCH_VERSION,
+  COLUMNAR_TRANSFER_KIND,
+  DEFAULT_COLUMNAR_BATCH_MAX_BACKING_BYTES,
+  DEFAULT_COLUMNAR_BATCH_MAX_ROWS,
+  HonuaColumnarTransferError,
+} from "../columnar/index.js";
+export type {
+  ColumnarBatchLeaseState,
+  ColumnarBatchLimits,
+  ColumnarBatchMetrics,
+  ColumnarBatchV1,
+  ColumnarBufferRole,
+  ColumnarBufferV1,
+  ColumnarFieldV1,
+  ColumnarSchemaV1,
+  ColumnarTransferErrorCode,
+  ColumnarTransferMessageV1,
+  ColumnarTransferOptions,
+  ColumnarTransferReceipt,
+  ColumnarTransferTarget,
+  ColumnarTypeV1,
+  CreateColumnarBatchInput,
+} from "../columnar/index.js";
+export {
   HonuaQueryPlanExecutionError,
   HonuaQueryPlanningError,
   MAX_LOCAL_MATERIALIZATION_ROWS,
