@@ -29,6 +29,7 @@ interface ExplorerApi {
   running: boolean;
   status: string;
   lastCount: number;
+  engineStartCount: number;
   lastEvidence?: OvertureExecutionEvidence;
   runQuery(lane?: OvertureLane, aoi?: Bbox): Promise<void>;
   cancel(): void;
@@ -84,12 +85,18 @@ function envelope([xmin, ymin, xmax, ymax]: Bbox) {
   };
 }
 
-async function fixtureBytes(): Promise<Uint8Array> {
+async function fixtureBytes(signal?: AbortSignal): Promise<Uint8Array> {
   fixtureBytesPromise ??= fetch(FIXTURE_URL).then(async (response) => {
     if (!response.ok) throw new Error(`Fixture request failed with HTTP ${response.status}.`);
     return new Uint8Array(await response.arrayBuffer());
   });
-  return fixtureBytesPromise;
+  if (!signal) return fixtureBytesPromise;
+  if (signal.aborted) throw signal.reason ?? new DOMException("Fixture load aborted.", "AbortError");
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const abort = () => reject(signal.reason ?? new DOMException("Fixture load aborted.", "AbortError"));
+    signal.addEventListener("abort", abort, { once: true });
+    void fixtureBytesPromise?.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
 }
 
 function renderLane(lane: OvertureLane): void {
@@ -107,7 +114,12 @@ function renderLane(lane: OvertureLane): void {
 function renderPlan(plan: OvertureQueryPlan): void {
   text("#metric-projection", plan.projection.join(", "));
   text("#metric-aoi", plan.aoi.join(", "));
-  text("#metric-files", `${plan.filesSelected} / ${plan.filesAvailable} via STAC bbox`);
+  text(
+    "#metric-files",
+    `${plan.filesSelected} / ${plan.filesAvailable} via ${
+      plan.filePruning === "pinned-stac-manifest-bbox" ? "pinned STAC manifest bbox" : "fixture manifest bbox"
+    }`,
+  );
   text("#metric-candidate-rows", number(plan.candidateRows));
   text("#metric-row-groups", `${number(plan.candidateRowGroups)} candidates`);
   text("#metric-memory-policy", `${plan.memoryLimitMiB} MiB`);
@@ -133,7 +145,7 @@ function renderEvidence(evidence: OvertureExecutionEvidence): void {
   text("#evidence-pruning", number(evidence.rowGroupsPruned));
   text(
     "#evidence-memory",
-    `${number(evidence.estimatedResultBytes)} bytes / ${evidence.plan.memoryLimitMiB} MiB ceiling`,
+    `${number(evidence.estimatedResultBytes)} / ${number(evidence.plan.maxResultBytes)} JS result bytes · ${evidence.plan.memoryLimitMiB} MiB DuckDB ceiling`,
   );
   text("#timing-sdk", milliseconds(evidence.timing.sdkPlanMs));
   text("#timing-network", milliseconds(evidence.timing.sourceProbeMs));
@@ -152,6 +164,7 @@ function clearResults(): void {
 }
 
 async function renderRows(rows: readonly OverturePlaceRow[], aoi: Bbox, generation: number): Promise<number> {
+  if (generation !== executionGeneration) throw new DOMException("Rendering was cancelled.", "AbortError");
   const started = performance.now();
   clearResults();
   const body = element<HTMLTableSectionElement>("#result-body");
@@ -190,6 +203,7 @@ async function renderRows(rows: readonly OverturePlaceRow[], aoi: Bbox, generati
     text("#result-summary", `${rendered} / ${rows.length} rows · GERS ids preserved`);
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   }
+  if (generation !== executionGeneration) throw new DOMException("Rendering was cancelled.", "AbortError");
   return performance.now() - started;
 }
 
@@ -251,7 +265,7 @@ async function executePlan(
   activeRuntime = runtime;
   const engineStarted = performance.now();
   try {
-    if (plan.lane === "fixture") await runtime.registerFileBuffer(FIXTURE_NAME, (await fixtureBytes()).slice());
+    if (plan.lane === "fixture") await runtime.registerFileBuffer(FIXTURE_NAME, (await fixtureBytes(signal)).slice());
     await runtime.query(
       `SET memory_limit='${plan.memoryLimitMiB}MB'; SET threads=1; SET preserve_insertion_order=false;`,
       {
@@ -277,13 +291,19 @@ async function executePlan(
     const source = dataset.source<Record<string, unknown>>("places");
     if (!source) throw new Error("GeoParquet source resolution failed.");
     const rows: OverturePlaceRow[] = [];
+    const encoder = new TextEncoder();
+    let estimatedResultBytes = 2;
     for await (const page of source.stream(createQuery(plan, signal))) {
-      for (const feature of page.features) rows.push(normalizeFeature(feature.attributes));
-      if (rows.length > plan.limit) throw new Error("Engine exceeded the declared row limit.");
-    }
-    const estimatedResultBytes = new TextEncoder().encode(JSON.stringify(rows)).byteLength;
-    if (estimatedResultBytes > plan.memoryLimitMiB * 1024 * 1024) {
-      throw new Error("Result exceeded the declared memory ceiling.");
+      for (const feature of page.features) {
+        if (rows.length >= plan.limit) throw new Error("Engine exceeded the declared row limit.");
+        const row = normalizeFeature(feature.attributes);
+        const rowBytes = encoder.encode(JSON.stringify(row)).byteLength + (rows.length === 0 ? 0 : 1);
+        if (estimatedResultBytes + rowBytes > plan.maxResultBytes) {
+          throw new Error(`Result exceeded the declared ${plan.maxResultBytes}-byte JavaScript output ceiling.`);
+        }
+        rows.push(row);
+        estimatedResultBytes += rowBytes;
+      }
     }
     return { rows, engineMs: performance.now() - engineStarted, estimatedResultBytes };
   } finally {
@@ -310,13 +330,16 @@ async function bootstrap(): Promise<void> {
     running: false,
     status: "ready",
     lastCount: 0,
+    engineStartCount: 0,
     async runQuery(laneOverride, aoiOverride) {
       executionGeneration += 1;
       const generation = executionGeneration;
       activeAbort?.abort();
-      await activeRuntime?.dispose().catch(() => undefined);
       const abort = new AbortController();
       activeAbort = abort;
+      const supersededRuntime = activeRuntime;
+      await supersededRuntime?.dispose().catch(() => undefined);
+      if (generation !== executionGeneration || abort.signal.aborted) return;
       const lane = laneOverride ?? (laneSelect.value as OvertureLane);
       renderLane(lane);
       api.running = true;
@@ -359,14 +382,21 @@ async function bootstrap(): Promise<void> {
         } else {
           api.status = "probing-source";
           text("#engine-state", lane === "live" ? "Verifying AWS range support" : "Loading bounded fixture");
-          const bytes = lane === "fixture" ? await fixtureBytes() : undefined;
+          const bytes = lane === "fixture" ? await fixtureBytes(abort.signal) : undefined;
           range =
             lane === "fixture"
               ? fixtureRangeEvidence(bytes?.byteLength ?? 0)
-              : await probeAwsRanges(plan.selectedObjects[0]!, { signal: abort.signal });
+              : await probeAwsRanges(plan.selectedObjects[0]!, {
+                  signal: abort.signal,
+                  timeoutMs: OVERTURE_POLICY.maxSourceProbeMs,
+                });
+          if (generation !== executionGeneration || abort.signal.aborted) {
+            throw new DOMException("Source preparation was superseded.", "AbortError");
+          }
           observedRange = range;
           if (range.status === "unsupported") throw new Error(range.limitation);
           api.status = "executing";
+          api.engineStartCount += 1;
           text("#engine-state", "DuckDB worker executing bounded columnar query");
           engineStartedAt = performance.now();
           let engineTimer: ReturnType<typeof setTimeout> | undefined;
@@ -381,6 +411,9 @@ async function bootstrap(): Promise<void> {
           const executed = await Promise.race([executePlan(plan, range, abort.signal), budgetExceeded]).finally(() => {
             if (engineTimer) clearTimeout(engineTimer);
           });
+          if (generation !== executionGeneration || abort.signal.aborted) {
+            throw new DOMException("Execution was superseded.", "AbortError");
+          }
           rows = executed.rows;
           engineExecutionMs = executed.engineMs;
           estimatedResultBytes = executed.estimatedResultBytes;
@@ -416,6 +449,7 @@ async function bootstrap(): Promise<void> {
         text("#engine-state", "Bounded query complete");
         text("#query-message", `${rows.length} rows returned in ${milliseconds(timing.totalMs)}.`);
       } catch (error) {
+        if (generation !== executionGeneration) return;
         const aborted = abort.signal.aborted || (error instanceof DOMException && error.name === "AbortError");
         api.status = engineBudgetExceeded
           ? "failed"
@@ -425,7 +459,7 @@ async function bootstrap(): Promise<void> {
               ? "rejected"
               : "failed";
         const message = engineBudgetExceeded
-          ? `Engine exceeded the ${planned?.maxEngineMs ?? OVERTURE_POLICY.maxEngineMs} ms execution budget; the worker was terminated without a full-download fallback.`
+          ? `Engine exceeded the ${planned?.maxEngineMs ?? OVERTURE_POLICY.maxEngineMs} ms execution budget; the worker was terminated without an application-level full-object retry. Engine transport remained opaque.`
           : error instanceof Error
             ? error.message
             : String(error);
@@ -475,7 +509,7 @@ async function bootstrap(): Promise<void> {
       runButton.disabled = false;
       cancelButton.disabled = true;
       text("#engine-state", "Cancellation requested");
-      text("#query-message", "The worker is being terminated; stale batches will be ignored.");
+      text("#query-message", "Cancellation requested; the worker is being terminated and stale batches are ignored.");
     },
   };
   window.__HONUA_OVERTURE__ = api;

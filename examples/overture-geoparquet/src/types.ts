@@ -31,8 +31,10 @@ export interface OvertureExecutionPolicy {
   readonly maxProjectedColumns: number;
   readonly maxAoiSquareDegrees: number;
   readonly memoryLimitMiB: number;
+  readonly maxResultBytes: number;
   readonly renderBatchSize: number;
   readonly maxEngineMs: number;
+  readonly maxSourceProbeMs: number;
 }
 
 export interface OvertureQueryInput {
@@ -54,12 +56,14 @@ export interface OvertureQueryPlan {
   readonly filesAvailable: number;
   readonly candidateRows: number;
   readonly candidateRowGroups: number;
-  readonly filePruning: "stac-bbox";
+  readonly filePruning: "fixture-manifest-bbox" | "pinned-stac-manifest-bbox";
   readonly rowGroupPruning: "bbox-predicate-planned-unverified";
-  readonly rangeReadPlan: "local-buffer" | "aws-header-and-footer-probe-plus-engine-ranges";
+  readonly rangeReadPlan: "local-buffer" | "aws-bounded-probes-plus-opaque-engine-transport";
   readonly cacheKey: string;
   readonly memoryLimitMiB: number;
+  readonly maxResultBytes: number;
   readonly maxEngineMs: number;
+  readonly maxSourceProbeMs: number;
   readonly warning: string;
 }
 

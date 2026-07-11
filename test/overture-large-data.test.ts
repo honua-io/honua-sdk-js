@@ -25,9 +25,10 @@ describe("Overture large-data flagship", () => {
       filesAvailable: 1,
       candidateRows: 8,
       candidateRowGroups: 1,
-      filePruning: "stac-bbox",
+      filePruning: "fixture-manifest-bbox",
       rowGroupPruning: "bbox-predicate-planned-unverified",
       memoryLimitMiB: 256,
+      maxResultBytes: 1_048_576,
     });
     expect(live).toMatchObject({
       limit: 100,
@@ -35,10 +36,13 @@ describe("Overture large-data flagship", () => {
       filesAvailable: 16,
       candidateRows: 4_717_270,
       candidateRowGroups: 256,
-      rangeReadPlan: "aws-header-and-footer-probe-plus-engine-ranges",
+      rangeReadPlan: "aws-bounded-probes-plus-opaque-engine-transport",
+      filePruning: "pinned-stac-manifest-bbox",
     });
     expect(fixture.projection).toHaveLength(OVERTURE_POLICY.maxProjectedColumns);
     expect(live.projection).toHaveLength(OVERTURE_POLICY.maxProjectedColumns);
+    expect(LIVE_MANIFEST.objects).toHaveLength(LIVE_MANIFEST.totalFiles);
+    expect(live.selectedObjects.map((object) => object.id)).toEqual(["00000"]);
     expect(live.warning).toContain("not expose");
   });
 
@@ -54,7 +58,11 @@ describe("Overture large-data flagship", () => {
     ).toThrow("between 1 and 200");
     expect(() => parseAoi("180,90,-180,-90")).toThrow("ordered CRS84");
     expect(() =>
-      planOvertureQuery({ lane: "live", aoi: [120, 40, 120.1, 40.1], category: "all", limit: 10 }, OVERTURE_POLICY),
+      planOvertureQuery(
+        { lane: "fixture", aoi: [120, 40, 120.1, 40.1], category: "all", limit: 10 },
+        OVERTURE_POLICY,
+        FIXTURE_MANIFEST,
+      ),
     ).toThrow("no object");
   });
 
@@ -69,14 +77,17 @@ describe("Overture large-data flagship", () => {
     );
     expect(first.cacheKey).not.toBe(second.cacheKey);
     expect(first.cacheKey).toContain(LIVE_MANIFEST.release);
+    expect(first.cacheKey).toContain(LIVE_MANIFEST.schemaVersion);
     expect(first.cacheKey).toContain(LIVE_MANIFEST.objects[0]?.etag);
   });
 
   it("verifies exact public range probes and blocks non-range responses", async () => {
     const object = LIVE_MANIFEST.objects[0]!;
     const requests: string[] = [];
+    const credentials: RequestCredentials[] = [];
     const fetchFn = async (_url: string | URL | Request, init?: RequestInit) => {
       requests.push(new Headers(init?.headers).get("range") ?? "");
+      credentials.push(init?.credentials ?? "same-origin");
       return new Response(new Uint8Array(requests.length === 1 ? 1 : 65_536), {
         status: 206,
         headers: {
@@ -92,6 +103,7 @@ describe("Overture large-data flagship", () => {
     };
     const evidence = await probeAwsRanges(object, { fetchFn: fetchFn as typeof fetch });
     expect(requests).toEqual(["bytes=0-0", `bytes=${object.bytes - 65_536}-${object.bytes - 1}`]);
+    expect(credentials).toEqual(["omit", "omit"]);
     expect(evidence).toMatchObject({
       status: "verified",
       bytes: 65_537,
@@ -115,10 +127,72 @@ describe("Overture large-data flagship", () => {
     });
     expect(changedObject).toMatchObject({ status: "unsupported" });
     expect(changedObject.limitation).toContain("identity mismatch");
+
+    const wrongInterval = await probeAwsRanges(object, {
+      fetchFn: (async () =>
+        new Response(new Uint8Array(1), {
+          status: 206,
+          headers: { "content-range": `bytes 0-1/${object.bytes}`, etag: `"${object.etag}"` },
+        })) as typeof fetch,
+    });
+    expect(wrongInterval).toMatchObject({ status: "unsupported", bytes: 0, ranges: 0 });
+    expect(wrongInterval.limitation).toContain("exact HTTP 206 interval");
+
+    const oversizedBody = await probeAwsRanges(object, {
+      fetchFn: (async () =>
+        new Response(new Uint8Array(2), {
+          status: 206,
+          headers: { "content-range": `bytes 0-0/${object.bytes}`, etag: `"${object.etag}"` },
+        })) as typeof fetch,
+    });
+    expect(oversizedBody).toMatchObject({ status: "unsupported", bytes: 0, ranges: 0 });
+    expect(oversizedBody.limitation).toContain("exact 1-byte probe budget");
+
+    const truncatedBody = await probeAwsRanges(object, {
+      fetchFn: (async () =>
+        new Response(new Uint8Array(0), {
+          status: 206,
+          headers: { "content-range": `bytes 0-0/${object.bytes}`, etag: `"${object.etag}"` },
+        })) as typeof fetch,
+    });
+    expect(truncatedBody).toMatchObject({ status: "unsupported", bytes: 0, ranges: 0 });
+    expect(truncatedBody.limitation).toContain("exact 1-byte probe budget");
+
+    await expect(
+      probeAwsRanges(object, {
+        timeoutMs: 1,
+        fetchFn: ((_url, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), {
+              once: true,
+            });
+          })) as typeof fetch,
+      }),
+    ).rejects.toThrow("1 ms deadline");
+
+    await expect(
+      probeAwsRanges(object, {
+        timeoutMs: 1,
+        fetchFn: (async () =>
+          new Response(new ReadableStream({ pull: () => new Promise(() => {}) }), {
+            status: 206,
+            headers: { "content-range": `bytes 0-0/${object.bytes}`, etag: `"${object.etag}"` },
+          })) as typeof fetch,
+      }),
+    ).rejects.toThrow("1 ms deadline");
   });
 
   it("streams driver batches through the runtime without forcing full materialization", async () => {
     let materialized = false;
+    let closeCalls = 0;
+    let finishClose!: () => void;
+    let markCloseStarted!: () => void;
+    const closePending = new Promise<void>((resolve) => {
+      finishClose = resolve;
+    });
+    const closeStarted = new Promise<void>((resolve) => {
+      markCloseStarted = resolve;
+    });
     const driver: DuckDbDriver = {
       async run() {},
       async query() {
@@ -131,7 +205,11 @@ describe("Overture large-data flagship", () => {
         yield [{ id: "two" }];
       },
       async registerFileBuffer() {},
-      async close() {},
+      async close() {
+        closeCalls += 1;
+        markCloseStarted();
+        await closePending;
+      },
     };
     const runtime = new GeoparquetRuntime({ driverFactory: async () => driver });
     const controller = new AbortController();
@@ -139,7 +217,17 @@ describe("Overture large-data flagship", () => {
     for await (const batch of runtime.stream("SELECT 1", { signal: controller.signal })) batches.push(batch);
     expect(batches).toEqual([[{ id: "one" }], [{ id: "two" }]]);
     expect(materialized).toBe(false);
-    await runtime.dispose();
+    let secondDisposeFinished = false;
+    const firstDispose = runtime.dispose();
+    const secondDispose = runtime.dispose().then(() => {
+      secondDisposeFinished = true;
+    });
+    await closeStarted;
+    expect(closeCalls).toBe(1);
+    expect(secondDisposeFinished).toBe(false);
+    finishClose();
+    await Promise.all([firstDispose, secondDispose]);
+    expect(closeCalls).toBe(1);
   });
 
   it("pins the deterministic fixture and self-hosted Parquet extension by digest", () => {

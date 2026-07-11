@@ -23,6 +23,8 @@ Every query requires:
 - at most five projected columns
 - a result limit from 1 to 200
 - a 256 MiB DuckDB memory ceiling
+- a 1 MiB incrementally enforced JavaScript result ceiling
+- a 10-second source-probe deadline
 - a 30-second engine deadline
 - a GeoParquet `bbox` covering predicate
 
@@ -30,11 +32,14 @@ The result is streamed as Arrow record batches and painted in batches of 25.
 `Query.signal` cancels DuckDB work; the UI also terminates the active runtime so
 stale batches cannot render. Result caching is bounded to three entries and the
 key includes release, object ETag, AOI, CRS, projection, category, row limit,
-memory policy, and engine deadline.
+memory/output policy, source deadline, and engine deadline.
 
 Unsafe AOIs, projection/row overages, missing STAC intersections, unsupported
-HTTP ranges, engine failures, and deadline overruns stop explicitly. There is
-no full-object fallback.
+HTTP ranges, oversized/truncated probe bodies, engine failures, and deadline
+overruns stop explicitly. The application never retries with a full-object
+download. DuckDB's internal transport remains opaque, so the sample does not
+claim that engine range behavior or row-group pruning was independently
+verified.
 
 ## What the Live Lane Proves
 
@@ -47,9 +52,11 @@ https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-06-17.0/t
 ```
 
 The item contains 4,717,270 candidate rows in 256 row groups and is 656,568,610
-bytes. Its STAC bbox intersects the Oahu AOI, so the catalog selects 1 of 16
-place files. The browser verifies `206 Partial Content` for a one-byte header
-probe and a 64 KiB footer probe before starting DuckDB.
+bytes. The committed manifest pins identity and bbox metadata for all 16 STAC
+items; exactly item `00000` intersects the Oahu AOI. The browser requires exact
+`206 Partial Content` intervals for a one-byte header probe and a 64 KiB footer
+probe, streams both through hard body-byte caps, and sends no credentials
+before starting DuckDB.
 
 The current DuckDB-WASM driver does **not** expose its internal HTTP byte/range
 requests, rows scanned, or row groups pruned. Those fields are deliberately

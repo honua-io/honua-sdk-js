@@ -58,14 +58,21 @@ export function planOvertureQuery(
   }
   const cacheKey = JSON.stringify({
     release: manifest.release,
-    objects: selectedObjects.map((object) => object.etag),
+    schemaVersion: manifest.schemaVersion,
+    objects: selectedObjects.map((object) => ({
+      objectKey: object.objectKey,
+      etag: object.etag,
+      bytes: object.bytes,
+    })),
     aoi: input.aoi,
     crs: manifest.crs,
     projection,
     category: input.category,
     limit: input.limit,
     memoryLimitMiB: policy.memoryLimitMiB,
+    maxResultBytes: policy.maxResultBytes,
     maxEngineMs: policy.maxEngineMs,
+    maxSourceProbeMs: policy.maxSourceProbeMs,
   });
   return {
     lane: input.lane,
@@ -79,15 +86,17 @@ export function planOvertureQuery(
     filesAvailable: manifest.totalFiles,
     candidateRows: selectedObjects.reduce((total, object) => total + object.rows, 0),
     candidateRowGroups: selectedObjects.reduce((total, object) => total + object.rowGroups, 0),
-    filePruning: "stac-bbox",
+    filePruning: input.lane === "live" ? "pinned-stac-manifest-bbox" : "fixture-manifest-bbox",
     rowGroupPruning: "bbox-predicate-planned-unverified",
-    rangeReadPlan: input.lane === "live" ? "aws-header-and-footer-probe-plus-engine-ranges" : "local-buffer",
+    rangeReadPlan: input.lane === "live" ? "aws-bounded-probes-plus-opaque-engine-transport" : "local-buffer",
     cacheKey,
     memoryLimitMiB: policy.memoryLimitMiB,
+    maxResultBytes: policy.maxResultBytes,
     maxEngineMs: policy.maxEngineMs,
+    maxSourceProbeMs: policy.maxSourceProbeMs,
     warning:
       input.lane === "live"
-        ? "STAC proves file selection and the query pushes a bbox predicate. DuckDB-WASM does not expose engine HTTP ranges, bytes, rows scanned, or row groups pruned, so those metrics remain unverified."
+        ? "The pinned 16-item STAC manifest proves file selection and the query pushes a bbox predicate. DuckDB-WASM does not expose engine HTTP ranges, bytes, rows scanned, or row groups pruned, so those metrics remain unverified."
         : "The tiny committed file is intentionally buffered in full; the same AOI, projection, bbox predicate, limit, and result contract are used as the live lane.",
   };
 }

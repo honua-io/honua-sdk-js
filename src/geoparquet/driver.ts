@@ -103,21 +103,56 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
   const workerUrl = URL.createObjectURL(
     new Blob([`importScripts(${JSON.stringify(workerScriptUrl)});`], { type: "text/javascript" }),
   );
-  const worker = new Worker(workerUrl);
-  const db = new duckdb.AsyncDuckDB(logger, worker);
-  await db.instantiate(mainModuleUrl, pthreadWorkerUrl);
-  URL.revokeObjectURL(workerUrl);
+  let worker: Worker;
+  try {
+    worker = new Worker(workerUrl);
+  } catch (cause) {
+    URL.revokeObjectURL(workerUrl);
+    throw cause;
+  }
+  let db: InstanceType<typeof duckdb.AsyncDuckDB>;
+  try {
+    db = new duckdb.AsyncDuckDB(logger, worker);
+  } catch (cause) {
+    URL.revokeObjectURL(workerUrl);
+    worker.terminate();
+    throw cause;
+  }
 
-  const conn = await db.connect();
-  if (options.extensionRepository) {
-    const repository = new URL(options.extensionRepository, base).href.replace(/\/$/, "");
-    await conn.query(`SET custom_extension_repository='${repository.replaceAll("'", "''")}';`);
+  function terminateNow(connection?: { close(): Promise<void> }): void {
+    worker.terminate();
+    if (connection) void connection.close().catch(() => undefined);
+    void db.terminate().catch(() => undefined);
   }
-  for (const extension of options.preloadExtensions ?? []) {
-    if (!/^[a-z][a-z0-9_]*$/.test(extension)) throw new Error(`geoparquet: invalid extension name ${extension}`);
-    await conn.query(`INSTALL ${extension}; LOAD ${extension};`);
+
+  try {
+    await db.instantiate(mainModuleUrl, pthreadWorkerUrl);
+  } catch (cause) {
+    terminateNow();
+    throw cause;
+  } finally {
+    URL.revokeObjectURL(workerUrl);
   }
-  if (options.loadSpatial !== false) await conn.query("INSTALL spatial; LOAD spatial;");
+
+  const conn = await db.connect().catch((cause) => {
+    terminateNow();
+    throw cause;
+  });
+  try {
+    if (options.extensionRepository) {
+      const repository = new URL(options.extensionRepository, base).href.replace(/\/$/, "");
+      await conn.query(`SET custom_extension_repository='${repository.replaceAll("'", "''")}';`);
+    }
+    for (const extension of options.preloadExtensions ?? []) {
+      if (!/^[a-z][a-z0-9_]*$/.test(extension)) throw new Error(`geoparquet: invalid extension name ${extension}`);
+      await conn.query(`INSTALL ${extension}; LOAD ${extension};`);
+    }
+    if (options.loadSpatial !== false) await conn.query("INSTALL spatial; LOAD spatial;");
+  } catch (cause) {
+    terminateNow(conn);
+    throw cause;
+  }
+  let closePromise: Promise<void> | undefined;
 
   function abortError(): DOMException {
     return new DOMException("The DuckDB query was aborted.", "AbortError");
@@ -127,7 +162,7 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
     if (!signal) return () => {};
     if (signal.aborted) throw abortError();
     const cancel = () => {
-      void conn.cancelSent();
+      void conn.cancelSent().catch(() => undefined);
     };
     signal.addEventListener("abort", cancel, { once: true });
     return () => signal.removeEventListener("abort", cancel);
@@ -162,10 +197,12 @@ export async function createBrowserDuckDbDriver(options: BrowserDriverOptions = 
     async registerFileBuffer(name, bytes) {
       await db.registerFileBuffer(name, bytes);
     },
-    async close() {
-      await conn.close();
-      await db.terminate();
-      worker.terminate();
+    close() {
+      if (!closePromise) {
+        terminateNow(conn);
+        closePromise = Promise.resolve();
+      }
+      return closePromise;
     },
   };
 }

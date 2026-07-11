@@ -109,6 +109,7 @@ export class GeoparquetRuntime {
   private readonly driverFactory: DuckDbDriverFactory;
   private driverPromise: Promise<DuckDbDriver> | undefined;
   private disposed = false;
+  private disposePromise: Promise<void> | undefined;
   private readonly profiles = new Map<string, Promise<SourceProfile>>();
 
   constructor(options: GeoparquetRuntimeOptions = {}) {
@@ -182,15 +183,17 @@ export class GeoparquetRuntime {
 
   /** Terminate the DuckDB worker / instance. Idempotent. */
   async dispose(): Promise<void> {
-    if (this.disposed) return;
+    if (this.disposePromise) return this.disposePromise;
     this.disposed = true;
     const pending = this.driverPromise;
     this.driverPromise = undefined;
     this.profiles.clear();
-    if (pending) {
+    this.disposePromise = (async () => {
+      if (!pending) return;
       const driver = await pending.catch(() => undefined);
       await driver?.close().catch(() => undefined);
-    }
+    })();
+    await this.disposePromise;
   }
 }
 

@@ -119,7 +119,8 @@ export async function collectOvertureLiveEvidence() {
               `verified-probe-bytes=${failed.range.bytes}`,
               `verified-probe-ranges=${failed.range.ranges}`,
               "engine-budget=exceeded",
-              "full-download-fallback=blocked",
+              "application-full-download-fallback=absent",
+              "engine-transport=opaque",
             ],
           },
           timing: {

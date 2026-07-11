@@ -29,13 +29,18 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     await expect(page.locator("#engine-state")).toHaveText("Bounded query complete");
     await expect(page.locator("#lane-badge")).toHaveText("Deterministic fixture");
     await expect(page.locator("#metric-projection")).toContainText("bbox");
-    await expect(page.locator("#metric-files")).toHaveText("1 / 1 via STAC bbox");
+    await expect(page.locator("#metric-files")).toHaveText("1 / 1 via fixture manifest bbox");
     await expect(page.locator("#metric-memory-policy")).toHaveText("256 MiB");
     await expect(page.locator("#evidence-ranges")).toContainText("1,939 bytes / 1 range");
     await expect(page.locator("#evidence-rows")).toHaveText("8 / 8");
     await expect(page.locator("#result-body tr")).toHaveCount(8);
     await expect(page.locator("#result-summary")).toContainText("GERS ids preserved");
     await expect(page.locator("#result-points circle")).toHaveCount(8);
+    await expect(page.getByLabel("Data lane")).toBeVisible();
+    await expect(page.getByLabel("AOI · xmin,ymin,xmax,ymax")).toBeEditable();
+    await page.getByLabel("Data lane").focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByLabel("Category")).toBeFocused();
     expect(externalRequests).toEqual([]);
 
     const fixtureExecution = await page.evaluate(() => window.__HONUA_OVERTURE__?.lastEvidence);
@@ -99,6 +104,7 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     await expect(page.locator("#result-body tr")).toHaveCount(2);
 
     await page.locator("#aoi").fill("-158.30,21.20,-157.65,21.60");
+    const engineStartsBeforeCancel = await page.evaluate(() => window.__HONUA_OVERTURE__?.engineStartCount);
     await page.evaluate(() => {
       const pending = window.__HONUA_OVERTURE__?.runQuery("fixture");
       window.__HONUA_OVERTURE__?.cancel();
@@ -106,6 +112,7 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     });
     await expect.poll(async () => page.evaluate(() => window.__HONUA_OVERTURE__?.status)).toBe("cancelled");
     await expect(page.locator("#query-message")).toContainText(/cancel/i);
+    expect(await page.evaluate(() => window.__HONUA_OVERTURE__?.engineStartCount)).toBe(engineStartsBeforeCancel);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole("heading", { name: "Overture columnar lab" })).toBeVisible();

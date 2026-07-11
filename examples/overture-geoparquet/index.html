@@ -13,7 +13,7 @@
           <h1>Overture columnar lab</h1>
           <p class="lede">
             Plan a bounded AOI query, run it in DuckDB-WASM’s worker, and inspect what was measured versus what
-            remains opaque.
+            remains opaque. Engine range behavior and row-group pruning are not claimed as verified.
           </p>
         </div>
         <div class="status-stack">
@@ -114,7 +114,7 @@
           <div><dt>Verified bytes / ranges</dt><dd id="evidence-ranges">-</dd></div>
           <div><dt>Rows scanned / returned</dt><dd id="evidence-rows">-</dd></div>
           <div><dt>Row groups pruned</dt><dd id="evidence-pruning">Unverified</dd></div>
-          <div><dt>Estimated result memory</dt><dd id="evidence-memory">-</dd></div>
+          <div><dt>Bounded result memory</dt><dd id="evidence-memory">-</dd></div>
           <div><dt>SDK planning</dt><dd id="timing-sdk">-</dd></div>
           <div><dt>Source range probe</dt><dd id="timing-network">-</dd></div>
           <div><dt>Engine + opaque source</dt><dd id="timing-engine">-</dd></div>
