@@ -450,6 +450,50 @@ describe("agent approval envelope", () => {
     expect(ownKeys).toBe(1);
   });
 
+  it("bounds approval requests, approvals, and contexts before host callbacks", async () => {
+    const { dryRun, approval, approvalCrypto } = await approvedFixture();
+    const signing = cryptoPair("bounded-request");
+    await expect(
+      issueAgentApproval(
+        dryRun,
+        policy(),
+        {
+          id: "x".repeat(1_100_000),
+          approver: "reviewer",
+          issuedAt: NOW,
+          expiresAt: EXPIRES,
+        },
+        signing.signer,
+        { now: NOW },
+      ),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    expect(signing.sign).not.toHaveBeenCalled();
+
+    const wideSteps: unknown[] = [];
+    wideSteps.length = 129;
+    const getter = vi.fn(() => approval.steps[0]);
+    Object.defineProperty(wideSteps, "0", { get: getter, enumerable: true });
+    await expect(
+      verifyAgentApproval(dryRun, policy(), { ...approval, steps: wideSteps }, approvalCrypto.verifier, context(), {
+        now: NOW,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    expect(getter).not.toHaveBeenCalled();
+    expect(approvalCrypto.verify).not.toHaveBeenCalled();
+
+    await expect(
+      verifyAgentApproval(
+        dryRun,
+        policy(),
+        approval,
+        approvalCrypto.verifier,
+        { sources: { ["s".repeat(1_100_000)]: sourceBinding() } },
+        { now: NOW },
+      ),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    expect(approvalCrypto.verify).not.toHaveBeenCalled();
+  });
+
   it("binds the exact plan/policy/context and permits only budget narrowing", async () => {
     const { dryRun, approval, approvalCrypto } = await approvedFixture();
     expect(approval).toMatchObject({
@@ -915,6 +959,72 @@ describe("agent execution receipts", () => {
       ),
     ).rejects.toMatchObject({ code: "signature-invalid" });
     expect(receiptCrypto.sign).not.toHaveBeenCalled();
+  });
+
+  it("bounds evidence and receipt envelopes before signer, verifier, or store callbacks", async () => {
+    const fixture = await approvedFixture();
+    const authorization = await authorizationFor(fixture);
+    const receiptCrypto = cryptoPair("bounded-envelope");
+    const storeVerify = vi.fn(async () => true);
+    fixture.approvalCrypto.verify.mockClear();
+    const evidence = {
+      id: "x".repeat(1_100_000),
+      stepId: authorization.step.id,
+      inputDigest: authorization.inputDigest,
+      useDigest: authorization.useDigest,
+      consumption: authorization.consumption,
+      outcome: "failed" as const,
+      completedAt: "2026-07-10T20:00:20.000Z",
+      rows: 0,
+      bytes: 0,
+    };
+    await expect(
+      issueAgentExecutionReceipt(
+        fixture.dryRun,
+        policy(),
+        fixture.approval,
+        fixture.approvalCrypto.verifier,
+        context(),
+        evidence,
+        { verify: storeVerify },
+        receiptCrypto.signer,
+        { now: "2026-07-10T20:00:20.000Z" },
+      ),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    expect(storeVerify).not.toHaveBeenCalled();
+    expect(receiptCrypto.sign).not.toHaveBeenCalled();
+    expect(fixture.approvalCrypto.verify).not.toHaveBeenCalled();
+
+    const validReceipt = await issueAgentExecutionReceipt(
+      fixture.dryRun,
+      policy(),
+      fixture.approval,
+      fixture.approvalCrypto.verifier,
+      context(),
+      { ...evidence, id: "valid" },
+      approvalUseStore(),
+      receiptCrypto.signer,
+      { now: "2026-07-10T20:00:20.000Z" },
+    );
+    storeVerify.mockClear();
+    receiptCrypto.verify.mockClear();
+    fixture.approvalCrypto.verify.mockClear();
+    await expect(
+      verifyAgentExecutionReceipt(
+        fixture.dryRun,
+        policy(),
+        fixture.approval,
+        fixture.approvalCrypto.verifier,
+        context(),
+        { ...validReceipt, id: "x".repeat(1_100_000) },
+        { verify: storeVerify },
+        receiptCrypto.verifier,
+        { now: "2026-07-10T20:00:20.000Z" },
+      ),
+    ).rejects.toMatchObject({ code: "invalid-input" });
+    expect(storeVerify).not.toHaveBeenCalled();
+    expect(receiptCrypto.verify).not.toHaveBeenCalled();
+    expect(fixture.approvalCrypto.verify).not.toHaveBeenCalled();
   });
 
   it("rejects future and post-expiry completion evidence", async () => {

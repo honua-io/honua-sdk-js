@@ -466,7 +466,7 @@ function revalidateDryRunWithPolicy(
   policy: AgentPlanPolicyV1,
   options: AgentSafetyOptions,
 ): AgentDryRunV1 {
-  const record = object(input, "$dryRun", [
+  const allowed = [
     "kind",
     "version",
     "evaluatedAt",
@@ -475,7 +475,15 @@ function revalidateDryRunWithPolicy(
     "policyDigest",
     "bindingsDigest",
     "effectBudget",
-  ]);
+  ] as const;
+  const outer = object(input, "$dryRun", allowed);
+  Object.defineProperty(outer, "plan", {
+    value: parsePlan(outer.plan),
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+  const record = object(snapshotEnvelope(outer, "$dryRun"), "$dryRun", allowed);
   literal(record.kind, AGENT_DRY_RUN_KIND, "$dryRun.kind");
   literal(record.version, AGENT_SAFETY_VERSION, "$dryRun.version");
   const evaluatedAt = parseIso(record.evaluatedAt, "$dryRun.evaluatedAt");
@@ -550,8 +558,10 @@ function resourcePathIsWithin(path: string, prefix: string): boolean {
 }
 
 function validateContext(dryRun: AgentDryRunV1, input: unknown): AgentExecutionContextV1 {
-  const record = object(input, "$context", ["sources"]);
-  const sourcesInput = object(record.sources, "$context.sources");
+  const outer = object(input, "$context", ["sources"]);
+  const normalized = snapshotEnvelope(outer, "$context");
+  const record = object(normalized, "$context", ["sources"]);
+  const sourcesInput = object(record.sources, "$context.sources", undefined, AGENT_SAFETY_HARD_LIMITS.sources);
   const sources: Record<string, AgentSourceBindingV1> = {};
   const expected = uniqueBindings(dryRun.plan.steps);
   if (Object.keys(sourcesInput).length !== expected.length)
@@ -944,6 +954,12 @@ function parseSourcePolicy(input: unknown, path: string): AgentSourcePolicyV1 {
 }
 
 function parseApprovalRequest(input: unknown): AgentApprovalRequestV1 {
+  const allowed = ["id", "approver", "issuedAt", "expiresAt", "maxRows", "maxBytes", "stepLimits"] as const;
+  const outer = object(input, "$request", allowed);
+  return parseApprovalRequestSnapshot(snapshotEnvelope(outer, "$request"));
+}
+
+function parseApprovalRequestSnapshot(input: unknown): AgentApprovalRequestV1 {
   const record = object(input, "$request", [
     "id",
     "approver",
@@ -978,6 +994,37 @@ function parseApprovalRequest(input: unknown): AgentApprovalRequestV1 {
 }
 
 function parseApproval(input: unknown): AgentApprovalV1 {
+  const allowed = [
+    "kind",
+    "version",
+    "id",
+    "approver",
+    "issuedAt",
+    "expiresAt",
+    "evaluatedAt",
+    "use",
+    "planDigest",
+    "policyDigest",
+    "bindingsDigest",
+    "approvedRows",
+    "approvedBytes",
+    "steps",
+    "algorithm",
+    "keyId",
+    "envelopeDigest",
+    "signature",
+  ] as const;
+  const outer = object(input, "$approval", allowed);
+  Object.defineProperty(outer, "steps", {
+    value: array(outer.steps, "$approval.steps", AGENT_SAFETY_HARD_LIMITS.steps),
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+  return parseApprovalSnapshot(snapshotEnvelope(outer, "$approval"));
+}
+
+function parseApprovalSnapshot(input: unknown): AgentApprovalV1 {
   const record = object(input, "$approval", [
     "kind",
     "version",
@@ -1001,7 +1048,7 @@ function parseApproval(input: unknown): AgentApprovalV1 {
   literal(record.kind, AGENT_APPROVAL_KIND, "$approval.kind");
   literal(record.version, AGENT_SAFETY_VERSION, "$approval.version");
   literal(record.use, "single", "$approval.use");
-  const steps = array(record.steps, "$approval.steps").map((input, index) => {
+  const steps = array(record.steps, "$approval.steps", AGENT_SAFETY_HARD_LIMITS.steps).map((input, index) => {
     const step = object(input, `$approval.steps[${index}]`, ["id", "inputDigest", "rows", "bytes"]);
     return deepFreeze({
       id: text(step.id, `$approval.steps[${index}].id`),
@@ -1037,6 +1084,23 @@ function parseApproval(input: unknown): AgentApprovalV1 {
 }
 
 function parseEvidence(input: unknown): AgentExecutionEvidenceV1 {
+  const allowed = [
+    "id",
+    "stepId",
+    "inputDigest",
+    "useDigest",
+    "consumption",
+    "outcome",
+    "completedAt",
+    "rows",
+    "bytes",
+    "resultDigest",
+  ] as const;
+  const outer = object(input, "$evidence", allowed);
+  return parseEvidenceSnapshot(snapshotEnvelope(outer, "$evidence"));
+}
+
+function parseEvidenceSnapshot(input: unknown): AgentExecutionEvidenceV1 {
   const record = object(input, "$evidence", [
     "id",
     "stepId",
@@ -1066,7 +1130,7 @@ function parseEvidence(input: unknown): AgentExecutionEvidenceV1 {
 }
 
 function parseConsumption(input: unknown): AgentApprovalConsumptionV1 {
-  const record = object(input, "$consumption", [
+  const allowed = [
     "kind",
     "version",
     "id",
@@ -1076,7 +1140,9 @@ function parseConsumption(input: unknown): AgentApprovalConsumptionV1 {
     "stepId",
     "inputDigest",
     "token",
-  ]);
+  ] as const;
+  const outer = object(input, "$consumption", allowed);
+  const record = object(snapshotEnvelope(outer, "$consumption"), "$consumption", allowed);
   literal(record.kind, AGENT_CONSUMPTION_KIND, "$consumption.kind");
   literal(record.version, AGENT_SAFETY_VERSION, "$consumption.version");
   return deepFreeze({
@@ -1119,7 +1185,7 @@ function validateConsumptionBinding(
 }
 
 function parseReceipt(input: unknown): AgentExecutionReceiptV1 {
-  const record = object(input, "$receipt", [
+  const allowed = [
     "kind",
     "version",
     "id",
@@ -1140,7 +1206,9 @@ function parseReceipt(input: unknown): AgentExecutionReceiptV1 {
     "keyId",
     "receiptDigest",
     "signature",
-  ]);
+  ] as const;
+  const outer = object(input, "$receipt", allowed);
+  const record = object(snapshotEnvelope(outer, "$receipt"), "$receipt", allowed);
   literal(record.kind, AGENT_RECEIPT_KIND, "$receipt.kind");
   literal(record.version, AGENT_SAFETY_VERSION, "$receipt.version");
   const evidence = parseEvidence({
@@ -1456,6 +1524,20 @@ function canonical(value: unknown): string {
   } catch (error) {
     invalid(error instanceof Error ? error.message : "value is not canonical JSON");
   }
+}
+
+function snapshotEnvelope(input: unknown, path: string): JsonValue {
+  return snapshotJson(
+    input,
+    path,
+    new WeakSet<object>(),
+    createJsonBudget(
+      AGENT_SAFETY_HARD_LIMITS.parameterNodes,
+      AGENT_SAFETY_HARD_LIMITS.parameterDepth,
+      AGENT_SAFETY_HARD_LIMITS.parameterBytes,
+    ),
+    0,
+  );
 }
 
 interface JsonBudget {

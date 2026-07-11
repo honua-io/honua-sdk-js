@@ -2801,6 +2801,9 @@ are reported as `HonuaAgentSafetyError`; a raw Proxy trap error is not exposed.
 Policy ceilings are themselves capped by `AGENT_SAFETY_HARD_LIMITS`. Collection
 lengths are rejected before indexed descriptors are read, and operation JSON is
 bounded by node count, depth, object/array count, and cumulative UTF-8 bytes.
+The same cumulative pre-signature budget applies to dry runs, approval requests,
+approval step arrays, current contexts/source maps, execution evidence,
+consumption records, and receipts—including both property-key and value bytes.
 
 ## Signatures, cancellation, and receipts
 
