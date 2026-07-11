@@ -114,7 +114,7 @@ run; passing a protocol without a reviewed connect adapter throws
 `unsupported-protocol`. Discovery never probes a Honua facade or a second
 authenticated protocol endpoint as fallback.
 
-```ts
+```ts doc-test=compile
 import { connect } from "@honua/sdk-js/honua";
 
 const connection = await connect({
