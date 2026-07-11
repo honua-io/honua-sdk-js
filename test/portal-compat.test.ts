@@ -195,6 +195,7 @@ describe("PortalCompat.openFeatureLayer", () => {
         match: "/content/items/item-1",
         body: samplePortalItem({ url: "https://honua.example/rest/services/roads/FeatureServer////" }),
       },
+      { match: "/FeatureServer?f=json", body: { layers: [{ id: 0, name: "Roads" }] } },
       { match: "/FeatureServer/0/query", body: { features: [] } },
     ]);
     const portal = new PortalCompat({ portalUrl: "https://honua.example////", token: "layer-tok", fetchFn });
@@ -218,9 +219,12 @@ describe("PortalCompat.openFeatureLayer", () => {
   });
 
   it("opens Feature Service items whose service id includes folders", async () => {
+    const { fetchFn } = makeFakeFetch([
+      { match: "/FeatureServer?f=json", body: { layers: [{ id: 3000, name: "Hosted Roads" }] } },
+    ]);
     const portal = new PortalCompat({
       portalUrl: "https://honua.example",
-      fetchFn: makeFakeFetch([]).fetchFn,
+      fetchFn,
     });
     const item = samplePortalItem({
       url: "https://honua.example/rest/services/Hosted/Roads/FeatureServer",
@@ -230,6 +234,7 @@ describe("PortalCompat.openFeatureLayer", () => {
 
     expect(opened.type).toBe("feature-service");
     expect(opened.serviceId).toBe("Hosted/Roads");
+    expect(opened.layerId).toBe(3000);
   });
 
   it("returns a resolved service handle for Map Service items without throwing", async () => {
