@@ -421,7 +421,7 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
       }
     }
 
-    const recentIds = replacementSnapshot ? [] : (state.checkpoint?.recentEventIds ?? []);
+    const recentIds = recoverySnapshot ? [] : (state.checkpoint?.recentEventIds ?? []);
     if (eventId && recentIds.includes(eventId)) {
       transitionToResnapshot("event-id-reused", `Event id "${eventId}" was reused at a new sequence.`);
       return delivery("resnapshot-required", "event-id-reused", state);
@@ -442,7 +442,7 @@ export async function createResumableRealtimeSubscription<TFeature = unknown>(
 
     const checkpoint = createCheckpoint(
       context,
-      replacementSnapshot ? undefined : state.checkpoint,
+      recoverySnapshot ? undefined : state.checkpoint,
       { ...position, sequence: position.sequence },
       eventId,
       maxRecentEventIds,

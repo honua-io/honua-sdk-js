@@ -183,6 +183,53 @@ describe("resumable realtime subscription", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
+  it("preserves live snapshot dedupe history and resets it only for an explicit recovery epoch", async () => {
+    const liveApply = vi.fn();
+    const live = await createResumableRealtimeSubscription<Feature>({
+      context,
+      initialCheckpoint: durableCheckpoint({ recentEventIds: ["older-event", "reused-snapshot"] }),
+      apply: liveApply,
+    });
+    const checkpointBeforeReuse = live.state.checkpoint;
+
+    await expect(
+      live.enqueue({
+        type: "snapshot",
+        eventId: "reused-snapshot",
+        sequence: 12,
+        features: [patch(1, "unsafe")],
+      }),
+    ).resolves.toMatchObject({ status: "resnapshot-required", reason: "event-id-reused" });
+    expect(liveApply).not.toHaveBeenCalled();
+    expect(live.state.acceptedEventCount).toBe(0);
+    expect(live.state.checkpoint).toBe(checkpointBeforeReuse);
+
+    const recoveryApply = vi.fn();
+    const recovery = await createResumableRealtimeSubscription<Feature>({
+      context,
+      initialCheckpoint: durableCheckpoint({ recentEventIds: ["older-event", "reused-snapshot"] }),
+      apply: recoveryApply,
+    });
+    recovery.requireResnapshot("cursor-expired");
+    await expect(
+      recovery.enqueue({
+        type: "snapshot",
+        eventId: "reused-snapshot",
+        sequence: 1,
+        cursor: "recovery-epoch-1",
+        features: [patch(1, "recovered")],
+      }),
+    ).resolves.toMatchObject({ status: "applied" });
+    expect(recoveryApply).toHaveBeenCalledTimes(1);
+    expect(recovery.state).toMatchObject({
+      acceptedEventCount: 1,
+      checkpoint: {
+        resume: { sequence: 1, cursor: "recovery-epoch-1" },
+        recentEventIds: ["reused-snapshot"],
+      },
+    });
+  });
+
   it("projects server cursor expiry or unsupported resume into an explicit replacement-snapshot transition", async () => {
     const apply = vi.fn();
     const gate = await createResumableRealtimeSubscription<Feature>({
