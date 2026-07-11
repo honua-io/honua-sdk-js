@@ -21,7 +21,7 @@ npm install @honua/geometry
 npm install @honua/sdk-js @turf/buffer @turf/area proj4
 ```
 
-```ts doc-test=skip reason="partial excerpt requires application host context"
+```ts doc-test=compile
 import { area, buffer, project, toWgs84 } from "@honua/geometry";
 // unified: import { area, buffer } from "@honua/sdk-js/geometry";
 ```

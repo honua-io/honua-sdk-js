@@ -122,6 +122,15 @@ test("strict compiler rejects invalid assignments and SDK call arguments", () =>
   assert.match(validateSnippetWithCompiler(sdkArgument, root).join("\n"), /not assignable to parameter of type 'number'/);
 });
 
+test("parses javascript fences as JavaScript rather than TypeScript", () => {
+  const root = fixtureProject();
+  const javascript = snippet(
+    '```javascript doc-test=compile\nconst identifier: string = "not valid JavaScript";\n```',
+    "docs/javascript.md",
+  );
+  assert.match(validateSnippetWithCompiler(javascript, root).join("\n"), /Type annotations can only be used/);
+});
+
 test("compiler catches missing re-exports, dynamic imports, and namespace members", () => {
   const root = fixtureProject();
   const cases = [

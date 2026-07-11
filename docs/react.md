@@ -52,7 +52,7 @@ export function Root() {
 | `useMapRuntime()` | The `HonuaMapRuntime` owned by the enclosing `HonuaMap`. |
 | `useRealtime(factory, deps?)` | Open a realtime subscription and tear it down on unmount. |
 
-```tsx doc-test=skip reason="partial excerpt requires application host context"
+```tsx doc-test=compile
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { useDataset, useQuery } from "@honua/react";
 
