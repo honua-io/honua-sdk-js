@@ -20,7 +20,7 @@ resolution, cache partitions, and non-secret authorization scope ids belong in
 the descriptor. API keys, database passwords, OAuth tokens, and warehouse
 sessions belong in transport/control-plane configuration.
 
-```ts
+```ts doc-test=compile
 import {
   defineIndexedSpatialSource,
   defineQueryTileSource,

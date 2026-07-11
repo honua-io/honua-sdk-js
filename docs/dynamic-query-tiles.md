@@ -9,7 +9,7 @@ viewport-scoped vector tiles while preserving the canonical `Source` identity
 used by selection, feature-state, and detail panels. The abstraction is split
 between the contract entrypoint and the MapLibre-aware runtime entrypoint:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { defineQueryTileSource } from "@honua/sdk-js/contract";
 import { buildMapLibreQueryTileSourceSpec } from "@honua/sdk-js/runtime";
 
@@ -58,7 +58,7 @@ resolution, auth scope, filters, and style projection.
 
 Warehouse and indexed descriptors can be passed directly as `source`:
 
-```ts
+```ts doc-test=compile
 import { defineIndexedSpatialSource, defineQueryTileSource } from "@honua/sdk-js/contract";
 
 const cells = defineIndexedSpatialSource({
@@ -124,7 +124,7 @@ Canonical request parameters are shared across TileJSON and tile requests:
 
 SDK route helpers are exported from `@honua/sdk-js/contract`:
 
-```ts
+```ts doc-test=compile
 import { buildQueryTileServerPath, buildQueryTileServerUrl } from "@honua/sdk-js/contract";
 
 buildQueryTileServerPath("tile", { sourceId: "incidents" });

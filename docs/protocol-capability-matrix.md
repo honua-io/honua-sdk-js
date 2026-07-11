@@ -707,7 +707,7 @@ composition supports a capability **only when every participating
 source supports it**. Use `intersectCapabilities` from
 `@honua/sdk-js/contract` to compute that weakest set:
 
-```ts
+```ts doc-test=compile
 import {
   PROTOCOL_DEFAULT_CAPABILITIES,
   intersectCapabilities,

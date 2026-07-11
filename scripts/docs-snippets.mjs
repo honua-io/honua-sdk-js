@@ -10,12 +10,6 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MARKDOWN_ROOTS = ["README.md", "INSTALL.md", "docs", "examples", "skills"];
 const EXCLUDED_DIRECTORIES = new Set(["dist", "generated", "node_modules"]);
 const JAVASCRIPT_LANGUAGES = new Set(["js", "javascript", "jsx", "ts", "tsx", "typescript"]);
-const SPLIT_PACKAGE_SUBPATHS = new Map([
-  ["@honua/geometry", "./geometry"],
-  ["@honua/honua-migrate", "./migration"],
-  ["@honua/react", "./react"],
-  ["@honua/sdk-esri-compat", "./esri-compat"],
-]);
 
 function walkMarkdown(absolutePath, relativePath, output) {
   const stat = fs.statSync(absolutePath);
@@ -38,155 +32,208 @@ export function discoverMarkdownFiles(projectRoot = ROOT, roots = MARKDOWN_ROOTS
   return files.sort();
 }
 
+function stripBlockquotePrefix(line) {
+  let rest = line;
+  let depth = 0;
+  while (true) {
+    const match = /^ {0,3}>[ \t]?/.exec(rest);
+    if (!match) return { depth, rest };
+    rest = rest.slice(match[0].length);
+    depth += 1;
+  }
+}
+
+function parseQuotedAttribute(info, name, location) {
+  const occurrences = [...info.matchAll(new RegExp(`(?:^|\\s)${name}=`, "g"))];
+  if (occurrences.length > 1) throw new Error(`${location}: duplicate ${name} attribute`);
+  if (occurrences.length === 0) return undefined;
+  const match = new RegExp(`(?:^|\\s)${name}=("([^"]*)"|'([^']*)')(?:\\s|$)`).exec(info);
+  if (!match) throw new Error(`${location}: ${name} must use a quoted value`);
+  const value = match[2] ?? match[3] ?? "";
+  if (value.trim().length === 0) throw new Error(`${location}: ${name} must not be empty`);
+  return value;
+}
+
 function directiveFromInfo(info, location) {
-  const directive = /(?:^|\s)doc-test=(\w[\w-]*)/.exec(info)?.[1] ?? "compile";
+  const directives = [...info.matchAll(/(?:^|\s)doc-test=([^\s]+)/g)].map((match) => match[1]);
+  if (directives.length !== 1) {
+    throw new Error(`${location}: exactly one doc-test=compile or doc-test=skip directive is required`);
+  }
+  const directive = directives[0];
   if (directive !== "compile" && directive !== "skip") {
     throw new Error(`${location}: unknown doc-test directive ${directive}`);
   }
-  if (directive === "skip" && !/(?:^|\s)reason=(?:"[^"]+"|'[^']+'|\S+)/.test(info)) {
-    throw new Error(`${location}: doc-test=skip requires a non-empty reason`);
-  }
-  return directive;
+  const reason = parseQuotedAttribute(info, "reason", location);
+  const prelude = parseQuotedAttribute(info, "prelude", location);
+  if (directive === "skip" && !reason) throw new Error(`${location}: doc-test=skip requires a quoted reason`);
+  if (directive === "skip" && prelude) throw new Error(`${location}: doc-test=skip cannot declare a prelude`);
+  if (directive === "compile" && reason) throw new Error(`${location}: doc-test=compile cannot declare a skip reason`);
+  return { directive, prelude, reason };
+}
+
+function openingFence(line) {
+  const { depth, rest } = stripBlockquotePrefix(line);
+  const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(rest);
+  if (!match) return undefined;
+  const info = match[2].trim();
+  if (match[1][0] === "`" && info.includes("`")) return undefined;
+  return { depth, info, marker: match[1][0], markerLength: match[1].length };
+}
+
+function isClosingFence(line, opening) {
+  const { depth, rest } = stripBlockquotePrefix(line);
+  if (depth !== opening.depth) return false;
+  return new RegExp(`^ {0,3}${opening.marker}{${opening.markerLength},}[ \\t]*$`).test(rest);
+}
+
+function contentWithoutContainer(line, depth) {
+  const stripped = stripBlockquotePrefix(line);
+  return stripped.depth === depth ? stripped.rest : line;
 }
 
 export function extractSnippets(markdown, sourcePath) {
   const lines = markdown.split(/\r?\n/);
   const snippets = [];
   for (let index = 0; index < lines.length; index += 1) {
-    const opening = /^(\s*)(`{3,}|~{3,})(.*)$/.exec(lines[index]);
+    const opening = openingFence(lines[index]);
     if (!opening) continue;
-    const marker = opening[2][0];
-    const markerLength = opening[2].length;
-    const info = opening[3].trim();
-    const language = info.split(/\s+/, 1)[0].toLowerCase();
+    const language = opening.info.split(/\s+/, 1)[0].toLowerCase();
     const startLine = index + 1;
     const content = [];
     let closed = false;
     for (index += 1; index < lines.length; index += 1) {
-      if (new RegExp(`^\\s*${marker}{${markerLength},}\\s*$`).test(lines[index])) {
+      if (isClosingFence(lines[index], opening)) {
         closed = true;
         break;
       }
-      content.push(lines[index]);
+      content.push(contentWithoutContainer(lines[index], opening.depth));
     }
     if (!closed) throw new Error(`${sourcePath}:${startLine}: unclosed Markdown fence`);
     if (!JAVASCRIPT_LANGUAGES.has(language)) continue;
     const location = `${sourcePath}:${startLine}`;
+    const directive = directiveFromInfo(opening.info, location);
     snippets.push({
       code: content.join("\n"),
-      directive: directiveFromInfo(info, location),
       language,
       location,
       sourcePath,
       startLine,
+      ...directive,
     });
   }
   return snippets;
 }
 
-function scriptKind(language) {
-  if (language === "tsx") return ts.ScriptKind.TSX;
-  if (language === "jsx") return ts.ScriptKind.JSX;
-  if (language === "js" || language === "javascript") return ts.ScriptKind.JS;
-  return ts.ScriptKind.TS;
+function extensionFor(language) {
+  if (language === "javascript") return "js";
+  if (language === "typescript") return "ts";
+  return language;
 }
 
-export function validateSnippetSyntax(snippet) {
-  if (snippet.directive === "skip") return [];
-  const result = ts.transpileModule(snippet.code, {
-    compilerOptions: {
-      jsx: ts.JsxEmit.Preserve,
-      module: ts.ModuleKind.NodeNext,
-      moduleResolution: ts.ModuleResolutionKind.NodeNext,
-      target: ts.ScriptTarget.ES2022,
-    },
-    fileName: `snippet.${snippet.language === "typescript" ? "ts" : snippet.language}`,
-    reportDiagnostics: true,
+function compilerOptions(projectRoot) {
+  const configPath = path.join(projectRoot, "tsconfig.json");
+  const read = ts.readConfigFile(configPath, ts.sys.readFile);
+  if (read.error) throw new Error(ts.formatDiagnostic(read.error, diagnosticHost));
+  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, projectRoot, undefined, configPath);
+  if (parsed.errors.length > 0) throw new Error(ts.formatDiagnostics(parsed.errors, diagnosticHost));
+  const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"));
+  const splitPaths = {};
+  for (const [packageName, subpath] of [
+    ["@honua/geometry", "./geometry"],
+    ["@honua/honua-migrate", "./migration"],
+    ["@honua/react", "./react"],
+    ["@honua/sdk-esri-compat", "./esri-compat"],
+  ]) {
+    const typesPath = packageJson.exports?.[subpath]?.types;
+    if (typeof typesPath === "string") splitPaths[packageName] = [typesPath];
+  }
+  return {
+    ...parsed.options,
+    allowJs: true,
+    checkJs: true,
+    composite: false,
+    declaration: false,
+    declarationMap: false,
+    incremental: false,
+    noEmit: true,
+    baseUrl: projectRoot,
+    paths: { ...parsed.options.paths, ...splitPaths },
+    skipLibCheck: true,
+    sourceMap: false,
+  };
+}
+
+const diagnosticHost = {
+  getCanonicalFileName: (fileName) => fileName,
+  getCurrentDirectory: () => ROOT,
+  getNewLine: () => "\n",
+};
+
+function formatDiagnostic(diagnostic, snippet, preludeLines) {
+  const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, " ");
+  if (!diagnostic.file || diagnostic.start === undefined) return `${snippet.location}: TS${diagnostic.code}: ${message}`;
+  const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
+  const snippetLine = Math.max(1, position.line + 1 - preludeLines);
+  return `${snippet.location}:${snippetLine}: TS${diagnostic.code}: ${message}`;
+}
+
+function safePrelude(projectRoot, snippet) {
+  if (!snippet.prelude) return "";
+  if (path.isAbsolute(snippet.prelude) || snippet.prelude.split(/[\\/]/).includes("..")) {
+    throw new Error(`${snippet.location}: prelude must be a repository-relative path without .. segments`);
+  }
+  const absolute = path.resolve(projectRoot, snippet.prelude);
+  const relative = path.relative(projectRoot, absolute);
+  if (relative.startsWith("..") || path.isAbsolute(relative) || !fs.existsSync(absolute)) {
+    throw new Error(`${snippet.location}: prelude does not exist: ${snippet.prelude}`);
+  }
+  return fs.readFileSync(absolute, "utf8");
+}
+
+function virtualEntry(snippet, projectRoot) {
+  const prelude = safePrelude(projectRoot, snippet);
+  const preludeLines = prelude.length === 0 ? 0 : prelude.split(/\r?\n/).length;
+  const code = `${prelude}${prelude ? "\n" : ""}${snippet.code}\nexport {};\n`;
+  const safeName = snippet.sourcePath.replace(/[^a-zA-Z0-9_.-]/g, "-");
+  const fileName = path.join(projectRoot, ".docs-snippets", `${safeName}-${snippet.startLine}.${extensionFor(snippet.language)}`);
+  return { code, fileName, preludeLines, snippet };
+}
+
+function compileEntries(entries, projectRoot, options = compilerOptions(projectRoot)) {
+  if (entries.length === 0) return [];
+  const byFileName = new Map(entries.map((entry) => [path.resolve(entry.fileName), entry]));
+  const host = ts.createCompilerHost(options);
+  const originalFileExists = host.fileExists.bind(host);
+  const originalReadFile = host.readFile.bind(host);
+  const originalGetSourceFile = host.getSourceFile.bind(host);
+  host.fileExists = (candidate) => byFileName.has(path.resolve(candidate)) || originalFileExists(candidate);
+  host.readFile = (candidate) => byFileName.get(path.resolve(candidate))?.code ?? originalReadFile(candidate);
+  host.getSourceFile = (candidate, languageVersion, onError, shouldCreateNewSourceFile) => {
+    const entry = byFileName.get(path.resolve(candidate));
+    if (entry) {
+      return ts.createSourceFile(entry.fileName, entry.code, languageVersion, true);
+    }
+    return originalGetSourceFile(candidate, languageVersion, onError, shouldCreateNewSourceFile);
+  };
+  const program = ts.createProgram({ host, options, rootNames: entries.map((entry) => entry.fileName) });
+  const fallback = entries[0];
+  return ts.getPreEmitDiagnostics(program).map((diagnostic) => {
+    const entry = diagnostic.file ? (byFileName.get(path.resolve(diagnostic.file.fileName)) ?? fallback) : fallback;
+    return formatDiagnostic(diagnostic, entry.snippet, entry.preludeLines);
   });
-  return (result.diagnostics ?? []).map(
-    (diagnostic) => `${snippet.location}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")}`,
-  );
 }
 
-function selfPackageSubpath(specifier, packageName) {
-  const splitSubpath = SPLIT_PACKAGE_SUBPATHS.get(specifier);
-  if (splitSubpath) return splitSubpath;
-  if (specifier === packageName) return ".";
-  if (specifier.startsWith(`${packageName}/`)) return `.${specifier.slice(packageName.length)}`;
-  return undefined;
-}
-
-export function collectSdkImports(snippet, packageName) {
+export function validateSnippetWithCompiler(snippet, projectRoot = ROOT, options = compilerOptions(projectRoot)) {
   if (snippet.directive === "skip") return [];
-  const source = ts.createSourceFile(
-    `snippet.${snippet.language}`,
-    snippet.code,
-    ts.ScriptTarget.ES2022,
-    true,
-    scriptKind(snippet.language),
-  );
-  const imports = [];
-  for (const statement of source.statements) {
-    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
-    const subpath = selfPackageSubpath(statement.moduleSpecifier.text, packageName);
-    if (!subpath) continue;
-    const names = [];
-    const clause = statement.importClause;
-    if (clause?.name) names.push("default");
-    if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
-      for (const element of clause.namedBindings.elements) names.push(element.propertyName?.text ?? element.name.text);
-    }
-    imports.push({ names, specifier: statement.moduleSpecifier.text, subpath });
-  }
-  return imports;
+  return compileEntries([virtualEntry(snippet, projectRoot)], projectRoot, options);
 }
 
-export function validateSnippetImports(snippet, packageJson, exportedSymbols) {
-  const failures = [];
-  for (const imported of collectSdkImports(snippet, packageJson.name)) {
-    if (!packageJson.exports?.[imported.subpath]) {
-      failures.push(`${snippet.location}: package path ${imported.specifier} is not exported`);
-      continue;
-    }
-    const available = exportedSymbols.get(imported.subpath);
-    if (!available) {
-      failures.push(`${snippet.location}: declarations are missing for ${imported.specifier}; run npm run build`);
-      continue;
-    }
-    for (const name of imported.names) {
-      if (!available.has(name)) failures.push(`${snippet.location}: ${imported.specifier} has no exported member ${name}`);
-    }
-  }
-  return failures;
-}
-
-export function loadExportedSymbols(projectRoot, packageJson) {
-  const targets = new Map();
-  for (const [subpath, definition] of Object.entries(packageJson.exports ?? {})) {
-    const typesPath = typeof definition === "object" ? definition.types : undefined;
-    if (typeof typesPath === "string") targets.set(subpath, path.resolve(projectRoot, typesPath));
-  }
-  const missing = [...targets.entries()].find(([, target]) => !fs.existsSync(target));
-  if (missing) throw new Error(`built declarations are missing for ${missing[0]}; run npm run build`);
-
-  const program = ts.createProgram({
-    options: { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, skipLibCheck: true },
-    rootNames: [...targets.values()],
-  });
-  const checker = program.getTypeChecker();
-  const result = new Map();
-  for (const [subpath, target] of targets) {
-    const source = program.getSourceFile(target);
-    const moduleSymbol = source ? checker.getSymbolAtLocation(source) : undefined;
-    result.set(subpath, new Set(moduleSymbol ? checker.getExportsOfModule(moduleSymbol).map((symbol) => symbol.name) : []));
-  }
-  return result;
-}
-
-export function validateSnippets({ files, packageJson, exportedSymbols }) {
+export function validateSnippets({ files, projectRoot = ROOT }) {
   const failures = [];
   let compiled = 0;
   let skipped = 0;
+  const options = compilerOptions(projectRoot);
+  const entries = [];
   for (const file of files) {
     for (const snippet of file.snippets) {
       if (snippet.directive === "skip") {
@@ -194,10 +241,10 @@ export function validateSnippets({ files, packageJson, exportedSymbols }) {
         continue;
       }
       compiled += 1;
-      failures.push(...validateSnippetSyntax(snippet));
-      failures.push(...validateSnippetImports(snippet, packageJson, exportedSymbols));
+      entries.push(virtualEntry(snippet, projectRoot));
     }
   }
+  failures.push(...compileEntries(entries, projectRoot, options));
   if (failures.length > 0) {
     throw new Error(`documentation snippet validation failed:\n${failures.map((failure) => `  - ${failure}`).join("\n")}`);
   }
@@ -212,12 +259,7 @@ export function readSnippetFiles(projectRoot = ROOT) {
 }
 
 async function main() {
-  const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  const result = validateSnippets({
-    exportedSymbols: loadExportedSymbols(ROOT, packageJson),
-    files: readSnippetFiles(ROOT),
-    packageJson,
-  });
+  const result = validateSnippets({ files: readSnippetFiles(ROOT), projectRoot: ROOT });
   process.stdout.write(`docsSnippets=ok files=${result.files} compiled=${result.compiled} skipped=${result.skipped}\n`);
 }
 

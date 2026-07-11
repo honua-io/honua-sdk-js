@@ -28,7 +28,7 @@ npm install @deck.gl/layers
 
 Load the peer lazily or inject the constructor from an existing deck.gl install:
 
-```ts
+```ts doc-test=compile
 import { createDeckGlAdapter, loadDeckGlPeers } from "@honua/sdk-js/deckgl";
 
 const adapter = createDeckGlAdapter({ peers: await loadDeckGlPeers() });
@@ -40,7 +40,7 @@ loader never chooses a CDN and reports `HonuaDeckGlAdapterError` with code
 
 ## Binary projection and picking identity
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const positions = new Float32Array([157.85, 21.3, 157.86, 21.31]);
 const featureIds = new Uint32Array([301, 302]);
 
@@ -76,7 +76,7 @@ without relying on unstable deck.gl object identity.
 Mounting uses a small host contract so standalone Deck instances and MapLibre
 overlay owners can retain control of their own layer collections:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const mounted = projection.mount(host); // host implements addLayer/removeLayer
 mounted.dispose();
 adapter.dispose(); // also disposes every still-owned mount

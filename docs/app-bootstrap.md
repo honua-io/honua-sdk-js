@@ -15,7 +15,7 @@ controller handles.
 
 ## Inline Package
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
 import { createHonuaApp } from "@honua/sdk-js/app";
@@ -44,7 +44,7 @@ app.dispose();
 
 ## Hosted Package
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const app = await createHonuaApp({
   baseUrl: "https://honua.example.com",
   packageId: "response-map",
@@ -68,7 +68,7 @@ For quick previews, pass a single contract `SourceDescriptor`. The helper
 synthesizes a minimal `MapPackage` with one layer and then runs the normal
 runtime path.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 await createHonuaApp({
   client,
   source: {

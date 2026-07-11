@@ -24,7 +24,7 @@ composed style, so a `pmtiles` source binding renders with no manual
 packages are imported only when a PMTiles-backed map loads) and idempotent
 across every map you attach.
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, loadMapPackage } from "@honua/sdk-js/runtime";
 import maplibregl from "maplibre-gl";
@@ -69,7 +69,7 @@ The `locator.sourceType` hint selects the MapLibre source kind and defaults to
 If you add a PMTiles source to a live map imperatively (`runtime.addSource`,
 which is synchronous) or drive MapLibre directly, register the protocol first:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { ensurePmtilesProtocol } from "@honua/sdk-js/runtime";
 
 await ensurePmtilesProtocol(); // lazy, idempotent — safe to call repeatedly
@@ -84,7 +84,7 @@ canonical query family throws `HonuaCapabilityNotSupportedError` — an archive 
 no feature-query surface. Archive metadata is inspected through the typed escape
 hatch or the standalone helper:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createDataset, describePmtilesArchive } from "@honua/sdk-js/contract";
 
 // Standalone: inspect any archive URL.

@@ -2,7 +2,7 @@
 
 `@honua/sdk-js/collaboration` defines the SDK-side contract for collaborative saved-map editing. Portal code talks to `HonuaSavedMapCollaborationSession`; transport adapters hide whether the server uses WebSocket, WebTransport, SSE, or a fixture.
 
-```ts
+```ts doc-test=compile
 import {
   createFixtureSavedMapCollaborationTransport,
   createHonuaSavedMapCollaboration,
@@ -29,7 +29,7 @@ await session.publishCursor({ x: 320, y: 184, sourceId: "parcels" });
 
 Server adapters should map each server message to `SavedMapCollaborationEnvelope`:
 
-```ts
+```ts doc-test=compile
 const envelope = {
   envelopeVersion: "honua.saved-map-collaboration.v1",
   mapId: "map-ops",
@@ -49,7 +49,7 @@ const envelope = {
 
 Use `session.disconnect()` when the host detects an interrupted channel but should keep the logical saved-map participant. The snapshot status becomes `stale` and subscriptions remain registered. `session.reconnect()` closes the stale subscription, replays committed operations from the last snapshot cursor by default, merges unseen operations, and opens a fresh subscription:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 session.disconnect();
 
 try {

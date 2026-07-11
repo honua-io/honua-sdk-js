@@ -129,7 +129,7 @@ GeoServices endpoint — no API key, no account, no infrastructure. The canonica
 surface is protocol-neutral: build a `Dataset` over one or more `Source`s, then
 call `queryAll()` (or `query()` / `stream()`).
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 
@@ -170,7 +170,7 @@ The same code works against any GeoServices, OGC API Features, WFS, OData, or
 STAC endpoint. Migrating from `esri-leaflet`? The raw GeoServices shape and the
 `esri-compat` drop-in point at `services.arcgis.com`-style URLs unchanged:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const { features } = await client.queryFeatures({
   serviceId: "2020_Census_State_Apportionment",
   layerId: 0,
@@ -204,7 +204,7 @@ path**, not the entry fee. It unlocks server-authored `MapPackage`s
 MCP + AI surfaces. Point the same code at a local server (`docker compose up` in a
 honua-server checkout), and gate production reads on the compatibility check:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const { supported, reasons } = await client.checkCompatibility();
 if (!supported) throw new Error(`Unsupported Honua server: ${reasons.join("; ")}`);
 ```

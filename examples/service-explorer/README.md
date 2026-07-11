@@ -25,7 +25,7 @@ Queryable sources participate in the shared linked context. Render-only standard
 
 Hosted Honua deployments can use the experimental control-plane subpath to discover a hosted map and pass its package locator to the runtime loader without mixing admin APIs into data queries:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js";
 import { createHonuaControlPlane } from "@honua/sdk-js/control-plane";
 import { loadMapPackageFromId } from "@honua/sdk-js/runtime";

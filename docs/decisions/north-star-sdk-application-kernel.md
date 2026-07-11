@@ -72,7 +72,7 @@ The compile-only contract is committed under
 
 ### Kernel and connection
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface HonuaKernel extends AsyncDisposable {
   readonly diagnostics: DiagnosticChannel;
   connect<T = Record<string, unknown>>(
@@ -121,7 +121,7 @@ chooses the first collection silently.
 
 ### Inspection
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface ConnectionInspection {
   readonly id: string;
   readonly endpoint: string;
@@ -167,7 +167,7 @@ replacement plan; it does not silently re-plan.
 
 Feature output is additive to today's result contract:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 type FeatureQueryResult<T> = Result<T> & {
   readonly format: "features";
   readonly execution: ExecutionReceipt;
@@ -177,7 +177,7 @@ type FeatureQueryResult<T> = Result<T> & {
 Columnar output is a distinct result so a million-row path does not materialize
 JavaScript feature objects:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface ColumnarQueryResult<T> {
   readonly format: "columnar";
   readonly schema: readonly { name: string; type: string }[];
@@ -192,7 +192,7 @@ never represented as a complete `Result`.
 
 ### Mount and renderer escape hatches
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface RendererAdapter<TRaw = unknown> {
   readonly kind: "maplibre" | "deckgl" | "cesium";
   readonly environments: readonly ("browser" | "node" | "worker")[];
@@ -232,7 +232,7 @@ scope. `snapshot()` supports post-failure inspection; `subscribe()` supports
 live developer tooling. Every diagnostic has an ID, stage, severity, operation
 ID, optional source ID, remediation, and preserved cause.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface Observation {
   readonly state: "live" | "cached" | "replayed" | "pending-local";
   readonly observedAt: string;
@@ -258,7 +258,7 @@ observation so fresh metadata cannot make replayed rows appear live.
 Agent planning stays in `@honua/sdk-js/agent-tools` and requires a caller-owned
 model/provider. No provider SDK enters the root bundle.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const proposal = await agent.propose(instruction, {
   connections: [incidents],
   policy: { allow: ["data:read", "map:write"], deny: ["data:write", "publish"] },

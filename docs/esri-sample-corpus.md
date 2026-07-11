@@ -35,7 +35,7 @@ The manifest uses `schemaVersion: "honua.esri-sample-corpus.v1"` and records:
 
 The migration entrypoint exports helpers to load and inspect the corpus:
 
-```ts
+```ts doc-test=compile
 import {
   analyzeEsriSampleFixture,
   loadEsriSampleCorpusManifest,
@@ -57,7 +57,7 @@ void analysis;
 For each curated sample, the migration entrypoint can run the existing codemod
 against the local fixture and emit a structured evidence record:
 
-```ts
+```ts doc-test=compile
 import { emitEsriSampleCorpusEvidence } from "@honua/sdk-js/migration";
 
 const evidence = emitEsriSampleCorpusEvidence({

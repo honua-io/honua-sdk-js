@@ -144,7 +144,7 @@ the exact source that triggered it.
 
 ## Source factory
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createDataset, type SourceDescriptor } from "@honua/sdk-js/contract";
 
 const dataset = createDataset({
@@ -312,7 +312,7 @@ without touching this file.
 and fixture pack; it is consumed through the client gRPC-Web transport
 rather than a `Source.protocol("grpc")` adapter handle in this package.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 declare module "@honua/sdk-js/contract" {
   interface AdapterTypeMap {
     "my-protocol": MyProtocolLayer;
@@ -362,7 +362,7 @@ Long-running server-side operations surface through the canonical
 GeoServices REST GPServer, and the open `honua-io/geospatial-grpc`
 `ProcessService` all normalize onto the same lifecycle vocabulary:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import type { IJobRun } from "@honua/sdk-js/contract";
 
 const job: IJobRun = await client.ogcProcesses().execute({
@@ -381,7 +381,7 @@ unwatch();
 For app code that should not know which protocol is behind a workflow,
 use `HonuaProcessRunner`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const ogc = client.ogcProcessRunner();
 const gp = client.geoprocessingRunner("Analysis", "OverlayFacilities");
 const grpc = client.geospatialGrpcProcessRunner(processServiceClient);

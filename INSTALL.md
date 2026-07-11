@@ -140,7 +140,7 @@ no extra installs are required.
 
 ## Quick Start
 
-```typescript
+```typescript doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({
@@ -202,7 +202,7 @@ classes. These are reachable via the `@honua/sdk-js/contract` and
 The migration helpers live behind the `@honua/sdk-js/migration` subpath. They
 power the same codemod that the standalone CLI runs:
 
-```typescript
+```typescript doc-test=compile
 import { runEsriCompatCodemod, scanArcGisUsage } from "@honua/sdk-js/migration";
 
 const report = scanArcGisUsage("./src");

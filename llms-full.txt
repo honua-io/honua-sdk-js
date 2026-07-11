@@ -139,7 +139,7 @@ GeoServices endpoint — no API key, no account, no infrastructure. The canonica
 surface is protocol-neutral: build a `Dataset` over one or more `Source`s, then
 call `queryAll()` (or `query()` / `stream()`).
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 
@@ -180,7 +180,7 @@ The same code works against any GeoServices, OGC API Features, WFS, OData, or
 STAC endpoint. Migrating from `esri-leaflet`? The raw GeoServices shape and the
 `esri-compat` drop-in point at `services.arcgis.com`-style URLs unchanged:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const { features } = await client.queryFeatures({
   serviceId: "2020_Census_State_Apportionment",
   layerId: 0,
@@ -214,7 +214,7 @@ path**, not the entry fee. It unlocks server-authored `MapPackage`s
 MCP + AI surfaces. Point the same code at a local server (`docker compose up` in a
 honua-server checkout), and gate production reads on the compatibility check:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const { supported, reasons } = await client.checkCompatibility();
 if (!supported) throw new Error(`Unsupported Honua server: ${reasons.join("; ")}`);
 ```
@@ -550,7 +550,7 @@ no extra installs are required.
 
 ## Quick Start
 
-```typescript
+```typescript doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({
@@ -612,7 +612,7 @@ classes. These are reachable via the `@honua/sdk-js/contract` and
 The migration helpers live behind the `@honua/sdk-js/migration` subpath. They
 power the same codemod that the standalone CLI runs:
 
-```typescript
+```typescript doc-test=compile
 import { runEsriCompatCodemod, scanArcGisUsage } from "@honua/sdk-js/migration";
 
 const report = scanArcGisUsage("./src");
@@ -742,7 +742,7 @@ Use an anonymous endpoint or a server-side proxy/session. Protected server-only 
 
 The sample uses stable subpath imports and the explicitly experimental planner:
 
-```ts
+```ts doc-test=compile
 import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { executeQueryPlan, explainQuery } from "@honua/sdk-js/query-planner";
@@ -1046,7 +1046,7 @@ honest line between what is backend-agnostic and what needs a Honua Server.
 
 Point the SDK at a public FeatureServer and get typed query results:
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 // A public Esri Living Atlas FeatureServer — no key, no account, no Honua server.
@@ -1076,7 +1076,7 @@ whatever origin you pass as `baseUrl`, so `services.arcgis.com`,
 `@honua/sdk-js/map` turns a public FeatureServer URL straight into a MapLibre
 `geojson` source:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { loadHonuaFeatureServiceGeoJson } from "@honua/sdk-js/map";
 import maplibregl from "maplibre-gl";
@@ -1098,7 +1098,7 @@ Pointing `FeatureLayerCompat` (and the rest of `@honua/sdk-js/esri-compat`) at a
 origin, and constructs its own client. Existing ArcGIS-shaped code migrates
 file-by-file without standing up any Honua infrastructure:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { FeatureLayerCompat } from "@honua/sdk-js/esri-compat";
 
 // Same familiar shape as esri-leaflet / arcgis-rest — no server required.
@@ -1513,7 +1513,7 @@ the exact source that triggered it.
 
 ## Source factory
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createDataset, type SourceDescriptor } from "@honua/sdk-js/contract";
 
 const dataset = createDataset({
@@ -1681,7 +1681,7 @@ without touching this file.
 and fixture pack; it is consumed through the client gRPC-Web transport
 rather than a `Source.protocol("grpc")` adapter handle in this package.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 declare module "@honua/sdk-js/contract" {
   interface AdapterTypeMap {
     "my-protocol": MyProtocolLayer;
@@ -1731,7 +1731,7 @@ Long-running server-side operations surface through the canonical
 GeoServices REST GPServer, and the open `honua-io/geospatial-grpc`
 `ProcessService` all normalize onto the same lifecycle vocabulary:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import type { IJobRun } from "@honua/sdk-js/contract";
 
 const job: IJobRun = await client.ogcProcesses().execute({
@@ -1750,7 +1750,7 @@ unwatch();
 For app code that should not know which protocol is behind a workflow,
 use `HonuaProcessRunner`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const ogc = client.ogcProcessRunner();
 const gp = client.geoprocessingRunner("Analysis", "OverlayFacilities");
 const grpc = client.geospatialGrpcProcessRunner(processServiceClient);
@@ -1895,7 +1895,7 @@ The first compiler targets an existing GeoServices FeatureServer query path.
 The compiled request is included in the plan so diagnostics, CLIs, agents, and
 future renderers can inspect the same decision before execution.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { executeQueryPlan, explainQuery } from "@honua/sdk-js/query-planner";
 
@@ -1941,7 +1941,7 @@ Fallback is disabled by default. When a source can query features but cannot
 push down aggregation, local execution requires both `capabilityPolicy:
 "degraded"` and an explicit `bounded-local` budget:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const plan = explainQuery({
   descriptor,
   capabilityPolicy: "degraded",
@@ -2003,7 +2003,7 @@ and realtime work in issue #394 is completed.
 
 ## Create a batch without copying payload bytes
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createColumnarBatch, leaseColumnarBatch } from "@honua/sdk-js/query-planner";
 
 const coordinates = new Float64Array([21.31, -157.86, 21.44, -157.77]);
@@ -2139,7 +2139,7 @@ the existing realtime reducer/store. The gate does not open or reconnect a
 network transport; it decides whether an event is safe to apply and whether a
 durable cursor can resume the exact accepted subscription.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createRealtimeFeatureStore,
   createResumableRealtimeSubscription,
@@ -2285,7 +2285,7 @@ phases.
 
 ## Authoring a manifest
 
-```ts
+```ts doc-test=compile
 import {
   HONUA_PLUGIN_API_VERSION,
   HONUA_PLUGIN_MANIFEST_VERSION,
@@ -2444,7 +2444,7 @@ npm install @deck.gl/layers
 
 Load the peer lazily or inject the constructor from an existing deck.gl install:
 
-```ts
+```ts doc-test=compile
 import { createDeckGlAdapter, loadDeckGlPeers } from "@honua/sdk-js/deckgl";
 
 const adapter = createDeckGlAdapter({ peers: await loadDeckGlPeers() });
@@ -2456,7 +2456,7 @@ loader never chooses a CDN and reports `HonuaDeckGlAdapterError` with code
 
 ## Binary projection and picking identity
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const positions = new Float32Array([157.85, 21.3, 157.86, 21.31]);
 const featureIds = new Uint32Array([301, 302]);
 
@@ -2492,7 +2492,7 @@ without relying on unstable deck.gl object identity.
 Mounting uses a small host contract so standalone Deck instances and MapLibre
 overlay owners can retain control of their own layer collections:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const mounted = projection.mount(host); // host implements addLayer/removeLayer
 mounted.dispose();
 adapter.dispose(); // also disposes every still-owned mount
@@ -2529,7 +2529,7 @@ hosts, WebGPU boundaries, and the million-feature browser benchmark against
 `@honua/sdk-js/scene-workspace` exposes an experimental accepted-plan workflow
 for projecting a canonical `Source` query into a Cesium `EntityCollection`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { explainQuery } from "@honua/sdk-js/query-planner";
 import { mountSourceToCesium } from "@honua/sdk-js/scene-workspace";
 
@@ -2617,7 +2617,7 @@ property or sampled-position delta application.
 versioned manifest and a storage-neutral download coordinator. It does not make
 the broader local-first feature complete.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createOfflineRegionManifest,
   downloadOfflineRegion,
@@ -2722,7 +2722,7 @@ attribution, and credential-free citations. The plan also identifies its actor
 and can identify the proposing provider/model. Do not put prompts, credentials,
 tokens, or tool arguments in this envelope.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   dryRunAgentPlan,
   issueAgentApproval,
@@ -2949,7 +2949,7 @@ The compile-only contract is committed under
 
 ### Kernel and connection
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface HonuaKernel extends AsyncDisposable {
   readonly diagnostics: DiagnosticChannel;
   connect<T = Record<string, unknown>>(
@@ -2998,7 +2998,7 @@ chooses the first collection silently.
 
 ### Inspection
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface ConnectionInspection {
   readonly id: string;
   readonly endpoint: string;
@@ -3044,7 +3044,7 @@ replacement plan; it does not silently re-plan.
 
 Feature output is additive to today's result contract:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 type FeatureQueryResult<T> = Result<T> & {
   readonly format: "features";
   readonly execution: ExecutionReceipt;
@@ -3054,7 +3054,7 @@ type FeatureQueryResult<T> = Result<T> & {
 Columnar output is a distinct result so a million-row path does not materialize
 JavaScript feature objects:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface ColumnarQueryResult<T> {
   readonly format: "columnar";
   readonly schema: readonly { name: string; type: string }[];
@@ -3069,7 +3069,7 @@ never represented as a complete `Result`.
 
 ### Mount and renderer escape hatches
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface RendererAdapter<TRaw = unknown> {
   readonly kind: "maplibre" | "deckgl" | "cesium";
   readonly environments: readonly ("browser" | "node" | "worker")[];
@@ -3109,7 +3109,7 @@ scope. `snapshot()` supports post-failure inspection; `subscribe()` supports
 live developer tooling. Every diagnostic has an ID, stage, severity, operation
 ID, optional source ID, remediation, and preserved cause.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface Observation {
   readonly state: "live" | "cached" | "replayed" | "pending-local";
   readonly observedAt: string;
@@ -3135,7 +3135,7 @@ observation so fresh metadata cannot make replayed rows appear live.
 Agent planning stays in `@honua/sdk-js/agent-tools` and requires a caller-owned
 model/provider. No provider SDK enters the root bundle.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const proposal = await agent.propose(instruction, {
   connections: [incidents],
   policy: { allow: ["data:read", "map:write"], deny: ["data:write", "publish"] },
@@ -4141,7 +4141,7 @@ composition supports a capability **only when every participating
 source supports it**. Use `intersectCapabilities` from
 `@honua/sdk-js/contract` to compute that weakest set:
 
-```ts
+```ts doc-test=compile
 import {
   PROTOCOL_DEFAULT_CAPABILITIES,
   intersectCapabilities,
@@ -4539,7 +4539,7 @@ parsing message strings.
 Prefer the `isHonuaError` guard so unrelated exceptions (e.g. caller TypeErrors
 in callbacks) propagate normally:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaHttpError, HonuaTimeoutError, HonuaCapabilityNotSupportedError, isHonuaError } from "@honua/sdk-js";
 
 try {
@@ -4601,7 +4601,7 @@ attaches them to every request across **all transports** (REST fetch paths and
 gRPC-web calls), refreshes them transparently before they expire, and force-
 refreshes once on a replay-safe `401`/`403`.
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { oauth2 } from "@honua/sdk-js/auth";
 
@@ -4656,7 +4656,7 @@ provider **and** the controller your app drives for the interactive flow.
    the access token nears expiry it is silently refreshed via the
    `refresh_token` grant.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 // On the page that renders your app / callback:
 if (auth.isRedirectCallback()) {
   await auth.handleRedirectCallback();      // completes the sign-in
@@ -4690,7 +4690,7 @@ This holds both inside the provider and at the client level.
 
 ### Lifecycle events
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const handle = auth.on((event) => {
   switch (event.type) {
     case "signed-in":       /* event.credential */ break;
@@ -4711,7 +4711,7 @@ For confidential server clients, use `clientCredentials`. There is no
 interactive step; tokens are fetched on demand and re-requested when they expire
 (this grant issues no refresh token). Refresh is single-flight.
 
-```ts
+```ts doc-test=compile
 import { clientCredentials } from "@honua/sdk-js/auth";
 
 const auth = clientCredentials({
@@ -4737,11 +4737,14 @@ token for one service is never returned for another.
 | `sessionStorageCredentialStore()` | `@honua/sdk-js/auth` | Per-tab; cleared on tab close | Readable by any script on the origin (XSS). |
 | `localStorageCredentialStore()` | `@honua/sdk-js/auth` | Across tabs & restarts | Highest — persists the exposure window. |
 
-```ts
+```ts doc-test=compile
 import { oauth2, sessionStorageCredentialStore } from "@honua/sdk-js/auth";
 
 const auth = oauth2({
-  /* … */
+  authorizationEndpoint: "https://identity.example.com/oauth2/authorize",
+  tokenEndpoint: "https://identity.example.com/oauth2/token",
+  clientId: "public-browser-client",
+  redirectUri: "https://app.example.com/oauth/callback",
   store: sessionStorageCredentialStore(), // opt-in; understand the risk below
 });
 ```
@@ -4784,7 +4787,7 @@ Migrated ArcGIS apps that call `IdentityManager.registerOAuthInfos(...)` can be
 backed by the real engine. Bind an `oauth2(...)` provider to a server and
 `getCredential(url)` drives the actual PKCE / refresh flow:
 
-```ts
+```ts doc-test=compile
 import { oauth2 } from "@honua/sdk-js/auth";
 import { identityManager, OAuthInfoCompat } from "@honua/sdk-js/esri-compat";
 
@@ -4849,7 +4852,7 @@ Inside this monorepo the same surface is available at the subpath
 Wrap your app once with a `HonuaClient`. The provider owns a session-scoped
 query cache shared by every hook below it.
 
-```tsx
+```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { HonuaProvider } from "@honua/react";
 
@@ -4875,7 +4878,7 @@ export function Root() {
 | `useMapRuntime()` | The `HonuaMapRuntime` owned by the enclosing `HonuaMap`. |
 | `useRealtime(factory, deps?)` | Open a realtime subscription and tear it down on unmount. |
 
-```tsx
+```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { useDataset, useQuery } from "@honua/react";
 
@@ -4927,7 +4930,7 @@ exposes `invalidate(key)` / `clear()` for manual cache control.
 `HonuaPopup` declaratively add a runtime source/layer and a click popup; they
 add on mount and remove on unmount.
 
-```tsx
+```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaMap, HonuaLayer, HonuaPopup } from "@honua/react";
 import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "@honua/sdk-js/runtime";
 
@@ -4959,7 +4962,7 @@ pass the existing instance to `HonuaMap` via `map`. `HonuaMap` then attaches its
 runtime to that map and **does not** remove it on unmount — the owner keeps
 control of the map lifecycle; Honua only disposes its runtime.
 
-```tsx
+```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { Map, useMap } from "@vis.gl/react-maplibre";
 import { HonuaMap, HonuaLayer } from "@honua/react";
 
@@ -5032,7 +5035,7 @@ npm install @honua/geometry
 npm install @honua/sdk-js @turf/buffer @turf/area proj4
 ```
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { area, buffer, project, toWgs84 } from "@honua/geometry";
 // unified: import { area, buffer } from "@honua/sdk-js/geometry";
 ```
@@ -5078,7 +5081,7 @@ tree-shaking). Web Mercator aliases (`3785`, `900913`, `102100`, `102113`) are
 normalized to `EPSG:3857`. `project` never mutates its input; a same-CRS call is
 a deep clone. Extra ordinates (`z`/`m`) pass through untouched.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 defineProjection(32610, "+proj=utm +zone=10 +datum=WGS84 +units=m +no_defs +type=crs");
 const utm = project(feature.geometry, 4326, 32610);
 ```
@@ -5137,7 +5140,7 @@ planar ops have exact values):
 
 ## Example: measure + buffer + reproject
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { area, buffer, toWgs84 } from "@honua/geometry";
 
 // A parcel returned in Web Mercator (EPSG:3857).
@@ -5313,7 +5316,7 @@ Use the linked example READMEs for the `2.5D` collection contract, the Cesium li
 
 Use the server compatibility contract before enabling admin/control-plane flows:
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({ baseUrl: "https://your-honua-server.com" });
@@ -5435,7 +5438,7 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
 - Live SDK ↔ Honua Server protocol integration lane:
   [`docs/integration-tests.md`](./docs/integration-tests.md).
 
-```ts
+```ts doc-test=compile
 import { createDataset } from "@honua/sdk-js/contract";
 import { createExplorationContext } from "@honua/sdk-js/exploration";
 import { HonuaClient } from "@honua/sdk-js/honua";
@@ -5480,7 +5483,7 @@ projects `sourceBindings[]` through the `@honua/sdk-js/contract` adapters, and e
 that `honua-io/honua-sdk-js#22` and `#29` build on. The runtime never instantiates the map (`maplibre-gl`
 stays a peer dependency) and never issues edit writes.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { loadMapPackage } from "@honua/sdk-js/runtime";
@@ -5528,7 +5531,7 @@ canonical `BuildSpec`, `AppPackage.manifest_artifact`, and `MapPackage` inputs i
 `honua_generated_app_manifest.v1` manifest with the `operations-dashboard.v1` profile, then binds the generated
 map/table or list/count/chart/filter widgets through `@honua/sdk-js/runtime` and the shared `ExplorationContext`.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { previewGeneratedApp } from "@honua/sdk-js/generated-app";
 
 const preview = await previewGeneratedApp(
@@ -5673,7 +5676,7 @@ CI publish workflow:
 
 ## Request/Auth Bridge
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js";
 import { createArcGisTokenInterceptor, createEsriRequestInterceptors } from "@honua/sdk-js/esri-compat";
 
@@ -5705,7 +5708,7 @@ secrets in SDK configuration. The provider owns secure storage, refresh, and
 revocation; the SDK keeps only an in-memory cache and refreshes before
 `expiresAt` enters the configured skew window.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const client = new HonuaClient({
   baseUrl: "https://example.test",
   authRefreshSkewMs: 60_000,
@@ -5740,7 +5743,7 @@ Network, timeout, and retry behavior still flows through the same
 
 ## OGC API Features (Honua-first)
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({ baseUrl: "https://example.test" });
@@ -5759,7 +5762,7 @@ The first-party OGC client covers the OGC conformance areas that
 operator apps need. Everything is exposed through canonical Honua types
 — OGC conformance class identifiers stay internal.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js/honua";
 import type { IJobRun } from "@honua/sdk-js/honua";
 
@@ -5802,7 +5805,7 @@ re-exported from both the root barrel (`@honua/sdk-js`) and the
 `@honua/sdk-js/honua` subpath, so it bundles with esbuild/Vite/Rollup like the
 rest of the client:
 
-```ts
+```ts doc-test=compile
 // Browser app (esbuild / Vite / Rollup). No Node-only imports.
 import { HonuaClient, HonuaStacSearch } from "@honua/sdk-js";
 
@@ -5834,7 +5837,7 @@ for capability coverage.
 
 ## WFS 2.0
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 
@@ -5884,7 +5887,7 @@ throws `HonuaCapabilityNotSupportedError` and points callers at
 
 ## OData v4
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 
@@ -5946,7 +5949,7 @@ for the runtime-library posture.
 
 ## Mixed Esri + OGC in one app
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({ baseUrl: "https://example.test" });
@@ -5962,7 +5965,7 @@ const [features, items] = await Promise.all([
 
 ## MapServer query helpers
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({
@@ -5995,7 +5998,7 @@ const mapLayerRelated = await mapLayer.queryRelatedFeatures({
 
 ## Streaming Pagination
 
-```ts
+```ts doc-test=compile
 import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
 
 const layer = new FeatureLayerCompat({
@@ -6013,7 +6016,7 @@ for await (const page of layer.queryFeaturesStream({ pageSize: 500 })) {
 
 ## Event Lifecycle (.on)
 
-```ts
+```ts doc-test=compile
 import { FeatureLayerCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
 
 const eventBus = new CompatEventBus();
@@ -6035,7 +6038,7 @@ handle.remove();
 
 ## TimeSlider Integration
 
-```ts
+```ts doc-test=compile
 import { FeatureLayerCompat, TimeSliderCompat, CompatEventBus } from "@honua/sdk-js/esri-compat";
 
 const eventBus = new CompatEventBus();
@@ -6130,7 +6133,7 @@ node dist/src/migration/cli.js content-webmap --input ./export/webmap.json --out
 `HonuaClient.scanMigrationSource()` wraps the stable admin scan endpoint for
 source-system migration planning:
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import type { MigrationSourceInventoryArtifact } from "@honua/sdk-js/honua";
 
@@ -6325,7 +6328,7 @@ substring gate for callers that want to branch on a specific extension.
 
 ## Getting started
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 
 const baseUrl = "https://your-honua-server.example";
@@ -6334,14 +6337,14 @@ const client = new HonuaClient({ baseUrl });
 
 ### OGC API Features (already shipped)
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const ogc = client.ogcFeatures();
 const items = await ogc.collection("parcels").items({ limit: 50, filter: "STATUS = 'ACTIVE'" });
 ```
 
 ### OGC API Tiles
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const tiles = client.ogcTiles();
 
 // 1) Discover tilesets the server advertises for a collection
@@ -6365,7 +6368,7 @@ will be added when the server endpoint ships.
 
 ### OGC API Maps
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const maps = client.ogcMaps();
 
 // Dataset-level render across multiple collections
@@ -6394,7 +6397,7 @@ custom query parameter can still pass one through `extraParams`.
 
 ### OGC API Processes
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import type { IJobRun } from "@honua/sdk-js/honua";
 
 const processes = client.ogcProcesses();
@@ -6445,7 +6448,7 @@ resulting `HonuaJobFailedError.message` carries the server's reason text.
 
 ### STAC API
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const stac = client.stac();
 
 // GET /search
@@ -6486,7 +6489,7 @@ in addition to the POST body.
 
 ### OGC API Records
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const records = client.ogcRecords();
 
 // Discover available metadata catalogs.
@@ -6535,7 +6538,7 @@ Source-shaped OGC adapters register through the shared client contract
 from `@honua/sdk-js/contract`. Cross-protocol code consumes them through
 the same `Dataset` / `Source` vocabulary as GeoServices / OData:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 
 const dataset = createDataset({
@@ -6590,7 +6593,7 @@ reach the underlying class through `Source.adapter("ogc-tiles")` /
 
 ## Capability negotiation and graceful degradation
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { negotiateOgcCapabilities, hasOgcConformanceClass } from "@honua/sdk-js/honua";
 
@@ -6641,7 +6644,7 @@ canonical `Source<T>` / `Query<T>` / `Result<T>` / `EditEnvelope<T>` /
 `EditResult` shapes as the GeoServices and OGC Features adapters, so
 mixed-source operator apps do not have to learn WFS / XML specifics.
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js";
 
@@ -6678,7 +6681,7 @@ server-side aggregation, related-records, or feature attachments.
 
 ## Locator
 
-```ts
+```ts doc-test=compile
 interface WfsLocator {
   url: string;                 // Fully qualified WFS endpoint (e.g. https://server/wfs)
   typeName: string;            // Namespace-qualified feature-type name (e.g. parcels:lot)
@@ -6937,7 +6940,7 @@ transaction.
 `ListStoredQueries` and `DescribeStoredQueries` are reachable through
 the protocol escape hatch:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const wfs = source.protocol("wfs")!;     // HonuaWfsFeatureType
 const ids = await wfs.root.storedQueries();
 const sq = wfs.root.storedQuery("byKey");
@@ -6957,7 +6960,7 @@ level. The escape hatch above still returns the raw GML payload.
 `Source.protocol("wfs")` returns a bound `HonuaWfsFeatureType` whose
 methods carry the raw WFS-shaped payloads:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const wfs = source.protocol("wfs")!;
 // Raw XML capabilities payload (cached after the first call).
 const snapshot = await wfs.capabilities();
@@ -7047,7 +7050,7 @@ opaquely.
 Wire the resolver into `createDataset`. One `GeoparquetRuntime` — one shared
 DuckDB Web Worker — backs every geoparquet source in the dataset.
 
-```ts
+```ts doc-test=compile
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
 import { geoparquetResolver } from "@honua/sdk-js/geoparquet";
 import { envelope } from "@honua/sdk-js";
@@ -7084,7 +7087,7 @@ const result = await places.query({
 });
 
 for (const feature of result.features) {
-  console.log(feature.attributes.id /* GERS id preserved */, feature.geometry?.type);
+  console.log(feature.attributes.id /* GERS id preserved */, feature.geometry);
 }
 
 // Tear down the shared worker when the client is disposed:
@@ -7142,7 +7145,7 @@ DuckDB actually returns, so both styles produce an identical `Result` shape.
 
 Reach the metadata through the typed escape hatch:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const handle = places.protocol("geoparquet")!;
 const description = await handle.describe();
 // { schema: HonuaFieldInfo[], geometryColumns: ["geometry"],
@@ -7154,7 +7157,7 @@ const rows = await handle.sql("SELECT count(*) FROM read_parquet('...')"); // ra
 
 ## Aggregation
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const summary = await places.queryAggregate({
   aggregation: {
     groupBy: ["categories.primary"],
@@ -7209,7 +7212,7 @@ before constructing the source. Do not hand a global glob to a browser without
 an AOI, projection, result limit, memory budget, cancellation, and file-level
 STAC selection:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 // Overture release layout (see https://docs.overturemaps.org/):
 const PINNED_ITEM =
   "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-06-17.0/theme=places/type=place/part-00000-6c973aba-862d-590f-a178-70bcd31cde1c-c000.zstd.parquet";
@@ -7367,7 +7370,7 @@ canonical `Source`, projects the result to a native MapLibre GeoJSON source,
 generates geometry-aware default layers, and owns refresh/disposal without
 importing `maplibre-gl`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { mountSourceToMapLibre } from "@honua/sdk-js/map";
 import { explainQuery } from "@honua/sdk-js/query-planner";
 
@@ -7427,7 +7430,7 @@ src/runtime/
 
 ## Public surface
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
 import { loadMapPackage } from "@honua/sdk-js/runtime";
@@ -7473,7 +7476,7 @@ runtime.dispose();
 
 ## Loader options
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface LoadMapPackageOptions {
   client: HonuaClient;
   resolveStyleRef?: (styleId: string, presetId?: string) => Promise<HonuaStyleRefBody>;
@@ -7516,7 +7519,7 @@ reports invalid values.
 `HonuaController`'s app-level CRUD surface. The API follows Mapbox GL source
 and layer concepts:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 runtime.addSource("dispatch", {
   type: "geojson",
   data: { type: "FeatureCollection", features: [] },
@@ -7560,7 +7563,7 @@ true })`.
 Builder-style usage starts from a package id instead of an inline
 `MapPackage`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js";
 import { loadMapPackageFromId, watchMapPackage } from "@honua/sdk-js/runtime";
 
@@ -7654,7 +7657,7 @@ failures. The full guide lives in [`composition.md`](./composition.md).
 DOM pointer event. It returns screen point, optional longitude/latitude,
 and a feature stack normalized to Honua source identity:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const hit = await runtime.hitTest(event, {
   layers: ["incidents-symbol", "incidents-fill"],
   sourceIds: ["incidents"],
@@ -7678,7 +7681,7 @@ also has `degraded[]`; for example, non-MapLibre renderers without
 
 Optional detail loading is bounded by the caller's `AbortSignal`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const controller = new AbortController();
 const hit = await runtime.hitTest(event, {
   layers: ["incidents-symbol"],
@@ -7698,7 +7701,7 @@ instead of rejecting the whole hit-test result.
 Apps that do not use `HonuaMapRuntime` can use the neutral helpers
 directly:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { hitTestMap } from "@honua/sdk-js/interactions";
 
 map.on("click", async (event) => {
@@ -8095,7 +8098,7 @@ composed style, so a `pmtiles` source binding renders with no manual
 packages are imported only when a PMTiles-backed map loads) and idempotent
 across every map you attach.
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, loadMapPackage } from "@honua/sdk-js/runtime";
 import maplibregl from "maplibre-gl";
@@ -8140,7 +8143,7 @@ The `locator.sourceType` hint selects the MapLibre source kind and defaults to
 If you add a PMTiles source to a live map imperatively (`runtime.addSource`,
 which is synchronous) or drive MapLibre directly, register the protocol first:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { ensurePmtilesProtocol } from "@honua/sdk-js/runtime";
 
 await ensurePmtilesProtocol(); // lazy, idempotent — safe to call repeatedly
@@ -8155,7 +8158,7 @@ canonical query family throws `HonuaCapabilityNotSupportedError` — an archive 
 no feature-query surface. Archive metadata is inspected through the typed escape
 hatch or the standalone helper:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createDataset, describePmtilesArchive } from "@honua/sdk-js/contract";
 
 // Standalone: inspect any archive URL.
@@ -8338,7 +8341,7 @@ interop, MCP, QGIS, generated apps, and embeds **consume one set of
 server-owned contract projections instead of forking their own package
 schemas.**
 
-```ts
+```ts doc-test=compile
 import {
   HONUA_QUERY_PACKAGE_FORMAT_V1,
   type HonuaStudioPackage,
@@ -8398,7 +8401,7 @@ Lifecycle status is shared across families via `HonuaStudioPackageStatus`
 add it. Build a tagged value with `tagStudioPackage(family, pkg)` rather than
 casting a raw wire object, then narrow on `packageFamily`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const tagged = tagStudioPackage("query", rawQueryPackage);
 if (tagged.packageFamily === "query") {
   // tagged is narrowed to { packageFamily: "query" } & HonuaQueryPackage
@@ -8415,7 +8418,7 @@ Every family returns the same `{ valid, diagnostics, pkg? }` shape through
 `StudioPackageValidationResponse<T>`, so SDK, Console, MCP, and QGIS clients
 consume one contract:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface StudioPackageValidationResponse<T> {
   readonly valid: boolean;
   readonly diagnostics: readonly StudioPackageDiagnostic[];
@@ -8426,7 +8429,7 @@ interface StudioPackageValidationResponse<T> {
 The existing map-family `ValidateMapPackageResult` is **not renamed** — it is
 structurally bridged:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { validateMapPackage } from "@honua/sdk-js/runtime";
 import { fromMapPackageValidation } from "@honua/sdk-js/studio";
 
@@ -8437,7 +8440,7 @@ const response = fromMapPackageValidation(validateMapPackage(rawMapPackage));
 For other families, the generic adapter takes the field name holding the
 package:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 toStudioValidationResponse<HonuaQueryPackage>(rawQueryResult, "queryPackage");
 ```
 
@@ -8457,7 +8460,7 @@ diagnostics.
 `StudioCapabilityManifest` lets a client gate UI/tool exposure on what the
 connected server actually supports:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { hasCapability, getCapability } from "@honua/sdk-js/studio";
 
 if (hasCapability(manifest, "package.query")) {
@@ -8601,7 +8604,7 @@ adapter exported from `@honua/sdk-js/map`. It fetches features via the
 SDK query path and produces a standard `geojson` source MapLibre renders
 natively:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
 import {
@@ -9135,7 +9138,7 @@ The manifest uses `schemaVersion: "honua.esri-sample-corpus.v1"` and records:
 
 The migration entrypoint exports helpers to load and inspect the corpus:
 
-```ts
+```ts doc-test=compile
 import {
   analyzeEsriSampleFixture,
   loadEsriSampleCorpusManifest,
@@ -9157,7 +9160,7 @@ void analysis;
 For each curated sample, the migration entrypoint can run the existing codemod
 against the local fixture and emit a structured evidence record:
 
-```ts
+```ts doc-test=compile
 import { emitEsriSampleCorpusEvidence } from "@honua/sdk-js/migration";
 
 const evidence = emitEsriSampleCorpusEvidence({

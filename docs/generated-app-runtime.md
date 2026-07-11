@@ -11,7 +11,7 @@ widgets through one `ExplorationContext`.
 The subpath is intentionally separate from the root barrel and
 `@honua/sdk-js/runtime`:
 
-```ts
+```ts doc-test=compile
 import {
   HONUA_GENERATED_APP_MANIFEST_FORMAT_V1,
   previewGeneratedApp,
@@ -69,7 +69,7 @@ the supplied field bindings.
 
 Portal can consume an app package without duplicating widget or protocol logic:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const preview = await previewGeneratedApp(
   { appPackage, mapPackage },
   {
@@ -163,7 +163,7 @@ methods.
 `previewGeneratedApp` catches runtime/projection failures and returns
 serializable diagnostics:
 
-```ts
+```ts doc-test=compile
 const diagnostic = {
   name: "HonuaGeneratedAppError",
   code: "missing-manifest-artifact",

@@ -23,7 +23,7 @@ attribution, and credential-free citations. The plan also identifies its actor
 and can identify the proposing provider/model. Do not put prompts, credentials,
 tokens, or tool arguments in this envelope.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   dryRunAgentPlan,
   issueAgentApproval,

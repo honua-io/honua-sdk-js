@@ -31,7 +31,7 @@ maplibre-gl-draw or any other drawing library). Instead, the controller exposes
 a pluggable seam: pass a `measurementGeometry` and/or `sketchGeometry` provider
 to `createHonuaWebComponentController(...)`.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createHonuaWebComponentController } from "@honua/sdk-js/web-components";
 import type { HonuaMeasureProvider, HonuaSketchProvider } from "@honua/sdk-js/web-components";
 

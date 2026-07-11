@@ -121,7 +121,7 @@ from guessing whether a value was fresh, stale, or revalidated.
 
 Recommended `cache` shape:
 
-```ts
+```ts doc-test=compile
 type HonuaCacheState = {
   scope: "metadata" | "materialized-result";
   status: "hit" | "miss" | "stale" | "refreshed" | "bypass";
@@ -169,7 +169,7 @@ Cache-state visibility requirements:
 `HonuaMetadataRequestOptions` types from both the root and `/honua`
 entrypoints. Metadata and discovery helpers accept:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 await client.getLayerMetadata("civic-services", 0);
 await client.getLayerMetadata("civic-services", 0, { refresh: true });
 await client.getLayerMetadata("civic-services", 0, { cache: "bypass" });

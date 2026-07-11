@@ -14,7 +14,7 @@ phases.
 
 ## Authoring a manifest
 
-```ts
+```ts doc-test=compile
 import {
   HONUA_PLUGIN_API_VERSION,
   HONUA_PLUGIN_MANIFEST_VERSION,

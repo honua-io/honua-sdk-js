@@ -27,7 +27,7 @@ parsing message strings.
 Prefer the `isHonuaError` guard so unrelated exceptions (e.g. caller TypeErrors
 in callbacks) propagate normally:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaHttpError, HonuaTimeoutError, HonuaCapabilityNotSupportedError, isHonuaError } from "@honua/sdk-js";
 
 try {

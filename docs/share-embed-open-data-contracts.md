@@ -10,7 +10,7 @@ This subpath owns **no transport**: it consumes server responses that are
 already available. Admin/write share operations (mint links, enable embedding)
 live on [`@honua/sdk-js/control-plane`](./split-packages.md).
 
-```ts
+```ts doc-test=compile
 import {
   denialFromHttpStatus,
   grantShareAccess,
@@ -56,7 +56,7 @@ a fragment-borne token has a much smaller disclosure surface.
 outright (even when a fragment token is also present) so a leak-prone placement
 is never silently accepted:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 parseEmbedTokenFromFragment("https://app/embed#embed_token=abc");
 // → { ok: true, token: "abc", param: "embed_token" }
 
@@ -75,7 +75,7 @@ forbidden, and no-longer-covered tokens into a single, identical denial that
 never discloses item identity, title, or existence. `HonuaShareAccessState` is
 the discriminated browser mirror:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 async function resolvePublicLink(token: string): Promise<HonuaPublicLinkAccessState> {
   const res = await fetch(`/api/v1/console/share/link/${token}`);
   if (!res.ok) return denialFromHttpStatus("public-link", res.status);
@@ -97,7 +97,7 @@ anonymous-safe read model. `toDcatDataset` and `toSchemaOrgDataset` project a
 held read model into standards-aligned metadata (W3C DCAT / DCAT-AP and a
 Schema.org `Dataset` JSON-LD node) for injection into an open-data page:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const ld = toSchemaOrgDataset(projection);
 // <script type="application/ld+json">{ "@context": "https://schema.org", ... }</script>
 ```

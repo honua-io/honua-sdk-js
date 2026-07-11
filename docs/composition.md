@@ -35,7 +35,7 @@ a sign to add a noun.
 
 ## Quick start
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createDataset,
   intersectCapabilities,
@@ -97,7 +97,7 @@ const runtime = await loadMapPackage(mapPackage, map, { client });
 anything with a `capabilities` field — descriptors, live `Source`
 instances, or any structural shape that exposes the set:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { intersectCapabilities } from "@honua/sdk-js/contract";
 
 intersectCapabilities([
@@ -109,7 +109,7 @@ intersectCapabilities([
 
 ### Worked example: refusing the silent wrong result
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const fsAndWms = intersectCapabilities([
   { capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"] },
   { capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wms },
@@ -133,7 +133,7 @@ participants you hand it. For a render+overlay stack where the
 basemap is render-only and only the overlay carries query semantics,
 partition first:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const featureSources = sources.filter(
   (s) => s.protocol === "ogc-features" || s.protocol === "odata",
 );
@@ -169,7 +169,7 @@ optional `sourceId` so a consumer fan-out can attribute the
 degradation to the exact source that emitted it without parsing the
 human-readable `reason`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface DegradedReason {
   capability: Capability;
   reason: string;
@@ -187,7 +187,7 @@ emit `degraded[]` should follow the same pattern.
 
 `loadMapPackage` accepts an additional option:
 
-```ts
+```ts doc-test=compile
 interface LoadOptions {
   sourceErrorPolicy?: "tolerant" | "fail-fast"; // default: "tolerant"
 }
@@ -203,7 +203,7 @@ Configuration-level binding errors (unknown protocol, missing
 raised by `projectSourceBindings` always fail-fast under either policy
 — those are operator errors that must be fixed.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const runtime = await loadMapPackage(pkg, map, {
   client,
   // default tolerant — explicit for documentation:
@@ -228,7 +228,7 @@ const runtime = await loadMapPackage(pkg, map, {
 `HonuaMapRuntime` exposes a small shim for consumers that fan a query
 out across the dataset and catch a per-source rejection:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 runtime.reportSourceError("permits", error);
 ```
 
@@ -251,7 +251,7 @@ broadcasts per-source query rejections to listeners.
 
 A four-protocol composition mirroring the operator-board archetype.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const sources: SourceDescriptor[] = [
   /* parcels-fs (geoservices-feature-service)
    * permits-ogc (ogc-features)
@@ -284,7 +284,7 @@ to per-call edits and emits a `DegradedReason` carrying
 batch is unaffected — the degradation is per-source, never
 per-composition.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const odataEdits = await dataset.source("permits-odata")!.applyEdits({
   rollbackOnFailure: true,
   updates: [{ id: 1, attributes: { STATUS: "approved" } }],
@@ -299,7 +299,7 @@ A render-only source paired with a feature source. The full
 intersection is empty (render-only sources contribute nothing to
 `query`). Partition before intersecting:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const renderable = intersectCapabilities([wmtsDescriptor]);
 renderable.has("tiles"); // true
 const queryable = intersectCapabilities([ogcDescriptor]);

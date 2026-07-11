@@ -5,7 +5,7 @@
 versioned manifest and a storage-neutral download coordinator. It does not make
 the broader local-first feature complete.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createOfflineRegionManifest,
   downloadOfflineRegion,

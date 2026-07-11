@@ -6,7 +6,7 @@ the existing realtime reducer/store. The gate does not open or reconnect a
 network transport; it decides whether an event is safe to apply and whether a
 durable cursor can resume the exact accepted subscription.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createRealtimeFeatureStore,
   createResumableRealtimeSubscription,

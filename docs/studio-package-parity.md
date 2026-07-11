@@ -11,7 +11,7 @@ provenance shape, rather than surface-specific output formats. A package
 produced through MCP or QGIS is validated by the SDK with one envelope and can
 be opened in Console once Console supports the route.
 
-```ts
+```ts doc-test=compile
 import {
   validateStudioPackage,
   validatePackageProvenance,
@@ -49,7 +49,7 @@ families it runs the shared base checks (identity field, `format`, lifecycle)
 plus provenance checks when an envelope is present. Pass
 `{ requireProvenance: true }` to make provenance mandatory.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const response = validateStudioPackage("dashboard", mcpDashboardPackage);
 if (!response.valid) {
   for (const d of response.diagnostics) console.warn(d.code, d.message);

@@ -7,7 +7,7 @@ channel is available.
 
 ## Client Usage
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { watchMapPackage } from "@honua/sdk-js/runtime";
 
 const watcher = watchMapPackage("map_123", {
@@ -55,7 +55,7 @@ may send the object directly or wrap it as `{ "event": { ... } }`.
 
 Common fields:
 
-```ts
+```ts doc-test=compile
 interface MapPackageRealtimeMessageBase {
   type: string;
   channel?: "honua.map-package.watch.v1";

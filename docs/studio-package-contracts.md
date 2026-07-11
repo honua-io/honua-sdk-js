@@ -9,7 +9,7 @@ interop, MCP, QGIS, generated apps, and embeds **consume one set of
 server-owned contract projections instead of forking their own package
 schemas.**
 
-```ts
+```ts doc-test=compile
 import {
   HONUA_QUERY_PACKAGE_FORMAT_V1,
   type HonuaStudioPackage,
@@ -69,7 +69,7 @@ Lifecycle status is shared across families via `HonuaStudioPackageStatus`
 add it. Build a tagged value with `tagStudioPackage(family, pkg)` rather than
 casting a raw wire object, then narrow on `packageFamily`:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const tagged = tagStudioPackage("query", rawQueryPackage);
 if (tagged.packageFamily === "query") {
   // tagged is narrowed to { packageFamily: "query" } & HonuaQueryPackage
@@ -86,7 +86,7 @@ Every family returns the same `{ valid, diagnostics, pkg? }` shape through
 `StudioPackageValidationResponse<T>`, so SDK, Console, MCP, and QGIS clients
 consume one contract:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface StudioPackageValidationResponse<T> {
   readonly valid: boolean;
   readonly diagnostics: readonly StudioPackageDiagnostic[];
@@ -97,7 +97,7 @@ interface StudioPackageValidationResponse<T> {
 The existing map-family `ValidateMapPackageResult` is **not renamed** — it is
 structurally bridged:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { validateMapPackage } from "@honua/sdk-js/runtime";
 import { fromMapPackageValidation } from "@honua/sdk-js/studio";
 
@@ -108,7 +108,7 @@ const response = fromMapPackageValidation(validateMapPackage(rawMapPackage));
 For other families, the generic adapter takes the field name holding the
 package:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 toStudioValidationResponse<HonuaQueryPackage>(rawQueryResult, "queryPackage");
 ```
 
@@ -128,7 +128,7 @@ diagnostics.
 `StudioCapabilityManifest` lets a client gate UI/tool exposure on what the
 connected server actually supports:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { hasCapability, getCapability } from "@honua/sdk-js/studio";
 
 if (hasCapability(manifest, "package.query")) {

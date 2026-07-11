@@ -30,7 +30,7 @@ src/exploration/
 
 ## State model
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 interface ExplorationState {
   readonly filters: Readonly<Record<string, FilterClause>>;
   readonly spatialFilter?: SpatialFilter;
@@ -99,7 +99,7 @@ coalesced into one `ChangeEvent` per subscribed slice; the event carries
 the **merged** changed-slice set, the **latest** state, and the
 **previous** state at the start of the tick. This means:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 ctx.dispatch({ kind: "set-filter", id: "state", clause: stateClause });
 ctx.dispatch({ kind: "set-sort", sort: [prioritySort] });
 // → one microtask, listeners on "filters" and "sort" each fire once,
@@ -112,7 +112,7 @@ itself is updated synchronously on `dispatch` so `ctx.state` and
 
 ## View bindings
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const handle = ctx.bind({ id: "map-1", role: "map" });
 ctx.dispatch({ kind: "set-extent", extent, viewId: "map-1" });
 handle.unbind();
@@ -134,7 +134,7 @@ intent, suppresses self-origin callbacks by default to avoid UI feedback
 loops, and owns its subscriptions so `unbind()` tears down the component
 cleanly.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const map = ctx.connectView({ id: "map", role: "map" });
 const grid = ctx.connectView({ id: "grid", role: "grid" });
 
@@ -152,7 +152,7 @@ map.select([incidentId], { replace: true });
 
 Self-origin callbacks can be enabled for components that need a local echo:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 grid.subscribe("sort", ({ state }) => renderSort(state.sort), { includeSelf: true });
 grid.setSort([{ field: "severity", direction: "desc" }]);
 ```
@@ -166,7 +166,7 @@ peer widgets in sync or remember which `viewId` to pass with each intent.
 `@honua/sdk-js/interactions` includes thin bindings for common map/table/detail
 selection flows:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   bindDetailToSelection,
   bindMapSelectionToExploration,
@@ -193,7 +193,7 @@ bindDetailToSelection(detailView, ([selected]) => renderDetail(selected));
 serializable query-facing model that tables, charts, map layer filter
 translators, MCP handoff, and saved workspaces can share:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { bindQueryProjectionToExploration } from "@honua/sdk-js/interactions";
 
 bindQueryProjectionToExploration(gridView, async (projection) => {
@@ -218,7 +218,7 @@ context. Query projections derive an envelope `spatialFilter` from the extent
 by default, so a map pan can refresh a table or chart without the table knowing
 about the map:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 bindMapExtentToExploration(mapView, mapExtentSource, { publishSpatialFilter: false });
 ```
 
@@ -227,7 +227,7 @@ cover the reverse direction: a filter bar dispatches `setFilter`, and the map
 adapter observes the same projection to translate it into a MapLibre layer
 filter or a server query.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const filters = bindFilterControlsToExploration(filterView);
 syncMapLayerFilterToExploration(map, mapView, {
   layerId: "incident-points",
@@ -241,7 +241,7 @@ Charts can publish grouping, aggregation, and selected buckets through the same
 context. Under `chartDriven`, bucket selection propagates to map, table, and
 detail subscribers:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const chart = bindChartToExploration(chartView);
 chart.setGrouping(["SEVERITY"]);
 chart.setAggregation({ groupBy: ["SEVERITY"], metrics: [{ fn: "count", field: "OBJECTID" }] });
@@ -255,14 +255,14 @@ chart.selectBucket({
 
 Single-source apps can keep using raw feature ids:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 map.select([incidentId], { replace: true });
 ```
 
 Multi-source apps should use source-qualified targets so overlapping object
 ids do not collide across map, table, detail, realtime, and MCP handoff:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
 
 map.select(
@@ -282,7 +282,7 @@ while preserving the old raw-id path for simpler apps.
 
 ## Snapshots
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const snap = ctx.snapshot();           // { version: 1, state }
 ctx.restore(snap);                     // dispatch a snapshot-restore intent
 ```
@@ -305,7 +305,7 @@ sets, and rejects subsequent `dispatch` / `bind` / `subscribe` /
 
 ## Worked example
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createDataset } from "@honua/sdk-js/contract";
 import { createExplorationContext } from "@honua/sdk-js/exploration";
 

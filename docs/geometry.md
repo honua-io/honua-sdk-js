@@ -21,7 +21,7 @@ npm install @honua/geometry
 npm install @honua/sdk-js @turf/buffer @turf/area proj4
 ```
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { area, buffer, project, toWgs84 } from "@honua/geometry";
 // unified: import { area, buffer } from "@honua/sdk-js/geometry";
 ```
@@ -67,7 +67,7 @@ tree-shaking). Web Mercator aliases (`3785`, `900913`, `102100`, `102113`) are
 normalized to `EPSG:3857`. `project` never mutates its input; a same-CRS call is
 a deep clone. Extra ordinates (`z`/`m`) pass through untouched.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 defineProjection(32610, "+proj=utm +zone=10 +datum=WGS84 +units=m +no_defs +type=crs");
 const utm = project(feature.geometry, 4326, 32610);
 ```
@@ -126,7 +126,7 @@ planar ops have exact values):
 
 ## Example: measure + buffer + reproject
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { area, buffer, toWgs84 } from "@honua/geometry";
 
 // A parcel returned in Web Mercator (EPSG:3857).

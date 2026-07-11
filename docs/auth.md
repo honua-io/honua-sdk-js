@@ -6,7 +6,7 @@ attaches them to every request across **all transports** (REST fetch paths and
 gRPC-web calls), refreshes them transparently before they expire, and force-
 refreshes once on a replay-safe `401`/`403`.
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { oauth2 } from "@honua/sdk-js/auth";
 
@@ -61,7 +61,7 @@ provider **and** the controller your app drives for the interactive flow.
    the access token nears expiry it is silently refreshed via the
    `refresh_token` grant.
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 // On the page that renders your app / callback:
 if (auth.isRedirectCallback()) {
   await auth.handleRedirectCallback();      // completes the sign-in
@@ -95,7 +95,7 @@ This holds both inside the provider and at the client level.
 
 ### Lifecycle events
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 const handle = auth.on((event) => {
   switch (event.type) {
     case "signed-in":       /* event.credential */ break;
@@ -116,7 +116,7 @@ For confidential server clients, use `clientCredentials`. There is no
 interactive step; tokens are fetched on demand and re-requested when they expire
 (this grant issues no refresh token). Refresh is single-flight.
 
-```ts
+```ts doc-test=compile
 import { clientCredentials } from "@honua/sdk-js/auth";
 
 const auth = clientCredentials({
@@ -142,11 +142,14 @@ token for one service is never returned for another.
 | `sessionStorageCredentialStore()` | `@honua/sdk-js/auth` | Per-tab; cleared on tab close | Readable by any script on the origin (XSS). |
 | `localStorageCredentialStore()` | `@honua/sdk-js/auth` | Across tabs & restarts | Highest — persists the exposure window. |
 
-```ts
+```ts doc-test=compile
 import { oauth2, sessionStorageCredentialStore } from "@honua/sdk-js/auth";
 
 const auth = oauth2({
-  /* … */
+  authorizationEndpoint: "https://identity.example.com/oauth2/authorize",
+  tokenEndpoint: "https://identity.example.com/oauth2/token",
+  clientId: "public-browser-client",
+  redirectUri: "https://app.example.com/oauth/callback",
   store: sessionStorageCredentialStore(), // opt-in; understand the risk below
 });
 ```
@@ -189,7 +192,7 @@ Migrated ArcGIS apps that call `IdentityManager.registerOAuthInfos(...)` can be
 backed by the real engine. Bind an `oauth2(...)` provider to a server and
 `getCredential(url)` drives the actual PKCE / refresh flow:
 
-```ts
+```ts doc-test=compile
 import { oauth2 } from "@honua/sdk-js/auth";
 import { identityManager, OAuthInfoCompat } from "@honua/sdk-js/esri-compat";
 
