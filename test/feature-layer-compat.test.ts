@@ -18,6 +18,13 @@ describe("parseFeatureLayerUrl", () => {
     expect(parsed.layerId).toBe(8);
   });
 
+  it("preserves folder segments in the service id", () => {
+    const parsed = parseFeatureLayerUrl("https://example.test/arcgis/rest/services/Hosted/transport/FeatureServer/8");
+    expect(parsed.baseUrl).toBe("https://example.test/arcgis");
+    expect(parsed.serviceId).toBe("Hosted/transport");
+    expect(parsed.layerId).toBe(8);
+  });
+
   it("parses relative URL shape", () => {
     const parsed = parseFeatureLayerUrl("/rest/services/transport/FeatureServer/8");
     expect(parsed.baseUrl).toBe("");

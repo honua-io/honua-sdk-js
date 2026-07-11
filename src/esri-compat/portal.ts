@@ -396,6 +396,9 @@ function trimTrailingSlashes(value: string): string {
 }
 
 function defaultReferer(sharingRestBase: string): string | undefined {
+  if (globalThis.location?.origin) {
+    return globalThis.location.origin;
+  }
   try {
     return new URL(sharingRestBase).origin;
   } catch {

@@ -12,7 +12,8 @@ export interface ParsedMapServiceUrl {
 const ABSOLUTE_URL_RE = /^[A-Za-z][A-Za-z\d+.-]*:\/\//;
 const PROTOCOL_RELATIVE_URL_RE = /^\/\//;
 const RELATIVE_URL_BASE = "https://honua.invalid";
-const FEATURE_LAYER_PATH_RE = /^(?<prefix>.*)\/rest\/services\/(?<serviceId>[^/]+)\/FeatureServer\/(?<layerId>\d+)\/?$/;
+const FEATURE_LAYER_PATH_RE =
+  /^(?<prefix>.*)\/rest\/services\/(?<serviceId>[^/]+(?:\/[^/]+)*)\/FeatureServer\/(?<layerId>\d+)\/?$/;
 const MAP_SERVICE_PATH_RE = /^(?<prefix>.*)\/rest\/services\/(?<serviceId>[^/]+)\/MapServer(?:\/\d+)?\/?$/;
 const IMAGE_SERVICE_PATH_RE = /^(?<prefix>.*)\/rest\/services\/(?<serviceId>[^/]+)\/ImageServer(?:\/\d+)?\/?$/;
 

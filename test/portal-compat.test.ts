@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PortalCompat, PortalError, identityManager } from "../src/esri-compat-entry.js";
 
@@ -63,6 +63,7 @@ function samplePortalItem(overrides: Record<string, unknown> = {}): Record<strin
 
 afterEach(() => {
   identityManager.reset();
+  vi.unstubAllGlobals();
 });
 
 describe("PortalCompat.generateToken", () => {
@@ -87,6 +88,20 @@ describe("PortalCompat.generateToken", () => {
     expect(body).toContain("username=u");
     expect(body).toContain("password=p");
     expect(body).toContain("f=json");
+  });
+
+  it("defaults referer tokens to the browser application origin", async () => {
+    vi.stubGlobal("location", { origin: "https://app.example" });
+    const { fetchFn, requests } = makeFakeFetch([
+      { match: "/generateToken", body: { token: "portal-token-1", expires: Date.now() + 60_000 } },
+    ]);
+    const portal = new PortalCompat({ portalUrl: "https://portal.example", fetchFn });
+
+    await portal.generateToken({ username: "u", password: "p" });
+
+    const body = new URLSearchParams(String(requests[0]?.init?.body));
+    expect(body.get("client")).toBe("referer");
+    expect(body.get("referer")).toBe("https://app.example");
   });
 
   it("throws a PortalError on the Esri error envelope", async () => {
@@ -200,6 +215,21 @@ describe("PortalCompat.openFeatureLayer", () => {
     const queryRequest = requests.find((request) => request.url.includes("/FeatureServer/0/query"));
     expect(queryRequest).toBeDefined();
     expect(queryRequest?.url).toContain("token=layer-tok");
+  });
+
+  it("opens Feature Service items whose service id includes folders", async () => {
+    const portal = new PortalCompat({
+      portalUrl: "https://honua.example",
+      fetchFn: makeFakeFetch([]).fetchFn,
+    });
+    const item = samplePortalItem({
+      url: "https://honua.example/rest/services/Hosted/Roads/FeatureServer",
+    }) as never;
+
+    const opened = await portal.openFeatureLayer(item);
+
+    expect(opened.type).toBe("feature-service");
+    expect(opened.serviceId).toBe("Hosted/Roads");
   });
 
   it("returns a resolved service handle for Map Service items without throwing", async () => {
