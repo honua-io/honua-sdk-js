@@ -17,11 +17,17 @@ import type {
 
 import "./styles.css";
 
-const FIXTURE_URL = "/overture-places.parquet";
+const MODULE_URL = import.meta.url;
+
+function distributionUrl(path: string): string {
+  return new URL(`../${path}`, MODULE_URL).href;
+}
+
+const FIXTURE_URL = distributionUrl("overture-places.parquet");
 const FIXTURE_NAME = "overture-places.parquet";
 const DUCKDB_BUNDLE = {
-  mainModule: "/duckdb/duckdb-eh.wasm",
-  mainWorker: "/duckdb/duckdb-browser-eh.worker.js",
+  mainModule: distributionUrl("duckdb/duckdb-eh.wasm"),
+  mainWorker: distributionUrl("duckdb/duckdb-browser-eh.worker.js"),
 };
 
 interface ExplorerApi {
@@ -257,7 +263,7 @@ async function executePlan(
       createBrowserDuckDbDriver({
         signal: initializationSignal,
         bundle: DUCKDB_BUNDLE,
-        extensionRepository: "/duckdb/extensions",
+        extensionRepository: distributionUrl("duckdb/extensions"),
         preloadExtensions: ["parquet"],
         loadSpatial: false,
         logLevel: "ERROR",
