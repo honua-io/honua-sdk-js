@@ -63,8 +63,19 @@ check that distinguishes the two cases.
 ## Memory ceilings
 
 Creation and transfer default to at most 1,000,000 rows and 64 MiB of unique
-backing allocations per batch. Both limits may be lowered or explicitly raised
-with `maxRows` and `maxBackingBytes`; there is no unbounded mode.
+backing allocations per batch. Descriptor normalization also defaults to at
+most 4,096 total schema fields, 8,192 metadata/type-parameter entries, 16,384
+buffer views, and 1 MiB of UTF-8 descriptor identifiers, keys, and string
+values. The corresponding `maxRows`, `maxBackingBytes`, `maxSchemaNodes`,
+`maxMetadataEntries`, `maxBufferViews`, and `maxStringBytes` limits may be
+lowered or explicitly raised; there is no unbounded mode.
+
+Array widths are checked from one captured length before element access, and
+metadata keys are accumulated only to the configured bound. Normalization
+therefore fails before copying an oversized schema or descriptor list. Empty
+views and many views sharing one small backing allocation still count against
+`maxBufferViews`; they cannot bypass the CPU/heap ceiling by keeping
+`backingBytes` low.
 
 Limits supplied when a lease is created remain its transfer defaults, so a
 deliberately raised ceiling is not accidentally replaced by the global default.
@@ -107,6 +118,10 @@ lease's references. It cannot revoke other references held by the caller.
 - `invalid-batch`
 - `row-limit-exceeded`
 - `memory-limit-exceeded`
+- `schema-limit-exceeded`
+- `metadata-limit-exceeded`
+- `buffer-view-limit-exceeded`
+- `string-limit-exceeded`
 - `already-leased`
 - `aborted`
 - `already-transferred`

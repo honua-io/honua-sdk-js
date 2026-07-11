@@ -10,6 +10,10 @@ export const COLUMNAR_TRANSFER_KIND = "honua.columnar-transfer" as const;
 /** Conservative defaults for one independently transferable batch. */
 export const DEFAULT_COLUMNAR_BATCH_MAX_ROWS = 1_000_000;
 export const DEFAULT_COLUMNAR_BATCH_MAX_BACKING_BYTES = 64 * 1024 * 1024;
+export const DEFAULT_COLUMNAR_BATCH_MAX_SCHEMA_NODES = 4_096;
+export const DEFAULT_COLUMNAR_BATCH_MAX_METADATA_ENTRIES = 8_192;
+export const DEFAULT_COLUMNAR_BATCH_MAX_BUFFER_VIEWS = 16_384;
+export const DEFAULT_COLUMNAR_BATCH_MAX_STRING_BYTES = 1024 * 1024;
 
 /**
  * Adapter-declared logical type name. Adapters may use Arrow or GeoArrow names
@@ -84,6 +88,14 @@ export interface ColumnarBatchLimits {
   readonly maxRows?: number;
   /** Counts complete unique backing buffers, not only referenced slices. */
   readonly maxBackingBytes?: number;
+  /** Maximum total top-level and nested schema fields. */
+  readonly maxSchemaNodes?: number;
+  /** Maximum combined schema, field, and type-parameter entries. */
+  readonly maxMetadataEntries?: number;
+  /** Maximum number of buffer descriptors, including zero-byte/shared views. */
+  readonly maxBufferViews?: number;
+  /** Maximum UTF-8 bytes across descriptor identifiers, keys, and string values. */
+  readonly maxStringBytes?: number;
 }
 
 /** Exact payload-copy and backing-allocation accounting for a batch. */
@@ -115,6 +127,10 @@ export type ColumnarTransferErrorCode =
   | "invalid-batch"
   | "row-limit-exceeded"
   | "memory-limit-exceeded"
+  | "schema-limit-exceeded"
+  | "metadata-limit-exceeded"
+  | "buffer-view-limit-exceeded"
+  | "string-limit-exceeded"
   | "already-leased"
   | "aborted"
   | "already-transferred"

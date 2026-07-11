@@ -100,6 +100,64 @@ describe("columnar batch contract", () => {
     expectCode(() => createColumnarBatch(input(), { maxRows: 3 }), "row-limit-exceeded");
   });
 
+  it("bounds schema width, metadata entries, buffer views, and descriptor strings before materialization", () => {
+    const wideFields = new Array<ColumnarSchemaV1["fields"][number]>(3);
+    Object.defineProperty(wideFields, 0, {
+      enumerable: true,
+      get() {
+        throw new Error("schema element must not be read after width rejection");
+      },
+    });
+    expectCode(
+      () =>
+        createColumnarBatch(
+          { ...input(), schema: { id: "wide", fields: wideFields }, buffers: [] },
+          { maxSchemaNodes: 2 },
+        ),
+      "schema-limit-exceeded",
+    );
+
+    const metadata = {} as Record<string, string>;
+    for (const key of ["a", "b", "c"]) {
+      Object.defineProperty(metadata, key, {
+        enumerable: true,
+        get() {
+          throw new Error("metadata value must not be read after entry rejection");
+        },
+      });
+    }
+    expectCode(
+      () =>
+        createColumnarBatch(
+          { ...input(), schema: { id: "metadata", fields: [], metadata }, buffers: [] },
+          { maxMetadataEntries: 2 },
+        ),
+      "metadata-limit-exceeded",
+    );
+
+    const views = new Array<CreateColumnarBatchInput["buffers"][number]>(3);
+    Object.defineProperty(views, 0, {
+      enumerable: true,
+      get() {
+        throw new Error("buffer descriptor must not be read after view rejection");
+      },
+    });
+    expectCode(
+      () =>
+        createColumnarBatch({ ...input(), schema: { id: "views", fields: [] }, buffers: views }, { maxBufferViews: 2 }),
+      "buffer-view-limit-exceeded",
+    );
+
+    expectCode(
+      () =>
+        createColumnarBatch(
+          { id: "b", schema: { id: "s", fields: [] }, rowCount: 0, sequence: 0, buffers: [] },
+          { maxStringBytes: 1 },
+        ),
+      "string-limit-exceeded",
+    );
+  });
+
   it("rejects malformed descriptors before transport", () => {
     expectCode(
       () =>
@@ -229,6 +287,37 @@ describe("columnar batch contract", () => {
     expectCode(() => inspectColumnarBatch(throwing), "invalid-batch");
   });
 
+  it("captures foreign proxy array lengths and elements exactly once", () => {
+    const valid = createColumnarBatch(input());
+    let fieldLengthReads = 0;
+    let fieldElementReads = 0;
+    let bufferLengthReads = 0;
+    let bufferElementReads = 0;
+    const fields = new Proxy([...valid.schema.fields], {
+      get(target, property, receiver) {
+        if (property === "length") fieldLengthReads += 1;
+        else if (typeof property === "string" && /^\d+$/.test(property)) fieldElementReads += 1;
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const buffers = new Proxy([...valid.buffers], {
+      get(target, property, receiver) {
+        if (property === "length") bufferLengthReads += 1;
+        else if (typeof property === "string" && /^\d+$/.test(property)) bufferElementReads += 1;
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(inspectColumnarBatch({ ...valid, schema: { ...valid.schema, fields }, buffers })).toMatchObject({
+      rows: 4,
+      backingBytes: 32,
+    });
+    expect(fieldLengthReads).toBe(1);
+    expect(fieldElementReads).toBe(valid.schema.fields.length);
+    expect(bufferLengthReads).toBe(1);
+    expect(bufferElementReads).toBe(valid.buffers.length);
+  });
+
   it("allows an empty bounded batch", () => {
     const empty = new ArrayBuffer(0);
     const batch = createColumnarBatch({
@@ -247,6 +336,18 @@ describe("columnar batch contract", () => {
 });
 
 describe("columnar ownership transfer", () => {
+  it("rejects malformed or future foreign lease discriminators without detaching buffers", () => {
+    const data = new ArrayBuffer(32);
+    const valid = createColumnarBatch(input(data));
+    for (const foreign of [
+      { ...valid, kind: "foreign-columnar-batch" },
+      { ...valid, version: "2.0" },
+    ]) {
+      expectCode(() => leaseColumnarBatch(foreign as typeof valid), "invalid-batch");
+      expect(data.byteLength).toBe(32);
+    }
+  });
+
   it("round-trips the envelope and payload through a real MessagePort transfer", async () => {
     const data = new ArrayBuffer(32);
     new Uint8Array(data).set([9, 8, 7, 6]);

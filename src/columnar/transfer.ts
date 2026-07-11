@@ -16,7 +16,11 @@ import {
   type ColumnarTypeV1,
   type CreateColumnarBatchInput,
   DEFAULT_COLUMNAR_BATCH_MAX_BACKING_BYTES,
+  DEFAULT_COLUMNAR_BATCH_MAX_BUFFER_VIEWS,
+  DEFAULT_COLUMNAR_BATCH_MAX_METADATA_ENTRIES,
   DEFAULT_COLUMNAR_BATCH_MAX_ROWS,
+  DEFAULT_COLUMNAR_BATCH_MAX_SCHEMA_NODES,
+  DEFAULT_COLUMNAR_BATCH_MAX_STRING_BYTES,
   HonuaColumnarTransferError,
 } from "./types.js";
 
@@ -25,8 +29,25 @@ interface Inspection {
   readonly transfer: readonly ArrayBuffer[];
 }
 
+interface ResolvedLimits {
+  readonly maxRows: number;
+  readonly maxBackingBytes: number;
+  readonly maxSchemaNodes: number;
+  readonly maxMetadataEntries: number;
+  readonly maxBufferViews: number;
+  readonly maxStringBytes: number;
+}
+
+interface NormalizationUsage {
+  schemaNodes: number;
+  metadataEntries: number;
+  bufferViews: number;
+  stringBytes: number;
+}
+
 const BUFFER_ROLES = new Set(["validity", "offsets", "type-ids", "values", "dictionary", "geometry", "custom"]);
 const trustedBatches = new WeakSet<object>();
+const trustedBatchUsage = new WeakMap<object, Readonly<NormalizationUsage>>();
 const leasedBuffers = new WeakMap<ArrayBuffer, ColumnarBatchLease>();
 
 function invalid(message: string): never {
@@ -42,10 +63,96 @@ function invalidBoundary<T>(operation: () => T): T {
   }
 }
 
-function requireIdentifier(value: string, label: string): string {
-  if (typeof value !== "string" || value.trim().length === 0) invalid(`${label} must be a non-empty string`);
-  if (value !== value.trim()) invalid(`${label} must not have leading or trailing whitespace`);
+function resolveLimits(limits: ColumnarBatchLimits): ResolvedLimits {
+  return Object.freeze({
+    maxRows: normalizeLimit(limits.maxRows, DEFAULT_COLUMNAR_BATCH_MAX_ROWS, "maxRows"),
+    maxBackingBytes: normalizeLimit(
+      limits.maxBackingBytes,
+      DEFAULT_COLUMNAR_BATCH_MAX_BACKING_BYTES,
+      "maxBackingBytes",
+    ),
+    maxSchemaNodes: normalizeLimit(limits.maxSchemaNodes, DEFAULT_COLUMNAR_BATCH_MAX_SCHEMA_NODES, "maxSchemaNodes"),
+    maxMetadataEntries: normalizeLimit(
+      limits.maxMetadataEntries,
+      DEFAULT_COLUMNAR_BATCH_MAX_METADATA_ENTRIES,
+      "maxMetadataEntries",
+    ),
+    maxBufferViews: normalizeLimit(limits.maxBufferViews, DEFAULT_COLUMNAR_BATCH_MAX_BUFFER_VIEWS, "maxBufferViews"),
+    maxStringBytes: normalizeLimit(limits.maxStringBytes, DEFAULT_COLUMNAR_BATCH_MAX_STRING_BYTES, "maxStringBytes"),
+  });
+}
+
+function createUsage(): NormalizationUsage {
+  return { schemaNodes: 0, metadataEntries: 0, bufferViews: 0, stringBytes: 0 };
+}
+
+function consumeCount(
+  usage: NormalizationUsage,
+  key: "schemaNodes" | "metadataEntries" | "bufferViews",
+  count: number,
+  limit: number,
+  code: "schema-limit-exceeded" | "metadata-limit-exceeded" | "buffer-view-limit-exceeded",
+  label: string,
+): void {
+  if (count > limit - usage[key]) {
+    throw new HonuaColumnarTransferError(code, `${label} exceeds the configured ${limit}-entry limit`);
+  }
+  usage[key] += count;
+}
+
+function consumeString(value: unknown, label: string, usage: NormalizationUsage, limits: ResolvedLimits): string {
+  if (typeof value !== "string") invalid(`${label} must be a string`);
+  const remaining = limits.maxStringBytes - usage.stringBytes;
+  let bytes = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x7f) bytes += 1;
+    else if (code <= 0x7ff) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && index + 1 < value.length) {
+      const next = value.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index += 1;
+      } else bytes += 3;
+    } else bytes += 3;
+    if (bytes > remaining) {
+      throw new HonuaColumnarTransferError(
+        "string-limit-exceeded",
+        `${label} exceeds the configured ${limits.maxStringBytes}-byte descriptor string limit`,
+      );
+    }
+  }
+  usage.stringBytes += bytes;
   return value;
+}
+
+function boundedMetadataKeys(
+  value: object,
+  label: string,
+  usage: NormalizationUsage,
+  limits: ResolvedLimits,
+): string[] {
+  const remaining = limits.maxMetadataEntries - usage.metadataEntries;
+  const keys: string[] = [];
+  for (const key in value) {
+    if (!Object.hasOwn(value, key)) continue;
+    if (keys.length >= remaining) {
+      throw new HonuaColumnarTransferError(
+        "metadata-limit-exceeded",
+        `${label} exceeds the configured ${limits.maxMetadataEntries}-entry limit`,
+      );
+    }
+    keys.push(key);
+  }
+  consumeCount(usage, "metadataEntries", keys.length, limits.maxMetadataEntries, "metadata-limit-exceeded", label);
+  return keys.sort();
+}
+
+function requireIdentifier(value: unknown, label: string, usage: NormalizationUsage, limits: ResolvedLimits): string {
+  const normalized = consumeString(value, label, usage, limits);
+  if (normalized.trim().length === 0) invalid(`${label} must be a non-empty string`);
+  if (normalized !== normalized.trim()) invalid(`${label} must not have leading or trailing whitespace`);
+  return normalized;
 }
 
 function requireSafeNonNegativeInteger(value: number, label: string): number {
@@ -64,15 +171,16 @@ function normalizeLimit(value: number | undefined, fallback: number, label: stri
 function normalizeStringRecord(
   value: Readonly<Record<string, string>> | undefined,
   label: string,
+  usage: NormalizationUsage,
+  limits: ResolvedLimits,
 ): Readonly<Record<string, string>> | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) invalid(`${label} must be an object`);
+  const keys = boundedMetadataKeys(value, label, usage, limits);
   const normalized = Object.create(null) as Record<string, string>;
-  for (const key of Object.keys(value).sort()) {
-    requireIdentifier(key, `${label} key`);
-    const item = value[key];
-    if (typeof item !== "string") invalid(`${label}.${key} must be a string`);
-    normalized[key] = item;
+  for (const key of keys) {
+    const normalizedKey = requireIdentifier(key, `${label} key`, usage, limits);
+    normalized[normalizedKey] = consumeString(value[key], `${label}.${key}`, usage, limits);
   }
   return Object.freeze(normalized);
 }
@@ -80,36 +188,51 @@ function normalizeStringRecord(
 function normalizeParameters(
   value: Readonly<Record<string, string | number | boolean>> | undefined,
   label: string,
+  usage: NormalizationUsage,
+  limits: ResolvedLimits,
 ): Readonly<Record<string, string | number | boolean>> | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) invalid(`${label} must be an object`);
+  const keys = boundedMetadataKeys(value, label, usage, limits);
   const normalized = Object.create(null) as Record<string, string | number | boolean>;
-  for (const key of Object.keys(value).sort()) {
-    requireIdentifier(key, `${label} key`);
+  for (const key of keys) {
+    const normalizedKey = requireIdentifier(key, `${label} key`, usage, limits);
     const item = value[key];
     if (typeof item !== "string" && typeof item !== "number" && typeof item !== "boolean") {
       invalid(`${label}.${key} must be a string, number, or boolean`);
     }
     if (typeof item === "number" && !Number.isFinite(item)) invalid(`${label}.${key} must be finite`);
-    normalized[key] = item;
+    normalized[normalizedKey] = typeof item === "string" ? consumeString(item, `${label}.${key}`, usage, limits) : item;
   }
   return Object.freeze(normalized);
 }
 
-function normalizeType(type: ColumnarTypeV1, label: string): ColumnarTypeV1 {
+function normalizeType(
+  type: ColumnarTypeV1,
+  label: string,
+  usage: NormalizationUsage,
+  limits: ResolvedLimits,
+): ColumnarTypeV1 {
   if (typeof type !== "object" || type === null) invalid(`${label} must be an object`);
   const name = type.name;
   const rawParameters = type.parameters;
-  const parameters = normalizeParameters(rawParameters, `${label}.parameters`);
+  const parameters = normalizeParameters(rawParameters, `${label}.parameters`, usage, limits);
   return Object.freeze({
-    name: requireIdentifier(name, `${label}.name`),
+    name: requireIdentifier(name, `${label}.name`, usage, limits),
     ...(parameters === undefined ? {} : { parameters }),
   });
 }
 
-function normalizeField(field: ColumnarFieldV1, path: string, depth: number): ColumnarFieldV1 {
+function normalizeField(
+  field: ColumnarFieldV1,
+  path: string,
+  depth: number,
+  usage: NormalizationUsage,
+  limits: ResolvedLimits,
+): ColumnarFieldV1 {
   if (depth > 64) invalid(`${path} exceeds the maximum schema nesting depth`);
   if (typeof field !== "object" || field === null) invalid(`${path} must be an object`);
+  consumeCount(usage, "schemaNodes", 1, limits.maxSchemaNodes, "schema-limit-exceeded", "schema fields");
   const name = field.name;
   const type = field.type;
   const nullable = field.nullable;
@@ -117,7 +240,20 @@ function normalizeField(field: ColumnarFieldV1, path: string, depth: number): Co
   const rawMetadata = field.metadata;
   if (typeof nullable !== "boolean") invalid(`${path}.nullable must be a boolean`);
   if (rawChildren !== undefined && !Array.isArray(rawChildren)) invalid(`${path}.children must be an array`);
-  const children = rawChildren?.map((child, index) => normalizeField(child, `${path}.children[${index}]`, depth + 1));
+  const childCount = rawChildren?.length;
+  if (childCount !== undefined && childCount > limits.maxSchemaNodes - usage.schemaNodes) {
+    throw new HonuaColumnarTransferError(
+      "schema-limit-exceeded",
+      `schema fields exceeds the configured ${limits.maxSchemaNodes}-entry limit`,
+    );
+  }
+  let children: ColumnarFieldV1[] | undefined;
+  if (rawChildren && childCount !== undefined) {
+    children = [];
+    for (let index = 0; index < childCount; index += 1) {
+      children.push(normalizeField(rawChildren[index]!, `${path}.children[${index}]`, depth + 1, usage, limits));
+    }
+  }
   if (children) {
     const names = new Set<string>();
     for (const child of children) {
@@ -125,32 +261,44 @@ function normalizeField(field: ColumnarFieldV1, path: string, depth: number): Co
       names.add(child.name);
     }
   }
-  const metadata = normalizeStringRecord(rawMetadata, `${path}.metadata`);
+  const metadata = normalizeStringRecord(rawMetadata, `${path}.metadata`, usage, limits);
   return Object.freeze({
-    name: requireIdentifier(name, `${path}.name`),
-    type: normalizeType(type, `${path}.type`),
+    name: requireIdentifier(name, `${path}.name`, usage, limits),
+    type: normalizeType(type, `${path}.type`, usage, limits),
     nullable,
     ...(children === undefined ? {} : { children: Object.freeze(children) }),
     ...(metadata === undefined ? {} : { metadata }),
   });
 }
 
-function normalizeSchema(schema: ColumnarSchemaV1): ColumnarSchemaV1 {
+function normalizeSchema(
+  schema: ColumnarSchemaV1,
+  usage: NormalizationUsage,
+  limits: ResolvedLimits,
+): ColumnarSchemaV1 {
   if (typeof schema !== "object" || schema === null) invalid("schema must be an object");
   const id = schema.id;
   const rawFields = schema.fields;
   const rawMetadata = schema.metadata;
   if (!Array.isArray(rawFields)) invalid("schema.fields must be an array");
+  const fieldCount = rawFields.length;
+  if (fieldCount > limits.maxSchemaNodes - usage.schemaNodes) {
+    throw new HonuaColumnarTransferError(
+      "schema-limit-exceeded",
+      `schema fields exceeds the configured ${limits.maxSchemaNodes}-entry limit`,
+    );
+  }
   const fieldNames = new Set<string>();
-  const fields = rawFields.map((field, index) => {
-    const normalized = normalizeField(field, `schema.fields[${index}]`, 0);
+  const fields: ColumnarFieldV1[] = [];
+  for (let index = 0; index < fieldCount; index += 1) {
+    const normalized = normalizeField(rawFields[index]!, `schema.fields[${index}]`, 0, usage, limits);
     if (fieldNames.has(normalized.name)) invalid(`schema has duplicate top-level field ${normalized.name}`);
     fieldNames.add(normalized.name);
-    return normalized;
-  });
-  const metadata = normalizeStringRecord(rawMetadata, "schema.metadata");
+    fields.push(normalized);
+  }
+  const metadata = normalizeStringRecord(rawMetadata, "schema.metadata", usage, limits);
   return Object.freeze({
-    id: requireIdentifier(id, "schema.id"),
+    id: requireIdentifier(id, "schema.id", usage, limits),
     fields: Object.freeze(fields),
     ...(metadata === undefined ? {} : { metadata }),
   });
@@ -184,7 +332,12 @@ function assertRowRange(rowOffset: number | undefined, rowCount: number): void {
   }
 }
 
-function normalizeBuffer(buffer: ColumnarBufferV1, index: number): ColumnarBufferV1 {
+function normalizeBuffer(
+  buffer: ColumnarBufferV1,
+  index: number,
+  usage: NormalizationUsage,
+  limits: ResolvedLimits,
+): ColumnarBufferV1 {
   const label = `buffers[${index}]`;
   if (typeof buffer !== "object" || buffer === null) invalid(`${label} must be an object`);
   const id = buffer.id;
@@ -199,9 +352,9 @@ function normalizeBuffer(buffer: ColumnarBufferV1, index: number): ColumnarBuffe
   const byteOffset = requireSafeNonNegativeInteger(rawByteOffset, `${label}.byteOffset`);
   const byteLength = requireSafeNonNegativeInteger(rawByteLength, `${label}.byteLength`);
   if (byteOffset + byteLength > data.byteLength) invalid(`${label} view exceeds its backing buffer`);
-  const field = rawField === undefined ? undefined : requireIdentifier(rawField, `${label}.field`);
+  const field = rawField === undefined ? undefined : requireIdentifier(rawField, `${label}.field`, usage, limits);
   return Object.freeze({
-    id: requireIdentifier(id, `${label}.id`),
+    id: requireIdentifier(id, `${label}.id`, usage, limits),
     role,
     ...(field === undefined ? {} : { field }),
     data,
@@ -220,7 +373,7 @@ function assertAttached(buffer: ArrayBuffer, label: string): void {
   }
 }
 
-function normalizeBatchInput(input: CreateColumnarBatchInput): ColumnarBatchV1 {
+function normalizeBatchInput(input: CreateColumnarBatchInput, limits: ResolvedLimits): ColumnarBatchV1 {
   if (typeof input !== "object" || input === null) invalid("batch input must be an object");
   const id = input.id;
   const rawSchema = input.schema;
@@ -229,15 +382,24 @@ function normalizeBatchInput(input: CreateColumnarBatchInput): ColumnarBatchV1 {
   const rawRowOffset = input.rowOffset;
   const rawBuffers = input.buffers;
   if (!Array.isArray(rawBuffers)) invalid("buffers must be an array");
-  const schema = normalizeSchema(rawSchema);
+  const usage = createUsage();
+  const bufferCount = rawBuffers.length;
+  if (bufferCount > limits.maxBufferViews) {
+    throw new HonuaColumnarTransferError(
+      "buffer-view-limit-exceeded",
+      `buffers exceeds the configured ${limits.maxBufferViews}-entry limit`,
+    );
+  }
+  consumeCount(usage, "bufferViews", bufferCount, limits.maxBufferViews, "buffer-view-limit-exceeded", "buffers");
+  const schema = normalizeSchema(rawSchema, usage, limits);
   const rowCount = requireSafeNonNegativeInteger(rawRowCount, "rowCount");
   const sequence = requireSafeNonNegativeInteger(rawSequence, "sequence");
   const rowOffset = rawRowOffset === undefined ? undefined : requireSafeNonNegativeInteger(rawRowOffset, "rowOffset");
   assertRowRange(rowOffset, rowCount);
   const ids = new Set<string>();
   const buffers: ColumnarBufferV1[] = [];
-  for (const [index, buffer] of rawBuffers.entries()) {
-    const normalized = normalizeBuffer(buffer, index);
+  for (let index = 0; index < bufferCount; index += 1) {
+    const normalized = normalizeBuffer(rawBuffers[index]!, index, usage, limits);
     if (ids.has(normalized.id)) invalid(`buffers has duplicate id ${normalized.id}`);
     ids.add(normalized.id);
     buffers.push(normalized);
@@ -246,7 +408,7 @@ function normalizeBatchInput(input: CreateColumnarBatchInput): ColumnarBatchV1 {
   const batch = Object.freeze({
     kind: COLUMNAR_BATCH_KIND,
     version: COLUMNAR_BATCH_VERSION,
-    id: requireIdentifier(id, "id"),
+    id: requireIdentifier(id, "id", usage, limits),
     schema,
     rowCount,
     sequence,
@@ -254,6 +416,7 @@ function normalizeBatchInput(input: CreateColumnarBatchInput): ColumnarBatchV1 {
     buffers: Object.freeze(buffers),
   });
   trustedBatches.add(batch);
+  trustedBatchUsage.set(batch, Object.freeze({ ...usage }));
   return batch;
 }
 
@@ -261,17 +424,37 @@ function assertNotAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new HonuaColumnarTransferError("aborted", "Columnar transfer was aborted");
 }
 
-function inspectTrusted(batch: ColumnarBatchV1, limits: ColumnarBatchLimits): Inspection {
-  const maxRows = normalizeLimit(limits.maxRows, DEFAULT_COLUMNAR_BATCH_MAX_ROWS, "maxRows");
-  const maxBackingBytes = normalizeLimit(
-    limits.maxBackingBytes,
-    DEFAULT_COLUMNAR_BATCH_MAX_BACKING_BYTES,
-    "maxBackingBytes",
-  );
-  if (batch.rowCount > maxRows) {
+function inspectTrusted(batch: ColumnarBatchV1, limits: ResolvedLimits): Inspection {
+  const usage = trustedBatchUsage.get(batch);
+  if (!usage) invalid("trusted batch normalization accounting is unavailable");
+  if (usage.schemaNodes > limits.maxSchemaNodes) {
+    throw new HonuaColumnarTransferError(
+      "schema-limit-exceeded",
+      `Columnar batch has ${usage.schemaNodes} schema fields; the limit is ${limits.maxSchemaNodes}`,
+    );
+  }
+  if (usage.metadataEntries > limits.maxMetadataEntries) {
+    throw new HonuaColumnarTransferError(
+      "metadata-limit-exceeded",
+      `Columnar batch has ${usage.metadataEntries} metadata entries; the limit is ${limits.maxMetadataEntries}`,
+    );
+  }
+  if (usage.bufferViews > limits.maxBufferViews) {
+    throw new HonuaColumnarTransferError(
+      "buffer-view-limit-exceeded",
+      `Columnar batch has ${usage.bufferViews} buffer views; the limit is ${limits.maxBufferViews}`,
+    );
+  }
+  if (usage.stringBytes > limits.maxStringBytes) {
+    throw new HonuaColumnarTransferError(
+      "string-limit-exceeded",
+      `Columnar batch has ${usage.stringBytes} descriptor string bytes; the limit is ${limits.maxStringBytes}`,
+    );
+  }
+  if (batch.rowCount > limits.maxRows) {
     throw new HonuaColumnarTransferError(
       "row-limit-exceeded",
-      `Columnar batch has ${batch.rowCount} rows; the limit is ${maxRows}`,
+      `Columnar batch has ${batch.rowCount} rows; the limit is ${limits.maxRows}`,
     );
   }
 
@@ -293,10 +476,10 @@ function inspectTrusted(batch: ColumnarBatchV1, limits: ColumnarBatchLimits): In
       if (!Number.isSafeInteger(backingBytes)) invalid("backing byte length exceeds safe integer precision");
     }
   }
-  if (backingBytes > maxBackingBytes) {
+  if (backingBytes > limits.maxBackingBytes) {
     throw new HonuaColumnarTransferError(
       "memory-limit-exceeded",
-      `Columnar batch owns ${backingBytes} backing bytes; the limit is ${maxBackingBytes}`,
+      `Columnar batch owns ${backingBytes} backing bytes; the limit is ${limits.maxBackingBytes}`,
     );
   }
   const metrics = Object.freeze({
@@ -313,14 +496,15 @@ function inspectTrusted(batch: ColumnarBatchV1, limits: ColumnarBatchLimits): In
 
 function inspect(batch: ColumnarBatchV1, limits: ColumnarBatchLimits = {}): Inspection {
   return invalidBoundary(() => {
+    const resolvedLimits = resolveLimits(limits);
     if (typeof batch !== "object" || batch === null) invalid("batch must be an object");
     const kind = batch.kind;
     const version = batch.version;
     if (kind !== COLUMNAR_BATCH_KIND || version !== COLUMNAR_BATCH_VERSION) {
       invalid(`batch must be ${COLUMNAR_BATCH_KIND}@${COLUMNAR_BATCH_VERSION}`);
     }
-    const snapshot = trustedBatches.has(batch) ? batch : normalizeBatchInput(batch);
-    return inspectTrusted(snapshot, limits);
+    const snapshot = trustedBatches.has(batch) ? batch : normalizeBatchInput(batch, resolvedLimits);
+    return inspectTrusted(snapshot, resolvedLimits);
   });
 }
 
@@ -334,8 +518,9 @@ export function createColumnarBatch(
   limits: ColumnarBatchLimits = {},
 ): ColumnarBatchV1 {
   return invalidBoundary(() => {
-    const batch = normalizeBatchInput(input);
-    inspectTrusted(batch, limits);
+    const resolvedLimits = resolveLimits(limits);
+    const batch = normalizeBatchInput(input, resolvedLimits);
+    inspectTrusted(batch, resolvedLimits);
     return batch;
   });
 }
@@ -354,12 +539,25 @@ export function inspectColumnarBatch(batch: ColumnarBatchV1, limits: ColumnarBat
 export class ColumnarBatchLease {
   #batch: ColumnarBatchV1 | undefined;
   #state: ColumnarBatchLeaseState = "owned";
-  readonly #limits: ColumnarBatchLimits;
+  readonly #limits: ResolvedLimits;
   readonly #reservedBuffers: readonly ArrayBuffer[];
 
   public constructor(batch: ColumnarBatchV1, limits: ColumnarBatchLimits = {}) {
-    const snapshot = trustedBatches.has(batch) ? batch : createColumnarBatch(batch, limits);
-    const inspection = inspect(snapshot, limits);
+    const resolvedLimits = resolveLimits(limits);
+    let snapshot: ColumnarBatchV1;
+    if (trustedBatches.has(batch)) snapshot = batch;
+    else {
+      snapshot = invalidBoundary(() => {
+        if (typeof batch !== "object" || batch === null) invalid("batch must be an object");
+        const kind = batch.kind;
+        const version = batch.version;
+        if (kind !== COLUMNAR_BATCH_KIND || version !== COLUMNAR_BATCH_VERSION) {
+          invalid(`batch must be ${COLUMNAR_BATCH_KIND}@${COLUMNAR_BATCH_VERSION}`);
+        }
+        return normalizeBatchInput(batch, resolvedLimits);
+      });
+    }
+    const inspection = inspectTrusted(snapshot, resolvedLimits);
     for (const buffer of inspection.transfer) {
       if (leasedBuffers.has(buffer)) {
         throw new HonuaColumnarTransferError(
@@ -369,7 +567,7 @@ export class ColumnarBatchLease {
       }
     }
     this.#batch = snapshot;
-    this.#limits = Object.freeze({ ...limits });
+    this.#limits = resolvedLimits;
     this.#reservedBuffers = inspection.transfer;
     for (const buffer of this.#reservedBuffers) leasedBuffers.set(buffer, this);
   }
@@ -396,6 +594,10 @@ export class ColumnarBatchLease {
     const effectiveLimits: ColumnarBatchLimits = {
       maxRows: options.maxRows ?? this.#limits.maxRows,
       maxBackingBytes: options.maxBackingBytes ?? this.#limits.maxBackingBytes,
+      maxSchemaNodes: options.maxSchemaNodes ?? this.#limits.maxSchemaNodes,
+      maxMetadataEntries: options.maxMetadataEntries ?? this.#limits.maxMetadataEntries,
+      maxBufferViews: options.maxBufferViews ?? this.#limits.maxBufferViews,
+      maxStringBytes: options.maxStringBytes ?? this.#limits.maxStringBytes,
     };
     const { metrics, transfer } = inspect(batch, effectiveLimits);
     const message: ColumnarTransferMessageV1 = Object.freeze({
