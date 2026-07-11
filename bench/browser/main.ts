@@ -27,6 +27,7 @@ interface DeckInteractionEvidence {
 declare global {
   interface Window {
     __HONUA_BROWSER_BENCHMARK__?: BrowserBenchmarkHarness;
+    __HONUA_BROWSER_BENCH_STARTED__?: number;
   }
 }
 
@@ -62,7 +63,9 @@ function webGlRenderer(canvas: HTMLCanvasElement): string {
   return String(gl.getParameter(extension.UNMASKED_RENDERER_WEBGL));
 }
 
-const startedAt = performance.now();
+// The runner injects this before document/module loading so the metric includes
+// bundle fetch, parsing, and SDK/renderer initialization just like MapLibre.
+const startedAt = window.__HONUA_BROWSER_BENCH_STARTED__ ?? performance.now();
 const canvas = document.querySelector<HTMLCanvasElement>("#deck-canvas");
 const status = document.querySelector<HTMLOutputElement>("#status");
 if (!canvas || !status) throw new Error("Browser benchmark DOM is incomplete");

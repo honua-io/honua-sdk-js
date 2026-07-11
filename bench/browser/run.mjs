@@ -17,6 +17,7 @@ const DEFAULT_BUDGETS = path.join(HERE, "budgets.json");
 const VIEWPORT = Object.freeze({ width: 1280, height: 800 });
 const WARMUP_RUNS = 1;
 const MEASUREMENT_RUNS = 3;
+const SCENARIO_TIMEOUT_MS = 20_000;
 
 function gitCommit() {
   try {
@@ -186,8 +187,10 @@ async function runMapLibreSample(browser, url, screenshotPath) {
       const button = document.querySelector('[aria-label="Inspect Harbor response district"]');
       if (!(button instanceof HTMLButtonElement)) throw new Error("MapLibre interaction target is missing");
       const startedAt = performance.now();
+      const deadline = startedAt + 5_000;
       button.click();
       while (window.__HONUA_QUICKSTART_RUNTIME__?.selectedFeatureId !== "2") {
+        if (performance.now() > deadline) throw new Error("MapLibre selection did not complete within 5000 ms");
         await new Promise((resolve) => requestAnimationFrame(resolve));
       }
       await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -225,9 +228,19 @@ async function runDeckGlSample(browser, url, screenshotPath) {
   try {
     await page.goto(url, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => Boolean(window.__HONUA_BROWSER_BENCHMARK__), undefined, { timeout: 20_000 });
-    const ready = await page.evaluate(() => window.__HONUA_BROWSER_BENCHMARK__?.ready);
+    const ready = await page.evaluate(async (timeoutMs) => {
+      const timeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`deck.gl render did not complete within ${timeoutMs} ms`)), timeoutMs);
+      });
+      return Promise.race([window.__HONUA_BROWSER_BENCHMARK__?.ready, timeout]);
+    }, SCENARIO_TIMEOUT_MS);
     if (!ready) throw new Error("deck.gl benchmark did not expose ready evidence");
-    const interaction = await page.evaluate(() => window.__HONUA_BROWSER_BENCHMARK__?.runInteraction());
+    const interaction = await page.evaluate(async (timeoutMs) => {
+      const timeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`deck.gl interaction did not complete within ${timeoutMs} ms`)), timeoutMs);
+      });
+      return Promise.race([window.__HONUA_BROWSER_BENCHMARK__?.runInteraction(), timeout]);
+    }, SCENARIO_TIMEOUT_MS);
     if (!interaction) throw new Error("deck.gl benchmark did not expose interaction evidence");
     const visual = await page.screenshot({ path: screenshotPath });
     const screenshot = screenshotEvidence(visual, path.relative(REPO_ROOT, screenshotPath));
@@ -261,24 +274,41 @@ async function runDeckGlSample(browser, url, screenshotPath) {
   }
 }
 
-async function runRepeatedScenario(id, runSample, outputDirectory) {
+export async function runRepeatedScenario(id, runSample, outputDirectory) {
+  const warmupFailures = [];
   for (let run = 0; run < WARMUP_RUNS; run += 1) {
-    await runSample(path.join(outputDirectory, `${id}.warmup-${run + 1}.png`));
+    try {
+      await runSample(path.join(outputDirectory, `${id}.warmup-${run + 1}.png`));
+    } catch (error) {
+      warmupFailures.push(error instanceof Error ? error.message : String(error));
+    }
   }
   const samples = [];
   for (let run = 0; run < MEASUREMENT_RUNS; run += 1) {
-    samples.push(await runSample(path.join(outputDirectory, `${id}.sample-${run + 1}.png`)));
+    try {
+      samples.push(await runSample(path.join(outputDirectory, `${id}.sample-${run + 1}.png`)));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      samples.push({
+        firstVisibleMs: 0,
+        interactionLatencyMs: 0,
+        evidence: { failure: message },
+        errors: { page: [], console: [], runner: [message] },
+        passed: false,
+      });
+    }
   }
   return {
     id,
     warmupRuns: WARMUP_RUNS,
     measurementRuns: MEASUREMENT_RUNS,
+    warmupFailures,
     samples,
     summary: {
       firstVisibleMs: summarize(samples.map((sample) => sample.firstVisibleMs)),
       interactionLatencyMs: summarize(samples.map((sample) => sample.interactionLatencyMs)),
     },
-    invariants: { passed: samples.every((sample) => sample.passed) },
+    invariants: { passed: warmupFailures.length === 0 && samples.every((sample) => sample.passed) },
   };
 }
 
@@ -292,7 +322,10 @@ async function main() {
   if (budgets.schemaVersion !== 1) throw new Error("Unsupported browser benchmark budget schema");
   const fingerprint = await corpusFingerprint();
 
-  const quickstart = await startQuickstartFixtureServer({ build: false });
+  // The fixture server owns the build so its local basemap/service env is
+  // guaranteed to be present; a bare Vite build would silently reach the
+  // public demo style and invalidate the offline corpus.
+  const quickstart = await startQuickstartFixtureServer({ build: true });
   const vite = await createServer({
     configFile: false,
     root: HERE,

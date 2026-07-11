@@ -38,3 +38,26 @@ export function evaluateScenarios(
   level: "pass" | "warning" | "failure";
   items: Array<{ scenarioId: string; metric: string; level: "pass" | "warning" | "failure" }>;
 };
+export function runRepeatedScenario(
+  id: string,
+  runSample: (screenshotPath: string) => Promise<{
+    firstVisibleMs: number;
+    interactionLatencyMs: number;
+    passed: boolean;
+  }>,
+  outputDirectory: string,
+): Promise<{
+  id: string;
+  warmupFailures: string[];
+  samples: Array<{
+    firstVisibleMs: number;
+    interactionLatencyMs: number;
+    passed: boolean;
+    errors?: { runner?: string[] };
+  }>;
+  summary: {
+    firstVisibleMs: BrowserMetricSummary;
+    interactionLatencyMs: BrowserMetricSummary;
+  };
+  invariants: { passed: boolean };
+}>;

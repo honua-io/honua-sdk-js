@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluateScenarios, summarize } from "../bench/browser/run.mjs";
+import { evaluateScenarios, runRepeatedScenario, summarize } from "../bench/browser/run.mjs";
 
 const budgets = {
   variability: {
@@ -45,5 +45,21 @@ describe("browser benchmark budget evaluator", () => {
     const evaluation = evaluateScenarios([scenario([900, 1_000, 1_100], [8, 9, 10], false)], budgets);
     expect(evaluation.level).toBe("failure");
     expect(evaluation.items[0]).toMatchObject({ metric: "journey-invariants", level: "failure" });
+  });
+
+  it("turns bounded runner errors into machine-readable failed samples", async () => {
+    const result = await runRepeatedScenario(
+      "renderer",
+      async () => {
+        throw new Error("render deadline exceeded");
+      },
+      "unused",
+    );
+
+    expect(result.warmupFailures).toEqual(["render deadline exceeded"]);
+    expect(result.samples).toHaveLength(3);
+    expect(result.samples.every((sample) => sample.errors?.runner?.[0] === "render deadline exceeded")).toBe(true);
+    expect(result.invariants.passed).toBe(false);
+    expect(evaluateScenarios([result], budgets).level).toBe("failure");
   });
 });

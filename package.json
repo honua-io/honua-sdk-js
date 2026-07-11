@@ -449,7 +449,7 @@
     "validate:pr-fast": "node scripts/run-pr-fast.mjs",
     "bench:stream": "npm run build --silent && node dist/bench/run.js",
     "bench:lab": "npm run build --silent && node dist/bench/lab.js --check --output test-results/benchmark-lab.json",
-    "bench:browser": "npm run demo:quickstart:build --silent && node bench/browser/run.mjs --check --output test-results/browser-benchmark/report.json",
+    "bench:browser": "node bench/browser/run.mjs --check --output test-results/browser-benchmark/report.json",
     "bench:live": "node scripts/live-benchmark-evidence.mjs --output test-results/live-benchmark-evidence.json",
     "evidence:overture:live": "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json"
   },
