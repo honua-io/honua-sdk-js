@@ -72,6 +72,7 @@ const TARGETS = [
   { key: ".", kind: "bundle", entry: "dist/src/index.js", label: "`.` (root)" },
   { key: "/honua", kind: "bundle", entry: "dist/src/honua.js", label: "`/honua`" },
   { key: "/contract", kind: "bundle", entry: "dist/src/contract/index.js", label: "`/contract`" },
+  { key: "/plugin", kind: "bundle", entry: "dist/src/plugin/index.js", label: "`/plugin` (registry + certification, no heavy peers)" },
   { key: "/agent-safety", kind: "bundle", entry: "dist/src/agent-safety/index.js", label: "`/agent-safety`" },
   { key: "/runtime", kind: "bundle", entry: "dist/src/runtime/index.js", label: "`/runtime`" },
   { key: "/realtime", kind: "bundle", entry: "dist/src/realtime/index.js", label: "`/realtime`" },

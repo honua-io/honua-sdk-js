@@ -15,6 +15,7 @@ _Generated 2026-07-12 at commit `c9b9574`._
 | `.` (root) | 347.3 KiB | 382.0 KiB | 92.0 KiB | 101.2 KiB |
 | `/honua` | 463.9 KiB | 510.3 KiB | 123.4 KiB | 135.7 KiB |
 | `/contract` | 225.5 KiB | 235.3 KiB | 58.5 KiB | 66.1 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 34.5 KiB | 38.0 KiB | 11.5 KiB | 12.7 KiB |
 | `/agent-safety` | 43.8 KiB | 45.6 KiB | 12.6 KiB | 13.3 KiB |
 | `/runtime` | 419.0 KiB | 458.7 KiB | 109.4 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
