@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
-  "id": "honua-sdk-js-deterministic-v1",
-  "description": "Fixture-backed SDK overhead scenarios. No network or renderer time is included.",
+  "schemaVersion": 2,
+  "id": "honua-sdk-js-deterministic-v2",
+  "description": "Fixture-backed SDK overhead, offline reload, and realtime reconnect scenarios. No network or renderer time is included.",
   "scenarios": [
     {
       "id": "stream.pagination.geometry",
@@ -20,6 +20,25 @@
       "pageSize": 1000,
       "pageLatencyMs": 0,
       "returnGeometry": false,
+      "warmupRuns": 1,
+      "measurementRuns": 5
+    },
+    {
+      "id": "offline.region.reload",
+      "kind": "offline-reload",
+      "resourceCount": 64,
+      "resourceBytes": 256,
+      "reloadCycles": 16,
+      "maxFreshnessAgeMs": 300000,
+      "warmupRuns": 1,
+      "measurementRuns": 5
+    },
+    {
+      "id": "realtime.cursor.reconnect",
+      "kind": "realtime-reconnect",
+      "eventCount": 1000,
+      "replayDuplicateCount": 2,
+      "maxFreshnessAgeMs": 300000,
       "warmupRuns": 1,
       "measurementRuns": 5
     }

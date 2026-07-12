@@ -7,10 +7,34 @@ service SLA or a competitor comparison.
 ## Offline regression lab
 
 `npm run bench:lab` executes the committed [`bench/corpus.json`](../bench/corpus.json)
-against an in-process transport. It makes no network requests. Each scenario has
-at least one warm-up and five measured repetitions. Reports include raw samples,
+against in-process fixtures. It makes no network requests. Each scenario has at
+least one warm-up and five measured repetitions. Reports include raw samples,
 median, p95, mean, range, coefficient of variation, the corpus SHA-256, Git SHA,
 and runtime/host metadata.
+
+Alongside stream pagination, the corpus includes two resilience scenarios:
+
+- offline reload writes deterministic resources through the supported offline
+  store/transaction contract, reloads a serialized credential-free manifest,
+  rechecks every resource digest, and evaluates freshness against a fixed clock;
+- realtime reconnect restores a compatible durable checkpoint, records one
+  synthetic retry, rejects replay duplicates, and applies following events in
+  contiguous sequence order.
+
+Their report invariants record freshness status/age, cursor presence, retry
+count, ordering status, ignored/applied duplicate counts, and the absence of
+credential material. Opaque cursor values and authorization-scope inputs are
+never copied into the report. Deliberate stale, corrupt, sequence-gap, and
+duplicate-application fixtures prove these checks fail closed.
+The report-level `artifactSafety` gate is derived from the complete final
+projection, including corpus, methodology, environment, scenarios, and
+evaluation fields; a top-level or scenario leak fails the benchmark check.
+
+This expanded contract is benchmark report and corpus `schemaVersion: 2`.
+Version 1 reports contain only the original stream shape; they remain readable
+as historical artifacts but are never eligible for relative comparison with a
+version 2 candidate. Consumers must branch on the schema version before reading
+the scenario union.
 
 The gate checks result invariants and repeated-run stability. Relative timing
 and throughput budgets apply only when `--baseline` identifies a report with an

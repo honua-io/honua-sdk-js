@@ -6,12 +6,19 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
+import {
+  type OfflineReloadBenchmarkOptions,
+  type RealtimeReconnectBenchmarkOptions,
+  type ResilienceBenchmarkResult,
+  runOfflineReloadBenchmark,
+  runRealtimeReconnectBenchmark,
+} from "./resilience-bench.js";
 import { runStreamBench } from "./stream-bench.js";
 
 type Direction = "lower-is-better" | "higher-is-better";
 type EvaluationLevel = "pass" | "warning" | "failure" | "not-compared";
 
-interface CorpusScenario {
+interface StreamCorpusScenario {
   id: string;
   kind: "stream-pagination";
   featureCount: number;
@@ -22,8 +29,20 @@ interface CorpusScenario {
   measurementRuns: number;
 }
 
+interface OfflineReloadCorpusScenario extends Omit<OfflineReloadBenchmarkOptions, "fault"> {
+  id: string;
+  kind: "offline-reload";
+}
+
+interface RealtimeReconnectCorpusScenario extends Omit<RealtimeReconnectBenchmarkOptions, "fault"> {
+  id: string;
+  kind: "realtime-reconnect";
+}
+
+type CorpusScenario = StreamCorpusScenario | OfflineReloadCorpusScenario | RealtimeReconnectCorpusScenario;
+
 interface Corpus {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   description: string;
   scenarios: CorpusScenario[];
@@ -66,12 +85,21 @@ export interface MetricSummary {
 interface ScenarioResult {
   id: string;
   kind: CorpusScenario["kind"];
-  parameters: Omit<CorpusScenario, "id" | "kind">;
-  samples: SampleMetrics[];
-  summary: Record<keyof Omit<SampleMetrics, "totalFeatures" | "pageCount">, MetricSummary>;
+  parameters: Record<string, number | boolean>;
+  samples: Array<SampleMetrics | { totalDurationMs: number; operationsPerSecond: number }>;
+  summary: {
+    totalDurationMs: MetricSummary;
+    timeToFirstPageMs?: MetricSummary;
+    featuresPerSecond?: MetricSummary;
+    operationsPerSecond?: MetricSummary;
+    heapUsedDeltaBytes?: MetricSummary;
+    heapUsedPeakBytes?: MetricSummary;
+  };
   invariants: {
-    expectedTotalFeatures: number;
-    expectedPageCount: number;
+    expectedTotalFeatures?: number;
+    expectedPageCount?: number;
+    checks?: Readonly<Record<string, boolean | number | string | null>>;
+    semantics?: ResilienceBenchmarkResult["invariants"]["semantics"];
     passed: boolean;
   };
 }
@@ -101,7 +129,7 @@ interface EvaluationItem {
 }
 
 export interface BenchmarkReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   generatedAt: string;
   gitCommit: string | null;
   corpus: { id: string; sha256: string; description: string };
@@ -113,6 +141,10 @@ export interface BenchmarkReport {
   };
   environment: EnvironmentMetadata;
   scenarios: ScenarioResult[];
+  artifactSafety: {
+    passed: boolean;
+    credentialMaterialPresent: boolean;
+  };
   evaluation: {
     level: EvaluationLevel;
     baselineCompatibility: { comparable: boolean; reasons: string[] } | null;
@@ -120,10 +152,13 @@ export interface BenchmarkReport {
   };
 }
 
-interface CliOptions {
+export interface BenchmarkLabInput {
   corpus: string;
   budgets: string;
   baseline?: string;
+}
+
+interface CliOptions extends BenchmarkLabInput {
   output: string;
   check: boolean;
 }
@@ -178,29 +213,63 @@ function gitCommit(): string | null {
 
 function validateCorpus(value: unknown): Corpus {
   const corpus = value as Partial<Corpus>;
-  if (corpus.schemaVersion !== 1 || !corpus.id || !Array.isArray(corpus.scenarios)) {
-    throw new Error("Invalid benchmark corpus: expected schemaVersion 1, id, and scenarios");
+  if (corpus.schemaVersion !== 2 || !corpus.id || !Array.isArray(corpus.scenarios)) {
+    throw new Error("Invalid benchmark corpus: expected schemaVersion 2, id, and scenarios");
   }
   const ids = new Set<string>();
   for (const scenario of corpus.scenarios) {
     if (
       !scenario.id ||
-      scenario.kind !== "stream-pagination" ||
-      !Number.isInteger(scenario.featureCount) ||
-      scenario.featureCount <= 0 ||
-      !Number.isInteger(scenario.pageSize) ||
-      scenario.pageSize <= 0 ||
       !Number.isInteger(scenario.measurementRuns) ||
       scenario.measurementRuns < 3 ||
-      !Number.isInteger(scenario.warmupRuns) ||
-      scenario.warmupRuns < 0
+      !validWarmup(scenario)
     ) {
       throw new Error(`Invalid benchmark scenario: ${scenario.id ?? "<missing id>"}`);
+    }
+    const commonKeys = ["id", "kind", "warmupRuns", "measurementRuns"];
+    let allowedKeys: ReadonlySet<string>;
+    if (scenario.kind === "stream-pagination") {
+      allowedKeys = new Set([...commonKeys, "featureCount", "pageSize", "pageLatencyMs", "returnGeometry"]);
+      if (!positive(scenario.featureCount) || !positive(scenario.pageSize)) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
+    } else if (scenario.kind === "offline-reload") {
+      allowedKeys = new Set([...commonKeys, "resourceCount", "resourceBytes", "reloadCycles", "maxFreshnessAgeMs"]);
+      if (
+        !positive(scenario.resourceCount) ||
+        !positive(scenario.resourceBytes) ||
+        !positive(scenario.reloadCycles) ||
+        !positive(scenario.maxFreshnessAgeMs)
+      ) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
+    } else if (scenario.kind === "realtime-reconnect") {
+      allowedKeys = new Set([...commonKeys, "eventCount", "replayDuplicateCount", "maxFreshnessAgeMs"]);
+      if (
+        !positive(scenario.eventCount) ||
+        !positive(scenario.replayDuplicateCount) ||
+        !positive(scenario.maxFreshnessAgeMs)
+      ) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
+    } else {
+      throw new Error(`Invalid benchmark scenario kind: ${String((scenario as { kind?: unknown }).kind)}`);
+    }
+    for (const key of Object.keys(scenario)) {
+      if (!allowedKeys.has(key)) throw new Error(`Invalid benchmark scenario property: ${scenario.id}.${key}`);
     }
     if (ids.has(scenario.id)) throw new Error(`Duplicate benchmark scenario id: ${scenario.id}`);
     ids.add(scenario.id);
   }
   return corpus as Corpus;
+}
+
+function positive(value: number): boolean {
+  return Number.isInteger(value) && value > 0;
+}
+
+function validWarmup(scenario: { warmupRuns: number }): boolean {
+  return Number.isInteger(scenario.warmupRuns) && scenario.warmupRuns >= 0;
 }
 
 function validateBudgets(value: unknown): Budgets {
@@ -211,7 +280,7 @@ function validateBudgets(value: unknown): Budgets {
   return budgets as Budgets;
 }
 
-async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
+async function runStreamScenario(scenario: StreamCorpusScenario): Promise<ScenarioResult> {
   const runOnce = async (): Promise<SampleMetrics> => {
     const report = await runStreamBench({
       featureCount: scenario.featureCount,
@@ -266,11 +335,85 @@ async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   };
 }
 
+function resilienceResult(
+  scenario: OfflineReloadCorpusScenario | RealtimeReconnectCorpusScenario,
+  result: ResilienceBenchmarkResult,
+): ScenarioResult {
+  const parameters: Record<string, number | boolean> = {};
+  if (scenario.kind === "offline-reload") {
+    Object.assign(parameters, {
+      resourceCount: scenario.resourceCount,
+      resourceBytes: scenario.resourceBytes,
+      reloadCycles: scenario.reloadCycles,
+      maxFreshnessAgeMs: scenario.maxFreshnessAgeMs,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    });
+  } else {
+    Object.assign(parameters, {
+      eventCount: scenario.eventCount,
+      replayDuplicateCount: scenario.replayDuplicateCount,
+      maxFreshnessAgeMs: scenario.maxFreshnessAgeMs,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    });
+  }
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters,
+    samples: result.samples,
+    summary: {
+      totalDurationMs: summarizeSamples(result.samples.map((sample) => sample.totalDurationMs)),
+      operationsPerSecond: summarizeSamples(result.samples.map((sample) => sample.operationsPerSecond)),
+    },
+    invariants: result.invariants,
+  };
+}
+
+async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
+  if (scenario.kind === "stream-pagination") return runStreamScenario(scenario);
+  if (scenario.kind === "offline-reload") return resilienceResult(scenario, await runOfflineReloadBenchmark(scenario));
+  return resilienceResult(scenario, await runRealtimeReconnectBenchmark(scenario));
+}
+
+const CREDENTIAL_VALUE =
+  /(?:\bBearer\s+|\bBasic\s+|AKIA[0-9A-Z]{16}|[?&](?:api[-_]?key|signature|token)=|(?:password|secret|token)\s*[:=])/i;
+const SENSITIVE_VALUE_KEY = /(?:authorization|credential|password|secret|token|api[-_]?key|cursor|resume)/i;
+
+/** Detect credential-shaped strings or opaque resume values in a report projection. */
+export function containsSensitiveBenchmarkMaterial(value: unknown, key = ""): boolean {
+  if (typeof value === "string") {
+    return SENSITIVE_VALUE_KEY.test(key) || CREDENTIAL_VALUE.test(value) || /\binternal-cursor-/i.test(value);
+  }
+  if (Array.isArray(value)) return value.some((item) => containsSensitiveBenchmarkMaterial(item, key));
+  if (value === null || typeof value !== "object") return false;
+  return Object.entries(value).some(([childKey, child]) =>
+    containsSensitiveBenchmarkMaterial(child, key ? `${key}.${childKey}` : childKey),
+  );
+}
+
+/** Derive, then enforce, secrecy from the complete final report projection. */
+export function applyBenchmarkArtifactSafety(report: BenchmarkReport): void {
+  const { artifactSafety: _artifactSafety, ...projection } = report;
+  const materialPresent = containsSensitiveBenchmarkMaterial(projection);
+  report.artifactSafety = { passed: !materialPresent, credentialMaterialPresent: materialPresent };
+  for (const scenario of report.scenarios) {
+    if (!scenario.invariants.semantics) continue;
+    scenario.invariants.semantics = {
+      ...scenario.invariants.semantics,
+      credentialMaterialPresent: materialPresent,
+    };
+    if (materialPresent) scenario.invariants.passed = false;
+  }
+}
+
 function baselineCompatibility(
   candidate: BenchmarkReport,
   baseline: BenchmarkReport,
 ): { comparable: boolean; reasons: string[] } {
   const reasons: string[] = [];
+  if (candidate.schemaVersion !== baseline.schemaVersion) reasons.push("report schema version differs");
   if (candidate.corpus.sha256 !== baseline.corpus.sha256) reasons.push("corpus hash differs");
   const keys: Array<keyof EnvironmentMetadata> = [
     "implementation",
@@ -333,14 +476,22 @@ export function evaluateReport(
   baseline?: BenchmarkReport,
 ): BenchmarkReport["evaluation"] {
   const items: EvaluationItem[] = [];
+  items.push({
+    scenarioId: "*",
+    metric: "artifact-safety",
+    level: candidate.artifactSafety.passed ? "pass" : "failure",
+    message: candidate.artifactSafety.passed
+      ? "The complete report projection contains no credential or opaque cursor material"
+      : "The complete report projection contains credential or opaque cursor material",
+  });
   for (const scenario of candidate.scenarios) {
     items.push({
       scenarioId: scenario.id,
-      metric: "fixture-invariants",
+      metric: "scenario-invariants",
       level: scenario.invariants.passed ? "pass" : "failure",
       message: scenario.invariants.passed
-        ? "Every repetition drained the expected feature and page counts"
-        : "At least one repetition returned an unexpected feature or page count",
+        ? "Every repetition satisfied the scenario's semantic invariants"
+        : "At least one scenario semantic invariant failed",
     });
     const variation = scenario.summary.totalDurationMs.coefficientOfVariation;
     const level =
@@ -419,8 +570,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
   return options;
 }
 
-async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
+export async function createBenchmarkReport(options: BenchmarkLabInput): Promise<BenchmarkReport> {
   const [corpusBytes, budgetsBytes] = await Promise.all([readFile(options.corpus), readFile(options.budgets)]);
   const corpus = validateCorpus(JSON.parse(corpusBytes.toString("utf8")));
   const budgets = validateBudgets(JSON.parse(budgetsBytes.toString("utf8")));
@@ -428,7 +578,7 @@ async function main(): Promise<void> {
   for (const scenario of corpus.scenarios) scenarios.push(await runScenario(scenario));
 
   const report: BenchmarkReport = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     gitCommit: gitCommit(),
     corpus: {
@@ -444,12 +594,21 @@ async function main(): Promise<void> {
     },
     environment: environmentMetadata(),
     scenarios,
+    artifactSafety: { passed: false, credentialMaterialPresent: true },
     evaluation: { level: "not-compared", baselineCompatibility: null, items: [] },
   };
   const baseline = options.baseline
     ? (JSON.parse(await readFile(options.baseline, "utf8")) as BenchmarkReport)
     : undefined;
   report.evaluation = evaluateReport(report, budgets, baseline);
+  applyBenchmarkArtifactSafety(report);
+  report.evaluation = evaluateReport(report, budgets, baseline);
+  return report;
+}
+
+async function main(): Promise<void> {
+  const options = parseArgs(process.argv.slice(2));
+  const report = await createBenchmarkReport(options);
 
   await mkdir(path.dirname(options.output), { recursive: true });
   await writeFile(options.output, `${JSON.stringify(report, null, 2)}\n`, "utf8");
@@ -457,8 +616,11 @@ async function main(): Promise<void> {
     `Benchmark lab: ${report.scenarios.length} scenarios, evaluation ${report.evaluation.level}, report ${options.output}\n`,
   );
   for (const scenario of report.scenarios) {
+    const throughput = scenario.summary.featuresPerSecond
+      ? `${Math.round(scenario.summary.featuresPerSecond.median).toLocaleString()} features/s`
+      : `${Math.round(scenario.summary.operationsPerSecond?.median ?? 0).toLocaleString()} operations/s`;
     process.stdout.write(
-      `  ${scenario.id}: ${scenario.summary.totalDurationMs.median.toFixed(2)}ms median, ${Math.round(scenario.summary.featuresPerSecond.median).toLocaleString()} features/s\n`,
+      `  ${scenario.id}: ${scenario.summary.totalDurationMs.median.toFixed(2)}ms median, ${throughput}\n`,
     );
   }
   if (options.check && report.evaluation.level === "failure") process.exitCode = 1;
