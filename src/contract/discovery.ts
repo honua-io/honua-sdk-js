@@ -119,6 +119,20 @@ export interface DiscoveryCapabilityResolution {
 
 export interface SourceDiscoveryInspection {
   readonly descriptor: SourceDescriptor;
+  /** Normalized discovery metadata that is not required for source execution. */
+  readonly metadata?: {
+    readonly crs?: readonly string[];
+    readonly extent?: {
+      readonly spatial?: {
+        readonly bbox: readonly (readonly number[])[];
+        readonly crs?: string;
+      };
+      readonly temporal?: {
+        readonly interval: readonly (readonly (string | null)[])[];
+        readonly trs?: string;
+      };
+    };
+  };
   readonly discovery: DiscoveryState;
   readonly provenance: readonly DiscoveryProvenance[];
   readonly capabilityDecisions: readonly DiscoveryCapabilityDecision[];

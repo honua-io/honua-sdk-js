@@ -29,6 +29,30 @@ const collections = {
   ],
 };
 
+const stacLanding = {
+  id: "earth-search",
+  conformsTo: ["https://api.stacspec.org/v1.0.0/core", "https://api.stacspec.org/v1.0.0/item-search"],
+  links: [
+    { rel: "data", href: "./collections" },
+    { rel: "search", href: "./search", type: "application/geo+json" },
+  ],
+};
+const stacCollections = {
+  collections: [
+    {
+      id: "sentinel-2-l2a",
+      title: "Sentinel-2 L2A",
+      description: "Cloud-optimized imagery",
+      crs: ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"],
+      extent: {
+        spatial: { bbox: [[-180, -90, 180, 90]] },
+        temporal: { interval: [["2015-06-27T00:00:00Z", null]] },
+      },
+    },
+    { id: "landsat-c2-l2", title: "Landsat Collection 2" },
+  ],
+};
+
 function json(body: unknown, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -44,6 +68,24 @@ function discoveryFetch(onRequest?: (request: Request) => void): typeof fetch {
     if (url.pathname === "/api") return json(landing, { ETag: '"landing-v1"' });
     if (url.pathname === "/api/conformance") return json(conformance, { ETag: '"conf-v1"' });
     if (url.pathname === "/api/collections") return json(collections, { ETag: '"collections-v1"' });
+    return new Response("not found", { status: 404 });
+  });
+}
+
+function stacDiscoveryFetch(
+  options: { landing?: unknown; collections?: unknown; onRequest?: (request: Request) => void } = {},
+): typeof fetch {
+  return vi.fn(async (input, init) => {
+    const request = new Request(input, init);
+    options.onRequest?.(request);
+    const url = new URL(request.url);
+    if (url.pathname === "/stac/v1") return json(options.landing ?? stacLanding, { ETag: '"stac-root-v1"' });
+    if (url.pathname === "/stac/v1/collections") {
+      return json(options.collections ?? stacCollections, { ETag: '"stac-collections-v1"' });
+    }
+    if (url.pathname === "/stac/v1/search") {
+      return json({ type: "FeatureCollection", features: [], numberMatched: 0 });
+    }
     return new Response("not found", { status: 404 });
   });
 }
@@ -131,6 +173,172 @@ describe("connect", () => {
     expect(connection.inspection.defaultSourceId).toBe("roads");
     expect(connection.source().descriptor.id).toBe("roads");
     expect(connection.dataset.sourceIds()).toEqual(["roads"]);
+  });
+
+  it("discovers raw STAC API collections in two metadata requests and reuses the raw root", async () => {
+    const requests: Request[] = [];
+    const fetchFn = stacDiscoveryFetch({ onRequest: (request) => requests.push(request) });
+    const connection = await connect({
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    expect(requests.map((request) => new URL(request.url).pathname)).toEqual(["/stac/v1", "/stac/v1/collections"]);
+    expect(connection.dataset.sourceIds()).toEqual(["sentinel-2-l2a", "landsat-c2-l2"]);
+    expect(connection.inspection.defaultSourceId).toBeUndefined();
+    expect([...connection.source("sentinel-2-l2a").capabilities]).toEqual(["query", "queryObjectIds", "stream"]);
+    expect(connection.source("sentinel-2-l2a").descriptor.locator).toEqual({
+      url: "https://earth.example/stac/v1",
+      collectionId: "sentinel-2-l2a",
+      layout: "stac-api",
+    });
+    expect(connection.inspection.sources[0]?.metadata).toMatchObject({
+      crs: ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"],
+      extent: {
+        spatial: { bbox: [[-180, -90, 180, 90]] },
+        temporal: { interval: [["2015-06-27T00:00:00Z", null]] },
+      },
+    });
+    expect(connection.inspection.sources[0]?.provenance).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "https://earth.example/stac/v1", validator: '"stac-root-v1"' }),
+        expect.objectContaining({
+          source: "https://earth.example/stac/v1/collections",
+          validator: '"stac-collections-v1"',
+        }),
+      ]),
+    );
+
+    await connection.source("sentinel-2-l2a").query({ pagination: { limit: 1 } });
+    expect(new URL(requests.at(-1)!.url).pathname).toBe("/stac/v1/search");
+    expect(requests.some((request) => new URL(request.url).pathname.startsWith("/stac/stac"))).toBe(false);
+  });
+
+  it("selects one STAC collection and partitions caller discovery cache identity", async () => {
+    const values = new Map<string, ConnectDiscoverySnapshot>();
+    const cache: ConnectDiscoveryCache = {
+      get: vi.fn((identity) => values.get(identity.key)),
+      set: vi.fn((identity, snapshot) => {
+        values.set(identity.key, snapshot);
+      }),
+    };
+    const fetchFn = stacDiscoveryFetch();
+    const options = {
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac" as const,
+      collectionId: "landsat-c2-l2",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+      cache,
+    };
+
+    const first = await connect(options);
+    const hit = await connect(options);
+
+    expect(first.dataset.sourceIds()).toEqual(["landsat-c2-l2"]);
+    expect(first.inspection.cacheIdentity.key).toContain("collectionId=landsat-c2-l2");
+    expect(hit.inspection.cacheStatus).toBe("hit");
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes STAC metadata and cancels between the landing and collections requests", async () => {
+    const refreshed: Request[] = [];
+    await connect({
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      refresh: true,
+      clientOptions: { fetchFn: stacDiscoveryFetch({ onRequest: (request) => refreshed.push(request) }) },
+    });
+    expect(refreshed).toHaveLength(2);
+    expect(refreshed.every((request) => request.headers.get("cache-control") === "no-cache")).toBe(true);
+
+    const controller = new AbortController();
+    const requestedPaths: string[] = [];
+    const fetchFn = stacDiscoveryFetch({
+      onRequest(request) {
+        requestedPaths.push(new URL(request.url).pathname);
+        controller.abort();
+      },
+    });
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        signal: controller.signal,
+        clientOptions: { fetchFn },
+      }),
+    ).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(requestedPaths).toEqual(["/stac/v1"]);
+  });
+
+  it("fails STAC query capabilities closed without applicable item-search evidence", async () => {
+    const connection = await connect({
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: stacDiscoveryFetch({
+          landing: {
+            ...stacLanding,
+            conformsTo: [
+              "https://api.stacspec.org/v1.0.0/core",
+              "https://attacker.example/api.stacspec.org/v1.0.0/item-search",
+            ],
+            links: [
+              { rel: "data", href: "./collections" },
+              { rel: "search", href: "./search" },
+            ],
+          },
+        }),
+      },
+    });
+
+    expect([...connection.source("sentinel-2-l2a").capabilities]).toEqual([]);
+    expect(connection.inspection.sources[0]?.capabilityDecisions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ capability: "query", code: "not-advertised" }),
+        expect.objectContaining({ capability: "queryObjectIds", code: "not-advertised" }),
+        expect.objectContaining({ capability: "stream", code: "not-advertised" }),
+      ]),
+    );
+  });
+
+  it("rejects unsafe or contradictory STAC discovery metadata before following links", async () => {
+    const crossOriginFetch = stacDiscoveryFetch({
+      landing: {
+        ...stacLanding,
+        links: [
+          { rel: "data", href: "./collections" },
+          { rel: "search", href: "https://attacker.example/search" },
+        ],
+      },
+    });
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn: crossOriginFetch },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+    expect(crossOriginFetch).toHaveBeenCalledOnce();
+
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: {
+          fetchFn: stacDiscoveryFetch({
+            collections: { collections: [{ id: "duplicate" }, { id: "duplicate" }] },
+          }),
+        },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
   });
 
   it("auto-detects canonical FeatureServer URLs and projects layer metadata truth", async () => {
@@ -712,7 +920,7 @@ describe("connect", () => {
       name: "HonuaDiscoveryError",
       code: "ambiguous-protocol",
     });
-    await expect(connect({ ...base, protocol: "stac" })).rejects.toMatchObject({
+    await expect(connect({ ...base, protocol: "odata" })).rejects.toMatchObject({
       name: "HonuaDiscoveryError",
       code: "unsupported-protocol",
     });
