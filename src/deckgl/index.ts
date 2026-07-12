@@ -14,6 +14,13 @@ export {
   loadDeckGlPeers,
 } from "./adapter.js";
 export type { CreateDeckGlAdapterOptions } from "./adapter.js";
+export { bindColumnarBatchToDeckGl } from "./columnar.js";
+export type {
+  ColumnarComponentType,
+  ColumnarDeckGlAttributeBinding,
+  ColumnarDeckGlIdentity,
+  ColumnarDeckGlProjectionRequest,
+} from "./columnar.js";
 export { DECK_GL_ADAPTER_CONTRACT_VERSION, HonuaDeckGlAdapterError } from "./types.js";
 export type {
   DeckGlAdapter,
