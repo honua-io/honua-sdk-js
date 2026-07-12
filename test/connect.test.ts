@@ -150,6 +150,73 @@ function wfsCapabilities(
 </wfs:WFS_Capabilities>`;
 }
 
+const odataMetadataXml = `<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+  <edmx:DataServices>
+    <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="Honua">
+      <EntityType Name="IncidentEntity">
+        <Key><PropertyRef Name="Id"/></Key>
+        <Property Name="Id" Type="Edm.Int64" Nullable="false"/>
+        <Property Name="Title" Type="Edm.String"/>
+        <Property Name="Location" Type="Edm.GeographyPoint" SRID="4326"/>
+      </EntityType>
+      <EntityType Name="StatEntity">
+        <Key><PropertyRef Name="Id"/></Key>
+        <Property Name="Id" Type="Edm.Int32" Nullable="false"/>
+        <Property Name="Count" Type="Edm.Int32"/>
+      </EntityType>
+      <EntityType Name="ViewEntity">
+        <Property Name="Label" Type="Edm.String"/>
+      </EntityType>
+      <EntityContainer Name="Container">
+        <EntitySet Name="Incidents" EntityType="Honua.IncidentEntity"/>
+        <EntitySet Name="Stats" EntityType="Honua.StatEntity"/>
+        <EntitySet Name="Views" EntityType="Honua.ViewEntity"/>
+      </EntityContainer>
+      <Annotations Target="Honua.Container/Stats">
+        <Annotation Term="Org.OData.Capabilities.V1.InsertRestrictions">
+          <Record><PropertyValue Property="Insertable" Bool="false"/></Record>
+        </Annotation>
+        <Annotation Term="Org.OData.Capabilities.V1.UpdateRestrictions">
+          <Record><PropertyValue Property="Updatable" Bool="false"/></Record>
+        </Annotation>
+        <Annotation Term="Org.OData.Capabilities.V1.DeleteRestrictions">
+          <Record><PropertyValue Property="Deletable" Bool="false"/></Record>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="Honua.Container/Views">
+        <Annotation Term="Org.OData.Capabilities.V1.InsertRestrictions">
+          <Record><PropertyValue Property="Insertable" Bool="false"/></Record>
+        </Annotation>
+        <Annotation Term="Org.OData.Capabilities.V1.UpdateRestrictions">
+          <Record><PropertyValue Property="Updatable" Bool="false"/></Record>
+        </Annotation>
+        <Annotation Term="Org.OData.Capabilities.V1.DeleteRestrictions">
+          <Record><PropertyValue Property="Deletable" Bool="false"/></Record>
+        </Annotation>
+      </Annotations>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>`;
+
+function odataDiscoveryFetch(options: { metadata?: string; onRequest?: (request: Request) => void } = {}): typeof fetch {
+  return vi.fn(async (input, init) => {
+    const request = new Request(input, init);
+    options.onRequest?.(request);
+    const url = new URL(request.url);
+    if (url.pathname === "/odata/$metadata") {
+      return new Response(options.metadata ?? odataMetadataXml, {
+        status: 200,
+        headers: { "Content-Type": "application/xml", ETag: '"odata-meta-v1"' },
+      });
+    }
+    if (url.pathname === "/odata/Incidents") {
+      return json({ value: [], "@odata.count": 0 });
+    }
+    return new Response("not found", { status: 404 });
+  });
+}
+
 describe("connect", () => {
   it("discovers reviewed OGC Features descriptors without inventing adapter defaults", async () => {
     const fetchFn = discoveryFetch();
@@ -1083,6 +1150,95 @@ describe("connect", () => {
     ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
   });
 
+  it("discovers OData entity sets from one $metadata request with metadata-driven capabilities", async () => {
+    const requests: string[] = [];
+    const fetchFn = odataDiscoveryFetch({ onRequest: (request) => requests.push(new URL(request.url).pathname) });
+    const connection = await connect({
+      endpoint: "https://svc.example/odata",
+      protocol: "odata",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    expect(requests).toEqual(["/odata/$metadata"]);
+    expect(connection.inspection.protocol).toBe("odata");
+    expect(connection.inspection.endpoint).toBe("https://svc.example/odata");
+    expect(connection.dataset.client.serverBaseUrl).toBe("https://svc.example");
+    expect(connection.dataset.sourceIds()).toEqual(["Incidents", "Stats", "Views"]);
+    expect(connection.inspection.defaultSourceId).toBeUndefined();
+
+    // Writable set with a key + geometry: full canonical surface.
+    expect([...connection.source("Incidents").capabilities]).toEqual([
+      "query",
+      "queryObjectIds",
+      "applyEdits",
+      "stream",
+    ]);
+    expect(connection.source("Incidents").descriptor.locator).toEqual({
+      url: "https://svc.example/odata",
+      entitySet: "Incidents",
+    });
+    expect(connection.inspection.sources[0]?.descriptor.schema?.primaryKey).toBe("Id");
+    expect(connection.inspection.sources[0]?.discovery).toBe("metadata");
+    expect(connection.inspection.sources[0]?.provenance).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "https://svc.example/odata/$metadata", validator: '"odata-meta-v1"' }),
+      ]),
+    );
+
+    // Read-only set (insert/update/delete all restricted): no applyEdits.
+    expect([...connection.source("Stats").capabilities]).toEqual(["query", "queryObjectIds", "stream"]);
+    // Keyless view: no ids projection.
+    expect([...connection.source("Views").capabilities]).toEqual(["query", "stream"]);
+  });
+
+  it("round-trips a discovered OData entity set query through the reviewed descriptor", async () => {
+    const requests: string[] = [];
+    const fetchFn = odataDiscoveryFetch({ onRequest: (request) => requests.push(new URL(request.url).pathname) });
+    const connection = await connect({
+      endpoint: "https://svc.example/odata",
+      protocol: "odata",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    const result = await connection.source("Incidents").query({ pagination: { limit: 1 } });
+    expect(result.features).toEqual([]);
+    expect(requests).toContain("/odata/Incidents");
+  });
+
+  it("rejects an OData service whose $metadata advertises no entity sets", async () => {
+    const emptyMetadata = `<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+  <edmx:DataServices>
+    <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="Honua">
+      <EntityContainer Name="Container"></EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>`;
+    await expect(
+      connect({
+        endpoint: "https://svc.example/odata",
+        protocol: "odata",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn: odataDiscoveryFetch({ metadata: emptyMetadata }) },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+  });
+
+  it("rejects an OData hint against a canonical GeoServices URL before network or cache hooks", async () => {
+    const fetchFn = vi.fn<typeof fetch>();
+    await expect(
+      connect({
+        endpoint: "https://example.test/rest/services/Parcels/FeatureServer",
+        protocol: "odata",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   it("rejects mismatched GeoServices hints before auth, fetch, or cache hooks", async () => {
     const fetchFn = vi.fn<typeof fetch>();
     const auth = vi.fn(async () => "secret");
@@ -1172,7 +1328,7 @@ describe("connect", () => {
       name: "HonuaDiscoveryError",
       code: "ambiguous-protocol",
     });
-    await expect(connect({ ...base, protocol: "odata" })).rejects.toMatchObject({
+    await expect(connect({ ...base, protocol: "geoparquet" })).rejects.toMatchObject({
       name: "HonuaDiscoveryError",
       code: "unsupported-protocol",
     });

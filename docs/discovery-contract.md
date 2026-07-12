@@ -104,13 +104,14 @@ complete decision, diagnostic, provenance, cache-result, and inspection type
 vocabulary for adapter authors. This keeps the beginner surface bounded while
 preserving a fully typed protocol integration seam.
 
-## Connect facade (OGC Features, STAC API, GeoServices, and WFS slices)
+## Connect facade (OGC Features, STAC API, GeoServices, WFS, and OData slices)
 
 The experimental `connect()` facade composes this truth contract for raw OGC
-API Features and STAC API landing pages, WFS 2.0 endpoints, and canonical
+API Features and STAC API landing pages, WFS 2.0 endpoints, OData v4 service
+roots, and canonical
 GeoServices `FeatureServer` / `MapServer` service or layer URLs. OGC, STAC,
-and WFS endpoints require explicit `protocol: "ogc-features"`,
-`protocol: "stac"`, or `protocol: "wfs"` hints.
+WFS, and OData endpoints require explicit `protocol: "ogc-features"`,
+`protocol: "stac"`, `protocol: "wfs"`, or `protocol: "odata"` hints.
 Canonical GeoServices URLs may use
 `protocol: "auto"`: classification comes entirely from the URL path and makes
 no network request. An ambiguous auto target throws `HonuaDiscoveryError` with
@@ -211,6 +212,22 @@ and feature namespace bindings are parsed from `GetCapabilities`; the default
 CRS and namespace are retained on the WFS locator, while the bbox is not
 promoted to the filtered canonical extent capability.
 
+OData v4 discovery performs exactly one `$metadata` (CSDL) request against the
+service base path carried by the endpoint (for example `/odata`); the client is
+bound to the endpoint origin. Every entity set declared in the container becomes
+a source, keyed by its entity-set name. Capabilities are read only from the CSDL:
+`query` and bounded paged `stream` are enabled for every declared entity set
+(OData exposes `$top`/`$skip` server-driven paging), `queryObjectIds` additionally
+requires a declared entity key, and `applyEdits` is enabled unless the
+`Capabilities.*` insert, update, and delete restriction annotations are all
+explicitly `false`. This mirrors the runtime OData adapter's `applyEdits` gate, so
+a discovered descriptor and the live source agree. Declared properties (including
+`Edm.Geography`/`Edm.Geometry` typing) are projected into the source schema with
+the single-key field promoted to `primaryKey`; the descriptor carries
+`locator.entitySet` so the existing OData source adapter executes against the same
+base path. Missing or malformed `$metadata` fails as `invalid-endpoint` rather
+than inventing an entity set or an adapter-default capability set.
+
 Raw STAC API discovery performs exactly two metadata requests on a valid
 service: the root landing page and `/collections`. Exact STAC API Core 1.0.0
 conformance and a credential-free, same-root `rel=data` collections link must
@@ -238,7 +255,8 @@ guess STAC API versus static STAC.
 
 Authentication, retry, timeout, interceptors, and transport fetch overrides
 are passed in `clientOptions`, or callers may inject an existing `HonuaClient`
-whose normalized base URL matches the OGC/STAC/WFS endpoint or derived GeoServices
+whose normalized base URL matches the OGC/STAC/WFS endpoint, the OData origin, or
+the derived GeoServices
 root. Endpoints must be absolute HTTP(S) URLs without user info,
 identity-bearing query parameters, or fragments; authentication belongs in
 `clientOptions`. `signal` cancels metadata work and
@@ -268,16 +286,20 @@ Cache hooks must not persist access tokens, API keys, or raw authorization
 material.
 
 This slice is intentionally not universal-connect completion: static STAC,
-OData, other static files, GeoServices Image/Geometry/GP services, and the remaining
-raw OGC families still fail as unsupported rather than falling through to
-heuristic detection.
+static-file/GeoParquet assets, GeoServices Image/Geometry/GP services, and the
+remaining raw OGC families still fail as unsupported rather than falling through
+to heuristic detection.
 
 ## Remaining #391 work
 
-- Static asset classification and an explicit ambiguity-recovery contract.
+- Static asset classification (static-file/GeoParquet) and an explicit
+  ambiguity-recovery contract.
 - GeoServices ImageServer, GeometryServer, and GPServer metadata projections.
-- Per-protocol metadata projections and raw OGC Tiles, Maps, Records, and
-  Processes endpoint discovery.
+- Raw OGC Tiles, Maps, Records, and Processes endpoint discovery. These wire
+  methods and source adapters are currently facade-path-bound (unlike OGC API
+  Features, which already threads a discovered endpoint layout); raw endpoint
+  discovery for them requires threading a layout through those adapters, and OGC
+  Processes additionally is not a `Source`-backed `Protocol`.
 - Remaining protocol adapters, normalized schema/queryables, partial metadata
   diagnostics, and the owning `createHonua()` disposal lifecycle.
 - Cross-language semantic descriptor fixtures and scheduled third-party smoke.
