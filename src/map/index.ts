@@ -17,6 +17,26 @@
  * @packageDocumentation
  */
 export { HonuaMap } from "./honua-map.js";
+export {
+  AUTOMATIC_MAPLIBRE_PLAN_KIND,
+  AUTOMATIC_MAPLIBRE_PLAN_VERSION,
+  HonuaAutomaticMapLibreStrategyError,
+  MAX_AUTOMATIC_GEOJSON_FEATURES,
+  explainAutomaticSourceToMapLibre,
+  mountAutomaticSourceToMapLibre,
+} from "./automatic-source-strategy.js";
+export type {
+  AutomaticMapLibreCandidate,
+  AutomaticMapLibreDiagnostic,
+  AutomaticMapLibreErrorCode,
+  AutomaticMapLibreNativeSourceSpec,
+  AutomaticMapLibrePlan,
+  AutomaticMapLibreReasonCode,
+  AutomaticMapLibreStrategy,
+  AutomaticMapLibreWorkflowState,
+  ExplainAutomaticMapLibreOptions,
+  MountedAutomaticMapLibreSource,
+} from "./automatic-source-strategy.js";
 export type {
   HonuaMapOptions,
   HonuaMapEvent,
