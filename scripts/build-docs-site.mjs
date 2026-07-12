@@ -19,9 +19,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
-import { expandDocsVersionTokens } from "./docs-versions.mjs";
+import { currentDocsVersions, expandDocsVersionTokens, serializeDocsVersions } from "./docs-versions.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "dist", "docs-site");
@@ -32,12 +33,17 @@ const SITE_URL = "https://honua-io.github.io/honua-sdk-js/";
 const REPO = "honua-io/honua-sdk-js";
 const BLOB_BASE = `https://github.com/${REPO}/blob/trunk`;
 const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/trunk`;
-const DOC_VERSIONS_PATH = path.join(ROOT, "docs", "versions.json");
-const DOC_VERSIONS = JSON.parse(fs.readFileSync(DOC_VERSIONS_PATH, "utf8"));
-const CURRENT_DOCS_VERSION = DOC_VERSIONS.versions.find((entry) => entry.version === DOC_VERSIONS.current);
+const DOC_VERSIONS = currentDocsVersions();
+const SOURCE_REVISION = (process.env.HONUA_SOURCE_REVISION ||
+  execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim()).toLowerCase();
+if (!/^[0-9a-f]{40}$/.test(SOURCE_REVISION)) throw new Error("Documentation source revision must be a full Git SHA");
+const BUILT_DOC_VERSIONS = Object.freeze({
+  ...DOC_VERSIONS,
+  development: Object.freeze({ ...DOC_VERSIONS.development, sourceRevision: SOURCE_REVISION }),
+});
 
-if (DOC_VERSIONS.format !== "honua.sdk.docs-versions.v1" || !CURRENT_DOCS_VERSION) {
-  throw new Error("docs/versions.json is invalid or does not contain its current release");
+if (DOC_VERSIONS.format !== "honua.sdk.docs-versions.v1") {
+  throw new Error("documentation version manifest is invalid");
 }
 
 // ---------------------------------------------------------------------------
@@ -280,16 +286,14 @@ function topNav(sitePath, sourcePath) {
 function versionNavigation(sitePath, sourcePath) {
   const entries = DOC_VERSIONS.versions
     .map((entry) => {
-      if (entry.version === DOC_VERSIONS.current) {
-        return `<li><a aria-current="page" href="${relativeUrl(sitePath, sitePath)}">${escapeHtml(entry.version)} · current</a></li>`;
-      }
       const fallback = `${entry.docs.sourceBase}/README.md`;
-      return `<li><a href="${fallback}" title="Tagged README fallback for ${escapeHtml(sourcePath)}">${escapeHtml(entry.version)} · archived fallback</a></li>`;
+      return `<li><a href="${escapeHtml(fallback)}" title="Tagged README fallback for ${escapeHtml(sourcePath)}">${escapeHtml(entry.version)} · ${escapeHtml(entry.status)} fallback</a></li>`;
     })
     .join("\n");
-  return `<details class="version-menu" data-sdk-docs-current="${escapeHtml(DOC_VERSIONS.current)}">
-  <summary>v${escapeHtml(DOC_VERSIONS.current)} · ${escapeHtml(CURRENT_DOCS_VERSION.status)}</summary>
-  <ul>${entries}</ul>
+  const shortRevision = SOURCE_REVISION.slice(0, 12);
+  return `<details class="version-menu" data-sdk-docs-channel="development" data-sdk-docs-revision="${SOURCE_REVISION}">
+  <summary>${escapeHtml(DOC_VERSIONS.development.label)} @ ${shortRevision}</summary>
+  <ul><li><a aria-current="page" href="${relativeUrl(sitePath, sitePath)}">development @ ${shortRevision}</a></li>${entries}</ul>
   <p><a href="${relativeUrl(sitePath, "guides/documentation-versions.html")}">Version policy and compatibility</a></p>
 </details>`;
 }
@@ -569,7 +573,7 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
     const src = path.join(ROOT, name);
     if (fs.existsSync(src)) fs.copyFileSync(src, path.join(OUT, name));
   }
-  fs.copyFileSync(DOC_VERSIONS_PATH, path.join(OUT, "versions.json"));
+  fs.writeFileSync(path.join(OUT, "versions.json"), serializeDocsVersions(BUILT_DOC_VERSIONS));
 
   // TypeDoc API reference.
   let apiPages = 0;
@@ -592,16 +596,16 @@ function decorateApiIndex() {
   if (!fs.existsSync(apiIndex)) throw new Error("TypeDoc output is missing api/index.html");
   const html = fs.readFileSync(apiIndex, "utf8");
   const archived = DOC_VERSIONS.versions
-    .filter((entry) => entry.version !== DOC_VERSIONS.current)
     .map(
       (entry) =>
-        `<li><a href="${entry.docs.sourceBase}/README.md">${escapeHtml(entry.version)} · tagged README fallback</a> · <a href="${entry.releaseUrl}">release notes</a></li>`,
+        `<li><a href="${escapeHtml(entry.docs.sourceBase)}/README.md">${escapeHtml(entry.version)} · tagged README fallback</a> · <a href="${escapeHtml(entry.releaseUrl)}">release notes</a></li>`,
     )
     .join("");
-  const banner = `<aside data-sdk-docs-current="${escapeHtml(DOC_VERSIONS.current)}" style="padding:.65rem 1rem;border:1px solid #8886;margin:1rem;border-radius:.5rem">
-  <strong>@honua/sdk-js v${escapeHtml(DOC_VERSIONS.current)}</strong> · ${escapeHtml(CURRENT_DOCS_VERSION.status)} ·
+  const shortRevision = SOURCE_REVISION.slice(0, 12);
+  const banner = `<aside data-sdk-docs-channel="development" data-sdk-docs-revision="${SOURCE_REVISION}" style="padding:.65rem 1rem;border:1px solid #8886;margin:1rem;border-radius:.5rem">
+  <strong>@honua/sdk-js ${escapeHtml(DOC_VERSIONS.development.label)} @ ${shortRevision}</strong> · package baseline ${escapeHtml(DOC_VERSIONS.development.packageBaseline)} ·
   <a href="../guides/documentation-versions.html">versions, compatibility, and migration</a>
-  <details><summary>Switch documentation version</summary><ul><li><a aria-current="page" href="index.html">${escapeHtml(DOC_VERSIONS.current)} · current API</a></li>${archived}</ul></details>
+  <details><summary>Switch documentation version</summary><ul><li><a aria-current="page" href="index.html">development @ ${shortRevision}</a></li>${archived}</ul></details>
 </aside>`;
   if (!html.includes("<body")) throw new Error("TypeDoc api/index.html has no body element");
   fs.writeFileSync(apiIndex, html.replace(/(<body[^>]*>)/, `$1${banner}`));

@@ -1,25 +1,32 @@
 # Documentation versions and compatibility
 
 You are reading the documentation for `@honua/sdk-js` **{{SDK_DOCS_CURRENT_VERSION}}**.
+Hosted pages are development documentation built from `trunk`, not immutable
+documentation for the package baseline. Every built page and the deployed
+`versions.json` identify the exact 40-character source commit.
 The version navigation in every hosted guide is generated from
 [`docs/versions.json`](https://honua-io.github.io/honua-sdk-js/versions.json), which is derived from `package.json`,
 `.release-please-manifest.json`, and released `CHANGELOG.md` entries. A version
-cannot appear in the selector unless those authoritative sources agree.
+cannot appear in the selector unless those authoritative sources agree and the
+release tag exists in the authoritative GitHub repository.
 
 ## Release documentation
 
 {{SDK_DOCS_VERSION_TABLE}}
 
-The current release has hosted guides and a generated TypeDoc API reference.
-Older prereleases did not publish immutable TypeDoc sites, so their selector
-destinations are explicitly labelled source fallbacks: they open the README at
-the exact release tag and link to that release's changelog evidence. They are
-never relabelled as current or silently redirected to today's API.
+The hosted guides and generated TypeDoc API are the development channel. The
+released prereleases did not publish immutable TypeDoc sites, so every release
+destination is explicitly labelled a source fallback: it opens the README at
+the exact release tag and links to canonical release evidence. Released code is
+never silently redirected to today's development API.
 
 ## Compatibility and migration
 
 - The exact Node and optional-peer ranges are published in
   [`versions.json`](https://honua-io.github.io/honua-sdk-js/versions.json) from the current package metadata.
+- There is no supported-prior line while the SDK has no GA stable release. The
+  machine manifest records that state as `not-applicable`; the first stable
+  line will establish a supported-prior designation policy.
 - Stable and experimental entrypoint policy is defined in
   [Install and choose an entrypoint](../INSTALL.md) and checked against the
   package exports.

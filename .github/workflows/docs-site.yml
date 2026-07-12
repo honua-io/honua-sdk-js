@@ -16,6 +16,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".release-please-manifest.json"
+      - "release-please-config.json"
       - "CHANGELOG.md"
       - "scripts/build-docs-site.mjs"
       - "scripts/check-docs-site-links.mjs"
@@ -62,6 +63,13 @@ jobs:
 
       - name: Verify documentation version manifest
         run: npm run docs:versions:check
+
+      - name: Verify documentation release tags
+        env:
+          # Release Please creates the tag from the same trunk push. Tolerate
+          # that bounded race, but never publish a selector with a missing tag.
+          HONUA_DOCS_TAG_VERIFY_ATTEMPTS: "12"
+        run: npm run docs:versions:verify-tags
 
       - name: Build TypeDoc API reference
         run: npm run docs:api

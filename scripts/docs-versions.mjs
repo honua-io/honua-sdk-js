@@ -8,14 +8,37 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUTPUT = path.join(ROOT, "docs", "versions.json");
 const REPOSITORY = "honua-io/honua-sdk-js";
 const SITE_URL = "https://honua-io.github.io/honua-sdk-js/";
+const RELEASE_URL_PREFIX = `https://github.com/${REPOSITORY}/`;
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
 function releaseTag(version, releaseUrl) {
+  let parsed;
+  try {
+    parsed = new URL(releaseUrl);
+  } catch {
+    throw new Error(`CHANGELOG release ${version} has an invalid URL`);
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.hostname !== "github.com" ||
+    parsed.port !== "" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    !parsed.pathname.startsWith(`/${REPOSITORY}/`)
+  ) {
+    throw new Error(`CHANGELOG release ${version} must use a canonical ${RELEASE_URL_PREFIX} URL`);
+  }
   const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = new RegExp(`(?:^|\\.\\.\\.)(js-sdk-vv?${escaped})(?:$|[?#])`).exec(releaseUrl);
+  const compare = new RegExp(
+    `^/${REPOSITORY}/compare/js-sdk-v[^/]+\\.\\.\\.(js-sdk-vv?${escaped})$`,
+  ).exec(parsed.pathname);
+  const direct = new RegExp(`^/${REPOSITORY}/releases/tag/(js-sdk-vv?${escaped})$`).exec(parsed.pathname);
+  const match = compare ?? direct;
   if (!match) throw new Error(`CHANGELOG release ${version} does not identify its js-sdk tag`);
   return match[1];
 }
@@ -55,7 +78,23 @@ export function buildDocsVersions({ packageJson, releaseManifest, changelog }) {
     format: "honua.sdk.docs-versions.v1",
     schemaVersion: 1,
     package: "@honua/sdk-js",
-    current,
+    development: {
+      label: "trunk development",
+      sourceRef: "trunk",
+      packageBaseline: current,
+      docs: {
+        kind: "hosted-development",
+        guides: `${SITE_URL}guides/`,
+        api: `${SITE_URL}api/`,
+      },
+    },
+    latestRelease: current,
+    supportPolicy: {
+      supportedPrior:
+        channel(current) === "stable"
+          ? { status: "not-yet-designated", reason: "A prior supported line is designated when the next stable line ships." }
+          : { status: "not-applicable", reason: "The SDK has no GA stable release line yet." },
+    },
     compatibility: {
       node: packageJson.engines?.node ?? null,
       peers: packageJson.peerDependencies ?? {},
@@ -63,22 +102,15 @@ export function buildDocsVersions({ packageJson, releaseManifest, changelog }) {
     versions: releases.map((release, index) => ({
       version: release.version,
       channel: channel(release.version),
-      status: index === 0 ? (channel(release.version) === "stable" ? "current" : "current-prerelease") : "archived",
+      status: index === 0 ? (channel(release.version) === "stable" ? "latest-stable" : "latest-prerelease") : "archived",
       tag: release.tag,
       releaseUrl: release.releaseUrl,
       npmUrl: `https://www.npmjs.com/package/@honua/sdk-js/v/${release.version}`,
-      docs:
-        index === 0
-          ? {
-              kind: "hosted",
-              guides: `${SITE_URL}guides/`,
-              api: `${SITE_URL}api/`,
-            }
-          : {
-              kind: "source-fallback",
-              sourceBase: `https://github.com/${REPOSITORY}/blob/${release.tag}`,
-              reason: "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes.",
-            },
+      docs: {
+        kind: "source-fallback",
+        sourceBase: `https://github.com/${REPOSITORY}/blob/${release.tag}`,
+        reason: "Immutable hosted TypeDoc was not published for this release; use tagged source and release notes.",
+      },
     })),
   };
 }
@@ -90,9 +122,7 @@ export function serializeDocsVersions(value) {
 export function docsVersionTableMarkdown(manifest) {
   const rows = manifest.versions.map((entry) => {
     const destination =
-      entry.docs.kind === "hosted"
-        ? `[Hosted guides](${entry.docs.guides}) · [API](${entry.docs.api})`
-        : `[Tagged README fallback](${entry.docs.sourceBase}/README.md) · [release notes](${entry.releaseUrl})`;
+      `[Tagged README fallback](${entry.docs.sourceBase}/README.md) · [release notes](${entry.releaseUrl})`;
     return `| \`${entry.version}\` | ${entry.status} | ${entry.channel} | ${destination} |`;
   });
   return ["| Version | Status | Channel | Documentation |", "| --- | --- | --- | --- |", ...rows].join("\n");
@@ -100,8 +130,16 @@ export function docsVersionTableMarkdown(manifest) {
 
 export function expandDocsVersionTokens(markdown, manifest) {
   return markdown
-    .replaceAll("{{SDK_DOCS_CURRENT_VERSION}}", manifest.current)
+    .replaceAll(
+      "{{SDK_DOCS_CURRENT_VERSION}}",
+      `${manifest.development.label} (package baseline ${manifest.development.packageBaseline})`,
+    )
     .replaceAll("{{SDK_DOCS_VERSION_TABLE}}", docsVersionTableMarkdown(manifest));
+}
+
+export function missingReleaseTags(manifest, tagRefs) {
+  const available = new Set(tagRefs);
+  return manifest.versions.map((entry) => entry.tag).filter((tag) => !available.has(`refs/tags/${tag}`));
 }
 
 export function currentDocsVersions() {
@@ -131,7 +169,7 @@ export function currentDocsVersions() {
   });
 }
 
-function main() {
+async function main() {
   const mode = process.argv[2] ?? "check";
   const expected = serializeDocsVersions(currentDocsVersions());
   if (mode === "write") {
@@ -139,11 +177,38 @@ function main() {
     process.stdout.write(`wrote ${path.relative(ROOT, OUTPUT)}\n`);
     return;
   }
-  if (mode !== "check") throw new Error(`Usage: node scripts/docs-versions.mjs [check|write]`);
-  if (!fs.existsSync(OUTPUT) || fs.readFileSync(OUTPUT, "utf8") !== expected) {
-    throw new Error("docs/versions.json is stale; run `npm run docs:versions:write`");
+  if (mode === "verify-tags") {
+    const { execFileSync } = await import("node:child_process");
+    const remote = execFileSync("git", ["remote", "get-url", "origin"], { cwd: ROOT, encoding: "utf8" }).trim();
+    if (!/^(?:git@github\.com:|https:\/\/github\.com\/)(?:honua-io\/honua-sdk-js)(?:\.git)?$/.test(remote)) {
+      throw new Error(`origin is not the authoritative ${REPOSITORY} repository`);
+    }
+    const attempts = Number(process.env.HONUA_DOCS_TAG_VERIFY_ATTEMPTS ?? "1");
+    if (!Number.isSafeInteger(attempts) || attempts < 1 || attempts > 12) {
+      throw new Error("HONUA_DOCS_TAG_VERIFY_ATTEMPTS must be an integer from 1 through 12");
+    }
+    let refs = [];
+    let missing = [];
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      refs = execFileSync("git", ["ls-remote", "--tags", "--refs", "origin"], {
+        cwd: ROOT,
+        encoding: "utf8",
+      })
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => line.split(/\s+/, 2)[1]);
+      missing = missingReleaseTags(currentDocsVersions(), refs);
+      if (missing.length === 0 || attempt === attempts) break;
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+    }
+    if (missing.length > 0) throw new Error(`Documentation releases reference missing tags: ${missing.join(", ")}`);
+    process.stdout.write(`docs version tags: ${refs.length} authoritative tags checked\n`);
+    return;
   }
-  process.stdout.write(`docs versions: ${currentDocsVersions().versions.length} releases, current ${currentDocsVersions().current}\n`);
+  if (mode !== "check") throw new Error(`Usage: node scripts/docs-versions.mjs [check|write|verify-tags]`);
+  const manifest = currentDocsVersions();
+  process.stdout.write(`docs versions: ${manifest.versions.length} releases, latest ${manifest.latestRelease}\n`);
 }
 
-if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) main();
+if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) await main();

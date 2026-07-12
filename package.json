@@ -254,6 +254,7 @@
     "docs:quickstart:time-to-map:test": "node --test test/scripts/quickstart-time-to-map.test.mjs",
     "docs:versions:write": "node scripts/docs-versions.mjs write",
     "docs:versions:check": "node --test test/scripts/docs-versions.test.mjs && node scripts/docs-versions.mjs check",
+    "docs:versions:verify-tags": "node scripts/docs-versions.mjs verify-tags",
     "docs:llms": "node scripts/generate-llms-txt.mjs",
     "docs:site": "node scripts/build-docs-site.mjs",
     "docs:site:build": "npm run docs:api && npm run docs:site",

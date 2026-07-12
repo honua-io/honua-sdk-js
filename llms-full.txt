@@ -665,17 +665,21 @@ directories are removed after both successful and failed runs.
 
 # Documentation versions and compatibility
 
-You are reading the documentation for `@honua/sdk-js` **0.1.0-beta.0**.
+You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.1.0-beta.0)**.
+Hosted pages are development documentation built from `trunk`, not immutable
+documentation for the package baseline. Every built page and the deployed
+`versions.json` identify the exact 40-character source commit.
 The version navigation in every hosted guide is generated from
 [`docs/versions.json`](https://honua-io.github.io/honua-sdk-js/versions.json), which is derived from `package.json`,
 `.release-please-manifest.json`, and released `CHANGELOG.md` entries. A version
-cannot appear in the selector unless those authoritative sources agree.
+cannot appear in the selector unless those authoritative sources agree and the
+release tag exists in the authoritative GitHub repository.
 
 ## Release documentation
 
 | Version | Status | Channel | Documentation |
 | --- | --- | --- | --- |
-| `0.1.0-beta.0` | current-prerelease | beta | [Hosted guides](https://honua-io.github.io/honua-sdk-js/guides/) · [API](https://honua-io.github.io/honua-sdk-js/api/) |
+| `0.1.0-beta.0` | latest-prerelease | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.0-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.20-alpha.0...js-sdk-v0.1.0-beta.0) |
 | `0.0.20-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.20-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.19-alpha.0...js-sdk-v0.0.20-alpha.0) |
 | `0.0.19-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.19-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.18-alpha.0...js-sdk-v0.0.19-alpha.0) |
 | `0.0.18-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.18-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.17-alpha.0...js-sdk-v0.0.18-alpha.0) |
@@ -696,16 +700,19 @@ cannot appear in the selector unless those authoritative sources agree.
 | `0.0.3-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-vv0.0.3-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.2-alpha.0...js-sdk-vv0.0.3-alpha.0) |
 | `0.0.2-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-vv0.0.2-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.1-alpha.0...js-sdk-vv0.0.2-alpha.0) |
 
-The current release has hosted guides and a generated TypeDoc API reference.
-Older prereleases did not publish immutable TypeDoc sites, so their selector
-destinations are explicitly labelled source fallbacks: they open the README at
-the exact release tag and link to that release's changelog evidence. They are
-never relabelled as current or silently redirected to today's API.
+The hosted guides and generated TypeDoc API are the development channel. The
+released prereleases did not publish immutable TypeDoc sites, so every release
+destination is explicitly labelled a source fallback: it opens the README at
+the exact release tag and links to canonical release evidence. Released code is
+never silently redirected to today's development API.
 
 ## Compatibility and migration
 
 - The exact Node and optional-peer ranges are published in
   [`versions.json`](https://honua-io.github.io/honua-sdk-js/versions.json) from the current package metadata.
+- There is no supported-prior line while the SDK has no GA stable release. The
+  machine manifest records that state as `not-applicable`; the first stable
+  line will establish a supported-prior designation policy.
 - Stable and experimental entrypoint policy is defined in
   [Install and choose an entrypoint](../INSTALL.md) and checked against the
   package exports.
