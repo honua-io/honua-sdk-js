@@ -175,6 +175,14 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
   throwIfAborted(options.signal);
   const endpoint = validateConnectEndpoint(options.endpoint);
   const target = resolveConnectTarget(endpoint, options.protocol);
+  if (
+    options.collectionId !== undefined &&
+    (typeof options.collectionId !== "string" ||
+      !options.collectionId.trim() ||
+      options.collectionId.trim() !== options.collectionId)
+  ) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "collectionId must be a non-empty, trimmed identifier.");
+  }
   if (target.protocol !== "ogc-features" && target.protocol !== "stac" && options.collectionId !== undefined) {
     throw new HonuaDiscoveryError(
       "invalid-endpoint",
@@ -581,12 +589,20 @@ function validateStacLanding(endpoint: string, landing: HonuaStacLandingResponse
   const core = landing.conformsTo.some((entry) => isStacApiConformance(entry, "core"));
   const itemSearch = landing.conformsTo.some((entry) => isStacApiConformance(entry, "item-search"));
   const searchLinks = (landing.links ?? []).filter((link) => link.rel?.toLowerCase() === "search");
-  if (itemSearch && !core) {
+  const dataLinks = (landing.links ?? []).filter((link) => link.rel?.toLowerCase() === "data");
+  if (!core) {
     throw new HonuaDiscoveryError(
       "invalid-endpoint",
-      "STAC API item-search conformance requires STAC API core conformance.",
+      "STAC API discovery requires exact STAC API Core 1.0.0 conformance.",
     );
   }
+  if (dataLinks.length === 0) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "STAC API Core discovery requires an advertised collections data link.",
+    );
+  }
+  for (const link of dataLinks) validateStacOperationLink(endpoint, link.href, "collections");
   if (itemSearch && searchLinks.length === 0) {
     throw new HonuaDiscoveryError(
       "invalid-endpoint",
@@ -594,10 +610,7 @@ function validateStacLanding(endpoint: string, landing: HonuaStacLandingResponse
     );
   }
   for (const link of searchLinks) validateStacOperationLink(endpoint, link.href, "search");
-  for (const link of landing.links ?? []) {
-    if (link.rel?.toLowerCase() === "data") validateStacOperationLink(endpoint, link.href, "collections");
-  }
-  return Object.freeze({ itemSearch: core && itemSearch });
+  return Object.freeze({ itemSearch });
 }
 
 function isStacApiConformance(value: string, conformance: "core" | "item-search"): boolean {
@@ -605,7 +618,7 @@ function isStacApiConformance(value: string, conformance: "core" | "item-search"
     const uri = new URL(value);
     return (
       uri.protocol === "https:" &&
-      uri.hostname.toLowerCase() === "api.stacspec.org" &&
+      uri.origin === "https://api.stacspec.org" &&
       uri.username === "" &&
       uri.password === "" &&
       uri.search === "" &&
@@ -785,22 +798,26 @@ function validateSnapshot(
   collectionId: string | undefined,
   typeName: string | undefined,
 ): ConnectDiscoverySnapshot {
+  const owned = snapshotCacheData(value);
   if (
-    value?.version !== HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION ||
-    value.identityKey !== identity.key ||
-    value.endpoint !== identity.endpoint ||
-    value.protocol !== target.protocol ||
-    !Array.isArray(value.evidence) ||
-    !Array.isArray(value.sources) ||
-    value.sources.length === 0
+    owned.version !== HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION ||
+    owned.identityKey !== identity.key ||
+    owned.endpoint !== identity.endpoint ||
+    owned.protocol !== target.protocol ||
+    typeof owned.retrievedAt !== "string" ||
+    !owned.retrievedAt ||
+    !Array.isArray(owned.evidence) ||
+    !Array.isArray(owned.sources) ||
+    owned.sources.length === 0
   ) {
     throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache returned an incompatible snapshot.", {
       expectedVersion: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
       expectedIdentityKey: identity.key,
     });
   }
+  const sharedEvidence = validateCachedEvidence(target.protocol, owned.evidence, true);
   const sourceIds = new Set<string>();
-  const sources = value.sources.map((source) => {
+  const sources = owned.sources.map((source) => {
     if (!source || typeof source.id !== "string" || !source.id || !isPlainObject(source.locator)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache contains an invalid source.");
     }
@@ -818,9 +835,12 @@ function validateSnapshot(
     if (source.evidence !== undefined && (!Array.isArray(source.evidence) || source.evidence.length === 0)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source evidence must be a non-empty array.");
     }
-    if (source.evidence === undefined && value.evidence.length === 0) {
+    if (source.evidence === undefined && sharedEvidence.length === 0) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source has no capability evidence.");
     }
+    const sourceEvidence = source.evidence
+      ? validateCachedEvidence(target.protocol, source.evidence, false)
+      : undefined;
     return Object.freeze({
       id: source.id,
       locator: Object.freeze({ ...source.locator }),
@@ -836,7 +856,7 @@ function validateSnapshot(
             }),
           }
         : {}),
-      ...(source.evidence ? { evidence: Object.freeze([...source.evidence]) } : {}),
+      ...(sourceEvidence ? { evidence: sourceEvidence } : {}),
     });
   });
   if (collectionId && (sources.length !== 1 || String(sources[0]?.locator.collectionId ?? "") !== collectionId)) {
@@ -851,7 +871,119 @@ function validateSnapshot(
       typeName,
     });
   }
-  return Object.freeze({ ...value, evidence: Object.freeze([...value.evidence]), sources: Object.freeze(sources) });
+  return Object.freeze({ ...owned, evidence: sharedEvidence, sources: Object.freeze(sources) });
+}
+
+function snapshotCacheData(value: unknown): ConnectDiscoverySnapshot {
+  try {
+    const cloned = cloneCacheData(value, "$", new Set());
+    if (!isPlainObject(cloned)) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache snapshot must be a plain object.");
+    }
+    return cloned as unknown as ConnectDiscoverySnapshot;
+  } catch (cause) {
+    if (cause instanceof HonuaDiscoveryError && cause.code === "invalid-discovery-cache") throw cause;
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache contains unsafe or invalid data.");
+  }
+}
+
+function cloneCacheData(value: unknown, path: string, seen: Set<object>): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "object") {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached value at ${path} is not serializable data.`);
+  }
+  if (seen.has(value)) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached value at ${path} contains a cycle.`);
+  }
+  seen.add(value);
+  try {
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (Object.getOwnPropertySymbols(value).length > 0) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached value at ${path} contains symbol keys.`);
+    }
+    if (Array.isArray(value)) {
+      const lengthDescriptor = descriptors.length;
+      if (!lengthDescriptor || "get" in lengthDescriptor || !Number.isSafeInteger(lengthDescriptor.value)) {
+        throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached array at ${path} has an invalid length.`);
+      }
+      const length = lengthDescriptor.value as number;
+      const out: unknown[] = [];
+      const numericKeys = Object.keys(descriptors).filter((key) => /^(0|[1-9]\d*)$/.test(key));
+      if (numericKeys.length !== length) {
+        throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached array at ${path} must be dense data.`);
+      }
+      for (let index = 0; index < length; index += 1) {
+        const descriptor = descriptors[String(index)];
+        if (!descriptor || "get" in descriptor || !descriptor.enumerable) {
+          throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached array at ${path} must be dense data.`);
+        }
+        out.push(cloneCacheData(descriptor.value, `${path}[${index}]`, seen));
+      }
+      const extra = Object.keys(descriptors).filter((key) => key !== "length" && !/^(0|[1-9]\d*)$/.test(key));
+      if (extra.length > 0) {
+        throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached array at ${path} has extra properties.`);
+      }
+      return Object.freeze(out);
+    }
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached value at ${path} must be a plain object.`);
+    }
+    const out: Record<string, unknown> = {};
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      if ("get" in descriptor || !descriptor.enumerable) {
+        throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached property ${path}.${key} must be data.`);
+      }
+      out[key] = cloneCacheData(descriptor.value, `${path}.${key}`, seen);
+    }
+    return Object.freeze(out);
+  } finally {
+    seen.delete(value);
+  }
+}
+
+function validateCachedEvidence(
+  protocol: ConnectResolvedProtocol,
+  evidence: readonly DiscoveryCapabilityEvidence[],
+  allowEmpty: boolean,
+): readonly DiscoveryCapabilityEvidence[] {
+  if (!Array.isArray(evidence) || (!allowEmpty && evidence.length === 0)) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached capability evidence is invalid.");
+  }
+  if (evidence.length === 0) return Object.freeze([]);
+  for (const record of evidence) {
+    if (!isPlainObject(record)) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached capability evidence must contain objects.");
+    }
+    if (
+      (record.kind === "inferred" || record.kind === "unavailable") &&
+      (typeof record.reason !== "string" || !record.reason.trim())
+    ) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached capability evidence reason is invalid.");
+    }
+    if (record.provenance !== undefined && !Array.isArray(record.provenance)) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached capability provenance must be an array.");
+    }
+    for (const provenance of record.provenance ?? []) {
+      if (
+        !isPlainObject(provenance) ||
+        typeof provenance.source !== "string" ||
+        !provenance.source.trim() ||
+        (provenance.retrievedAt !== undefined && typeof provenance.retrievedAt !== "string") ||
+        (provenance.validator !== undefined && typeof provenance.validator !== "string")
+      ) {
+        throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached capability provenance is invalid.");
+      }
+    }
+  }
+  try {
+    return resolveDiscoveryCapabilities(protocol, evidence).evidence;
+  } catch (cause) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached capability evidence is invalid.", {
+      cause: cause instanceof Error ? cause.message : "invalid evidence",
+    });
+  }
 }
 
 function validateSnapshotLocator(sourceId: string, locator: SourceLocator, target: ConnectTarget): void {
@@ -902,6 +1034,12 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
 function validateCachedDiscoveryExtent(extent: ConnectDiscoveryExtent): ConnectDiscoveryExtent {
   if (!isPlainObject(extent)) {
     throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source extent must be an object.");
+  }
+  if (
+    (extent.spatial !== undefined && (!isPlainObject(extent.spatial) || !Array.isArray(extent.spatial.bbox))) ||
+    (extent.temporal !== undefined && (!isPlainObject(extent.temporal) || !Array.isArray(extent.temporal.interval)))
+  ) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source extent structure is invalid.");
   }
   try {
     return normalizeCollectionExtent(extent);

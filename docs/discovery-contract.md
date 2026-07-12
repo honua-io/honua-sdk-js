@@ -211,8 +211,12 @@ and feature namespace bindings are parsed from `GetCapabilities`; the default
 CRS and namespace are retained on the WFS locator, while the bbox is not
 promoted to the filtered canonical extent capability.
 
-Raw STAC API discovery performs exactly two metadata requests: the service
-root landing page and `/collections`. It never searches items or fans out to
+Raw STAC API discovery performs exactly two metadata requests on a valid
+service: the root landing page and `/collections`. Exact STAC API Core 1.0.0
+conformance and a credential-free, same-root `rel=data` collections link must
+be established from the landing document before the second request. An
+explicit protocol hint never substitutes for protocol identity or authorizes a
+guessed operation URL. Discovery never searches items or fans out to
 per-collection metadata. Every advertised collection becomes a source, or
 `collectionId` selects exactly one. The descriptor retains
 `layout: "stac-api"`, so the existing source adapter executes against the raw
@@ -250,8 +254,13 @@ Stored values are raw, versioned observations; capability policy is reapplied
 after every cache read. Cross-version, cross-endpoint, cross-scope, and
 cross-collection and cross-WFS-type snapshots are rejected as
 `invalid-discovery-cache` instead
-of being trusted. Cache hooks must not persist access tokens, API keys, or raw
-authorization material.
+of being trusted. Cache values cross a persistence trust boundary: the SDK
+rejects accessors, proxies that throw, cycles, sparse arrays, malformed
+evidence/provenance/extents, and non-plain objects as typed
+`invalid-discovery-cache` failures. Accepted values are copied into deeply
+owned immutable data before capability resolution, so later caller/cache
+mutation cannot change an inspection. Cache hooks must not persist access
+tokens, API keys, or raw authorization material.
 
 This slice is intentionally not universal-connect completion: static STAC,
 OData, other static files, GeoServices Image/Geometry/GP services, and the remaining
