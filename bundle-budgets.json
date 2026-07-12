@@ -26,7 +26,7 @@
     "/agent-safety is independently budgeted at its measured 35,310 minified / 10,617 gzip bytes plus 10% headroom, keeping bounded trust normalization and receipt verification out of root barrels and action executors.",
     "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
     "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
-    "/plugin gained its first dedicated guard with the application-local lifecycle (#455): certification, deterministic dependency ordering, transactional rollback, scoped service wrappers, and immutable diagnostics measure 34,980 minified / 11,730 gzip bytes; the ceiling is measured actual plus 10% headroom."
+    "/plugin gained its first dedicated guard with the application-local lifecycle (#455): certification, deterministic dependency ordering, transactional rollback, scoped service wrappers, and immutable diagnostics measure 35,329 minified / 11,814 gzip bytes; the ceiling is measured actual plus 10% headroom."
   ],
   "entrypoints": {
     ".": {
@@ -42,8 +42,8 @@
       "gzip": 67643
     },
     "/plugin": {
-      "min": 38478,
-      "gzip": 12904
+      "min": 38862,
+      "gzip": 12996
     },
     "/agent-safety": {
       "min": 38841,
