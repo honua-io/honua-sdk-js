@@ -7,6 +7,16 @@
     "honua-mcp": "dist/src/index.js",
     "honua-mcp-proxy": "dist/src/proxy.js"
   },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./agent-execution": {
+      "types": "./dist/src/agent-execution.d.ts",
+      "default": "./dist/src/agent-execution.js"
+    }
+  },
   "scripts": {
     "clean": "rm -rf dist coverage",
     "build": "npm run clean --silent && tsc -p tsconfig.json",
