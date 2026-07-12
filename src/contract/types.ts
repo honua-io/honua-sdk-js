@@ -352,6 +352,18 @@ export interface SourceLocator {
     urls?: readonly string[];
     /** Explicit geometry column name (overrides metadata detection). */
     geometryColumn?: string;
+    /**
+     * Physical geometry encoding (`wkb` GeoParquet BLOB, `native` Parquet
+     * GEOMETRY/GEOGRAPHY, or `geojson` string). Read by the deterministic query
+     * planner (`@honua/sdk-js/query-planner`) to compile DuckDB SQL without a
+     * profiling round-trip. Defaults to `wkb`.
+     */
+    geometryEncoding?: "wkb" | "native" | "geojson";
+    /**
+     * Optional GeoParquet 1.1 bbox-covering struct column (e.g. `bbox`) used by
+     * the query planner to push an envelope filter down to row-group pruning.
+     */
+    bboxColumn?: string;
   };
 }
 

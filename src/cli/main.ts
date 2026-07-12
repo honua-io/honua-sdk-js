@@ -14,6 +14,7 @@ import type { FlagSpec, ParsedArgs } from "./args.js";
 import type { CommandContext, CommandHandler } from "./command.js";
 import { layersCommand, servicesCommand } from "./commands/catalog.js";
 import { doctorCommand } from "./commands/doctor.js";
+import { explainCommand } from "./commands/explain.js";
 import { geocodeCommand } from "./commands/geocode.js";
 import { loginCommand, logoutCommand, whoamiCommand } from "./commands/login.js";
 import { mapCommand, tilesCommand } from "./commands/map.js";
@@ -27,6 +28,13 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "base-url" },
   { name: "api-key" },
   { name: "locator" },
+  { name: "protocol" },
+  { name: "id" },
+  { name: "capabilities" },
+  { name: "collection" },
+  { name: "type-name" },
+  { name: "entity-set" },
+  { name: "geometry-column" },
   { name: "where" },
   { name: "bbox" },
   { name: "datetime" },
@@ -55,6 +63,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   services: servicesCommand,
   layers: layersCommand,
   query: queryCommand,
+  explain: explainCommand,
   stac: stacCommand,
   geocode: geocodeCommand,
   map: mapCommand,
@@ -82,6 +91,12 @@ DATA
       --count              Return a feature count only
       --limit N            Max features (default 25)
       --format table|geojson|json  Output shape (default table)
+
+  honua explain <ref> [options]               Compile a query into a deterministic execution plan (no server call)
+      --protocol <id>      Source protocol (default geoservices-feature-service)
+      --where / --bbox / --fields / --limit    Query shape to plan
+      --collection / --type-name / --entity-set   Protocol locator for OGC/WFS/OData
+      --json               Emit the full plan (stages, pushdown, compiled request, fingerprint)
 
 STAC
   honua stac collections                      List STAC collections
