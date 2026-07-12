@@ -157,11 +157,12 @@ describe("scene renderer state synchronization", () => {
       },
     });
     source.emit("selection", [1]);
-    expect(changing.snapshot).toMatchObject({ revision: 1, values: { selection: { acceptedAt: AT } } });
+    expect(changing.snapshot.revision).toBe(0);
+    expect(changing.snapshot.diagnostics).toContainEqual(expect.objectContaining({ code: "clock-failed" }));
     changing.dispose();
   });
 
-  it("replays bounded synchronous subscription state only after attachment commits", () => {
+  it("replays bounded synchronous subscription state only after attachment commits", async () => {
     const event = {
       kind: SCENE_STATE_SYNC_KIND,
       version: SCENE_STATE_SYNC_VERSION,
@@ -171,7 +172,9 @@ describe("scene renderer state synchronization", () => {
       value: [101],
       identity: IDENTITY,
     } as const;
-    const sync = createSceneStateSynchronizer({ applicationId: "sync-state", now: () => AT });
+    const peer = testPort("peer", "cesium");
+    const ownApply = vi.fn();
+    const sync = createSceneStateSynchronizer({ applicationId: "sync-state", ports: [peer.port], now: () => AT });
     sync.attach({
       id: "map",
       renderer: "maplibre",
@@ -180,9 +183,12 @@ describe("scene renderer state synchronization", () => {
         listener(event);
         return () => undefined;
       },
-      apply() {},
+      apply: ownApply,
     });
     expect(sync.snapshot).toMatchObject({ revision: 1, values: { selection: { value: [101] } } });
+    await sync.flush();
+    expect(peer.applied).toHaveLength(1);
+    expect(ownApply).not.toHaveBeenCalled();
 
     const unsubscribe = vi.fn();
     expect(() =>
@@ -198,7 +204,7 @@ describe("scene renderer state synchronization", () => {
       }),
     ).toThrowError(HonuaSceneStateSyncError);
     expect(unsubscribe).toHaveBeenCalledOnce();
-    expect(sync.portIds).toEqual(["map"]);
+    expect(sync.portIds).toEqual(["peer", "map"]);
     expect(sync.snapshot.revision).toBe(1);
     sync.dispose();
   });
@@ -270,6 +276,30 @@ describe("scene renderer state synchronization", () => {
     expect(() => createSceneStateSynchronizer({ applicationId: "diagnostics", maxDiagnostics: 2_049 })).toThrowError(
       HonuaSceneStateSyncError,
     );
+    expect(() => defaultSceneStateSyncMappings("invalid" as never)).toThrowError(HonuaSceneStateSyncError);
+  });
+
+  it("aligns foreign array and semantic selection ceilings and bounds string feature ids", () => {
+    const source = testPort("source", "maplibre");
+    const sync = createSceneStateSynchronizer({ applicationId: "bounds", ports: [source.port], now: () => AT });
+    source.emit(
+      "selection",
+      Array.from({ length: 257 }, (_, index) => index),
+    );
+    expect(sync.snapshot.revision).toBe(1);
+    source.emit(
+      "selection",
+      Array.from({ length: 2_048 }, (_, index) => index),
+    );
+    expect(sync.snapshot.revision).toBe(2);
+    source.emit(
+      "selection",
+      Array.from({ length: 2_049 }, (_, index) => index),
+    );
+    source.emit("selection", ["x".repeat(257)]);
+    source.emit("detail", { featureId: "x".repeat(257) });
+    expect(sync.snapshot.revision).toBe(2);
+    sync.dispose();
   });
 
   it("moves renderer-neutral state bidirectionally with identity, origin, revision, and fidelity", async () => {

@@ -108,6 +108,7 @@ export interface SceneStateSyncPort {
 }
 
 export type SceneStateSyncDiagnosticCode =
+  | "clock-failed"
   | "stale-update"
   | "loop-suppressed"
   | "duplicate-suppressed"
@@ -217,6 +218,7 @@ const MAX_ATTRIBUTIONS = 128;
 const MAX_JSON_NODES = 4_096;
 const MAX_JSON_DEPTH = 24;
 const MAX_JSON_PROPERTIES = 256;
+const MAX_FOREIGN_ARRAY = 2_048;
 const MAX_FOREIGN_STRING = 1_048_576;
 const MAX_FOREIGN_STRING_TOTAL = 4_194_304;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
@@ -271,15 +273,36 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
     message: string,
     detail: { readonly slice?: SceneStateSyncSlice; readonly revision?: number } = {},
   ): void {
+    let diagnosticAt: string;
+    try {
+      diagnosticAt = now();
+    } catch {
+      diagnosticAt = normalized.lastTimestamp();
+      if (code !== "clock-failed") {
+        recordDiagnostic(
+          Object.freeze({
+            code: "clock-failed",
+            at: diagnosticAt,
+            applicationId: normalized.applicationId,
+            portId,
+            message: "Configured clock failed; the triggering state was not committed.",
+          }),
+        );
+      }
+    }
     const diagnostic = Object.freeze({
       code,
-      at: now(),
+      at: diagnosticAt,
       applicationId: normalized.applicationId,
       portId,
       ...(detail.slice === undefined ? {} : { slice: detail.slice }),
       ...(detail.revision === undefined ? {} : { revision: detail.revision }),
       message,
     });
+    recordDiagnostic(diagnostic);
+  }
+
+  function recordDiagnostic(diagnostic: SceneStateSyncDiagnostic): void {
     diagnostics.push(diagnostic);
     if (diagnostics.length > normalized.maxDiagnostics)
       diagnostics.splice(0, diagnostics.length - normalized.maxDiagnostics);
@@ -368,7 +391,15 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
       });
       return;
     }
-    const acceptedAt = now();
+    let acceptedAt: string;
+    try {
+      acceptedAt = now();
+    } catch {
+      diagnose("clock-failed", attachment.port.id, "Configured clock failed; state was not committed.", {
+        slice: input.slice,
+      });
+      return;
+    }
     const nextRevision = revision + 1;
     const envelope = Object.freeze({
       kind: SCENE_STATE_SYNC_KIND,
@@ -503,8 +534,9 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
       }
       throw new HonuaSceneStateSyncError("attach-failed", `Failed to attach scene state port ${port.id}`, { cause });
     }
+    const replayValues = Object.values(values).sort((left, right) => left.revision - right.revision);
     for (const event of synchronousEvents) receive(attachment, event);
-    for (const envelope of Object.values(values).sort((left, right) => left.revision - right.revision)) {
+    for (const envelope of replayValues) {
       deliver(attachment, envelope);
     }
   }
@@ -651,6 +683,8 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
 
 /** Explicit default mapping truth for a renderer; callers may narrow any slice. */
 export function defaultSceneStateSyncMappings(renderer: SceneStateSyncRenderer): SceneStateSyncMappings {
+  if (renderer !== "maplibre" && renderer !== "cesium" && renderer !== "custom")
+    throw new HonuaSceneStateSyncError("invalid-input", "renderer is invalid");
   const exact = (code: string, message: string): SceneStateSyncMapping =>
     Object.freeze({ inbound: "exact", outbound: "exact", code, message });
   const equivalent = (code: string, message: string): SceneStateSyncMapping =>
@@ -719,11 +753,7 @@ function normalizeOptions(options: CreateSceneStateSynchronizerOptions) {
     throw new HonuaSceneStateSyncError("invalid-input", "clock must return a canonical ISO timestamp", { cause });
   }
   const now = (): string => {
-    try {
-      lastTimestamp = canonicalTimestamp(foreignNow.call(undefined), "clock");
-    } catch {
-      // A configured clock cannot corrupt an active synchronization lifecycle.
-    }
+    lastTimestamp = canonicalTimestamp(foreignNow.call(undefined), "clock");
     return lastTimestamp;
   };
   return Object.freeze({
@@ -733,6 +763,7 @@ function normalizeOptions(options: CreateSceneStateSynchronizerOptions) {
     maxDiagnostics,
     ports: Object.freeze(ports),
     now,
+    lastTimestamp: () => lastTimestamp,
     signal,
   });
 }
@@ -872,7 +903,7 @@ function normalizeSelection(foreign: unknown): readonly FeatureSelectionTarget[]
     throw new HonuaSceneStateSyncError("invalid-input", `selection must contain at most ${MAX_SELECTION} targets`);
   return Object.freeze(
     foreign.map((target, index) => {
-      if (typeof target === "string") return target;
+      if (typeof target === "string") return boundedFeatureId(target, `selection[${index}]`);
       if (typeof target === "number") {
         if (!Number.isFinite(target))
           throw new HonuaSceneStateSyncError("invalid-input", `selection[${index}] is invalid`);
@@ -885,7 +916,7 @@ function normalizeSelection(foreign: unknown): readonly FeatureSelectionTarget[]
         throw new HonuaSceneStateSyncError("invalid-input", `selection[${index}].id is invalid`);
       return Object.freeze({
         sourceId: boundedId(dataProperty(target, "sourceId"), `selection[${index}].sourceId`),
-        id: typeof id === "number" && Object.is(id, -0) ? 0 : id,
+        id: typeof id === "string" ? boundedFeatureId(id, `selection[${index}].id`) : Object.is(id, -0) ? 0 : id,
         ...(sourceLayer === undefined
           ? {}
           : { sourceLayer: boundedId(sourceLayer, `selection[${index}].sourceLayer`) }),
@@ -972,7 +1003,14 @@ function normalizeDetail(foreign: unknown): SceneDetailState {
     ...(sourceId === undefined ? {} : { sourceId }),
     ...(featureId === undefined
       ? {}
-      : { featureId: typeof featureId === "number" && Object.is(featureId, -0) ? 0 : featureId }),
+      : {
+          featureId:
+            typeof featureId === "string"
+              ? boundedFeatureId(featureId, "detail.featureId")
+              : Object.is(featureId, -0)
+                ? 0
+                : featureId,
+        }),
     ...(title === undefined ? {} : { title: boundedText(title, "detail.title", 512) }),
     ...(status === undefined ? {} : { status: status as SceneDetailState["status"] }),
     ...(attributes === undefined ? {} : { attributes: snapshotJson(attributes) as Readonly<Record<string, unknown>> }),
@@ -1079,7 +1117,7 @@ function snapshotForeignData(foreign: unknown): unknown {
     ancestors.add(value);
     try {
       if (Array.isArray(value)) {
-        const items = captureDenseArray<unknown>(value, MAX_JSON_PROPERTIES, "renderer envelope array");
+        const items = captureDenseArray<unknown>(value, MAX_FOREIGN_ARRAY, "renderer envelope array");
         return Object.freeze(items.map((item) => visit(item, depth + 1)));
       }
       let prototype: object | null;
@@ -1210,6 +1248,19 @@ function normalizeAbortSignal(foreign: unknown): {
 function boundedId(value: unknown, label: string): string {
   if (typeof value !== "string" || value.length === 0 || value.length > 256 || !SAFE_ID.test(value))
     throw new HonuaSceneStateSyncError("invalid-input", `${label} must be a bounded credential-free identifier`);
+  return value;
+}
+
+function boundedFeatureId(value: string, label: string): string {
+  if (
+    value.length === 0 ||
+    value.length > 256 ||
+    [...value].some((character) => {
+      const code = character.charCodeAt(0);
+      return code <= 31 || code === 127;
+    })
+  )
+    throw new HonuaSceneStateSyncError("invalid-input", `${label} must be a bounded feature identifier`);
   return value;
 }
 
