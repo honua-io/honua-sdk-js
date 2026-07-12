@@ -1,6 +1,8 @@
 import type { AggregationSpec } from "../contract/types.js";
 import { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
+import { compileDuckDbQuery } from "./duckdb.js";
 import { compileGeoServicesQuery } from "./geoservices.js";
+import { compileGrpcQuery } from "./grpc.js";
 import { createQueryIr, deepFreeze } from "./ir.js";
 import { compileOdataQuery } from "./odata.js";
 import { compileOgcApiFeaturesQuery } from "./ogc-features.js";
@@ -90,6 +92,7 @@ export function explainQuery<T>(options: ExplainQueryOptions<T>): QueryExecution
         `Source "${ir.source.id}" does not support ${capability}`,
       );
     }
+    const spatialAggregation = ir.query.aggregation !== undefined && ir.query.spatialFilter !== undefined;
     steps = [
       {
         id: "remote-query",
@@ -97,7 +100,9 @@ export function explainQuery<T>(options: ExplainQueryOptions<T>): QueryExecution
         operation: ir.query.aggregation ? "queryAggregate" : "query",
         pushdown: "full",
         fidelity: "exact",
-        reason: `${remoteEngineName(ir.source.protocol)} can execute the complete canonical query remotely.`,
+        reason: spatialAggregation
+          ? `${remoteEngineName(ir.source.protocol)} executes the spatial aggregation server-side: the spatial filter constrains the grouped statistics without materializing features.`
+          : `${remoteEngineName(ir.source.protocol)} can execute the complete canonical query remotely.`,
         requests: estimates.requests ?? 1,
         query: ir.query,
         compiled: compileRemoteQuery(ir.source, ir.query),
@@ -141,6 +146,10 @@ function compileRemoteQuery(
       return compileWfsQuery(source, query);
     case "odata":
       return compileOdataQuery(source, query);
+    case "geoparquet":
+      return compileDuckDbQuery(source, query);
+    case "grpc":
+      return compileGrpcQuery(source, query);
     default:
       throw new HonuaQueryPlanningError(
         "unsupported-compiler",
@@ -167,6 +176,10 @@ function remoteEngineName(protocol: QueryIrSourceIdentity["protocol"]): string {
       return "WFS 2.0";
     case "odata":
       return "OData v4";
+    case "geoparquet":
+      return "DuckDB SQL (columnar)";
+    case "grpc":
+      return "Honua gRPC FeatureService";
     default:
       return protocol;
   }

@@ -12,8 +12,10 @@
  */
 
 export { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
+export { compileDuckDbQuery } from "./duckdb.js";
 export { executeQueryPlan } from "./executor.js";
 export { compileGeoServicesQuery } from "./geoservices.js";
+export { compileGrpcQuery } from "./grpc.js";
 export { compileOgcApiFeaturesQuery } from "./ogc-features.js";
 export { compileOdataQuery } from "./odata.js";
 export { compileWfsQuery } from "./wfs.js";
@@ -95,9 +97,14 @@ export {
 export type {
   CanonicalQuery,
   CanonicalSpatialFilter,
+  DuckDbCompiledQueryV1,
+  DuckDbGeometryEncoding,
   ExecuteQueryPlanOptions,
   ExplainQueryOptions,
   GeoServicesCompiledQueryV1,
+  GrpcCompiledQueryV1,
+  GrpcSpatialRelationship,
+  GrpcStatisticType,
   JsonPrimitive,
   JsonValue,
   LocalAggregatePlanStep,
@@ -105,6 +112,7 @@ export type {
   OdataCompiledQueryV1,
   QueryExecutionPlanV1,
   QueryFallbackPolicy,
+  QueryIrGeoparquetIdentity,
   QueryIrSourceIdentity,
   QueryIrV1,
   QueryPlanExecution,
