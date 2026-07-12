@@ -124,6 +124,8 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Gate clean-install time to first fixture map
+        env:
+          HONUA_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           npm run docs:quickstart:time-to-map:test
           npm run docs:quickstart:time-to-map -- \

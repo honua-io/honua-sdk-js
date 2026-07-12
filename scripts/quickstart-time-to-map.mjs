@@ -65,6 +65,7 @@ export function validateQuickstartEvidence(evidence) {
 }
 
 function revision() {
+  if (process.env.HONUA_SOURCE_REVISION) return process.env.HONUA_SOURCE_REVISION;
   if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA;
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
@@ -113,6 +114,7 @@ export async function runQuickstartTiming(options) {
       sdkPackage: packageJson.name,
       sdkVersion: packageJson.version,
       revision: revision(),
+      ciRevision: process.env.GITHUB_SHA ?? revision(),
     },
   };
 
