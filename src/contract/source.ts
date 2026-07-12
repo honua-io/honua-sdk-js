@@ -1010,7 +1010,12 @@ export function ogcRecordsSource<T>(
   policy: CapabilityPolicy,
 ): Source<T> {
   const { collectionId } = requireOgcRecordsLocator(descriptor);
-  const collection = new HonuaOgcRecordCollection({ client, collectionId });
+  const basePath = descriptor.locator.basePath;
+  const collection = new HonuaOgcRecordCollection({
+    client,
+    collectionId,
+    ...(basePath !== undefined ? { basePath } : {}),
+  });
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["ogc-records"];
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {

@@ -16,6 +16,12 @@ export interface ConnectTarget {
   readonly layerId?: number;
   /** OData service base path (endpoint pathname); the client is bound to the origin. */
   readonly odataBasePath?: string;
+  /**
+   * Raw OGC API (Tiles / Maps / Records / Processes) service-root path prefix
+   * (endpoint pathname); the client is bound to the origin and the discovered
+   * source adapters thread this prefix through their wire methods.
+   */
+  readonly ogcBasePath?: string;
 }
 
 export interface GeoServicesDiscoveryOptions {
@@ -43,6 +49,8 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
           "stac",
           "wfs",
           "odata",
+          "geoparquet",
+          "ogc-records",
           "geoservices-feature-service",
           "geoservices-map-service",
         ],
@@ -84,6 +92,35 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
     const odataBasePath = url.pathname && url.pathname !== "/" ? url.pathname : "/odata";
     return { endpoint, clientBaseUrl: url.origin, protocol: "odata", odataBasePath };
   }
+  if (hint === "geoparquet") {
+    if (geoservices) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `The canonical GeoServices URL resolves to "${geoservices.protocol}", not "geoparquet".`,
+        { endpoint, protocol: hint, resolvedProtocol: geoservices.protocol },
+      );
+    }
+    // A GeoParquet asset is a static file (or hive-partitioned glob) addressed
+    // directly; discovery reads its footer, so the client base URL is only the
+    // asset origin and is never used for feature queries.
+    return { endpoint, clientBaseUrl: new URL(endpoint).origin, protocol: "geoparquet" };
+  }
+  if (hint === "ogc-records") {
+    if (geoservices) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `The canonical GeoServices URL resolves to "${geoservices.protocol}", not "ogc-records".`,
+        { endpoint, protocol: hint, resolvedProtocol: geoservices.protocol },
+      );
+    }
+    // A raw OGC API Records service root is mounted under a path (or at the
+    // origin). Bind the client to the origin and carry the service-root prefix
+    // so discovery (landing / conformance / collections) and the runtime
+    // catalog search resolve against the same advertised layout.
+    const url = new URL(endpoint);
+    const ogcBasePath = url.pathname && url.pathname !== "/" ? url.pathname : "";
+    return { endpoint, clientBaseUrl: url.origin, protocol: "ogc-records", ogcBasePath };
+  }
   if (hint === "geoservices-feature-service" || hint === "geoservices-map-service") {
     if (!geoservices || geoservices.protocol !== hint) {
       throw new HonuaDiscoveryError(
@@ -104,6 +141,8 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
         "stac",
         "wfs",
         "odata",
+        "geoparquet",
+        "ogc-records",
         "geoservices-feature-service",
         "geoservices-map-service",
       ],

@@ -309,6 +309,14 @@ export interface SourceLocator {
    * change.
    */
   layout?: "honua-facade" | "ogc-api" | "auto" | "stac-api" | "stac-static";
+  /**
+   * Raw endpoint path prefix for the OGC API Tiles / Maps / Records / Processes
+   * families when the service is a third-party root discovered by `connect()`
+   * rather than the Honua facade. Defaults (when omitted) to the family's
+   * facade prefix (`/ogc/tiles`, `/ogc/maps`, `/ogc/records`, `/ogc/processes`).
+   * OGC API Features and STAC instead use {@link SourceLocator.layout}.
+   */
+  basePath?: string;
   /** OGC API Tiles tile-matrix-set identifier (e.g. `WebMercatorQuad`). */
   tileMatrixSetId?: string;
   /** OGC API Maps / Tiles style identifier for styled-output endpoints. */

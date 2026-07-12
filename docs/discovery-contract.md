@@ -104,14 +104,17 @@ complete decision, diagnostic, provenance, cache-result, and inspection type
 vocabulary for adapter authors. This keeps the beginner surface bounded while
 preserving a fully typed protocol integration seam.
 
-## Connect facade (OGC Features, STAC API, GeoServices, WFS, and OData slices)
+## Connect facade (OGC Features/Records, STAC API, GeoServices, WFS, OData, and GeoParquet slices)
 
 The experimental `connect()` facade composes this truth contract for raw OGC
-API Features and STAC API landing pages, WFS 2.0 endpoints, OData v4 service
-roots, and canonical
+API Features and STAC API landing pages, raw OGC API Records catalog roots,
+WFS 2.0 endpoints, OData v4 service
+roots, static-file GeoParquet assets, and canonical
 GeoServices `FeatureServer` / `MapServer` service or layer URLs. OGC, STAC,
-WFS, and OData endpoints require explicit `protocol: "ogc-features"`,
-`protocol: "stac"`, `protocol: "wfs"`, or `protocol: "odata"` hints.
+WFS, OData, Records, and GeoParquet endpoints require an explicit
+`protocol: "ogc-features"`,
+`protocol: "stac"`, `protocol: "wfs"`, `protocol: "odata"`,
+`protocol: "ogc-records"`, or `protocol: "geoparquet"` hint.
 Canonical GeoServices URLs may use
 `protocol: "auto"`: classification comes entirely from the URL path and makes
 no network request. An ambiguous auto target throws `HonuaDiscoveryError` with
@@ -253,6 +256,40 @@ before any linked endpoint can be contacted. Static STAC catalogs remain a
 separate explicit discovery slice; `auto` never probes an ambiguous URL to
 guess STAC API versus static STAC.
 
+Raw OGC API Records discovery performs three metadata requests against the
+discovered service root — the landing page, `/conformance`, and `/collections`.
+The landing page must advertise a collections data link before the follow-up
+requests run. Every advertised catalog collection becomes a source keyed by its
+collection id. Effective capabilities are the intersection of the OGC Records
+adapter surface and the advertised conformance classes: `query` and
+`queryObjectIds` are enabled only when the service advertises the Records API /
+searchable-catalog conformance, and a service that advertises no Records query
+conformance leaves those operations disabled with structured `not-advertised`
+decisions rather than adapter defaults. The discovered service-root prefix is
+retained on `locator.basePath`, so the existing OGC Records source adapter
+threads it through every wire request — the reviewed descriptor executes the
+same catalog search against a third-party root that it would against the Honua
+`/ogc/records` facade (semantic descriptor parity). The OGC API Tiles, Maps,
+and Processes wire methods share the same `basePath` threading seam
+(`OgcMetadataRequest.basePath`, `SourceLocator.basePath`); wiring their raw
+endpoint discovery into `connect()` remains the follow-up slice (see below).
+
+GeoParquet / static-file discovery has no HTTP metadata document: it reads the
+Parquet footer and the GeoParquet `geo` metadata through an injected
+`geoparquet.profiler` seam (`GeoParquetSourceProfiler`, satisfied structurally
+by `GeoparquetRuntime` from `@honua/sdk-js/geoparquet`). The DuckDB engine must
+never enter the connect static graph, so the reader is injected rather than
+imported. A successful footer read is positive metadata evidence for the
+canonical `query`, `queryAggregate`, and bounded `stream` operations the
+GeoParquet adapter implements; the detected geometry column, physical encoding,
+and any GeoParquet 1.1 bbox-covering column are pinned on `locator.geoparquet`
+so the runtime resolves without a second profiling round-trip, and the file
+CRS is retained under `metadata`. A purely tabular Parquet file discovers the
+same three read capabilities (spatial filters simply throw at query time).
+Because the GeoParquet `Source` is resolver-only (DuckDB stays out of the
+static graph), an injected `resolveSource` (for example `geoparquetResolver()`)
+lets the reviewed descriptor execute directly through `connection.source()`.
+
 Authentication, retry, timeout, interceptors, and transport fetch overrides
 are passed in `clientOptions`, or callers may inject an existing `HonuaClient`
 whose normalized base URL matches the OGC/STAC/WFS endpoint, the OData origin, or
@@ -286,20 +323,23 @@ Cache hooks must not persist access tokens, API keys, or raw authorization
 material.
 
 This slice is intentionally not universal-connect completion: static STAC,
-static-file/GeoParquet assets, GeoServices Image/Geometry/GP services, and the
-remaining raw OGC families still fail as unsupported rather than falling through
-to heuristic detection.
+GeoServices Image/Geometry/GP services, and the remaining raw OGC render/process
+families (Tiles, Maps, Processes) still fail as unsupported rather than falling
+through to heuristic detection.
 
 ## Remaining #391 work
 
-- Static asset classification (static-file/GeoParquet) and an explicit
-  ambiguity-recovery contract.
+- Static asset classification for GeoParquet via `auto` (structural URL
+  recognition) and an explicit ambiguity-recovery contract; today GeoParquet
+  requires an explicit `protocol: "geoparquet"` hint plus a metadata reader.
 - GeoServices ImageServer, GeometryServer, and GPServer metadata projections.
-- Raw OGC Tiles, Maps, Records, and Processes endpoint discovery. These wire
-  methods and source adapters are currently facade-path-bound (unlike OGC API
-  Features, which already threads a discovered endpoint layout); raw endpoint
-  discovery for them requires threading a layout through those adapters, and OGC
-  Processes additionally is not a `Source`-backed `Protocol`.
+- Raw OGC Tiles, Maps, and Processes endpoint discovery through `connect()`.
+  The `basePath` threading seam is now in place (used by OGC API Records), so
+  these are follow-ups: Tiles and Maps are render-only `Source`s whose
+  round-trip additionally needs tile / map-image fetch threading and
+  per-collection tileset enumeration, and OGC Processes is not a `Source`-backed
+  `Protocol` (its discovery must surface as a capability/metadata result rather
+  than a `Source`).
 - Remaining protocol adapters, normalized schema/queryables, partial metadata
   diagnostics, and the owning `createHonua()` disposal lifecycle.
 - Cross-language semantic descriptor fixtures and scheduled third-party smoke.

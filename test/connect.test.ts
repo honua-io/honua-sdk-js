@@ -1330,7 +1330,7 @@ describe("connect", () => {
       name: "HonuaDiscoveryError",
       code: "ambiguous-protocol",
     });
-    await expect(connect({ ...base, protocol: "geoparquet" })).rejects.toMatchObject({
+    await expect(connect({ ...base, protocol: "grpc" })).rejects.toMatchObject({
       name: "HonuaDiscoveryError",
       code: "unsupported-protocol",
     });

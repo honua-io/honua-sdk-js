@@ -4,8 +4,8 @@
     {
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
-      "exportCount": 123,
-      "signatureSha256": "f62b9dc500f2c17f626e2611b41b06708ec4278e16ca4a88c6c0d4d2665d5c00",
+      "exportCount": 124,
+      "signatureSha256": "83dc60e1abdb5f1eaadfb511b8ab117ecfadb90b4cdb1f907fdbb3dbc4a89755",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -40,6 +40,7 @@
         "ExecuteQueryPlanOptions — interface",
         "ExplainQueryOptions — interface",
         "FeatureId — type",
+        "GeoParquetSourceProfiler — interface",
         "HONUA_CONNECT_ADAPTER_VERSION — const",
         "HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION — const",
         "HONUA_CONNECT_PROJECTION_VERSION — const",
@@ -135,8 +136,8 @@
     {
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
-      "exportCount": 123,
-      "signatureSha256": "f62b9dc500f2c17f626e2611b41b06708ec4278e16ca4a88c6c0d4d2665d5c00",
+      "exportCount": 124,
+      "signatureSha256": "83dc60e1abdb5f1eaadfb511b8ab117ecfadb90b4cdb1f907fdbb3dbc4a89755",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -171,6 +172,7 @@
         "ExecuteQueryPlanOptions — interface",
         "ExplainQueryOptions — interface",
         "FeatureId — type",
+        "GeoParquetSourceProfiler — interface",
         "HONUA_CONNECT_ADAPTER_VERSION — const",
         "HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION — const",
         "HONUA_CONNECT_PROJECTION_VERSION — const",
@@ -266,8 +268,8 @@
     {
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
-      "exportCount": 1079,
-      "signatureSha256": "69c1a85d48cbee2edd0c500c02a10062c918f7b639ecc05893b81fdd433a9b91",
+      "exportCount": 1080,
+      "signatureSha256": "37b1b5dad51be55bb91475025ceda3c0feb643b7044508034639c6b97276d8cc",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -479,6 +481,7 @@
         "GeoJsonMultiPolygon — interface",
         "GeoJsonPoint — interface",
         "GeoJsonPolygon — interface",
+        "GeoParquetSourceProfiler — interface",
         "GeocodeResult — interface",
         "GeocodeSuggestion — interface",
         "GeocodingClientOptions — interface",
@@ -1383,7 +1386,7 @@
       "subpath": "@honua/sdk-js/contract",
       "types": "dist/src/contract/index.d.ts",
       "exportCount": 406,
-      "signatureSha256": "75b4e577c8c4a9c7ae517e81d5ada73739f745466391e21bcc1703266aa39021",
+      "signatureSha256": "a67687cbd331f761d20f3132562cbf83edd22eb0b4f4eae63ce8e314da7d7275",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",

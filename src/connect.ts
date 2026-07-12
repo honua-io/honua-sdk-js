@@ -9,8 +9,11 @@
  * @experimental
  */
 
+import { type GeoParquetSourceProfiler, discoverGeoParquetSources } from "./connect-geoparquet.js";
 import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
+export type { GeoParquetSourceProfiler } from "./connect-geoparquet.js";
 import { discoverOdataSources } from "./connect-odata.js";
+import { discoverOgcRecordsSources } from "./connect-ogc.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import {
   type DiscoveryCacheIdentity,
@@ -31,6 +34,7 @@ import type {
   SourceDescriptor,
   SourceId,
   SourceLocator,
+  SourceResolver,
   SourceSchema,
 } from "./contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
@@ -135,6 +139,26 @@ export interface ConnectOptions {
   readonly refresh?: boolean;
   readonly signal?: AbortSignal;
   readonly metadata?: Omit<HonuaMetadataRequestOptions, "signal" | "refresh">;
+  /**
+   * Resolver for descriptors the built-in resolvers do not handle. Required to
+   * execute a discovered `geoparquet` source through `connection.source()`
+   * (pass `geoparquetResolver()` from `@honua/sdk-js/geoparquet`); the DuckDB
+   * engine must never enter the connect static graph, so it is injected here.
+   */
+  readonly resolveSource?: SourceResolver;
+  /** GeoParquet / static-file discovery inputs; required for `protocol: "geoparquet"`. */
+  readonly geoparquet?: {
+    /**
+     * Footer / `geo` metadata reader. `GeoparquetRuntime` (from
+     * `@honua/sdk-js/geoparquet`) satisfies this interface via its `profile()`
+     * method, so one runtime can both discover and execute.
+     */
+    readonly profiler: GeoParquetSourceProfiler;
+    /** Additional Parquet files unioned with the endpoint via `read_parquet([...])`. */
+    readonly urls?: readonly string[];
+    /** Explicit geometry column name (overrides GeoParquet metadata detection). */
+    readonly geometryColumn?: string;
+  };
 }
 
 export interface HonuaConnectionInspection {
@@ -160,6 +184,8 @@ export type ConnectResolvedProtocol =
   | "stac"
   | "wfs"
   | "odata"
+  | "geoparquet"
+  | "ogc-records"
   | "geoservices-feature-service"
   | "geoservices-map-service";
 
@@ -201,6 +227,12 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     throw new HonuaDiscoveryError("invalid-endpoint", "Pass either client or clientOptions to connect(), not both.");
   }
 
+  // GeoParquet's discovered profile/locator depends on inputs beyond the
+  // endpoint URL (the additional file set and geometry-column override), so
+  // fold a stable digest of them into the cache identity — otherwise distinct
+  // inputs for the same primary asset URL would collide on one cached snapshot.
+  const assetVariant = geoParquetAssetVariant(target.protocol, options.geoparquet);
+
   const identity = await createDiscoveryCacheIdentity({
     endpoint: target.endpoint,
     protocol: target.protocol,
@@ -211,6 +243,7 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     ...(options.typeName ? { typeName: options.typeName } : {}),
     ...(target.serviceId ? { serviceId: target.serviceId } : {}),
     ...(target.layerId !== undefined ? { layerId: target.layerId } : {}),
+    ...(assetVariant ? { assetVariant } : {}),
   });
   if (options.client) assertClientEndpoint(options.client, target.clientBaseUrl);
   const cacheContext = Object.freeze({ ...(options.signal ? { signal: options.signal } : {}) });
@@ -237,7 +270,11 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
             ? await discoverWfs(client, identity, options)
             : target.protocol === "odata"
               ? await discoverOdata(client, identity, target, options)
-              : await discoverGeoServices(client, identity, target, options);
+              : target.protocol === "geoparquet"
+                ? await discoverGeoParquet(identity, options)
+                : target.protocol === "ogc-records"
+                  ? await discoverOgcRecords(client, identity, target, options)
+                  : await discoverGeoServices(client, identity, target, options);
     if (options.cache) {
       await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
@@ -279,6 +316,7 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     client,
     sources: inspections.map((entry) => entry.descriptor),
     skipCompatibilityCheck: true,
+    ...(options.resolveSource ? { resolveSource: options.resolveSource } : {}),
   });
   const defaultSourceId = inspections.length === 1 ? inspections[0]?.descriptor.id : undefined;
   const inspection: HonuaConnectionInspection = Object.freeze({
@@ -317,6 +355,23 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
       return source;
     },
   });
+}
+
+/**
+ * Deterministic per-asset discriminator for GeoParquet discovery: the sorted
+ * additional file set plus any geometry-column override. Returns `undefined`
+ * for other protocols or when no discriminating input is present so the cache
+ * key is unchanged for the common single-file case.
+ */
+function geoParquetAssetVariant(
+  protocol: ConnectResolvedProtocol,
+  geoparquet: ConnectOptions["geoparquet"],
+): string | undefined {
+  if (protocol !== "geoparquet" || !geoparquet) return undefined;
+  const urls = Array.isArray(geoparquet.urls) ? [...geoparquet.urls].sort() : [];
+  const geometryColumn = geoparquet.geometryColumn ?? "";
+  if (urls.length === 0 && geometryColumn === "") return undefined;
+  return JSON.stringify({ urls, geometryColumn });
 }
 
 function validateConnectEndpoint(input: string | URL): string {
@@ -510,6 +565,53 @@ async function discoverOdata(
     identityKey: identity.key,
     endpoint: identity.endpoint,
     protocol: "odata",
+    retrievedAt: discovered.retrievedAt,
+    evidence: discovered.evidence,
+    sources: discovered.sources,
+  });
+}
+
+async function discoverOgcRecords(
+  client: HonuaClient,
+  identity: DiscoveryCacheIdentity,
+  target: ConnectTarget,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const discovered = await discoverOgcRecordsSources(
+    client,
+    identity,
+    target.clientBaseUrl,
+    target.ogcBasePath ?? "",
+    options,
+  );
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "ogc-records",
+    retrievedAt: discovered.retrievedAt,
+    evidence: discovered.evidence,
+    sources: discovered.sources,
+  });
+}
+
+async function discoverGeoParquet(
+  identity: DiscoveryCacheIdentity,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const profiler = options.geoparquet?.profiler;
+  if (!profiler) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "GeoParquet discovery requires a footer metadata reader; pass geoparquet.profiler (for example a GeoparquetRuntime from @honua/sdk-js/geoparquet).",
+    );
+  }
+  const discovered = await discoverGeoParquetSources(profiler, identity, options);
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "geoparquet",
     retrievedAt: discovered.retrievedAt,
     evidence: discovered.evidence,
     sources: discovered.sources,
@@ -1102,6 +1204,30 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
       throw new HonuaDiscoveryError(
         "invalid-discovery-cache",
         "Cached OData source locator does not match the endpoint.",
+      );
+    }
+    return;
+  }
+  if (target.protocol === "geoparquet") {
+    if (locator.url !== target.endpoint || typeof sourceId !== "string" || !sourceId) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Cached GeoParquet source locator does not match the asset endpoint.",
+      );
+    }
+    return;
+  }
+  if (target.protocol === "ogc-records") {
+    if (
+      locator.url !== target.clientBaseUrl ||
+      locator.basePath !== (target.ogcBasePath ?? "") ||
+      typeof locator.collectionId !== "string" ||
+      !locator.collectionId ||
+      sourceId !== locator.collectionId
+    ) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Cached OGC API Records source locator does not match the service endpoint.",
       );
     }
     return;

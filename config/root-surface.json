@@ -110,6 +110,7 @@
       "explainQuery",
       "ExplainQueryOptions",
       "FeatureId",
+      "GeoParquetSourceProfiler",
       "hashQueryPlan",
       "HONUA_CONNECT_ADAPTER_VERSION",
       "HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION",
@@ -198,6 +199,10 @@
   "promotions": [
     {
       "symbol": "CanonicalQuery",
+      "kind": "type"
+    },
+    {
+      "symbol": "GeoParquetSourceProfiler",
       "kind": "type"
     },
     {
