@@ -54,7 +54,41 @@
       "properties": {
         "id": { "type": "string" }, "vendor": { "enum": ["honua", "esri", "mapbox", "maplibre", "carto", "deck.gl", "cesium"] },
         "product": { "type": "string" }, "status": { "enum": ["eligible", "unavailable", "not-comparable"] },
-        "package": { "type": ["object", "null"] }, "licenseEvidence": { "type": "object" },
+        "package": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["name", "version", "integrity", "lockfile"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.]+)?$" },
+                "integrity": { "type": "string", "pattern": "^(sha512-.+|workspace:git-tree)$" },
+                "lockfile": { "type": ["string", "null"] },
+                "sourceTree": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["path", "gitTree"],
+                  "properties": { "path": { "const": "src" }, "gitTree": { "type": "string", "pattern": "^[a-f0-9]{40}$" } }
+                }
+              }
+            }
+          ]
+        },
+        "licenseEvidence": {
+          "type": "object", "additionalProperties": false,
+          "required": ["license", "decision", "publication", "sourceUrl", "termsUrl", "retrievedAt", "licensePath", "licenseContentSha256", "notes"],
+          "properties": {
+            "license": { "type": "string", "minLength": 1 },
+            "decision": { "enum": ["approved", "review-required"] },
+            "publication": { "enum": ["permitted-under-open-source-license", "not-cleared"] },
+            "sourceUrl": { "type": "string", "pattern": "^https://" },
+            "termsUrl": { "type": ["string", "null"] },
+            "retrievedAt": { "type": "string", "format": "date" },
+            "licensePath": { "type": ["string", "null"] },
+            "licenseContentSha256": { "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^[a-f0-9]{64}$" }] },
+            "notes": { "type": "string", "minLength": 1, "maxLength": 1024 }
+          }
+        },
         "taskIds": { "type": "array", "items": { "type": "string" } }, "reasons": { "type": "array", "items": { "type": "string" } }
       }
     }

@@ -79,4 +79,24 @@ describe("cross-SDK reference corpus", () => {
     const original = await readFile("bench/cross-sdk/corpus.json", "utf8");
     expect(original).toContain("b980be3434dbe98483a90e455cf8bbb8f75463fcdc4c0d21d1c9c341b2331164");
   });
+
+  it("contains hostile proxy and accessor failures behind typed validation errors", async () => {
+    const proxy = new Proxy(
+      {},
+      {
+        getPrototypeOf() {
+          throw new Error("hostile trap");
+        },
+      },
+    );
+    expect(() => validateCrossSdkReferenceCorpus(proxy)).toThrow("Invalid cross-SDK reference corpus");
+    const value = await corpus();
+    Object.defineProperty(value, "schemaVersion", {
+      get() {
+        throw new Error("hostile accessor");
+      },
+      enumerable: true,
+    });
+    expect(() => validateCrossSdkReferenceCorpus(value)).toThrow("Invalid cross-SDK reference corpus");
+  });
 });

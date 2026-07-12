@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -45,6 +46,7 @@ interface CrossSdkReference {
     readonly version: string;
     readonly integrity: string;
     readonly lockfile: string | null;
+    readonly sourceTree?: { readonly path: string; readonly gitTree: string };
   };
   readonly licenseEvidence: {
     readonly license: string;
@@ -53,6 +55,8 @@ interface CrossSdkReference {
     readonly sourceUrl: string;
     readonly termsUrl: string | null;
     readonly retrievedAt: string;
+    readonly licensePath: string | null;
+    readonly licenseContentSha256: string | null;
     readonly notes: string;
   };
   readonly taskIds: readonly string[];
@@ -95,6 +99,15 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const SAFE_ID = /^[a-z0-9][a-z0-9.-]+$/;
 
 export function validateCrossSdkReferenceCorpus(foreign: unknown, now = "2026-07-12"): CrossSdkReferenceCorpus {
+  try {
+    return validateCrossSdkReferenceCorpusUnsafe(foreign, now);
+  } catch (cause) {
+    if (cause instanceof Error && cause.message.startsWith("Invalid cross-SDK reference corpus:")) throw cause;
+    throw new Error("Invalid cross-SDK reference corpus: input inspection failed", { cause });
+  }
+}
+
+function validateCrossSdkReferenceCorpusUnsafe(foreign: unknown, now: string): CrossSdkReferenceCorpus {
   const corpus = record(foreign, "corpus") as unknown as CrossSdkReferenceCorpus;
   exactKeys(
     corpus,
@@ -201,7 +214,17 @@ export function validateCrossSdkReferenceCorpus(foreign: unknown, now = "2026-07
     ) as unknown as CrossSdkReference["licenseEvidence"];
     exactKeys(
       evidence,
-      ["license", "decision", "publication", "sourceUrl", "termsUrl", "retrievedAt", "notes"],
+      [
+        "license",
+        "decision",
+        "publication",
+        "sourceUrl",
+        "termsUrl",
+        "retrievedAt",
+        "licensePath",
+        "licenseContentSha256",
+        "notes",
+      ],
       `${value.id}.licenseEvidence`,
     );
     if (
@@ -223,6 +246,8 @@ export function validateCrossSdkReferenceCorpus(foreign: unknown, now = "2026-07
       )
         fail(`${value.id} is not eligible`);
       validatePackage(value.package, value.id);
+      if (!evidence.licensePath || !evidence.licenseContentSha256 || !SHA256.test(evidence.licenseContentSha256))
+        fail(`${value.id} license content is not pinned`);
     } else if (value.taskIds.length !== 0 || value.reasons.length === 0) {
       fail(`${value.id} unavailable state must be explicit and task-free`);
     }
@@ -254,8 +279,20 @@ export async function validateCrossSdkReferenceFiles(
         ? lock.packages?.[""]
         : lock.packages?.[`node_modules/${reference.package.name}`];
     if (locked?.version !== reference.package.version) fail(`${reference.id} lockfile version mismatch`);
-    if (reference.package.integrity !== "workspace:git-revision" && locked?.integrity !== reference.package.integrity)
+    if (reference.package.integrity !== "workspace:git-tree" && locked?.integrity !== reference.package.integrity)
       fail(`${reference.id} lockfile integrity mismatch`);
+    const evidence = reference.licenseEvidence;
+    if (!evidence.licensePath || !evidence.licenseContentSha256) fail(`${reference.id} license digest is missing`);
+    const licenseBytes = await readFile(path.resolve(root, evidence.licensePath));
+    if (createHash("sha256").update(licenseBytes).digest("hex") !== evidence.licenseContentSha256)
+      fail(`${reference.id} license content digest mismatch`);
+    if (reference.package.sourceTree) {
+      const actual = execFileSync("git", ["rev-parse", `HEAD:${reference.package.sourceTree.path}`], {
+        cwd: root,
+        encoding: "utf8",
+      }).trim();
+      if (actual !== reference.package.sourceTree.gitTree) fail(`${reference.id} source tree revision mismatch`);
+    }
   }
   return Object.freeze({
     schemaVersion: 1,
@@ -290,41 +327,65 @@ export async function validateCrossSdkReferenceFiles(
 }
 
 function validatePackage(value: CrossSdkReference["package"] & {}, label: string): void {
-  exactKeys(value, ["name", "version", "integrity", "lockfile"], `${label}.package`);
+  exactKeys(
+    value,
+    value.sourceTree
+      ? ["name", "version", "integrity", "lockfile", "sourceTree"]
+      : ["name", "version", "integrity", "lockfile"],
+    `${label}.package`,
+  );
   if (
     !value.name ||
     !/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/.test(value.version) ||
-    (!value.integrity.startsWith("sha512-") && value.integrity !== "workspace:git-revision") ||
+    (!value.integrity.startsWith("sha512-") && value.integrity !== "workspace:git-tree") ||
     value.lockfile !== "package-lock.json"
   )
     fail(`${label} package is not reproducibly locked`);
+  if (value.sourceTree) {
+    exactKeys(value.sourceTree, ["path", "gitTree"], `${label}.package.sourceTree`);
+    if (value.sourceTree.path !== "src" || !/^[a-f0-9]{40}$/.test(value.sourceTree.gitTree))
+      fail(`${label} source tree binding is invalid`);
+  }
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    Object.getPrototypeOf(value) !== Object.prototype
-  )
-    fail(`${label} must be a plain object`);
+  let valid = false;
+  try {
+    valid =
+      value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.getPrototypeOf(value) === Object.prototype;
+  } catch {
+    fail(`${label} could not be inspected`);
+  }
+  if (!valid) fail(`${label} must be a plain object`);
   return value as Record<string, unknown>;
 }
 
 function exactKeys(value: object, keys: readonly string[], label: string): void {
-  const actual = Object.keys(value).sort();
+  let actual: string[];
+  try {
+    actual = Object.keys(value).sort();
+  } catch {
+    fail(`${label} keys could not be inspected`);
+  }
   const expected = [...keys].sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) fail(`${label} has unknown or missing properties`);
 }
 
 function stringArray(value: unknown, label: string, minimum: number): asserts value is string[] {
-  if (
-    !Array.isArray(value) ||
-    value.length < minimum ||
-    value.length > 64 ||
-    value.some((item) => typeof item !== "string" || item.length === 0 || item.length > 512)
-  )
-    fail(`${label} is invalid`);
+  let valid = false;
+  try {
+    valid =
+      Array.isArray(value) &&
+      value.length >= minimum &&
+      value.length <= 64 &&
+      value.every((item) => typeof item === "string" && item.length > 0 && item.length <= 512);
+  } catch {
+    fail(`${label} could not be inspected`);
+  }
+  if (!valid) fail(`${label} is invalid`);
 }
 
 function positiveInteger(value: unknown): boolean {
