@@ -1,0 +1,311 @@
+/**
+ * Bind a Honua columnar batch directly to deck.gl GPU-binary attributes.
+ *
+ * This is the renderer seam that consumes {@link ColumnarBatchV1} batches
+ * **without** a GeoJSON round-trip: every deck.gl binary attribute is a
+ * typed-array *view* aliasing a batch backing `ArrayBuffer`, so no per-feature
+ * JavaScript object, GeoJSON `Feature`, or coordinate array is ever
+ * materialized. The resulting {@link DeckGlProjectionRequest} is handed to a
+ * {@link DeckGlAdapter} (`createDeckGlAdapter(...).project(...)`), whose metrics
+ * report `copiedBytes: 0` because the SDK forwards the batch's own buffers.
+ *
+ * @experimental
+ * @packageDocumentation
+ */
+
+import type { ColumnarBatchV1, ColumnarBufferV1 } from "../columnar/types.js";
+import { COLUMNAR_BATCH_KIND, COLUMNAR_BATCH_VERSION } from "../columnar/types.js";
+import type {
+  DeckGlBinaryAttribute,
+  DeckGlLayerKind,
+  DeckGlProjectionRequest,
+  DeckGlSelectionIdentity,
+} from "./types.js";
+import { HonuaDeckGlAdapterError } from "./types.js";
+
+/**
+ * Numeric component type of a columnar buffer, mapped to the matching
+ * typed-array view. Names mirror the deck.gl adapter's supported component set.
+ */
+export type ColumnarComponentType =
+  | "int8"
+  | "uint8"
+  | "uint8-clamped"
+  | "int16"
+  | "uint16"
+  | "float16"
+  | "int32"
+  | "uint32"
+  | "float32"
+  | "float64";
+
+interface TypedArrayCtor {
+  new (buffer: ArrayBufferLike, byteOffset: number, length: number): Exclude<ArrayBufferView, DataView>;
+  readonly BYTES_PER_ELEMENT: number;
+}
+
+/**
+ * Bind one columnar buffer to a named deck.gl binary accessor
+ * (for example `getPosition`, `getFillColor`, `getRadius`).
+ */
+export interface ColumnarDeckGlAttributeBinding {
+  /** deck.gl binary accessor name, for example `getPosition`. */
+  readonly accessor: string;
+  /** `id` of the {@link ColumnarBufferV1} in the batch that backs this attribute. */
+  readonly bufferId: string;
+  /** Numeric component type of the buffer's elements. */
+  readonly component: ColumnarComponentType;
+  /** Components per vertex (deck.gl attribute size). */
+  readonly size: 1 | 2 | 3 | 4;
+  /** Byte offset into the buffer view where addressing begins. Defaults to 0. */
+  readonly offset?: number;
+  /** Byte stride between consecutive rows. Defaults to `size * componentBytes`. */
+  readonly stride?: number;
+  /** deck.gl `normalized` flag forwarded verbatim. */
+  readonly normalized?: boolean;
+}
+
+/**
+ * Identity for picking. Feature ids come from a columnar buffer (zero-copy) or,
+ * when omitted, are the row indices `0..rowCount`.
+ */
+export interface ColumnarDeckGlIdentity {
+  readonly sourceId: string;
+  readonly planId: string;
+  readonly sourceVersion?: string;
+  /**
+   * Bind a scalar id column as the picking identity. When omitted, sequential
+   * row indices are used so picking still resolves a stable row.
+   */
+  readonly featureIdColumn?: {
+    readonly bufferId: string;
+    readonly component: Exclude<ColumnarComponentType, "float16">;
+  };
+}
+
+/** Request to bind a columnar batch to a deck.gl projection. */
+export interface ColumnarDeckGlProjectionRequest {
+  readonly batch: ColumnarBatchV1;
+  /** Only `scatterplot` is supported by adapter contract v1.0. Defaults to it. */
+  readonly layer?: DeckGlLayerKind;
+  readonly layerId: string;
+  readonly attributes: readonly ColumnarDeckGlAttributeBinding[];
+  readonly identity: ColumnarDeckGlIdentity;
+  /** Forwarded to the deck.gl constructor. `id`, `data`, and `pickable` are reserved. */
+  readonly props?: Readonly<Record<string, unknown>>;
+}
+
+function componentInfo(component: ColumnarComponentType): TypedArrayCtor {
+  switch (component) {
+    case "int8":
+      return Int8Array as unknown as TypedArrayCtor;
+    case "uint8":
+      return Uint8Array as unknown as TypedArrayCtor;
+    case "uint8-clamped":
+      return Uint8ClampedArray as unknown as TypedArrayCtor;
+    case "int16":
+      return Int16Array as unknown as TypedArrayCtor;
+    case "uint16":
+      return Uint16Array as unknown as TypedArrayCtor;
+    case "float16": {
+      const ctor = (globalThis as { Float16Array?: TypedArrayCtor }).Float16Array;
+      if (!ctor) {
+        throw new HonuaDeckGlAdapterError(
+          "invalid-data",
+          'Component "float16" is not supported by this JavaScript runtime.',
+          { component },
+        );
+      }
+      return ctor;
+    }
+    case "int32":
+      return Int32Array as unknown as TypedArrayCtor;
+    case "uint32":
+      return Uint32Array as unknown as TypedArrayCtor;
+    case "float32":
+      return Float32Array as unknown as TypedArrayCtor;
+    case "float64":
+      return Float64Array as unknown as TypedArrayCtor;
+    default:
+      throw new HonuaDeckGlAdapterError("invalid-data", `Unsupported columnar component "${String(component)}".`, {
+        component,
+      });
+  }
+}
+
+function assertColumnarBatch(batch: ColumnarBatchV1): void {
+  if (
+    typeof batch !== "object" ||
+    batch === null ||
+    batch.kind !== COLUMNAR_BATCH_KIND ||
+    batch.version !== COLUMNAR_BATCH_VERSION
+  ) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      `Columnar deck.gl binding requires a ${COLUMNAR_BATCH_KIND}@${COLUMNAR_BATCH_VERSION} batch.`,
+    );
+  }
+}
+
+function bufferIndex(batch: ColumnarBatchV1): ReadonlyMap<string, ColumnarBufferV1> {
+  const index = new Map<string, ColumnarBufferV1>();
+  for (const buffer of batch.buffers) index.set(buffer.id, buffer);
+  return index;
+}
+
+function requireBuffer(
+  buffers: ReadonlyMap<string, ColumnarBufferV1>,
+  bufferId: string,
+  label: string,
+): ColumnarBufferV1 {
+  const buffer = buffers.get(bufferId);
+  if (!buffer) {
+    throw new HonuaDeckGlAdapterError("invalid-data", `${label} references unknown buffer id "${bufferId}".`, {
+      bufferId,
+    });
+  }
+  return buffer;
+}
+
+/**
+ * Create a typed-array view aliasing the columnar buffer's slice. The returned
+ * view's `.buffer` is the batch's own `ArrayBuffer` — no payload bytes are
+ * copied. Throws on component misalignment rather than letting the typed-array
+ * constructor surface an opaque `RangeError`.
+ */
+function viewBuffer(buffer: ColumnarBufferV1, ctor: TypedArrayCtor, label: string): Exclude<ArrayBufferView, DataView> {
+  const bytes = ctor.BYTES_PER_ELEMENT;
+  if (buffer.byteOffset % bytes !== 0) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      `${label} buffer byteOffset ${buffer.byteOffset} is not aligned to its ${bytes}-byte component.`,
+      { bufferId: buffer.id, byteOffset: buffer.byteOffset, componentBytes: bytes },
+    );
+  }
+  if (buffer.byteLength % bytes !== 0) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      `${label} buffer byteLength ${buffer.byteLength} is not a multiple of its ${bytes}-byte component.`,
+      { bufferId: buffer.id, byteLength: buffer.byteLength, componentBytes: bytes },
+    );
+  }
+  try {
+    return new ctor(buffer.data, buffer.byteOffset, buffer.byteLength / bytes);
+  } catch (cause) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      `${label} buffer view could not be created over its backing allocation.`,
+      { bufferId: buffer.id },
+      { cause },
+    );
+  }
+}
+
+/**
+ * Bind a columnar batch to a {@link DeckGlProjectionRequest} whose binary
+ * attributes alias the batch's backing buffers with **zero payload copies** and
+ * **no GeoJSON conversion**. Pass the result to
+ * `createDeckGlAdapter(...).project(...)`.
+ */
+export function bindColumnarBatchToDeckGl(request: ColumnarDeckGlProjectionRequest): DeckGlProjectionRequest {
+  if (typeof request !== "object" || request === null) {
+    throw new HonuaDeckGlAdapterError("invalid-data", "Columnar deck.gl binding request must be an object.");
+  }
+  const { batch } = request;
+  assertColumnarBatch(batch);
+  if (!Array.isArray(request.attributes) || request.attributes.length === 0) {
+    throw new HonuaDeckGlAdapterError("invalid-data", "At least one columnar attribute binding is required.");
+  }
+  const buffers = bufferIndex(batch);
+  const rowCount = batch.rowCount;
+
+  const attributes: Record<string, DeckGlBinaryAttribute> = Object.create(null) as Record<
+    string,
+    DeckGlBinaryAttribute
+  >;
+  const seenAccessors = new Set<string>();
+  for (const binding of request.attributes) {
+    if (typeof binding !== "object" || binding === null) {
+      throw new HonuaDeckGlAdapterError("invalid-data", "Each attribute binding must be an object.");
+    }
+    if (typeof binding.accessor !== "string" || binding.accessor.length === 0) {
+      throw new HonuaDeckGlAdapterError("invalid-data", "Attribute binding accessor must be a non-empty string.");
+    }
+    if (seenAccessors.has(binding.accessor)) {
+      throw new HonuaDeckGlAdapterError("invalid-data", `Duplicate attribute binding for "${binding.accessor}".`, {
+        accessor: binding.accessor,
+      });
+    }
+    seenAccessors.add(binding.accessor);
+    const label = `attribute "${binding.accessor}"`;
+    const buffer = requireBuffer(buffers, binding.bufferId, label);
+    const ctor = componentInfo(binding.component);
+    const value = viewBuffer(buffer, ctor, label);
+    attributes[binding.accessor] = Object.freeze({
+      value,
+      size: binding.size,
+      ...(binding.offset === undefined ? {} : { offset: binding.offset }),
+      ...(binding.stride === undefined ? {} : { stride: binding.stride }),
+      ...(binding.normalized === undefined ? {} : { normalized: binding.normalized }),
+    });
+  }
+
+  const featureIds = resolveFeatureIds(request.identity, buffers, rowCount);
+  const identity: DeckGlSelectionIdentity = Object.freeze({
+    sourceId: request.identity.sourceId,
+    planId: request.identity.planId,
+    ...(request.identity.sourceVersion === undefined ? {} : { sourceVersion: request.identity.sourceVersion }),
+    featureIds,
+  });
+
+  return Object.freeze({
+    layer: request.layer ?? "scatterplot",
+    layerId: request.layerId,
+    data: Object.freeze({ length: rowCount, attributes: Object.freeze(attributes) }),
+    identity,
+    ...(request.props === undefined ? {} : { props: request.props }),
+  });
+}
+
+function resolveFeatureIds(
+  identity: ColumnarDeckGlIdentity,
+  buffers: ReadonlyMap<string, ColumnarBufferV1>,
+  rowCount: number,
+): ArrayLike<string | number | bigint> {
+  const column = identity.featureIdColumn;
+  if (column === undefined) {
+    // Zero-copy sequential identity: a lazy ArrayLike that never allocates a
+    // parallel id array for the whole batch.
+    return sequentialIds(rowCount);
+  }
+  const ctor = componentInfo(column.component);
+  const buffer = requireBuffer(buffers, column.bufferId, "identity.featureIdColumn");
+  const view = viewBuffer(buffer, ctor, "identity.featureIdColumn") as unknown as ArrayLike<
+    string | number | bigint
+  >;
+  if (view.length < rowCount) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-data",
+      `identity.featureIdColumn addresses ${view.length} rows but the batch has ${rowCount}.`,
+      { available: view.length, rowCount },
+    );
+  }
+  return view;
+}
+
+/**
+ * Lazy row-index identity so the picking id array never materializes eagerly.
+ * A read of index `i` returns `i`; `length` returns the row count.
+ */
+function sequentialIds(length: number): ArrayLike<number> {
+  const target: { length: number } = { length };
+  return new Proxy(target, {
+    get(base, key, receiver): unknown {
+      if (typeof key === "string") {
+        const asIndex = Number(key);
+        if (Number.isInteger(asIndex) && asIndex >= 0 && asIndex < length) return asIndex;
+      }
+      return Reflect.get(base, key, receiver);
+    },
+  }) as unknown as ArrayLike<number>;
+}

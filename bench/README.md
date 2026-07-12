@@ -117,6 +117,32 @@ renderer configuration, licensing constraints, and host/service conditions are
 not equivalent. A chart, README, website, or sales claim must not rank vendors
 from this report or combine it with separately collected competitor numbers.
 
+## Million-feature columnar rendering budget
+
+[`columnar-bench.ts`](./columnar-bench.ts) validates the #387 large-data
+(columnar path) memory and throughput budgets. It builds a deterministic
+million-feature fixture ([`columnar-fixture.ts`](./columnar-fixture.ts)) as four
+contiguous typed-array columns — position, radius, fill color, and id — never
+per-feature JavaScript objects or GeoJSON, then binds it directly to deck.gl
+GPU-binary attributes with `bindColumnarBatchToDeckGl(...)` and projects it
+through `createDeckGlAdapter(...)`.
+
+```sh
+npm run build
+node dist/bench/columnar-bench.js 1000000
+```
+
+The fixture is generated with a fixed-parameter integer hash (no `Math.random`),
+so the same feature count is byte-for-byte reproducible. The harness proves the
+projected attribute buffers alias the batch's own backing allocations
+(`zeroCopyVerified`, `copiedBytes: 0`), that memory stays bounded to the packed
+columns (20 bytes/feature, independent of feature count — no per-feature object
+materialization), and reports sustained projection throughput in
+features/second. The `test/columnar-million-feature-bench.test.ts` unit test
+enforces these budgets in CI. Like the other harnesses this measures SDK
+columnar → GPU-binary projection overhead only: there is no live server or real
+renderer, and it is not a cross-SDK comparison.
+
 ## Stream / pagination scenario
 
 A deterministic, server-free harness that measures throughput and latency of
