@@ -123,7 +123,7 @@ in.
 | `@honua/sdk-js/webmap` | 5.9 KiB |
 | `@honua/sdk-js/style` | 8.3 KiB |
 | `@honua/sdk-js/map` | 23.5 KiB |
-| `@honua/sdk-js` (root) | 89.7 KiB |
+| `@honua/sdk-js` (root) | 92.0 KiB |
 | `{ HonuaClient }` only (tree-shake guard) | 48.6 KiB |
 
 Full per-entrypoint table (min + gzip, generated, not hand-written):
