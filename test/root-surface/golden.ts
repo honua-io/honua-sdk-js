@@ -4,7 +4,6 @@ import {
   type SourceToMapLibreMap,
   connect,
   envelope,
-  executeQueryPlan,
   explainQuery,
   mountSourceToMapLibre,
 } from "@honua/sdk-js";
@@ -23,8 +22,9 @@ const query: Query<{ status: string }> = {
   pagination: { limit: 100 },
 };
 
-await source.query(query);
 const plan = explainQuery({ descriptor: source.descriptor, query });
-await executeQueryPlan(plan, source);
 const mounted = await mountSourceToMapLibre(map, source, plan);
 mounted.dispose();
+
+// Headless callers may use executeQueryPlan(plan, source) instead of mounting;
+// it is an alternative terminal path, not an additional step before mount.

@@ -347,8 +347,11 @@ correctly use this SDK:
     `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`,
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
     `@honua/sdk-js/cli`.
-  - **Experimental** (subpath-only — not re-exported from the root barrels): `/agent-tools`,
-    `/agent-safety`, `/geoparquet`, `/query-planner`, `/plugin`, `/deckgl`, `/offline`, `/diagnostics`.
+  - **Experimental subpath-only APIs** (not re-exported from the root barrels): `/agent-tools`,
+    `/agent-safety`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`, `/diagnostics`.
+  - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
+    reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
+    errors/version constants, and the types required to name the common explain/mount workflow.
   - **Application-platform surfaces** (`/app`, `/app-controller`, `/app-workspace`,
     `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
     `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,

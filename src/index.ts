@@ -5,7 +5,9 @@
  * query it, inspect/explain the accepted query, and mount it through the
  * lightweight MapLibre source bridge. Advanced protocol clients, renderers,
  * app state, migration, styling, realtime, offline, and analysis APIs remain
- * supported from their focused subpaths.
+ * supported from their focused subpaths. The root stabilizes only the planner
+ * vocabulary required to explain and mount this common workflow; the complete
+ * `@honua/sdk-js/query-planner` subpath remains experimental.
  *
  * The exact runtime and declaration surface is governed by
  * `config/root-surface.json`; `npm run verify:root-surface` fails on barrel,

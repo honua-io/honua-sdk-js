@@ -36,9 +36,12 @@ entrypoints are stable across minor versions.
 ## Experimental subpath entrypoints
 
 Subpaths marked `@experimental` in JSDoc. Useful today; the shape may change in
-any minor release prior to `1.0.0`. **The experimental subpaths are subpath-only
-— they are not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`** so a
-default-barrel import never pulls them in.
+any minor release prior to `1.0.0`. The stable root promotes a reviewed
+query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the
+plan errors/version constants, and the types required to name the common
+explain/mount workflow. The complete `@honua/sdk-js/query-planner` subpath
+remains experimental. Every other experimental subpath is subpath-only and is
+not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 | Subpath | What it gives you |
 |---------|-------------------|

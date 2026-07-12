@@ -276,12 +276,14 @@ async function initialize() {
     inclusionRule: [
       "Include symbols used directly by the committed connect-query-explain-mount golden root workflow.",
       "Include the minimal protocol-neutral input, output, error, policy, and lifecycle vocabulary needed to name that workflow.",
+      "Promote only the planner vocabulary required to explain and mount the common workflow; the complete query-planner subpath remains experimental.",
       "Runtime exports must be SSR/worker safe at module evaluation and must not load optional renderer, model, DuckDB, Arrow, Cesium, React, or app-platform peers.",
       "Move every protocol-specific, renderer-specific, application-state, migration, styling, realtime, offline, analytics, and low-level wire symbol to its focused supported subpath.",
     ],
     evidence: {
       northStarDecision: "docs/decisions/north-star-sdk-application-kernel.md",
       goldenFixture: "test/root-surface/golden.ts",
+      goldenRuntimeAssertion: "test/root-surface/golden.test.ts",
       usageRoots: ["README.md", "INSTALL.md", "docs", "examples", "mcp", "test/integration"],
       dependencyBoundary: "docs/decisions/north-star-sdk-application-kernel.md#dependency-direction",
     },
@@ -325,6 +327,29 @@ async function check() {
   if (JSON.stringify(builtRuntime) !== JSON.stringify(manifest.final.runtime)) failures.push("built root runtime differs from manifest");
   if (JSON.stringify(builtDeclarations) !== JSON.stringify(manifest.final.declarations)) {
     failures.push("built root declarations differ from manifest");
+  }
+  const stablePlannerRuntime = ["executeQueryPlan", "explainQuery", "hashQueryPlan"];
+  if (!stablePlannerRuntime.every((symbol) => manifest.final.runtime.includes(symbol))) {
+    failures.push("manifest is missing the reviewed stable root query-planner subset");
+  }
+  const plannerContractMarker = "the stable root promotes a reviewed query-planner subset";
+  const forbiddenBlanketClaims = [
+    "the experimental subpaths are subpath-only",
+    "experimental (subpath-only — not re-exported from the root barrels)",
+  ];
+  for (const documentationFile of ["README.md", "INSTALL.md"]) {
+    const prose = fs
+      .readFileSync(path.join(root, documentationFile), "utf8")
+      .toLocaleLowerCase("en-US")
+      .replace(/\s+/g, " ");
+    if (!prose.includes(plannerContractMarker)) {
+      failures.push(`${documentationFile} does not document the reviewed stable root query-planner subset`);
+    }
+    for (const forbidden of forbiddenBlanketClaims) {
+      if (prose.includes(forbidden)) {
+        failures.push(`${documentationFile} incorrectly claims every experimental subpath is root-excluded`);
+      }
+    }
   }
   const promotionNames = new Set(manifest.promotions.map((entry) => entry.symbol));
   const reconstructedRuntime = sorted([

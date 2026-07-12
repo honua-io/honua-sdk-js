@@ -4,12 +4,14 @@
   "inclusionRule": [
     "Include symbols used directly by the committed connect-query-explain-mount golden root workflow.",
     "Include the minimal protocol-neutral input, output, error, policy, and lifecycle vocabulary needed to name that workflow.",
+    "Promote only the planner vocabulary required to explain and mount the common workflow; the complete query-planner subpath remains experimental.",
     "Runtime exports must be SSR/worker safe at module evaluation and must not load optional renderer, model, DuckDB, Arrow, Cesium, React, or app-platform peers.",
     "Move every protocol-specific, renderer-specific, application-state, migration, styling, realtime, offline, analytics, and low-level wire symbol to its focused supported subpath."
   ],
   "evidence": {
     "northStarDecision": "docs/decisions/north-star-sdk-application-kernel.md",
     "goldenFixture": "test/root-surface/golden.ts",
+    "goldenRuntimeAssertion": "test/root-surface/golden.test.ts",
     "usageRoots": [
       "README.md",
       "INSTALL.md",
