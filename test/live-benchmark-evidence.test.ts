@@ -162,7 +162,22 @@ function liveFixtureResponse(
     });
   }
   if (url.pathname.endsWith("/rest/services/maui-parcels/FeatureServer/1/query")) {
-    return json({ features: [{ attributes: { id: 1 }, geometry: { rings: [[[0, 0], [1, 0], [0, 0]]] } }] });
+    return json({
+      features: [
+        {
+          attributes: { id: 1 },
+          geometry: {
+            rings: [
+              [
+                [0, 0],
+                [1, 0],
+                [0, 0],
+              ],
+            ],
+          },
+        },
+      ],
+    });
   }
   if (url.pathname === "/v1") return json({ stac_version: "1.0.0" });
   if (url.pathname === "/v1/search") {
