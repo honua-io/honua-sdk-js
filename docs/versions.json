@@ -1,0 +1,300 @@
+{
+  "format": "honua.sdk.docs-versions.v1",
+  "schemaVersion": 1,
+  "package": "@honua/sdk-js",
+  "current": "0.1.0-beta.0",
+  "compatibility": {
+    "node": ">=20.0.0",
+    "peers": {
+      "@bufbuild/protobuf": "^2.0.0",
+      "@connectrpc/connect": "^2.0.0",
+      "@connectrpc/connect-web": "^2.0.0",
+      "@deck.gl/layers": "^9.0.0",
+      "@duckdb/duckdb-wasm": "^1.29.0",
+      "@turf/area": "^7.0.0",
+      "@turf/bbox": "^7.0.0",
+      "@turf/boolean-contains": "^7.0.0",
+      "@turf/boolean-intersects": "^7.0.0",
+      "@turf/boolean-within": "^7.0.0",
+      "@turf/buffer": "^7.0.0",
+      "@turf/centroid": "^7.0.0",
+      "@turf/convex": "^7.0.0",
+      "@turf/difference": "^7.0.0",
+      "@turf/helpers": "^7.0.0",
+      "@turf/intersect": "^7.0.0",
+      "@turf/length": "^7.0.0",
+      "@turf/nearest-point": "^7.0.0",
+      "@turf/simplify": "^7.0.0",
+      "@turf/union": "^7.0.0",
+      "cesium": "^1.139.0",
+      "maplibre-gl": "^5.0.0",
+      "pmtiles": "^4.0.0",
+      "proj4": "^2.11.0",
+      "react": "^18.2.0 || ^19.0.0",
+      "react-dom": "^18.2.0 || ^19.0.0",
+      "typescript": "^5.9.2"
+    }
+  },
+  "versions": [
+    {
+      "version": "0.1.0-beta.0",
+      "channel": "beta",
+      "status": "current-prerelease",
+      "tag": "js-sdk-v0.1.0-beta.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.20-alpha.0...js-sdk-v0.1.0-beta.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.1.0-beta.0",
+      "docs": {
+        "kind": "hosted",
+        "guides": "https://honua-io.github.io/honua-sdk-js/guides/",
+        "api": "https://honua-io.github.io/honua-sdk-js/api/"
+      }
+    },
+    {
+      "version": "0.0.20-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.20-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.19-alpha.0...js-sdk-v0.0.20-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.20-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.20-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.19-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.19-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.18-alpha.0...js-sdk-v0.0.19-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.19-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.19-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.18-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.18-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.17-alpha.0...js-sdk-v0.0.18-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.18-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.18-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.17-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.17-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.16-alpha.0...js-sdk-v0.0.17-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.17-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.17-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.16-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.16-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.15-alpha.0...js-sdk-v0.0.16-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.16-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.16-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.15-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.15-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.14-alpha.0...js-sdk-v0.0.15-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.15-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.15-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.14-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.14-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.13-alpha.0...js-sdk-v0.0.14-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.14-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.14-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.13-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.13-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.12-alpha.0...js-sdk-v0.0.13-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.13-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.13-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.12-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.12-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.11-alpha.0...js-sdk-v0.0.12-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.12-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.12-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.11-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.11-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.10-alpha.0...js-sdk-v0.0.11-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.11-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.11-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.10-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.10-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.9-alpha.0...js-sdk-v0.0.10-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.10-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.10-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.9-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.9-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.8-alpha.0...js-sdk-v0.0.9-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.9-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.9-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.8-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.8-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.7-alpha.0...js-sdk-v0.0.8-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.8-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.8-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.7-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.7-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.6-alpha.0...js-sdk-v0.0.7-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.7-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.7-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.6-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-v0.0.6-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.5-alpha.0...js-sdk-v0.0.6-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.6-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.6-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.5-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-vv0.0.5-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.4-alpha.0...js-sdk-vv0.0.5-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.5-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-vv0.0.5-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.4-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-vv0.0.4-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.3-alpha.0...js-sdk-vv0.0.4-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.4-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-vv0.0.4-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.3-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-vv0.0.3-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.2-alpha.0...js-sdk-vv0.0.3-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.3-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-vv0.0.3-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    },
+    {
+      "version": "0.0.2-alpha.0",
+      "channel": "alpha",
+      "status": "archived",
+      "tag": "js-sdk-vv0.0.2-alpha.0",
+      "releaseUrl": "https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.1-alpha.0...js-sdk-vv0.0.2-alpha.0",
+      "npmUrl": "https://www.npmjs.com/package/@honua/sdk-js/v/0.0.2-alpha.0",
+      "docs": {
+        "kind": "source-fallback",
+        "sourceBase": "https://github.com/honua-io/honua-sdk-js/blob/js-sdk-vv0.0.2-alpha.0",
+        "reason": "Immutable hosted TypeDoc was not published for this archived prerelease; use tagged source and release notes."
+      }
+    }
+  ]
+}

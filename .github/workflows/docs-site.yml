@@ -15,8 +15,13 @@ on:
       - "src/**"
       - "package.json"
       - "package-lock.json"
+      - ".release-please-manifest.json"
+      - "CHANGELOG.md"
       - "scripts/build-docs-site.mjs"
       - "scripts/check-docs-site-links.mjs"
+      - "scripts/check-docs-versions-site.mjs"
+      - "scripts/docs-versions.mjs"
+      - "scripts/generate-llms-txt.mjs"
       - ".github/workflows/docs-site.yml"
   workflow_dispatch:
 
@@ -55,6 +60,9 @@ jobs:
       - name: Verify llms.txt freshness (gate)
         run: npm run verify:llms
 
+      - name: Verify documentation version manifest
+        run: npm run docs:versions:check
+
       - name: Build TypeDoc API reference
         run: npm run docs:api
 
@@ -63,6 +71,9 @@ jobs:
 
       - name: Link-check built site
         run: npm run docs:site:linkcheck
+
+      - name: Verify version navigation and fallbacks
+        run: npm run docs:site:versions
 
       - name: Configure Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5

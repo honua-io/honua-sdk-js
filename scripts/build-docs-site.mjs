@@ -21,6 +21,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
+import { expandDocsVersionTokens } from "./docs-versions.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "dist", "docs-site");
@@ -31,6 +32,13 @@ const SITE_URL = "https://honua-io.github.io/honua-sdk-js/";
 const REPO = "honua-io/honua-sdk-js";
 const BLOB_BASE = `https://github.com/${REPO}/blob/trunk`;
 const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/trunk`;
+const DOC_VERSIONS_PATH = path.join(ROOT, "docs", "versions.json");
+const DOC_VERSIONS = JSON.parse(fs.readFileSync(DOC_VERSIONS_PATH, "utf8"));
+const CURRENT_DOCS_VERSION = DOC_VERSIONS.versions.find((entry) => entry.version === DOC_VERSIONS.current);
+
+if (DOC_VERSIONS.format !== "honua.sdk.docs-versions.v1" || !CURRENT_DOCS_VERSION) {
+  throw new Error("docs/versions.json is invalid or does not contain its current release");
+}
 
 // ---------------------------------------------------------------------------
 // Markdown -> HTML with link rewriting and heading anchors.
@@ -151,7 +159,7 @@ function injectHeadingIds(html) {
 function renderMarkdown(md, ctx) {
   renderContext = ctx;
   try {
-    return injectHeadingIds(marked.parse(md));
+    return injectHeadingIds(marked.parse(expandDocsVersionTokens(md, DOC_VERSIONS)));
   } finally {
     renderContext = null;
   }
@@ -190,7 +198,16 @@ function walkMarkdown(dir) {
 // Curated ordering for the sidebar. Anything not listed is appended under
 // "More guides" grouped by its directory.
 const NAV_GROUPS = [
-  { title: "Getting started", docs: ["INSTALL.md", "docs/quickstart.md", "docs/quickstart-troubleshooting.md", "docs/guide.md"] },
+  {
+    title: "Getting started",
+    docs: [
+      "INSTALL.md",
+      "docs/quickstart.md",
+      "docs/quickstart-troubleshooting.md",
+      "docs/documentation-versions.md",
+      "docs/guide.md",
+    ],
+  },
   {
     title: "Core contract & API",
     docs: [
@@ -242,7 +259,7 @@ function buildNav(allDocs, titles) {
 // Page layout.
 // ---------------------------------------------------------------------------
 
-function topNav(sitePath) {
+function topNav(sitePath, sourcePath) {
   const link = (label, to, external) =>
     external
       ? `<a href="${to}">${label}</a>`
@@ -254,9 +271,27 @@ function topNav(sitePath) {
     ${link("Guides", "guides/index.html")}
     ${link("API reference", "api/index.html")}
     ${link("Demo gallery", "gallery.html")}
+    ${versionNavigation(sitePath, sourcePath)}
     ${link("GitHub", `https://github.com/${REPO}`, true)}
   </div>
 </nav>`;
+}
+
+function versionNavigation(sitePath, sourcePath) {
+  const entries = DOC_VERSIONS.versions
+    .map((entry) => {
+      if (entry.version === DOC_VERSIONS.current) {
+        return `<li><a aria-current="page" href="${relativeUrl(sitePath, sitePath)}">${escapeHtml(entry.version)} · current</a></li>`;
+      }
+      const fallback = `${entry.docs.sourceBase}/README.md`;
+      return `<li><a href="${fallback}" title="Tagged README fallback for ${escapeHtml(sourcePath)}">${escapeHtml(entry.version)} · archived fallback</a></li>`;
+    })
+    .join("\n");
+  return `<details class="version-menu" data-sdk-docs-current="${escapeHtml(DOC_VERSIONS.current)}">
+  <summary>v${escapeHtml(DOC_VERSIONS.current)} · ${escapeHtml(CURRENT_DOCS_VERSION.status)}</summary>
+  <ul>${entries}</ul>
+  <p><a href="${relativeUrl(sitePath, "guides/documentation-versions.html")}">Version policy and compatibility</a></p>
+</details>`;
 }
 
 function sidebar(sitePath, navGroups, titles, activeDoc) {
@@ -274,7 +309,7 @@ function sidebar(sitePath, navGroups, titles, activeDoc) {
   return parts.join("\n");
 }
 
-function page({ sitePath, title, bodyClass, main, sidebarHtml }) {
+function page({ sitePath, sourcePath = "README.md", title, bodyClass, main, sidebarHtml }) {
   const cssHref = relativeUrl(sitePath, "assets/style.css");
   return `<!doctype html>
 <html lang="en">
@@ -287,7 +322,7 @@ function page({ sitePath, title, bodyClass, main, sidebarHtml }) {
 <link rel="stylesheet" href="${cssHref}" />
 </head>
 <body class="${bodyClass}">
-${topNav(sitePath)}
+${topNav(sitePath, sourcePath)}
 <div class="layout">
 ${sidebarHtml ?? ""}
 <main class="content">
@@ -376,6 +411,11 @@ a:hover{text-decoration:underline}
 .topbar{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
 .topbar .brand{font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--fg)}
 .topbar-links{display:flex;flex-wrap:wrap;gap:1rem;margin-left:auto;font-size:.92rem}
+.version-menu{position:relative}
+.version-menu summary{cursor:pointer;color:var(--accent)}
+.version-menu ul{position:absolute;right:0;max-height:55vh;min-width:20rem;overflow:auto;margin:.4rem 0 0;padding:.5rem;list-style:none;border:1px solid var(--border);border-radius:8px;background:var(--bg);box-shadow:0 6px 20px #0003}
+.version-menu li{padding:.1rem .25rem;white-space:nowrap}
+.version-menu p{margin:.35rem 0 0;font-size:.8rem}
 .layout{display:flex;gap:2rem;max-width:1200px;margin:0 auto;padding:0 1.5rem;align-items:flex-start}
 .sidebar{flex:0 0 250px;position:sticky;top:64px;max-height:calc(100vh - 64px);overflow-y:auto;padding:1.5rem 0;font-size:.9rem}
 .sidebar .nav-group{font-weight:700;text-transform:uppercase;letter-spacing:.03em;font-size:.72rem;color:var(--muted);margin:1.2rem 0 .35rem}
@@ -484,6 +524,7 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
     "guides/index.html",
     page({
       sitePath: "guides/index.html",
+      sourcePath: "docs/guide.md",
       title: `Guides · ${SITE_TITLE}`,
       bodyClass: "page-guides",
       main: guidesIndexMain.join("\n"),
@@ -501,6 +542,7 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
       sitePath,
       page({
         sitePath,
+        sourcePath: doc,
         title: `${titles.get(doc)} · ${SITE_TITLE}`,
         bodyClass: "page-guide",
         main,
@@ -527,11 +569,13 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
     const src = path.join(ROOT, name);
     if (fs.existsSync(src)) fs.copyFileSync(src, path.join(OUT, name));
   }
+  fs.copyFileSync(DOC_VERSIONS_PATH, path.join(OUT, "versions.json"));
 
   // TypeDoc API reference.
   let apiPages = 0;
   if (fs.existsSync(API_SRC)) {
     copyDir(API_SRC, path.join(OUT, "api"));
+    decorateApiIndex();
     apiPages = walkCount(path.join(OUT, "api"), ".html");
   } else {
     process.stderr.write(`warning: ${path.relative(ROOT, API_SRC)} missing — run \`npm run docs:api\` first; /api will 404\n`);
@@ -541,6 +585,26 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
   process.stdout.write(
     `built docs site -> ${path.relative(ROOT, OUT)} (${pageCount} content pages, ${demos.length} demos, ${apiPages} API pages) in ${secs}s\n`,
   );
+}
+
+function decorateApiIndex() {
+  const apiIndex = path.join(OUT, "api", "index.html");
+  if (!fs.existsSync(apiIndex)) throw new Error("TypeDoc output is missing api/index.html");
+  const html = fs.readFileSync(apiIndex, "utf8");
+  const archived = DOC_VERSIONS.versions
+    .filter((entry) => entry.version !== DOC_VERSIONS.current)
+    .map(
+      (entry) =>
+        `<li><a href="${entry.docs.sourceBase}/README.md">${escapeHtml(entry.version)} · tagged README fallback</a> · <a href="${entry.releaseUrl}">release notes</a></li>`,
+    )
+    .join("");
+  const banner = `<aside data-sdk-docs-current="${escapeHtml(DOC_VERSIONS.current)}" style="padding:.65rem 1rem;border:1px solid #8886;margin:1rem;border-radius:.5rem">
+  <strong>@honua/sdk-js v${escapeHtml(DOC_VERSIONS.current)}</strong> · ${escapeHtml(CURRENT_DOCS_VERSION.status)} ·
+  <a href="../guides/documentation-versions.html">versions, compatibility, and migration</a>
+  <details><summary>Switch documentation version</summary><ul><li><a aria-current="page" href="index.html">${escapeHtml(DOC_VERSIONS.current)} · current API</a></li>${archived}</ul></details>
+</aside>`;
+  if (!html.includes("<body")) throw new Error("TypeDoc api/index.html has no body element");
+  fs.writeFileSync(apiIndex, html.replace(/(<body[^>]*>)/, `$1${banner}`));
 }
 
 function walkCount(dir, ext) {

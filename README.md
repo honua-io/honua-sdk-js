@@ -324,6 +324,10 @@ correctly use this SDK:
 
 ## Stability and versioning
 
+- Hosted guides and API pages display their exact release and expose validated
+  current/archived navigation. See
+  [documentation versions and compatibility](./docs/documentation-versions.md);
+  the selector is generated from package, release-manifest, and changelog data.
 - The SDK follows [Semantic Versioning](https://semver.org/). The public contract is the set
   of symbols reachable from the documented subpath entrypoints in [`INSTALL.md`](./INSTALL.md).
 - Symbols marked `@experimental` in JSDoc may change in any minor release. The full table of

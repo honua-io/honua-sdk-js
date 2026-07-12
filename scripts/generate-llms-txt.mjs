@@ -13,8 +13,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { currentDocsVersions, expandDocsVersionTokens } from "./docs-versions.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const DOC_VERSIONS = currentDocsVersions();
 
 // Base URL that documentation links resolve against. Defaults to stable GitHub
 // blob URLs on the default branch so the index works for any agent that fetches
@@ -48,6 +50,10 @@ const SECTIONS = [
     entries: [
       { path: "README.md", description: "Project overview, install, 60-second quickstart, and the demo index." },
       { path: "INSTALL.md", description: "Install instructions and the subpath entrypoint / stability table." },
+      {
+        path: "docs/documentation-versions.md",
+        description: "Current and archived SDK documentation versions, compatibility ranges, and migration fallbacks.",
+      },
       {
         path: "docs/generated/sample-catalog.md",
         description:
@@ -282,7 +288,7 @@ const ENTRYPOINTS = [
 ];
 
 function readFile(relPath) {
-  return fs.readFileSync(path.join(ROOT, relPath), "utf8");
+  return expandDocsVersionTokens(fs.readFileSync(path.join(ROOT, relPath), "utf8"), DOC_VERSIONS);
 }
 
 function extractH1(markdown, fallback) {

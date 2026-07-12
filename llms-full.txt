@@ -334,6 +334,10 @@ correctly use this SDK:
 
 ## Stability and versioning
 
+- Hosted guides and API pages display their exact release and expose validated
+  current/archived navigation. See
+  [documentation versions and compatibility](./docs/documentation-versions.md);
+  the selector is generated from package, release-manifest, and changelog data.
 - The SDK follows [Semantic Versioning](https://semver.org/). The public contract is the set
   of symbols reachable from the documented subpath entrypoints in [`INSTALL.md`](./INSTALL.md).
 - Symbols marked `@experimental` in JSDoc may change in any minor release. The full table of
@@ -629,6 +633,10 @@ const migration = runEsriCompatCodemod({ rootDir: "./src", write: true });
 
 ## Version Policy
 
+- **Documentation version:** Hosted guides and API entrypoints identify their
+  exact SDK release. Use the generated
+  [documentation version selector](./docs/documentation-versions.md) for tagged
+  archived guides, compatibility ranges, and migration links.
 - **Pre-release** (`-alpha.*`, `-beta.*`): Published to npm with `@alpha` / `@beta` dist-tags.
 - **Stable** (`1.0.0+`): Published to npm as `@latest`.
 - **Semver:** All releases follow [Semantic Versioning](https://semver.org/). Public symbols
@@ -650,6 +658,65 @@ the root package, installs it offline into an isolated ESM project, imports ever
 stable and experimental subpath, typechecks every shipped declaration target,
 and runs the packaged `honua --help` command. Temporary package and consumer
 directories are removed after both successful and failed runs.
+
+---
+
+# File: docs/documentation-versions.md
+
+# Documentation versions and compatibility
+
+You are reading the documentation for `@honua/sdk-js` **0.1.0-beta.0**.
+The version navigation in every hosted guide is generated from
+[`docs/versions.json`](https://honua-io.github.io/honua-sdk-js/versions.json), which is derived from `package.json`,
+`.release-please-manifest.json`, and released `CHANGELOG.md` entries. A version
+cannot appear in the selector unless those authoritative sources agree.
+
+## Release documentation
+
+| Version | Status | Channel | Documentation |
+| --- | --- | --- | --- |
+| `0.1.0-beta.0` | current-prerelease | beta | [Hosted guides](https://honua-io.github.io/honua-sdk-js/guides/) · [API](https://honua-io.github.io/honua-sdk-js/api/) |
+| `0.0.20-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.20-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.19-alpha.0...js-sdk-v0.0.20-alpha.0) |
+| `0.0.19-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.19-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.18-alpha.0...js-sdk-v0.0.19-alpha.0) |
+| `0.0.18-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.18-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.17-alpha.0...js-sdk-v0.0.18-alpha.0) |
+| `0.0.17-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.17-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.16-alpha.0...js-sdk-v0.0.17-alpha.0) |
+| `0.0.16-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.16-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.15-alpha.0...js-sdk-v0.0.16-alpha.0) |
+| `0.0.15-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.15-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.14-alpha.0...js-sdk-v0.0.15-alpha.0) |
+| `0.0.14-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.14-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.13-alpha.0...js-sdk-v0.0.14-alpha.0) |
+| `0.0.13-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.13-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.12-alpha.0...js-sdk-v0.0.13-alpha.0) |
+| `0.0.12-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.12-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.11-alpha.0...js-sdk-v0.0.12-alpha.0) |
+| `0.0.11-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.11-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.10-alpha.0...js-sdk-v0.0.11-alpha.0) |
+| `0.0.10-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.10-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.9-alpha.0...js-sdk-v0.0.10-alpha.0) |
+| `0.0.9-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.9-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.8-alpha.0...js-sdk-v0.0.9-alpha.0) |
+| `0.0.8-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.8-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.7-alpha.0...js-sdk-v0.0.8-alpha.0) |
+| `0.0.7-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.7-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.6-alpha.0...js-sdk-v0.0.7-alpha.0) |
+| `0.0.6-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.6-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.5-alpha.0...js-sdk-v0.0.6-alpha.0) |
+| `0.0.5-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-vv0.0.5-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.4-alpha.0...js-sdk-vv0.0.5-alpha.0) |
+| `0.0.4-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-vv0.0.4-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.3-alpha.0...js-sdk-vv0.0.4-alpha.0) |
+| `0.0.3-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-vv0.0.3-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.2-alpha.0...js-sdk-vv0.0.3-alpha.0) |
+| `0.0.2-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-vv0.0.2-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-vv0.0.1-alpha.0...js-sdk-vv0.0.2-alpha.0) |
+
+The current release has hosted guides and a generated TypeDoc API reference.
+Older prereleases did not publish immutable TypeDoc sites, so their selector
+destinations are explicitly labelled source fallbacks: they open the README at
+the exact release tag and link to that release's changelog evidence. They are
+never relabelled as current or silently redirected to today's API.
+
+## Compatibility and migration
+
+- The exact Node and optional-peer ranges are published in
+  [`versions.json`](https://honua-io.github.io/honua-sdk-js/versions.json) from the current package metadata.
+- Stable and experimental entrypoint policy is defined in
+  [Install and choose an entrypoint](../INSTALL.md) and checked against the
+  package exports.
+- Breaking ArcGIS-to-Honua changes and replacement imports are documented in
+  [Migrate ArcGIS applications to Honua + MapLibre](./migration-honua-maplibre.md).
+- Release-level changes are recorded in the tagged
+  [changelog](../CHANGELOG.md).
+
+When an archived guide lacks an equivalent page, use its tagged repository
+source and release notes. Do not combine code from an archived guide with the
+current API reference without following the migration notes.
 
 ---
 
