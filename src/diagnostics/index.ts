@@ -1,3 +1,10 @@
+/**
+ * Schema-pinned, support-safe diagnostic bundle emission and bounded read replay.
+ *
+ * @experimental
+ * @packageDocumentation
+ */
+
 export {
   DIAGNOSTIC_DEFAULT_PREVIEW_BYTES,
   DIAGNOSTIC_MAX_BODY_BYTES,
