@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_COLUMNAR_BENCH_BUDGETS, runColumnarBench } from "../bench/columnar-bench.js";
 import {
-  buildColumnarBatchFixture,
-  buildColumnarFixture,
   COLUMNAR_FIXTURE_BUFFER_IDS,
   COLUMNAR_FIXTURE_BYTES_PER_FEATURE,
+  buildColumnarBatchFixture,
+  buildColumnarFixture,
 } from "../bench/columnar-fixture.js";
-import { DEFAULT_COLUMNAR_BENCH_BUDGETS, runColumnarBench } from "../bench/columnar-bench.js";
 
 const MILLION = 1_000_000;
 
@@ -49,9 +49,7 @@ describe("million-feature columnar rendering budget (#387 large-data path)", () 
     expect(result.evaluation.memoryWithinBudget).toBe(true);
 
     // Throughput budget: comfortably above the conservative floor on any host.
-    expect(result.median.featuresPerSecond).toBeGreaterThanOrEqual(
-      DEFAULT_COLUMNAR_BENCH_BUDGETS.minFeaturesPerSecond,
-    );
+    expect(result.median.featuresPerSecond).toBeGreaterThanOrEqual(DEFAULT_COLUMNAR_BENCH_BUDGETS.minFeaturesPerSecond);
     expect(result.evaluation.throughputWithinBudget).toBe(true);
 
     expect(result.evaluation.passed).toBe(true);

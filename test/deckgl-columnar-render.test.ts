@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { createColumnarBatch } from "../src/columnar/transfer.js";
 import type { ColumnarBatchV1, CreateColumnarBatchInput } from "../src/columnar/types.js";
 import {
-  bindColumnarBatchToDeckGl,
-  createDeckGlAdapter,
   type DeckGlLayer,
   HonuaDeckGlAdapterError,
+  bindColumnarBatchToDeckGl,
+  createDeckGlAdapter,
 } from "../src/deckgl/index.js";
 
 /** Captures the binary `data` deck.gl would receive; renders nothing. */
@@ -55,9 +55,30 @@ function pointBatch(rows: number): { batch: ColumnarBatchV1; arrays: PointBatchA
     rowCount: rows,
     sequence: 0,
     buffers: [
-      { id: "b:pos", role: "geometry", field: "position", data: position.buffer, byteOffset: 0, byteLength: position.byteLength },
-      { id: "b:rad", role: "values", field: "radius", data: radius.buffer, byteOffset: 0, byteLength: radius.byteLength },
-      { id: "b:fill", role: "values", field: "fill_color", data: fillColor.buffer, byteOffset: 0, byteLength: fillColor.byteLength },
+      {
+        id: "b:pos",
+        role: "geometry",
+        field: "position",
+        data: position.buffer,
+        byteOffset: 0,
+        byteLength: position.byteLength,
+      },
+      {
+        id: "b:rad",
+        role: "values",
+        field: "radius",
+        data: radius.buffer,
+        byteOffset: 0,
+        byteLength: radius.byteLength,
+      },
+      {
+        id: "b:fill",
+        role: "values",
+        field: "fill_color",
+        data: fillColor.buffer,
+        byteOffset: 0,
+        byteLength: fillColor.byteLength,
+      },
       { id: "b:id", role: "values", field: "id", data: id.buffer, byteOffset: 0, byteLength: id.byteLength },
     ],
   };

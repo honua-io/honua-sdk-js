@@ -14,7 +14,10 @@ import type { ColumnarBatchLimits, ColumnarBatchV1, ColumnarBufferV1 } from "../
 
 /** Bytes each feature contributes across all packed columns. */
 export const COLUMNAR_FIXTURE_BYTES_PER_FEATURE =
-  8 /* getPosition: 2 x float32 */ + 4 /* getRadius: 1 x float32 */ + 4 /* getFillColor: 4 x uint8 */ + 4; /* id: 1 x uint32 */
+  8 /* getPosition: 2 x float32 */ +
+  4 /* getRadius: 1 x float32 */ +
+  4 /* getFillColor: 4 x uint8 */ +
+  4; /* id: 1 x uint32 */
 
 /** Raw packed buffers plus the metadata needed to bind them to a renderer. */
 export interface ColumnarFixture {
@@ -85,7 +88,12 @@ export const COLUMNAR_FIXTURE_BUFFER_IDS = Object.freeze({
   id: "buf:id",
 });
 
-function bufferOf(fixtureBuffer: ArrayBufferView, id: string, role: ColumnarBufferV1["role"], field: string): ColumnarBufferV1 {
+function bufferOf(
+  fixtureBuffer: ArrayBufferView,
+  id: string,
+  role: ColumnarBufferV1["role"],
+  field: string,
+): ColumnarBufferV1 {
   return {
     id,
     role,
@@ -101,7 +109,10 @@ function bufferOf(fixtureBuffer: ArrayBufferView, id: string, role: ColumnarBuff
  * buffers reference the fixture's own `ArrayBuffer`s — the renderer binding
  * aliases these with zero copies.
  */
-export function buildColumnarBatchFixture(featureCount: number, limits: ColumnarBatchLimits = {}): {
+export function buildColumnarBatchFixture(
+  featureCount: number,
+  limits: ColumnarBatchLimits = {},
+): {
   readonly fixture: ColumnarFixture;
   readonly batch: ColumnarBatchV1;
 } {

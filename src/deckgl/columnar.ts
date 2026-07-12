@@ -280,9 +280,7 @@ function resolveFeatureIds(
   }
   const ctor = componentInfo(column.component);
   const buffer = requireBuffer(buffers, column.bufferId, "identity.featureIdColumn");
-  const view = viewBuffer(buffer, ctor, "identity.featureIdColumn") as unknown as ArrayLike<
-    string | number | bigint
-  >;
+  const view = viewBuffer(buffer, ctor, "identity.featureIdColumn") as unknown as ArrayLike<string | number | bigint>;
   if (view.length < rowCount) {
     throw new HonuaDeckGlAdapterError(
       "invalid-data",

@@ -16,9 +16,9 @@ import { createDeckGlAdapter } from "../src/deckgl/adapter.js";
 import { bindColumnarBatchToDeckGl } from "../src/deckgl/columnar.js";
 import type { DeckGlLayer } from "../src/deckgl/types.js";
 import {
-  buildColumnarBatchFixture,
   COLUMNAR_FIXTURE_BUFFER_IDS,
   COLUMNAR_FIXTURE_BYTES_PER_FEATURE,
+  buildColumnarBatchFixture,
 } from "./columnar-fixture.js";
 
 /** Captures the binary data deck.gl would receive; performs no rendering. */
