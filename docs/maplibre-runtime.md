@@ -58,12 +58,70 @@ source context before querying. The adapter then:
   then throw), serializes refreshes through `setData`, cancels in-flight work,
   and disposes its layers/source idempotently.
 
-This is intentionally not the whole #390 strategy matrix. The metadata-driven
-raster slice below covers native raster tiles, WMS, and WMTS without a query
-plan. Automatic vector tiles, PMTiles protocol lifecycle, dynamic query tiles,
-plan integration, owned Map construction, labels/popups/selection, edits,
-realtime subscriptions, interactions, and browser-matrix coverage remain
-separate work so no strategy is selected through ambiguous fallback.
+The focused API remains available when an application has already chosen the
+materialized feature lane. The automatic workflow below composes it with the
+native tile and raster lanes without changing its plan-binding guarantees.
+
+## Explain and mount automatically
+
+`explainAutomaticSourceToMapLibre` evaluates every currently representable
+lane before renderer mutation: bounded GeoJSON, vector tiles, vector/raster
+PMTiles, dynamic query tiles, native raster, WMS, and WMTS. It returns the
+selected and rejected candidates with stable reason codes, fidelity,
+native-versus-materialized path, optional-peer requirements, bounds,
+freshness, credential-free provenance, authorization scope, and cache
+implications.
+
+```ts doc-test=skip reason="partial excerpt requires application source and host context"
+import {
+  explainAutomaticSourceToMapLibre,
+  mountAutomaticSourceToMapLibre,
+} from "@honua/sdk-js/map";
+import { explainQuery } from "@honua/sdk-js/query-planner";
+
+const queryPlan = explainQuery({
+  descriptor: parcels.descriptor,
+  query: { pagination: { limit: 5_000 }, returnGeometry: true, outSr: 4326 },
+  sourceVersion: "parcels-2026-07-12",
+  authorizationScope: ["parcels:read"],
+});
+const strategyPlan = explainAutomaticSourceToMapLibre(parcels, { queryPlan });
+
+console.table(strategyPlan.candidates);
+const mounted = await mountAutomaticSourceToMapLibre(map, parcels, strategyPlan, { queryPlan });
+await mounted.ready;
+await mounted.refresh();
+mounted.dispose();
+```
+
+Native vector and PMTiles plans require an accepted `sourceLayer`; PMTiles also
+requires archive payload evidence (`pmtilesType`) from archive metadata. A
+dynamic query-tile plan accepts the pure source spec returned by
+`buildMapLibreQueryTileSourceSpec`. This avoids network discovery or protocol
+guessing inside the planner:
+
+```ts doc-test=skip reason="partial excerpt requires an accepted query-tile descriptor"
+const strategyPlan = explainAutomaticSourceToMapLibre(parcels, {
+  queryTileSource: buildMapLibreQueryTileSourceSpec(queryTileDescriptor),
+  sourceLayer: "parcels",
+});
+```
+
+Selection is fail-closed. Unsafe credential-bearing URLs, unsupported CRS,
+missing capabilities or metadata, unbounded feature queries, stale evidence,
+and ineligible explicit overrides produce typed diagnostics and no selected
+strategy. Freshness checks require an explicit `observedAt`, `now`, and
+`maxAgeMs`, keeping explanation deterministic. Mounting re-explains the source
+and policy to reject stale or tampered plans, checks cancellation before host
+mutation, rolls back partial native mounts, and provides one
+`ready`/`refresh`/`cancel`/`dispose` lifecycle. Native immutable/source-owned
+lanes use a no-op refresh; bounded GeoJSON delegates to the query-backed
+`setData` refresh. No API in this section imports `maplibre-gl` or `pmtiles`.
+
+This automatic slice does not complete the broader #390 application runtime.
+Owned map construction, generalized styling, labels/popups/selection, edits,
+realtime subscription orchestration, and the published browser sample matrix
+remain explicit residual work.
 
 ## Metadata-driven raster sources
 
