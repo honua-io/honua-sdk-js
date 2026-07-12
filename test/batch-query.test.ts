@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaAbortError, HonuaClient, batchQuery } from "../src/index.js";
-import type { BatchQueryItem } from "../src/index.js";
+import { batchQuery } from "@honua/sdk-js/honua";
+import type { BatchQueryItem } from "@honua/sdk-js/honua";
+import { HonuaAbortError, HonuaClient } from "../src/index.js";
 
 function createMockClient(
   handler: (input: string | URL | Request, init?: RequestInit) => Promise<Response>,

@@ -75,6 +75,14 @@ All read-only:
 - `honua_explain_capability_gap`
 - `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer
 
+Hosts that use signed safe-agent plans can import
+`@honua/mcp-server/agent-execution`. Its `createReadOnlyMcpAgentExecutor` binds
+one named read tool to `@honua/sdk-js/agent-safety`'s exact approved-operation,
+durable-audit, and signed-receipt path. It never enables wildcard dispatch or
+mutation on the standalone server. The descriptor requires a bounded exact name
+and a deterministic `countRows(result)` callback; missing or invalid row counts
+fail instead of being reported as zero.
+
 ## MCP Resources
 
 - `honua://services`

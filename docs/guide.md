@@ -595,15 +595,14 @@ const search = await client.stac().search({
 
 ### STAC in the browser bundle
 
-`HonuaStacSearch` is part of the browser-safe surface — import it (or call
+`HonuaStacSearch` is part of the browser-safe `/honua` surface — import it (or call
 `client.stac()`) instead of hand-writing `fetch` against STAC endpoints. It is
-re-exported from both the root barrel (`@honua/sdk-js`) and the
-`@honua/sdk-js/honua` subpath, so it bundles with esbuild/Vite/Rollup like the
-rest of the client:
+exported from the `@honua/sdk-js/honua` subpath, so it bundles with
+esbuild/Vite/Rollup like the rest of the client:
 
 ```ts doc-test=compile
 // Browser app (esbuild / Vite / Rollup). No Node-only imports.
-import { HonuaClient, HonuaStacSearch } from "@honua/sdk-js";
+import { HonuaClient, HonuaStacSearch } from "@honua/sdk-js/honua";
 
 const client = new HonuaClient({ baseUrl: "https://example.test" });
 

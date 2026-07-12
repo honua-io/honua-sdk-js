@@ -17,6 +17,37 @@ export {
   selectSceneVisibleLayers,
 } from "./workspace.js";
 export {
+  SCENE_STATE_SYNC_KIND,
+  SCENE_STATE_SYNC_SLICES,
+  SCENE_STATE_SYNC_VERSION,
+  HonuaSceneStateSyncError,
+  createSceneStateSynchronizer,
+  defaultSceneStateSyncMappings,
+} from "./state-sync.js";
+export type {
+  CreateSceneStateSynchronizerOptions,
+  SceneStateSyncAttributionValue,
+  SceneStateSyncDelivery,
+  SceneStateSyncDiagnostic,
+  SceneStateSyncDiagnosticCode,
+  SceneStateSyncEnvelope,
+  SceneStateSyncErrorCode,
+  SceneStateSyncEvent,
+  SceneStateSyncFidelity,
+  SceneStateSyncIdentity,
+  SceneStateSyncInput,
+  SceneStateSyncMapping,
+  SceneStateSyncMappings,
+  SceneStateSyncOrigin,
+  SceneStateSyncPort,
+  SceneStateSyncRealtimeValue,
+  SceneStateSyncRenderer,
+  SceneStateSyncSlice,
+  SceneStateSyncSnapshot,
+  SceneStateSyncValueMap,
+  SceneStateSynchronizer,
+} from "./state-sync.js";
+export {
   MAPLIBRE_SCENE_CAPABILITIES,
   applyMapLibreScenePrimitives,
   createMapLibreSceneAdapter,

@@ -5,6 +5,7 @@ export const AGENT_DRY_RUN_KIND = "honua.agent-dry-run" as const;
 export const AGENT_APPROVAL_KIND = "honua.agent-approval" as const;
 export const AGENT_RECEIPT_KIND = "honua.agent-execution-receipt" as const;
 export const AGENT_CONSUMPTION_KIND = "honua.agent-approval-consumption" as const;
+export const AGENT_EXECUTION_AUDIT_KIND = "honua.agent-execution-audit" as const;
 export const AGENT_SAFETY_VERSION = "1.0" as const;
 
 export type AgentDigest = `sha256:${string}`;
@@ -62,10 +63,13 @@ export interface AgentOperationInputV1 {
 }
 
 export interface AgentStepAuthorizationV1 {
+  readonly plan: AgentPlanV1;
   readonly step: AgentPlanStepV1;
   /** Frozen operation snapshot; executors must consume this value only. */
   readonly operation: AgentOperationInputV1;
   readonly planDigest: AgentDigest;
+  readonly policyDigest: AgentDigest;
+  readonly bindingsDigest: AgentDigest;
   readonly approvalDigest: AgentDigest;
   readonly inputDigest: AgentDigest;
   readonly useDigest: AgentDigest;
@@ -233,6 +237,107 @@ export interface AgentExecutionReceiptV1 {
   readonly signature: string;
 }
 
+export interface AgentOperationExecutionResultV1 {
+  /** Host-observed number of result rows or affected records. */
+  readonly rows: number;
+  /** JSON-compatible result returned to the caller and bound to the receipt. */
+  readonly value: JsonValue;
+}
+
+export interface AgentOperationExecutorV1 {
+  /** Exact registered tool name. Wildcard dispatch is intentionally unsupported. */
+  readonly tool: string;
+  readonly effect: AgentEffect;
+  execute(
+    operation: AgentOperationInputV1,
+    limits: { readonly rows: number; readonly bytes: number },
+    signal?: AbortSignal,
+  ): Promise<AgentOperationExecutionResultV1>;
+}
+
+interface AgentExecutionAuditBaseV1 {
+  readonly kind: typeof AGENT_EXECUTION_AUDIT_KIND;
+  readonly version: typeof AGENT_SAFETY_VERSION;
+  readonly executionId: string;
+  readonly recordedAt: string;
+  /** Pseudonymous bindings; raw free-text identity never enters the audit sink. */
+  readonly planIdDigest: AgentDigest;
+  readonly actorDigest: AgentDigest;
+  readonly providerDigest?: AgentDigest;
+  readonly modelDigest?: AgentDigest;
+  readonly stepIdDigest: AgentDigest;
+  readonly toolDigest: AgentDigest;
+  readonly effect: AgentEffect;
+  readonly sourceIdDigest: AgentDigest;
+  readonly schemaVersionDigest: AgentDigest;
+  readonly sourceVersionDigest: AgentDigest;
+  readonly dataMode: AgentDataMode;
+  readonly observedAt: string;
+  readonly planDigest: AgentDigest;
+  readonly policyDigest: AgentDigest;
+  readonly bindingsDigest: AgentDigest;
+  readonly approvalDigest: AgentDigest;
+  readonly inputDigest: AgentDigest;
+  readonly useDigest: AgentDigest;
+}
+
+export interface AgentExecutionStartedAuditV1 extends AgentExecutionAuditBaseV1 {
+  readonly phase: "started";
+}
+
+export interface AgentExecutionCompletedAuditV1 extends AgentExecutionAuditBaseV1 {
+  readonly phase: "completed";
+  readonly outcome: AgentExecutionEvidenceV1["outcome"];
+  readonly rows: number;
+  readonly bytes: number;
+  readonly resultDigest?: AgentDigest;
+  /** Absent only when receipt issuance itself failed; that failure is explicit. */
+  readonly receiptDigest?: AgentDigest;
+}
+
+export type AgentExecutionAuditV1 = AgentExecutionStartedAuditV1 | AgentExecutionCompletedAuditV1;
+
+export interface AgentExecutionAuditSinkV1 {
+  /** Resolve only after the event is durable. */
+  append(event: AgentExecutionAuditV1, signal?: AbortSignal): Promise<void>;
+}
+
+export interface ExecuteAgentPlanStepOptions {
+  readonly dryRun: unknown;
+  readonly policy: unknown;
+  readonly approval: unknown;
+  readonly approvalVerifier: AgentEnvelopeVerifier;
+  readonly context: unknown;
+  readonly stepId: unknown;
+  readonly operation: unknown;
+  readonly useConsumer: AgentApprovalUseConsumer;
+  readonly executor: AgentOperationExecutorV1;
+  readonly auditSink: AgentExecutionAuditSinkV1;
+  readonly receiptSigner: AgentEnvelopeSigner;
+  /** Non-secret, host-generated correlation id. */
+  readonly executionId: string;
+  /** Injectable trusted clock. Called once for start and once for completion. */
+  readonly now?: () => string;
+  readonly signal?: AbortSignal;
+  readonly maxClockSkewMs?: number;
+}
+
+/** Owned, deeply frozen inputs used across authorization and receipt awaits. */
+export interface AgentExecutionInputSnapshotV1 {
+  readonly dryRun: AgentDryRunV1;
+  readonly policy: AgentPlanPolicyV1;
+  readonly approval: AgentApprovalV1;
+  readonly context: AgentExecutionContextV1;
+  readonly operation: AgentOperationInputV1;
+}
+
+export interface ExecutedAgentPlanStepV1 {
+  readonly value: JsonValue;
+  readonly receipt: AgentExecutionReceiptV1;
+  readonly startedAudit: AgentExecutionStartedAuditV1;
+  readonly completedAudit: AgentExecutionCompletedAuditV1;
+}
+
 export interface AgentEnvelopeSigner {
   readonly algorithm: string;
   readonly keyId: string;
@@ -258,7 +363,10 @@ export type AgentSafetyErrorCode =
   | "integrity-failed"
   | "approval-expired"
   | "context-mismatch"
-  | "signature-invalid";
+  | "signature-invalid"
+  | "execution-failed"
+  | "audit-failed"
+  | "receipt-failed";
 
 export class HonuaAgentSafetyError extends Error {
   public constructor(
@@ -267,6 +375,18 @@ export class HonuaAgentSafetyError extends Error {
   ) {
     super(message);
     this.name = "HonuaAgentSafetyError";
+  }
+}
+
+export class HonuaAgentExecutionError extends HonuaAgentSafetyError {
+  public constructor(
+    code: Extract<AgentSafetyErrorCode, "aborted" | "execution-failed" | "audit-failed" | "receipt-failed">,
+    message: string,
+    public readonly phase: "authorization" | "start-audit" | "execution" | "receipt" | "terminal-audit",
+    public readonly receipt?: AgentExecutionReceiptV1,
+  ) {
+    super(code, message);
+    this.name = "HonuaAgentExecutionError";
   }
 }
 

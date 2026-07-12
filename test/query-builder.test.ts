@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaClient, QueryBuilder } from "../src/index.js";
+import { QueryBuilder } from "@honua/sdk-js/honua";
+import { HonuaClient } from "../src/index.js";
 
 describe("QueryBuilder fluent DSL (Direction 18)", () => {
   describe("standalone builder (QueryBuilder.from)", () => {

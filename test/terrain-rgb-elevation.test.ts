@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { HonuaImageService } from "@honua/sdk-js/honua";
 import { createFixtureTerrainElevationDataset } from "../examples/terrain-rgb-elevation/src/fixtures.js";
 import {
   buildTerrainRgbTileUrlTemplate,
@@ -12,7 +13,7 @@ import {
   summarizeTerrainCache,
   summarizeTerrainCapabilities,
 } from "../examples/terrain-rgb-elevation/src/model.js";
-import { HonuaClient, HonuaImageService } from "../src/index.js";
+import { HonuaClient } from "../src/index.js";
 
 describe("Terrain-RGB Elevation sample", () => {
   it("projects the ImageServer Terrain-RGB tileset into a MapLibre raster-dem source", () => {

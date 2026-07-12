@@ -29,7 +29,7 @@ that resolve subpaths (e.g. esm.sh) can serve it directly.
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@honua/sdk-js/dist/browser/honua-sdk.min.js"></script>
 <script>
-  // The whole public API of `@honua/sdk-js` is on window.HonuaSDK.
+  // The reviewed root API of `@honua/sdk-js` is on window.HonuaSDK.
   const client = new HonuaSDK.HonuaClient({
     baseUrl: "https://your-honua-server.example",
   });

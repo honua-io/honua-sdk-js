@@ -23,19 +23,21 @@
     "/realtime gained its first dedicated guard with the resumable checkpoint kernel (#393); its trust-boundary hardening adds runtime event validation and credential-free envelope projection. The ceiling is the measured subpath bundle plus 10% headroom.",
     "/offline is a subpath-only experimental contract (#396), keeping the root/browser bundle unchanged while its dedicated budget guards deterministic manifest and download-coordinator growth.",
     "/query-planner gained its first dedicated guard with the bounded columnar worker session (#453); browser/Node worker implementations and heavy analytics peers remain injected, while the full planner plus worker protocol is measured with 10% headroom.",
-    "/agent-safety is independently budgeted at its measured 35,310 minified / 10,617 gzip bytes plus 10% headroom, keeping bounded trust normalization and receipt verification out of root barrels and action executors.",
+    "/agent-safety was reset for the approved execution/audit boundary (#456): exact executor dispatch, bounded owned result evidence, durable secret-safe audit events, and signed outcome recovery measure 42,417 minified / 12,392 gzip bytes; each ceiling is actual plus 10% headroom and the code remains out of root barrels.",
     "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
     "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
-    "/plugin gained its first dedicated guard with the application-local lifecycle (#455): certification, deterministic dependency ordering, transactional rollback, scoped service wrappers, and immutable diagnostics measure 35,329 minified / 11,814 gzip bytes; the ceiling is measured actual plus 10% headroom."
+    "/plugin gained its first dedicated guard with the application-local lifecycle (#455): certification, deterministic dependency ordering, transactional rollback, scoped service wrappers, and immutable diagnostics measure 35,329 minified / 11,814 gzip bytes; the ceiling is measured actual plus 10% headroom.",
+    "/scene-workspace guards renderer-neutral shared state while MapLibre and Cesium stay external optional peers.",
+    "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom."
   ],
   "entrypoints": {
     ".": {
-      "min": 513994,
-      "gzip": 135469
+      "min": 391187,
+      "gzip": 103648
     },
     "/honua": {
-      "min": 516867,
-      "gzip": 136241
+      "min": 522505,
+      "gzip": 138981
     },
     "/contract": {
       "min": 240908,
@@ -46,8 +48,8 @@
       "gzip": 12996
     },
     "/agent-safety": {
-      "min": 38841,
-      "gzip": 11679
+      "min": 46659,
+      "gzip": 13632
     },
     "/runtime": {
       "min": 469747,
@@ -64,6 +66,10 @@
     "/query-planner": {
       "min": 72541,
       "gzip": 21797
+    },
+    "/scene-workspace": {
+      "min": 79628,
+      "gzip": 25491
     },
     "/esri-compat": {
       "min": 1050877,
@@ -102,12 +108,12 @@
       "gzip": 4487
     },
     "browser-iife": {
-      "min": 515055,
-      "gzip": 135916
+      "min": 391962,
+      "gzip": 103963
     },
     "browser-esm": {
-      "min": 513362,
-      "gzip": 135474
+      "min": 390517,
+      "gzip": 103621
     },
     "tree-shake:HonuaClient": {
       "min": 209173,

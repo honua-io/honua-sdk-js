@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { GeoJsonFeature } from "@honua/sdk-js/geometry";
 import type {
   EsriEnvelope,
   EsriFieldType,
@@ -10,7 +11,6 @@ import type {
   EsriPolygon,
   EsriPolyline,
   EsriSpatialRel,
-  GeoJsonFeature,
   HonuaFeature,
   HonuaFieldInfo,
   HonuaLayerMetadata,
@@ -20,7 +20,7 @@ import type {
   OgcPatchItemRequest,
   OgcReplaceItemRequest,
   QueryFeaturesRequest,
-} from "../src/index.js";
+} from "@honua/sdk-js/honua";
 
 describe("Geometry & enum type narrowing (Direction 12)", () => {
   describe("EsriGeometryType literal union", () => {

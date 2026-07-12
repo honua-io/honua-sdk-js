@@ -4,10 +4,13 @@
 between untrusted plan proposals and host-owned effect execution. It validates
 JSON-compatible structured data, produces an immutable dry run and effect
 budget, binds a reviewer signature to the exact plan and policy, revalidates
-current source context, and signs/verifies execution evidence.
+current source context, executes an exact approved operation through a
+host-supplied adapter, and signs/verifies execution evidence.
 
-The module never invokes a model, tool, source, renderer, subscription, or job.
-An accepted approval is evidence for a host executor; it is not an executor.
+Plan normalization, dry run, approval, and verification never invoke a model,
+tool, source, renderer, subscription, or job. `executeAgentPlanStep` is the
+explicit effect boundary; it invokes only a matching host executor after
+authorization, single-use consumption, and a durable start audit.
 `@honua/sdk-js/agent-tools` remains the runtime action adapter, and
 `@honua/sdk-js/query-planner` remains the source of query-plan fingerprints.
 
@@ -27,7 +30,7 @@ tokens, or tool arguments in this envelope.
 import {
   dryRunAgentPlan,
   issueAgentApproval,
-  verifyAgentStepAuthorization,
+  executeAgentPlanStep,
 } from "@honua/sdk-js/agent-safety";
 
 const policy = {
@@ -75,20 +78,21 @@ const approval = await issueAgentApproval(
   { now: "2026-07-10T20:00:00.000Z", maxClockSkewMs: 5_000 },
 );
 
-// Immediately before an effect, compare exact current bindings and operation
-// parameters, then atomically consume the single-use approval step.
-const authorization = await verifyAgentStepAuthorization(
+const execution = await executeAgentPlanStep({
   dryRun,
   policy,
   approval,
-  hostVerifier,
-  { sources: { incidents: currentIncidentSourceBinding } },
-  "query-incidents",
-  exactQueryPlanInput,
-  hostAtomicApprovalUseStore,
-);
-// Execute only authorization.operation (the frozen validated snapshot), never
-// the original mutable exactQueryPlanInput object.
+  approvalVerifier: hostVerifier,
+  context: { sources: { incidents: currentIncidentSourceBinding } },
+  stepId: "query-incidents",
+  operation: exactQueryPlanInput,
+  useConsumer: hostAtomicApprovalUseStore,
+  executor: hostQueryExecutor,
+  auditSink: hostDurableAuditSink,
+  receiptSigner: hostReceiptSigner,
+  executionId: "execution-42",
+});
+// execution.value is an owned frozen JSON snapshot; execution.receipt binds it.
 ```
 
 `dryRunAgentPlan` rejects unknown properties, accessors, non-plain objects,
@@ -148,6 +152,40 @@ verification evaluates the historical approval at the signed completion time,
 so an authentic receipt remains verifiable after approval expiry. Supply the
 bound historical source context, not newly discovered current metadata.
 
+## Approved execution and audit
+
+`executeAgentPlanStep` composes the authorization and receipt primitives. It
+requires an executor with one exact `tool` and `effect`, rejects mismatches
+before consuming the approval, and passes only the frozen operation and narrowed
+approval limits. All host data descriptors and bound callbacks are captured once
+before the first await; later caller mutation cannot replace the executor,
+approval store, verifier, signer, audit sink, clock, or operation. Executor
+output must be a bounded plain JSON value. Arrays use one captured length and
+objects stop discovery at the width ceiling before reading excess values. The
+SDK snapshots data descriptors without invoking accessors, derives the canonical
+UTF-8 byte count and SHA-256 digest, and refuses row or byte overflow.
+
+The audit sink must durably append a `started` event before execution and a
+`completed` event after every observed success, failure, or cancellation. Audit
+events carry pseudonymous digests for plan/actor/provider/model/step/tool/source/
+schema/source-version identity, the finite effect and data mode, observation
+time, and plan/policy/binding/approval/input/use/result/receipt digests. They
+deliberately omit raw free-text identity, parameters, results, citations,
+authorization scopes, signatures, consumption nonce/token, and thrown error
+messages. A failed start audit prevents execution but deliberately leaves the
+already-consumed approval unusable; retry requires a new approval so a host
+cannot mistake an uncertain persistence boundary for an unused grant. A failed
+terminal audit is a typed `HonuaAgentExecutionError` carrying the signed receipt
+so a host can reconcile it without pretending persistence succeeded.
+
+`@honua/mcp-server/agent-execution` provides
+`createReadOnlyMcpAgentExecutor`. It binds one named standalone MCP read tool to
+this same SDK execution contract; it does not create a parallel approval model
+or enable mutation tools. Names must be bounded exact identifiers—wildcards and
+patterns are rejected—and every adapter must provide a deterministic
+`countRows(result)` callback. An uncounted result cannot silently produce a
+zero-row receipt.
+
 The API precondition is JSON-compatible structured data produced by JSON parsing
 or an equivalent structured clone. Indexed and object accessors are rejected
 without invocation. JavaScript `Proxy` traps are executable by language-level
@@ -166,8 +204,8 @@ prefixes.
 ## Deliberate boundaries
 
 This is one production vertical slice of #397, not completion of that XL
-workstream. It does not translate natural language, run tools, provide a model
-adapter, manage signing keys, parse query predicates to infer field use, perform
-compensating actions, implement an audit sink, or establish SDK/CLI/MCP execution
+workstream. It does not translate natural language, provide a model adapter,
+manage signing keys or audit persistence, parse query predicates to infer field
+use, perform compensating actions, or establish CLI/renderer/mutation execution
 parity. Hosts must declare every field a step may read or write; query compiler
 integration can automate that declaration in a later slice.

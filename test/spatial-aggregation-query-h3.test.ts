@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID,
-  HonuaClient,
   validateFeatureServerH3SpatialAggregationRequest,
-} from "../src/index.js";
-import type { SpatialAggregationRequest } from "../src/index.js";
+} from "@honua/sdk-js/contract";
+import type { SpatialAggregationRequest } from "@honua/sdk-js/contract";
+import { HonuaClient } from "../src/index.js";
 
 describe("FeatureServer queryH3 spatial aggregation adapter", () => {
   it("maps metric summaries to queryH3 outStatistics and returns protocol-neutral cells", async () => {

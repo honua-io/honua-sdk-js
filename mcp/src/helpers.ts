@@ -1,4 +1,4 @@
-import type { EsriGeometryType, EsriSpatialRel } from "@honua/sdk-js";
+import type { EsriGeometryType, EsriSpatialRel } from "@honua/sdk-js/honua";
 
 const MAX_LIMIT = 2000;
 const DEFAULT_LIMIT = 100;
