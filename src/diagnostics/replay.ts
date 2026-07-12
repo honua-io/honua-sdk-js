@@ -166,7 +166,9 @@ export async function replayDiagnosticBundle(options: DiagnosticReplayOptions): 
   }
   const base = safeBaseUrl(options.baseUrl);
   const path = replayPath(envelope.normalizedPath);
-  const target = new URL(path, `${base.toString().replace(/\/$/, "")}/`);
+  const basePath = base.pathname === "/" ? "" : base.pathname.replace(/\/+$/, "");
+  const alreadyPrefixed = basePath.length > 0 && (path === basePath || path.startsWith(`${basePath}/`));
+  const target = new URL(alreadyPrefixed ? path : `${basePath}${path}`, base.origin);
   if (target.origin !== base.origin) {
     throw new HonuaDiagnosticSafetyError("unsafe-origin", "Replay target escaped the configured server origin.");
   }

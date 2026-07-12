@@ -45,6 +45,7 @@ const SAFE_PATH_SEGMENTS = new Set([
   "featureserver",
   "health",
   "healthz",
+  "honua",
   "items",
   "layers",
   "mapserver",
@@ -143,9 +144,13 @@ function redactStructured(value: unknown, budget = { nodes: 0 }, depth = 0): unk
   if (typeof value === "string") return redactText(value);
   if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.slice(0, 256).map((item) => redactStructured(item, budget, depth + 1));
-  const output: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value).slice(0, 256)) {
-    output[key] = SENSITIVE_NAME.test(key) ? "[REDACTED]" : redactStructured(child, budget, depth + 1);
+  const output = Object.create(null) as Record<string, unknown>;
+  for (const [index, [key, child]] of Object.entries(value).slice(0, 256).entries()) {
+    const redactedKey = redactText(key);
+    const unsafeKey = SENSITIVE_NAME.test(key) || hasUnsafeControl(key) || redactedKey !== key;
+    output[unsafeKey ? `[REDACTED_KEY_${index + 1}]` : key] = SENSITIVE_NAME.test(key)
+      ? "[REDACTED]"
+      : redactStructured(child, budget, depth + 1);
   }
   return output;
 }

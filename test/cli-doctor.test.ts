@@ -57,8 +57,10 @@ describe("honua doctor CLI", () => {
       exchange,
       "--classification",
       "customer-data",
-      "--redaction-acknowledged=true",
-      "--share-with-support=false",
+      "--redaction-acknowledged",
+      "true",
+      "--share-with-support",
+      "false",
       "--output",
       output,
       "--json",
@@ -82,6 +84,32 @@ describe("honua doctor CLI", () => {
       expect(bundleText).not.toContain(secret);
       expect(stdout.text()).not.toContain(secret);
     }
+  });
+
+  it("rejects stray doctor positionals instead of ignoring consent-like values", async () => {
+    const root = tempRoot();
+    const exchange = path.join(root, "exchange.json");
+    const output = path.join(root, "bundle.json");
+    fs.writeFileSync(exchange, JSON.stringify({ request: { method: "GET", url: "https://example.test/api" } }));
+    const stderr = capture(process.stderr);
+    const code = await run([
+      "doctor",
+      "unexpected",
+      "--exchange",
+      exchange,
+      "--classification",
+      "public",
+      "--redaction-acknowledged",
+      "true",
+      "--share-with-support",
+      "false",
+      "--output",
+      output,
+    ]);
+    stderr.restore();
+    expect(code).toBe(2);
+    expect(fs.existsSync(output)).toBe(false);
+    expect(stderr.text()).toContain("does not accept positional arguments");
   });
 
   it("requires explicit consent and does not create output on validation failure", async () => {
@@ -195,10 +223,11 @@ describe("honua doctor CLI", () => {
       }),
     );
     const code = await run(["doctor", "--replay", source, "--output", output, "--json"], {
-      baseUrl: "https://example.test",
+      baseUrl: "https://example.test/honua",
     });
     expect(code).toBe(0);
     expect(fetchMock).toHaveBeenCalledOnce();
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://example.test/honua/api/v1/services");
     expect(validateDiagnosticBundle(JSON.parse(fs.readFileSync(output, "utf8"))).valid).toBe(true);
 
     const mutation = JSON.parse(fs.readFileSync(source, "utf8"));

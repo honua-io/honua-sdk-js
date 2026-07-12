@@ -174,8 +174,9 @@ async function capabilityProbe(baseUrl: string, timeoutMs: number): Promise<Diag
 }
 
 function explicitBoolean(parsed: ParsedArgs, name: string): boolean {
-  if (!Object.hasOwn(parsed.flags, name)) throw new ArgError(`--${name} must be explicitly true or false.`);
-  return getBoolean(parsed, name);
+  const value = getString(parsed, name);
+  if (value !== "true" && value !== "false") throw new ArgError(`--${name} must be explicitly true or false.`);
+  return value === "true";
 }
 
 function outputPath(parsed: ParsedArgs): string {
@@ -211,6 +212,7 @@ function configuredBaseUrl(ctx: CommandContext): string | undefined {
 }
 
 export async function doctorCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
+  if (parsed.positionals.length > 0) throw new ArgError("honua doctor does not accept positional arguments.");
   const destination = outputPath(parsed);
   const timeoutMs = Math.min(30_000, Math.max(1, Math.trunc(getNumber(parsed, "timeout-ms") ?? 10_000)));
   const replayFile = getString(parsed, "replay");

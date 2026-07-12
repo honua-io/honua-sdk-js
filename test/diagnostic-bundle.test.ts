@@ -99,6 +99,21 @@ describe("diagnostic bundle v1", () => {
     expect(new TextEncoder().encode(preview?.preview).byteLength).toBeLessThanOrEqual(128);
   });
 
+  it("placeholders credential and personal data used as JSON property names", () => {
+    const raw = JSON.stringify({
+      "person@example.test": "email-key-value",
+      "token=raw-key-secret": "credential-key-value",
+      safe: { "Bearer raw-key-token": "nested-key-value" },
+    });
+    const preview = sanitizeDiagnosticBody(raw, { mediaType: "application/json" });
+    expect(preview?.preview).toContain("[REDACTED_KEY_1]");
+    expect(preview?.preview).toContain("[REDACTED_KEY_2]");
+    expect(preview?.preview).not.toContain("person@example.test");
+    expect(preview?.preview).not.toContain("token=raw-key-secret");
+    expect(preview?.preview).not.toContain("raw-key-token");
+    expect(preview?.redactionApplied).toBe(true);
+  });
+
   it("requires explicit consent/classification and validates the fail-closed schema", () => {
     expect(() =>
       createDiagnosticBundle({
@@ -254,7 +269,7 @@ describe("diagnostic bundle v1", () => {
       exchanges: [{ method: "GET", url: "https://old.example.test/api/v1/services?limit=10" }],
     });
     const fetchFn = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
-      expect(String(input)).toBe("https://new.example.test/api/v1/services");
+      expect(String(input)).toBe("https://new.example.test/honua/api/v1/services");
       expect(init).toMatchObject({ method: "GET", credentials: "omit", redirect: "manual", cache: "no-store" });
       expect((init?.headers as Record<string, string>).authorization).toBeUndefined();
       return new Response(JSON.stringify({ services: [{ id: "public" }] }), {
@@ -262,11 +277,28 @@ describe("diagnostic bundle v1", () => {
         headers: { "content-type": "application/json", "x-request-id": "request-1" },
       });
     });
-    const replayed = await replayDiagnosticBundle({ bundle, baseUrl: "https://new.example.test", fetchFn });
+    const replayed = await replayDiagnosticBundle({ bundle, baseUrl: "https://new.example.test/honua/", fetchFn });
     expect(fetchFn).toHaveBeenCalledOnce();
     expect(replayed.envelopes).toHaveLength(1);
-    expect(replayed.envelopes[0]).toMatchObject({ method: "GET", normalizedPath: "/api/v1/services", statusCode: 200 });
+    expect(replayed.envelopes[0]).toMatchObject({
+      method: "GET",
+      normalizedPath: "/honua/api/v1/services",
+      statusCode: 200,
+    });
     expect(validateDiagnosticBundle(replayed).valid).toBe(true);
+
+    const alreadyPrefixed = structuredClone(bundle);
+    alreadyPrefixed.envelopes[0].normalizedPath = "/honua/api/v1/services";
+    const prefixedFetch = vi.fn(async (input: URL | RequestInfo) => {
+      expect(String(input)).toBe("https://new.example.test/honua/api/v1/services");
+      return new Response(null, { status: 204 });
+    });
+    await replayDiagnosticBundle({
+      bundle: alreadyPrefixed,
+      baseUrl: "https://new.example.test/honua",
+      fetchFn: prefixedFetch,
+    });
+    expect(prefixedFetch).toHaveBeenCalledOnce();
   });
 
   it("refuses mutation, subscription, unsafe paths, credentials, and hash drift before fetch", async () => {
