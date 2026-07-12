@@ -260,16 +260,17 @@ interface AgentExecutionAuditBaseV1 {
   readonly version: typeof AGENT_SAFETY_VERSION;
   readonly executionId: string;
   readonly recordedAt: string;
-  readonly planId: string;
-  readonly actor: string;
-  readonly provider?: string;
-  readonly model?: string;
-  readonly stepId: string;
-  readonly tool: string;
+  /** Pseudonymous bindings; raw free-text identity never enters the audit sink. */
+  readonly planIdDigest: AgentDigest;
+  readonly actorDigest: AgentDigest;
+  readonly providerDigest?: AgentDigest;
+  readonly modelDigest?: AgentDigest;
+  readonly stepIdDigest: AgentDigest;
+  readonly toolDigest: AgentDigest;
   readonly effect: AgentEffect;
-  readonly sourceId: string;
-  readonly schemaVersion: string;
-  readonly sourceVersion: string;
+  readonly sourceIdDigest: AgentDigest;
+  readonly schemaVersionDigest: AgentDigest;
+  readonly sourceVersionDigest: AgentDigest;
   readonly dataMode: AgentDataMode;
   readonly observedAt: string;
   readonly planDigest: AgentDigest;
@@ -319,6 +320,15 @@ export interface ExecuteAgentPlanStepOptions {
   readonly now?: () => string;
   readonly signal?: AbortSignal;
   readonly maxClockSkewMs?: number;
+}
+
+/** Owned, deeply frozen inputs used across authorization and receipt awaits. */
+export interface AgentExecutionInputSnapshotV1 {
+  readonly dryRun: AgentDryRunV1;
+  readonly policy: AgentPlanPolicyV1;
+  readonly approval: AgentApprovalV1;
+  readonly context: AgentExecutionContextV1;
+  readonly operation: AgentOperationInputV1;
 }
 
 export interface ExecutedAgentPlanStepV1 {

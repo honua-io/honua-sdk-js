@@ -98,7 +98,12 @@ describe("MCP approved execution adapter", () => {
 
   it("cannot adapt mutation or wildcard dispatch", async () => {
     const handler = vi.fn();
-    const executor = createReadOnlyMcpAgentExecutor({ name: "safe-read", parse: (value) => value, execute: handler });
+    const executor = createReadOnlyMcpAgentExecutor({
+      name: "safe-read",
+      parse: (value) => value,
+      execute: handler,
+      countRows: () => 0,
+    });
     await expect(executor.execute({ ...OPERATION, tool: "different" }, { rows: 1, bytes: 1_000 })).rejects.toThrow(
       /does not match/,
     );
@@ -106,6 +111,45 @@ describe("MCP approved execution adapter", () => {
       executor.execute({ ...OPERATION, tool: "safe-read", effect: "mutation" }, { rows: 1, bytes: 1_000 }),
     ).rejects.toThrow(/read-only/);
     expect(handler).not.toHaveBeenCalled();
+
+    for (const name of ["*", "safe-*", " safe-read", "safe read", "", "x".repeat(129)]) {
+      expect(() =>
+        createReadOnlyMcpAgentExecutor({ name, parse: (value) => value, execute: handler, countRows: () => 0 }),
+      ).toThrow(/exact identifier/);
+    }
+  });
+
+  it("requires and snapshots a trustworthy row-count callback", async () => {
+    expect(() =>
+      createReadOnlyMcpAgentExecutor({ name: "safe-read", parse: (value) => value, execute: vi.fn() } as never),
+    ).toThrow(/countRows/);
+
+    const descriptor = {
+      name: "safe-read",
+      parse: (value: unknown) => value,
+      execute: async () => ({ features: [{ id: 1 }, { id: 2 }] }),
+      countRows: () => 2,
+    };
+    const executor = createReadOnlyMcpAgentExecutor(descriptor);
+    descriptor.countRows = () => 0;
+    await expect(
+      executor.execute({ ...OPERATION, tool: "safe-read" }, { rows: 10, bytes: 1_000 }),
+    ).resolves.toMatchObject({
+      rows: 2,
+    });
+
+    const invalid = createReadOnlyMcpAgentExecutor({ ...descriptor, countRows: () => -1 });
+    await expect(invalid.execute({ ...OPERATION, tool: "safe-read" }, { rows: 10, bytes: 1_000 })).rejects.toThrow(
+      /row count/,
+    );
+  });
+
+  it("rejects callback accessors without invoking them", () => {
+    const getter = vi.fn(() => vi.fn());
+    const descriptor = { name: "safe-read", execute: vi.fn(), countRows: () => 0 };
+    Object.defineProperty(descriptor, "parse", { enumerable: true, get: getter });
+    expect(() => createReadOnlyMcpAgentExecutor(descriptor as never)).toThrow(/data property/);
+    expect(getter).not.toHaveBeenCalled();
   });
 });
 

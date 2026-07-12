@@ -31,6 +31,7 @@ import {
   type AgentEnvelopeVerifier,
   type AgentExecutionContextV1,
   type AgentExecutionEvidenceV1,
+  type AgentExecutionInputSnapshotV1,
   type AgentExecutionReceiptV1,
   type AgentOperationInputV1,
   type AgentPlanPolicyV1,
@@ -71,6 +72,7 @@ export type {
   AgentEnvelopeSigner,
   AgentEnvelopeVerifier,
   AgentExecutionContextV1,
+  AgentExecutionInputSnapshotV1,
   AgentExecutionAuditSinkV1,
   AgentExecutionAuditV1,
   AgentExecutionCompletedAuditV1,
@@ -150,6 +152,25 @@ function buildDryRun(
 /** Canonical identity for the exact parameters a host proposes to execute. */
 export function digestAgentOperationInput(input: unknown): AgentDigest {
   return parseOperationInput(input).inputDigest;
+}
+
+/** Snapshot all foreign data reused across approved execution awaits. */
+export function snapshotAgentExecutionInputs(
+  dryRunInput: unknown,
+  policyInput: unknown,
+  approvalInput: unknown,
+  contextInput: unknown,
+  operationInput: unknown,
+  options: AgentSafetyOptions = {},
+): AgentExecutionInputSnapshotV1 {
+  checkAbort(options.signal);
+  const policy = parsePolicy(policyInput);
+  const dryRun = revalidateDryRunWithPolicy(dryRunInput, policy, options);
+  const approval = parseApproval(approvalInput);
+  const context = validateContext(dryRun, contextInput);
+  const operation = parseOperationInput(operationInput, policy).input;
+  checkAbort(options.signal);
+  return deepFreeze({ dryRun, policy, approval, context, operation });
 }
 
 /**

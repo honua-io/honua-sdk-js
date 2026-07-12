@@ -156,25 +156,35 @@ bound historical source context, not newly discovered current metadata.
 
 `executeAgentPlanStep` composes the authorization and receipt primitives. It
 requires an executor with one exact `tool` and `effect`, rejects mismatches
-before invocation, and passes only the frozen operation and narrowed approval
-limits. Executor output must be a bounded plain JSON value. The SDK snapshots it
-without invoking accessors, derives its canonical UTF-8 byte count and SHA-256
-digest, and refuses row or byte overflow.
+before consuming the approval, and passes only the frozen operation and narrowed
+approval limits. All host data descriptors and bound callbacks are captured once
+before the first await; later caller mutation cannot replace the executor,
+approval store, verifier, signer, audit sink, clock, or operation. Executor
+output must be a bounded plain JSON value. Arrays use one captured length and
+objects stop discovery at the width ceiling before reading excess values. The
+SDK snapshots data descriptors without invoking accessors, derives the canonical
+UTF-8 byte count and SHA-256 digest, and refuses row or byte overflow.
 
 The audit sink must durably append a `started` event before execution and a
 `completed` event after every observed success, failure, or cancellation. Audit
-events carry actor/provider/model, tool/effect, source and version identity,
-data mode and observation time, and plan/policy/binding/approval/input/use/result/
-receipt digests. They deliberately omit parameters, results, citations, raw
+events carry pseudonymous digests for plan/actor/provider/model/step/tool/source/
+schema/source-version identity, the finite effect and data mode, observation
+time, and plan/policy/binding/approval/input/use/result/receipt digests. They
+deliberately omit raw free-text identity, parameters, results, citations,
 authorization scopes, signatures, consumption nonce/token, and thrown error
-messages. A failed start audit prevents execution. A failed terminal audit is a
-typed `HonuaAgentExecutionError` carrying the signed receipt so a host can
-reconcile it without pretending persistence succeeded.
+messages. A failed start audit prevents execution but deliberately leaves the
+already-consumed approval unusable; retry requires a new approval so a host
+cannot mistake an uncertain persistence boundary for an unused grant. A failed
+terminal audit is a typed `HonuaAgentExecutionError` carrying the signed receipt
+so a host can reconcile it without pretending persistence succeeded.
 
 `@honua/mcp-server/agent-execution` provides
 `createReadOnlyMcpAgentExecutor`. It binds one named standalone MCP read tool to
 this same SDK execution contract; it does not create a parallel approval model
-or enable mutation tools.
+or enable mutation tools. Names must be bounded exact identifiers—wildcards and
+patterns are rejected—and every adapter must provide a deterministic
+`countRows(result)` callback. An uncounted result cannot silently produce a
+zero-row receipt.
 
 The API precondition is JSON-compatible structured data produced by JSON parsing
 or an equivalent structured clone. Indexed and object accessors are rejected

@@ -8,12 +8,13 @@ import {
   type AgentEnvelopeSigner,
   type AgentEnvelopeVerifier,
   type AgentExecutionAuditV1,
+  type AgentOperationExecutorV1,
   digestAgentOperationInput,
   dryRunAgentPlan,
   executeAgentPlanStep,
   issueAgentApproval,
 } from "../src/agent-safety/index.js";
-import { sha256 } from "../src/query-planner/index.js";
+import { type JsonValue, sha256 } from "../src/query-planner/index.js";
 
 const NOW = "2026-07-10T20:00:00.000Z";
 const EXPIRES = "2026-07-10T21:00:00.000Z";
@@ -193,7 +194,11 @@ describe("approved agent execution", () => {
     expect(result.receipt).toMatchObject({ outcome: "succeeded", rows: 1 });
     expect(result.receipt.bytes).toBeGreaterThan(0);
     expect(events).toHaveLength(2);
-    expect(events[0]).toMatchObject({ phase: "started", actor: "operator@example.test", dataMode: "live" });
+    expect(events[0]).toMatchObject({
+      phase: "started",
+      actorDigest: sha256(JSON.stringify("operator@example.test")),
+      dataMode: "live",
+    });
     expect(events[1]).toMatchObject({
       phase: "completed",
       outcome: "succeeded",
@@ -201,8 +206,102 @@ describe("approved agent execution", () => {
       receiptDigest: result.receipt.receiptDigest,
     });
     const serialized = JSON.stringify(events);
-    for (const secret of ["status = 'open'", "incidents:read", "opaque-nonce-secret", "token", "citation"])
+    for (const secret of [
+      "operator@example.test",
+      "status = 'open'",
+      "incidents:read",
+      "opaque-nonce-secret",
+      "token",
+      "citation",
+    ])
       expect(serialized).not.toContain(secret);
+  });
+
+  it("persists only digests for every free-text plan and source identity", async () => {
+    const secrets = {
+      planId: "Bearer plan-secret",
+      actor: "person@example.test",
+      provider: "api_key=provider-secret",
+      model: "customer-model@example.test",
+      stepId: "step-person@example.test",
+      tool: "tool?api_key=tool-secret",
+      sourceId: "source?token=source-secret",
+      schemaVersion: "schema-Bearer-schema-secret",
+      sourceVersion: "source-version-password=secret",
+    };
+    const binding = {
+      ...source(),
+      id: secrets.sourceId,
+      schemaVersion: secrets.schemaVersion,
+      sourceVersion: secrets.sourceVersion,
+    };
+    const operation = { ...OPERATION, tool: secrets.tool, sourceId: secrets.sourceId };
+    const sourcePolicy = policy().sources.incidents;
+    const scopedPolicy = {
+      ...policy(),
+      allowedTools: [secrets.tool],
+      sources: {
+        [secrets.sourceId]: {
+          ...sourcePolicy,
+          schemaVersions: [secrets.schemaVersion],
+          sourceVersions: [secrets.sourceVersion],
+        },
+      },
+    };
+    const proposed = {
+      ...plan(),
+      id: secrets.planId,
+      actor: secrets.actor,
+      provider: secrets.provider,
+      model: secrets.model,
+      steps: [
+        {
+          ...plan().steps[0],
+          id: secrets.stepId,
+          tool: secrets.tool,
+          source: binding,
+          inputDigest: digestAgentOperationInput(operation),
+        },
+      ],
+    };
+    const dryRun = dryRunAgentPlan(proposed, scopedPolicy, { now: NOW });
+    const approvalCrypto = cryptoPair("secret-approval");
+    const approval = await issueAgentApproval(
+      dryRun,
+      scopedPolicy,
+      { id: "secret-approval", approver: "reviewer", issuedAt: NOW, expiresAt: EXPIRES },
+      approvalCrypto.signer,
+      { now: NOW },
+    );
+    const events: AgentExecutionAuditV1[] = [];
+    await executeAgentPlanStep({
+      dryRun,
+      policy: scopedPolicy,
+      approval,
+      approvalVerifier: approvalCrypto.verifier,
+      context: { sources: { [secrets.sourceId]: binding } },
+      stepId: secrets.stepId,
+      operation,
+      useConsumer: useStore(),
+      executor: { tool: secrets.tool, effect: "read", execute: async () => ({ rows: 0, value: {} }) },
+      auditSink: { append: async (event) => void events.push(event) },
+      receiptSigner: cryptoPair("secret-receipt").signer,
+      executionId: "secret-identities",
+      now: () => NOW,
+    });
+    const serialized = JSON.stringify(events);
+    for (const secret of Object.values(secrets)) expect(serialized).not.toContain(secret);
+    expect(events[0]).toMatchObject({
+      planIdDigest: sha256(JSON.stringify(secrets.planId)),
+      actorDigest: sha256(JSON.stringify(secrets.actor)),
+      providerDigest: sha256(JSON.stringify(secrets.provider)),
+      modelDigest: sha256(JSON.stringify(secrets.model)),
+      stepIdDigest: sha256(JSON.stringify(secrets.stepId)),
+      toolDigest: sha256(JSON.stringify(secrets.tool)),
+      sourceIdDigest: sha256(JSON.stringify(secrets.sourceId)),
+      schemaVersionDigest: sha256(JSON.stringify(secrets.schemaVersion)),
+      sourceVersionDigest: sha256(JSON.stringify(secrets.sourceVersion)),
+    });
   });
 
   it("does not invoke an effect after start-audit failure, executor mismatch, or replay", async () => {
@@ -238,9 +337,99 @@ describe("approved agent execution", () => {
       executionId: "replay",
       now: () => NOW,
     };
+    await expect(
+      executeAgentPlanStep({ ...shared, executor: { tool: "different", effect: "read", execute } }),
+    ).rejects.toMatchObject({ code: "execution-failed", phase: "authorization" });
     await executeAgentPlanStep(shared);
     await expect(executeAgentPlanStep(shared)).rejects.toMatchObject({ code: "policy-denied" });
     expect(execute).toHaveBeenCalledTimes(1);
+
+    const startFailureData = await fixture();
+    const startFailureStore = useStore();
+    const startFailure = {
+      ...shared,
+      dryRun: startFailureData.dryRun,
+      approval: startFailureData.approval,
+      approvalVerifier: startFailureData.approvalCrypto.verifier,
+      receiptSigner: startFailureData.receiptCrypto.signer,
+      useConsumer: startFailureStore,
+      auditSink: { append: async () => Promise.reject(new Error("unavailable")) },
+    };
+    await expect(executeAgentPlanStep(startFailure)).rejects.toMatchObject({ code: "audit-failed" });
+    await expect(
+      executeAgentPlanStep({ ...startFailure, auditSink: { append: async () => undefined } }),
+    ).rejects.toMatchObject({ code: "policy-denied" });
+  });
+
+  it("snapshots host callbacks, operation data, and the clock before approval awaits", async () => {
+    const data = await fixture();
+    const store = useStore();
+    const originalExecute = vi.fn<AgentOperationExecutorV1["execute"]>(async (operation) => ({
+      rows: 1,
+      value: { where: (operation.parameters as { readonly where: string }).where },
+    }));
+    const replacementExecute = vi.fn<AgentOperationExecutorV1["execute"]>(async () => ({
+      rows: 1,
+      value: { replaced: true },
+    }));
+    const originalAudit = vi.fn(async () => undefined);
+    const replacementAudit = vi.fn(async () => undefined);
+    const operation = {
+      ...OPERATION,
+      queryPlan: { ...OPERATION.queryPlan },
+      fields: [...OPERATION.fields],
+      parameters: { ...OPERATION.parameters },
+    };
+    const executor: { tool: string; effect: "read"; execute: AgentOperationExecutorV1["execute"] } = {
+      tool: "query",
+      effect: "read",
+      execute: originalExecute,
+    };
+    const auditSink = { append: originalAudit };
+    const options = {
+      dryRun: data.dryRun,
+      policy: policy(),
+      approval: data.approval,
+      approvalVerifier: {
+        ...data.approvalCrypto.verifier,
+        async verify(payload: string, signature: string, signal?: AbortSignal) {
+          executor.execute = replacementExecute;
+          auditSink.append = replacementAudit;
+          (operation.parameters as { where: string }).where = "Bearer replacement-secret";
+          options.now = () => "2026-07-10T20:59:00.000Z";
+          return data.approvalCrypto.verifier.verify(payload, signature, signal);
+        },
+      },
+      context: { sources: { incidents: source() } },
+      stepId: "query-incidents",
+      operation,
+      useConsumer: store,
+      executor,
+      auditSink,
+      receiptSigner: data.receiptCrypto.signer,
+      executionId: "snapshotted-host",
+      now: () => NOW,
+    };
+
+    const result = await executeAgentPlanStep(options);
+    expect(result.value).toEqual({ where: "status = 'open'" });
+    expect(originalExecute).toHaveBeenCalledOnce();
+    expect(replacementExecute).not.toHaveBeenCalled();
+    expect(originalAudit).toHaveBeenCalledTimes(2);
+    expect(replacementAudit).not.toHaveBeenCalled();
+    expect(result.receipt.completedAt).toBe(NOW);
+  });
+
+  it("rejects host callback accessors before invoking or consuming authority", async () => {
+    const getter = vi.fn(() => vi.fn());
+    const executor = { tool: "query", effect: "read" };
+    Object.defineProperty(executor, "execute", { enumerable: true, get: getter });
+    const consume = vi.fn();
+    await expect(run({ executor: executor as never, useConsumer: { consume, verify: vi.fn() } })).rejects.toMatchObject(
+      { code: "invalid-input" },
+    );
+    expect(getter).not.toHaveBeenCalled();
+    expect(consume).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -263,6 +452,33 @@ describe("approved agent execution", () => {
       run({ executor: { tool: "query", effect: "read", execute: async () => output as never } }),
     ).rejects.toMatchObject({ code: "execution-failed", receipt: { outcome: "failed" } });
     expect(getter).not.toHaveBeenCalled();
+  });
+
+  it("bounds wide results before reading excess values and uses one captured array length", async () => {
+    const wide: Record<string, JsonValue> = {};
+    for (let index = 0; index < 128; index++) wide[`field-${index}`] = index;
+    const excessGetter = vi.fn(() => "secret");
+    Object.defineProperty(wide, "field-128", { enumerable: true, get: excessGetter });
+    await expect(
+      run({ executor: { tool: "query", effect: "read", execute: async () => ({ rows: 1, value: wide }) } }),
+    ).rejects.toMatchObject({ code: "execution-failed", receipt: { outcome: "failed" } });
+    expect(excessGetter).not.toHaveBeenCalled();
+
+    let lengthReads = 0;
+    const changing = new Proxy(["stable"], {
+      getOwnPropertyDescriptor(target, key) {
+        if (key === "length") {
+          lengthReads += 1;
+          return { value: lengthReads === 1 ? 1 : 1_000_000, enumerable: false, configurable: false, writable: true };
+        }
+        return Reflect.getOwnPropertyDescriptor(target, key);
+      },
+    });
+    const result = await run({
+      executor: { tool: "query", effect: "read", execute: async () => ({ rows: 1, value: changing }) },
+    });
+    expect(result.value).toEqual(["stable"]);
+    expect(lengthReads).toBe(1);
   });
 
   it("records a generic failure and retains the receipt when terminal audit persistence fails", async () => {
