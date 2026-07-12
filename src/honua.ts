@@ -25,6 +25,7 @@ export {
   HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
   HONUA_CONNECT_PROJECTION_VERSION,
   connect,
+  discoverOgcProcesses,
 } from "./connect.js";
 export type {
   ConnectCacheStatus,
@@ -38,6 +39,9 @@ export type {
   GeoParquetSourceProfiler,
   HonuaConnection,
   HonuaConnectionInspection,
+  OgcProcessDiscoverySummary,
+  OgcProcessesDiscoveryOptions,
+  OgcProcessesDiscoveryResult,
 } from "./connect.js";
 export {
   MIGRATION_EVIDENCE_STATES,

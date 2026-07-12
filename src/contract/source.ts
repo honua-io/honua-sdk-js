@@ -899,15 +899,18 @@ export function ogcTilesSource<T>(
 ): Source<T> {
   const { collectionId, tileMatrixSetId } = requireOgcTilesLocator(descriptor);
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES["ogc-tiles"];
+  const basePath = descriptor.locator.basePath;
 
   // Descriptors without a tileMatrixSetId cannot construct a usable
   // HonuaOgcTileset (every tile route requires `tileMatrixSetId`). Expose
   // the root HonuaOgcTiles adapter instead so callers can discover the
   // tilesets the server advertises for the collection before binding one.
+  // A `connect()`-discovered third-party root threads its basePath so tile
+  // routes resolve against the advertised layout, not the `/ogc/tiles` facade.
   const adapter =
     tileMatrixSetId !== undefined && tileMatrixSetId !== ""
-      ? new HonuaOgcTileset({ client, collectionId, tileMatrixSetId })
-      : new HonuaOgcTiles({ client });
+      ? new HonuaOgcTileset({ client, collectionId, tileMatrixSetId, ...(basePath !== undefined ? { basePath } : {}) })
+      : new HonuaOgcTiles({ client, ...(basePath !== undefined ? { basePath } : {}) });
 
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
     "ogc-tiles": adapter,
@@ -973,13 +976,17 @@ export function ogcMapsSource<T>(
   client: HonuaClient,
   policy: CapabilityPolicy,
 ): Source<T> {
-  const root = new HonuaOgcMaps({ client });
+  const basePath = descriptor.locator.basePath;
+  // A `connect()`-discovered third-party root threads its basePath so render
+  // routes resolve against the advertised layout, not the `/ogc/maps` facade.
+  const root = new HonuaOgcMaps({ client, ...(basePath !== undefined ? { basePath } : {}) });
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {};
   if (descriptor.locator.collectionId !== undefined) {
     adapterRegistry["ogc-maps"] = new HonuaOgcCollectionMap({
       client,
       collectionId: descriptor.locator.collectionId,
       styleId: descriptor.locator.styleId,
+      ...(basePath !== undefined ? { basePath } : {}),
     });
   } else {
     adapterRegistry["ogc-maps"] = root;

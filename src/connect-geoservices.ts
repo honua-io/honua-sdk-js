@@ -51,6 +51,8 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
           "odata",
           "geoparquet",
           "ogc-records",
+          "ogc-tiles",
+          "ogc-maps",
           "geoservices-feature-service",
           "geoservices-map-service",
         ],
@@ -105,21 +107,33 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
     // asset origin and is never used for feature queries.
     return { endpoint, clientBaseUrl: new URL(endpoint).origin, protocol: "geoparquet" };
   }
-  if (hint === "ogc-records") {
+  if ((hint as string) === "ogc-processes") {
+    // OGC API Processes is intentionally not a Source-backed protocol: a
+    // process is an invocable operation, not a queryable dataset, so it never
+    // resolves to a connect() Source. Callers discover a Processes service's
+    // capabilities and process list through discoverOgcProcesses() instead.
+    throw new HonuaDiscoveryError(
+      "unsupported-protocol",
+      "OGC API Processes is not a Source-backed protocol; use discoverOgcProcesses() to discover a Processes service's capabilities and process list.",
+      { endpoint, protocol: hint },
+    );
+  }
+  if (hint === "ogc-records" || hint === "ogc-tiles" || hint === "ogc-maps") {
     if (geoservices) {
       throw new HonuaDiscoveryError(
         "invalid-endpoint",
-        `The canonical GeoServices URL resolves to "${geoservices.protocol}", not "ogc-records".`,
+        `The canonical GeoServices URL resolves to "${geoservices.protocol}", not "${hint}".`,
         { endpoint, protocol: hint, resolvedProtocol: geoservices.protocol },
       );
     }
-    // A raw OGC API Records service root is mounted under a path (or at the
-    // origin). Bind the client to the origin and carry the service-root prefix
-    // so discovery (landing / conformance / collections) and the runtime
-    // catalog search resolve against the same advertised layout.
+    // A raw OGC API Records / Tiles / Maps service root is mounted under a path
+    // (or at the origin). Bind the client to the origin and carry the
+    // service-root prefix so discovery (landing / conformance / collections)
+    // and the runtime source adapters resolve against the same advertised
+    // layout through the shared `basePath` seam.
     const url = new URL(endpoint);
     const ogcBasePath = url.pathname && url.pathname !== "/" ? url.pathname : "";
-    return { endpoint, clientBaseUrl: url.origin, protocol: "ogc-records", ogcBasePath };
+    return { endpoint, clientBaseUrl: url.origin, protocol: hint, ogcBasePath };
   }
   if (hint === "geoservices-feature-service" || hint === "geoservices-map-service") {
     if (!geoservices || geoservices.protocol !== hint) {
@@ -143,6 +157,8 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
         "odata",
         "geoparquet",
         "ogc-records",
+        "ogc-tiles",
+        "ogc-maps",
         "geoservices-feature-service",
         "geoservices-map-service",
       ],
