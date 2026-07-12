@@ -1,0 +1,62 @@
+{
+  "$schema": "./contract/v1/schemas/flagship-evidence-index.schema.json",
+  "format": "honua.sdk.flagship-evidence-index.v1",
+  "schemaVersion": 1,
+  "issue": "https://github.com/honua-io/honua-sdk-js/issues/399",
+  "ci": {
+    "performance": ".github/workflows/ci.yml",
+    "bundle": "npm run verify:bundle-budgets"
+  },
+  "samples": [
+    {
+      "sampleId": "maplibre-quickstart",
+      "performance": {
+        "command": "npm run bench:browser",
+        "definition": "bench/browser/budgets.json",
+        "scenario": "maplibre.flagship-render-interact",
+        "artifact": "test-results/browser-benchmark/report.json"
+      },
+      "bundle": { "entrypoints": ["/map", "tree-shake:map-source-workflow"] }
+    },
+    {
+      "sampleId": "realtime-incident-dashboard",
+      "performance": {
+        "command": "npx vitest run test/flagship-runtime-performance.test.ts",
+        "definition": "test/flagship-runtime-performance.test.ts",
+        "scenario": "500-reconnect-resume-cycles-under-1000ms",
+        "artifact": null
+      },
+      "bundle": { "entrypoints": ["/realtime"] }
+    },
+    {
+      "sampleId": "spatial-analytics-workbench",
+      "performance": {
+        "command": "npx vitest run test/spatial-analytics-workbench-performance.test.ts",
+        "definition": "test/spatial-analytics-workbench-performance.test.ts",
+        "scenario": "100-bounded-local-explain-execute-cycles-under-1000ms",
+        "artifact": null
+      },
+      "bundle": { "entrypoints": ["/contract"] }
+    },
+    {
+      "sampleId": "overture-geoparquet",
+      "performance": {
+        "command": "npx vitest run test/flagship-runtime-performance.test.ts",
+        "definition": "test/flagship-runtime-performance.test.ts",
+        "scenario": "1000-bounded-plans-under-1000ms",
+        "artifact": null
+      },
+      "bundle": { "entrypoints": ["/geoparquet"] }
+    },
+    {
+      "sampleId": "ai-spatial-app-builder",
+      "performance": {
+        "command": "npx vitest run test/agent-safety-performance.test.ts",
+        "definition": "test/agent-safety-performance.test.ts",
+        "scenario": "500-strict-dry-runs-under-1000ms",
+        "artifact": null
+      },
+      "bundle": { "entrypoints": ["/agent-safety"] }
+    }
+  ]
+}

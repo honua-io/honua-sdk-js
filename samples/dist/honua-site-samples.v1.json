@@ -56,7 +56,8 @@
           "status": "executed"
         },
         "live": {
-          "status": "planned"
+          "status": "skipped",
+          "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json"
         }
       },
       "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on."
@@ -556,7 +557,8 @@
           "status": "executed"
         },
         "live": {
-          "status": "planned"
+          "status": "executed",
+          "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
@@ -648,7 +650,8 @@
           "status": "executed"
         },
         "live": {
-          "status": "planned"
+          "status": "skipped",
+          "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json"
         }
       },
       "expectedDegradation": "Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile."

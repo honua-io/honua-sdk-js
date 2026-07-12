@@ -1,0 +1,52 @@
+{
+  "$schema": "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "lane": "live",
+  "status": "executed",
+  "reason": null,
+  "observedAt": "2026-07-12T02:18:02.654Z",
+  "authMode": "anonymous",
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b" },
+  "source": {
+    "provider": "honua-demo",
+    "identity": "honua-demo:maui-parcels:1",
+    "endpoint": "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
+    "deploymentVersion": "1.0.0",
+    "dataVersion": null
+  },
+  "provenance": {
+    "sourceId": "honua-demo:maui-parcels:1",
+    "observedAt": "2026-07-12T02:18:02.654Z",
+    "validAt": null,
+    "state": "live",
+    "attribution": "Honua canonical demo data"
+  },
+  "semantics": {
+    "operation": "compatibility-layer-query-renderable-geometry",
+    "outcome": "geoservices-renderable-feature",
+    "itemCount": 1,
+    "assertions": [
+      "compatibilityChecked=true",
+      "serviceId=\"maui-parcels\"",
+      "layerId=1",
+      "layerName=\"maui-parcels\"",
+      "geometryType=\"esriGeometryPolygon\"",
+      "returnedFeatureCount=1",
+      "renderableGeometry=true"
+    ]
+  },
+  "timing": { "totalMs": 2074.3419810000005, "firstSuccessfulInteractionMs": 2074.3419810000005 },
+  "degradation": {
+    "state": "none",
+    "reasons": []
+  },
+  "artifacts": [
+    {
+      "kind": "producer-generator:a6e2bb0785bcdebf47a1f5bd8254cf62e138963b",
+      "path": "scripts/live-benchmark-evidence.mjs",
+      "sha256": "f4e279e9aeeab199af0be1dc9bf80133c6b938f563a99e97e443f656b364034b"
+    }
+  ]
+}

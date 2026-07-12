@@ -255,6 +255,7 @@
     "verify:north-star-api": "tsc -p test/design/north-star-api/tsconfig.json --noEmit",
     "samples:generate": "node scripts/sample-contract.mjs write",
     "samples:verify": "node scripts/sample-contract.mjs check",
+    "samples:verify:flagships": "node scripts/verify-flagship-evidence.mjs",
     "samples:artifacts": "npm run build:browser --silent && node scripts/sample-contract.mjs artifacts",
     "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",
     "verify:api-report": "npm run build --silent && node scripts/report-api-surface.mjs --check",

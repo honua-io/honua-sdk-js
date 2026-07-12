@@ -1,0 +1,45 @@
+{
+  "$schema": "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "realtime-incident-dashboard",
+  "lane": "live",
+  "status": "skipped",
+  "reason": "Realtime feature streams are not enabled; requires Pro",
+  "observedAt": "2026-07-12T02:18:02.730Z",
+  "authMode": "anonymous",
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b" },
+  "source": {
+    "provider": "honua-demo",
+    "identity": "honua-demo-incident-realtime",
+    "endpoint": "https://demo.honua.io/api/v1/streaming/features",
+    "deploymentVersion": null,
+    "dataVersion": null
+  },
+  "provenance": null,
+  "semantics": {
+    "operation": "snapshot-observe-and-reconnect-delta",
+    "outcome": null,
+    "itemCount": null,
+    "assertions": []
+  },
+  "timing": { "totalMs": null, "firstSuccessfulInteractionMs": null },
+  "degradation": {
+    "state": "unavailable",
+    "reasons": ["Realtime feature streams are not enabled; requires Pro"]
+  },
+  "realtime": {
+    "snapshotAt": null,
+    "cursor": null,
+    "lagMs": null,
+    "observationWindowMs": 12000,
+    "reconnectOutcome": "not-attempted-capability-unavailable"
+  },
+  "artifacts": [
+    {
+      "kind": "producer-generator:a6e2bb0785bcdebf47a1f5bd8254cf62e138963b",
+      "path": "scripts/live-benchmark-evidence.mjs",
+      "sha256": "f4e279e9aeeab199af0be1dc9bf80133c6b938f563a99e97e443f656b364034b"
+    }
+  ]
+}

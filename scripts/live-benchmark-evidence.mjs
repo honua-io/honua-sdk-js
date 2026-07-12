@@ -12,6 +12,22 @@ import process from "node:process";
 import { validateEvidenceEnvelope } from "./sample-contract.mjs";
 
 const TIMEOUT_MS = 30_000;
+const INCIDENT_OBSERVATION_WINDOW_MS = 12_000;
+
+class SkipTargetError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "SkipTargetError";
+  }
+}
+
+class HttpStatusError extends Error {
+  constructor(status) {
+    super(`HTTP ${status}`);
+    this.name = "HttpStatusError";
+    this.status = status;
+  }
+}
 
 function parseArgs(argv) {
   const options = { output: "test-results/live-benchmark-evidence.json", strict: false };
@@ -54,7 +70,7 @@ async function requestJson(url, headers = {}) {
       signal: controller.signal,
     });
     const body = await response.json().catch(() => undefined);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) throw new HttpStatusError(response.status);
     return {
       body,
       latencyMs: performance.now() - timerStartedAt,
@@ -103,8 +119,8 @@ async function observeIncidentDelta(url, headers = {}, observationWindowMs = 12_
         }
         return {
           kind: String(kind ?? "change"),
-          cursorPresent: typeof payload.cursor === "string" && payload.cursor.length > 0,
-          sequencePresent: typeof payload.sequence === "number",
+          cursor: typeof payload.cursor === "string" && payload.cursor.length > 0 ? payload.cursor : null,
+          sequence: typeof payload.sequence === "number" ? payload.sequence : null,
           timestamp: typeof payload.timestamp === "string" ? payload.timestamp : null,
           latencyMs: performance.now() - startedAt,
         };
@@ -134,6 +150,7 @@ async function probeTarget(definition) {
       authMode: definition.authMode,
       attribution: definition.attribution,
       skipReason: definition.skipReason,
+      ...(definition.realtimeFallback ? { realtime: definition.realtimeFallback } : {}),
     };
   }
 
@@ -154,6 +171,22 @@ async function probeTarget(definition) {
       ...evidence,
     };
   } catch (error) {
+    if (error instanceof SkipTargetError) {
+      return {
+        id: definition.id,
+        sampleId: definition.sampleId,
+        journeyId: definition.journeyId,
+        status: "skipped",
+        provider: definition.provider,
+        endpoint: definition.endpoint,
+        authMode: definition.authMode,
+        attribution: definition.attribution,
+        startedAt,
+        completedAt: new Date().toISOString(),
+        skipReason: error.message,
+        ...(definition.realtimeFallback ? { realtime: definition.realtimeFallback } : {}),
+      };
+    }
     return {
       id: definition.id,
       sampleId: definition.sampleId,
@@ -193,7 +226,7 @@ export function toSampleEvidence(target, sdk, generatedAt) {
       identity: target.provenance?.source ?? target.id,
       endpoint: target.endpoint,
       deploymentVersion: target.endpointVersion ?? null,
-      dataVersion: target.freshness?.sourceDataTimestamp ?? target.protocolVersion ?? null,
+      dataVersion: target.freshness?.sourceDataTimestamp ?? null,
     },
     provenance: executed
       ? {
@@ -228,6 +261,39 @@ export async function collectLiveEvidence(env = process.env) {
   const packageJson = JSON.parse(await readFile("package.json", "utf8"));
   const enabled = env.HONUA_BENCH_LIVE_ENABLED === "true";
   if (!enabled) {
+    const sdk = { package: packageJson.name, version: packageJson.version, gitCommit: gitCommit() };
+    const reason = "HONUA_BENCH_LIVE_ENABLED is not true; live probes are opt-in";
+    const disabledTargets = [
+      {
+        id: "honua-demo-maplibre-quickstart",
+        sampleId: "maplibre-quickstart",
+        journeyId: "compatibility-layer-query-renderable-geometry",
+        status: "skipped",
+        provider: "honua-demo",
+        endpoint: "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
+        authMode: "anonymous",
+        attribution: "Honua canonical demo data",
+        skipReason: reason,
+      },
+      {
+        id: "honua-demo-incident-realtime",
+        sampleId: "realtime-incident-dashboard",
+        journeyId: "snapshot-observe-and-reconnect-delta",
+        status: "skipped",
+        provider: "honua-demo",
+        endpoint: "https://demo.honua.io/api/v1/streaming/features",
+        authMode: "anonymous",
+        attribution: "Honua demo synthetic incident operations data",
+        skipReason: reason,
+        realtime: {
+          snapshotAt: null,
+          cursor: null,
+          lagMs: null,
+          observationWindowMs: INCIDENT_OBSERVATION_WINDOW_MS,
+          reconnectOutcome: "not-attempted-live-probes-disabled",
+        },
+      },
+    ];
     return {
       format: "honua.sdk.benchmark-live-evidence.v1",
       schemaVersion: 1,
@@ -236,13 +302,16 @@ export async function collectLiveEvidence(env = process.env) {
         producerIssue: "https://github.com/honua-io/honua-sdk-js/issues/401",
         consumerIssue: "https://github.com/honua-io/honua-site/issues/120",
       },
-      sdk: { package: packageJson.name, version: packageJson.version, gitCommit: gitCommit() },
+      sdk,
       run: {
         status: "skipped",
         trigger: env.GITHUB_EVENT_NAME ?? "local",
-        skipReason: "HONUA_BENCH_LIVE_ENABLED is not true; live probes are opt-in",
+        skipReason: reason,
       },
-      targets: [],
+      targets: disabledTargets.map((rawTarget) => {
+        const { sampleId: _sampleId, journeyId: _journeyId, attribution: _attribution, ...target } = rawTarget;
+        return { ...target, sampleEvidence: toSampleEvidence(rawTarget, sdk, generatedAt) };
+      }),
     };
   }
 
@@ -251,22 +320,52 @@ export async function collectLiveEvidence(env = process.env) {
   const authMode = apiKey ? "api-key" : "anonymous";
   const authHeaders = apiKey ? { "x-api-key": apiKey } : {};
   const awsBaseUrl = "https://earth-search.aws.element84.com/v1";
+  const quickstartServiceId = env.HONUA_BENCH_LIVE_QUICKSTART_SERVICE_ID ?? "maui-parcels";
+  const quickstartLayerId = Number(env.HONUA_BENCH_LIVE_QUICKSTART_LAYER_ID ?? "1");
+  if (!/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(quickstartServiceId)) {
+    throw new Error("Quickstart live service id contains unsupported characters");
+  }
+  if (!Number.isInteger(quickstartLayerId) || quickstartLayerId < 0) {
+    throw new Error("Quickstart live layer id must be a non-negative integer");
+  }
+  const quickstartLayerUrl = `${honuaBaseUrl}/rest/services/${quickstartServiceId
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/")}/FeatureServer/${quickstartLayerId}`;
   const sdk = { package: packageJson.name, version: packageJson.version, gitCommit: gitCommit() };
   const rawTargets = await Promise.all([
     probeTarget({
       id: "honua-demo-incident-realtime",
       sampleId: "realtime-incident-dashboard",
-      journeyId: "snapshot-observe-and-reconcile-delta",
+      journeyId: "snapshot-observe-and-reconnect-delta",
       provider: "honua-demo",
       endpoint: `${honuaBaseUrl}/api/v1/streaming/features`,
       authMode,
       attribution: "Honua demo synthetic incident operations data",
+      skipReason: env.HONUA_BENCH_LIVE_SKIP_HONUA_REASON || undefined,
+      realtimeFallback: {
+        snapshotAt: null,
+        cursor: null,
+        lagMs: null,
+        observationWindowMs: INCIDENT_OBSERVATION_WINDOW_MS,
+        reconnectOutcome: "not-attempted-capability-unavailable",
+      },
       async run() {
         const capabilitiesUrl = `${honuaBaseUrl}/api/v1/streaming/features/capabilities`;
-        const capabilities = await requestJson(capabilitiesUrl, authHeaders);
+        let capabilities;
+        try {
+          capabilities = await requestJson(capabilitiesUrl, authHeaders);
+        } catch (error) {
+          if (error instanceof HttpStatusError && [403, 404].includes(error.status)) {
+            throw new SkipTargetError(`Realtime capability probe is unavailable (${error.message})`);
+          }
+          throw error;
+        }
         const advertised = capabilities.body?.data ?? capabilities.body;
         if (advertised?.enabled !== true) {
-          throw new Error(`Realtime feature streams are not enabled${advertised?.minimumEdition ? `; requires ${advertised.minimumEdition}` : ""}`);
+          throw new SkipTargetError(
+            `Realtime feature streams are not enabled${advertised?.minimumEdition ? `; requires ${advertised.minimumEdition}` : ""}`,
+          );
         }
         const snapshotUrl = `${honuaBaseUrl}/rest/services/maui-incidents/FeatureServer/0/query?where=1%3D1&outFields=*&resultRecordCount=10&f=json`;
         const snapshot = await requestJson(snapshotUrl, authHeaders);
@@ -276,22 +375,40 @@ export async function collectLiveEvidence(env = process.env) {
         streamUrl.searchParams.set("layers", "0");
         streamUrl.searchParams.set("requestId", "scheduled-incident-evidence");
         streamUrl.searchParams.set("mode", "snapshot-then-delta");
-        const delta = await observeIncidentDelta(streamUrl, authHeaders);
+        const delta = await observeIncidentDelta(streamUrl, authHeaders, INCIDENT_OBSERVATION_WINDOW_MS);
+        if (!delta.cursor) throw new Error("Incident delta did not include the cursor required for resumable reconnect");
+        const reconnectUrl = new URL(streamUrl);
+        reconnectUrl.searchParams.set("requestId", "scheduled-incident-evidence-reconnect");
+        reconnectUrl.searchParams.set("cursor", delta.cursor);
+        const redactedReconnectUrl = new URL(reconnectUrl);
+        redactedReconnectUrl.searchParams.set("cursor", "{redacted}");
+        const resumedDelta = await observeIncidentDelta(
+          reconnectUrl,
+          authHeaders,
+          INCIDENT_OBSERVATION_WINDOW_MS,
+        );
+        if (!resumedDelta.cursor) throw new Error("Reconnected incident delta did not include a cursor");
+        if (delta.sequence !== null && resumedDelta.sequence !== null && resumedDelta.sequence < delta.sequence) {
+          throw new Error("Reconnect returned a sequence older than the requested cursor checkpoint");
+        }
         const observedAt = new Date().toISOString();
         const eventAt = delta.timestamp ? Date.parse(delta.timestamp) : Number.NaN;
         return {
           endpointVersion: advertised.serverVersion ?? null,
           protocolVersion: "honua-feature-stream-v1",
-          latencyMs: capabilities.latencyMs + snapshot.latencyMs + delta.latencyMs,
+          latencyMs: capabilities.latencyMs + snapshot.latencyMs + delta.latencyMs + resumedDelta.latencyMs,
           checks: {
             capabilityEnabled: true,
             snapshotFeatureCount: snapshot.body.features.length,
             deltaKind: delta.kind,
-            cursorPresent: delta.cursorPresent,
-            sequencePresent: delta.sequencePresent,
+            cursorPresent: true,
+            sequencePresent: delta.sequence !== null,
+            reconnectCursorPresent: true,
+            reconnectSequenceMonotonic:
+              delta.sequence === null || resumedDelta.sequence === null || resumedDelta.sequence >= delta.sequence,
           },
           journey: {
-            id: "snapshot-observe-and-reconcile-delta",
+            id: "snapshot-observe-and-reconnect-delta",
             timeToFirstSuccessfulInteractionMs: capabilities.latencyMs + snapshot.latencyMs,
             visibleOutcome: { kind: "snapshot-and-live-delta", itemCount: snapshot.body.features.length },
             console: { applicable: false, reason: "Protocol probe has no browser console" },
@@ -306,52 +423,67 @@ export async function collectLiveEvidence(env = process.env) {
           },
           provenance: {
             source: "honua-demo:maui-incidents:0",
-            requestedUrls: [capabilitiesUrl, snapshotUrl, streamUrl.toString()],
+            requestedUrls: [capabilitiesUrl, snapshotUrl, streamUrl.toString(), redactedReconnectUrl.toString()],
           },
           realtime: {
             snapshotAt: snapshot.observedAt,
-            cursor: delta.cursorPresent ? "present" : null,
+            cursor: "present",
             lagMs: Number.isFinite(eventAt) ? Math.max(0, Date.parse(observedAt) - eventAt) : null,
-            observationWindowMs: 12_000,
-            reconnectOutcome: null,
+            observationWindowMs: INCIDENT_OBSERVATION_WINDOW_MS * 2,
+            reconnectOutcome: "resumed-from-cursor-and-observed-delta",
           },
         };
       },
     }),
     probeTarget({
-      id: "honua-demo-ogc-query",
-      sampleId: "service-explorer",
-      journeyId: "discover-and-query-first-feature",
+      id: "honua-demo-maplibre-quickstart",
+      sampleId: "maplibre-quickstart",
+      journeyId: "compatibility-layer-query-renderable-geometry",
       provider: "honua-demo",
-      endpoint: `${honuaBaseUrl}/ogc/features`,
+      endpoint: quickstartLayerUrl,
       authMode,
       attribution: "Honua canonical demo data",
+      skipReason: env.HONUA_BENCH_LIVE_SKIP_HONUA_REASON || undefined,
       async run() {
-        const capabilities = await requestJson(`${honuaBaseUrl}/api/v1/admin/capabilities`, authHeaders);
-        const collections = await requestJson(`${honuaBaseUrl}/ogc/features/collections?f=json`, authHeaders);
-        const firstCollection = collections.body?.collections?.[0]?.id;
-        if (!firstCollection) throw new Error("No OGC collection was advertised");
-        const itemsUrl = `${honuaBaseUrl}/ogc/features/collections/${encodeURIComponent(firstCollection)}/items?f=json&limit=1`;
-        const items = await requestJson(itemsUrl, authHeaders);
-        if (items.body?.type !== "FeatureCollection" || !Array.isArray(items.body?.features)) {
-          throw new Error("OGC items response was not a FeatureCollection");
+        const capabilitiesUrl = `${honuaBaseUrl}/api/v1/admin/capabilities`;
+        const capabilities = await requestJson(capabilitiesUrl, authHeaders);
+        const layerUrl = `${quickstartLayerUrl}?f=json`;
+        const layer = await requestJson(layerUrl, authHeaders);
+        if (layer.body?.error || layer.body?.id !== quickstartLayerId || typeof layer.body?.name !== "string") {
+          throw new Error("Quickstart GeoServices layer metadata was unavailable or mismatched");
+        }
+        if (!(layer.body.capabilities ?? "").split(",").some((value) => value.trim().toLowerCase() === "query")) {
+          throw new Error("Quickstart GeoServices layer did not advertise Query");
+        }
+        const queryUrl = `${quickstartLayerUrl}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json`;
+        const query = await requestJson(queryUrl, authHeaders);
+        if (query.body?.error || !Array.isArray(query.body?.features) || query.body.features.length < 1) {
+          throw new Error("Quickstart GeoServices query did not return a bounded feature result");
+        }
+        const firstFeature = query.body.features[0];
+        if (!firstFeature?.geometry || typeof firstFeature.geometry !== "object") {
+          throw new Error("Quickstart GeoServices result did not contain renderable geometry");
         }
         return {
           endpointVersion: capabilities.body?.data?.serverVersion ?? null,
-          protocolVersion: capabilities.body?.data?.metadataApiVersion ?? null,
-          latencyMs: capabilities.latencyMs + collections.latencyMs + items.latencyMs,
+          protocolVersion: "geoservices-feature-service",
+          latencyMs: capabilities.latencyMs + layer.latencyMs + query.latencyMs,
           checks: {
-            collectionCount: collections.body.collections.length,
-            selectedCollection: String(firstCollection),
-            returnedFeatureCount: items.body.features.length,
+            compatibilityChecked: true,
+            serviceId: quickstartServiceId,
+            layerId: quickstartLayerId,
+            layerName: layer.body.name,
+            geometryType: layer.body.geometryType ?? "unreported",
+            returnedFeatureCount: query.body.features.length,
+            renderableGeometry: true,
           },
           journey: {
-            id: "discover-and-query-first-feature",
+            id: "compatibility-layer-query-renderable-geometry",
             timeToFirstSuccessfulInteractionMs:
-              capabilities.latencyMs + collections.latencyMs + items.latencyMs,
+              capabilities.latencyMs + layer.latencyMs + query.latencyMs,
             visibleOutcome: {
-              kind: "feature-collection",
-              itemCount: items.body.features.length,
+              kind: "geoservices-renderable-feature",
+              itemCount: query.body.features.length,
             },
             console: {
               applicable: false,
@@ -363,19 +495,15 @@ export async function collectLiveEvidence(env = process.env) {
             },
           },
           freshness: {
-            observedAt: items.observedAt,
-            serverDate: items.serverDate,
+            observedAt: query.observedAt,
+            serverDate: query.serverDate,
             sourceDataTimestamp: null,
-            etag: items.etag,
-            lastModified: items.lastModified,
+            etag: layer.etag ?? query.etag,
+            lastModified: layer.lastModified ?? query.lastModified,
           },
           provenance: {
-            source: "canonical-honua-demo",
-            requestedUrls: [
-              `${honuaBaseUrl}/api/v1/admin/capabilities`,
-              `${honuaBaseUrl}/ogc/features/collections?f=json`,
-              itemsUrl,
-            ],
+            source: `honua-demo:${quickstartServiceId}:${quickstartLayerId}`,
+            requestedUrls: [capabilitiesUrl, layerUrl, queryUrl],
           },
         };
       },

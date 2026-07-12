@@ -40,8 +40,9 @@
       "type": "object",
       "required": ["status", "commands"],
       "properties": {
-        "status": { "enum": ["executed", "not-applicable", "planned", "credential-unavailable"] },
-        "commands": { "type": "array", "items": { "type": "string" } }
+        "status": { "enum": ["executed", "not-applicable", "planned", "skipped", "credential-unavailable"] },
+        "commands": { "type": "array", "items": { "type": "string" } },
+        "evidencePath": { "type": "string" }
       },
       "additionalProperties": false
     },

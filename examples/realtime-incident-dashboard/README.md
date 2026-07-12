@@ -87,3 +87,9 @@ npm run samples:verify
 Required PR checks are deterministic and make no network requests. Scheduled
 live evidence uses `npm run bench:live`; failures remain explicit evidence and
 never cause the app to silently claim a live execution.
+
+The catalog publishes the latest validated per-sample envelope at
+[`evidence/live-skipped.v1.json`](./evidence/live-skipped.v1.json). It includes
+snapshot, cursor, lag, observation-window, and reconnect fields even when the
+live capability is unavailable; fixture data is never substituted into that
+lane.

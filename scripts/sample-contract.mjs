@@ -126,9 +126,19 @@ export async function validateCatalog(catalog, packageJson) {
       `${sample.id}: invalid fixture lane status`,
     );
     invariant(
-      ["executed", "not-applicable", "planned", "credential-unavailable"].includes(sample.lanes.live.status),
+      ["executed", "not-applicable", "planned", "skipped", "credential-unavailable"].includes(sample.lanes.live.status),
       `${sample.id}: invalid live lane status`,
     );
+    if (sample.lanes.live.evidencePath) {
+      assertRelativePath(sample.lanes.live.evidencePath, `${sample.id}.lanes.live.evidencePath`);
+      const evidence = validateEvidenceEnvelope(await readJson(sample.lanes.live.evidencePath));
+      invariant(evidence.sampleId === sample.id, `${sample.id}: live evidence sampleId drift`);
+      invariant(evidence.lane === "live", `${sample.id}: catalog evidence must be a live envelope`);
+      invariant(evidence.status === sample.lanes.live.status, `${sample.id}: live lane status must match evidence`);
+      await validateLiveEvidenceProducer(evidence, sample);
+    } else {
+      invariant(sample.lanes.live.status !== "skipped", `${sample.id}: skipped live lane requires evidencePath`);
+    }
   }
 
   const exampleDirectories = (await readdir(path.join(PROJECT_ROOT, "examples"), { withFileTypes: true }))
@@ -158,6 +168,31 @@ export async function validateCatalog(catalog, packageJson) {
     }
   }
   invariant(catalog.siteMappings.length === 21, "the v1 site migration fixture must map all 21 current honua.io samples");
+}
+
+export async function validateLiveEvidenceProducer(evidence, sample) {
+  if (!evidence.sdk.gitCommit) return;
+  if (sample.lanes.live.commands.includes("npm run bench:live")) {
+    const producer = evidence.artifacts.find((artifact) =>
+      artifact.kind.startsWith("producer-generator:"),
+    );
+    invariant(producer, `${sample.id}: live evidence requires a producer-generator artifact`);
+    invariant(
+      producer.kind === `producer-generator:${evidence.sdk.gitCommit}`,
+      `${sample.id}: producer artifact does not match sdk.gitCommit`,
+    );
+    assertRelativePath(producer.path, `${sample.id}.producer.path`);
+    const generatorBytes = await readFile(path.join(PROJECT_ROOT, producer.path));
+    invariant(
+      sha256(generatorBytes) === producer.sha256,
+      `${sample.id}: producer generator digest drift`,
+    );
+    const generator = generatorBytes.toString("utf8");
+    const sampleLiteral = `sampleId: "${sample.id}"`;
+    const journeyLiteral = `journeyId: "${evidence.semantics.operation}"`;
+    invariant(generator.includes(sampleLiteral), `${sample.id}: producer generator does not support this sample`);
+    invariant(generator.includes(journeyLiteral), `${sample.id}: producer generator does not support this journey`);
+  }
 }
 
 export function effectiveCatalog(catalog, packageJson) {
@@ -195,7 +230,10 @@ function publicSample(sample, sdk) {
     },
     lanes: {
       fixture: { status: sample.lanes.fixture.status },
-      live: { status: sample.lanes.live.status },
+      live: {
+        status: sample.lanes.live.status,
+        ...(sample.lanes.live.evidencePath ? { evidencePath: sample.lanes.live.evidencePath } : {}),
+      },
     },
     expectedDegradation: sample.expectedDegradation,
   };

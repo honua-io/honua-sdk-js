@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/flagship-evidence-index.v1.schema.json",
+  "type": "object",
+  "required": ["format", "schemaVersion", "issue", "ci", "samples"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.flagship-evidence-index.v1" },
+    "schemaVersion": { "const": 1 },
+    "issue": { "type": "string", "format": "uri" },
+    "ci": {
+      "type": "object",
+      "required": ["performance", "bundle"],
+      "properties": { "performance": { "type": "string" }, "bundle": { "type": "string" } },
+      "additionalProperties": false
+    },
+    "samples": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["sampleId", "performance", "bundle"],
+        "properties": {
+          "sampleId": { "type": "string" },
+          "performance": {
+            "type": "object",
+            "required": ["command", "definition", "scenario", "artifact"],
+            "properties": {
+              "command": { "type": "string" },
+              "definition": { "type": "string" },
+              "scenario": { "type": "string" },
+              "artifact": { "type": ["string", "null"] }
+            },
+            "additionalProperties": false
+          },
+          "bundle": {
+            "type": "object",
+            "required": ["entrypoints"],
+            "properties": {
+              "entrypoints": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
