@@ -10,6 +10,7 @@ import {
   generatedOutputs,
   validateCatalog,
   validateEvidenceEnvelope,
+  validateLiveEvidenceProducer,
   verifyBrowserArtifactManifest,
 } from "../scripts/sample-contract.mjs";
 
@@ -120,6 +121,26 @@ describe("sample publication contract", () => {
     const evidence = JSON.parse(stdout);
     expect(evidence.source.endpoint).toBe("https://data.example.test/features");
     expect(evidence.reason).toContain("no request was sent");
+  });
+
+  it("binds live producer provenance to its commit, generator digest, sample, and journey", async () => {
+    const catalog = await readJson("samples/catalog.v1.json");
+    const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === "maplibre-quickstart");
+    const evidence = await readJson(sample.lanes.live.evidencePath);
+
+    await expect(validateLiveEvidenceProducer(evidence, sample)).resolves.toBeUndefined();
+    evidence.sdk.gitCommit = "e9ccbdb6e443f9abd3c97026d31e135f39bc0bc0";
+    await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow(
+      "producer artifact does not match sdk.gitCommit",
+    );
+    evidence.sdk.gitCommit = "3af8004c0e0ec718994df9b09b23f1d4a326440e";
+    evidence.artifacts[0].sha256 = "0".repeat(64);
+    await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow("producer generator digest drift");
+    evidence.artifacts[0].sha256 = "4b77e015b8c553e568fdf401a6255e659f56be49f2988f135424caa11e0044d9";
+    evidence.semantics.operation = "unsupported-old-journey";
+    await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow(
+      "producer generator does not support this journey",
+    );
   });
 
   it("binds browser artifacts to build inputs, peers, SHA-256, and SRI", async () => {

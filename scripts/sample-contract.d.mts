@@ -40,6 +40,10 @@ export function generatedOutputDrift(
   currentOutputs: Map<string, string>,
 ): string[];
 export function validateEvidenceEnvelope<T>(evidence: T): T;
+export function validateLiveEvidenceProducer(
+  evidence: Record<string, unknown>,
+  sample: Record<string, unknown>,
+): Promise<void>;
 export function buildBrowserArtifactManifest(options: {
   artifacts: Array<{ path: string; entrypoint: string; mediaType?: string }>;
   gitCommit: string;

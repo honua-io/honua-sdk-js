@@ -35,5 +35,11 @@
     "observationWindowMs": 12000,
     "reconnectOutcome": "not-attempted-capability-unavailable"
   },
-  "artifacts": []
+  "artifacts": [
+    {
+      "kind": "producer-generator:3af8004c0e0ec718994df9b09b23f1d4a326440e",
+      "path": "scripts/live-benchmark-evidence.mjs",
+      "sha256": "4b77e015b8c553e568fdf401a6255e659f56be49f2988f135424caa11e0044d9"
+    }
+  ]
 }
