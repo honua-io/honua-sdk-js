@@ -219,6 +219,7 @@ const MAX_JSON_NODES = 4_096;
 const MAX_JSON_DEPTH = 24;
 const MAX_JSON_PROPERTIES = 256;
 const MAX_FOREIGN_ARRAY = 2_048;
+const MAX_FOREIGN_NODES = 16_384;
 const MAX_FOREIGN_STRING = 1_048_576;
 const MAX_FOREIGN_STRING_TOTAL = 4_194_304;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
@@ -1102,7 +1103,7 @@ function snapshotForeignData(foreign: unknown): unknown {
   const ancestors = new WeakSet<object>();
   const visit = (value: unknown, depth: number): unknown => {
     budget.nodes += 1;
-    if (budget.nodes > MAX_JSON_NODES || depth > MAX_JSON_DEPTH)
+    if (budget.nodes > MAX_FOREIGN_NODES || depth > MAX_JSON_DEPTH)
       throw new HonuaSceneStateSyncError("invalid-input", "Renderer envelope is too complex");
     if (typeof value === "string") {
       budget.stringUnits += value.length;

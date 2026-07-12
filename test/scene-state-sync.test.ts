@@ -294,11 +294,21 @@ describe("scene renderer state synchronization", () => {
     expect(sync.snapshot.revision).toBe(2);
     source.emit(
       "selection",
+      Array.from({ length: 2_048 }, (_, index) => ({ sourceId: "incidents", id: index })),
+    );
+    expect(sync.snapshot.diagnostics).toEqual([]);
+    expect(sync.snapshot.revision).toBe(3);
+    source.emit(
+      "selection",
       Array.from({ length: 2_049 }, (_, index) => index),
+    );
+    source.emit(
+      "selection",
+      Array.from({ length: 2_049 }, (_, index) => ({ sourceId: "incidents", id: index })),
     );
     source.emit("selection", ["x".repeat(257)]);
     source.emit("detail", { featureId: "x".repeat(257) });
-    expect(sync.snapshot.revision).toBe(2);
+    expect(sync.snapshot.revision).toBe(3);
     sync.dispose();
   });
 
