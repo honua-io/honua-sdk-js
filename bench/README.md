@@ -55,6 +55,25 @@ another SDK. See
 [`docs/benchmark-methodology.md`](../docs/benchmark-methodology.md) for the
 comparison and live-evidence rules.
 
+## Cross-SDK reference preflight
+
+`npm run bench:references` validates the separate, versioned
+[`cross-sdk/corpus.json`](./cross-sdk/corpus.json), its synthetic fixture digest,
+locked package identities, and primary-source license/terms decisions. It emits
+`test-results/cross-sdk-reference-corpus.json`. This is a reproducibility and
+legal-equivalence preflight, not a performance report: every task remains
+`not-measured`, `crossSdkComparable: false`, and `rankingPermitted: false` until
+one future same-run result artifact passes the reviewed output/environment
+validators.
+
+Eligible open-source references are Honua, MapLibre GL JS, standalone deck.gl,
+and local-ellipsoid CesiumJS. Esri and current Mapbox GL JS remain unavailable
+pending explicit legal approval for public comparative publication. The CARTO
+platform path is not comparable in the credential-free lane because CARTO APIs
+require authentication; standalone deck.gl is represented separately and is
+never mislabeled as a CARTO result. No third-party implementation or hosted
+data is copied into the corpus.
+
 ## Deterministic browser rendering corpus
 
 `npm run bench:browser` builds the fixture-backed flagship and runs two real

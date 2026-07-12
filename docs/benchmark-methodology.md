@@ -162,3 +162,39 @@ including:
 Until those conditions exist, benchmark artifacts support Honua regression
 analysis only. They must not be used to claim that one SDK is faster than
 another.
+
+### Reference corpus and license preflight
+
+The machine-readable [cross-SDK corpus](../bench/cross-sdk/corpus.json) defines
+the future comparison contract without publishing fabricated measurements. Its
+public task pins synthetic GeoJSON bytes and digest, EPSG:4326, viewport and
+device scale, style intent, center-feature pick semantics, cold/warm cache
+states, loopback-only networking, warmups, repetitions, statistics, completion
+signals, visual tolerance, and exclusions. `npm run bench:references` validates
+those constraints and writes a provenance report; the normal benchmark-lab
+report embeds the corpus digest and availability counts while retaining its
+same-Honua-only declaration.
+
+License review is evidence, not legal advice. Each entry records an exact
+package version/integrity, retrieval date, primary-source license/terms links,
+review decision, publication state, and next review date. The validator fails
+closed on expired evidence, unknown properties, missing vendor states, unlocked
+eligible packages, changed fixture bytes, credentials, unequal tasks, or an
+attempt to promote a reference whose publication state is not approved.
+
+| Reference | Corpus state | Primary evidence | Why |
+| --- | --- | --- | --- |
+| Honua SDK | Eligible | [Apache-2.0 repository license](https://github.com/honua-io/honua-sdk-js/blob/trunk/LICENSE) | Local package and authored fixture. |
+| MapLibre GL JS | Eligible | [BSD-3-Clause license](https://github.com/maplibre/maplibre-gl-js/blob/main/LICENSE.txt) | Locked OSS package; no post-fork Mapbox code. |
+| deck.gl | Eligible | [MIT license](https://github.com/visgl/deck.gl/blob/master/LICENSE) | Standalone local layer path only. |
+| CesiumJS | Eligible | [Apache-2.0 license](https://github.com/CesiumGS/cesium/blob/main/LICENSE.md) | Local ellipsoid/entities; no ion service or assets. |
+| ArcGIS Maps SDK for JavaScript | Unavailable | [Esri licensing and attribution](https://developers.arcgis.com/javascript/latest/licensing/) | Product-specific terms apply; public comparison publication is not cleared. |
+| Mapbox GL JS | Unavailable | [current license](https://github.com/mapbox/mapbox-gl-js/blob/main/LICENSE.txt), [token prerequisite](https://docs.mapbox.com/mapbox-gl-js/guides/get-started/use-with-npm/) | Current software uses Mapbox terms/account; credential-free use and publication are not assumed. |
+| CARTO for deck.gl | Not comparable | [CARTO authentication methods](https://docs.carto.com/carto-for-developers/key-concepts/authentication-methods), [official deck.gl integration](https://deck.gl/docs/api-reference/carto/overview) | CARTO APIs require credentials; standalone deck.gl is not a CARTO platform benchmark. |
+
+The preflight cannot authorize a ranking. Promotion requires all eligible
+references to run from the same revision on the same pinned host/browser using
+the exact fixture, with raw samples, environment metadata, screenshots/hashes,
+console/page/network evidence, bundle and memory evidence, and reviewed output
+equivalence. A skipped or incompatible reference remains visible and cannot be
+averaged away or used to promote an unrelated scenario.

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/cross-sdk-reference-corpus-v1.json",
+  "title": "Honua cross-SDK reference corpus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "reviewedAt", "reviewExpiresAt", "methodology", "fixtures", "tasks", "references"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$" },
+    "reviewedAt": { "type": "string", "format": "date" },
+    "reviewExpiresAt": { "type": "string", "format": "date" },
+    "methodology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runner", "network", "cacheStates", "warmupRuns", "measurementRuns", "statistics", "completionSignals", "rankingPolicy"],
+      "properties": {
+        "runner": { "type": "string" },
+        "network": { "const": "loopback-only" },
+        "cacheStates": { "const": ["cold", "warm"] },
+        "warmupRuns": { "type": "integer", "minimum": 1 },
+        "measurementRuns": { "type": "integer", "minimum": 3 },
+        "statistics": { "const": ["median", "p95", "coefficient-of-variation"] },
+        "completionSignals": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+        "rankingPolicy": { "const": "forbidden-until-reviewed-result-set" }
+      }
+    },
+    "fixtures": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/fixture" } },
+    "tasks": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/task" } },
+    "references": { "type": "array", "minItems": 6, "items": { "$ref": "#/$defs/reference" } }
+  },
+  "$defs": {
+    "fixture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "path", "sha256", "mediaType", "license", "source", "containsProductionData"],
+      "properties": {
+        "id": { "type": "string" }, "path": { "type": "string" }, "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "mediaType": { "type": "string" }, "license": { "type": "string" }, "source": { "type": "string" },
+        "containsProductionData": { "const": false }
+      }
+    },
+    "task": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "fixtureId", "crs", "viewport", "styleIntent", "interaction", "visualTolerance", "exclusions"],
+      "properties": {
+        "id": { "type": "string" }, "fixtureId": { "type": "string" }, "crs": { "const": "EPSG:4326" },
+        "viewport": { "type": "object" }, "styleIntent": { "type": "object" }, "interaction": { "type": "object" },
+        "visualTolerance": { "type": "object" }, "exclusions": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "vendor", "product", "status", "package", "licenseEvidence", "taskIds", "reasons"],
+      "properties": {
+        "id": { "type": "string" }, "vendor": { "enum": ["honua", "esri", "mapbox", "maplibre", "carto", "deck.gl", "cesium"] },
+        "product": { "type": "string" }, "status": { "enum": ["eligible", "unavailable", "not-comparable"] },
+        "package": { "type": ["object", "null"] }, "licenseEvidence": { "type": "object" },
+        "taskIds": { "type": "array", "items": { "type": "string" } }, "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

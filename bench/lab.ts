@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
+import { validateCrossSdkReferenceFiles } from "./cross-sdk/validate.js";
+
 import {
   type OfflineReloadBenchmarkOptions,
   type RealtimeReconnectBenchmarkOptions,
@@ -138,6 +140,14 @@ export interface BenchmarkReport {
     transport: "deterministic-in-process-fixture";
     crossSdkComparable: false;
     note: string;
+    referenceCorpus?: {
+      id: string;
+      sha256: string;
+      eligibleReferences: number;
+      unavailableReferences: number;
+      comparisonState: "reference-preflight-only";
+      rankingPermitted: false;
+    };
   };
   environment: EnvironmentMetadata;
   scenarios: ScenarioResult[];
@@ -156,6 +166,7 @@ export interface BenchmarkLabInput {
   corpus: string;
   budgets: string;
   baseline?: string;
+  referenceCorpus?: string;
 }
 
 interface CliOptions extends BenchmarkLabInput {
@@ -571,7 +582,11 @@ function parseArgs(argv: readonly string[]): CliOptions {
 }
 
 export async function createBenchmarkReport(options: BenchmarkLabInput): Promise<BenchmarkReport> {
-  const [corpusBytes, budgetsBytes] = await Promise.all([readFile(options.corpus), readFile(options.budgets)]);
+  const [corpusBytes, budgetsBytes, referenceCorpus] = await Promise.all([
+    readFile(options.corpus),
+    readFile(options.budgets),
+    validateCrossSdkReferenceFiles(options.referenceCorpus ?? "bench/cross-sdk/corpus.json"),
+  ]);
   const corpus = validateCorpus(JSON.parse(corpusBytes.toString("utf8")));
   const budgets = validateBudgets(JSON.parse(budgetsBytes.toString("utf8")));
   const scenarios: ScenarioResult[] = [];
@@ -591,6 +606,14 @@ export async function createBenchmarkReport(options: BenchmarkLabInput): Promise
       transport: "deterministic-in-process-fixture",
       crossSdkComparable: false,
       note: "Timing is suitable for same-corpus regression analysis on compatible hosts; it is not a cross-SDK rendering or service benchmark.",
+      referenceCorpus: {
+        id: referenceCorpus.corpusId,
+        sha256: referenceCorpus.corpusSha256,
+        eligibleReferences: referenceCorpus.eligibleReferences.length,
+        unavailableReferences: referenceCorpus.unavailableReferences.length,
+        comparisonState: referenceCorpus.comparisonState,
+        rankingPermitted: referenceCorpus.rankingPermitted,
+      },
     },
     environment: environmentMetadata(),
     scenarios,
