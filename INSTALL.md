@@ -49,6 +49,7 @@ default-barrel import never pulls them in.
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
+| `@honua/sdk-js/diagnostics` | Dependency-free diagnostic-bundle validation, sanitization, integrity pinning, and bounded read-only replay used by `honua doctor`. |
 
 ## Deprecated compatibility entrypoints
 

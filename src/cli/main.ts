@@ -13,6 +13,7 @@ import { ArgError, getString, parseArgs } from "./args.js";
 import type { FlagSpec, ParsedArgs } from "./args.js";
 import type { CommandContext, CommandHandler } from "./command.js";
 import { layersCommand, servicesCommand } from "./commands/catalog.js";
+import { doctorCommand } from "./commands/doctor.js";
 import { geocodeCommand } from "./commands/geocode.js";
 import { loginCommand, logoutCommand, whoamiCommand } from "./commands/login.js";
 import { mapCommand, tilesCommand } from "./commands/map.js";
@@ -35,6 +36,15 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "size" },
   { name: "output", alias: "o" },
   { name: "limit" },
+  { name: "exchange" },
+  { name: "replay" },
+  { name: "classification" },
+  { name: "redaction-acknowledged" },
+  { name: "share-with-support" },
+  { name: "granted-by" },
+  { name: "bundle-id" },
+  { name: "preview-bytes" },
+  { name: "timeout-ms" },
   { name: "count", boolean: true },
   { name: "json", boolean: true },
   { name: "help", alias: "h", boolean: true },
@@ -52,6 +62,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   login: loginCommand,
   logout: logoutCommand,
   whoami: whoamiCommand,
+  doctor: doctorCommand,
 };
 
 const HELP = `honua — command-line client for Honua geospatial servers (wraps @honua/sdk-js)
@@ -88,6 +99,13 @@ AUTH / CONFIG
   honua login --base-url <url> [--api-key <key>]
   honua logout
   honua whoami
+
+SUPPORT DIAGNOSTICS
+  honua doctor --exchange <capture.json> --classification <value>
+      --redaction-acknowledged=true|false --share-with-support=true|false
+      --output <bundle.json> [--base-url <public-server>]
+  honua doctor --replay <bundle.json> --base-url <server> --output <result.json>
+      Emits local schema-validated sanitized evidence. Never uploads. Replay permits only bounded GET/HEAD.
 
 GLOBAL OPTIONS
   --base-url <url>     Server base URL (or env HONUA_BASE_URL)
