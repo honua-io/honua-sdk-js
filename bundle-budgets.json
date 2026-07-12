@@ -25,7 +25,8 @@
     "/query-planner gained its first dedicated guard with the bounded columnar worker session (#453); browser/Node worker implementations and heavy analytics peers remain injected, while the full planner plus worker protocol is measured with 10% headroom.",
     "/agent-safety was reset for the approved execution/audit boundary (#456): exact executor dispatch, bounded owned result evidence, durable secret-safe audit events, and signed outcome recovery measure 42,417 minified / 12,392 gzip bytes; each ceiling is actual plus 10% headroom and the code remains out of root barrels.",
     "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
-    "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom."
+    "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
+    "/scene-workspace guards renderer-neutral shared state while MapLibre and Cesium stay external optional peers."
   ],
   "entrypoints": {
     ".": {
@@ -59,6 +60,10 @@
     "/query-planner": {
       "min": 72541,
       "gzip": 21797
+    },
+    "/scene-workspace": {
+      "min": 79628,
+      "gzip": 25491
     },
     "/esri-compat": {
       "min": 1050877,

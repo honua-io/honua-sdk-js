@@ -82,6 +82,12 @@ const TARGETS = [
     entry: "dist/src/query-planner/index.js",
     label: "`/query-planner` (worker runtime injected)",
   },
+  {
+    key: "/scene-workspace",
+    kind: "bundle",
+    entry: "dist/src/_deprecated/scene-workspace.js",
+    label: "`/scene-workspace` (MapLibre/Cesium external — optional peers)",
+  },
   { key: "/esri-compat", kind: "bundle", entry: "dist/src/esri-compat-entry.js", label: "`/esri-compat`" },
   { key: "/expr", kind: "bundle", entry: "dist/src/expr/index.js", label: "`/expr`" },
   { key: "/webmap", kind: "bundle", entry: "dist/src/webmap/index.js", label: "`/webmap`" },
