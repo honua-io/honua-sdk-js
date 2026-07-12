@@ -227,7 +227,8 @@
     }
   },
   "bin": {
-    "honua": "./dist/src/cli/bin.js"
+    "honua": "./dist/src/cli/bin.js",
+    "honua-plugin-certify": "./dist/src/plugin/bin.js"
   },
   "scripts": {
     "clean": "rm -rf dist",

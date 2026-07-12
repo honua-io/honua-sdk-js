@@ -2757,12 +2757,62 @@ Plugin modules remain external to SDK core. Merely importing the root SDK or an
 unrelated subpath does not import a plugin factory, initialize a registry, or
 pull mapping/database peers into the bundle.
 
+## Reference plugins for every kind
+
+Every declared kind ships a minimal, external-style reference implementation so
+authors can copy a working shape rather than a bare interface. Each is a small
+factory carrying inert manifest JSON, a typed extension, and lifecycle hooks;
+none of them are imported by SDK core. They live beside the tests at
+`test/fixtures/plugins/` (`external-style.ts` plus `reference/`) and are
+exercised end to end — certification, registration, extension call, and
+disposal — in `test/plugin-reference-samples.test.ts`.
+
+| Kind | Reference plugin | Capabilities | What it demonstrates |
+| --- | --- | --- | --- |
+| `protocol` | `referenceProtocolPlugin` | `query` | Bounding-box feature count over the origin-restricted network service |
+| `source-format` | `referenceSourceFormatPlugin` | `read` | Read-only `lng,lat` text parsing with no requested authority |
+| `renderer` | `referenceRendererPlugin` | `2d` | Pure point-to-draw-command translation |
+| `auth` | `referenceAuthPlugin` | `authorize` | Header resolution from a scope-restricted credential service |
+| `geocoder-routing` | `referenceGeocoderPlugin` | `geocode` | Offline gazetteer lookup |
+| `analysis` | `referenceAnalysisPlugin` | `execute`, `cancel` | Cancellable reduction honouring an `AbortSignal` |
+| `cache` | `referenceCachePlugin` | `read`, `write`, `invalidate` | Persistent cache over granted scoped storage |
+| `realtime` | `referenceRealtimePlugin` | `subscribe` | Push subscription through the realtime service |
+| `style` | `externalStylePlugin` | `validate` | The original external-style sample (issue #424/#466) |
+
+Each manifest certifies against one shared host that grants exactly the
+authorities the samples request, so the security boundary stays honest: the
+`auth` sample only ever receives the `reference.read` scope identifier, the
+`cache` sample only writes through scoped storage, and the `protocol` sample's
+network calls are restricted to its declared origin.
+
+## Running the certification kit independently
+
+The certification logic is also exposed as a runnable kit so a third party can
+validate their own plugin outside this repository. Installing the SDK provides
+the `honua-plugin-certify` bin, which reads a manifest and a host snapshot as
+inert JSON text, certifies one against the other, prints the deterministic
+report to stdout (or `--out`), and resolves an exit code:
+
+```sh
+# 0 = certified, 1 = rejected, 2 = usage/input error
+npx honua-plugin-certify --manifest ./manifest.json --host ./host.json --pretty
+```
+
+The bin never resolves or executes the plugin entrypoint; it only reads the two
+JSON documents. The same logic is available programmatically through the
+`certifyHonuaPluginManifest` public API shown above, and the CLI core
+(`runPluginCertificationCli`) takes an injected I/O boundary so it can run in
+any host, not just Node. This makes the harness suitable for a plugin author's
+own CI: fail the build when `status` is `"rejected"`, and archive the frozen
+report — bound to both canonical snapshots by SHA-256 — as certification
+evidence.
+
 ## Remaining work in #392
 
-- behavioral conformance fixtures for semantics, cancellation, retries,
-  cleanup, bundle metadata, and performance;
-- an independently installable runner/CLI and signed or golden reports;
-- an external-style plugin proving runtime registration without core imports;
+- behavioral conformance fixtures for semantics, retries, bundle metadata, and
+  performance golden reports beyond the current schema/capability, cancellation,
+  and cleanup coverage;
+- signed reports and a formal support-status program;
 - deprecation, naming, support, security-review, and certification governance.
 
 ---
