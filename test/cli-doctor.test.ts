@@ -106,6 +106,39 @@ describe("honua doctor CLI", () => {
     expect(stderr.text()).not.toContain("example.test");
   });
 
+  it("fails closed without echoing secret-bearing bundle metadata to artifact or process streams", async () => {
+    const root = tempRoot();
+    const exchange = path.join(root, "exchange.json");
+    const output = path.join(root, "bundle.json");
+    fs.writeFileSync(exchange, JSON.stringify({ request: { method: "GET", url: "https://example.test/api" } }));
+    const stdout = capture(process.stdout);
+    const stderr = capture(process.stderr);
+    const secrets = ["token=raw-bundle-secret", "person@example.test"];
+    const common = [
+      "doctor",
+      "--exchange",
+      exchange,
+      "--classification",
+      "secret-suspected",
+      "--redaction-acknowledged=true",
+      "--share-with-support=false",
+      "--output",
+      output,
+      "--json",
+    ];
+    const bundleIdCode = await run([...common, "--bundle-id", secrets[0], "--granted-by", "reviewer"]);
+    const grantedByCode = await run([...common, "--bundle-id", "bundle-1", "--granted-by", secrets[1]]);
+    stdout.restore();
+    stderr.restore();
+    expect(bundleIdCode).toBe(1);
+    expect(grantedByCode).toBe(1);
+    expect(fs.existsSync(output)).toBe(false);
+    for (const secret of secrets) {
+      expect(stdout.text()).not.toContain(secret);
+      expect(stderr.text()).not.toContain(secret);
+    }
+  });
+
   it("preserves configured base paths and structures probe failure without erasing the supplied exchange", async () => {
     const root = tempRoot();
     const exchange = path.join(root, "exchange.json");

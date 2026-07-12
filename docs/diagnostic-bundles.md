@@ -62,6 +62,8 @@ The emitter:
   small allowlist of public route vocabulary (unknown path segments become `{value}`);
 - recursively redacts sensitive JSON keys, form values, free-text credentials, common provider tokens, AWS keys,
   email addresses, and up to two URL-encoding layers;
+- rejects optional bundle ids or consent identities that contain credential-shaped or personal material instead of
+  copying unsafe metadata into the artifact;
 - hashes the original in-memory bytes, but persists only a redacted preview capped at 8 KiB, original byte count,
   SHA-256, and truncation/redaction flags; and
 - refuses bodies above the schema's 25 MiB ceiling or bundles above 50 envelopes.

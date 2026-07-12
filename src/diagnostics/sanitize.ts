@@ -129,6 +129,14 @@ function redactText(input: string): string {
     .replace(/\b[A-Za-z0-9_+/=]{32,}\b/g, "[REDACTED_TOKEN]");
 }
 
+function assertSafeMetadata(value: string | undefined, code: string, label: string): string | undefined {
+  if (!value) return undefined;
+  if (hasUnsafeControl(value) || redactText(value) !== value) {
+    throw new HonuaDiagnosticSafetyError(code, `${label} must not contain credentials or personal data.`);
+  }
+  return value;
+}
+
 function redactStructured(value: unknown, budget = { nodes: 0 }, depth = 0): unknown {
   budget.nodes += 1;
   if (budget.nodes > 4096 || depth > 16) return "[REDACTED_COMPLEX_VALUE]";
@@ -385,6 +393,8 @@ export function createDiagnosticBundle(options: CreateDiagnosticBundleOptions): 
       "Diagnostic consent identity exceeds the schema limit.",
     );
   }
+  const bundleId = assertSafeMetadata(options.bundleId, "unsafe-bundle-id", "Diagnostic bundle id");
+  const grantedBy = assertSafeMetadata(options.consent.grantedBy, "unsafe-granted-by", "Diagnostic consent identity");
   if (
     options.previewBytes !== undefined &&
     (!Number.isInteger(options.previewBytes) ||
@@ -398,12 +408,12 @@ export function createDiagnosticBundle(options: CreateDiagnosticBundleOptions): 
   }
   const bundle: DiagnosticBundleV1 = {
     schemaVersion: "1.0",
-    ...(options.bundleId ? { bundleId: options.bundleId } : {}),
+    ...(bundleId ? { bundleId } : {}),
     contentClassification: options.contentClassification,
     consent: {
       redactionAcknowledged: options.consent.redactionAcknowledged,
       shareWithSupport: options.consent.shareWithSupport,
-      ...(options.consent.grantedBy ? { grantedBy: options.consent.grantedBy } : {}),
+      ...(grantedBy ? { grantedBy } : {}),
     },
     envelopes: options.exchanges.map((exchange) =>
       sanitizeDiagnosticExchange(exchange, options.previewBytes ?? DIAGNOSTIC_DEFAULT_PREVIEW_BYTES),

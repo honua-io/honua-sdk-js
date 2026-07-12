@@ -174,6 +174,29 @@ describe("diagnostic bundle v1", () => {
     ).toThrow("media type");
   });
 
+  it("fails closed when optional bundle metadata contains credential or personal material", () => {
+    const exchange = [{ method: "GET", url: "https://example.test/api" }];
+    for (const bundleId of [
+      "token=raw-bundle-secret",
+      "Bearer raw-bundle-token",
+      "person@example.test",
+      "token%3Ddouble-encoded-secret",
+    ]) {
+      expect(() =>
+        createDiagnosticBundle({ bundleId, contentClassification: "secret-suspected", consent, exchanges: exchange }),
+      ).toThrow("must not contain credentials or personal data");
+    }
+    for (const grantedBy of ["token=raw-grant-secret", "Bearer raw-grant-token", "person@example.test"]) {
+      expect(() =>
+        createDiagnosticBundle({
+          contentClassification: "secret-suspected",
+          consent: { ...consent, grantedBy },
+          exchanges: exchange,
+        }),
+      ).toThrow("must not contain credentials or personal data");
+    }
+  });
+
   it("emits only a strict subset of support intake's header allowlist", () => {
     const bundle = createDiagnosticBundle({
       contentClassification: "public",
