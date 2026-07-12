@@ -221,8 +221,21 @@ export class HonuaWfs {
     const { text } = await this.requestText("GET", appendQuery(this.endpointUrl, params), requestOptions);
     this.rawCapabilitiesXml = text;
     const snapshot = parseWfsCapabilities(text);
+    canonicalizeOperationUrls(snapshot, this.endpointUrl, this.client.serverBaseUrl);
     this.resolvedSnapshot = snapshot;
     return snapshot;
+  }
+}
+
+function canonicalizeOperationUrls(
+  snapshot: WfsCapabilitiesSnapshot,
+  endpointUrl: string,
+  clientBaseUrl: string,
+): void {
+  const capabilitiesEndpoint = new URL(endpointUrl, clientBaseUrl);
+  for (const operation of snapshot.operations.values()) {
+    if (operation.getUrl) operation.getUrl = new URL(operation.getUrl, capabilitiesEndpoint).toString();
+    if (operation.postUrl) operation.postUrl = new URL(operation.postUrl, capabilitiesEndpoint).toString();
   }
 }
 

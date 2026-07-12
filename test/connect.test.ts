@@ -57,20 +57,22 @@ function wfsCapabilities(
     namespace?: boolean;
     operationOrigin?: string;
     operationHrefs?: boolean;
+    relativeOperationHrefs?: boolean;
     unprefixed?: boolean;
   } = {},
 ): string {
   const version = options.version ?? "2.0.0";
   const methods = options.getFeatureMethods ?? ["GET", "POST"];
   const origin = options.operationOrigin ?? "https://example.test";
+  const operationUrl = options.relativeOperationHrefs ? "wfs" : `${origin}/geoserver/wfs`;
   const methodXml = methods
     .map(
       (method) =>
-        `<ows:${method === "GET" ? "Get" : "Post"}${options.operationHrefs === false ? "" : ` xlink:href="${origin}/geoserver/wfs"`}/>`,
+        `<ows:${method === "GET" ? "Get" : "Post"}${options.operationHrefs === false ? "" : ` xlink:href="${operationUrl}"`}/>`,
     )
     .join("");
   const transactionXml = options.transaction
-    ? `<ows:Operation name="Transaction"><ows:DCP><ows:HTTP><ows:Post${options.operationHrefs === false ? "" : ` xlink:href="${origin}/geoserver/wfs"`}/></ows:HTTP></ows:DCP></ows:Operation>`
+    ? `<ows:Operation name="Transaction"><ows:DCP><ows:HTTP><ows:Post${options.operationHrefs === false ? "" : ` xlink:href="${operationUrl}"`}/></ows:HTTP></ows:DCP></ows:Operation>`
     : "";
   return `<?xml version="1.0"?>
 <wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" ${options.namespace === false ? "" : 'xmlns:parcels="https://example.test/ns/parcels"'} version="${version}">
@@ -407,6 +409,48 @@ describe("connect", () => {
     await expect(parcels.query({ pagination: { limit: 1 } })).resolves.toMatchObject({ features: [] });
     expect(requests.filter((url) => url.searchParams.get("request") === "GetCapabilities")).toHaveLength(1);
     expect(requests.filter((url) => url.searchParams.get("request") === "GetFeature")).toHaveLength(1);
+  });
+
+  it("canonicalizes relative WFS GetFeature and Transaction DCP URLs before runtime requests", async () => {
+    const requests: Array<{ method: string; url: URL }> = [];
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      const method = init?.method ?? "GET";
+      requests.push({ method, url });
+      if (url.searchParams.get("request") === "GetCapabilities") {
+        return new Response(wfsCapabilities({ transaction: true, relativeOperationHrefs: true }), {
+          headers: { "Content-Type": "application/xml" },
+        });
+      }
+      if (url.searchParams.get("request") === "GetFeature") {
+        return json({ type: "FeatureCollection", features: [], numberMatched: 0, numberReturned: 0 });
+      }
+      return new Response(
+        '<wfs:TransactionResponse xmlns:wfs="http://www.opengis.net/wfs/2.0"><wfs:TransactionSummary><wfs:totalInserted>0</wfs:totalInserted><wfs:totalUpdated>0</wfs:totalUpdated><wfs:totalDeleted>0</wfs:totalDeleted></wfs:TransactionSummary></wfs:TransactionResponse>',
+        { headers: { "Content-Type": "application/xml" } },
+      );
+    });
+    const connection = await connect({
+      endpoint: "https://example.test/geoserver/ows",
+      protocol: "wfs",
+      typeName: "parcels:lot",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    await connection.source().query({ pagination: { limit: 1 } });
+    await connection
+      .source()
+      .protocol("wfs")
+      ?.transaction({ body: '<wfs:Transaction xmlns:wfs="http://www.opengis.net/wfs/2.0"/>' });
+
+    expect(requests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ method: "GET", url: expect.objectContaining({ pathname: "/geoserver/wfs" }) }),
+        expect.objectContaining({ method: "POST", url: expect.objectContaining({ pathname: "/geoserver/wfs" }) }),
+      ]),
+    );
+    expect(requests.some(({ url }) => url.pathname.includes("owswfs"))).toBe(false);
   });
 
   it("selects one WFS type and partitions its discovery identity", async () => {

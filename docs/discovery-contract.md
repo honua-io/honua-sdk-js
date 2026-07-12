@@ -200,7 +200,10 @@ unavailable because the common filtered-extent drain is not bounded by this
 metadata. Those negative decisions are explicit rather than adapter defaults.
 
 Advertised WFS operation URLs must remain on the endpoint origin and carry no
-user information, query, or fragment before the connection is accepted. The
+user information, query, or fragment before the connection is accepted.
+Relative DCP links are resolved against the capabilities endpoint and retained
+as canonical absolute URLs before the runtime can issue GetFeature or
+Transaction requests. The
 baseline does not issue `DescribeFeatureType`, so it has no hidden per-type
 fan-out and does not invent a field schema. Default CRS, WGS84 bounds, titles,
 and feature namespace bindings are parsed from `GetCapabilities`; the default
