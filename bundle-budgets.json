@@ -24,15 +24,16 @@
     "/offline is a subpath-only experimental contract (#396), keeping the root/browser bundle unchanged while its dedicated budget guards deterministic manifest and download-coordinator growth.",
     "/query-planner gained its first dedicated guard with the bounded columnar worker session (#453); browser/Node worker implementations and heavy analytics peers remain injected, while the full planner plus worker protocol is measured with 10% headroom.",
     "/agent-safety is independently budgeted at its measured 35,310 minified / 10,617 gzip bytes plus 10% headroom, keeping bounded trust normalization and receipt verification out of root barrels and action executors.",
-    "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom."
+    "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
+    "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom."
   ],
   "entrypoints": {
     ".": {
-      "min": 462438,
+      "min": 513994,
       "gzip": 135469
     },
     "/honua": {
-      "min": 465309,
+      "min": 516867,
       "gzip": 136241
     },
     "/contract": {
@@ -96,11 +97,11 @@
       "gzip": 4487
     },
     "browser-iife": {
-      "min": 463519,
+      "min": 515055,
       "gzip": 135916
     },
     "browser-esm": {
-      "min": 461836,
+      "min": 513362,
       "gzip": 135474
     },
     "tree-shake:HonuaClient": {

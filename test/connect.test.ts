@@ -29,6 +29,30 @@ const collections = {
   ],
 };
 
+const stacLanding = {
+  id: "earth-search",
+  conformsTo: ["https://api.stacspec.org/v1.0.0/core", "https://api.stacspec.org/v1.0.0/item-search"],
+  links: [
+    { rel: "data", href: "./collections" },
+    { rel: "search", href: "./search", type: "application/geo+json" },
+  ],
+};
+const stacCollections = {
+  collections: [
+    {
+      id: "sentinel-2-l2a",
+      title: "Sentinel-2 L2A",
+      description: "Cloud-optimized imagery",
+      crs: ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"],
+      extent: {
+        spatial: { bbox: [[-180, -90, 180, 90]] },
+        temporal: { interval: [["2015-06-27T00:00:00Z", null]] },
+      },
+    },
+    { id: "landsat-c2-l2", title: "Landsat Collection 2" },
+  ],
+};
+
 function json(body: unknown, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -46,6 +70,42 @@ function discoveryFetch(onRequest?: (request: Request) => void): typeof fetch {
     if (url.pathname === "/api/collections") return json(collections, { ETag: '"collections-v1"' });
     return new Response("not found", { status: 404 });
   });
+}
+
+function stacDiscoveryFetch(
+  options: { landing?: unknown; collections?: unknown; onRequest?: (request: Request) => void } = {},
+): typeof fetch {
+  return vi.fn(async (input, init) => {
+    const request = new Request(input, init);
+    options.onRequest?.(request);
+    const url = new URL(request.url);
+    if (url.pathname === "/stac/v1") return json(options.landing ?? stacLanding, { ETag: '"stac-root-v1"' });
+    if (url.pathname === "/stac/v1/collections") {
+      return json(options.collections ?? stacCollections, { ETag: '"stac-collections-v1"' });
+    }
+    if (url.pathname === "/stac/v1/search") {
+      return json({ type: "FeatureCollection", features: [], numberMatched: 0 });
+    }
+    return new Response("not found", { status: 404 });
+  });
+}
+
+async function captureStacSnapshot(): Promise<ConnectDiscoverySnapshot> {
+  let captured: ConnectDiscoverySnapshot | undefined;
+  await connect({
+    endpoint: "https://earth.example/stac/v1",
+    protocol: "stac",
+    authorizationScopeFingerprint: "anonymous",
+    clientOptions: { fetchFn: stacDiscoveryFetch() },
+    cache: {
+      get: () => undefined,
+      set: (_identity, snapshot) => {
+        captured = snapshot;
+      },
+    },
+  });
+  if (!captured) throw new Error("Expected STAC discovery snapshot");
+  return captured;
 }
 
 function wfsCapabilities(
@@ -131,6 +191,406 @@ describe("connect", () => {
     expect(connection.inspection.defaultSourceId).toBe("roads");
     expect(connection.source().descriptor.id).toBe("roads");
     expect(connection.dataset.sourceIds()).toEqual(["roads"]);
+  });
+
+  it("discovers raw STAC API collections in two metadata requests and reuses the raw root", async () => {
+    const requests: Request[] = [];
+    const fetchFn = stacDiscoveryFetch({ onRequest: (request) => requests.push(request) });
+    const connection = await connect({
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    });
+
+    expect(requests.map((request) => new URL(request.url).pathname)).toEqual(["/stac/v1", "/stac/v1/collections"]);
+    expect(connection.dataset.sourceIds()).toEqual(["sentinel-2-l2a", "landsat-c2-l2"]);
+    expect(connection.inspection.defaultSourceId).toBeUndefined();
+    expect([...connection.source("sentinel-2-l2a").capabilities]).toEqual(["query", "queryObjectIds", "stream"]);
+    expect(connection.source("sentinel-2-l2a").descriptor.locator).toEqual({
+      url: "https://earth.example/stac/v1",
+      collectionId: "sentinel-2-l2a",
+      layout: "stac-api",
+    });
+    expect(connection.inspection.sources[0]?.metadata).toMatchObject({
+      crs: ["http://www.opengis.net/def/crs/OGC/1.3/CRS84"],
+      extent: {
+        spatial: { bbox: [[-180, -90, 180, 90]] },
+        temporal: { interval: [["2015-06-27T00:00:00Z", null]] },
+      },
+    });
+    expect(connection.inspection.sources[0]?.provenance).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "https://earth.example/stac/v1", validator: '"stac-root-v1"' }),
+        expect.objectContaining({
+          source: "https://earth.example/stac/v1/collections",
+          validator: '"stac-collections-v1"',
+        }),
+      ]),
+    );
+
+    await connection.source("sentinel-2-l2a").query({ pagination: { limit: 1 } });
+    expect(new URL(requests.at(-1)!.url).pathname).toBe("/stac/v1/search");
+    expect(requests.some((request) => new URL(request.url).pathname.startsWith("/stac/stac"))).toBe(false);
+  });
+
+  it("selects one STAC collection and partitions caller discovery cache identity", async () => {
+    const values = new Map<string, ConnectDiscoverySnapshot>();
+    const cache: ConnectDiscoveryCache = {
+      get: vi.fn((identity) => values.get(identity.key)),
+      set: vi.fn((identity, snapshot) => {
+        values.set(identity.key, snapshot);
+      }),
+    };
+    const fetchFn = stacDiscoveryFetch();
+    const options = {
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac" as const,
+      collectionId: "landsat-c2-l2",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+      cache,
+    };
+
+    const first = await connect(options);
+    const hit = await connect(options);
+
+    expect(first.dataset.sourceIds()).toEqual(["landsat-c2-l2"]);
+    expect(first.inspection.cacheIdentity.key).toContain("collectionId=landsat-c2-l2");
+    expect(hit.inspection.cacheStatus).toBe("hit");
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["", "   ", " sentinel-2-l2a", "sentinel-2-l2a "])(
+    "rejects invalid collectionId %j before cache or network effects",
+    async (collectionId) => {
+      const fetchFn = stacDiscoveryFetch();
+      const get = vi.fn();
+      await expect(
+        connect({
+          endpoint: "https://earth.example/stac/v1",
+          protocol: "stac",
+          collectionId,
+          authorizationScopeFingerprint: "anonymous",
+          clientOptions: { fetchFn },
+          cache: { get, set: vi.fn() },
+        }),
+      ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+      expect(get).not.toHaveBeenCalled();
+      expect(fetchFn).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refreshes STAC metadata and cancels between the landing and collections requests", async () => {
+    const refreshed: Request[] = [];
+    await connect({
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      refresh: true,
+      clientOptions: { fetchFn: stacDiscoveryFetch({ onRequest: (request) => refreshed.push(request) }) },
+    });
+    expect(refreshed).toHaveLength(2);
+    expect(refreshed.every((request) => request.headers.get("cache-control") === "no-cache")).toBe(true);
+
+    const controller = new AbortController();
+    const requestedPaths: string[] = [];
+    const fetchFn = stacDiscoveryFetch({
+      onRequest(request) {
+        requestedPaths.push(new URL(request.url).pathname);
+        controller.abort();
+      },
+    });
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        signal: controller.signal,
+        clientOptions: { fetchFn },
+      }),
+    ).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(requestedPaths).toEqual(["/stac/v1"]);
+  });
+
+  it("fails STAC query capabilities closed without applicable item-search evidence", async () => {
+    const connection = await connect({
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: stacDiscoveryFetch({
+          landing: {
+            ...stacLanding,
+            conformsTo: [
+              "https://api.stacspec.org/v1.0.0/core",
+              "https://attacker.example/api.stacspec.org/v1.0.0/item-search",
+            ],
+            links: [
+              { rel: "data", href: "./collections" },
+              { rel: "search", href: "./search" },
+            ],
+          },
+        }),
+      },
+    });
+
+    expect([...connection.source("sentinel-2-l2a").capabilities]).toEqual([]);
+    expect(connection.inspection.sources[0]?.capabilityDecisions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ capability: "query", code: "not-advertised" }),
+        expect.objectContaining({ capability: "queryObjectIds", code: "not-advertised" }),
+        expect.objectContaining({ capability: "stream", code: "not-advertised" }),
+      ]),
+    );
+  });
+
+  it.each([
+    {
+      name: "missing Core conformance",
+      landing: { ...stacLanding, conformsTo: [], links: [{ rel: "data", href: "./collections" }] },
+    },
+    {
+      name: "spoofed Core conformance",
+      landing: {
+        ...stacLanding,
+        conformsTo: ["https://attacker.example/api.stacspec.org/v1.0.0/core"],
+        links: [{ rel: "data", href: "./collections" }],
+      },
+    },
+    {
+      name: "missing collections data link",
+      landing: {
+        ...stacLanding,
+        links: [{ rel: "search", href: "./search" }],
+      },
+    },
+  ])("rejects $name after only the STAC landing request", async ({ landing }) => {
+    const requestedPaths: string[] = [];
+    const fetchFn = stacDiscoveryFetch({
+      landing,
+      onRequest: (request) => requestedPaths.push(new URL(request.url).pathname),
+    });
+
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+    expect(requestedPaths).toEqual(["/stac/v1"]);
+  });
+
+  it("does not accept STAC conformance evidence from a non-default canonical-host port", async () => {
+    const requestedPaths: string[] = [];
+    const fetchFn = stacDiscoveryFetch({
+      landing: {
+        ...stacLanding,
+        conformsTo: ["https://api.stacspec.org:444/v1.0.0/core", "https://api.stacspec.org:444/v1.0.0/item-search"],
+      },
+      onRequest: (request) => requestedPaths.push(new URL(request.url).pathname),
+    });
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+    expect(requestedPaths).toEqual(["/stac/v1"]);
+  });
+
+  it("rejects hostile cached accessors and proxies as typed cache failures without invoking getters", async () => {
+    const snapshot = await captureStacSnapshot();
+    let getterCalls = 0;
+    const accessorSnapshot = { ...structuredClone(snapshot) };
+    Object.defineProperty(accessorSnapshot, "evidence", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return [];
+      },
+    });
+    const base = {
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac" as const,
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: stacDiscoveryFetch() },
+    };
+
+    await expect(
+      connect({ ...base, cache: { get: () => accessorSnapshot as ConnectDiscoverySnapshot, set: vi.fn() } }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+    expect(getterCalls).toBe(0);
+
+    const hostileProxy = new Proxy(structuredClone(snapshot), {
+      ownKeys() {
+        throw new Error("hostile proxy trap");
+      },
+    });
+    await expect(connect({ ...base, cache: { get: () => hostileProxy, set: vi.fn() } })).rejects.toMatchObject({
+      name: "HonuaDiscoveryError",
+      code: "invalid-discovery-cache",
+    });
+  });
+
+  it.each([
+    {
+      name: "excessive nesting",
+      mutate(snapshot: ConnectDiscoverySnapshot) {
+        const root: Record<string, unknown> = {};
+        let cursor = root;
+        for (let depth = 0; depth < 40; depth += 1) {
+          const child: Record<string, unknown> = {};
+          cursor.child = child;
+          cursor = child;
+        }
+        (snapshot as unknown as Record<string, unknown>).oversized = root;
+      },
+    },
+    {
+      name: "oversized dense array",
+      mutate(snapshot: ConnectDiscoverySnapshot) {
+        (snapshot as unknown as Record<string, unknown>).oversized = Array.from({ length: 10_001 }, () => 0);
+      },
+    },
+    {
+      name: "oversized string",
+      mutate(snapshot: ConnectDiscoverySnapshot) {
+        (snapshot as unknown as Record<string, unknown>).oversized = "x".repeat(1_000_001);
+      },
+    },
+  ])("rejects cache data with $name without network fallback", async ({ mutate }) => {
+    const snapshot = structuredClone(await captureStacSnapshot());
+    mutate(snapshot);
+    const fetchFn = stacDiscoveryFetch();
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn },
+        cache: { get: () => snapshot, set: vi.fn() },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("owns __proto__ cache keys without changing output or global prototypes", async () => {
+    const snapshot = structuredClone(await captureStacSnapshot());
+    Object.defineProperty(snapshot, "__proto__", {
+      configurable: true,
+      enumerable: true,
+      value: { polluted: true },
+      writable: true,
+    });
+    const fetchFn = stacDiscoveryFetch();
+    const connection = await connect({
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+      cache: { get: () => snapshot, set: vi.fn() },
+    });
+
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(connection.dataset.sourceIds()).toEqual(["sentinel-2-l2a", "landsat-c2-l2"]);
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
+  });
+
+  it.each([
+    {
+      name: "malformed evidence provenance",
+      mutate(snapshot: ConnectDiscoverySnapshot) {
+        const evidence = snapshot.evidence as unknown as Array<Record<string, unknown>>;
+        evidence[0] = { kind: "metadata", capabilities: ["query"], provenance: [{ source: 42 }] };
+      },
+    },
+    {
+      name: "malformed collection extent",
+      mutate(snapshot: ConnectDiscoverySnapshot) {
+        const source = snapshot.sources[0] as unknown as { extent: { spatial: { bbox: number[][] } } };
+        source.extent.spatial.bbox = [[180, 90, -180, -90]];
+      },
+    },
+  ])("rejects $name as invalid-discovery-cache", async ({ mutate }) => {
+    const snapshot = structuredClone(await captureStacSnapshot());
+    mutate(snapshot);
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn: stacDiscoveryFetch() },
+        cache: { get: () => snapshot, set: vi.fn() },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+  });
+
+  it("owns and deeply freezes cached evidence, provenance, and extents before inspection", async () => {
+    const snapshot = structuredClone(await captureStacSnapshot());
+    const fetchFn = stacDiscoveryFetch();
+    const connection = await connect({
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+      cache: { get: () => snapshot, set: vi.fn() },
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    const evidence = snapshot.evidence as unknown as Array<{
+      capabilities: string[];
+      provenance: Array<{ source: string }>;
+    }>;
+    evidence[0]!.capabilities.push("applyEdits");
+    evidence[0]!.provenance[0]!.source = "https://attacker.example";
+    const source = snapshot.sources[0] as unknown as { extent: { spatial: { bbox: number[][] } } };
+    source.extent.spatial.bbox[0]![0] = 999;
+
+    const inspection = connection.inspection.sources[0]!;
+    expect([...inspection.descriptor.capabilities]).toEqual(["query", "queryObjectIds", "stream"]);
+    expect(inspection.provenance.some((entry) => entry.source === "https://attacker.example")).toBe(false);
+    expect(inspection.metadata?.extent?.spatial?.bbox[0]?.[0]).toBe(-180);
+    expect(Object.isFrozen(inspection.provenance)).toBe(true);
+    expect(Object.isFrozen(inspection.metadata?.extent?.spatial?.bbox[0])).toBe(true);
+  });
+
+  it("rejects unsafe or contradictory STAC discovery metadata before following links", async () => {
+    const crossOriginFetch = stacDiscoveryFetch({
+      landing: {
+        ...stacLanding,
+        links: [
+          { rel: "data", href: "./collections" },
+          { rel: "search", href: "https://attacker.example/search" },
+        ],
+      },
+    });
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn: crossOriginFetch },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+    expect(crossOriginFetch).toHaveBeenCalledOnce();
+
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: {
+          fetchFn: stacDiscoveryFetch({
+            collections: { collections: [{ id: "duplicate" }, { id: "duplicate" }] },
+          }),
+        },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
   });
 
   it("auto-detects canonical FeatureServer URLs and projects layer metadata truth", async () => {
@@ -712,7 +1172,7 @@ describe("connect", () => {
       name: "HonuaDiscoveryError",
       code: "ambiguous-protocol",
     });
-    await expect(connect({ ...base, protocol: "stac" })).rejects.toMatchObject({
+    await expect(connect({ ...base, protocol: "odata" })).rejects.toMatchObject({
       name: "HonuaDiscoveryError",
       code: "unsupported-protocol",
     });
