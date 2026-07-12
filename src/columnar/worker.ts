@@ -705,8 +705,27 @@ export function startColumnarWorkerHost(options: StartColumnarWorkerHostOptions)
   const onError = (): void => {
     for (const controller of active.values()) controller.abort();
   };
-  transport.addEventListener("message", onMessage);
-  transport.addEventListener("error", onError);
+  try {
+    transport.addEventListener("message", onMessage);
+    transport.addEventListener("error", onError);
+  } catch (cause) {
+    try {
+      transport.removeEventListener("message", onMessage);
+    } catch {
+      // Continue registration rollback.
+    }
+    try {
+      transport.removeEventListener("error", onError);
+    } catch {
+      // Continue registration rollback.
+    }
+    try {
+      transport.dispose();
+    } catch {
+      // The registration failure remains the primary cause.
+    }
+    throw new HonuaColumnarWorkerError("worker-failed", "Worker host listener registration failed", { cause });
+  }
 
   return {
     get activeRequests() {
@@ -718,11 +737,29 @@ export function startColumnarWorkerHost(options: StartColumnarWorkerHostOptions)
     dispose() {
       if (disposed) return;
       disposed = true;
-      transport.removeEventListener("message", onMessage);
-      transport.removeEventListener("error", onError);
+      const failures: unknown[] = [];
+      try {
+        transport.removeEventListener("message", onMessage);
+      } catch (cause) {
+        failures.push(cause);
+      }
+      try {
+        transport.removeEventListener("error", onError);
+      } catch (cause) {
+        failures.push(cause);
+      }
       for (const controller of active.values()) controller.abort();
       active.clear();
-      transport.dispose();
+      try {
+        transport.dispose();
+      } catch (cause) {
+        failures.push(cause);
+      }
+      if (failures.length > 0) {
+        throw new HonuaColumnarWorkerError("worker-failed", "Worker host disposal completed with transport failures", {
+          cause: new AggregateError(failures),
+        });
+      }
     },
   };
 }

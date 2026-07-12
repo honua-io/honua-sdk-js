@@ -504,4 +504,55 @@ describe("columnar worker session", () => {
       host.dispose();
     }
   });
+
+  it("rolls back and closes a transport after partial listener registration", () => {
+    const removeMessage = vi.fn();
+    const removeError = vi.fn();
+    const dispose = vi.fn();
+    const transport: ColumnarWorkerTransport = {
+      postMessage() {},
+      addEventListener(type) {
+        if (type === "error") throw new Error("second listener failed");
+      },
+      removeEventListener(type) {
+        if (type === "message") removeMessage();
+        else removeError();
+      },
+      dispose,
+    };
+
+    expect(() => startColumnarWorkerHost({ transport, operations: { transform: (batch) => batch } })).toThrowError(
+      expect.objectContaining({ name: "HonuaColumnarWorkerError", code: "worker-failed" }),
+    );
+    expect(removeMessage).toHaveBeenCalledOnce();
+    expect(removeError).toHaveBeenCalledOnce();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it("completes every host disposal action when listener removal throws", () => {
+    const removeMessage = vi.fn(() => {
+      throw new Error("message removal failed");
+    });
+    const removeError = vi.fn();
+    const dispose = vi.fn();
+    const transport: ColumnarWorkerTransport = {
+      postMessage() {},
+      addEventListener() {},
+      removeEventListener(type) {
+        if (type === "message") removeMessage();
+        else removeError();
+      },
+      dispose,
+    };
+    const host = startColumnarWorkerHost({ transport, operations: { transform: (batch) => batch } });
+
+    expect(() => host.dispose()).toThrowError(
+      expect.objectContaining({ name: "HonuaColumnarWorkerError", code: "worker-failed" }),
+    );
+    expect(removeMessage).toHaveBeenCalledOnce();
+    expect(removeError).toHaveBeenCalledOnce();
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(host).toMatchObject({ disposed: true, activeRequests: 0 });
+    expect(() => host.dispose()).not.toThrow();
+  });
 });
