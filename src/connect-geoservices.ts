@@ -14,6 +14,8 @@ export interface ConnectTarget {
   readonly protocol: ConnectResolvedProtocol;
   readonly serviceId?: string;
   readonly layerId?: number;
+  /** OData service base path (endpoint pathname); the client is bound to the origin. */
+  readonly odataBasePath?: string;
 }
 
 export interface GeoServicesDiscoveryOptions {
@@ -36,7 +38,14 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
       "connect() could not determine the protocol from the URL without probing. Pass an explicit protocol hint.",
       {
         autoDetectedLayouts: ["*/rest/services/*/FeatureServer[/layer]", "*/rest/services/*/MapServer[/layer]"],
-        supportedProtocols: ["ogc-features", "stac", "wfs", "geoservices-feature-service", "geoservices-map-service"],
+        supportedProtocols: [
+          "ogc-features",
+          "stac",
+          "wfs",
+          "odata",
+          "geoservices-feature-service",
+          "geoservices-map-service",
+        ],
       },
     );
   }
@@ -60,6 +69,21 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
     }
     return { endpoint, clientBaseUrl: endpoint, protocol: hint };
   }
+  if (hint === "odata") {
+    if (geoservices) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `The canonical GeoServices URL resolves to "${geoservices.protocol}", not "odata".`,
+        { endpoint, protocol: hint, resolvedProtocol: geoservices.protocol },
+      );
+    }
+    // OData services are always mounted under a path (e.g. `/odata`, `/v4`).
+    // Bind the client to the origin and carry the service path so both
+    // discovery (`$metadata`) and the runtime adapter resolve the same base.
+    const url = new URL(endpoint);
+    const odataBasePath = url.pathname && url.pathname !== "/" ? url.pathname : "/odata";
+    return { endpoint, clientBaseUrl: url.origin, protocol: "odata", odataBasePath };
+  }
   if (hint === "geoservices-feature-service" || hint === "geoservices-map-service") {
     if (!geoservices || geoservices.protocol !== hint) {
       throw new HonuaDiscoveryError(
@@ -75,7 +99,14 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
     `connect() does not yet include a reviewed discovery adapter for "${String(hint)}".`,
     {
       protocol: hint,
-      supportedProtocols: ["ogc-features", "stac", "wfs", "geoservices-feature-service", "geoservices-map-service"],
+      supportedProtocols: [
+        "ogc-features",
+        "stac",
+        "wfs",
+        "odata",
+        "geoservices-feature-service",
+        "geoservices-map-service",
+      ],
     },
   );
 }

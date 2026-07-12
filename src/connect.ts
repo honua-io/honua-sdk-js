@@ -10,6 +10,7 @@
  */
 
 import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
+import { discoverOdataSources } from "./connect-odata.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import {
   type DiscoveryCacheIdentity,
@@ -158,6 +159,7 @@ export type ConnectResolvedProtocol =
   | "ogc-features"
   | "stac"
   | "wfs"
+  | "odata"
   | "geoservices-feature-service"
   | "geoservices-map-service";
 
@@ -233,7 +235,9 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
           ? await discoverStac(client, identity, options)
           : target.protocol === "wfs"
             ? await discoverWfs(client, identity, options)
-            : await discoverGeoServices(client, identity, target, options);
+            : target.protocol === "odata"
+              ? await discoverOdata(client, identity, target, options)
+              : await discoverGeoServices(client, identity, target, options);
     if (options.cache) {
       await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
@@ -488,6 +492,24 @@ async function discoverWfs(
     identityKey: identity.key,
     endpoint: identity.endpoint,
     protocol: "wfs",
+    retrievedAt: discovered.retrievedAt,
+    evidence: discovered.evidence,
+    sources: discovered.sources,
+  });
+}
+
+async function discoverOdata(
+  client: HonuaClient,
+  identity: DiscoveryCacheIdentity,
+  target: ConnectTarget,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const discovered = await discoverOdataSources(client, identity, target.odataBasePath ?? "/odata", options);
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "odata",
     retrievedAt: discovered.retrievedAt,
     evidence: discovered.evidence,
     sources: discovered.sources,
@@ -1066,6 +1088,20 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
       throw new HonuaDiscoveryError(
         "invalid-discovery-cache",
         "Cached WFS source locator does not match the endpoint.",
+      );
+    }
+    return;
+  }
+  if (target.protocol === "odata") {
+    if (
+      locator.url !== target.endpoint ||
+      typeof locator.entitySet !== "string" ||
+      !locator.entitySet ||
+      sourceId !== locator.entitySet
+    ) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Cached OData source locator does not match the endpoint.",
       );
     }
     return;
