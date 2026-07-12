@@ -84,6 +84,7 @@ describe("live benchmark evidence", () => {
 
     const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
     const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
+    const quickstart = report.targets.find((target) => target.id === "honua-demo-maplibre-quickstart");
 
     expect(incident).toMatchObject({
       status: "skipped",
@@ -96,6 +97,16 @@ describe("live benchmark evidence", () => {
       },
     });
     expect(report.run.status).toBe("passed");
+    expect(quickstart).toMatchObject({
+      status: "passed",
+      endpoint: "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
+      protocolVersion: "geoservices-feature-service",
+      sampleEvidence: {
+        sampleId: "maplibre-quickstart",
+        source: { identity: "honua-demo:maui-parcels:1" },
+        semantics: { operation: "compatibility-layer-query-renderable-geometry" },
+      },
+    });
   });
 
   it("uses an opaque cursor for reconnect without publishing it in evidence", async () => {
@@ -142,9 +153,16 @@ function liveFixtureResponse(
   }
   if (url.pathname.endsWith("/FeatureServer/0/query")) return json({ features: [{ attributes: { id: 1 } }] });
   if (url.pathname.endsWith("/api/v1/admin/capabilities")) return json({ data: { serverVersion: "test" } });
-  if (url.pathname.endsWith("/ogc/features/collections")) return json({ collections: [{ id: "places" }] });
-  if (url.pathname.includes("/ogc/features/collections/places/items")) {
-    return json({ type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: null }] });
+  if (url.pathname.endsWith("/rest/services/maui-parcels/FeatureServer/1")) {
+    return json({
+      id: 1,
+      name: "maui-parcels",
+      capabilities: "Query",
+      geometryType: "esriGeometryPolygon",
+    });
+  }
+  if (url.pathname.endsWith("/rest/services/maui-parcels/FeatureServer/1/query")) {
+    return json({ features: [{ attributes: { id: 1 }, geometry: { rings: [[[0, 0], [1, 0], [0, 0]]] } }] });
   }
   if (url.pathname === "/v1") return json({ stac_version: "1.0.0" });
   if (url.pathname === "/v1/search") {

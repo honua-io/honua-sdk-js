@@ -267,10 +267,10 @@ export async function collectLiveEvidence(env = process.env) {
       {
         id: "honua-demo-maplibre-quickstart",
         sampleId: "maplibre-quickstart",
-        journeyId: "discover-query-and-render-ready-features",
+        journeyId: "compatibility-layer-query-renderable-geometry",
         status: "skipped",
         provider: "honua-demo",
-        endpoint: "https://demo.honua.io/ogc/features",
+        endpoint: "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
         authMode: "anonymous",
         attribution: "Honua canonical demo data",
         skipReason: reason,
@@ -320,6 +320,18 @@ export async function collectLiveEvidence(env = process.env) {
   const authMode = apiKey ? "api-key" : "anonymous";
   const authHeaders = apiKey ? { "x-api-key": apiKey } : {};
   const awsBaseUrl = "https://earth-search.aws.element84.com/v1";
+  const quickstartServiceId = env.HONUA_BENCH_LIVE_QUICKSTART_SERVICE_ID ?? "maui-parcels";
+  const quickstartLayerId = Number(env.HONUA_BENCH_LIVE_QUICKSTART_LAYER_ID ?? "1");
+  if (!/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(quickstartServiceId)) {
+    throw new Error("Quickstart live service id contains unsupported characters");
+  }
+  if (!Number.isInteger(quickstartLayerId) || quickstartLayerId < 0) {
+    throw new Error("Quickstart live layer id must be a non-negative integer");
+  }
+  const quickstartLayerUrl = `${honuaBaseUrl}/rest/services/${quickstartServiceId
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/")}/FeatureServer/${quickstartLayerId}`;
   const sdk = { package: packageJson.name, version: packageJson.version, gitCommit: gitCommit() };
   const rawTargets = await Promise.all([
     probeTarget({
@@ -426,38 +438,52 @@ export async function collectLiveEvidence(env = process.env) {
     probeTarget({
       id: "honua-demo-maplibre-quickstart",
       sampleId: "maplibre-quickstart",
-      journeyId: "discover-query-and-render-ready-features",
+      journeyId: "compatibility-layer-query-renderable-geometry",
       provider: "honua-demo",
-      endpoint: `${honuaBaseUrl}/ogc/features`,
+      endpoint: quickstartLayerUrl,
       authMode,
       attribution: "Honua canonical demo data",
       skipReason: env.HONUA_BENCH_LIVE_SKIP_HONUA_REASON || undefined,
       async run() {
-        const capabilities = await requestJson(`${honuaBaseUrl}/api/v1/admin/capabilities`, authHeaders);
-        const collections = await requestJson(`${honuaBaseUrl}/ogc/features/collections?f=json`, authHeaders);
-        const firstCollection = collections.body?.collections?.[0]?.id;
-        if (!firstCollection) throw new Error("No OGC collection was advertised");
-        const itemsUrl = `${honuaBaseUrl}/ogc/features/collections/${encodeURIComponent(firstCollection)}/items?f=json&limit=1`;
-        const items = await requestJson(itemsUrl, authHeaders);
-        if (items.body?.type !== "FeatureCollection" || !Array.isArray(items.body?.features)) {
-          throw new Error("OGC items response was not a FeatureCollection");
+        const capabilitiesUrl = `${honuaBaseUrl}/api/v1/admin/capabilities`;
+        const capabilities = await requestJson(capabilitiesUrl, authHeaders);
+        const layerUrl = `${quickstartLayerUrl}?f=json`;
+        const layer = await requestJson(layerUrl, authHeaders);
+        if (layer.body?.error || layer.body?.id !== quickstartLayerId || typeof layer.body?.name !== "string") {
+          throw new Error("Quickstart GeoServices layer metadata was unavailable or mismatched");
+        }
+        if (!(layer.body.capabilities ?? "").split(",").some((value) => value.trim().toLowerCase() === "query")) {
+          throw new Error("Quickstart GeoServices layer did not advertise Query");
+        }
+        const queryUrl = `${quickstartLayerUrl}/query?where=1%3D1&outFields=*&resultRecordCount=1&f=json`;
+        const query = await requestJson(queryUrl, authHeaders);
+        if (query.body?.error || !Array.isArray(query.body?.features) || query.body.features.length < 1) {
+          throw new Error("Quickstart GeoServices query did not return a bounded feature result");
+        }
+        const firstFeature = query.body.features[0];
+        if (!firstFeature?.geometry || typeof firstFeature.geometry !== "object") {
+          throw new Error("Quickstart GeoServices result did not contain renderable geometry");
         }
         return {
           endpointVersion: capabilities.body?.data?.serverVersion ?? null,
-          protocolVersion: capabilities.body?.data?.metadataApiVersion ?? null,
-          latencyMs: capabilities.latencyMs + collections.latencyMs + items.latencyMs,
+          protocolVersion: "geoservices-feature-service",
+          latencyMs: capabilities.latencyMs + layer.latencyMs + query.latencyMs,
           checks: {
-            collectionCount: collections.body.collections.length,
-            selectedCollection: String(firstCollection),
-            returnedFeatureCount: items.body.features.length,
+            compatibilityChecked: true,
+            serviceId: quickstartServiceId,
+            layerId: quickstartLayerId,
+            layerName: layer.body.name,
+            geometryType: layer.body.geometryType ?? "unreported",
+            returnedFeatureCount: query.body.features.length,
+            renderableGeometry: true,
           },
           journey: {
-            id: "discover-query-and-render-ready-features",
+            id: "compatibility-layer-query-renderable-geometry",
             timeToFirstSuccessfulInteractionMs:
-              capabilities.latencyMs + collections.latencyMs + items.latencyMs,
+              capabilities.latencyMs + layer.latencyMs + query.latencyMs,
             visibleOutcome: {
-              kind: "feature-collection",
-              itemCount: items.body.features.length,
+              kind: "geoservices-renderable-feature",
+              itemCount: query.body.features.length,
             },
             console: {
               applicable: false,
@@ -469,19 +495,15 @@ export async function collectLiveEvidence(env = process.env) {
             },
           },
           freshness: {
-            observedAt: items.observedAt,
-            serverDate: items.serverDate,
+            observedAt: query.observedAt,
+            serverDate: query.serverDate,
             sourceDataTimestamp: null,
-            etag: items.etag,
-            lastModified: items.lastModified,
+            etag: layer.etag ?? query.etag,
+            lastModified: layer.lastModified ?? query.lastModified,
           },
           provenance: {
-            source: "canonical-honua-demo",
-            requestedUrls: [
-              `${honuaBaseUrl}/api/v1/admin/capabilities`,
-              `${honuaBaseUrl}/ogc/features/collections?f=json`,
-              itemsUrl,
-            ],
+            source: `honua-demo:${quickstartServiceId}:${quickstartLayerId}`,
+            requestedUrls: [capabilitiesUrl, layerUrl, queryUrl],
           },
         };
       },
