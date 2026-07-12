@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaClient, MapLayerQueryBuilder, OgcQueryBuilder } from "../src/index.js";
+import { MapLayerQueryBuilder, OgcQueryBuilder } from "@honua/sdk-js/honua";
+import { HonuaClient } from "../src/index.js";
 
 describe("MapLayerQueryBuilder fluent DSL", () => {
   describe("standalone builder (MapLayerQueryBuilder.from)", () => {

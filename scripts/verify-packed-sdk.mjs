@@ -151,6 +151,11 @@ try {
   const installedPackageJson = JSON.parse(
     fs.readFileSync(path.join(installedRoot, "package.json"), "utf8"),
   );
+  for (const publishedGuidance of ["config/root-surface.json", "docs/root-surface-migration.md"]) {
+    const source = fs.readFileSync(path.join(projectRoot, publishedGuidance));
+    const installed = fs.readFileSync(path.join(installedRoot, publishedGuidance));
+    if (!source.equals(installed)) throw new Error(`installed ${publishedGuidance} differs from the reviewed source`);
+  }
   const installedSchema = fs.readFileSync(path.join(installedRoot, "schemas", "diagnostic-bundle.v1.json"));
   if (
     installedSchema.byteLength !== 6494 ||
@@ -174,10 +179,25 @@ try {
   run("installed runtime imports", process.execPath, ["runtime-smoke.mjs"], {
     cwd: consumerRoot,
   });
+  fs.copyFileSync(
+    path.join(projectRoot, "test", "root-surface", "moved-runtime.mjs"),
+    path.join(consumerRoot, "root-migration-runtime.mjs"),
+  );
+  run("installed moved root runtime replacements", process.execPath, ["root-migration-runtime.mjs"], {
+    cwd: consumerRoot,
+  });
 
   fs.writeFileSync(
     path.join(consumerRoot, "types-smoke.ts"),
     typeSmokeSource(packageJson.name, entrypoints),
+  );
+  fs.copyFileSync(
+    path.join(projectRoot, "test", "root-surface", "moved-types.ts"),
+    path.join(consumerRoot, "root-migration-types.ts"),
+  );
+  fs.copyFileSync(
+    path.join(projectRoot, "test", "root-surface", "golden.ts"),
+    path.join(consumerRoot, "root-golden.ts"),
   );
   fs.writeFileSync(
     path.join(consumerRoot, "tsconfig.json"),
@@ -193,7 +213,7 @@ try {
           target: "ES2022",
           types: [],
         },
-        files: ["types-smoke.ts"],
+        files: ["types-smoke.ts", "root-migration-types.ts", "root-golden.ts"],
       },
       null,
       2,
@@ -275,7 +295,7 @@ try {
   );
 
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal offlineInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal offlineInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(

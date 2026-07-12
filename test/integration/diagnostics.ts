@@ -11,15 +11,8 @@
  *
  * @module
  */
-import {
-  HonuaAbortError,
-  type HonuaErrorContext,
-  HonuaHttpError,
-  HonuaNetworkError,
-  type HonuaRequestInterceptor,
-  type HonuaResponseContext,
-  HonuaTimeoutError,
-} from "@honua/sdk-js";
+import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "@honua/sdk-js";
+import type { HonuaErrorContext, HonuaRequestInterceptor, HonuaResponseContext } from "@honua/sdk-js/honua";
 
 /** Maximum response body characters preserved in failure messages. */
 export const MAX_BODY_EXCERPT_CHARS = 500;

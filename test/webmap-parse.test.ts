@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { validateHonuaStyle } from "@honua/sdk-js/style";
+import { parseWebMap } from "@honua/sdk-js/webmap";
 import { describe, expect, it } from "vitest";
-import { parseWebMap, validateHonuaStyle } from "../src/index.js";
 import type { WebMapJson } from "../src/webmap/types.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "fixtures", "webmap-json");

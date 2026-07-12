@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  HonuaClient,
   HonuaFeatureLayer,
   HonuaGeometryService,
   HonuaGeoprocessingService,
@@ -16,7 +15,8 @@ import {
   HonuaWfs,
   createHonuaOgcFeatures,
   createHonuaService,
-} from "../src/index.js";
+} from "@honua/sdk-js/honua";
+import { HonuaClient } from "../src/index.js";
 
 describe("Honua native API surfaces", () => {
   it("builds fluent service, layer, and map-service wrappers", () => {
