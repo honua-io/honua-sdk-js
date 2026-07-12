@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { HonuaErrorContext, HonuaResponseContext } from "../src/index.js";
+import type { HonuaErrorContext, HonuaResponseContext } from "@honua/sdk-js/honua";
 import { HonuaClient, HonuaHttpError } from "../src/index.js";
 
 describe("Response timing in interceptor context (Direction 17)", () => {

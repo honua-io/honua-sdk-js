@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaClient, createHonuaCacheState, isHonuaCacheStatus } from "../src/index.js";
+import { createHonuaCacheState, isHonuaCacheStatus } from "@honua/sdk-js/honua";
+import { HonuaClient } from "../src/index.js";
 
 const layerFixture = {
   id: 0,

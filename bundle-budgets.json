@@ -26,16 +26,17 @@
     "/agent-safety was reset for the approved execution/audit boundary (#456): exact executor dispatch, bounded owned result evidence, durable secret-safe audit events, and signed outcome recovery measure 42,417 minified / 12,392 gzip bytes; each ceiling is actual plus 10% headroom and the code remains out of root barrels.",
     "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
     "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
-    "/scene-workspace guards renderer-neutral shared state while MapLibre and Cesium stay external optional peers."
+    "/scene-workspace guards renderer-neutral shared state while MapLibre and Cesium stay external optional peers.",
+    "Root and browser ceilings were reset downward for the final reviewed common surface (#451): the measured root is 346,089 minified / 91,802 gzip bytes and the browser artifacts remain API-equivalent. /honua gained the WMS/WMTS replacement exports removed from root; its minified ceiling was reset from the measured 465,469 bytes. Each changed ceiling is measured actual plus 10% headroom."
   ],
   "entrypoints": {
     ".": {
-      "min": 513994,
-      "gzip": 135469
+      "min": 380698,
+      "gzip": 100983
     },
     "/honua": {
       "min": 516867,
-      "gzip": 136241
+      "gzip": 136466
     },
     "/contract": {
       "min": 240908,
@@ -102,12 +103,12 @@
       "gzip": 4487
     },
     "browser-iife": {
-      "min": 515055,
-      "gzip": 135916
+      "min": 381474,
+      "gzip": 101262
     },
     "browser-esm": {
-      "min": 513362,
-      "gzip": 135474
+      "min": 380029,
+      "gzip": 100957
     },
     "tree-shake:HonuaClient": {
       "min": 209173,

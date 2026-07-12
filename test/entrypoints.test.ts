@@ -1,5 +1,36 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  createEditSession as contractCreateEditSession,
+  createEditSketchWorkflow as contractCreateEditSketchWorkflow,
+  createWidgetSource as contractCreateWidgetSource,
+  ogcRecordsSource as contractOgcRecordsSource,
+  resolveSpatialAggregationWidgetSummary as contractResolveSpatialAggregationWidgetSummary,
+  wfsSource as contractWfsSource,
+  wmsSource as contractWmsSource,
+  wmtsSource as contractWmtsSource,
+} from "@honua/sdk-js/contract";
+import {
+  selectLinkedViewQueryProjection as explorationSelectLinkedViewQueryProjection,
+  sourceFeatureSelectionTarget as explorationSourceFeatureSelectionTarget,
+} from "@honua/sdk-js/exploration";
+import {
+  createFilterRegistry as registryCreateFilterRegistry,
+  projectFilterRegistryToQuery as registryProjectFilterRegistryToQuery,
+} from "@honua/sdk-js/filter-registry";
+import {
+  EXPLORATION_EMPTY_STATE,
+  EXPLORATION_SLICES,
+  HonuaWfsExceptionError as HonuaWfsExceptionErrorRoot,
+  reduceExplorationState,
+} from "@honua/sdk-js/honua";
+import {
+  bindChartToExploration,
+  bindMapSelectionToExploration,
+  bindQueryProjectionToExploration,
+  preparePrimaryDetailModel,
+  syncFeatureStateSelection,
+} from "@honua/sdk-js/interactions";
 // Experimental subpaths are imported from their own entrypoints (never the root
 // barrel). The "exposes ... entrypoint" tests verify the experimental tier still
 // exports its symbols; the "keeps experimental subpaths off the root entrypoint"
@@ -178,29 +209,6 @@ import {
   wmsSource as honuaWmsSource,
   wmtsSource as honuaWmtsSource,
 } from "../src/honua.js";
-import {
-  EXPLORATION_EMPTY_STATE,
-  EXPLORATION_SLICES,
-  HonuaWfsExceptionError as HonuaWfsExceptionErrorRoot,
-  bindChartToExploration,
-  bindMapSelectionToExploration,
-  bindQueryProjectionToExploration,
-  preparePrimaryDetailModel,
-  reduceExplorationState,
-  createEditSession as rootCreateEditSession,
-  createEditSketchWorkflow as rootCreateEditSketchWorkflow,
-  createFilterRegistry as rootCreateFilterRegistry,
-  createWidgetSource as rootCreateWidgetSource,
-  ogcRecordsSource as rootOgcRecordsSource,
-  projectFilterRegistryToQuery as rootProjectFilterRegistryToQuery,
-  resolveSpatialAggregationWidgetSummary as rootResolveSpatialAggregationWidgetSummary,
-  selectLinkedViewQueryProjection as rootSelectLinkedViewQueryProjection,
-  sourceFeatureSelectionTarget as rootSourceFeatureSelectionTarget,
-  wfsSource as rootWfsSource,
-  wmsSource as rootWmsSource,
-  wmtsSource as rootWmtsSource,
-  syncFeatureStateSelection,
-} from "../src/index.js";
 import {
   bindChartToExploration as interactionsBindChartToExploration,
   selectLinkedViewQueryProjection as interactionsSelectLinkedViewQueryProjection,
@@ -407,13 +415,13 @@ describe("entrypoint modules", () => {
     expect(capabilities).toBeTypeOf("function");
     expect(createDataset).toBeTypeOf("function");
     expect(createEditSession).toBeTypeOf("function");
-    expect(rootCreateEditSession).toBe(createEditSession);
+    expect(contractCreateEditSession).toBe(createEditSession);
     expect(honuaCreateEditSession).toBe(createEditSession);
     expect(createEditSketchWorkflow).toBeTypeOf("function");
-    expect(rootCreateEditSketchWorkflow).toBe(createEditSketchWorkflow);
+    expect(contractCreateEditSketchWorkflow).toBe(createEditSketchWorkflow);
     expect(honuaCreateEditSketchWorkflow).toBe(createEditSketchWorkflow);
     expect(createWidgetSource).toBeTypeOf("function");
-    expect(rootCreateWidgetSource).toBe(createWidgetSource);
+    expect(contractCreateWidgetSource).toBe(createWidgetSource);
     expect(honuaCreateWidgetSource).toBe(createWidgetSource);
     expect(normalizeEditWorkflowFailures).toBeTypeOf("function");
     expect(geoServicesFeatureSource).toBeTypeOf("function");
@@ -425,21 +433,21 @@ describe("entrypoint modules", () => {
     expect(ogcTilesSource).toBeTypeOf("function");
     expect(ogcMapsSource).toBeTypeOf("function");
     expect(ogcRecordsSource).toBeTypeOf("function");
-    expect(rootOgcRecordsSource).toBe(ogcRecordsSource);
+    expect(contractOgcRecordsSource).toBe(ogcRecordsSource);
     expect(honuaOgcRecordsSource).toBe(ogcRecordsSource);
     expect(stacSearchSource).toBeTypeOf("function");
     expect(odataSource).toBeTypeOf("function");
     expect(wfsSource).toBeTypeOf("function");
-    expect(rootWfsSource).toBe(wfsSource);
+    expect(contractWfsSource).toBe(wfsSource);
     expect(honuaWfsSource).toBe(wfsSource);
     expect(wmsSource).toBeTypeOf("function");
-    expect(rootWmsSource).toBe(wmsSource);
+    expect(contractWmsSource).toBe(wmsSource);
     expect(honuaWmsSource).toBe(wmsSource);
     expect(wmtsSource).toBeTypeOf("function");
-    expect(rootWmtsSource).toBe(wmtsSource);
+    expect(contractWmtsSource).toBe(wmtsSource);
     expect(honuaWmtsSource).toBe(wmtsSource);
     expect(resolveSpatialAggregationWidgetSummary).toBeTypeOf("function");
-    expect(rootResolveSpatialAggregationWidgetSummary).toBe(resolveSpatialAggregationWidgetSummary);
+    expect(contractResolveSpatialAggregationWidgetSummary).toBe(resolveSpatialAggregationWidgetSummary);
     expect(honuaResolveSpatialAggregationWidgetSummary).toBe(resolveSpatialAggregationWidgetSummary);
   });
 
@@ -457,12 +465,12 @@ describe("entrypoint modules", () => {
     const target = sourceFeatureSelectionTarget("parcels", 101);
     expect(isSourceQualifiedSelectionTarget(target)).toBe(true);
     expect(featureSelectionKey(target)).toContain("parcels");
-    expect(rootSourceFeatureSelectionTarget("parcels", 101)).toEqual(target);
+    expect(explorationSourceFeatureSelectionTarget("parcels", 101)).toEqual(target);
     expect(honuaSourceFeatureSelectionTarget("parcels", 101)).toEqual(target);
     expect(bindMapSelectionToExploration).toBeTypeOf("function");
     expect(syncFeatureStateSelection).toBeTypeOf("function");
     expect(selectLinkedViewQueryProjection).toBeTypeOf("function");
-    expect(rootSelectLinkedViewQueryProjection).toBe(selectLinkedViewQueryProjection);
+    expect(explorationSelectLinkedViewQueryProjection).toBe(selectLinkedViewQueryProjection);
     expect(honuaSelectLinkedViewQueryProjection).toBe(selectLinkedViewQueryProjection);
     expect(interactionsSelectLinkedViewQueryProjection).toBe(selectLinkedViewQueryProjection);
     expect(bindQueryProjectionToExploration).toBeTypeOf("function");
@@ -483,8 +491,8 @@ describe("entrypoint modules", () => {
   it("exposes the filter registry entrypoint", () => {
     expect(createFilterRegistry).toBeTypeOf("function");
     expect(projectFilterRegistryToQuery).toBeTypeOf("function");
-    expect(rootCreateFilterRegistry).toBe(createFilterRegistry);
-    expect(rootProjectFilterRegistryToQuery).toBe(projectFilterRegistryToQuery);
+    expect(registryCreateFilterRegistry).toBe(createFilterRegistry);
+    expect(registryProjectFilterRegistryToQuery).toBe(projectFilterRegistryToQuery);
     expect(honuaCreateFilterRegistry).toBe(createFilterRegistry);
     expect(honuaProjectFilterRegistryToQuery).toBe(projectFilterRegistryToQuery);
   });

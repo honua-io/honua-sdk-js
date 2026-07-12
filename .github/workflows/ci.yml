@@ -211,6 +211,9 @@ jobs:
       - name: Verify public-surface inventory and imports
         run: npm run verify:public-surface
 
+      - name: Verify final root surface and migration matrix
+        run: npm run verify:root-surface
+
       - name: Verify browser artifact publication manifest
         run: node scripts/sample-contract.mjs artifacts
 

@@ -1,18 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  HonuaExplorationContextError,
+  HonuaJobFailedError,
+  HonuaWmsCapabilitiesParseError,
+  HonuaWmtsCapabilitiesParseError,
+} from "@honua/sdk-js/honua";
+import {
   HonuaAbortError,
   HonuaAuthError,
   HonuaCapabilityNotSupportedError,
   HonuaClient,
-  HonuaExplorationContextError,
   HonuaGrpcError,
   HonuaHttpError,
-  HonuaJobFailedError,
   HonuaNetworkError,
   HonuaTimeoutError,
-  HonuaWmsCapabilitiesParseError,
-  HonuaWmtsCapabilitiesParseError,
   isHonuaError,
 } from "../src/index.js";
 

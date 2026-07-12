@@ -12,7 +12,7 @@ entrypoints are stable across minor versions.
 
 | Subpath | What it gives you |
 |---------|-------------------|
-| `@honua/sdk-js` | Default barrel — re-exports the most common stable symbols |
+| `@honua/sdk-js` | Reviewed common `connect → query → explain → mount` surface (37 runtime / 123 declarations) |
 | `@honua/sdk-js/browser` | Prebuilt browser ESM build of the default barrel (same API as `@honua/sdk-js`) |
 | `@honua/sdk-js/honua` | `HonuaClient` (the raw GeoServices/OGC client) |
 | `@honua/sdk-js/auth` | OAuth2/PKCE, client credentials, static providers, and credential stores |
@@ -143,7 +143,7 @@ no extra installs are required.
 ## Quick Start
 
 ```typescript doc-test=compile
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { HonuaClient } from "@honua/sdk-js";
 
 const client = new HonuaClient({
   baseUrl: "https://your-honua-server.com",
@@ -170,6 +170,11 @@ const result = await client.queryFeatures({
 const featureCount = result.features?.length ?? 0;
 console.log(`Found ${featureCount} feature(s)`);
 ```
+
+Use focused stable subpaths for advanced APIs. The generated
+[`root import migration table`](./docs/root-surface-migration.md) maps every
+symbol removed from the transition-era root to its supported replacement; the
+machine-readable source is [`config/root-surface.json`](./config/root-surface.json).
 
 `checkCompatibility()` reads the parsed `data.compatibility` contract from
 `GET /api/v1/admin/capabilities`. For a runnable browser example from this repo,

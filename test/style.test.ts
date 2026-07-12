@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaOgcFeatureCollection } from "../src/core/surfaces.js";
-import { parseFeatureLayerUrl, parseMapServiceUrl } from "../src/esri-compat-entry.js";
 import {
-  HonuaClient,
   HonuaFeatureLayer,
   HonuaMapService,
   HonuaWms,
   HonuaWmsLayer,
   HonuaWmts,
   HonuaWmtsTileset,
+} from "@honua/sdk-js/honua";
+import {
   createSources,
   isFeatureServiceSource,
   isHonuaSource,
@@ -17,8 +16,11 @@ import {
   isOgcFeaturesSource,
   parseOgcFeaturesUrl,
   validateHonuaStyle,
-} from "../src/index.js";
-import type { HonuaStyleSpecification } from "../src/index.js";
+} from "@honua/sdk-js/style";
+import type { HonuaStyleSpecification } from "@honua/sdk-js/style";
+import { HonuaOgcFeatureCollection } from "../src/core/surfaces.js";
+import { parseFeatureLayerUrl, parseMapServiceUrl } from "../src/esri-compat-entry.js";
+import { HonuaClient } from "../src/index.js";
 
 describe("Type guards", () => {
   it("isHonuaSource() identifies Honua sources by type prefix", () => {

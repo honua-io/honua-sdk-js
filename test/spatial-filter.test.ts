@@ -1,16 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buffer,
-  QueryBuilder,
-  envelope,
-  point,
-  polygon,
-  spatialContains,
-  spatialIntersects,
-  spatialWithin,
-} from "../src/index.js";
-import type { QueryFeaturesRequest, SpatialFilter } from "../src/index.js";
+import { QueryBuilder } from "@honua/sdk-js/honua";
+import type { QueryFeaturesRequest } from "@honua/sdk-js/honua";
+import { buffer, envelope, point, polygon, spatialContains, spatialIntersects, spatialWithin } from "../src/index.js";
+import type { SpatialFilter } from "../src/index.js";
 
 describe("SpatialFilter builders", () => {
   describe("envelope", () => {

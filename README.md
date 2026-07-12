@@ -26,6 +26,14 @@ single protocol-neutral `Dataset` → `Source` → `Query` → `Result` contract
 ships a MapLibre-first map runtime plus an Esri compatibility layer so existing ArcGIS apps
 can migrate file-by-file.
 
+The package root is intentionally the small, reviewed
+`connect → query → explain → mount` workflow. Protocol-specific clients,
+renderers, app state, styling, migration, realtime, offline, and analytics APIs
+remain supported from focused subpaths; no advanced API was deleted. The exact
+root inventory and every former-root replacement are published in
+[`config/root-surface.json`](./config/root-surface.json) and the generated
+[`root import migration table`](./docs/root-surface-migration.md).
+
 📚 **Hosted docs:** [honua-io.github.io/honua-sdk-js](https://honua-io.github.io/honua-sdk-js/) —
 quickstart, the full guide corpus, the [TypeDoc API reference](https://honua-io.github.io/honua-sdk-js/api/),
 and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
@@ -114,9 +122,9 @@ in.
 | `@honua/sdk-js/expr` | 2.4 KiB |
 | `@honua/sdk-js/webmap` | 5.9 KiB |
 | `@honua/sdk-js/style` | 8.3 KiB |
-| `@honua/sdk-js/map` | 16.2 KiB |
-| `@honua/sdk-js` (root) | 108.3 KiB |
-| `{ HonuaClient }` only (tree-shake guard) | 47.2 KiB |
+| `@honua/sdk-js/map` | 23.5 KiB |
+| `@honua/sdk-js` (root) | 89.7 KiB |
+| `{ HonuaClient }` only (tree-shake guard) | 48.6 KiB |
 
 Full per-entrypoint table (min + gzip, generated, not hand-written):
 [`docs/bundle-sizes.md`](./docs/bundle-sizes.md). Refresh it with
@@ -130,8 +138,7 @@ surface is protocol-neutral: build a `Dataset` over one or more `Source`s, then
 call `queryAll()` (or `query()` / `stream()`).
 
 ```ts doc-test=compile
-import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { createDataset, HonuaClient, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js";
 
 // A public Esri Living Atlas FeatureServer — nothing of Honua's is running.
 const client = new HonuaClient({
