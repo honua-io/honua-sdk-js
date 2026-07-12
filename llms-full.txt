@@ -2611,8 +2611,10 @@ The SDK does **not** import plugin code, install packages, or maintain a global
 registry. A certified manifest means only that its declaration is well formed
 and compatible with the supplied host snapshot. Applications explicitly import
 factories and may run them through the application-local lifecycle described
-below. Behavioral performance certification and support-program review remain
-separate phases.
+below. A separate, deterministic behavioral-conformance harness then proves a
+certified plugin's runtime behavior (retries, performance bounds, and bundle
+metadata) against committed golden reports, and a machine-readable
+support-status program records each plugin's lifecycle stage.
 
 ## Authoring a manifest
 
@@ -2853,13 +2855,77 @@ own CI: fail the build when `status` is `"rejected"`, and archive the frozen
 report — bound to both canonical snapshots by SHA-256 — as certification
 evidence.
 
-## Remaining work in #392
+## Signed reports and tamper-evident verification
 
-- behavioral conformance fixtures for semantics, retries, bundle metadata, and
-  performance golden reports beyond the current schema/capability, cancellation,
-  and cleanup coverage;
-- signed reports and a formal support-status program;
-- deprecation, naming, support, security-review, and certification governance.
+Every certification report carries a top-level `sha256` receipt over all its
+other fields (including both canonical snapshots and their fingerprints). The
+kit re-checks that receipt so an archived report is verifiably tamper-evident:
+
+```sh
+# 0 = verified intact, 1 = tampered, 2 = usage/input error
+npx honua-plugin-certify --verify ./report.json
+```
+
+The same check is available programmatically as
+`verifyHonuaPluginCertificationReport(reportText)`. It reads the report as inert
+JSON text and recomputes every stored digest — the top-level receipt plus the
+`manifest.sha256` and `host.sha256` snapshot fingerprints — from the report's own
+content. Any altered field, swapped snapshot, or edited diagnostic changes a
+recomputed digest and yields a structured `REPORT_SIGNATURE_MISMATCH` or
+`REPORT_FINGERPRINT_MISMATCH` diagnostic. This is a deterministic in-repo
+integrity proof, not a public-key signature: it proves a report is internally
+self-consistent and unmodified since issue, not which authority issued it. A
+trusted-issuer signing authority (which key, which registry) is a product
+decision and is deliberately out of scope here.
+
+## Support-status program
+
+`support` records who backs a plugin (`community`, `partner`, or `honua`). The
+optional, machine-readable `supportStatus` attestation records the plugin's
+lifecycle stage so applications and agents can act on it without loading code:
+
+- `state` is `supported`, `experimental`, or `deprecated`.
+- `since` and `removedIn` are exact SemVer values; `replacement` is a plugin id.
+- Certification fails closed when `state` is `deprecated` but the manifest names
+  neither a `removedIn` version nor a `replacement` id, so a deprecation always
+  carries an actionable migration path. Support findings are reported under a
+  dedicated `support` certification check.
+
+The state vocabulary is exported as `HONUA_PLUGIN_SUPPORT_STATES`. The broader
+governance program (who may set `partner`/`honua` tiers, security-review sign-off,
+naming policy) is a process decision layered on top of this schema.
+
+## Behavioral conformance and golden reports
+
+`runHonuaPluginConformance(spec, host)` runs a certified plugin through a
+deterministic behavioral suite and returns a frozen, digest-sealed
+`HonuaPluginConformanceReport`. The harness registers the plugin in an
+application-local registry with instrumented host services and counts integer
+observations only — no wall-clock time, randomness, or host path — so the report
+serializes identically on every run and is committed as a golden report
+(`test/fixtures/plugins/golden/conformance-report.json`) and asserted
+byte-for-byte in `test/plugin-conformance.test.ts`.
+
+Three scenarios are covered, each an observation compared against a declared
+bound:
+
+| Scenario | What it proves |
+| --- | --- |
+| `retries` | The plugin recovers from injected transient host failures within its declared attempt budget (`hostAttempts <= maxAttempts`, `recovered`). |
+| `performance` | One operation's host-interaction cost stays within bound and is identical across runs (`serviceCalls <= maxServiceCalls`, `deterministic`). |
+| `bundle-metadata` | The declared bundle footprint stays within budget with complete inventory metadata (`minifiedBytes`, `gzipBytes`, `metadataComplete`). |
+
+The report binds the certification digest it was run against, so a conformance
+result cannot be replayed against a different manifest or host. The reference
+retry-capable plugin exercised end to end lives at
+`test/fixtures/plugins/reference/conformance.ts`.
+
+## Remaining governance decisions in #392
+
+The code-buildable core of every named criterion is delivered above. What
+remains is process, not code: a trusted third-party signing authority and key
+distribution for reports, and the certification governance policy (who grants
+`partner`/`honua` support tiers, security-review sign-off, and naming rules).
 
 ---
 

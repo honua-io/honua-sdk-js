@@ -15,8 +15,8 @@
  * @packageDocumentation
  */
 
-import { certifyHonuaPluginManifest } from "./certification.js";
-import type { HonuaPluginCertificationReport } from "./types.js";
+import { certifyHonuaPluginManifest, verifyHonuaPluginCertificationReport } from "./certification.js";
+import type { HonuaPluginCertificationReport, HonuaPluginReportVerification } from "./types.js";
 
 /** Injected I/O boundary. The pure CLI never touches `process` or `fs` directly. */
 export interface PluginCertificationCliIo {
@@ -32,35 +32,39 @@ export interface PluginCertificationCliIo {
 
 /** Result of one CLI invocation: an exit code and, when produced, the report. */
 export interface PluginCertificationCliResult {
-  /** `0` certified, `1` rejected, `2` usage/input error. */
+  /** `0` certified/verified, `1` rejected/tampered, `2` usage/input error. */
   readonly exitCode: number;
   readonly report?: HonuaPluginCertificationReport;
+  readonly verification?: HonuaPluginReportVerification;
 }
 
 const USAGE = `honua-plugin-certify — certify a Honua plugin manifest against a host snapshot.
 
 Usage:
   honua-plugin-certify --manifest <file> --host <file> [--out <file>] [--pretty]
+  honua-plugin-certify --verify <report-file>
 
 Options:
-  --manifest, -m <file>  Path to the plugin manifest JSON (required).
-  --host, -H <file>      Path to the certification host snapshot JSON (required).
+  --manifest, -m <file>  Path to the plugin manifest JSON (required to certify).
+  --host, -H <file>      Path to the certification host snapshot JSON (required to certify).
+  --verify, -V <file>    Re-check an archived report's integrity digests instead of certifying.
   --out, -o <file>       Write the report JSON to <file> instead of stdout.
   --pretty               Pretty-print the report with two-space indentation.
   --help                 Show this help and exit 0.
 
 Exit codes:
-  0  Manifest certified for the supplied host.
-  1  Manifest rejected; see the report diagnostics.
+  0  Manifest certified for the supplied host, or report verified intact.
+  1  Manifest rejected, or report failed verification (tampered).
   2  Usage or input error (missing/unreadable arguments).
 
-The manifest and host are read as inert JSON text; the plugin entrypoint is
-never resolved or executed.
+The manifest, host, and report are read as inert JSON text; the plugin
+entrypoint is never resolved or executed.
 `;
 
 interface ParsedArgs {
   manifest?: string;
   host?: string;
+  verify?: string;
   out?: string;
   pretty: boolean;
   help: boolean;
@@ -88,6 +92,11 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
       case "-H":
         parsed.host = argv[++index];
         if (parsed.host === undefined) parsed.error = "--host requires a file path.";
+        break;
+      case "--verify":
+      case "-V":
+        parsed.verify = argv[++index];
+        if (parsed.verify === undefined) parsed.error = "--verify requires a file path.";
         break;
       case "--out":
       case "-o":
@@ -132,6 +141,17 @@ export async function runPluginCertificationCli(
   if (args.error) {
     io.stderr(`${args.error}\n\n${USAGE}`);
     return { exitCode: 2 };
+  }
+
+  if (args.verify !== undefined) {
+    const report = await readInput("verify", args.verify, io);
+    if ("error" in report) {
+      io.stderr(`${report.error}\n`);
+      return { exitCode: 2 };
+    }
+    const verification = verifyHonuaPluginCertificationReport(report.text);
+    io.stdout(`${JSON.stringify(verification, null, args.pretty ? 2 : undefined)}\n`);
+    return { exitCode: verification.ok ? 0 : 1, verification };
   }
 
   const manifest = await readInput("manifest", args.manifest, io);

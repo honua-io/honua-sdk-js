@@ -65,6 +65,37 @@ describe("honua-plugin-certify CLI", () => {
     expect(cap.written.get("report.json")).toContain('"status": "certified"');
   });
 
+  it("verifies an archived report through --verify and exits 0", async () => {
+    const certify = harness({ "manifest.json": MANIFEST_TEXT, "host.json": REFERENCE_HOST });
+    await runPluginCertificationCli(
+      ["--manifest", "manifest.json", "--host", "host.json", "--out", "report.json"],
+      certify.io,
+    );
+    const reportText = certify.written.get("report.json")!;
+
+    const cap = harness({ "report.json": reportText });
+    const result = await runPluginCertificationCli(["--verify", "report.json"], cap.io);
+    expect(result.exitCode).toBe(0);
+    expect(result.verification?.ok).toBe(true);
+    expect(JSON.parse(cap.out.join("")).ok).toBe(true);
+  });
+
+  it("fails --verify with exit 1 when the archived report was tampered", async () => {
+    const certify = harness({ "manifest.json": MANIFEST_TEXT, "host.json": REFERENCE_HOST });
+    const certified = await runPluginCertificationCli(
+      ["-m", "manifest.json", "-H", "host.json", "-o", "r.json"],
+      certify.io,
+    );
+    const tampered = JSON.parse(certify.written.get("r.json")!);
+    tampered.status = tampered.status === "certified" ? "rejected" : "certified";
+
+    const cap = harness({ "r.json": JSON.stringify(tampered) });
+    const result = await runPluginCertificationCli(["--verify", "r.json"], cap.io);
+    expect(certified.report?.status).toBe("certified");
+    expect(result.exitCode).toBe(1);
+    expect(result.verification?.ok).toBe(false);
+  });
+
   it("prints usage on --help and exits 0", async () => {
     const cap = harness({});
     const result = await runPluginCertificationCli(["--help"], cap.io);

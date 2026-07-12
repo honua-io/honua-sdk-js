@@ -143,6 +143,27 @@ export interface HonuaPluginLifecycle {
   readonly disposal: "none" | "required";
 }
 
+/** Machine-readable lifecycle stage of the plugin under its author's support program. */
+export const HONUA_PLUGIN_SUPPORT_STATES = Object.freeze(["supported", "experimental", "deprecated"] as const);
+export type HonuaPluginSupportState = (typeof HONUA_PLUGIN_SUPPORT_STATES)[number];
+
+/**
+ * Optional support-status attestation. `support` records who backs the plugin
+ * (its tier); `supportStatus` records the machine-readable lifecycle stage plus
+ * metadata that applications and agents can act on without loading plugin code.
+ * A `deprecated` plugin must name a `replacement` id or a `removedIn` version so
+ * consumers can plan a migration; certification fails closed otherwise.
+ */
+export interface HonuaPluginSupportStatus {
+  readonly state: HonuaPluginSupportState;
+  /** Exact SemVer at which this state took effect. */
+  readonly since?: string;
+  /** Exact SemVer at or after which a deprecated plugin stops being published. */
+  readonly removedIn?: string;
+  /** Plugin id a deprecated plugin directs consumers to instead. */
+  readonly replacement?: string;
+}
+
 /** Serializable, side-effect-free declaration consumed before any plugin code. */
 export interface HonuaPluginManifest<K extends HonuaPluginKind = HonuaPluginKind> {
   readonly manifestVersion: typeof HONUA_PLUGIN_MANIFEST_VERSION;
@@ -161,6 +182,8 @@ export interface HonuaPluginManifest<K extends HonuaPluginKind = HonuaPluginKind
   readonly data: HonuaPluginDataSemantics;
   readonly lifecycle: HonuaPluginLifecycle;
   readonly support: "community" | "partner" | "honua";
+  /** Optional machine-readable support-status attestation. */
+  readonly supportStatus?: HonuaPluginSupportStatus;
 }
 
 export interface HonuaPluginGrantedAuthorities {
@@ -202,7 +225,8 @@ export type HonuaPluginCertificationCheck =
   | "environment"
   | "capabilities"
   | "peers"
-  | "security-boundary";
+  | "security-boundary"
+  | "support";
 
 export interface HonuaPluginCheckResult {
   readonly check: HonuaPluginCertificationCheck;
@@ -227,6 +251,51 @@ export interface HonuaPluginCertificationReport {
   };
   readonly checks: readonly HonuaPluginCheckResult[];
   readonly diagnostics: readonly HonuaPluginDiagnostic[];
+}
+
+/** Result of re-checking an archived certification report's integrity digests. */
+export interface HonuaPluginReportVerification {
+  /** True only when every recomputed digest matched the value stored in the report. */
+  readonly ok: boolean;
+  /** The report status when the report parsed, otherwise `null`. */
+  readonly status: "certified" | "rejected" | null;
+  readonly diagnostics: readonly HonuaPluginDiagnostic[];
+}
+
+export type HonuaPluginConformanceScenario = "retries" | "performance" | "bundle-metadata";
+
+/** One deterministic measurement compared against a declared conformance bound. */
+export interface HonuaPluginConformanceObservation {
+  readonly metric: string;
+  readonly observed: number;
+  readonly bound: number;
+  readonly comparison: "<=" | ">=" | "==";
+  readonly satisfied: boolean;
+}
+
+export interface HonuaPluginConformanceScenarioResult {
+  readonly scenario: HonuaPluginConformanceScenario;
+  readonly status: "passed" | "failed";
+  readonly observations: readonly HonuaPluginConformanceObservation[];
+}
+
+/**
+ * Deterministic behavioral-conformance report. Like the certification report it
+ * carries no timestamps or host paths, binds the certification digest it was run
+ * against, and is sealed by a top-level SHA-256 so it can be archived as a
+ * golden report and re-verified.
+ */
+export interface HonuaPluginConformanceReport {
+  readonly reportVersion: 1;
+  readonly sha256: `sha256:${string}`;
+  readonly plugin: { readonly id: string; readonly version: string; readonly kind: string } | null;
+  readonly status: "passed" | "failed";
+  /** The certification the behavioral run depends on, bound by its digest. */
+  readonly certification: {
+    readonly status: "certified" | "rejected";
+    readonly sha256: `sha256:${string}`;
+  };
+  readonly scenarios: readonly HonuaPluginConformanceScenarioResult[];
 }
 
 export interface HonuaPluginManifestValidation {
