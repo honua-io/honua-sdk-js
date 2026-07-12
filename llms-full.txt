@@ -21,14 +21,6 @@ This file concatenates the documents indexed in `llms.txt` for single-fetch inge
 > One geospatial client for GeoServices, OGC APIs, WMS/WMTS/WFS, STAC, and OData —
 > with first-class TypeScript, a MapLibre runtime, and a drop-in ArcGIS migration path.
 
-**Release status: beta.** The 20-entrypoint stable tier is frozen and guarded by an
-API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
-[`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
-The complete inventory also contains 8 experimental subpaths and 18 deprecated
-compatibility subpaths. [`config/public-surface.json`](./config/public-surface.json)
-is the machine-readable source consumed by CI, API reporting, TypeDoc, and
-downstream documentation projection.
-
 `@honua/sdk-js` is the JavaScript / TypeScript client for the [Honua](https://github.com/honua-io)
 geospatial platform. It speaks the open protocols your data already uses (Esri GeoServices,
 OGC API Features / Tiles / Maps / Processes, STAC, WMS, WMTS, WFS 2.0, OData v4), exposes a
@@ -36,13 +28,10 @@ single protocol-neutral `Dataset` → `Source` → `Query` → `Result` contract
 ships a MapLibre-first map runtime plus an Esri compatibility layer so existing ArcGIS apps
 can migrate file-by-file.
 
-The package root is intentionally the small, reviewed
-`connect → query → explain → mount` workflow. Protocol-specific clients,
-renderers, app state, styling, migration, realtime, offline, and analytics APIs
-remain supported from focused subpaths; no advanced API was deleted. The exact
-root inventory and every former-root replacement are published in
-[`config/root-surface.json`](./config/root-surface.json) and the generated
-[`root import migration table`](./docs/root-surface-migration.md).
+**Release status: beta** (`0.1.0-beta`). The 20-entrypoint stable tier is frozen and guarded
+by an API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
+[`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md) and the
+machine-readable surface inventory in [`config/public-surface.json`](./config/public-surface.json).
 
 📚 **Hosted docs:** [honua-io.github.io/honua-sdk-js](https://honua-io.github.io/honua-sdk-js/) —
 quickstart, the full guide corpus, the [TypeDoc API reference](https://honua-io.github.io/honua-sdk-js/api/),
@@ -59,36 +48,57 @@ and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 - **Open runtime.** `loadMapPackage(...)` + `HonuaMapRuntime` render a Honua `MapPackage` on
   MapLibre GL JS. Cesium, kepler.gl, and OGC web-map sources are first-class.
 
-> **What this is (and is not).** `@honua/sdk-js` is a typed geospatial *service client* and
-> migration toolkit — it is **not a rendering engine**. 2D rendering rides MapLibre GL JS and 3D
-> rides Cesium, so the honest comparisons are the service-client libraries, not the renderers:
->
-> - vs **`@esri/arcgis-rest-js`** — that's Esri's own client for Esri services only. Honua speaks
->   GeoServices *plus* OGC API / WFS / WMS / WMTS / STAC / OData under one typed contract, with a
->   capability model that throws instead of returning silently-empty results.
-> - vs **`esri-leaflet`** — dormant (last release 2025) and Leaflet-bound. Honua's esri-compat +
->   `honua-migrate` codemod is an actively maintained migration path that targets MapLibre.
-> - vs **`openlayers` / `maplibre-gl` directly** — pick those when you need a renderer and are
->   happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
->   client, the ArcGIS migration path, or the server-authored `MapPackage` runtime.
->
-> The protocol clients work against **any** standards-speaking server — an existing ArcGIS
-> Server/Online endpoint, any OGC API implementation, a STAC catalog. A
-> [Honua Server](https://github.com/honua-io/honua-server) adds the server-authored `MapPackage`,
-> realtime, and AI surfaces, but it is the upgrade path, not the entry fee. **When to use it
-> standalone:** if your data already sits behind an ArcGIS Server / ArcGIS Online endpoint, an OGC
-> API Features server (pygeoapi, ldproxy, GeoServer OGC API), a WFS 2.0 server, a STAC API or static
-> catalog, or an OData v4 service, use it today as a typed client and `esri-leaflet` successor — no
-> server needed (the OGC API Features and STAC lanes discover the raw endpoint layout from the
-> landing page; WFS follows the capabilities DCP URLs; set `locator.layout` for non-facade servers —
-> see the [server-optional quickstart](./docs/standalone-quickstart.md) and the
-> [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md)). Reach for a Honua
-> Server when you need authored map packages, realtime, collaboration, MCP/AI, or the OGC API Tiles /
-> Maps / Processes / Records families (still facade-bound today).
+## Where it fits
+
+`@honua/sdk-js` is a typed geospatial *service client* and migration toolkit — it is
+**not a rendering engine**. 2D rendering rides MapLibre GL JS and 3D rides Cesium, so the
+honest comparisons are the service-client libraries, not the renderers:
+
+- vs **`@esri/arcgis-rest-js`** — that's Esri's own client for Esri services only. Honua speaks
+  GeoServices *plus* OGC API / WFS / WMS / WMTS / STAC / OData under one typed contract, with a
+  capability model that throws instead of returning silently-empty results.
+- vs **`esri-leaflet`** — dormant (no release since September 2025) and Leaflet-bound. Honua's
+  esri-compat + `honua-migrate` codemod is an actively maintained migration path that targets
+  MapLibre.
+- vs **`openlayers` / `maplibre-gl` directly** — pick those when you need a renderer and are
+  happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
+  client, the ArcGIS migration path, or the server-authored `MapPackage` runtime.
+
+**No Honua server required.** The protocol clients work against **any** standards-speaking
+server: an existing ArcGIS Server / ArcGIS Online endpoint, any OGC API Features server
+(pygeoapi, ldproxy, GeoServer OGC API), a WFS 2.0 server, a STAC API or static catalog, or an
+OData v4 service. The OGC API Features and STAC lanes discover the raw endpoint layout from the
+landing page; WFS follows the capabilities DCP URLs; set `locator.layout` for non-facade
+servers. See the [server-optional quickstart](./docs/standalone-quickstart.md) and the
+[backend-agnostic capability matrix](./docs/standalone-capability-matrix.md).
+
+A [Honua Server](https://github.com/honua-io/honua-server) is the upgrade path, not the entry
+fee: it adds server-authored `MapPackage`s, realtime, collaboration, MCP/AI surfaces, and the
+OGC API Tiles / Maps / Processes / Records families (still facade-bound today).
+
+## Install
 
 ```bash
 npm install @honua/sdk-js
 ```
+
+Everything documented here ships in `@honua/sdk-js` as subpath entrypoints
+(see [`INSTALL.md`](./INSTALL.md)). Focused standalone packages are also
+published from this repository for consumers who only want a subset:
+
+| Package | What it is |
+|---------|------------|
+| [`@honua/sdk-js`](https://www.npmjs.com/package/@honua/sdk-js) | **The canonical install** — full SDK with all subpath entrypoints + the `honua` CLI |
+| [`@honua/mcp-server`](https://www.npmjs.com/package/@honua/mcp-server) | Platform-free geospatial MCP server (`honua-mcp`, `honua-mcp-proxy`) — see [`mcp/`](./mcp/README.md) |
+| [`@honua/react`](https://www.npmjs.com/package/@honua/react) | React provider, hooks, and map components ([`docs/react.md`](./docs/react.md)) |
+| [`@honua/geometry`](https://www.npmjs.com/package/@honua/geometry) | Curated turf/proj4 geometry ops + reprojection ([`docs/geometry.md`](./docs/geometry.md)) |
+| [`@honua/sdk`](https://www.npmjs.com/package/@honua/sdk) | Core client + contract only (split build) |
+| [`@honua/sdk-esri-compat`](https://www.npmjs.com/package/@honua/sdk-esri-compat) | ArcGIS JS compatibility layer (split build) |
+| [`@honua/honua-migrate`](https://www.npmjs.com/package/@honua/honua-migrate) | Migration codemod + scanner (split build) |
+| [`@honua/app-platform`](https://www.npmjs.com/package/@honua/app-platform) | Application-platform surfaces extracted from the SDK (own pre-1.0 cadence) |
+
+The split builds exist for packaging workflows and subset consumers; details in
+[`docs/split-packages.md`](./docs/split-packages.md).
 
 ### Build-less / CDN usage
 
@@ -131,9 +141,9 @@ in.
 | `@honua/sdk-js/geocoding` | 1.9 KiB |
 | `@honua/sdk-js/expr` | 2.4 KiB |
 | `@honua/sdk-js/webmap` | 5.9 KiB |
-| `@honua/sdk-js/style` | 8.3 KiB |
-| `@honua/sdk-js/map` | 23.5 KiB |
-| `@honua/sdk-js` (root) | 92.0 KiB |
+| `@honua/sdk-js/style` | 8.4 KiB |
+| `@honua/sdk-js/map` | 31.2 KiB |
+| `@honua/sdk-js` (root) | 94.9 KiB |
 | `{ HonuaClient }` only (tree-shake guard) | 48.6 KiB |
 
 Full per-entrypoint table (min + gzip, generated, not hand-written):
@@ -215,11 +225,11 @@ for the committed source.
 
 ### Add a Honua Server
 
-A [Honua Server](https://github.com/honua-io/honua-server) is the **upgrade
-path**, not the entry fee. It unlocks server-authored `MapPackage`s
-(`loadMapPackage()`), realtime subscriptions, collaboration / saved maps, and the
-MCP + AI surfaces. Point the same code at a local server (`docker compose up` in a
-honua-server checkout), and gate production reads on the compatibility check:
+A [Honua Server](https://github.com/honua-io/honua-server) unlocks
+server-authored `MapPackage`s (`loadMapPackage()`), realtime subscriptions,
+collaboration / saved maps, and the MCP + AI surfaces. Point the same code at a
+local server (`docker compose up` in a honua-server checkout), and gate
+production reads on the compatibility check:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 const { supported, reasons } = await client.checkCompatibility();
@@ -232,12 +242,6 @@ example (`npm run demo:quickstart:mock`); see
 [`docs/quickstart-troubleshooting.md`](./docs/quickstart-troubleshooting.md).
 
 ## Command-line client (`honua`)
-
-For support-safe interoperability evidence, `honua doctor` emits a local, schema-validated diagnostic bundle with
-explicit classification/consent, credential and PII redaction, bounded previews, and original-byte SHA-256 metadata.
-`honua doctor --replay` permits only one bounded, abortable `GET`/`HEAD` and fails closed before network access for
-mutations, subscriptions, unsafe paths, credentials, malformed schemas, or hash drift. It never uploads. See
-[`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 
 Installing the SDK also installs a first-class **`honua` CLI** — the same
 querying and catalog browsing without writing code. It wraps the SDK (no raw
@@ -261,6 +265,14 @@ honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o m
 Authentication resolves from `--api-key`, `HONUA_API_KEY`, or a saved
 `honua login`. Run `honua --help` for the full command surface. This is the
 recommended replacement for `curl` in docs and demos.
+
+For support-safe interoperability evidence, `honua doctor` emits a local,
+schema-validated diagnostic bundle with explicit classification/consent,
+credential and PII redaction, bounded previews, and original-byte SHA-256
+metadata. `honua doctor --replay` permits only one bounded, abortable
+`GET`/`HEAD` and fails closed before network access for mutations,
+subscriptions, unsafe paths, credentials, malformed schemas, or hash drift. It
+never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 
 ## What you can build
 
@@ -306,6 +318,9 @@ tables, and backwards-compatibility policy live in:
 - [`docs/documentation-snippets.md`](./docs/documentation-snippets.md) — supported code-fence validation and explicit pseudocode directives
 - [`INSTALL.md`](./INSTALL.md) — install + subpath entrypoint table
 
+Platform-wide documentation (server concepts, deployment, Esri migration) lives
+at [honua.gitbook.io/honuaio](https://honua.gitbook.io/honuaio/).
+
 Run `npm run docs:learning:verify` from a fresh checkout to build the SDK and
 validate learning-path metadata, internal links, generated Markdown, and runtime
 imports. CI reuses its existing build with the internal
@@ -341,6 +356,13 @@ correctly use this SDK:
 
 ## Stability and versioning
 
+- The package root is intentionally the small, reviewed
+  `connect → query → explain → mount` workflow. Protocol-specific clients,
+  renderers, app state, styling, migration, realtime, offline, and analytics
+  APIs remain supported from focused subpaths; no advanced API was deleted. The
+  exact root inventory and every former-root replacement are published in
+  [`config/root-surface.json`](./config/root-surface.json) and the generated
+  [`root import migration table`](./docs/root-surface-migration.md).
 - Hosted guides and API pages display their exact release and expose validated
   current/archived navigation. See
   [documentation versions and compatibility](./docs/documentation-versions.md);
@@ -413,12 +435,31 @@ Protocol-specific deep dives also live alongside the guide: see
 [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md), and
 [`docs/migration-punch-list.md`](./docs/migration-punch-list.md).
 
+## Related Honua repositories
+
+| Repo | What it is |
+|------|------------|
+| [honua-server](https://github.com/honua-io/honua-server) | Flagship multi-protocol geospatial server (ELv2 open core) |
+| [honua-console](https://github.com/honua-io/honua-console) | Unified web console — Studio, Catalog, Operate, Share |
+| [honua-sdk-python](https://github.com/honua-io/honua-sdk-python) | Python SDK (same `Dataset`/`Source`/`Query`/`Result` contract) |
+| [honua-sdk-dotnet](https://github.com/honua-io/honua-sdk-dotnet) | .NET SDKs (same contract) |
+| [honua-esri-assess](https://github.com/honua-io/honua-esri-assess) | Esri footprint assessment CLI for migration discovery |
+| [geospatial-mcp](https://github.com/honua-io/geospatial-mcp) | Open, vendor-neutral geospatial MCP standard |
+
 ## Contributing
 
-This SDK ships from a single repository. The shipping package is `@honua/sdk-js`;
-all subpath entrypoints in [`INSTALL.md`](./INSTALL.md) live under that name.
+This SDK ships from a single repository: the canonical package is
+`@honua/sdk-js` (all subpath entrypoints in [`INSTALL.md`](./INSTALL.md) live
+under that name), with the standalone packages in the table above built from
+the same source tree. The MCP server lives in [`mcp/`](./mcp/README.md).
 See [`AGENTS.md`](./AGENTS.md) for contributor instructions and the Specifica
 issue format used for backlog items.
+
+## Security
+
+Report vulnerabilities to [security@honua.io](mailto:security@honua.io) — see the
+[org security policy](https://github.com/honua-io/.github/blob/main/SECURITY.md).
+Please do not open public issues for security reports.
 
 ## License
 
