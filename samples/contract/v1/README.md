@@ -6,6 +6,7 @@ This directory is the versioned handoff between `honua-sdk-js` and presentation 
 - `site-projection.schema.json` contains only static-presentation-safe metadata. It deliberately omits configuration values, commands, credentials, and executable source copies.
 - `browser-artifacts.schema.json` binds a package version and Git SHA to build inputs, peers, entrypoints, bytes, SHA-256 digests, and Subresource Integrity values.
 - `sample-evidence.schema.json` is shared by fixture and live lanes. A non-executed lane records `failed`, `skipped`, or `credential-unavailable` plus a reason rather than pretending it ran.
+- A catalog live lane may publish `evidencePath`; validation requires that the versioned envelope exists and that its sample, lane, and status match before the site projection exports the path.
 - `consumer-fixtures/honua-site-consumer.v1.json` pins the accepted producer versions, projection digest, route assertions, and representative SDK-owned/exception routes that site CI can use before artifact publication is wired into deployment.
 
 The canonical catalog deliberately stores the SDK package name but not a

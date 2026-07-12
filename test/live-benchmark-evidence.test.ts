@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { collectLiveEvidence, toSampleEvidence } from "../scripts/live-benchmark-evidence.mjs";
 
 describe("live benchmark evidence", () => {
+  afterEach(() => vi.unstubAllGlobals());
   it("skips safely and records a reason unless explicitly enabled", async () => {
     const report = await collectLiveEvidence({ GITHUB_EVENT_NAME: "pull_request" });
 
@@ -14,7 +15,27 @@ describe("live benchmark evidence", () => {
         trigger: "pull_request",
         skipReason: expect.stringContaining("opt-in"),
       },
-      targets: [],
+      targets: [
+        {
+          id: "honua-demo-maplibre-quickstart",
+          status: "skipped",
+          sampleEvidence: { sampleId: "maplibre-quickstart", status: "skipped" },
+        },
+        {
+          id: "honua-demo-incident-realtime",
+          status: "skipped",
+          sampleEvidence: {
+            sampleId: "realtime-incident-dashboard",
+            status: "skipped",
+            realtime: {
+              snapshotAt: null,
+              cursor: null,
+              lagMs: null,
+              reconnectOutcome: "not-attempted-live-probes-disabled",
+            },
+          },
+        },
+      ],
     });
     expect(JSON.stringify(report)).not.toContain("api-key");
   });
@@ -54,4 +75,87 @@ describe("live benchmark evidence", () => {
       semantics: { itemCount: 1 },
     });
   });
+
+  it("records unavailable realtime capability as an explicit per-sample skip", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => liveFixtureResponse(input, { realtime: false })),
+    );
+
+    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
+    const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
+
+    expect(incident).toMatchObject({
+      status: "skipped",
+      skipReason: expect.stringContaining("HTTP 404"),
+      sampleEvidence: {
+        sampleId: "realtime-incident-dashboard",
+        status: "skipped",
+        degradation: { state: "unavailable" },
+        realtime: { reconnectOutcome: "not-attempted-capability-unavailable" },
+      },
+    });
+    expect(report.run.status).toBe("passed");
+  });
+
+  it("uses an opaque cursor for reconnect without publishing it in evidence", async () => {
+    const secretCursor = "opaque-secret-cursor";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => liveFixtureResponse(input, { realtime: true, secretCursor })),
+    );
+
+    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
+    const serialized = JSON.stringify(report);
+    const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
+
+    expect(incident).toMatchObject({
+      status: "passed",
+      sampleEvidence: {
+        realtime: { cursor: "present", reconnectOutcome: "resumed-from-cursor-and-observed-delta" },
+      },
+    });
+    expect(serialized).not.toContain(secretCursor);
+    expect(serialized).toContain("cursor=%7Bredacted%7D");
+  });
 });
+
+function liveFixtureResponse(
+  input: RequestInfo | URL,
+  options: { realtime: boolean; secretCursor?: string },
+): Response {
+  const url = new URL(input instanceof Request ? input.url : input.toString());
+  if (url.pathname.endsWith("/streaming/features/capabilities")) {
+    return options.realtime
+      ? json({ enabled: true, serverVersion: "test" })
+      : new Response("not found", { status: 404 });
+  }
+  if (url.pathname.endsWith("/streaming/features")) {
+    const payload = JSON.stringify({
+      type: "delta",
+      changes: [{ id: 1 }],
+      cursor: options.secretCursor,
+      sequence: 7,
+      timestamp: "2026-01-01T00:00:00.000Z",
+    });
+    return new Response(`data: ${payload}\n\n`, { headers: { "content-type": "text/event-stream" } });
+  }
+  if (url.pathname.endsWith("/FeatureServer/0/query")) return json({ features: [{ attributes: { id: 1 } }] });
+  if (url.pathname.endsWith("/api/v1/admin/capabilities")) return json({ data: { serverVersion: "test" } });
+  if (url.pathname.endsWith("/ogc/features/collections")) return json({ collections: [{ id: "places" }] });
+  if (url.pathname.includes("/ogc/features/collections/places/items")) {
+    return json({ type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: null }] });
+  }
+  if (url.pathname === "/v1") return json({ stac_version: "1.0.0" });
+  if (url.pathname === "/v1/search") {
+    return json({
+      type: "FeatureCollection",
+      features: [{ properties: { datetime: "2026-01-01T00:00:00.000Z" } }],
+    });
+  }
+  return new Response("not found", { status: 404 });
+}
+
+function json(value: unknown): Response {
+  return new Response(JSON.stringify(value), { headers: { "content-type": "application/json" } });
+}

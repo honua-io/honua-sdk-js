@@ -126,9 +126,18 @@ export async function validateCatalog(catalog, packageJson) {
       `${sample.id}: invalid fixture lane status`,
     );
     invariant(
-      ["executed", "not-applicable", "planned", "credential-unavailable"].includes(sample.lanes.live.status),
+      ["executed", "not-applicable", "planned", "skipped", "credential-unavailable"].includes(sample.lanes.live.status),
       `${sample.id}: invalid live lane status`,
     );
+    if (sample.lanes.live.evidencePath) {
+      assertRelativePath(sample.lanes.live.evidencePath, `${sample.id}.lanes.live.evidencePath`);
+      const evidence = validateEvidenceEnvelope(await readJson(sample.lanes.live.evidencePath));
+      invariant(evidence.sampleId === sample.id, `${sample.id}: live evidence sampleId drift`);
+      invariant(evidence.lane === "live", `${sample.id}: catalog evidence must be a live envelope`);
+      invariant(evidence.status === sample.lanes.live.status, `${sample.id}: live lane status must match evidence`);
+    } else {
+      invariant(sample.lanes.live.status !== "skipped", `${sample.id}: skipped live lane requires evidencePath`);
+    }
   }
 
   const exampleDirectories = (await readdir(path.join(PROJECT_ROOT, "examples"), { withFileTypes: true }))
@@ -195,7 +204,10 @@ function publicSample(sample, sdk) {
     },
     lanes: {
       fixture: { status: sample.lanes.fixture.status },
-      live: { status: sample.lanes.live.status },
+      live: {
+        status: sample.lanes.live.status,
+        ...(sample.lanes.live.evidencePath ? { evidencePath: sample.lanes.live.evidencePath } : {}),
+      },
     },
     expectedDegradation: sample.expectedDegradation,
   };

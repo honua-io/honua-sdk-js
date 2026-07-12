@@ -106,7 +106,13 @@ mobile layout, zero page/console errors, and explicit cleanup. Live validation r
 
 ```bash
 npm run test:quickstart:staging
+npm run bench:live
 ```
+
+The catalog publishes the latest validated per-sample live envelope at
+[`evidence/live.v1.json`](./evidence/live.v1.json). The envelope records the
+anonymous source version, semantic outcome, item count, assertions, and timing;
+the live lane never substitutes fixture data.
 
 See [`docs/quickstart-troubleshooting.md`](../../docs/quickstart-troubleshooting.md) for compatibility and staging
 diagnostics.

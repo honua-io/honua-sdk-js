@@ -14,12 +14,16 @@ on:
       skip_aws_reason:
         description: Optional reason to skip the AWS Earth Search probe
         required: false
+      skip_honua_reason:
+        description: Optional reason to record explicit skips for canonical Honua demo probes
+        required: false
 
 permissions:
   contents: read
 
 env:
   NODE_VERSION: "20.19.0"
+  NODE_OPTIONS: "--dns-result-order=ipv4first"
 
 jobs:
   live-evidence:
@@ -39,6 +43,7 @@ jobs:
           HONUA_BENCH_LIVE_BASE_URL: ${{ inputs.base_url || 'https://demo.honua.io' }}
           HONUA_BENCH_LIVE_API_KEY: ${{ secrets.HONUA_CLOUD_DEMO_API_KEY || secrets.HONUA_DEMO_API_KEY }}
           HONUA_BENCH_LIVE_SKIP_AWS_REASON: ${{ inputs.skip_aws_reason }}
+          HONUA_BENCH_LIVE_SKIP_HONUA_REASON: ${{ inputs.skip_honua_reason }}
         run: npm run bench:live -- --strict
 
       - name: Upload versioned live evidence

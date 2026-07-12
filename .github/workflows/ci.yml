@@ -114,7 +114,9 @@ jobs:
         run: npm run verify:north-star-api
 
       - name: Verify sample publication contract
-        run: npm run samples:verify
+        run: |
+          npm run samples:verify
+          npm run samples:verify:flagships
 
       - name: Code style
         run: npm run check

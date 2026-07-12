@@ -11,6 +11,7 @@ export interface LiveEvidenceReport {
     id: string;
     status: "passed" | "failed" | "skipped";
     skipReason?: string;
+    sampleEvidence: Record<string, unknown>;
   }>;
 }
 

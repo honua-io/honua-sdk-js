@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "lane": "live",
+  "status": "executed",
+  "reason": null,
+  "observedAt": "2026-07-11T23:52:05.730Z",
+  "authMode": "anonymous",
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "e9ccbdb6e443f9abd3c97026d31e135f39bc0bc0" },
+  "source": {
+    "provider": "honua-demo",
+    "identity": "canonical-honua-demo",
+    "endpoint": "https://demo.honua.io/ogc/features",
+    "deploymentVersion": "1.0.0",
+    "dataVersion": null
+  },
+  "provenance": {
+    "sourceId": "canonical-honua-demo",
+    "observedAt": "2026-07-11T23:52:05.730Z",
+    "validAt": null,
+    "state": "live",
+    "attribution": "Honua canonical demo data"
+  },
+  "semantics": {
+    "operation": "discover-query-and-render-ready-features",
+    "outcome": "feature-collection",
+    "itemCount": 1,
+    "assertions": [
+      "collectionCount=12",
+      "selectedCollection=\"1\"",
+      "returnedFeatureCount=1"
+    ]
+  },
+  "timing": { "totalMs": 1501.0757559999997, "firstSuccessfulInteractionMs": 1501.0757559999997 },
+  "degradation": {
+    "state": "none",
+    "reasons": []
+  },
+  "artifacts": []
+}
