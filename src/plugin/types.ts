@@ -242,3 +242,135 @@ export interface HonuaPluginHostValidation {
   readonly snapshot?: HonuaPluginJsonValue;
   readonly diagnostics: readonly HonuaPluginDiagnostic[];
 }
+
+/** Exact dependency identity used for deterministic application-local ordering. */
+export interface HonuaPluginDependency {
+  readonly id: string;
+  readonly version?: string;
+  readonly kind?: HonuaPluginKind;
+}
+
+/** Host-provided network service. The registry restricts calls to declared origins. */
+export interface HonuaPluginNetworkService {
+  readonly request: (url: string, init?: unknown) => Promise<unknown>;
+}
+
+/** Host-provided credential service. Scope values are identifiers, never credentials. */
+export interface HonuaPluginCredentialService {
+  readonly get: (scope: string) => Promise<unknown>;
+}
+
+export interface HonuaPluginStorageService {
+  readonly get: (key: string) => Promise<unknown>;
+  readonly set: (key: string, value: unknown) => Promise<void>;
+  readonly delete: (key: string) => Promise<void>;
+}
+
+export interface HonuaPluginMutationService {
+  readonly execute: (operation: unknown) => Promise<unknown>;
+}
+
+export interface HonuaPluginCacheService {
+  readonly get: (key: string) => Promise<unknown>;
+  readonly set?: (key: string, value: unknown) => Promise<void>;
+}
+
+export interface HonuaPluginProvenanceService {
+  readonly record: (value: unknown) => void | Promise<void>;
+}
+
+export interface HonuaPluginRealtimeService {
+  readonly subscribe: (request: unknown, signal: AbortSignal) => Promise<unknown>;
+}
+
+/** Services owned by one application. No service is discovered from global state. */
+export interface HonuaPluginHostServices {
+  readonly network?: HonuaPluginNetworkService;
+  readonly credentials?: HonuaPluginCredentialService;
+  readonly storage?: HonuaPluginStorageService;
+  readonly mutation?: HonuaPluginMutationService;
+  readonly cache?: HonuaPluginCacheService;
+  readonly provenance?: HonuaPluginProvenanceService;
+  readonly realtime?: HonuaPluginRealtimeService;
+}
+
+/** Grant- and data-semantics-scoped services visible to a single plugin. */
+export type HonuaPluginScopedServices = Readonly<Partial<HonuaPluginHostServices>>;
+
+export interface HonuaPluginExtension<K extends HonuaPluginKind> {
+  readonly id: string;
+  readonly kind: K;
+}
+
+/** Discriminated extension contract for every manifest kind. */
+export interface HonuaPluginExtensionKindMap {
+  readonly protocol: HonuaPluginExtension<"protocol">;
+  readonly "source-format": HonuaPluginExtension<"source-format">;
+  readonly renderer: HonuaPluginExtension<"renderer">;
+  readonly auth: HonuaPluginExtension<"auth">;
+  readonly "geocoder-routing": HonuaPluginExtension<"geocoder-routing">;
+  readonly analysis: HonuaPluginExtension<"analysis">;
+  readonly style: HonuaPluginExtension<"style">;
+  readonly cache: HonuaPluginExtension<"cache">;
+  readonly realtime: HonuaPluginExtension<"realtime">;
+}
+
+export interface HonuaPluginLifecycleContext<K extends HonuaPluginKind = HonuaPluginKind> {
+  readonly manifest: HonuaPluginManifest<K>;
+  readonly environment: HonuaPluginEnvironment;
+  readonly services: HonuaPluginScopedServices;
+  readonly signal: AbortSignal;
+  /** Resolve an already initialized dependency from this application only. */
+  readonly resolve: <
+    D extends HonuaPluginKind,
+    E extends HonuaPluginExtensionKindMap[D] = HonuaPluginExtensionKindMap[D],
+  >(
+    kind: D,
+    id: string,
+  ) => E | undefined;
+}
+
+/** Hooks are optional after initialize so inert plugins carry no lifecycle work. */
+export interface HonuaPluginInstance<
+  K extends HonuaPluginKind = HonuaPluginKind,
+  E extends HonuaPluginExtensionKindMap[K] = HonuaPluginExtensionKindMap[K],
+> {
+  readonly extension: E;
+  readonly start?: (context: HonuaPluginLifecycleContext<K>) => void | Promise<void>;
+  readonly stop?: (context: HonuaPluginLifecycleContext<K>) => void | Promise<void>;
+  readonly dispose?: (context: HonuaPluginLifecycleContext<K>) => void | Promise<void>;
+}
+
+export interface HonuaPluginFactory<
+  K extends HonuaPluginKind = HonuaPluginKind,
+  E extends HonuaPluginExtensionKindMap[K] = HonuaPluginExtensionKindMap[K],
+> {
+  /** Inert manifest bytes. The registry certifies these again immediately before initialize. */
+  readonly manifest: string;
+  readonly dependencies?: readonly HonuaPluginDependency[];
+  readonly initialize: (
+    context: HonuaPluginLifecycleContext<K>,
+  ) => HonuaPluginInstance<K, E> | Promise<HonuaPluginInstance<K, E>>;
+}
+
+export type HonuaPluginLifecyclePhase = "certify" | "initialize" | "start" | "stop" | "dispose" | "registry";
+export type HonuaPluginLifecycleStatus = "started" | "succeeded" | "failed" | "cancelled" | "rolled-back";
+
+/** Stable, deeply immutable machine event. It intentionally contains no thrown error text. */
+export interface HonuaPluginLifecycleDiagnostic {
+  readonly sequence: number;
+  readonly code: string;
+  readonly phase: HonuaPluginLifecyclePhase;
+  readonly status: HonuaPluginLifecycleStatus;
+  readonly plugin: {
+    readonly id: string;
+    readonly version: string;
+    readonly kind: HonuaPluginKind;
+  } | null;
+}
+
+export interface HonuaPluginRegistryOptions {
+  /** JSON text accepted by the certification trust boundary. */
+  readonly host: string;
+  readonly services?: HonuaPluginHostServices;
+}

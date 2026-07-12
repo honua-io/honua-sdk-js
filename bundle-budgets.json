@@ -26,6 +26,7 @@
     "/agent-safety was reset again for binding safety authorization to accepted-plan and discovery evidence (#468): derived accepted-evidence gating over the approved execution/audit boundary (#456) measures 51,401 minified / 14,693 gzip bytes; each ceiling is actual plus 10% headroom and the code remains out of root barrels.",
     "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
     "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
+    "/plugin gained its first dedicated guard with the application-local lifecycle (#455): certification, deterministic dependency ordering, transactional rollback, scoped service wrappers, and immutable diagnostics measure 35,329 minified / 11,814 gzip bytes; the ceiling is measured actual plus 10% headroom.",
     "/scene-workspace guards renderer-neutral shared state while MapLibre and Cesium stay external optional peers.",
     "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom."
   ],
@@ -41,6 +42,10 @@
     "/contract": {
       "min": 240908,
       "gzip": 67643
+    },
+    "/plugin": {
+      "min": 38862,
+      "gzip": 12996
     },
     "/agent-safety": {
       "min": 56542,

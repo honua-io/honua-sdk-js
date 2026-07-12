@@ -8,13 +8,14 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-12 at commit `91d6399`._
+_Generated 2026-07-12 at commit `06cdeba`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
 | `.` (root) | 347.3 KiB | 382.0 KiB | 92.0 KiB | 101.2 KiB |
 | `/honua` | 463.9 KiB | 510.3 KiB | 123.4 KiB | 135.7 KiB |
 | `/contract` | 225.5 KiB | 235.3 KiB | 58.5 KiB | 66.1 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 23.1 KiB | 38.0 KiB | 8.3 KiB | 12.7 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
 | `/runtime` | 419.0 KiB | 458.7 KiB | 109.4 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |

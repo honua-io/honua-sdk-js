@@ -1,0 +1,10 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "id": 101, "properties": { "name": "target", "category": "incident", "value": 9 }, "geometry": { "type": "Point", "coordinates": [-157.8583, 21.3069] } },
+    { "type": "Feature", "id": 102, "properties": { "name": "northwest", "category": "incident", "value": 4 }, "geometry": { "type": "Point", "coordinates": [-157.8683, 21.3169] } },
+    { "type": "Feature", "id": 103, "properties": { "name": "northeast", "category": "asset", "value": 3 }, "geometry": { "type": "Point", "coordinates": [-157.8483, 21.3169] } },
+    { "type": "Feature", "id": 104, "properties": { "name": "southwest", "category": "asset", "value": 7 }, "geometry": { "type": "Point", "coordinates": [-157.8683, 21.2969] } },
+    { "type": "Feature", "id": 105, "properties": { "name": "southeast", "category": "incident", "value": 5 }, "geometry": { "type": "Point", "coordinates": [-157.8483, 21.2969] } }
+  ]
+}
