@@ -23,6 +23,7 @@
     "/realtime gained its first dedicated guard with the resumable checkpoint kernel (#393); its trust-boundary hardening adds runtime event validation and credential-free envelope projection. The ceiling is the measured subpath bundle plus 10% headroom.",
     "/offline is a subpath-only experimental contract (#396), keeping the root/browser bundle unchanged while its dedicated budget guards deterministic manifest and download-coordinator growth.",
     "/query-planner gained its first dedicated guard with the bounded columnar worker session (#453); browser/Node worker implementations and heavy analytics peers remain injected, while the full planner plus worker protocol is measured with 10% headroom.",
+    "/query-planner was reset for the DuckDB SQL and gRPC query compilers plus spatial-aggregation pushdown (#389): the DuckDB compiler reuses the dependency-free geoparquet-sql builder so planner and adapter emit identical SQL. Measured 75,024 minified / 22,254 gzip; the ceiling is actual plus ~10% headroom.",
     "/agent-safety was reset again for binding safety authorization to accepted-plan and discovery evidence (#468): derived accepted-evidence gating over the approved execution/audit boundary (#456) measures 51,401 minified / 14,693 gzip bytes; each ceiling is actual plus 10% headroom and the code remains out of root barrels.",
     "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
     "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
@@ -64,8 +65,8 @@
       "gzip": 8730
     },
     "/query-planner": {
-      "min": 72541,
-      "gzip": 21797
+      "min": 82526,
+      "gzip": 24479
     },
     "/scene-workspace": {
       "min": 79628,
@@ -96,8 +97,8 @@
       "gzip": 9341
     },
     "/map": {
-      "min": 108862,
-      "gzip": 29718
+      "min": 126815,
+      "gzip": 35055
     },
     "/geoparquet": {
       "min": 18254,

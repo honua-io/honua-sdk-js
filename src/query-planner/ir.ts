@@ -99,6 +99,8 @@ export function queryIrSourceIdentity(
 ): QueryIrSourceIdentity {
   const authorizationScope = [...new Set(context.authorizationScope ?? [])].sort();
   const geometryProperty = descriptor.schema?.fields?.find((field) => field.type === "esriFieldTypeGeometry")?.name;
+  const geoparquet =
+    descriptor.protocol === "geoparquet" ? geoparquetIdentity(descriptor, geometryProperty) : undefined;
   return deepFreeze({
     id: descriptor.id,
     protocol: descriptor.protocol,
@@ -112,9 +114,32 @@ export function queryIrSourceIdentity(
     ...(descriptor.locator.srsName !== undefined ? { srsName: String(descriptor.locator.srsName) } : {}),
     ...(context.schemaVersion !== undefined ? { schemaVersion: context.schemaVersion } : {}),
     ...(context.sourceVersion !== undefined ? { sourceVersion: context.sourceVersion } : {}),
+    ...(geoparquet ? { geoparquet } : {}),
     authorizationScope,
     capabilities: [...descriptor.capabilities].sort(),
   });
+}
+
+/**
+ * Derive deterministic DuckDB/GeoParquet addressing from the descriptor so the
+ * SQL compiler never needs a profiling round-trip. Mirrors the live GeoParquet
+ * `Source` addressing (`locator.url` + `locator.geoparquet.urls`).
+ */
+function geoparquetIdentity(
+  descriptor: SourceDescriptor,
+  geometryProperty: string | undefined,
+): QueryIrSourceIdentity["geoparquet"] {
+  const { url, geoparquet } = descriptor.locator;
+  const sources: string[] = [];
+  if (typeof url === "string" && url.length > 0) sources.push(url);
+  if (geoparquet?.urls) sources.push(...geoparquet.urls);
+  const geometryColumn = geoparquet?.geometryColumn ?? geometryProperty;
+  return {
+    sources,
+    ...(geometryColumn ? { geometryColumn } : {}),
+    ...(geoparquet?.geometryEncoding ? { geometryEncoding: geoparquet.geometryEncoding } : {}),
+    ...(geoparquet?.bboxColumn ? { bboxColumn: geoparquet.bboxColumn } : {}),
+  };
 }
 
 function canonicalizeAggregation(aggregation: AggregationSpec): AggregationSpec {

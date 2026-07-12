@@ -37,6 +37,20 @@ export type {
   ExplainAutomaticMapLibreOptions,
   MountedAutomaticMapLibreSource,
 } from "./automatic-source-strategy.js";
+export {
+  HonuaAutomaticMapLibreIntegrationError,
+  attachAutomaticMapLibreInteractions,
+} from "./automatic-mount-integration.js";
+export type {
+  AutomaticMapLibreIntegration,
+  AutomaticMapLibreIntegrationDiagnostic,
+  AutomaticMapLibreIntegrationDiagnosticCode,
+  AutomaticMapLibreIntegrationErrorCode,
+  AutomaticMapLibreIntegrationMap,
+  AutomaticMapLibreIntegrationOptions,
+  BindFilterRegistryOptions,
+  RealtimeFeatureStateDelta,
+} from "./automatic-mount-integration.js";
 export type {
   HonuaMapOptions,
   HonuaMapEvent,

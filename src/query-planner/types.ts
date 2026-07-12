@@ -58,8 +58,30 @@ export interface QueryIrSourceIdentity {
   readonly srsName?: string;
   readonly schemaVersion?: string;
   readonly sourceVersion?: string;
+  /** DuckDB/GeoParquet addressing derived from the descriptor for the SQL compiler. */
+  readonly geoparquet?: QueryIrGeoparquetIdentity;
   readonly authorizationScope: readonly string[];
   readonly capabilities: readonly Capability[];
+}
+
+/** Physical geometry encoding of a GeoParquet column, per the DuckDB SQL compiler. */
+export type DuckDbGeometryEncoding = "wkb" | "native" | "geojson";
+
+/**
+ * Deterministic GeoParquet addressing carried on the IR so the DuckDB SQL
+ * compiler can build `read_parquet(...)` SQL with spatial pushdown without a
+ * profiling round-trip. Derived from `locator.url`, `locator.geoparquet`, and
+ * the descriptor schema.
+ */
+export interface QueryIrGeoparquetIdentity {
+  /** Parquet file URL(s) / hive glob(s) read as one relation. */
+  readonly sources: readonly string[];
+  /** Geometry column name, when the source is spatial. */
+  readonly geometryColumn?: string;
+  /** Physical encoding of the geometry column (defaults to `wkb`). */
+  readonly geometryEncoding?: DuckDbGeometryEncoding;
+  /** Optional GeoParquet 1.1 bbox-covering struct column for row-group pruning. */
+  readonly bboxColumn?: string;
 }
 
 export interface QueryIrV1 {
@@ -158,11 +180,79 @@ export interface OdataCompiledQueryV1 {
   readonly top?: number;
 }
 
+/** Inspectable DuckDB `SELECT` over `read_parquet(...)` produced without I/O. */
+export interface DuckDbCompiledQueryV1 {
+  readonly compiler: "duckdb-sql-v1";
+  /** Deterministic, injection-safe DuckDB SQL text. */
+  readonly sql: string;
+  /** Parquet file URL(s) / glob(s) the SQL reads. */
+  readonly sources: readonly string[];
+  readonly geometryColumn?: string;
+  readonly geometryEncoding?: DuckDbGeometryEncoding;
+  /** True when a non-envelope spatial filter was reduced to its bounding box. */
+  readonly bboxApproximated?: boolean;
+}
+
+/** Proto spatial-relationship enum value name emitted by the gRPC compiler. */
+export type GrpcSpatialRelationship =
+  | "SPATIAL_RELATIONSHIP_INTERSECTS"
+  | "SPATIAL_RELATIONSHIP_WITHIN"
+  | "SPATIAL_RELATIONSHIP_CONTAINS"
+  | "SPATIAL_RELATIONSHIP_ENVELOPE_INTERSECTS"
+  | "SPATIAL_RELATIONSHIP_CROSSES"
+  | "SPATIAL_RELATIONSHIP_TOUCHES"
+  | "SPATIAL_RELATIONSHIP_OVERLAPS"
+  | "SPATIAL_RELATIONSHIP_DISJOINT";
+
+/** Proto statistic-type enum value name emitted by the gRPC compiler. */
+export type GrpcStatisticType =
+  | "STATISTIC_TYPE_COUNT"
+  | "STATISTIC_TYPE_SUM"
+  | "STATISTIC_TYPE_MIN"
+  | "STATISTIC_TYPE_MAX"
+  | "STATISTIC_TYPE_AVG"
+  | "STATISTIC_TYPE_STDDEV"
+  | "STATISTIC_TYPE_VAR";
+
+/**
+ * Inspectable `honua.v1.FeatureService/QueryFeatures` unary request produced
+ * without pulling in the protobuf runtime. Field names and enum value names
+ * mirror the generated `QueryFeaturesRequest` message so the plan is a faithful,
+ * deterministic description of the wire request.
+ */
+export interface GrpcCompiledQueryV1 {
+  readonly compiler: "honua-grpc-query-features-v1";
+  readonly service: "honua.v1.FeatureService";
+  readonly method: "QueryFeatures";
+  readonly serviceId: string;
+  readonly layerId: number;
+  readonly where?: string;
+  readonly outFields?: readonly string[];
+  readonly returnGeometry?: boolean;
+  readonly outSr?: string | number;
+  readonly orderBy?: string;
+  readonly resultOffset?: number;
+  readonly resultRecordCount?: number;
+  readonly spatialFilter?: {
+    readonly geometry: { readonly [key: string]: JsonValue };
+    readonly geometryType: EsriGeometryType;
+    readonly spatialRelationship: GrpcSpatialRelationship;
+  };
+  readonly outStatistics?: readonly {
+    readonly statisticType: GrpcStatisticType;
+    readonly onStatisticField: string;
+    readonly outStatisticFieldName: string;
+  }[];
+  readonly groupBy?: readonly string[];
+}
+
 export type RemoteCompiledQueryV1 =
   | GeoServicesCompiledQueryV1
   | OgcApiFeaturesCompiledQueryV1
   | WfsCompiledQueryV1
-  | OdataCompiledQueryV1;
+  | OdataCompiledQueryV1
+  | DuckDbCompiledQueryV1
+  | GrpcCompiledQueryV1;
 
 export interface RemoteQueryPlanStep {
   readonly id: string;
