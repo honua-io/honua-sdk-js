@@ -6,12 +6,19 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
+import {
+  type OfflineReloadBenchmarkOptions,
+  type RealtimeReconnectBenchmarkOptions,
+  type ResilienceBenchmarkResult,
+  runOfflineReloadBenchmark,
+  runRealtimeReconnectBenchmark,
+} from "./resilience-bench.js";
 import { runStreamBench } from "./stream-bench.js";
 
 type Direction = "lower-is-better" | "higher-is-better";
 type EvaluationLevel = "pass" | "warning" | "failure" | "not-compared";
 
-interface CorpusScenario {
+interface StreamCorpusScenario {
   id: string;
   kind: "stream-pagination";
   featureCount: number;
@@ -21,6 +28,18 @@ interface CorpusScenario {
   warmupRuns: number;
   measurementRuns: number;
 }
+
+interface OfflineReloadCorpusScenario extends Omit<OfflineReloadBenchmarkOptions, "fault"> {
+  id: string;
+  kind: "offline-reload";
+}
+
+interface RealtimeReconnectCorpusScenario extends Omit<RealtimeReconnectBenchmarkOptions, "fault"> {
+  id: string;
+  kind: "realtime-reconnect";
+}
+
+type CorpusScenario = StreamCorpusScenario | OfflineReloadCorpusScenario | RealtimeReconnectCorpusScenario;
 
 interface Corpus {
   schemaVersion: 1;
@@ -66,12 +85,21 @@ export interface MetricSummary {
 interface ScenarioResult {
   id: string;
   kind: CorpusScenario["kind"];
-  parameters: Omit<CorpusScenario, "id" | "kind">;
-  samples: SampleMetrics[];
-  summary: Record<keyof Omit<SampleMetrics, "totalFeatures" | "pageCount">, MetricSummary>;
+  parameters: Record<string, number | boolean>;
+  samples: Array<SampleMetrics | { totalDurationMs: number; operationsPerSecond: number }>;
+  summary: {
+    totalDurationMs: MetricSummary;
+    timeToFirstPageMs?: MetricSummary;
+    featuresPerSecond?: MetricSummary;
+    operationsPerSecond?: MetricSummary;
+    heapUsedDeltaBytes?: MetricSummary;
+    heapUsedPeakBytes?: MetricSummary;
+  };
   invariants: {
-    expectedTotalFeatures: number;
-    expectedPageCount: number;
+    expectedTotalFeatures?: number;
+    expectedPageCount?: number;
+    checks?: Readonly<Record<string, boolean | number | string | null>>;
+    semantics?: ResilienceBenchmarkResult["invariants"]["semantics"];
     passed: boolean;
   };
 }
@@ -185,22 +213,56 @@ function validateCorpus(value: unknown): Corpus {
   for (const scenario of corpus.scenarios) {
     if (
       !scenario.id ||
-      scenario.kind !== "stream-pagination" ||
-      !Number.isInteger(scenario.featureCount) ||
-      scenario.featureCount <= 0 ||
-      !Number.isInteger(scenario.pageSize) ||
-      scenario.pageSize <= 0 ||
       !Number.isInteger(scenario.measurementRuns) ||
       scenario.measurementRuns < 3 ||
-      !Number.isInteger(scenario.warmupRuns) ||
-      scenario.warmupRuns < 0
+      !validWarmup(scenario)
     ) {
       throw new Error(`Invalid benchmark scenario: ${scenario.id ?? "<missing id>"}`);
+    }
+    const commonKeys = ["id", "kind", "warmupRuns", "measurementRuns"];
+    let allowedKeys: ReadonlySet<string>;
+    if (scenario.kind === "stream-pagination") {
+      allowedKeys = new Set([...commonKeys, "featureCount", "pageSize", "pageLatencyMs", "returnGeometry"]);
+      if (!positive(scenario.featureCount) || !positive(scenario.pageSize)) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
+    } else if (scenario.kind === "offline-reload") {
+      allowedKeys = new Set([...commonKeys, "resourceCount", "resourceBytes", "reloadCycles", "maxFreshnessAgeMs"]);
+      if (
+        !positive(scenario.resourceCount) ||
+        !positive(scenario.resourceBytes) ||
+        !positive(scenario.reloadCycles) ||
+        !positive(scenario.maxFreshnessAgeMs)
+      ) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
+    } else if (scenario.kind === "realtime-reconnect") {
+      allowedKeys = new Set([...commonKeys, "eventCount", "replayDuplicateCount", "maxFreshnessAgeMs"]);
+      if (
+        !positive(scenario.eventCount) ||
+        !positive(scenario.replayDuplicateCount) ||
+        !positive(scenario.maxFreshnessAgeMs)
+      ) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
+    } else {
+      throw new Error(`Invalid benchmark scenario kind: ${String((scenario as { kind?: unknown }).kind)}`);
+    }
+    for (const key of Object.keys(scenario)) {
+      if (!allowedKeys.has(key)) throw new Error(`Invalid benchmark scenario property: ${scenario.id}.${key}`);
     }
     if (ids.has(scenario.id)) throw new Error(`Duplicate benchmark scenario id: ${scenario.id}`);
     ids.add(scenario.id);
   }
   return corpus as Corpus;
+}
+
+function positive(value: number): boolean {
+  return Number.isInteger(value) && value > 0;
+}
+
+function validWarmup(scenario: { warmupRuns: number }): boolean {
+  return Number.isInteger(scenario.warmupRuns) && scenario.warmupRuns >= 0;
 }
 
 function validateBudgets(value: unknown): Budgets {
@@ -211,7 +273,7 @@ function validateBudgets(value: unknown): Budgets {
   return budgets as Budgets;
 }
 
-async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
+async function runStreamScenario(scenario: StreamCorpusScenario): Promise<ScenarioResult> {
   const runOnce = async (): Promise<SampleMetrics> => {
     const report = await runStreamBench({
       featureCount: scenario.featureCount,
@@ -264,6 +326,48 @@ async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
       passed: invariantsPassed,
     },
   };
+}
+
+function resilienceResult(
+  scenario: OfflineReloadCorpusScenario | RealtimeReconnectCorpusScenario,
+  result: ResilienceBenchmarkResult,
+): ScenarioResult {
+  const parameters: Record<string, number | boolean> = {};
+  if (scenario.kind === "offline-reload") {
+    Object.assign(parameters, {
+      resourceCount: scenario.resourceCount,
+      resourceBytes: scenario.resourceBytes,
+      reloadCycles: scenario.reloadCycles,
+      maxFreshnessAgeMs: scenario.maxFreshnessAgeMs,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    });
+  } else {
+    Object.assign(parameters, {
+      eventCount: scenario.eventCount,
+      replayDuplicateCount: scenario.replayDuplicateCount,
+      maxFreshnessAgeMs: scenario.maxFreshnessAgeMs,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    });
+  }
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters,
+    samples: result.samples,
+    summary: {
+      totalDurationMs: summarizeSamples(result.samples.map((sample) => sample.totalDurationMs)),
+      operationsPerSecond: summarizeSamples(result.samples.map((sample) => sample.operationsPerSecond)),
+    },
+    invariants: result.invariants,
+  };
+}
+
+async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
+  if (scenario.kind === "stream-pagination") return runStreamScenario(scenario);
+  if (scenario.kind === "offline-reload") return resilienceResult(scenario, await runOfflineReloadBenchmark(scenario));
+  return resilienceResult(scenario, await runRealtimeReconnectBenchmark(scenario));
 }
 
 function baselineCompatibility(
@@ -336,11 +440,11 @@ export function evaluateReport(
   for (const scenario of candidate.scenarios) {
     items.push({
       scenarioId: scenario.id,
-      metric: "fixture-invariants",
+      metric: "scenario-invariants",
       level: scenario.invariants.passed ? "pass" : "failure",
       message: scenario.invariants.passed
-        ? "Every repetition drained the expected feature and page counts"
-        : "At least one repetition returned an unexpected feature or page count",
+        ? "Every repetition satisfied the scenario's semantic invariants"
+        : "At least one scenario semantic invariant failed",
     });
     const variation = scenario.summary.totalDurationMs.coefficientOfVariation;
     const level =
@@ -457,8 +561,11 @@ async function main(): Promise<void> {
     `Benchmark lab: ${report.scenarios.length} scenarios, evaluation ${report.evaluation.level}, report ${options.output}\n`,
   );
   for (const scenario of report.scenarios) {
+    const throughput = scenario.summary.featuresPerSecond
+      ? `${Math.round(scenario.summary.featuresPerSecond.median).toLocaleString()} features/s`
+      : `${Math.round(scenario.summary.operationsPerSecond?.median ?? 0).toLocaleString()} operations/s`;
     process.stdout.write(
-      `  ${scenario.id}: ${scenario.summary.totalDurationMs.median.toFixed(2)}ms median, ${Math.round(scenario.summary.featuresPerSecond.median).toLocaleString()} features/s\n`,
+      `  ${scenario.id}: ${scenario.summary.totalDurationMs.median.toFixed(2)}ms median, ${throughput}\n`,
     );
   }
   if (options.check && report.evaluation.level === "failure") process.exitCode = 1;

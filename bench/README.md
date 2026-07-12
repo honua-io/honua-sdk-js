@@ -29,8 +29,21 @@ one without it. A skipped comparison is reported as `not-compared`; it is never
 presented as a pass. Review the complete baseline diff before committing or
 publishing a replacement.
 
-The current corpus measures SDK stream/decode overhead. It does **not** measure
-network, server, first map render, renderer frame rate, or another SDK. See
+The current corpus measures SDK stream/decode overhead plus deterministic
+offline-region reload and resumable realtime reconnect semantics. The offline
+scenario downloads verified fixture resources through the supported storage
+boundary, serializes the credential-free manifest, reloads it repeatedly, and
+checks integrity and a fixed freshness window. The realtime scenario restores a
+durable checkpoint, performs one synthetic retry, replays duplicates, and
+checks cursor presence, sequence order, and deduplication. Reports expose only
+cursor presence, never the opaque value. Both scenarios use fixed clocks and
+in-memory adapters and make no network requests.
+
+The report records semantic checks next to timing samples. A stale/corrupt
+offline reload, sequence gap, applied duplicate, or missing cursor makes
+`--check` fail even when timing variance is acceptable. These scenarios do
+**not** measure network, server, first map render, renderer frame rate, or
+another SDK. See
 [`docs/benchmark-methodology.md`](../docs/benchmark-methodology.md) for the
 comparison and live-evidence rules.
 
