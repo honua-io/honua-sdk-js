@@ -1,8 +1,14 @@
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, symlink, unlink, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 
 import { describe, expect, it } from "vitest";
 
 import { validateCrossSdkReferenceCorpus, validateCrossSdkReferenceFiles } from "../bench/cross-sdk/validate.js";
+
+const require = createRequire(import.meta.url);
+const Ajv2020 = require("ajv/dist/2020").default;
+const addFormats = require("ajv-formats").default;
 
 async function corpus(): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile("bench/cross-sdk/corpus.json", "utf8")) as Record<string, unknown>;
@@ -98,5 +104,56 @@ describe("cross-SDK reference corpus", () => {
       enumerable: true,
     });
     expect(() => validateCrossSdkReferenceCorpus(value)).toThrow("Invalid cross-SDK reference corpus");
+  });
+
+  it("enforces the published schema against unequal reference states", async () => {
+    const ajv = new Ajv2020({ allErrors: true, strict: false });
+    addFormats(ajv);
+    const schema = JSON.parse(await readFile("bench/cross-sdk/corpus.schema.json", "utf8"));
+    const validate = ajv.compile(schema);
+    const golden = await corpus();
+    expect(validate(golden), JSON.stringify(validate.errors)).toBe(true);
+    const hostile = structuredClone(golden);
+    const first = (hostile.references as Array<Record<string, unknown>>)[0];
+    if (!first) throw new Error("reference missing");
+    first.package = null;
+    first.taskIds = [];
+    first.reasons = ["unsafe promotion"];
+    expect(validate(hostile)).toBe(false);
+  });
+
+  it("rejects traversal and over-depth inputs without invoking accessors", async () => {
+    const value = await corpus();
+    const first = (value.references as Array<Record<string, unknown>>)[0];
+    if (!first) throw new Error("reference missing");
+    (first.licenseEvidence as Record<string, unknown>).licensePath = "../../etc/passwd";
+    expect(() => validateCrossSdkReferenceCorpus(value)).toThrow("outside reviewed roots");
+
+    let nested: Record<string, unknown> = {};
+    const root = nested;
+    for (let depth = 0; depth < 40; depth += 1) {
+      nested.next = {};
+      nested = nested.next as Record<string, unknown>;
+    }
+    expect(() => validateCrossSdkReferenceCorpus(root)).toThrow("structural limits");
+  });
+
+  it("rejects a symlinked eligible license that resolves outside the repository", async () => {
+    const link = "node_modules/.honua-license-escape";
+    const temporaryCorpus = "bench/cross-sdk/.escape-corpus.json";
+    const value = await corpus();
+    const first = (value.references as Array<Record<string, unknown>>)[0];
+    if (!first) throw new Error("reference missing");
+    const evidence = first.licenseEvidence as Record<string, unknown>;
+    const outside = await readFile("/etc/hosts");
+    evidence.licensePath = link;
+    evidence.licenseContentSha256 = createHash("sha256").update(outside).digest("hex");
+    await symlink("/etc/hosts", link);
+    await writeFile(temporaryCorpus, JSON.stringify(value));
+    try {
+      await expect(validateCrossSdkReferenceFiles(temporaryCorpus)).rejects.toThrow("escapes the repository");
+    } finally {
+      await Promise.all([unlink(link), unlink(temporaryCorpus)]);
+    }
   });
 });

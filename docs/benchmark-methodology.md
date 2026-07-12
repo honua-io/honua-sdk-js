@@ -198,3 +198,12 @@ the exact fixture, with raw samples, environment metadata, screenshots/hashes,
 console/page/network evidence, bundle and memory evidence, and reviewed output
 equivalence. A skipped or incompatible reference remains visible and cannot be
 averaged away or used to promote an unrelated scenario.
+
+Honua provenance is intentionally bound to the exact `HEAD:src` Git tree. Use
+`npm run bench:references:source-tree` after a reviewed source change; updating
+the committed tree value is an explicit review action, not an automatic claim
+that a beta npm version and current trunk are identical. Restricted terms are
+refreshed separately with `npm run bench:references:refresh-terms`. That bounded
+network command records URL reachability/status/final redirects but does not
+redistribute terms text or alter a legal decision; deterministic PR validation
+remains offline.

@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -97,6 +98,11 @@ const REFERENCE_IDS = [
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const SAFE_ID = /^[a-z0-9][a-z0-9.-]+$/;
+const MAX_CORPUS_BYTES = 1_048_576;
+const MAX_INPUT_NODES = 20_000;
+const MAX_INPUT_DEPTH = 32;
+const MAX_INPUT_STRING = 8_192;
+const MAX_INPUT_STRING_TOTAL = 524_288;
 
 export function validateCrossSdkReferenceCorpus(foreign: unknown, now = "2026-07-12"): CrossSdkReferenceCorpus {
   try {
@@ -108,7 +114,7 @@ export function validateCrossSdkReferenceCorpus(foreign: unknown, now = "2026-07
 }
 
 function validateCrossSdkReferenceCorpusUnsafe(foreign: unknown, now: string): CrossSdkReferenceCorpus {
-  const corpus = record(foreign, "corpus") as unknown as CrossSdkReferenceCorpus;
+  const corpus = record(snapshotOwnedData(foreign), "corpus") as unknown as CrossSdkReferenceCorpus;
   exactKeys(
     corpus,
     ["schemaVersion", "id", "reviewedAt", "reviewExpiresAt", "methodology", "fixtures", "tasks", "references"],
@@ -155,10 +161,14 @@ function validateCrossSdkReferenceCorpusUnsafe(foreign: unknown, now: string): C
     fail("warmup/repetition protocol is invalid");
   stringArray(methodology.completionSignals, "completionSignals", 2);
 
-  if (!Array.isArray(corpus.fixtures) || corpus.fixtures.length === 0) fail("fixtures must be non-empty");
-  if (!Array.isArray(corpus.tasks) || corpus.tasks.length === 0) fail("tasks must be non-empty");
+  if (!Array.isArray(corpus.fixtures) || corpus.fixtures.length === 0 || corpus.fixtures.length > 16)
+    fail("fixtures must be bounded and non-empty");
+  if (!Array.isArray(corpus.tasks) || corpus.tasks.length === 0 || corpus.tasks.length > 32)
+    fail("tasks must be bounded and non-empty");
   if (!Array.isArray(corpus.references) || corpus.references.length !== REFERENCE_IDS.length)
     fail("all reference states must be explicit");
+  if (JSON.stringify(corpus.references.map(({ id }) => id)) !== JSON.stringify(REFERENCE_IDS))
+    fail("reference order and identity must match the normative schema");
   const fixtureIds = new Set<string>();
   for (const fixture of corpus.fixtures) {
     const value = record(fixture, "fixture") as unknown as ReferenceFixture;
@@ -207,6 +217,13 @@ function validateCrossSdkReferenceCorpusUnsafe(foreign: unknown, now: string): C
       `reference ${value.id}`,
     );
     if (!REFERENCE_IDS.includes(value.id) || seen.has(value.id)) fail("reference identity is missing or duplicated");
+    if (
+      !["honua", "esri", "mapbox", "maplibre", "carto", "deck.gl", "cesium"].includes(value.vendor) ||
+      !["eligible", "unavailable", "not-comparable"].includes(value.status) ||
+      typeof value.product !== "string" ||
+      value.product.length === 0
+    )
+      fail(`${value.id} reference discriminator is invalid`);
     seen.add(value.id);
     const evidence = record(
       value.licenseEvidence,
@@ -228,6 +245,13 @@ function validateCrossSdkReferenceCorpusUnsafe(foreign: unknown, now: string): C
       `${value.id}.licenseEvidence`,
     );
     if (
+      !["approved", "review-required"].includes(evidence.decision) ||
+      !["permitted-under-open-source-license", "not-cleared"].includes(evidence.publication) ||
+      typeof evidence.license !== "string" ||
+      typeof evidence.notes !== "string"
+    )
+      fail(`${value.id} license decision is invalid`);
+    if (
       !evidence.sourceUrl.startsWith("https://") ||
       !ISO_DATE.test(evidence.retrievedAt) ||
       evidence.retrievedAt > corpus.reviewedAt
@@ -248,6 +272,12 @@ function validateCrossSdkReferenceCorpusUnsafe(foreign: unknown, now: string): C
       validatePackage(value.package, value.id);
       if (!evidence.licensePath || !evidence.licenseContentSha256 || !SHA256.test(evidence.licenseContentSha256))
         fail(`${value.id} license content is not pinned`);
+      if (
+        path.isAbsolute(evidence.licensePath) ||
+        evidence.licensePath.split(/[\\/]/).includes("..") ||
+        (evidence.licensePath !== "LICENSE" && !evidence.licensePath.startsWith("node_modules/"))
+      )
+        fail(`${value.id} license path is outside reviewed roots`);
     } else if (value.taskIds.length !== 0 || value.reasons.length === 0) {
       fail(`${value.id} unavailable state must be explicit and task-free`);
     }
@@ -262,6 +292,7 @@ export async function validateCrossSdkReferenceFiles(
   now = "2026-07-12",
 ): Promise<CrossSdkReferenceValidationReport> {
   const bytes = await readFile(corpusPath);
+  if (bytes.byteLength > MAX_CORPUS_BYTES) fail("corpus file exceeds the byte limit");
   const corpus = validateCrossSdkReferenceCorpus(JSON.parse(bytes.toString("utf8")), now);
   const root = path.resolve(path.dirname(corpusPath), "../..");
   for (const fixture of corpus.fixtures) {
@@ -283,7 +314,11 @@ export async function validateCrossSdkReferenceFiles(
       fail(`${reference.id} lockfile integrity mismatch`);
     const evidence = reference.licenseEvidence;
     if (!evidence.licensePath || !evidence.licenseContentSha256) fail(`${reference.id} license digest is missing`);
-    const licenseBytes = await readFile(path.resolve(root, evidence.licensePath));
+    const candidate = path.resolve(root, evidence.licensePath);
+    const [realRoot, realCandidate] = await Promise.all([realpath(root), realpath(candidate)]);
+    if (realCandidate !== realRoot && !realCandidate.startsWith(`${realRoot}${path.sep}`))
+      fail(`${reference.id} license path escapes the repository`);
+    const licenseBytes = await readFile(realCandidate);
     if (createHash("sha256").update(licenseBytes).digest("hex") !== evidence.licenseContentSha256)
       fail(`${reference.id} license content digest mismatch`);
     if (reference.package.sourceTree) {
@@ -294,6 +329,29 @@ export async function validateCrossSdkReferenceFiles(
       if (actual !== reference.package.sourceTree.gitTree) fail(`${reference.id} source tree revision mismatch`);
     }
   }
+  const termsReview = record(
+    snapshotOwnedData(JSON.parse(await readFile(path.join(path.dirname(corpusPath), "terms-review.json"), "utf8"))),
+    "terms review",
+  );
+  const reviewedUrls = new Set(
+    (termsReview.observations as Array<Record<string, unknown>>)
+      .filter(
+        ({ reachable, status }) => reachable === true && typeof status === "number" && status >= 200 && status < 400,
+      )
+      .map(({ url }) => String(url)),
+  );
+  const requiredUrls = corpus.references
+    .filter(({ status }) => status !== "eligible")
+    .flatMap(({ licenseEvidence }) =>
+      [licenseEvidence.sourceUrl, licenseEvidence.termsUrl].filter((url): url is string => Boolean(url)),
+    );
+  if (
+    termsReview.corpusId !== corpus.id ||
+    typeof termsReview.observedAt !== "string" ||
+    termsReview.observedAt.slice(0, 10) < corpus.reviewedAt
+  )
+    fail("restricted terms review artifact is stale or mismatched");
+  if (requiredUrls.some((url) => !reviewedUrls.has(url))) fail("restricted terms review is incomplete");
   return Object.freeze({
     schemaVersion: 1,
     corpusId: corpus.id,
@@ -355,7 +413,7 @@ function record(value: unknown, label: string): Record<string, unknown> {
       value !== null &&
       typeof value === "object" &&
       !Array.isArray(value) &&
-      Object.getPrototypeOf(value) === Object.prototype;
+      (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
   } catch {
     fail(`${label} could not be inspected`);
   }
@@ -404,22 +462,116 @@ function rejectCredentialFields(value: unknown): void {
   }
 }
 
+function snapshotOwnedData(foreign: unknown): unknown {
+  const ancestors = new WeakSet<object>();
+  const budget = { nodes: 0, strings: 0 };
+  const visit = (value: unknown, depth: number): unknown => {
+    budget.nodes += 1;
+    if (budget.nodes > MAX_INPUT_NODES || depth > MAX_INPUT_DEPTH) fail("input exceeds structural limits");
+    if (typeof value === "string") {
+      budget.strings += value.length;
+      if (value.length > MAX_INPUT_STRING || budget.strings > MAX_INPUT_STRING_TOTAL)
+        fail("input strings exceed limits");
+      return value;
+    }
+    if (value === null || typeof value === "boolean" || typeof value === "number") return value;
+    if (typeof value !== "object") fail("input must contain JSON data only");
+    if (ancestors.has(value)) fail("input is cyclic");
+    ancestors.add(value);
+    try {
+      const keys = Reflect.ownKeys(value);
+      if (keys.some((key) => typeof key === "symbol") || keys.length > 257) fail("input properties exceed limits");
+      if (Array.isArray(value)) {
+        const lengthValue = Reflect.getOwnPropertyDescriptor(value, "length")?.value;
+        if (
+          typeof lengthValue !== "number" ||
+          !Number.isSafeInteger(lengthValue) ||
+          lengthValue < 0 ||
+          lengthValue > 256 ||
+          keys.length !== lengthValue + 1
+        )
+          fail("input array must be bounded and dense");
+        const length = lengthValue;
+        return Object.freeze(
+          Array.from({ length }, (_, index) => visit(dataDescriptor(value, String(index)), depth + 1)),
+        );
+      }
+      if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)
+        fail("input records must be plain objects");
+      const result = Object.create(null) as Record<string, unknown>;
+      for (const key of keys as string[]) result[key] = visit(dataDescriptor(value, key), depth + 1);
+      return Object.freeze(result);
+    } finally {
+      ancestors.delete(value);
+    }
+  };
+  return visit(foreign, 0);
+}
+
+function dataDescriptor(value: object, key: string): unknown {
+  const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+  if (!descriptor || descriptor.get || descriptor.set) fail("input accessors are forbidden");
+  return descriptor.value;
+}
+
 function fail(message: string): never {
   throw new Error(`Invalid cross-SDK reference corpus: ${message}`);
 }
 
 async function main(): Promise<void> {
-  const corpus = process.argv[2] ?? "bench/cross-sdk/corpus.json";
-  const output = process.argv[3];
+  const args = process.argv.slice(2);
+  const refreshTerms = args.includes("--refresh-terms");
+  const printSourceTree = args.includes("--print-source-tree");
+  const positional = args.filter((argument) => !argument.startsWith("--"));
+  const corpus = positional[0] ?? "bench/cross-sdk/corpus.json";
+  const output = positional[1];
   const report = await validateCrossSdkReferenceFiles(corpus, new Date().toISOString().slice(0, 10));
+  if (printSourceTree) {
+    process.stdout.write(`${execFileSync("git", ["rev-parse", "HEAD:src"], { encoding: "utf8" }).trim()}\n`);
+    return;
+  }
+  const termsRefresh = refreshTerms ? await refreshRestrictedTerms(corpus) : undefined;
   if (output) {
     const { mkdir, writeFile } = await import("node:fs/promises");
     await mkdir(path.dirname(output), { recursive: true });
-    await writeFile(output, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    await writeFile(
+      output,
+      `${JSON.stringify({ ...report, ...(termsRefresh ? { termsRefresh } : {}) }, null, 2)}\n`,
+      "utf8",
+    );
   }
   process.stdout.write(
     `Cross-SDK reference corpus valid: ${report.eligibleReferences.length} eligible, ${report.unavailableReferences.length} unavailable/not-comparable; rankings forbidden.\n`,
   );
+}
+
+async function refreshRestrictedTerms(corpusPath: string): Promise<unknown> {
+  const corpus = validateCrossSdkReferenceCorpus(JSON.parse(await readFile(corpusPath, "utf8")));
+  const urls = [
+    ...new Set(
+      corpus.references
+        .filter(({ status }) => status !== "eligible")
+        .flatMap(({ licenseEvidence }) =>
+          [licenseEvidence.sourceUrl, licenseEvidence.termsUrl].filter((url): url is string => Boolean(url)),
+        ),
+    ),
+  ];
+  const observations = [];
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, { method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(8_000) });
+      observations.push({ url, finalUrl: response.url, status: response.status, reachable: response.ok });
+    } catch (error) {
+      observations.push({
+        url,
+        finalUrl: null,
+        status: null,
+        reachable: false,
+        error: error instanceof Error ? error.name : "Error",
+      });
+    }
+  }
+  return Object.freeze({ observedAt: new Date().toISOString(), boundedTimeoutMs: 8_000, observations });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href)
