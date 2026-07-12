@@ -1,8 +1,16 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { runHonuaPluginConformance } from "../src/plugin/index.js";
-import { REFERENCE_HOST, referenceConformanceSpec } from "./fixtures/plugins/reference/index.js";
+import {
+  type HonuaPluginConformanceSpec,
+  type HonuaPluginFactory,
+  runHonuaPluginConformance,
+} from "../src/plugin/index.js";
+import {
+  REFERENCE_HOST,
+  referenceConformanceManifest,
+  referenceConformanceSpec,
+} from "./fixtures/plugins/reference/index.js";
 
 const GOLDEN_URL = new URL("./fixtures/plugins/golden/conformance-report.json", import.meta.url);
 const GOLDEN_PATH = fileURLToPath(GOLDEN_URL);
@@ -52,6 +60,49 @@ describe("plugin behavioral conformance", () => {
     expect(first.certification.status).toBe("certified");
     expect(first.certification.sha256).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(first.sha256).toMatch(/^sha256:[a-f0-9]{64}$/);
+  });
+
+  it("fails when only the second performance run throws (leaked state)", async () => {
+    // A nondeterministic plugin whose first run succeeds but whose second run
+    // throws must NOT receive a passed performance scenario. `run` throws on
+    // its third invocation: retries(#1) and the first performance run(#2)
+    // succeed, the second performance run(#3) throws.
+    let invocations = 0;
+    const factory: HonuaPluginFactory<"protocol"> = {
+      manifest: JSON.stringify(referenceConformanceManifest),
+      initialize(context) {
+        return {
+          extension: Object.freeze({
+            id: context.manifest.id,
+            kind: "protocol" as const,
+            run: async () => {
+              invocations += 1;
+              if (invocations === 3) throw new Error("second performance run failure");
+            },
+          }),
+          dispose() {},
+        };
+      },
+    };
+    const spec: HonuaPluginConformanceSpec = {
+      factory,
+      probe: async (registry) => {
+        const extension = registry.get("protocol", referenceConformanceManifest.id) as
+          | { run: () => Promise<void> }
+          | undefined;
+        if (!extension) throw new Error("extension missing");
+        await extension.run();
+      },
+      retries: { injectedFailures: 0, maxAttempts: 4 },
+      performance: { maxServiceCalls: 4 },
+      bundle: { minifiedBytes: 100, gzipBytes: 50, maxMinifiedBytes: 200, maxGzipBytes: 100 },
+    };
+
+    const report = await runHonuaPluginConformance(spec, REFERENCE_HOST);
+    const performance = report.scenarios.find((scenario) => scenario.scenario === "performance");
+    expect(performance?.status).toBe("failed");
+    expect(performance?.observations.find((o) => o.metric === "completed")?.satisfied).toBe(false);
+    expect(report.status).toBe("failed");
   });
 
   it("fails closed when a scenario bound is exceeded", async () => {

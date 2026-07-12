@@ -196,7 +196,10 @@ async function runPerformanceScenario(
   const second = await runProbe(spec, hostInput, 0);
   return scenarioResult("performance", [
     observe("serviceCalls", first.interactions, spec.performance.maxServiceCalls, "<="),
-    observe("completed", first.completed ? 1 : 0, 1, ">="),
+    // Both runs must complete: a plugin whose second run throws (e.g. from
+    // leaked module state) must not receive a passed report on the strength of
+    // the first run alone.
+    observe("completed", first.completed && second.completed ? 1 : 0, 1, ">="),
     observe("deterministic", first.interactions === second.interactions ? 1 : 0, 1, ">="),
   ]);
 }

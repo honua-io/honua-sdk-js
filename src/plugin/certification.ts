@@ -665,7 +665,9 @@ export function certifyHonuaPluginManifest(input: string, hostInput: string): Ho
     manifest: { snapshot: manifestSnapshot, sha256: fingerprint(manifestSnapshot) },
     host: { snapshot: hostSnapshot, sha256: fingerprint(hostSnapshot) },
     checks: CHECKS.map((check) => {
-      const diagnosticCodes = sorted.filter((item) => diagnosticCheck(item.code) === check).map((item) => item.code);
+      const diagnosticCodes = sorted
+        .filter((item) => diagnosticCheck(item.code, item.path) === check)
+        .map((item) => item.code);
       return {
         check,
         status: diagnosticCodes.some((code) => errorCodes.has(code)) ? ("failed" as const) : ("passed" as const),
@@ -824,8 +826,10 @@ function validateEnum(
     push(diagnostics, "MANIFEST_ENUM", path, `Expected one of: ${allowed.join(", ")}.`);
 }
 
-function diagnosticCheck(code: string): HonuaPluginCertificationCheck {
-  if (code.startsWith("SUPPORT")) return "support";
+function diagnosticCheck(code: string, path: string): HonuaPluginCertificationCheck {
+  // Route by path first: generic type/enum/semver codes emitted for a
+  // supportStatus field must fail the support check, not the manifest check.
+  if (code.startsWith("SUPPORT") || path === "/supportStatus" || path.startsWith("/supportStatus/")) return "support";
   if (code.includes("CAPABILITY")) return "capabilities";
   if (code.includes("ENVIRONMENT")) return "environment";
   if (code.includes("PEER")) return "peers";

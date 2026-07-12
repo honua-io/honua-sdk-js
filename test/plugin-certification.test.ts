@@ -535,6 +535,10 @@ describe("plugin support-status program", () => {
     const codes = report.diagnostics.map((item) => item.code);
     expect(codes).toContain("MANIFEST_ENUM");
     expect(codes).toContain("SEMVER_INVALID");
+    // Generic codes emitted for a /supportStatus/* path must fail the support
+    // check, not silently pass while the manifest is rejected elsewhere.
+    expect(report.checks.find((check) => check.check === "support")?.status).toBe("failed");
+    expect(report.checks.find((check) => check.check === "manifest")?.status).toBe("passed");
   });
 });
 
