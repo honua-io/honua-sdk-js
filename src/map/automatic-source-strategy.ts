@@ -677,6 +677,8 @@ function safeId(value: string): string {
   const normalized = value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .split("-")
+    .filter(Boolean)
+    .join("-");
   return normalized || "source";
 }
