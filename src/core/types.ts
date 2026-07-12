@@ -719,6 +719,17 @@ export interface OgcMetadataRequest extends HonuaMetadataRequestOptions {
    * the OGC API Features methods (which use {@link layout}).
    */
   stacBasePath?: string;
+  /**
+   * Raw endpoint path prefix for the OGC API Tiles / Maps / Records /
+   * Processes families (the ones that do not use {@link layout}). Defaults to
+   * the family's Honua facade prefix (`/ogc/tiles`, `/ogc/maps`,
+   * `/ogc/records`, `/ogc/processes`). A raw third-party endpoint mounted at
+   * a different root (discovered by `connect()`) passes its service-root path
+   * here so every request resolves against the advertised layout. Ignored by
+   * OGC API Features (which uses {@link layout}) and STAC (which uses
+   * {@link stacBasePath}).
+   */
+  basePath?: string;
 }
 
 export interface OgcCollectionRequest extends OgcMetadataRequest {

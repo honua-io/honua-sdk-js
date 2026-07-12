@@ -26,13 +26,42 @@ import type {
 } from "./types.js";
 import { createOgcMetadataParams, mergeHeaders, normalizeCsv, normalizeStringCsv } from "./wire-shared.js";
 
+/** Honua facade path prefix for OGC API Records. */
+const RECORDS_FACADE_BASE = "/ogc/records";
+
+/**
+ * Resolve the OGC API Records path prefix: the caller-supplied raw
+ * `basePath` (a `connect()`-discovered third-party service root) or the Honua
+ * facade default. Trailing slashes are trimmed so a discovered root and the
+ * facade compose the same sub-paths.
+ */
+function recordsBase(request: { basePath?: string }): string {
+  // An omitted basePath uses the Honua facade; an explicit "" is a legitimate
+  // root-mounted raw service and must NOT fall back to the facade prefix.
+  if (request.basePath === undefined) return RECORDS_FACADE_BASE;
+  const base = request.basePath;
+  let end = base.length;
+  while (end > 0 && base.charCodeAt(end - 1) === 0x2f) end--;
+  return base.slice(0, end);
+}
+
+/** Cache-key discriminator so a discovered root never collides with the facade. */
+function recordsBaseKey(request: { basePath?: string }): string {
+  const base = recordsBase(request);
+  return base === RECORDS_FACADE_BASE ? "" : `${base}:`;
+}
+
 export interface HonuaOgcRecordsOptions {
   client: HonuaClient;
+  /** Raw endpoint path prefix (defaults to the Honua facade `/ogc/records`). */
+  basePath?: string;
 }
 
 export interface HonuaOgcRecordCollectionOptions {
   client: HonuaClient;
   collectionId: string | number;
+  /** Raw endpoint path prefix (defaults to the Honua facade `/ogc/records`). */
+  basePath?: string;
 }
 
 export interface HonuaOgcRecordsSearchAllRequest extends OgcRecordsSearchRequest {
@@ -57,45 +86,55 @@ const DEFAULT_RECORDS_MAX_PAGES = 100;
 /** Top-level OGC API Records handle. */
 export class HonuaOgcRecords {
   public readonly client: HonuaClient;
+  private readonly basePath: string | undefined;
 
   public constructor(options: HonuaOgcRecordsOptions) {
     this.client = options.client;
+    this.basePath = options.basePath;
+  }
+
+  private withBase<T extends { basePath?: string }>(request: T): T {
+    return this.basePath !== undefined ? { ...request, basePath: this.basePath } : request;
   }
 
   public collection(collectionId: string | number): HonuaOgcRecordCollection {
-    return new HonuaOgcRecordCollection({ client: this.client, collectionId });
+    return new HonuaOgcRecordCollection({
+      client: this.client,
+      collectionId,
+      ...(this.basePath !== undefined ? { basePath: this.basePath } : {}),
+    });
   }
 
   public async landing(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
-    return this.client.getOgcRecordsLanding(request);
+    return this.client.getOgcRecordsLanding(this.withBase(request));
   }
 
   public async conformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
-    return this.client.getOgcRecordsConformance(request);
+    return this.client.getOgcRecordsConformance(this.withBase(request));
   }
 
   public async collections(request: OgcMetadataRequest = {}): Promise<HonuaOgcCollectionsResponse> {
-    return this.client.listOgcRecordCollections(request);
+    return this.client.listOgcRecordCollections(this.withBase(request));
   }
 
   public async collectionMetadata(request: OgcCollectionRequest): Promise<HonuaOgcCollectionMetadata> {
-    return this.client.getOgcRecordCollection(request);
+    return this.client.getOgcRecordCollection(this.withBase(request));
   }
 
   public async search(request: OgcRecordsSearchRequest): Promise<HonuaOgcRecordsResponse> {
-    return this.client.searchOgcRecords(request);
+    return this.client.searchOgcRecords(this.withBase(request));
   }
 
   public async record(request: OgcRecordItemRequest): Promise<HonuaOgcRecordResponse> {
-    return this.client.getOgcRecord(request);
+    return this.client.getOgcRecord(this.withBase(request));
   }
 
   public async rawSearch(request: OgcRecordsRawSearchRequest): Promise<Response> {
-    return this.client.fetchOgcRecordsRaw(request);
+    return this.client.fetchOgcRecordsRaw(this.withBase(request));
   }
 
   public async rawRecord(request: OgcRecordRawItemRequest): Promise<Response> {
-    return this.client.fetchOgcRecordRaw(request);
+    return this.client.fetchOgcRecordRaw(this.withBase(request));
   }
 
   public async searchAll(request: HonuaOgcRecordsSearchAllRequest): Promise<HonuaOgcRecordResponse[]> {
@@ -104,11 +143,13 @@ export class HonuaOgcRecords {
     const records: HonuaOgcRecordResponse[] = [];
     let cursor: RecordsPageCursor = { offset: request.offset };
     for (let page = 0; page < maxPages; page += 1) {
-      const response = await this.client.searchOgcRecords({
-        ...request,
-        limit: pageSize,
-        offset: cursor.offset,
-      });
+      const response = await this.client.searchOgcRecords(
+        this.withBase({
+          ...request,
+          limit: pageSize,
+          offset: cursor.offset,
+        }),
+      );
       const pageRecords = response.features ?? [];
       if (pageRecords.length === 0) break;
       records.push(...pageRecords);
@@ -129,11 +170,13 @@ export class HonuaOgcRecords {
     const maxPages = request.maxPages ?? DEFAULT_RECORDS_MAX_PAGES;
     let cursor: RecordsPageCursor = { offset: request.offset };
     for (let page = 0; page < maxPages; page += 1) {
-      const response = await this.client.searchOgcRecords({
-        ...request,
-        limit: pageSize,
-        offset: cursor.offset,
-      });
+      const response = await this.client.searchOgcRecords(
+        this.withBase({
+          ...request,
+          limit: pageSize,
+          offset: cursor.offset,
+        }),
+      );
       const pageRecords = response.features ?? [];
       if (pageRecords.length === 0) break;
       yield pageRecords;
@@ -152,42 +195,57 @@ export class HonuaOgcRecords {
 export class HonuaOgcRecordCollection {
   public readonly client: HonuaClient;
   public readonly collectionId: string | number;
+  private readonly basePath: string | undefined;
 
   public constructor(options: HonuaOgcRecordCollectionOptions) {
     this.client = options.client;
     this.collectionId = options.collectionId;
+    this.basePath = options.basePath;
+  }
+
+  private bind<T extends { basePath?: string }>(request: T): T & { collectionId: string | number } {
+    return {
+      ...request,
+      collectionId: this.collectionId,
+      ...(this.basePath !== undefined ? { basePath: this.basePath } : {}),
+    };
+  }
+
+  private rootHandle(): HonuaOgcRecords {
+    return new HonuaOgcRecords({
+      client: this.client,
+      ...(this.basePath !== undefined ? { basePath: this.basePath } : {}),
+    });
   }
 
   public async metadata(request: OgcMetadataRequest = {}): Promise<HonuaOgcCollectionMetadata> {
-    return this.client.getOgcRecordCollection({ ...request, collectionId: this.collectionId });
+    return this.client.getOgcRecordCollection(this.bind(request));
   }
 
   public async search(request: HonuaOgcRecordCollectionSearchRequest = {}): Promise<HonuaOgcRecordsResponse> {
-    return this.client.searchOgcRecords({ ...request, collectionId: this.collectionId });
+    return this.client.searchOgcRecords(this.bind(request));
   }
 
   public async record(request: HonuaOgcRecordCollectionItemRequest): Promise<HonuaOgcRecordResponse> {
-    return this.client.getOgcRecord({ ...request, collectionId: this.collectionId });
+    return this.client.getOgcRecord(this.bind(request));
   }
 
   public async rawSearch(request: HonuaOgcRecordCollectionRawSearchRequest = {}): Promise<Response> {
-    return this.client.fetchOgcRecordsRaw({ ...request, collectionId: this.collectionId });
+    return this.client.fetchOgcRecordsRaw(this.bind(request));
   }
 
   public async rawRecord(request: HonuaOgcRecordCollectionRawItemRequest): Promise<Response> {
-    return this.client.fetchOgcRecordRaw({ ...request, collectionId: this.collectionId });
+    return this.client.fetchOgcRecordRaw(this.bind(request));
   }
 
   public async searchAll(request: HonuaOgcRecordCollectionSearchAllRequest = {}): Promise<HonuaOgcRecordResponse[]> {
-    const root = new HonuaOgcRecords({ client: this.client });
-    return root.searchAll({ ...request, collectionId: this.collectionId });
+    return this.rootHandle().searchAll({ ...request, collectionId: this.collectionId });
   }
 
   public searchStream(
     request: HonuaOgcRecordCollectionSearchAllRequest = {},
   ): AsyncGenerator<HonuaOgcRecordResponse[], void, undefined> {
-    const root = new HonuaOgcRecords({ client: this.client });
-    return root.searchStream({ ...request, collectionId: this.collectionId });
+    return this.rootHandle().searchStream({ ...request, collectionId: this.collectionId });
   }
 }
 
@@ -242,9 +300,10 @@ export async function getOgcRecordsLanding(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcLandingResponse> {
   const params = createOgcMetadataParams(request);
+  const base = recordsBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcLandingResponse>(
-    `ogc-records:landing:${params.toString()}`,
-    `/ogc/records?${params.toString()}`,
+    `ogc-records:landing:${recordsBaseKey(request)}${params.toString()}`,
+    `${base}?${params.toString()}`,
     request,
   );
 }
@@ -254,9 +313,10 @@ export async function getOgcRecordsConformance(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcConformanceResponse> {
   const params = createOgcMetadataParams(request);
+  const base = recordsBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
-    `ogc-records:conformance:${params.toString()}`,
-    `/ogc/records/conformance?${params.toString()}`,
+    `ogc-records:conformance:${recordsBaseKey(request)}${params.toString()}`,
+    `${base}/conformance?${params.toString()}`,
     request,
   );
 }
@@ -266,9 +326,10 @@ export async function listOgcRecordCollections(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcCollectionsResponse> {
   const params = createOgcMetadataParams(request);
+  const base = recordsBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcCollectionsResponse>(
-    `ogc-records:collections:${params.toString()}`,
-    `/ogc/records/collections?${params.toString()}`,
+    `ogc-records:collections:${recordsBaseKey(request)}${params.toString()}`,
+    `${base}/collections?${params.toString()}`,
     request,
   );
 }
@@ -278,9 +339,9 @@ export async function getOgcRecordCollection(
   request: OgcCollectionRequest,
 ): Promise<HonuaOgcCollectionMetadata> {
   const params = createOgcMetadataParams(request);
-  const path = `/ogc/records/collections/${encodeURIComponent(String(request.collectionId))}`;
+  const path = `${recordsBase(request)}/collections/${encodeURIComponent(String(request.collectionId))}`;
   return transport.requestCachedMetadataJson<HonuaOgcCollectionMetadata>(
-    `ogc-records:collection:${request.collectionId}:${params.toString()}`,
+    `ogc-records:collection:${recordsBaseKey(request)}${request.collectionId}:${params.toString()}`,
     `${path}?${params.toString()}`,
     request,
   );
@@ -346,7 +407,7 @@ function normalizeRecordsBbox(value: OgcRecordsSearchRequest["bbox"]): string {
 function buildOgcRecordsSearchPath(request: OgcRecordsSearchRequest): string {
   const collection = encodeURIComponent(String(request.collectionId));
   const params = serializeOgcRecordsSearchParams(request);
-  return `/ogc/records/collections/${collection}/items?${params.toString()}`;
+  return `${recordsBase(request)}/collections/${collection}/items?${params.toString()}`;
 }
 
 function buildOgcRecordPath(request: OgcRecordItemRequest): string {
@@ -354,7 +415,7 @@ function buildOgcRecordPath(request: OgcRecordItemRequest): string {
   const record = encodeURIComponent(String(request.recordId));
   const params = createOgcMetadataParams(request);
   if (request.profile !== undefined) params.set("profile", normalizeStringCsv(request.profile));
-  return `/ogc/records/collections/${collection}/items/${record}?${params.toString()}`;
+  return `${recordsBase(request)}/collections/${collection}/items/${record}?${params.toString()}`;
 }
 
 function serializeOgcRecordsSearchParams(request: OgcRecordsSearchRequest): URLSearchParams {

@@ -13,6 +13,7 @@ import { type GeoParquetSourceProfiler, discoverGeoParquetSources } from "./conn
 import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
 export type { GeoParquetSourceProfiler } from "./connect-geoparquet.js";
 import { discoverOdataSources } from "./connect-odata.js";
+import { discoverOgcRecordsSources } from "./connect-ogc.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import {
   type DiscoveryCacheIdentity,
@@ -184,6 +185,7 @@ export type ConnectResolvedProtocol =
   | "wfs"
   | "odata"
   | "geoparquet"
+  | "ogc-records"
   | "geoservices-feature-service"
   | "geoservices-map-service";
 
@@ -263,7 +265,9 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
               ? await discoverOdata(client, identity, target, options)
               : target.protocol === "geoparquet"
                 ? await discoverGeoParquet(identity, options)
-                : await discoverGeoServices(client, identity, target, options);
+                : target.protocol === "ogc-records"
+                  ? await discoverOgcRecords(client, identity, target, options)
+                  : await discoverGeoServices(client, identity, target, options);
     if (options.cache) {
       await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
@@ -537,6 +541,30 @@ async function discoverOdata(
     identityKey: identity.key,
     endpoint: identity.endpoint,
     protocol: "odata",
+    retrievedAt: discovered.retrievedAt,
+    evidence: discovered.evidence,
+    sources: discovered.sources,
+  });
+}
+
+async function discoverOgcRecords(
+  client: HonuaClient,
+  identity: DiscoveryCacheIdentity,
+  target: ConnectTarget,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const discovered = await discoverOgcRecordsSources(
+    client,
+    identity,
+    target.clientBaseUrl,
+    target.ogcBasePath ?? "",
+    options,
+  );
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "ogc-records",
     retrievedAt: discovered.retrievedAt,
     evidence: discovered.evidence,
     sources: discovered.sources,
@@ -1161,6 +1189,21 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
       throw new HonuaDiscoveryError(
         "invalid-discovery-cache",
         "Cached GeoParquet source locator does not match the asset endpoint.",
+      );
+    }
+    return;
+  }
+  if (target.protocol === "ogc-records") {
+    if (
+      locator.url !== target.clientBaseUrl ||
+      locator.basePath !== (target.ogcBasePath ?? "") ||
+      typeof locator.collectionId !== "string" ||
+      !locator.collectionId ||
+      sourceId !== locator.collectionId
+    ) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Cached OGC API Records source locator does not match the service endpoint.",
       );
     }
     return;

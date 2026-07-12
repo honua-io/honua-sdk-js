@@ -4,7 +4,7 @@ The package root is the reviewed connect → query → explain → mount workflo
 
 This table is generated from [`config/root-surface.json`](../config/root-surface.json). Run `npm run verify:root-surface` to detect barrel, replacement, fixture, or documentation drift.
 
-Baseline: 263 runtime and 1039 declaration symbols. Final root: 37 runtime and 123 declaration symbols.
+Baseline: 263 runtime and 1039 declaration symbols. Final root: 37 runtime and 124 declaration symbols.
 
 ## Replacement summary
 
