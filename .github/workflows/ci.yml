@@ -205,14 +205,14 @@ jobs:
       - name: Verify public API report (stable tier)
         run: node scripts/report-api-surface.mjs --check
 
+      - name: Verify final root surface and migration matrix
+        run: npm run verify:root-surface
+
       - name: Build and verify browser bundle
         run: npm run verify:browser
 
       - name: Verify public-surface inventory and imports
         run: npm run verify:public-surface
-
-      - name: Verify final root surface and migration matrix
-        run: npm run verify:root-surface
 
       - name: Verify browser artifact publication manifest
         run: node scripts/sample-contract.mjs artifacts
