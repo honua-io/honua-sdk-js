@@ -121,7 +121,7 @@ const SECTIONS = [
       {
         path: "docs/agent-safety.md",
         description:
-          "Bounded safe-agent plan normalization, signed approvals, authenticated single-use consumption, and verifiable receipts.",
+          "Bounded safe-agent plan normalization, signed approvals, authenticated single-use execution, secret-safe durable audit, MCP adaptation, and verifiable receipts.",
       },
       {
         path: "docs/decisions/north-star-sdk-application-kernel.md",
@@ -252,7 +252,7 @@ const ENTRYPOINTS = [
   {
     path: "src/agent-safety/index.ts",
     label: "@honua/sdk-js/agent-safety",
-    fallback: "Bounded plan validation, signed approvals, atomic consumption evidence, and receipts.",
+    fallback: "Bounded plan validation, signed approvals, atomic execution, secret-safe audit, and receipts.",
   },
   {
     path: "src/esri-compat-entry.ts",

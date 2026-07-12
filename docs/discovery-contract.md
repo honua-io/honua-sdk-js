@@ -104,12 +104,13 @@ complete decision, diagnostic, provenance, cache-result, and inspection type
 vocabulary for adapter authors. This keeps the beginner surface bounded while
 preserving a fully typed protocol integration seam.
 
-## Connect facade (OGC Features, GeoServices, and WFS slices)
+## Connect facade (OGC Features, STAC API, GeoServices, and WFS slices)
 
 The experimental `connect()` facade composes this truth contract for raw OGC
-API Features landing pages, WFS 2.0 endpoints, and canonical GeoServices
-`FeatureServer` / `MapServer` service or layer URLs. OGC and WFS endpoints
-require explicit `protocol: "ogc-features"` or `protocol: "wfs"` hints.
+API Features and STAC API landing pages, WFS 2.0 endpoints, and canonical
+GeoServices `FeatureServer` / `MapServer` service or layer URLs. OGC, STAC,
+and WFS endpoints require explicit `protocol: "ogc-features"`,
+`protocol: "stac"`, or `protocol: "wfs"` hints.
 Canonical GeoServices URLs may use
 `protocol: "auto"`: classification comes entirely from the URL path and makes
 no network request. An ambiguous auto target throws `HonuaDiscoveryError` with
@@ -210,9 +211,34 @@ and feature namespace bindings are parsed from `GetCapabilities`; the default
 CRS and namespace are retained on the WFS locator, while the bbox is not
 promoted to the filtered canonical extent capability.
 
+Raw STAC API discovery performs exactly two metadata requests on a valid
+service: the root landing page and `/collections`. Exact STAC API Core 1.0.0
+conformance and a credential-free, same-root `rel=data` collections link must
+be established from the landing document before the second request. An
+explicit protocol hint never substitutes for protocol identity or authorizes a
+guessed operation URL. Discovery never searches items or fans out to
+per-collection metadata. Every advertised collection becomes a source, or
+`collectionId` selects exactly one. The descriptor retains
+`layout: "stac-api"`, so the existing source adapter executes against the raw
+root's `/search` path rather than the Honua `/stac` facade. Collection CRS and
+spatial/temporal extents are deeply immutable under `metadata` on the matching
+`connection.inspection.sources` entry; dynamic item properties are not
+invented as a field schema.
+
+`query`, `queryObjectIds`, and bounded paged `stream` are enabled together only
+when the landing page advertises both STAC API Core 1.0.0 and Item Search
+1.0.0, plus a credential-free `rel=search` link under the connected service
+root. Generic STAC catalog conformance does not prove a search API. Missing
+Item Search evidence leaves those operations disabled with structured
+`not-advertised` decisions. Cross-origin, credential-bearing, query-bearing,
+or path-divergent search/data links are rejected after the landing request and
+before any linked endpoint can be contacted. Static STAC catalogs remain a
+separate explicit discovery slice; `auto` never probes an ambiguous URL to
+guess STAC API versus static STAC.
+
 Authentication, retry, timeout, interceptors, and transport fetch overrides
 are passed in `clientOptions`, or callers may inject an existing `HonuaClient`
-whose normalized base URL matches the OGC/WFS endpoint or derived GeoServices
+whose normalized base URL matches the OGC/STAC/WFS endpoint or derived GeoServices
 root. Endpoints must be absolute HTTP(S) URLs without user info,
 identity-bearing query parameters, or fragments; authentication belongs in
 `clientOptions`. `signal` cancels metadata work and
@@ -228,11 +254,21 @@ Stored values are raw, versioned observations; capability policy is reapplied
 after every cache read. Cross-version, cross-endpoint, cross-scope, and
 cross-collection and cross-WFS-type snapshots are rejected as
 `invalid-discovery-cache` instead
-of being trusted. Cache hooks must not persist access tokens, API keys, or raw
-authorization material.
+of being trusted. Cache values cross a persistence trust boundary: the SDK
+rejects accessors, proxies that throw, cycles, sparse arrays, malformed
+evidence/provenance/extents, and non-plain objects as typed
+`invalid-discovery-cache` failures. Accepted values are copied into deeply
+owned immutable data before capability resolution, so later caller/cache
+mutation cannot change an inspection. The clone is bounded to 32 levels,
+10,000 values, 20,000 properties, 10,000 entries per dense array, one million
+UTF-16 code units per string, and four million string code units overall.
+Owned records use null prototypes, so data keys such as `__proto__` cannot
+alter object prototypes. A bound violation fails without a network fallback.
+Cache hooks must not persist access tokens, API keys, or raw authorization
+material.
 
-This slice is intentionally not universal-connect completion: STAC, OData,
-static files, GeoServices Image/Geometry/GP services, and the remaining
+This slice is intentionally not universal-connect completion: static STAC,
+OData, other static files, GeoServices Image/Geometry/GP services, and the remaining
 raw OGC families still fail as unsupported rather than falling through to
 heuristic detection.
 

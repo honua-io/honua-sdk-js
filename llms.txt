@@ -25,7 +25,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [deck.gl binary adapter (experimental)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/deckgl-adapter.md): Bounded zero-copy typed-array projection into an optional deck.gl peer with deterministic lifecycle semantics.
 - [Experimental Cesium entity adapter](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/cesium-entity-adapter.md): Bounded accepted-plan projection into an optional Cesium peer with stable entity identity and disposal.
 - [Downloadable offline regions (experimental)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/offline-regions.md): Bounded downloadable-region manifests, logical-byte quota CAS, byte isolation, integrity, and storage-neutral transactions.
-- [Safe agent plan boundary](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/agent-safety.md): Bounded safe-agent plan normalization, signed approvals, authenticated single-use consumption, and verifiable receipts.
+- [Safe agent plan boundary](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/agent-safety.md): Bounded safe-agent plan normalization, signed approvals, authenticated single-use execution, secret-safe durable audit, MCP adaptation, and verifiable receipts.
 - [North-star SDK application-kernel contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/decisions/north-star-sdk-application-kernel.md): Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.
 - [Protocol × Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/protocol-capability-matrix.md): Which operations each protocol supports and where capabilities fall back.
 - [Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-capability-matrix.md): Backend-agnostic vs Honua-server-enhanced capabilities: what works with no server and what needs one.
@@ -67,7 +67,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 
 ## API entrypoints
 
-- [@honua/sdk-js](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/index.ts): @honua/sdk-js — root barrel.
+- [@honua/sdk-js](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/index.ts): @honua/sdk-js — reviewed common workflow.
 - [@honua/sdk-js/honua](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/honua.ts): @honua/sdk-js/honua — the Honua-first SDK entrypoint.
 - [@honua/sdk-js/contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/contract/index.ts): Shared client contract — canonical types and source factories that all protocol adapters speak.
 - [@honua/sdk-js/query-planner](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/query-planner/index.ts): @honua/sdk-js/query-planner — deterministic query IR, explain plans, and bounded execution for the protocol-neutral contract.

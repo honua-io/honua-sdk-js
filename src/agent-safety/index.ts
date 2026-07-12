@@ -31,6 +31,7 @@ import {
   type AgentEnvelopeVerifier,
   type AgentExecutionContextV1,
   type AgentExecutionEvidenceV1,
+  type AgentExecutionInputSnapshotV1,
   type AgentExecutionReceiptV1,
   type AgentOperationInputV1,
   type AgentPlanPolicyV1,
@@ -47,12 +48,15 @@ import {
 export {
   AGENT_APPROVAL_KIND,
   AGENT_CONSUMPTION_KIND,
+  AGENT_EXECUTION_AUDIT_KIND,
   AGENT_DRY_RUN_KIND,
   AGENT_PLAN_KIND,
   AGENT_RECEIPT_KIND,
   AGENT_SAFETY_VERSION,
   HonuaAgentSafetyError,
+  HonuaAgentExecutionError,
 } from "./types.js";
+export { executeAgentPlanStep } from "./execution.js";
 export type {
   AgentApprovalRequestV1,
   AgentApprovalConsumptionV1,
@@ -68,12 +72,19 @@ export type {
   AgentEnvelopeSigner,
   AgentEnvelopeVerifier,
   AgentExecutionContextV1,
+  AgentExecutionInputSnapshotV1,
+  AgentExecutionAuditSinkV1,
+  AgentExecutionAuditV1,
+  AgentExecutionCompletedAuditV1,
   AgentExecutionEvidenceV1,
   AgentExecutionReceiptV1,
+  AgentExecutionStartedAuditV1,
   AgentPlanPolicyV1,
   AgentPlanStepV1,
   AgentPlanV1,
   AgentOperationInputV1,
+  AgentOperationExecutionResultV1,
+  AgentOperationExecutorV1,
   AgentProvenanceV1,
   AgentQueryPlanBindingV1,
   AgentSafetyErrorCode,
@@ -81,6 +92,8 @@ export type {
   AgentSourceBindingV1,
   AgentSourcePolicyV1,
   AgentStepAuthorizationV1,
+  ExecuteAgentPlanStepOptions,
+  ExecutedAgentPlanStepV1,
 } from "./types.js";
 
 const EFFECTS = ["read", "render", "mutation", "publish", "share", "realtime", "job"] as const;
@@ -141,6 +154,25 @@ export function digestAgentOperationInput(input: unknown): AgentDigest {
   return parseOperationInput(input).inputDigest;
 }
 
+/** Snapshot all foreign data reused across approved execution awaits. */
+export function snapshotAgentExecutionInputs(
+  dryRunInput: unknown,
+  policyInput: unknown,
+  approvalInput: unknown,
+  contextInput: unknown,
+  operationInput: unknown,
+  options: AgentSafetyOptions = {},
+): AgentExecutionInputSnapshotV1 {
+  checkAbort(options.signal);
+  const policy = parsePolicy(policyInput);
+  const dryRun = revalidateDryRunWithPolicy(dryRunInput, policy, options);
+  const approval = parseApproval(approvalInput);
+  const context = validateContext(dryRun, contextInput);
+  const operation = parseOperationInput(operationInput, policy).input;
+  checkAbort(options.signal);
+  return deepFreeze({ dryRun, policy, approval, context, operation });
+}
+
 /**
  * Verify approval and return the exact step only when the proposed operation
  * parameters match the digest reviewed in the plan.
@@ -186,9 +218,12 @@ export async function verifyAgentStepAuthorization(
   checkAbort(options.signal);
   const useDigest = digest(consumption);
   return deepFreeze({
+    plan: dryRun.plan,
     step: { ...step, limits: { rows: approvedStep.rows, bytes: approvedStep.bytes } },
     operation: operation.input,
     planDigest: dryRun.planDigest,
+    policyDigest: dryRun.policyDigest,
+    bindingsDigest: dryRun.bindingsDigest,
     approvalDigest: approval.envelopeDigest,
     inputDigest,
     useDigest,

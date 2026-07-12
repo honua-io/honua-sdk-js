@@ -84,6 +84,65 @@ scene publishes camera or selection state, the map publishes selected features,
 the table and detail panel observe the same source-qualified selection, and the
 timeline/realtime layer shares status through the same state model.
 
+## Shared MapLibre and Cesium state
+
+`createSceneStateSynchronizer()` owns a bounded, renderer-neutral lifecycle for
+applications that show MapLibre and Cesium together or let a user switch
+between them. Ports publish versioned envelopes for `camera`, `selection`,
+`filters`, `time`, `detail`, credential-free `attribution`, and `realtime`.
+Every accepted envelope carries a monotonic revision, canonical timestamps,
+source/schema/plan identity, renderer origin, and an explicit
+`exact`/`equivalent`/`unsupported` mapping result.
+
+```ts doc-test=skip reason="ports wrap application-owned renderer instances"
+import {
+  createSceneStateSynchronizer,
+  defaultSceneStateSyncMappings,
+} from "@honua/sdk-js/scene-workspace";
+
+const sharedState = createSceneStateSynchronizer({
+  applicationId: "incident-command",
+  ports: [
+    {
+      id: "map-2d",
+      renderer: "maplibre",
+      mappings: defaultSceneStateSyncMappings("maplibre"),
+      subscribe: (publish, signal) => mapStatePort.subscribe(publish, signal),
+      apply: (delivery, signal) => mapStatePort.apply(delivery, signal),
+    },
+    {
+      id: "globe-3d",
+      renderer: "cesium",
+      mappings: defaultSceneStateSyncMappings("cesium"),
+      subscribe: (publish, signal) => globeStatePort.subscribe(publish, signal),
+      apply: (delivery, signal) => globeStatePort.apply(delivery, signal),
+    },
+  ],
+});
+```
+
+An adapter must publish a strictly increasing local `sequence`. When it emits a
+native event caused by applying revision 42, it sets `causeRevision: 42`; the
+synchronizer suppresses that echo. Untagged equivalent values and stale local
+sequences are also suppressed. Camera and time events are coalesced over one
+frame by default while the final state is retained. Delivery to each port is
+serialized, failed applies produce diagnostics without poisoning later work,
+and detach, abort, and disposal cancel pending work and remove listeners.
+
+MapLibre camera and application time mappings are deliberately `equivalent`:
+its center/zoom/pitch cannot preserve a Cesium globe horizon or roll, and it has
+no native clock. Selection, protocol-neutral filters, source-qualified detail,
+attribution identifiers, and realtime freshness map exactly by default. Apps
+must narrow a port's mappings to `unsupported` when their adapter cannot honor
+a slice; the synchronizer diagnoses that boundary instead of silently dropping
+state.
+
+The runnable [shared renderer state fixture](./examples/shared-renderer-state/)
+uses real MapLibre and Cesium canvases and proves bidirectional camera,
+selection, filter, and time flow plus loop suppression and cleanup. Renderer
+packages remain optional peers: the scene-workspace entrypoint has no static
+MapLibre or Cesium import.
+
 ## Scene Primitives
 
 Scene primitives describe 3D intent without naming a renderer package:
@@ -152,3 +211,5 @@ renderer-neutral 3D view state and scene-specific evidence.
   client/app workspace and feed scene intents at the protocol edge.
 - Snapshot and restore are value-detached so saved state can be persisted
   without retaining renderer-owned objects.
+- Each synchronizer is application-instance scoped. It does not coordinate
+  browser tabs, persist state, or own renderer objects.

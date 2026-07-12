@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createExplorationContext, sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
+import type { HonuaExtent } from "@honua/sdk-js/honua";
 import {
   bindChartToExploration,
   bindDetailToSelection,
@@ -8,12 +10,10 @@ import {
   bindMapSelectionToExploration,
   bindQueryProjectionToExploration,
   bindTableSelectionToExploration,
-  createExplorationContext,
-  sourceFeatureSelectionTarget,
   syncFeatureStateSelection,
   syncMapLayerFilterToExploration,
-} from "../src/index.js";
-import type { FeatureStateMap, HonuaExtent, InteractiveMap } from "../src/index.js";
+} from "@honua/sdk-js/interactions";
+import type { FeatureStateMap, InteractiveMap } from "@honua/sdk-js/interactions";
 
 function createMockMap(): InteractiveMap & {
   readonly _state: Map<string, Record<string, unknown>>;
