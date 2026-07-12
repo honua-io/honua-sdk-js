@@ -7,6 +7,7 @@ import {
   type HonuaPluginManifest,
   certifyHonuaPluginManifest as certifyJsonText,
   validateHonuaPluginManifest as validateJsonText,
+  verifyHonuaPluginCertificationReport,
 } from "../src/plugin/index.js";
 
 function validateHonuaPluginManifest(value: unknown) {
@@ -301,7 +302,7 @@ describe("plugin manifest certification", () => {
     expect(first.diagnostics).toEqual([
       expect.objectContaining({ code: "OPTIONAL_PEER_MISSING", severity: "warning" }),
     ]);
-    expect(first.checks).toHaveLength(6);
+    expect(first.checks).toHaveLength(7);
   });
 
   it("rejects incompatible hosts and authorities that were not explicitly granted", () => {
@@ -491,5 +492,80 @@ describe("plugin manifest certification", () => {
       { ...host, sdkVersion: "1.0.0-alpha.1.1" },
     );
     expect(equal.diagnostics.map((item) => item.code)).not.toContain("HOST_SDK_TOO_OLD");
+  });
+});
+
+describe("plugin support-status program", () => {
+  it("certifies a well-formed support-status attestation and exposes it in the snapshot", () => {
+    const report = certifyHonuaPluginManifest(
+      {
+        ...manifest,
+        supportStatus: {
+          state: "deprecated",
+          since: "2.0.0",
+          removedIn: "3.0.0",
+          replacement: "io.honua.partner.arrow2",
+        },
+      },
+      host,
+    );
+    expect(report.status).toBe("certified");
+    expect((report.manifest.snapshot as { supportStatus?: unknown }).supportStatus).toEqual({
+      state: "deprecated",
+      since: "2.0.0",
+      removedIn: "3.0.0",
+      replacement: "io.honua.partner.arrow2",
+    });
+    expect(report.checks.find((check) => check.check === "support")?.status).toBe("passed");
+  });
+
+  it("rejects a deprecated status that names neither a removal version nor a replacement", () => {
+    const report = certifyHonuaPluginManifest({ ...manifest, supportStatus: { state: "deprecated" } }, host);
+    expect(report.status).toBe("rejected");
+    expect(report.diagnostics.map((item) => item.code)).toContain("SUPPORT_DEPRECATION_INCOMPLETE");
+    expect(report.checks.find((check) => check.check === "support")?.status).toBe("failed");
+  });
+
+  it("rejects an unknown support state and a non-semver since", () => {
+    const report = certifyHonuaPluginManifest(
+      { ...manifest, supportStatus: { state: "sunset", since: "yesterday" } },
+      host,
+    );
+    expect(report.status).toBe("rejected");
+    const codes = report.diagnostics.map((item) => item.code);
+    expect(codes).toContain("MANIFEST_ENUM");
+    expect(codes).toContain("SEMVER_INVALID");
+  });
+});
+
+describe("signed certification report verification", () => {
+  it("verifies an untampered report by recomputing every digest", () => {
+    const report = certifyHonuaPluginManifest(manifest, host);
+    const verification = verifyHonuaPluginCertificationReport(JSON.stringify(report));
+    expect(verification.ok).toBe(true);
+    expect(verification.status).toBe("certified");
+    expect(verification.diagnostics).toEqual([]);
+  });
+
+  it("detects a tampered diagnostic even when the top-level digest is left intact", () => {
+    const report = JSON.parse(JSON.stringify(certifyHonuaPluginManifest(manifest, host)));
+    report.status = "rejected";
+    const verification = verifyHonuaPluginCertificationReport(JSON.stringify(report));
+    expect(verification.ok).toBe(false);
+    expect(verification.diagnostics.map((item) => item.code)).toContain("REPORT_SIGNATURE_MISMATCH");
+  });
+
+  it("detects a swapped manifest snapshot whose fingerprint no longer matches", () => {
+    const report = JSON.parse(JSON.stringify(certifyHonuaPluginManifest(manifest, host)));
+    (report.manifest.snapshot as { id: string }).id = "io.honua.impostor";
+    const verification = verifyHonuaPluginCertificationReport(JSON.stringify(report));
+    expect(verification.ok).toBe(false);
+    expect(verification.diagnostics.map((item) => item.code)).toContain("REPORT_FINGERPRINT_MISMATCH");
+  });
+
+  it("rejects non-JSON report text without executing accessors", () => {
+    const verification = verifyHonuaPluginCertificationReport("not json");
+    expect(verification.ok).toBe(false);
+    expect(verification.status).toBeNull();
   });
 });

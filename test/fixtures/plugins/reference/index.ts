@@ -22,3 +22,11 @@ export { referenceCacheManifest, referenceCachePlugin } from "./cache.js";
 export type { ReferenceCacheExtension } from "./cache.js";
 export { referenceRealtimeManifest, referenceRealtimePlugin } from "./realtime.js";
 export type { ReferenceRealtimeExtension } from "./realtime.js";
+export {
+  REFERENCE_CONFORMANCE_MAX_ATTEMPTS,
+  referenceConformanceManifest,
+  referenceConformancePlugin,
+  referenceConformanceProbe,
+  referenceConformanceSpec,
+} from "./conformance.js";
+export type { ReferenceRetryingProtocolExtension } from "./conformance.js";
