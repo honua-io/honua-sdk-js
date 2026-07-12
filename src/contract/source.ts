@@ -64,7 +64,7 @@ import {
   geoJsonGeometryToGml,
   serializeFes,
 } from "../core/wfs-filter.js";
-import { HonuaWfs, HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
+import { HonuaWfsFeatureType, type OutputFormatChoice } from "../core/wfs.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import { HonuaPmtilesArchive, stripPmtilesScheme } from "./pmtiles.js";
@@ -1450,7 +1450,7 @@ const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
  */
 export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, policy: CapabilityPolicy): Source<T> {
   const { url, typeName, featureNamespace, srsName: wfsSrsName } = requireWfsLocator(descriptor);
-  const root = new HonuaWfs({ client, endpointUrl: url });
+  const root = client.wfs(url);
   const featureType = new HonuaWfsFeatureType({ root, typeName });
   const caps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wfs;
   void policy;
@@ -1672,6 +1672,10 @@ export function wfsSource<T>(descriptor: SourceDescriptor, client: HonuaClient, 
         // unaddressed transaction.
         summary = { totalInserted: 0, totalUpdated: 0, totalDeleted: 0, insertResults: [] };
       } else {
+        // Ensure a caller-cache hit still resolves the advertised Transaction
+        // POST URL before sending edits. Fresh connect discovery reuses this
+        // same root, so the capabilities promise is already settled there.
+        await root.capabilities(envelope.signal ? { signal: envelope.signal } : undefined);
         const filtered: EditEnvelope<T> = { ...envelope, updates: validUpdates };
         const body = buildTransactionBody(typeName, filtered, featureNamespace, wfsSrsName);
         const transactionOptions: { body: string; signal?: AbortSignal } = { body };

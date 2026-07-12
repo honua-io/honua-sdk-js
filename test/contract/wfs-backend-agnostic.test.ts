@@ -31,6 +31,7 @@ describe("wfs backend-agnostic / capabilities DCP URLs", () => {
     expect(getFeature?.postUrl).toBe("https://ahocevar.com/geoserver/wfs");
     expect(getFeature?.outputFormats).toContain("application/json");
     expect(snapshot.featureTypes[0].name).toBe("ne:ne_10m_admin_0_countries");
+    expect(snapshot.namespaces.get("ne")).toBe("http://www.naturalearthdata.com");
   });
 });
 

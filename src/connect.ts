@@ -10,6 +10,7 @@
  */
 
 import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
+import { discoverWfsSources } from "./connect-wfs.js";
 import {
   type DiscoveryCacheIdentity,
   type DiscoveryCapabilityEvidence,
@@ -46,9 +47,9 @@ import type {
 } from "./core/types.js";
 
 /** Schema version for values stored through {@link ConnectDiscoveryCache}. */
-export const HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION = 2 as const;
+export const HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION = 3 as const;
 /** Adapter version used to invalidate logical discovery identities. */
-export const HONUA_CONNECT_ADAPTER_VERSION = "honua-connect@2";
+export const HONUA_CONNECT_ADAPTER_VERSION = "honua-connect@3";
 /** Normalized facade projection version used to invalidate cached snapshots. */
 export const HONUA_CONNECT_PROJECTION_VERSION = "honua-connect-source-descriptor@1";
 
@@ -97,12 +98,14 @@ export interface ConnectDiscoverySnapshot {
 }
 
 export interface ConnectOptions {
-  /** OGC API landing page or canonical GeoServices service/layer URL. */
+  /** OGC API, WFS 2.0, or canonical GeoServices service/layer URL. */
   readonly endpoint: string | URL;
   /** Protocol hint. `auto` recognizes canonical GeoServices URL structure without probing. */
   readonly protocol: ConnectProtocolHint;
   /** Restrict discovery to one collection while retaining the service root URL. */
   readonly collectionId?: string;
+  /** Restrict WFS discovery to one advertised namespace-qualified feature type. */
+  readonly typeName?: string;
   /** Optional dataset id; defaults to the redacted normalized endpoint. */
   readonly id?: string;
   /** Stable ACL/audience fingerprint. Never pass a bearer token or API key. */
@@ -137,7 +140,11 @@ export interface HonuaConnection {
   source<T = Record<string, unknown>>(id?: SourceId): Source<T>;
 }
 
-export type ConnectResolvedProtocol = "ogc-features" | "geoservices-feature-service" | "geoservices-map-service";
+export type ConnectResolvedProtocol =
+  | "ogc-features"
+  | "wfs"
+  | "geoservices-feature-service"
+  | "geoservices-map-service";
 
 /**
  * Discover an explicitly identified endpoint and return reviewed descriptors.
@@ -159,6 +166,12 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
       "collectionId is only valid for OGC API Features connections; select a GeoServices layer in the endpoint URL.",
     );
   }
+  if (target.protocol !== "wfs" && options.typeName !== undefined) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "typeName is only valid for WFS connections.");
+  }
+  if (options.typeName !== undefined && (!options.typeName.trim() || options.typeName.trim() !== options.typeName)) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "WFS typeName must be a non-empty, trimmed identifier.");
+  }
   if (options.client && options.clientOptions) {
     throw new HonuaDiscoveryError("invalid-endpoint", "Pass either client or clientOptions to connect(), not both.");
   }
@@ -170,6 +183,7 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     adapterVersion: HONUA_CONNECT_ADAPTER_VERSION,
     projectionVersion: HONUA_CONNECT_PROJECTION_VERSION,
     ...(options.collectionId ? { collectionId: options.collectionId } : {}),
+    ...(options.typeName ? { typeName: options.typeName } : {}),
     ...(target.serviceId ? { serviceId: target.serviceId } : {}),
     ...(target.layerId !== undefined ? { layerId: target.layerId } : {}),
   });
@@ -182,7 +196,7 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     snapshot = await awaitAbortable(options.cache.get(identity, cacheContext), options.signal);
     throwIfAborted(options.signal);
     if (snapshot) {
-      snapshot = validateSnapshot(snapshot, identity, target, options.collectionId);
+      snapshot = validateSnapshot(snapshot, identity, target, options.collectionId, options.typeName);
       cacheStatus = "hit";
     }
   }
@@ -192,7 +206,9 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     snapshot =
       target.protocol === "ogc-features"
         ? await discoverOgcFeatures(client, identity, options)
-        : await discoverGeoServices(client, identity, target, options);
+        : target.protocol === "wfs"
+          ? await discoverWfs(client, identity, options)
+          : await discoverGeoServices(client, identity, target, options);
     if (options.cache) {
       await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
@@ -385,6 +401,23 @@ async function discoverGeoServices(
   });
 }
 
+async function discoverWfs(
+  client: HonuaClient,
+  identity: DiscoveryCacheIdentity,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const discovered = await discoverWfsSources(client, identity, options);
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "wfs",
+    retrievedAt: discovered.retrievedAt,
+    evidence: discovered.evidence,
+    sources: discovered.sources,
+  });
+}
+
 function layoutFromEndpoint(endpoint: string): OgcEndpointLayout {
   const root = endpoint.replace(/\/+$/, "");
   return ogcApiFeaturesLayout({
@@ -499,6 +532,7 @@ function validateSnapshot(
   identity: DiscoveryCacheIdentity,
   target: ConnectTarget,
   collectionId: string | undefined,
+  typeName: string | undefined,
 ): ConnectDiscoverySnapshot {
   if (
     value?.version !== HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION ||
@@ -560,6 +594,11 @@ function validateSnapshot(
       { collectionId },
     );
   }
+  if (typeName && (sources.length !== 1 || String(sources[0]?.locator.typeName ?? "") !== typeName)) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache snapshot does not match the WFS type.", {
+      typeName,
+    });
+  }
   return Object.freeze({ ...value, evidence: Object.freeze([...value.evidence]), sources: Object.freeze(sources) });
 }
 
@@ -575,6 +614,20 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
       throw new HonuaDiscoveryError(
         "invalid-discovery-cache",
         "Cached OGC source locator does not match the endpoint.",
+      );
+    }
+    return;
+  }
+  if (target.protocol === "wfs") {
+    if (
+      locator.url !== target.endpoint ||
+      typeof locator.typeName !== "string" ||
+      !locator.typeName ||
+      sourceId !== locator.typeName
+    ) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Cached WFS source locator does not match the endpoint.",
       );
     }
     return;

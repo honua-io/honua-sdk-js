@@ -415,6 +415,7 @@ export class HonuaClient {
   private connectClient: Client<typeof FeatureService> | undefined;
   private readonly metadataCache = new Map<string, MetadataCacheEntry>();
   private readonly ogcLayoutCache = new Map<OgcApiLayoutMode, Promise<OgcEndpointLayout>>();
+  private readonly wfsRootCache = new Map<string, HonuaWfs>();
 
   /**
    * Create a new `HonuaClient`.
@@ -869,7 +870,13 @@ export class HonuaClient {
   }
 
   public wfs(endpointUrl = "/wfs", options: { version?: string } = {}): HonuaWfs {
-    return new HonuaWfs({ client: this, endpointUrl, version: options.version });
+    const version = options.version ?? "2.0.0";
+    const key = `${endpointUrl}\u0000${version}`;
+    const cached = this.wfsRootCache.get(key);
+    if (cached) return cached;
+    const root = new HonuaWfs({ client: this, endpointUrl, version });
+    this.wfsRootCache.set(key, root);
+    return root;
   }
 
   public odata(entitySet: string, options: { basePath?: string } = {}): HonuaOdataEntitySet {
