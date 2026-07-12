@@ -35,6 +35,7 @@ export type {
   ConnectOptions,
   ConnectProtocolHint,
   ConnectResolvedProtocol,
+  GeoParquetSourceProfiler,
   HonuaConnection,
   HonuaConnectionInspection,
 } from "./connect.js";

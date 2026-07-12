@@ -111,6 +111,8 @@ function createSdkPackage() {
   copyFile(path.join(DIST_SRC_ROOT, "connect-wfs.d.ts"), path.join(packageRoot, "connect-wfs.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-odata.js"), path.join(packageRoot, "connect-odata.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-odata.d.ts"), path.join(packageRoot, "connect-odata.d.ts"));
+  copyFile(path.join(DIST_SRC_ROOT, "connect-geoparquet.js"), path.join(packageRoot, "connect-geoparquet.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "connect-geoparquet.d.ts"), path.join(packageRoot, "connect-geoparquet.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect.js"), path.join(packageRoot, "connect.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect.d.ts"), path.join(packageRoot, "connect.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));

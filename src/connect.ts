@@ -9,7 +9,9 @@
  * @experimental
  */
 
+import { type GeoParquetSourceProfiler, discoverGeoParquetSources } from "./connect-geoparquet.js";
 import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
+export type { GeoParquetSourceProfiler } from "./connect-geoparquet.js";
 import { discoverOdataSources } from "./connect-odata.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import {
@@ -31,6 +33,7 @@ import type {
   SourceDescriptor,
   SourceId,
   SourceLocator,
+  SourceResolver,
   SourceSchema,
 } from "./contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
@@ -135,6 +138,26 @@ export interface ConnectOptions {
   readonly refresh?: boolean;
   readonly signal?: AbortSignal;
   readonly metadata?: Omit<HonuaMetadataRequestOptions, "signal" | "refresh">;
+  /**
+   * Resolver for descriptors the built-in resolvers do not handle. Required to
+   * execute a discovered `geoparquet` source through `connection.source()`
+   * (pass `geoparquetResolver()` from `@honua/sdk-js/geoparquet`); the DuckDB
+   * engine must never enter the connect static graph, so it is injected here.
+   */
+  readonly resolveSource?: SourceResolver;
+  /** GeoParquet / static-file discovery inputs; required for `protocol: "geoparquet"`. */
+  readonly geoparquet?: {
+    /**
+     * Footer / `geo` metadata reader. `GeoparquetRuntime` (from
+     * `@honua/sdk-js/geoparquet`) satisfies this interface via its `profile()`
+     * method, so one runtime can both discover and execute.
+     */
+    readonly profiler: GeoParquetSourceProfiler;
+    /** Additional Parquet files unioned with the endpoint via `read_parquet([...])`. */
+    readonly urls?: readonly string[];
+    /** Explicit geometry column name (overrides GeoParquet metadata detection). */
+    readonly geometryColumn?: string;
+  };
 }
 
 export interface HonuaConnectionInspection {
@@ -160,6 +183,7 @@ export type ConnectResolvedProtocol =
   | "stac"
   | "wfs"
   | "odata"
+  | "geoparquet"
   | "geoservices-feature-service"
   | "geoservices-map-service";
 
@@ -237,7 +261,9 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
             ? await discoverWfs(client, identity, options)
             : target.protocol === "odata"
               ? await discoverOdata(client, identity, target, options)
-              : await discoverGeoServices(client, identity, target, options);
+              : target.protocol === "geoparquet"
+                ? await discoverGeoParquet(identity, options)
+                : await discoverGeoServices(client, identity, target, options);
     if (options.cache) {
       await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
@@ -279,6 +305,7 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     client,
     sources: inspections.map((entry) => entry.descriptor),
     skipCompatibilityCheck: true,
+    ...(options.resolveSource ? { resolveSource: options.resolveSource } : {}),
   });
   const defaultSourceId = inspections.length === 1 ? inspections[0]?.descriptor.id : undefined;
   const inspection: HonuaConnectionInspection = Object.freeze({
@@ -510,6 +537,29 @@ async function discoverOdata(
     identityKey: identity.key,
     endpoint: identity.endpoint,
     protocol: "odata",
+    retrievedAt: discovered.retrievedAt,
+    evidence: discovered.evidence,
+    sources: discovered.sources,
+  });
+}
+
+async function discoverGeoParquet(
+  identity: DiscoveryCacheIdentity,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const profiler = options.geoparquet?.profiler;
+  if (!profiler) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "GeoParquet discovery requires a footer metadata reader; pass geoparquet.profiler (for example a GeoparquetRuntime from @honua/sdk-js/geoparquet).",
+    );
+  }
+  const discovered = await discoverGeoParquetSources(profiler, identity, options);
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "geoparquet",
     retrievedAt: discovered.retrievedAt,
     evidence: discovered.evidence,
     sources: discovered.sources,
@@ -1102,6 +1152,15 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
       throw new HonuaDiscoveryError(
         "invalid-discovery-cache",
         "Cached OData source locator does not match the endpoint.",
+      );
+    }
+    return;
+  }
+  if (target.protocol === "geoparquet") {
+    if (locator.url !== target.endpoint || typeof sourceId !== "string" || !sourceId) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Cached GeoParquet source locator does not match the asset endpoint.",
       );
     }
     return;

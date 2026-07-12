@@ -43,6 +43,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
           "stac",
           "wfs",
           "odata",
+          "geoparquet",
           "geoservices-feature-service",
           "geoservices-map-service",
         ],
@@ -84,6 +85,19 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
     const odataBasePath = url.pathname && url.pathname !== "/" ? url.pathname : "/odata";
     return { endpoint, clientBaseUrl: url.origin, protocol: "odata", odataBasePath };
   }
+  if (hint === "geoparquet") {
+    if (geoservices) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `The canonical GeoServices URL resolves to "${geoservices.protocol}", not "geoparquet".`,
+        { endpoint, protocol: hint, resolvedProtocol: geoservices.protocol },
+      );
+    }
+    // A GeoParquet asset is a static file (or hive-partitioned glob) addressed
+    // directly; discovery reads its footer, so the client base URL is only the
+    // asset origin and is never used for feature queries.
+    return { endpoint, clientBaseUrl: new URL(endpoint).origin, protocol: "geoparquet" };
+  }
   if (hint === "geoservices-feature-service" || hint === "geoservices-map-service") {
     if (!geoservices || geoservices.protocol !== hint) {
       throw new HonuaDiscoveryError(
@@ -104,6 +118,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
         "stac",
         "wfs",
         "odata",
+        "geoparquet",
         "geoservices-feature-service",
         "geoservices-map-service",
       ],
