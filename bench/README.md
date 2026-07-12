@@ -55,6 +55,40 @@ another SDK. See
 [`docs/benchmark-methodology.md`](../docs/benchmark-methodology.md) for the
 comparison and live-evidence rules.
 
+## Cross-SDK reference preflight
+
+`npm run bench:references` validates the separate, versioned
+[`cross-sdk/corpus.json`](./cross-sdk/corpus.json), its synthetic fixture digest,
+locked package identities, and primary-source license/terms decisions. It emits
+`test-results/cross-sdk-reference-corpus.json`. This is a reproducibility and
+legal-equivalence preflight, not a performance report: every task remains
+`not-measured`, `crossSdkComparable: false`, and `rankingPermitted: false` until
+one future same-run result artifact passes the reviewed output/environment
+validators.
+
+Eligible open-source references are Honua, MapLibre GL JS, standalone deck.gl,
+and local-ellipsoid CesiumJS. Esri and current Mapbox GL JS remain unavailable
+pending explicit legal approval for public comparative publication. The CARTO
+platform path is not comparable in the credential-free lane because CARTO APIs
+require authentication; standalone deck.gl is represented separately and is
+never mislabeled as a CARTO result. No third-party implementation or hosted
+data is copied into the corpus.
+
+The Honua entry binds the exact `HEAD:src` Git tree, not an npm release with the
+same version string. Any source change intentionally invalidates the preflight;
+run `npm run bench:references:source-tree`, review the source delta, then update
+the corpus tree only in the same reviewed change. Eligible license files are
+bound by local SHA-256 and contained to `LICENSE` or locked `node_modules`
+package roots (realpath containment also rejects symlink escapes).
+
+Terms reachability is refreshed explicitly, never during deterministic PR
+gates. `npm run bench:references:refresh-terms` performs bounded eight-second
+HEAD requests against only the committed primary URLs and records status/final
+URL metadata in `test-results/cross-sdk-terms-refresh.json`; it stores no
+third-party terms content. A maintainer reviews that artifact before advancing
+`reviewedAt`/`reviewExpiresAt`. Reachability alone never changes a legal
+decision.
+
 ## Deterministic browser rendering corpus
 
 `npm run bench:browser` builds the fixture-backed flagship and runs two real

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { LinkedViewQueryProjection } from "@honua/sdk-js/exploration";
 import type { QuickstartFeatureSummary } from "../examples/maplibre-quickstart/src/data.js";
 import {
   applyQuickstartProjection,
@@ -7,7 +8,6 @@ import {
   createQuickstartFilterOptions,
   formatProjectionExtent,
 } from "../examples/maplibre-quickstart/src/linked-exploration.js";
-import type { LinkedViewQueryProjection } from "../src/index.js";
 
 function summary(id: string, properties: Record<string, unknown>, center: [number, number]): QuickstartFeatureSummary {
   return {

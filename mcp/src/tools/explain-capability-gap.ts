@@ -1,5 +1,6 @@
-import { CAPABILITIES, type Capability, PROTOCOLS, type Protocol } from "@honua/sdk-js";
+import type { Capability, Protocol } from "@honua/sdk-js";
 import { explainHonuaCapabilityGap } from "@honua/sdk-js/agent-tools";
+import { CAPABILITIES, PROTOCOLS } from "@honua/sdk-js/contract";
 import { z } from "zod";
 import { jsonText } from "../helpers.js";
 

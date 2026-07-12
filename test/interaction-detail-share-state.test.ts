@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
 import {
   interactionQueryParamNames,
   parseInteractionQueryState,
@@ -8,8 +9,7 @@ import {
   prepareSelectionDetailModels,
   serializeInteractionQueryState,
   serializeSelection,
-  sourceFeatureSelectionTarget,
-} from "../src/index.js";
+} from "@honua/sdk-js/interactions";
 
 describe("interaction detail model helpers", () => {
   it("prepares popup/detail data for selected features", () => {

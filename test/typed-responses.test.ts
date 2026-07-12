@@ -1,28 +1,30 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  HonuaApplyEditsResponse,
+  HonuaAttachmentListResponse,
+  HonuaExportMapResponse,
+  HonuaFindResponse,
+  HonuaIdentifyResponse,
+  HonuaLayerMetadata,
+  HonuaLegendResponse,
+  HonuaOgcFeatureCollectionResponse,
+  HonuaOgcFeatureResponse,
+  HonuaQueryAttachmentsResponse,
+  HonuaQueryResponse,
+  HonuaRelatedRecordsResponse,
+  HonuaServiceMetadata,
+  HonuaTypedFeature,
+  HonuaTypedQueryResponse,
+} from "@honua/sdk-js/honua";
 import {
-  type HonuaApplyEditsResponse,
-  type HonuaAttachmentListResponse,
-  HonuaClient,
-  type HonuaExportMapResponse,
   HonuaFeatureLayer,
-  type HonuaFindResponse,
-  type HonuaIdentifyResponse,
-  type HonuaLayerMetadata,
-  type HonuaLegendResponse,
   HonuaMapLayer,
   HonuaMapService,
   HonuaOgcFeatureCollection,
-  type HonuaOgcFeatureCollectionResponse,
-  type HonuaOgcFeatureResponse,
   HonuaOgcFeatures,
-  type HonuaQueryAttachmentsResponse,
-  type HonuaQueryResponse,
-  type HonuaRelatedRecordsResponse,
-  type HonuaServiceMetadata,
-  type HonuaTypedFeature,
-  type HonuaTypedQueryResponse,
-} from "../src/index.js";
+} from "@honua/sdk-js/honua";
+import { HonuaClient } from "../src/index.js";
 
 function createMockClient(responseBody: unknown): HonuaClient {
   return new HonuaClient({

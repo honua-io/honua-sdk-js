@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { HonuaFeatureLayer, HonuaMapService } from "@honua/sdk-js/honua";
+import { HonuaMap } from "@honua/sdk-js/map";
+import type { HonuaMapEvent } from "@honua/sdk-js/map";
+import type { HonuaStyleSpecification } from "@honua/sdk-js/style";
 import { HonuaOgcFeatureCollection } from "../src/core/surfaces.js";
-import { HonuaClient, HonuaFeatureLayer, HonuaMap, HonuaMapService } from "../src/index.js";
-import type { HonuaMapEvent, HonuaStyleSpecification } from "../src/index.js";
+import { HonuaClient } from "../src/index.js";
 
 const client = new HonuaClient({ baseUrl: "https://gis.example.com" });
 

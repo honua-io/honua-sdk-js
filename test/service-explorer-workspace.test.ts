@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
+import type { LinkedViewQueryProjection } from "@honua/sdk-js/exploration";
+import type { HonuaExtent } from "@honua/sdk-js/honua";
+import { bindMapExtentToExploration, bindQueryProjectionToExploration } from "@honua/sdk-js/interactions";
 import { createFixtureServiceExplorerDataset } from "../examples/service-explorer/src/data.js";
 import {
   beginServiceExplorerMetadataRevalidation,
@@ -14,12 +18,6 @@ import {
   selectHonuaAppWorkspaceDetailModel,
   selectHonuaAppWorkspaceMetadataCacheModel,
 } from "../src/app-workspace/index.js";
-import {
-  bindMapExtentToExploration,
-  bindQueryProjectionToExploration,
-  sourceFeatureSelectionTarget,
-} from "../src/index.js";
-import type { HonuaExtent, LinkedViewQueryProjection } from "../src/index.js";
 
 async function flush(): Promise<void> {
   await Promise.resolve();

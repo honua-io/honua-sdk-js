@@ -52,10 +52,13 @@ export {
   AGENT_DRY_RUN_KIND,
   AGENT_PLAN_KIND,
   AGENT_RECEIPT_KIND,
+  AGENT_SAFETY_EVIDENCE_KIND,
   AGENT_SAFETY_VERSION,
   HonuaAgentSafetyError,
   HonuaAgentExecutionError,
 } from "./types.js";
+export { deriveAgentSafetyEvidence, verifyAgentSafetyEvidence } from "./evidence.js";
+export type { DeriveAgentSafetyEvidenceOptions } from "./evidence.js";
 export { executeAgentPlanStep } from "./execution.js";
 export type {
   AgentApprovalRequestV1,
@@ -88,6 +91,9 @@ export type {
   AgentProvenanceV1,
   AgentQueryPlanBindingV1,
   AgentSafetyErrorCode,
+  AgentSafetyEvidenceProvenanceV1,
+  AgentSafetyEvidenceV1,
+  AgentSafetyUnavailableFact,
   AgentSafetyOptions,
   AgentSourceBindingV1,
   AgentSourcePolicyV1,

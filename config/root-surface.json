@@ -1,0 +1,5160 @@
+{
+  "$comment": "Reviewed final root surface for issue #451. Generated migration rows partition the b6e89a4 transition-era root; do not hand-edit without regenerating fixtures and migration documentation.",
+  "schemaVersion": 1,
+  "inclusionRule": [
+    "Include symbols used directly by the committed connect-query-explain-mount golden root workflow.",
+    "Include the minimal protocol-neutral input, output, error, policy, and lifecycle vocabulary needed to name that workflow.",
+    "Promote only the planner vocabulary required to explain and mount the common workflow; the complete query-planner subpath remains experimental.",
+    "Runtime exports must be SSR/worker safe at module evaluation and must not load optional renderer, model, DuckDB, Arrow, Cesium, React, or app-platform peers.",
+    "Move every protocol-specific, renderer-specific, application-state, migration, styling, realtime, offline, analytics, and low-level wire symbol to its focused supported subpath."
+  ],
+  "evidence": {
+    "northStarDecision": "docs/decisions/north-star-sdk-application-kernel.md",
+    "goldenFixture": "test/root-surface/golden.ts",
+    "goldenRuntimeAssertion": "test/root-surface/golden.test.ts",
+    "usageRoots": [
+      "README.md",
+      "INSTALL.md",
+      "docs",
+      "examples",
+      "mcp",
+      "test/integration"
+    ],
+    "dependencyBoundary": "docs/decisions/north-star-sdk-application-kernel.md#dependency-direction"
+  },
+  "baseline": {
+    "commit": "b6e89a4d2eab25a73557deb3da5bc372e570ce79",
+    "runtimeCount": 263,
+    "runtimeSha256": "12c1ab4764c90e5c8d92153ccc5f3f7d05fdc3f4ea25c89054f24e4d97515d7d",
+    "declarationCount": 1039,
+    "declarationSha256": "edd8f15bd7e62633cd1c1fbc8f622d92cf88da1c715abf2e91bfe423fb9e740c"
+  },
+  "final": {
+    "runtime": [
+      "buffer",
+      "capabilities",
+      "connect",
+      "createDataset",
+      "envelope",
+      "executeQueryPlan",
+      "explainQuery",
+      "hashQueryPlan",
+      "HONUA_CONNECT_ADAPTER_VERSION",
+      "HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION",
+      "HONUA_CONNECT_PROJECTION_VERSION",
+      "HONUA_MINIMUM_SUPPORTED_SERVER_VERSION",
+      "HonuaAbortError",
+      "HonuaAuthError",
+      "HonuaCapabilityNotSupportedError",
+      "HonuaClient",
+      "HonuaDiscoveryError",
+      "HonuaGrpcError",
+      "HonuaHttpError",
+      "HonuaMapLibreSourceAdapterError",
+      "HonuaNetworkError",
+      "HonuaQueryPlanExecutionError",
+      "HonuaQueryPlanningError",
+      "HonuaTimeoutError",
+      "isHonuaError",
+      "MAX_LOCAL_MATERIALIZATION_ROWS",
+      "mountSourceToMapLibre",
+      "point",
+      "polygon",
+      "PROTOCOL_DEFAULT_CAPABILITIES",
+      "QUERY_IR_KIND",
+      "QUERY_IR_VERSION",
+      "QUERY_PLAN_KIND",
+      "QUERY_PLAN_VERSION",
+      "spatialContains",
+      "spatialIntersects",
+      "spatialWithin"
+    ],
+    "declarations": [
+      "AdapterFor",
+      "AdapterKind",
+      "AdapterTypeMap",
+      "AggregationFn",
+      "AggregationHistogramBucketAliases",
+      "AggregationHistogramBucketSpec",
+      "AggregationMetric",
+      "AggregationSpec",
+      "AggregationTimeIntervalSpec",
+      "AggregationTimeIntervalUnit",
+      "AggregationTimeSeriesAliases",
+      "AggregationTimeSeriesSpec",
+      "buffer",
+      "CanonicalFeature",
+      "CanonicalQuery",
+      "CanonicalSpatialFilter",
+      "capabilities",
+      "Capabilities",
+      "Capability",
+      "CapabilityPolicy",
+      "connect",
+      "ConnectCacheStatus",
+      "ConnectDiscoveryCache",
+      "ConnectDiscoveryCacheContext",
+      "ConnectDiscoverySnapshot",
+      "ConnectDiscoverySourceSnapshot",
+      "ConnectOptions",
+      "ConnectProtocolHint",
+      "ConnectResolvedProtocol",
+      "createDataset",
+      "CreateDatasetOptions",
+      "Dataset",
+      "DatasetId",
+      "DegradedReason",
+      "envelope",
+      "executeQueryPlan",
+      "ExecuteQueryPlanOptions",
+      "explainQuery",
+      "ExplainQueryOptions",
+      "FeatureId",
+      "hashQueryPlan",
+      "HONUA_CONNECT_ADAPTER_VERSION",
+      "HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION",
+      "HONUA_CONNECT_PROJECTION_VERSION",
+      "HONUA_MINIMUM_SUPPORTED_SERVER_VERSION",
+      "HonuaAbortError",
+      "HonuaAuthCredentials",
+      "HonuaAuthCredentialsProvider",
+      "HonuaAuthError",
+      "HonuaAuthErrorCode",
+      "HonuaAuthProvider",
+      "HonuaAuthProviderContext",
+      "HonuaAuthProviderResult",
+      "HonuaCapabilityNotSupportedError",
+      "HonuaClient",
+      "HonuaClientOptions",
+      "HonuaConnection",
+      "HonuaConnectionInspection",
+      "HonuaDiscoveryError",
+      "HonuaDiscoveryErrorCode",
+      "HonuaError",
+      "HonuaGrpcError",
+      "HonuaHttpError",
+      "HonuaMapLibreSourceAdapterError",
+      "HonuaNetworkError",
+      "HonuaQueryPlanExecutionError",
+      "HonuaQueryPlanningError",
+      "HonuaTimeoutError",
+      "HonuaTransport",
+      "isHonuaError",
+      "JsonPrimitive",
+      "JsonValue",
+      "LocalAggregatePlanStep",
+      "MapLibreGeometryKind",
+      "MapLibreSourceAdapterErrorCode",
+      "MapLibreSourceDiagnostic",
+      "MapLibreSourceDiagnosticCode",
+      "MapLibreSourceProjection",
+      "MapLibreSourceStrategy",
+      "MapLibreSourceWorkflowState",
+      "MAX_LOCAL_MATERIALIZATION_ROWS",
+      "MountedMapLibreSource",
+      "mountSourceToMapLibre",
+      "MountSourceToMapLibreOptions",
+      "PaginationSpec",
+      "point",
+      "polygon",
+      "Protocol",
+      "PROTOCOL_DEFAULT_CAPABILITIES",
+      "Query",
+      "QUERY_IR_KIND",
+      "QUERY_IR_VERSION",
+      "QUERY_PLAN_KIND",
+      "QUERY_PLAN_VERSION",
+      "QueryExecutionPlanV1",
+      "QueryFallbackPolicy",
+      "QueryIrSourceIdentity",
+      "QueryIrV1",
+      "QueryPlanExecution",
+      "QueryPlanExecutionErrorCode",
+      "QueryPlanExecutor",
+      "QueryPlanningErrorCode",
+      "QueryPlanningEstimates",
+      "QueryPlanStep",
+      "RemoteCompiledQueryV1",
+      "RemoteQueryPlanStep",
+      "Result",
+      "SortSpec",
+      "Source",
+      "SourceAnalyticsCapabilities",
+      "SourceDescriptor",
+      "SourceFreshnessContract",
+      "SourceHistogramCapabilityMetadata",
+      "SourceId",
+      "SourceLocator",
+      "SourceResolver",
+      "SourceSchema",
+      "SourceTimeSeriesCapabilityMetadata",
+      "SourceToMapLibreMap",
+      "spatialContains",
+      "SpatialFilter",
+      "spatialIntersects",
+      "spatialWithin"
+    ]
+  },
+  "promotions": [
+    {
+      "symbol": "CanonicalQuery",
+      "kind": "type"
+    },
+    {
+      "symbol": "CanonicalSpatialFilter",
+      "kind": "type"
+    },
+    {
+      "symbol": "executeQueryPlan",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "ExecuteQueryPlanOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "explainQuery",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "ExplainQueryOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "hashQueryPlan",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HonuaDiscoveryErrorCode",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaMapLibreSourceAdapterError",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HonuaQueryPlanExecutionError",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HonuaQueryPlanningError",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "JsonPrimitive",
+      "kind": "type"
+    },
+    {
+      "symbol": "JsonValue",
+      "kind": "type"
+    },
+    {
+      "symbol": "LocalAggregatePlanStep",
+      "kind": "type"
+    },
+    {
+      "symbol": "MapLibreGeometryKind",
+      "kind": "type"
+    },
+    {
+      "symbol": "MapLibreSourceAdapterErrorCode",
+      "kind": "type"
+    },
+    {
+      "symbol": "MapLibreSourceDiagnostic",
+      "kind": "type"
+    },
+    {
+      "symbol": "MapLibreSourceDiagnosticCode",
+      "kind": "type"
+    },
+    {
+      "symbol": "MapLibreSourceProjection",
+      "kind": "type"
+    },
+    {
+      "symbol": "MapLibreSourceStrategy",
+      "kind": "type"
+    },
+    {
+      "symbol": "MapLibreSourceWorkflowState",
+      "kind": "type"
+    },
+    {
+      "symbol": "MAX_LOCAL_MATERIALIZATION_ROWS",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "MountedMapLibreSource",
+      "kind": "type"
+    },
+    {
+      "symbol": "mountSourceToMapLibre",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "MountSourceToMapLibreOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "QUERY_IR_KIND",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "QUERY_IR_VERSION",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "QUERY_PLAN_KIND",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "QUERY_PLAN_VERSION",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "QueryExecutionPlanV1",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryFallbackPolicy",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryIrSourceIdentity",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryIrV1",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryPlanExecution",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryPlanExecutionErrorCode",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryPlanExecutor",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryPlanningErrorCode",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryPlanningEstimates",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryPlanStep",
+      "kind": "type"
+    },
+    {
+      "symbol": "RemoteCompiledQueryV1",
+      "kind": "type"
+    },
+    {
+      "symbol": "RemoteQueryPlanStep",
+      "kind": "type"
+    },
+    {
+      "symbol": "SourceToMapLibreMap",
+      "kind": "type"
+    }
+  ],
+  "migrations": [
+    {
+      "symbol": "ALL_CAPABILITIES",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "ANALYTICS_SOURCE_SCHEMA_VERSION",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsIndexCoverageDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsIndexCoverageKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsIndexDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsIndexHierarchy",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceCacheIdentity",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceCacheKeyOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceCachePolicy",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceCapabilityMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "analyticsSourceDegradedReason",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceDescriptorBase",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceFallbackMode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceFallbackPolicy",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "analyticsSourceId",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceProtocolEscapeHatch",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourcePushdownAssessment",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourcePushdownCapability",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceRelationDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceSchemaVersion",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceSqlDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsSourceTilesetDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AnalyticsWarehouseProvider",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "ApplyEditsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ApplyPresetIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "assertFeatureServerH3SpatialAggregationRequest",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "assertValidSpatialAggregationRequest",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "assertValidTemporalRollbackPlanRequest",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "assessAnalyticsSourcePushdown",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AttachmentAdd",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AttachmentApi",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AttachmentDelete",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AttachmentEditOutcome",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AttachmentGroup",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AttachmentInfo",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AttachmentQuery",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "AttachmentUpdate",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "batchQuery",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "BatchQueryItem",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "BatchQueryOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "BatchQueryResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "bindChartToExploration",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "bindDetailToSelection",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "bindFilterControlsToExploration",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "bindMapExtentToExploration",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "bindMapSelectionToExploration",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "bindQueryProjectionToExploration",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "bindTableSelectionToExploration",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "buildAnalyticsSourceCacheKey",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "buildOdataSpatialFilter",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "buildQueryTileCacheKey",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "buildQueryTileFeatureDetailQuery",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "buildQueryTileServerPath",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "buildQueryTileServerUrl",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "CAPABILITIES",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "ChangeEvent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ChartBucketSelection",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "ChartBucketSelectionOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "ChartExplorationBinding",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "ClearFilterIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "compileRuntimeStyleFilter",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "createDiscoveryCacheIdentity",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "createEditSession",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "CreateEditSessionOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "createEditSketchWorkflow",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "createExplorationContext",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "CreateExplorationContextOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "createFilterRegistry",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "CreateFilterRegistryOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "createGeoServicesGpAdapter",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createGeospatialGrpcProcessAdapter",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaCacheState",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaOgcFeatures",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaOgcMaps",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaOgcProcesses",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaOgcRecords",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaOgcTiles",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaProcessRunner",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaService",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaStacSearch",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaWms",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHonuaWmts",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createHoverHandler",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "createOgcProcessesAdapter",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "createQueryTileDetailLoader",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "createSelectionHandler",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "createSources",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "createTemporalClient",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "createWidgetSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "decodeElevationPixel",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "decodePbfQueryResponse",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "decodeTerrainRgbElevation",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "decodeTerrariumElevation",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "DEFAULT_OGC_TILE_MATRIX_SET",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "defineIndexedSpatialSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "defineQueryTileSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "DefineQueryTileSourceOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "defineWarehouseQuerySource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "defineWarehouseTableSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "defineWarehouseTilesetSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "DeselectIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "DetailFeatureLike",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "DetailFieldDefinition",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "DetailFieldModel",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "DetailModel",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "DetailModelOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "DetailSelectionStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "DiscoveryCacheIdentityOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "DiscoveryCapabilityEvidence",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "DiscoveryCapabilityPolicy",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "DiscoveryCapabilityResolution",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditAnnotationPersistenceHook",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditAnnotationPersistenceSnapshot",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditAnnotationPersistenceState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditAttachmentMutation",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditAttachmentMutationOutcome",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditEnvelope",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditFieldDomain",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditFieldDomainCodedValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditOutcome",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditSketchCapabilityState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditSketchStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditSketchTool",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditSketchToolCapability",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditSketchToolCapabilityInput",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditSketchUndoSnapshot",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditSketchWorkflowModel",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditSketchWorkflowOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditSketchWorkflowSnapshot",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowCapabilityState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowCapabilitySummary",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowConflictInfo",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowConflictState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowFailure",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowFailureKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowField",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowMetadataOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowOperation",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowOptimisticHooks",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowRelationship",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowSession",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowSnapshot",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowSubmitResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowValidationError",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "EditWorkflowValidationResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "ElevationCoordinate",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ElevationProfile",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ElevationProfileSample",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ElevationSampler",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EMPTY_STATE",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "EsriEnvelope",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "esriFeatureToGeoJSON",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EsriFieldType",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EsriGeometry",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "esriGeometryToGeoJSON",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EsriGeometryType",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EsriMultipoint",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EsriPoint",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EsriPolygon",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EsriPolyline",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EsriSpatialRel",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EXPLORATION_EMPTY_STATE",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "EXPLORATION_SLICES",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ExplorationContext",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationListener",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ExplorationSelector",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationSelectorListener",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationSelectorSubscribeOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationSlice",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationStateSnapshot",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationUnsubscribe",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ExplorationViewChangeEvent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationViewController",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationViewIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationViewListener",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationViewSubscribeOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExplorationViewSubscription",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ExportMapRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "extentToSpatialFilter",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "featureSelectionKey",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "FeatureSelectionTarget",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "FeatureStateMap",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "FeatureStateSelectionSyncOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "FeatureTarget",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "FilterClause",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "FilterControlsExplorationBinding",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "FilterEffect",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterLifecycle",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterOperator",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "FilterRegistry",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistryChangeEvent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistryListener",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistryOwner",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistryProjectionOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistryQueryProjection",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistryQueryProjectionOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistrySelector",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistrySelectorListener",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistrySelectorOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistrySnapshot",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRegistryUnsubscribe",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterRuntimeApplyMode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterSourceScope",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "FilterValuePolicy",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "findWmsLayer",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "findWmtsLayer",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "findWmtsTileMatrixSet",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "FIRST_PARTY_PROTOCOLS",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "ForwardGeocodeOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/geocoding"
+    },
+    {
+      "symbol": "GeocodeResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/geocoding"
+    },
+    {
+      "symbol": "GeocodeSuggestion",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/geocoding"
+    },
+    {
+      "symbol": "GeocodingClientOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/geocoding"
+    },
+    {
+      "symbol": "GeoJsonFeature",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/geometry"
+    },
+    {
+      "symbol": "geoServicesFeatureSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "geoServicesGeometryServiceSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "geoServicesGPServiceSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "geoServicesImageSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "geoServicesMapServiceSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "GeospatialGrpcCancelJobResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "GeospatialGrpcErrorDetail",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "GeospatialGrpcGetJobResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "GeospatialGrpcGetJobResultResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "GeospatialGrpcJobProgress",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "GeospatialGrpcProcessClient",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "GeospatialGrpcSubmitJobResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "getFeatureState",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "hasOgcConformanceClass",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "haversineMeters",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "hitTestMap",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaAddAttachmentResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaApiEnvelope",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaApplyEditsResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaAttachmentEditResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaAttachmentGroup",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaAttachmentInfo",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaAttachmentListResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaAuthRefreshReason",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaAuthRevocationContext",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaCacheReadMode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaCacheScope",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaCacheState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaCacheStateInit",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaCacheStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaCacheValidator",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "honuaCacheValidatorFromHeaders",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaCompatibilityRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaCountResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaDeleteAttachmentsResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaEditResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaErrorContext",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaExplorationContextError",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaExportMapResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaExtent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaExtentResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeature",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayer",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerAddAttachmentRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerApplyEditsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerAttachmentData",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerDeleteAttachmentsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerListAttachmentsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerQueryAllRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerQueryAttachmentsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerQueryCountRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerQueryExtentRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerQueryExtentResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerQueryObjectIdsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerQueryRelatedRecordsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerQueryRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerSpatialAggregationRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureLayerUpdateAttachmentRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFeatureServiceSourceSpecification",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "HonuaFieldInfo",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFindResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaFindResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeocodingClient",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/geocoding"
+    },
+    {
+      "symbol": "HonuaGeometryBinaryOperationRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeometryBufferRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeometryClipRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeometryDifferenceRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeometryIntersectRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeometryOperationResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeometryProjectRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeometryService",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeometryServiceOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeometrySimplifyRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeometryUnionRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeoprocessingJob",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeoprocessingJobRun",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeoprocessingJobRunOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeoprocessingJobRunRequestOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeoprocessingService",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeoprocessingServiceOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaGeoprocessingSubmitRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaHitFeature",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaHitTestDegradedReason",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaHitTestDegradedState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaHitTestDetailContext",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaHitTestDetailLoader",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaHitTestFeatureOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaHitTestMap",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaHitTestOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaHitTestRasterSample",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaHitTestResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaIdentifyResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaIdentifyResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaImageService",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaImageServiceExportRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaImageServiceIdentifyRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaImageServiceOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaImageServiceQueryRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaJobFailedError",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaJobPollTimeoutError",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "HonuaLayerMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaLayerSpecification",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "HonuaLegendEntry",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaLegendLayer",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaLegendResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaLngLat",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaMap",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "HonuaMapEvent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "HonuaMapEventListener",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "HonuaMapLayer",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLayerOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLayerQueryAllRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLayerQueryCountRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLayerQueryExtentRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLayerQueryExtentResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLayerQueryObjectIdsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLayerQueryRelatedRecordsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLayerQueryRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLayerRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLibreTilesConfig",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapLibreVectorSourceOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "HonuaMapService",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceExportMapRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceFindRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceIdentifyRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceLegendRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceQueryLayerAllRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceQueryLayerCountRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceQueryLayerExtentRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceQueryLayerExtentResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceQueryLayerObjectIdsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceQueryLayerRelatedRecordsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceQueryLayerRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMapServiceSourceSpecification",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "honuaMetadataRequestHeaders",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaMetadataRequestOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaNormalizeHitTestOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaObjectIdsResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataAdvertisedCapabilities",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataAggregateResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataBatchOperation",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataBatchOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataBatchOutcome",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataBatchResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataDeltaPage",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataEntitySet",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataEntitySetOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataFieldInfo",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataPage",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOdataQueryParams",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionCreateItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionDeleteItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionItemsAllRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionItemsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionMap",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionMapImageRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionMapOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionPatchItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionReplaceItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionsResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionSummary",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionTileRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionTilesetRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCollectionTilesetsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcConformanceResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcCreateItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcDeleteItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcFeatureCollection",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcFeatureCollectionOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcFeatureCollectionResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcFeatureResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcFeatures",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcFeaturesOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcFeaturesSourceSpecification",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "HonuaOgcItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcItemsAllRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcItemsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcLandingResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcLink",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcMapImageResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcMaps",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcMapsOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcMetadataRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcPatchItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcProcessDescription",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcProcesses",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcProcessesOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcProcessesResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcProcessJobAccepted",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcProcessJobOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcProcessJobResults",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcProcessJobRun",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcProcessJobStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcProcessSummary",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcQueryableProperty",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcQueryablesResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordCollection",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordCollectionItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordCollectionOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordCollectionRawItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordCollectionRawSearchRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordCollectionSearchAllRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordCollectionSearchRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordProperties",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecords",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordsOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordsResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcRecordsSearchAllRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcReplaceItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcTileMatrix",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcTileMatrixSet",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcTileMatrixSetsResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcTileResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcTiles",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcTileset",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcTilesetMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcTilesetOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcTilesetsResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaOgcTilesOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaPointerEvent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaPointerEventType",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaPointerInput",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaProcessAdapter",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaProcessExecuteRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaProcessJobOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaProcessProtocol",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaProcessRunner",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaQueryAttachmentsResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaQueryResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaRawRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaRelatedRecordGroup",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaRelatedRecordsResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaRelationshipInfo",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaRenderedFeatureContext",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaRequestContext",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaRequestInterceptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaRequestMutation",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaResponseContext",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaRetryOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaScreenPoint",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HonuaServerCapabilitiesResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaServerCompatibility",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaServerCompatibilityControlPlaneApi",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaServerCompatibilityFeature",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaServerCompatibilityFeatures",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaServerCompatibilityMetadataSchema",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaServerCompatibilityStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaService",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaServiceMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaServiceOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaServicesResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaSourceBase",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "HonuaSourceSpecification",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "HonuaSpatialReference",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaStacItemCollectionResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaStacItemResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaStacLandingResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaStacSearch",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaStacSearchAllRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaStacSearchOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaStyleSpecification",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "HonuaTypedFeature",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaTypedQueryResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaUpdateAttachmentResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWfs",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWfsExceptionError",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWfsFeatureType",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWfsOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWfsStoredQuery",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWms",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmsCapabilitiesParseError",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmsFeatureInfoResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmsImageResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmsLayer",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmsLayerOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmsOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmsSourceSpecification",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "HonuaWmts",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmtsCapabilitiesParseError",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmtsFeatureInfoResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmtsLayer",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmtsLayerOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmtsOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmtsSourceSpecification",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "HonuaWmtsTileResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmtsTileset",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HonuaWmtsTilesetOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "HoverHandle",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "HoverHandlerOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "IJobRun",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "IndexedSpatialSourceDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "inspectDiscoveredSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "InteractionBindingHandle",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "interactionQueryParamNames",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "InteractiveMap",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "intersectCapabilities",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "isAnalyticsSourceDescriptor",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "isFeatureServiceSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "isHonuaCacheStatus",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "isHonuaSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "isJobTerminal",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "isMapServiceSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "isOgcFeaturesSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "isPbfResponse",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "isReadOnlyTemporalHistory",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "isSourceQualifiedSelectionTarget",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "isSpatialAggregationComplete",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "isWmsSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "isWmtsSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "iterateWmsLayers",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "JobError",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "JobProgress",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "JobResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "JobResultsOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "JobSnapshot",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "JobSnapshotListener",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "JobStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "LayerSnapshot",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "LINKED_VIEW_PRESETS",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "LinkedViewPolicy",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "LinkedViewPresetName",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "LinkedViewQueryBindingOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "LinkedViewQueryProjection",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "LinkedViewQueryProjectionOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "LinkedViewRule",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "LinkedViewSpatialMode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "loadQueryTileFeatureDetail",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "MapBinding",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "MapEventTarget",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "MapExtentExplorationBindingOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "MapExtentExplorationSource",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "MapFindRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "MapIdentifyRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "MapLayerFilterExplorationBindingOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "MapLayerFilterTarget",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "MapLayerQueryBuilder",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "MapLayerQueryRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "MapLegendRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "MapLibreVectorSourceSpec",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "mapQueryTileFeatureIdentity",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "MapRelatedRecordsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "MapSelectionExplorationBindingOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "MIGRATION_EVIDENCE_STATES",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MIGRATION_MANIFEST_ARTIFACT_KIND",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MIGRATION_MANIFEST_ARTIFACT_VERSION",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MIGRATION_PARITY_EVIDENCE_ARTIFACT_KIND",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MIGRATION_PARITY_EVIDENCE_ARTIFACT_VERSION",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MIGRATION_SOURCE_INVENTORY_ARTIFACT_KIND",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MIGRATION_SOURCE_INVENTORY_ARTIFACT_VERSION",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationCompatibilityAssessment",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationCutoverReadinessItem",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationCutoverReadinessSummary",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationEvidenceState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationExternalDependency",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationInventoryAuthPosture",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationInventoryCodedValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationInventoryCompleteness",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationInventoryContainer",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationInventoryField",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationInventoryResource",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationInventoryScanRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationInventorySourceKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationInventoryStyle",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationInventorySummary",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationManifestArtifact",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationManifestReviewItem",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationManifestStyleAction",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationManifestSummary",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationManifestTargetResource",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationParityEvidenceArtifact",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationParityEvidenceItem",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationParityEvidenceSection",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationReadinessAttestation",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationReadinessAttestationItem",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationSourceIdentity",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationSourceInventoryArtifact",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "MigrationSpatialReferenceInfo",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/migration"
+    },
+    {
+      "symbol": "negotiateOgcCapabilities",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "normalizeAnalyticsSourceDescriptor",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "NormalizedHonuaMetadataRequestOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "normalizeDiscoveryEndpoint",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "normalizeEditWorkflowFailures",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "NormalizeEditWorkflowFailuresOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "normalizeHitFeature",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "normalizeHitTestFeatures",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "normalizeHonuaMetadataRequestOptions",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "normalizePointerEvent",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "normalizeQueryTileKey",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "normalizeQueryTileSourceDescriptor",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "odataFieldSchema",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "odataSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "OdataSpatialFilterContext",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcCollectionRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcConformanceProtocol",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcCreateItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcDeleteItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ogcFeaturesSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "OgcItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcItemsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcMapFormat",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcMapImageRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ogcMapsSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "OgcMetadataRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcPatchItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcProcessExecuteRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcProcessInputs",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcProcessIoValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcProcessStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcQueryBuilder",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcRecordItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcRecordRawItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcRecordsRawSearchRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcRecordsSearchRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ogcRecordsSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "OgcReplaceItemRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcResponseFormat",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcTileDataType",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcTileMatrixSetId",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcTileRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcTilesetRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "OgcTilesetsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ogcTilesSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "OutputFormatChoice",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ParsedOgcFeaturesUrl",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "parseFilterRegistry",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "parseInteractionQueryState",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "parseOdataMetadata",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "parseOgcFeaturesUrl",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "parseQueryTileFeatureDetailResponse",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "parseQueryTileJson",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "parseQueryTileServerErrorResponse",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "parseSelection",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "parseWebMap",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/webmap"
+    },
+    {
+      "symbol": "ParseWebMapOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/webmap"
+    },
+    {
+      "symbol": "ParseWebMapResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/webmap"
+    },
+    {
+      "symbol": "parseWmsCapabilities",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "parseWmtsCapabilities",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "preparePrimaryDetailModel",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "prepareSelectionDetailModels",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "projectFilterRegistryToLinkedView",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "projectFilterRegistryToQuery",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "projectFilterRegistryToWidgetProjection",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "propagationFor",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "PROTOCOLS",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QUERY_TILE_SERVER_CONTRACT_VERSION",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QUERY_TILE_SERVER_FEATURE_DETAIL_ROUTE_TEMPLATE",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QUERY_TILE_SERVER_RESPONSE_HEADERS",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QUERY_TILE_SERVER_ROUTE_PREFIX",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QUERY_TILE_SERVER_SOURCE_ROUTE_TEMPLATE",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QUERY_TILE_SERVER_TILE_ROUTE_TEMPLATE",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QUERY_TILE_SERVER_TILEJSON_ROUTE_TEMPLATE",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryBuilder",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "QueryFeaturesRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "QueryMethod",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "QueryRelatedRecordsRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "QueryTileCacheIdentityDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileCacheKeyOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileCachePolicy",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileEndpointDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileExtentDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileFallbackMode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileFallbackPolicy",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileFeatureDetailOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileFeatureDetailResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileFeatureIdentityContext",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileFeatureIdentityDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileFeatureIdentityMapper",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileFeatureIdentityTarget",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileFormat",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileJson",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileJsonVectorLayer",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileKey",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileKeyInput",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "queryTileKeyString",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileProjectionDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileScheme",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerCachePolicyDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerCacheValidators",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerContractFixture",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerDegradation",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerDegradationCode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerDegradationSeverity",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerError",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerErrorCode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerErrorResponse",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerFeatureIdentityDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerLimitDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerRequestParameters",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "queryTileServerRequestParamsFromDescriptor",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerRouteKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerRouteOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileServerTileJsonMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileSourceDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileSpatialReference",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "QueryTileSpatialReferenceDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "reduce",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "reduceExplorationState",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ReducerResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "RegistryFilterClause",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "RegistrySpatialScope",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "RelatedGroup",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "RelatedQuery",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "RelatedResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "removeFeatureState",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "resolveDiscoveryCapabilities",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "ResolvedMapSource",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "ResolvedSource",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "ResolveSourceContext",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "resolveSpatialAggregationWidgetSummary",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "rethrowAsWfsExceptionIfPossible",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "ReverseGeocodeOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/geocoding"
+    },
+    {
+      "symbol": "ReverseGeocodeResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/geocoding"
+    },
+    {
+      "symbol": "rewriteWhereToOdataFilter",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "RuntimeStyleFilterExpression",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "sampleElevationProfile",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "SampleElevationProfileOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "selectActiveFilterClauses",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "SelectIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SelectionDetailListener",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "SelectionHandle",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "SelectionHandlerOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "selectLinkedViewQueryProjection",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "serializeFilterRegistry",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "serializeInteractionQueryState",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "serializeSelection",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "SetAggregationIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SetExtentIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "setFeatureState",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "SetFilterIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SetGroupingIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SetPageIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SetSortIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SetSpatialFilterIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SetVisibleFieldsIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ShareableFilterRegistryState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/filter-registry"
+    },
+    {
+      "symbol": "ShareableInteractionQueryParams",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "ShareableInteractionQueryState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "SLICES",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SnapshotRestoreIntent",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "sourceFeatureSelectionTarget",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SourceQualifiedFeatureSelectionTarget",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SPATIAL_AGGREGATION_CAPABILITY",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SPATIAL_AGGREGATION_METADATA_SCHEMA_VERSION",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SPATIAL_AGGREGATION_SCHEMA_VERSION",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationCacheMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationCategoryBucket",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationCategorySummarySpec",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationCategoryValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationCell",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationCellGeometry",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationContractFixture",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationCountSummarySpec",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationCountValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationDomainValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationGroupByMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationGroupBySpec",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationGroupedSummary",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationHistogramBucket",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationHistogramSummarySpec",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationHistogramValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationInclude",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationIndexCoverageMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationIndexModelMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationIndexSelection",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationIndexState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationMetricKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationMetricSummarySpec",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationMetricValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationPageInfo",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationPageRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "spatialAggregationProgress",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationProgressiveState",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationProgressRefinement",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationProgressStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationRangeBucketSpec",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationRangeBucketValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationRangeSummarySpec",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationRangeValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationResolutionInput",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationSummaryBag",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationSummaryBase",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationSummaryKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "spatialAggregationSummaryKindRequiresField",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "spatialAggregationSummaryKindSupportedByFeatureServerH3",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationSummaryMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationSummarySpec",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationSummaryValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationValidationIssue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationValueType",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationViewport",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationWidgetKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "SpatialAggregationWidgetMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "spatialAggregationWidgets",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "stableJson",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "StacSearchRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "stacSearchSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "StyleValidationError",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "subscribeExplorationSelector",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "SuggestOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/geocoding"
+    },
+    {
+      "symbol": "syncFeatureStateSelection",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "syncMapLayerFilterToExploration",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "TableSelectionExplorationBinding",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "TEMPORAL_CAPABILITY",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TEMPORAL_ROUTE_PREFIX",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TEMPORAL_ROUTES",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TEMPORAL_SCHEMA_VERSION",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalAsOfRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalAttributeChange",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalChangeSet",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalChangeSetOperationKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalCheckpoint",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalClient",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalClientCallOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalContractFixture",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalCursor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalCursorType",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalDiff",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalDiffRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalDiffStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalDiffSummary",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalError",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalErrorCode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalFeatureChangeType",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalFeatureDiff",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalFeatureTimeline",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalFeatureTimelineRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalFilter",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalGeometryChange",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalHistoryModel",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalJobRef",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalMode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "temporalModeSupports",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRequestClient",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRevision",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRevisionOperation",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRiskLevel",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRollbackExecuteRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRollbackMode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRollbackOperation",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRollbackPlan",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRollbackPlanRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRollbackScope",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalRollbackStatus",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalSourceCapability",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TemporalValidationIssue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "TerrainElevationEncoding",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "unionCapabilities",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "validateFeatureServerH3SpatialAggregationRequest",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "validateHonuaStyle",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/style"
+    },
+    {
+      "symbol": "validateSpatialAggregationRequest",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "validateTemporalRollbackPlanRequest",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "ViewBinding",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ViewHandle",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "ViewRole",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/exploration"
+    },
+    {
+      "symbol": "WarehouseQuerySourceDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WarehouseTableSourceDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WarehouseTilesetSourceDescriptor",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "webmapJsonToMapLibreStyle",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "WebMapJsonToMapLibreStyleOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "WebMapJsonToMapLibreStyleResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "WebMapMapLibreGapKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "WebMapMapLibreManualGap",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/map"
+    },
+    {
+      "symbol": "wfsSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WIDGET_SOURCE_SCHEMA_VERSION",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetCategoriesRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetCategoriesResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetCategoryBucket",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetCountRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetCountResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetFormulaRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetFormulaResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetHistogramBin",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetHistogramRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetHistogramResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetRangeRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetRangeResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "widgetSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSource",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceCacheHints",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceCacheMetadata",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceExecutionMode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceFilterClause",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceFreshnessContract",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceModelKind",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceOptions",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceOrderBy",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceProjection",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceRequestBase",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceResponseBase",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceSchemaVersion",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetSourceValue",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetTimeSeriesBucket",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetTimeSeriesInterval",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetTimeSeriesIntervalUnit",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetTimeSeriesRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetTimeSeriesResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetTopValueBucket",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetTopValuesRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WidgetTopValuesResult",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WmsCapabilities",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsCapabilitiesFormats",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsCapabilitiesRequestSupport",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsCapabilitiesService",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsCapabilityBoundingBox",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsCapabilityDimension",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsCapabilityLayer",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsCapabilityStyle",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsCrs",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsFeatureInfoRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsLegendRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmsMapRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "wmsSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WmtsCapabilities",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmtsCapabilitiesService",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmtsCapabilityLayer",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmtsCapabilityResourceUrl",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmtsCapabilityStyle",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmtsCapabilityTileMatrix",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmtsCapabilityTileMatrixSet",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmtsFeatureInfoRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "wmtsSource",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js/contract"
+    },
+    {
+      "symbol": "WmtsTileMode",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    },
+    {
+      "symbol": "WmtsTileRequest",
+      "kind": "type",
+      "replacement": "@honua/sdk-js/honua"
+    }
+  ]
+}

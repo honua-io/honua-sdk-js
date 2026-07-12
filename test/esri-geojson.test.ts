@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { esriFeatureToGeoJSON, esriGeometryToGeoJSON } from "../src/index.js";
-import type { HonuaFeature } from "../src/index.js";
+import { esriFeatureToGeoJSON, esriGeometryToGeoJSON } from "@honua/sdk-js/honua";
+import type { HonuaFeature } from "@honua/sdk-js/honua";
 
 describe("esriGeometryToGeoJSON", () => {
   it("returns null for null/undefined geometry", () => {

@@ -81,8 +81,7 @@
       "docsPath": "examples/node-backend-quickstart/README.md",
       "typecheckScript": "demo:node-backend:typecheck",
       "api": [
-        { "specifier": "@honua/sdk-js", "symbols": ["QueryBuilder"] },
-        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaClient"] }
+        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaClient", "QueryBuilder"] }
       ]
     },
     {

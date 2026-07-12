@@ -18,7 +18,7 @@
  */
 
 import { HonuaClient } from "@honua/sdk-js";
-import type { QueryFeaturesRequest } from "@honua/sdk-js";
+import type { QueryFeaturesRequest } from "@honua/sdk-js/honua";
 import { expect, it } from "vitest";
 import {
   type CapabilityGap,

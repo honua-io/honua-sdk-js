@@ -1,10 +1,10 @@
+import type { HonuaClient } from "@honua/sdk-js";
 import type {
-  HonuaClient,
   HonuaLayerMetadata,
   HonuaQueryResponse,
   HonuaServiceMetadata,
   HonuaServicesResponse,
-} from "@honua/sdk-js";
+} from "@honua/sdk-js/honua";
 import { vi } from "vitest";
 
 export interface MockHonuaClient {

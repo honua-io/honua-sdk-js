@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "honua-cross-sdk-reference-v1",
+  "observedAt": "2026-07-12T10:43:21.373Z",
+  "boundedTimeoutMs": 8000,
+  "method": "HEAD-follow-redirects",
+  "contentStored": false,
+  "observations": [
+    { "url": "https://developers.arcgis.com/javascript/latest/licensing/", "finalUrl": "https://developers.arcgis.com/javascript/latest/licensing/", "status": 200, "reachable": true },
+    { "url": "https://www.esri.com/en-us/legal/terms/full-master-agreement", "finalUrl": "https://www.esri.com/en-us/legal/terms/master-agreement", "status": 200, "reachable": true },
+    { "url": "https://github.com/mapbox/mapbox-gl-js/blob/main/LICENSE.txt", "finalUrl": "https://github.com/mapbox/mapbox-gl-js/blob/main/LICENSE.txt", "status": 200, "reachable": true },
+    { "url": "https://www.mapbox.com/legal/tos/", "finalUrl": "https://www.mapbox.com/legal/tos", "status": 200, "reachable": true },
+    { "url": "https://github.com/visgl/deck.gl/blob/master/LICENSE", "finalUrl": "https://github.com/visgl/deck.gl/blob/master/LICENSE", "status": 200, "reachable": true },
+    { "url": "https://docs.carto.com/carto-for-developers/key-concepts/authentication-methods", "finalUrl": "https://docs.carto.com/carto-for-developers/key-concepts/authentication-methods", "status": 200, "reachable": true }
+  ],
+  "decisionEffect": "none; reachability does not grant benchmark or publication rights"
+}

@@ -1,10 +1,10 @@
+import type { HonuaClient } from "@honua/sdk-js";
 import type {
-  HonuaClient,
   HonuaLayerMetadata,
   HonuaQueryResponse,
   HonuaServiceMetadata,
   HonuaServicesResponse,
-} from "@honua/sdk-js";
+} from "@honua/sdk-js/honua";
 
 /**
  * Offline fixture `HonuaClient` for deterministic certification.

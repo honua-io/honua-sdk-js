@@ -1,5 +1,6 @@
+import { webmapJsonToMapLibreStyle } from "@honua/sdk-js/map";
+import { validateHonuaStyle } from "@honua/sdk-js/style";
 import { describe, expect, it } from "vitest";
-import { validateHonuaStyle, webmapJsonToMapLibreStyle } from "../src/index.js";
 import type { WebMapJson } from "../src/webmap/types.js";
 
 describe("webmapJsonToMapLibreStyle", () => {

@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/cross-sdk-reference-corpus-v1.json",
+  "title": "Honua cross-SDK reference corpus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "reviewedAt", "reviewExpiresAt", "methodology", "fixtures", "tasks", "references"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$" },
+    "reviewedAt": { "type": "string", "format": "date" },
+    "reviewExpiresAt": { "type": "string", "format": "date" },
+    "methodology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runner", "network", "cacheStates", "warmupRuns", "measurementRuns", "statistics", "completionSignals", "rankingPolicy"],
+      "properties": {
+        "runner": { "type": "string" },
+        "network": { "const": "loopback-only" },
+        "cacheStates": { "const": ["cold", "warm"] },
+        "warmupRuns": { "type": "integer", "minimum": 1 },
+        "measurementRuns": { "type": "integer", "minimum": 3 },
+        "statistics": { "const": ["median", "p95", "coefficient-of-variation"] },
+        "completionSignals": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+        "rankingPolicy": { "const": "forbidden-until-reviewed-result-set" }
+      }
+    },
+    "fixtures": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/fixture" } },
+    "tasks": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/task" } },
+    "references": {
+      "type": "array", "minItems": 7, "maxItems": 7,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/reference" }, { "properties": { "id": { "const": "honua-sdk-js" }, "vendor": { "const": "honua" }, "status": { "const": "eligible" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reference" }, { "properties": { "id": { "const": "maplibre-gl-js" }, "vendor": { "const": "maplibre" }, "status": { "const": "eligible" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reference" }, { "properties": { "id": { "const": "deck-gl" }, "vendor": { "const": "deck.gl" }, "status": { "const": "eligible" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reference" }, { "properties": { "id": { "const": "cesium-js" }, "vendor": { "const": "cesium" }, "status": { "const": "eligible" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reference" }, { "properties": { "id": { "const": "arcgis-maps-sdk-js" }, "vendor": { "const": "esri" }, "status": { "const": "unavailable" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reference" }, { "properties": { "id": { "const": "mapbox-gl-js" }, "vendor": { "const": "mapbox" }, "status": { "const": "unavailable" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reference" }, { "properties": { "id": { "const": "carto-deck-gl" }, "vendor": { "const": "carto" }, "status": { "const": "not-comparable" } } }] }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "fixture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "path", "sha256", "mediaType", "license", "source", "containsProductionData"],
+      "properties": {
+        "id": { "type": "string" }, "path": { "type": "string" }, "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "mediaType": { "type": "string" }, "license": { "type": "string" }, "source": { "type": "string" },
+        "containsProductionData": { "const": false }
+      }
+    },
+    "task": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "fixtureId", "crs", "viewport", "styleIntent", "interaction", "visualTolerance", "exclusions"],
+      "properties": {
+        "id": { "type": "string" }, "fixtureId": { "type": "string" }, "crs": { "const": "EPSG:4326" },
+        "viewport": { "type": "object", "additionalProperties": false, "required": ["width", "height", "deviceScaleFactor", "longitude", "latitude", "zoom", "pitch", "bearing"], "properties": { "width": { "const": 1280 }, "height": { "const": 720 }, "deviceScaleFactor": { "const": 1 }, "longitude": { "type": "number", "minimum": -180, "maximum": 180 }, "latitude": { "type": "number", "minimum": -90, "maximum": 90 }, "zoom": { "type": "number" }, "pitch": { "type": "number" }, "bearing": { "type": "number" } } },
+        "styleIntent": { "type": "object", "additionalProperties": false, "required": ["kind", "radiusPixels", "fillRgba", "targetFillRgba", "targetId"], "properties": { "kind": { "const": "circle" }, "radiusPixels": { "const": 9 }, "fillRgba": { "const": [52, 195, 181, 255] }, "targetFillRgba": { "const": [255, 218, 92, 255] }, "targetId": { "const": 101 } } },
+        "interaction": { "type": "object", "additionalProperties": false, "required": ["kind", "screenPoint", "expectedFeatureId"], "properties": { "kind": { "const": "pick" }, "screenPoint": { "const": [640, 360] }, "expectedFeatureId": { "const": 101 } } },
+        "visualTolerance": { "type": "object", "additionalProperties": false, "required": ["comparison", "pickRadiusPixels", "minimumVisibleFeatureCount", "pixelRankingPermitted"], "properties": { "comparison": { "const": "semantic-plus-structural-screenshot" }, "pickRadiusPixels": { "const": 3 }, "minimumVisibleFeatureCount": { "const": 5 }, "pixelRankingPermitted": { "const": false } } },
+        "exclusions": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "type": "string", "minLength": 1, "maxLength": 128 } }
+      }
+    },
+    "reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "vendor", "product", "status", "package", "licenseEvidence", "taskIds", "reasons"],
+      "allOf": [
+        { "if": { "properties": { "status": { "const": "eligible" } }, "required": ["status"] }, "then": { "properties": { "package": { "type": "object" }, "taskIds": { "type": "array", "minItems": 1 }, "reasons": { "type": "array", "maxItems": 0 }, "licenseEvidence": { "type": "object", "properties": { "decision": { "const": "approved" }, "publication": { "const": "permitted-under-open-source-license" }, "licensePath": { "type": "string" }, "licenseContentSha256": { "type": "string" } } } } }, "else": { "properties": { "taskIds": { "type": "array", "maxItems": 0 }, "reasons": { "type": "array", "minItems": 1 } } } }
+      ],
+      "properties": {
+        "id": { "type": "string" }, "vendor": { "enum": ["honua", "esri", "mapbox", "maplibre", "carto", "deck.gl", "cesium"] },
+        "product": { "type": "string" }, "status": { "enum": ["eligible", "unavailable", "not-comparable"] },
+        "package": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["name", "version", "integrity", "lockfile"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.]+)?$" },
+                "integrity": { "type": "string", "pattern": "^(sha512-.+|workspace:git-tree)$" },
+                "lockfile": { "type": ["string", "null"] },
+                "sourceTree": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["path", "gitTree"],
+                  "properties": { "path": { "const": "src" }, "gitTree": { "type": "string", "pattern": "^[a-f0-9]{40}$" } }
+                }
+              }
+            }
+          ]
+        },
+        "licenseEvidence": {
+          "type": "object", "additionalProperties": false,
+          "required": ["license", "decision", "publication", "sourceUrl", "termsUrl", "retrievedAt", "licensePath", "licenseContentSha256", "notes"],
+          "properties": {
+            "license": { "type": "string", "minLength": 1 },
+            "decision": { "enum": ["approved", "review-required"] },
+            "publication": { "enum": ["permitted-under-open-source-license", "not-cleared"] },
+            "sourceUrl": { "type": "string", "pattern": "^https://" },
+            "termsUrl": { "type": ["string", "null"] },
+            "retrievedAt": { "type": "string", "format": "date" },
+            "licensePath": { "type": ["string", "null"] },
+            "licenseContentSha256": { "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^[a-f0-9]{64}$" }] },
+            "notes": { "type": "string", "minLength": 1, "maxLength": 1024 }
+          }
+        },
+        "taskIds": { "type": "array", "items": { "type": "string" } }, "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

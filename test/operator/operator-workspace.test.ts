@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  HonuaClient,
-  type IJobRun,
-  type JobProgress,
-  type JobSnapshot,
-  type JobSnapshotListener,
-  type JobStatus,
-} from "@honua/sdk-js";
+import { HonuaClient } from "@honua/sdk-js";
+import type { IJobRun, JobProgress, JobSnapshot, JobSnapshotListener, JobStatus } from "@honua/sdk-js/contract";
 import {
   type AnalysisIntent,
   type AnalysisPlan,

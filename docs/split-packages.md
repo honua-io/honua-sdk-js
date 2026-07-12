@@ -40,3 +40,8 @@ npm run pack:split-packages
 If you are writing an application that consumes the Honua server directly, install
 `@honua/sdk-js` instead. The split packages are not the recommended consumer
 install — they exist for packaging workflows, not for end users.
+
+The monolithic package root is a reviewed common workflow, not an alias for all
+split-package surfaces. Advanced imports use the focused subpaths in
+[`INSTALL.md`](../INSTALL.md); every transition-era root symbol has an exact
+replacement in the generated [`root import migration table`](./root-surface-migration.md).

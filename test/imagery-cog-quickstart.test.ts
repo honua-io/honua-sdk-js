@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { HonuaImageService } from "@honua/sdk-js/honua";
 import { createFixtureImageryCogDataset } from "../examples/imagery-cog-quickstart/src/fixtures.js";
 import {
   activeImageryLayerCount,
@@ -10,7 +11,7 @@ import {
   summarizeImageryCache,
   summarizeImageryCapabilities,
 } from "../examples/imagery-cog-quickstart/src/model.js";
-import { HonuaClient, HonuaImageService } from "../src/index.js";
+import { HonuaClient } from "../src/index.js";
 
 describe("Imagery and COG Quickstart sample", () => {
   it("projects WMS and COG-backed ImageServer layers into MapLibre raster sources", () => {
