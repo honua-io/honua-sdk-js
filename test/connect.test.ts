@@ -199,7 +199,9 @@ const odataMetadataXml = `<?xml version="1.0" encoding="utf-8"?>
   </edmx:DataServices>
 </edmx:Edmx>`;
 
-function odataDiscoveryFetch(options: { metadata?: string; onRequest?: (request: Request) => void } = {}): typeof fetch {
+function odataDiscoveryFetch(
+  options: { metadata?: string; onRequest?: (request: Request) => void } = {},
+): typeof fetch {
   return vi.fn(async (input, init) => {
     const request = new Request(input, init);
     options.onRequest?.(request);
