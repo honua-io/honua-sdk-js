@@ -1,3 +1,4 @@
+import type { Capability, Protocol } from "../contract/index.js";
 import type { JsonValue } from "../query-planner/index.js";
 
 export const AGENT_PLAN_KIND = "honua.agent-plan" as const;
@@ -6,11 +7,58 @@ export const AGENT_APPROVAL_KIND = "honua.agent-approval" as const;
 export const AGENT_RECEIPT_KIND = "honua.agent-execution-receipt" as const;
 export const AGENT_CONSUMPTION_KIND = "honua.agent-approval-consumption" as const;
 export const AGENT_EXECUTION_AUDIT_KIND = "honua.agent-execution-audit" as const;
+export const AGENT_SAFETY_EVIDENCE_KIND = "honua.agent-safety-evidence" as const;
 export const AGENT_SAFETY_VERSION = "1.0" as const;
 
 export type AgentDigest = `sha256:${string}`;
 export type AgentEffect = "read" | "render" | "mutation" | "publish" | "share" | "realtime" | "job";
 export type AgentDataMode = "cached" | "offline" | "replayed" | "live";
+
+export type AgentSafetyUnavailableFact =
+  | "schema-version"
+  | "source-version"
+  | "freshness-contract"
+  | "discovery-provenance";
+
+export interface AgentSafetyEvidenceProvenanceV1 {
+  /** Digest of the credential-free discovery source URI. */
+  readonly sourceDigest: AgentDigest;
+  readonly retrievedAt?: string;
+  readonly validatorDigest?: AgentDigest;
+}
+
+/**
+ * Credential-free facts derived from one accepted planner/discovery pair.
+ * Callers cannot author or widen these fields through an execution request.
+ */
+export interface AgentSafetyEvidenceV1 {
+  readonly kind: typeof AGENT_SAFETY_EVIDENCE_KIND;
+  readonly version: typeof AGENT_SAFETY_VERSION;
+  readonly source: {
+    readonly id: string;
+    readonly protocol: Protocol;
+    readonly endpointDigest: AgentDigest;
+    readonly schemaVersion: string | null;
+    readonly sourceVersion: string | null;
+    readonly authorizationScopeDigest: AgentDigest;
+    readonly capabilities: readonly Capability[];
+  };
+  readonly plan: {
+    readonly id: string;
+    readonly fingerprint: AgentDigest;
+    readonly operations: readonly string[];
+  };
+  readonly provenance: readonly AgentSafetyEvidenceProvenanceV1[];
+  readonly observedAt: string;
+  readonly freshness: {
+    readonly mode: "snapshot" | "watermark" | "cursor" | "delta" | "realtime" | "unavailable";
+    readonly maxAgeMs: number | null;
+    /** Presence only; an opaque realtime cursor is never copied. */
+    readonly cursorPresent: boolean;
+  };
+  readonly unavailableFacts: readonly AgentSafetyUnavailableFact[];
+  readonly evidenceDigest: AgentDigest;
+}
 
 export interface AgentCitationV1 {
   readonly uri: string;
