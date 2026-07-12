@@ -172,7 +172,9 @@ await registry.dispose();
   `context.resolve()` exposes only dependencies named by that factory; it cannot
   discover another plugin merely because both share an application registry.
 - `initialize`, `start`, `stop`, and `dispose` are typed by all nine extension
-  kinds. Only `initialize` is required; inert plugins pay for no empty hooks.
+  kinds. Only `initialize` is universally required; `dispose` is also required
+  when the certified manifest declares required disposal, while inert plugins
+  that declare no disposal pay for no empty hooks.
 - Factories, callbacks, dependencies, host services, and registration options
   are captured before an asynchronous boundary. Registration operations on one
   registry are serialized; separate registries have no shared state and may run

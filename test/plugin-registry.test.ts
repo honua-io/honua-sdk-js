@@ -100,7 +100,7 @@ describe("HonuaPluginRegistry", () => {
         initialize(context) {
           events.push(`initialize:${b.id}`);
           resolvedDependency = context.resolve("style", a.id);
-          return { extension: { id: context.manifest.id, kind: "analysis" } };
+          return { extension: { id: context.manifest.id, kind: "analysis" }, dispose() {} };
         },
       }),
       factory(a, events),
@@ -161,7 +161,7 @@ describe("HonuaPluginRegistry", () => {
       factory(consumer, [], {
         initialize(context) {
           hidden = context.resolve("auth", dependency.id);
-          return { extension: { id: context.manifest.id, kind: "style" } };
+          return { extension: { id: context.manifest.id, kind: "style" }, dispose() {} };
         },
       }),
     ]);
@@ -206,6 +206,14 @@ describe("HonuaPluginRegistry", () => {
     expect(events.slice(-2)).toEqual(["stop:a", "dispose:a"]);
     expect(registry.get("style", a.id)).toBeUndefined();
     expect(JSON.stringify(registry.diagnostics)).not.toContain("secret");
+    expect(registry.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "PLUGIN_INITIALIZE_FAILED",
+        phase: "initialize",
+        status: "failed",
+        plugin: expect.objectContaining({ id: b.id }),
+      }),
+    );
     await registry.dispose();
   });
 
@@ -244,6 +252,14 @@ describe("HonuaPluginRegistry", () => {
       `stop:${a.id}`,
       `dispose:${a.id}`,
     ]);
+    expect(registry.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "PLUGIN_START_FAILED",
+        phase: "start",
+        status: "failed",
+        plugin: expect.objectContaining({ id: c.id }),
+      }),
+    );
     await registry.dispose();
   });
 
@@ -269,6 +285,87 @@ describe("HonuaPluginRegistry", () => {
       code: "PLUGIN_REGISTRATION_CANCELLED",
     });
     expect(events).toEqual(["initialize", "dispose"]);
+    expect(registry.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "PLUGIN_INITIALIZE_CANCELLED",
+        phase: "initialize",
+        status: "cancelled",
+        plugin: expect.objectContaining({ id: declaration.id }),
+      }),
+    );
+    await registry.dispose();
+  });
+
+  it("records start cancellation with plugin identity and rolls back a started instance", async () => {
+    const controller = new AbortController();
+    const events: string[] = [];
+    const declaration = manifest("com.example.cancel-start", "style");
+    const plugin = factory(declaration, events, {
+      initialize(context) {
+        return {
+          extension: { id: context.manifest.id, kind: "style" },
+          start() {
+            events.push("start");
+            controller.abort("stop");
+          },
+          stop() {
+            events.push("stop");
+          },
+          dispose() {
+            events.push("dispose");
+          },
+        };
+      },
+    });
+    const registry = new HonuaPluginRegistry({ host });
+    await expect(registry.register([plugin], { signal: controller.signal })).rejects.toMatchObject({
+      code: "PLUGIN_REGISTRATION_CANCELLED",
+    });
+    expect(events).toEqual(["start", "stop", "dispose"]);
+    expect(registry.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "PLUGIN_START_CANCELLED",
+        phase: "start",
+        status: "cancelled",
+        plugin: expect.objectContaining({ id: declaration.id }),
+      }),
+    );
+    await registry.dispose();
+  });
+
+  it("enforces required disposal while allowing inert no-disposal manifests", async () => {
+    const required = manifest("com.example.required-disposal", "style");
+    const registry = new HonuaPluginRegistry({ host });
+    await expect(
+      registry.register([
+        factory(required, [], {
+          initialize(context) {
+            return { extension: { id: context.manifest.id, kind: "style" } };
+          },
+        }),
+      ]),
+    ).rejects.toMatchObject({ code: "PLUGIN_DISPOSE_HOOK_REQUIRED" });
+    expect(registry.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "PLUGIN_INITIALIZE_FAILED",
+        phase: "initialize",
+        status: "failed",
+        plugin: expect.objectContaining({ id: required.id }),
+      }),
+    );
+
+    const inert = {
+      ...manifest("com.example.inert-no-disposal", "style"),
+      lifecycle: { initialization: "explicit" as const, disposal: "none" as const },
+    };
+    await registry.register([
+      factory(inert, [], {
+        initialize(context) {
+          return { extension: { id: context.manifest.id, kind: "style" } };
+        },
+      }),
+    ]);
+    expect(registry.get("style", inert.id)).toMatchObject({ id: inert.id });
     await registry.dispose();
   });
 
@@ -295,7 +392,7 @@ describe("HonuaPluginRegistry", () => {
       factory(declaration, [], {
         initialize(context) {
           captured = context.services as Record<string, unknown>;
-          return { extension: { id: context.manifest.id, kind: "protocol" } };
+          return { extension: { id: context.manifest.id, kind: "protocol" }, dispose() {} };
         },
       }),
     ]);

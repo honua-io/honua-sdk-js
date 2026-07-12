@@ -213,6 +213,9 @@ function snapshotInstance(instance: AnyInstance, manifest: HonuaPluginManifest):
   const start = optionalCallback<ErasedHook>(instance, "start");
   const stop = optionalCallback<ErasedHook>(instance, "stop");
   const dispose = optionalCallback<ErasedHook>(instance, "dispose");
+  if (manifest.lifecycle.disposal === "required" && !dispose) {
+    throw new HonuaPluginRegistryError("PLUGIN_DISPOSE_HOOK_REQUIRED");
+  }
   return freeze({
     extension: freeze(extension) as HonuaPluginExtensionKindMap[HonuaPluginKind],
     ...(start ? { start } : {}),
@@ -372,15 +375,40 @@ export class HonuaPluginRegistry {
           },
         }) as HonuaPluginLifecycleContext;
         this.#event("PLUGIN_INITIALIZE_STARTED", "initialize", "started", manifest);
-        const instance = snapshotInstance(await snapshot.initialize(context), manifest);
+        let instance: ErasedInstance;
+        try {
+          instance = snapshotInstance(await snapshot.initialize(context), manifest);
+        } catch (cause) {
+          if (signal && isAborted(signal)) {
+            this.#event("PLUGIN_INITIALIZE_CANCELLED", "initialize", "cancelled", manifest);
+            throw new HonuaPluginRegistryError("PLUGIN_REGISTRATION_CANCELLED", { cause });
+          }
+          this.#event("PLUGIN_INITIALIZE_FAILED", "initialize", "failed", manifest);
+          throw cause;
+        }
         const record: RegisteredPlugin = { manifest, instance, context, started: false };
         initialized.push(record);
+        if (signal && isAborted(signal)) {
+          this.#event("PLUGIN_INITIALIZE_CANCELLED", "initialize", "cancelled", manifest);
+        }
         this.#throwIfAborted(signal, manifest);
         this.#event("PLUGIN_INITIALIZE_SUCCEEDED", "initialize", "succeeded", manifest);
         if (instance.start) {
           this.#event("PLUGIN_START_STARTED", "start", "started", manifest);
-          await instance.start(context);
+          try {
+            await instance.start(context);
+          } catch (cause) {
+            if (signal && isAborted(signal)) {
+              this.#event("PLUGIN_START_CANCELLED", "start", "cancelled", manifest);
+              throw new HonuaPluginRegistryError("PLUGIN_REGISTRATION_CANCELLED", { cause });
+            }
+            this.#event("PLUGIN_START_FAILED", "start", "failed", manifest);
+            throw cause;
+          }
           record.started = true;
+          if (signal && isAborted(signal)) {
+            this.#event("PLUGIN_START_CANCELLED", "start", "cancelled", manifest);
+          }
           this.#throwIfAborted(signal, manifest);
           this.#event("PLUGIN_START_SUCCEEDED", "start", "succeeded", manifest);
         }
