@@ -186,6 +186,13 @@ The main session and worker host both fail closed on protocol-version drift,
 unknown operations, batch/metric disagreement, invalid or decreasing progress,
 transport faults, and malformed results. Progress callbacks are observational:
 an exception thrown by a callback cannot corrupt ownership or settlement.
+Worker factories and hosts snapshot transport methods and batch ceilings before
+the first asynchronous boundary; later mutation of the caller-owned options
+object cannot redirect transferred buffers. Abort signals are accessed through
+a failure-contained listener/read seam, so a throwing foreign signal settles
+the request instead of losing it. A closed host transport can prevent a response
+from being delivered, but that delivery failure is contained and the host still
+releases its active-request slot without an unhandled rejection.
 
 ## Typed errors
 

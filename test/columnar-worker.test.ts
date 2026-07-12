@@ -11,6 +11,7 @@ import {
   type HonuaColumnarWorkerError,
   createColumnarBatch,
   createColumnarWorkerSession,
+  inspectColumnarBatch,
   startColumnarWorkerHost,
 } from "../src/columnar/index.js";
 
@@ -368,5 +369,139 @@ describe("columnar worker session", () => {
       code: "invalid-request",
     });
     expect(operation).not.toHaveBeenCalled();
+  });
+
+  it("settles safely when a hostile signal changes or throws across queue setup", async () => {
+    let abortedReads = 0;
+    const hostileSignal = {
+      get aborted() {
+        abortedReads += 1;
+        if (abortedReads === 4) throw new Error("hostile aborted getter");
+        return false;
+      },
+      addEventListener() {},
+      removeEventListener() {},
+    } as unknown as AbortSignal;
+    const createWorker = vi.fn(() => pair()[0]);
+    const session = createColumnarWorkerSession({ createWorker });
+
+    await expect(
+      session.execute("transform", createColumnarBatch(input()), { signal: hostileSignal }),
+    ).rejects.toSatisfy((error: unknown) => {
+      expectCode(error, "invalid-request");
+      return true;
+    });
+    expect(session.pendingRequests).toBe(0);
+    expect(createWorker).not.toHaveBeenCalled();
+
+    const brokenSubscription = {
+      aborted: false,
+      addEventListener() {
+        throw new Error("listener install failed");
+      },
+      removeEventListener() {},
+    } as unknown as AbortSignal;
+    await expect(
+      session.execute("transform", createColumnarBatch(input()), { signal: brokenSubscription }),
+    ).rejects.toSatisfy((error: unknown) => {
+      expectCode(error, "invalid-request");
+      return true;
+    });
+    expect(session.pendingRequests).toBe(0);
+    session.dispose();
+  });
+
+  it("snapshots host options, limits, and transport methods before async operations", async () => {
+    const [client, worker] = pair();
+    const methodReads = { post: 0, add: 0, remove: 0, dispose: 0 };
+    const stableTransport = {
+      get postMessage() {
+        methodReads.post += 1;
+        return (message: unknown, transfer: readonly ArrayBuffer[]) => worker.postMessage(message, transfer);
+      },
+      get addEventListener() {
+        methodReads.add += 1;
+        return (type: "message" | "error", listener: MessageListener | ErrorListener) =>
+          worker.addEventListener(type, listener);
+      },
+      get removeEventListener() {
+        methodReads.remove += 1;
+        return (type: "message" | "error", listener: MessageListener | ErrorListener) =>
+          worker.removeEventListener(type, listener);
+      },
+      get dispose() {
+        methodReads.dispose += 1;
+        return () => worker.dispose();
+      },
+    } as ColumnarWorkerTransport;
+    const limits = { maxRows: 4 };
+    const hostOptions = {
+      transport: stableTransport,
+      operations: { transform: (batch: ColumnarBatchV1) => batch },
+      batchLimits: limits,
+    };
+    const host = startColumnarWorkerHost(hostOptions);
+    hostOptions.transport = {
+      postMessage() {
+        throw new Error("mutated transport must not be used");
+      },
+      addEventListener() {},
+      removeEventListener() {},
+      dispose() {},
+    };
+    limits.maxRows = 0;
+    const session = createColumnarWorkerSession({ createWorker: () => client });
+
+    await expect(session.execute("transform", createColumnarBatch(input()))).resolves.toMatchObject({
+      operation: "transform",
+    });
+    expect(methodReads).toEqual({ post: 1, add: 1, remove: 1, dispose: 1 });
+    session.dispose();
+    host.dispose();
+  });
+
+  it("contains host delivery failures without unhandled rejections or stranded activity", async () => {
+    let messageListener: MessageListener | undefined;
+    const throwingTransport: ColumnarWorkerTransport = {
+      postMessage() {
+        throw new Error("closed transport");
+      },
+      addEventListener(type, listener) {
+        if (type === "message") messageListener = listener as MessageListener;
+      },
+      removeEventListener() {},
+      dispose() {},
+    };
+    const host = startColumnarWorkerHost({
+      transport: throwingTransport,
+      operations: {
+        transform(batch, context) {
+          context.reportProgress(0.5);
+          return batch;
+        },
+      },
+    });
+    const batch = createColumnarBatch(input());
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      messageListener?.({ data: null });
+      messageListener?.({
+        data: {
+          kind: COLUMNAR_WORKER_REQUEST_KIND,
+          version: COLUMNAR_WORKER_PROTOCOL_VERSION,
+          requestId: "request-progress-failure",
+          operation: "transform",
+          batch,
+          metrics: inspectColumnarBatch(batch),
+        },
+      });
+      await vi.waitFor(() => expect(host.activeRequests).toBe(0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      host.dispose();
+    }
   });
 });

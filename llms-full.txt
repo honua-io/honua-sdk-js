@@ -2275,6 +2275,13 @@ The main session and worker host both fail closed on protocol-version drift,
 unknown operations, batch/metric disagreement, invalid or decreasing progress,
 transport faults, and malformed results. Progress callbacks are observational:
 an exception thrown by a callback cannot corrupt ownership or settlement.
+Worker factories and hosts snapshot transport methods and batch ceilings before
+the first asynchronous boundary; later mutation of the caller-owned options
+object cannot redirect transferred buffers. Abort signals are accessed through
+a failure-contained listener/read seam, so a throwing foreign signal settles
+the request instead of losing it. A closed host transport can prevent a response
+from being delivered, but that delivery failure is contained and the host still
+releases its active-request slot without an unhandled rejection.
 
 ## Typed errors
 
@@ -5356,7 +5363,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-12 at commit `b6e89a4`._
+_Generated 2026-07-12 at commit `f5d9d00`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -5367,7 +5374,7 @@ _Generated 2026-07-12 at commit `b6e89a4`._
 | `/runtime` | 419.0 KiB | 458.7 KiB | 109.4 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
-| `/query-planner` (worker runtime injected) | 61.2 KiB | 67.4 KiB | 18.7 KiB | 20.6 KiB |
+| `/query-planner` (worker runtime injected) | 64.0 KiB | 70.4 KiB | 19.3 KiB | 21.2 KiB |
 | `/esri-compat` | 943.9 KiB | 1026.2 KiB | 233.9 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |

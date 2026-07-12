@@ -174,13 +174,23 @@ interface PendingExecution {
   readonly requestId: string;
   readonly operation: string;
   readonly batch: ColumnarBatchV1;
-  readonly options: ExecuteColumnarWorkerOperationOptions;
+  readonly options: NormalizedExecutionOptions;
   readonly resolve: (result: ColumnarWorkerExecutionResult) => void;
   readonly reject: (error: HonuaColumnarWorkerError) => void;
   abortListener?: () => void;
   inputMetrics?: ColumnarBatchMetrics;
   lastProgress: number;
   settled: boolean;
+}
+
+interface NormalizedAbortSignal {
+  isAborted(): boolean;
+  subscribe(listener: () => void): () => void;
+}
+
+interface NormalizedExecutionOptions extends ColumnarBatchLimits {
+  readonly signal?: NormalizedAbortSignal;
+  readonly onProgress?: (progress: ColumnarWorkerExecutionProgress) => void;
 }
 
 /**
@@ -275,7 +285,15 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
       retireTransport();
       return;
     }
-    failActive(failure("worker-failed", event.message?.trim() || "Columnar worker failed", active, event.error), true);
+    let message = "Columnar worker failed";
+    let cause: unknown;
+    try {
+      message = event.message?.trim() || message;
+      cause = event.error;
+    } catch {
+      // A hostile fault event cannot prevent deterministic settlement.
+    }
+    failActive(failure("worker-failed", message, active, cause), true);
   };
 
   function retireTransport(): void {
@@ -284,8 +302,16 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
     transport = undefined;
     workerPromise = undefined;
     if (!current) return;
-    current.removeEventListener("message", onMessage);
-    current.removeEventListener("error", onError);
+    try {
+      current.removeEventListener("message", onMessage);
+    } catch {
+      // Continue best-effort retirement.
+    }
+    try {
+      current.removeEventListener("error", onError);
+    } catch {
+      // Continue best-effort retirement.
+    }
     try {
       current.dispose();
     } catch {
@@ -316,9 +342,9 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
       workerPromise = Promise.resolve()
         .then(createWorker)
         .then((created) => {
-          validateTransport(created);
+          const createdTransport = snapshotTransport(created);
           if (disposed || generation !== workerGeneration) {
-            created.dispose();
+            createdTransport.dispose();
             throw new HonuaColumnarWorkerError(
               disposed ? "disposed" : "worker-failed",
               disposed
@@ -326,10 +352,10 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
                 : "Columnar worker was retired before creation completed",
             );
           }
-          transport = created;
-          created.addEventListener("message", onMessage);
-          created.addEventListener("error", onError);
-          return created;
+          transport = createdTransport;
+          createdTransport.addEventListener("message", onMessage);
+          createdTransport.addEventListener("error", onError);
+          return createdTransport;
         })
         .catch((cause) => {
           if (generation === workerGeneration) workerPromise = undefined;
@@ -344,9 +370,15 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
     if (disposed || active || queue.length === 0) return;
     const item = queue.shift();
     if (!item || item.settled) return void dispatch();
-    if (item.options.signal?.aborted) {
+    try {
+      if (item.options.signal?.isAborted()) {
+        settle(item);
+        item.reject(failure("aborted", "Columnar worker request was aborted before dispatch", item));
+        return void dispatch();
+      }
+    } catch (cause) {
       settle(item);
-      item.reject(failure("aborted", "Columnar worker request was aborted before dispatch", item));
+      item.reject(failure("invalid-request", "Columnar worker signal failed before dispatch", item, cause));
       return void dispatch();
     }
     active = item;
@@ -365,7 +397,7 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
           metrics: transferMessage.metrics,
         });
         currentTransport.postMessage(request, transfer);
-      }, item.options);
+      }, columnarLimits(item.options));
       lease.dispose();
     } catch (cause) {
       if (active === item) {
@@ -420,7 +452,7 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
       if (disposed)
         return Promise.reject(new HonuaColumnarWorkerError("disposed", "Columnar worker session is disposed"));
       const normalizedOperation = identifier(operation, "operation");
-      let normalizedOptions: ExecuteColumnarWorkerOperationOptions;
+      let normalizedOptions: NormalizedExecutionOptions;
       try {
         normalizedOptions = normalizeExecutionOptions(executeOptions);
       } catch (cause) {
@@ -439,9 +471,18 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
           ),
         );
       }
-      if (normalizedOptions.signal?.aborted) {
+      try {
+        if (normalizedOptions.signal?.isAborted()) {
+          return Promise.reject(
+            new HonuaColumnarWorkerError("aborted", "Columnar worker request was aborted before enqueue", {
+              operation: normalizedOperation,
+            }),
+          );
+        }
+      } catch (cause) {
         return Promise.reject(
-          new HonuaColumnarWorkerError("aborted", "Columnar worker request was aborted before enqueue", {
+          new HonuaColumnarWorkerError("invalid-request", "Columnar worker signal could not be read", {
+            cause,
             operation: normalizedOperation,
           }),
         );
@@ -470,17 +511,37 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
           settled: false,
         };
         if (normalizedOptions.signal) {
-          const listener = (): void => cancel(item);
-          normalizedOptions.signal.addEventListener("abort", listener, { once: true });
-          item.abortListener = () => {
-            try {
-              normalizedOptions.signal?.removeEventListener("abort", listener);
-            } catch {
-              // A foreign signal cannot prevent request settlement.
-            }
+          let ready = false;
+          let abortedDuringSetup = false;
+          const listener = (): void => {
+            if (ready) cancel(item);
+            else abortedDuringSetup = true;
           };
+          try {
+            item.abortListener = normalizedOptions.signal.subscribe(listener);
+            abortedDuringSetup ||= normalizedOptions.signal.isAborted();
+          } catch (cause) {
+            settle(item);
+            reject(failure("invalid-request", "Columnar worker signal subscription failed", item, cause));
+            return;
+          }
+          if (abortedDuringSetup) {
+            settle(item);
+            reject(failure("aborted", "Columnar worker request was aborted before enqueue", item));
+            return;
+          }
+          ready = true;
         }
         queue.push(item);
+        try {
+          if (normalizedOptions.signal?.isAborted()) cancel(item);
+        } catch (cause) {
+          const queuedIndex = queue.indexOf(item);
+          if (queuedIndex >= 0) queue.splice(queuedIndex, 1);
+          settle(item);
+          reject(failure("invalid-request", "Columnar worker signal failed after enqueue", item, cause));
+          return;
+        }
         void dispatch();
       });
     },
@@ -507,36 +568,53 @@ export function startColumnarWorkerHost(options: StartColumnarWorkerHostOptions)
   if (typeof options !== "object" || options === null) {
     throw new HonuaColumnarWorkerError("invalid-request", "Worker host options are required");
   }
-  validateTransport(options.transport);
+  let foreignTransport: ColumnarWorkerTransport;
+  let foreignOperations: Readonly<Record<string, ColumnarWorkerOperation>>;
+  let foreignBatchLimits: ColumnarBatchLimits | undefined;
+  let foreignMaxActiveRequests: number | undefined;
+  try {
+    foreignTransport = options.transport;
+    foreignOperations = options.operations;
+    foreignBatchLimits = options.batchLimits;
+    foreignMaxActiveRequests = options.maxActiveRequests;
+  } catch (cause) {
+    throw new HonuaColumnarWorkerError("invalid-request", "Worker host options could not be read", { cause });
+  }
+  const transport = snapshotTransport(foreignTransport);
+  const batchLimits = snapshotColumnarLimits(foreignBatchLimits);
   let operations: Readonly<Record<string, ColumnarWorkerOperation>>;
   try {
-    operations = normalizeOperations(options.operations);
+    operations = normalizeOperations(foreignOperations);
   } catch (cause) {
     if (cause instanceof HonuaColumnarWorkerError) throw cause;
     throw new HonuaColumnarWorkerError("invalid-request", "Worker operations are invalid", { cause });
   }
-  const maxActiveRequests = positiveInteger(options.maxActiveRequests ?? 1, "maxActiveRequests");
+  const maxActiveRequests = positiveInteger(foreignMaxActiveRequests ?? 1, "maxActiveRequests");
   const active = new Map<string, AbortController>();
   let disposed = false;
 
   const sendError = (requestId: string, code: ColumnarWorkerErrorV1["code"], message: string): void => {
     if (disposed) return;
-    options.transport.postMessage(
-      Object.freeze({
-        kind: COLUMNAR_WORKER_ERROR_KIND,
-        version: COLUMNAR_WORKER_PROTOCOL_VERSION,
-        requestId,
-        code,
-        message,
-      } satisfies ColumnarWorkerErrorV1),
-      [],
-    );
+    try {
+      transport.postMessage(
+        Object.freeze({
+          kind: COLUMNAR_WORKER_ERROR_KIND,
+          version: COLUMNAR_WORKER_PROTOCOL_VERSION,
+          requestId,
+          code,
+          message,
+        } satisfies ColumnarWorkerErrorV1),
+        [],
+      );
+    } catch {
+      // Delivery failure is terminal for this response but never unhandled.
+    }
   };
 
   const run = async (foreign: unknown): Promise<void> => {
     let request: ColumnarWorkerRequestV1;
     try {
-      request = normalizeWorkerRequest(foreign, options.batchLimits);
+      request = normalizeWorkerRequest(foreign, batchLimits);
     } catch (cause) {
       const requestId = safeRequestId(foreign) ?? "invalid-request";
       sendError(requestId, "invalid-request", messageFrom(cause, "Invalid columnar worker request"));
@@ -569,7 +647,7 @@ export function startColumnarWorkerHost(options: StartColumnarWorkerHostOptions)
             throw new HonuaColumnarWorkerError("operation-failed", "Operation progress must be monotonic");
           }
           progress = normalized;
-          options.transport.postMessage(
+          transport.postMessage(
             Object.freeze({
               kind: COLUMNAR_WORKER_PROGRESS_KIND,
               version: COLUMNAR_WORKER_PROTOCOL_VERSION,
@@ -585,10 +663,10 @@ export function startColumnarWorkerHost(options: StartColumnarWorkerHostOptions)
         sendError(request.requestId, "aborted", "Columnar worker operation was aborted");
         return;
       }
-      const batch = normalizeBatchEnvelope(output, "operation result batch", options.batchLimits);
-      const lease = leaseColumnarBatch(batch, options.batchLimits);
+      const batch = normalizeBatchEnvelope(output, "operation result batch", batchLimits);
+      const lease = leaseColumnarBatch(batch, batchLimits);
       await lease.transfer((transferMessage, transfer) => {
-        options.transport.postMessage(
+        transport.postMessage(
           Object.freeze({
             kind: COLUMNAR_WORKER_RESULT_KIND,
             version: COLUMNAR_WORKER_PROTOCOL_VERSION,
@@ -610,17 +688,25 @@ export function startColumnarWorkerHost(options: StartColumnarWorkerHostOptions)
 
   const onMessage = (event: ColumnarWorkerMessageEvent): void => {
     if (disposed) return;
-    if (isCancel(event.data)) {
-      active.get(event.data.requestId)?.abort();
+    let data: unknown;
+    try {
+      data = event.data;
+    } catch {
       return;
     }
-    void run(event.data);
+    if (isCancel(data)) {
+      active.get(data.requestId)?.abort();
+      return;
+    }
+    void run(data).catch(() => {
+      // The host contains unexpected protocol-handler failures.
+    });
   };
   const onError = (): void => {
     for (const controller of active.values()) controller.abort();
   };
-  options.transport.addEventListener("message", onMessage);
-  options.transport.addEventListener("error", onError);
+  transport.addEventListener("message", onMessage);
+  transport.addEventListener("error", onError);
 
   return {
     get activeRequests() {
@@ -632,11 +718,11 @@ export function startColumnarWorkerHost(options: StartColumnarWorkerHostOptions)
     dispose() {
       if (disposed) return;
       disposed = true;
-      options.transport.removeEventListener("message", onMessage);
-      options.transport.removeEventListener("error", onError);
+      transport.removeEventListener("message", onMessage);
+      transport.removeEventListener("error", onError);
       for (const controller of active.values()) controller.abort();
       active.clear();
-      options.transport.dispose();
+      transport.dispose();
     },
   };
 }
@@ -768,13 +854,11 @@ function normalizeBatchEnvelope(foreign: unknown, label: string, limits: Columna
   return createColumnarBatch(value as unknown as ColumnarBatchV1, limits);
 }
 
-function normalizeExecutionOptions(
-  foreign: ExecuteColumnarWorkerOperationOptions,
-): ExecuteColumnarWorkerOperationOptions {
+function normalizeExecutionOptions(foreign: ExecuteColumnarWorkerOperationOptions): NormalizedExecutionOptions {
   if (typeof foreign !== "object" || foreign === null) {
     throw new HonuaColumnarWorkerError("invalid-request", "Worker execution options must be an object");
   }
-  const signal = foreign.signal;
+  const foreignSignal = foreign.signal;
   const onProgress = foreign.onProgress;
   const maxRows = foreign.maxRows;
   const maxBackingBytes = foreign.maxBackingBytes;
@@ -785,6 +869,7 @@ function normalizeExecutionOptions(
   if (onProgress !== undefined && typeof onProgress !== "function") {
     throw new HonuaColumnarWorkerError("invalid-request", "onProgress must be a function");
   }
+  const signal = foreignSignal === undefined ? undefined : normalizeAbortSignal(foreignSignal);
   return Object.freeze({
     ...(signal === undefined ? {} : { signal }),
     ...(onProgress === undefined ? {} : { onProgress }),
@@ -797,12 +882,125 @@ function normalizeExecutionOptions(
   });
 }
 
-function validateTransport(value: unknown): asserts value is ColumnarWorkerTransport {
-  const transport = record(value, "worker transport");
-  for (const method of ["postMessage", "addEventListener", "removeEventListener", "dispose"] as const) {
-    if (typeof transport[method] !== "function")
-      throw new HonuaColumnarWorkerError("worker-failed", `Worker transport.${method} must be a function`);
+function normalizeAbortSignal(foreign: AbortSignal): NormalizedAbortSignal {
+  if (typeof foreign !== "object" || foreign === null) {
+    throw new HonuaColumnarWorkerError("invalid-request", "signal must be an AbortSignal-like object");
   }
+  let add: AbortSignal["addEventListener"];
+  let remove: AbortSignal["removeEventListener"];
+  try {
+    add = foreign.addEventListener;
+    remove = foreign.removeEventListener;
+  } catch (cause) {
+    throw new HonuaColumnarWorkerError("invalid-request", "signal methods could not be read", { cause });
+  }
+  if (typeof add !== "function" || typeof remove !== "function") {
+    throw new HonuaColumnarWorkerError("invalid-request", "signal must provide event listener methods");
+  }
+  return Object.freeze({
+    isAborted(): boolean {
+      let aborted: unknown;
+      try {
+        aborted = foreign.aborted;
+      } catch (cause) {
+        throw new HonuaColumnarWorkerError("invalid-request", "signal.aborted could not be read", { cause });
+      }
+      if (typeof aborted !== "boolean") {
+        throw new HonuaColumnarWorkerError("invalid-request", "signal.aborted must be a boolean");
+      }
+      return aborted;
+    },
+    subscribe(listener: () => void): () => void {
+      try {
+        add.call(foreign, "abort", listener, { once: true });
+      } catch (cause) {
+        throw new HonuaColumnarWorkerError("invalid-request", "signal abort listener could not be installed", {
+          cause,
+        });
+      }
+      return () => {
+        try {
+          remove.call(foreign, "abort", listener);
+        } catch {
+          // A foreign signal cannot prevent request settlement.
+        }
+      };
+    },
+  });
+}
+
+function columnarLimits(options: ColumnarBatchLimits): ColumnarBatchLimits {
+  return Object.freeze({
+    ...(options.maxRows === undefined ? {} : { maxRows: options.maxRows }),
+    ...(options.maxBackingBytes === undefined ? {} : { maxBackingBytes: options.maxBackingBytes }),
+    ...(options.maxSchemaNodes === undefined ? {} : { maxSchemaNodes: options.maxSchemaNodes }),
+    ...(options.maxMetadataEntries === undefined ? {} : { maxMetadataEntries: options.maxMetadataEntries }),
+    ...(options.maxBufferViews === undefined ? {} : { maxBufferViews: options.maxBufferViews }),
+    ...(options.maxStringBytes === undefined ? {} : { maxStringBytes: options.maxStringBytes }),
+  });
+}
+
+function snapshotColumnarLimits(foreign: ColumnarBatchLimits | undefined): ColumnarBatchLimits {
+  if (foreign === undefined) return Object.freeze({});
+  if (typeof foreign !== "object" || foreign === null) {
+    throw new HonuaColumnarWorkerError("invalid-request", "batchLimits must be an object");
+  }
+  try {
+    return columnarLimits({
+      maxRows: foreign.maxRows,
+      maxBackingBytes: foreign.maxBackingBytes,
+      maxSchemaNodes: foreign.maxSchemaNodes,
+      maxMetadataEntries: foreign.maxMetadataEntries,
+      maxBufferViews: foreign.maxBufferViews,
+      maxStringBytes: foreign.maxStringBytes,
+    });
+  } catch (cause) {
+    throw new HonuaColumnarWorkerError("invalid-request", "batchLimits could not be read", { cause });
+  }
+}
+
+function snapshotTransport(value: unknown): ColumnarWorkerTransport {
+  const transport = record(value, "worker transport");
+  let postMessage: unknown;
+  let addEventListener: unknown;
+  let removeEventListener: unknown;
+  let dispose: unknown;
+  try {
+    postMessage = transport.postMessage;
+    addEventListener = transport.addEventListener;
+    removeEventListener = transport.removeEventListener;
+    dispose = transport.dispose;
+  } catch (cause) {
+    throw new HonuaColumnarWorkerError("worker-failed", "Worker transport methods could not be read", { cause });
+  }
+  if (
+    typeof postMessage !== "function" ||
+    typeof addEventListener !== "function" ||
+    typeof removeEventListener !== "function" ||
+    typeof dispose !== "function"
+  ) {
+    throw new HonuaColumnarWorkerError("worker-failed", "Worker transport methods must be functions");
+  }
+  return Object.freeze({
+    postMessage(message: unknown, transfer: readonly ArrayBuffer[]) {
+      Reflect.apply(postMessage, value, [message, transfer]);
+    },
+    addEventListener(
+      type: "message" | "error",
+      listener: ((event: ColumnarWorkerMessageEvent) => void) | ((event: ColumnarWorkerFaultEvent) => void),
+    ) {
+      Reflect.apply(addEventListener, value, [type, listener]);
+    },
+    removeEventListener(
+      type: "message" | "error",
+      listener: ((event: ColumnarWorkerMessageEvent) => void) | ((event: ColumnarWorkerFaultEvent) => void),
+    ) {
+      Reflect.apply(removeEventListener, value, [type, listener]);
+    },
+    dispose() {
+      Reflect.apply(dispose, value, []);
+    },
+  });
 }
 
 function assertMetrics(foreign: unknown, expected: ColumnarBatchMetrics, label: string): void {
