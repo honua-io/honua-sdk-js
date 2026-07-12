@@ -2710,7 +2710,9 @@ await registry.dispose();
   `context.resolve()` exposes only dependencies named by that factory; it cannot
   discover another plugin merely because both share an application registry.
 - `initialize`, `start`, `stop`, and `dispose` are typed by all nine extension
-  kinds. Only `initialize` is required; inert plugins pay for no empty hooks.
+  kinds. Only `initialize` is universally required; `dispose` is also required
+  when the certified manifest declares required disposal, while inert plugins
+  that declare no disposal pay for no empty hooks.
 - Factories, callbacks, dependencies, host services, and registration options
   are captured before an asynchronous boundary. Registration operations on one
   registry are serialized; separate registries have no shared state and may run
@@ -5505,7 +5507,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-12 at commit `717a998`._
+_Generated 2026-07-12 at commit `1d20f3e`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
