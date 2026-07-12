@@ -19,14 +19,43 @@ import type {
 } from "./types.js";
 import { createOgcMetadataParams } from "./wire-shared.js";
 
+/** Honua facade path prefix for OGC API Maps. */
+const MAPS_FACADE_BASE = "/ogc/maps";
+
+/**
+ * Resolve the OGC API Maps path prefix: the caller-supplied raw `basePath` (a
+ * `connect()`-discovered third-party service root) or the Honua facade default.
+ * Trailing slashes are trimmed so a discovered root and the facade compose the
+ * same sub-paths. Mirrors the OGC API Records seam in `ogc-records.ts`.
+ */
+function mapsBase(request: { basePath?: string }): string {
+  // An omitted basePath uses the Honua facade; an explicit "" is a legitimate
+  // root-mounted raw service and must NOT fall back to the facade prefix.
+  if (request.basePath === undefined) return MAPS_FACADE_BASE;
+  const base = request.basePath;
+  let end = base.length;
+  while (end > 0 && base.charCodeAt(end - 1) === 0x2f) end--;
+  return base.slice(0, end);
+}
+
+/** Cache-key discriminator so a discovered root never collides with the facade. */
+function mapsBaseKey(request: { basePath?: string }): string {
+  const base = mapsBase(request);
+  return base === MAPS_FACADE_BASE ? "" : `${base}:`;
+}
+
 export interface HonuaOgcMapsOptions {
   client: HonuaClient;
+  /** Raw endpoint path prefix (defaults to the Honua facade `/ogc/maps`). */
+  basePath?: string;
 }
 
 export interface HonuaOgcCollectionMapOptions {
   client: HonuaClient;
   collectionId: string | number;
   styleId?: string;
+  /** Raw endpoint path prefix (defaults to the Honua facade `/ogc/maps`). */
+  basePath?: string;
 }
 
 export type HonuaOgcCollectionMapImageRequest = Omit<OgcMapImageRequest, "collectionId" | "styleId"> & {
@@ -36,26 +65,37 @@ export type HonuaOgcCollectionMapImageRequest = Omit<OgcMapImageRequest, "collec
 /** Top-level OGC API Maps handle. */
 export class HonuaOgcMaps {
   public readonly client: HonuaClient;
+  private readonly basePath: string | undefined;
 
   public constructor(options: HonuaOgcMapsOptions) {
     this.client = options.client;
+    this.basePath = options.basePath;
+  }
+
+  private withBase<T extends { basePath?: string }>(request: T): T {
+    return this.basePath !== undefined ? { ...request, basePath: this.basePath } : request;
   }
 
   public collection(collectionId: string | number, styleId?: string): HonuaOgcCollectionMap {
-    return new HonuaOgcCollectionMap({ client: this.client, collectionId, styleId });
+    return new HonuaOgcCollectionMap({
+      client: this.client,
+      collectionId,
+      styleId,
+      ...(this.basePath !== undefined ? { basePath: this.basePath } : {}),
+    });
   }
 
   public async landing(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
-    return this.client.getOgcMapsLanding(request);
+    return this.client.getOgcMapsLanding(this.withBase(request));
   }
 
   public async conformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
-    return this.client.getOgcMapsConformance(request);
+    return this.client.getOgcMapsConformance(this.withBase(request));
   }
 
   /** Render a dataset-level map (across one or more collections). */
   public async map(request: OgcMapImageRequest = {}): Promise<HonuaOgcMapImageResponse> {
-    return this.client.getOgcMapImage(request);
+    return this.client.getOgcMapImage(this.withBase(request));
   }
 }
 
@@ -67,11 +107,13 @@ export class HonuaOgcCollectionMap {
   public readonly client: HonuaClient;
   public readonly collectionId: string | number;
   public readonly styleId: string | undefined;
+  private readonly basePath: string | undefined;
 
   public constructor(options: HonuaOgcCollectionMapOptions) {
     this.client = options.client;
     this.collectionId = options.collectionId;
     this.styleId = options.styleId;
+    this.basePath = options.basePath;
   }
 
   public async map(request: HonuaOgcCollectionMapImageRequest = {}): Promise<HonuaOgcMapImageResponse> {
@@ -79,6 +121,7 @@ export class HonuaOgcCollectionMap {
       ...request,
       collectionId: this.collectionId,
       styleId: request.styleId ?? this.styleId,
+      ...(this.basePath !== undefined ? { basePath: this.basePath } : {}),
     });
   }
 }
@@ -94,9 +137,10 @@ export async function getOgcMapsLanding(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcLandingResponse> {
   const params = createOgcMetadataParams(request);
+  const base = mapsBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcLandingResponse>(
-    `ogc-maps:landing:${params.toString()}`,
-    `/ogc/maps?${params.toString()}`,
+    `ogc-maps:landing:${mapsBaseKey(request)}${params.toString()}`,
+    `${base}?${params.toString()}`,
     request,
   );
 }
@@ -106,9 +150,10 @@ export async function getOgcMapsConformance(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcConformanceResponse> {
   const params = createOgcMetadataParams(request);
+  const base = mapsBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
-    `ogc-maps:conformance:${params.toString()}`,
-    `/ogc/maps/conformance?${params.toString()}`,
+    `ogc-maps:conformance:${mapsBaseKey(request)}${params.toString()}`,
+    `${base}/conformance?${params.toString()}`,
     request,
   );
 }
@@ -121,7 +166,7 @@ export async function getOgcMapImage(
   const collectionPart =
     request.collectionId !== undefined ? `/collections/${encodeURIComponent(String(request.collectionId))}` : "";
   const stylePart = request.styleId ? `/styles/${encodeURIComponent(request.styleId)}` : "";
-  const path = `/ogc/maps${collectionPart}${stylePart}/map${params.size > 0 ? `?${params.toString()}` : ""}`;
+  const path = `${mapsBase(request)}${collectionPart}${stylePart}/map${params.size > 0 ? `?${params.toString()}` : ""}`;
   const accept = ogcMapAcceptHeader(request.format) ?? "image/png";
   const response = await transport.requestBytes("GET", path, accept, undefined, request.signal);
   return { bytes: response.bytes, contentType: response.contentType };

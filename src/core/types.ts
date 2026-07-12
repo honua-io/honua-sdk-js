@@ -1395,6 +1395,13 @@ export interface OgcTileRequest {
   accept?: string;
   signal?: AbortSignal;
   extraParams?: Record<string, string | number | boolean>;
+  /**
+   * Raw endpoint path prefix (defaults to the Honua facade `/ogc/tiles`). A raw
+   * third-party OGC API Tiles service root discovered by `connect()` threads its
+   * service-root path here so the tile route resolves against the advertised
+   * layout instead of the facade.
+   */
+  basePath?: string;
 }
 
 /** Raw bytes returned from a tile fetch, plus the negotiated content type. */
@@ -1447,6 +1454,13 @@ export interface OgcMapImageRequest {
   transparent?: boolean;
   signal?: AbortSignal;
   extraParams?: Record<string, string | number | boolean>;
+  /**
+   * Raw endpoint path prefix (defaults to the Honua facade `/ogc/maps`). A raw
+   * third-party OGC API Maps service root discovered by `connect()` threads its
+   * service-root path here so the render route resolves against the advertised
+   * layout instead of the facade.
+   */
+  basePath?: string;
 }
 
 /** Raw bytes returned from a map render, plus the negotiated content type. */

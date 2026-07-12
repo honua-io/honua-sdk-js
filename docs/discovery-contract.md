@@ -104,17 +104,22 @@ complete decision, diagnostic, provenance, cache-result, and inspection type
 vocabulary for adapter authors. This keeps the beginner surface bounded while
 preserving a fully typed protocol integration seam.
 
-## Connect facade (OGC Features/Records, STAC API, GeoServices, WFS, OData, and GeoParquet slices)
+## Connect facade (OGC Features/Records/Tiles/Maps, STAC API, GeoServices, WFS, OData, and GeoParquet slices)
 
 The experimental `connect()` facade composes this truth contract for raw OGC
-API Features and STAC API landing pages, raw OGC API Records catalog roots,
+API Features and STAC API landing pages, raw OGC API Records catalog roots, raw
+OGC API Tiles and Maps service roots (render-only sources),
 WFS 2.0 endpoints, OData v4 service
 roots, static-file GeoParquet assets, and canonical
 GeoServices `FeatureServer` / `MapServer` service or layer URLs. OGC, STAC,
-WFS, OData, Records, and GeoParquet endpoints require an explicit
+WFS, OData, Records, Tiles, Maps, and GeoParquet endpoints require an explicit
 `protocol: "ogc-features"`,
 `protocol: "stac"`, `protocol: "wfs"`, `protocol: "odata"`,
-`protocol: "ogc-records"`, or `protocol: "geoparquet"` hint.
+`protocol: "ogc-records"`, `protocol: "ogc-tiles"`, `protocol: "ogc-maps"`, or
+`protocol: "geoparquet"` hint. OGC API Processes is deliberately **not** a
+Source-backed protocol; `connect()` rejects `protocol: "ogc-processes"` and
+directs callers to `discoverOgcProcesses()`, which returns a
+capability/metadata result rather than a `Source` (see below).
 Canonical GeoServices URLs may use
 `protocol: "auto"`: classification comes entirely from the URL path and makes
 no network request. An ambiguous auto target throws `HonuaDiscoveryError` with
@@ -269,10 +274,31 @@ decisions rather than adapter defaults. The discovered service-root prefix is
 retained on `locator.basePath`, so the existing OGC Records source adapter
 threads it through every wire request — the reviewed descriptor executes the
 same catalog search against a third-party root that it would against the Honua
-`/ogc/records` facade (semantic descriptor parity). The OGC API Tiles, Maps,
-and Processes wire methods share the same `basePath` threading seam
-(`OgcMetadataRequest.basePath`, `SourceLocator.basePath`); wiring their raw
-endpoint discovery into `connect()` remains the follow-up slice (see below).
+`/ogc/records` facade (semantic descriptor parity).
+
+Raw OGC API Tiles and Maps discovery follows the identical shape through the
+same `basePath` threading seam (`OgcMetadataRequest.basePath`,
+`SourceLocator.basePath`): three metadata requests against the discovered
+service root (landing, `/conformance`, and the OGC API Common `/collections`
+list), a required collections data link on the landing page, and one reviewed
+render-only source per advertised collection. Their effective capabilities are
+the intersection of the render-only adapter surface (`render`, `tiles` for
+Tiles; `render` for Maps) and the advertised conformance classes; a service
+that advertises no Tiles/Maps conformance leaves those operations disabled with
+structured `not-advertised` decisions. The discovered root is retained on
+`locator.basePath`, so the render-only Tiles/Maps source adapters resolve every
+tile / map-image request against the third-party root through the same seam
+rather than the `/ogc/tiles` or `/ogc/maps` facade.
+
+OGC API Processes is intentionally not a `Source`-backed `Protocol`: a process
+is an invocable operation, not a queryable dataset. `discoverOgcProcesses()` is
+its raw-discovery counterpart — it threads the discovered service root through
+the Processes wire methods (the same `basePath` seam), performs three bounded
+metadata requests (landing, `/conformance`, `/processes`), and returns a
+capability/metadata result: the advertised process list plus the effective
+`processes` capability intersected from conformance (with a structured
+`discovery-unavailable` diagnostic when Processes core conformance is absent).
+It never constructs a `connect()` `Source` or dataset.
 
 GeoParquet / static-file discovery has no HTTP metadata document: it reads the
 Parquet footer and the GeoParquet `geo` metadata through an injected
@@ -322,10 +348,9 @@ alter object prototypes. A bound violation fails without a network fallback.
 Cache hooks must not persist access tokens, API keys, or raw authorization
 material.
 
-This slice is intentionally not universal-connect completion: static STAC,
-GeoServices Image/Geometry/GP services, and the remaining raw OGC render/process
-families (Tiles, Maps, Processes) still fail as unsupported rather than falling
-through to heuristic detection.
+This slice is intentionally not universal-connect completion: static STAC and
+the GeoServices Image/Geometry/GP services still fail as unsupported rather than
+falling through to heuristic detection.
 
 ## Remaining #391 work
 
@@ -333,13 +358,6 @@ through to heuristic detection.
   recognition) and an explicit ambiguity-recovery contract; today GeoParquet
   requires an explicit `protocol: "geoparquet"` hint plus a metadata reader.
 - GeoServices ImageServer, GeometryServer, and GPServer metadata projections.
-- Raw OGC Tiles, Maps, and Processes endpoint discovery through `connect()`.
-  The `basePath` threading seam is now in place (used by OGC API Records), so
-  these are follow-ups: Tiles and Maps are render-only `Source`s whose
-  round-trip additionally needs tile / map-image fetch threading and
-  per-collection tileset enumeration, and OGC Processes is not a `Source`-backed
-  `Protocol` (its discovery must surface as a capability/metadata result rather
-  than a `Source`).
 - Remaining protocol adapters, normalized schema/queryables, partial metadata
   diagnostics, and the owning `createHonua()` disposal lifecycle.
 - Cross-language semantic descriptor fixtures and scheduled third-party smoke.

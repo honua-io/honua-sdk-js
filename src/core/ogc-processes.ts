@@ -53,6 +53,31 @@ export interface HonuaOgcProcessJobOptions {
 
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
 
+/** Honua facade path prefix for OGC API Processes. */
+const PROCESSES_FACADE_BASE = "/ogc/processes";
+
+/**
+ * Resolve the OGC API Processes path prefix: the caller-supplied raw `basePath`
+ * (a `discoverOgcProcesses()`-discovered third-party service root) or the Honua
+ * facade default. Trailing slashes are trimmed so a discovered root and the
+ * facade compose the same sub-paths. Mirrors the OGC API Records seam.
+ */
+function processesBase(request: { basePath?: string }): string {
+  // An omitted basePath uses the Honua facade; an explicit "" is a legitimate
+  // root-mounted raw service and must NOT fall back to the facade prefix.
+  if (request.basePath === undefined) return PROCESSES_FACADE_BASE;
+  const base = request.basePath;
+  let end = base.length;
+  while (end > 0 && base.charCodeAt(end - 1) === 0x2f) end--;
+  return base.slice(0, end);
+}
+
+/** Cache-key discriminator so a discovered root never collides with the facade. */
+function processesBaseKey(request: { basePath?: string }): string {
+  const base = processesBase(request);
+  return base === PROCESSES_FACADE_BASE ? "" : `${base}:`;
+}
+
 /** Top-level OGC API Processes handle. */
 export class HonuaOgcProcesses {
   public readonly client: HonuaClient;
@@ -459,9 +484,10 @@ export async function getOgcProcessesLanding(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcLandingResponse> {
   const params = createOgcMetadataParams(request);
+  const base = processesBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcLandingResponse>(
-    `ogc-processes:landing:${params.toString()}`,
-    `/ogc/processes?${params.toString()}`,
+    `ogc-processes:landing:${processesBaseKey(request)}${params.toString()}`,
+    `${base}?${params.toString()}`,
     request,
   );
 }
@@ -471,9 +497,10 @@ export async function getOgcProcessesConformance(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcConformanceResponse> {
   const params = createOgcMetadataParams(request);
+  const base = processesBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcConformanceResponse>(
-    `ogc-processes:conformance:${params.toString()}`,
-    `/ogc/processes/conformance?${params.toString()}`,
+    `ogc-processes:conformance:${processesBaseKey(request)}${params.toString()}`,
+    `${base}/conformance?${params.toString()}`,
     request,
   );
 }
@@ -483,9 +510,10 @@ export async function listOgcProcesses(
   request: OgcMetadataRequest = {},
 ): Promise<HonuaOgcProcessesResponse> {
   const params = createOgcMetadataParams(request);
+  const base = processesBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcProcessesResponse>(
-    `ogc-processes:processes:${params.toString()}`,
-    `/ogc/processes/processes?${params.toString()}`,
+    `ogc-processes:processes:${processesBaseKey(request)}${params.toString()}`,
+    `${base}/processes?${params.toString()}`,
     request,
   );
 }

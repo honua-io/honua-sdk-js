@@ -13,7 +13,17 @@ import { type GeoParquetSourceProfiler, discoverGeoParquetSources } from "./conn
 import { type ConnectTarget, discoverGeoServicesSources, resolveConnectTarget } from "./connect-geoservices.js";
 export type { GeoParquetSourceProfiler } from "./connect-geoparquet.js";
 import { discoverOdataSources } from "./connect-odata.js";
-import { discoverOgcRecordsSources } from "./connect-ogc.js";
+import {
+  discoverOgcMapsSources,
+  discoverOgcProcessesMetadata,
+  discoverOgcRecordsSources,
+  discoverOgcTilesSources,
+} from "./connect-ogc.js";
+import type { OgcProcessesDiscoveryResult } from "./connect-ogc.js";
+export type {
+  OgcProcessDiscoverySummary,
+  OgcProcessesDiscoveryResult,
+} from "./connect-ogc.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import {
   type DiscoveryCacheIdentity,
@@ -186,6 +196,8 @@ export type ConnectResolvedProtocol =
   | "odata"
   | "geoparquet"
   | "ogc-records"
+  | "ogc-tiles"
+  | "ogc-maps"
   | "geoservices-feature-service"
   | "geoservices-map-service";
 
@@ -274,7 +286,11 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
                 ? await discoverGeoParquet(identity, options)
                 : target.protocol === "ogc-records"
                   ? await discoverOgcRecords(client, identity, target, options)
-                  : await discoverGeoServices(client, identity, target, options);
+                  : target.protocol === "ogc-tiles"
+                    ? await discoverOgcTiles(client, identity, target, options)
+                    : target.protocol === "ogc-maps"
+                      ? await discoverOgcMaps(client, identity, target, options)
+                      : await discoverGeoServices(client, identity, target, options);
     if (options.cache) {
       await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
@@ -354,6 +370,64 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
       }
       return source;
     },
+  });
+}
+
+/** Options for {@link discoverOgcProcesses}. */
+export interface OgcProcessesDiscoveryOptions {
+  /** OGC API Processes service root URL (facade or third-party). */
+  readonly endpoint: string | URL;
+  /** Existing client bound to the endpoint origin (mutually exclusive with clientOptions). */
+  readonly client?: HonuaClient;
+  /** Auth, retry, timeout, interceptor, and fetch options for an owned client. */
+  readonly clientOptions?: Omit<HonuaClientOptions, "baseUrl">;
+  readonly signal?: AbortSignal;
+  /** Skip a metadata cache read and revalidate through the protocol adapter. */
+  readonly refresh?: boolean;
+  readonly metadata?: Omit<HonuaMetadataRequestOptions, "signal" | "refresh">;
+}
+
+/**
+ * Discover a raw (third-party) OGC API Processes service as a
+ * capability/metadata result.
+ *
+ * OGC API Processes is deliberately **not** a Source-backed protocol: a process
+ * is an invocable operation, not a queryable dataset, so it never becomes a
+ * `connect()` `Source`. This function is the raw-Processes counterpart to
+ * `connect()` — it threads the discovered service-root path through the
+ * Processes wire methods (the same `basePath` seam the Tiles / Maps / Records
+ * adapters use), performs three bounded metadata requests (landing,
+ * conformance, process list), and returns the advertised process list plus the
+ * effective `processes` capability intersected from conformance. A service that
+ * advertises no Processes conformance reports an empty capability set with a
+ * structured diagnostic rather than inventing support.
+ *
+ * @experimental
+ */
+export async function discoverOgcProcesses(
+  options: OgcProcessesDiscoveryOptions,
+): Promise<OgcProcessesDiscoveryResult> {
+  throwIfAborted(options.signal);
+  const endpoint = validateConnectEndpoint(options.endpoint);
+  if (options.client && options.clientOptions) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "Pass either client or clientOptions to discoverOgcProcesses(), not both.",
+    );
+  }
+  const url = new URL(endpoint);
+  // A raw OGC API Processes service root is mounted under a path (or at the
+  // origin). Bind the client to the origin and carry the service-root prefix so
+  // landing / conformance / process-list requests resolve against the same
+  // advertised layout — identical to the raw OGC Records / Tiles / Maps seam.
+  const basePath = url.pathname && url.pathname !== "/" ? url.pathname : "";
+  const clientBaseUrl = url.origin;
+  if (options.client) assertClientEndpoint(options.client, clientBaseUrl);
+  const client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: clientBaseUrl });
+  return discoverOgcProcessesMetadata(client, endpoint, basePath, {
+    ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.refresh !== undefined ? { refresh: options.refresh } : {}),
+    ...(options.metadata ? { metadata: options.metadata } : {}),
   });
 }
 
@@ -589,6 +663,54 @@ async function discoverOgcRecords(
     identityKey: identity.key,
     endpoint: identity.endpoint,
     protocol: "ogc-records",
+    retrievedAt: discovered.retrievedAt,
+    evidence: discovered.evidence,
+    sources: discovered.sources,
+  });
+}
+
+async function discoverOgcTiles(
+  client: HonuaClient,
+  identity: DiscoveryCacheIdentity,
+  target: ConnectTarget,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const discovered = await discoverOgcTilesSources(
+    client,
+    identity,
+    target.clientBaseUrl,
+    target.ogcBasePath ?? "",
+    options,
+  );
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "ogc-tiles",
+    retrievedAt: discovered.retrievedAt,
+    evidence: discovered.evidence,
+    sources: discovered.sources,
+  });
+}
+
+async function discoverOgcMaps(
+  client: HonuaClient,
+  identity: DiscoveryCacheIdentity,
+  target: ConnectTarget,
+  options: ConnectOptions,
+): Promise<ConnectDiscoverySnapshot> {
+  const discovered = await discoverOgcMapsSources(
+    client,
+    identity,
+    target.clientBaseUrl,
+    target.ogcBasePath ?? "",
+    options,
+  );
+  return Object.freeze({
+    version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
+    identityKey: identity.key,
+    endpoint: identity.endpoint,
+    protocol: "ogc-maps",
     retrievedAt: discovered.retrievedAt,
     evidence: discovered.evidence,
     sources: discovered.sources,
@@ -1217,7 +1339,7 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
     }
     return;
   }
-  if (target.protocol === "ogc-records") {
+  if (target.protocol === "ogc-records" || target.protocol === "ogc-tiles" || target.protocol === "ogc-maps") {
     if (
       locator.url !== target.clientBaseUrl ||
       locator.basePath !== (target.ogcBasePath ?? "") ||
@@ -1225,9 +1347,15 @@ function validateSnapshotLocator(sourceId: string, locator: SourceLocator, targe
       !locator.collectionId ||
       sourceId !== locator.collectionId
     ) {
+      const family =
+        target.protocol === "ogc-records"
+          ? "OGC API Records"
+          : target.protocol === "ogc-tiles"
+            ? "OGC API Tiles"
+            : "OGC API Maps";
       throw new HonuaDiscoveryError(
         "invalid-discovery-cache",
-        "Cached OGC API Records source locator does not match the service endpoint.",
+        `Cached ${family} source locator does not match the service endpoint.`,
       );
     }
     return;
