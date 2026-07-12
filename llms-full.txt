@@ -2970,10 +2970,13 @@ and subpath-only so the root and browser bundles do not absorb it.
 between untrusted plan proposals and host-owned effect execution. It validates
 JSON-compatible structured data, produces an immutable dry run and effect
 budget, binds a reviewer signature to the exact plan and policy, revalidates
-current source context, and signs/verifies execution evidence.
+current source context, executes an exact approved operation through a
+host-supplied adapter, and signs/verifies execution evidence.
 
-The module never invokes a model, tool, source, renderer, subscription, or job.
-An accepted approval is evidence for a host executor; it is not an executor.
+Plan normalization, dry run, approval, and verification never invoke a model,
+tool, source, renderer, subscription, or job. `executeAgentPlanStep` is the
+explicit effect boundary; it invokes only a matching host executor after
+authorization, single-use consumption, and a durable start audit.
 `@honua/sdk-js/agent-tools` remains the runtime action adapter, and
 `@honua/sdk-js/query-planner` remains the source of query-plan fingerprints.
 
@@ -2993,7 +2996,7 @@ tokens, or tool arguments in this envelope.
 import {
   dryRunAgentPlan,
   issueAgentApproval,
-  verifyAgentStepAuthorization,
+  executeAgentPlanStep,
 } from "@honua/sdk-js/agent-safety";
 
 const policy = {
@@ -3041,20 +3044,21 @@ const approval = await issueAgentApproval(
   { now: "2026-07-10T20:00:00.000Z", maxClockSkewMs: 5_000 },
 );
 
-// Immediately before an effect, compare exact current bindings and operation
-// parameters, then atomically consume the single-use approval step.
-const authorization = await verifyAgentStepAuthorization(
+const execution = await executeAgentPlanStep({
   dryRun,
   policy,
   approval,
-  hostVerifier,
-  { sources: { incidents: currentIncidentSourceBinding } },
-  "query-incidents",
-  exactQueryPlanInput,
-  hostAtomicApprovalUseStore,
-);
-// Execute only authorization.operation (the frozen validated snapshot), never
-// the original mutable exactQueryPlanInput object.
+  approvalVerifier: hostVerifier,
+  context: { sources: { incidents: currentIncidentSourceBinding } },
+  stepId: "query-incidents",
+  operation: exactQueryPlanInput,
+  useConsumer: hostAtomicApprovalUseStore,
+  executor: hostQueryExecutor,
+  auditSink: hostDurableAuditSink,
+  receiptSigner: hostReceiptSigner,
+  executionId: "execution-42",
+});
+// execution.value is an owned frozen JSON snapshot; execution.receipt binds it.
 ```
 
 `dryRunAgentPlan` rejects unknown properties, accessors, non-plain objects,
@@ -3114,6 +3118,30 @@ verification evaluates the historical approval at the signed completion time,
 so an authentic receipt remains verifiable after approval expiry. Supply the
 bound historical source context, not newly discovered current metadata.
 
+## Approved execution and audit
+
+`executeAgentPlanStep` composes the authorization and receipt primitives. It
+requires an executor with one exact `tool` and `effect`, rejects mismatches
+before invocation, and passes only the frozen operation and narrowed approval
+limits. Executor output must be a bounded plain JSON value. The SDK snapshots it
+without invoking accessors, derives its canonical UTF-8 byte count and SHA-256
+digest, and refuses row or byte overflow.
+
+The audit sink must durably append a `started` event before execution and a
+`completed` event after every observed success, failure, or cancellation. Audit
+events carry actor/provider/model, tool/effect, source and version identity,
+data mode and observation time, and plan/policy/binding/approval/input/use/result/
+receipt digests. They deliberately omit parameters, results, citations, raw
+authorization scopes, signatures, consumption nonce/token, and thrown error
+messages. A failed start audit prevents execution. A failed terminal audit is a
+typed `HonuaAgentExecutionError` carrying the signed receipt so a host can
+reconcile it without pretending persistence succeeded.
+
+`@honua/mcp-server/agent-execution` provides
+`createReadOnlyMcpAgentExecutor`. It binds one named standalone MCP read tool to
+this same SDK execution contract; it does not create a parallel approval model
+or enable mutation tools.
+
 The API precondition is JSON-compatible structured data produced by JSON parsing
 or an equivalent structured clone. Indexed and object accessors are rejected
 without invocation. JavaScript `Proxy` traps are executable by language-level
@@ -3132,9 +3160,9 @@ prefixes.
 ## Deliberate boundaries
 
 This is one production vertical slice of #397, not completion of that XL
-workstream. It does not translate natural language, run tools, provide a model
-adapter, manage signing keys, parse query predicates to infer field use, perform
-compensating actions, implement an audit sink, or establish SDK/CLI/MCP execution
+workstream. It does not translate natural language, provide a model adapter,
+manage signing keys or audit persistence, parse query predicates to infer field
+use, perform compensating actions, or establish CLI/renderer/mutation execution
 parity. Hosts must declare every field a step may read or write; query compiler
 integration can automate that declaration in a later slice.
 
@@ -5444,7 +5472,7 @@ _Generated 2026-07-12 at commit `ddebdc0`._
 | `.` (root) | 460.9 KiB | 501.9 KiB | 122.6 KiB | 132.3 KiB |
 | `/honua` | 463.4 KiB | 504.8 KiB | 123.2 KiB | 133.0 KiB |
 | `/contract` | 225.5 KiB | 235.3 KiB | 58.5 KiB | 66.1 KiB |
-| `/agent-safety` | 34.6 KiB | 37.9 KiB | 10.4 KiB | 11.4 KiB |
+| `/agent-safety` | 41.4 KiB | 45.6 KiB | 12.1 KiB | 13.3 KiB |
 | `/runtime` | 419.0 KiB | 458.7 KiB | 109.4 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
@@ -9620,6 +9648,12 @@ All read-only:
 - `honua_statistics`
 - `honua_explain_capability_gap`
 - `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer
+
+Hosts that use signed safe-agent plans can import
+`@honua/mcp-server/agent-execution`. Its `createReadOnlyMcpAgentExecutor` binds
+one named read tool to `@honua/sdk-js/agent-safety`'s exact approved-operation,
+durable-audit, and signed-receipt path. It never enables wildcard dispatch or
+mutation on the standalone server.
 
 ## MCP Resources
 
