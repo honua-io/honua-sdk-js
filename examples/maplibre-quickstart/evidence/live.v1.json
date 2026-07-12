@@ -6,9 +6,9 @@
   "lane": "live",
   "status": "executed",
   "reason": null,
-  "observedAt": "2026-07-11T23:52:05.730Z",
+  "observedAt": "2026-07-12T00:14:57.496Z",
   "authMode": "anonymous",
-  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "e9ccbdb6e443f9abd3c97026d31e135f39bc0bc0" },
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "3af8004c0e0ec718994df9b09b23f1d4a326440e" },
   "source": {
     "provider": "honua-demo",
     "identity": "canonical-honua-demo",
@@ -18,7 +18,7 @@
   },
   "provenance": {
     "sourceId": "canonical-honua-demo",
-    "observedAt": "2026-07-11T23:52:05.730Z",
+    "observedAt": "2026-07-12T00:14:57.496Z",
     "validAt": null,
     "state": "live",
     "attribution": "Honua canonical demo data"
@@ -33,7 +33,7 @@
       "returnedFeatureCount=1"
     ]
   },
-  "timing": { "totalMs": 1501.0757559999997, "firstSuccessfulInteractionMs": 1501.0757559999997 },
+  "timing": { "totalMs": 11066.36472, "firstSuccessfulInteractionMs": 11066.36472 },
   "degradation": {
     "state": "none",
     "reasons": []

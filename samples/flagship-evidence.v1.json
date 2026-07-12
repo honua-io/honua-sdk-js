@@ -44,7 +44,7 @@
         "command": "npx vitest run test/flagship-runtime-performance.test.ts",
         "definition": "test/flagship-runtime-performance.test.ts",
         "scenario": "1000-bounded-plans-under-1000ms",
-        "artifact": "test-results/overture-live-evidence.json"
+        "artifact": null
       },
       "bundle": { "entrypoints": ["/geoparquet"] }
     },

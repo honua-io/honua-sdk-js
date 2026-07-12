@@ -135,6 +135,16 @@ export async function validateCatalog(catalog, packageJson) {
       invariant(evidence.sampleId === sample.id, `${sample.id}: live evidence sampleId drift`);
       invariant(evidence.lane === "live", `${sample.id}: catalog evidence must be a live envelope`);
       invariant(evidence.status === sample.lanes.live.status, `${sample.id}: live lane status must match evidence`);
+      if (evidence.sdk.gitCommit) {
+        try {
+          execFileSync("git", ["merge-base", "--is-ancestor", evidence.sdk.gitCommit, "HEAD"], {
+            cwd: PROJECT_ROOT,
+            stdio: "ignore",
+          });
+        } catch {
+          throw new Error(`${sample.id}: live evidence producer commit is not an ancestor of HEAD`);
+        }
+      }
     } else {
       invariant(sample.lanes.live.status !== "skipped", `${sample.id}: skipped live lane requires evidencePath`);
     }
