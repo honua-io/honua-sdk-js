@@ -2018,9 +2018,10 @@ land. It is intentionally not exported from the root barrel.
 ## Remote pushdown
 
 The remote compilers target existing GeoServices FeatureServer, OGC API
-Features `/items`, WFS 2.0 GetFeature, and OData v4 entity-set query paths. The
-compiled request is included in the plan so diagnostics, CLIs, agents, and
-renderers can inspect the same decision before execution.
+Features `/items`, WFS 2.0 GetFeature, OData v4 entity-set query, DuckDB SQL over
+GeoParquet, and Honua gRPC `FeatureService/QueryFeatures` paths. The compiled
+request is included in the plan so diagnostics, CLIs, agents, and renderers can
+inspect the same decision before execution.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
@@ -2123,6 +2124,49 @@ metadata and is not invented as a GetFeature response CRS.
 query strings, and fragments; pass stable authorization scope identifiers, not
 tokens.
 
+## DuckDB SQL and gRPC compilers
+
+`geoparquet` sources compile to deterministic DuckDB SQL over `read_parquet(...)`
+via `compileDuckDbQuery`. The compiler reuses the same dependency-free,
+injection-safe SQL builder as the live GeoParquet `Source`, so the plan's
+`duckdb-sql-v1` `sql` text is byte-identical to what the adapter executes for the
+same descriptor and query. Envelope spatial filters push down as
+`ST_Intersects(..., ST_MakeEnvelope(...))` (or a GeoParquet 1.1 `bbox`-covering
+column when declared); non-envelope geometries are reduced to their bounding box
+and reported with `bboxApproximated: true`. Geometry is projected as GeoJSON via
+`ST_AsGeoJSON`. Output-CRS requests fail closed (no portable DuckDB reprojection),
+and a spatial filter without a resolvable geometry column is rejected. The
+geometry column and encoding come from `locator.geoparquet.geometryColumn` /
+`geometryEncoding` (default `wkb`) or a descriptor geometry field, so planning
+never needs a profiling round-trip.
+
+`grpc` sources compile to `honua-grpc-query-features-v1`, a faithful,
+protobuf-free description of the `honua.v1.FeatureService/QueryFeatures` unary
+request. Field names and proto enum *value names* (`SPATIAL_RELATIONSHIP_*`,
+`STATISTIC_TYPE_*`) mirror the generated message, so the plan is a hashable
+pre-image of the wire request without importing the protobuf runtime.
+
+## Spatial aggregation
+
+Spatial aggregation — grouped statistics constrained by a spatial predicate —
+has both a server-pushdown path and a bounded local/columnar path. GeoServices
+(`outStatistics` + `groupByFieldsForStatistics` + geometry) and gRPC
+(`outStatistics` + `groupBy` + `spatialFilter`) push the whole aggregation to the
+server (`pushdown: "full"`); DuckDB pushes it to the columnar engine as a
+`GROUP BY` with the spatial predicate in the `WHERE` clause. When a source cannot
+push aggregation down at all, the bounded degraded path (below) computes it
+locally after enforcing a row/byte ceiling. Histogram and time-series
+aggregation remain rejected rather than silently ignored.
+
+## Plan consumers
+
+The plan is consumed, not re-derived. `honua explain <ref>` (CLI) builds a
+`SourceDescriptor` from flags and calls `explainQuery`, printing the stages,
+pushdown, per-protocol compiled request, fidelity, warnings, and fingerprint —
+with no server call, since planning is side-effect free. `executeQueryPlan`
+consumes the accepted plan for execution after verifying its fingerprint and
+source context.
+
 ## Bounded degraded execution
 
 Fallback is disabled by default. When a source can query features but cannot
@@ -2169,11 +2213,13 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
 
 This foundation does not close the full planner workstream. Follow-on slices
 must add typed semantic predicates and temporal windows, CQL2 JSON and richer
-OGC filter negotiation, gRPC and DuckDB compilers, spatial aggregation, joins/composition,
-columnar/worker execution, cache/freshness decisions, cost models, realtime
-snapshot/delta plans, receipts, golden cross-protocol fixtures, and shared
-CLI/renderer/MCP consumption. Histogram and time-series aggregation are
-rejected by this compiler rather than silently ignored.
+OGC filter negotiation, spatial-binning aggregation (grid/hex) in the IR,
+joins/composition, cache/freshness decisions, cost models, realtime
+snapshot/delta plans, receipts, and richer renderer/MCP consumption. Histogram
+and time-series aggregation are rejected by this compiler rather than silently
+ignored. The GeoServices, OGC API Features, WFS, OData, DuckDB SQL, gRPC, and
+bounded columnar/worker paths, spatial-aggregation pushdown, and a CLI plan
+consumer (`honua explain`) are now delivered.
 
 ---
 
@@ -5613,37 +5659,37 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-12 at commit `6ac8036`._
+_Generated 2026-07-12 at commit `71ea137`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 460.9 KiB | 382.0 KiB | 122.6 KiB | 101.2 KiB |
-| `/honua` | 463.4 KiB | 510.3 KiB | 123.2 KiB | 135.7 KiB |
+| `.` (root) | 356.1 KiB | 382.0 KiB | 94.4 KiB | 101.2 KiB |
+| `/honua` | 463.9 KiB | 510.3 KiB | 123.4 KiB | 135.7 KiB |
 | `/contract` | 225.5 KiB | 235.3 KiB | 58.5 KiB | 66.1 KiB |
-| `/plugin` (registry + certification, no heavy peers) | 23.1 KiB | 38.0 KiB | 8.3 KiB | 12.7 KiB |
-| `/agent-safety` | 43.8 KiB | 55.2 KiB | 12.6 KiB | 15.8 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 35.2 KiB | 38.0 KiB | 11.6 KiB | 12.7 KiB |
+| `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
 | `/runtime` | 419.0 KiB | 458.7 KiB | 109.4 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
-| `/query-planner` (worker runtime injected) | 64.4 KiB | 70.8 KiB | 19.4 KiB | 21.3 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.3 KiB | 77.8 KiB | 23.7 KiB | 24.9 KiB |
+| `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
 | `/esri-compat` | 943.9 KiB | 1026.2 KiB | 233.9 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
 | `/geocoding` | 4.9 KiB | 5.3 KiB | 1.9 KiB | 2.1 KiB |
 | `/auth` | 12.0 KiB | 12.8 KiB | 3.8 KiB | 4.0 KiB |
 | `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
-| `/map` | 96.6 KiB | 106.3 KiB | 26.4 KiB | 29.0 KiB |
+| `/map` | 97.0 KiB | 106.3 KiB | 26.5 KiB | 29.0 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 17.2 KiB | 17.8 KiB | 6.2 KiB | 6.5 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 11.5 KiB | 12.5 KiB | 4.1 KiB | 4.4 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 370.8 KiB | 405.7 KiB | 96.0 KiB | 104.5 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 348.0 KiB | 382.8 KiB | 92.3 KiB | 101.5 KiB |
-| browser ESM (`./browser`) | 346.7 KiB | 381.4 KiB | 92.0 KiB | 101.2 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 356.8 KiB | 382.8 KiB | 94.8 KiB | 101.5 KiB |
+| browser ESM (`./browser`) | 355.5 KiB | 381.4 KiB | 94.4 KiB | 101.2 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 190.4 KiB | 204.3 KiB | 48.6 KiB | 52.1 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 205.1 KiB | 220.4 KiB | 52.0 KiB | 55.8 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 17.4 KiB | 18.8 KiB | 6.5 KiB | 7.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 17.7 KiB | 18.8 KiB | 6.6 KiB | 7.0 KiB |
 
 ---
 
