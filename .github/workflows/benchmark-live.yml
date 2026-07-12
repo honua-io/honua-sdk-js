@@ -23,7 +23,7 @@ permissions:
 
 env:
   NODE_VERSION: "20.19.0"
-  NODE_OPTIONS: "--dns-result-order=ipv4first"
+  NODE_OPTIONS: "--dns-result-order=ipv4first --no-network-family-autoselection"
 
 jobs:
   live-evidence:

@@ -133,10 +133,10 @@ describe("sample publication contract", () => {
     await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow(
       "producer artifact does not match sdk.gitCommit",
     );
-    evidence.sdk.gitCommit = "3af8004c0e0ec718994df9b09b23f1d4a326440e";
+    evidence.sdk.gitCommit = "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b";
     evidence.artifacts[0].sha256 = "0".repeat(64);
     await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow("producer generator digest drift");
-    evidence.artifacts[0].sha256 = "4b77e015b8c553e568fdf401a6255e659f56be49f2988f135424caa11e0044d9";
+    evidence.artifacts[0].sha256 = "f4e279e9aeeab199af0be1dc9bf80133c6b938f563a99e97e443f656b364034b";
     evidence.semantics.operation = "unsupported-old-journey";
     await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow(
       "producer generator does not support this journey",

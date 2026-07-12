@@ -6,43 +6,47 @@
   "lane": "live",
   "status": "executed",
   "reason": null,
-  "observedAt": "2026-07-12T00:14:57.496Z",
+  "observedAt": "2026-07-12T02:18:02.654Z",
   "authMode": "anonymous",
-  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "3af8004c0e0ec718994df9b09b23f1d4a326440e" },
+  "sdk": { "package": "@honua/sdk-js", "version": "0.1.0-beta.0", "gitCommit": "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b" },
   "source": {
     "provider": "honua-demo",
-    "identity": "canonical-honua-demo",
-    "endpoint": "https://demo.honua.io/ogc/features",
+    "identity": "honua-demo:maui-parcels:1",
+    "endpoint": "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
     "deploymentVersion": "1.0.0",
     "dataVersion": null
   },
   "provenance": {
-    "sourceId": "canonical-honua-demo",
-    "observedAt": "2026-07-12T00:14:57.496Z",
+    "sourceId": "honua-demo:maui-parcels:1",
+    "observedAt": "2026-07-12T02:18:02.654Z",
     "validAt": null,
     "state": "live",
     "attribution": "Honua canonical demo data"
   },
   "semantics": {
-    "operation": "discover-query-and-render-ready-features",
-    "outcome": "feature-collection",
+    "operation": "compatibility-layer-query-renderable-geometry",
+    "outcome": "geoservices-renderable-feature",
     "itemCount": 1,
     "assertions": [
-      "collectionCount=12",
-      "selectedCollection=\"1\"",
-      "returnedFeatureCount=1"
+      "compatibilityChecked=true",
+      "serviceId=\"maui-parcels\"",
+      "layerId=1",
+      "layerName=\"maui-parcels\"",
+      "geometryType=\"esriGeometryPolygon\"",
+      "returnedFeatureCount=1",
+      "renderableGeometry=true"
     ]
   },
-  "timing": { "totalMs": 11066.36472, "firstSuccessfulInteractionMs": 11066.36472 },
+  "timing": { "totalMs": 2074.3419810000005, "firstSuccessfulInteractionMs": 2074.3419810000005 },
   "degradation": {
     "state": "none",
     "reasons": []
   },
   "artifacts": [
     {
-      "kind": "producer-generator:3af8004c0e0ec718994df9b09b23f1d4a326440e",
+      "kind": "producer-generator:a6e2bb0785bcdebf47a1f5bd8254cf62e138963b",
       "path": "scripts/live-benchmark-evidence.mjs",
-      "sha256": "4b77e015b8c553e568fdf401a6255e659f56be49f2988f135424caa11e0044d9"
+      "sha256": "f4e279e9aeeab199af0be1dc9bf80133c6b938f563a99e97e443f656b364034b"
     }
   ]
 }
