@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "id": "honua-cross-sdk-reference-v1",
+  "reviewedAt": "2026-07-12",
+  "reviewExpiresAt": "2026-10-10",
+  "methodology": {
+    "runner": "ubuntu-24.04/node-20.19.0/pinned-playwright-chromium",
+    "network": "loopback-only",
+    "cacheStates": ["cold", "warm"],
+    "warmupRuns": 1,
+    "measurementRuns": 5,
+    "statistics": ["median", "p95", "coefficient-of-variation"],
+    "completionSignals": ["renderer-reported-stable-frame", "target-feature-pick-id-101", "no-console-page-or-non-loopback-network-errors"],
+    "rankingPolicy": "forbidden-until-reviewed-result-set"
+  },
+  "fixtures": [
+    {
+      "id": "five-public-synthetic-points-v1",
+      "path": "bench/cross-sdk/fixtures/points.geojson",
+      "sha256": "b980be3434dbe98483a90e455cf8bbb8f75463fcdc4c0d21d1c9c341b2331164",
+      "mediaType": "application/geo+json",
+      "license": "CC0-1.0",
+      "source": "synthetic coordinates and attributes authored for this repository",
+      "containsProductionData": false
+    }
+  ],
+  "tasks": [
+    {
+      "id": "local-geojson-point-render-pick-v1",
+      "fixtureId": "five-public-synthetic-points-v1",
+      "crs": "EPSG:4326",
+      "viewport": { "width": 1280, "height": 720, "deviceScaleFactor": 1, "longitude": -157.8583, "latitude": 21.3069, "zoom": 11, "pitch": 0, "bearing": 0 },
+      "styleIntent": { "kind": "circle", "radiusPixels": 9, "fillRgba": [52, 195, 181, 255], "targetFillRgba": [255, 218, 92, 255], "targetId": 101 },
+      "interaction": { "kind": "pick", "screenPoint": [640, 360], "expectedFeatureId": 101 },
+      "visualTolerance": { "comparison": "semantic-plus-structural-screenshot", "pickRadiusPixels": 3, "minimumVisibleFeatureCount": 5, "pixelRankingPermitted": false },
+      "exclusions": ["remote basemap", "vendor-hosted service", "authentication", "network latency", "server query time", "3D terrain", "vendor-default UI controls"]
+    }
+  ],
+  "references": [
+    {
+      "id": "honua-sdk-js",
+      "vendor": "honua",
+      "product": "Honua JavaScript SDK",
+      "status": "eligible",
+      "package": { "name": "@honua/sdk-js", "version": "0.1.0-beta.0", "integrity": "workspace:git-tree", "lockfile": "package-lock.json", "sourceTree": { "path": "src", "gitTree": "44ceccb37cda3900cd6d80c6db52b0d445dfb77e" } },
+      "licenseEvidence": { "license": "Apache-2.0", "decision": "approved", "publication": "permitted-under-open-source-license", "sourceUrl": "https://github.com/honua-io/honua-sdk-js/blob/trunk/LICENSE", "termsUrl": null, "retrievedAt": "2026-07-12", "licensePath": "LICENSE", "licenseContentSha256": "b354b971f0d9252a996e7cd4e72cd4e0d833cd0fe9068a5da3113b4a0ed53559", "notes": "The exact src Git tree, not an npm release artifact, is bound to this corpus." },
+      "taskIds": ["local-geojson-point-render-pick-v1"],
+      "reasons": []
+    },
+    {
+      "id": "maplibre-gl-js",
+      "vendor": "maplibre",
+      "product": "MapLibre GL JS",
+      "status": "eligible",
+      "package": { "name": "maplibre-gl", "version": "5.21.1", "integrity": "sha512-zto1RTnFkOpOO1bm93ElCXF1huey2N4LvXaGLMFcYAu9txh0OhGIdX1q3LZLkrMKgMxMeYduaQo+DVNzg098fg==", "lockfile": "package-lock.json" },
+      "licenseEvidence": { "license": "BSD-3-Clause", "decision": "approved", "publication": "permitted-under-open-source-license", "sourceUrl": "https://github.com/maplibre/maplibre-gl-js/blob/main/LICENSE.txt", "termsUrl": null, "retrievedAt": "2026-07-12", "licensePath": "node_modules/maplibre-gl/LICENSE.txt", "licenseContentSha256": "ee5fc05a0677eaf69601d2c7db0d9ecd6cc27c3abc1d0733bc9ed34707cf8ef2", "notes": "Use is limited to the locked open-source package and local fixture; no Mapbox code after the BSD fork point is copied." },
+      "taskIds": ["local-geojson-point-render-pick-v1"],
+      "reasons": []
+    },
+    {
+      "id": "deck-gl",
+      "vendor": "deck.gl",
+      "product": "deck.gl core and layers",
+      "status": "eligible",
+      "package": { "name": "@deck.gl/core", "version": "9.3.6", "integrity": "sha512-dCwF+ATE382DdbIqbaoHYCTAW7vutkVlQvWlmMebTDW1j7rPnKrT6ZPa0Y996U/8ZL5NNWc2/wWWY9LYhZVm2Q==", "lockfile": "package-lock.json" },
+      "licenseEvidence": { "license": "MIT", "decision": "approved", "publication": "permitted-under-open-source-license", "sourceUrl": "https://github.com/visgl/deck.gl/blob/master/LICENSE", "termsUrl": null, "retrievedAt": "2026-07-12", "licensePath": "node_modules/@deck.gl/core/LICENSE", "licenseContentSha256": "e499a2c2ba3b9faabe91fdfddf43e329439263264b7148e5548d0ec605cce9f2", "notes": "Reference uses only local ScatterplotLayer inputs and does not imply use of a CARTO service." },
+      "taskIds": ["local-geojson-point-render-pick-v1"],
+      "reasons": []
+    },
+    {
+      "id": "cesium-js",
+      "vendor": "cesium",
+      "product": "CesiumJS",
+      "status": "eligible",
+      "package": { "name": "cesium", "version": "1.140.0", "integrity": "sha512-3RvW0rvZWuXiS6regtNE5u9vt0uXohgpsRBIo6Qc922IIIamkitYiEdr4fg+u4qX4EoK9xS3BosCza7iPOExEQ==", "lockfile": "package-lock.json" },
+      "licenseEvidence": { "license": "Apache-2.0", "decision": "approved", "publication": "permitted-under-open-source-license", "sourceUrl": "https://github.com/CesiumGS/cesium/blob/main/LICENSE.md", "termsUrl": null, "retrievedAt": "2026-07-12", "licensePath": "node_modules/cesium/LICENSE.md", "licenseContentSha256": "5974ceb674dd305415efc34d999ea38a2535b55368475065dd7bfabb23ad026d", "notes": "Reference is restricted to the local ellipsoid and synthetic entities; Cesium ion assets and services are excluded." },
+      "taskIds": ["local-geojson-point-render-pick-v1"],
+      "reasons": []
+    },
+    {
+      "id": "arcgis-maps-sdk-js",
+      "vendor": "esri",
+      "product": "ArcGIS Maps SDK for JavaScript",
+      "status": "unavailable",
+      "package": { "name": "@arcgis/core", "version": "5.1.12", "integrity": "sha512-/2b3rrbn8W4QW5XMn2WQ2JsAqo1m3mIZ0yBh2RJi00HARjngywYgGdX9VAIkYOky7tjKockO1p9ASjdz2QgjWA==", "lockfile": null },
+      "licenseEvidence": { "license": "LicenseRef-Esri-Product-Terms", "decision": "review-required", "publication": "not-cleared", "sourceUrl": "https://developers.arcgis.com/javascript/latest/licensing/", "termsUrl": "https://www.esri.com/en-us/legal/terms/full-master-agreement", "retrievedAt": "2026-07-12", "licensePath": null, "licenseContentSha256": null, "notes": "Official licensing requires product-specific terms and attribution. Public comparative-result publication has not been approved by counsel; no package or Esri code is redistributed here." },
+      "taskIds": [],
+      "reasons": ["public benchmark-result publication not legally cleared", "package intentionally absent from the credential-free lockfile"]
+    },
+    {
+      "id": "mapbox-gl-js",
+      "vendor": "mapbox",
+      "product": "Mapbox GL JS",
+      "status": "unavailable",
+      "package": { "name": "mapbox-gl", "version": "3.26.0", "integrity": "sha512-N+Y8VmvpD6xDeP0hAbegPZeEMY5TtnLcV0gEUBZ/KHq3s/yUKQm0PVG9JEkId0QFMMe5/W+FEjoyV4NI3B/N7A==", "lockfile": null },
+      "licenseEvidence": { "license": "LicenseRef-Mapbox-TOS", "decision": "review-required", "publication": "not-cleared", "sourceUrl": "https://github.com/mapbox/mapbox-gl-js/blob/main/LICENSE.txt", "termsUrl": "https://www.mapbox.com/legal/tos/", "retrievedAt": "2026-07-12", "licensePath": null, "licenseContentSha256": null, "notes": "Current GL JS is licensed under Mapbox terms for use with relevant Mapbox products and an active account. The official npm guide requires a public access token; neither terms nor credentials are assumed." },
+      "taskIds": [],
+      "reasons": ["active Mapbox account and access token are outside the credential-free corpus", "public benchmark-result publication not legally cleared"]
+    },
+    {
+      "id": "carto-deck-gl",
+      "vendor": "carto",
+      "product": "CARTO for deck.gl",
+      "status": "not-comparable",
+      "package": { "name": "@deck.gl/carto", "version": "9.3.6", "integrity": "sha512-uMc7cmmzDkBUA9miiVOUsZGJHg0xQRdL4RCZy6Kdd+p8evh6L4/rEfxGLZJVhyxLecerincKsmZHd751s2pyBw==", "lockfile": null },
+      "licenseEvidence": { "license": "MIT", "decision": "approved", "publication": "not-cleared", "sourceUrl": "https://github.com/visgl/deck.gl/blob/master/LICENSE", "termsUrl": "https://docs.carto.com/carto-for-developers/key-concepts/authentication-methods", "retrievedAt": "2026-07-12", "licensePath": null, "licenseContentSha256": null, "notes": "The open-source adapter package is MIT, but official CARTO data paths require authenticated platform APIs. Standalone deck.gl is represented separately and cannot be labeled a CARTO platform result." },
+      "taskIds": [],
+      "reasons": ["CARTO platform requests require credentials", "standalone deck.gl is not equivalent to the CARTO platform path"]
+    }
+  ]
+}
