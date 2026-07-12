@@ -94,6 +94,8 @@ jobs:
   js-sdk:
     name: JS SDK
     runs-on: ubuntu-latest
+    env:
+      HONUA_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v7
 
@@ -104,8 +106,72 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # The enforceable five-minute clock includes npm ci, browser
+      # provisioning, the fixture build, and the first usable map.
+      - name: Start quickstart budget clock
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_at=$(awk '{ printf "%.0f", $1 * 1000 }' /proc/uptime)
+          if [[ ! "$started_at" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Could not capture a positive monotonic start timestamp"
+            exit 1
+          fi
+          echo "QUICKSTART_STARTED_AT_MONOTONIC_MS=$started_at" >> "$GITHUB_ENV"
+          node scripts/quickstart-time-to-map.mjs --initialize \
+            --started-at-monotonic-ms "$started_at" \
+            --output test-results/quickstart-time-to-map.json
+
       - name: Install dependencies
-        run: npm ci
+        id: quickstart_install
+        shell: bash
+        run: |
+          now=$(awk '{ printf "%.0f", $1 * 1000 }' /proc/uptime)
+          remaining_ms=$((QUICKSTART_STARTED_AT_MONOTONIC_MS + 300000 - now))
+          (( remaining_ms > 0 ))
+          timeout --foreground "$(((remaining_ms + 999) / 1000))s" npm ci
+
+      - name: Install Playwright browser
+        id: quickstart_browser
+        shell: bash
+        run: |
+          now=$(awk '{ printf "%.0f", $1 * 1000 }' /proc/uptime)
+          remaining_ms=$((QUICKSTART_STARTED_AT_MONOTONIC_MS + 300000 - now))
+          (( remaining_ms > 0 ))
+          timeout --foreground "$(((remaining_ms + 999) / 1000))s" npx playwright install --with-deps chromium
+
+      - name: Gate clean-install time to first fixture map
+        id: quickstart_map
+        run: |
+          npm run docs:quickstart:time-to-map -- \
+            --started-at-monotonic-ms "$QUICKSTART_STARTED_AT_MONOTONIC_MS" \
+            --output test-results/quickstart-time-to-map.json
+
+      - name: Finalize quickstart failure evidence
+        if: always() && steps.quickstart_map.outcome != 'success'
+        shell: bash
+        run: |
+          stage=first-map
+          if [[ "${{ steps.quickstart_install.outcome }}" != "success" ]]; then
+            stage=clean-install
+          elif [[ "${{ steps.quickstart_browser.outcome }}" != "success" ]]; then
+            stage=browser-provisioning
+          fi
+          node scripts/quickstart-time-to-map.mjs \
+            --finalize-failure "$stage" \
+            --started-at-monotonic-ms "$QUICKSTART_STARTED_AT_MONOTONIC_MS" \
+            --output test-results/quickstart-time-to-map.json
+
+      - name: Upload quickstart timing evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: quickstart-time-to-map
+          path: test-results/quickstart-time-to-map.json
+          if-no-files-found: error
+
+      - name: Validate quickstart timing runner
+        run: npm run docs:quickstart:time-to-map:test
 
       - name: Typecheck
         run: npm run typecheck
@@ -185,9 +251,6 @@ jobs:
 
       - name: Migration e2e harness
         run: npx vitest run test/migration-e2e.test.ts
-
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
 
       - name: Browser smoke suite
         run: npm run test:playwright

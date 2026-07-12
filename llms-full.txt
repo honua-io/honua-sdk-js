@@ -730,6 +730,25 @@ The page also exposes provenance, capture/observation time, auth mode, SDK/serve
 plan fingerprint, pushdown, fidelity, and degradation. Fixture replay is labeled explicitly and never presented as live
 data.
 
+### What the five-minute claim measures
+
+Required CI sets up the pinned Node runtime, then starts a monotonic clock before `npm ci`, provisions Chromium, builds
+this fixture app, and stops only after all five stages complete with renderable features and a mounted MapLibre canvas.
+The 300-second ceiling is enforced by:
+
+```bash
+npm run docs:quickstart:time-to-map
+```
+
+CI uploads `quickstart-time-to-map.json` on success or failure. It records the actual elapsed duration, fixture mode,
+completed stages, renderable feature count, package version, and revision; it never substitutes a configured or
+estimated duration. A local invocation measures script-to-map because dependencies and the browser are already
+installed. Only CI evidence with `cleanInstallIncluded: true` covers runtime setup and a clean install.
+
+This automated gate proves the documented path is reproducible within the budget on a fresh runner. It is not evidence
+of a first-time human usability study; that separate observation remains required before claiming the broader learning
+architecture acceptance criterion is complete.
+
 ## Use an anonymous live endpoint
 
 Copy [`.env.example`](../examples/maplibre-quickstart/.env.example), point it at a public CORS-enabled Honua layer, then
