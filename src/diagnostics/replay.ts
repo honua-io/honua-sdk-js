@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
-import { DIAGNOSTIC_MAX_BODY_BYTES, HonuaDiagnosticSafetyError, createDiagnosticBundle } from "./sanitize.js";
+import {
+  DIAGNOSTIC_MAX_BODY_BYTES,
+  HonuaDiagnosticSafetyError,
+  assertSafeDiagnosticMetadata,
+  createDiagnosticBundle,
+} from "./sanitize.js";
 import { assertDiagnosticBundle } from "./schema.js";
 import type { DiagnosticBodyPreview, DiagnosticBundleV1, DiagnosticReplayOptions } from "./types.js";
 
@@ -43,6 +48,8 @@ function verifyBodyIntegrity(body: DiagnosticBodyPreview | undefined): void {
 }
 
 function assertArtifactSafe(bundle: DiagnosticBundleV1): void {
+  assertSafeDiagnosticMetadata(bundle.bundleId, "unsafe-bundle-id", "Diagnostic bundle id");
+  assertSafeDiagnosticMetadata(bundle.consent.grantedBy, "unsafe-granted-by", "Diagnostic consent identity");
   if (SECRET_MATERIAL.test(JSON.stringify(bundle))) {
     throw new HonuaDiagnosticSafetyError(
       "credential-bearing-artifact",

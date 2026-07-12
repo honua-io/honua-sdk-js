@@ -345,6 +345,18 @@ describe("diagnostic bundle v1", () => {
     await expect(
       replayDiagnosticBundle({ bundle: hashDrift, baseUrl: "https://example.test", fetchFn }),
     ).rejects.toThrow("integrity metadata");
+    const unsafeBundleId = structuredClone(base);
+    unsafeBundleId.bundleId = "person@example.test";
+    unsafeBundleId.envelopes[0] = { method: "GET", normalizedPath: "/api" };
+    await expect(
+      replayDiagnosticBundle({ bundle: unsafeBundleId, baseUrl: "https://example.test", fetchFn }),
+    ).rejects.toThrow("must not contain credentials or personal data");
+    const unsafeGrantedBy = structuredClone(base);
+    unsafeGrantedBy.consent.grantedBy = "token=raw-replay-secret";
+    unsafeGrantedBy.envelopes[0] = { method: "GET", normalizedPath: "/api" };
+    await expect(
+      replayDiagnosticBundle({ bundle: unsafeGrantedBy, baseUrl: "https://example.test", fetchFn }),
+    ).rejects.toThrow("must not contain credentials or personal data");
     expect(fetchFn).not.toHaveBeenCalled();
   });
 

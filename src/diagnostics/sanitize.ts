@@ -130,7 +130,11 @@ function redactText(input: string): string {
     .replace(/\b[A-Za-z0-9_+/=]{32,}\b/g, "[REDACTED_TOKEN]");
 }
 
-function assertSafeMetadata(value: string | undefined, code: string, label: string): string | undefined {
+export function assertSafeDiagnosticMetadata(
+  value: string | undefined,
+  code: string,
+  label: string,
+): string | undefined {
   if (!value) return undefined;
   if (hasUnsafeControl(value) || redactText(value) !== value) {
     throw new HonuaDiagnosticSafetyError(code, `${label} must not contain credentials or personal data.`);
@@ -398,8 +402,12 @@ export function createDiagnosticBundle(options: CreateDiagnosticBundleOptions): 
       "Diagnostic consent identity exceeds the schema limit.",
     );
   }
-  const bundleId = assertSafeMetadata(options.bundleId, "unsafe-bundle-id", "Diagnostic bundle id");
-  const grantedBy = assertSafeMetadata(options.consent.grantedBy, "unsafe-granted-by", "Diagnostic consent identity");
+  const bundleId = assertSafeDiagnosticMetadata(options.bundleId, "unsafe-bundle-id", "Diagnostic bundle id");
+  const grantedBy = assertSafeDiagnosticMetadata(
+    options.consent.grantedBy,
+    "unsafe-granted-by",
+    "Diagnostic consent identity",
+  );
   if (
     options.previewBytes !== undefined &&
     (!Number.isInteger(options.previewBytes) ||
