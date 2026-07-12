@@ -4,7 +4,15 @@ import type { ConnectDiscoverySourceSnapshot, ConnectOptions } from "./connect.j
 import type { DiscoveryCacheIdentity, DiscoveryCapabilityEvidence, DiscoveryProvenance } from "./contract/discovery.js";
 import { PROTOCOL_DEFAULT_CAPABILITIES, type SourceLocator } from "./contract/types.js";
 import type { HonuaClient } from "./core/client.js";
-import { HonuaDiscoveryError } from "./core/errors.js";
+import {
+  HonuaAbortError,
+  HonuaAuthError,
+  HonuaDiscoveryError,
+  HonuaHttpError,
+  HonuaNetworkError,
+  HonuaTimeoutError,
+  HonuaWfsExceptionError,
+} from "./core/errors.js";
 import type { WfsCapabilitiesOperation, WfsCapabilitiesSnapshot } from "./core/wfs-capabilities.js";
 
 const WFS_VERSION = "2.0.0";
@@ -29,7 +37,24 @@ export async function discoverWfsSources(
 ): Promise<WfsDiscoveryResult> {
   const root = client.wfs(identity.endpoint, { version: WFS_VERSION });
   if (options.refresh === true) root.refresh();
-  const snapshot = await root.capabilities(options.signal ? { signal: options.signal } : undefined);
+  let snapshot: WfsCapabilitiesSnapshot;
+  try {
+    snapshot = await root.capabilities(options.signal ? { signal: options.signal } : undefined);
+  } catch (error) {
+    if (
+      error instanceof HonuaAbortError ||
+      error instanceof HonuaAuthError ||
+      error instanceof HonuaHttpError ||
+      error instanceof HonuaNetworkError ||
+      error instanceof HonuaTimeoutError ||
+      error instanceof HonuaWfsExceptionError
+    ) {
+      throw error;
+    }
+    throw new HonuaDiscoveryError("invalid-endpoint", "WFS GetCapabilities metadata could not be parsed.", undefined, {
+      cause: error,
+    });
+  }
   if (snapshot.version !== WFS_VERSION) {
     throw new HonuaDiscoveryError(
       "invalid-endpoint",
@@ -47,6 +72,8 @@ export async function discoverWfsSources(
   const hasQueryContract =
     getFeature?.methods.includes("GET") === true &&
     getFeature.methods.includes("POST") &&
+    Boolean(getFeature.getUrl) &&
+    Boolean(getFeature.postUrl) &&
     getFeature.outputFormats.some((format) => JSON_OUTPUT_FORMATS.has(format.toLowerCase()));
   const transaction = snapshot.operations.get("Transaction");
   const sources = featureTypes.map((featureType) => {
@@ -54,7 +81,8 @@ export async function discoverWfsSources(
       ? featureType.name.slice(0, featureType.name.indexOf(":"))
       : undefined;
     const featureNamespace = prefix ? snapshot.namespaces.get(prefix) : undefined;
-    const canEdit = transaction?.methods.includes("POST") === true && (!prefix || featureNamespace !== undefined);
+    const canEdit =
+      transaction?.methods.includes("POST") === true && Boolean(transaction.postUrl) && featureNamespace !== undefined;
     const capabilities = [
       ...(hasQueryContract ? (["query", "stream"] as const) : []),
       ...(canEdit ? (["applyEdits"] as const) : []),

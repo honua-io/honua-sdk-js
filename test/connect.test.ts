@@ -56,16 +56,21 @@ function wfsCapabilities(
     transaction?: boolean;
     namespace?: boolean;
     operationOrigin?: string;
+    operationHrefs?: boolean;
+    unprefixed?: boolean;
   } = {},
 ): string {
   const version = options.version ?? "2.0.0";
   const methods = options.getFeatureMethods ?? ["GET", "POST"];
   const origin = options.operationOrigin ?? "https://example.test";
   const methodXml = methods
-    .map((method) => `<ows:${method === "GET" ? "Get" : "Post"} xlink:href="${origin}/geoserver/wfs"/>`)
+    .map(
+      (method) =>
+        `<ows:${method === "GET" ? "Get" : "Post"}${options.operationHrefs === false ? "" : ` xlink:href="${origin}/geoserver/wfs"`}/>`,
+    )
     .join("");
   const transactionXml = options.transaction
-    ? `<ows:Operation name="Transaction"><ows:DCP><ows:HTTP><ows:Post xlink:href="${origin}/geoserver/wfs"/></ows:HTTP></ows:DCP></ows:Operation>`
+    ? `<ows:Operation name="Transaction"><ows:DCP><ows:HTTP><ows:Post${options.operationHrefs === false ? "" : ` xlink:href="${origin}/geoserver/wfs"`}/></ows:HTTP></ows:DCP></ows:Operation>`
     : "";
   return `<?xml version="1.0"?>
 <wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs/2.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" ${options.namespace === false ? "" : 'xmlns:parcels="https://example.test/ns/parcels"'} version="${version}">
@@ -77,7 +82,7 @@ function wfsCapabilities(
     ${transactionXml}
   </ows:OperationsMetadata>
   <wfs:FeatureTypeList>
-    <wfs:FeatureType><wfs:Name>parcels:lot</wfs:Name><wfs:Title>Lots</wfs:Title><wfs:DefaultCRS>urn:ogc:def:crs:EPSG::4326</wfs:DefaultCRS><ows:WGS84BoundingBox><ows:LowerCorner>-158 21</ows:LowerCorner><ows:UpperCorner>-157 22</ows:UpperCorner></ows:WGS84BoundingBox></wfs:FeatureType>
+    <wfs:FeatureType><wfs:Name>${options.unprefixed ? "lot" : "parcels:lot"}</wfs:Name><wfs:Title>Lots</wfs:Title><wfs:DefaultCRS>urn:ogc:def:crs:EPSG::4326</wfs:DefaultCRS><ows:WGS84BoundingBox><ows:LowerCorner>-158 21</ows:LowerCorner><ows:UpperCorner>-157 22</ows:UpperCorner></ows:WGS84BoundingBox></wfs:FeatureType>
     <wfs:FeatureType><wfs:Name>roads:road</wfs:Name><wfs:Title>Roads</wfs:Title></wfs:FeatureType>
   </wfs:FeatureTypeList>
 </wfs:WFS_Capabilities>`;
@@ -459,6 +464,48 @@ describe("connect", () => {
     expect(connection.source().capabilities.has("stream")).toBe(false);
   });
 
+  it("does not treat WFS method nodes without DCP hrefs as usable bindings", async () => {
+    const connection = await connect({
+      endpoint: "https://example.test/geoserver/ows",
+      protocol: "wfs",
+      typeName: "parcels:lot",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: vi.fn(
+          async () =>
+            new Response(wfsCapabilities({ transaction: true, operationHrefs: false }), {
+              headers: { "Content-Type": "application/xml" },
+            }),
+        ),
+      },
+    });
+
+    expect(connection.source().capabilities.has("query")).toBe(false);
+    expect(connection.source().capabilities.has("stream")).toBe(false);
+    expect(connection.source().capabilities.has("applyEdits")).toBe(false);
+  });
+
+  it("does not advertise WFS edits for an unprefixed type without a proven feature namespace", async () => {
+    const connection = await connect({
+      endpoint: "https://example.test/geoserver/ows",
+      protocol: "wfs",
+      typeName: "lot",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: vi.fn(
+          async () =>
+            new Response(wfsCapabilities({ transaction: true, unprefixed: true }), {
+              headers: { "Content-Type": "application/xml" },
+            }),
+        ),
+      },
+    });
+
+    expect(connection.source().capabilities.has("query")).toBe(true);
+    expect(connection.source().capabilities.has("stream")).toBe(true);
+    expect(connection.source().capabilities.has("applyEdits")).toBe(false);
+  });
+
   it("fails WFS query and edits closed when JSON or namespace evidence is missing", async () => {
     const connection = await connect({
       endpoint: "https://example.test/geoserver/ows",
@@ -513,6 +560,19 @@ describe("connect", () => {
           fetchFn: vi.fn(
             async () =>
               new Response(wfsCapabilities({ version: "1.1.0" }), { headers: { "Content-Type": "text/xml" } }),
+          ),
+        },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+
+    await expect(
+      connect({
+        endpoint: "https://example.test/geoserver/ows",
+        protocol: "wfs",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: {
+          fetchFn: vi.fn(
+            async () => new Response("<wfs:WFS_Capabilities>", { headers: { "Content-Type": "text/xml" } }),
           ),
         },
       }),

@@ -189,10 +189,12 @@ WFS discovery performs exactly one `GetCapabilities` request with
 advertised feature type or the exact `typeName` selection. The common
 `query`/`queryAll` and `stream` contract is enabled only when the document is
 WFS 2.0, advertises a recognized JSON/GeoJSON representation, and exposes both
-GET and POST bindings for `GetFeature`; the runtime needs GET for ordinary
+GET and POST bindings with validated non-empty DCP URLs for `GetFeature`; the runtime needs GET for ordinary
 queries and switches long FES filters to POST. `applyEdits` additionally
-requires a POST `Transaction` binding and a root namespace declaration for a
-prefixed feature type. `queryObjectIds` remains unavailable because
+requires a POST `Transaction` binding with a validated URL and a root namespace
+declaration resolved from the feature-type prefix. Unprefixed types remain
+non-editable when capabilities provide no provable feature namespace.
+`queryObjectIds` remains unavailable because
 capabilities cannot prove GeoJSON `feature.id`; `queryExtent` remains
 unavailable because the common filtered-extent drain is not bounded by this
 metadata. Those negative decisions are explicit rather than adapter defaults.
