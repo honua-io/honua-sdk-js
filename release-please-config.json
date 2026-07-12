@@ -14,6 +14,23 @@
       "include-component-in-tag": true,
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "samples/contract/v1/fixtures/sample-evidence.fixture.json",
+          "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "samples/contract/v1/fixtures/sample-evidence.live.json",
+          "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "samples/contract/v1/fixtures/sample-evidence.skipped.json",
+          "jsonpath": "$.sdk.version"
+        }
+      ],
       "changelog-sections": [
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Bug Fixes" },

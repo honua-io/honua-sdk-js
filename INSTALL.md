@@ -213,6 +213,10 @@ const migration = runEsriCompatCodemod({ rootDir: "./src", write: true });
 
 ## Version Policy
 
+- **Documentation version:** Hosted guides and API entrypoints identify their
+  exact SDK release. Use the generated
+  [documentation version selector](./docs/documentation-versions.md) for tagged
+  archived guides, compatibility ranges, and migration links.
 - **Pre-release** (`-alpha.*`, `-beta.*`): Published to npm with `@alpha` / `@beta` dist-tags.
 - **Stable** (`1.0.0+`): Published to npm as `@latest`.
 - **Semver:** All releases follow [Semantic Versioning](https://semver.org/). Public symbols
