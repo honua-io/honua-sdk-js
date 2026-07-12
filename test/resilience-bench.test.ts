@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyBenchmarkArtifactSafety, createBenchmarkReport } from "../bench/lab.js";
+import { applyBenchmarkArtifactSafety, createBenchmarkReport, evaluateReport } from "../bench/lab.js";
 import { runOfflineReloadBenchmark, runRealtimeReconnectBenchmark } from "../bench/resilience-bench.js";
 
 const offlineOptions = {
@@ -94,6 +94,7 @@ describe("deterministic resilience benchmark", () => {
     const resilience = report.scenarios.filter((scenario) => scenario.invariants.semantics);
 
     expect(report.schemaVersion).toBe(2);
+    expect(report.artifactSafety).toEqual({ passed: true, credentialMaterialPresent: false });
     expect(resilience.map((scenario) => scenario.kind)).toEqual(["offline-reload", "realtime-reconnect"]);
     expect(
       resilience.every(
@@ -117,5 +118,24 @@ describe("deterministic resilience benchmark", () => {
     expect(reconnect.invariants.semantics?.credentialMaterialPresent).toBe(true);
     expect(offline.invariants.passed).toBe(false);
     expect(offline.invariants.semantics?.credentialMaterialPresent).toBe(true);
+
+    const topLevelLeak = structuredClone(report);
+    topLevelLeak.corpus.description = "token=leaked-top-level-value";
+    applyBenchmarkArtifactSafety(topLevelLeak);
+
+    expect(topLevelLeak.artifactSafety).toEqual({ passed: false, credentialMaterialPresent: true });
+    const topLevelResilience = topLevelLeak.scenarios.filter((scenario) => scenario.invariants.semantics);
+    expect(
+      topLevelResilience.every(
+        (scenario) => !scenario.invariants.passed && scenario.invariants.semantics?.credentialMaterialPresent === true,
+      ),
+    ).toBe(true);
+    const evaluation = evaluateReport(topLevelLeak, {
+      schemaVersion: 1,
+      variability: { warningCoefficientOfVariation: 0.2, failureCoefficientOfVariation: 0.5 },
+      relativeRegression: {},
+    });
+    expect(evaluation.level).toBe("failure");
+    expect(evaluation.items).toContainEqual(expect.objectContaining({ metric: "artifact-safety", level: "failure" }));
   }, 15_000);
 });

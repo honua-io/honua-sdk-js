@@ -141,6 +141,10 @@ export interface BenchmarkReport {
   };
   environment: EnvironmentMetadata;
   scenarios: ScenarioResult[];
+  artifactSafety: {
+    passed: boolean;
+    credentialMaterialPresent: boolean;
+  };
   evaluation: {
     level: EvaluationLevel;
     baselineCompatibility: { comparable: boolean; reasons: string[] } | null;
@@ -389,11 +393,13 @@ export function containsSensitiveBenchmarkMaterial(value: unknown, key = ""): bo
   );
 }
 
-/** Derive, then enforce, the secrecy invariant from each final scenario projection. */
+/** Derive, then enforce, secrecy from the complete final report projection. */
 export function applyBenchmarkArtifactSafety(report: BenchmarkReport): void {
+  const { artifactSafety: _artifactSafety, ...projection } = report;
+  const materialPresent = containsSensitiveBenchmarkMaterial(projection);
+  report.artifactSafety = { passed: !materialPresent, credentialMaterialPresent: materialPresent };
   for (const scenario of report.scenarios) {
     if (!scenario.invariants.semantics) continue;
-    const materialPresent = containsSensitiveBenchmarkMaterial(scenario);
     scenario.invariants.semantics = {
       ...scenario.invariants.semantics,
       credentialMaterialPresent: materialPresent,
@@ -470,6 +476,14 @@ export function evaluateReport(
   baseline?: BenchmarkReport,
 ): BenchmarkReport["evaluation"] {
   const items: EvaluationItem[] = [];
+  items.push({
+    scenarioId: "*",
+    metric: "artifact-safety",
+    level: candidate.artifactSafety.passed ? "pass" : "failure",
+    message: candidate.artifactSafety.passed
+      ? "The complete report projection contains no credential or opaque cursor material"
+      : "The complete report projection contains credential or opaque cursor material",
+  });
   for (const scenario of candidate.scenarios) {
     items.push({
       scenarioId: scenario.id,
@@ -580,11 +594,13 @@ export async function createBenchmarkReport(options: BenchmarkLabInput): Promise
     },
     environment: environmentMetadata(),
     scenarios,
+    artifactSafety: { passed: false, credentialMaterialPresent: true },
     evaluation: { level: "not-compared", baselineCompatibility: null, items: [] },
   };
   const baseline = options.baseline
     ? (JSON.parse(await readFile(options.baseline, "utf8")) as BenchmarkReport)
     : undefined;
+  report.evaluation = evaluateReport(report, budgets, baseline);
   applyBenchmarkArtifactSafety(report);
   report.evaluation = evaluateReport(report, budgets, baseline);
   return report;

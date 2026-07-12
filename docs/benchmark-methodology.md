@@ -26,6 +26,9 @@ count, ordering status, ignored/applied duplicate counts, and the absence of
 credential material. Opaque cursor values and authorization-scope inputs are
 never copied into the report. Deliberate stale, corrupt, sequence-gap, and
 duplicate-application fixtures prove these checks fail closed.
+The report-level `artifactSafety` gate is derived from the complete final
+projection, including corpus, methodology, environment, scenarios, and
+evaluation fields; a top-level or scenario leak fails the benchmark check.
 
 This expanded contract is benchmark report and corpus `schemaVersion: 2`.
 Version 1 reports contain only the original stream shape; they remain readable

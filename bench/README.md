@@ -47,6 +47,9 @@ in-memory adapters and make no network requests.
 The report records semantic checks next to timing samples. A stale/corrupt
 offline reload, sequence gap, applied duplicate, or missing cursor makes
 `--check` fail even when timing variance is acceptable. These scenarios do
+not trust a declared secrecy flag: the v2 report derives `artifactSafety` from
+the complete final projection and fails if any scenario or top-level field
+contains credential-shaped or opaque cursor material. These scenarios do
 **not** measure network, server, first map render, renderer frame rate, or
 another SDK. See
 [`docs/benchmark-methodology.md`](../docs/benchmark-methodology.md) for the

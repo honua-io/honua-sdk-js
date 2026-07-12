@@ -103,6 +103,7 @@ function benchmarkReport(
         },
       },
     ],
+    artifactSafety: { passed: true, credentialMaterialPresent: false },
     evaluation: { level: "pass", baselineCompatibility: null, items: [] },
   };
 }
