@@ -22,6 +22,7 @@
     "/contract gzip was reset for credential-safe discovery (#391): provider-aware Azure SAS, CloudFront, AWS, and GCS signed-URL normalization plus runtime evidence-kind validation. The measured 61,493 bytes gzip is budgeted at 67,643 bytes per the 10% headroom policy.",
     "/realtime gained its first dedicated guard with the resumable checkpoint kernel (#393); its trust-boundary hardening adds runtime event validation and credential-free envelope projection. The ceiling is the measured subpath bundle plus 10% headroom.",
     "/offline is a subpath-only experimental contract (#396), keeping the root/browser bundle unchanged while its dedicated budget guards deterministic manifest and download-coordinator growth.",
+    "/query-planner gained its first dedicated guard with the bounded columnar worker session (#453); browser/Node worker implementations and heavy analytics peers remain injected, while the full planner plus worker protocol is measured with 10% headroom.",
     "/agent-safety is independently budgeted at its measured 35,310 minified / 10,617 gzip bytes plus 10% headroom, keeping bounded trust normalization and receipt verification out of root barrels and action executors.",
     "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom."
   ],
@@ -53,6 +54,10 @@
     "/offline": {
       "min": 26640,
       "gzip": 8730
+    },
+    "/query-planner": {
+      "min": 68991,
+      "gzip": 21065
     },
     "/esri-compat": {
       "min": 1050877,

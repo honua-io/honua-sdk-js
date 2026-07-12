@@ -20,10 +20,19 @@ export { compileWfsQuery } from "./wfs.js";
 export { canonicalizeQuery, createQueryIr, hashQueryIr, queryFromCanonical } from "./ir.js";
 export { explainQuery, hashQueryPlan } from "./planner.js";
 export {
+  COLUMNAR_WORKER_CANCEL_KIND,
+  COLUMNAR_WORKER_ERROR_KIND,
+  COLUMNAR_WORKER_PROGRESS_KIND,
+  COLUMNAR_WORKER_PROTOCOL_VERSION,
+  COLUMNAR_WORKER_REQUEST_KIND,
+  COLUMNAR_WORKER_RESULT_KIND,
   ColumnarBatchLease,
+  HonuaColumnarWorkerError,
   createColumnarBatch,
+  createColumnarWorkerSession,
   inspectColumnarBatch,
   leaseColumnarBatch,
+  startColumnarWorkerHost,
 } from "../columnar/index.js";
 export {
   COLUMNAR_BATCH_KIND,
@@ -53,6 +62,26 @@ export type {
   ColumnarTransferTarget,
   ColumnarTypeV1,
   CreateColumnarBatchInput,
+  ColumnarWorkerCancelV1,
+  ColumnarWorkerErrorCode,
+  ColumnarWorkerErrorV1,
+  ColumnarWorkerExecutionProgress,
+  ColumnarWorkerExecutionResult,
+  ColumnarWorkerFactory,
+  ColumnarWorkerFaultEvent,
+  ColumnarWorkerHost,
+  ColumnarWorkerMessageEvent,
+  ColumnarWorkerOperation,
+  ColumnarWorkerOperationContext,
+  ColumnarWorkerProgressV1,
+  ColumnarWorkerRequestV1,
+  ColumnarWorkerResultV1,
+  ColumnarWorkerSession,
+  ColumnarWorkerSessionState,
+  ColumnarWorkerTransport,
+  CreateColumnarWorkerSessionOptions,
+  ExecuteColumnarWorkerOperationOptions,
+  StartColumnarWorkerHostOptions,
 } from "../columnar/index.js";
 export {
   HonuaQueryPlanExecutionError,

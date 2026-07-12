@@ -14,6 +14,39 @@
 
 export { ColumnarBatchLease, createColumnarBatch, inspectColumnarBatch, leaseColumnarBatch } from "./transfer.js";
 export {
+  COLUMNAR_WORKER_CANCEL_KIND,
+  COLUMNAR_WORKER_ERROR_KIND,
+  COLUMNAR_WORKER_PROGRESS_KIND,
+  COLUMNAR_WORKER_PROTOCOL_VERSION,
+  COLUMNAR_WORKER_REQUEST_KIND,
+  COLUMNAR_WORKER_RESULT_KIND,
+  HonuaColumnarWorkerError,
+  createColumnarWorkerSession,
+  startColumnarWorkerHost,
+} from "./worker.js";
+export type {
+  ColumnarWorkerCancelV1,
+  ColumnarWorkerErrorCode,
+  ColumnarWorkerErrorV1,
+  ColumnarWorkerExecutionProgress,
+  ColumnarWorkerExecutionResult,
+  ColumnarWorkerFactory,
+  ColumnarWorkerFaultEvent,
+  ColumnarWorkerHost,
+  ColumnarWorkerMessageEvent,
+  ColumnarWorkerOperation,
+  ColumnarWorkerOperationContext,
+  ColumnarWorkerProgressV1,
+  ColumnarWorkerRequestV1,
+  ColumnarWorkerResultV1,
+  ColumnarWorkerSession,
+  ColumnarWorkerSessionState,
+  ColumnarWorkerTransport,
+  CreateColumnarWorkerSessionOptions,
+  ExecuteColumnarWorkerOperationOptions,
+  StartColumnarWorkerHostOptions,
+} from "./worker.js";
+export {
   COLUMNAR_BATCH_KIND,
   COLUMNAR_BATCH_VERSION,
   COLUMNAR_TRANSFER_KIND,

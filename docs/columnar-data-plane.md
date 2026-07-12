@@ -1,11 +1,12 @@
 # Columnar batch transfer contract
 
 `@honua/sdk-js/query-planner` includes the first bounded data-plane slice for large query
-results. It defines a dependency-free Honua batch envelope and an ownership
-transfer primitive. Arrow/GeoArrow adapters may populate its buffers and
+results. It defines a dependency-free Honua batch envelope, an ownership
+transfer primitive, and a lazy bounded worker-session protocol. Arrow/GeoArrow adapters may populate its buffers and
 metadata, but the envelope does not define a standalone Arrow layout and is not
 independently interoperable without the originating adapter's layout contract.
-It does not decode Arrow, execute queries, or create workers.
+It does not decode Arrow or ship built-in filter/reprojection/aggregation
+operators. Applications register those operations in their worker module.
 
 The entrypoint is experimental while the broader planner, streaming, renderer,
 and realtime work in issue #394 is completed.
@@ -111,6 +112,81 @@ owned.
 `dispose()` is idempotent for an owned or transferred lease and releases the
 lease's references. It cannot revoke other references held by the caller.
 
+## Lazy worker execution
+
+`createColumnarWorkerSession()` supplies the lifecycle missing from a raw
+`postMessage` call: lazy worker creation, a bounded serial queue, exact request
+correlation, monotonic progress, cross-thread cancellation, returned-batch
+validation, typed failures, and deterministic teardown. The SDK does not import
+or construct a browser or Node worker. The application injects a small
+`ColumnarWorkerTransport`, so its worker URL, CSP policy, credentials, module
+type, and bundler remain explicit.
+
+```ts doc-test=skip reason="browser Worker URL and worker module are application-owned"
+import { createColumnarWorkerSession } from "@honua/sdk-js/query-planner";
+
+const session = createColumnarWorkerSession({
+  maxPendingRequests: 8,
+  createWorker: () => {
+    const worker = new Worker(new URL("./columnar.worker.js", import.meta.url), {
+      type: "module",
+    });
+    return {
+      postMessage: (message, transfer) => worker.postMessage(message, [...transfer]),
+      addEventListener: worker.addEventListener.bind(worker),
+      removeEventListener: worker.removeEventListener.bind(worker),
+      dispose: () => worker.terminate(),
+    };
+  },
+});
+
+const result = await session.execute("filter-active", batch, {
+  signal: abortController.signal,
+  onProgress: ({ fraction, stage }) => updateProgress(fraction, stage),
+});
+
+// result.batch now owns the buffers returned by the worker.
+session.dispose();
+```
+
+The worker module registers application-owned operations against its transport:
+
+```ts doc-test=skip reason="worker global transport wrapper is application-owned"
+import { startColumnarWorkerHost } from "@honua/sdk-js/query-planner";
+
+startColumnarWorkerHost({
+  transport: wrapDedicatedWorkerGlobal(self),
+  operations: {
+    async "filter-active"(input, { signal, reportProgress }) {
+      signal.throwIfAborted();
+      reportProgress(0.25, "filter");
+      const output = await filterActiveRows(input, { signal });
+      reportProgress(1, "complete");
+      return output;
+    },
+  },
+});
+```
+
+Only one request is transferred to a session worker at a time. Queued batches
+remain owned by the caller until dispatch, and `maxPendingRequests` (16 by
+default) includes the active request. There is no unbounded mode. An
+acknowledged result is validated against the same batch ceilings before the
+next request starts.
+
+Cancellation before dispatch removes the request without transferring its
+buffers. Cancellation after dispatch sends the versioned cancel message and
+retires the worker transport; queued work resumes on a newly created worker.
+This makes cancellation deterministic even when an application operator fails
+to observe its `AbortSignal`. Worker operators should still poll the signal so
+worker-local resources are released promptly. Late or duplicate messages from
+a retired worker cannot settle another request.
+
+The main session and worker host both fail closed on protocol-version drift,
+unknown operations, batch/metric disagreement, invalid or decreasing progress,
+transport faults, and malformed results. Progress callbacks are observational:
+an exception thrown by a callback cannot corrupt ownership or settlement.
+
 ## Typed errors
 
 `HonuaColumnarTransferError.code` is one of:
@@ -128,10 +204,22 @@ lease's references. It cannot revoke other references held by the caller.
 - `disposed`
 - `transport-failed`
 
+`HonuaColumnarWorkerError.code` is one of:
+
+- `invalid-request`
+- `invalid-response`
+- `unknown-operation`
+- `queue-full`
+- `aborted`
+- `operation-failed`
+- `worker-failed`
+- `disposed`
+
 ## Deliberate remaining scope
 
-This slice does not claim the full #394 workstream. Arrow IPC decoding,
-filter/projection/reprojection/aggregation workers, multi-batch streaming,
-planner integration, renderer consumption, batch cache identity, realtime
-patches, CSP worker factories, and bounded conversion back to feature objects
-remain separate work.
+This slice does not claim the full #394 workstream. Arrow IPC decoding, built-in
+filter/projection/reprojection/aggregation operators, multi-batch streaming
+across more than one in-flight worker, planner integration, renderer
+consumption, batch cache identity, realtime patches, application-specific CSP
+worker URL policy, and bounded conversion back to feature objects remain
+separate work.
