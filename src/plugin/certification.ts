@@ -8,6 +8,7 @@ import {
   HONUA_PLUGIN_ENVIRONMENTS,
   HONUA_PLUGIN_KINDS,
   HONUA_PLUGIN_MANIFEST_VERSION,
+  HONUA_PLUGIN_SUPPORT_STATES,
   type HonuaPluginCertificationCheck,
   type HonuaPluginCertificationHost,
   type HonuaPluginCertificationReport,
@@ -17,6 +18,7 @@ import {
   type HonuaPluginKind,
   type HonuaPluginManifest,
   type HonuaPluginManifestValidation,
+  type HonuaPluginReportVerification,
 } from "./types.js";
 
 const CHECKS: readonly HonuaPluginCertificationCheck[] = [
@@ -26,6 +28,7 @@ const CHECKS: readonly HonuaPluginCertificationCheck[] = [
   "capabilities",
   "peers",
   "security-boundary",
+  "support",
 ];
 
 type JsonObject = Readonly<Record<string, HonuaPluginJsonValue>>;
@@ -137,6 +140,7 @@ function validateManifestSnapshot(snapshot: HonuaPluginJsonValue): HonuaPluginMa
       "data",
       "lifecycle",
       "support",
+      "supportStatus",
     ],
     "",
     diagnostics,
@@ -216,6 +220,7 @@ function validateManifestSnapshot(snapshot: HonuaPluginJsonValue): HonuaPluginMa
   validateEnum(lifecycle?.initialization, ["explicit"], "/lifecycle/initialization", diagnostics);
   validateEnum(lifecycle?.disposal, ["none", "required"], "/lifecycle/disposal", diagnostics);
   validateEnum(manifest.support, ["community", "partner", "honua"], "/support", diagnostics);
+  const supportStatus = validateSupportStatus(manifest.supportStatus, diagnostics);
 
   if (data?.mutation === "explicit" && grants?.mutation !== true) {
     push(
@@ -259,6 +264,7 @@ function validateManifestSnapshot(snapshot: HonuaPluginJsonValue): HonuaPluginMa
     grants: grants as NormalizedGrants,
     data: data as JsonObject,
     lifecycle: lifecycle as JsonObject,
+    supportStatus,
   });
   return {
     ok: true,
@@ -362,6 +368,39 @@ function validatePeers(
   return peers.sort((left, right) =>
     asciiCompare(typeof left.name === "string" ? left.name : "", typeof right.name === "string" ? right.name : ""),
   );
+}
+
+function validateSupportStatus(
+  value: HonuaPluginJsonValue | undefined,
+  diagnostics: HonuaPluginDiagnostic[],
+): JsonObject | undefined {
+  if (value === undefined) return undefined;
+  const status = requiredObject(value, "/supportStatus", diagnostics);
+  allowedKeys(status, ["state", "since", "removedIn", "replacement"], "/supportStatus", diagnostics);
+  validateEnum(status?.state, HONUA_PLUGIN_SUPPORT_STATES, "/supportStatus/state", diagnostics);
+  if (status?.since !== undefined) validateExactSemver(status.since, "/supportStatus/since", diagnostics);
+  if (status?.removedIn !== undefined) validateExactSemver(status.removedIn, "/supportStatus/removedIn", diagnostics);
+  const replacement =
+    status?.replacement === undefined
+      ? undefined
+      : requiredString(status.replacement, "/supportStatus/replacement", diagnostics);
+  if (replacement !== undefined && !validPluginId(replacement)) {
+    push(
+      diagnostics,
+      "SUPPORT_REPLACEMENT_INVALID",
+      "/supportStatus/replacement",
+      "Replacement must be a valid plugin id.",
+    );
+  }
+  if (status?.state === "deprecated" && status.removedIn === undefined && status.replacement === undefined) {
+    push(
+      diagnostics,
+      "SUPPORT_DEPRECATION_INCOMPLETE",
+      "/supportStatus",
+      "A deprecated plugin must declare a removedIn version or a replacement id.",
+    );
+  }
+  return status;
 }
 
 function validateData(
@@ -485,6 +524,7 @@ function normalizeManifest(parts: {
   grants: NormalizedGrants;
   data: JsonObject;
   lifecycle: JsonObject;
+  supportStatus: JsonObject | undefined;
 }): HonuaPluginJsonValue {
   const normalized: Record<string, HonuaPluginJsonValue> = {
     manifestVersion: parts.manifest.manifestVersion as number,
@@ -506,8 +546,18 @@ function normalizeManifest(parts: {
     data: parts.data,
     lifecycle: parts.lifecycle,
     support: parts.manifest.support as string,
+    ...(parts.supportStatus ? { supportStatus: compactSupportStatus(parts.supportStatus) } : {}),
   };
   return deepFreeze(normalized);
+}
+
+function compactSupportStatus(status: JsonObject): HonuaPluginJsonValue {
+  return {
+    state: status.state as string,
+    ...(typeof status.since === "string" ? { since: status.since } : {}),
+    ...(typeof status.removedIn === "string" ? { removedIn: status.removedIn } : {}),
+    ...(typeof status.replacement === "string" ? { replacement: status.replacement } : {}),
+  };
 }
 
 function compactGrants(grants: NormalizedGrants): HonuaPluginJsonValue {
@@ -615,7 +665,9 @@ export function certifyHonuaPluginManifest(input: string, hostInput: string): Ho
     manifest: { snapshot: manifestSnapshot, sha256: fingerprint(manifestSnapshot) },
     host: { snapshot: hostSnapshot, sha256: fingerprint(hostSnapshot) },
     checks: CHECKS.map((check) => {
-      const diagnosticCodes = sorted.filter((item) => diagnosticCheck(item.code) === check).map((item) => item.code);
+      const diagnosticCodes = sorted
+        .filter((item) => diagnosticCheck(item.code, item.path) === check)
+        .map((item) => item.code);
       return {
         check,
         status: diagnosticCodes.some((code) => errorCodes.has(code)) ? ("failed" as const) : ("passed" as const),
@@ -629,6 +681,74 @@ export function certifyHonuaPluginManifest(input: string, hostInput: string): Ho
     sha256: sha256(canonicalStringify(unsignedReport as unknown as Parameters<typeof canonicalStringify>[0])),
   };
   return deepFreeze(report as unknown as HonuaPluginJsonValue) as unknown as HonuaPluginCertificationReport;
+}
+
+/**
+ * Re-check an archived certification report's integrity digests. The report is
+ * read as inert JSON text; every stored SHA-256 (the top-level receipt plus the
+ * manifest and host fingerprints) is recomputed from the report's own canonical
+ * content and compared. Any mismatch — a tampered snapshot, a swapped digest, or
+ * an edited diagnostic — yields a structured rejection. No plugin code runs.
+ */
+export function verifyHonuaPluginCertificationReport(input: string): HonuaPluginReportVerification {
+  const inert = snapshotPlainJson(input, "/report");
+  if (!inert.ok || inert.value === undefined) return { ok: false, status: null, diagnostics: inert.diagnostics };
+  const diagnostics: HonuaPluginDiagnostic[] = [];
+  const report = object(inert.value);
+  if (!report) {
+    push(diagnostics, "REPORT_TYPE", "/report", "Expected a certification report object.");
+    return { ok: false, status: null, diagnostics };
+  }
+
+  const status = report.status === "certified" || report.status === "rejected" ? report.status : null;
+  const stated = typeof report.sha256 === "string" ? report.sha256 : undefined;
+  if (stated === undefined) {
+    push(diagnostics, "REPORT_SIGNATURE_MISSING", "/report/sha256", "Report is missing its integrity digest.");
+  } else {
+    const { sha256: _omit, ...unsigned } = report as Record<string, HonuaPluginJsonValue>;
+    const recomputed = sha256(canonicalStringify(unsigned as unknown as Parameters<typeof canonicalStringify>[0]));
+    if (recomputed !== stated) {
+      push(
+        diagnostics,
+        "REPORT_SIGNATURE_MISMATCH",
+        "/report/sha256",
+        "Recomputed report digest does not match the stored value; the report was altered.",
+      );
+    }
+  }
+
+  verifyEmbeddedFingerprint(report.manifest, "/report/manifest", diagnostics);
+  verifyEmbeddedFingerprint(report.host, "/report/host", diagnostics);
+
+  const sorted = sortDiagnostics(diagnostics);
+  return { ok: sorted.length === 0, status, diagnostics: sorted };
+}
+
+function verifyEmbeddedFingerprint(
+  value: HonuaPluginJsonValue | undefined,
+  path: string,
+  diagnostics: HonuaPluginDiagnostic[],
+): void {
+  const block = object(value);
+  if (!block || !("snapshot" in block) || !("sha256" in block)) {
+    push(diagnostics, "REPORT_BLOCK_INVALID", path, "Report block must carry a snapshot and its digest.");
+    return;
+  }
+  const snapshot = block.snapshot === undefined ? null : block.snapshot;
+  const stated = block.sha256 === null ? null : typeof block.sha256 === "string" ? block.sha256 : undefined;
+  if (stated === undefined) {
+    push(diagnostics, "REPORT_FINGERPRINT_INVALID", `${path}/sha256`, "Expected a SHA-256 digest or null.");
+    return;
+  }
+  const recomputed = fingerprint(snapshot);
+  if (recomputed !== stated) {
+    push(
+      diagnostics,
+      "REPORT_FINGERPRINT_MISMATCH",
+      `${path}/sha256`,
+      "Recomputed snapshot fingerprint does not match the stored value; the snapshot was altered.",
+    );
+  }
 }
 
 function certifyPeers(
@@ -706,7 +826,10 @@ function validateEnum(
     push(diagnostics, "MANIFEST_ENUM", path, `Expected one of: ${allowed.join(", ")}.`);
 }
 
-function diagnosticCheck(code: string): HonuaPluginCertificationCheck {
+function diagnosticCheck(code: string, path: string): HonuaPluginCertificationCheck {
+  // Route by path first: generic type/enum/semver codes emitted for a
+  // supportStatus field must fail the support check, not the manifest check.
+  if (code.startsWith("SUPPORT") || path === "/supportStatus" || path.startsWith("/supportStatus/")) return "support";
   if (code.includes("CAPABILITY")) return "capabilities";
   if (code.includes("ENVIRONMENT")) return "environment";
   if (code.includes("PEER")) return "peers";

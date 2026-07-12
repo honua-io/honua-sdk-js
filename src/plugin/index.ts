@@ -7,8 +7,9 @@
  * plugin factories explicitly and inject only reviewed host services into an
  * instance-scoped `HonuaPluginRegistry`.
  *
- * @experimental The independent behavioral-conformance kit from issue #392 is
- * not included yet, so this surface may change before 1.0.
+ * @experimental This surface still stabilizes the plugin API before 1.0 and may
+ * change; the behavioral-conformance kit, signed reports, and support-status
+ * program from issue #392 are included here.
  * @packageDocumentation
  */
 
@@ -16,7 +17,14 @@ export {
   certifyHonuaPluginManifest,
   validateHonuaPluginCertificationHost,
   validateHonuaPluginManifest,
+  verifyHonuaPluginCertificationReport,
 } from "./certification.js";
+export { runHonuaPluginConformance } from "./conformance.js";
+export type {
+  AnyHonuaPluginFactory,
+  HonuaPluginConformanceProbe,
+  HonuaPluginConformanceSpec,
+} from "./conformance.js";
 export { HonuaPluginRegistry, HonuaPluginRegistryError } from "./registry.js";
 export {
   HONUA_PLUGIN_API_VERSION,
@@ -25,6 +33,7 @@ export {
   HONUA_PLUGIN_ENVIRONMENTS,
   HONUA_PLUGIN_KINDS,
   HONUA_PLUGIN_MANIFEST_VERSION,
+  HONUA_PLUGIN_SUPPORT_STATES,
 } from "./types.js";
 export type {
   HonuaPluginCapability,
@@ -34,6 +43,10 @@ export type {
   HonuaPluginCertificationReport,
   HonuaPluginCheckResult,
   HonuaPluginCompatibility,
+  HonuaPluginConformanceObservation,
+  HonuaPluginConformanceReport,
+  HonuaPluginConformanceScenario,
+  HonuaPluginConformanceScenarioResult,
   HonuaPluginDataSemantics,
   HonuaPluginDiagnostic,
   HonuaPluginDiagnosticSeverity,
@@ -58,7 +71,10 @@ export type {
   HonuaPluginPeerRequirement,
   HonuaPluginRequestedGrants,
   HonuaPluginRegistryOptions,
+  HonuaPluginReportVerification,
   HonuaPluginScopedServices,
+  HonuaPluginSupportState,
+  HonuaPluginSupportStatus,
   HonuaPluginInstance,
   HonuaPluginNetworkService,
   HonuaPluginCredentialService,
