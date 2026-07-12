@@ -67,7 +67,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 
 ## API entrypoints
 
-- [@honua/sdk-js](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/index.ts): @honua/sdk-js — root barrel.
+- [@honua/sdk-js](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/index.ts): @honua/sdk-js — reviewed common workflow.
 - [@honua/sdk-js/honua](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/honua.ts): @honua/sdk-js/honua — the Honua-first SDK entrypoint.
 - [@honua/sdk-js/contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/contract/index.ts): Shared client contract — canonical types and source factories that all protocol adapters speak.
 - [@honua/sdk-js/query-planner](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/query-planner/index.ts): @honua/sdk-js/query-planner — deterministic query IR, explain plans, and bounded execution for the protocol-neutral contract.
