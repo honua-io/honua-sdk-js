@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { applyBenchmarkArtifactSafety, createBenchmarkReport } from "../bench/lab.js";
 import { runOfflineReloadBenchmark, runRealtimeReconnectBenchmark } from "../bench/resilience-bench.js";
 
 const offlineOptions = {
@@ -32,7 +33,6 @@ describe("deterministic resilience benchmark", () => {
         retry: { count: 0 },
         ordering: { status: "not-applicable" },
         duplication: { ignoredCount: 0, appliedCount: 0 },
-        credentialMaterialPresent: false,
       },
     });
     expect(result.samples).toHaveLength(3);
@@ -58,7 +58,6 @@ describe("deterministic resilience benchmark", () => {
         retry: { count: 1 },
         ordering: { status: "preserved" },
         duplication: { ignoredCount: 2, appliedCount: 0 },
-        credentialMaterialPresent: false,
       },
     });
     const serialized = JSON.stringify(result);
@@ -89,4 +88,34 @@ describe("deterministic resilience benchmark", () => {
       semantics: { duplication: { appliedCount: 1 } },
     });
   });
+
+  it("derives secrecy from the complete generated v2 report and fails a leaked cursor value", async () => {
+    const report = await createBenchmarkReport({ corpus: "bench/corpus.json", budgets: "bench/budgets.json" });
+    const resilience = report.scenarios.filter((scenario) => scenario.invariants.semantics);
+
+    expect(report.schemaVersion).toBe(2);
+    expect(resilience.map((scenario) => scenario.kind)).toEqual(["offline-reload", "realtime-reconnect"]);
+    expect(
+      resilience.every(
+        (scenario) => scenario.invariants.passed && scenario.invariants.semantics?.credentialMaterialPresent === false,
+      ),
+    ).toBe(true);
+    const serialized = JSON.stringify(report);
+    expect(serialized).not.toContain("internal-cursor");
+    expect(serialized).not.toMatch(/Bearer\s|token=|secret/i);
+
+    const leaked = structuredClone(report);
+    const reconnect = leaked.scenarios.find((scenario) => scenario.kind === "realtime-reconnect");
+    const offline = leaked.scenarios.find((scenario) => scenario.kind === "offline-reload");
+    if (!reconnect?.invariants.checks) throw new Error("Missing realtime reconnect report projection");
+    if (!offline?.invariants.checks) throw new Error("Missing offline reload report projection");
+    reconnect.invariants.checks = { ...reconnect.invariants.checks, cursorValue: "opaque-replay-position" };
+    offline.invariants.checks = { ...offline.invariants.checks, authorization: "Bearer leaked-fixture-value" };
+    applyBenchmarkArtifactSafety(leaked);
+
+    expect(reconnect.invariants.passed).toBe(false);
+    expect(reconnect.invariants.semantics?.credentialMaterialPresent).toBe(true);
+    expect(offline.invariants.passed).toBe(false);
+    expect(offline.invariants.semantics?.credentialMaterialPresent).toBe(true);
+  }, 15_000);
 });

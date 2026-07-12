@@ -42,7 +42,7 @@ function benchmarkReport(
   invariantsPassed = true,
 ): BenchmarkReport {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: "2026-07-10T00:00:00.000Z",
     gitCommit: "fixture",
     corpus: { id: "fixture", sha256: "same-corpus", description: "fixture" },
@@ -146,6 +146,15 @@ describe("benchmark baseline contract", () => {
     expect(evaluation.items).toContainEqual(
       expect.objectContaining({ metric: "baseline-compatibility", level: "not-compared" }),
     );
+  });
+
+  it("refuses to compare a legacy report schema even when host and corpus metadata match", () => {
+    const legacy = structuredClone(benchmarkReport()) as unknown as { schemaVersion: number };
+    legacy.schemaVersion = 1;
+    const evaluation = evaluateReport(benchmarkReport(), budgets, legacy as BenchmarkReport);
+
+    expect(evaluation.level).toBe("not-compared");
+    expect(evaluation.baselineCompatibility?.reasons).toContain("report schema version differs");
   });
 
   it("fails correctness even when the supplied baseline is incompatible", () => {

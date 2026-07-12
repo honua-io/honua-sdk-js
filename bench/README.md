@@ -21,6 +21,11 @@ node dist/bench/lab.js --check \
   --output test-results/benchmark-lab.json
 ```
 
+The expanded resilience corpus and report use `schemaVersion: 2`. Version 1
+readers must reject or upgrade before consuming the new scenario/sample unions;
+the lab marks a version 1 baseline `not-compared` rather than silently treating
+it as compatible.
+
 Relative budgets are not evaluated when the corpus hash, SDK implementation,
 OS/kernel release, architecture, Node major, CPU model, CI/local mode, or
 available GitHub runner-image identifier differs. Two local reports may both

@@ -27,6 +27,12 @@ credential material. Opaque cursor values and authorization-scope inputs are
 never copied into the report. Deliberate stale, corrupt, sequence-gap, and
 duplicate-application fixtures prove these checks fail closed.
 
+This expanded contract is benchmark report and corpus `schemaVersion: 2`.
+Version 1 reports contain only the original stream shape; they remain readable
+as historical artifacts but are never eligible for relative comparison with a
+version 2 candidate. Consumers must branch on the schema version before reading
+the scenario union.
+
 The gate checks result invariants and repeated-run stability. Relative timing
 and throughput budgets apply only when `--baseline` identifies a report with an
 identical corpus and compatible environment. Hardware-dependent absolute

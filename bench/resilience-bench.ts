@@ -36,7 +36,7 @@ export interface ResilienceInvariantResult {
     retry: { count: number };
     ordering: { status: "preserved" | "violated" | "not-applicable" };
     duplication: { ignoredCount: number; appliedCount: number };
-    credentialMaterialPresent: boolean;
+    credentialMaterialPresent?: boolean;
   };
 }
 
@@ -234,7 +234,6 @@ export async function runOfflineReloadBenchmark(
         retry: { count: 0 },
         ordering: { status: "not-applicable" },
         duplication: { ignoredCount: 0, appliedCount: 0 },
-        credentialMaterialPresent: false,
       },
     },
   };
@@ -376,7 +375,6 @@ export async function runRealtimeReconnectBenchmark(
         retry: { count: retryCount },
         ordering: { status: orderingPreserved ? "preserved" : "violated" },
         duplication: { ignoredCount: duplicateIgnoredCount, appliedCount: duplicateAppliedCount },
-        credentialMaterialPresent: false,
       },
     },
   };

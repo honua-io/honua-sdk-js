@@ -42,7 +42,7 @@ interface RealtimeReconnectCorpusScenario extends Omit<RealtimeReconnectBenchmar
 type CorpusScenario = StreamCorpusScenario | OfflineReloadCorpusScenario | RealtimeReconnectCorpusScenario;
 
 interface Corpus {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   description: string;
   scenarios: CorpusScenario[];
@@ -129,7 +129,7 @@ interface EvaluationItem {
 }
 
 export interface BenchmarkReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   generatedAt: string;
   gitCommit: string | null;
   corpus: { id: string; sha256: string; description: string };
@@ -148,10 +148,13 @@ export interface BenchmarkReport {
   };
 }
 
-interface CliOptions {
+export interface BenchmarkLabInput {
   corpus: string;
   budgets: string;
   baseline?: string;
+}
+
+interface CliOptions extends BenchmarkLabInput {
   output: string;
   check: boolean;
 }
@@ -206,8 +209,8 @@ function gitCommit(): string | null {
 
 function validateCorpus(value: unknown): Corpus {
   const corpus = value as Partial<Corpus>;
-  if (corpus.schemaVersion !== 1 || !corpus.id || !Array.isArray(corpus.scenarios)) {
-    throw new Error("Invalid benchmark corpus: expected schemaVersion 1, id, and scenarios");
+  if (corpus.schemaVersion !== 2 || !corpus.id || !Array.isArray(corpus.scenarios)) {
+    throw new Error("Invalid benchmark corpus: expected schemaVersion 2, id, and scenarios");
   }
   const ids = new Set<string>();
   for (const scenario of corpus.scenarios) {
@@ -370,11 +373,41 @@ async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   return resilienceResult(scenario, await runRealtimeReconnectBenchmark(scenario));
 }
 
+const CREDENTIAL_VALUE =
+  /(?:\bBearer\s+|\bBasic\s+|AKIA[0-9A-Z]{16}|[?&](?:api[-_]?key|signature|token)=|(?:password|secret|token)\s*[:=])/i;
+const SENSITIVE_VALUE_KEY = /(?:authorization|credential|password|secret|token|api[-_]?key|cursor|resume)/i;
+
+/** Detect credential-shaped strings or opaque resume values in a report projection. */
+export function containsSensitiveBenchmarkMaterial(value: unknown, key = ""): boolean {
+  if (typeof value === "string") {
+    return SENSITIVE_VALUE_KEY.test(key) || CREDENTIAL_VALUE.test(value) || /\binternal-cursor-/i.test(value);
+  }
+  if (Array.isArray(value)) return value.some((item) => containsSensitiveBenchmarkMaterial(item, key));
+  if (value === null || typeof value !== "object") return false;
+  return Object.entries(value).some(([childKey, child]) =>
+    containsSensitiveBenchmarkMaterial(child, key ? `${key}.${childKey}` : childKey),
+  );
+}
+
+/** Derive, then enforce, the secrecy invariant from each final scenario projection. */
+export function applyBenchmarkArtifactSafety(report: BenchmarkReport): void {
+  for (const scenario of report.scenarios) {
+    if (!scenario.invariants.semantics) continue;
+    const materialPresent = containsSensitiveBenchmarkMaterial(scenario);
+    scenario.invariants.semantics = {
+      ...scenario.invariants.semantics,
+      credentialMaterialPresent: materialPresent,
+    };
+    if (materialPresent) scenario.invariants.passed = false;
+  }
+}
+
 function baselineCompatibility(
   candidate: BenchmarkReport,
   baseline: BenchmarkReport,
 ): { comparable: boolean; reasons: string[] } {
   const reasons: string[] = [];
+  if (candidate.schemaVersion !== baseline.schemaVersion) reasons.push("report schema version differs");
   if (candidate.corpus.sha256 !== baseline.corpus.sha256) reasons.push("corpus hash differs");
   const keys: Array<keyof EnvironmentMetadata> = [
     "implementation",
@@ -523,8 +556,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
   return options;
 }
 
-async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
+export async function createBenchmarkReport(options: BenchmarkLabInput): Promise<BenchmarkReport> {
   const [corpusBytes, budgetsBytes] = await Promise.all([readFile(options.corpus), readFile(options.budgets)]);
   const corpus = validateCorpus(JSON.parse(corpusBytes.toString("utf8")));
   const budgets = validateBudgets(JSON.parse(budgetsBytes.toString("utf8")));
@@ -532,7 +564,7 @@ async function main(): Promise<void> {
   for (const scenario of corpus.scenarios) scenarios.push(await runScenario(scenario));
 
   const report: BenchmarkReport = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     gitCommit: gitCommit(),
     corpus: {
@@ -553,7 +585,14 @@ async function main(): Promise<void> {
   const baseline = options.baseline
     ? (JSON.parse(await readFile(options.baseline, "utf8")) as BenchmarkReport)
     : undefined;
+  applyBenchmarkArtifactSafety(report);
   report.evaluation = evaluateReport(report, budgets, baseline);
+  return report;
+}
+
+async function main(): Promise<void> {
+  const options = parseArgs(process.argv.slice(2));
+  const report = await createBenchmarkReport(options);
 
   await mkdir(path.dirname(options.output), { recursive: true });
   await writeFile(options.output, `${JSON.stringify(report, null, 2)}\n`, "utf8");
