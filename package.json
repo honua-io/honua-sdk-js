@@ -213,6 +213,10 @@
       "types": "./dist/src/cli/main.d.ts",
       "default": "./dist/src/cli/main.js"
     },
+    "./diagnostics": {
+      "types": "./dist/src/diagnostics/index.d.ts",
+      "default": "./dist/src/diagnostics/index.js"
+    },
     "./geometry": {
       "types": "./dist/src/geometry/index.d.ts",
       "default": "./dist/src/geometry/index.js"
@@ -509,6 +513,7 @@
     "config/public-surface.json",
     "samples/dist",
     "samples/contract/v1/schemas",
+    "schemas",
     "README.md",
     "CHANGELOG.md"
   ],

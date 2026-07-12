@@ -216,6 +216,12 @@ example (`npm run demo:quickstart:mock`); see
 
 ## Command-line client (`honua`)
 
+For support-safe interoperability evidence, `honua doctor` emits a local, schema-validated diagnostic bundle with
+explicit classification/consent, credential and PII redaction, bounded previews, and original-byte SHA-256 metadata.
+`honua doctor --replay` permits only one bounded, abortable `GET`/`HEAD` and fails closed before network access for
+mutations, subscriptions, unsafe paths, credentials, malformed schemas, or hash drift. It never uploads. See
+[`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
+
 Installing the SDK also installs a first-class **`honua` CLI** — the same
 querying and catalog browsing without writing code. It wraps the SDK (no raw
 HTTP, no URL-encoding, no `f=json`), prints readable tables by default, and adds
@@ -331,7 +337,7 @@ correctly use this SDK:
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
     `@honua/sdk-js/cli`.
   - **Experimental** (subpath-only — not re-exported from the root barrels): `/agent-tools`,
-    `/agent-safety`, `/geoparquet`, `/query-planner`, `/plugin`, `/deckgl`, `/offline`.
+    `/agent-safety`, `/geoparquet`, `/query-planner`, `/plugin`, `/deckgl`, `/offline`, `/diagnostics`.
   - **Application-platform surfaces** (`/app`, `/app-controller`, `/app-workspace`,
     `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
     `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,

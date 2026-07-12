@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -40,6 +41,20 @@ function run(label, command, args, options = {}) {
     );
   }
   return result.stdout;
+}
+
+function runFailure(label, command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? projectRoot,
+    encoding: "utf8",
+    env: options.env ?? process.env,
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: options.timeout ?? 60_000,
+  });
+  if (result.error || result.status === 0 || result.status === null) {
+    throw new Error(`${label} did not fail closed as expected: ${result.error?.message ?? result.stdout ?? result.stderr}`);
+  }
+  return `${result.stdout ?? ""}${result.stderr ?? ""}`;
 }
 
 function packInstalledDependency(packageRoot, index) {
@@ -136,6 +151,14 @@ try {
   const installedPackageJson = JSON.parse(
     fs.readFileSync(path.join(installedRoot, "package.json"), "utf8"),
   );
+  const installedSchema = fs.readFileSync(path.join(installedRoot, "schemas", "diagnostic-bundle.v1.json"));
+  if (
+    installedSchema.byteLength !== 6494 ||
+    createHash("sha256").update(installedSchema).digest("hex") !==
+      "4dd7282d17bb417d56f1c3cfa243e03b612a401e5d22be766658849287e431a9"
+  ) {
+    throw new Error("installed diagnostic-bundle schema does not match the canonical byte pin");
+  }
   const manifestFailures = validateInstalledManifest({
     packageRoot: installedRoot,
     packageJson: installedPackageJson,
@@ -191,8 +214,68 @@ try {
   );
   run("installed honua --help", cli, ["--help"], { cwd: consumerRoot });
 
+  const exchangePath = path.join(consumerRoot, "doctor-exchange.json");
+  const bundlePath = path.join(consumerRoot, "doctor-bundle.json");
+  fs.writeFileSync(
+    exchangePath,
+    JSON.stringify({
+      request: {
+        method: "GET",
+        url: "https://user:password@example.test/api/v1/services?token=raw-token",
+        headers: { authorization: "Bearer raw-auth", "x-request-id": "packed-request" },
+      },
+      response: {
+        status: 500,
+        mediaType: "application/json",
+        headers: { "content-type": "application/json" },
+        body: { error: "fixture", apiKey: "raw-key" },
+      },
+    }),
+  );
+  run(
+    "installed honua doctor emit",
+    cli,
+    [
+      "doctor",
+      "--exchange",
+      exchangePath,
+      "--classification",
+      "internal",
+      "--redaction-acknowledged=true",
+      "--share-with-support=false",
+      "--output",
+      bundlePath,
+      "--json",
+    ],
+    { cwd: consumerRoot },
+  );
+  const installedBundleText = fs.readFileSync(bundlePath, "utf8");
+  for (const forbidden of ["raw-token", "raw-auth", "raw-key", "password"]) {
+    if (installedBundleText.includes(forbidden)) throw new Error(`installed doctor artifact leaked ${forbidden}`);
+  }
+
+  const malformedPath = path.join(consumerRoot, "doctor-malformed.json");
+  fs.writeFileSync(malformedPath, JSON.stringify({ schemaVersion: "0", envelopes: [] }));
+  runFailure(
+    "installed honua doctor validation failure",
+    cli,
+    ["doctor", "--replay", malformedPath, "--base-url", "https://example.test", "--output", "invalid.json"],
+    { cwd: consumerRoot },
+  );
+
+  const unsafeBundle = JSON.parse(installedBundleText);
+  unsafeBundle.envelopes[0] = { method: "POST", normalizedPath: "/api/v1/applyEdits" };
+  const unsafePath = path.join(consumerRoot, "doctor-unsafe-replay.json");
+  fs.writeFileSync(unsafePath, JSON.stringify(unsafeBundle));
+  runFailure(
+    "installed honua doctor unsafe replay",
+    cli,
+    ["doctor", "--replay", unsafePath, "--base-url", "https://example.test", "--output", "replay.json"],
+    { cwd: consumerRoot },
+  );
+
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} peerFixtures=${peerFixtureCount} bin=honua offlineInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal offlineInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(
