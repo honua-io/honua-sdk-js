@@ -208,12 +208,17 @@ interface PendingInput {
 
 const DEFAULT_MAX_PORTS = 8;
 const DEFAULT_MAX_DIAGNOSTICS = 128;
+const HARD_MAX_PORTS = 64;
+const HARD_MAX_DIAGNOSTICS = 2_048;
+const MAX_SYNCHRONOUS_SUBSCRIBE_EVENTS = 32;
 const MAX_SELECTION = 2_048;
 const MAX_FILTERS = 128;
 const MAX_ATTRIBUTIONS = 128;
 const MAX_JSON_NODES = 4_096;
 const MAX_JSON_DEPTH = 24;
 const MAX_JSON_PROPERTIES = 256;
+const MAX_FOREIGN_STRING = 1_048_576;
+const MAX_FOREIGN_STRING_TOTAL = 4_194_304;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
 /** Create one isolated renderer-neutral state synchronization lifecycle. */
@@ -285,7 +290,7 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
     if (disposed || !attachment.active || attachments.get(attachment.port.id) !== attachment) return;
     let input: SceneStateSyncInput;
     try {
-      input = normalizeInput(foreign);
+      input = normalizeInput(snapshotForeignData(foreign) as SceneStateSyncInput);
     } catch {
       diagnose("stale-update", attachment.port.id, "Renderer emitted an invalid state envelope.");
       return;
@@ -363,12 +368,13 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
       });
       return;
     }
-    revision += 1;
+    const acceptedAt = now();
+    const nextRevision = revision + 1;
     const envelope = Object.freeze({
       kind: SCENE_STATE_SYNC_KIND,
       version: SCENE_STATE_SYNC_VERSION,
-      revision,
-      acceptedAt: now(),
+      revision: nextRevision,
+      acceptedAt,
       emittedAt: input.emittedAt,
       slice: input.slice,
       value: input.value,
@@ -380,6 +386,7 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
       }),
       fidelity: attachment.port.mappings[input.slice],
     }) as SceneStateSyncEnvelope;
+    revision = nextRevision;
     values[input.slice] = envelope;
     const current = snapshot();
     emit({ type: "state", envelope, snapshot: current });
@@ -454,12 +461,39 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
       lastDeliveredRevision: 0,
       chain: Promise.resolve(),
     };
+    const synchronousEvents: SceneStateSyncInput[] = [];
+    let subscribing = true;
+    let subscribeFailure: HonuaSceneStateSyncError | undefined;
     try {
-      const unsubscribe = port.subscribe((event) => receive(attachment, event), controller.signal);
+      const unsubscribe = port.subscribe((event) => {
+        if (!subscribing) {
+          receive(attachment, event);
+          return;
+        }
+        if (synchronousEvents.length >= MAX_SYNCHRONOUS_SUBSCRIBE_EVENTS) {
+          subscribeFailure ??= new HonuaSceneStateSyncError(
+            "attach-failed",
+            `Scene state port ${port.id} exceeded the synchronous subscription event limit`,
+          );
+          return;
+        }
+        try {
+          synchronousEvents.push(snapshotForeignData(event) as SceneStateSyncInput);
+        } catch (cause) {
+          subscribeFailure ??= new HonuaSceneStateSyncError(
+            "attach-failed",
+            `Scene state port ${port.id} emitted invalid synchronous state`,
+            { cause },
+          );
+        }
+      }, controller.signal);
       if (typeof unsubscribe !== "function") throw new TypeError("port.subscribe must return an unsubscribe function");
       attachment.unsubscribe = once(unsubscribe);
+      if (subscribeFailure) throw subscribeFailure;
       attachments.set(port.id, attachment);
+      subscribing = false;
     } catch (cause) {
+      subscribing = false;
       attachment.active = false;
       controller.abort();
       try {
@@ -469,6 +503,7 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
       }
       throw new HonuaSceneStateSyncError("attach-failed", `Failed to attach scene state port ${port.id}`, { cause });
     }
+    for (const event of synchronousEvents) receive(attachment, event);
     for (const envelope of Object.values(values).sort((left, right) => left.revision - right.revision)) {
       deliver(attachment, envelope);
     }
@@ -496,10 +531,10 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
 
   function attachAll(ports: readonly SceneStateSyncPort[]): void {
     ensureLive();
-    if (!Array.isArray(ports)) throw new HonuaSceneStateSyncError("invalid-input", "ports must be an array");
+    const capturedPorts = captureDenseArray<SceneStateSyncPort>(ports, HARD_MAX_PORTS, "ports");
     const attached: string[] = [];
     try {
-      for (const port of [...ports]) {
+      for (const port of capturedPorts) {
         const before = new Set(attachments.keys());
         attach(port);
         const id = [...attachments.keys()].find((candidate) => !before.has(candidate));
@@ -590,18 +625,27 @@ export function createSceneStateSynchronizer(options: CreateSceneStateSynchroniz
     dispose,
   };
 
-  if (normalized.signal) {
-    const abort = (): void => {
-      try {
-        synchronizer.dispose();
-      } catch {
-        // Cancellation still transitions to disposed after cleanup attempts.
-      }
-    };
-    removeAbortListener = normalized.signal.subscribe(abort);
-    if (normalized.signal.isAborted()) abort();
+  try {
+    if (normalized.signal) {
+      const abort = (): void => {
+        try {
+          synchronizer.dispose();
+        } catch {
+          // Cancellation still transitions to disposed after cleanup attempts.
+        }
+      };
+      removeAbortListener = normalized.signal.subscribe(abort);
+      if (normalized.signal.isAborted()) abort();
+    }
+    if (!disposed && normalized.ports.length > 0) attachAll(normalized.ports);
+  } catch (cause) {
+    try {
+      synchronizer.dispose();
+    } catch {
+      // Preserve the construction failure after best-effort transactional cleanup.
+    }
+    throw cause;
   }
-  if (!disposed && normalized.ports.length > 0) attachAll(normalized.ports);
   return synchronizer;
 }
 
@@ -611,16 +655,27 @@ export function defaultSceneStateSyncMappings(renderer: SceneStateSyncRenderer):
     Object.freeze({ inbound: "exact", outbound: "exact", code, message });
   const equivalent = (code: string, message: string): SceneStateSyncMapping =>
     Object.freeze({ inbound: "equivalent", outbound: "equivalent", code, message });
+  const unsupported = (slice: SceneStateSyncSlice): SceneStateSyncMapping =>
+    Object.freeze({
+      inbound: "unsupported",
+      outbound: "unsupported",
+      code: `custom-${slice}-unsupported`,
+      message: `Custom renderer support for ${slice} must be declared explicitly.`,
+    });
+  if (renderer === "custom") {
+    return Object.freeze(
+      Object.fromEntries(
+        SCENE_STATE_SYNC_SLICES.map((slice) => [slice, unsupported(slice)]),
+      ) as unknown as SceneStateSyncMappings,
+    );
+  }
   const mappings: SceneStateSyncMappings = {
-    camera:
-      renderer === "custom"
-        ? exact("custom-camera", "Custom port declares exact canonical camera support.")
-        : equivalent(
-            renderer === "maplibre" ? "maplibre-2d-camera" : "cesium-3d-camera",
-            renderer === "maplibre"
-              ? "MapLibre center/zoom/pitch is equivalent but cannot preserve Cesium roll or globe horizon."
-              : "Cesium globe camera is equivalent to the canonical camera and may include 3D orientation unavailable in 2D.",
-          ),
+    camera: equivalent(
+      renderer === "maplibre" ? "maplibre-2d-camera" : "cesium-3d-camera",
+      renderer === "maplibre"
+        ? "MapLibre center/zoom/pitch is equivalent but cannot preserve Cesium roll or globe horizon."
+        : "Cesium globe camera is equivalent to the canonical camera and may include 3D orientation unavailable in 2D.",
+    ),
     selection: exact("source-qualified-selection", "Source-qualified feature identity maps exactly."),
     filters: exact("protocol-neutral-filter", "Protocol-neutral filter clauses map exactly."),
     time:
@@ -647,19 +702,36 @@ function normalizeOptions(options: CreateSceneStateSynchronizerOptions) {
   const coalesceMs = coalesceRaw ?? 16;
   if (typeof coalesceMs !== "number" || !Number.isSafeInteger(coalesceMs) || coalesceMs < 0 || coalesceMs > 1_000)
     throw new HonuaSceneStateSyncError("invalid-input", "coalesceMs must be an integer between 0 and 1000");
-  const maxPorts = positiveInteger(maxPortsRaw ?? DEFAULT_MAX_PORTS, "maxPorts");
-  const maxDiagnostics = positiveInteger(maxDiagnosticsRaw ?? DEFAULT_MAX_DIAGNOSTICS, "maxDiagnostics");
+  const maxPorts = boundedPositiveInteger(maxPortsRaw ?? DEFAULT_MAX_PORTS, "maxPorts", HARD_MAX_PORTS);
+  const maxDiagnostics = boundedPositiveInteger(
+    maxDiagnosticsRaw ?? DEFAULT_MAX_DIAGNOSTICS,
+    "maxDiagnostics",
+    HARD_MAX_DIAGNOSTICS,
+  );
   if (nowRaw !== undefined && typeof nowRaw !== "function")
     throw new HonuaSceneStateSyncError("invalid-input", "now must be a function");
-  if (portsRaw !== undefined && !Array.isArray(portsRaw))
-    throw new HonuaSceneStateSyncError("invalid-input", "ports must be an array");
-  const now = nowRaw === undefined ? () => new Date().toISOString() : (nowRaw as () => string).bind(options);
+  const ports = portsRaw === undefined ? [] : captureDenseArray<SceneStateSyncPort>(portsRaw, HARD_MAX_PORTS, "ports");
+  const foreignNow = nowRaw === undefined ? () => new Date().toISOString() : (nowRaw as () => string);
+  let lastTimestamp: string;
+  try {
+    lastTimestamp = canonicalTimestamp(foreignNow.call(undefined), "clock");
+  } catch (cause) {
+    throw new HonuaSceneStateSyncError("invalid-input", "clock must return a canonical ISO timestamp", { cause });
+  }
+  const now = (): string => {
+    try {
+      lastTimestamp = canonicalTimestamp(foreignNow.call(undefined), "clock");
+    } catch {
+      // A configured clock cannot corrupt an active synchronization lifecycle.
+    }
+    return lastTimestamp;
+  };
   return Object.freeze({
     applicationId,
     coalesceMs,
     maxPorts,
     maxDiagnostics,
-    ports: Object.freeze([...(portsRaw ?? [])] as SceneStateSyncPort[]),
+    ports: Object.freeze(ports),
     now,
     signal,
   });
@@ -800,15 +872,20 @@ function normalizeSelection(foreign: unknown): readonly FeatureSelectionTarget[]
     throw new HonuaSceneStateSyncError("invalid-input", `selection must contain at most ${MAX_SELECTION} targets`);
   return Object.freeze(
     foreign.map((target, index) => {
-      if (typeof target === "string" || typeof target === "number") return target;
+      if (typeof target === "string") return target;
+      if (typeof target === "number") {
+        if (!Number.isFinite(target))
+          throw new HonuaSceneStateSyncError("invalid-input", `selection[${index}] is invalid`);
+        return Object.is(target, -0) ? 0 : target;
+      }
       if (!isRecord(target)) throw new HonuaSceneStateSyncError("invalid-input", `selection[${index}] is invalid`);
       const sourceLayer = optionalDataProperty(target, "sourceLayer");
       const id = dataProperty(target, "id");
-      if (typeof id !== "string" && typeof id !== "number")
+      if (typeof id !== "string" && (typeof id !== "number" || !Number.isFinite(id)))
         throw new HonuaSceneStateSyncError("invalid-input", `selection[${index}].id is invalid`);
       return Object.freeze({
         sourceId: boundedId(dataProperty(target, "sourceId"), `selection[${index}].sourceId`),
-        id,
+        id: typeof id === "number" && Object.is(id, -0) ? 0 : id,
         ...(sourceLayer === undefined
           ? {}
           : { sourceLayer: boundedId(sourceLayer, `selection[${index}].sourceLayer`) }),
@@ -852,7 +929,10 @@ function normalizeTime(foreign: unknown): SceneTimelineState {
   const progress = optionalDataProperty(foreign, "progress");
   if (playing !== undefined && typeof playing !== "boolean")
     throw new HonuaSceneStateSyncError("invalid-input", "time.playing is invalid");
-  if (progress !== undefined && (typeof progress !== "number" || progress < 0 || progress > 1))
+  if (
+    progress !== undefined &&
+    (typeof progress !== "number" || !Number.isFinite(progress) || progress < 0 || progress > 1)
+  )
     throw new HonuaSceneStateSyncError("invalid-input", "time.progress is invalid");
   const currentTime = iso("currentTime");
   const startTime = iso("startTime");
@@ -876,7 +956,11 @@ function normalizeDetail(foreign: unknown): SceneDetailState {
     return value === undefined ? undefined : boundedId(value, `detail.${key}`);
   };
   const featureId = optionalDataProperty(foreign, "featureId");
-  if (featureId !== undefined && typeof featureId !== "string" && typeof featureId !== "number")
+  if (
+    featureId !== undefined &&
+    typeof featureId !== "string" &&
+    (typeof featureId !== "number" || !Number.isFinite(featureId))
+  )
     throw new HonuaSceneStateSyncError("invalid-input", "detail.featureId is invalid");
   const status = optionalDataProperty(foreign, "status");
   if (status !== undefined && !["empty", "loading", "ready", "stale", "error"].includes(status as string))
@@ -886,7 +970,9 @@ function normalizeDetail(foreign: unknown): SceneDetailState {
   return Object.freeze({
     ...(selection === undefined ? {} : { target: selection }),
     ...(sourceId === undefined ? {} : { sourceId }),
-    ...(featureId === undefined ? {} : { featureId }),
+    ...(featureId === undefined
+      ? {}
+      : { featureId: typeof featureId === "number" && Object.is(featureId, -0) ? 0 : featureId }),
     ...(title === undefined ? {} : { title: boundedText(title, "detail.title", 512) }),
     ...(status === undefined ? {} : { status: status as SceneDetailState["status"] }),
     ...(attributes === undefined ? {} : { attributes: snapshotJson(attributes) as Readonly<Record<string, unknown>> }),
@@ -971,6 +1057,75 @@ function stableStringify(value: unknown): string {
     .sort()
     .map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`)
     .join(",")}}`;
+}
+
+function snapshotForeignData(foreign: unknown): unknown {
+  const budget = { nodes: 0, stringUnits: 0 };
+  const ancestors = new WeakSet<object>();
+  const visit = (value: unknown, depth: number): unknown => {
+    budget.nodes += 1;
+    if (budget.nodes > MAX_JSON_NODES || depth > MAX_JSON_DEPTH)
+      throw new HonuaSceneStateSyncError("invalid-input", "Renderer envelope is too complex");
+    if (typeof value === "string") {
+      budget.stringUnits += value.length;
+      if (value.length > MAX_FOREIGN_STRING || budget.stringUnits > MAX_FOREIGN_STRING_TOTAL)
+        throw new HonuaSceneStateSyncError("invalid-input", "Renderer envelope strings exceed the bounded limit");
+      return value;
+    }
+    if (value === null || value === undefined || typeof value === "boolean" || typeof value === "number") return value;
+    if (typeof value !== "object")
+      throw new HonuaSceneStateSyncError("invalid-input", "Renderer envelope must contain data only");
+    if (ancestors.has(value)) throw new HonuaSceneStateSyncError("invalid-input", "Renderer envelope is cyclic");
+    ancestors.add(value);
+    try {
+      if (Array.isArray(value)) {
+        const items = captureDenseArray<unknown>(value, MAX_JSON_PROPERTIES, "renderer envelope array");
+        return Object.freeze(items.map((item) => visit(item, depth + 1)));
+      }
+      let prototype: object | null;
+      let keys: (string | symbol)[];
+      try {
+        prototype = Object.getPrototypeOf(value);
+        keys = Reflect.ownKeys(value);
+      } catch (cause) {
+        throw new HonuaSceneStateSyncError("invalid-input", "Renderer envelope object could not be captured", {
+          cause,
+        });
+      }
+      if (prototype !== Object.prototype && prototype !== null)
+        throw new HonuaSceneStateSyncError("invalid-input", "Renderer envelope records must be plain objects");
+      if (keys.length > MAX_JSON_PROPERTIES || keys.some((key) => typeof key === "symbol"))
+        throw new HonuaSceneStateSyncError("invalid-input", "Renderer envelope object keys are invalid");
+      const result = Object.create(null) as Record<string, unknown>;
+      for (const key of keys as string[]) result[key] = visit(dataProperty(value, key), depth + 1);
+      return Object.freeze(result);
+    } finally {
+      ancestors.delete(value);
+    }
+  };
+  return visit(foreign, 0);
+}
+
+function captureDenseArray<T>(foreign: unknown, maximum: number, label: string): T[] {
+  if (!Array.isArray(foreign)) throw new HonuaSceneStateSyncError("invalid-input", `${label} must be an array`);
+  let keys: (string | symbol)[];
+  let length: unknown;
+  try {
+    keys = Reflect.ownKeys(foreign);
+    length = Reflect.getOwnPropertyDescriptor(foreign, "length")?.value;
+  } catch (cause) {
+    throw new HonuaSceneStateSyncError("invalid-input", `${label} could not be captured`, { cause });
+  }
+  if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0 || length > maximum)
+    throw new HonuaSceneStateSyncError("invalid-input", `${label} exceeds its bounded length`);
+  if (keys.some((key) => typeof key === "symbol"))
+    throw new HonuaSceneStateSyncError("invalid-input", `${label} cannot contain symbol properties`);
+  const allowed = new Set(["length", ...Array.from({ length }, (_, index) => String(index))]);
+  if (keys.some((key) => !allowed.has(key as string)) || keys.length !== length + 1)
+    throw new HonuaSceneStateSyncError("invalid-input", `${label} must be dense and contain only indexed data`);
+  const result: T[] = [];
+  for (let index = 0; index < length; index += 1) result.push(dataProperty(foreign, String(index)) as T);
+  return result;
 }
 
 function dataProperty(input: object, key: string): unknown {
@@ -1088,6 +1243,12 @@ function positiveInteger(value: unknown, label: string): number {
   if (!Number.isSafeInteger(value) || (value as number) <= 0)
     throw new HonuaSceneStateSyncError("invalid-input", `${label} must be a positive safe integer`);
   return value as number;
+}
+
+function boundedPositiveInteger(value: unknown, label: string, maximum: number): number {
+  const normalized = positiveInteger(value, label);
+  if (normalized > maximum) throw new HonuaSceneStateSyncError("invalid-input", `${label} must not exceed ${maximum}`);
+  return normalized;
 }
 
 function nonNegativeInteger(value: unknown, label: string): number {
