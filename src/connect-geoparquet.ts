@@ -4,7 +4,6 @@ import type { ConnectDiscoverySourceSnapshot, ConnectOptions } from "./connect.j
 import type { DiscoveryCacheIdentity, DiscoveryCapabilityEvidence, DiscoveryProvenance } from "./contract/discovery.js";
 import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES, type SourceLocator } from "./contract/types.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
-import type { SourceProfile } from "./geoparquet/metadata.js";
 
 /**
  * GeoParquet's canonical adapter surface. Discovery evidence is scoped to this
@@ -12,6 +11,39 @@ import type { SourceProfile } from "./geoparquet/metadata.js";
  * exact operations the GeoParquet `Source` adapter can implement.
  */
 const GEOPARQUET_ADAPTER_SCOPE: readonly Capability[] = Object.freeze([...PROTOCOL_DEFAULT_CAPABILITIES.geoparquet]);
+
+/** Physical geometry encoding reported by a GeoParquet footer read. */
+export type GeoParquetGeometryEncoding = "wkb" | "native" | "geojson";
+
+/** Detected geometry column plan from a GeoParquet footer read. */
+export interface GeoParquetGeometryPlan {
+  /** Geometry column name. */
+  readonly column: string;
+  /** How the geometry is physically stored. */
+  readonly encoding: GeoParquetGeometryEncoding;
+  /** Optional GeoParquet 1.1 bbox-covering struct column used for row-group pruning. */
+  readonly bboxColumn?: string;
+}
+
+/**
+ * Reviewed footer profile the connect seam consumes.
+ *
+ * Declared locally (not re-exported from `@honua/sdk-js/geoparquet`) so the
+ * split `@honua/sdk` package's `connect-geoparquet.d.ts` is self-contained: a
+ * TS consumer of the root SDK never has to resolve `./geoparquet/metadata.js`.
+ * It is structurally a subset of `GeoparquetRuntime`'s `SourceProfile`, so a
+ * `GeoparquetRuntime` still satisfies {@link GeoParquetSourceProfiler}.
+ */
+export interface GeoParquetSourceProfile {
+  /** Non-geometry columns, in file order. */
+  readonly columns: readonly string[];
+  /** Geometry column plan, or `undefined` for a purely tabular file. */
+  readonly geometry?: GeoParquetGeometryPlan;
+  /** CRS identifier, best-effort (`OGC:CRS84`, an `EPSG:####`, or a name). */
+  readonly crs?: string;
+  /** Footer-derived row estimate, when available. */
+  readonly rowEstimate?: number;
+}
 
 /**
  * Discovery seam for reading GeoParquet footer / `geo` metadata.
@@ -26,7 +58,7 @@ const GEOPARQUET_ADAPTER_SCOPE: readonly Capability[] = Object.freeze([...PROTOC
  */
 export interface GeoParquetSourceProfiler {
   /** Read (and typically memoize) the schema + geometry plan + CRS for a source-URL set. */
-  profile(sources: readonly string[], geometryColumnOverride?: string): Promise<SourceProfile>;
+  profile(sources: readonly string[], geometryColumnOverride?: string): Promise<GeoParquetSourceProfile>;
 }
 
 export interface GeoParquetDiscoveryResult {

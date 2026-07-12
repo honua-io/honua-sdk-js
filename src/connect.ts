@@ -227,6 +227,12 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     throw new HonuaDiscoveryError("invalid-endpoint", "Pass either client or clientOptions to connect(), not both.");
   }
 
+  // GeoParquet's discovered profile/locator depends on inputs beyond the
+  // endpoint URL (the additional file set and geometry-column override), so
+  // fold a stable digest of them into the cache identity — otherwise distinct
+  // inputs for the same primary asset URL would collide on one cached snapshot.
+  const assetVariant = geoParquetAssetVariant(target.protocol, options.geoparquet);
+
   const identity = await createDiscoveryCacheIdentity({
     endpoint: target.endpoint,
     protocol: target.protocol,
@@ -237,6 +243,7 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
     ...(options.typeName ? { typeName: options.typeName } : {}),
     ...(target.serviceId ? { serviceId: target.serviceId } : {}),
     ...(target.layerId !== undefined ? { layerId: target.layerId } : {}),
+    ...(assetVariant ? { assetVariant } : {}),
   });
   if (options.client) assertClientEndpoint(options.client, target.clientBaseUrl);
   const cacheContext = Object.freeze({ ...(options.signal ? { signal: options.signal } : {}) });
@@ -348,6 +355,23 @@ export async function connect(options: ConnectOptions): Promise<HonuaConnection>
       return source;
     },
   });
+}
+
+/**
+ * Deterministic per-asset discriminator for GeoParquet discovery: the sorted
+ * additional file set plus any geometry-column override. Returns `undefined`
+ * for other protocols or when no discriminating input is present so the cache
+ * key is unchanged for the common single-file case.
+ */
+function geoParquetAssetVariant(
+  protocol: ConnectResolvedProtocol,
+  geoparquet: ConnectOptions["geoparquet"],
+): string | undefined {
+  if (protocol !== "geoparquet" || !geoparquet) return undefined;
+  const urls = Array.isArray(geoparquet.urls) ? [...geoparquet.urls].sort() : [];
+  const geometryColumn = geoparquet.geometryColumn ?? "";
+  if (urls.length === 0 && geometryColumn === "") return undefined;
+  return JSON.stringify({ urls, geometryColumn });
 }
 
 function validateConnectEndpoint(input: string | URL): string {

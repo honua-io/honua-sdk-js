@@ -344,6 +344,15 @@ export interface DiscoveryCacheResourceIdentity {
   readonly format?: string;
   readonly locale?: string;
   readonly profile?: string;
+  /**
+   * Opaque per-asset discriminator for adapters whose discovered snapshot
+   * depends on inputs beyond the endpoint URL — for example GeoParquet's
+   * additional file set and geometry-column override, which change the
+   * projected schema/locator for the same primary asset URL. Folding it into
+   * the identity prevents distinct inputs from colliding on one cached
+   * snapshot.
+   */
+  readonly assetVariant?: string;
 }
 
 export interface DiscoveryCacheIdentityOptions extends DiscoveryCacheResourceIdentity {
@@ -496,6 +505,7 @@ const DISCOVERY_RESOURCE_KEYS: readonly (keyof DiscoveryCacheResourceIdentity)[]
   "format",
   "locale",
   "profile",
+  "assetVariant",
 ];
 
 function capabilitySet(values: readonly Capability[], path: string): Set<Capability> {

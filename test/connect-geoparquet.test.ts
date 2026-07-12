@@ -1,25 +1,19 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { describe, expect, it, vi } from "vitest";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-import type { GeoParquetSourceProfiler } from "../src/connect-geoparquet.js";
+import type { GeoParquetSourceProfile, GeoParquetSourceProfiler } from "../src/connect-geoparquet.js";
 import { type ConnectDiscoverySnapshot, connect } from "../src/connect.js";
-import { geoparquetResolver } from "../src/geoparquet/index.js";
-import type { SourceProfile } from "../src/geoparquet/metadata.js";
-// @ts-expect-error — .mjs test helper (no type declarations, excluded from tsc)
-import { createNodeDuckDbDriver } from "./helpers/geoparquet-node-driver.mjs";
+import type { Result, Source, SourceDescriptor, SourceResolver } from "../src/contract/types.js";
 
 const GEOPARQUET_ENDPOINT = "https://fixtures.test/places-geoparquet.parquet";
 
-const GEO_PROFILE: SourceProfile = {
+const GEO_PROFILE: GeoParquetSourceProfile = {
   columns: ["id", "name", "category", "population"],
   geometry: { column: "geometry", encoding: "wkb", bboxColumn: "bbox" },
   crs: "OGC:CRS84",
   rowEstimate: 8,
 };
 
-function fakeProfiler(profile: SourceProfile = GEO_PROFILE): GeoParquetSourceProfiler & {
+function fakeProfiler(profile: GeoParquetSourceProfile = GEO_PROFILE): GeoParquetSourceProfiler & {
   readonly calls: Array<{ sources: readonly string[]; override?: string }>;
 } {
   const calls: Array<{ sources: readonly string[]; override?: string }> = [];
@@ -32,8 +26,27 @@ function fakeProfiler(profile: SourceProfile = GEO_PROFILE): GeoParquetSourcePro
   };
 }
 
-function fixtureBytes(name: string): Uint8Array {
-  return new Uint8Array(readFileSync(fileURLToPath(new URL(`./fixtures/geoparquet/${name}`, import.meta.url))));
+/**
+ * A resolveSource that stands in for `geoparquetResolver()` without the DuckDB
+ * engine — it proves the connect → resolveSource → `source.query()` wiring
+ * end-to-end with no real network / file read. Real DuckDB execution of a
+ * geoparquet descriptor is covered by `test/geoparquet-source.test.ts`.
+ */
+function stubResolver(result: Result): { resolver: SourceResolver; captured: SourceDescriptor[] } {
+  const captured: SourceDescriptor[] = [];
+  const resolver: SourceResolver = (descriptor) => {
+    captured.push(descriptor);
+    if (descriptor.protocol !== "geoparquet") return undefined;
+    const source: Partial<Source> = {
+      descriptor,
+      capabilities: descriptor.capabilities,
+      async query() {
+        return result;
+      },
+    };
+    return source as Source;
+  };
+  return { resolver, captured };
 }
 
 describe("connect() — GeoParquet / static-file discovery", () => {
@@ -115,6 +128,35 @@ describe("connect() — GeoParquet / static-file discovery", () => {
     ]);
   });
 
+  it("resolves a discovered descriptor through an injected resolveSource and round-trips a query", async () => {
+    const profiler = fakeProfiler();
+    const { resolver, captured } = stubResolver({
+      features: [{ attributes: { id: 1 }, geometry: { type: "Point", coordinates: [0, 0] } }],
+      exceededTransferLimit: false,
+    });
+    const connection = await connect({
+      endpoint: GEOPARQUET_ENDPOINT,
+      protocol: "geoparquet",
+      authorizationScopeFingerprint: "anonymous",
+      geoparquet: { profiler },
+      resolveSource: resolver,
+    });
+
+    // Sources resolve lazily, so touching source() triggers the resolver.
+    const result = await connection.source().query({ pagination: { limit: 3 } });
+    expect(result.features).toHaveLength(1);
+    expect(result.features[0]?.geometry).toMatchObject({ type: "Point" });
+
+    // The resolver received exactly the reviewed discovered descriptor.
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.protocol).toBe("geoparquet");
+    expect(captured[0]?.locator).toMatchObject({
+      url: GEOPARQUET_ENDPOINT,
+      geoparquet: { geometryColumn: "geometry" },
+    });
+    expect([...(captured[0]?.capabilities ?? [])]).toEqual(["query", "queryAggregate", "stream"]);
+  });
+
   it("partitions the discovery cache identity and serves a validated snapshot on hit", async () => {
     const profiler = fakeProfiler();
     const values = new Map<string, ConnectDiscoverySnapshot>();
@@ -143,6 +185,60 @@ describe("connect() — GeoParquet / static-file discovery", () => {
     expect(profiler.calls).toHaveLength(1);
   });
 
+  it("does not collide the cache when geoparquet urls / geometryColumn differ for the same primary asset", async () => {
+    const values = new Map<string, ConnectDiscoverySnapshot>();
+    const cache = {
+      get: (identity: { key: string }) => values.get(identity.key),
+      set: (identity: { key: string }, snapshot: ConnectDiscoverySnapshot) => {
+        values.set(identity.key, snapshot);
+      },
+    };
+
+    // Base: single primary file, no override.
+    const base = fakeProfiler();
+    const baseConn = await connect({
+      endpoint: GEOPARQUET_ENDPOINT,
+      protocol: "geoparquet",
+      authorizationScopeFingerprint: "anonymous",
+      geoparquet: { profiler: base },
+      cache,
+    });
+
+    // Same primary URL but an explicit geometry-column override ⇒ different
+    // discovered profile/locator, so it must NOT reuse the base snapshot.
+    const overridden = fakeProfiler({ columns: ["id"], geometry: { column: "geom", encoding: "native" } });
+    const overriddenConn = await connect({
+      endpoint: GEOPARQUET_ENDPOINT,
+      protocol: "geoparquet",
+      authorizationScopeFingerprint: "anonymous",
+      geoparquet: { profiler: overridden, geometryColumn: "geom" },
+      cache,
+    });
+
+    // Same primary URL but an additional unioned file ⇒ different identity again.
+    const unioned = fakeProfiler();
+    const unionedConn = await connect({
+      endpoint: GEOPARQUET_ENDPOINT,
+      protocol: "geoparquet",
+      authorizationScopeFingerprint: "anonymous",
+      geoparquet: { profiler: unioned, urls: [`${GEOPARQUET_ENDPOINT}?part=2`] },
+      cache,
+    });
+
+    const keys = new Set([
+      baseConn.inspection.cacheIdentity.key,
+      overriddenConn.inspection.cacheIdentity.key,
+      unionedConn.inspection.cacheIdentity.key,
+    ]);
+    expect(keys.size).toBe(3);
+    // Each distinct input profiled fresh — no stale cross-input cache hit.
+    expect(overriddenConn.inspection.cacheStatus).toBe("miss");
+    expect(unionedConn.inspection.cacheStatus).toBe("miss");
+    expect(overridden.calls).toHaveLength(1);
+    expect(unioned.calls).toHaveLength(1);
+    expect(overriddenConn.inspection.sources[0]?.descriptor.locator.geoparquet?.geometryColumn).toBe("geom");
+  });
+
   it("fails closed when no geoparquet profiler seam is supplied", async () => {
     await expect(
       connect({
@@ -164,37 +260,5 @@ describe("connect() — GeoParquet / static-file discovery", () => {
       }),
     ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
     expect(profiler.profile).not.toHaveBeenCalled();
-  });
-
-  // Live end-to-end: discovery + the injected resolver drive a real DuckDB query
-  // over registered fixture bytes (no network, no mocks). Runs in CI where the
-  // DuckDB-WASM asset is present.
-  describe("live DuckDB round-trip against fixtures", () => {
-    const disposers: Array<() => Promise<void>> = [];
-    afterEach(async () => {
-      for (const dispose of disposers.splice(0)) await dispose();
-    });
-
-    it("resolves a discovered descriptor and runs a real query end-to-end", async () => {
-      const resolver = geoparquetResolver({ driverFactory: createNodeDuckDbDriver });
-      disposers.push(() => resolver.dispose());
-      await resolver.runtime.registerFileBuffer(GEOPARQUET_ENDPOINT, fixtureBytes("places-geoparquet.parquet"));
-
-      const connection = await connect({
-        endpoint: GEOPARQUET_ENDPOINT,
-        protocol: "geoparquet",
-        authorizationScopeFingerprint: "anonymous",
-        geoparquet: { profiler: resolver.runtime },
-        resolveSource: resolver,
-      });
-
-      expect(connection.dataset.sourceIds()).toEqual(["places-geoparquet"]);
-      expect([...connection.source().capabilities]).toEqual(["query", "queryAggregate", "stream"]);
-      expect(connection.source().descriptor.locator.geoparquet?.geometryColumn).toBe("geometry");
-
-      const result = await connection.source().query({ pagination: { limit: 3 } });
-      expect(result.features).toHaveLength(3);
-      expect(result.features[0]?.geometry).toMatchObject({ type: "Point" });
-    }, 60_000);
   });
 });
