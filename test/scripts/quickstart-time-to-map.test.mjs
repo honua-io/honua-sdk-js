@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
   QUICKSTART_BUDGET_MS,
   QUICKSTART_STAGES,
+  finalizeFailureEvidence,
   parseArgs,
   validateQuickstartEvidence,
 } from "../../scripts/quickstart-time-to-map.mjs";
@@ -79,4 +83,30 @@ test("requires clean-install scope and traceable revisions", () => {
   delete evidence.measurement.cleanInstallIncluded;
   delete evidence.environment.revision;
   assert.throws(() => validateQuickstartEvidence(evidence), /cleanInstallIncluded.*scope.*revision/);
+});
+
+test("failure evidence preserves distinct source and CI revisions", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "honua-quickstart-evidence-"));
+  const output = path.join(directory, "failure.json");
+  const previousSource = process.env.HONUA_SOURCE_REVISION;
+  const previousCi = process.env.GITHUB_SHA;
+  try {
+    process.env.HONUA_SOURCE_REVISION = "a".repeat(40);
+    process.env.GITHUB_SHA = "b".repeat(40);
+    finalizeFailureEvidence({
+      output,
+      startedAtMonotonicMs: os.uptime() * 1000 - 1_000,
+      failureStage: "clean-install",
+    });
+    const evidence = JSON.parse(fs.readFileSync(output, "utf8"));
+    assert.equal(evidence.environment.revision, "a".repeat(40));
+    assert.equal(evidence.environment.ciRevision, "b".repeat(40));
+    validateQuickstartEvidence(evidence);
+  } finally {
+    if (previousSource === undefined) delete process.env.HONUA_SOURCE_REVISION;
+    else process.env.HONUA_SOURCE_REVISION = previousSource;
+    if (previousCi === undefined) delete process.env.GITHUB_SHA;
+    else process.env.GITHUB_SHA = previousCi;
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });

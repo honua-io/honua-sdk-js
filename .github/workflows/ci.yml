@@ -94,6 +94,8 @@ jobs:
   js-sdk:
     name: JS SDK
     runs-on: ubuntu-latest
+    env:
+      HONUA_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v7
 
@@ -140,8 +142,6 @@ jobs:
 
       - name: Gate clean-install time to first fixture map
         id: quickstart_map
-        env:
-          HONUA_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           npm run docs:quickstart:time-to-map -- \
             --started-at-monotonic-ms "$QUICKSTART_STARTED_AT_MONOTONIC_MS" \
