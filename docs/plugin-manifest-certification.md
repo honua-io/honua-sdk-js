@@ -5,12 +5,12 @@ of the plugin SDK tracked by [issue #392](https://github.com/honua-io/honua-sdk-
 It lets a third-party package describe its compatibility and authority boundary
 as inert JSON, then produces a deterministic report for a specific host.
 
-This slice does **not** import plugin code, install packages, maintain a global
-registry, or pass credentials to an extension. A certified manifest means only
-that its declaration is well formed and compatible with the supplied host
-snapshot. Behavioral fixtures, cancellation, retries, cleanup, performance,
-runtime registration, and support-program review remain future certification
-phases.
+The SDK does **not** import plugin code, install packages, or maintain a global
+registry. A certified manifest means only that its declaration is well formed
+and compatible with the supplied host snapshot. Applications explicitly import
+factories and may run them through the application-local lifecycle described
+below. Behavioral performance certification and support-program review remain
+separate phases.
 
 ## Authoring a manifest
 
@@ -130,9 +130,77 @@ manifest also records support status and cache, freshness, auth, provenance,
 mutation, realtime, peer, environment, and disposal semantics for inventory
 tools.
 
+## Application-local registry and lifecycle
+
+`HonuaPluginRegistry` turns certified declarations into explicit application
+instances without adding plugins to root SDK workflows:
+
+```ts doc-test=compile
+import {
+  HonuaPluginRegistry,
+  type HonuaPluginFactory,
+  type HonuaPluginManifest,
+} from "@honua/sdk-js/plugin";
+
+declare const manifest: HonuaPluginManifest<"style">;
+declare const host: unknown;
+
+const stylePlugin: HonuaPluginFactory<"style"> = {
+  manifest: JSON.stringify(manifest),
+  initialize(context) {
+    return {
+      extension: { id: context.manifest.id, kind: "style" },
+      start() {},
+      stop() {},
+      dispose() {},
+    };
+  },
+};
+
+const registry = new HonuaPluginRegistry({
+  host: JSON.stringify(host),
+  services: {},
+});
+await registry.register([stylePlugin]);
+const extension = registry.get("style", manifest.id);
+await registry.dispose();
+```
+
+- A factory carries inert manifest JSON plus an optional exact dependency list.
+  The registry certifies every declaration, builds a stable id-sorted
+  topological order, and certifies again immediately before `initialize`.
+  `context.resolve()` exposes only dependencies named by that factory; it cannot
+  discover another plugin merely because both share an application registry.
+- `initialize`, `start`, `stop`, and `dispose` are typed by all nine extension
+  kinds. Only `initialize` is required; inert plugins pay for no empty hooks.
+- Factories, callbacks, dependencies, host services, and registration options
+  are captured before an asynchronous boundary. Registration operations on one
+  registry are serialized; separate registries have no shared state and may run
+  concurrently in browsers, workers, Node, or SSR.
+- Context exposes only services supplied to that registry and allowed by the
+  certified declaration. Network calls are origin-restricted, credential
+  lookups are scope-restricted, and mutation/storage/realtime services appear
+  only when their matching grants and data semantics permit them. No ambient
+  credential, environment variable, fetch override, or global cache is used.
+- Batch registration is transactional. Cancellation or a hook failure stops
+  and disposes initialized plugins in reverse order. Cleanup continues after a
+  cleanup failure; `HonuaPluginRegistryError.cleanupErrors` preserves those
+  failures separately, so the primary `cause` is not hidden. Cleanup receives a
+  fresh non-aborted signal even when the registration signal caused rollback.
+- `dispose()` is idempotent, returns the same promise to concurrent callers, and
+  performs reverse stop/dispose exactly once. Duplicate ids prevent implicit
+  upgrades or state migration; because manifest v1 has no state-migration
+  declaration, replacement is refused rather than guessed.
+- `diagnostics` returns immutable, sequence-stable machine events with codes,
+  phases, statuses, and certified identities. Thrown error messages are not
+  copied into diagnostics, preventing accidental credential/PII persistence.
+
+Plugin modules remain external to SDK core. Merely importing the root SDK or an
+unrelated subpath does not import a plugin factory, initialize a registry, or
+pull mapping/database peers into the bundle.
+
 ## Remaining work in #392
 
-- typed lifecycle hooks and explicit per-application registration/DI;
 - behavioral conformance fixtures for semantics, cancellation, retries,
   cleanup, bundle metadata, and performance;
 - an independently installable runner/CLI and signed or golden reports;

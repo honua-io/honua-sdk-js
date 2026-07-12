@@ -174,6 +174,31 @@ try {
   run("installed runtime imports", process.execPath, ["runtime-smoke.mjs"], {
     cwd: consumerRoot,
   });
+  fs.writeFileSync(
+    path.join(consumerRoot, "plugin-registry-smoke.mjs"),
+    `import { HONUA_PLUGIN_API_VERSION, HONUA_PLUGIN_MANIFEST_VERSION, HonuaPluginRegistry } from "@honua/sdk-js/plugin";
+const events = [];
+const manifest = {
+  manifestVersion: HONUA_PLUGIN_MANIFEST_VERSION,
+  id: "com.example.installed-style",
+  version: "1.0.0",
+  kind: "style",
+  package: { name: "@example/installed-style", entrypoint: "./plugin.js" },
+  compatibility: { pluginApi: HONUA_PLUGIN_API_VERSION, minimumSdk: "0.1.0-beta.0", environments: ["node"] },
+  capabilities: ["validate"], requestedGrants: {},
+  data: { cache: "none", freshness: "snapshot", authentication: "none", provenance: "preserved", mutation: "none", realtime: "none" },
+  lifecycle: { initialization: "explicit", disposal: "required" }, support: "community",
+};
+const registry = new HonuaPluginRegistry({ host: JSON.stringify({ pluginApi: HONUA_PLUGIN_API_VERSION, sdkVersion: "0.1.0-beta.0", environment: "node" }) });
+await registry.register([{ manifest: JSON.stringify(manifest), initialize(context) { events.push("initialize"); return { extension: { id: context.manifest.id, kind: "style" }, dispose() { events.push("dispose"); } }; } }]);
+if (registry.get("style", manifest.id)?.id !== manifest.id) throw new Error("installed plugin registry lookup failed");
+await registry.dispose();
+if (events.join(",") !== "initialize,dispose") throw new Error(\`installed plugin lifecycle mismatch: \${events}\`);
+`,
+  );
+  run("installed plugin registry lifecycle", process.execPath, ["plugin-registry-smoke.mjs"], {
+    cwd: consumerRoot,
+  });
 
   fs.writeFileSync(
     path.join(consumerRoot, "types-smoke.ts"),
