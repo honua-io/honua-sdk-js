@@ -732,9 +732,9 @@ data.
 
 ### What the five-minute claim measures
 
-Required CI starts a monotonic clock before Node setup, runs `npm ci`, provisions Chromium, builds this fixture app,
-and stops only after all five stages complete with renderable features and a mounted MapLibre canvas. The 300-second
-ceiling is enforced by:
+Required CI sets up the pinned Node runtime, then starts a monotonic clock before `npm ci`, provisions Chromium, builds
+this fixture app, and stops only after all five stages complete with renderable features and a mounted MapLibre canvas.
+The 300-second ceiling is enforced by:
 
 ```bash
 npm run docs:quickstart:time-to-map
