@@ -876,7 +876,7 @@ function validateSnapshot(
 
 function snapshotCacheData(value: unknown): ConnectDiscoverySnapshot {
   try {
-    const cloned = cloneCacheData(value, "$", new Set());
+    const cloned = cloneCacheData(value, "$", new Set(), { nodes: 0, properties: 0, stringCodeUnits: 0 }, 0);
     if (!isPlainObject(cloned)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache snapshot must be a plain object.");
     }
@@ -887,8 +887,38 @@ function snapshotCacheData(value: unknown): ConnectDiscoverySnapshot {
   }
 }
 
-function cloneCacheData(value: unknown, path: string, seen: Set<object>): unknown {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+const MAX_CACHE_SNAPSHOT_DEPTH = 32;
+const MAX_CACHE_SNAPSHOT_NODES = 10_000;
+const MAX_CACHE_SNAPSHOT_PROPERTIES = 20_000;
+const MAX_CACHE_SNAPSHOT_ARRAY_LENGTH = 10_000;
+const MAX_CACHE_SNAPSHOT_STRING_CODE_UNITS = 4_000_000;
+const MAX_CACHE_SNAPSHOT_SINGLE_STRING_CODE_UNITS = 1_000_000;
+
+interface CacheCloneBudget {
+  nodes: number;
+  properties: number;
+  stringCodeUnits: number;
+}
+
+function cloneCacheData(
+  value: unknown,
+  path: string,
+  seen: Set<object>,
+  budget: CacheCloneBudget,
+  depth: number,
+): unknown {
+  if (depth > MAX_CACHE_SNAPSHOT_DEPTH) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached snapshot exceeds the maximum nesting depth.");
+  }
+  budget.nodes += 1;
+  if (budget.nodes > MAX_CACHE_SNAPSHOT_NODES) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached snapshot exceeds the maximum node count.");
+  }
+  if (typeof value === "string") {
+    consumeCacheStringBudget(value, budget);
+    return value;
+  }
+  if (value === null || typeof value === "boolean") return value;
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "object") {
     throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached value at ${path} is not serializable data.`);
@@ -898,29 +928,38 @@ function cloneCacheData(value: unknown, path: string, seen: Set<object>): unknow
   }
   seen.add(value);
   try {
-    const descriptors = Object.getOwnPropertyDescriptors(value);
-    if (Object.getOwnPropertySymbols(value).length > 0) {
+    const keys = Reflect.ownKeys(value);
+    if (keys.some((key) => typeof key === "symbol")) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached value at ${path} contains symbol keys.`);
     }
+    budget.properties += keys.length;
+    if (budget.properties > MAX_CACHE_SNAPSHOT_PROPERTIES) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached snapshot exceeds the maximum property count.");
+    }
+    for (const key of keys as string[]) consumeCacheStringBudget(key, budget);
     if (Array.isArray(value)) {
-      const lengthDescriptor = descriptors.length;
+      const lengthDescriptor = Reflect.getOwnPropertyDescriptor(value, "length");
       if (!lengthDescriptor || "get" in lengthDescriptor || !Number.isSafeInteger(lengthDescriptor.value)) {
         throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached array at ${path} has an invalid length.`);
       }
       const length = lengthDescriptor.value as number;
+      if (length > MAX_CACHE_SNAPSHOT_ARRAY_LENGTH) {
+        throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached snapshot exceeds the maximum array length.");
+      }
       const out: unknown[] = [];
-      const numericKeys = Object.keys(descriptors).filter((key) => /^(0|[1-9]\d*)$/.test(key));
+      const stringKeys = keys.filter((key): key is string => typeof key === "string");
+      const numericKeys = stringKeys.filter((key) => /^(0|[1-9]\d*)$/.test(key));
       if (numericKeys.length !== length) {
         throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached array at ${path} must be dense data.`);
       }
       for (let index = 0; index < length; index += 1) {
-        const descriptor = descriptors[String(index)];
+        const descriptor = Reflect.getOwnPropertyDescriptor(value, String(index));
         if (!descriptor || "get" in descriptor || !descriptor.enumerable) {
           throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached array at ${path} must be dense data.`);
         }
-        out.push(cloneCacheData(descriptor.value, `${path}[${index}]`, seen));
+        out.push(cloneCacheData(descriptor.value, `${path}[${index}]`, seen, budget, depth + 1));
       }
-      const extra = Object.keys(descriptors).filter((key) => key !== "length" && !/^(0|[1-9]\d*)$/.test(key));
+      const extra = stringKeys.filter((key) => key !== "length" && !/^(0|[1-9]\d*)$/.test(key));
       if (extra.length > 0) {
         throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached array at ${path} has extra properties.`);
       }
@@ -930,16 +969,30 @@ function cloneCacheData(value: unknown, path: string, seen: Set<object>): unknow
     if (prototype !== Object.prototype && prototype !== null) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached value at ${path} must be a plain object.`);
     }
-    const out: Record<string, unknown> = {};
-    for (const [key, descriptor] of Object.entries(descriptors)) {
+    const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    for (const key of keys as string[]) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+      if (!descriptor) {
+        throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached property ${path}.${key} is unstable.`);
+      }
       if ("get" in descriptor || !descriptor.enumerable) {
         throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached property ${path}.${key} must be data.`);
       }
-      out[key] = cloneCacheData(descriptor.value, `${path}.${key}`, seen);
+      out[key] = cloneCacheData(descriptor.value, `${path}.${key}`, seen, budget, depth + 1);
     }
     return Object.freeze(out);
   } finally {
     seen.delete(value);
+  }
+}
+
+function consumeCacheStringBudget(value: string, budget: CacheCloneBudget): void {
+  if (value.length > MAX_CACHE_SNAPSHOT_SINGLE_STRING_CODE_UNITS) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached snapshot contains an oversized string.");
+  }
+  budget.stringCodeUnits += value.length;
+  if (budget.stringCodeUnits > MAX_CACHE_SNAPSHOT_STRING_CODE_UNITS) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached snapshot exceeds the total string-size limit.");
   }
 }
 

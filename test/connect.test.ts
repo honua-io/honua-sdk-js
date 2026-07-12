@@ -439,6 +439,70 @@ describe("connect", () => {
 
   it.each([
     {
+      name: "excessive nesting",
+      mutate(snapshot: ConnectDiscoverySnapshot) {
+        const root: Record<string, unknown> = {};
+        let cursor = root;
+        for (let depth = 0; depth < 40; depth += 1) {
+          const child: Record<string, unknown> = {};
+          cursor.child = child;
+          cursor = child;
+        }
+        (snapshot as unknown as Record<string, unknown>).oversized = root;
+      },
+    },
+    {
+      name: "oversized dense array",
+      mutate(snapshot: ConnectDiscoverySnapshot) {
+        (snapshot as unknown as Record<string, unknown>).oversized = Array.from({ length: 10_001 }, () => 0);
+      },
+    },
+    {
+      name: "oversized string",
+      mutate(snapshot: ConnectDiscoverySnapshot) {
+        (snapshot as unknown as Record<string, unknown>).oversized = "x".repeat(1_000_001);
+      },
+    },
+  ])("rejects cache data with $name without network fallback", async ({ mutate }) => {
+    const snapshot = structuredClone(await captureStacSnapshot());
+    mutate(snapshot);
+    const fetchFn = stacDiscoveryFetch();
+    await expect(
+      connect({
+        endpoint: "https://earth.example/stac/v1",
+        protocol: "stac",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn },
+        cache: { get: () => snapshot, set: vi.fn() },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("owns __proto__ cache keys without changing output or global prototypes", async () => {
+    const snapshot = structuredClone(await captureStacSnapshot());
+    Object.defineProperty(snapshot, "__proto__", {
+      configurable: true,
+      enumerable: true,
+      value: { polluted: true },
+      writable: true,
+    });
+    const fetchFn = stacDiscoveryFetch();
+    const connection = await connect({
+      endpoint: "https://earth.example/stac/v1",
+      protocol: "stac",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+      cache: { get: () => snapshot, set: vi.fn() },
+    });
+
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(connection.dataset.sourceIds()).toEqual(["sentinel-2-l2a", "landsat-c2-l2"]);
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
+  });
+
+  it.each([
+    {
       name: "malformed evidence provenance",
       mutate(snapshot: ConnectDiscoverySnapshot) {
         const evidence = snapshot.evidence as unknown as Array<Record<string, unknown>>;

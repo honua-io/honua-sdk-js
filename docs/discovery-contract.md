@@ -259,8 +259,13 @@ rejects accessors, proxies that throw, cycles, sparse arrays, malformed
 evidence/provenance/extents, and non-plain objects as typed
 `invalid-discovery-cache` failures. Accepted values are copied into deeply
 owned immutable data before capability resolution, so later caller/cache
-mutation cannot change an inspection. Cache hooks must not persist access
-tokens, API keys, or raw authorization material.
+mutation cannot change an inspection. The clone is bounded to 32 levels,
+10,000 values, 20,000 properties, 10,000 entries per dense array, one million
+UTF-16 code units per string, and four million string code units overall.
+Owned records use null prototypes, so data keys such as `__proto__` cannot
+alter object prototypes. A bound violation fails without a network fallback.
+Cache hooks must not persist access tokens, API keys, or raw authorization
+material.
 
 This slice is intentionally not universal-connect completion: static STAC,
 OData, other static files, GeoServices Image/Geometry/GP services, and the remaining
