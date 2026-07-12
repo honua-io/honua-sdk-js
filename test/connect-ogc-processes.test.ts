@@ -93,6 +93,45 @@ describe("discoverOgcProcesses() — raw OGC API Processes capability/metadata d
     );
   });
 
+  it("accepts a conformant-but-empty processes catalog as a valid discovery", async () => {
+    const result = await discoverOgcProcesses({
+      endpoint: "https://proc.example/processes",
+      clientOptions: {
+        fetchFn: vi.fn(async (input, init) => {
+          const url = new URL(new Request(input, init).url);
+          if (url.pathname === "/processes") return json(processesLanding);
+          if (url.pathname === "/processes/conformance") return json(processesConformance);
+          // A valid Processes endpoint with no registered processes.
+          if (url.pathname === "/processes/processes") return json({ processes: [] });
+          return new Response("not found", { status: 404 });
+        }),
+      },
+    });
+
+    // Empty catalog is not an error: the advertised capability still resolves.
+    expect(result.processes).toEqual([]);
+    expect([...result.capabilities]).toEqual(["processes"]);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("rejects a Processes response missing the processes list", async () => {
+    await expect(
+      discoverOgcProcesses({
+        endpoint: "https://proc.example/processes",
+        clientOptions: {
+          fetchFn: vi.fn(async (input, init) => {
+            const url = new URL(new Request(input, init).url);
+            if (url.pathname === "/processes") return json(processesLanding);
+            if (url.pathname === "/processes/conformance") return json(processesConformance);
+            // Malformed: no `processes` member at all.
+            if (url.pathname === "/processes/processes") return json({ links: [] });
+            return new Response("not found", { status: 404 });
+          }),
+        },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
+  });
+
   it("rejects a Processes service whose landing advertises no processes link", async () => {
     const requested: string[] = [];
     await expect(

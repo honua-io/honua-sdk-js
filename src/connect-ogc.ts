@@ -505,8 +505,15 @@ function validateProcessesLanding(landing: HonuaOgcLandingResponse): void {
 }
 
 function selectProcesses(response: HonuaOgcProcessesResponse): readonly OgcProcessDiscoverySummary[] {
-  if (!Array.isArray(response.processes) || response.processes.length === 0) {
-    throw new HonuaDiscoveryError("invalid-endpoint", "OGC API Processes discovery returned no processes.");
+  // A conformant Processes deployment may advertise an empty catalog
+  // (`{ processes: [] }`); that is a valid discovery result — return the empty
+  // list and let capabilities/diagnostics stand. Only a missing / non-array
+  // `processes` member (or a malformed entry, below) is an invalid endpoint.
+  if (!Array.isArray(response.processes)) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "OGC API Processes discovery response is missing a processes list.",
+    );
   }
   const seen = new Set<string>();
   return Object.freeze(
