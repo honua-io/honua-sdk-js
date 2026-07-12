@@ -74,6 +74,8 @@ export interface WfsCapabilitiesSnapshot {
   outputFormatsByOp: ReadonlyMap<string, readonly string[]>;
   /** Feature types in declaration order. */
   featureTypes: readonly WfsCapabilitiesFeatureType[];
+  /** Namespace declarations advertised on the capabilities root, keyed by prefix. */
+  namespaces: ReadonlyMap<string, string>;
   /** Spatial / temporal / scalar capability flags from `Filter_Capabilities`. */
   filterCapabilities: WfsFilterCapabilities;
   /** Stored-query identifiers advertised through the `ListStoredQueries` op. */
@@ -210,11 +212,16 @@ export function parseWfsCapabilities(xml: string): WfsCapabilitiesSnapshot {
 
   const filterCapabilities = parseFilterCapabilities(findChild(root, "Filter_Capabilities"));
   const storedQueryNames = parseStoredQueryNames(root);
+  const namespaces = new Map<string, string>();
+  for (const [name, value] of Object.entries(root.attributes)) {
+    if (name.startsWith("xmlns:") && value) namespaces.set(name.slice("xmlns:".length), value);
+  }
 
   const snapshot: WfsCapabilitiesSnapshot = {
     operations,
     outputFormatsByOp,
     featureTypes,
+    namespaces,
     filterCapabilities,
     storedQueryNames,
   };
@@ -529,7 +536,8 @@ function parseTagBody(body: string): { name: string; attributes: Attributes } {
     const close = trimmed.indexOf(quote, k + 1);
     if (close === -1) throw new Error(`WFS XML parser: unterminated attribute value for "${attrName}"`);
     const rawValue = trimmed.slice(k + 1, close);
-    attributes[stripPrefix(attrName)] = decodeXmlEntities(rawValue);
+    const normalizedName = attrName.startsWith("xmlns:") ? attrName : stripPrefix(attrName);
+    attributes[normalizedName] = decodeXmlEntities(rawValue);
     j = close + 1;
   }
   return { name, attributes };

@@ -104,12 +104,13 @@ complete decision, diagnostic, provenance, cache-result, and inspection type
 vocabulary for adapter authors. This keeps the beginner surface bounded while
 preserving a fully typed protocol integration seam.
 
-## Connect facade (OGC Features and GeoServices slice)
+## Connect facade (OGC Features, GeoServices, and WFS slices)
 
 The experimental `connect()` facade composes this truth contract for raw OGC
-API Features landing pages and canonical GeoServices `FeatureServer` /
-`MapServer` service or layer URLs. OGC endpoints still require an explicit
-`protocol: "ogc-features"` hint. Canonical GeoServices URLs may use
+API Features landing pages, WFS 2.0 endpoints, and canonical GeoServices
+`FeatureServer` / `MapServer` service or layer URLs. OGC and WFS endpoints
+require explicit `protocol: "ogc-features"` or `protocol: "wfs"` hints.
+Canonical GeoServices URLs may use
 `protocol: "auto"`: classification comes entirely from the URL path and makes
 no network request. An ambiguous auto target throws `HonuaDiscoveryError` with
 code `ambiguous-protocol` before cache hooks, authentication, or network
@@ -183,9 +184,35 @@ only implicit when exactly one source was selected; otherwise it throws
 `connection.dataset` retain the existing reviewed `Dataset` / `Source`
 execution contract.
 
+WFS discovery performs exactly one `GetCapabilities` request with
+`service=WFS`, `version=2.0.0`, and `request=GetCapabilities`. It returns every
+advertised feature type or the exact `typeName` selection. The common
+`query`/`queryAll` and `stream` contract is enabled only when the document is
+WFS 2.0, advertises a recognized JSON/GeoJSON representation, and exposes both
+GET and POST bindings with validated non-empty DCP URLs for `GetFeature`; the runtime needs GET for ordinary
+queries and switches long FES filters to POST. `applyEdits` additionally
+requires a POST `Transaction` binding with a validated URL and a root namespace
+declaration resolved from the feature-type prefix. Unprefixed types remain
+non-editable when capabilities provide no provable feature namespace.
+`queryObjectIds` remains unavailable because
+capabilities cannot prove GeoJSON `feature.id`; `queryExtent` remains
+unavailable because the common filtered-extent drain is not bounded by this
+metadata. Those negative decisions are explicit rather than adapter defaults.
+
+Advertised WFS operation URLs must remain on the endpoint origin and carry no
+user information, query, or fragment before the connection is accepted.
+Relative DCP links are resolved against the capabilities endpoint and retained
+as canonical absolute URLs before the runtime can issue GetFeature or
+Transaction requests. The
+baseline does not issue `DescribeFeatureType`, so it has no hidden per-type
+fan-out and does not invent a field schema. Default CRS, WGS84 bounds, titles,
+and feature namespace bindings are parsed from `GetCapabilities`; the default
+CRS and namespace are retained on the WFS locator, while the bbox is not
+promoted to the filtered canonical extent capability.
+
 Authentication, retry, timeout, interceptors, and transport fetch overrides
 are passed in `clientOptions`, or callers may inject an existing `HonuaClient`
-whose normalized base URL matches the OGC endpoint or derived GeoServices
+whose normalized base URL matches the OGC/WFS endpoint or derived GeoServices
 root. Endpoints must be absolute HTTP(S) URLs without user info,
 identity-bearing query parameters, or fragments; authentication belongs in
 `clientOptions`. `signal` cancels metadata work and
@@ -199,12 +226,13 @@ identity uses `createDiscoveryCacheIdentity()`, including the opaque
 authorization-scope fingerprint plus connect adapter and projection versions.
 Stored values are raw, versioned observations; capability policy is reapplied
 after every cache read. Cross-version, cross-endpoint, cross-scope, and
-cross-collection snapshots are rejected as `invalid-discovery-cache` instead
+cross-collection and cross-WFS-type snapshots are rejected as
+`invalid-discovery-cache` instead
 of being trusted. Cache hooks must not persist access tokens, API keys, or raw
 authorization material.
 
-This slice is intentionally not universal-connect completion: WFS, STAC,
-OData, static files, GeoServices Image/Geometry/GP services, and the remaining
+This slice is intentionally not universal-connect completion: STAC, OData,
+static files, GeoServices Image/Geometry/GP services, and the remaining
 raw OGC families still fail as unsupported rather than falling through to
 heuristic detection.
 

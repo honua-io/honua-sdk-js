@@ -36,7 +36,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
       "connect() could not determine the protocol from the URL without probing. Pass an explicit protocol hint.",
       {
         autoDetectedLayouts: ["*/rest/services/*/FeatureServer[/layer]", "*/rest/services/*/MapServer[/layer]"],
-        supportedProtocols: ["ogc-features", "geoservices-feature-service", "geoservices-map-service"],
+        supportedProtocols: ["ogc-features", "wfs", "geoservices-feature-service", "geoservices-map-service"],
       },
     );
   }
@@ -45,6 +45,16 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
       throw new HonuaDiscoveryError(
         "invalid-endpoint",
         `The canonical GeoServices URL resolves to "${geoservices.protocol}", not "ogc-features".`,
+        { endpoint, protocol: hint, resolvedProtocol: geoservices.protocol },
+      );
+    }
+    return { endpoint, clientBaseUrl: endpoint, protocol: hint };
+  }
+  if (hint === "wfs") {
+    if (geoservices) {
+      throw new HonuaDiscoveryError(
+        "invalid-endpoint",
+        `The canonical GeoServices URL resolves to "${geoservices.protocol}", not "wfs".`,
         { endpoint, protocol: hint, resolvedProtocol: geoservices.protocol },
       );
     }
@@ -65,7 +75,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
     `connect() does not yet include a reviewed discovery adapter for "${String(hint)}".`,
     {
       protocol: hint,
-      supportedProtocols: ["ogc-features", "geoservices-feature-service", "geoservices-map-service"],
+      supportedProtocols: ["ogc-features", "wfs", "geoservices-feature-service", "geoservices-map-service"],
     },
   );
 }

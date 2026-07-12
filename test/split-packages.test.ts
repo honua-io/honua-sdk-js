@@ -24,5 +24,9 @@ describe("split package manifests", () => {
     expect(prepareScript).toContain('packageRoot, "connect-geoservices.js"');
     expect(prepareScript).toContain('DIST_SRC_ROOT, "connect-geoservices.d.ts"');
     expect(prepareScript).toContain('packageRoot, "connect-geoservices.d.ts"');
+    expect(prepareScript).toContain('DIST_SRC_ROOT, "connect-wfs.js"');
+    expect(prepareScript).toContain('packageRoot, "connect-wfs.js"');
+    expect(prepareScript).toContain('DIST_SRC_ROOT, "connect-wfs.d.ts"');
+    expect(prepareScript).toContain('packageRoot, "connect-wfs.d.ts"');
   });
 });
