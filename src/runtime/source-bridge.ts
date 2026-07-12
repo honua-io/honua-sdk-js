@@ -26,7 +26,10 @@ import {
   type SourceDescriptor,
   type SourceLocator,
 } from "../contract/index.js";
-import { wmtsExtensionForFormat } from "../core/wms-types.js";
+import {
+  buildWmsRasterSourceSpec as buildMapWmsRasterSourceSpec,
+  buildWmtsRasterSourceSpec as buildMapWmtsRasterSourceSpec,
+} from "../map/raster-source-spec.js";
 import { HonuaMapPackageError } from "./errors.js";
 import type { HonuaMapPackageLocator, HonuaMapPackageProtocol, HonuaMapPackageSourceBinding } from "./map-package.js";
 
@@ -192,35 +195,8 @@ export function buildWmsRasterSourceSpec(
   descriptor: SourceDescriptor,
   options: { tileSize?: number; format?: string; transparent?: boolean } = {},
 ): { type: "raster"; tiles: string[]; tileSize: number; attribution?: string } {
-  const url = requireLocatorUrl(descriptor);
-  const tileSize = options.tileSize ?? 256;
-  const format = options.format ?? "image/png";
-  const transparent = options.transparent ?? true;
-  const layers = descriptor.locator.typeName ?? "";
-  const styles = descriptor.locator.styleId ?? "";
-  const params = new URLSearchParams();
-  params.set("SERVICE", "WMS");
-  params.set("VERSION", "1.3.0");
-  params.set("REQUEST", "GetMap");
-  params.set("LAYERS", layers);
-  params.set("STYLES", styles);
-  params.set("CRS", "EPSG:3857");
-  params.set("FORMAT", format);
-  params.set("TRANSPARENT", String(transparent).toUpperCase());
-  // MapLibre substitutes these placeholders at fetch-time. They are
-  // intentionally appended verbatim (no encoding) so MapLibre's
-  // template parser sees the literal tokens. WIDTH and HEIGHT are
-  // emitted only as placeholders — duplicating them as fixed params
-  // would produce ambiguous query keys that honua-server's
-  // TryGetRequiredQueryValue / int.TryParse pair rejects.
-  const baseUrl = `${url}?${params.toString()}&BBOX={bbox-epsg3857}&WIDTH={width}&HEIGHT={height}`;
-  const out: { type: "raster"; tiles: string[]; tileSize: number; attribution?: string } = {
-    type: "raster",
-    tiles: [baseUrl],
-    tileSize,
-  };
-  if (descriptor.attribution) out.attribution = descriptor.attribution;
-  return out;
+  const spec = buildMapWmsRasterSourceSpec(descriptor, options);
+  return { ...spec, tiles: [...spec.tiles] };
 }
 
 /**
@@ -240,32 +216,8 @@ export function buildWmtsRasterSourceSpec(
   maxzoom?: number;
   attribution?: string;
 } {
-  const url = requireLocatorUrl(descriptor);
-  const tileSize = options.tileSize ?? 256;
-  const format = options.format ?? "image/png";
-  const ext = wmtsExtensionForFormat(format);
-  const layer = descriptor.locator.typeName ?? "";
-  const style = descriptor.locator.styleId ?? "default";
-  const tms = descriptor.locator.tileMatrixSetId ?? "WebMercatorQuad";
-  const tileTemplate = `${url}/${encodeURIComponent(layer)}/${encodeURIComponent(style)}/${encodeURIComponent(tms)}/{z}/{y}/{x}.${ext}`;
-  const out: {
-    type: "raster";
-    tiles: string[];
-    tileSize: number;
-    scheme?: string;
-    minzoom?: number;
-    maxzoom?: number;
-    attribution?: string;
-  } = {
-    type: "raster",
-    tiles: [tileTemplate],
-    tileSize,
-    scheme: "xyz",
-  };
-  if (options.minzoom !== undefined) out.minzoom = options.minzoom;
-  if (options.maxzoom !== undefined) out.maxzoom = options.maxzoom;
-  if (descriptor.attribution) out.attribution = descriptor.attribution;
-  return out;
+  const spec = buildMapWmtsRasterSourceSpec(descriptor, options);
+  return { ...spec, tiles: [...spec.tiles] };
 }
 
 function toSdkProtocol(protocol: HonuaMapPackageProtocol): Protocol | undefined {
