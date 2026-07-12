@@ -7488,11 +7488,46 @@ source context before querying. The adapter then:
   then throw), serializes refreshes through `setData`, cancels in-flight work,
   and disposes its layers/source idempotently.
 
-This is intentionally not the whole #390 strategy matrix. Automatic vector or
-raster tiles, PMTiles, WMS/WMTS, dynamic query tiles, owned Map construction,
-labels/popups/selection, edits, and realtime subscriptions remain on their
-existing lower-level APIs until later slices can bind them to the same accepted
-plan and lifecycle contract without ambiguous fallback.
+This is intentionally not the whole #390 strategy matrix. The metadata-driven
+raster slice below covers native raster tiles, WMS, and WMTS without a query
+plan. Automatic vector tiles, PMTiles protocol lifecycle, dynamic query tiles,
+plan integration, owned Map construction, labels/popups/selection, edits,
+realtime subscriptions, interactions, and browser-matrix coverage remain
+separate work so no strategy is selected through ambiguous fallback.
+
+## Metadata-driven raster sources
+
+`@honua/sdk-js/map` can select and mount an exact raster strategy directly from
+a discovered `SourceDescriptor`. The peer-injected workflow supports native XYZ
+raster templates (`maplibre-raster`), WMS GetMap, and RESTful WMTS tiles:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { mountRasterSourceToMapLibre } from "@honua/sdk-js/map";
+
+const mounted = mountRasterSourceToMapLibre(map, imagery.descriptor, {
+  tileSize: 512,
+  paint: { "raster-opacity": 0.85 },
+});
+
+console.log(mounted.strategy); // native-raster-tiles, wms-raster, or wmts-raster
+console.table(mounted.diagnostics);
+mounted.dispose();
+```
+
+Selection is deterministic and fail-closed. All three strategies require the
+descriptor's `render` and `tiles` capabilities. Native raster URLs must contain
+the `{z}`, `{x}`, and `{y}` placeholders; WMS requires `locator.typeName`; WMTS
+requires both `locator.typeName` and `locator.tileMatrixSetId`. Unsupported
+vector, PMTiles, query-tile, and query-only descriptors throw
+`HonuaMapLibreRasterStrategyError` before map mutation instead of falling back
+to GeoJSON or guessing protocol metadata.
+
+`projectRasterSourceToMapLibre` is the pure projection half. It returns the
+selected strategy, native raster source, raster layer, and stable fidelity
+diagnostics without touching the renderer or network. The mount checks source
+and layer conflicts, rolls back renderers that mutate and then throw, and owns
+idempotent best-effort cleanup. Neither API imports `maplibre-gl`, so both are
+safe in Node, SSR, and worker module graphs.
 
 ## Module layout
 

@@ -61,6 +61,29 @@ export {
   mountSourceToMapLibre,
   projectSourceToMapLibre,
 } from "./source-to-maplibre.js";
+export { buildWmsRasterSourceSpec, buildWmtsRasterSourceSpec } from "./raster-source-spec.js";
+export type {
+  MapLibreRasterSourceSpec,
+  RasterSourceSpecOptions,
+  WmsRasterSourceSpecOptions,
+  WmtsRasterSourceSpecOptions,
+} from "./raster-source-spec.js";
+export {
+  HonuaMapLibreRasterStrategyError,
+  mountRasterSourceToMapLibre,
+  projectRasterSourceToMapLibre,
+} from "./raster-source-strategy.js";
+export type {
+  MapLibreRasterDiagnostic,
+  MapLibreRasterDiagnosticCode,
+  MapLibreRasterProjection,
+  MapLibreRasterStrategy,
+  MapLibreRasterStrategyErrorCode,
+  MapLibreRasterWorkflowState,
+  MountedMapLibreRasterSource,
+  ProjectRasterSourceToMapLibreOptions,
+  RasterSourceToMapLibreMap,
+} from "./raster-source-strategy.js";
 export type {
   MapLibreGeometryKind,
   MapLibreSourceAdapterErrorCode,
