@@ -97,6 +97,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The five-minute quickstart clock includes runtime setup, npm ci,
+      # browser provisioning, the fixture build, and the first usable map.
+      - name: Start quickstart budget clock
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_at=$(awk '{ printf "%.0f", $1 * 1000 }' /proc/uptime)
+          if [[ ! "$started_at" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Could not capture a positive monotonic start timestamp"
+            exit 1
+          fi
+          echo "QUICKSTART_STARTED_AT_MONOTONIC_MS=$started_at" >> "$GITHUB_ENV"
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -106,6 +119,24 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Gate clean-install time to first fixture map
+        run: |
+          npm run docs:quickstart:time-to-map:test
+          npm run docs:quickstart:time-to-map -- \
+            --started-at-monotonic-ms "$QUICKSTART_STARTED_AT_MONOTONIC_MS" \
+            --output test-results/quickstart-time-to-map.json
+
+      - name: Upload quickstart timing evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: quickstart-time-to-map
+          path: test-results/quickstart-time-to-map.json
+          if-no-files-found: warn
 
       - name: Typecheck
         run: npm run typecheck
@@ -185,9 +216,6 @@ jobs:
 
       - name: Migration e2e harness
         run: npx vitest run test/migration-e2e.test.ts
-
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
 
       - name: Browser smoke suite
         run: npm run test:playwright

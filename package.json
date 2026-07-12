@@ -250,6 +250,8 @@
     "docs:learning:typecheck": "node scripts/typecheck-learning-paths.mjs",
     "docs:snippets:check": "node --test test/scripts/docs-snippets.test.mjs && node scripts/docs-snippets.mjs",
     "docs:snippets:verify": "npm run build --silent && npm run docs:snippets:check",
+    "docs:quickstart:time-to-map": "node scripts/quickstart-time-to-map.mjs",
+    "docs:quickstart:time-to-map:test": "node --test test/scripts/quickstart-time-to-map.test.mjs",
     "docs:llms": "node scripts/generate-llms-txt.mjs",
     "docs:site": "node scripts/build-docs-site.mjs",
     "docs:site:build": "npm run docs:api && npm run docs:site",

@@ -34,6 +34,10 @@ The fixture is clearly labeled **Fixture replay**, uses no authentication, repor
 time, and does not make external network requests. Fixture responses live in
 [`test/fixtures/honua-quickstart-demo`](../../test/fixtures/honua-quickstart-demo).
 
+Required CI measures the path from Node setup and `npm ci` through the first usable fixture map and enforces a
+300-second ceiling. See the [quickstart timing contract](../../docs/quickstart.md#what-the-five-minute-claim-measures).
+The resulting machine evidence demonstrates clean-runner reproducibility, not an observed first-time human session.
+
 ## Secret-free live run
 
 The same code path can use any CORS-enabled Honua FeatureServer layer that allows anonymous reads:

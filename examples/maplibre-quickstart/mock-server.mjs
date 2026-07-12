@@ -31,7 +31,7 @@ function readFixture(name) {
   return fs.readFileSync(path.join(fixtureRoot, name), "utf8");
 }
 
-function buildDemoIfNeeded() {
+function buildDemoIfNeeded(timeoutMs) {
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   const result = spawnSync(npmCommand, ["run", "demo:quickstart:build", "--silent"], {
     cwd: projectRoot,
@@ -40,9 +40,13 @@ function buildDemoIfNeeded() {
       ...process.env,
       ...FIXTURE_BUILD_ENV,
     },
+    timeout: timeoutMs,
   });
 
   if (result.status !== 0) {
+    if (result.error?.code === "ETIMEDOUT") {
+      throw new Error(`Quickstart fixture build exceeded its ${timeoutMs}ms budget.`);
+    }
     throw new Error("Failed to build the quickstart demo before starting the mock server.");
   }
 }
@@ -89,9 +93,9 @@ function resolveStaticPath(pathname) {
   return absolutePath;
 }
 
-export async function startQuickstartFixtureServer({ build = true } = {}) {
+export async function startQuickstartFixtureServer({ build = true, buildTimeoutMs } = {}) {
   if (build) {
-    buildDemoIfNeeded();
+    buildDemoIfNeeded(buildTimeoutMs);
   }
 
   const capabilities = readFixture("capabilities.json");
