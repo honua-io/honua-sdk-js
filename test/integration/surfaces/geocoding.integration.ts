@@ -5,7 +5,7 @@
  * @module
  */
 
-import { HonuaGeocodingClient } from "@honua/sdk-js";
+import { HonuaGeocodingClient } from "@honua/sdk-js/geocoding";
 import { expect, it } from "vitest";
 import {
   integrationSuite,

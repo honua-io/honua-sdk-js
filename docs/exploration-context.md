@@ -172,7 +172,7 @@ import {
   bindMapSelectionToExploration,
   bindTableSelectionToExploration,
   syncFeatureStateSelection,
-} from "@honua/sdk-js";
+} from "@honua/sdk-js/interactions";
 
 bindMapSelectionToExploration(maplibreMap, mapView, {
   source: "incidents",

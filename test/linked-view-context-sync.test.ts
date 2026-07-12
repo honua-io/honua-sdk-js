@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createExplorationContext, sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
+import type { LinkedViewQueryProjection } from "@honua/sdk-js/exploration";
+import type { HonuaExtent } from "@honua/sdk-js/honua";
 import {
   bindChartToExploration,
   bindDetailToSelection,
@@ -7,11 +10,9 @@ import {
   bindMapExtentToExploration,
   bindQueryProjectionToExploration,
   bindTableSelectionToExploration,
-  createExplorationContext,
-  sourceFeatureSelectionTarget,
   syncMapLayerFilterToExploration,
-} from "../src/index.js";
-import type { HonuaExtent, LinkedViewQueryProjection, MapLayerFilterTarget } from "../src/index.js";
+} from "@honua/sdk-js/interactions";
+import type { MapLayerFilterTarget } from "@honua/sdk-js/interactions";
 import {
   emptyRealtimeFeatureState,
   reconcileRealtimeSelection,

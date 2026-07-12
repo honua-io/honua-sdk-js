@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { HonuaClient, HonuaMap } from "../src/index.js";
+import { HonuaMap } from "@honua/sdk-js/map";
+import { HonuaClient } from "../src/index.js";
 import {
   esriFeaturesToGeoJson,
   esriGeometryToGeoJson,

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createQueryTileDetailLoader, hitTestMap, normalizeHitTestFeatures } from "@honua/sdk-js/interactions";
+import type { HonuaHitTestMap } from "@honua/sdk-js/interactions";
 import type { QueryTileSourceDescriptor, Source } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
-import { createQueryTileDetailLoader, hitTestMap, normalizeHitTestFeatures } from "../src/index.js";
-import type { HonuaHitTestMap } from "../src/index.js";
 import { HonuaMap } from "../src/map/index.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, HonuaMapRuntime, type MaplibreMap } from "../src/runtime/index.js";
 

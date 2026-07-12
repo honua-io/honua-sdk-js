@@ -74,7 +74,7 @@ Labels: `fixture` · `demo-live` · `authenticated` · `degraded`
 - Provenance: Committed mock responses or configured Honua endpoint.
 - Freshness: Fixture replay or live query observation time.
 - Catalog degradation: The recipe fails explicitly when required server capabilities are absent.
-- Supported API imports: `@honua/sdk-js` (`QueryBuilder`); `@honua/sdk-js/honua` (`HonuaClient`)
+- Supported API imports: `@honua/sdk-js/honua` (`HonuaClient`, `QueryBuilder`)
 - honua.io journey: `query-map-style`
 - Degradation: The live endpoint may omit requested query capabilities; the sample keeps the typed capability error visible.
 

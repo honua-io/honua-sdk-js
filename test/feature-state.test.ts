@@ -1,15 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { featureSelectionKey, sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
 import {
   createHoverHandler,
   createSelectionHandler,
-  featureSelectionKey,
   getFeatureState,
   removeFeatureState,
   setFeatureState,
-  sourceFeatureSelectionTarget,
-} from "../src/index.js";
-import type { InteractiveMap } from "../src/index.js";
+} from "@honua/sdk-js/interactions";
+import type { InteractiveMap } from "@honua/sdk-js/interactions";
 
 /** Create a mock map with feature state and event capabilities. */
 function createMockMap(): InteractiveMap & {
