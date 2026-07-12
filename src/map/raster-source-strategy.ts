@@ -319,11 +319,12 @@ function failure(
 }
 
 function safeId(value: string): string {
-  const normalized = value
-    .trim()
-    .replace(/[^a-zA-Z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return normalized || "source";
+  const normalized = value.trim().replace(/[^a-zA-Z0-9_-]+/g, "-");
+  let start = 0;
+  while (start < normalized.length && normalized[start] === "-") start += 1;
+  let end = normalized.length;
+  while (end > start && normalized[end - 1] === "-") end -= 1;
+  return normalized.slice(start, end) || "source";
 }
 
 function nonEmpty(value: unknown): value is string {

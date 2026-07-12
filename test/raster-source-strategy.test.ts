@@ -90,6 +90,19 @@ describe("metadata-driven MapLibre raster strategy", () => {
     ]);
   });
 
+  it("normalizes adversarial long hyphen boundaries in linear time with a stable fallback", () => {
+    const hyphens = "-".repeat(100_000);
+    const bounded = descriptor("maplibre-raster", { url: "https://tiles.test/{z}/{x}/{y}.webp" });
+    bounded.id = `${hyphens}imagery${hyphens}`;
+    expect(projectRasterSourceToMapLibre(bounded).sourceId).toBe("honua-imagery");
+
+    const empty = descriptor("maplibre-raster", { url: "https://tiles.test/{z}/{x}/{y}.webp" });
+    empty.id = hyphens;
+    const fallback = projectRasterSourceToMapLibre(empty);
+    expect(fallback.sourceId).toBe("honua-source");
+    expect(fallback.layerId).toBe("honua-source-raster");
+  });
+
   it("selects WMS and preserves exact GetMap metadata", () => {
     const projection = projectRasterSourceToMapLibre(
       descriptor("wms", {
