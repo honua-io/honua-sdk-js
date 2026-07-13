@@ -23,7 +23,7 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(27);
+    expect(catalog.samples).toHaveLength(28);
     expect(catalog.siteMappings).toHaveLength(21);
     expect(generateSiteProjection(catalog, packageJson).routes).toHaveLength(21);
   });
