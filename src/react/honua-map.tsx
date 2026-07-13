@@ -15,11 +15,13 @@
 
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
+import type { DataToMapLibreMap } from "../map/data-to-map-bridge.js";
 import type { HonuaMapPackage, HonuaMapRuntime, LoadMapPackageOptions, MaplibreMap } from "../runtime/index.js";
 import { loadMapPackage } from "../runtime/index.js";
 import type { PopupFactory } from "../runtime/index.js";
-import { useHonuaClient } from "./hooks.js";
 import { HonuaMapContext, type HonuaMapContextValue } from "./context.js";
+import { HonuaExternalMapContext } from "./external-map.js";
+import { useHonuaClient } from "./hooks.js";
 
 /** Options accepted by the `maplibre-gl` `Map` constructor that `HonuaMap` uses. */
 export interface MapLibreMapOptions {
@@ -182,8 +184,15 @@ export function HonuaMap(props: HonuaMapProps): ReactNode {
 
   return (
     <HonuaMapContext.Provider value={contextValue}>
-      {externalMap ? null : <div ref={containerRef} className={className} style={style} data-honua-map="" />}
-      {children}
+      {/* Publish the underlying map for the data-to-map bridge components
+          (`HonuaSourceLayer` / `useMountedSource`) so they resolve the nearest
+          enclosing map exactly like a `HonuaMapProvider`. A real MapLibre map
+          satisfies the bridge's duck-typed surface; the runtime type keeps the
+          bridge-required methods optional, hence the cast. */}
+      <HonuaExternalMapContext.Provider value={(contextValue.map as unknown as DataToMapLibreMap | null) ?? null}>
+        {externalMap ? null : <div ref={containerRef} className={className} style={style} data-honua-map="" />}
+        {children}
+      </HonuaExternalMapContext.Provider>
     </HonuaMapContext.Provider>
   );
 }

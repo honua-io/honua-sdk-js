@@ -104,3 +104,48 @@ body {
   width: 100%;
   height: 100%;
 }
+
+.feature-list li {
+  padding: 0;
+}
+
+.feature-list li.hovered {
+  border-color: rgba(56, 189, 248, 0.7);
+}
+
+.feature-row {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.feature-row.selected {
+  background: rgba(245, 158, 11, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.6);
+}
+
+.selection-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.selection-summary button {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
