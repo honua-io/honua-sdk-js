@@ -22,6 +22,8 @@ function buildDemoIfNeeded() {
     cwd: projectRoot,
     stdio: "inherit",
     env: process.env,
+    // Node's CVE-2024-27980 hardening rejects spawning .cmd shims without a shell.
+    shell: process.platform === "win32",
   });
   if (result.status !== 0) throw new Error("Failed to build the Edit Workflow sample.");
 }
