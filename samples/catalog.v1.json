@@ -387,6 +387,23 @@
       "validation": ["npm run demo:service-explorer:typecheck", "npm run demo:service-explorer:build"]
     },
     {
+      "id": "sketch-editing",
+      "title": "Interactive sketch editing with terra-draw",
+      "summary": "terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission.",
+      "tier": "advanced",
+      "supportStatus": "experimental",
+      "disposition": { "decision": "keep", "reason": "Canonical terra-draw binding demo for the Esri widget-cliff sketch gap." },
+      "sourcePath": "examples/sketch-editing",
+      "docsPath": "examples/sketch-editing/README.md",
+      "capabilities": ["editing", "sketch", "snapping"],
+      "protocols": ["geoservices"],
+      "renderers": ["maplibre"],
+      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed deterministic harbor-parcel fixture.", "attribution": "Honua synthetic operations data.", "freshness": "Deterministic fixture replay time." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:sketch-editing:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "expectedDegradation": "Sketch tools report unsupported capabilities when terra-draw is not installed; the SDK works without the optional peer.",
+      "validation": ["npm run demo:sketch-editing:typecheck", "npm run demo:sketch-editing:build", "npm run test:playwright:sketch-editing"]
+    },
+    {
       "id": "spatial-analytics-workbench",
       "title": "Spatial analytics workbench",
       "summary": "Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output.",

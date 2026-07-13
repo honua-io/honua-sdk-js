@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-13 at commit `c6d3dfd`._
+_Generated 2026-07-13 at commit `933de19`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -18,12 +18,12 @@ _Generated 2026-07-13 at commit `c6d3dfd`._
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
 | `/nl-map-control` | 60.6 KiB | 65.8 KiB | 18.7 KiB | 20.4 KiB |
-| `/runtime` | 424.5 KiB | 458.7 KiB | 111.0 KiB | 119.5 KiB |
+| `/runtime` | 429.4 KiB | 458.7 KiB | 112.7 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
-| `/esri-compat` | 950.4 KiB | 1026.2 KiB | 235.5 KiB | 253.6 KiB |
+| `/esri-compat` | 951.0 KiB | 1026.2 KiB | 235.7 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
 | `/geocoding` | 12.5 KiB | 13.7 KiB | 3.9 KiB | 4.3 KiB |
@@ -41,3 +41,4 @@ _Generated 2026-07-13 at commit `c6d3dfd`._
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 207.3 KiB | 220.4 KiB | 52.3 KiB | 55.8 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 17.7 KiB | 18.8 KiB | 6.6 KiB | 7.0 KiB |
+| tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |

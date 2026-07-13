@@ -50,6 +50,8 @@ const EXTERNAL = [
   "@duckdb/duckdb-wasm",
   "@deck.gl/layers",
   "apache-arrow",
+  "terra-draw",
+  "terra-draw-maplibre-gl-adapter",
 ];
 
 const SHARED_ESBUILD_OPTIONS = {
@@ -153,6 +155,12 @@ const TARGETS = [
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-map-source-workflow.mjs",
     label: "tree-shake guard (`{ mountSourceToMapLibre }` from `/map`)",
+  },
+  {
+    key: "tree-shake:runtime-terra-draw-sketch",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-runtime-terra-draw-sketch.mjs",
+    label: "tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external)",
   },
 ];
 
