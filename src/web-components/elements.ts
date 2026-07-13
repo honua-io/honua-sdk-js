@@ -2,6 +2,7 @@ import type { HonuaClient } from "../core/client.js";
 import type { MapPackageLocator } from "../runtime/index.js";
 import { createHonuaWebComponentController } from "./controller.js";
 import { HonuaMapLibreRenderer } from "./maplibre-renderer.js";
+import { HonuaMeasurementElement } from "./measurement.js";
 import type {
   CreateHonuaWebComponentControllerOptions,
   HonuaActionDetail,
@@ -19,7 +20,12 @@ import type {
   HonuaFeatureTableModel,
   HonuaFilterChangeDetail,
   HonuaFullscreenChangeDetail,
+  HonuaGeocodeSelectDetail,
+  HonuaLayerModel,
+  HonuaLayerOpacityChangeDetail,
+  HonuaLayerOrderChangeDetail,
   HonuaLayerVisibilityChangeDetail,
+  HonuaLegendItem,
   HonuaLocateChangeDetail,
   HonuaMapClickDetail,
   HonuaMapErrorDetail,
@@ -28,6 +34,8 @@ import type {
   HonuaMeasureChangeDetail,
   HonuaMeasureMode,
   HonuaSearchDetail,
+  HonuaSearchGeocodeSuggestion,
+  HonuaSearchGeocoderLike,
   HonuaSearchResult,
   HonuaSelectionChangeDetail,
   HonuaSketchChangeDetail,
@@ -406,9 +414,44 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   }
 }
 
+/**
+ * `<honua-layer-list>` — the survival-tier layer list (issue #493). Renders a
+ * row per runtime layer (in style order: the last row draws on top) with:
+ *
+ * - a visibility checkbox bound to `controller.setLayerVisibility`;
+ * - an opacity slider (rendered when the controller implements
+ *   `setLayerOpacity`), committed on `change` so keyboard arrows and pointer
+ *   drags both work;
+ * - reorder affordances (rendered when the controller implements
+ *   `moveLayer`): keyboard-operable "Move up"/"Move down" buttons plus HTML5
+ *   drag-and-drop between rows.
+ *
+ * Rows re-render from controller state events, so external visibility /
+ * opacity / order changes stay in sync. Theme via the `--honua-ui-*` CSS
+ * custom properties; rows are exposed as a `role="list"` of `listitem`s.
+ */
 export class HonuaLayerListElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
     return ["for", "label"];
+  }
+
+  #dragLayerId: string | undefined;
+  #layersOverride: readonly HonuaLayerModel[] | undefined;
+
+  /**
+   * The layer rows currently rendered. Headless hosts (for example the
+   * esri-compat LayerList shim delegating through `HonuaWidgetHost`) can
+   * assign this directly to bypass the controller; user toggles then surface
+   * only through the `honua-layer-visibility-change` event. Assign
+   * `undefined` to return to controller-driven rows.
+   */
+  public get layers(): readonly HonuaLayerModel[] {
+    return this.#layersOverride ?? this.state?.layers ?? [];
+  }
+
+  public set layers(layers: readonly HonuaLayerModel[] | undefined) {
+    this.#layersOverride = layers;
+    this.render();
   }
 
   public attributeChangedCallback(): void {
@@ -416,11 +459,17 @@ export class HonuaLayerListElement<T = Record<string, unknown>> extends HonuaEle
     this.render();
   }
 
+  protected controllerChanged(): void {
+    this.render();
+  }
+
   protected render(): void {
-    const layers = this.state?.layers ?? [];
+    const layers = this.layers;
     const label = this.getAttribute("label") ?? "Layers";
+    const supportsOpacity = typeof this.controller?.setLayerOpacity === "function";
+    const supportsReorder = typeof this.controller?.moveLayer === "function";
     this.setShadowHtml(`
-      <style>${baseStyles()}${listStyles()}</style>
+      <style>${baseStyles()}${listStyles()}${layerListStyles()}</style>
       <fieldset class="panel" part="panel">
         <legend>${escapeHtml(label)}</legend>
         <div class="stack" role="list">
@@ -428,20 +477,68 @@ export class HonuaLayerListElement<T = Record<string, unknown>> extends HonuaEle
             layers.length === 0
               ? `<p class="empty">No layers</p>`
               : layers
-                  .map(
-                    (layer) => `
-            <label class="check-row" role="listitem">
-              <input type="checkbox" data-layer-id="${escapeHtml(layer.id)}" ${layer.visible ? "checked" : ""} />
-              <span>${escapeHtml(layer.title)}</span>
-            </label>
-          `,
-                  )
+                  .map((layer, index) => this.renderRow(layer, index, layers.length, supportsOpacity, supportsReorder))
                   .join("")
           }
         </div>
       </fieldset>
     `);
-    this.shadowRoot?.querySelectorAll<HTMLInputElement>("input[data-layer-id]").forEach((input) => {
+    this.bindRows(supportsReorder);
+  }
+
+  private renderRow(
+    layer: HonuaLayerModel,
+    index: number,
+    count: number,
+    supportsOpacity: boolean,
+    supportsReorder: boolean,
+  ): string {
+    const id = escapeAttribute(layer.id);
+    const opacityPercent = Math.round((layer.opacity ?? 1) * 100);
+    // Generic control names ("Opacity", "Move up") keep each row's checkbox as
+    // the only control whose accessible name is the layer title; the
+    // surrounding listitem carries the title for context.
+    const opacity = supportsOpacity
+      ? `
+        <input
+          type="range"
+          class="opacity"
+          part="opacity"
+          min="0"
+          max="100"
+          step="1"
+          value="${opacityPercent}"
+          aria-label="Opacity"
+          aria-valuetext="${opacityPercent}%"
+          data-layer-opacity="${id}"
+        />`
+      : "";
+    const reorder = supportsReorder
+      ? `
+        <button type="button" class="move" part="move-up" aria-label="Move up" data-move="up:${id}" ${
+          index === 0 ? "disabled" : ""
+        }>&#9650;</button>
+        <button type="button" class="move" part="move-down" aria-label="Move down" data-move="down:${id}" ${
+          index === count - 1 ? "disabled" : ""
+        }>&#9660;</button>`
+      : "";
+    return `
+      <div class="layer-row" role="listitem" part="row" data-layer-row="${id}"${
+        supportsReorder ? ` draggable="true"` : ""
+      }>
+        <label class="check-row">
+          <input type="checkbox" data-layer-id="${id}" ${layer.visible ? "checked" : ""} />
+          <span>${escapeHtml(layer.title)}</span>
+        </label>
+        ${supportsOpacity || supportsReorder ? `<div class="layer-row__tools">${opacity}${reorder}</div>` : ""}
+      </div>
+    `;
+  }
+
+  private bindRows(supportsReorder: boolean): void {
+    const root = this.shadowRoot;
+    if (!root) return;
+    root.querySelectorAll<HTMLInputElement>("input[data-layer-id]").forEach((input) => {
       input.addEventListener("change", () => {
         const layerId = input.dataset.layerId;
         if (!layerId) return;
@@ -452,12 +549,118 @@ export class HonuaLayerListElement<T = Record<string, unknown>> extends HonuaEle
         });
       });
     });
+    root.querySelectorAll<HTMLInputElement>("input[data-layer-opacity]").forEach((input) => {
+      input.addEventListener("change", () => {
+        const layerId = input.dataset.layerOpacity;
+        if (!layerId) return;
+        const opacity = Math.min(1, Math.max(0, Number(input.value) / 100));
+        this.controller?.setLayerOpacity?.(layerId, opacity);
+        this.dispatchTypedEvent<HonuaLayerOpacityChangeDetail>("honua-layer-opacity-change", { layerId, opacity });
+      });
+    });
+    root.querySelectorAll<HTMLButtonElement>("button[data-move]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const encoded = button.dataset.move ?? "";
+        const separator = encoded.indexOf(":");
+        if (separator === -1) return;
+        const direction = encoded.slice(0, separator);
+        const layerId = encoded.slice(separator + 1);
+        this.moveByOffset(layerId, direction === "up" ? -1 : 1);
+      });
+    });
+    if (!supportsReorder) return;
+    root.querySelectorAll<HTMLElement>("[data-layer-row]").forEach((row) => {
+      row.addEventListener("dragstart", (event) => {
+        const layerId = row.dataset.layerRow;
+        if (!layerId) return;
+        this.#dragLayerId = layerId;
+        const transfer = (event as DragEvent).dataTransfer;
+        transfer?.setData("text/plain", layerId);
+        if (transfer) transfer.effectAllowed = "move";
+      });
+      row.addEventListener("dragover", (event) => {
+        if (this.#dragLayerId) event.preventDefault();
+      });
+      row.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const source = this.#dragLayerId ?? (event as DragEvent).dataTransfer?.getData("text/plain");
+        const target = row.dataset.layerRow;
+        this.#dragLayerId = undefined;
+        if (!source || !target || source === target) return;
+        this.moveBefore(source, target);
+      });
+      row.addEventListener("dragend", () => {
+        this.#dragLayerId = undefined;
+      });
+    });
+  }
+
+  /** Moves a layer one list position up (`-1`) or down (`+1`). */
+  private moveByOffset(layerId: string, offset: -1 | 1): void {
+    const layers = this.layers;
+    const index = layers.findIndex((layer) => layer.id === layerId);
+    if (index === -1) return;
+    const targetIndex = index + offset;
+    if (targetIndex < 0 || targetIndex >= layers.length) return;
+    const beforeId = offset === -1 ? layers[index - 1]?.id : layers[index + 2]?.id;
+    this.applyMove(layerId, beforeId);
+  }
+
+  private moveBefore(layerId: string, targetId: string): void {
+    this.applyMove(layerId, targetId);
+  }
+
+  private applyMove(layerId: string, beforeId: string | undefined): void {
+    const controller = this.controller;
+    if (!controller?.moveLayer) return;
+    controller.moveLayer(layerId, beforeId);
+    this.dispatchTypedEvent<HonuaLayerOrderChangeDetail>("honua-layer-order-change", {
+      layerId,
+      ...(beforeId !== undefined ? { beforeId } : {}),
+      order: controller.getState().layers.map((layer) => layer.id),
+    });
   }
 }
 
+/**
+ * `<honua-legend>` — the survival-tier legend (issue #493). Renders
+ * swatch+label rows from the controller's runtime legend model
+ * (`HonuaLegendItem[]` derived from the map package / renderer metadata) and
+ * reacts to layer visibility changes: entries carrying a `layerId` are hidden
+ * while that layer is toggled off, unless the `include-hidden` attribute is
+ * present.
+ *
+ * Headless hosts (for example the esri-compat Legend shim delegating through
+ * `HonuaWidgetHost`) can bypass the controller and assign the `items`
+ * property directly.
+ *
+ * Swatches are `aria-hidden` presentation; the text labels carry the meaning.
+ * Theme via the `--honua-ui-*` CSS custom properties.
+ */
 export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
-    return ["for", "label"];
+    return ["for", "label", "include-hidden"];
+  }
+
+  #itemsOverride: readonly HonuaLegendItem[] | undefined;
+
+  /**
+   * Explicit legend items. When set, these render instead of the controller
+   * state's legend (visibility coupling still applies when the controller is
+   * also present). Assign `undefined` to return to controller-driven items.
+   */
+  public get items(): readonly HonuaLegendItem[] | undefined {
+    return this.#itemsOverride;
+  }
+
+  public set items(items: readonly HonuaLegendItem[] | undefined) {
+    this.#itemsOverride = items;
+    this.render();
+  }
+
+  /** Render entries for hidden layers too. Reflects the `include-hidden` attribute. */
+  public get includeHidden(): boolean {
+    return typeof this.hasAttribute === "function" && this.hasAttribute("include-hidden");
   }
 
   public attributeChangedCallback(): void {
@@ -465,25 +668,37 @@ export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElemen
     this.render();
   }
 
+  /** The items currently rendered (after layer-visibility filtering). */
+  public get visibleItems(): readonly HonuaLegendItem[] {
+    const items = this.#itemsOverride ?? this.state?.legend ?? [];
+    if (this.includeHidden) return items;
+    const layers = this.state?.layers ?? [];
+    return items.filter((item) => {
+      if (!item.layerId) return true;
+      const layer = layers.find((candidate) => candidate.id === item.layerId);
+      return layer ? layer.visible : true;
+    });
+  }
+
   protected render(): void {
-    const legend = this.state?.legend ?? [];
+    const legend = this.visibleItems;
     const label = this.getAttribute("label") ?? "Legend";
     this.setShadowHtml(`
       <style>${baseStyles()}${listStyles()}</style>
       <section class="panel" part="panel" aria-label="${escapeHtml(label)}">
         <h2>${escapeHtml(label)}</h2>
-        <ul class="legend">
+        <ul class="legend" role="list">
           ${
             legend.length === 0
               ? `<li class="empty">No legend</li>`
               : legend
                   .map(
                     (item) => `
-            <li>
+            <li role="listitem" data-legend-item="${escapeAttribute(item.id)}">
               ${
                 item.iconUrl
-                  ? `<img class="swatch" alt="" src="${escapeAttribute(item.iconUrl)}" />`
-                  : `<span class="swatch" style="--swatch:${escapeAttribute(item.color ?? "#64748b")}"></span>`
+                  ? `<img class="swatch" alt="" aria-hidden="true" src="${escapeAttribute(item.iconUrl)}" />`
+                  : `<span class="swatch" aria-hidden="true" style="--swatch:${escapeAttribute(item.color ?? "#64748b")}"></span>`
               }
               <span>${escapeHtml(item.label)}</span>
             </li>
@@ -621,22 +836,72 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   }
 }
 
+/**
+ * `<honua-search>` — the survival-tier search box (issue #493).
+ *
+ * Two lanes:
+ *
+ * - **Feature search** (default) — submitting the form runs
+ *   `controller.search` over the shared dataset state and renders selectable
+ *   feature results (the pre-existing behavior).
+ * - **Geocoding search** — assign the `geocoder` property a provider
+ *   satisfying {@link HonuaSearchGeocoderLike} (a `HonuaGeocodingClient` from
+ *   the stable `@honua/sdk-js/geocoding` entrypoint fits structurally). The
+ *   input becomes an ARIA combobox with debounced typeahead suggestions
+ *   (`debounce` attribute, default 250 ms) navigated with ArrowUp / ArrowDown,
+ *   accepted with Enter, dismissed with Escape. Selecting a suggestion (or
+ *   submitting) forward-geocodes and pans/zooms the map by writing the
+ *   controller viewport (`zoom` attribute, default 15), then dispatches
+ *   `honua-geocode-select`.
+ */
 export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
-    return ["for", "source", "placeholder", "label"];
+    return ["for", "source", "placeholder", "label", "debounce", "zoom"];
   }
 
   #query = "";
   #results: readonly HonuaSearchResult<T>[] = [];
+  #geocoder: HonuaSearchGeocoderLike | undefined;
+  #suggestions: readonly HonuaSearchGeocodeSuggestion[] = [];
+  #activeIndex = -1;
+  #status = "";
+  #suggestTimer: ReturnType<typeof setTimeout> | undefined;
+  #suggestToken = 0;
+
+  /** The geocoding provider powering typeahead + geocode-on-submit. */
+  public get geocoder(): HonuaSearchGeocoderLike | undefined {
+    return this.#geocoder;
+  }
+
+  public set geocoder(geocoder: HonuaSearchGeocoderLike | undefined) {
+    this.#geocoder = geocoder;
+    this.#clearSuggestTimer();
+    this.#suggestions = [];
+    this.#activeIndex = -1;
+    this.#status = "";
+    this.render();
+  }
 
   public attributeChangedCallback(): void {
     this.resolveControllerFromContext();
     this.render();
   }
 
+  public disconnectedCallback(): void {
+    this.#clearSuggestTimer();
+    super.disconnectedCallback();
+  }
+
   protected render(): void {
     const label = this.getAttribute("label") ?? "Search";
     const placeholder = this.getAttribute("placeholder") ?? "Search";
+    const geocoding = this.#geocoder !== undefined;
+    const expanded = geocoding && this.#suggestions.length > 0;
+    const comboboxAttributes = geocoding
+      ? ` role="combobox" aria-autocomplete="list" aria-expanded="${String(expanded)}" aria-controls="honua-search-listbox"${
+          this.#activeIndex >= 0 ? ` aria-activedescendant="honua-search-option-${this.#activeIndex}"` : ""
+        }`
+      : "";
     this.setShadowHtml(`
       <style>${baseStyles()}${searchStyles()}</style>
       <section class="search" part="panel" aria-label="${escapeHtml(label)}">
@@ -644,19 +909,51 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
           <label class="sr-only" for="honua-search-input">${escapeHtml(label)}</label>
           <input id="honua-search-input" name="q" value="${escapeAttribute(this.#query)}" placeholder="${escapeAttribute(
             placeholder,
-          )}" autocomplete="off" />
+          )}" autocomplete="off"${comboboxAttributes} />
           <button type="submit">Search</button>
         </form>
+        ${
+          geocoding
+            ? `<ul class="suggestions" id="honua-search-listbox" role="listbox" aria-label="${escapeAttribute(
+                `${label} suggestions`,
+              )}"${expanded ? "" : " hidden"}>
+          ${this.#suggestions
+            .map(
+              (suggestion, index) =>
+                `<li id="honua-search-option-${index}" role="option" aria-selected="${String(
+                  index === this.#activeIndex,
+                )}" data-suggestion-index="${index}">${escapeHtml(suggestion.text)}</li>`,
+            )
+            .join("")}
+        </ul>
+        <p class="status" role="status" aria-live="polite">${escapeHtml(this.#status)}</p>`
+            : ""
+        }
         <ul class="results" aria-live="polite">
           ${this.#results.map((result) => `<li><button type="button" data-result-id="${escapeHtml(result.id)}">${escapeHtml(result.label)}</button></li>`).join("")}
         </ul>
       </section>
     `);
+    const input = this.shadowRoot?.querySelector<HTMLInputElement>("input[name='q']");
     this.shadowRoot?.querySelector("form")?.addEventListener("submit", (event) => {
       event.preventDefault();
-      const input = this.shadowRoot?.querySelector<HTMLInputElement>("input[name='q']");
-      void this.runSearch(input?.value ?? "");
+      const query = input?.value ?? "";
+      if (this.#geocoder) void this.runGeocode(query);
+      else void this.runSearch(query);
     });
+    if (this.#geocoder) {
+      input?.addEventListener("input", () => {
+        this.#query = input.value;
+        this.scheduleSuggest();
+      });
+      input?.addEventListener("keydown", (event) => this.onComboboxKeydown(event));
+      this.shadowRoot?.querySelectorAll<HTMLLIElement>("li[data-suggestion-index]").forEach((option) => {
+        option.addEventListener("click", () => {
+          const index = Number(option.dataset.suggestionIndex);
+          if (Number.isInteger(index)) void this.selectSuggestion(index);
+        });
+      });
+    }
     this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button[data-result-id]").forEach((button) => {
       button.addEventListener("click", () => {
         const result = this.#results.find((candidate) => candidate.id === button.dataset.resultId);
@@ -675,12 +972,137 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
     });
   }
 
+  private onComboboxKeydown(event: KeyboardEvent): void {
+    if (this.#suggestions.length === 0) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const count = this.#suggestions.length;
+      const offset = event.key === "ArrowDown" ? 1 : -1;
+      this.#activeIndex = (this.#activeIndex + offset + count) % count;
+      this.render();
+      return;
+    }
+    if (event.key === "Enter" && this.#activeIndex >= 0) {
+      event.preventDefault();
+      void this.selectSuggestion(this.#activeIndex);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.#clearSuggestTimer();
+      this.#suggestions = [];
+      this.#activeIndex = -1;
+      this.render();
+    }
+  }
+
+  private scheduleSuggest(): void {
+    this.#clearSuggestTimer();
+    const geocoder = this.#geocoder;
+    if (!geocoder?.suggest) return;
+    const text = this.#query.trim();
+    if (!text) {
+      this.#suggestions = [];
+      this.#activeIndex = -1;
+      this.render();
+      return;
+    }
+    this.#suggestTimer = setTimeout(() => {
+      this.#suggestTimer = undefined;
+      void this.runSuggest(text);
+    }, this.debounceMs());
+  }
+
+  private async runSuggest(text: string): Promise<void> {
+    const geocoder = this.#geocoder;
+    if (!geocoder?.suggest) return;
+    const token = ++this.#suggestToken;
+    try {
+      const suggestions = await geocoder.suggest(text, { maxSuggestions: 8 });
+      if (token !== this.#suggestToken) return;
+      this.#suggestions = suggestions;
+      this.#activeIndex = -1;
+      this.render();
+    } catch (error) {
+      if (token !== this.#suggestToken) return;
+      this.#suggestions = [];
+      this.#activeIndex = -1;
+      this.#status = error instanceof Error ? error.message : "Suggestions unavailable.";
+      this.render();
+    }
+  }
+
+  private async selectSuggestion(index: number): Promise<void> {
+    const suggestion = this.#suggestions[index];
+    if (!suggestion) return;
+    this.#query = suggestion.text;
+    this.#suggestions = [];
+    this.#activeIndex = -1;
+    await this.runGeocode(suggestion.text);
+  }
+
+  private async runGeocode(query: string): Promise<void> {
+    const geocoder = this.#geocoder;
+    if (!geocoder) return;
+    this.#clearSuggestTimer();
+    this.#suggestToken += 1;
+    this.#query = query;
+    this.#suggestions = [];
+    this.#activeIndex = -1;
+    const trimmed = query.trim();
+    if (!trimmed) {
+      this.#status = "";
+      this.render();
+      return;
+    }
+    try {
+      const candidates = await geocoder.forwardGeocode(trimmed, { maxResults: 1 });
+      const candidate = candidates[0];
+      if (!candidate) {
+        this.#status = `No results for "${trimmed}".`;
+        this.render();
+        return;
+      }
+      const viewport: HonuaViewportState = {
+        center: [candidate.longitude, candidate.latitude],
+        zoom: this.resultZoom(),
+      };
+      this.controller?.setViewport(viewport);
+      this.#status = candidate.address;
+      this.dispatchTypedEvent<HonuaGeocodeSelectDetail>("honua-geocode-select", {
+        query: trimmed,
+        candidate,
+        viewport,
+      });
+      this.render();
+    } catch (error) {
+      this.#status = error instanceof Error ? error.message : "Geocoding failed.";
+      this.render();
+    }
+  }
+
   private async runSearch(query: string): Promise<void> {
     this.#query = query;
     const sourceId = this.getAttribute("source") ?? undefined;
     this.#results = await (this.controller?.search(query, { sourceId }) ?? []);
     this.dispatchTypedEvent<HonuaSearchDetail<T>>("honua-search", { query, results: this.#results });
     this.render();
+  }
+
+  private debounceMs(): number {
+    const parsed = Number(this.getAttribute("debounce"));
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 250;
+  }
+
+  private resultZoom(): number {
+    const parsed = Number(this.getAttribute("zoom"));
+    return Number.isFinite(parsed) ? parsed : 15;
+  }
+
+  #clearSuggestTimer(): void {
+    if (this.#suggestTimer === undefined) return;
+    clearTimeout(this.#suggestTimer);
+    this.#suggestTimer = undefined;
   }
 }
 
@@ -1343,6 +1765,7 @@ export function defineHonuaWebComponents(registry = globalDom.customElements): v
   defineIfMissing(registry, "honua-bookmarks", HonuaBookmarksElement);
   defineIfMissing(registry, "honua-locate-control", HonuaLocateControlElement);
   defineIfMissing(registry, "honua-measure-control", HonuaMeasureControlElement);
+  defineIfMissing(registry, "honua-measurement", HonuaMeasurementElement);
   defineIfMissing(registry, "honua-sketch-control", HonuaSketchControlElement);
   defineIfMissing(registry, "honua-print-export", HonuaPrintExportElement);
   defineIfMissing(registry, "honua-map-status", HonuaMapStatusElement);
@@ -1703,6 +2126,25 @@ function listStyles(): string {
   `;
 }
 
+function layerListStyles(): string {
+  return `
+    .layer-row {
+      border-top: 1px solid transparent;
+      display: grid;
+      gap: 4px;
+    }
+    .layer-row[draggable="true"] { cursor: grab; }
+    .layer-row__tools {
+      align-items: center;
+      display: flex;
+      gap: 6px;
+      padding-left: 24px;
+    }
+    .opacity { flex: 1; min-width: 60px; }
+    .move { min-width: 32px; padding: 0; }
+  `;
+}
+
 function tableStyles(): string {
   return `
     .table-panel {
@@ -1751,6 +2193,23 @@ function searchStyles(): string {
     }
     .results { display: grid; gap: 6px; list-style: none; margin: 10px 0 0; padding: 0; }
     .results button { text-align: left; width: 100%; }
+    .suggestions {
+      border: 1px solid var(--honua-ui-border);
+      border-radius: 6px;
+      display: grid;
+      list-style: none;
+      margin: 6px 0 0;
+      overflow: hidden;
+      padding: 0;
+    }
+    .suggestions[hidden] { display: none; }
+    .suggestions [role="option"] { cursor: pointer; padding: 6px 9px; }
+    .suggestions [role="option"][aria-selected="true"] {
+      background: var(--honua-ui-accent);
+      color: var(--honua-ui-accent-fg);
+    }
+    .status { color: var(--honua-ui-muted); margin: 6px 0 0; }
+    .status:empty { display: none; }
   `;
 }
 
@@ -1872,6 +2331,7 @@ declare global {
     "honua-bookmarks": HonuaBookmarksElement;
     "honua-locate-control": HonuaLocateControlElement;
     "honua-measure-control": HonuaMeasureControlElement;
+    "honua-measurement": HonuaMeasurementElement;
     "honua-sketch-control": HonuaSketchControlElement;
     "honua-print-export": HonuaPrintExportElement;
     "honua-map-status": HonuaMapStatusElement;
@@ -1885,6 +2345,9 @@ declare global {
     "honua-map-click": CustomEvent<HonuaMapClickDetail>;
     "honua-map-hover": CustomEvent<HonuaMapHoverDetail>;
     "honua-layer-visibility-change": CustomEvent<HonuaLayerVisibilityChangeDetail>;
+    "honua-layer-opacity-change": CustomEvent<HonuaLayerOpacityChangeDetail>;
+    "honua-layer-order-change": CustomEvent<HonuaLayerOrderChangeDetail>;
+    "honua-geocode-select": CustomEvent<HonuaGeocodeSelectDetail>;
     "honua-selection-change": CustomEvent<HonuaSelectionChangeDetail>;
     "honua-viewport-change": CustomEvent<HonuaViewportChangeDetail>;
     "honua-filter-change": CustomEvent<HonuaFilterChangeDetail>;

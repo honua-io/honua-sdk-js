@@ -115,6 +115,33 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
     this.#notify();
   }
 
+  public setLayerOpacity(layerId: string, opacity: number): void {
+    if (!Number.isFinite(opacity)) return;
+    const clamped = Math.min(1, Math.max(0, opacity));
+    if (!this.#state.layers.some((layer) => layer.id === layerId)) return;
+    this.#runtime?.setLayerOpacity?.(layerId, clamped);
+    this.#state = {
+      ...this.#state,
+      layers: this.#state.layers.map((layer) => (layer.id === layerId ? { ...layer, opacity: clamped } : layer)),
+    };
+    this.#notify();
+  }
+
+  public moveLayer(layerId: string, beforeId?: string): void {
+    if (layerId === beforeId) return;
+    const layers = this.#state.layers.map(copyLayerModel);
+    const fromIndex = layers.findIndex((layer) => layer.id === layerId);
+    if (fromIndex === -1) return;
+    const moved = layers.splice(fromIndex, 1)[0];
+    if (!moved) return;
+    const targetIndex = beforeId === undefined ? layers.length : layers.findIndex((layer) => layer.id === beforeId);
+    if (targetIndex === -1) return;
+    layers.splice(targetIndex, 0, moved);
+    this.#runtime?.moveLayer?.(layerId, beforeId);
+    this.#state = { ...this.#state, layers };
+    this.#notify();
+  }
+
   public setViewport(viewport: HonuaViewportState): void {
     this.#runtime?.setViewState(viewport);
     this.#state = {
@@ -485,14 +512,18 @@ export function createHonuaWebComponentControllerFromRuntime<T = Record<string, 
 }
 
 export function layersFromMapPackage(layers: readonly HonuaLayerSpecification[]): HonuaLayerModel[] {
-  return layers.map((layer) => ({
-    id: layer.id,
-    title: layerTitle(layer),
-    ...(layer.source ? { sourceId: layer.source } : {}),
-    type: layer.type,
-    visible: layer.layout?.visibility !== "none",
-    ...(layer.metadata ? { metadata: layer.metadata } : {}),
-  }));
+  return layers.map((layer) => {
+    const opacity = layerOpacity(layer);
+    return {
+      id: layer.id,
+      title: layerTitle(layer),
+      ...(layer.source ? { sourceId: layer.source } : {}),
+      type: layer.type,
+      visible: layer.layout?.visibility !== "none",
+      ...(opacity !== undefined ? { opacity } : {}),
+      ...(layer.metadata ? { metadata: layer.metadata } : {}),
+    };
+  });
 }
 
 export function legendFromMapPackage(
@@ -752,6 +783,14 @@ function layerTitle(layer: HonuaLayerSpecification): string {
 function layerColor(layer: HonuaLayerSpecification): string | undefined {
   const value = layer.paint?.["fill-color"] ?? layer.paint?.["circle-color"] ?? layer.paint?.["line-color"];
   return typeof value === "string" ? value : undefined;
+}
+
+/** Reads a literal numeric opacity from the layer's paint block (expressions are ignored). */
+function layerOpacity(layer: HonuaLayerSpecification): number | undefined {
+  const value =
+    layer.paint?.[`${layer.type}-opacity`] ??
+    (layer.type === "symbol" ? (layer.paint?.["icon-opacity"] ?? layer.paint?.["text-opacity"]) : undefined);
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : undefined;
 }
 
 function legendId(label: string, index: number): string {

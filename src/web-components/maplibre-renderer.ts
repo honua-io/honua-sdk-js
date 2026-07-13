@@ -72,6 +72,8 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
   #lastViewportKey: string | undefined;
   #syncingViewport = false;
   #layerVisibility = new Map<string, boolean>();
+  #layerOpacity = new Map<string, number>();
+  #layerOrderKey: string | undefined;
   #selectionTarget: HonuaFeatureStateEntry | undefined;
   #featureStates = new Map<string, HonuaFeatureStateEntry>();
   #state: HonuaWebComponentState<T> | undefined;
@@ -99,6 +101,8 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
     }
 
     this.#applyLayerVisibility(state);
+    this.#applyLayerOpacity(state);
+    this.#applyLayerOrder(state);
     this.#applyViewport(state);
     this.#applyFeatureStates(state.featureStates);
     this.#applySelection(state);
@@ -113,6 +117,8 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
     this.#map = undefined;
     this.#loadedPackageKey = undefined;
     this.#layerVisibility.clear();
+    this.#layerOpacity.clear();
+    this.#layerOrderKey = undefined;
     this.#featureStates.clear();
     this.#selectionTarget = undefined;
     this.#options.container.replaceChildren();
@@ -186,6 +192,8 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
     this.#map?.remove?.();
     this.#map = undefined;
     this.#layerVisibility.clear();
+    this.#layerOpacity.clear();
+    this.#layerOrderKey = undefined;
     this.#featureStates.clear();
     this.#selectionTarget = undefined;
     this.#options.container.replaceChildren();
@@ -315,6 +323,46 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
       this.#layerVisibility.set(layer.id, layer.visible);
       try {
         runtime.setLayerVisibility(layer.id, layer.visible);
+      } catch (error) {
+        this.#emitError(error);
+      }
+    }
+  }
+
+  #applyLayerOpacity(state: HonuaWebComponentState<T>): void {
+    const map = this.#map;
+    if (!map?.setPaintProperty) return;
+    for (const layer of state.layers) {
+      if (layer.opacity === undefined) continue;
+      const previous = this.#layerOpacity.get(layer.id);
+      if (previous === layer.opacity) continue;
+      this.#layerOpacity.set(layer.id, layer.opacity);
+      if (map.getLayer && !map.getLayer(layer.id)) continue;
+      for (const property of opacityPaintProperties(layer.type)) {
+        try {
+          map.setPaintProperty(layer.id, property, layer.opacity);
+        } catch (error) {
+          this.#emitError(error);
+        }
+      }
+    }
+  }
+
+  #applyLayerOrder(state: HonuaWebComponentState<T>): void {
+    const key = state.layers.map((layer) => layer.id).join(" ");
+    if (key === this.#layerOrderKey) return;
+    const isFirstApplication = this.#layerOrderKey === undefined;
+    this.#layerOrderKey = key;
+    // The initial state order matches the composed style order; skip the
+    // first pass so overlays are not hoisted above host-managed base layers
+    // until the user actually reorders something.
+    if (isFirstApplication) return;
+    const map = this.#map;
+    if (!map?.moveLayer) return;
+    for (const layer of state.layers) {
+      if (map.getLayer && !map.getLayer(layer.id)) continue;
+      try {
+        map.moveLayer(layer.id);
       } catch (error) {
         this.#emitError(error);
       }
@@ -470,6 +518,30 @@ function featureStateKey(target: HonuaFeatureStateEntry): string {
 
 function stableKey(value: unknown): string {
   return JSON.stringify(value);
+}
+
+/** Paint properties that carry a layer's overall opacity, by layer type. */
+function opacityPaintProperties(type: string | undefined): readonly string[] {
+  switch (type) {
+    case "fill":
+      return ["fill-opacity"];
+    case "line":
+      return ["line-opacity"];
+    case "circle":
+      return ["circle-opacity", "circle-stroke-opacity"];
+    case "symbol":
+      return ["icon-opacity", "text-opacity"];
+    case "raster":
+      return ["raster-opacity"];
+    case "background":
+      return ["background-opacity"];
+    case "fill-extrusion":
+      return ["fill-extrusion-opacity"];
+    case "heatmap":
+      return ["heatmap-opacity"];
+    default:
+      return [];
+  }
 }
 
 function viewportKey(viewport: HonuaViewportChangeDetail): string {

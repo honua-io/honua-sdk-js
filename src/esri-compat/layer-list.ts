@@ -4,6 +4,7 @@ import {
   resolveCompatEventBus,
   safeInvokeCompatListener,
 } from "./event-bus.js";
+import { HonuaWidgetHost } from "./widget-host.js";
 
 export interface LayerListCompatOptions {
   view?: unknown;
@@ -76,6 +77,15 @@ export class LayerListCompat {
   private readonly listenersByType: Map<LayerListEventTypeCompat, Set<LayerListListenerCompat>>;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
   private subscriptions: CompatEventSubscription[];
+  /**
+   * When a `container` is supplied and a DOM is present, the shim delegates
+   * its rendering to the app-platform `<honua-layer-list>` component through
+   * {@link HonuaWidgetHost} (issue #493 REQ-004): rows come from the shim's
+   * item model, and checkbox toggles route back through {@link toggle}.
+   * Headless usage keeps the state-model-only behavior.
+   */
+  private readonly widgetHost: HonuaWidgetHost | undefined;
+  private widgetHostBound = false;
 
   public constructor(options: LayerListCompatOptions = {}) {
     this.view = options.view;
@@ -91,6 +101,9 @@ export class LayerListCompat {
     this.listenersByType = new Map();
     this.watchListeners = new Map();
     this.subscriptions = [];
+    const widgetHost =
+      options.container != null ? new HonuaWidgetHost("honua-layer-list", options.container) : undefined;
+    this.widgetHost = widgetHost?.available ? widgetHost : undefined;
 
     if (this.autoRefresh) {
       this.subscriptions.push(this.eventBus.on("map.layer-added", () => this.refresh()));
@@ -161,6 +174,7 @@ export class LayerListCompat {
     const updateEvent: LayerListUpdatedEventCompat = { itemCount: this.items.length };
     this.eventBus.emit("layer-list.updated", updateEvent, this);
     this.emit("updated", updateEvent);
+    void this.renderWidgetHost();
     return this.items;
   }
 
@@ -245,6 +259,25 @@ export class LayerListCompat {
     }
     this.listenersByType.clear();
     this.watchListeners.clear();
+    this.widgetHost?.destroy();
+  }
+
+  /** Pushes the current items into the delegated `<honua-layer-list>` element. */
+  private async renderWidgetHost(): Promise<void> {
+    const host = this.widgetHost;
+    if (!host) return;
+    const rows = flattenLayerListItems(this.items);
+    await host.update((element) => {
+      if (!this.widgetHostBound) {
+        this.widgetHostBound = true;
+        (element as unknown as EventTarget).addEventListener("honua-layer-visibility-change", (event) => {
+          const detail = (event as CustomEvent<{ layerId?: string; visible?: boolean }>).detail;
+          if (detail?.layerId === undefined || typeof detail.visible !== "boolean") return;
+          this.toggle(detail.layerId, detail.visible);
+        });
+      }
+      element.layers = rows;
+    });
   }
 
   private findLayer(layerOrId: unknown | string | number): unknown {
@@ -287,6 +320,26 @@ export class LayerListCompat {
       safeInvokeCompatListener(listener, value);
     }
   }
+}
+
+/**
+ * Flattens the compat item tree (depth-first) into the flat row model the
+ * `<honua-layer-list>` component renders; child rows are indented in their
+ * title. Layer ids are stringified so `toggle(detail.layerId, ...)` resolves
+ * them again via {@link findLayerById}.
+ */
+function flattenLayerListItems(
+  items: readonly LayerListItemCompat[],
+  depth = 0,
+): { id: string; title: string; visible: boolean }[] {
+  return items.flatMap((item, index) => [
+    {
+      id: item.id !== undefined ? String(item.id) : `layer-${depth}-${index}`,
+      title: `${" ".repeat(depth)}${item.title}`,
+      visible: item.visible,
+    },
+    ...flattenLayerListItems(item.children, depth + 1),
+  ]);
 }
 
 function extractMapFromView(view: unknown): unknown {
