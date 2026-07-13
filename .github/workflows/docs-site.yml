@@ -23,6 +23,7 @@ on:
       - "scripts/check-docs-versions-site.mjs"
       - "scripts/docs-versions.mjs"
       - "scripts/generate-llms-txt.mjs"
+      - "scripts/generate-comparison-page.mjs"
       - ".github/workflows/docs-site.yml"
   workflow_dispatch:
 
@@ -60,6 +61,11 @@ jobs:
       # REQ-004: hosted docs, repo docs, and llms.txt cannot drift apart.
       - name: Verify llms.txt freshness (gate)
         run: npm run verify:llms
+
+      # Issue #499: the published comparison page never carries hand-edited
+      # or stale figures.
+      - name: Verify comparison page freshness (gate)
+        run: npm run docs:comparison:check
 
       - name: Verify documentation version manifest
         run: npm run docs:versions:check

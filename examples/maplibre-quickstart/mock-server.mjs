@@ -18,7 +18,7 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml",
 };
 
-const FIXTURE_BUILD_ENV = {
+export const FIXTURE_BUILD_ENV = {
   VITE_HONUA_QUICKSTART_BASE_URL: "",
   VITE_HONUA_QUICKSTART_SERVICE_ID: "natural-earth",
   VITE_HONUA_QUICKSTART_LAYER_ID: "0",
