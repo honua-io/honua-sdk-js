@@ -1,0 +1,45 @@
+{
+  "geocoding": {
+    "version": "0.2",
+    "attribution": "https://pelias.example.org/attribution",
+    "query": { "text": "honol", "size": 5 },
+    "engine": { "name": "Pelias", "author": "Mapzen", "version": "1.0" }
+  },
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-157.855676, 21.304547] },
+      "properties": {
+        "id": "85688837",
+        "gid": "whosonfirst:locality:85688837",
+        "layer": "locality",
+        "source": "whosonfirst",
+        "source_id": "85688837",
+        "name": "Honolulu",
+        "accuracy": "centroid",
+        "country": "United States",
+        "country_code": "US",
+        "region": "Hawaii",
+        "label": "Honolulu, HI, USA"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-157.967874, 21.458141] },
+      "properties": {
+        "id": "102085577",
+        "gid": "whosonfirst:county:102085577",
+        "layer": "county",
+        "source": "whosonfirst",
+        "source_id": "102085577",
+        "name": "Honolulu County",
+        "accuracy": "centroid",
+        "country": "United States",
+        "country_code": "US",
+        "region": "Hawaii",
+        "label": "Honolulu County, HI, USA"
+      }
+    }
+  ]
+}

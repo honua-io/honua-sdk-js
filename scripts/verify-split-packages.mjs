@@ -86,7 +86,8 @@ import {
   HonuaMapLayer,
   connect,
 } from "@honua/sdk";
-import { HonuaGeocodingClient } from "@honua/sdk/geocoding";
+import { HonuaGeocodingClient, nominatimGeocodingProvider } from "@honua/sdk/geocoding";
+import { osrmRoutingProvider, valhallaRoutingProvider } from "@honua/sdk/routing";
 import { oauth2, clientCredentials, apiKeyAuth, InMemoryCredentialStore } from "@honua/sdk/auth";
 import { HONUA_PLUGIN_MANIFEST_VERSION, validateHonuaPluginManifest } from "@honua/sdk/plugin";
 import {
@@ -127,6 +128,11 @@ import {
   executeAgentPlanStep,
 } from "@honua/sdk/agent-safety";
 import {
+  NL_MAP_PLAN_KIND,
+  createNlMapControl,
+  toNlMapControlMcpToolDefinitions,
+} from "@honua/sdk/nl-map-control";
+import {
   createHonuaApp,
   normalizeHonuaAppOptions,
 } from "@honua/app-platform/app";
@@ -166,7 +172,14 @@ import {
   REALTIME_DURABLE_CHECKPOINT_VERSION,
   createResumableRealtimeSubscription,
 } from "@honua/sdk/realtime";
-import { defineHonuaWebComponents } from "@honua/app-platform/web-components";
+import {
+  HonuaLayerListElement,
+  HonuaLegendElement as HonuaWebComponentLegendElement,
+  HonuaMeasurementElement,
+  HonuaSearchElement,
+  createHonuaWebComponentController,
+  defineHonuaWebComponents,
+} from "@honua/app-platform/web-components";
 import {
   HonuaBasemapStyleBinding,
   HonuaBasemapSwitcherElement,
@@ -212,6 +225,8 @@ import {
   GraphicsLayerCompat,
   GroupLayerCompat,
   HomeCompat,
+  HonuaWidgetHost,
+  registerHonuaWidgetKit,
   IdentifyCompat,
   identityManager,
   LayerListCompat,
@@ -294,6 +309,10 @@ if (typeof HonuaGeoprocessingService !== "function")
   throw new Error("HonuaGeoprocessingService export missing from @honua/sdk");
 if (typeof HonuaGeocodingClient !== "function")
   throw new Error("HonuaGeocodingClient export missing from @honua/sdk/geocoding");
+if (typeof nominatimGeocodingProvider !== "function")
+  throw new Error("nominatimGeocodingProvider export missing from @honua/sdk/geocoding");
+if (typeof osrmRoutingProvider !== "function" || typeof valhallaRoutingProvider !== "function")
+  throw new Error("routing provider exports missing from @honua/sdk/routing");
 if (typeof oauth2 !== "function" || typeof clientCredentials !== "function" || typeof apiKeyAuth !== "function")
   throw new Error("auth provider exports missing from @honua/sdk/auth");
 if (typeof InMemoryCredentialStore !== "function")
@@ -332,6 +351,10 @@ if (AGENT_CONSUMPTION_KIND !== "honua.agent-approval-consumption" || AGENT_SAFET
   throw new Error("agent safety consumption or hard-limit exports missing from @honua/sdk/agent-safety");
 if (AGENT_EXECUTION_AUDIT_KIND !== "honua.agent-execution-audit" || typeof executeAgentPlanStep !== "function")
   throw new Error("agent safety execution or audit exports missing from @honua/sdk/agent-safety");
+if (NL_MAP_PLAN_KIND !== "honua.nl-map-plan" || typeof createNlMapControl !== "function")
+  throw new Error("nl map-control exports missing from @honua/sdk/nl-map-control");
+if (toNlMapControlMcpToolDefinitions().length < 12)
+  throw new Error("nl map-control MCP tool publication missing from @honua/sdk/nl-map-control");
 if (typeof createHonuaApp !== "function")
   throw new Error("createHonuaApp export missing from @honua/sdk/app");
 if (typeof normalizeHonuaAppOptions !== "function")
@@ -392,6 +415,32 @@ if (HONUA_OFFLINE_REGION_VERSION !== "1.0" || typeof planOfflineRegionAdmission 
   throw new Error("offline region exports missing from @honua/sdk/offline");
 if (typeof defineHonuaWebComponents !== "function")
   throw new Error("defineHonuaWebComponents export missing from @honua/sdk/web-components");
+// Survival-tier widget set (issue #493): the four components plus the
+// controller layer-state extensions they bind to.
+for (const [name, ctor] of Object.entries({
+  HonuaWebComponentLegendElement,
+  HonuaLayerListElement,
+  HonuaSearchElement,
+  HonuaMeasurementElement,
+})) {
+  if (typeof ctor !== "function")
+    throw new Error(name + " export missing from @honua/app-platform/web-components");
+}
+{
+  const widgetController = createHonuaWebComponentController({
+    layers: [
+      { id: "base", title: "Base", visible: true },
+      { id: "overlay", title: "Overlay", visible: true },
+    ],
+  });
+  widgetController.setLayerOpacity("overlay", 0.4);
+  widgetController.moveLayer("base");
+  const widgetState = widgetController.getState();
+  if (widgetState.layers[1]?.id !== "base")
+    throw new Error("@honua/app-platform web-component controller moveLayer did not reorder layers");
+  if (widgetState.layers[0]?.opacity !== 0.4)
+    throw new Error("@honua/app-platform web-component controller setLayerOpacity did not apply");
+}
 if (typeof defineHonuaControls !== "function")
   throw new Error("defineHonuaControls export missing from @honua/sdk/controls");
 if (typeof HonuaBasemapSwitcherElement !== "function")
@@ -513,6 +562,17 @@ if (typeof GroupLayerCompat !== "function") throw new Error("GroupLayerCompat ex
 if (typeof IdentifyCompat !== "function") throw new Error("IdentifyCompat export missing");
 if (typeof LayerListCompat !== "function") throw new Error("LayerListCompat export missing");
 if (typeof LegendCompat !== "function") throw new Error("LegendCompat export missing");
+if (typeof HonuaWidgetHost !== "function") throw new Error("HonuaWidgetHost export missing");
+if (typeof registerHonuaWidgetKit !== "function")
+  throw new Error("registerHonuaWidgetKit export missing");
+{
+  // Headless (no DOM): the widget host must resolve to unavailable and its
+  // mount must no-op — this is the standalone esri-compat package posture.
+  const headlessHost = new HonuaWidgetHost("honua-legend", "some-container-id");
+  if (headlessHost.available) throw new Error("HonuaWidgetHost resolved a container without a DOM");
+  if ((await headlessHost.mount()) !== undefined)
+    throw new Error("HonuaWidgetHost mounted an element without a DOM");
+}
 if (typeof MapImageLayerCompat !== "function") throw new Error("MapImageLayerCompat export missing");
 if (typeof MapImageSublayerCompat !== "function") throw new Error("MapImageSublayerCompat export missing");
 if (typeof MapViewCompat !== "function") throw new Error("MapViewCompat export missing");
@@ -620,7 +680,16 @@ function runCommand(command, args, cwd) {
     cwd,
     encoding: "utf8",
     env: process.env,
+    // Node >=20.12 refuses to spawn .cmd shims (npm) without a shell
+    // (CVE-2024-27980); same pattern as examples/*/mock-server.mjs. Both
+    // commands ("npm", "node") and their arguments are static strings.
+    shell: process.platform === "win32",
   });
+
+  if (result.error) {
+    process.stderr.write(`${command} ${args.join(" ")} failed to start: ${result.error.message}\n`);
+    process.exit(1);
+  }
 
   if (result.status !== 0) {
     if (result.stdout) {

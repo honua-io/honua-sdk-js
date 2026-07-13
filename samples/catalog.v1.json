@@ -81,6 +81,23 @@
       "validation": ["npm run demo:edit-workflow:typecheck", "npm run demo:edit-workflow:build"]
     },
     {
+      "id": "endpoint-to-map",
+      "title": "Endpoint to map: the standalone data-to-map bridge",
+      "summary": "mountSource() turns a public FeatureServer into a styled, interactive MapLibre map in four statements.",
+      "tier": "recipe",
+      "supportStatus": "experimental",
+      "disposition": { "decision": "keep", "reason": "Headline proof of the data-to-map bridge (#496): connect() plus mountSource() with no MapPackage or server." },
+      "sourcePath": "examples/endpoint-to-map",
+      "docsPath": "examples/endpoint-to-map/README.md",
+      "capabilities": ["direct-connect", "map", "query"],
+      "protocols": ["geoservices"],
+      "renderers": ["maplibre"],
+      "data": { "mode": "hybrid", "authMode": "anonymous", "config": ["VITE_ENDPOINT_TO_MAP_BASEMAP_STYLE", "VITE_ENDPOINT_TO_MAP_MAX_FEATURES", "VITE_ENDPOINT_TO_MAP_URL"], "provenance": "Committed public-response fixture or public Esri Living Atlas endpoint.", "attribution": "Endpoint attribution shown in the sample.", "freshness": "Fixture retrieval metadata or live response time." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:endpoint-to-map:mock"] }, "live": { "status": "planned", "commands": ["npm run demo:endpoint-to-map"] } },
+      "expectedDegradation": "Strategy selection, overflow truncation, and capability gaps are reported through the mounted handle's diagnostics.",
+      "validation": ["npm run demo:endpoint-to-map:typecheck", "npm run demo:endpoint-to-map:build"]
+    },
+    {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
       "summary": "Runs forward, reverse, and suggestion workflows with map feedback.",
@@ -198,6 +215,23 @@
       "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:migration:featuretable"] }, "live": { "status": "executed", "commands": ["npm run demo:migration:featuretable:live"] } },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
       "validation": ["npm run demo:migration-workbench:typecheck", "npm run demo:migration-workbench:build"]
+    },
+    {
+      "id": "nl-map-control",
+      "title": "Natural-language map control",
+      "summary": "A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects.",
+      "tier": "advanced",
+      "supportStatus": "experimental",
+      "disposition": { "decision": "keep", "reason": "Headline proof of the plan-first NL map-control layer (#500): BYO LLM, approval envelopes, and execution receipts on a live MapLibre map." },
+      "sourcePath": "examples/nl-map-control",
+      "docsPath": "examples/nl-map-control/README.md",
+      "capabilities": ["agent-approval", "agent-planning", "agent-tools", "map", "receipts"],
+      "protocols": ["honua"],
+      "renderers": ["maplibre"],
+      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed recorded LLM completions and incident fixtures from test/fixtures/nl-map-control/.", "attribution": "Honua demo fixture attribution is shown in the sample.", "freshness": "Deterministic fixture replay time." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:nl-map-control:build"] }, "live": { "status": "planned", "commands": [] } },
+      "expectedDegradation": "Viewport and mutation plans refuse to execute without a verified approval envelope and report approval-required; the recorded LLM answers only the canned demo instructions.",
+      "validation": ["npm run demo:nl-map-control:typecheck", "npm run demo:nl-map-control:build"]
     },
     {
       "id": "node-backend-quickstart",

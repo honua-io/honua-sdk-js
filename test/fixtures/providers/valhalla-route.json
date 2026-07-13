@@ -1,0 +1,38 @@
+{
+  "trip": {
+    "locations": [
+      { "type": "break", "lat": 21.306, "lon": -157.858, "original_index": 0 },
+      { "type": "break", "lat": 21.262, "lon": -157.802, "original_index": 1 }
+    ],
+    "legs": [
+      {
+        "maneuvers": [],
+        "summary": {
+          "has_time_restrictions": false,
+          "min_lat": 21.262,
+          "min_lon": -157.858,
+          "max_lat": 21.306,
+          "max_lon": -157.802,
+          "time": 634.0,
+          "length": 9.215,
+          "cost": 700.5
+        },
+        "shape": "_hlsg@~k{alH~f^_uu@~tu@_uu@"
+      }
+    ],
+    "summary": {
+      "has_time_restrictions": false,
+      "min_lat": 21.262,
+      "min_lon": -157.858,
+      "max_lat": 21.306,
+      "max_lon": -157.802,
+      "time": 634.0,
+      "length": 9.215,
+      "cost": 700.5
+    },
+    "status_message": "Found route between points",
+    "status": 0,
+    "units": "kilometers",
+    "language": "en-US"
+  }
+}

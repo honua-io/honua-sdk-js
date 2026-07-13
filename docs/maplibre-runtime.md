@@ -18,6 +18,19 @@ writes, or duplicate query logic — `maplibre-gl` stays a peer
 dependency, edits flow through the existing adapters, and queries go
 through the contract's `Source` handles.
 
+## Standalone data-to-map bridge
+
+For the shortest path — any contract `Source` to a styled, interactive
+MapLibre layer set without a MapPackage, plan review, or Honua server — use
+`mountSource(map, source, options)` from `@honua/sdk-js/map`
+(`@experimental`). It selects bounded GeoJSON vs the dynamic query-tile path
+from capabilities plus a result-size heuristic, applies geometry-appropriate
+default styling, wires optional popups/hover, and returns one disposable
+handle with diff-updating `setFilter()`/`refresh()`. See the cookbook:
+[`docs/data-to-map-bridge.md`](./data-to-map-bridge.md). The plan-bound
+workflows below remain the right tool when you need fingerprinted plan
+review, provenance, and freshness policy.
+
 ## Accepted plan to native GeoJSON
 
 `@honua/sdk-js/map` includes the first production slice of the automatic

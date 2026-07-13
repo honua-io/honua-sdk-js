@@ -36,6 +36,28 @@ import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError }
 import { encodeServiceIdPath, trimTrailingSlashes } from "../core/path-utils.js";
 
 // ---------------------------------------------------------------------------
+// Provider-pluggable geocoding (experimental)
+// ---------------------------------------------------------------------------
+
+export type { ProviderTransportOptions } from "./provider-http.js";
+export type {
+  CapabilityPolicy,
+  GeocodingCapability,
+  GeocodingProvenance,
+  GeocodingProvider,
+  ProviderGeocodeMatch,
+  ProviderGeocodeOptions,
+  ProviderReverseMatch,
+  ProviderSuggestion,
+  ProviderSuggestOptions,
+} from "./provider.js";
+export { assertGeocodingCapability, supportsGeocodingCapability } from "./provider.js";
+export { type HonuaGeocodingProviderOptions, honuaGeocodingProvider } from "./providers/honua.js";
+export { type NominatimProviderOptions, nominatimGeocodingProvider } from "./providers/nominatim.js";
+export { type PeliasProviderOptions, peliasGeocodingProvider } from "./providers/pelias.js";
+export { type PhotonProviderOptions, photonGeocodingProvider } from "./providers/photon.js";
+
+// ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 

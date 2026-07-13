@@ -124,9 +124,19 @@ const SECTIONS = [
           "Bounded safe-agent plan normalization, signed approvals, authenticated single-use execution, secret-safe durable audit, MCP adaptation, and verifiable receipts.",
       },
       {
+        path: "docs/nl-map-control.md",
+        description:
+          "Natural-language map control: plan-first NL-to-plan compilation, BYO-LLM callback, agent-safety approval envelopes, receipts, and MCP/OpenAI tool publication.",
+      },
+      {
         path: "docs/decisions/north-star-sdk-application-kernel.md",
         description:
           "Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.",
+      },
+      {
+        path: "docs/geocoding-routing-providers.md",
+        description:
+          "Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) and routing (OSRM/Valhalla/Honua): setup, capability differences, and attribution/usage-policy obligations.",
       },
       {
         path: "docs/protocol-capability-matrix.md",
@@ -264,6 +274,11 @@ const ENTRYPOINTS = [
     fallback: "Bounded plan validation, signed approvals, atomic execution, secret-safe audit, and receipts.",
   },
   {
+    path: "src/nl-map-control/index.ts",
+    label: "@honua/sdk-js/nl-map-control",
+    fallback: "Natural language to inspectable map plans with BYO LLM, approval envelopes, and receipts.",
+  },
+  {
     path: "src/esri-compat-entry.ts",
     label: "@honua/sdk-js/esri-compat",
     fallback: "Esri ArcGIS JS-API compatibility wrappers (FeatureLayerCompat, MapViewCompat, ...).",
@@ -278,6 +293,11 @@ const ENTRYPOINTS = [
     path: "src/geocoding/index.ts",
     label: "@honua/sdk-js/geocoding",
     fallback: "HonuaGeocodingClient for forward / reverse geocoding and typeahead.",
+  },
+  {
+    path: "src/routing/index.ts",
+    label: "@honua/sdk-js/routing",
+    fallback: "Provider-pluggable routing: OSRM and Valhalla adapters plus the Honua facade bridge.",
   },
   {
     path: "src/expr/index.ts",

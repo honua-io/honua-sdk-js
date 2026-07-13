@@ -367,6 +367,8 @@ export type {
   CoordinateConversionResultCompat,
   CoordinateFormatCompat,
 } from "./esri-compat/coordinate-conversion.js";
+export { HonuaWidgetHost, registerHonuaWidgetKit } from "./esri-compat/widget-host.js";
+export type { HonuaWidgetHostElement, HonuaWidgetKitLike, HonuaWidgetKitSource } from "./esri-compat/widget-host.js";
 export { LayerListCompat } from "./esri-compat/layer-list.js";
 export type {
   LayerListActionCompat,

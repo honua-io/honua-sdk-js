@@ -81,12 +81,12 @@ test("web components compose map, layers, legend, table, search, and editor stat
     await page.getByLabel("Zoning districts").check();
     await expect(page.locator("honua-legend").getByText("Residential")).toBeVisible();
 
-    await page.locator("honua-search").getByRole("textbox", { name: "Search" }).fill("harbor");
+    await page.locator("#incident-search").getByRole("textbox", { name: "Search" }).fill("harbor");
     await page.keyboard.press("Enter");
     await expect(page.locator("#event-log")).toHaveText("search:harbor:1");
     await expect
       .poll(async () =>
-        page.locator("honua-search").evaluate((element) => element.shadowRoot?.activeElement?.id),
+        page.locator("#incident-search").evaluate((element) => element.shadowRoot?.activeElement?.id),
       )
       .toBe("honua-search-input");
     await page.getByRole("button", { name: "Harbor response district" }).click();
