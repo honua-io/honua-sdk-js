@@ -1,0 +1,235 @@
+// Generates docs/widget-survival-guide.md from the shared widget-disposition
+// data in src/migration/widget-dispositions.ts (built to dist/). The guide is
+// generated — do not edit it by hand. Usage:
+//
+//   node scripts/generate-widget-survival-guide.mjs write   # regenerate
+//   node scripts/generate-widget-survival-guide.mjs check   # fail on drift
+//
+// npm scripts: docs:widget-guide (build + write),
+//              docs:widget-guide:check / docs:widget-guide:verify.
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const OUTPUT_PATH = "docs/widget-survival-guide.md";
+const DATA_MODULE = "dist/src/migration/widget-dispositions.js";
+
+const DISPOSITION_LABELS = {
+  automated: "Automated",
+  "compat-shim": "Compat shim",
+  "app-platform": "App platform",
+  "maplibre-plugin": "MapLibre plugin",
+  "manual-workaround": "Manual workaround",
+  "no-equivalent": "No equivalent",
+};
+
+const DISPOSITION_DESCRIPTIONS = {
+  automated:
+    "The `honua-migrate` codemod deterministically rewrites the import and safe constructor call sites to a " +
+    "Honua compat shim from `@honua/sdk-esri-compat`. Unsafe option literals fall through to an annotated manual TODO.",
+  "compat-shim":
+    "A Honua compat shim exists and the codemod rewrites to it, but the widget carries a large interaction " +
+    "surface — treat the migration as assisted and verify app-specific behavior by hand.",
+  "app-platform":
+    "The capability is served by a Honua app-platform component rather than an SDK widget. " +
+    "(Reserved: no widget currently carries this disposition; rows may move here as the app platform matures.)",
+  "maplibre-plugin":
+    "The capability is served by a MapLibre control or community plugin wired up by hand. " +
+    "(Reserved: no widget currently carries this disposition; several `automated` rows note the MapLibre-native control underneath.)",
+  "manual-workaround":
+    "No drop-in replacement. The row documents an explicit, honest workaround that is real app work you own.",
+  "no-equivalent":
+    "No Honua or MapLibre surface reproduces the widget today. Apps that depend on it need a product decision, not a rewrite.",
+};
+
+export function generateWidgetSurvivalGuideMarkdown(data) {
+  const {
+    WIDGET_DISPOSITIONS,
+    WIDGET_DISPOSITION_KINDS,
+    WIDGET_DISPOSITION_DATA_VERSION,
+    ARCGIS_WIDGET_DEPRECATION_RELEASE,
+    ARCGIS_WIDGET_REMOVAL_RELEASE,
+    ARCGIS_WIDGET_REMOVAL_TIMEFRAME,
+    ARCGIS_WIDGET_INVENTORY_SOURCE,
+  } = data;
+
+  const widgets = [...WIDGET_DISPOSITIONS].sort((a, b) => a.widget.localeCompare(b.widget));
+  const countsByDisposition = new Map(WIDGET_DISPOSITION_KINDS.map((kind) => [kind, 0]));
+  for (const entry of widgets) {
+    countsByDisposition.set(entry.disposition, (countsByDisposition.get(entry.disposition) ?? 0) + 1);
+  }
+
+  const lines = [];
+  lines.push("<!-- GENERATED FILE - DO NOT EDIT.");
+  lines.push("     Source of truth: src/migration/widget-dispositions.ts");
+  lines.push("     Regenerate with: npm run docs:widget-guide -->");
+  lines.push("");
+  lines.push("# ArcGIS widget-removal survival guide");
+  lines.push("");
+  lines.push(
+    `Every classic ArcGIS JS SDK widget (\`esri/widgets/*\` / \`@arcgis/core/widgets/*\`) is deprecated as of ` +
+      `ArcGIS JS ${ARCGIS_WIDGET_DEPRECATION_RELEASE} and is removed at ${ARCGIS_WIDGET_REMOVAL_RELEASE} — ` +
+      `**${ARCGIS_WIDGET_REMOVAL_TIMEFRAME}**. If your app constructs any of these widgets, that code stops ` +
+      `compiling and running when you take the ${ARCGIS_WIDGET_REMOVAL_RELEASE} upgrade.`,
+  );
+  lines.push("");
+  lines.push(
+    "This guide answers, for each deprecated widget, what happens if you migrate to Honua/MapLibre instead of " +
+      "rewriting onto Esri's web components. Dispositions are deliberately honest — including " +
+      "\"no equivalent\" — in the spirit of [docs/migration-punch-list.md](./migration-punch-list.md).",
+  );
+  lines.push("");
+  lines.push(
+    `This document is generated from the versioned disposition data in ` +
+      `[\`src/migration/widget-dispositions.ts\`](../src/migration/widget-dispositions.ts) ` +
+      `(v${WIDGET_DISPOSITION_DATA_VERSION}); the \`honua-migrate\` widget scanner consumes the same data, so the ` +
+      `scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per ArcGIS ` +
+      `release against ${ARCGIS_WIDGET_INVENTORY_SOURCE} (${ARCGIS_WIDGET_DEPRECATION_RELEASE} deprecation list) ` +
+      `and updated manually.`,
+  );
+  lines.push("");
+  lines.push("## Scan your app first");
+  lines.push("");
+  lines.push("```bash");
+  lines.push("# Human-readable table (also: --json, --markdown, --gate <pct>, --report <file>)");
+  lines.push("npm run scan:arcgis:widgets -- ./src");
+  lines.push("```");
+  lines.push("");
+  lines.push(
+    "The report inventories every widget usage site (ESM imports, AMD `require([...])` arrays, and dynamic " +
+      "`$arcgis.import(...)` specifiers), joins each row to the disposition below, and emits an overall " +
+      "automated/assisted/manual split against the " +
+      `${ARCGIS_WIDGET_REMOVAL_RELEASE} removal deadline. \`--gate <pct>\` makes CI fail when the automated share ` +
+      "drops below the threshold.",
+  );
+  lines.push("");
+  lines.push("## Disposition taxonomy");
+  lines.push("");
+  for (const kind of WIDGET_DISPOSITION_KINDS) {
+    lines.push(`- **${DISPOSITION_LABELS[kind]}** (\`${kind}\`): ${DISPOSITION_DESCRIPTIONS[kind]}`);
+  }
+  lines.push("");
+  lines.push(
+    "Readiness buckets: `automated` counts as automated; `compat-shim`, `app-platform`, and " +
+      "`maplibre-plugin` count as assisted; `manual-workaround` and `no-equivalent` count as manual.",
+  );
+  lines.push("");
+  lines.push("## Summary");
+  lines.push("");
+  lines.push("| Disposition | Widgets |");
+  lines.push("| --- | --- |");
+  for (const kind of WIDGET_DISPOSITION_KINDS) {
+    lines.push(`| \`${kind}\` | ${countsByDisposition.get(kind)} |`);
+  }
+  lines.push(`| **Total** | **${widgets.length}** |`);
+  lines.push("");
+  lines.push("## Widget dispositions");
+  lines.push("");
+  lines.push("| Widget | ESM module | AMD module | Disposition | Target |");
+  lines.push("| --- | --- | --- | --- | --- |");
+  for (const entry of widgets) {
+    lines.push(
+      `| [${entry.widget}](#${data.widgetSurvivalGuideAnchor(entry.widget)}) | ${entry.esmModules
+        .map((moduleId) => `\`${moduleId}\``)
+        .join("<br>")} | ${entry.amdModules.map((moduleId) => `\`${moduleId}\``).join("<br>")} | \`${
+        entry.disposition
+      }\` | ${escapeTableCell(entry.target)} |`,
+    );
+  }
+  lines.push("");
+  lines.push("## Per-widget details");
+  lines.push("");
+  for (const entry of widgets) {
+    lines.push(`### ${entry.widget}`);
+    lines.push("");
+    lines.push(`- Disposition: \`${entry.disposition}\` (${DISPOSITION_LABELS[entry.disposition]})`);
+    lines.push(`- Modules: ${[...entry.esmModules, ...entry.amdModules].map((moduleId) => `\`${moduleId}\``).join(", ")}`);
+    lines.push(`- Target: ${entry.target}`);
+    if (entry.shimSource) {
+      lines.push(`- Compat shim source: [\`${entry.shimSource}\`](../${entry.shimSource})`);
+    }
+    lines.push(`- Notes: ${entry.notes}`);
+    lines.push("");
+  }
+  lines.push("## Out of scope");
+  lines.push("");
+  lines.push("These surfaces are intentionally **not** covered by the dispositions above:");
+  lines.push("");
+  lines.push(
+    "- **SceneView / 3D rendering.** Honua's `SceneViewCompat` shares 2D `MapView` behavior; WebGL/CesiumJS scene " +
+      "parity (environment, global viewing mode, scene layers, camera) is not implemented " +
+      "([punch list, parity gaps 1-2](./migration-punch-list.md)). The 3D analysis widgets above are therefore " +
+      "`no-equivalent` rather than shimmed.",
+  );
+  lines.push(
+    "- **Locator (geocoding tasks).** Only the `Search` widget's core flow is shimmed; the standalone `Locator` " +
+      "task surface (suggest/geocode customization, custom locators) needs its own Honua surface first " +
+      "([punch list, parity gap 3](./migration-punch-list.md)).",
+  );
+  lines.push(
+    "- **Geoprocessor / NetworkAnalyst beyond RouteTask.** Service-area, closest-facility, OD-cost-matrix, and " +
+      "general geoprocessing have no Honua equivalent yet; the scanner's `advanced-widget-or-networking-detected` " +
+      "flag calls these out separately ([punch list, parity gap 3](./migration-punch-list.md)).",
+  );
+  lines.push("");
+  lines.push("## Related reading");
+  lines.push("");
+  lines.push("- [Migration punch list](./migration-punch-list.md) — the honest parity/codemod accounting.");
+  lines.push("- [Honua ⇄ MapLibre migration notes](./migration-honua-maplibre.md) — the `honua-maplibre` codemod target.");
+  lines.push("- [SDK guide: Migration CLI](./guide.md#migration-cli) — every `honua-migrate` subcommand.");
+  return `${lines.join("\n").replace(/\s+$/, "")}\n`;
+}
+
+function escapeTableCell(value) {
+  return value.replace(/\|/g, "\\|");
+}
+
+export function validateGuideLinks(markdown, sourcePath, projectRoot = ROOT) {
+  const failures = [];
+  for (const match of markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+    const href = match[1];
+    if (/^(?:https?:|mailto:|#)/.test(href)) continue;
+    const target = href.split("#", 1)[0];
+    const absolute = path.resolve(projectRoot, path.dirname(sourcePath), target);
+    if (!fs.existsSync(absolute)) failures.push(`${sourcePath}: broken internal link ${href}`);
+  }
+  if (failures.length > 0) throw new Error(failures.join("\n"));
+}
+
+async function main() {
+  const command = process.argv[2] ?? "check";
+  if (!["check", "write"].includes(command)) throw new Error(`unknown command: ${command}`);
+
+  const dataModulePath = path.join(ROOT, DATA_MODULE);
+  if (!fs.existsSync(dataModulePath)) {
+    throw new Error(`${DATA_MODULE} is missing; run npm run build first (or use npm run docs:widget-guide)`);
+  }
+  const data = await import(pathToFileURL(dataModulePath).href);
+  const generated = generateWidgetSurvivalGuideMarkdown(data);
+  validateGuideLinks(generated, OUTPUT_PATH);
+
+  const outputFile = path.join(ROOT, OUTPUT_PATH);
+  if (command === "write") {
+    fs.mkdirSync(path.dirname(outputFile), { recursive: true });
+    fs.writeFileSync(outputFile, generated, "utf8");
+  } else {
+    const current = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, "utf8") : "";
+    // Normalize line endings so Windows checkouts (core.autocrlf) do not
+    // report false drift against the generator's LF output.
+    if (current.replace(/\r\n/g, "\n") !== generated) {
+      throw new Error(`${OUTPUT_PATH} has drifted; run npm run docs:widget-guide`);
+    }
+  }
+  process.stdout.write(
+    `${command === "write" ? "Generated" : "Verified"} ${OUTPUT_PATH} from ${data.WIDGET_DISPOSITIONS.length} widget dispositions (data v${data.WIDGET_DISPOSITION_DATA_VERSION})\n`,
+  );
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
+    process.exit(1);
+  });
+}
