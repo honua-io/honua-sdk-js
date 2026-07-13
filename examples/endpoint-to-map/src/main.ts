@@ -10,8 +10,9 @@ const config = resolveEndpointToMapConfig(import.meta.env as Record<string, stri
 
 /**
  * The headline workflow — public endpoint to a styled, interactive map.
- * Four statements / ten formatted lines of application code; everything
- * below `endpointToMap()` is demo-shell chrome (status panel, filter UI).
+ * Four statements of application code (13 physical lines at this file's
+ * 120-column formatting); everything below `endpointToMap()` is demo-shell
+ * chrome (status panel, filter UI).
  */
 async function endpointToMap(): Promise<MountedSource> {
   // ── headline start ──────────────────────────────────────────────

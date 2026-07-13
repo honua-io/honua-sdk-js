@@ -7,10 +7,11 @@ account**.
 
 ## The headline code
 
-The entire application workflow is **4 statements (10 formatted lines)** —
-counted from `src/main.ts` between the `headline start` / `headline end`
-markers; imports and the demo shell (status panel, filter dropdown) are not
-part of the workflow:
+The entire application workflow is **4 statements — 9 lines as printed
+below** (13 physical lines in the committed `src/main.ts`, where the repo's
+120-column formatter wraps the `connect()` call). It is counted between the
+`headline start` / `headline end` markers; imports and the demo shell
+(status panel, filter dropdown) are not part of the workflow:
 
 ```ts doc-test=skip reason="excerpt of src/main.ts; the runnable app is typechecked by demo:endpoint-to-map:typecheck"
 const map = new maplibregl.Map({ container: "map", style: config.basemapStyle, center: [-98, 39], zoom: 3 });
