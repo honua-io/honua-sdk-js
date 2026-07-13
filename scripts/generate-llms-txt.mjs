@@ -190,6 +190,11 @@ const SECTIONS = [
     title: "Map runtime",
     entries: [
       {
+        path: "docs/renderers.md",
+        description:
+          "First-class renderer objects (classBreaks/uniqueValue/heatmap/cluster) with legend contracts, bridge integration, and temporal playback.",
+      },
+      {
         path: "docs/maplibre-runtime.md",
         description: "loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.",
       },

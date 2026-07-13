@@ -277,6 +277,12 @@ export type {
   UniqueValueRendererLoadStatusCompat,
   UniqueValueRendererCompatOptions,
 } from "./esri-compat/unique-value-renderer.js";
+// First-class renderer object emission (issue #497). All @experimental.
+export {
+  rendererObjectFromClassBreaksCompat,
+  rendererObjectFromUniqueValueCompat,
+} from "./esri-compat/renderer-objects.js";
+export type { CompatRendererProjection } from "./esri-compat/renderer-objects.js";
 export { GroupLayerCompat } from "./esri-compat/group-layer.js";
 export type {
   GroupLayerCompatOptions,

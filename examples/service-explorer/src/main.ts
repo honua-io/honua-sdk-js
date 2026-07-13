@@ -16,6 +16,7 @@ import {
   syncMapLayerFilterToExploration,
 } from "@honua/sdk-js/interactions";
 import type { FeatureStateMap, InteractiveMap, LinkedViewQueryProjection } from "@honua/sdk-js/interactions";
+import { uniqueValueRenderer } from "@honua/sdk-js/style";
 import maplibregl from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 
@@ -64,6 +65,18 @@ declare global {
 
 const MAP_LAYER_ID = "service-explorer-points";
 const MAP_LABEL_LAYER_ID = "service-explorer-labels";
+
+/** Incident priority styling as a first-class renderer object (issue #497). */
+const priorityRenderer = uniqueValueRenderer({
+  field: "priority",
+  values: [
+    { value: "high", color: "#b91c1c", label: "High priority" },
+    { value: "medium", color: "#2563eb", label: "Medium priority" },
+    { value: "low", color: "#0f766e", label: "Low priority" },
+  ],
+  defaultColor: "#334155",
+  defaultLabel: "Unclassified",
+});
 
 const DEFAULT_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -464,24 +477,18 @@ async function createMap(dataset: ServiceExplorerDataset): Promise<maplibregl.Ma
           type: "geojson",
           data: serviceExplorerFeatureCollection(dataset.featureSummaries) as never,
         });
+        // First-class renderer object (issue #497): the priority categories
+        // compile to the same MapLibre match expression the demo used to
+        // hand-write, and the legend derives from renderer.legendItems().
+        const [priorityFragment] = priorityRenderer.toMapLibre("point");
         map.addLayer({
           id: MAP_LAYER_ID,
           source: dataset.sourceId,
           type: "circle",
           filter: ["==", "$type", "Point"],
           paint: {
+            ...priorityFragment.paint,
             "circle-radius": ["case", ["boolean", ["feature-state", "selected"], false], 12, 7],
-            "circle-color": [
-              "match",
-              ["get", "priority"],
-              "high",
-              "#b91c1c",
-              "medium",
-              "#2563eb",
-              "low",
-              "#0f766e",
-              "#334155",
-            ],
             "circle-stroke-color": ["case", ["boolean", ["feature-state", "selected"], false], "#111827", "#ffffff"],
             "circle-stroke-width": ["case", ["boolean", ["feature-state", "selected"], false], 4, 2],
             "circle-opacity": ["case", ["==", ["get", "status"], "resolved"], 0.45, 0.9],

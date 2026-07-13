@@ -33,7 +33,8 @@
     "/contract min was reset for edit-sketch snapping (#491): the renderer-neutral SnapIndex packed grid, deterministic candidate resolution, and edit-session invalidation hooks measure 243,020 minified bytes (gzip stayed under its existing ceiling); the ceiling is measured actual plus ~10% headroom.",
     "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom.",
     "/geocoding was reset for the provider-pluggable geocoding interface (#495): the GeocodingProvider contract plus Nominatim/Photon/Pelias/Honua adapters with capability declarations and attribution provenance measure 12,775 minified / 4,023 gzip bytes; the ceiling is measured actual plus ~10% headroom. /routing gained its first dedicated guard in the same change (RoutingProvider contract, OSRM/Valhalla adapters, polyline decoding, esri-compat bridge) at 6,124 minified / 2,491 gzip bytes; the entrypoint is subpath-only and stays out of the root/browser barrels, which are unchanged.",
-    "/map was reset for the standalone data-to-map bridge (#496): mountSource/explainDataToMapStrategy add capability+result-size strategy selection, geometry-default styling, popup/hover wiring, and reuse of the dynamic query-tile spec builders (contract/tiles + runtime/query-tiles) on the entrypoint. Measured 139,458 minified / 38,686 gzip — the gzip growth over the prior 31.2 KiB actual is ~6.5 KiB, and the measured size stays under the prior ceiling plus the 4 KiB gzip allowance granted by #496 NFR-001 (35,055 + 4,096 = 39,151). Ceilings are measured actual plus ~10% headroom."
+    "/map was reset for the standalone data-to-map bridge (#496): mountSource/explainDataToMapStrategy add capability+result-size strategy selection, geometry-default styling, popup/hover wiring, and reuse of the dynamic query-tile spec builders (contract/tiles + runtime/query-tiles) on the entrypoint. Measured 139,458 minified / 38,686 gzip — the gzip growth over the prior 31.2 KiB actual is ~6.5 KiB, and the measured size stays under the prior ceiling plus the 4 KiB gzip allowance granted by #496 NFR-001 (35,055 + 4,096 = 39,151). Ceilings are measured actual plus ~10% headroom.",
+    "/style and /webmap were reset for first-class renderer objects (#497): the /style entrypoint gains the classBreaks/uniqueValue/heatmap/cluster renderer factories, legend contracts, and the shared /expr-based compiler (measured 47,836 minified / 11,551 gzip; gzip growth over the prior actual is ~3 KiB, within the 6 KiB NFR-001 allowance); /webmap now emits renderer objects and compiles through the same single implementation, adding the shared compiler to its bundle (measured 25,383 minified / 7,705 gzip). Each ceiling is measured actual plus ~10% headroom."
   ],
   "entrypoints": {
     ".": {
@@ -85,8 +86,8 @@
       "gzip": 2717
     },
     "/webmap": {
-      "min": 21998,
-      "gzip": 6678
+      "min": 27922,
+      "gzip": 8476
     },
     "/geocoding": {
       "min": 14053,
@@ -101,8 +102,8 @@
       "gzip": 4109
     },
     "/style": {
-      "min": 40820,
-      "gzip": 9341
+      "min": 52620,
+      "gzip": 12707
     },
     "/map": {
       "min": 153404,
