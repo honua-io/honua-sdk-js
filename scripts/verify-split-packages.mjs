@@ -220,6 +220,7 @@ import {
   GroupLayerCompat,
   HomeCompat,
   HonuaWidgetHost,
+  registerHonuaWidgetKit,
   IdentifyCompat,
   identityManager,
   LayerListCompat,
@@ -548,6 +549,8 @@ if (typeof IdentifyCompat !== "function") throw new Error("IdentifyCompat export
 if (typeof LayerListCompat !== "function") throw new Error("LayerListCompat export missing");
 if (typeof LegendCompat !== "function") throw new Error("LegendCompat export missing");
 if (typeof HonuaWidgetHost !== "function") throw new Error("HonuaWidgetHost export missing");
+if (typeof registerHonuaWidgetKit !== "function")
+  throw new Error("registerHonuaWidgetKit export missing");
 {
   // Headless (no DOM): the widget host must resolve to unavailable and its
   // mount must no-op — this is the standalone esri-compat package posture.

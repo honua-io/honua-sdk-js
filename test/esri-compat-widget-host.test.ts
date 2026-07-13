@@ -1,16 +1,24 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { LayerListCompat } from "../src/esri-compat/layer-list.js";
 import { LegendCompat } from "../src/esri-compat/legend.js";
-import { HonuaWidgetHost } from "../src/esri-compat/widget-host.js";
+import { HonuaWidgetHost, registerHonuaWidgetKit } from "../src/esri-compat/widget-host.js";
 
 /**
  * esri-compat widget delegation (issue #493 REQ-004): Legend / LayerList
  * shims constructed with a `container` render through the survival-tier
  * `<honua-legend>` / `<honua-layer-list>` components via `HonuaWidgetHost`.
+ *
+ * The kit is injected by the application (`registerHonuaWidgetKit`) — the
+ * compat entrypoint never imports it, keeping the /esri-compat bundle budget
+ * intact. These suites register a lazy loader up front, matching app wiring.
  */
+
+beforeAll(() => {
+  registerHonuaWidgetKit(() => import("../src/web-components/index.js"));
+});
 
 async function until(predicate: () => boolean, timeoutMs = 3000): Promise<void> {
   const start = Date.now();
@@ -30,6 +38,36 @@ function makeContainer(): HTMLElement {
 describe("HonuaWidgetHost", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
+  });
+
+  it("stays headless while no kit is registered, and picks up a later registration", async () => {
+    registerHonuaWidgetKit(undefined);
+    try {
+      const container = makeContainer();
+      const host = new HonuaWidgetHost("honua-legend", container);
+      expect(host.available).toBe(true);
+      expect(await host.mount()).toBeUndefined();
+      expect(container.children).toHaveLength(0);
+
+      // Late registration (the app wires the kit after the shim exists).
+      registerHonuaWidgetKit(() => import("../src/web-components/index.js"));
+      const element = await host.mount();
+      expect(element?.tagName.toLowerCase()).toBe("honua-legend");
+    } finally {
+      registerHonuaWidgetKit(() => import("../src/web-components/index.js"));
+    }
+  });
+
+  it("stays headless when the registered loader throws", async () => {
+    registerHonuaWidgetKit(() => {
+      throw new Error("kit unavailable");
+    });
+    try {
+      const host = new HonuaWidgetHost("honua-legend", makeContainer());
+      expect(await host.mount()).toBeUndefined();
+    } finally {
+      registerHonuaWidgetKit(() => import("../src/web-components/index.js"));
+    }
   });
 
   it("resolves containers from elements and ids, and mounts the component", async () => {

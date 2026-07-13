@@ -5,15 +5,31 @@
  * renders through the shared component set instead of shim-only markup
  * (issue #493, REQ-004).
  *
+ * The host **never imports the web-component kit** — not even dynamically:
+ * the `/esri-compat` entrypoint is bundle-budgeted, and any intra-package
+ * import (static or `import()`) would pull the whole kit plus its geometry
+ * closure into every compat bundle. Instead the application injects the kit
+ * once via {@link registerHonuaWidgetKit}:
+ *
+ * ```ts doc-test=skip reason="wiring snippet requires an application host"
+ * import { registerHonuaWidgetKit } from "@honua/sdk-esri-compat";
+ *
+ * // Eager (module object) or lazy (loader) — both work:
+ * registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+ * ```
+ *
  * The host is deliberately defensive:
  *
  * - It resolves the ArcGIS-style `container` option (an `HTMLElement` or an
  *   element id) only when a DOM is present; headless (Node) shim usage keeps
  *   working with no DOM side effects.
- * - The web-component kit is loaded with a **dynamic** import. The published
- *   `@honua/sdk-esri-compat` split package does not ship the web-component
- *   sources, so there the mount quietly no-ops and the shims stay
- *   state-model-only — exactly their pre-delegation behavior.
+ * - Without a registered kit — the default, and the only possibility in the
+ *   standalone `@honua/sdk-esri-compat` split package unless the app installs
+ *   the kit — mounting quietly no-ops and the shims stay state-model-only,
+ *   exactly their pre-delegation behavior.
+ * - The delegation tag must be owned by the kit's own element class; a
+ *   foreign registrant (e.g. the controls kit's `honua-legend`, which has a
+ *   different `entries` API) also falls back to the headless behavior.
  *
  * @module
  */
@@ -30,11 +46,40 @@ export interface HonuaWidgetHostElement extends HTMLElement {
   [key: string]: unknown;
 }
 
+/**
+ * Structural slice of the `@honua/sdk-js/web-components` module the host
+ * needs: the element classes (to verify tag ownership) and the registration
+ * helper. Passing the whole module object satisfies this interface.
+ */
+export interface HonuaWidgetKitLike {
+  HonuaLegendElement?: CustomElementConstructor;
+  HonuaLayerListElement?: CustomElementConstructor;
+  HonuaSearchElement?: CustomElementConstructor;
+  HonuaMeasurementElement?: CustomElementConstructor;
+  defineHonuaWebComponents?: (registry?: CustomElementRegistry) => void;
+}
+
+/** A kit module object, or a (possibly async) loader for one. */
+export type HonuaWidgetKitSource = HonuaWidgetKitLike | (() => HonuaWidgetKitLike | Promise<HonuaWidgetKitLike>);
+
+let widgetKitSource: HonuaWidgetKitSource | undefined;
+
+/**
+ * Injects the web-component kit that {@link HonuaWidgetHost} delegates to.
+ * Call once from application code with the `@honua/sdk-js/web-components`
+ * (or `@honua/app-platform/web-components`) module — eagerly or as a lazy
+ * loader. Pass `undefined` to unregister (shims return to headless mode).
+ */
+export function registerHonuaWidgetKit(source: HonuaWidgetKitSource | undefined): void {
+  widgetKitSource = source;
+}
+
 export class HonuaWidgetHost {
   readonly #tagName: string;
   readonly #container: HTMLElement | undefined;
   #element: HonuaWidgetHostElement | undefined;
   #kitLoad: Promise<boolean> | undefined;
+  #kitLoadSource: HonuaWidgetKitSource | undefined;
 
   public constructor(tagName: string, container: unknown) {
     this.#tagName = tagName;
@@ -52,10 +97,10 @@ export class HonuaWidgetHost {
   }
 
   /**
-   * Ensures the web-component kit is registered and the element is mounted
-   * into the container. Returns the element, or `undefined` when no DOM /
-   * container / kit is available (headless shims, the standalone esri-compat
-   * split package).
+   * Ensures the injected web-component kit is registered and the element is
+   * mounted into the container. Returns the element, or `undefined` when no
+   * DOM / container / kit is available (headless shims, or an application
+   * that never called {@link registerHonuaWidgetKit}).
    */
   public async mount(): Promise<HonuaWidgetHostElement | undefined> {
     const container = this.#container;
@@ -86,39 +131,51 @@ export class HonuaWidgetHost {
   }
 
   #loadKit(): Promise<boolean> {
-    this.#kitLoad ??= (async () => {
-      let kit: Record<string, unknown>;
-      try {
-        // Dynamic so the esri-compat split package (which does not ship the
-        // web-component sources) degrades to the headless shim behavior.
-        kit = (await import("../web-components/index.js")) as unknown as Record<string, unknown>;
-      } catch {
-        return false;
-      }
-      // The tag must be owned by the web-components kit's own class. Another
-      // registrant can win the tag (e.g. the controls kit registers its own
-      // `honua-legend` with a different `entries` API when imported first);
-      // mounting that element and assigning the web-components properties
-      // would render nothing, so fall back to the headless shim behavior.
-      const expected = expectedKitConstructor(kit, this.#tagName);
-      const registered = globalDom.customElements?.get(this.#tagName);
-      return expected !== undefined && registered === expected;
-    })();
+    const source = widgetKitSource;
+    // No kit injected (yet): stay headless without caching, so a later
+    // registerHonuaWidgetKit call is picked up by the next refresh.
+    if (!source) return Promise.resolve(false);
+    if (!this.#kitLoad || this.#kitLoadSource !== source) {
+      this.#kitLoadSource = source;
+      this.#kitLoad = (async () => {
+        let kit: HonuaWidgetKitLike;
+        try {
+          kit = typeof source === "function" ? await source() : source;
+          // Importing the kit module registers the elements as a side effect;
+          // calling the helper again is an if-missing no-op, but covers kits
+          // handed over as plain objects in scoped-registry setups.
+          kit.defineHonuaWebComponents?.();
+        } catch {
+          return false;
+        }
+        // The tag must be owned by the kit's own class. Another registrant
+        // can win the tag (e.g. the controls kit registers its own
+        // `honua-legend` with a different `entries` API when imported first);
+        // mounting that element and assigning the web-components properties
+        // would render nothing, so fall back to the headless shim behavior.
+        const expected = expectedKitConstructor(kit, this.#tagName);
+        const registered = globalDom.customElements?.get(this.#tagName);
+        return expected !== undefined && registered === expected;
+      })();
+    }
     return this.#kitLoad;
   }
 }
 
 /** Resolves the web-components kit class that must own `tagName` for delegation. */
-function expectedKitConstructor(kit: Record<string, unknown>, tagName: string): CustomElementConstructor | undefined {
-  const exportName = {
-    "honua-legend": "HonuaLegendElement",
-    "honua-layer-list": "HonuaLayerListElement",
-    "honua-search": "HonuaSearchElement",
-    "honua-measurement": "HonuaMeasurementElement",
-  }[tagName];
-  if (!exportName) return undefined;
-  const ctor = kit[exportName];
-  return typeof ctor === "function" ? (ctor as CustomElementConstructor) : undefined;
+function expectedKitConstructor(kit: HonuaWidgetKitLike, tagName: string): CustomElementConstructor | undefined {
+  switch (tagName) {
+    case "honua-legend":
+      return kit.HonuaLegendElement;
+    case "honua-layer-list":
+      return kit.HonuaLayerListElement;
+    case "honua-search":
+      return kit.HonuaSearchElement;
+    case "honua-measurement":
+      return kit.HonuaMeasurementElement;
+    default:
+      return undefined;
+  }
 }
 
 function resolveContainer(container: unknown): HTMLElement | undefined {

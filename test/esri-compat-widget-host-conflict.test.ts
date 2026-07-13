@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { LegendCompat } from "../src/esri-compat/legend.js";
-import { HonuaWidgetHost } from "../src/esri-compat/widget-host.js";
+import { HonuaWidgetHost, registerHonuaWidgetKit } from "../src/esri-compat/widget-host.js";
 
 /**
  * Widget-host tag-ownership verification (PR #506 review): when another
@@ -13,9 +13,13 @@ import { HonuaWidgetHost } from "../src/esri-compat/widget-host.js";
  * into it; it falls back to the headless shim behavior instead.
  *
  * This lives in its own test file so the jsdom custom-element registry is
- * fresh: the foreign class must win the tag before the web-components kit is
- * ever imported.
+ * fresh: the foreign class must win the tag before the injected kit loader is
+ * ever executed.
  */
+
+beforeAll(() => {
+  registerHonuaWidgetKit(() => import("../src/web-components/index.js"));
+});
 
 class ForeignLegendElement extends HTMLElement {}
 
