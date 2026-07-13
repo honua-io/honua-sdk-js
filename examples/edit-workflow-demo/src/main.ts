@@ -1,4 +1,11 @@
-import type { EditAttachmentMutation, EditWorkflowField, FeatureId } from "@honua/sdk-js/contract";
+import {
+  type EditAttachmentMutation,
+  type EditWorkflowField,
+  type FeatureId,
+  type SnapResolution,
+  createSnapIndex,
+  resolveSnapCandidate,
+} from "@honua/sdk-js/contract";
 import { createEditWorkflowDemoSession } from "./model.js";
 import type {
   EditWorkflowDemoSession,
@@ -11,6 +18,15 @@ import type {
 
 import "./styles.css";
 
+interface EditWorkflowDemoSnapProbeResult {
+  snapped: boolean;
+  kind?: string;
+  sourceId?: string;
+  featureId?: FeatureId;
+  x?: number;
+  y?: number;
+}
+
 interface EditWorkflowDemoRuntime {
   readonly ready: boolean;
   readonly visibleCount: number;
@@ -18,6 +34,7 @@ interface EditWorkflowDemoRuntime {
   submitDraft(): Promise<string>;
   forceConflict(): void;
   exportWorkspace(): string;
+  snapProbe(xPercent: number, yPercent: number): EditWorkflowDemoSnapProbeResult;
 }
 
 declare global {
@@ -29,6 +46,77 @@ declare global {
 const session = createEditWorkflowDemoSession();
 let ready = false;
 let workspaceExport = "";
+
+// ── Snapping ────────────────────────────────────────────────
+// The demo map is a 100x100 percent plane; visible inspection features are
+// vertex snap sources and a fixed harbor corridor provides edge snapping.
+
+const SNAP_TOLERANCE_PX = 18;
+const SNAP_CORRIDOR: readonly [number, number][] = [
+  [8, 78],
+  [92, 78],
+];
+const snapIndex = createSnapIndex();
+
+function refreshSnapIndex(): void {
+  snapIndex.setSourceFeatures(
+    "inspections",
+    session.visibleFeatures().map((feature) => ({
+      id: feature.id,
+      geometry: { type: "Point", coordinates: [feature.mapPosition.x, feature.mapPosition.y] },
+    })),
+  );
+  snapIndex.setSourceFeatures("corridors", [
+    { id: "harbor-corridor", geometry: { type: "LineString", coordinates: SNAP_CORRIDOR.map((c) => [...c]) } },
+  ]);
+}
+
+function resolveSnapAt(xPercent: number, yPercent: number): SnapResolution {
+  const rect = getElement<HTMLElement>("#map-surface").getBoundingClientRect();
+  const width = rect.width || 640;
+  const height = rect.height || 360;
+  const project = (position: readonly [number, number]) => ({
+    x: (position[0] / 100) * width,
+    y: (position[1] / 100) * height,
+  });
+  return resolveSnapCandidate(
+    snapIndex,
+    { point: project([xPercent, yPercent]), position: [xPercent, yPercent], project },
+    { enabled: true, tolerance: SNAP_TOLERANCE_PX },
+  );
+}
+
+function describeSnap(resolution: SnapResolution): string {
+  const candidate = resolution.candidate;
+  if (!candidate) return "No snap target";
+  const target =
+    candidate.sourceId === "inspections"
+      ? (session.visibleFeatures().find((feature) => feature.id === candidate.featureId)?.title ??
+        String(candidate.featureId))
+      : "harbor corridor";
+  return `${candidate.kind} → ${target} @ ${candidate.position[0].toFixed(1)}, ${candidate.position[1].toFixed(1)}`;
+}
+
+function renderSnap(resolution: SnapResolution | undefined): void {
+  const status = getElement<HTMLElement>("#snap-status");
+  status.dataset.snapped = resolution?.snapped ? "true" : "false";
+  status.textContent = resolution ? describeSnap(resolution) : "Snapping ready";
+  const surface = getElement<HTMLElement>("#map-surface");
+  let indicator = surface.querySelector<HTMLElement>(".snap-indicator");
+  const candidate = resolution?.candidate;
+  if (!candidate) {
+    indicator?.remove();
+    return;
+  }
+  if (!indicator) {
+    indicator = document.createElement("div");
+    indicator.className = "snap-indicator";
+    surface.appendChild(indicator);
+  }
+  indicator.dataset.kind = candidate.kind;
+  indicator.style.left = `${candidate.position[0]}%`;
+  indicator.style.top = `${candidate.position[1]}%`;
+}
 
 function getElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -57,6 +145,7 @@ function titleCase(value: string): string {
 }
 
 function render(): void {
+  refreshSnapIndex();
   renderStatus();
   renderControls();
   renderReadiness();
@@ -430,6 +519,15 @@ function wireEvents(): void {
     workspaceExport = session.exportWorkspace();
     renderExport();
   });
+  const mapSurface = getElement<HTMLElement>("#map-surface");
+  mapSurface.addEventListener("mousemove", (event) => {
+    const rect = mapSurface.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
+    const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
+    renderSnap(resolveSnapAt(xPercent, yPercent));
+  });
+  mapSurface.addEventListener("mouseleave", () => renderSnap(undefined));
 }
 
 wireEvents();
@@ -459,5 +557,21 @@ window.__HONUA_EDIT_WORKFLOW_DEMO__ = {
     workspaceExport = session.exportWorkspace();
     renderExport();
     return workspaceExport;
+  },
+  snapProbe(xPercent, yPercent) {
+    refreshSnapIndex();
+    const resolution = resolveSnapAt(xPercent, yPercent);
+    renderSnap(resolution);
+    const candidate = resolution.candidate;
+    return candidate
+      ? {
+          snapped: true,
+          kind: candidate.kind,
+          sourceId: candidate.sourceId,
+          featureId: candidate.featureId,
+          x: candidate.position[0],
+          y: candidate.position[1],
+        }
+      : { snapped: false };
   },
 };

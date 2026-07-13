@@ -1,4 +1,6 @@
+import type { SnappingConfig } from "../contract/edit-snapping.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { type SnappingOptionsCompat, snappingOptionsToSnappingConfig } from "./snapping.js";
 
 export type SketchCreationModeCompat = "single" | "update" | "continuous";
 export type SketchToolCompat = "point" | "polyline" | "polygon" | "rectangle" | "circle";
@@ -24,6 +26,7 @@ export interface SketchCompatOptions {
   creationMode?: SketchCreationModeCompat;
   defaultCreateOptions?: Partial<SketchCreateOptionsCompat>;
   defaultUpdateOptions?: Partial<SketchUpdateOptionsCompat>;
+  snappingOptions?: SnappingOptionsCompat;
 }
 
 export interface SketchCreateResultCompat {
@@ -54,6 +57,7 @@ export class SketchCompat {
   public activeCreateOptions: Partial<SketchCreateOptionsCompat> | undefined;
   public activeUpdateGraphics: Record<string, unknown>[];
   public activeUpdateOptions: Partial<SketchUpdateOptionsCompat> | undefined;
+  public snappingOptions: SnappingOptionsCompat;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
 
   public constructor(options: SketchCompatOptions = {}) {
@@ -72,7 +76,20 @@ export class SketchCompat {
     this.activeCreateOptions = undefined;
     this.activeUpdateGraphics = [];
     this.activeUpdateOptions = undefined;
+    this.snappingOptions = { ...(options.snappingOptions ?? {}) };
     this.watchListeners = new Map();
+  }
+
+  /** Replace the ArcGIS-shaped snapping options and notify watchers. */
+  public setSnappingOptions(options: SnappingOptionsCompat): void {
+    this.snappingOptions = { ...options };
+    this.notifyWatchers("snappingOptions", this.snappingOptions);
+    this.eventBus.emit("sketch.snapping-options-changed", { options: this.snappingOptions }, this);
+  }
+
+  /** The snapping options mapped onto the contract `SnappingConfig`. */
+  public snappingConfig(): SnappingConfig {
+    return snappingOptionsToSnappingConfig(this.snappingOptions);
   }
 
   public async load(): Promise<SketchCompat> {

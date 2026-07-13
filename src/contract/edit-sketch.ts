@@ -9,6 +9,7 @@ import {
   type EditWorkflowValidationResult,
   createEditSession,
 } from "./edit-session.js";
+import { type SnappingConfig, resolveSnappingConfig } from "./edit-snapping.js";
 import type { CanonicalFeature, FeatureId, Protocol, Source, SourceId } from "./types.js";
 
 export type EditSketchTool = "point" | "line" | "polygon" | "rectangle" | "circle" | "buffer";
@@ -34,6 +35,8 @@ export interface EditSketchWorkflowOptions<T = Record<string, unknown>>
   sketchTools?: Partial<Record<EditSketchTool, EditSketchToolCapabilityInput>>;
   optimistic?: CreateEditSessionOptions<T>["optimistic"];
   annotationPersistence?: EditAnnotationPersistenceHook<T>;
+  /** Initial snapping configuration for the sketch workflow. */
+  snapping?: Partial<SnappingConfig>;
 }
 
 export interface EditAnnotationPersistenceHook<T = Record<string, unknown>> {
@@ -65,6 +68,7 @@ export interface EditSketchWorkflowSnapshot<T = Record<string, unknown>> {
     tool?: EditSketchTool;
     tools: readonly EditSketchToolCapability[];
     geometry: Record<string, unknown> | null | undefined;
+    snapping: SnappingConfig;
   };
   dirty: boolean;
   validation: EditWorkflowValidationResult;
@@ -96,6 +100,7 @@ export class EditSketchWorkflowModel<T = Record<string, unknown>> {
   #activeTool: EditSketchTool | undefined;
   #lastTool: EditSketchTool | undefined;
   #annotationState: EditAnnotationPersistenceSnapshot;
+  #snapping: SnappingConfig;
 
   public constructor(options: EditSketchWorkflowOptions<T>) {
     this.source = options.source;
@@ -104,6 +109,20 @@ export class EditSketchWorkflowModel<T = Record<string, unknown>> {
     this.#session = createEditSession(options);
     this.#base = this.#session.snapshot();
     this.#annotationState = options.annotationPersistence ? { state: "supported" } : { state: "not-configured" };
+    this.#snapping = options.snapping
+      ? resolveSnappingConfig(options.snapping)
+      : resolveSnappingConfig({ enabled: false });
+  }
+
+  /** Current snapping configuration (disabled unless configured). */
+  public snappingConfig(): SnappingConfig {
+    return resolveSnappingConfig(this.#snapping);
+  }
+
+  /** Merge snapping configuration changes into the workflow. */
+  public setSnapping(config: Partial<SnappingConfig>): this {
+    this.#snapping = resolveSnappingConfig({ ...this.#snapping, ...config });
+    return this;
   }
 
   public snapshot(): EditSketchWorkflowSnapshot<T> {
@@ -122,6 +141,7 @@ export class EditSketchWorkflowModel<T = Record<string, unknown>> {
         ...(this.#lastTool ? { tool: this.#lastTool } : {}),
         tools: this.tools(),
         geometry: snapshot.feature.geometry,
+        snapping: this.snappingConfig(),
       },
       dirty: this.dirty(),
       validation,
