@@ -50,6 +50,8 @@ const EXTERNAL = [
   "@duckdb/duckdb-wasm",
   "@deck.gl/layers",
   "apache-arrow",
+  "terra-draw",
+  "terra-draw-maplibre-gl-adapter",
 ];
 
 const SHARED_ESBUILD_OPTIONS = {
@@ -74,6 +76,7 @@ const TARGETS = [
   { key: "/contract", kind: "bundle", entry: "dist/src/contract/index.js", label: "`/contract`" },
   { key: "/plugin", kind: "bundle", entry: "dist/src/plugin/index.js", label: "`/plugin` (registry + certification, no heavy peers)" },
   { key: "/agent-safety", kind: "bundle", entry: "dist/src/agent-safety/index.js", label: "`/agent-safety`" },
+  { key: "/nl-map-control", kind: "bundle", entry: "dist/src/nl-map-control/index.js", label: "`/nl-map-control`" },
   { key: "/runtime", kind: "bundle", entry: "dist/src/runtime/index.js", label: "`/runtime`" },
   { key: "/realtime", kind: "bundle", entry: "dist/src/realtime/index.js", label: "`/realtime`" },
   { key: "/offline", kind: "bundle", entry: "dist/src/offline/index.js", label: "`/offline`" },
@@ -152,6 +155,12 @@ const TARGETS = [
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-map-source-workflow.mjs",
     label: "tree-shake guard (`{ mountSourceToMapLibre }` from `/map`)",
+  },
+  {
+    key: "tree-shake:runtime-terra-draw-sketch",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-runtime-terra-draw-sketch.mjs",
+    label: "tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external)",
   },
 ];
 

@@ -217,6 +217,23 @@
       "validation": ["npm run demo:migration-workbench:typecheck", "npm run demo:migration-workbench:build"]
     },
     {
+      "id": "nl-map-control",
+      "title": "Natural-language map control",
+      "summary": "A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects.",
+      "tier": "advanced",
+      "supportStatus": "experimental",
+      "disposition": { "decision": "keep", "reason": "Headline proof of the plan-first NL map-control layer (#500): BYO LLM, approval envelopes, and execution receipts on a live MapLibre map." },
+      "sourcePath": "examples/nl-map-control",
+      "docsPath": "examples/nl-map-control/README.md",
+      "capabilities": ["agent-approval", "agent-planning", "agent-tools", "map", "receipts"],
+      "protocols": ["honua"],
+      "renderers": ["maplibre"],
+      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed recorded LLM completions and incident fixtures from test/fixtures/nl-map-control/.", "attribution": "Honua demo fixture attribution is shown in the sample.", "freshness": "Deterministic fixture replay time." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:nl-map-control:build"] }, "live": { "status": "planned", "commands": [] } },
+      "expectedDegradation": "Viewport and mutation plans refuse to execute without a verified approval envelope and report approval-required; the recorded LLM answers only the canned demo instructions.",
+      "validation": ["npm run demo:nl-map-control:typecheck", "npm run demo:nl-map-control:build"]
+    },
+    {
       "id": "node-backend-quickstart",
       "title": "Node backend quickstart",
       "summary": "Uses the protocol-neutral client from a Node service without browser dependencies.",
@@ -368,6 +385,23 @@
       "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:service-explorer:mock"] }, "live": { "status": "planned", "commands": [] } },
       "expectedDegradation": "Unavailable admin metadata falls back to service discovery with a visible diagnostic.",
       "validation": ["npm run demo:service-explorer:typecheck", "npm run demo:service-explorer:build"]
+    },
+    {
+      "id": "sketch-editing",
+      "title": "Interactive sketch editing with terra-draw",
+      "summary": "terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission.",
+      "tier": "advanced",
+      "supportStatus": "experimental",
+      "disposition": { "decision": "keep", "reason": "Canonical terra-draw binding demo for the Esri widget-cliff sketch gap." },
+      "sourcePath": "examples/sketch-editing",
+      "docsPath": "examples/sketch-editing/README.md",
+      "capabilities": ["editing", "sketch", "snapping"],
+      "protocols": ["geoservices"],
+      "renderers": ["maplibre"],
+      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed deterministic harbor-parcel fixture.", "attribution": "Honua synthetic operations data.", "freshness": "Deterministic fixture replay time." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:sketch-editing:mock"] }, "live": { "status": "planned", "commands": [] } },
+      "expectedDegradation": "Sketch tools report unsupported capabilities when terra-draw is not installed; the SDK works without the optional peer.",
+      "validation": ["npm run demo:sketch-editing:typecheck", "npm run demo:sketch-editing:build", "npm run test:playwright:sketch-editing"]
     },
     {
       "id": "spatial-analytics-workbench",

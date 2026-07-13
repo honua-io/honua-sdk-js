@@ -1,0 +1,149 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #06141b;
+  color: #e2f3f8;
+}
+
+.app-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 12px;
+  color: #67e8f9;
+  margin: 0 0 6px;
+}
+
+.hero h1 {
+  margin: 0 0 10px;
+  font-size: 28px;
+}
+
+.hero-lede {
+  margin: 0;
+  max-width: 760px;
+  color: #9fc4cf;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 18px;
+}
+
+.map-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-canvas {
+  height: 460px;
+  border-radius: 10px;
+  border: 1px solid #164e63;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar button {
+  background: #0f2d3a;
+  border: 1px solid #155e75;
+  color: #e2f3f8;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.toolbar button:hover:not(:disabled) {
+  background: #155e75;
+}
+
+.toolbar button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.toolbar.actions #submit-edit {
+  border-color: #22c55e;
+}
+
+.status-panel {
+  background: #0b202b;
+  border: 1px solid #164e63;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.status-panel h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: #67e8f9;
+}
+
+.status-panel dl {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 18px;
+}
+
+.status-panel dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #123241;
+  padding-bottom: 4px;
+}
+
+.status-panel dt {
+  color: #9fc4cf;
+}
+
+.status-panel dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.operation-log {
+  margin: 0;
+  padding: 0 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #9fc4cf;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+footer p {
+  color: #6b93a1;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}

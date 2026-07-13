@@ -350,7 +350,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 28 executable examples: 11 flagship, 6 recipe, 7 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 30 executable examples: 11 flagship, 6 recipe, 9 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
@@ -425,6 +425,14 @@ correctly use this SDK:
   a Honua-only surface degrade gracefully with a structured "not available on this
   target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
   via `honua-mcp-proxy`.
+- **NL map control** — [`@honua/sdk-js/nl-map-control`](./docs/nl-map-control.md)
+  compiles natural-language instructions into serializable, inspectable plans
+  (query-planner IR plus agent-tool invocations) through a **caller-provided LLM
+  callback** — no model-vendor SDK. Execution accepts plans only: read-only
+  plans may auto-execute under policy, anything mutating or viewport-changing
+  requires a signed agent-safety approval envelope, and every execution emits a
+  receipt. The same tool surface is published in MCP and OpenAI function
+  formats.
 - **Context7** — [`context7.json`](./context7.json) registers the library so
   [Context7](https://context7.com) serves current docs to coding agents; the
   submission steps are in [`skills/README.md`](./skills/README.md).
@@ -461,8 +469,8 @@ correctly use this SDK:
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
     `@honua/sdk-js/cli`.
   - **Experimental subpath-only APIs** (not re-exported from the root barrels): `/agent-tools`,
-    `/agent-safety`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`, `/diagnostics`, `/routing` — with
-    `/query-planner` below, 9 experimental subpaths in total.
+    `/agent-safety`, `/nl-map-control`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`,
+    `/diagnostics`, `/routing` — with `/query-planner` below, 10 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
@@ -609,6 +617,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
 | `@honua/sdk-js/diagnostics` | Dependency-free diagnostic-bundle validation, sanitization, integrity pinning, and bounded read-only replay used by `honua doctor`. |
+| `@honua/sdk-js/nl-map-control` | Natural-language map control ([safety model + walkthrough](./docs/nl-map-control.md)): compiles NL instructions into serializable, inspectable plans (query-planner IR + agent-tool invocations) via a caller-provided LLM callback; execution accepts plans only, gates mutations behind agent-safety envelopes, and emits receipts. |
 | `@honua/sdk-js/routing` | Provider-pluggable routing: typed `RoutingProvider` contract, OSRM and Valhalla adapters, the Honua facade bridge, and per-provider attribution/usage-policy metadata ([provider cookbook](./docs/geocoding-routing-providers.md)). |
 
 ## Deprecated compatibility entrypoints
@@ -878,7 +887,7 @@ current API reference without following the migration notes.
 
 This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 28 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 30 executable examples
 
 | Sample | Tier | Support | Data | Disposition | Demonstration |
 | --- | --- | --- | --- | --- | --- |
@@ -894,6 +903,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | flagship | supported | hybrid | keep | Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence. |
 | [`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | advanced | experimental | fixture | rework | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
 | [`migration-workbench`](../../docs/migration-honua-maplibre.md) | flagship | supported | fixture | rework | Scans and transforms ArcGIS application source with auditable compatibility results. |
+| [`nl-map-control`](../../examples/nl-map-control/README.md) | advanced | experimental | fixture | keep | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
 | [`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | [`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | supported | fixture | keep | Demonstrates browser authentication and session lifecycle without embedding credentials. |
 | [`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | flagship | experimental | hybrid | keep | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
@@ -903,6 +913,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | flagship | supported | hybrid | keep | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | [`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | reference | experimental | fixture | replace | Compares supported rendering paths and makes fidelity differences explicit. |
 | [`service-explorer`](../../examples/service-explorer/README.md) | flagship | supported | hybrid | rework | Browses heterogeneous spatial services with capability and cache diagnostics. |
+| [`sketch-editing`](../../examples/sketch-editing/README.md) | advanced | experimental | fixture | keep | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
 | [`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | flagship | experimental | hybrid | rework | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
 | [`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | advanced | supported | fixture | merge | Discovers STAC collections and previews supported imagery assets. |
 | [`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | flagship | supported | hybrid | merge | Connects a public Esri service directly to MapLibre without a Honua server. |
@@ -3556,6 +3567,189 @@ integration can automate that declaration in a later slice.
 
 ---
 
+# File: docs/nl-map-control.md
+
+# Natural-language map control (`@honua/sdk-js/nl-map-control`)
+
+> **Experimental.** Symbols on this subpath are `@experimental` and may change
+> in any minor release before `1.0.0`.
+
+`@honua/sdk-js/nl-map-control` turns a natural-language instruction into a
+typed, serializable, inspectable plan over the existing
+[`agent-tools`](../src/agent-tools/index.ts) surface, and executes only
+reviewed plans. It composes three things the SDK already ships:
+
+- **agent-tools** — the ten bounded JSON-Schema map/runtime tools
+  (`inspectMap`, `listSources`, `setViewport`, `addLayer`, `setFilter`,
+  `selectFeature`, `runWidgetQuery`, `explainCapabilityGap`, …),
+- **query-planner** — the canonical query IR that data operations are
+  expressed in, and
+- **agent-safety** — signed approval envelopes, effect budgets, and receipts.
+
+There is intentionally **no opaque NL execution path**: per the
+[north-star ADR](./decisions/north-star-sdk-application-kernel.md), an agent
+prompt must compile to the same typed, inspectable plan that human-authored
+code uses.
+
+## Safety model
+
+1. **Plan-first.** `propose(instruction)` returns a serializable
+   `NlMapPlan` — ordered agent-tool invocations for map operations, with
+   query-planner IR attached to data operations — and never executes
+   anything. The plan is content-addressed: `fingerprint` is the SHA-256 of
+   its canonical JSON, and `execute()` recomputes it, so a plan edited after
+   review is rejected (`plan-invalid`).
+2. **Plans only.** `execute()` is the single execution path and accepts plans
+   only. Passing raw natural language (or anything that is not a
+   `honua.nl-map-plan`) throws a typed `plan-required` error.
+3. **Policy-gated read auto-execution.** A plan whose every step is `read`
+   may auto-execute when `policy.autoExecuteReadOnly` allows it (the
+   default). Set it to `false` to require approval for everything.
+4. **Envelopes for effects.** Any plan containing a `viewport` or `mutation`
+   step requires a signed agent-safety approval envelope. The envelope is a
+   real `agent-safety` approval: the plan is deterministically projected into
+   an `AgentPlanV1`, dry-run against a policy, signed by a host-owned signer,
+   and verified (signature, expiry, policy, bindings, and per-step parameter
+   digests) before anything runs. An approval issued for one plan does not
+   verify against another.
+5. **Receipts.** Every execution — auto or approved — emits an
+   `NlMapPlanReceipt` recording the plan identity, mode, per-step tool
+   status, and outcome. Receipts are content-addressed (`receiptDigest`) and
+   optionally signed with a host-provided `receiptSigner`.
+6. **BYO LLM.** The model transport is a caller-provided callback
+   `(request: NlCompletionRequest) => Promise<NlCompletionResponse>`. The SDK
+   depends on no model-vendor SDK, sends the model only the bounded tool
+   schemas plus the semantic map context, and persists no NL or model output.
+
+## API walkthrough
+
+```ts doc-test=skip reason="requires a live map host and an LLM callback"
+import {
+  approveNlMapPlan,
+  createNlMapControl,
+  nlMapRuntimeBinding,
+} from "@honua/sdk-js/nl-map-control";
+
+const nl = createNlMapControl({
+  // Any HonuaAgentRuntime adapter: a HonuaController, a MapPackage runtime,
+  // or your own object over a MapLibre map.
+  tools: { runtime },
+  // Bring your own model. Any provider, any transport.
+  llm: async (request) => callMyModel(request),
+  policy: { autoExecuteReadOnly: true, maxSelfCorrections: 2, actor: "app@example" },
+  approvalVerifier, // host-owned envelope verifier (agent-safety)
+});
+
+// 1. Compile NL into an inspectable plan. Nothing executes here.
+const plan = await nl.propose("zoom to downtown and only show open incidents");
+console.log(JSON.stringify(plan, null, 2)); // render for human review
+
+// 2. Read-only plans can run directly; effectful plans need an envelope.
+if (plan.readOnly) {
+  const { receipt } = await nl.execute(plan);
+} else {
+  const approval = await approveNlMapPlan({
+    plan,
+    actor: "app@example",
+    approver: "operator@example",
+    signer, // host-owned envelope signer
+    bindings: {
+      map: nlMapRuntimeBinding({ observedAt: new Date().toISOString() }),
+      incidents: incidentsSourceBinding, // agent-safety source binding
+    },
+    issuedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 300_000).toISOString(),
+  });
+  const { receipt } = await nl.execute(plan, { approval });
+  console.log(receipt.outcome, receipt.approvalDigest);
+}
+```
+
+### The completion contract
+
+`NlCompletionRequest` carries everything a provider adapter needs: the
+`system` prompt (semantic map context from agent-tools), the user
+`messages`, and the tool schemas in provider-neutral MCP-compatible shape
+(`{ name, description, inputSchema }`). Adapters map those onto their
+provider's native function-calling API and return
+`{ toolCalls: [{ name, arguments }] }` — `arguments` may be a parsed object
+or a raw JSON string. A provider refusal is returned as `{ refusal }` and
+surfaces as a typed `refusal` error.
+
+### Self-correction
+
+When a completion fails validation — an unknown tool, arguments that fail
+the JSON schema, an invalid canonical query, or a **capability miss** — the
+layer sends a structured retry (`purpose: "self-correct"`) containing the
+previous tool calls and typed `issues`. Capability misses embed the full
+`explainCapabilityGap` output (supported flag, declared capabilities, and a
+suggested action) so the model can re-plan against a source that actually
+supports the operation. Retries are bounded (`maxSelfCorrections`, default
+2); exhaustion throws `retries-exhausted` carrying the final issues.
+
+### Deterministic replay
+
+`createRecordedNlLlm(exchanges)` replays committed request/response
+fixtures in order and fails loudly on drift. The SDK's own test lane
+(`test/nl-map-control.test.ts` + `test/fixtures/nl-map-control/`) replays
+recorded completions to byte-identical plans, effects, and receipts against
+a mock runtime host; the gallery demo (`npm run demo:nl-map-control`) uses
+the same fixtures so it is deterministic with no API key.
+
+## The MCP path
+
+The NL layer's tool surface is published through the same agent-tools
+exporters used by `@honua/mcp-server`, so the capability works in-app and
+over the Model Context Protocol:
+
+```ts doc-test=skip reason="illustrative tool publication snippet"
+import {
+  toNlMapControlMcpToolDefinitions,
+  toNlMapControlOpenAiToolDefinitions,
+} from "@honua/sdk-js/nl-map-control";
+
+// proposeMapPlan + executeMapPlan + the ten agent tools
+const mcpTools = toNlMapControlMcpToolDefinitions();
+const openAiTools = toNlMapControlOpenAiToolDefinitions();
+```
+
+`proposeMapPlan` is a read tool (planning only); `executeMapPlan` is an
+action tool that requires opt-in and accepts a serialized plan plus an
+optional approval bundle — the same plan-only, envelope-gated contract as
+the in-app API. MCP servers hosting these tools keep the identical safety
+semantics because they delegate to `createNlMapControl`.
+
+## Errors
+
+All failures are typed `HonuaNlMapControlError`s with a `code`:
+
+| Code | Meaning |
+|------|---------|
+| `refusal` | The model declined the instruction. Not retried. |
+| `retries-exhausted` | No valid plan within the self-correction budget; `issues` carries the typed reasons (including `explainCapabilityGap` output). |
+| `plan-required` | `execute()` received something other than a proposed plan (for example raw NL). |
+| `plan-invalid` | Plan content does not match its fingerprint, or is structurally invalid. |
+| `approval-required` | The plan has `viewport`/`mutation` effects and no envelope was supplied (or read auto-execution is disabled). |
+| `approval-invalid` | Envelope verification failed, or the envelope does not bind to this plan. |
+| `fixture-mismatch` | A recorded-replay LLM saw a request that drifted from the recording. |
+| `invalid-options` | Missing runtime, LLM callback, or source binding. |
+
+Approval issuance itself uses `agent-safety` and throws
+`HonuaAgentSafetyError` (for example `policy-denied` when the policy forbids
+the plan's effects).
+
+## See also
+
+- [`docs/agent-safety.md`](./agent-safety.md) — the envelope, budget, audit,
+  and receipt contracts this layer builds on.
+- [`examples/nl-map-control/`](../examples/nl-map-control/) — deterministic
+  MapLibre demo with a fixture LLM, plan/receipt JSON panes, and an approve
+  button.
+- [North-star ADR](./decisions/north-star-sdk-application-kernel.md) — why NL
+  must compile to the same plan human code uses.
+
+---
+
 # File: docs/decisions/north-star-sdk-application-kernel.md
 
 # North-star SDK application-kernel contract
@@ -6083,7 +6277,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-13 at commit `8f7af5e`._
+_Generated 2026-07-13 at commit `933de19`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -6092,12 +6286,13 @@ _Generated 2026-07-13 at commit `8f7af5e`._
 | `/contract` | 237.5 KiB | 261.1 KiB | 62.1 KiB | 66.1 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
-| `/runtime` | 424.5 KiB | 458.7 KiB | 111.0 KiB | 119.5 KiB |
+| `/nl-map-control` | 60.6 KiB | 65.8 KiB | 18.7 KiB | 20.4 KiB |
+| `/runtime` | 429.4 KiB | 458.7 KiB | 112.7 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
-| `/esri-compat` | 950.4 KiB | 1026.2 KiB | 235.5 KiB | 253.6 KiB |
+| `/esri-compat` | 951.0 KiB | 1026.2 KiB | 235.7 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
 | `/geocoding` | 12.5 KiB | 13.7 KiB | 3.9 KiB | 4.3 KiB |
@@ -6115,6 +6310,7 @@ _Generated 2026-07-13 at commit `8f7af5e`._
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 207.3 KiB | 220.4 KiB | 52.3 KiB | 55.8 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 17.7 KiB | 18.8 KiB | 6.6 KiB | 7.0 KiB |
+| tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
 
 ---
 
@@ -6310,6 +6506,7 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
 - React bindings (provider, hooks, map components): `@honua/sdk-js/react` — see [`docs/react.md`](./react.md)
 - Client-side geometry ops + reprojection (curated turf/proj4): `@honua/sdk-js/geometry` — see [`docs/geometry.md`](./geometry.md)
+- Natural-language map control (plan-first, BYO LLM, approval envelopes, receipts): `@honua/sdk-js/nl-map-control` — see [`docs/nl-map-control.md`](./nl-map-control.md)
 - Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) + routing (OSRM/Valhalla/Honua): `@honua/sdk-js/geocoding`, `@honua/sdk-js/routing` — see [`docs/geocoding-routing-providers.md`](./geocoding-routing-providers.md)
 - Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`
 - Studio package-family projections, validation/preview envelopes, capability manifest, and publish/share/embed contracts (MCP/QGIS-safe): `@honua/sdk-js/studio` — see [`docs/studio-package-contracts.md`](./studio-package-contracts.md)
@@ -9136,6 +9333,140 @@ runtime bundle.
   `#29` operator components are the documented home.
 - Finer-grained diff primitives (layer reorder without teardown) —
   extension point already in `diff.ts`; no consumer yet.
+
+---
+
+# File: docs/terra-draw-sketch.md
+
+# terra-draw sketch binding (`@honua/sdk-js/runtime`)
+
+Status: experimental (issue `#492`, Esri Widget Cliff workstream).
+Public entrypoint: `@honua/sdk-js/runtime` — `bindTerraDrawSketch`,
+`createTerraDrawSketch`, `createTerraDrawSnapping`,
+`terraDrawSketchToolCapabilities`, `editSketchToolForTerraDrawMode`,
+`TERRA_DRAW_SKETCH_TOOL_MODES`.
+
+Interactive drawing on the MapLibre path is provided by
+[terra-draw](https://terradraw.io), the engine-agnostic community successor to
+mapbox-gl-draw. The SDK does not fork or wrap terra-draw's rendering — it
+adapts terra-draw's mode events onto the renderer-neutral
+`EditSketchWorkflowModel` from `@honua/sdk-js/contract`, so undo/redo,
+validation, snapping configuration, and edit-session `applyEdits` submission
+are workflow features that apply to every sketch the same way.
+
+## Peer setup
+
+`terra-draw` and `terra-draw-maplibre-gl-adapter` are **optional** peer
+dependencies. The SDK never imports them at module scope: `bindTerraDrawSketch`
+accepts a duck-typed instance your app constructed, and `createTerraDrawSketch`
+loads both packages lazily via dynamic `import()` (throwing a descriptive error
+when they are missing). Importing `@honua/sdk-js/runtime` without terra-draw
+installed stays side-effect free; the `tree-shake:runtime-terra-draw-sketch`
+bundle-budget fixture guards this.
+
+```bash
+npm i terra-draw terra-draw-maplibre-gl-adapter   # only if you use the binding
+```
+
+## Modes and tools
+
+terra-draw mode names map onto the contract `EditSketchTool` values:
+
+| terra-draw mode | `EditSketchTool` |
+| --- | --- |
+| `point`, `marker` | `point` |
+| `linestring`, `polyline`, `freehand-linestring` | `line` |
+| `polygon`, `freehand`, `sector`, `sensor` | `polygon` |
+| `rectangle`, `angled-rectangle` | `rectangle` |
+| `circle` | `circle` |
+| `select`, `render`, `static`, custom modes | — (not applied) |
+
+The contract defaults mark `rectangle` and `circle` as unsupported (they need
+renderer support); pass `terraDrawSketchToolCapabilities()` as the workflow's
+`sketchTools` to mark the terra-draw-backed tools supported. `buffer` stays
+unsupported — it needs geometry-service support, not a drawing engine.
+
+## One-call setup
+
+```ts doc-test=skip reason="partial excerpt requires a map instance and an editable source"
+import { createEditSketchWorkflow, createSnapIndex } from "@honua/sdk-js/contract";
+import { createTerraDrawSketch, terraDrawSketchToolCapabilities } from "@honua/sdk-js/runtime";
+
+const workflow = createEditSketchWorkflow({
+  source,                                          // any editable contract Source
+  kind: "create",
+  feature: { attributes: {} },
+  sketchTools: terraDrawSketchToolCapabilities(),
+  snapping: { enabled: true, tolerance: 16 },
+});
+
+const index = createSnapIndex();
+index.setSourceFeatures("parcels", parcels);
+
+const sketch = await createTerraDrawSketch(map, {
+  model: workflow,
+  snapping: { index, model: workflow },
+});
+
+sketch.setTool("polygon");   // user draws on the map
+sketch.undo();               // workflow history, mirrored back into terra-draw
+await workflow.submit();     // edit-session applyEdits path, unchanged
+```
+
+Every terra-draw `finish` event — freshly drawn features and select-mode edits
+(dragged features, dragged/inserted/deleted coordinates) — flows through
+`model.setSketchGeometry`, so each is one undoable workflow step. Deleting the
+tracked feature stages an undoable `null` geometry. `undo()`/`redo()` on the
+handle drive the model and push the restored geometry back into terra-draw.
+
+Apps that need custom terra-draw mode options construct the instance
+themselves and call `bindTerraDrawSketch(draw, { model })` — the binding only
+attaches listeners (detached by `handle.remove()`).
+
+## Geometry round-trip and reprojection
+
+terra-draw emits EPSG:4326 GeoJSON. When the edit source stores another CRS,
+pass the `@honua/sdk-js/geometry` reprojection helpers through the binding:
+
+```ts doc-test=skip reason="partial excerpt requires a terra-draw instance and workflow model"
+import { toWebMercator, toWgs84 } from "@honua/sdk-js/geometry";
+
+bindTerraDrawSketch(draw, {
+  model,
+  transformGeometry: (g) => toWebMercator(g, 4326),  // model/applyEdits side
+  restoreGeometry: (g) => toWgs84(g, 3857),          // terra-draw side (undo/redo sync)
+});
+```
+
+## Snapping
+
+`createTerraDrawSnapping({ index, model })` produces a function with
+terra-draw's `Snapping.toCustom` shape, backed by the SDK `SnapIndex` and the
+workflow's live snapping config — the same deterministic candidate ordering as
+`bindEditSketchSnapping`. `createTerraDrawSketch` wires it automatically.
+
+The seam is honest: terra-draw exposes per-mode snapping options on its
+**linestring, polygon, and polyline** modes only. Point, rectangle, circle,
+and freehand modes have no custom-snapping hook in terra-draw's pointer
+pipeline, so those modes keep terra-draw-native behavior. If you need snapped
+point placement, resolve the position with `SnapIndex.resolve()` on click and
+set the geometry through the workflow directly.
+
+## esri-compat delegation
+
+The `Sketch` shim (`@honua/sdk-js/esri-compat`) feature-detects a binding via
+its `sketchBinding` option: any object with a callable `setTool` (the
+`bindTerraDrawSketch` / `createTerraDrawSketch` handle qualifies) receives
+`create` tool-mode changes (`polyline` → `line`), `update()` switches to
+select mode, and `cancel`/`reset` leave the drawing mode. Without a binding —
+including when terra-draw is not installed — the shim keeps its existing
+headless behavior and events.
+
+## Example
+
+`examples/sketch-editing` demonstrates draw/edit/delete with undo/redo,
+snapping, and fixture-lane `applyEdits` (`npm run demo:sketch-editing`,
+Playwright smoke via `npm run test:playwright:sketch-editing`).
 
 ---
 

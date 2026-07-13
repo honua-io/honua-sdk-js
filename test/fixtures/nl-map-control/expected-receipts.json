@@ -1,0 +1,51 @@
+{
+  "read-only-count": {
+    "kind": "honua.nl-map-plan-receipt",
+    "version": "1.0",
+    "planId": "nlplan_164eb4f36474715b",
+    "planFingerprint": "sha256:164eb4f36474715b04915f7c91a41b650fbc8d14b6144f0a67fbac4a3f4beea0",
+    "instruction": "How many open incidents are visible right now?",
+    "mode": "auto-read-only",
+    "startedAt": "2026-07-12T00:00:00.000Z",
+    "completedAt": "2026-07-12T00:00:00.000Z",
+    "outcome": "succeeded",
+    "steps": [
+      {
+        "id": "step-1",
+        "tool": "runWidgetQuery",
+        "effect": "read",
+        "status": "ok"
+      }
+    ],
+    "id": "nlreceipt_e411d20fb389a09c",
+    "receiptDigest": "sha256:e411d20fb389a09c710cc1f1c97f2c1147ac317c5529caf4fcbd7a4444728014"
+  },
+  "viewport-filter": {
+    "kind": "honua.nl-map-plan-receipt",
+    "version": "1.0",
+    "planId": "nlplan_2ce1da8244abcf27",
+    "planFingerprint": "sha256:2ce1da8244abcf27ee37814ffe035d4295c2c1e5bcbc5be5962e0daa28ae8258",
+    "instruction": "Zoom to downtown Seattle and only show open incidents",
+    "mode": "approved",
+    "approvalDigest": "sha256:35add2700b905d9774eca0a91b07eb5b56e5c8d57696c01737c08574ac48af31",
+    "startedAt": "2026-07-12T00:00:00.000Z",
+    "completedAt": "2026-07-12T00:00:00.000Z",
+    "outcome": "succeeded",
+    "steps": [
+      {
+        "id": "step-1",
+        "tool": "setViewport",
+        "effect": "viewport",
+        "status": "ok"
+      },
+      {
+        "id": "step-2",
+        "tool": "setFilter",
+        "effect": "mutation",
+        "status": "ok"
+      }
+    ],
+    "id": "nlreceipt_ba65f884ca372ed9",
+    "receiptDigest": "sha256:ba65f884ca372ed9643f5a43f40af0a8e772e1e10c8b70dd090bd7d2e82e9930"
+  }
+}
