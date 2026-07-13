@@ -188,7 +188,60 @@ describe("honuaRoutingProvider", () => {
       [-157.802, 21.262],
     ]);
     expect(result.distanceMeters).toBe(9214.6);
+    expect(result.legs).toEqual([{ distanceMeters: 9214.6, durationSeconds: 623.7 }]);
     expect(result.provenance).toEqual({ provider: "honua", attribution: "Honua demo route service" });
+  });
+
+  it("preserves one leg per waypoint segment on multi-waypoint routes", async () => {
+    // Per-segment totals keyed by the segment's start longitude so each leg
+    // gets distinct, verifiable values.
+    const segmentTotals: Record<string, { m: number; s: number }> = {
+      "-157.858": { m: 4000, s: 300 },
+      "-157.83": { m: 5000, s: 400 },
+    };
+    const solverCalls: [number, number][][] = [];
+    const provider = honuaRoutingProvider((stops) => {
+      solverCalls.push(stops.map((stop) => stop.location));
+      const totals = segmentTotals[String(stops[0].location[0])];
+      return {
+        path: stops.map((stop) => stop.location),
+        totalLengthMeters: totals.m,
+        totalTimeSeconds: totals.s,
+      };
+    });
+
+    const result = await provider.route([
+      { longitude: -157.858, latitude: 21.306, name: "A" },
+      { longitude: -157.83, latitude: 21.29, name: "B" },
+      { longitude: -157.802, latitude: 21.262, name: "C" },
+    ]);
+
+    // One solver call per consecutive waypoint pair.
+    expect(solverCalls).toEqual([
+      [
+        [-157.858, 21.306],
+        [-157.83, 21.29],
+      ],
+      [
+        [-157.83, 21.29],
+        [-157.802, 21.262],
+      ],
+    ]);
+
+    // waypoints.length - 1 legs, matching the OSRM/Valhalla adapters.
+    expect(result.legs).toEqual([
+      { distanceMeters: 4000, durationSeconds: 300 },
+      { distanceMeters: 5000, durationSeconds: 400 },
+    ]);
+    expect(result.distanceMeters).toBe(9000);
+    expect(result.durationSeconds).toBe(700);
+
+    // Stitched geometry drops the duplicated junction vertex.
+    expect(result.geometry).toEqual([
+      [-157.858, 21.306],
+      [-157.83, 21.29],
+      [-157.802, 21.262],
+    ]);
   });
 });
 
