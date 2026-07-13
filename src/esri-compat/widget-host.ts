@@ -87,18 +87,38 @@ export class HonuaWidgetHost {
 
   #loadKit(): Promise<boolean> {
     this.#kitLoad ??= (async () => {
-      if (globalDom.customElements?.get(this.#tagName)) return true;
+      let kit: Record<string, unknown>;
       try {
         // Dynamic so the esri-compat split package (which does not ship the
         // web-component sources) degrades to the headless shim behavior.
-        await import("../web-components/index.js");
+        kit = (await import("../web-components/index.js")) as unknown as Record<string, unknown>;
       } catch {
         return false;
       }
-      return globalDom.customElements?.get(this.#tagName) !== undefined;
+      // The tag must be owned by the web-components kit's own class. Another
+      // registrant can win the tag (e.g. the controls kit registers its own
+      // `honua-legend` with a different `entries` API when imported first);
+      // mounting that element and assigning the web-components properties
+      // would render nothing, so fall back to the headless shim behavior.
+      const expected = expectedKitConstructor(kit, this.#tagName);
+      const registered = globalDom.customElements?.get(this.#tagName);
+      return expected !== undefined && registered === expected;
     })();
     return this.#kitLoad;
   }
+}
+
+/** Resolves the web-components kit class that must own `tagName` for delegation. */
+function expectedKitConstructor(kit: Record<string, unknown>, tagName: string): CustomElementConstructor | undefined {
+  const exportName = {
+    "honua-legend": "HonuaLegendElement",
+    "honua-layer-list": "HonuaLayerListElement",
+    "honua-search": "HonuaSearchElement",
+    "honua-measurement": "HonuaMeasurementElement",
+  }[tagName];
+  if (!exportName) return undefined;
+  const ctor = kit[exportName];
+  return typeof ctor === "function" ? (ctor as CustomElementConstructor) : undefined;
 }
 
 function resolveContainer(container: unknown): HTMLElement | undefined {

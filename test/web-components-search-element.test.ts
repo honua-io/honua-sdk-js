@@ -167,6 +167,50 @@ describe("<honua-search> (survival tier, geocoding lane)", () => {
     expect(element.shadowRoot?.querySelector("[role='status']")?.textContent).toContain('No results for "nowhere"');
   });
 
+  it("ignores stale geocode responses that resolve after a newer request", async () => {
+    const slowCandidate = { address: "Stale Town", latitude: 10, longitude: 20, score: 90 };
+    let resolveSlow: ((candidates: (typeof slowCandidate)[]) => void) | undefined;
+    let calls = 0;
+    const geocoder: HonuaSearchGeocoderLike = {
+      forwardGeocode: async (address) => {
+        calls += 1;
+        if (address === "slow place") {
+          return new Promise((resolve) => {
+            resolveSlow = resolve;
+          });
+        }
+        return [CANDIDATE];
+      },
+    };
+    const controller = createHonuaWebComponentController();
+    const element = mountSearch(controller, geocoder);
+    const selections: HonuaGeocodeSelectDetail[] = [];
+    element.addEventListener("honua-geocode-select", (event) => {
+      selections.push((event as CustomEvent<HonuaGeocodeSelectDetail>).detail);
+    });
+
+    // First request stays pending until after the second completes.
+    input(element).value = "slow place";
+    element.shadowRoot?.querySelector("form")?.dispatchEvent(new Event("submit"));
+    input(element).value = "fast place";
+    element.shadowRoot?.querySelector("form")?.dispatchEvent(new Event("submit"));
+    await flushMicrotasks();
+
+    expect(calls).toBe(2);
+    expect(controller.getState().viewport.center).toEqual([CANDIDATE.longitude, CANDIDATE.latitude]);
+    expect(selections).toHaveLength(1);
+    expect(selections[0]?.candidate.address).toBe(CANDIDATE.address);
+
+    // The stale response arrives late: it must not pan the map back, change
+    // the announced status, or emit another selection event.
+    resolveSlow?.([slowCandidate]);
+    await flushMicrotasks();
+
+    expect(controller.getState().viewport.center).toEqual([CANDIDATE.longitude, CANDIDATE.latitude]);
+    expect(element.shadowRoot?.querySelector("[role='status']")?.textContent).toContain(CANDIDATE.address);
+    expect(selections).toHaveLength(1);
+  });
+
   it("selects a suggestion by click", async () => {
     const geocoder = makeGeocoder();
     const controller = createHonuaWebComponentController();

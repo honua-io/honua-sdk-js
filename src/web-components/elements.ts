@@ -867,6 +867,7 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
   #status = "";
   #suggestTimer: ReturnType<typeof setTimeout> | undefined;
   #suggestToken = 0;
+  #geocodeToken = 0;
 
   /** The geocoding provider powering typeahead + geocode-on-submit. */
   public get geocoder(): HonuaSearchGeocoderLike | undefined {
@@ -1046,6 +1047,9 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
     if (!geocoder) return;
     this.#clearSuggestTimer();
     this.#suggestToken += 1;
+    // Overlapping geocodes resolve out of order on slow networks; only the
+    // most recent request may write the viewport/status or emit the event.
+    const token = ++this.#geocodeToken;
     this.#query = query;
     this.#suggestions = [];
     this.#activeIndex = -1;
@@ -1057,6 +1061,7 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
     }
     try {
       const candidates = await geocoder.forwardGeocode(trimmed, { maxResults: 1 });
+      if (token !== this.#geocodeToken) return;
       const candidate = candidates[0];
       if (!candidate) {
         this.#status = `No results for "${trimmed}".`;
@@ -1076,6 +1081,7 @@ export class HonuaSearchElement<T = Record<string, unknown>> extends HonuaElemen
       });
       this.render();
     } catch (error) {
+      if (token !== this.#geocodeToken) return;
       this.#status = error instanceof Error ? error.message : "Geocoding failed.";
       this.render();
     }

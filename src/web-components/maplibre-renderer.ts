@@ -167,6 +167,11 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
 
       this.#runtime = runtime;
       this.#loadedPackageKey = mapPackageKey(mapPackage);
+      // Seed the order tracker with the order the map actually renders (the
+      // composed style), so a controller order that already diverged — e.g. a
+      // layer-list reorder issued while the package was still loading — is
+      // replayed by the next #applyLayerOrder pass instead of being absorbed.
+      this.#layerOrderKey = layerOrderKey(runtime.composedStyle.layers.map((layer) => layer.id));
       this.#bindViewport(map);
       this.#bindLayerInteractions(runtime);
       map.resize?.();
@@ -349,14 +354,14 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
   }
 
   #applyLayerOrder(state: HonuaWebComponentState<T>): void {
-    const key = state.layers.map((layer) => layer.id).join(" ");
+    const key = layerOrderKey(state.layers.map((layer) => layer.id));
+    // `#layerOrderKey` is seeded from the composed style order when the map
+    // package loads (see #load), so a matching key means the map already
+    // renders this order and overlays are never hoisted above host-managed
+    // base layers gratuitously. Any diverging key — including a reorder
+    // issued while the package was still loading — is replayed onto the map.
     if (key === this.#layerOrderKey) return;
-    const isFirstApplication = this.#layerOrderKey === undefined;
     this.#layerOrderKey = key;
-    // The initial state order matches the composed style order; skip the
-    // first pass so overlays are not hoisted above host-managed base layers
-    // until the user actually reorders something.
-    if (isFirstApplication) return;
     const map = this.#map;
     if (!map?.moveLayer) return;
     for (const layer of state.layers) {
@@ -518,6 +523,11 @@ function featureStateKey(target: HonuaFeatureStateEntry): string {
 
 function stableKey(value: unknown): string {
   return JSON.stringify(value);
+}
+
+/** Order-tracking key over layer ids (NUL-delimited so ids with spaces stay distinct). */
+function layerOrderKey(ids: readonly string[]): string {
+  return ids.join("\u0000");
 }
 
 /** Paint properties that carry a layer's overall opacity, by layer type. */
