@@ -316,7 +316,7 @@ export class SnapIndex {
         if (!cell) continue;
         for (const entry of cell.vertices) vertices.push(entry);
         for (const entry of cell.segments) {
-          const key = `${entry[0].sourceId} ${String(entry[0].featureId)} ${entry[1]}`;
+          const key = `${entry[0].sourceId}|${String(entry[0].featureId)}|${entry[1]}`;
           if (seenSegments.has(key)) continue;
           seenSegments.add(key);
           segments.push(entry);
@@ -621,7 +621,7 @@ export function createSnapIndexEditSessionHooks<T = Record<string, unknown>>(
 ): EditWorkflowOptimisticHooks<T> {
   interface JournalEntry {
     sourceId: string;
-    featureId: FeatureId;
+    featureId: FeatureId | undefined;
     previous: SnapIndexFeatureInput | undefined;
   }
   const journal: JournalEntry[] = [];
@@ -629,27 +629,36 @@ export function createSnapIndexEditSessionHooks<T = Record<string, unknown>>(
 
   return {
     async apply(snapshot: EditWorkflowSnapshot<T>): Promise<void> {
+      const sourceId = String(snapshot.sourceId);
       const featureId = snapshot.feature.id;
+      let previous: SnapIndexFeatureInput | undefined;
       if (featureId !== undefined) {
-        const sourceId = String(snapshot.sourceId);
-        const previous =
+        previous =
           snapshot.kind === "delete"
             ? index.removeFeature(sourceId, featureId)
             : index.upsertFeature(sourceId, { id: featureId, geometry: snapshot.feature.geometry ?? null });
-        journal.push({ sourceId, featureId, previous });
       }
+      journal.push({ sourceId, featureId, previous });
       await inner?.apply?.(snapshot);
     },
     async rollback(snapshot: EditWorkflowSnapshot<T>, result: EditWorkflowSubmitResult<T>): Promise<void> {
       const entry = journal.pop();
-      if (entry) {
+      if (entry && entry.featureId !== undefined) {
         if (entry.previous) index.upsertFeature(entry.sourceId, entry.previous);
         else index.removeFeature(entry.sourceId, entry.featureId);
       }
       await inner?.rollback?.(snapshot, result);
     },
     async commit(snapshot: EditWorkflowSnapshot<T>, result: EditWorkflowSubmitResult<T>): Promise<void> {
-      journal.pop();
+      const entry = journal.pop();
+      const committedId = result.committedFeatureId;
+      if (entry && snapshot.kind !== "delete" && committedId !== undefined && committedId !== entry.featureId) {
+        // The optimistic apply could not index the feature under its
+        // committed id (server-assigned id on create, or a re-keyed id), so
+        // index the committed geometry now.
+        if (entry.featureId !== undefined) index.removeFeature(entry.sourceId, entry.featureId);
+        index.upsertFeature(entry.sourceId, { id: committedId, geometry: snapshot.feature.geometry ?? null });
+      }
       await inner?.commit?.(snapshot, result);
     },
   };

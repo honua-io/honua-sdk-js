@@ -188,10 +188,18 @@ export function bindEditSketchSnapping<T = Record<string, unknown>>(
     setConfig(config) {
       if (model) model.setSnapping(config);
       localConfig = resolveSnappingConfig({ ...localConfig, ...config });
+      // Disabling snapping must not leave a stale snap target behind: clear
+      // the current candidate, indicator, and fire onUnsnap.
+      if (!effectiveConfig().enabled && current) {
+        applyResolution({ snapped: false, candidates: [] });
+      }
     },
     applySketchGeometry(tool, geometry) {
       if (!model) return false;
-      const snapped = current ? withSnappedActiveVertex(geometry, current.position) : geometry;
+      // Gate on the effective config so a snap acquired before snapping was
+      // disabled (e.g. directly via model.setSnapping) is never applied.
+      const active = effectiveConfig().enabled ? current : undefined;
+      const snapped = active ? withSnappedActiveVertex(geometry, active.position) : geometry;
       const capability = model.setSketchGeometry(tool, snapped).toolCapability(tool);
       return capability.state === "supported";
     },

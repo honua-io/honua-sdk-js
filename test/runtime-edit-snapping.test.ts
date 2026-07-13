@@ -213,6 +213,51 @@ describe("runtime / bindEditSketchSnapping", () => {
     expect(model.snapshot().sketch.geometry).toEqual({ type: "Point", coordinates: [50, 50] });
   });
 
+  it("clears the active snap, indicator, and fires onUnsnap when disabled via setConfig", () => {
+    const map = new FakeMap();
+    const onUnsnap = vi.fn();
+    const model = createEditSketchWorkflow({
+      source: makeSource(),
+      kind: "create",
+      feature: { attributes: {} },
+      snapping: { enabled: true, tolerance: 10 },
+    });
+    const handle = bindEditSketchSnapping(map, { index: seededIndex(), model, onUnsnap });
+
+    map.emit("mousemove", pointerEvent(1, 0));
+    expect(handle.current?.featureId).toBe(1);
+
+    handle.setConfig({ enabled: false });
+    expect(handle.current).toBeUndefined();
+    expect(onUnsnap).toHaveBeenCalledTimes(1);
+    expect((onUnsnap.mock.calls[0][0] as SnapCandidate).featureId).toBe(1);
+    const indicatorData = map.sources.get("honua-snap-indicator")?.data as { features: unknown[] };
+    expect(indicatorData.features).toHaveLength(0);
+
+    // The stale snap position is not applied to the sketch model.
+    handle.applySketchGeometry("point", { type: "Point", coordinates: [3, 4] });
+    expect(model.snapshot().sketch.geometry).toEqual({ type: "Point", coordinates: [3, 4] });
+  });
+
+  it("never applies a snap acquired before snapping was disabled directly on the model", () => {
+    const map = new FakeMap();
+    const model = createEditSketchWorkflow({
+      source: makeSource(),
+      kind: "create",
+      feature: { attributes: {} },
+      snapping: { enabled: true, tolerance: 10 },
+    });
+    const handle = bindEditSketchSnapping(map, { index: seededIndex(), model, indicator: false });
+
+    map.emit("mousemove", pointerEvent(98, 3));
+    expect(handle.current?.featureId).toBe(2);
+
+    // Bypass the handle: disable snapping on the workflow model directly.
+    model.setSnapping({ enabled: false });
+    handle.applySketchGeometry("point", { type: "Point", coordinates: [98, 3] });
+    expect(model.snapshot().sketch.geometry).toEqual({ type: "Point", coordinates: [98, 3] });
+  });
+
   it("exposes manual resolution helpers", () => {
     const map = new FakeMap();
     const handle = bindEditSketchSnapping(map, {

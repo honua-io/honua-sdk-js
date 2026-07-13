@@ -434,6 +434,71 @@ describe("contract / snap index edit-session lifecycle hooks", () => {
     expect(resolveSnapCandidate(index, query(10, 10), ENABLED).snapped).toBe(false);
   });
 
+  it("indexes server-assigned ids on successful create commits", async () => {
+    const index = createSnapIndex();
+    const workflow = createEditSketchWorkflow({
+      source: makeSource({
+        applyEdits: async () => ({ added: [{ id: 77, success: true }], updated: [], deleted: [] }),
+      }),
+      kind: "create",
+      feature: { attributes: { status: "open", version: 1 } },
+      optimistic: createSnapIndexEditSessionHooks(index),
+    });
+
+    workflow.setSketchGeometry("point", { type: "Point", coordinates: [25, 25] });
+    // The optimistic apply cannot index an id-less create.
+    const result = await workflow.submit();
+    expect(result.status).toBe("succeeded");
+    expect(result.committedFeatureId).toBe(77);
+
+    // Commit indexed the committed geometry under the server-assigned id.
+    const snap = resolveSnapCandidate(index, query(25, 25), ENABLED);
+    expect(snap.candidate).toMatchObject({ featureId: 77, sourceId: "parcels", position: [25, 25] });
+  });
+
+  it("keeps the journal aligned for id-less creates that roll back", async () => {
+    const index = seededIndex();
+    const workflow = createEditSketchWorkflow({
+      source: makeSource({
+        applyEdits: async () => ({
+          added: [{ success: false, error: { code: 500, description: "boom" } }],
+          updated: [],
+          deleted: [],
+        }),
+      }),
+      kind: "create",
+      feature: { attributes: { status: "open", version: 1 } },
+      optimistic: createSnapIndexEditSessionHooks(index),
+    });
+
+    workflow.setSketchGeometry("point", { type: "Point", coordinates: [70, 70] });
+    const result = await workflow.submit();
+    expect(result.status).toBe("failed");
+    expect(result.optimistic).toEqual({ applied: true, rolledBack: true });
+
+    // No phantom entry was created and pre-existing entries are untouched.
+    expect(resolveSnapCandidate(index, query(70, 70), ENABLED).snapped).toBe(false);
+    expect(resolveSnapCandidate(index, query(10, 10), ENABLED).candidate?.featureId).toBe(10);
+  });
+
+  it("re-keys the index when the server assigns a different id than the optimistic apply", async () => {
+    const index = createSnapIndex();
+    const workflow = createEditSketchWorkflow({
+      source: makeSource({
+        applyEdits: async () => ({ added: [{ id: 88, success: true }], updated: [], deleted: [] }),
+      }),
+      kind: "create",
+      feature: { id: 5, attributes: { status: "open", version: 1 } },
+      optimistic: createSnapIndexEditSessionHooks(index),
+    });
+
+    workflow.setSketchGeometry("point", { type: "Point", coordinates: [30, 30] });
+    const result = await workflow.submit();
+    expect(result.status).toBe("succeeded");
+    expect(result.committedFeatureId).toBe(88);
+    expect(resolveSnapCandidate(index, query(30, 30), ENABLED).candidate?.featureId).toBe(88);
+  });
+
   it("removes deleted features on apply and restores them on rollback", async () => {
     const index = seededIndex();
     const hooks = createSnapIndexEditSessionHooks(index);
