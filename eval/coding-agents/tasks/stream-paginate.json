@@ -1,0 +1,17 @@
+{
+  "id": "stream-paginate",
+  "title": "Stream a result set page by page",
+  "category": "connect-query",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that streams every feature of the Esri GeoServices FeatureServer layer at <HONUA_EVAL_BASE_URL> (service \"EvalIncidents\", layer 0) in pages of 2. Use the contract API from @honua/sdk-js: HonuaClient with { baseUrl }, createDataset from @honua/sdk-js/contract with one source { id: \"incidents\", protocol: \"geoservices-feature-service\", locator: { url: <base URL>, serviceId: \"EvalIncidents\", layerId: 0 }, capabilities: PROTOCOL_DEFAULT_CAPABILITIES[\"geoservices-feature-service\"] } and skipCompatibilityCheck: true. Iterate source.stream({ where: \"1=1\", pagination: { limit: 2 } }) with for await; each iteration yields a Result page whose features array holds at most 2 features. Print exactly one line to stdout: {\"pages\": <number of pages>, \"total\": <total features across pages>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/guide.md"],
+    "notes": "Golden workflow: async-generator pagination via Source.stream()."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [
+    { "path": "pages", "op": "equals", "value": 3 },
+    { "path": "total", "op": "equals", "value": 5 }
+  ]
+}

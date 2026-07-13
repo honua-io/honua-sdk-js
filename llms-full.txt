@@ -353,6 +353,12 @@ correctly use this SDK:
 - **Context7** — [`context7.json`](./context7.json) registers the library so
   [Context7](https://context7.com) serves current docs to coding agents; the
   submission steps are in [`skills/README.md`](./skills/README.md).
+- **Coding-agent evals** — a scheduled harness measures whether coding agents
+  can use the SDK correctly on the first try: a 16-task golden-workflow corpus
+  scored objectively (typecheck + runtime against deterministic fixtures +
+  expected-output assertions). Methodology in
+  [`docs/coding-agent-evals.md`](./docs/coding-agent-evals.md); latest results
+  in [`docs/generated/coding-agent-scorecard.md`](./docs/generated/coding-agent-scorecard.md).
 
 ## Stability and versioning
 
@@ -433,8 +439,11 @@ Protocol-specific deep dives also live alongside the guide: see
 [`docs/wfs.md`](./docs/wfs.md), [`docs/ogc-api.md`](./docs/ogc-api.md),
 [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md),
 [`docs/webmap-json-compatibility.md`](./docs/webmap-json-compatibility.md),
-[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md), and
-[`docs/migration-punch-list.md`](./docs/migration-punch-list.md).
+[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md),
+[`docs/migration-punch-list.md`](./docs/migration-punch-list.md), and
+[`docs/widget-survival-guide.md`](./docs/widget-survival-guide.md) (every ArcGIS widget
+deprecated at 5.0 mapped to its Honua/MapLibre disposition ahead of the 6.0 removal — run
+`npm run scan:arcgis:widgets -- ./src` for a per-file readiness report).
 
 ## Related Honua repositories
 
@@ -5767,21 +5776,21 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-12 at commit `e22935e`._
+_Generated 2026-07-13 at commit `493e40f`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 364.3 KiB | 382.0 KiB | 96.3 KiB | 101.2 KiB |
-| `/honua` | 472.1 KiB | 510.3 KiB | 125.2 KiB | 135.7 KiB |
-| `/contract` | 226.0 KiB | 235.3 KiB | 58.6 KiB | 66.1 KiB |
+| `.` (root) | 369.4 KiB | 382.0 KiB | 97.1 KiB | 101.2 KiB |
+| `/honua` | 480.3 KiB | 510.3 KiB | 126.7 KiB | 135.7 KiB |
+| `/contract` | 237.3 KiB | 261.1 KiB | 62.1 KiB | 66.1 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
-| `/runtime` | 419.5 KiB | 458.7 KiB | 109.4 KiB | 119.5 KiB |
+| `/runtime` | 424.4 KiB | 458.7 KiB | 111.0 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
-| `/esri-compat` | 944.6 KiB | 1026.2 KiB | 234.0 KiB | 253.6 KiB |
+| `/esri-compat` | 947.5 KiB | 1026.2 KiB | 234.5 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
 | `/geocoding` | 4.9 KiB | 5.3 KiB | 1.9 KiB | 2.1 KiB |
@@ -5790,12 +5799,12 @@ _Generated 2026-07-12 at commit `e22935e`._
 | `/map` | 112.9 KiB | 123.8 KiB | 31.2 KiB | 34.2 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 17.2 KiB | 17.8 KiB | 6.2 KiB | 6.5 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 371.2 KiB | 405.7 KiB | 96.0 KiB | 104.5 KiB |
+| `/react` (react/react-dom external) | 372.3 KiB | 405.7 KiB | 96.2 KiB | 104.5 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 365.0 KiB | 382.8 KiB | 96.6 KiB | 101.5 KiB |
-| browser ESM (`./browser`) | 363.7 KiB | 381.4 KiB | 96.3 KiB | 101.2 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 191.0 KiB | 204.3 KiB | 48.7 KiB | 52.1 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 205.8 KiB | 220.4 KiB | 52.2 KiB | 55.8 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 370.1 KiB | 382.8 KiB | 97.4 KiB | 101.5 KiB |
+| browser ESM (`./browser`) | 368.8 KiB | 381.4 KiB | 97.1 KiB | 101.2 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 192.5 KiB | 204.3 KiB | 48.9 KiB | 52.1 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 207.3 KiB | 220.4 KiB | 52.3 KiB | 55.8 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 17.7 KiB | 18.8 KiB | 6.6 KiB | 7.0 KiB |
 
@@ -6669,6 +6678,16 @@ connection.remove();
 ```bash
 # Scan only
 node dist/src/migration/cli.js scan ./src --report scan-report.json
+
+# Widget-usage inventory + ArcGIS 6.0 readiness report (classic widgets are removed
+# at 6.0, as early as Q1 2027). Detects ESM imports, AMD require([...]) arrays, and
+# dynamic $arcgis.import(...) specifiers; per-widget dispositions come from the
+# generated docs/widget-survival-guide.md (source: src/migration/widget-dispositions.ts).
+node dist/src/migration/cli.js widgets ./src                     # human table
+node dist/src/migration/cli.js widgets ./src --json              # machine-readable
+node dist/src/migration/cli.js widgets ./src --markdown          # shareable report
+node dist/src/migration/cli.js widgets ./src --gate 80           # exit 2 if automated share < 80%
+node dist/src/migration/cli.js widgets ./src --report widget-readiness.json
 
 # Safe codemod (dry run)
 node dist/src/migration/cli.js codemod ./src --report migration-report.json
@@ -9549,6 +9568,21 @@ filter predicates through `queryFeatures` / `queryFeatureCount` /
 `spatialRelationship`, and `timeExtent` with any per-call options
 (layer-view filter ∧ caller-provided options).
 
+`Sketch` and `Editor` now accept ArcGIS-shaped `snappingOptions`
+(`enabled`, `distance`, `featureEnabled`, `selfEnabled`,
+`featureSources`) and map them onto the renderer-neutral
+`SnappingConfig` from `@honua/sdk-js/contract`
+(`snappingOptionsToSnappingConfig`). The contract snapping engine
+(`SnapIndex` + `resolveSnapCandidate`) resolves vertex / edge /
+feature candidates deterministically over a packed-grid spatial
+index, invalidates on optimistic edit apply/rollback
+(`createSnapIndexEditSessionHooks`), and the MapLibre runtime
+binding (`bindEditSketchSnapping` in `@honua/sdk-js/runtime`)
+wires pointer-move, snap/unsnap events, and a default indicator
+layer. `selfEnabled` is stored for parity but self-snapping needs
+the host to index the active sketch source; 3D snapping is out of
+scope with the rest of the SceneView surface.
+
 ### Automated app conversion (`src/migration/codemod.ts`)
 
 The codemod is a real AST rewriter built on the TypeScript Compiler
@@ -10292,3 +10326,126 @@ and serves this library's docs to coding agents. To (re)submit:
 
 Library owners can instead claim the library to manage this configuration from
 the Context7 admin panel.
+
+---
+
+# File: docs/coding-agent-evals.md
+
+# Coding-agent evaluation harness
+
+A growing share of integration code is written by coding agents, and "agents
+use this SDK correctly on the first try" is a measurable, winnable property.
+This repo already ships the inputs — [`llms.txt`](../llms.txt) /
+[`llms-full.txt`](../llms-full.txt), agent skills, Context7 registration, the
+MCP server — and this harness measures whether they work, with the same
+discipline the MCP package applies through its certification/eval kits
+(`mcp/src/certification/`, `mcp/src/eval/`).
+
+Latest published results: [docs/generated/coding-agent-scorecard.md](./generated/coding-agent-scorecard.md).
+
+## What is measured
+
+For each task in the corpus an agent (or a committed fixture standing in for
+one) produces a **standalone TypeScript program** from the task prompt with
+the repo's published agent-facing docs as the only context. The program is
+then scored **objectively — no string similarity anywhere**:
+
+1. **Typecheck** — one `tsc` pass over the generated program against the
+   *built* SDK (`dist/`), resolved through a real `node_modules` link exactly
+   the way a consumer would import `@honua/sdk-js`.
+2. **Runtime** — the emitted JS runs under Node against a deterministic
+   multi-protocol fixture server (no network, no live services).
+3. **Assertions** — the program's single JSON output line is compared against
+   committed expected values (exact equality / bounded comparisons).
+
+A task passes only when all three stages pass. Scoring is per-task pass/fail;
+the scorecard records the failing stage.
+
+## Task corpus (REQ-001)
+
+Sixteen stable-tier golden-workflow tasks live under
+[`eval/coding-agents/tasks/`](../eval/coding-agents/tasks/), one JSON document
+each: prompt text, allowed docs context (pointers to `llms.txt` and specific
+docs), expected artifact type (`ts`/`tsx`), execution budget, and the
+objective assertions. Covered workflows: FeatureServer connect + count, where
+/ outFields query, `connect()` auto-classification, OGC API Features, WFS 2.0,
+STAC search, OData v4, stream/pagination, query-plan explain, MapLibre
+geojson-source mounting (mock lane), geocoding, esri-compat migration snippet,
+WebMap conversion, CLI usage, capability-error handling, and React hook
+composition.
+
+## Fixture endpoints
+
+`scripts/lib/coding-agent-eval/fixture-server.mjs` serves every protocol the
+corpus touches from one ephemeral port: an inline 5-feature GeoServices
+FeatureServer + GeocodeServer, an OGC API Features facade, and recorded
+real-server fixtures from `test/fixtures/backend-agnostic/` for WFS
+(GeoServer), STAC (Earth Search) and OData (TripPin), with upstream hosts
+rewritten to the local server. Responses are a pure function of committed
+fixtures — runs are reproducible byte-for-byte.
+
+## Adapters (REQ-003)
+
+Generation is pluggable behind a tiny interface
+(`scripts/lib/coding-agent-eval/adapters.mjs`):
+
+- **`fixture`** — replays committed generations from
+  `eval/coding-agents/fixtures/generations/`. `known-good/` holds one verified
+  solution per task and is the deterministic control CI runs on a schedule;
+  `known-bad/` holds deliberately wrong generations (hallucinated result
+  shapes, wrong endpoints, wrong filters) used by the test-of-the-test.
+- **`claude-cli`** — shells out to Claude Code headless (`claude -p`) with the
+  task's docs context inlined into the prompt. Strictly opt-in: it only
+  constructs when `HONUA_EVAL_AGENTS=1` and `claude` is on PATH, so the
+  deterministic lanes can never accidentally spend model tokens. Model
+  (`HONUA_EVAL_CLAUDE_MODEL`) and CLI version are recorded in the scorecard.
+
+## Scorecard (REQ-004)
+
+Every run writes `scorecard.json` (validated against
+[`eval/coding-agents/scorecard.schema.json`](../eval/coding-agents/scorecard.schema.json))
+and `scorecard.md` under `test-results/coding-agent-eval/<lane>/`. Runs with
+`--publish` also refresh the committed, history-friendly page at
+[`docs/generated/coding-agent-scorecard.md`](./generated/coding-agent-scorecard.md)
+(date, adapter, model, per-task results, aggregate pass rate, append-only
+history table). The JSON records the commit SHA and pinned model/version
+metadata so llms.txt/docs regressions are traceable to score drops.
+
+## Test-of-the-test
+
+`test/coding-agent-eval-harness.test.ts` (part of `npm test`) proves the
+harness catches bad code instead of rubber-stamping it:
+
+- the **known-good** lane must pass every task, and
+- every **known-bad** generation must fail at exactly the stage the fixture
+  manifest records (`typecheck` for hallucinated APIs such as `result.items`,
+  `runtime` for wrong endpoints, `assertions` for wrong values).
+
+The spec also unit-tests the corpus validator, assertion evaluator, scorecard
+schema, and fixture-server routes without needing a build.
+
+## Running it
+
+```bash
+npm run eval:coding-agents            # build + fixture known-good lane (gate)
+npm run eval:coding-agents:self-test  # build + known-bad lane (must all fail)
+
+# subset / custom output
+node scripts/eval-coding-agents.mjs --tasks wfs-query,stac-search --output test-results/tmp
+
+# live agent lane (opt-in; spends model tokens)
+HONUA_EVAL_AGENTS=1 node scripts/eval-coding-agents.mjs --adapter claude-cli
+
+# refresh the committed scorecard page
+node scripts/eval-coding-agents.mjs --publish
+```
+
+## CI lane (NFR-001)
+
+[`.github/workflows/coding-agent-eval.yml`](../.github/workflows/coding-agent-eval.yml)
+runs weekly (cron) and on demand. The fixture lanes are the scheduled gate;
+the live `claude-cli` lane runs only on `workflow_dispatch` with
+`live_agent: true` and the `ANTHROPIC_API_KEY` secret configured. The workflow
+is deliberately **not** part of PR CI: a failure notifies through the
+workflow-failure signal instead of blocking PRs (the harness logic itself is
+still covered by `npm test` on every PR via the self-test spec).

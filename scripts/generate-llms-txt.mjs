@@ -230,6 +230,10 @@ const SECTIONS = [
         path: "skills/README.md",
         description: "Agent skills for Claude Code / compatible agents and how to install them.",
       },
+      {
+        path: "docs/coding-agent-evals.md",
+        description: "Coding-agent evaluation harness: objective first-try correctness scoring of generated SDK code.",
+      },
     ],
   },
 ];

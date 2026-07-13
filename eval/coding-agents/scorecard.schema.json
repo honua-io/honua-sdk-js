@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/coding-agent-scorecard.v1.json",
+  "title": "Coding-agent evaluation scorecard (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatedAt", "repo", "lane", "adapter", "summary", "tasks"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha", "source"],
+      "properties": {
+        "sha": { "type": "string", "minLength": 1 },
+        "source": { "enum": ["env", "git", "unknown"] }
+      }
+    },
+    "lane": { "type": "string", "minLength": 1 },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "model", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "variant": { "type": "string" },
+        "model": { "type": "string", "minLength": 1 },
+        "version": { "type": "string" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tasks", "skipped", "passed", "failed", "passRate"],
+      "properties": {
+        "tasks": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "passRate": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "category"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "category": { "type": "string", "minLength": 1 },
+          "skipped": { "type": "boolean" },
+          "reason": { "type": "string" },
+          "generation": {
+            "type": "object",
+            "required": ["status"],
+            "properties": {
+              "status": { "enum": ["ok", "error"] },
+              "bytes": { "type": "integer", "minimum": 0 },
+              "detail": { "type": "string" }
+            }
+          },
+          "typecheck": {
+            "type": "object",
+            "required": ["pass", "errors"],
+            "properties": {
+              "pass": { "type": "boolean" },
+              "errors": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "runtime": {
+            "type": "object",
+            "required": ["pass"],
+            "properties": {
+              "pass": { "type": "boolean" },
+              "exitCode": { "type": ["integer", "null"] },
+              "durationMs": { "type": "number", "minimum": 0 },
+              "timedOut": { "type": "boolean" },
+              "detail": { "type": "string" }
+            }
+          },
+          "assertions": {
+            "type": "object",
+            "required": ["pass", "checks"],
+            "properties": {
+              "pass": { "type": "boolean" },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["path", "op", "pass"],
+                  "properties": {
+                    "path": { "type": "string" },
+                    "op": { "type": "string" },
+                    "expected": {},
+                    "actual": {},
+                    "pass": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "pass": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
