@@ -5984,6 +5984,10 @@ export function Root() {
 | `useCapabilities(options?)` | Fetch the server's capability / compatibility descriptor. |
 | `useMapRuntime()` | The `HonuaMapRuntime` owned by the enclosing `HonuaMap`. |
 | `useRealtime(factory, deps?)` | Open a realtime subscription and tear it down on unmount. |
+| `useHonuaMap(map?)` *(experimental)* | Resolve the nearest MapLibre map (explicit arg → `HonuaMapProvider` → `HonuaMap`). |
+| `useMountedSource(map, source, options?)` *(experimental)* | Mount a `Source` through the data-to-map bridge for the component lifetime. |
+| `useSelection()` / `useHover()` *(experimental)* | Read/write the shared selection & hover state of the enclosing `HonuaSelectionProvider`. |
+| `useMapSelectionBinding(map, options)` / `useMapHoverBinding(map, options)` *(experimental)* | Two-way-bind MapLibre layers to the shared selection/hover state. |
 
 ```tsx doc-test=compile
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
@@ -6031,6 +6035,53 @@ To keep the query key stable, memoize the `query` object (or pass a literal) and
 the dataset `sources`. `refetch()` forces a fresh fetch; `useHonuaQueryCache()`
 exposes `invalidate(key)` / `clear()` for manual cache control.
 
+### Stale-while-revalidate, Suspense, and error boundaries (experimental)
+
+Three `useQuery` options extend the cache semantics (all `@experimental`):
+
+- **`staleTimeMs`** — when a consumer (re)mounts and the cached result is at
+  least this old, the cached data keeps rendering while a background refetch
+  runs (`isFetching: true`, `data` preserved). `0` revalidates on every mount;
+  omitted keeps the historical never-revalidate behavior. The snapshot's
+  `dataUpdatedAt` reports the last successful fetch time.
+- **`suspense`** — the hook suspends while the *first* fetch (no cached data)
+  is in flight, and throws errors to the nearest error boundary. Background
+  refetches never suspend. The render-phase fetch kick is idempotent, so
+  StrictMode does not double-fetch.
+- **`throwOnError`** — throw query errors during render without Suspense.
+  Typed errors (e.g. `HonuaCapabilityNotSupportedError` with its `capability` /
+  `protocol` fields) arrive at the boundary intact.
+
+```tsx doc-test=compile
+import { Suspense } from "react";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { useDataset, useQuery } from "@honua/react";
+
+function Rows() {
+  const dataset = useDataset({
+    id: "ops",
+    sources: [
+      {
+        id: "incidents",
+        protocol: "geoservices-feature-service",
+        locator: { url: "https://honua.example.com", serviceId: "incidents", layerId: 0 },
+        capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+      },
+    ],
+  });
+  const { data } = useQuery(dataset.source("incidents"), { where: "1=1" }, { suspense: true, staleTimeMs: 30_000 });
+  return <p>{data?.features.length ?? 0} rows</p>;
+}
+
+export function Panel() {
+  return (
+    <Suspense fallback={<p>Loading…</p>}>
+      <Rows />
+    </Suspense>
+  );
+}
+```
+
 ## Map components
 
 `HonuaMap` owns a `HonuaMapRuntime` over a MapLibre map. `HonuaLayer` and
@@ -6062,32 +6113,158 @@ By default `HonuaMap` creates and owns the MapLibre map (dynamically importing
 `maplibre-gl`). Pass `mapLibre={maplibregl}` to supply the module explicitly, or
 `mapOptions` to tune the constructor.
 
-### Composing with an externally-owned map (`@vis.gl/react-maplibre`)
+## External-map interop (`@vis.gl/react-maplibre`) — experimental
 
-When another library owns the map (e.g. `@vis.gl/react-maplibre`'s `<Map>`),
-pass the existing instance to `HonuaMap` via `map`. `HonuaMap` then attaches its
-runtime to that map and **does not** remove it on unmount — the owner keeps
-control of the map lifecycle; Honua only disposes its runtime.
+Every map-attached hook/component resolves its MapLibre map through the same
+chain: an explicit `map` prop/argument wins, then the nearest
+**`HonuaMapProvider`** (or enclosing `HonuaMap`, which publishes the same
+context). The map is duck-typed on the MapLibre `Map` instance —
+`@vis.gl/react-maplibre` is *not* a dependency; hand over the raw instance from
+its `useMap()` and everything works:
 
-```tsx doc-test=skip reason="partial excerpt requires application host context"
+```tsx doc-test=skip reason="requires the @vis.gl/react-maplibre host application"
 import { Map, useMap } from "@vis.gl/react-maplibre";
-import { HonuaMap, HonuaLayer } from "@honua/react";
+import { HonuaMapProvider, HonuaSourceLayer } from "@honua/react";
 
-function HonuaOverlay({ mapPackage }) {
+function HonuaOverlay({ source }) {
   const { current } = useMap();
-  const map = current?.getMap();
-  if (!map) return null;
   return (
-    <HonuaMap package={mapPackage} map={map}>
-      <HonuaLayer layer={{ id: "incidents", type: "circle", source: "incidents" }} />
-    </HonuaMap>
+    <HonuaMapProvider map={current?.getMap() ?? null}>
+      <HonuaSourceLayer source={source} hover />
+    </HonuaMapProvider>
   );
 }
 
 <Map initialViewState={{ longitude: -157.84, latitude: 21.31, zoom: 10 }} mapStyle={style}>
-  <HonuaOverlay mapPackage={mapPackage} />
+  <HonuaOverlay source={source} />
 </Map>;
 ```
+
+The provider never mutates or removes the map — the owner keeps the lifecycle.
+A plain, self-created `maplibre-gl` map works identically (see
+`examples/react-quickstart/`).
+
+## Bridge components: `HonuaSourceLayer` and `useMountedSource` — experimental
+
+`HonuaSourceLayer` is the declarative face of the data-to-map bridge
+(`mountSource` from `@honua/sdk-js/map`): it mounts a contract `Source` as a
+styled, interactive MapLibre layer set inside the enclosing map and owns the
+full disposal on unmount. React 18/19 **StrictMode double-mounts neither leak
+MapLibre resources nor double-add layers** — each effect run performs one fresh
+mount and its cleanup aborts/disposes it.
+
+Prop changes are **diffed in place, never torn down**:
+
+- `query` → `handle.setFilter(query)` (GeoJSON `setData` / tile URL rewrite);
+- `renderer.paint` / `renderer.layout` → per-property `setPaintProperty` /
+  `setLayoutProperty` on the bridge-owned layers (hosts without those methods
+  fall back to a transactional remount);
+- structural options (`renderer.geometry`, `renderer.layers`, `strategy`,
+  `sourceId`, `queryTiles`, …) → remount.
+
+```tsx doc-test=compile
+import type { DataToMapLibreMap } from "@honua/sdk-js/map";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { HonuaSourceLayer, useDataset } from "@honua/react";
+
+export function OpenIncidents({ map }: { map: DataToMapLibreMap | null }) {
+  const dataset = useDataset({
+    id: "ops",
+    sources: [
+      {
+        id: "incidents",
+        protocol: "geoservices-feature-service",
+        locator: { url: "https://honua.example.com", serviceId: "incidents", layerId: 0 },
+        capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+      },
+    ],
+  });
+  return (
+    <HonuaSourceLayer
+      map={map}
+      source={dataset.source("incidents")}
+      query={{ where: "STATUS = 'OPEN'" }}
+      renderer={{ paint: { point: { "circle-color": "#38bdf8" } } }}
+      hover
+      onDiagnostics={(diagnostics) => console.log(diagnostics.strategy, diagnostics.featureCount)}
+    />
+  );
+}
+```
+
+`useMountedSource(map, source, options)` is the same lifecycle as a hook: it
+returns `{ handle, diagnostics, error, isMounting, refresh }` for imperative
+composition (pass `undefined` as `map` to resolve it from context). Mount
+failures and update failures surface on `error` / `onError`; the bridge's
+strategy explanation and overflow reporting arrive through `diagnostics` /
+`onDiagnostics`.
+
+## Shared selection & hover: `HonuaSelectionProvider` — experimental
+
+`HonuaSelectionProvider` owns selection/hover state built on the interactions
+layer's source-qualified targets, so map and non-map components stay in sync:
+
+- `useSelection()` → `{ selected, isSelected, select, deselect, toggle, clear }`;
+- `useHover()` → `{ hovered, isHovered, setHovered, clearHovered }`;
+- `HonuaSourceLayer selection` (or `useMapSelectionBinding`) two-way-binds the
+  mounted layers: map clicks toggle the shared selection, and every selection
+  change — from the map *or* a sidebar — is mirrored onto MapLibre
+  feature-state (default key `"selected"`) for paint expressions;
+- `useMapHoverBinding` publishes the map-hovered feature; visual hover
+  feature-state stays with the bridge's `hover` option.
+
+```tsx doc-test=compile
+import type { DataToMapLibreMap } from "@honua/sdk-js/map";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { HonuaMapProvider, HonuaSelectionProvider, HonuaSourceLayer, useDataset, useSelection } from "@honua/react";
+
+function Sidebar() {
+  const { selected, clear } = useSelection();
+  return (
+    <button type="button" onClick={clear}>
+      {selected.length} selected
+    </button>
+  );
+}
+
+function ParcelsLayer() {
+  const dataset = useDataset({
+    id: "ops",
+    sources: [
+      {
+        id: "parcels",
+        protocol: "geoservices-feature-service",
+        locator: { url: "https://honua.example.com", serviceId: "parcels", layerId: 0 },
+        capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+      },
+    ],
+  });
+  return <HonuaSourceLayer source={dataset.source("parcels")} hover selection />;
+}
+
+export function Workspace({ map }: { map: DataToMapLibreMap | null }) {
+  return (
+    <HonuaSelectionProvider>
+      <HonuaMapProvider map={map}>
+        <ParcelsLayer />
+      </HonuaMapProvider>
+      <Sidebar />
+    </HonuaSelectionProvider>
+  );
+}
+```
+
+Pair it with a selection-aware paint expression, e.g.
+`["case", ["boolean", ["feature-state", "selected"], false], "#f59e0b", "#2dd4bf"]`.
+Feature-state needs stable feature ids: give the source descriptor a
+`schema.primaryKey` (the bridge promotes it to MapLibre feature ids).
+
+### Attaching a `HonuaMap` runtime to an external map
+
+`HonuaMap` (the `MapPackage` runtime component) also accepts an existing map
+instance via its `map` prop; it then attaches its runtime and **does not**
+remove the map on unmount — the owner keeps control; Honua only disposes its
+runtime.
 
 ## Web components vs. React
 
@@ -6105,9 +6282,14 @@ Both talk to the same `HonuaClient` and runtime, so you can mix them.
 
 ## Runnable example
 
-`examples/react-quickstart/` is a Vite app wiring `HonuaProvider`, `useDataset`,
-`useQuery`, `useCapabilities`, `HonuaMap`, `HonuaLayer`, and `HonuaPopup`
-together under `StrictMode`:
+`examples/react-quickstart/` is a Vite app running under `StrictMode` that
+wires the whole depth-pass surface together: an **externally-created plain
+`maplibre-gl` map** (standing in for `@vis.gl/react-maplibre`'s `<Map>`)
+published through `HonuaMapProvider`, a `HonuaSourceLayer` with a
+selection-aware `renderer` prop, popups/hover from the bridge, and a sidebar
+list sharing selection with the map through `HonuaSelectionProvider` — plus
+the existing `HonuaProvider` / `useDataset` / `useQuery` / `useCapabilities`
+data panel:
 
 ```bash
 npm run demo:react-quickstart          # dev server
@@ -6277,7 +6459,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-13 at commit `933de19`._
+_Generated 2026-07-13 at commit `2e1b6f2`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -6302,7 +6484,7 @@ _Generated 2026-07-13 at commit `933de19`._
 | `/map` | 136.3 KiB | 149.8 KiB | 37.8 KiB | 41.6 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 17.2 KiB | 17.8 KiB | 6.2 KiB | 6.5 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 372.3 KiB | 405.7 KiB | 96.2 KiB | 104.5 KiB |
+| `/react` (react/react-dom external) | 406.1 KiB | 446.7 KiB | 106.5 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 370.1 KiB | 382.8 KiB | 97.4 KiB | 101.5 KiB |
 | browser ESM (`./browser`) | 368.8 KiB | 381.4 KiB | 97.1 KiB | 101.2 KiB |
