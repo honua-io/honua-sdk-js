@@ -1,0 +1,17 @@
+{
+  "id": "wfs-query",
+  "title": "Query a WFS 2.0 feature type",
+  "category": "protocols",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that queries a WFS 2.0 endpoint. The capabilities endpoint is <HONUA_EVAL_BASE_URL>/geoserver/ows and the feature type is \"ne:ne_10m_admin_0_countries\". Use the contract API from @honua/sdk-js: HonuaClient with { baseUrl: <base URL> }, createDataset from @honua/sdk-js/contract with one source { id: \"countries\", protocol: \"wfs\", locator: { url: <base URL>/geoserver/ows, typeName: \"ne:ne_10m_admin_0_countries\" }, capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs } and skipCompatibilityCheck: true. Query with { pagination: { limit: 2 } }. Print exactly one line to stdout: {\"count\": <result.features.length>, \"firstName\": <the name attribute of the first feature>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/wfs.md"],
+    "notes": "Golden workflow: WFS GetCapabilities discovery + GetFeature against the DCP-advertised URL."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [
+    { "path": "count", "op": "equals", "value": 2 },
+    { "path": "firstName", "op": "equals", "value": "Aruba" }
+  ]
+}
