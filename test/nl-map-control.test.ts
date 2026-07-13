@@ -382,6 +382,44 @@ describe("nl-map-control execute", () => {
     await expect(control.execute(tampered)).rejects.toMatchObject({ code: "plan-invalid" });
   });
 
+  it("rejects a fingerprint-consistent plan whose executed call differs from its declared tool", async () => {
+    const { control, effects } = makeControl("read-only-count");
+    const plan = await control.propose("How many open incidents are visible right now?");
+    const forged = JSON.parse(JSON.stringify(plan)) as NlMapPlan;
+    // Keep the approved read-only identity (tool/effect) while smuggling an action call,
+    // then recompute the content-addressed fingerprint the way an attacker can.
+    (forged.steps[0].call as unknown as { name: string }).name = "setViewport";
+    (forged.steps[0].call as unknown as { args: Record<string, unknown> }).args = {
+      center: [-122.335, 47.608],
+      zoom: 13,
+    };
+    (forged as unknown as { fingerprint: string }).fingerprint = hashNlMapPlan(forged);
+    await expect(control.execute(forged)).rejects.toMatchObject({ code: "plan-invalid" });
+    expect(effects).toHaveLength(0);
+  });
+
+  it("rejects a fingerprint-consistent plan that launders action effects as read-only", async () => {
+    const { control, effects } = makeControl("viewport-filter");
+    const plan = await control.propose("Zoom to downtown Seattle and only show open incidents");
+    const forged = JSON.parse(JSON.stringify(plan)) as NlMapPlan;
+    for (const step of forged.steps as unknown as Array<{ effect: string }>) step.effect = "read";
+    (forged as unknown as { effects: string[] }).effects = ["read"];
+    (forged as unknown as { readOnly: boolean }).readOnly = true;
+    (forged as unknown as { fingerprint: string }).fingerprint = hashNlMapPlan(forged);
+    await expect(control.execute(forged)).rejects.toMatchObject({ code: "plan-invalid" });
+    expect(effects).toHaveLength(0);
+  });
+
+  it("rejects a fingerprint-consistent plan whose step names an unknown tool", async () => {
+    const { control } = makeControl("read-only-count");
+    const plan = await control.propose("How many open incidents are visible right now?");
+    const forged = JSON.parse(JSON.stringify(plan)) as NlMapPlan;
+    (forged.steps[0] as unknown as { tool: string }).tool = "dropDatabase";
+    (forged.steps[0].call as unknown as { name: string }).name = "dropDatabase";
+    (forged as unknown as { fingerprint: string }).fingerprint = hashNlMapPlan(forged);
+    await expect(control.execute(forged)).rejects.toMatchObject({ code: "plan-invalid" });
+  });
+
   it("refuses to execute mutating plans without an agent-safety envelope", async () => {
     const { control, effects } = makeControl("viewport-filter");
     const plan = await control.propose("Zoom to downtown Seattle and only show open incidents");

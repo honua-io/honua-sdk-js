@@ -473,6 +473,39 @@ function assertNlMapPlan(input: unknown): NlMapPlan {
       "Plan content does not match its fingerprint. Re-propose instead of editing a plan in place.",
     );
   }
+  // The fingerprint is content-addressed, not signed, so a crafted plan can
+  // arrive with a self-consistent fingerprint. Approval binding and receipts
+  // are keyed on step.tool/step.effect while execution dispatches step.call,
+  // so reject any plan where those identities disagree before either path.
+  for (const step of plan.steps) {
+    const expectedEffect = NL_TOOL_EFFECTS[step.tool as HonuaAgentToolName] as NlMapPlanEffect | undefined;
+    if (expectedEffect === undefined) {
+      throw new HonuaNlMapControlError("plan-invalid", `Plan step "${step.id}" names unknown tool "${step.tool}".`);
+    }
+    if (typeof step.call !== "object" || step.call === null || step.call.name !== step.tool) {
+      throw new HonuaNlMapControlError(
+        "plan-invalid",
+        `Plan step "${step.id}" executes call "${String(step.call?.name)}" but declares tool "${step.tool}". The executed call must match the tool the approval binds to.`,
+      );
+    }
+    if (step.effect !== expectedEffect) {
+      throw new HonuaNlMapControlError(
+        "plan-invalid",
+        `Plan step "${step.id}" declares effect "${step.effect}" but tool "${step.tool}" has effect "${expectedEffect}".`,
+      );
+    }
+  }
+  const derivedEffects = new Set(plan.steps.map((step) => step.effect));
+  const declaredEffects = Array.isArray(plan.effects) ? plan.effects : [];
+  const effectsMatch =
+    declaredEffects.length === derivedEffects.size && declaredEffects.every((effect) => derivedEffects.has(effect));
+  const derivedReadOnly = [...derivedEffects].every((effect) => effect === "read");
+  if (!effectsMatch || plan.readOnly !== derivedReadOnly) {
+    throw new HonuaNlMapControlError(
+      "plan-invalid",
+      "Plan readOnly/effects summary does not match the effects derived from its steps.",
+    );
+  }
   return plan;
 }
 
