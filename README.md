@@ -267,7 +267,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 27 executable examples: 11 flagship, 5 recipe, 7 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 28 executable examples: 11 flagship, 6 recipe, 7 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`

@@ -45,6 +45,8 @@ function buildDemoIfNeeded() {
     cwd: projectRoot,
     stdio: "inherit",
     env: { ...process.env, ...FIXTURE_BUILD_ENV },
+    // Node >= 20.12 refuses to spawn .cmd shims without a shell (CVE-2024-27980).
+    shell: process.platform === "win32",
   });
   if (result.status !== 0) {
     throw new Error("Failed to build the endpoint-to-map demo before starting the fixture server.");

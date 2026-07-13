@@ -30,7 +30,8 @@
     "/plugin gained its first dedicated guard with the application-local lifecycle (#455): certification, deterministic dependency ordering, transactional rollback, scoped service wrappers, and immutable diagnostics measure 35,329 minified / 11,814 gzip bytes; the ceiling is measured actual plus 10% headroom.",
     "/plugin was reset for the behavioral-conformance kit, signed-report verification, and support-status program (#392): the deterministic conformance harness, report digest re-verification, and supportStatus validation measure 40,714 minified / 13,410 gzip bytes; the ceiling is measured actual plus ~10% headroom.",
     "/scene-workspace guards renderer-neutral shared state while MapLibre and Cesium stay external optional peers.",
-    "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom."
+    "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom.",
+    "/map was reset for the standalone data-to-map bridge (#496): mountSource/explainDataToMapStrategy add capability+result-size strategy selection, geometry-default styling, popup/hover wiring, and reuse of the dynamic query-tile spec builders (contract/tiles + runtime/query-tiles) on the entrypoint. Measured 139,458 minified / 38,686 gzip — the gzip growth over the prior 31.2 KiB actual is ~6.5 KiB, and the measured size stays under the prior ceiling plus the 4 KiB gzip allowance granted by #496 NFR-001 (35,055 + 4,096 = 39,151). Ceilings are measured actual plus ~10% headroom."
   ],
   "entrypoints": {
     ".": {
@@ -98,8 +99,8 @@
       "gzip": 9341
     },
     "/map": {
-      "min": 126815,
-      "gzip": 35055
+      "min": 153404,
+      "gzip": 42555
     },
     "/geoparquet": {
       "min": 18254,
