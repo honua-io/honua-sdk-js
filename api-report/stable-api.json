@@ -1823,8 +1823,8 @@
     {
       "subpath": "@honua/sdk-js/esri-compat",
       "types": "dist/src/esri-compat-entry.d.ts",
-      "exportCount": 492,
-      "signatureSha256": "ff4415217bfaf4f5fbb71b34b38a65c71ac78222f9b413d855d400738fc8f1f7",
+      "exportCount": 495,
+      "signatureSha256": "8da3dfafaf3565efc60d82bfa6eb3cb0f88bd0ff6b8c6ea74aa28290fcd5ced3",
       "exports": [
         "ArcGisTokenInterceptorOptions — interface",
         "AreaMeasurement2DCompat — class",
@@ -1990,6 +1990,8 @@
         "HomeViewpointCompat — interface",
         "HonuaWidgetHost — class",
         "HonuaWidgetHostElement — interface",
+        "HonuaWidgetKitLike — interface",
+        "HonuaWidgetKitSource — type",
         "IdentifyCompat — class",
         "IdentifyCompatLayerError — interface",
         "IdentifyCompatLayerResult — interface",
@@ -2313,6 +2315,7 @@
         "parseFeatureLayerUrl — function",
         "parseMapServiceUrl — function",
         "reactiveUtils — const",
+        "registerHonuaWidgetKit — function",
         "resetEsriConfig — function",
         "snappingOptionsToSnappingConfig — function",
         "watch — function",
