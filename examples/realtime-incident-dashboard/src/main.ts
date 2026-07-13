@@ -26,6 +26,7 @@ import {
   createRealtimeFeatureStore,
   reconcileRealtimeSelection,
 } from "@honua/sdk-js/realtime";
+import { uniqueValueRenderer } from "@honua/sdk-js/style";
 
 import {
   type IncidentRealtimeDiagnostics,
@@ -185,6 +186,18 @@ function incidentBounds(incidents: readonly IncidentFeature[]): maplibregl.LngLa
   return bounds.isEmpty() ? [fallback, fallback] : bounds;
 }
 
+/** Incident severity styling as a first-class renderer object (issue #497). */
+const severityRenderer = uniqueValueRenderer({
+  field: "severity",
+  values: [
+    { value: "critical", color: "#b91c1c", label: "Critical" },
+    { value: "high", color: "#d97706", label: "High" },
+    { value: "medium", color: "#2563eb", label: "Medium" },
+  ],
+  defaultColor: "#0f766e",
+  defaultLabel: "Low / other",
+});
+
 async function createMap(): Promise<MapHandle> {
   const map = new maplibregl.Map({
     container: "map",
@@ -198,28 +211,21 @@ async function createMap(): Promise<MapHandle> {
       type: "geojson",
       data: incidentFeatureCollection(INITIAL_INCIDENTS) as never,
     });
+    // The severity match expression compiles from the renderer object
+    // instead of being hand-written (issue #497).
+    const [severityFragment] = severityRenderer.toMapLibre("point");
     map.addLayer({
       id: INCIDENT_LAYER_ID,
       source: INCIDENT_SOURCE_ID,
       type: "circle",
       filter: ["==", "$type", "Point"],
       paint: {
+        ...severityFragment.paint,
         "circle-radius": [
           "case",
           ["boolean", ["feature-state", "selected"], false],
           12,
           ["interpolate", ["linear"], ["get", "affectedAssets"], 0, 7, 18, 13],
-        ],
-        "circle-color": [
-          "match",
-          ["get", "severity"],
-          "critical",
-          "#b91c1c",
-          "high",
-          "#d97706",
-          "medium",
-          "#2563eb",
-          "#0f766e",
         ],
         "circle-opacity": ["case", ["==", ["get", "status"], "resolved"], 0.45, 0.92],
         "circle-stroke-color": ["case", ["boolean", ["feature-state", "selected"], false], "#0f172a", "#ffffff"],

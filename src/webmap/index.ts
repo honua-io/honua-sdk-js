@@ -29,7 +29,11 @@ export { CONTRACT, getContractSummary } from "./contract.js";
 export type { ContractEntry, ContractSupport, ContractSummary } from "./contract.js";
 export { convertSymbol, esriColorToCss, esriLineStyleToDashArray } from "./convert-symbol.js";
 export type { SymbolConversionResult } from "./convert-symbol.js";
-export { convertRenderer } from "./convert-renderer.js";
+export {
+  classBreaksRendererFromWebMap,
+  convertRenderer,
+  uniqueValueRendererFromWebMap,
+} from "./convert-renderer.js";
 export type { RendererConversionResult } from "./convert-renderer.js";
 export { convertPopupInfo } from "./convert-popup.js";
 export type { HonuaPopupConfig, HonuaPopupFieldInfo, HonuaPopupMediaInfo } from "./convert-popup.js";

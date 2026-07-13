@@ -266,6 +266,11 @@ function createCompatPackage() {
   // geometry package, so the compat tarball ships it and pulls turf/proj4.
   copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
+  // esri-compat/renderer-objects.js projects compat renderers through the
+  // first-class renderer objects (webmap/convert-renderer.js -> style/renderers.js),
+  // so the compat tarball ships both directories (issue #497).
+  copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
   copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
 
@@ -369,6 +374,12 @@ function createMigrationPackage() {
     path.join(DIST_SRC_ROOT, "style", "specification.d.ts"),
     path.join(packageRoot, "style", "specification.d.ts"),
   );
+  // webmap/convert-renderer.js builds first-class renderer objects (issue
+  // #497), so the migration package also ships the style renderer module and
+  // its /expr dependency.
+  copyFile(path.join(DIST_SRC_ROOT, "style", "renderers.js"), path.join(packageRoot, "style", "renderers.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "style", "renderers.d.ts"), path.join(packageRoot, "style", "renderers.d.ts"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyMigrationCoreTypeSupport(packageRoot);
   copyFile(path.join(DIST_SRC_ROOT, "migration-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "migration-entry.d.ts"), path.join(packageRoot, "index.d.ts"));

@@ -43,5 +43,38 @@ export type {
 } from "./specification.js";
 export { createSources } from "./factory.js";
 export type { ResolvedSource } from "./factory.js";
+// First-class renderer objects (issue #497). All @experimental.
+export {
+  classBreaksRenderer,
+  clusterRenderer,
+  heatmapRenderer,
+  isRenderer,
+  rendererFromJSON,
+  uniqueValueRenderer,
+} from "./renderers.js";
+export type {
+  ClassBreakEntry,
+  ClassBreaksRenderer,
+  ClassBreaksRendererDescriptor,
+  ClassBreaksRendererOptions,
+  ClusterRenderer,
+  ClusterRendererDescriptor,
+  ClusterRendererOptions,
+  ClusterStep,
+  HeatmapColorStop,
+  HeatmapRenderer,
+  HeatmapRendererDescriptor,
+  HeatmapRendererOptions,
+  Renderer,
+  RendererDescriptor,
+  RendererGeometryType,
+  RendererLayerFragment,
+  RendererLegendItem,
+  RendererStyle,
+  UniqueValueEntry,
+  UniqueValueRenderer,
+  UniqueValueRendererDescriptor,
+  UniqueValueRendererOptions,
+} from "./renderers.js";
 // Feature Service and Map Service URL parsers are exported from
 // esri-compat/url.ts via the main index.ts barrel — no re-export needed here.

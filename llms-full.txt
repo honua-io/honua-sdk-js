@@ -357,7 +357,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 30 executable examples: 11 flagship, 6 recipe, 9 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 31 executable examples: 11 flagship, 6 recipe, 10 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at the
@@ -901,7 +901,7 @@ current API reference without following the migration notes.
 
 This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 30 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 31 executable examples
 
 | Sample | Tier | Support | Data | Disposition | Demonstration |
 | --- | --- | --- | --- | --- | --- |
@@ -932,6 +932,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | advanced | supported | fixture | merge | Discovers STAC collections and previews supported imagery assets. |
 | [`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | flagship | supported | hybrid | merge | Connects a public Esri service directly to MapLibre without a Honua server. |
 | [`storytelling-25d-map`](../../examples/storytelling-25d-map/README.md) | advanced | supported | hybrid | merge | Combines terrain, extrusion, OGC overlays, and route playback in a guided story. |
+| [`temporal-playback`](../../examples/temporal-playback/README.md) | advanced | experimental | fixture | keep | Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems(). |
 | [`terrain-rgb-elevation`](../../examples/terrain-rgb-elevation/README.md) | advanced | supported | hybrid | merge | Reads Terrain-RGB tiles for point elevation and route profiles. |
 | [`unified-ops-workspace`](../../examples/unified-ops-workspace/README.md) | advanced | deprecated | fixture | retire | Composes incident command, analysis, and shared workspace state. |
 | [`web-components-basic`](../../examples/web-components-basic/README.md) | reference | deprecated | fixture | retire | Demonstrates the SDK custom-element controls against a map. |
@@ -1672,7 +1673,7 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-13 at commit `933de19`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-13 at commit `3253f56`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -1682,7 +1683,7 @@ builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-b
 | Importing only `HonuaClient` (tree-shake guard) | 192.5 KiB | 48.9 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 17.7 KiB | 6.6 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 237.5 KiB | 62.1 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 951.0 KiB | 235.7 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 960.0 KiB | 238.9 KiB |
 | Geocoding client | 12.5 KiB | 3.9 KiB |
 | Routing client | 6.1 KiB | 2.5 KiB |
 
@@ -6456,12 +6457,12 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-13 at commit `933de19`._
+_Generated 2026-07-13 at commit `3253f56`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
 | `.` (root) | 369.4 KiB | 382.0 KiB | 97.1 KiB | 101.2 KiB |
-| `/honua` | 480.3 KiB | 510.3 KiB | 126.7 KiB | 135.7 KiB |
+| `/honua` | 484.7 KiB | 510.3 KiB | 127.9 KiB | 135.7 KiB |
 | `/contract` | 237.5 KiB | 261.1 KiB | 62.1 KiB | 66.1 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
@@ -6471,14 +6472,14 @@ _Generated 2026-07-13 at commit `933de19`._
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
-| `/esri-compat` | 951.0 KiB | 1026.2 KiB | 235.7 KiB | 253.6 KiB |
+| `/esri-compat` | 960.0 KiB | 1026.2 KiB | 238.9 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
-| `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
+| `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 12.5 KiB | 13.7 KiB | 3.9 KiB | 4.3 KiB |
 | `/routing` | 6.1 KiB | 6.6 KiB | 2.5 KiB | 2.7 KiB |
 | `/auth` | 12.0 KiB | 12.8 KiB | 3.8 KiB | 4.0 KiB |
-| `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
-| `/map` | 136.3 KiB | 149.8 KiB | 37.8 KiB | 41.6 KiB |
+| `/style` | 46.7 KiB | 51.4 KiB | 11.3 KiB | 12.4 KiB |
+| `/map` | 147.5 KiB | 149.8 KiB | 41.3 KiB | 41.6 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 17.2 KiB | 17.8 KiB | 6.2 KiB | 6.5 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 372.3 KiB | 405.7 KiB | 96.2 KiB | 104.5 KiB |
@@ -6798,6 +6799,9 @@ mounted.dispose();
 - Full cookbook (strategy selection, options, disposal, overflow diagnostics):
   [`docs/data-to-map-bridge.md`](./data-to-map-bridge.md).
 - Runnable fixture/live demo: [`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md).
+- First-class renderer objects (`classBreaksRenderer`, `uniqueValueRenderer`, `heatmapRenderer`,
+  `clusterRenderer` on `/style`), `mountSource({ renderer })` + `setRenderer()` swaps, and temporal
+  playback (`createTemporalPlayback` on `/map`): [`docs/renderers.md`](./renderers.md).
 
 ## MapLibre GL JS Runtime For `MapPackage`
 
@@ -8676,6 +8680,175 @@ Manual intervention is expected for:
 - complex Arcade expressions in labels/popups
 - renderer types outside simple/uniqueValue/classBreaks
 - inline `featureCollection` content
+
+---
+
+# File: docs/renderers.md
+
+# Renderer objects and temporal playback
+
+> Status: `@experimental` — the surfaces ship on the stable `/style` and
+> `/map` entrypoints but the descriptor shapes may still change in minor
+> releases. (Issue #497.)
+
+First-class renderer objects give standalone MapLibre users the smart-mapping
+vocabulary Esri/CARTO users expect — class breaks, unique values, heatmaps,
+clustering — without Honua becoming a renderer. A renderer object is a
+serializable, renderer-neutral description that compiles deterministically to
+MapLibre style fragments through the `/expr` builder. Compilation is a pure
+function: the same descriptor always produces byte-identical style JSON, and
+nothing is cached.
+
+```ts doc-test=skip reason="requires a browser MapLibre host"
+import { classBreaksRenderer } from "@honua/sdk-js/style";
+
+const renderer = classBreaksRenderer({
+  field: "magnitude",
+  breaks: [
+    { min: 0, max: 3, label: "Minor" },
+    { min: 3, max: 6, label: "Moderate" },
+    { min: 6, label: "Strong" },
+  ],
+  colors: ["#fed976", "#fd8d3c", "#b10026"],
+  defaultColor: "#cccccc",
+});
+
+const [fragment] = renderer.toMapLibre("point"); // "point" | "line" | "polygon"
+map.addLayer({ id: "quakes", type: fragment.type, source: "quakes", paint: fragment.paint });
+renderer.legendItems(); // [{ kind: "class-break", label: "Minor", color: "#fed976", minValue: 0, maxValue: 3 }, …]
+```
+
+## The four renderers
+
+All four factories live on `@honua/sdk-js/style` and share the same contract:
+`toMapLibre(geometryType)` returns layer fragments, `legendItems()` returns
+legend metadata, and `toJSON()` returns a serializable descriptor that
+`rendererFromJSON()` revives.
+
+| Factory | Compiles to | Notes |
+| --- | --- | --- |
+| `classBreaksRenderer({ field, breaks, colors?, defaultColor? })` | one `step` expression per styled property | `breaks[i].min ?? max` is the step threshold; positional `colors` fill in omitted break colors |
+| `uniqueValueRenderer({ field, values, defaultColor? })` | one `match` expression per styled property | `field2`/`field3` + `fieldDelimiter` concatenate multi-field keys |
+| `heatmapRenderer({ weightField?, radius?, intensity?, colorRamp? })` | a single `heatmap` layer fragment | `colorRamp` is explicit `{ stop, color }` stops or a color list spread evenly over density 0..1 |
+| `clusterRenderer({ radius?, maxZoom?, countField?, steps })` | `clusters` + `cluster-count` + `unclustered` fragments | `toMapLibreSource()` returns the GeoJSON-source cluster options; `countField` sums a property per cluster instead of counting points |
+
+Advanced entries accept a `style: { paint, layout }` override instead of the
+`color` shorthand — that is how WebMap symbols round-trip losslessly.
+
+### Legend metadata (stable contract)
+
+`legendItems()` always yields `{ kind, label, color }`, with `value` on
+unique-value entries, `minValue`/`maxValue` on ranged entries (class breaks,
+cluster steps), and the ramp position in `value` for heatmap stops. A trailing
+`kind: "default"` item appears when the renderer declares a default
+color/label/style. Legend components can consume this without knowing the
+renderer kind.
+
+### Serialization
+
+Descriptors are plain JSON:
+
+```ts doc-test=skip reason="illustrative snippet"
+const descriptor = renderer.toJSON(); // safe to persist / send over the wire
+const revived = rendererFromJSON(descriptor); // identical compile output
+```
+
+## One implementation everywhere
+
+WebMap JSON conversion (`@honua/sdk-js/webmap`'s `convertRenderer`) and the
+esri-compat renderer shims emit these objects and compile through the same
+`/expr` path — there is exactly one class-breaks/unique-value compiler in the
+SDK, and the WebMap converter's style output is unchanged byte for byte.
+
+- `uniqueValueRendererFromWebMap(renderer, warn)` /
+  `classBreaksRendererFromWebMap(renderer, warn)` build renderer objects from
+  WebMap renderer JSON.
+- `rendererObjectFromClassBreaksCompat(compat)` /
+  `rendererObjectFromUniqueValueCompat(compat)` (on `/esri-compat`) project a
+  `ClassBreaksRendererCompat` / `UniqueValueRendererCompat` shim to a renderer
+  object plus any symbol-conversion warnings.
+
+## Bridge integration
+
+`mountSource(map, source, { renderer })` derives the mounted layer set from a
+renderer object; explicit `paint`/`layout` overrides still win per property.
+A cluster renderer additionally configures GeoJSON-source clustering
+(`cluster`, `clusterRadius`, `clusterMaxZoom`, `clusterProperties`) and
+therefore requires the `"geojson"` strategy.
+
+```ts doc-test=skip reason="requires a browser MapLibre host"
+import { mountSource } from "@honua/sdk-js/map";
+import { uniqueValueRenderer, heatmapRenderer } from "@honua/sdk-js/style";
+
+const mounted = await mountSource(map, data.source(), {
+  renderer: uniqueValueRenderer({
+    field: "priority",
+    values: [
+      { value: "high", color: "#b91c1c" },
+      { value: "low", color: "#0f766e" },
+    ],
+  }),
+});
+
+// Swap renderers without teardown where MapLibre allows: same layer
+// structure → per-property setPaintProperty/setLayoutProperty diff;
+// structural change → only the owned layers (and, for cluster-option
+// changes, the source) are recreated.
+await mounted.setRenderer(heatmapRenderer({ weightField: "priorityScore" }));
+```
+
+Diagnostics record which path ran: `renderer-applied` (in-place diff),
+`renderer-recreated-layers`, or `renderer-recreated-source`.
+
+## Temporal playback
+
+`createTemporalPlayback` from `@honua/sdk-js/map` is a renderer-neutral
+play/pause/scrub controller over a time extent with a bounded frame cadence.
+It drives time filters through a thin binding — either the bridge handle
+(`MountedSource.setFilter` with a generated `where` clause) or client-side
+MapLibre layer filters composed with each layer's bind-time filter.
+
+```ts doc-test=skip reason="requires a browser MapLibre host"
+import { createTemporalPlayback } from "@honua/sdk-js/map";
+
+const playback = createTemporalPlayback({
+  handle: mounted, // or layer: { map, layerIds: ["quakes"] } for client-side filters
+  timeField: "event_time",
+  extent: ["2026-01-01T00:00:00Z", "2026-02-01T00:00:00Z"],
+  windowMs: 24 * 60 * 60 * 1000, // one-day window
+  stepMs: 6 * 60 * 60 * 1000, // advance six hours per frame
+  frameIntervalMs: 400,
+  loop: true,
+});
+playback.on("tick", ({ window, progress }) => updateSlider(progress));
+playback.play();
+playback.scrub("2026-01-15T00:00:00Z");
+playback.setWindow(3 * 24 * 60 * 60 * 1000);
+playback.dispose();
+```
+
+Memory is bounded by construction (issue #497 REQ-004): the controller keeps
+only the current window, and filter application is coalesced — at most one
+request in flight plus the single latest pending window; intermediate windows
+are dropped, never queued. No window data is pre-fetched or cached by the
+controller. Playback over static data has no realtime dependency; layering it
+over a live feed is where #393's snapshot-plus-delta resume vocabulary
+applies, and that integration is intentionally out of scope here.
+
+For the `layer` binding the time property must be numeric (epoch
+milliseconds) because MapLibre filters compare numbers; the `handle` binding
+generates `<timeField> >= <startMs> AND <timeField> < <endMs>` by default and
+accepts a `formatWhere` override for servers that need date literals.
+
+## Demos
+
+- [`examples/temporal-playback/`](../examples/temporal-playback/README.md) —
+  class-breaks renderer + playback over a deterministic time-enabled fixture
+  (mock lane, no network).
+- [`examples/service-explorer/`](../examples/service-explorer/README.md) and
+  [`examples/realtime-incident-dashboard/`](../examples/realtime-incident-dashboard/README.md)
+  build their categorical styling from `uniqueValueRenderer` instead of
+  hand-written `match` expressions.
 
 ---
 
