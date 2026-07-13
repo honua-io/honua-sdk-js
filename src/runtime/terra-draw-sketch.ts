@@ -287,8 +287,18 @@ export function bindTerraDrawSketch<T = Record<string, unknown>>(
       geometry = options.transformGeometry ? options.transformGeometry(cloned) : cloned;
       applied = model.setSketchGeometry(tool, geometry).toolCapability(tool).state === "supported";
       if (applied) {
+        const previousId = activeFeatureId;
         activeFeatureId = id;
         toolsByFeature.set(id, tool);
+        if (previousId !== undefined && previousId !== id) {
+          // The workflow model tracks a single sketch geometry, so a newly
+          // finished feature replaces the previous one: drop the stale
+          // draw-store feature instead of letting duplicates accumulate.
+          // No syncing guard needed: onChange ignores deletes whose ids do
+          // not include the (already swapped) activeFeatureId.
+          toolsByFeature.delete(previousId);
+          if (draw.removeFeatures && featureById(previousId)) draw.removeFeatures([previousId]);
+        }
       }
     }
     options.onFinish?.({ featureId: id, ...(tool ? { tool } : {}), mode, action: context.action, geometry, applied });
@@ -341,13 +351,25 @@ export function bindTerraDrawSketch<T = Record<string, unknown>>(
       const tool =
         (activeFeatureId !== undefined ? toolsByFeature.get(activeFeatureId) : undefined) ?? snapshot.sketch.tool;
       const mode = tool ? (TERRA_DRAW_SKETCH_TOOL_MODES[tool] ?? "polygon") : "polygon";
+      const restoreId = activeFeatureId;
       const feature: TerraDrawSketchFeature = {
-        ...(activeFeatureId !== undefined ? { id: activeFeatureId } : {}),
+        ...(restoreId !== undefined ? { id: restoreId } : {}),
         type: "Feature",
         geometry: restored,
         properties: { mode },
       };
+      // Restoring after a delete leaves the id up to terra-draw: diff the
+      // snapshot to adopt the assigned id so the restored sketch stays
+      // tracked for later deletes/changes.
+      const priorIds = restoreId === undefined ? new Set(draw.getSnapshot().map((entry) => entry.id)) : undefined;
       draw.addFeatures([feature]);
+      if (priorIds) {
+        const added = draw.getSnapshot().find((entry) => entry.id !== undefined && !priorIds.has(entry.id));
+        if (added?.id !== undefined) {
+          activeFeatureId = added.id;
+          if (tool) toolsByFeature.set(added.id, tool);
+        }
+      }
       return true;
     } finally {
       syncing = false;

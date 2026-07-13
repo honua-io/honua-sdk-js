@@ -64,8 +64,12 @@ class FakeTerraDraw implements TerraDrawSketchInstance {
   }
 
   public addFeatures(features: TerraDrawSketchFeature[]): unknown {
-    for (const feature of features) this.features.set(feature.id ?? `generated-${this.features.size}`, feature);
-    return features.map(() => ({ valid: true }));
+    // Mirror real terra-draw: assign an id when missing and report it back.
+    return features.map((feature) => {
+      const id = feature.id ?? `generated-${this.features.size}`;
+      this.features.set(id, { ...feature, id });
+      return { id, valid: true };
+    });
   }
 
   public removeFeatures(ids: TerraDrawSketchFeatureId[]): void {
@@ -355,6 +359,79 @@ describe("runtime / bindTerraDrawSketch", () => {
     expect(handle.undo()).toBe(true);
     expect(draw.features.has("f-1")).toBe(false);
     expect(handle.undo()).toBe(false);
+  });
+
+  it("removes the previous draw-store feature when a new sketch replaces it", () => {
+    const draw = new FakeTerraDraw();
+    const model = makeWorkflow();
+    const handle = bindTerraDrawSketch(draw, { model });
+
+    draw.finishDraw("f-1", "polygon", POLYGON);
+    const second = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [5, 0],
+          [5, 5],
+          [0, 0],
+        ],
+      ],
+    };
+    draw.finishDraw("f-2", "polygon", second);
+
+    expect(handle.activeFeatureId).toBe("f-2");
+    expect(draw.features.has("f-1")).toBe(false);
+    expect(draw.features.has("f-2")).toBe(true);
+    expect(model.snapshot().sketch.geometry).toEqual(second);
+    // The store cleanup is a sync concern: it must not stage extra history.
+    expect(model.snapshot().undo.undoDepth).toBe(2);
+
+    // Undoing the second draw leaves a single feature with the first geometry.
+    expect(handle.undo()).toBe(true);
+    expect(draw.features.size).toBe(1);
+    expect(draw.features.get("f-2")?.geometry).toEqual(POLYGON);
+  });
+
+  it("re-tracks the restored feature after undoing a delete", () => {
+    const draw = new FakeTerraDraw();
+    const model = makeWorkflow();
+    const handle = bindTerraDrawSketch(draw, { model });
+
+    draw.finishDraw("f-1", "linestring", LINE);
+    draw.deleteFeatures(["f-1"]);
+    expect(handle.activeFeatureId).toBeUndefined();
+    expect(model.snapshot().sketch.geometry).toBeNull();
+
+    // Undo restores the geometry; terra-draw assigns a fresh id that the
+    // handle must adopt so the restored sketch stays managed.
+    expect(handle.undo()).toBe(true);
+    const restoredId = handle.activeFeatureId;
+    expect(restoredId).toBeDefined();
+    expect(draw.features.get(restoredId as TerraDrawSketchFeatureId)?.geometry).toEqual(LINE);
+
+    // Deleting the restored feature is tracked again.
+    draw.deleteFeatures([restoredId as TerraDrawSketchFeatureId]);
+    expect(model.snapshot().sketch.geometry).toBeNull();
+    expect(handle.activeFeatureId).toBeUndefined();
+  });
+
+  it("re-tracks a restored feature via snapshot diff when addFeatures returns nothing", () => {
+    const draw = new FakeTerraDraw();
+    const original = draw.addFeatures.bind(draw);
+    draw.addFeatures = (features: TerraDrawSketchFeature[]): unknown => {
+      original(features);
+      return undefined;
+    };
+    const model = makeWorkflow();
+    const handle = bindTerraDrawSketch(draw, { model });
+
+    draw.finishDraw("f-1", "linestring", LINE);
+    draw.deleteFeatures(["f-1"]);
+    expect(handle.undo()).toBe(true);
+    const restoredId = handle.activeFeatureId;
+    expect(restoredId).toBeDefined();
+    expect(draw.features.get(restoredId as TerraDrawSketchFeatureId)?.geometry).toEqual(LINE);
   });
 
   it("tracks selection events and detaches cleanly", () => {
