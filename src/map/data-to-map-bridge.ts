@@ -778,12 +778,20 @@ export async function mountSource<T = Record<string, unknown>>(
     }
 
     // Structural path: replace the owned layers; recreate the source only
-    // when GeoJSON cluster options changed.
+    // when GeoJSON cluster options changed. Materialize the replacement data
+    // BEFORE any teardown so a failed or aborted query leaves the previously
+    // working layers and interactions on the map untouched.
+    const replacement = clusterChanged
+      ? await (async () => {
+          const result = await materialize(currentQuery);
+          const converted = canonicalFeaturesToGeoJson(result.features, source.descriptor.schema?.primaryKey);
+          return { result, converted };
+        })()
+      : undefined;
     removeInteractions(popupHandles, hoverHandles);
     for (const layerId of [...layerIds].reverse()) if (map.getLayer(layerId)) map.removeLayer(layerId);
-    if (clusterChanged) {
-      const result = await materialize(currentQuery);
-      const converted = canonicalFeaturesToGeoJson(result.features, source.descriptor.schema?.primaryKey);
+    if (replacement) {
+      const { result, converted } = replacement;
       if (map.getSource(sourceId)) map.removeSource(sourceId);
       const nextSpec: Record<string, unknown> = {
         type: "geojson",

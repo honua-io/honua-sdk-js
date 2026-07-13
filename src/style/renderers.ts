@@ -723,24 +723,22 @@ export function compileDataDrivenStyle(
   const fallbackStyle = defaultStyle ?? entries[0].style;
   for (const key of keys) {
     const defaultValue = (fallbackStyle.paint[key] ?? fallbackStyle.layout[key] ?? "transparent") as Resolvable;
+    // Classes that do not define this property fall back to the default so
+    // the emitted match/step expression never contains `undefined` branches.
+    const valueFor = (entry: DataDrivenStyleEntry): Resolvable =>
+      (entry.style.paint[key] ?? entry.style.layout[key] ?? defaultValue) as Resolvable;
     let expression: unknown;
     if (mode === "match") {
       expression = matchExpr(
         input,
-        ...entries.map((entry): [Resolvable, Resolvable] => [
-          entry.key as Resolvable,
-          (entry.style.paint[key] ?? entry.style.layout[key]) as Resolvable,
-        ]),
+        ...entries.map((entry): [Resolvable, Resolvable] => [entry.key as Resolvable, valueFor(entry)]),
         defaultValue,
       ).toJSON();
     } else {
       expression = step(
         input,
         defaultValue,
-        ...entries.map((entry): [number, Resolvable] => [
-          entry.key as number,
-          (entry.style.paint[key] ?? entry.style.layout[key]) as Resolvable,
-        ]),
+        ...entries.map((entry): [number, Resolvable] => [entry.key as number, valueFor(entry)]),
       ).toJSON();
     }
     if (RENDERER_LAYOUT_PROPERTIES.has(key)) layout[key] = expression;

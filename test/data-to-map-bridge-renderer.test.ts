@@ -333,6 +333,27 @@ describe("MountedSource.setRenderer", () => {
     expect(map.sources.size).toBe(0);
   });
 
+  it("keeps the working layers when a cluster swap fails to materialize", async () => {
+    const map = new FakeMap();
+    const source = fakeSource();
+    const mounted = await mountSource(map, source, { renderer: PRIORITY_RENDERER });
+    const before = [...mounted.layerIds];
+
+    source.queryAllMock.mockRejectedValueOnce(new Error("network down"));
+    const renderer = clusterRenderer({ steps: [{ threshold: 0, color: "#51bbd6" }] });
+    await expect(mounted.setRenderer(renderer)).rejects.toThrow(/network down/);
+
+    // The previously working map is untouched: layers, source, and tracked ids.
+    expect(mounted.layerIds).toEqual(before);
+    for (const id of before) expect(map.layers.has(id)).toBe(true);
+    expect(map.sources.has("honua-incidents")).toBe(true);
+
+    // A later swap still works.
+    const diagnostics = await mounted.setRenderer(renderer);
+    expect(diagnostics.updates.at(-1)?.code).toBe("renderer-recreated-source");
+    mounted.dispose();
+  });
+
   it("rejects setRenderer after dispose", async () => {
     const map = new FakeMap();
     const mounted = await mountSource(map, fakeSource(), {});

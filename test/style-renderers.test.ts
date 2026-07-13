@@ -121,6 +121,34 @@ describe("uniqueValueRenderer", () => {
     expect(fragment.paint["circle-color"]).toEqual(["match", ["get", "t"], "a", "#111", "#111"]);
   });
 
+  it("fills classes that omit an advanced style property with the default value", () => {
+    const partial = uniqueValueRenderer({
+      field: "type",
+      values: [
+        { value: "police", style: { paint: { "circle-color": "#123456", "circle-stroke-width": 3 } } },
+        { value: "fire", style: { paint: { "circle-color": "#654321" } } },
+      ],
+    });
+    const [fragment] = partial.toMapLibre("point");
+    // The fire class omits circle-stroke-width: its branch must carry the
+    // default (first entry) value, never undefined.
+    expect(fragment.paint["circle-stroke-width"]).toEqual(["match", ["get", "type"], "police", 3, "fire", 3, 3]);
+    expect(JSON.stringify(fragment.paint)).not.toContain("null");
+  });
+
+  it("fills class-break style gaps with the default value in step expressions", () => {
+    const partial = classBreaksRenderer({
+      field: "mag",
+      breaks: [
+        { min: 0, max: 3, style: { paint: { "circle-color": "#111111", "circle-radius": 4 } } },
+        { min: 3, style: { paint: { "circle-color": "#222222" } } },
+      ],
+    });
+    const [fragment] = partial.toMapLibre("point");
+    expect(fragment.paint["circle-radius"]).toEqual(["step", ["get", "mag"], 4, 0, 4, 3, 4]);
+    expect(JSON.stringify(fragment.paint)).not.toContain("null");
+  });
+
   it("exposes legend metadata with values", () => {
     expect(renderer.legendItems()).toEqual([
       { kind: "unique-value", label: "High priority", color: "#b91c1c", value: "high" },
