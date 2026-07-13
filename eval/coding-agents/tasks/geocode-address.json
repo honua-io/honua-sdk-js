@@ -1,0 +1,18 @@
+{
+  "id": "geocode-address",
+  "title": "Geocode an address against a GeocodeServer locator",
+  "category": "geocoding",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that forward-geocodes the single-line address \"410 Atkinson Dr, Honolulu, HI 96814\" against the locator \"EvalLocator\" hosted at the base URL in HONUA_EVAL_BASE_URL. Use HonuaGeocodingClient from @honua/sdk-js/geocoding constructed with { baseUrl: <base URL>, locatorName: \"EvalLocator\" } and its forwardGeocode(address) method, which resolves to an array of { address, latitude, longitude, score }. Print exactly one line to stdout: {\"count\": <number of candidates>, \"address\": <first candidate address>, \"score\": <first candidate score>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/guide.md"],
+    "notes": "Golden workflow: forward geocoding via the dedicated geocoding subpath export."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [
+    { "path": "count", "op": "equals", "value": 1 },
+    { "path": "address", "op": "equals", "value": "410 Atkinson Dr, Honolulu, Hawaii, 96814" },
+    { "path": "score", "op": "equals", "value": 100 }
+  ]
+}

@@ -1,0 +1,115 @@
+name: Coding-agent eval
+
+# Scheduled evaluation harness for issue #501 — measures whether coding agents
+# can use @honua/sdk-js correctly on the first try (docs/coding-agent-evals.md).
+#
+# Two lanes, both ISOLATED from PR CI (NFR-001) — this workflow is never a PR
+# gate; a failure notifies via the workflow-failure signal only:
+#
+#   1. fixture (always): the deterministic control. Replays the committed
+#      known-good generations (must ALL pass — a failure means the SDK, docs,
+#      or fixtures drifted) and the committed known-bad generations (must ALL
+#      fail — the test-of-the-test that proves the harness still catches bad
+#      code). Free, no model calls.
+#   2. live agent (opt-in, workflow_dispatch only): runs Claude Code headless
+#      (claude -p) against the same corpus with the published docs as the only
+#      context, and uploads its scorecard as an artifact. Requires the
+#      ANTHROPIC_API_KEY secret; the lane is skipped when it is absent.
+on:
+  schedule:
+    # Tuesdays 07:00 UTC.
+    - cron: "0 7 * * 2"
+  workflow_dispatch:
+    inputs:
+      live_agent:
+        description: "Also run the live claude-cli lane (requires ANTHROPIC_API_KEY secret)"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  fixture-eval:
+    name: Fixture lanes (deterministic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SDK
+        run: npm run build
+
+      - name: Known-good lane (gate — every task must pass)
+        run: node scripts/eval-coding-agents.mjs --output test-results/coding-agent-eval/known-good
+
+      - name: Known-bad lane (test-of-the-test — every task must fail)
+        run: node scripts/eval-coding-agents.mjs --variant known-bad --expect-fail --output test-results/coding-agent-eval/known-bad
+
+      - name: Upload fixture scorecards
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coding-agent-eval-fixture
+          path: |
+            test-results/coding-agent-eval/known-good/scorecard.json
+            test-results/coding-agent-eval/known-good/scorecard.md
+            test-results/coding-agent-eval/known-bad/scorecard.json
+            test-results/coding-agent-eval/known-bad/scorecard.md
+          if-no-files-found: warn
+
+  live-agent-eval:
+    name: Live agent lane (opt-in, Claude Code headless)
+    needs: fixture-eval
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.live_agent }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SDK
+        run: npm run build
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Live claude-cli lane
+        env:
+          HONUA_EVAL_AGENTS: "1"
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "ANTHROPIC_API_KEY secret is not configured; skipping the live lane." >&2
+            exit 0
+          fi
+          node scripts/eval-coding-agents.mjs --adapter claude-cli --output test-results/coding-agent-eval/claude-cli
+
+      - name: Upload live scorecard
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coding-agent-eval-claude-cli
+          path: |
+            test-results/coding-agent-eval/claude-cli/scorecard.json
+            test-results/coding-agent-eval/claude-cli/scorecard.md
+          if-no-files-found: warn

@@ -343,6 +343,12 @@ correctly use this SDK:
 - **Context7** — [`context7.json`](./context7.json) registers the library so
   [Context7](https://context7.com) serves current docs to coding agents; the
   submission steps are in [`skills/README.md`](./skills/README.md).
+- **Coding-agent evals** — a scheduled harness measures whether coding agents
+  can use the SDK correctly on the first try: a 16-task golden-workflow corpus
+  scored objectively (typecheck + runtime against deterministic fixtures +
+  expected-output assertions). Methodology in
+  [`docs/coding-agent-evals.md`](./docs/coding-agent-evals.md); latest results
+  in [`docs/generated/coding-agent-scorecard.md`](./docs/generated/coding-agent-scorecard.md).
 
 ## Stability and versioning
 
