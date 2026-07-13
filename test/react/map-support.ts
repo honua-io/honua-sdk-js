@@ -53,7 +53,9 @@ export class FakeMap implements DataToMapLibreMap {
   addLayer(layer: unknown, _beforeId?: string): void {
     const record = layer as Record<string, unknown>;
     this.calls.push(`addLayer:${String(record.id)}`);
-    this.layers.set(String(record.id), record);
+    // The bridge freezes its layer specs; store a mutable copy so the
+    // property setters can update it like MapLibre's internal style state.
+    this.layers.set(String(record.id), { ...record });
   }
   removeLayer(id: string): void {
     this.calls.push(`removeLayer:${id}`);
@@ -62,10 +64,18 @@ export class FakeMap implements DataToMapLibreMap {
   setPaintProperty(layerId: string, name: string, value: unknown): void {
     if (!this.supportsPropertySetters) throw new Error("setPaintProperty unsupported");
     this.paintCalls.push({ layerId, name, value });
+    const layer = this.layers.get(layerId);
+    if (layer) {
+      layer.paint = { ...((layer.paint as Record<string, unknown>) ?? {}), [name]: value };
+    }
   }
   setLayoutProperty(layerId: string, name: string, value: unknown): void {
     if (!this.supportsPropertySetters) throw new Error("setLayoutProperty unsupported");
     this.layoutCalls.push({ layerId, name, value });
+    const layer = this.layers.get(layerId);
+    if (layer) {
+      layer.layout = { ...((layer.layout as Record<string, unknown>) ?? {}), [name]: value };
+    }
   }
   on(event: string, layerOrHandler: string | Listener, handler?: Listener): void {
     const key = typeof layerOrHandler === "string" ? `${event}:${layerOrHandler}` : event;
