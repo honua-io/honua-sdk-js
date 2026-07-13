@@ -1,0 +1,14 @@
+{
+  "id": "connect-auto-count",
+  "title": "connect() with auto protocol classification on a canonical FeatureServer URL",
+  "category": "connect-query",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that uses the one-call connect() entry point from @honua/sdk-js: await connect({ endpoint: <HONUA_EVAL_BASE_URL>/rest/services/EvalIncidents/FeatureServer/0, protocol: \"auto\", authorizationScopeFingerprint: \"anonymous\" }). auto works offline here because the URL matches the canonical GeoServices layout. Take connection.source() (exactly one source is discovered) and run source.query({ where: \"1=1\" }). Print exactly one line to stdout: {\"count\": <result.features.length>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/discovery-contract.md"],
+    "notes": "Golden workflow: fail-closed discovery — auto only classifies canonical GeoServices URLs, everything else needs an explicit protocol."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [{ "path": "count", "op": "equals", "value": 5 }]
+}

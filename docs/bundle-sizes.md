@@ -13,20 +13,19 @@ _Generated 2026-07-13 at commit `493e40f`._
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
 | `.` (root) | 369.4 KiB | 382.0 KiB | 97.1 KiB | 101.2 KiB |
-| `/honua` | 479.8 KiB | 510.3 KiB | 126.5 KiB | 135.7 KiB |
-| `/contract` | 227.1 KiB | 235.3 KiB | 58.7 KiB | 66.1 KiB |
+| `/honua` | 480.3 KiB | 510.3 KiB | 126.7 KiB | 135.7 KiB |
+| `/contract` | 237.3 KiB | 261.1 KiB | 62.1 KiB | 66.1 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
-| `/runtime` | 420.6 KiB | 458.7 KiB | 109.6 KiB | 119.5 KiB |
+| `/runtime` | 424.4 KiB | 458.7 KiB | 111.0 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
-| `/esri-compat` | 946.0 KiB | 1026.2 KiB | 234.2 KiB | 253.6 KiB |
+| `/esri-compat` | 947.5 KiB | 1026.2 KiB | 234.5 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
-| `/geocoding` | 12.5 KiB | 13.7 KiB | 3.9 KiB | 4.3 KiB |
-| `/routing` | 6.0 KiB | 6.6 KiB | 2.4 KiB | 2.7 KiB |
+| `/geocoding` | 4.9 KiB | 5.3 KiB | 1.9 KiB | 2.1 KiB |
 | `/auth` | 12.0 KiB | 12.8 KiB | 3.8 KiB | 4.0 KiB |
 | `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
 | `/map` | 112.9 KiB | 123.8 KiB | 31.2 KiB | 34.2 KiB |

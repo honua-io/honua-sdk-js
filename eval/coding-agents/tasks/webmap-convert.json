@@ -1,0 +1,18 @@
+{
+  "id": "webmap-convert",
+  "title": "Convert ArcGIS WebMap JSON to a MapLibre style",
+  "category": "migration",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that converts an ArcGIS WebMap JSON document into a MapLibre style using parseWebMap from @honua/sdk-js/webmap. Inline this WebMap JSON in the program exactly as given:\n\n{\n  \"operationalLayers\": [\n    {\n      \"id\": \"incidents\",\n      \"title\": \"Incidents\",\n      \"layerType\": \"ArcGISFeatureLayer\",\n      \"url\": \"https://example.test/rest/services/EvalIncidents/FeatureServer/0\",\n      \"layerDefinition\": {\n        \"drawingInfo\": {\n          \"renderer\": {\n            \"type\": \"simple\",\n            \"symbol\": { \"type\": \"esriSMS\", \"style\": \"esriSMSCircle\", \"color\": [226, 119, 40, 255], \"size\": 8 }\n          }\n        }\n      }\n    }\n  ],\n  \"baseMap\": { \"title\": \"Basemap\", \"baseMapLayers\": [] },\n  \"version\": \"2.27\"\n}\n\nparseWebMap returns { style, warnings, ... } where style is a MapLibre v8 style. Print exactly one line to stdout: {\"styleVersion\": <style.version>, \"layerCount\": <style.layers.length>, \"sourceCount\": <number of keys in style.sources>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/webmap-json-compatibility.md"],
+    "notes": "Golden workflow: WebMap JSON conversion; unsupported properties surface as warnings, not throws."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": [] },
+  "assertions": [
+    { "path": "styleVersion", "op": "equals", "value": 8 },
+    { "path": "layerCount", "op": "gte", "value": 1 },
+    { "path": "sourceCount", "op": "gte", "value": 1 }
+  ]
+}

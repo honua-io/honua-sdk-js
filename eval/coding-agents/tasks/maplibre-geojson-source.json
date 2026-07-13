@@ -1,0 +1,17 @@
+{
+  "id": "maplibre-geojson-source",
+  "title": "Build a MapLibre geojson source spec from a feature service",
+  "category": "map-runtime",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that turns the Esri GeoServices feature layer at <HONUA_EVAL_BASE_URL>/rest/services/EvalIncidents/FeatureServer/0 into a MapLibre geojson source specification, without a browser. Use loadHonuaFeatureServiceGeoJson from @honua/sdk-js/map with a HonuaClient constructed with { baseUrl: <base URL> } and options { outFields: [\"OBJECTID\", \"name\"] }. The returned spec is { type: \"geojson\", data: <GeoJSON FeatureCollection> } and is what map.addSource would receive. Print exactly one line to stdout: {\"type\": <spec.type>, \"featureCount\": <number of features in spec.data>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/maplibre-runtime.md", "docs/standalone-quickstart.md"],
+    "notes": "Golden workflow: mount-on-MapLibre exercised at the source-spec seam so it stays Node-safe and deterministic (mock lane)."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [
+    { "path": "type", "op": "equals", "value": "geojson" },
+    { "path": "featureCount", "op": "equals", "value": 5 }
+  ]
+}

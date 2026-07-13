@@ -23,6 +23,38 @@ test("edit workflow demo coordinates map, table, forms, attachments, rollback, a
     await page.locator("#feature-table").getByRole("button", { name: /Open Pier 2 pump station/ }).click();
     await expect(page.locator("#feature-detail")).toContainText("PUMP-HBR-02");
 
+    // Vertex snapping: a probe near the Pier 2 marker (46, 44) resolves to
+    // the exact vertex coordinates within the pixel tolerance.
+    const vertexSnap = await page.evaluate(() => window.__HONUA_EDIT_WORKFLOW_DEMO__.snapProbe(47, 45));
+    expect(vertexSnap).toEqual({
+      snapped: true,
+      kind: "vertex",
+      sourceId: "inspections",
+      featureId: 4101,
+      x: 46,
+      y: 44,
+    });
+    await expect(page.locator("#snap-status")).toHaveAttribute("data-snapped", "true");
+    await expect(page.locator("#snap-status")).toContainText("vertex → Pier 2 pump station @ 46.0, 44.0");
+
+    // Edge snapping: a probe near the harbor corridor line (y = 78) snaps
+    // onto the segment at the pointer's x.
+    const edgeSnap = await page.evaluate(() => window.__HONUA_EDIT_WORKFLOW_DEMO__.snapProbe(30, 79));
+    expect(edgeSnap).toMatchObject({
+      snapped: true,
+      kind: "edge",
+      sourceId: "corridors",
+      featureId: "harbor-corridor",
+    });
+    expect(edgeSnap.x).toBeCloseTo(30, 6);
+    expect(edgeSnap.y).toBeCloseTo(78, 6);
+    await expect(page.locator("#snap-status")).toContainText("edge → harbor corridor @ 30.0, 78.0");
+
+    // Far from every snap source the probe reports no target.
+    const noSnap = await page.evaluate(() => window.__HONUA_EDIT_WORKFLOW_DEMO__.snapProbe(75, 15));
+    expect(noSnap).toEqual({ snapped: false });
+    await expect(page.locator("#snap-status")).toHaveAttribute("data-snapped", "false");
+
     await page.locator("#field-status").selectOption("closed");
     await page.locator("#field-inspection_score").fill("88");
     await page.getByRole("button", { name: "Add Photo" }).click();

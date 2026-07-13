@@ -57,6 +57,21 @@ filter predicates through `queryFeatures` / `queryFeatureCount` /
 `spatialRelationship`, and `timeExtent` with any per-call options
 (layer-view filter ∧ caller-provided options).
 
+`Sketch` and `Editor` now accept ArcGIS-shaped `snappingOptions`
+(`enabled`, `distance`, `featureEnabled`, `selfEnabled`,
+`featureSources`) and map them onto the renderer-neutral
+`SnappingConfig` from `@honua/sdk-js/contract`
+(`snappingOptionsToSnappingConfig`). The contract snapping engine
+(`SnapIndex` + `resolveSnapCandidate`) resolves vertex / edge /
+feature candidates deterministically over a packed-grid spatial
+index, invalidates on optimistic edit apply/rollback
+(`createSnapIndexEditSessionHooks`), and the MapLibre runtime
+binding (`bindEditSketchSnapping` in `@honua/sdk-js/runtime`)
+wires pointer-move, snap/unsnap events, and a default indicator
+layer. `selfEnabled` is stored for parity but self-snapping needs
+the host to index the active sketch source; 3D snapping is out of
+scope with the rest of the SceneView surface.
+
 ### Automated app conversion (`src/migration/codemod.ts`)
 
 The codemod is a real AST rewriter built on the TypeScript Compiler

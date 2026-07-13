@@ -343,6 +343,12 @@ correctly use this SDK:
 - **Context7** — [`context7.json`](./context7.json) registers the library so
   [Context7](https://context7.com) serves current docs to coding agents; the
   submission steps are in [`skills/README.md`](./skills/README.md).
+- **Coding-agent evals** — a scheduled harness measures whether coding agents
+  can use the SDK correctly on the first try: a 16-task golden-workflow corpus
+  scored objectively (typecheck + runtime against deterministic fixtures +
+  expected-output assertions). Methodology in
+  [`docs/coding-agent-evals.md`](./docs/coding-agent-evals.md); latest results
+  in [`docs/generated/coding-agent-scorecard.md`](./docs/generated/coding-agent-scorecard.md).
 
 ## Stability and versioning
 
@@ -423,8 +429,11 @@ Protocol-specific deep dives also live alongside the guide: see
 [`docs/wfs.md`](./docs/wfs.md), [`docs/ogc-api.md`](./docs/ogc-api.md),
 [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md),
 [`docs/webmap-json-compatibility.md`](./docs/webmap-json-compatibility.md),
-[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md), and
-[`docs/migration-punch-list.md`](./docs/migration-punch-list.md).
+[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md),
+[`docs/migration-punch-list.md`](./docs/migration-punch-list.md), and
+[`docs/widget-survival-guide.md`](./docs/widget-survival-guide.md) (every ArcGIS widget
+deprecated at 5.0 mapped to its Honua/MapLibre disposition ahead of the 6.0 removal — run
+`npm run scan:arcgis:widgets -- ./src` for a per-file readiness report).
 
 ## Related Honua repositories
 

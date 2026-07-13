@@ -278,3 +278,12 @@ export type {
   RuntimeSourceSpecification,
   RuntimeStyleValue,
 } from "./style-interactions.js";
+
+export { bindEditSketchSnapping } from "./edit-snapping.js";
+export type {
+  BindEditSketchSnappingOptions,
+  EditSketchSnapIndicatorOptions,
+  EditSketchSnappingEvents,
+  EditSketchSnappingHandle,
+  SnappingMap,
+} from "./edit-snapping.js";

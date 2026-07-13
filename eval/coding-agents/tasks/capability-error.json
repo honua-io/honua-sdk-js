@@ -1,0 +1,18 @@
+{
+  "id": "capability-error",
+  "title": "Handle a capability gap as a typed error",
+  "category": "errors",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that demonstrates Honua's fail-closed capability contract. Build a WFS source with the contract API from @honua/sdk-js: HonuaClient with { baseUrl: <HONUA_EVAL_BASE_URL> }, createDataset from @honua/sdk-js/contract with one source { id: \"countries\", protocol: \"wfs\", locator: { url: <base URL>/geoserver/ows, typeName: \"ne:ne_10m_admin_0_countries\" }, capabilities: PROTOCOL_DEFAULT_CAPABILITIES.wfs } and skipCompatibilityCheck: true. Then call source.queryAggregate({ aggregation: { groupBy: [], metrics: [{ fn: \"count\", field: \"OBJECTID\", alias: \"n\" }] } }) inside try/catch. WFS does not support server-side aggregation, so the SDK must throw HonuaCapabilityNotSupportedError (exported from @honua/sdk-js) instead of returning empty data. Print exactly one line to stdout: {\"caught\": <true when the caught error is an instanceof HonuaCapabilityNotSupportedError>, \"capability\": <the error's capability property>, \"errorName\": <the error's name>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/errors.md", "docs/protocol-capability-matrix.md"],
+    "notes": "Golden workflow: capability gaps throw HonuaCapabilityNotSupportedError; agents must branch on the typed error."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [
+    { "path": "caught", "op": "equals", "value": true },
+    { "path": "capability", "op": "equals", "value": "queryAggregate" },
+    { "path": "errorName", "op": "equals", "value": "HonuaCapabilityNotSupportedError" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "featureserver-where-query",
+  "title": "Query a FeatureServer layer with where + outFields",
+  "category": "connect-query",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that queries the Esri GeoServices FeatureServer at the base URL in HONUA_EVAL_BASE_URL: service \"EvalIncidents\", layer 0, where clause \"priority = 'high'\", outFields [\"OBJECTID\", \"name\", \"priority\"], without geometry. Use @honua/sdk-js (HonuaClient with { baseUrl }, then featureLayer(service, layer).queryFeatures(...)). Print exactly one line to stdout: a JSON object {\"count\": <number of returned features>, \"firstName\": <the name attribute of the first feature>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/standalone-quickstart.md"],
+    "notes": "Golden workflow: attribute-filtered query with field projection."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [
+    { "path": "count", "op": "equals", "value": 2 },
+    { "path": "firstName", "op": "equals", "value": "Harbor debris sweep" }
+  ]
+}
