@@ -262,6 +262,13 @@ export interface MountedSource<T = Record<string, unknown>> extends AsyncDisposa
   readonly strategy: DataToMapStrategy;
   readonly sourceId: string;
   readonly layerIds: readonly string[];
+  /**
+   * Resolved vector `source-layer` used by the mounted layers — the explicit
+   * option, or the default derived from the query-tile descriptor. Always
+   * `undefined` for the GeoJSON strategy. Feature-state operations against a
+   * vector tile source must target this same value.
+   */
+  readonly sourceLayer?: string;
   readonly state: "ready" | "disposed";
   readonly diagnostics: MountedSourceDiagnostics;
   /**
@@ -744,6 +751,7 @@ export async function mountSource<T = Record<string, unknown>>(
     strategy,
     sourceId,
     layerIds,
+    sourceLayer,
     get state() {
       return state;
     },

@@ -26,6 +26,8 @@ import type { Source } from "../contract/types.js";
 import type {
   DataToMapLibreMap,
   MountSourceOptions,
+  MountSourcePopupContext,
+  MountSourcePopupOptions,
   MountedSource,
   MountedSourceDiagnostics,
 } from "../map/data-to-map-bridge.js";
@@ -99,8 +101,39 @@ function structuralSignature<T>(options: UseMountedSourceOptions<T>): string {
     attribution: options.attribution,
     fitBounds: options.fitBounds,
     hover: options.hover,
-    popup: options.popup ? { fields: options.popup.fields, title: options.popup.title } : undefined,
+    popup: options.popup
+      ? {
+          fields: options.popup.fields,
+          title: options.popup.title,
+          // Adding/removing a custom renderer rewires the bridge's popup
+          // binding (structural); identity changes of an existing renderer or
+          // factory are delivered through the stable wrappers below instead.
+          hasRender: options.popup.render !== undefined,
+        }
+      : undefined,
   });
+}
+
+/**
+ * Wrap a popup option so its function-valued members (`factory`, `render`)
+ * are resolved from the latest props at call time. The bridge captures the
+ * popup object once at mount; without this, a renderer or factory that closes
+ * over React state would keep using its mount-time closure.
+ */
+function livePopupOptions<T>(
+  snapshot: MountSourcePopupOptions,
+  optionsRef: { readonly current: UseMountedSourceOptions<T> },
+): MountSourcePopupOptions {
+  return {
+    ...snapshot,
+    factory: () => (optionsRef.current.popup ?? snapshot).factory(),
+    ...(snapshot.render !== undefined
+      ? {
+          render: (context: MountSourcePopupContext) =>
+            (optionsRef.current.popup?.render ?? snapshot.render)?.(context),
+        }
+      : {}),
+  };
 }
 
 interface RendererCapableMap {
@@ -223,7 +256,15 @@ export function useMountedSource<T = Record<string, unknown>>(
     appliedRef.current = null;
     setState({ handle: null, diagnostics: null, error: undefined, isMounting: true });
 
-    mountSource<T>(resolvedMap, source, { ...mountOptions, signal: controller.signal }).then(
+    // Popup callbacks are wrapped so the bridge (which captures the popup
+    // object once) always calls the latest `factory` / `render` props.
+    const popup = mountOptions.popup ? livePopupOptions(mountOptions.popup, optionsRef) : undefined;
+
+    mountSource<T>(resolvedMap, source, {
+      ...mountOptions,
+      ...(popup ? { popup } : {}),
+      signal: controller.signal,
+    }).then(
       (handle) => {
         if (cancelled) {
           // StrictMode / fast unmount: the mount resolved after cleanup ran.

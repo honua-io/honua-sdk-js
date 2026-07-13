@@ -87,19 +87,26 @@ export class FakeMap implements DataToMapLibreMap {
     for (const set of this.listeners.values()) count += set.size;
     return count;
   }
-  setFeatureState(target: { source: string; id: string | number }, state: Record<string, unknown>): void {
-    const key = `${target.source}:${target.id}`;
+  /** Mirrors MapLibre: vector-tile feature-state is scoped by source-layer. */
+  private featureStateKey(target: { source: string; id: string | number; sourceLayer?: string }): string {
+    return `${target.source}:${target.sourceLayer ?? ""}:${target.id}`;
+  }
+  setFeatureState(
+    target: { source: string; id: string | number; sourceLayer?: string },
+    state: Record<string, unknown>,
+  ): void {
+    const key = this.featureStateKey(target);
     this.featureStates.set(key, { ...(this.featureStates.get(key) ?? {}), ...state });
   }
-  getFeatureState(target: { source: string; id: string | number }): Record<string, unknown> {
-    return this.featureStates.get(`${target.source}:${target.id}`) ?? {};
+  getFeatureState(target: { source: string; id: string | number; sourceLayer?: string }): Record<string, unknown> {
+    return this.featureStates.get(this.featureStateKey(target)) ?? {};
   }
-  removeFeatureState(target: { source: string; id: string | number }, key?: string): void {
+  removeFeatureState(target: { source: string; id: string | number; sourceLayer?: string }, key?: string): void {
     if (key === undefined) {
-      this.featureStates.delete(`${target.source}:${target.id}`);
+      this.featureStates.delete(this.featureStateKey(target));
       return;
     }
-    const state = this.featureStates.get(`${target.source}:${target.id}`);
+    const state = this.featureStates.get(this.featureStateKey(target));
     if (state) delete state[key];
   }
 }

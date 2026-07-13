@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -158,6 +158,48 @@ describe("useMountedSource", () => {
     // Still exactly one live copy of everything after the remount.
     expect(map.sources.size).toBe(1);
     expect([...map.layers.keys()]).toEqual(DEFAULT_LAYER_IDS);
+  });
+
+  it("uses the latest popup render and factory props without remounting", async () => {
+    const map = new FakeMap();
+    const ctrl = fakeBridgeSource();
+    const openedHtml: string[] = [];
+    const makeFactory = (tag: string) => () => {
+      const handle = {
+        setLngLat: () => handle,
+        setDOMContent: () => handle,
+        setHTML: (html: string) => {
+          openedHtml.push(`${tag}:${html}`);
+          return handle;
+        },
+        addTo: () => handle,
+        remove: () => {},
+      };
+      return handle;
+    };
+
+    function PopupHarness({ label, tag }: { label: string; tag: string }) {
+      // `factory` and `render` are fresh closures on every render — the hook
+      // must deliver the *latest* ones to the bridge without a remount.
+      useMountedSource(map, ctrl.source, {
+        popup: { factory: makeFactory(tag), render: () => `<b>${label}</b>` },
+      });
+      return null;
+    }
+
+    const click = { lngLat: { lng: -158, lat: 21.3 }, features: [{ id: 1, properties: { OBJECTID: 1 } }] };
+    const view = render(<PopupHarness label="first" tag="a" />);
+    await waitFor(() => expect(map.sources.size).toBe(1));
+    const addSourceCount = map.calls.filter((call) => call.startsWith("addSource")).length;
+
+    act(() => map.emit("click", "honua-parcels-point", click));
+    expect(openedHtml).toEqual(["a:<b>first</b>"]);
+
+    view.rerender(<PopupHarness label="second" tag="b" />);
+    act(() => map.emit("click", "honua-parcels-point", click));
+    expect(openedHtml).toEqual(["a:<b>first</b>", "b:<b>second</b>"]);
+    // Callback identity changes never remount the layer set.
+    expect(map.calls.filter((call) => call.startsWith("addSource")).length).toBe(addSourceCount);
   });
 
   it("surfaces mount failures through onError and the error state", async () => {

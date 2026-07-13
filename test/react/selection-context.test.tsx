@@ -15,7 +15,8 @@ import {
   useMapSelectionBinding,
   useSelection,
 } from "../../src/react/index.js";
-import { FakeMap, fakeBridgeSource } from "./map-support.js";
+import type { QueryTileSourceDescriptor } from "../../src/contract/tiles.js";
+import { type BridgeAttrs, FakeMap, fakeBridgeSource } from "./map-support.js";
 
 afterEach(cleanup);
 
@@ -212,5 +213,46 @@ describe("HonuaSourceLayer selection prop", () => {
 
     act(() => map.emit("mousemove", "honua-parcels-point", { features: [{ id: 9 }] }));
     expect(view.getByTestId("hovered").textContent).toBe("9");
+  });
+
+  it("scopes feature-state by the resolved query-tiles source-layer", async () => {
+    const map = new FakeMap();
+    const ctrl = fakeBridgeSource();
+    // No explicit sourceLayer prop: the bridge derives "roads" from the tile
+    // descriptor, and the selection binding must target the same value.
+    const queryTiles: QueryTileSourceDescriptor<BridgeAttrs> = {
+      kind: "query-vector-tile",
+      id: "parcels-tiles",
+      sourceId: "parcels",
+      protocol: "geoservices-feature-service",
+      tilejson: {
+        tilejson: "3.0.0",
+        tiles: ["https://tiles.test/{z}/{x}/{y}.mvt"],
+        vector_layers: [{ id: "roads" }],
+      },
+    };
+    const store = new HonuaSelectionStore();
+
+    render(
+      <StrictMode>
+        <HonuaSelectionProvider store={store}>
+          <HonuaMapProvider map={map}>
+            <HonuaSourceLayer source={ctrl.source} strategy="query-tiles" queryTiles={queryTiles} selection />
+          </HonuaMapProvider>
+        </HonuaSelectionProvider>
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(map.sources.size).toBe(1));
+    act(() => map.emit("click", "honua-parcels-point", { features: [{ id: 7 }] }));
+
+    // The shared target is source-layer-qualified…
+    expect(store.getSnapshot().selected).toEqual([
+      expect.objectContaining({ sourceId: "honua-parcels", id: 7, sourceLayer: "roads" }),
+    ]);
+    // …and the mirrored feature-state lands in the source-layer-scoped bucket
+    // (MapLibre semantics), not the unscoped one.
+    expect(map.getFeatureState({ source: "honua-parcels", sourceLayer: "roads", id: 7 })).toEqual({ selected: true });
+    expect(map.getFeatureState({ source: "honua-parcels", id: 7 })).toEqual({});
   });
 });

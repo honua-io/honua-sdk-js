@@ -140,11 +140,16 @@ export function HonuaSourceLayer<T = Record<string, unknown>>(props: HonuaSource
   );
   const selection = props.selection;
   const selectionEnabled = Boolean(selection) && handle !== null;
+  // Bind against the handle's *resolved* source-layer — the explicit prop or
+  // the default the bridge derived from the query-tile descriptor. MapLibre
+  // scopes vector-tile feature-state by source-layer, so the binding must
+  // target the exact value the mounted layers render with.
+  const resolvedSourceLayer = handle?.sourceLayer ?? props.sourceLayer;
 
   useMapSelectionBinding(map, {
     sourceId: handle?.sourceId ?? "",
     layerIds: interactiveLayerIds,
-    sourceLayer: props.sourceLayer,
+    sourceLayer: resolvedSourceLayer,
     stateKey: typeof selection === "object" ? selection.stateKey : undefined,
     multiSelect: typeof selection === "object" ? selection.multiSelect : undefined,
     enabled: selectionEnabled,
@@ -152,7 +157,7 @@ export function HonuaSourceLayer<T = Record<string, unknown>>(props: HonuaSource
   useMapHoverBinding(map, {
     sourceId: handle?.sourceId ?? "",
     layerIds: interactiveLayerIds,
-    sourceLayer: props.sourceLayer,
+    sourceLayer: resolvedSourceLayer,
     enabled: selectionEnabled && Boolean(props.hover),
   });
 
