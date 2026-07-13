@@ -124,6 +124,11 @@ const SECTIONS = [
           "Bounded safe-agent plan normalization, signed approvals, authenticated single-use execution, secret-safe durable audit, MCP adaptation, and verifiable receipts.",
       },
       {
+        path: "docs/nl-map-control.md",
+        description:
+          "Natural-language map control: plan-first NL-to-plan compilation, BYO-LLM callback, agent-safety approval envelopes, receipts, and MCP/OpenAI tool publication.",
+      },
+      {
         path: "docs/decisions/north-star-sdk-application-kernel.md",
         description:
           "Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.",
@@ -253,6 +258,11 @@ const ENTRYPOINTS = [
     path: "src/agent-safety/index.ts",
     label: "@honua/sdk-js/agent-safety",
     fallback: "Bounded plan validation, signed approvals, atomic execution, secret-safe audit, and receipts.",
+  },
+  {
+    path: "src/nl-map-control/index.ts",
+    label: "@honua/sdk-js/nl-map-control",
+    fallback: "Natural language to inspectable map plans with BYO LLM, approval envelopes, and receipts.",
   },
   {
     path: "src/esri-compat-entry.ts",

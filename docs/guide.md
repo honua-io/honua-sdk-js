@@ -187,6 +187,7 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
 - React bindings (provider, hooks, map components): `@honua/sdk-js/react` — see [`docs/react.md`](./react.md)
 - Client-side geometry ops + reprojection (curated turf/proj4): `@honua/sdk-js/geometry` — see [`docs/geometry.md`](./geometry.md)
+- Natural-language map control (plan-first, BYO LLM, approval envelopes, receipts): `@honua/sdk-js/nl-map-control` — see [`docs/nl-map-control.md`](./nl-map-control.md)
 - Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`
 - Studio package-family projections, validation/preview envelopes, capability manifest, and publish/share/embed contracts (MCP/QGIS-safe): `@honua/sdk-js/studio` — see [`docs/studio-package-contracts.md`](./studio-package-contracts.md)
 
