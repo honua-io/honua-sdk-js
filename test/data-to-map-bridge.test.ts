@@ -304,6 +304,25 @@ describe("explainDataToMapStrategy", () => {
     expect(explanation.strategy).toBe("query-tiles");
   });
 
+  it("probes the result size with the descriptor-level query when no explicit query is given", async () => {
+    const source = fakeSource(descriptor(), { extentCount: 40 });
+    const explanation = await explainDataToMapStrategy(source, {
+      queryTiles: tileDescriptor({ query: { where: "Seats_2020 >= 10" } }),
+    });
+    expect(source.queryExtentMock).toHaveBeenCalledWith(expect.objectContaining({ where: "Seats_2020 >= 10" }));
+    expect(explanation.strategy).toBe("geojson");
+    expect(explanation.probedCount).toBe(40);
+  });
+
+  it("lets an explicit options.query override the descriptor query in the probe", async () => {
+    const source = fakeSource(descriptor(), { extentCount: 40 });
+    await explainDataToMapStrategy(source, {
+      query: { where: "STATE = 'CA'" },
+      queryTiles: tileDescriptor({ query: { where: "Seats_2020 >= 10" } }),
+    });
+    expect(source.queryExtentMock).toHaveBeenCalledWith(expect.objectContaining({ where: "STATE = 'CA'" }));
+  });
+
   it("prefers query-tiles when the size probe is unavailable", async () => {
     const source = fakeSource(descriptor({ capabilities: capabilities(["query"]) }));
     const explanation = await explainDataToMapStrategy(source, { queryTiles: tileDescriptor() });
@@ -565,6 +584,25 @@ describe("mountSource — query-tiles strategy", () => {
     expect(handle.setTilesCalls[0]?.[0]).toContain("ACRES");
     expect(map.sources.get(mounted.sourceId)).toBe(handle); // no source recreation
     expect(diagnostics.updates).toContainEqual(expect.objectContaining({ code: "filter-applied" }));
+  });
+
+  it("setFilter(undefined) clears a baked descriptor-level query from the tile URL", async () => {
+    const map = new FakeMap();
+    const source = fakeSource(descriptor({ capabilities: capabilities(["tiles"]) }));
+    const mounted = await mountSource(map, source, {
+      queryTiles: tileDescriptor({ query: { where: "BASE_FILTER = 1" } }),
+    });
+    const handle = map.sources.get(mounted.sourceId) as FakeVectorSourceHandle;
+    expect(handle.tiles?.[0]).toContain("BASE_FILTER");
+
+    const diagnostics = await mounted.setFilter(undefined);
+    expect(handle.setTilesCalls).toHaveLength(1);
+    expect(handle.setTilesCalls[0]?.[0]).not.toContain("BASE_FILTER");
+    expect(diagnostics.updates).toContainEqual(expect.objectContaining({ code: "filter-applied" }));
+
+    // refresh() after clearing stays unfiltered.
+    await mounted.refresh();
+    expect(handle.setTilesCalls[1]?.[0]).not.toContain("BASE_FILTER");
   });
 
   it("recreates the source in place when the host lacks setTiles", async () => {

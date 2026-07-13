@@ -345,12 +345,15 @@ export async function explainDataToMapStrategy<T>(
     return { strategy: "query-tiles", reasons };
   }
 
-  // Both strategies are viable — apply the result-size heuristic.
+  // Both strategies are viable — apply the result-size heuristic. Probe with
+  // the same initial filter the mount path would apply, so a selective
+  // descriptor-level query counts what would actually be materialized.
+  const initialQuery = options.query ?? options.queryTiles?.query;
   let count: number | undefined;
   if (source.capabilities.has("queryExtent")) {
     try {
       const probe = await source.queryExtent({
-        ...(options.query ?? {}),
+        ...(initialQuery ?? {}),
         ...(options.signal ? { signal: options.signal } : {}),
       } as Query<T>);
       count = probe.count;
@@ -840,7 +843,12 @@ function tileDescriptorWithQuery<T>(
   descriptor: QueryTileSourceDescriptor<T>,
   query: Readonly<Omit<Query<T>, "signal">> | undefined,
 ): QueryTileSourceDescriptor<T> {
-  return query === undefined ? descriptor : { ...descriptor, query: { ...query } };
+  if (query !== undefined) return { ...descriptor, query: { ...query } };
+  // `setFilter(undefined)` clears the mounted filter: strip a baked
+  // descriptor-level query too, so the rebuilt tile URL is unfiltered.
+  if (descriptor.query === undefined) return descriptor;
+  const { query: _cleared, ...rest } = descriptor;
+  return rest;
 }
 
 function buildLayers<T>(
