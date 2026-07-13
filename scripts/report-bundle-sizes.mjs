@@ -94,6 +94,7 @@ const TARGETS = [
   { key: "/expr", kind: "bundle", entry: "dist/src/expr/index.js", label: "`/expr`" },
   { key: "/webmap", kind: "bundle", entry: "dist/src/webmap/index.js", label: "`/webmap`" },
   { key: "/geocoding", kind: "bundle", entry: "dist/src/geocoding/index.js", label: "`/geocoding`" },
+  { key: "/routing", kind: "bundle", entry: "dist/src/routing/index.js", label: "`/routing`" },
   { key: "/auth", kind: "bundle", entry: "dist/src/core/auth/index.js", label: "`/auth`" },
   { key: "/style", kind: "bundle", entry: "dist/src/style/index.js", label: "`/style`" },
   { key: "/map", kind: "bundle", entry: "dist/src/map/index.js", label: "`/map`" },

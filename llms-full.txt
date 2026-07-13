@@ -277,7 +277,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 27 executable examples: 11 flagship, 5 recipe, 7 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 28 executable examples: 11 flagship, 6 recipe, 7 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
@@ -350,17 +350,15 @@ correctly use this SDK:
   a Honua-only surface degrade gracefully with a structured "not available on this
   target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
   via `honua-mcp-proxy`.
-- **NL map control** — [`@honua/sdk-js/nl-map-control`](./docs/nl-map-control.md)
-  compiles natural-language instructions into serializable, inspectable plans
-  (query-planner IR plus agent-tool invocations) through a **caller-provided LLM
-  callback** — no model-vendor SDK. Execution accepts plans only: read-only
-  plans may auto-execute under policy, anything mutating or viewport-changing
-  requires a signed agent-safety approval envelope, and every execution emits a
-  receipt. The same tool surface is published in MCP and OpenAI function
-  formats.
 - **Context7** — [`context7.json`](./context7.json) registers the library so
   [Context7](https://context7.com) serves current docs to coding agents; the
   submission steps are in [`skills/README.md`](./skills/README.md).
+- **Coding-agent evals** — a scheduled harness measures whether coding agents
+  can use the SDK correctly on the first try: a 16-task golden-workflow corpus
+  scored objectively (typecheck + runtime against deterministic fixtures +
+  expected-output assertions). Methodology in
+  [`docs/coding-agent-evals.md`](./docs/coding-agent-evals.md); latest results
+  in [`docs/generated/coding-agent-scorecard.md`](./docs/generated/coding-agent-scorecard.md).
 
 ## Stability and versioning
 
@@ -388,8 +386,8 @@ correctly use this SDK:
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
     `@honua/sdk-js/cli`.
   - **Experimental subpath-only APIs** (not re-exported from the root barrels): `/agent-tools`,
-    `/agent-safety`, `/nl-map-control`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`,
-    `/diagnostics` — with `/query-planner` below, 9 experimental subpaths in total.
+    `/agent-safety`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`, `/diagnostics`, `/routing` — with
+    `/query-planner` below, 9 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
@@ -536,7 +534,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
 | `@honua/sdk-js/diagnostics` | Dependency-free diagnostic-bundle validation, sanitization, integrity pinning, and bounded read-only replay used by `honua doctor`. |
-| `@honua/sdk-js/nl-map-control` | Natural-language map control ([safety model + walkthrough](./docs/nl-map-control.md)): compiles NL instructions into serializable, inspectable plans (query-planner IR + agent-tool invocations) via a caller-provided LLM callback; execution accepts plans only, gates mutations behind agent-safety envelopes, and emits receipts. |
+| `@honua/sdk-js/routing` | Provider-pluggable routing: typed `RoutingProvider` contract, OSRM and Valhalla adapters, the Honua facade bridge, and per-provider attribution/usage-policy metadata ([provider cookbook](./docs/geocoding-routing-providers.md)). |
 
 ## Deprecated compatibility entrypoints
 
@@ -805,7 +803,7 @@ current API reference without following the migration notes.
 
 This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 27 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 28 executable examples
 
 | Sample | Tier | Support | Data | Disposition | Demonstration |
 | --- | --- | --- | --- | --- | --- |
@@ -813,6 +811,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`app-bootstrap-basic`](../../examples/app-bootstrap-basic/README.md) | reference | deprecated | fixture | retire | Bootstraps a minimal application through the legacy app-platform compatibility surface. |
 | [`arcgis-source-app`](../../examples/arcgis-source-app/README.md) | reference | internal | fixture | keep | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
 | [`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | flagship | supported | fixture | rework | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
+| [`endpoint-to-map`](../../examples/endpoint-to-map/README.md) | recipe | experimental | hybrid | keep | mountSource() turns a public FeatureServer into a styled, interactive MapLibre map in four statements. |
 | [`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | supported | hybrid | keep | Runs forward, reverse, and suggestion workflows with map feedback. |
 | [`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | advanced | supported | hybrid | merge | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
 | [`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | flagship | supported | hybrid | merge | Compares WMS imagery, COG-backed ImageServer tiles, and export previews. |
@@ -3482,189 +3481,6 @@ integration can automate that declaration in a later slice.
 
 ---
 
-# File: docs/nl-map-control.md
-
-# Natural-language map control (`@honua/sdk-js/nl-map-control`)
-
-> **Experimental.** Symbols on this subpath are `@experimental` and may change
-> in any minor release before `1.0.0`.
-
-`@honua/sdk-js/nl-map-control` turns a natural-language instruction into a
-typed, serializable, inspectable plan over the existing
-[`agent-tools`](../src/agent-tools/index.ts) surface, and executes only
-reviewed plans. It composes three things the SDK already ships:
-
-- **agent-tools** — the ten bounded JSON-Schema map/runtime tools
-  (`inspectMap`, `listSources`, `setViewport`, `addLayer`, `setFilter`,
-  `selectFeature`, `runWidgetQuery`, `explainCapabilityGap`, …),
-- **query-planner** — the canonical query IR that data operations are
-  expressed in, and
-- **agent-safety** — signed approval envelopes, effect budgets, and receipts.
-
-There is intentionally **no opaque NL execution path**: per the
-[north-star ADR](./decisions/north-star-sdk-application-kernel.md), an agent
-prompt must compile to the same typed, inspectable plan that human-authored
-code uses.
-
-## Safety model
-
-1. **Plan-first.** `propose(instruction)` returns a serializable
-   `NlMapPlan` — ordered agent-tool invocations for map operations, with
-   query-planner IR attached to data operations — and never executes
-   anything. The plan is content-addressed: `fingerprint` is the SHA-256 of
-   its canonical JSON, and `execute()` recomputes it, so a plan edited after
-   review is rejected (`plan-invalid`).
-2. **Plans only.** `execute()` is the single execution path and accepts plans
-   only. Passing raw natural language (or anything that is not a
-   `honua.nl-map-plan`) throws a typed `plan-required` error.
-3. **Policy-gated read auto-execution.** A plan whose every step is `read`
-   may auto-execute when `policy.autoExecuteReadOnly` allows it (the
-   default). Set it to `false` to require approval for everything.
-4. **Envelopes for effects.** Any plan containing a `viewport` or `mutation`
-   step requires a signed agent-safety approval envelope. The envelope is a
-   real `agent-safety` approval: the plan is deterministically projected into
-   an `AgentPlanV1`, dry-run against a policy, signed by a host-owned signer,
-   and verified (signature, expiry, policy, bindings, and per-step parameter
-   digests) before anything runs. An approval issued for one plan does not
-   verify against another.
-5. **Receipts.** Every execution — auto or approved — emits an
-   `NlMapPlanReceipt` recording the plan identity, mode, per-step tool
-   status, and outcome. Receipts are content-addressed (`receiptDigest`) and
-   optionally signed with a host-provided `receiptSigner`.
-6. **BYO LLM.** The model transport is a caller-provided callback
-   `(request: NlCompletionRequest) => Promise<NlCompletionResponse>`. The SDK
-   depends on no model-vendor SDK, sends the model only the bounded tool
-   schemas plus the semantic map context, and persists no NL or model output.
-
-## API walkthrough
-
-```ts doc-test=skip reason="requires a live map host and an LLM callback"
-import {
-  approveNlMapPlan,
-  createNlMapControl,
-  nlMapRuntimeBinding,
-} from "@honua/sdk-js/nl-map-control";
-
-const nl = createNlMapControl({
-  // Any HonuaAgentRuntime adapter: a HonuaController, a MapPackage runtime,
-  // or your own object over a MapLibre map.
-  tools: { runtime },
-  // Bring your own model. Any provider, any transport.
-  llm: async (request) => callMyModel(request),
-  policy: { autoExecuteReadOnly: true, maxSelfCorrections: 2, actor: "app@example" },
-  approvalVerifier, // host-owned envelope verifier (agent-safety)
-});
-
-// 1. Compile NL into an inspectable plan. Nothing executes here.
-const plan = await nl.propose("zoom to downtown and only show open incidents");
-console.log(JSON.stringify(plan, null, 2)); // render for human review
-
-// 2. Read-only plans can run directly; effectful plans need an envelope.
-if (plan.readOnly) {
-  const { receipt } = await nl.execute(plan);
-} else {
-  const approval = await approveNlMapPlan({
-    plan,
-    actor: "app@example",
-    approver: "operator@example",
-    signer, // host-owned envelope signer
-    bindings: {
-      map: nlMapRuntimeBinding({ observedAt: new Date().toISOString() }),
-      incidents: incidentsSourceBinding, // agent-safety source binding
-    },
-    issuedAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 300_000).toISOString(),
-  });
-  const { receipt } = await nl.execute(plan, { approval });
-  console.log(receipt.outcome, receipt.approvalDigest);
-}
-```
-
-### The completion contract
-
-`NlCompletionRequest` carries everything a provider adapter needs: the
-`system` prompt (semantic map context from agent-tools), the user
-`messages`, and the tool schemas in provider-neutral MCP-compatible shape
-(`{ name, description, inputSchema }`). Adapters map those onto their
-provider's native function-calling API and return
-`{ toolCalls: [{ name, arguments }] }` — `arguments` may be a parsed object
-or a raw JSON string. A provider refusal is returned as `{ refusal }` and
-surfaces as a typed `refusal` error.
-
-### Self-correction
-
-When a completion fails validation — an unknown tool, arguments that fail
-the JSON schema, an invalid canonical query, or a **capability miss** — the
-layer sends a structured retry (`purpose: "self-correct"`) containing the
-previous tool calls and typed `issues`. Capability misses embed the full
-`explainCapabilityGap` output (supported flag, declared capabilities, and a
-suggested action) so the model can re-plan against a source that actually
-supports the operation. Retries are bounded (`maxSelfCorrections`, default
-2); exhaustion throws `retries-exhausted` carrying the final issues.
-
-### Deterministic replay
-
-`createRecordedNlLlm(exchanges)` replays committed request/response
-fixtures in order and fails loudly on drift. The SDK's own test lane
-(`test/nl-map-control.test.ts` + `test/fixtures/nl-map-control/`) replays
-recorded completions to byte-identical plans, effects, and receipts against
-a mock runtime host; the gallery demo (`npm run demo:nl-map-control`) uses
-the same fixtures so it is deterministic with no API key.
-
-## The MCP path
-
-The NL layer's tool surface is published through the same agent-tools
-exporters used by `@honua/mcp-server`, so the capability works in-app and
-over the Model Context Protocol:
-
-```ts doc-test=skip reason="illustrative tool publication snippet"
-import {
-  toNlMapControlMcpToolDefinitions,
-  toNlMapControlOpenAiToolDefinitions,
-} from "@honua/sdk-js/nl-map-control";
-
-// proposeMapPlan + executeMapPlan + the ten agent tools
-const mcpTools = toNlMapControlMcpToolDefinitions();
-const openAiTools = toNlMapControlOpenAiToolDefinitions();
-```
-
-`proposeMapPlan` is a read tool (planning only); `executeMapPlan` is an
-action tool that requires opt-in and accepts a serialized plan plus an
-optional approval bundle — the same plan-only, envelope-gated contract as
-the in-app API. MCP servers hosting these tools keep the identical safety
-semantics because they delegate to `createNlMapControl`.
-
-## Errors
-
-All failures are typed `HonuaNlMapControlError`s with a `code`:
-
-| Code | Meaning |
-|------|---------|
-| `refusal` | The model declined the instruction. Not retried. |
-| `retries-exhausted` | No valid plan within the self-correction budget; `issues` carries the typed reasons (including `explainCapabilityGap` output). |
-| `plan-required` | `execute()` received something other than a proposed plan (for example raw NL). |
-| `plan-invalid` | Plan content does not match its fingerprint, or is structurally invalid. |
-| `approval-required` | The plan has `viewport`/`mutation` effects and no envelope was supplied (or read auto-execution is disabled). |
-| `approval-invalid` | Envelope verification failed, or the envelope does not bind to this plan. |
-| `fixture-mismatch` | A recorded-replay LLM saw a request that drifted from the recording. |
-| `invalid-options` | Missing runtime, LLM callback, or source binding. |
-
-Approval issuance itself uses `agent-safety` and throws
-`HonuaAgentSafetyError` (for example `policy-denied` when the policy forbids
-the plan's effects).
-
-## See also
-
-- [`docs/agent-safety.md`](./agent-safety.md) — the envelope, budget, audit,
-  and receipt contracts this layer builds on.
-- [`examples/nl-map-control/`](../examples/nl-map-control/) — deterministic
-  MapLibre demo with a fixture LLM, plan/receipt JSON panes, and an approve
-  button.
-- [North-star ADR](./decisions/north-star-sdk-application-kernel.md) — why NL
-  must compile to the same plan human code uses.
-
----
-
 # File: docs/decisions/north-star-sdk-application-kernel.md
 
 # North-star SDK application-kernel contract
@@ -4219,6 +4035,236 @@ Costs:
 - No production API: the proposed declarations live only under `test/design`.
 - Follow-on traceability: issue list above; each implementation ticket receives
   a link to this accepted-for-review contract.
+
+---
+
+# File: docs/geocoding-routing-providers.md
+
+# Provider-pluggable geocoding and routing
+
+> Status: **experimental** (`@experimental` JSDoc). Shapes may change in any
+> minor release prior to `1.0.0`.
+
+`@honua/sdk-js/geocoding` and `@honua/sdk-js/routing` expose provider-neutral
+contracts — `GeocodingProvider` (`geocode` / `reverse` / `suggest`) and
+`RoutingProvider` (`route`) — with first-party adapters for open-source
+services. No Honua server is required: the Honua facade is just one provider
+among several, and the same typed calls work against every adapter.
+
+Three rules apply to every adapter:
+
+1. **Explicit endpoints only.** Every third-party adapter requires a
+   `baseUrl`. The SDK never bakes in a default third-party endpoint, so you
+   cannot accidentally send production traffic to a community service whose
+   usage policy you have not read.
+2. **Declared capabilities.** Capability differences are declared on the
+   provider and enforced by the SDK's existing capability policy: an
+   unsupported operation throws `HonuaCapabilityNotSupportedError` under the
+   default `"strict"` policy (or resolves empty under `"degraded"`).
+3. **Attribution travels with results.** Every provider exposes
+   `attribution` / `usagePolicyUrl`, and every result carries a `provenance`
+   object identifying the provider and repeating those obligations, so hosts
+   can render attribution wherever results surface.
+
+## Capability matrix
+
+| Provider | geocode | reverse | suggest | route | Notes |
+|----------|---------|---------|---------|-------|-------|
+| `honua` (facade) | ✓ | ✓ | ✓ | ✓ | Wraps `HonuaGeocodingClient` / the esri-compat route solver |
+| `nominatim` | ✓ | ✓ | — (throws typed error) | | No typeahead endpoint; the OSMF policy forbids autocomplete traffic |
+| `photon` | ✓ | ✓ | ✓ | | Typeahead-first engine |
+| `pelias` | ✓ | ✓ | ✓ (`/v1/autocomplete`) | | Hosted instances usually need an `apiKey` |
+| `osrm` | | | | ✓ | OSRM HTTP API v1, GeoJSON geometry |
+| `valhalla` | | | | ✓ | 1e-6 encoded polylines, decoded for you |
+
+## Geocoding
+
+### Nominatim (geocode + reverse; no suggest)
+
+```ts doc-test=compile
+import { nominatimGeocodingProvider } from "@honua/sdk-js/geocoding";
+
+const geocoder = nominatimGeocodingProvider({
+  baseUrl: "https://nominatim.example.org",   // your instance
+  userAgent: "my-app/1.0 (ops@example.org)",  // REQUIRED by the OSMF policy on the public instance
+  email: "ops@example.org",                   // public-instance etiquette
+});
+
+const [best] = await geocoder.geocode("530 South King Street, Honolulu", { limit: 1 });
+console.log(best.latitude, best.longitude, best.provenance.attribution);
+
+const here = await geocoder.reverse(21.3059, -157.858); // latitude first
+```
+
+Capability miss, by declaration rather than by surprise:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { HonuaCapabilityNotSupportedError } from "@honua/sdk-js";
+
+try {
+  await geocoder.suggest("honol");
+} catch (error) {
+  if (error instanceof HonuaCapabilityNotSupportedError) {
+    // error.capability === "suggest", error.protocol === "nominatim"
+  }
+}
+// Or opt into degraded mode: suggest() resolves to [] instead of throwing.
+nominatimGeocodingProvider({ baseUrl, capabilityPolicy: "degraded" });
+```
+
+**Usage policy** (public `nominatim.openstreetmap.org`): absolute maximum of
+1 request/second, a real `User-Agent` identifying your application, no
+autocomplete traffic, and results must credit OpenStreetMap. Read
+<https://operations.osmfoundation.org/policies/nominatim/> before pointing at
+the public instance; self-host for anything heavier.
+**Attribution**: `Data © OpenStreetMap contributors, ODbL 1.0`.
+
+### Photon (geocode + reverse + suggest)
+
+```ts doc-test=compile
+import { photonGeocodingProvider } from "@honua/sdk-js/geocoding";
+
+const photon = photonGeocodingProvider({ baseUrl: "https://photon.example.org" });
+const hints = await photon.suggest("honol", { limit: 5 }); // typeahead-first engine
+```
+
+**Usage policy**: the komoot-operated `photon.komoot.io` is fair-use for
+moderate volumes (see <https://photon.komoot.io/>); self-host for production.
+**Attribution**: OpenStreetMap (ODbL), as above.
+
+### Pelias (geocode + reverse + suggest via autocomplete)
+
+```ts doc-test=compile
+import { peliasGeocodingProvider } from "@honua/sdk-js/geocoding";
+
+const pelias = peliasGeocodingProvider({
+  baseUrl: "https://pelias.example.org",
+  apiKey: process.env.PELIAS_API_KEY,          // hosted instances (e.g. geocode.earth)
+  attribution: "© OpenStreetMap contributors; © OpenAddresses; Who's On First",
+});
+
+const hints = await pelias.suggest("honol");   // dedicated /v1/autocomplete endpoint
+```
+
+**Usage policy / attribution**: depends on the datasets your instance is
+built from (OSM, OpenAddresses, Who's On First, geonames, …) and on your
+hosting provider's terms. Override `attribution` / `usagePolicyUrl` to match;
+see <https://github.com/pelias/documentation/blob/master/data-licenses.md>.
+
+### Honua facade
+
+```ts doc-test=compile
+import { HonuaGeocodingClient, honuaGeocodingProvider } from "@honua/sdk-js/geocoding";
+
+const client = new HonuaGeocodingClient({ baseUrl: "https://your-honua-server.example" });
+const provider = honuaGeocodingProvider(client); // geocode + reverse + suggest
+```
+
+Existing `HonuaGeocodingClient` code keeps working unchanged; the provider
+wrapper exists so provider-neutral hosts (search UIs, the CLI, agents) can
+treat Honua like any other provider.
+
+## Routing
+
+### OSRM
+
+```ts doc-test=compile
+import { osrmRoutingProvider } from "@honua/sdk-js/routing";
+
+const router = osrmRoutingProvider({
+  baseUrl: "https://osrm.example.org",
+  profile: "driving", // or "foot", "bicycle", … as exposed by your instance
+});
+
+const route = await router.route([
+  { longitude: -157.858, latitude: 21.306 },
+  { longitude: -157.802, latitude: 21.262 },
+]);
+// route.geometry: [lon, lat][]  route.distanceMeters  route.durationSeconds  route.legs
+```
+
+**Usage policy**: the public demo (`router.project-osrm.org`) and the FOSSGIS
+instances (`routing.openstreetmap.de`) are for light, non-commercial use — see
+<https://routing.openstreetmap.de/about.html>. Self-host for production.
+**Attribution**: `Route data © OpenStreetMap contributors, ODbL 1.0`.
+
+### Valhalla
+
+```ts doc-test=compile
+import { valhallaRoutingProvider } from "@honua/sdk-js/routing";
+
+const router = valhallaRoutingProvider({
+  baseUrl: "https://valhalla.example.org",
+  costing: "auto", // or "bicycle", "pedestrian", …
+});
+```
+
+Leg shapes (Valhalla's 1e-6 encoded polylines) are decoded into plain
+`[longitude, latitude]` geometry for you; `decodePolyline` is exported if you
+need it directly.
+
+**Usage policy**: the FOSSGIS community instance
+(`valhalla1.openstreetmap.de`) expects fair use; self-host for production.
+**Attribution**: OpenStreetMap (ODbL), as above.
+
+### Honua facade + esri-compat bridge
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  honuaRoutingProvider,
+  osrmRoutingProvider,
+  routingProviderToCompatRouteProvider,
+} from "@honua/sdk-js/routing";
+import { RouteTaskCompat } from "@honua/sdk-js/esri-compat";
+
+// Wrap the existing Honua facade solver (the esri-compat routeProvider shape)
+// in the provider contract:
+const honua = honuaRoutingProvider(myExistingRouteSolver);
+
+// Or drive esri-compat widgets (RouteTaskCompat / RouteLayerCompat /
+// DirectionsCompat) with any RoutingProvider:
+const task = new RouteTaskCompat({
+  routeProvider: routingProviderToCompatRouteProvider(
+    osrmRoutingProvider({ baseUrl: "https://osrm.example.org" }),
+  ),
+});
+```
+
+## CLI
+
+```bash
+# Default behavior (Honua locator) is unchanged:
+honua geocode "530 South King Street" --limit 3
+
+# Third-party provider — endpoint is always explicit:
+honua geocode --provider nominatim --base-url https://nominatim.example.org "530 South King Street"
+honua geocode --provider photon --base-url https://photon.example.org "Honolulu" --json
+honua geocode --provider pelias --base-url https://pelias.example.org --api-key $PELIAS_KEY "Honolulu"
+
+# Nominatim public-instance policy compliance:
+honua geocode --provider nominatim --base-url https://nominatim.openstreetmap.org \
+  --user-agent "my-app/1.0 (ops@example.org)" "Honolulu Hale"
+```
+
+Table output prints the provider's attribution and usage-policy URL after the
+results; `--json` emits the normalized results with `provenance` stamped on
+each row.
+
+## Caching and rate limits
+
+Suggest paths should debounce in the UI (see the typeahead example in the
+`/geocoding` package docs). The SDK deliberately does **not** persist provider
+results: most community usage policies (Nominatim in particular) prohibit
+systematic caching/bulk harvesting, and provenance is recorded per result so
+downstream stores can honor per-provider terms.
+
+## Testing
+
+Unit tests run against recorded fixtures (`test/fixtures/providers/`) and
+never touch the network. The live smoke lane
+(`test/provider-live-smoke.test.ts`) is opt-in via
+`HONUA_PROVIDER_LIVE_SMOKE=1`, sends exactly one request per test, and sets a
+real `User-Agent` for Nominatim.
 
 ---
 
@@ -5962,7 +6008,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-13 at commit `99c99df`._
+_Generated 2026-07-13 at commit `8f7af5e`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -5971,19 +6017,19 @@ _Generated 2026-07-13 at commit `99c99df`._
 | `/contract` | 237.5 KiB | 261.1 KiB | 62.1 KiB | 66.1 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
-| `/nl-map-control` | 59.9 KiB | 65.8 KiB | 18.5 KiB | 20.4 KiB |
 | `/runtime` | 424.5 KiB | 458.7 KiB | 111.0 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
-| `/esri-compat` | 947.5 KiB | 1026.2 KiB | 234.5 KiB | 253.6 KiB |
+| `/esri-compat` | 950.4 KiB | 1026.2 KiB | 235.5 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
-| `/geocoding` | 4.9 KiB | 5.3 KiB | 1.9 KiB | 2.1 KiB |
+| `/geocoding` | 12.5 KiB | 13.7 KiB | 3.9 KiB | 4.3 KiB |
+| `/routing` | 6.1 KiB | 6.6 KiB | 2.5 KiB | 2.7 KiB |
 | `/auth` | 12.0 KiB | 12.8 KiB | 3.8 KiB | 4.0 KiB |
 | `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
-| `/map` | 112.9 KiB | 123.8 KiB | 31.2 KiB | 34.2 KiB |
+| `/map` | 136.3 KiB | 149.8 KiB | 37.8 KiB | 41.6 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 17.2 KiB | 17.8 KiB | 6.2 KiB | 6.5 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 372.3 KiB | 405.7 KiB | 96.2 KiB | 104.5 KiB |
@@ -6020,6 +6066,7 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 
 ### Core surfaces
 - [Shared client contract and exploration](#shared-client-contract-and-exploration)
+- [Standalone data-to-map bridge](#standalone-data-to-map-bridge)
 - [MapLibre GL JS runtime for `MapPackage`](#maplibre-gl-js-runtime-for-mappackage)
 - [Generated app preview runtime](#generated-app-preview-runtime)
 - [Request/auth bridge](#requestauth-bridge)
@@ -6188,7 +6235,7 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
 - React bindings (provider, hooks, map components): `@honua/sdk-js/react` — see [`docs/react.md`](./react.md)
 - Client-side geometry ops + reprojection (curated turf/proj4): `@honua/sdk-js/geometry` — see [`docs/geometry.md`](./geometry.md)
-- Natural-language map control (plan-first, BYO LLM, approval envelopes, receipts): `@honua/sdk-js/nl-map-control` — see [`docs/nl-map-control.md`](./nl-map-control.md)
+- Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) + routing (OSRM/Valhalla/Honua): `@honua/sdk-js/geocoding`, `@honua/sdk-js/routing` — see [`docs/geocoding-routing-providers.md`](./geocoding-routing-providers.md)
 - Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`
 - Studio package-family projections, validation/preview envelopes, capability manifest, and publish/share/embed contracts (MCP/QGIS-safe): `@honua/sdk-js/studio` — see [`docs/studio-package-contracts.md`](./studio-package-contracts.md)
 
@@ -6272,6 +6319,34 @@ console.log(`Loaded ${result.features.length} features`);
 
 Capability misses throw `HonuaCapabilityNotSupportedError` (under `strict` policy). Exploration misuses throw
 `HonuaExplorationContextError`. Both are in the `HonuaError` union and pass `isHonuaError(e)`.
+
+## Standalone Data-To-Map Bridge
+
+`mountSource(map, source, options)` from `@honua/sdk-js/map` (`@experimental`) mounts any contract
+`Source` as a live, styled MapLibre layer set with no MapPackage and no Honua server — the standalone
+slice of the kernel ADR's `connection.mount(target)` contract. The bridge selects bounded GeoJSON
+materialization or the dynamic query-tile path from declared capabilities plus a result-size heuristic,
+applies geometry-appropriate default styling, wires optional click popups and hover feature-state, and
+returns one disposable handle whose `setFilter()`/`refresh()` diff-update in place.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import maplibregl from "maplibre-gl";
+import { connect } from "@honua/sdk-js";
+import { mountSource } from "@honua/sdk-js/map";
+
+const data = await connect({ endpoint: FEATURE_LAYER_URL, protocol: "auto", authorizationScopeFingerprint: "public" });
+const mounted = await mountSource(map, data.source(), {
+  popup: { factory: () => new maplibregl.Popup() },
+  hover: true,
+  fitBounds: true,
+});
+console.log(mounted.diagnostics.strategy, mounted.diagnostics.reasons);
+mounted.dispose();
+```
+
+- Full cookbook (strategy selection, options, disposal, overflow diagnostics):
+  [`docs/data-to-map-bridge.md`](./data-to-map-bridge.md).
+- Runnable fixture/live demo: [`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md).
 
 ## MapLibre GL JS Runtime For `MapPackage`
 
@@ -8174,6 +8249,19 @@ The runtime **does not** instantiate `maplibre-gl.Map`, issue edit
 writes, or duplicate query logic — `maplibre-gl` stays a peer
 dependency, edits flow through the existing adapters, and queries go
 through the contract's `Source` handles.
+
+## Standalone data-to-map bridge
+
+For the shortest path — any contract `Source` to a styled, interactive
+MapLibre layer set without a MapPackage, plan review, or Honua server — use
+`mountSource(map, source, options)` from `@honua/sdk-js/map`
+(`@experimental`). It selects bounded GeoJSON vs the dynamic query-tile path
+from capabilities plus a result-size heuristic, applies geometry-appropriate
+default styling, wires optional popups/hover, and returns one disposable
+handle with diff-updating `setFilter()`/`refresh()`. See the cookbook:
+[`docs/data-to-map-bridge.md`](./data-to-map-bridge.md). The plan-bound
+workflows below remain the right tool when you need fingerprinted plan
+review, provenance, and freshness policy.
 
 ## Accepted plan to native GeoJSON
 
@@ -10514,3 +10602,126 @@ and serves this library's docs to coding agents. To (re)submit:
 
 Library owners can instead claim the library to manage this configuration from
 the Context7 admin panel.
+
+---
+
+# File: docs/coding-agent-evals.md
+
+# Coding-agent evaluation harness
+
+A growing share of integration code is written by coding agents, and "agents
+use this SDK correctly on the first try" is a measurable, winnable property.
+This repo already ships the inputs — [`llms.txt`](../llms.txt) /
+[`llms-full.txt`](../llms-full.txt), agent skills, Context7 registration, the
+MCP server — and this harness measures whether they work, with the same
+discipline the MCP package applies through its certification/eval kits
+(`mcp/src/certification/`, `mcp/src/eval/`).
+
+Latest published results: [docs/generated/coding-agent-scorecard.md](./generated/coding-agent-scorecard.md).
+
+## What is measured
+
+For each task in the corpus an agent (or a committed fixture standing in for
+one) produces a **standalone TypeScript program** from the task prompt with
+the repo's published agent-facing docs as the only context. The program is
+then scored **objectively — no string similarity anywhere**:
+
+1. **Typecheck** — one `tsc` pass over the generated program against the
+   *built* SDK (`dist/`), resolved through a real `node_modules` link exactly
+   the way a consumer would import `@honua/sdk-js`.
+2. **Runtime** — the emitted JS runs under Node against a deterministic
+   multi-protocol fixture server (no network, no live services).
+3. **Assertions** — the program's single JSON output line is compared against
+   committed expected values (exact equality / bounded comparisons).
+
+A task passes only when all three stages pass. Scoring is per-task pass/fail;
+the scorecard records the failing stage.
+
+## Task corpus (REQ-001)
+
+Sixteen stable-tier golden-workflow tasks live under
+[`eval/coding-agents/tasks/`](../eval/coding-agents/tasks/), one JSON document
+each: prompt text, allowed docs context (pointers to `llms.txt` and specific
+docs), expected artifact type (`ts`/`tsx`), execution budget, and the
+objective assertions. Covered workflows: FeatureServer connect + count, where
+/ outFields query, `connect()` auto-classification, OGC API Features, WFS 2.0,
+STAC search, OData v4, stream/pagination, query-plan explain, MapLibre
+geojson-source mounting (mock lane), geocoding, esri-compat migration snippet,
+WebMap conversion, CLI usage, capability-error handling, and React hook
+composition.
+
+## Fixture endpoints
+
+`scripts/lib/coding-agent-eval/fixture-server.mjs` serves every protocol the
+corpus touches from one ephemeral port: an inline 5-feature GeoServices
+FeatureServer + GeocodeServer, an OGC API Features facade, and recorded
+real-server fixtures from `test/fixtures/backend-agnostic/` for WFS
+(GeoServer), STAC (Earth Search) and OData (TripPin), with upstream hosts
+rewritten to the local server. Responses are a pure function of committed
+fixtures — runs are reproducible byte-for-byte.
+
+## Adapters (REQ-003)
+
+Generation is pluggable behind a tiny interface
+(`scripts/lib/coding-agent-eval/adapters.mjs`):
+
+- **`fixture`** — replays committed generations from
+  `eval/coding-agents/fixtures/generations/`. `known-good/` holds one verified
+  solution per task and is the deterministic control CI runs on a schedule;
+  `known-bad/` holds deliberately wrong generations (hallucinated result
+  shapes, wrong endpoints, wrong filters) used by the test-of-the-test.
+- **`claude-cli`** — shells out to Claude Code headless (`claude -p`) with the
+  task's docs context inlined into the prompt. Strictly opt-in: it only
+  constructs when `HONUA_EVAL_AGENTS=1` and `claude` is on PATH, so the
+  deterministic lanes can never accidentally spend model tokens. Model
+  (`HONUA_EVAL_CLAUDE_MODEL`) and CLI version are recorded in the scorecard.
+
+## Scorecard (REQ-004)
+
+Every run writes `scorecard.json` (validated against
+[`eval/coding-agents/scorecard.schema.json`](../eval/coding-agents/scorecard.schema.json))
+and `scorecard.md` under `test-results/coding-agent-eval/<lane>/`. Runs with
+`--publish` also refresh the committed, history-friendly page at
+[`docs/generated/coding-agent-scorecard.md`](./generated/coding-agent-scorecard.md)
+(date, adapter, model, per-task results, aggregate pass rate, append-only
+history table). The JSON records the commit SHA and pinned model/version
+metadata so llms.txt/docs regressions are traceable to score drops.
+
+## Test-of-the-test
+
+`test/coding-agent-eval-harness.test.ts` (part of `npm test`) proves the
+harness catches bad code instead of rubber-stamping it:
+
+- the **known-good** lane must pass every task, and
+- every **known-bad** generation must fail at exactly the stage the fixture
+  manifest records (`typecheck` for hallucinated APIs such as `result.items`,
+  `runtime` for wrong endpoints, `assertions` for wrong values).
+
+The spec also unit-tests the corpus validator, assertion evaluator, scorecard
+schema, and fixture-server routes without needing a build.
+
+## Running it
+
+```bash
+npm run eval:coding-agents            # build + fixture known-good lane (gate)
+npm run eval:coding-agents:self-test  # build + known-bad lane (must all fail)
+
+# subset / custom output
+node scripts/eval-coding-agents.mjs --tasks wfs-query,stac-search --output test-results/tmp
+
+# live agent lane (opt-in; spends model tokens)
+HONUA_EVAL_AGENTS=1 node scripts/eval-coding-agents.mjs --adapter claude-cli
+
+# refresh the committed scorecard page
+node scripts/eval-coding-agents.mjs --publish
+```
+
+## CI lane (NFR-001)
+
+[`.github/workflows/coding-agent-eval.yml`](../.github/workflows/coding-agent-eval.yml)
+runs weekly (cron) and on demand. The fixture lanes are the scheduled gate;
+the live `claude-cli` lane runs only on `workflow_dispatch` with
+`live_agent: true` and the `ANTHROPIC_API_KEY` secret configured. The workflow
+is deliberately **not** part of PR CI: a failure notifies through the
+workflow-failure signal instead of blocking PRs (the harness logic itself is
+still covered by `npm test` on every PR via the self-test spec).

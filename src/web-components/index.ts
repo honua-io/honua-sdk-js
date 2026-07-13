@@ -13,6 +13,12 @@
  * `createHonuaWebComponentController`. Without a provider both controls render
  * disabled by design with a "configure a provider" affordance.
  *
+ * The survival-tier widget set (issue #493) — `<honua-legend>`,
+ * `<honua-layer-list>` (visibility / opacity / reorder), `<honua-search>`
+ * (geocoding-provider-aware), and `<honua-measurement>` (self-contained
+ * distance/area drawing on the map's pointer events, computed with
+ * `@honua/geometry` ops) — needs no external drawing provider.
+ *
  * @experimental This entrypoint is not yet covered by the SDK's semver contract
  *   — the surface may change in any minor release prior to `1.0.0`.
  * @module
@@ -47,6 +53,8 @@ export {
   defineHonuaWebComponents,
 } from "./elements.js";
 
+export { HonuaMeasurementElement, defineHonuaMeasurement } from "./measurement.js";
+
 export type {
   HonuaActionDetail,
   HonuaActionPanelAction,
@@ -72,7 +80,10 @@ export type {
   HonuaFilterChangeDetail,
   HonuaFilterState,
   HonuaFullscreenChangeDetail,
+  HonuaGeocodeSelectDetail,
   HonuaLayerModel,
+  HonuaLayerOpacityChangeDetail,
+  HonuaLayerOrderChangeDetail,
   HonuaLayerVisibilityChangeDetail,
   HonuaLegendItem,
   HonuaLocateChangeDetail,
@@ -86,8 +97,12 @@ export type {
   HonuaMeasureMode,
   HonuaMeasureProvider,
   HonuaMeasureResult,
+  HonuaMeasurementMap,
   HonuaQueryFeaturesOptions,
   HonuaSearchDetail,
+  HonuaSearchGeocodeCandidate,
+  HonuaSearchGeocodeSuggestion,
+  HonuaSearchGeocoderLike,
   HonuaSearchOptions,
   HonuaSearchResult,
   HonuaSelectionChangeDetail,

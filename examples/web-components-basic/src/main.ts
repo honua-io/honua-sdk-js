@@ -13,6 +13,10 @@ import type {
 import {
   type HonuaChartModel,
   type HonuaFeatureRecord,
+  type HonuaSearchElement,
+  type HonuaSearchGeocodeCandidate,
+  type HonuaSearchGeocodeSuggestion,
+  type HonuaSearchGeocoderLike,
   createHonuaWebComponentController,
 } from "@honua/sdk-js/web-components";
 
@@ -323,6 +327,24 @@ document.addEventListener("honua-search", (event) => {
   writeEventLog();
 });
 
+document.addEventListener("honua-geocode-select", (event) => {
+  const detail = (event as CustomEvent<{ candidate: { address: string } }>).detail;
+  eventLog.push(`geocode:${detail.candidate.address}`);
+  writeEventLog();
+});
+
+document.addEventListener("honua-layer-opacity-change", (event) => {
+  const detail = (event as CustomEvent<{ layerId: string; opacity: number }>).detail;
+  eventLog.push(`opacity:${detail.layerId}:${String(Math.round(detail.opacity * 100))}`);
+  writeEventLog();
+});
+
+document.addEventListener("honua-layer-order-change", (event) => {
+  const detail = (event as CustomEvent<{ layerId: string; order: readonly string[] }>).detail;
+  eventLog.push(`reorder:${detail.layerId}:${detail.order.join(",")}`);
+  writeEventLog();
+});
+
 document.addEventListener("honua-filter-change", (event) => {
   const detail = (event as CustomEvent<{ sourceId?: string; text?: string }>).detail;
   eventLog.push(`filter:${detail.sourceId ?? ""}:${detail.text ?? ""}`);
@@ -457,6 +479,77 @@ document.addEventListener("honua-action", (event) => {
   eventLog.push(`action:${detail.id}:${detail.status}`);
   writeEventLog();
 });
+
+// ── Survival-tier geocoding search (issue #493) ─────────────────────────────
+// The `geocoder` property accepts any provider structurally compatible with
+// HonuaGeocodingClient (`@honua/sdk-js/geocoding`). Against a live Honua
+// deployment this is simply:
+//
+//   import { HonuaGeocodingClient } from "@honua/sdk-js/geocoding";
+//   placeSearch.geocoder = new HonuaGeocodingClient({ baseUrl, locatorName });
+//
+// The offline mock lane stays network-free, so the same seam is exercised with
+// a tiny in-memory gazetteer provider instead.
+const gazetteer: readonly (HonuaSearchGeocodeCandidate & { keywords: string })[] = [
+  {
+    address: "Honolulu Harbor, Honolulu, HI",
+    latitude: 21.306,
+    longitude: -157.867,
+    score: 100,
+    keywords: "harbor honolulu port",
+  },
+  {
+    address: "Kakaako Waterfront Park, Honolulu, HI",
+    latitude: 21.29,
+    longitude: -157.858,
+    score: 98,
+    keywords: "kakaako waterfront park",
+  },
+  {
+    address: "Ala Moana Regional Park, Honolulu, HI",
+    latitude: 21.29,
+    longitude: -157.847,
+    score: 97,
+    keywords: "ala moana park beach",
+  },
+  {
+    address: "Diamond Head State Monument, Honolulu, HI",
+    latitude: 21.262,
+    longitude: -157.806,
+    score: 96,
+    keywords: "diamond head crater",
+  },
+  {
+    address: "Daniel K. Inouye International Airport, Honolulu, HI",
+    latitude: 21.324,
+    longitude: -157.925,
+    score: 95,
+    keywords: "airport hnl inouye",
+  },
+];
+
+function matchGazetteer(text: string): (HonuaSearchGeocodeCandidate & { keywords: string })[] {
+  const needle = text.trim().toLowerCase();
+  if (!needle) return [];
+  return gazetteer.filter((entry) => entry.address.toLowerCase().includes(needle) || entry.keywords.includes(needle));
+}
+
+const demoGeocoder: HonuaSearchGeocoderLike = {
+  async suggest(text, options): Promise<readonly HonuaSearchGeocodeSuggestion[]> {
+    return matchGazetteer(text)
+      .slice(0, options?.maxSuggestions ?? 5)
+      .map((entry) => ({ text: entry.address }));
+  },
+  async forwardGeocode(address, options): Promise<readonly HonuaSearchGeocodeCandidate[]> {
+    return matchGazetteer(address)
+      .slice(0, options?.maxResults ?? 1)
+      .map(({ keywords: _keywords, ...candidate }) => candidate);
+  },
+};
+
+const placeSearch = document.querySelector<HonuaSearchElement>("#place-search");
+if (!placeSearch) throw new Error("Missing #place-search");
+placeSearch.geocoder = demoGeocoder;
 
 map.controller = controller;
 

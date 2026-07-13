@@ -134,6 +134,11 @@ const SECTIONS = [
           "Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.",
       },
       {
+        path: "docs/geocoding-routing-providers.md",
+        description:
+          "Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) and routing (OSRM/Valhalla/Honua): setup, capability differences, and attribution/usage-policy obligations.",
+      },
+      {
         path: "docs/protocol-capability-matrix.md",
         description: "Which operations each protocol supports and where capabilities fall back.",
       },
@@ -235,6 +240,10 @@ const SECTIONS = [
         path: "skills/README.md",
         description: "Agent skills for Claude Code / compatible agents and how to install them.",
       },
+      {
+        path: "docs/coding-agent-evals.md",
+        description: "Coding-agent evaluation harness: objective first-try correctness scoring of generated SDK code.",
+      },
     ],
   },
 ];
@@ -279,6 +288,11 @@ const ENTRYPOINTS = [
     path: "src/geocoding/index.ts",
     label: "@honua/sdk-js/geocoding",
     fallback: "HonuaGeocodingClient for forward / reverse geocoding and typeahead.",
+  },
+  {
+    path: "src/routing/index.ts",
+    label: "@honua/sdk-js/routing",
+    fallback: "Provider-pluggable routing: OSRM and Valhalla adapters plus the Honua facade bridge.",
   },
   {
     path: "src/expr/index.ts",

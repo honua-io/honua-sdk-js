@@ -267,7 +267,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 27 executable examples: 11 flagship, 5 recipe, 7 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 28 executable examples: 11 flagship, 6 recipe, 7 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
@@ -351,6 +351,12 @@ correctly use this SDK:
 - **Context7** — [`context7.json`](./context7.json) registers the library so
   [Context7](https://context7.com) serves current docs to coding agents; the
   submission steps are in [`skills/README.md`](./skills/README.md).
+- **Coding-agent evals** — a scheduled harness measures whether coding agents
+  can use the SDK correctly on the first try: a 16-task golden-workflow corpus
+  scored objectively (typecheck + runtime against deterministic fixtures +
+  expected-output assertions). Methodology in
+  [`docs/coding-agent-evals.md`](./docs/coding-agent-evals.md); latest results
+  in [`docs/generated/coding-agent-scorecard.md`](./docs/generated/coding-agent-scorecard.md).
 
 ## Stability and versioning
 
@@ -379,7 +385,7 @@ correctly use this SDK:
     `@honua/sdk-js/cli`.
   - **Experimental subpath-only APIs** (not re-exported from the root barrels): `/agent-tools`,
     `/agent-safety`, `/nl-map-control`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`,
-    `/diagnostics` — with `/query-planner` below, 9 experimental subpaths in total.
+    `/diagnostics`, `/routing` — with `/query-planner` below, 10 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.

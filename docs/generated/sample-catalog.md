@@ -2,7 +2,7 @@
 
 This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 27 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 28 executable examples
 
 | Sample | Tier | Support | Data | Disposition | Demonstration |
 | --- | --- | --- | --- | --- | --- |
@@ -10,6 +10,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`app-bootstrap-basic`](../../examples/app-bootstrap-basic/README.md) | reference | deprecated | fixture | retire | Bootstraps a minimal application through the legacy app-platform compatibility surface. |
 | [`arcgis-source-app`](../../examples/arcgis-source-app/README.md) | reference | internal | fixture | keep | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
 | [`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | flagship | supported | fixture | rework | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
+| [`endpoint-to-map`](../../examples/endpoint-to-map/README.md) | recipe | experimental | hybrid | keep | mountSource() turns a public FeatureServer into a styled, interactive MapLibre map in four statements. |
 | [`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | supported | hybrid | keep | Runs forward, reverse, and suggestion workflows with map feedback. |
 | [`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | advanced | supported | hybrid | merge | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
 | [`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | flagship | supported | hybrid | merge | Compares WMS imagery, COG-backed ImageServer tiles, and export previews. |
