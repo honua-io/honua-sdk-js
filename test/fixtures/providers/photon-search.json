@@ -1,0 +1,40 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-157.8583333, 21.3069444] },
+      "properties": {
+        "osm_id": 119231215,
+        "osm_type": "R",
+        "extent": [-157.9516292, 21.4058589, -157.6479076, 21.2544543],
+        "country": "United States",
+        "osm_key": "place",
+        "osm_value": "city",
+        "name": "Honolulu",
+        "state": "Hawaii",
+        "type": "city",
+        "countrycode": "US"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-157.8580063, 21.3059281] },
+      "properties": {
+        "osm_id": 154497647,
+        "osm_type": "W",
+        "country": "United States",
+        "osm_key": "building",
+        "osm_value": "public",
+        "name": "Honolulu Hale",
+        "housenumber": "530",
+        "street": "South King Street",
+        "postcode": "96813",
+        "city": "Honolulu",
+        "state": "Hawaii",
+        "type": "house",
+        "countrycode": "US"
+      }
+    }
+  ]
+}

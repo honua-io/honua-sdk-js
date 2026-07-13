@@ -376,8 +376,8 @@ correctly use this SDK:
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
     `@honua/sdk-js/cli`.
   - **Experimental subpath-only APIs** (not re-exported from the root barrels): `/agent-tools`,
-    `/agent-safety`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`, `/diagnostics` — with
-    `/query-planner` below, 8 experimental subpaths in total.
+    `/agent-safety`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`, `/diagnostics`, `/routing` — with
+    `/query-planner` below, 9 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.

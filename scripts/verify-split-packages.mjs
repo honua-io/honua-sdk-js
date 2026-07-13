@@ -86,7 +86,8 @@ import {
   HonuaMapLayer,
   connect,
 } from "@honua/sdk";
-import { HonuaGeocodingClient } from "@honua/sdk/geocoding";
+import { HonuaGeocodingClient, nominatimGeocodingProvider } from "@honua/sdk/geocoding";
+import { osrmRoutingProvider, valhallaRoutingProvider } from "@honua/sdk/routing";
 import { oauth2, clientCredentials, apiKeyAuth, InMemoryCredentialStore } from "@honua/sdk/auth";
 import { HONUA_PLUGIN_MANIFEST_VERSION, validateHonuaPluginManifest } from "@honua/sdk/plugin";
 import {
@@ -303,6 +304,10 @@ if (typeof HonuaGeoprocessingService !== "function")
   throw new Error("HonuaGeoprocessingService export missing from @honua/sdk");
 if (typeof HonuaGeocodingClient !== "function")
   throw new Error("HonuaGeocodingClient export missing from @honua/sdk/geocoding");
+if (typeof nominatimGeocodingProvider !== "function")
+  throw new Error("nominatimGeocodingProvider export missing from @honua/sdk/geocoding");
+if (typeof osrmRoutingProvider !== "function" || typeof valhallaRoutingProvider !== "function")
+  throw new Error("routing provider exports missing from @honua/sdk/routing");
 if (typeof oauth2 !== "function" || typeof clientCredentials !== "function" || typeof apiKeyAuth !== "function")
   throw new Error("auth provider exports missing from @honua/sdk/auth");
 if (typeof InMemoryCredentialStore !== "function")

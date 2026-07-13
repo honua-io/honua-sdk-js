@@ -93,6 +93,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
   copyDirectory(path.join(DIST_SRC_ROOT, "filter-registry"), path.join(packageRoot, "filter-registry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "routing"), path.join(packageRoot, "routing"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   copyDirectory(path.join(DIST_SRC_ROOT, "interactions"), path.join(packageRoot, "interactions"));
   copyDirectory(path.join(DIST_SRC_ROOT, "map"), path.join(packageRoot, "map"));
@@ -165,6 +166,10 @@ function createSdkPackage() {
       "./geocoding": {
         types: "./geocoding/index.d.ts",
         default: "./geocoding/index.js",
+      },
+      "./routing": {
+        types: "./routing/index.d.ts",
+        default: "./routing/index.js",
       },
       "./interactions": {
         types: "./interactions/index.d.ts",

@@ -1,0 +1,42 @@
+{
+  "code": "Ok",
+  "routes": [
+    {
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-157.858, 21.306],
+          [-157.83, 21.29],
+          [-157.802, 21.262]
+        ]
+      },
+      "legs": [
+        {
+          "steps": [],
+          "summary": "",
+          "weight": 623.7,
+          "duration": 623.7,
+          "distance": 9214.6
+        }
+      ],
+      "weight_name": "routability",
+      "weight": 623.7,
+      "duration": 623.7,
+      "distance": 9214.6
+    }
+  ],
+  "waypoints": [
+    {
+      "hint": "fixture-hint-a",
+      "distance": 4.231,
+      "name": "South King Street",
+      "location": [-157.858, 21.306]
+    },
+    {
+      "hint": "fixture-hint-b",
+      "distance": 7.108,
+      "name": "Kalanianaole Highway",
+      "location": [-157.802, 21.262]
+    }
+  ]
+}
