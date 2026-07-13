@@ -4080,7 +4080,7 @@ Three rules apply to every adapter:
 
 ### Nominatim (geocode + reverse; no suggest)
 
-```ts
+```ts doc-test=compile
 import { nominatimGeocodingProvider } from "@honua/sdk-js/geocoding";
 
 const geocoder = nominatimGeocodingProvider({
@@ -4097,7 +4097,7 @@ const here = await geocoder.reverse(21.3059, -157.858); // latitude first
 
 Capability miss, by declaration rather than by surprise:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaCapabilityNotSupportedError } from "@honua/sdk-js";
 
 try {
@@ -4120,7 +4120,7 @@ the public instance; self-host for anything heavier.
 
 ### Photon (geocode + reverse + suggest)
 
-```ts
+```ts doc-test=compile
 import { photonGeocodingProvider } from "@honua/sdk-js/geocoding";
 
 const photon = photonGeocodingProvider({ baseUrl: "https://photon.example.org" });
@@ -4133,7 +4133,7 @@ moderate volumes (see <https://photon.komoot.io/>); self-host for production.
 
 ### Pelias (geocode + reverse + suggest via autocomplete)
 
-```ts
+```ts doc-test=compile
 import { peliasGeocodingProvider } from "@honua/sdk-js/geocoding";
 
 const pelias = peliasGeocodingProvider({
@@ -4152,7 +4152,7 @@ see <https://github.com/pelias/documentation/blob/master/data-licenses.md>.
 
 ### Honua facade
 
-```ts
+```ts doc-test=compile
 import { HonuaGeocodingClient, honuaGeocodingProvider } from "@honua/sdk-js/geocoding";
 
 const client = new HonuaGeocodingClient({ baseUrl: "https://your-honua-server.example" });
@@ -4167,7 +4167,7 @@ treat Honua like any other provider.
 
 ### OSRM
 
-```ts
+```ts doc-test=compile
 import { osrmRoutingProvider } from "@honua/sdk-js/routing";
 
 const router = osrmRoutingProvider({
@@ -4189,7 +4189,7 @@ instances (`routing.openstreetmap.de`) are for light, non-commercial use — see
 
 ### Valhalla
 
-```ts
+```ts doc-test=compile
 import { valhallaRoutingProvider } from "@honua/sdk-js/routing";
 
 const router = valhallaRoutingProvider({
@@ -4208,7 +4208,7 @@ need it directly.
 
 ### Honua facade + esri-compat bridge
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   honuaRoutingProvider,
   osrmRoutingProvider,
