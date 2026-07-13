@@ -12,6 +12,11 @@ export interface HonuaLayerModel {
   sourceId?: string;
   type?: string;
   visible: boolean;
+  /**
+   * Layer paint opacity in the `[0, 1]` range. `undefined` means the style's
+   * own opacity is untouched (treated as fully opaque by UI controls).
+   */
+  opacity?: number;
   metadata?: Record<string, unknown>;
 }
 
@@ -168,6 +173,20 @@ export interface HonuaWebComponentController<T = Record<string, unknown>> {
   getState(): HonuaWebComponentState<T>;
   subscribe(listener: HonuaControllerStateListener<T>): HonuaControllerSubscription;
   setLayerVisibility(layerId: string, visible: boolean): void;
+  /**
+   * Sets a layer's paint opacity (clamped to `[0, 1]`). Optional so that
+   * pre-existing controller implementations keep compiling; `<honua-layer-list>`
+   * only renders opacity sliders when the controller implements it.
+   */
+  setLayerOpacity?(layerId: string, opacity: number): void;
+  /**
+   * Reorders a layer: inserts `layerId` before `beforeId` in the layer stack,
+   * or moves it to the end (rendered on top) when `beforeId` is omitted.
+   * Optional so that pre-existing controller implementations keep compiling;
+   * `<honua-layer-list>` only renders reorder affordances when the controller
+   * implements it.
+   */
+  moveLayer?(layerId: string, beforeId?: string): void;
   setViewport(viewport: HonuaViewportState): void;
   setFilter(filter: HonuaFilterState): void;
   selectFeature(selection: HonuaSelectionState<T>): void;
@@ -226,6 +245,10 @@ export interface HonuaWebComponentRuntimeLike<T = Record<string, unknown>> {
   readonly composedStyle: { layers: readonly HonuaLayerSpecification[] };
   getLegend(): readonly HonuaMapPackageLegendEntry[];
   setLayerVisibility(layerId: string, visible: boolean): void;
+  /** Optional runtime support for writing layer paint opacity. */
+  setLayerOpacity?(layerId: string, opacity: number): void;
+  /** Optional runtime support for reordering layers (MapLibre `beforeId` semantics). */
+  moveLayer?(layerId: string, beforeId?: string): void;
   setViewState(viewport: HonuaViewportState): void;
   readonly dataset?: {
     source(id: string):
@@ -247,6 +270,23 @@ export interface HonuaSelectionChangeDetail<T = Record<string, unknown>> extends
 export interface HonuaLayerVisibilityChangeDetail {
   layerId: string;
   visible: boolean;
+}
+
+/** Detail of the `honua-layer-opacity-change` event dispatched by `<honua-layer-list>`. */
+export interface HonuaLayerOpacityChangeDetail {
+  layerId: string;
+  /** New opacity in `[0, 1]`. */
+  opacity: number;
+}
+
+/** Detail of the `honua-layer-order-change` event dispatched by `<honua-layer-list>`. */
+export interface HonuaLayerOrderChangeDetail {
+  /** The layer that was moved. */
+  layerId: string;
+  /** Layer the moved layer was inserted before; absent when moved to the end (top). */
+  beforeId?: string;
+  /** Resulting layer id order (style order: last id renders on top). */
+  order: readonly string[];
 }
 
 export interface HonuaViewportChangeDetail extends HonuaViewportState {}
@@ -294,6 +334,53 @@ export interface HonuaSearchDetail<T = Record<string, unknown>> {
   results: readonly HonuaSearchResult<T>[];
 }
 
+/**
+ * One typeahead suggestion rendered by `<honua-search>` when a geocoding
+ * provider is configured. Structurally compatible with the
+ * `GeocodeSuggestion` shape returned by `HonuaGeocodingClient.suggest`
+ * (`@honua/sdk-js/geocoding`).
+ */
+export interface HonuaSearchGeocodeSuggestion {
+  text: string;
+  magicKey?: string;
+}
+
+/**
+ * One forward-geocode candidate consumed by `<honua-search>`. Structurally
+ * compatible with the `GeocodeResult` shape returned by
+ * `HonuaGeocodingClient.forwardGeocode` (`@honua/sdk-js/geocoding`).
+ */
+export interface HonuaSearchGeocodeCandidate {
+  address: string;
+  latitude: number;
+  longitude: number;
+  score?: number;
+}
+
+/**
+ * Duck-typed geocoding provider accepted by the `<honua-search>` `geocoder`
+ * property. A `HonuaGeocodingClient` instance from the stable
+ * `@honua/sdk-js/geocoding` entrypoint satisfies this interface structurally
+ * — the web-component kit never imports the geocoding client itself, proving
+ * the provider seam. Custom providers (other geocoders, offline gazetteers)
+ * only need `forwardGeocode`; `suggest` powers debounced typeahead when
+ * available.
+ */
+export interface HonuaSearchGeocoderLike {
+  suggest?(text: string, options?: { maxSuggestions?: number }): Promise<readonly HonuaSearchGeocodeSuggestion[]>;
+  forwardGeocode(address: string, options?: { maxResults?: number }): Promise<readonly HonuaSearchGeocodeCandidate[]>;
+}
+
+/** Detail of the `honua-geocode-select` event dispatched by `<honua-search>`. */
+export interface HonuaGeocodeSelectDetail {
+  /** The query text that produced the candidate. */
+  query: string;
+  /** The chosen forward-geocode candidate. */
+  candidate: HonuaSearchGeocodeCandidate;
+  /** The viewport applied to the shared controller (center + zoom). */
+  viewport: HonuaViewportState;
+}
+
 export interface HonuaEditChangeDetail<T = Record<string, unknown>> {
   status: HonuaComponentStatus;
   request?: HonuaEditRequest<T>;
@@ -328,6 +415,28 @@ export interface HonuaLocateChangeDetail {
 }
 
 export type HonuaMeasureMode = "off" | "distance" | "area";
+
+/**
+ * Minimal duck-typed subset of `maplibre-gl.Map` required by
+ * `<honua-measurement>`. Any MapLibre-GL `Map` instance satisfies this
+ * interface, and tests can pass a plain stub (matching the duck-typing
+ * posture of the `@honua/sdk-js/controls` kit and `src/runtime/runtime.ts`).
+ */
+export interface HonuaMeasurementMap {
+  /** Subscribes to map events (`click`, `dblclick`). */
+  on(type: string, listener: (event?: unknown) => void): unknown;
+  /** Unsubscribes a listener registered with `on`. */
+  off?(type: string, listener: (event?: unknown) => void): unknown;
+  /** Optional style access used to render the in-progress sketch overlay. */
+  addSource?(id: string, source: unknown): void;
+  getSource?(id: string): unknown;
+  addLayer?(layer: unknown, beforeId?: string): void;
+  removeLayer?(id: string): void;
+  getLayer?(id: string): unknown;
+  removeSource?(id: string): void;
+  /** Optional double-click-zoom handle disabled while a drawing mode is active. */
+  doubleClickZoom?: { disable?(): void; enable?(): void };
+}
 
 /**
  * A drawn measurement geometry plus its computed result.

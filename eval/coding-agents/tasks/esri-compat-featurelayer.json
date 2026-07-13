@@ -1,0 +1,17 @@
+{
+  "id": "esri-compat-featurelayer",
+  "title": "Migrate an ArcGIS FeatureLayer snippet to the esri-compat drop-in",
+  "category": "migration",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "You are migrating this ArcGIS Maps SDK snippet to @honua/sdk-js without changing its behaviour:\n\n  const layer = new FeatureLayer({ url });\n  const result = await layer.queryFeatures(query);\n\nWrite a standalone TypeScript ESM program that performs the equivalent using the Honua Esri compatibility layer: construct FeatureLayerCompat from @honua/sdk-js/esri-compat with { url: <HONUA_EVAL_BASE_URL>/rest/services/EvalIncidents/FeatureServer/0 } and call queryFeatures with where \"priority = 'high'\", outFields [\"OBJECTID\", \"name\"] and returnGeometry false. The resolved FeatureSet has a features array whose entries carry attributes. Print exactly one line to stdout: {\"count\": <number of features>, \"firstName\": <name attribute of the first feature>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/standalone-quickstart.md", "docs/migration-honua-maplibre.md"],
+    "notes": "Golden workflow: esri-compat migration snippet — the drop-in keeps ArcGIS call shapes."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [
+    { "path": "count", "op": "equals", "value": 2 },
+    { "path": "firstName", "op": "equals", "value": "Harbor debris sweep" }
+  ]
+}

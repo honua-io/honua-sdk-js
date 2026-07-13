@@ -1,0 +1,14 @@
+{
+  "id": "react-usequery",
+  "title": "Compose the React hooks (HonuaProvider + useDataset + useQuery)",
+  "category": "react",
+  "tier": "stable",
+  "artifact": "tsx",
+  "prompt": "Write a standalone TypeScript (TSX) ESM program that composes the Honua React bindings without a browser. Import HonuaProvider, useDataset and useQuery from @honua/sdk-js/react, HonuaClient from @honua/sdk-js, and PROTOCOL_DEFAULT_CAPABILITIES from @honua/sdk-js/contract. Build a function component IncidentCount that calls useDataset({ id: \"ops\", skipCompatibilityCheck: true, sources: [{ id: \"incidents\", protocol: \"geoservices-feature-service\", locator: { url: <HONUA_EVAL_BASE_URL>, serviceId: \"EvalIncidents\", layerId: 0 }, capabilities: PROTOCOL_DEFAULT_CAPABILITIES[\"geoservices-feature-service\"] }] }), then const { data } = useQuery(dataset.source(\"incidents\"), { where: \"1=1\" }); and returns <output>{data ? String(data.features.length) : \"pending\"}</output>. Render <HonuaProvider client={client}><IncidentCount /></HonuaProvider> with renderToStaticMarkup from react-dom/server (server rendering does not run effects, so the markup shows the pending state). Print exactly one line to stdout: {\"markup\": <the rendered markup string>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/react.md"],
+    "notes": "Golden workflow: React hook composition; scored at the SSR seam so the run stays deterministic and DOM-free (typecheck carries the API-correctness weight)."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [{ "path": "markup", "op": "equals", "value": "<output>pending</output>" }]
+}

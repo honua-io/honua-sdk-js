@@ -1,0 +1,13 @@
+{
+  "adapter": "fixture",
+  "model": "committed-fixture",
+  "version": "1",
+  "description": "Committed reference generations for the coding-agent eval harness. known-good/ holds one verified solution per task (the deterministic CI control). known-bad/ holds deliberately wrong generations used by the self-test: each must fail at the stage recorded below.",
+  "knownBad": {
+    "featureserver-count": { "failsAt": "typecheck", "reason": "destructures the numeric queryFeatureCount() result as an envelope object" },
+    "ogc-features-query": { "failsAt": "typecheck", "reason": "hallucinates result.items instead of the Result contract's features array" },
+    "wfs-query": { "failsAt": "runtime", "reason": "queries a feature type the server does not publish" },
+    "geocode-address": { "failsAt": "runtime", "reason": "targets an unpublished locator; the request 404s" },
+    "cli-count": { "failsAt": "assertions", "reason": "adds a where clause that filters everything out, so the count is wrong" }
+  }
+}

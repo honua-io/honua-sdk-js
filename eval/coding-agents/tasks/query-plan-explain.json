@@ -1,0 +1,37 @@
+{
+  "id": "query-plan-explain",
+  "title": "Explain a query plan without contacting a server",
+  "category": "planner",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that compiles a query into a deterministic execution plan using explainQuery from @honua/sdk-js/query-planner (planning is synchronous and side-effect free — no network). Use the descriptor { id: \"parcels\", protocol: \"ogc-features\", locator: { url: \"https://example.test/ogc\", collectionId: \"parcels\" }, capabilities: PROTOCOL_DEFAULT_CAPABILITIES[\"ogc-features\"] } (capabilities from @honua/sdk-js/contract) and the query { where: \"status = 'active'\", outFields: [\"parcel_id\", \"owner\"], pagination: { limit: 100 } }. Inspect the first plan step: plan steps are a discriminated union on their engine property, and only steps with engine \"remote\" carry a compiled request (whose compiler property names the per-protocol compiler) — narrow the union before reading it. Print exactly one line to stdout: {\"engine\": <the first step's engine>, \"compiler\": <the first step's compiled request compiler id, or null when the step is not remote>, \"hasFingerprint\": <true when plan.fingerprint is a non-empty string>}.",
+  "context": {
+    "docs": [
+      "llms.txt",
+      "docs/query-planner.md"
+    ],
+    "notes": "Golden workflow: explain-before-execute; the plan is a pure function of descriptor + query."
+  },
+  "execution": {
+    "kind": "node",
+    "timeoutMs": 30000,
+    "env": []
+  },
+  "assertions": [
+    {
+      "path": "engine",
+      "op": "equals",
+      "value": "remote"
+    },
+    {
+      "path": "compiler",
+      "op": "equals",
+      "value": "ogc-api-features-query-v1"
+    },
+    {
+      "path": "hasFingerprint",
+      "op": "equals",
+      "value": true
+    }
+  ]
+}

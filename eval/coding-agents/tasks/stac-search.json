@@ -1,0 +1,17 @@
+{
+  "id": "stac-search",
+  "title": "Search a STAC API through the contract Dataset",
+  "category": "protocols",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that searches the STAC API rooted at <HONUA_EVAL_BASE_URL>/stac/v1. Use the contract API from @honua/sdk-js: HonuaClient with { baseUrl: <base URL>/stac/v1 }, createDataset from @honua/sdk-js/contract with one source { id: \"sentinel\", protocol: \"stac\", locator: { url: <base URL>/stac/v1, collectionId: \"sentinel-2-l2a\", layout: \"stac-api\" }, capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac } and skipCompatibilityCheck: true. Query with { pagination: { limit: 2 } }. Each returned feature has attributes (the STAC item properties) and geometry. Print exactly one line to stdout: {\"count\": <result.features.length>, \"hasGeometry\": <true when every returned feature has a non-null geometry>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/ogc-api.md"],
+    "notes": "Golden workflow: STAC item search through the protocol-neutral Source."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [
+    { "path": "count", "op": "equals", "value": 2 },
+    { "path": "hasGeometry", "op": "equals", "value": true }
+  ]
+}

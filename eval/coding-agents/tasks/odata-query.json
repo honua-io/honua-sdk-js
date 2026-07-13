@@ -1,0 +1,18 @@
+{
+  "id": "odata-query",
+  "title": "Query an OData v4 entity set through the contract Dataset",
+  "category": "protocols",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that queries the OData v4 service rooted at <HONUA_EVAL_BASE_URL>/odata/TripPin, entity set \"People\". Use the contract API from @honua/sdk-js: HonuaClient with { baseUrl: <base URL> }, createDataset from @honua/sdk-js/contract with one source { id: \"people\", protocol: \"odata\", locator: { url: <base URL>/odata/TripPin, entitySet: \"People\" }, capabilities: PROTOCOL_DEFAULT_CAPABILITIES.odata } and skipCompatibilityCheck: true. Query with { pagination: { limit: 2 } }. The Result exposes features (attributes are the entity properties) and totalCount (from @odata.count). Print exactly one line to stdout: {\"count\": <result.features.length>, \"firstUser\": <UserName attribute of the first feature>, \"totalCount\": <result.totalCount>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/protocol-capability-matrix.md"],
+    "notes": "Golden workflow: OData $filter/$top mapping behind the same typed Query."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [
+    { "path": "count", "op": "equals", "value": 2 },
+    { "path": "firstUser", "op": "equals", "value": "russellwhyte" },
+    { "path": "totalCount", "op": "equals", "value": 20 }
+  ]
+}

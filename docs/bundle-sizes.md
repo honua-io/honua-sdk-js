@@ -8,13 +8,13 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-13 at commit `e33c3cd`._
+_Generated 2026-07-13 at commit `b69c95a`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
 | `.` (root) | 369.4 KiB | 382.0 KiB | 97.1 KiB | 101.2 KiB |
 | `/honua` | 479.8 KiB | 510.3 KiB | 126.5 KiB | 135.7 KiB |
-| `/contract` | 227.1 KiB | 235.3 KiB | 58.7 KiB | 66.1 KiB |
+| `/contract` | 227.1 KiB | 261.1 KiB | 58.7 KiB | 66.1 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
 | `/runtime` | 420.6 KiB | 458.7 KiB | 109.6 KiB | 119.5 KiB |
@@ -25,10 +25,11 @@ _Generated 2026-07-13 at commit `e33c3cd`._
 | `/esri-compat` | 946.0 KiB | 1026.2 KiB | 234.2 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
-| `/geocoding` | 4.9 KiB | 5.3 KiB | 1.9 KiB | 2.1 KiB |
+| `/geocoding` | 12.5 KiB | 13.7 KiB | 3.9 KiB | 4.3 KiB |
+| `/routing` | 6.0 KiB | 6.6 KiB | 2.4 KiB | 2.7 KiB |
 | `/auth` | 12.0 KiB | 12.8 KiB | 3.8 KiB | 4.0 KiB |
 | `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
-| `/map` | 136.2 KiB | 149.8 KiB | 37.8 KiB | 41.6 KiB |
+| `/map` | 112.9 KiB | 123.8 KiB | 31.2 KiB | 34.2 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 17.2 KiB | 17.8 KiB | 6.2 KiB | 6.5 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 372.3 KiB | 405.7 KiB | 96.2 KiB | 104.5 KiB |

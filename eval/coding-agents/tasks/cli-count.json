@@ -1,0 +1,14 @@
+{
+  "id": "cli-count",
+  "title": "Drive the honua CLI for a feature count",
+  "category": "cli",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that shells out to the honua CLI to count features. The CLI entry script's absolute path is in the HONUA_EVAL_CLI environment variable and must be run with the current Node executable (process.execPath). Spawn it (node:child_process) with the arguments: query EvalIncidents/0 --count --json --base-url <HONUA_EVAL_BASE_URL>. The CLI prints a JSON object that includes a count property. Parse the CLI's stdout and print exactly one line to your own stdout: {\"count\": <the parsed count>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/guide.md"],
+    "notes": "Golden workflow: the honua CLI wraps the SDK; --count --json emits a machine-readable envelope."
+  },
+  "execution": { "kind": "node", "timeoutMs": 45000, "env": ["HONUA_EVAL_BASE_URL", "HONUA_EVAL_CLI"] },
+  "assertions": [{ "path": "count", "op": "equals", "value": 5 }]
+}

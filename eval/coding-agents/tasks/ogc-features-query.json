@@ -1,0 +1,18 @@
+{
+  "id": "ogc-features-query",
+  "title": "Query an OGC API Features collection through the contract Dataset",
+  "category": "protocols",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that queries the OGC API Features collection \"eval-incidents\" served under the base URL in HONUA_EVAL_BASE_URL. Use the protocol-neutral contract API from @honua/sdk-js: build a HonuaClient with { baseUrl }, then createDataset from @honua/sdk-js/contract with one source { id: \"incidents\", protocol: \"ogc-features\", locator: { url: <base URL>, collectionId: \"eval-incidents\" }, capabilities: PROTOCOL_DEFAULT_CAPABILITIES[\"ogc-features\"] } and skipCompatibilityCheck: true (the target is not a Honua server). Query it with { where: \"priority = 'high'\", pagination: { limit: 10 } }. The Result contract exposes features (an array of { attributes, geometry }) and totalCount. Print exactly one line to stdout: {\"count\": <result.features.length>, \"totalCount\": <result.totalCount>, \"firstName\": <name attribute of the first feature>}.",
+  "context": {
+    "docs": ["llms.txt", "docs/ogc-api.md", "docs/discovery-contract.md"],
+    "notes": "Golden workflow: same typed Query over OGC API Features; where compiles to CQL2 text."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [
+    { "path": "count", "op": "equals", "value": 2 },
+    { "path": "totalCount", "op": "equals", "value": 2 },
+    { "path": "firstName", "op": "equals", "value": "Harbor debris sweep" }
+  ]
+}

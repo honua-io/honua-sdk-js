@@ -367,6 +367,8 @@ export type {
   CoordinateConversionResultCompat,
   CoordinateFormatCompat,
 } from "./esri-compat/coordinate-conversion.js";
+export { HonuaWidgetHost, registerHonuaWidgetKit } from "./esri-compat/widget-host.js";
+export type { HonuaWidgetHostElement, HonuaWidgetKitLike, HonuaWidgetKitSource } from "./esri-compat/widget-host.js";
 export { LayerListCompat } from "./esri-compat/layer-list.js";
 export type {
   LayerListActionCompat,
@@ -553,6 +555,8 @@ export type {
   EditorLayerInfoCompat,
   EditorWorkflowCompat,
 } from "./esri-compat/editor.js";
+export { snappingOptionsToSnappingConfig } from "./esri-compat/snapping.js";
+export type { SnappingFeatureSourceCompat, SnappingOptionsCompat } from "./esri-compat/snapping.js";
 export { FeatureFilterCompat } from "./esri-compat/feature-filter.js";
 export type {
   FeatureFilterCompatOptions,

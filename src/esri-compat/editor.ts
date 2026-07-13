@@ -1,4 +1,6 @@
+import type { SnappingConfig } from "../contract/edit-snapping.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { type SnappingOptionsCompat, snappingOptionsToSnappingConfig } from "./snapping.js";
 
 export type EditorWorkflowCompat = "create" | "update";
 
@@ -18,6 +20,7 @@ export interface EditorCompatOptions {
   layerInfos?: readonly EditorLayerInfoCompat[];
   allowedWorkflows?: readonly EditorWorkflowCompat[];
   supportingWidgetDefaults?: Record<string, unknown>;
+  snappingOptions?: SnappingOptionsCompat;
 }
 
 export type EditorLoadStatusCompat = "not-loaded" | "loading" | "loaded";
@@ -37,6 +40,7 @@ export class EditorCompat {
   public supportingWidgetDefaults: Record<string, unknown>;
   public activeWorkflow: EditorWorkflowCompat | undefined;
   public selectedFeature: Record<string, unknown> | null;
+  public snappingOptions: SnappingOptionsCompat;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
 
   public constructor(options: EditorCompatOptions = {}) {
@@ -50,7 +54,20 @@ export class EditorCompat {
     this.supportingWidgetDefaults = { ...(options.supportingWidgetDefaults ?? {}) };
     this.activeWorkflow = undefined;
     this.selectedFeature = null;
+    this.snappingOptions = { ...(options.snappingOptions ?? {}) };
     this.watchListeners = new Map();
+  }
+
+  /** Replace the ArcGIS-shaped snapping options and notify watchers. */
+  public setSnappingOptions(options: SnappingOptionsCompat): void {
+    this.snappingOptions = { ...options };
+    this.notifyWatchers("snappingOptions", this.snappingOptions);
+    this.eventBus.emit("editor.snapping-options-changed", { options: this.snappingOptions }, this);
+  }
+
+  /** The snapping options mapped onto the contract `SnappingConfig`. */
+  public snappingConfig(): SnappingConfig {
+    return snappingOptionsToSnappingConfig(this.snappingOptions);
   }
 
   public async load(): Promise<EditorCompat> {

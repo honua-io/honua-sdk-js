@@ -4,6 +4,7 @@ import {
   resolveCompatEventBus,
   safeInvokeCompatListener,
 } from "./event-bus.js";
+import { HonuaWidgetHost } from "./widget-host.js";
 
 export interface LegendCompatOptions {
   view?: unknown;
@@ -52,6 +53,14 @@ export class LegendCompat {
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
   private subscriptions: CompatEventSubscription[];
   private refreshRevision: number;
+  /**
+   * When a `container` is supplied and a DOM is present, the shim delegates
+   * its rendering to the app-platform `<honua-legend>` component through
+   * {@link HonuaWidgetHost} (issue #493 REQ-004). Headless usage (no
+   * container / no DOM / the standalone esri-compat split package) keeps the
+   * state-model-only behavior.
+   */
+  private readonly widgetHost: HonuaWidgetHost | undefined;
 
   public constructor(options: LegendCompatOptions = {}) {
     this.view = options.view;
@@ -68,6 +77,8 @@ export class LegendCompat {
     this.watchListeners = new Map();
     this.subscriptions = [];
     this.refreshRevision = 0;
+    const widgetHost = options.container != null ? new HonuaWidgetHost("honua-legend", options.container) : undefined;
+    this.widgetHost = widgetHost?.available ? widgetHost : undefined;
 
     if (this.autoRefresh) {
       this.subscriptions.push(this.eventBus.on("map.layer-added", () => void this.refresh()));
@@ -157,6 +168,7 @@ export class LegendCompat {
     this.items = groups;
     this.notifyWatchers("items", this.items);
     this.eventBus.emit("legend.updated", { layerCount: groups.length }, this);
+    void this.renderWidgetHost();
     return this.items;
   }
 
@@ -165,6 +177,23 @@ export class LegendCompat {
       subscription.remove();
     }
     this.watchListeners.clear();
+    this.widgetHost?.destroy();
+  }
+
+  /** Pushes the current items into the delegated `<honua-legend>` element. */
+  private async renderWidgetHost(): Promise<void> {
+    const host = this.widgetHost;
+    if (!host) return;
+    const items = this.items.flatMap((group, groupIndex) =>
+      group.entries.map((entry, entryIndex) => ({
+        id: `${groupIndex}-${entryIndex}`,
+        label: entry.label,
+        ...(entry.imageData ? { iconUrl: `data:${entry.contentType ?? "image/png"};base64,${entry.imageData}` } : {}),
+      })),
+    );
+    await host.update((element) => {
+      element.items = items;
+    });
   }
 
   private resolveLegendLayers(): unknown[] {

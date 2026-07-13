@@ -188,6 +188,7 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
 - React bindings (provider, hooks, map components): `@honua/sdk-js/react` — see [`docs/react.md`](./react.md)
 - Client-side geometry ops + reprojection (curated turf/proj4): `@honua/sdk-js/geometry` — see [`docs/geometry.md`](./geometry.md)
+- Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) + routing (OSRM/Valhalla/Honua): `@honua/sdk-js/geocoding`, `@honua/sdk-js/routing` — see [`docs/geocoding-routing-providers.md`](./geocoding-routing-providers.md)
 - Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`
 - Studio package-family projections, validation/preview envelopes, capability manifest, and publish/share/embed contracts (MCP/QGIS-safe): `@honua/sdk-js/studio` — see [`docs/studio-package-contracts.md`](./studio-package-contracts.md)
 
@@ -893,6 +894,16 @@ connection.remove();
 ```bash
 # Scan only
 node dist/src/migration/cli.js scan ./src --report scan-report.json
+
+# Widget-usage inventory + ArcGIS 6.0 readiness report (classic widgets are removed
+# at 6.0, as early as Q1 2027). Detects ESM imports, AMD require([...]) arrays, and
+# dynamic $arcgis.import(...) specifiers; per-widget dispositions come from the
+# generated docs/widget-survival-guide.md (source: src/migration/widget-dispositions.ts).
+node dist/src/migration/cli.js widgets ./src                     # human table
+node dist/src/migration/cli.js widgets ./src --json              # machine-readable
+node dist/src/migration/cli.js widgets ./src --markdown          # shareable report
+node dist/src/migration/cli.js widgets ./src --gate 80           # exit 2 if automated share < 80%
+node dist/src/migration/cli.js widgets ./src --report widget-readiness.json
 
 # Safe codemod (dry run)
 node dist/src/migration/cli.js codemod ./src --report migration-report.json

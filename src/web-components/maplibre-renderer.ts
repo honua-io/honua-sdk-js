@@ -72,6 +72,8 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
   #lastViewportKey: string | undefined;
   #syncingViewport = false;
   #layerVisibility = new Map<string, boolean>();
+  #layerOpacity = new Map<string, number>();
+  #layerOrderKey: string | undefined;
   #selectionTarget: HonuaFeatureStateEntry | undefined;
   #featureStates = new Map<string, HonuaFeatureStateEntry>();
   #state: HonuaWebComponentState<T> | undefined;
@@ -99,6 +101,8 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
     }
 
     this.#applyLayerVisibility(state);
+    this.#applyLayerOpacity(state);
+    this.#applyLayerOrder(state);
     this.#applyViewport(state);
     this.#applyFeatureStates(state.featureStates);
     this.#applySelection(state);
@@ -113,6 +117,8 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
     this.#map = undefined;
     this.#loadedPackageKey = undefined;
     this.#layerVisibility.clear();
+    this.#layerOpacity.clear();
+    this.#layerOrderKey = undefined;
     this.#featureStates.clear();
     this.#selectionTarget = undefined;
     this.#options.container.replaceChildren();
@@ -161,6 +167,11 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
 
       this.#runtime = runtime;
       this.#loadedPackageKey = mapPackageKey(mapPackage);
+      // Seed the order tracker with the order the map actually renders (the
+      // composed style), so a controller order that already diverged — e.g. a
+      // layer-list reorder issued while the package was still loading — is
+      // replayed by the next #applyLayerOrder pass instead of being absorbed.
+      this.#layerOrderKey = layerOrderKey(runtime.composedStyle.layers.map((layer) => layer.id));
       this.#bindViewport(map);
       this.#bindLayerInteractions(runtime);
       map.resize?.();
@@ -186,6 +197,8 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
     this.#map?.remove?.();
     this.#map = undefined;
     this.#layerVisibility.clear();
+    this.#layerOpacity.clear();
+    this.#layerOrderKey = undefined;
     this.#featureStates.clear();
     this.#selectionTarget = undefined;
     this.#options.container.replaceChildren();
@@ -315,6 +328,46 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
       this.#layerVisibility.set(layer.id, layer.visible);
       try {
         runtime.setLayerVisibility(layer.id, layer.visible);
+      } catch (error) {
+        this.#emitError(error);
+      }
+    }
+  }
+
+  #applyLayerOpacity(state: HonuaWebComponentState<T>): void {
+    const map = this.#map;
+    if (!map?.setPaintProperty) return;
+    for (const layer of state.layers) {
+      if (layer.opacity === undefined) continue;
+      const previous = this.#layerOpacity.get(layer.id);
+      if (previous === layer.opacity) continue;
+      this.#layerOpacity.set(layer.id, layer.opacity);
+      if (map.getLayer && !map.getLayer(layer.id)) continue;
+      for (const property of opacityPaintProperties(layer.type)) {
+        try {
+          map.setPaintProperty(layer.id, property, layer.opacity);
+        } catch (error) {
+          this.#emitError(error);
+        }
+      }
+    }
+  }
+
+  #applyLayerOrder(state: HonuaWebComponentState<T>): void {
+    const key = layerOrderKey(state.layers.map((layer) => layer.id));
+    // `#layerOrderKey` is seeded from the composed style order when the map
+    // package loads (see #load), so a matching key means the map already
+    // renders this order and overlays are never hoisted above host-managed
+    // base layers gratuitously. Any diverging key — including a reorder
+    // issued while the package was still loading — is replayed onto the map.
+    if (key === this.#layerOrderKey) return;
+    this.#layerOrderKey = key;
+    const map = this.#map;
+    if (!map?.moveLayer) return;
+    for (const layer of state.layers) {
+      if (map.getLayer && !map.getLayer(layer.id)) continue;
+      try {
+        map.moveLayer(layer.id);
       } catch (error) {
         this.#emitError(error);
       }
@@ -470,6 +523,35 @@ function featureStateKey(target: HonuaFeatureStateEntry): string {
 
 function stableKey(value: unknown): string {
   return JSON.stringify(value);
+}
+
+/** Order-tracking key over layer ids (NUL-delimited so ids with spaces stay distinct). */
+function layerOrderKey(ids: readonly string[]): string {
+  return ids.join("\u0000");
+}
+
+/** Paint properties that carry a layer's overall opacity, by layer type. */
+function opacityPaintProperties(type: string | undefined): readonly string[] {
+  switch (type) {
+    case "fill":
+      return ["fill-opacity"];
+    case "line":
+      return ["line-opacity"];
+    case "circle":
+      return ["circle-opacity", "circle-stroke-opacity"];
+    case "symbol":
+      return ["icon-opacity", "text-opacity"];
+    case "raster":
+      return ["raster-opacity"];
+    case "background":
+      return ["background-opacity"];
+    case "fill-extrusion":
+      return ["fill-extrusion-opacity"];
+    case "heatmap":
+      return ["heatmap-opacity"];
+    default:
+      return [];
+  }
 }
 
 function viewportKey(viewport: HonuaViewportChangeDetail): string {

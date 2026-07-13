@@ -1,0 +1,14 @@
+{
+  "id": "featureserver-count",
+  "title": "Connect to a FeatureServer layer and count features",
+  "category": "connect-query",
+  "tier": "stable",
+  "artifact": "ts",
+  "prompt": "Write a standalone TypeScript ESM program that connects to the Esri GeoServices FeatureServer hosted at the base URL in the HONUA_EVAL_BASE_URL environment variable and counts the features in service \"EvalIncidents\", layer 0, using the where clause \"1=1\". Use @honua/sdk-js (construct a HonuaClient with { baseUrl } and use its featureLayer(service, layer) surface with queryFeatureCount). Print exactly one line to stdout: a JSON object of the shape {\"count\": <number>}. Exit with code 0 on success.",
+  "context": {
+    "docs": ["llms.txt", "docs/standalone-quickstart.md"],
+    "notes": "Golden workflow: standalone FeatureServer count via HonuaClient.featureLayer().queryFeatureCount()."
+  },
+  "execution": { "kind": "node", "timeoutMs": 30000, "env": ["HONUA_EVAL_BASE_URL"] },
+  "assertions": [{ "path": "count", "op": "equals", "value": 5 }]
+}
