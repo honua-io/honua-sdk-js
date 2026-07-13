@@ -2,7 +2,7 @@
 
 This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 28 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 30 executable examples
 
 | Sample | Tier | Support | Data | Disposition | Demonstration |
 | --- | --- | --- | --- | --- | --- |
@@ -18,6 +18,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | flagship | supported | hybrid | keep | Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence. |
 | [`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | advanced | experimental | fixture | rework | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
 | [`migration-workbench`](../../docs/migration-honua-maplibre.md) | flagship | supported | fixture | rework | Scans and transforms ArcGIS application source with auditable compatibility results. |
+| [`nl-map-control`](../../examples/nl-map-control/README.md) | advanced | experimental | fixture | keep | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
 | [`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | [`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | supported | fixture | keep | Demonstrates browser authentication and session lifecycle without embedding credentials. |
 | [`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | flagship | experimental | hybrid | keep | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
@@ -27,6 +28,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | flagship | supported | hybrid | keep | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | [`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | reference | experimental | fixture | replace | Compares supported rendering paths and makes fidelity differences explicit. |
 | [`service-explorer`](../../examples/service-explorer/README.md) | flagship | supported | hybrid | rework | Browses heterogeneous spatial services with capability and cache diagnostics. |
+| [`sketch-editing`](../../examples/sketch-editing/README.md) | advanced | experimental | fixture | keep | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
 | [`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | flagship | experimental | hybrid | rework | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
 | [`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | advanced | supported | fixture | merge | Discovers STAC collections and previews supported imagery assets. |
 | [`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | flagship | supported | hybrid | merge | Connects a public Esri service directly to MapLibre without a Honua server. |

@@ -128,6 +128,11 @@ import {
   executeAgentPlanStep,
 } from "@honua/sdk/agent-safety";
 import {
+  NL_MAP_PLAN_KIND,
+  createNlMapControl,
+  toNlMapControlMcpToolDefinitions,
+} from "@honua/sdk/nl-map-control";
+import {
   createHonuaApp,
   normalizeHonuaAppOptions,
 } from "@honua/app-platform/app";
@@ -346,6 +351,10 @@ if (AGENT_CONSUMPTION_KIND !== "honua.agent-approval-consumption" || AGENT_SAFET
   throw new Error("agent safety consumption or hard-limit exports missing from @honua/sdk/agent-safety");
 if (AGENT_EXECUTION_AUDIT_KIND !== "honua.agent-execution-audit" || typeof executeAgentPlanStep !== "function")
   throw new Error("agent safety execution or audit exports missing from @honua/sdk/agent-safety");
+if (NL_MAP_PLAN_KIND !== "honua.nl-map-plan" || typeof createNlMapControl !== "function")
+  throw new Error("nl map-control exports missing from @honua/sdk/nl-map-control");
+if (toNlMapControlMcpToolDefinitions().length < 12)
+  throw new Error("nl map-control MCP tool publication missing from @honua/sdk/nl-map-control");
 if (typeof createHonuaApp !== "function")
   throw new Error("createHonuaApp export missing from @honua/sdk/app");
 if (typeof normalizeHonuaAppOptions !== "function")

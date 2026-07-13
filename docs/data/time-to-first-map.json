@@ -1,0 +1,23 @@
+{
+  "format": "honua.sdk.time-to-first-map.v1",
+  "status": "passed",
+  "lane": "browser-first-map",
+  "measuredAt": "2026-07-13",
+  "phases": {
+    "installMs": 13971,
+    "firstMapMs": 7479,
+    "totalMs": 21450
+  },
+  "install": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.0-beta.0",
+    "cache": "cold"
+  },
+  "environment": {
+    "node": "v24.7.0",
+    "platform": "win32",
+    "arch": "x64",
+    "cpus": 22
+  },
+  "definition": "Cold `npm install @honua/sdk-js` (empty npm cache) in a fresh temp project, plus: build the deterministic maplibre-quickstart fixture-lane example, serve it with the mock GeoServices server, and wait in headless Chromium for the rendered-map-ready signal (all five journey stages complete and a MapLibre canvas mounted). No live endpoints."
+}

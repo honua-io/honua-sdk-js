@@ -34,6 +34,8 @@
     "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom.",
     "/geocoding was reset for the provider-pluggable geocoding interface (#495): the GeocodingProvider contract plus Nominatim/Photon/Pelias/Honua adapters with capability declarations and attribution provenance measure 12,775 minified / 4,023 gzip bytes; the ceiling is measured actual plus ~10% headroom. /routing gained its first dedicated guard in the same change (RoutingProvider contract, OSRM/Valhalla adapters, polyline decoding, esri-compat bridge) at 6,124 minified / 2,491 gzip bytes; the entrypoint is subpath-only and stays out of the root/browser barrels, which are unchanged.",
     "/map was reset for the standalone data-to-map bridge (#496): mountSource/explainDataToMapStrategy add capability+result-size strategy selection, geometry-default styling, popup/hover wiring, and reuse of the dynamic query-tile spec builders (contract/tiles + runtime/query-tiles) on the entrypoint. Measured 139,458 minified / 38,686 gzip — the gzip growth over the prior 31.2 KiB actual is ~6.5 KiB, and the measured size stays under the prior ceiling plus the 4 KiB gzip allowance granted by #496 NFR-001 (35,055 + 4,096 = 39,151). Ceilings are measured actual plus ~10% headroom.",
+    "/nl-map-control gained its first dedicated guard with the natural-language map-control layer (#500): plan-first NL-to-plan compilation over agent-tools, agent-safety approval bridging, recorded-completion replay, and MCP/OpenAI tool publication measure 61,291 minified / 18,975 gzip bytes (the entry bundles its agent-tools/agent-safety/query-planner-canonical dependencies the way a real consumer build does); the ceiling is measured actual plus ~10% headroom. The subpath is experimental and subpath-only — root and browser barrels are unchanged.",
+    "'tree-shake:runtime-terra-draw-sketch' guards the terra-draw sketch binding (#492): terra-draw and terra-draw-maplibre-gl-adapter are optional peers kept external (reached only via dynamic import in createTerraDrawSketch), so importing { bindTerraDrawSketch } from /runtime measures 3,078 minified / 1,393 gzip bytes; the ceiling is measured actual plus ~10% headroom. /runtime absorbed the binding within its existing ceiling.",
     "/style and /webmap were reset for first-class renderer objects (#497): the /style entrypoint gains the classBreaks/uniqueValue/heatmap/cluster renderer factories, legend contracts, and the shared /expr-based compiler (measured 47,836 minified / 11,551 gzip; gzip growth over the prior actual is ~3 KiB, within the 6 KiB NFR-001 allowance); /webmap now emits renderer objects and compiles through the same single implementation, adding the shared compiler to its bundle (measured 25,383 minified / 7,705 gzip). Each ceiling is measured actual plus ~10% headroom."
   ],
   "entrypoints": {
@@ -56,6 +58,10 @@
     "/agent-safety": {
       "min": 56542,
       "gzip": 16163
+    },
+    "/nl-map-control": {
+      "min": 67421,
+      "gzip": 20873
     },
     "/runtime": {
       "min": 469747,
@@ -148,6 +154,10 @@
     "tree-shake:map-source-workflow": {
       "min": 19209,
       "gzip": 7214
+    },
+    "tree-shake:runtime-terra-draw-sketch": {
+      "min": 3386,
+      "gzip": 1533
     }
   }
 }

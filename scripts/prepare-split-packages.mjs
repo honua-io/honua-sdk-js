@@ -57,6 +57,19 @@ function geometryRuntimeDependencies() {
   return deps;
 }
 
+// npm discoverability (issue #499, REQ-003): every published @honua/* package
+// carries the shared discovery terms plus its own focus terms. Keep the lists
+// honest and non-spammy (~15 keywords max per package).
+const SHARED_KEYWORDS = ["gis", "geospatial", "maplibre", "typescript"];
+
+function packageKeywords(focusKeywords) {
+  const keywords = [...SHARED_KEYWORDS, ...focusKeywords];
+  if (keywords.length > 15) {
+    throw new Error(`keyword list exceeds the 15-entry discoverability budget: ${keywords.join(", ")}`);
+  }
+  return keywords;
+}
+
 resetOutputRoot();
 
 createSdkPackage();
@@ -88,6 +101,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "deckgl"), path.join(packageRoot, "deckgl"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-safety"), path.join(packageRoot, "agent-safety"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "nl-map-control"), path.join(packageRoot, "nl-map-control"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
@@ -123,7 +137,9 @@ function createSdkPackage() {
 
   writePackageJson(packageRoot, {
     name: "@honua/sdk",
-    description: "Honua JavaScript SDK core client",
+    description:
+      "Core Honua GIS client — typed queries for ArcGIS/Esri GeoServices, OGC API, WFS, WMS, STAC, and OData, with a MapLibre map bridge",
+    keywords: packageKeywords(["arcgis", "esri", "ogc-api", "wfs", "wms", "stac", "odata", "geocoding", "routing"]),
     main: "./index.js",
     types: "./index.d.ts",
     exports: {
@@ -150,6 +166,10 @@ function createSdkPackage() {
       "./agent-safety": {
         types: "./agent-safety/index.d.ts",
         default: "./agent-safety/index.js",
+      },
+      "./nl-map-control": {
+        types: "./nl-map-control/index.d.ts",
+        default: "./nl-map-control/index.js",
       },
       "./exploration": {
         types: "./exploration/index.d.ts",
@@ -251,7 +271,9 @@ function createCompatPackage() {
 
   writePackageJson(packageRoot, {
     name: "@honua/sdk-esri-compat",
-    description: "Esri compatibility bridge APIs for Honua JavaScript migration",
+    description:
+      "ArcGIS JS API compatibility layer for migrating Esri apps to the open Honua + MapLibre stack",
+    keywords: packageKeywords(["arcgis", "arcgis-migration", "esri", "compatibility"]),
     main: "./index.js",
     types: "./index.d.ts",
     exports: {
@@ -296,6 +318,7 @@ function createGeometryPackage() {
   writePackageJson(packageRoot, {
     name: "@honua/geometry",
     description: "Curated turf/proj4 client-side geometry operations for the Honua SDK",
+    keywords: packageKeywords(["geometry", "turf", "proj4", "buffer", "reprojection"]),
     main: "./geometry/index.js",
     types: "./geometry/index.d.ts",
     exports: {
@@ -354,6 +377,7 @@ function createMigrationPackage() {
   writePackageJson(packageRoot, {
     name: "@honua/honua-migrate",
     description: "ArcGIS-to-Honua migration scanner, codemod, and reporting tools",
+    keywords: packageKeywords(["arcgis", "arcgis-migration", "esri", "codemod", "migration"]),
     main: "./index.js",
     types: "./index.d.ts",
     bin: {
@@ -424,6 +448,7 @@ function createReactPackage() {
   writePackageJson(packageRoot, {
     name: "@honua/react",
     description: "React bindings for the Honua SDK: provider, hooks, and map components",
+    keywords: packageKeywords(["react", "hooks", "map", "arcgis", "ogc-api", "geocoding"]),
     main: "./react/index.js",
     types: "./react/index.d.ts",
     exports: {
@@ -522,6 +547,7 @@ function createAppPlatformPackage() {
 
   writePackageJson(packageRoot, {
     name: "@honua/app-platform",
+    keywords: packageKeywords(["cesium", "webmap", "app-platform"]),
     description:
       "Honua application-platform surfaces: app-shell, workspace, scene, operator, studio, and hosted-product clients",
     main: "./app-workspace/index.js",
@@ -582,6 +608,7 @@ function writePackageJson(packageRoot, overrides) {
     name: overrides.name,
     version,
     description: overrides.description,
+    keywords: overrides.keywords,
     license: rootPackageJson.license,
     // npm provenance (trusted publishing) rejects tarballs whose
     // repository.url does not match the repo the attestation names.

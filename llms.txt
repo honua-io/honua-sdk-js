@@ -14,6 +14,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [Learn the Honua SDK by task](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/generated/learning-paths.md): Task-oriented progression from first public map through connect, query, styling, analysis, editing, realtime/offline, 3D, migration, and safe automation.
 - [Standalone Quickstart: The SDK Against Any Public Endpoint](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-quickstart.md): Server-optional front door: run the SDK against any public GeoServices endpoint with no Honua server, key, or account.
 - [Quickstart Troubleshooting](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/quickstart-troubleshooting.md): Common quickstart failure modes and how to fix them.
+- [How Honua compares](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/comparison.md): Generated comparison page: bundle sizes vs @arcgis/core, protocol coverage vs raw MapLibre / arcgis-rest-js / OpenLayers, and the scripted time-to-first-map benchmark.
 
 ## Core contract and API
 
@@ -26,6 +27,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [Experimental Cesium entity adapter](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/cesium-entity-adapter.md): Bounded accepted-plan projection into an optional Cesium peer with stable entity identity and disposal.
 - [Downloadable offline regions (experimental)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/offline-regions.md): Bounded downloadable-region manifests, logical-byte quota CAS, byte isolation, integrity, and storage-neutral transactions.
 - [Safe agent plan boundary](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/agent-safety.md): Bounded safe-agent plan normalization, signed approvals, authenticated single-use execution, secret-safe durable audit, MCP adaptation, and verifiable receipts.
+- [Natural-language map control (@honua/sdk-js/nl-map-control)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/nl-map-control.md): Natural-language map control: plan-first NL-to-plan compilation, BYO-LLM callback, agent-safety approval envelopes, receipts, and MCP/OpenAI tool publication.
 - [North-star SDK application-kernel contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/decisions/north-star-sdk-application-kernel.md): Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.
 - [Provider-pluggable geocoding and routing](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/geocoding-routing-providers.md): Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) and routing (OSRM/Valhalla/Honua): setup, capability differences, and attribution/usage-policy obligations.
 - [Protocol × Capability Matrix](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/protocol-capability-matrix.md): Which operations each protocol supports and where capabilities fall back.
@@ -49,6 +51,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 
 - [Renderer objects and temporal playback](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/renderers.md): First-class renderer objects (classBreaks/uniqueValue/heatmap/cluster) with legend contracts, bridge integration, and temporal playback.
 - [MapLibre GL JS Runtime (@honua/sdk-js/runtime)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/maplibre-runtime.md): loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.
+- [terra-draw sketch binding (@honua/sdk-js/runtime)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/terra-draw-sketch.md): terra-draw sketch binding: optional-peer draw modes adapted onto the edit-sketch workflow with undo/redo, snapping, and applyEdits.
 - [PMTiles](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/pmtiles.md): Native PMTiles support: auto-registered pmtiles:// protocol, lazy peer, describe() metadata, and a CDN recipe.
 - [Prebuilt browser bundle (CDN / build-less)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/browser-bundle.md): Build-less CDN / IIFE usage via the prebuilt browser bundle.
 - [Studio Package Contracts (@honua/sdk-js/studio)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/studio-package-contracts.md): Studio package-family projections, validation envelope, and capability manifest.
@@ -75,6 +78,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [@honua/sdk-js/contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/contract/index.ts): Shared client contract — canonical types and source factories that all protocol adapters speak.
 - [@honua/sdk-js/query-planner](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/query-planner/index.ts): @honua/sdk-js/query-planner — deterministic query IR, explain plans, and bounded execution for the protocol-neutral contract.
 - [@honua/sdk-js/agent-safety](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/agent-safety/index.ts): Deterministic safety boundary for JSON-compatible agent plans.
+- [@honua/sdk-js/nl-map-control](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/nl-map-control/index.ts): Natural-language map control: compile NL instructions into serializable, inspectable plans over the agent-tools surface, and execute reviewed plans only.
 - [@honua/sdk-js/esri-compat](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/esri-compat-entry.ts): Esri ArcGIS JS-API compatibility wrappers (FeatureLayerCompat, MapViewCompat, ...).
 - [@honua/sdk-js/migration](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/migration-entry.ts): Codemod, scanner, and reporting used by the honua-migrate CLI.
 - [@honua/sdk-js/runtime](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/runtime/index.ts): @honua/sdk-js/runtime — MapLibre GL JS-first runtime for Honua MapPackage.

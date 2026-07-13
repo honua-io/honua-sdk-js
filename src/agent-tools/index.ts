@@ -70,6 +70,22 @@ export interface HonuaAgentToolDefinition<TName extends HonuaAgentToolName = Hon
   readonly inputSchema: HonuaAgentJsonSchema;
 }
 
+/**
+ * Structural superset of {@link HonuaAgentToolDefinition} accepted by the
+ * provider-format exporters, so higher layers (for example
+ * `@honua/sdk-js/nl-map-control`) can publish additional tools through the
+ * same MCP / OpenAI conversion path without widening the canonical tool-name
+ * union.
+ */
+export interface HonuaAgentToolDefinitionLike {
+  readonly name: string;
+  readonly title?: string;
+  readonly description: string;
+  readonly mode?: HonuaAgentToolMode;
+  readonly requiresOptIn?: boolean;
+  readonly inputSchema: HonuaAgentJsonSchema;
+}
+
 export interface HonuaAgentViewport {
   readonly bbox?: readonly [number, number, number, number];
   readonly center?: readonly [number, number];
@@ -317,6 +333,7 @@ export interface HonuaOpenAiToolDefinition {
 
 export type HonuaProviderToolDefinition =
   | HonuaAgentToolDefinition
+  | HonuaAgentToolDefinitionLike
   | HonuaMcpCompatibleToolDefinition
   | HonuaOpenAiToolDefinition;
 
@@ -681,7 +698,7 @@ export function normalizeAiMapKitPolicy(policy: HonuaAiMapKitPolicy = {}): Honua
 }
 
 export function convertHonuaAgentToolDefinitions(
-  definitions: ReadonlyArray<HonuaAgentToolDefinition> = HONUA_AGENT_TOOL_DEFINITIONS,
+  definitions: ReadonlyArray<HonuaAgentToolDefinitionLike> = HONUA_AGENT_TOOL_DEFINITIONS,
   format: HonuaAgentProviderToolFormat = "honua",
 ): ReadonlyArray<HonuaProviderToolDefinition> {
   switch (format) {
@@ -695,7 +712,7 @@ export function convertHonuaAgentToolDefinitions(
 }
 
 export function toHonuaMcpToolDefinitions(
-  definitions: ReadonlyArray<HonuaAgentToolDefinition> = HONUA_AGENT_TOOL_DEFINITIONS,
+  definitions: ReadonlyArray<HonuaAgentToolDefinitionLike> = HONUA_AGENT_TOOL_DEFINITIONS,
 ): ReadonlyArray<HonuaMcpCompatibleToolDefinition> {
   return definitions.map((definition) => ({
     name: definition.name,
@@ -705,7 +722,7 @@ export function toHonuaMcpToolDefinitions(
 }
 
 export function toHonuaOpenAiToolDefinitions(
-  definitions: ReadonlyArray<HonuaAgentToolDefinition> = HONUA_AGENT_TOOL_DEFINITIONS,
+  definitions: ReadonlyArray<HonuaAgentToolDefinitionLike> = HONUA_AGENT_TOOL_DEFINITIONS,
 ): ReadonlyArray<HonuaOpenAiToolDefinition> {
   return definitions.map((definition) => ({
     type: "function",

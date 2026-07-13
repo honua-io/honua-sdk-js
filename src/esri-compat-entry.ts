@@ -542,7 +542,7 @@ export type {
   TableListHandleCompat,
   TableListLoadStatusCompat,
 } from "./esri-compat/table-list.js";
-export { SketchCompat } from "./esri-compat/sketch.js";
+export { SketchCompat, resolveSketchToolBindingCompat } from "./esri-compat/sketch.js";
 export type {
   SketchCompatOptions,
   SketchCreateOptionsCompat,
@@ -550,6 +550,7 @@ export type {
   SketchCreationModeCompat,
   SketchHandleCompat,
   SketchLoadStatusCompat,
+  SketchToolBindingCompat,
   SketchToolCompat,
   SketchUpdateOptionsCompat,
 } from "./esri-compat/sketch.js";

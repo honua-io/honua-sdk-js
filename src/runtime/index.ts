@@ -287,3 +287,26 @@ export type {
   EditSketchSnappingHandle,
   SnappingMap,
 } from "./edit-snapping.js";
+
+export {
+  TERRA_DRAW_SKETCH_TOOL_MODES,
+  bindTerraDrawSketch,
+  createTerraDrawSketch,
+  createTerraDrawSnapping,
+  editSketchToolForTerraDrawMode,
+  terraDrawSketchToolCapabilities,
+} from "./terra-draw-sketch.js";
+export type {
+  BindTerraDrawSketchOptions,
+  CreateTerraDrawSketchOptions,
+  CreateTerraDrawSnappingOptions,
+  TerraDrawSketchController,
+  TerraDrawSketchFeature,
+  TerraDrawSketchFeatureId,
+  TerraDrawSketchFinishContext,
+  TerraDrawSketchFinishEvent,
+  TerraDrawSketchHandle,
+  TerraDrawSketchInstance,
+  TerraDrawSnapContext,
+  TerraDrawSnapEvent,
+} from "./terra-draw-sketch.js";

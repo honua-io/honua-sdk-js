@@ -74,6 +74,11 @@ const SECTIONS = [
         path: "docs/quickstart-troubleshooting.md",
         description: "Common quickstart failure modes and how to fix them.",
       },
+      {
+        path: "docs/comparison.md",
+        description:
+          "Generated comparison page: bundle sizes vs @arcgis/core, protocol coverage vs raw MapLibre / arcgis-rest-js / OpenLayers, and the scripted time-to-first-map benchmark.",
+      },
     ],
   },
   {
@@ -122,6 +127,11 @@ const SECTIONS = [
         path: "docs/agent-safety.md",
         description:
           "Bounded safe-agent plan normalization, signed approvals, authenticated single-use execution, secret-safe durable audit, MCP adaptation, and verifiable receipts.",
+      },
+      {
+        path: "docs/nl-map-control.md",
+        description:
+          "Natural-language map control: plan-first NL-to-plan compilation, BYO-LLM callback, agent-safety approval envelopes, receipts, and MCP/OpenAI tool publication.",
       },
       {
         path: "docs/decisions/north-star-sdk-application-kernel.md",
@@ -199,6 +209,11 @@ const SECTIONS = [
         description: "loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.",
       },
       {
+        path: "docs/terra-draw-sketch.md",
+        description:
+          "terra-draw sketch binding: optional-peer draw modes adapted onto the edit-sketch workflow with undo/redo, snapping, and applyEdits.",
+      },
+      {
         path: "docs/pmtiles.md",
         description:
           "Native PMTiles support: auto-registered pmtiles:// protocol, lazy peer, describe() metadata, and a CDN recipe.",
@@ -267,6 +282,11 @@ const ENTRYPOINTS = [
     path: "src/agent-safety/index.ts",
     label: "@honua/sdk-js/agent-safety",
     fallback: "Bounded plan validation, signed approvals, atomic execution, secret-safe audit, and receipts.",
+  },
+  {
+    path: "src/nl-map-control/index.ts",
+    label: "@honua/sdk-js/nl-map-control",
+    fallback: "Natural language to inspectable map plans with BYO LLM, approval envelopes, and receipts.",
   },
   {
     path: "src/esri-compat-entry.ts",
