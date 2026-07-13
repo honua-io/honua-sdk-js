@@ -414,6 +414,21 @@ export const WIDGET_SURVIVAL_GUIDE_PATH = "docs/widget-survival-guide.md";
  * support modules such as `@arcgis/core/widgets/Search/SearchViewModel`.
  */
 export function widgetNameFromModulePath(modulePath: string): string | undefined {
+  return widgetModulePathInfo(modulePath)?.widget;
+}
+
+export interface WidgetModulePathInfo {
+  widget: string;
+  /**
+   * True when the specifier addresses a widget *support* module (for example
+   * `@arcgis/core/widgets/Search/SearchViewModel`) rather than the widget
+   * module itself. The codemod only rewrites the exact widget module, so
+   * support-module usage must not inherit the widget's disposition.
+   */
+  supportModule: boolean;
+}
+
+export function widgetModulePathInfo(modulePath: string): WidgetModulePathInfo | undefined {
   const normalized = modulePath.endsWith(".js") ? modulePath.slice(0, -3) : modulePath;
   let rest: string | undefined;
   if (normalized.startsWith("@arcgis/core/widgets/")) {
@@ -424,6 +439,10 @@ export function widgetNameFromModulePath(modulePath: string): string | undefined
   if (!rest) {
     return undefined;
   }
-  const widget = rest.split("/")[0];
-  return widget.length > 0 ? widget : undefined;
+  const segments = rest.split("/").filter((segment) => segment.length > 0);
+  const widget = segments[0];
+  if (!widget) {
+    return undefined;
+  }
+  return { widget, supportModule: segments.length > 1 };
 }

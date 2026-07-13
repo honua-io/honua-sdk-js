@@ -8,6 +8,7 @@ import {
   ARCGIS_WIDGET_REMOVAL_RELEASE,
   ARCGIS_WIDGET_REMOVAL_TIMEFRAME,
   WIDGET_DISPOSITIONS,
+  widgetModulePathInfo,
   widgetNameFromModulePath,
 } from "../src/migration/widget-dispositions.js";
 import {
@@ -39,6 +40,11 @@ describe("widgetNameFromModulePath", () => {
     expect(widgetNameFromModulePath("@arcgis/core/widgets/Legend")).toBe("Legend");
     expect(widgetNameFromModulePath("@arcgis/core/widgets/Legend.js")).toBe("Legend");
     expect(widgetNameFromModulePath("@arcgis/core/widgets/Search/SearchViewModel")).toBe("Search");
+    expect(widgetModulePathInfo("@arcgis/core/widgets/Search/SearchViewModel")).toEqual({
+      widget: "Search",
+      supportModule: true,
+    });
+    expect(widgetModulePathInfo("esri/widgets/Legend")).toEqual({ widget: "Legend", supportModule: false });
     expect(widgetNameFromModulePath("esri/widgets/TimeSlider")).toBe("TimeSlider");
     expect(widgetNameFromModulePath("@arcgis/core/layers/FeatureLayer")).toBeUndefined();
     expect(widgetNameFromModulePath("esri/Map")).toBeUndefined();
@@ -70,6 +76,7 @@ describe("scanWidgetUsage", () => {
         widget: "Legend",
         modulePath: "@arcgis/core/widgets/Legend",
         importStyle: "esm-import",
+        supportModule: false,
       },
       {
         file: "app.ts",
@@ -77,6 +84,7 @@ describe("scanWidgetUsage", () => {
         widget: "Expand",
         modulePath: "@arcgis/core/widgets/Expand.js",
         importStyle: "esm-import",
+        supportModule: false,
       },
       {
         file: "app.ts",
@@ -84,6 +92,7 @@ describe("scanWidgetUsage", () => {
         widget: "Search",
         modulePath: "@arcgis/core/widgets/Search",
         importStyle: "esm-import",
+        supportModule: false,
       },
     ]);
   });
@@ -111,6 +120,7 @@ describe("scanWidgetUsage", () => {
         widget: "Directions",
         modulePath: "esri/widgets/Directions",
         importStyle: "amd-require",
+        supportModule: false,
       },
       {
         file: "legacy.js",
@@ -118,6 +128,7 @@ describe("scanWidgetUsage", () => {
         widget: "LayerList",
         modulePath: "esri/widgets/LayerList",
         importStyle: "amd-require",
+        supportModule: false,
       },
       {
         file: "legacy.js",
@@ -125,6 +136,7 @@ describe("scanWidgetUsage", () => {
         widget: "BasemapGallery",
         modulePath: "esri/widgets/BasemapGallery",
         importStyle: "amd-require",
+        supportModule: false,
       },
     ]);
   });
@@ -152,8 +164,16 @@ describe("scanWidgetUsage", () => {
         widget: "Daylight",
         modulePath: "@arcgis/core/widgets/Daylight.js",
         importStyle: "arcgis-import",
+        supportModule: false,
       },
-      { file: "cdn.js", line: 3, widget: "Sketch", modulePath: "esri/widgets/Sketch", importStyle: "arcgis-import" },
+      {
+        file: "cdn.js",
+        line: 3,
+        widget: "Sketch",
+        modulePath: "esri/widgets/Sketch",
+        importStyle: "arcgis-import",
+        supportModule: false,
+      },
     ]);
   });
 
@@ -180,6 +200,7 @@ describe("scanWidgetUsage", () => {
         widget: "Legend",
         modulePath: "@arcgis/core/widgets/Legend",
         importStyle: "cjs-require",
+        supportModule: false,
       },
       {
         file: "mixed.cjs",
@@ -187,6 +208,42 @@ describe("scanWidgetUsage", () => {
         widget: "Print",
         modulePath: "@arcgis/core/widgets/Print",
         importStyle: "esm-dynamic-import",
+        supportModule: false,
+      },
+    ]);
+  });
+
+  it("detects widget imports in NodeNext .mts and .cts sources", () => {
+    const root = makeTempProject();
+    fs.writeFileSync(
+      path.join(root, "modern.mts"),
+      "import Legend from '@arcgis/core/widgets/Legend';" + "\n" + "void Legend;",
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(root, "legacy.cts"),
+      "const Print = require('@arcgis/core/widgets/Print').default;" + "\n" + "module.exports = { Print };",
+      "utf8",
+    );
+
+    const scan = scanWidgetUsage(root);
+    expect(scan.filesScanned).toBe(2);
+    expect(scan.hits).toEqual([
+      {
+        file: "legacy.cts",
+        line: 1,
+        widget: "Print",
+        modulePath: "@arcgis/core/widgets/Print",
+        importStyle: "cjs-require",
+        supportModule: false,
+      },
+      {
+        file: "modern.mts",
+        line: 1,
+        widget: "Legend",
+        modulePath: "@arcgis/core/widgets/Legend",
+        importStyle: "esm-import",
+        supportModule: false,
       },
     ]);
   });
@@ -242,6 +299,34 @@ describe("buildWidgetReadinessReport", () => {
     expect(legend?.guideLink).toBe("docs/widget-survival-guide.md#legend");
     expect(report.widgets.find((row) => row.widget === "Editor")?.bucket).toBe("assisted");
     expect(report.widgets.find((row) => row.widget === "Daylight")?.bucket).toBe("manual");
+  });
+
+  it("does not inherit the widget disposition for support-module imports", () => {
+    const root = makeTempProject();
+    fs.writeFileSync(
+      path.join(root, "app.ts"),
+      [
+        "import SearchViewModel from '@arcgis/core/widgets/Search/SearchViewModel';",
+        "import Search from '@arcgis/core/widgets/Search';",
+        "void SearchViewModel; void Search;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const report = buildWidgetReadinessReport(scanWidgetUsage(root));
+    expect(report.widgets).toHaveLength(2);
+    const widgetRow = report.widgets.find((row) => !row.supportModule);
+    const supportRow = report.widgets.find((row) => row.supportModule);
+    expect(widgetRow?.widget).toBe("Search");
+    expect(widgetRow?.disposition).toBe("automated");
+    expect(widgetRow?.bucket).toBe("automated");
+    expect(supportRow?.widget).toBe("Search");
+    expect(supportRow?.disposition).toBe("support-module");
+    expect(supportRow?.bucket).toBe("manual");
+    expect(supportRow?.target).toContain("only rewrites the root Search widget module");
+    expect(report.summary.automatedSites).toBe(1);
+    expect(report.summary.manualSites).toBe(1);
+    expect(report.summary.automatedPct).toBe(50);
   });
 
   it("treats widget modules outside the disposition data as manual and says so", () => {

@@ -11,11 +11,11 @@ import {
   type WidgetMigrationBucket,
   getWidgetDisposition,
   widgetMigrationBucket,
-  widgetNameFromModulePath,
+  widgetModulePathInfo,
   widgetSurvivalGuideAnchor,
 } from "./widget-dispositions.js";
 
-const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
+const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
 
 export type WidgetImportStyle = "esm-import" | "esm-dynamic-import" | "cjs-require" | "amd-require" | "arcgis-import";
@@ -28,6 +28,8 @@ export interface WidgetUsageHit {
   widget: string;
   modulePath: string;
   importStyle: WidgetImportStyle;
+  /** True when the specifier addresses a widget support module (e.g. a ViewModel). */
+  supportModule: boolean;
 }
 
 export interface WidgetScanResult {
@@ -39,7 +41,14 @@ export interface WidgetScanResult {
 
 export interface WidgetReadinessRow {
   widget: string;
-  disposition: WidgetDispositionKind | "unknown";
+  /**
+   * True for rows aggregating widget *support*-module imports (e.g.
+   * `@arcgis/core/widgets/Search/SearchViewModel`). The codemod only rewrites
+   * the exact widget module, so these rows never inherit the widget's
+   * disposition and always count as manual.
+   */
+  supportModule: boolean;
+  disposition: WidgetDispositionKind | "unknown" | "support-module";
   bucket: WidgetMigrationBucket;
   target: string;
   /** Repo-relative deep link into the generated survival guide. */
@@ -105,21 +114,42 @@ export function scanWidgetUsage(rootDir: string): WidgetScanResult {
 }
 
 export function buildWidgetReadinessReport(scan: WidgetScanResult): WidgetReadinessReport {
-  const rowsByWidget = new Map<string, WidgetUsageHit[]>();
+  const rowsByKey = new Map<string, WidgetUsageHit[]>();
   for (const hit of scan.hits) {
-    const bucket = rowsByWidget.get(hit.widget);
+    const key = `${hit.widget}::${hit.supportModule ? "support" : "widget"}`;
+    const bucket = rowsByKey.get(key);
     if (bucket) {
       bucket.push(hit);
     } else {
-      rowsByWidget.set(hit.widget, [hit]);
+      rowsByKey.set(key, [hit]);
     }
   }
 
   const widgets: WidgetReadinessRow[] = [];
-  for (const [widget, sites] of rowsByWidget) {
+  for (const sites of rowsByKey.values()) {
+    const { widget, supportModule } = sites[0];
     const disposition = getWidgetDisposition(widget);
+    if (supportModule) {
+      // The codemod rewrites only the exact widget module; support-module
+      // imports (ViewModels, sub-components) stay unmigrated, so they must
+      // not inherit the widget's disposition or count toward the gate.
+      widgets.push({
+        widget,
+        supportModule: true,
+        disposition: "support-module",
+        bucket: "manual",
+        target:
+          `Support-module import — honua-migrate only rewrites the root ${widget} widget module; ` +
+          `migrate these by hand (root ${widget} disposition: ${disposition?.disposition ?? "unknown"}).`,
+        guideLink: `${WIDGET_SURVIVAL_GUIDE_PATH}#${widgetSurvivalGuideAnchor(widget)}`,
+        count: sites.length,
+        sites,
+      });
+      continue;
+    }
     widgets.push({
       widget,
+      supportModule: false,
       disposition: disposition?.disposition ?? "unknown",
       bucket: disposition ? widgetMigrationBucket(disposition.disposition) : "manual",
       target: disposition
@@ -130,7 +160,10 @@ export function buildWidgetReadinessReport(scan: WidgetScanResult): WidgetReadin
       sites,
     });
   }
-  widgets.sort((a, b) => b.count - a.count || a.widget.localeCompare(b.widget));
+  widgets.sort(
+    (a, b) =>
+      b.count - a.count || a.widget.localeCompare(b.widget) || Number(a.supportModule) - Number(b.supportModule),
+  );
 
   const summary = summarizeWidgetRows(widgets);
   return {
@@ -172,7 +205,7 @@ export function formatWidgetReadinessTable(report: WidgetReadinessReport): strin
   } else {
     const header = ["widget", "sites", "files", "disposition", "target"];
     const rows = report.widgets.map((row) => [
-      row.widget,
+      rowDisplayName(row),
       String(row.count),
       String(new Set(row.sites.map((site) => site.file)).size),
       row.disposition,
@@ -215,7 +248,7 @@ export function formatWidgetReadinessMarkdown(report: WidgetReadinessReport): st
   lines.push("| --- | --- | --- | --- |");
   for (const row of report.widgets) {
     lines.push(
-      `| [${row.widget}](${row.guideLink}) | ${row.count} | \`${row.disposition}\` | ${escapeMarkdownTableCell(row.target)} |`,
+      `| [${rowDisplayName(row)}](${row.guideLink}) | ${row.count} | \`${row.disposition}\` | ${escapeMarkdownTableCell(row.target)} |`,
     );
   }
   if (report.widgets.length === 0) {
@@ -226,7 +259,7 @@ export function formatWidgetReadinessMarkdown(report: WidgetReadinessReport): st
     lines.push("## File inventory");
     lines.push("");
     for (const row of report.widgets) {
-      lines.push(`### ${row.widget}`);
+      lines.push(`### ${rowDisplayName(row)}`);
       lines.push("");
       for (const site of row.sites) {
         lines.push(`- \`${site.file}:${site.line}\` — \`${site.modulePath}\` (${site.importStyle})`);
@@ -279,8 +312,14 @@ function buildSummaryLine(summary: WidgetReadinessSummary): string {
   );
 }
 
+function rowDisplayName(row: WidgetReadinessRow): string {
+  return row.supportModule ? `${row.widget} (support modules)` : row.widget;
+}
+
 function escapeMarkdownTableCell(value: string): string {
-  return value.replace(/\|/g, "\\|");
+  // Escape backslashes first so pre-existing backslashes cannot combine with
+  // the pipe escaping into ambiguous sequences (CodeQL js/incomplete-sanitization).
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
 function collectSourceFiles(rootDir: string): string[] {
@@ -309,7 +348,7 @@ function collectSourceFiles(rootDir: string): string[] {
 
 function scriptKindForFile(file: string): ts.ScriptKind {
   const extension = path.extname(file);
-  if (extension === ".ts") return ts.ScriptKind.TS;
+  if (extension === ".ts" || extension === ".mts" || extension === ".cts") return ts.ScriptKind.TS;
   if (extension === ".tsx") return ts.ScriptKind.TSX;
   if (extension === ".jsx") return ts.ScriptKind.JSX;
   return ts.ScriptKind.JS;
@@ -320,12 +359,19 @@ function findWidgetUsageInSource(source: string, file: string, relativeFile: str
   const hits: WidgetUsageHit[] = [];
 
   const record = (literal: ts.StringLiteralLike, importStyle: WidgetImportStyle): void => {
-    const widget = widgetNameFromModulePath(literal.text);
-    if (!widget) {
+    const moduleInfo = widgetModulePathInfo(literal.text);
+    if (!moduleInfo) {
       return;
     }
     const { line } = sourceFile.getLineAndCharacterOfPosition(literal.getStart(sourceFile));
-    hits.push({ file: relativeFile, line: line + 1, widget, modulePath: literal.text, importStyle });
+    hits.push({
+      file: relativeFile,
+      line: line + 1,
+      widget: moduleInfo.widget,
+      modulePath: literal.text,
+      importStyle,
+      supportModule: moduleInfo.supportModule,
+    });
   };
 
   const recordArrayElements = (array: ts.ArrayLiteralExpression, importStyle: WidgetImportStyle): void => {

@@ -12,14 +12,14 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
   "summary": {
     "assistedSites": 6,
     "assistedWidgets": 6,
-    "automatedPct": 38.46153846153847,
-    "automatedSites": 5,
-    "automatedWidgets": 5,
-    "manualSites": 2,
-    "manualWidgets": 2,
+    "automatedPct": 30.76923076923077,
+    "automatedSites": 4,
+    "automatedWidgets": 4,
+    "manualSites": 3,
+    "manualWidgets": 3,
     "totalSites": 13,
   },
-  "summaryLine": "5 automated / 6 assisted / 2 manual of 13 widget usage sites (38.5% automated). Every classic ArcGIS JS widget is deprecated at 5.0 and is removed at 6.0 — as early as Q1 2027.",
+  "summaryLine": "4 automated / 6 assisted / 3 manual of 13 widget usage sites (30.8% automated). Every classic ArcGIS JS widget is deprecated at 5.0 and is removed at 6.0 — as early as Q1 2027.",
   "widgets": [
     {
       "bucket": "automated",
@@ -32,9 +32,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "amd-require",
           "line": 6,
           "modulePath": "esri/widgets/BasemapGallery",
+          "supportModule": false,
           "widget": "BasemapGallery",
         },
       ],
+      "supportModule": false,
       "target": "BasemapGalleryCompat from @honua/sdk-esri-compat",
       "widget": "BasemapGallery",
     },
@@ -49,9 +51,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "arcgis-import",
           "line": 3,
           "modulePath": "@arcgis/core/widgets/Daylight.js",
+          "supportModule": false,
           "widget": "Daylight",
         },
       ],
+      "supportModule": false,
       "target": "None. Requires a 3D scene with sun/shadow simulation.",
       "widget": "Daylight",
     },
@@ -66,9 +70,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "amd-require",
           "line": 5,
           "modulePath": "esri/widgets/Directions",
+          "supportModule": false,
           "widget": "Directions",
         },
       ],
+      "supportModule": false,
       "target": "DirectionsCompat from @honua/sdk-esri-compat backed by HonuaRouteService (RouteTask parity)",
       "widget": "Directions",
     },
@@ -83,9 +89,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "esm-import",
           "line": 1,
           "modulePath": "@arcgis/core/widgets/Editor",
+          "supportModule": false,
           "widget": "Editor",
         },
       ],
+      "supportModule": false,
       "target": "EditorCompat from @honua/sdk-esri-compat",
       "widget": "Editor",
     },
@@ -100,9 +108,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "arcgis-import",
           "line": 4,
           "modulePath": "esri/widgets/ElevationProfile",
+          "supportModule": false,
           "widget": "ElevationProfile",
         },
       ],
+      "supportModule": false,
       "target": "No drop-in widget. Sample the profile geometry yourself (e.g. @honua/sdk-js/geometry densify + an elevation/terrain source such as maplibre-gl queryTerrainElevation) and chart with your own charting library.",
       "widget": "ElevationProfile",
     },
@@ -117,9 +127,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "esm-import",
           "line": 5,
           "modulePath": "@arcgis/core/widgets/Expand",
+          "supportModule": false,
           "widget": "Expand",
         },
       ],
+      "supportModule": false,
       "target": "ExpandCompat from @honua/sdk-esri-compat",
       "widget": "Expand",
     },
@@ -134,9 +146,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "esm-import",
           "line": 2,
           "modulePath": "@arcgis/core/widgets/FeatureTable",
+          "supportModule": false,
           "widget": "FeatureTable",
         },
       ],
+      "supportModule": false,
       "target": "FeatureTableCompat from @honua/sdk-esri-compat",
       "widget": "FeatureTable",
     },
@@ -151,9 +165,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "esm-import",
           "line": 4,
           "modulePath": "@arcgis/core/widgets/LayerList.js",
+          "supportModule": false,
           "widget": "LayerList",
         },
       ],
+      "supportModule": false,
       "target": "LayerListCompat from @honua/sdk-esri-compat",
       "widget": "LayerList",
     },
@@ -168,9 +184,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "esm-import",
           "line": 3,
           "modulePath": "@arcgis/core/widgets/Legend",
+          "supportModule": false,
           "widget": "Legend",
         },
       ],
+      "supportModule": false,
       "target": "LegendCompat from @honua/sdk-esri-compat",
       "widget": "Legend",
     },
@@ -185,16 +203,18 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "esm-dynamic-import",
           "line": 11,
           "modulePath": "@arcgis/core/widgets/Print",
+          "supportModule": false,
           "widget": "Print",
         },
       ],
+      "supportModule": false,
       "target": "PrintCompat from @honua/sdk-esri-compat",
       "widget": "Print",
     },
     {
-      "bucket": "automated",
+      "bucket": "manual",
       "count": 1,
-      "disposition": "automated",
+      "disposition": "support-module",
       "guideLink": "docs/widget-survival-guide.md#search",
       "sites": [
         {
@@ -202,10 +222,12 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "esm-import",
           "line": 6,
           "modulePath": "@arcgis/core/widgets/Search/SearchViewModel",
+          "supportModule": true,
           "widget": "Search",
         },
       ],
-      "target": "SearchCompat from @honua/sdk-esri-compat backed by the Honua geocoding surface",
+      "supportModule": true,
+      "target": "Support-module import — honua-migrate only rewrites the root Search widget module; migrate these by hand (root Search disposition: automated).",
       "widget": "Search",
     },
     {
@@ -219,9 +241,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "arcgis-import",
           "line": 10,
           "modulePath": "esri/widgets/Sketch",
+          "supportModule": false,
           "widget": "Sketch",
         },
       ],
+      "supportModule": false,
       "target": "SketchCompat from @honua/sdk-esri-compat",
       "widget": "Sketch",
     },
@@ -236,9 +260,11 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
           "importStyle": "amd-require",
           "line": 14,
           "modulePath": "esri/widgets/TimeSlider",
+          "supportModule": false,
           "widget": "TimeSlider",
         },
       ],
+      "supportModule": false,
       "target": "TimeSliderCompat from @honua/sdk-esri-compat",
       "widget": "TimeSlider",
     },
@@ -255,7 +281,7 @@ Classic ArcGIS JS widgets are deprecated at 5.0 and are removed at 6.0 (as early
 - Files with widget usage: 4
 - Widget usage sites: 13
 
-5 automated / 6 assisted / 2 manual of 13 widget usage sites (38.5% automated). Every classic ArcGIS JS widget is deprecated at 5.0 and is removed at 6.0 — as early as Q1 2027.
+4 automated / 6 assisted / 3 manual of 13 widget usage sites (30.8% automated). Every classic ArcGIS JS widget is deprecated at 5.0 and is removed at 6.0 — as early as Q1 2027.
 
 | Widget | Sites | Disposition | Target |
 | --- | --- | --- | --- |
@@ -269,7 +295,7 @@ Classic ArcGIS JS widgets are deprecated at 5.0 and are removed at 6.0 (as early
 | [LayerList](docs/widget-survival-guide.md#layerlist) | 1 | \`automated\` | LayerListCompat from @honua/sdk-esri-compat |
 | [Legend](docs/widget-survival-guide.md#legend) | 1 | \`automated\` | LegendCompat from @honua/sdk-esri-compat |
 | [Print](docs/widget-survival-guide.md#print) | 1 | \`compat-shim\` | PrintCompat from @honua/sdk-esri-compat |
-| [Search](docs/widget-survival-guide.md#search) | 1 | \`automated\` | SearchCompat from @honua/sdk-esri-compat backed by the Honua geocoding surface |
+| [Search (support modules)](docs/widget-survival-guide.md#search) | 1 | \`support-module\` | Support-module import — honua-migrate only rewrites the root Search widget module; migrate these by hand (root Search disposition: automated). |
 | [Sketch](docs/widget-survival-guide.md#sketch) | 1 | \`compat-shim\` | SketchCompat from @honua/sdk-esri-compat |
 | [TimeSlider](docs/widget-survival-guide.md#timeslider) | 1 | \`compat-shim\` | TimeSliderCompat from @honua/sdk-esri-compat |
 
@@ -315,7 +341,7 @@ Classic ArcGIS JS widgets are deprecated at 5.0 and are removed at 6.0 (as early
 
 - \`src/editing.ts:11\` — \`@arcgis/core/widgets/Print\` (esm-dynamic-import)
 
-### Search
+### Search (support modules)
 
 - \`src/main.ts:6\` — \`@arcgis/core/widgets/Search/SearchViewModel\` (esm-import)
 

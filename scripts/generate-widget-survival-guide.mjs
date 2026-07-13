@@ -183,7 +183,9 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
 }
 
 function escapeTableCell(value) {
-  return value.replace(/\|/g, "\\|");
+  // Escape backslashes first so pre-existing backslashes cannot combine with
+  // the pipe escaping into ambiguous sequences (CodeQL js/incomplete-sanitization).
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
 export function validateGuideLinks(markdown, sourcePath, projectRoot = ROOT) {

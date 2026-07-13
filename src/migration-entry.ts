@@ -11,6 +11,7 @@ export {
   WIDGET_DISPOSITIONS,
   WIDGET_SURVIVAL_GUIDE_PATH,
   widgetMigrationBucket,
+  widgetModulePathInfo,
   widgetNameFromModulePath,
   widgetSurvivalGuideAnchor,
 } from "./migration/widget-dispositions.js";
@@ -18,6 +19,7 @@ export type {
   WidgetDisposition,
   WidgetDispositionKind,
   WidgetMigrationBucket,
+  WidgetModulePathInfo,
 } from "./migration/widget-dispositions.js";
 export {
   buildWidgetReadinessReport,
