@@ -1,0 +1,36 @@
+{
+  "geocoding": {
+    "version": "0.2",
+    "attribution": "https://pelias.example.org/attribution",
+    "query": { "text": "530 South King Street Honolulu", "size": 10 },
+    "engine": { "name": "Pelias", "author": "Mapzen", "version": "1.0" }
+  },
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-157.858006, 21.305928] },
+      "properties": {
+        "id": "us/hi/honolulu:aa3306ba79c9dd50",
+        "gid": "openaddresses:address:us/hi/honolulu:aa3306ba79c9dd50",
+        "layer": "address",
+        "source": "openaddresses",
+        "source_id": "us/hi/honolulu:aa3306ba79c9dd50",
+        "name": "530 South King Street",
+        "housenumber": "530",
+        "street": "South King Street",
+        "postalcode": "96813",
+        "confidence": 1,
+        "match_type": "exact",
+        "accuracy": "point",
+        "country": "United States",
+        "country_code": "US",
+        "region": "Hawaii",
+        "county": "Honolulu County",
+        "locality": "Honolulu",
+        "label": "530 South King Street, Honolulu, HI, USA"
+      }
+    }
+  ],
+  "bbox": [-157.858006, 21.305928, -157.858006, 21.305928]
+}

@@ -380,8 +380,8 @@ correctly use this SDK:
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
     `@honua/sdk-js/cli`.
   - **Experimental subpath-only APIs** (not re-exported from the root barrels): `/agent-tools`,
-    `/agent-safety`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`, `/diagnostics` — with
-    `/query-planner` below, 8 experimental subpaths in total.
+    `/agent-safety`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`, `/diagnostics`, `/routing` — with
+    `/query-planner` below, 9 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
@@ -525,6 +525,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
 | `@honua/sdk-js/offline` | [Versioned downloadable-region manifests](./docs/offline-regions.md) plus storage-neutral quota, integrity, cancellation, and atomic commit contracts. |
 | `@honua/sdk-js/diagnostics` | Dependency-free diagnostic-bundle validation, sanitization, integrity pinning, and bounded read-only replay used by `honua doctor`. |
+| `@honua/sdk-js/routing` | Provider-pluggable routing: typed `RoutingProvider` contract, OSRM and Valhalla adapters, the Honua facade bridge, and per-provider attribution/usage-policy metadata ([provider cookbook](./docs/geocoding-routing-providers.md)). |
 
 ## Deprecated compatibility entrypoints
 
@@ -4027,6 +4028,236 @@ Costs:
 
 ---
 
+# File: docs/geocoding-routing-providers.md
+
+# Provider-pluggable geocoding and routing
+
+> Status: **experimental** (`@experimental` JSDoc). Shapes may change in any
+> minor release prior to `1.0.0`.
+
+`@honua/sdk-js/geocoding` and `@honua/sdk-js/routing` expose provider-neutral
+contracts — `GeocodingProvider` (`geocode` / `reverse` / `suggest`) and
+`RoutingProvider` (`route`) — with first-party adapters for open-source
+services. No Honua server is required: the Honua facade is just one provider
+among several, and the same typed calls work against every adapter.
+
+Three rules apply to every adapter:
+
+1. **Explicit endpoints only.** Every third-party adapter requires a
+   `baseUrl`. The SDK never bakes in a default third-party endpoint, so you
+   cannot accidentally send production traffic to a community service whose
+   usage policy you have not read.
+2. **Declared capabilities.** Capability differences are declared on the
+   provider and enforced by the SDK's existing capability policy: an
+   unsupported operation throws `HonuaCapabilityNotSupportedError` under the
+   default `"strict"` policy (or resolves empty under `"degraded"`).
+3. **Attribution travels with results.** Every provider exposes
+   `attribution` / `usagePolicyUrl`, and every result carries a `provenance`
+   object identifying the provider and repeating those obligations, so hosts
+   can render attribution wherever results surface.
+
+## Capability matrix
+
+| Provider | geocode | reverse | suggest | route | Notes |
+|----------|---------|---------|---------|-------|-------|
+| `honua` (facade) | ✓ | ✓ | ✓ | ✓ | Wraps `HonuaGeocodingClient` / the esri-compat route solver |
+| `nominatim` | ✓ | ✓ | — (throws typed error) | | No typeahead endpoint; the OSMF policy forbids autocomplete traffic |
+| `photon` | ✓ | ✓ | ✓ | | Typeahead-first engine |
+| `pelias` | ✓ | ✓ | ✓ (`/v1/autocomplete`) | | Hosted instances usually need an `apiKey` |
+| `osrm` | | | | ✓ | OSRM HTTP API v1, GeoJSON geometry |
+| `valhalla` | | | | ✓ | 1e-6 encoded polylines, decoded for you |
+
+## Geocoding
+
+### Nominatim (geocode + reverse; no suggest)
+
+```ts
+import { nominatimGeocodingProvider } from "@honua/sdk-js/geocoding";
+
+const geocoder = nominatimGeocodingProvider({
+  baseUrl: "https://nominatim.example.org",   // your instance
+  userAgent: "my-app/1.0 (ops@example.org)",  // REQUIRED by the OSMF policy on the public instance
+  email: "ops@example.org",                   // public-instance etiquette
+});
+
+const [best] = await geocoder.geocode("530 South King Street, Honolulu", { limit: 1 });
+console.log(best.latitude, best.longitude, best.provenance.attribution);
+
+const here = await geocoder.reverse(21.3059, -157.858); // latitude first
+```
+
+Capability miss, by declaration rather than by surprise:
+
+```ts
+import { HonuaCapabilityNotSupportedError } from "@honua/sdk-js";
+
+try {
+  await geocoder.suggest("honol");
+} catch (error) {
+  if (error instanceof HonuaCapabilityNotSupportedError) {
+    // error.capability === "suggest", error.protocol === "nominatim"
+  }
+}
+// Or opt into degraded mode: suggest() resolves to [] instead of throwing.
+nominatimGeocodingProvider({ baseUrl, capabilityPolicy: "degraded" });
+```
+
+**Usage policy** (public `nominatim.openstreetmap.org`): absolute maximum of
+1 request/second, a real `User-Agent` identifying your application, no
+autocomplete traffic, and results must credit OpenStreetMap. Read
+<https://operations.osmfoundation.org/policies/nominatim/> before pointing at
+the public instance; self-host for anything heavier.
+**Attribution**: `Data © OpenStreetMap contributors, ODbL 1.0`.
+
+### Photon (geocode + reverse + suggest)
+
+```ts
+import { photonGeocodingProvider } from "@honua/sdk-js/geocoding";
+
+const photon = photonGeocodingProvider({ baseUrl: "https://photon.example.org" });
+const hints = await photon.suggest("honol", { limit: 5 }); // typeahead-first engine
+```
+
+**Usage policy**: the komoot-operated `photon.komoot.io` is fair-use for
+moderate volumes (see <https://photon.komoot.io/>); self-host for production.
+**Attribution**: OpenStreetMap (ODbL), as above.
+
+### Pelias (geocode + reverse + suggest via autocomplete)
+
+```ts
+import { peliasGeocodingProvider } from "@honua/sdk-js/geocoding";
+
+const pelias = peliasGeocodingProvider({
+  baseUrl: "https://pelias.example.org",
+  apiKey: process.env.PELIAS_API_KEY,          // hosted instances (e.g. geocode.earth)
+  attribution: "© OpenStreetMap contributors; © OpenAddresses; Who's On First",
+});
+
+const hints = await pelias.suggest("honol");   // dedicated /v1/autocomplete endpoint
+```
+
+**Usage policy / attribution**: depends on the datasets your instance is
+built from (OSM, OpenAddresses, Who's On First, geonames, …) and on your
+hosting provider's terms. Override `attribution` / `usagePolicyUrl` to match;
+see <https://github.com/pelias/documentation/blob/master/data-licenses.md>.
+
+### Honua facade
+
+```ts
+import { HonuaGeocodingClient, honuaGeocodingProvider } from "@honua/sdk-js/geocoding";
+
+const client = new HonuaGeocodingClient({ baseUrl: "https://your-honua-server.example" });
+const provider = honuaGeocodingProvider(client); // geocode + reverse + suggest
+```
+
+Existing `HonuaGeocodingClient` code keeps working unchanged; the provider
+wrapper exists so provider-neutral hosts (search UIs, the CLI, agents) can
+treat Honua like any other provider.
+
+## Routing
+
+### OSRM
+
+```ts
+import { osrmRoutingProvider } from "@honua/sdk-js/routing";
+
+const router = osrmRoutingProvider({
+  baseUrl: "https://osrm.example.org",
+  profile: "driving", // or "foot", "bicycle", … as exposed by your instance
+});
+
+const route = await router.route([
+  { longitude: -157.858, latitude: 21.306 },
+  { longitude: -157.802, latitude: 21.262 },
+]);
+// route.geometry: [lon, lat][]  route.distanceMeters  route.durationSeconds  route.legs
+```
+
+**Usage policy**: the public demo (`router.project-osrm.org`) and the FOSSGIS
+instances (`routing.openstreetmap.de`) are for light, non-commercial use — see
+<https://routing.openstreetmap.de/about.html>. Self-host for production.
+**Attribution**: `Route data © OpenStreetMap contributors, ODbL 1.0`.
+
+### Valhalla
+
+```ts
+import { valhallaRoutingProvider } from "@honua/sdk-js/routing";
+
+const router = valhallaRoutingProvider({
+  baseUrl: "https://valhalla.example.org",
+  costing: "auto", // or "bicycle", "pedestrian", …
+});
+```
+
+Leg shapes (Valhalla's 1e-6 encoded polylines) are decoded into plain
+`[longitude, latitude]` geometry for you; `decodePolyline` is exported if you
+need it directly.
+
+**Usage policy**: the FOSSGIS community instance
+(`valhalla1.openstreetmap.de`) expects fair use; self-host for production.
+**Attribution**: OpenStreetMap (ODbL), as above.
+
+### Honua facade + esri-compat bridge
+
+```ts
+import {
+  honuaRoutingProvider,
+  osrmRoutingProvider,
+  routingProviderToCompatRouteProvider,
+} from "@honua/sdk-js/routing";
+import { RouteTaskCompat } from "@honua/sdk-js/esri-compat";
+
+// Wrap the existing Honua facade solver (the esri-compat routeProvider shape)
+// in the provider contract:
+const honua = honuaRoutingProvider(myExistingRouteSolver);
+
+// Or drive esri-compat widgets (RouteTaskCompat / RouteLayerCompat /
+// DirectionsCompat) with any RoutingProvider:
+const task = new RouteTaskCompat({
+  routeProvider: routingProviderToCompatRouteProvider(
+    osrmRoutingProvider({ baseUrl: "https://osrm.example.org" }),
+  ),
+});
+```
+
+## CLI
+
+```bash
+# Default behavior (Honua locator) is unchanged:
+honua geocode "530 South King Street" --limit 3
+
+# Third-party provider — endpoint is always explicit:
+honua geocode --provider nominatim --base-url https://nominatim.example.org "530 South King Street"
+honua geocode --provider photon --base-url https://photon.example.org "Honolulu" --json
+honua geocode --provider pelias --base-url https://pelias.example.org --api-key $PELIAS_KEY "Honolulu"
+
+# Nominatim public-instance policy compliance:
+honua geocode --provider nominatim --base-url https://nominatim.openstreetmap.org \
+  --user-agent "my-app/1.0 (ops@example.org)" "Honolulu Hale"
+```
+
+Table output prints the provider's attribution and usage-policy URL after the
+results; `--json` emits the normalized results with `provenance` stamped on
+each row.
+
+## Caching and rate limits
+
+Suggest paths should debounce in the UI (see the typeahead example in the
+`/geocoding` package docs). The SDK deliberately does **not** persist provider
+results: most community usage policies (Nominatim in particular) prohibit
+systematic caching/bulk harvesting, and provenance is recorded per result so
+downstream stores can honor per-provider terms.
+
+## Testing
+
+Unit tests run against recorded fixtures (`test/fixtures/providers/`) and
+never touch the network. The live smoke lane
+(`test/provider-live-smoke.test.ts`) is opt-in via
+`HONUA_PROVIDER_LIVE_SMOKE=1`, sends exactly one request per test, and sets a
+real `User-Agent` for Nominatim.
+
+---
+
 # File: docs/protocol-capability-matrix.md
 
 # Protocol × Capability Matrix
@@ -5767,35 +5998,36 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-12 at commit `e22935e`._
+_Generated 2026-07-13 at commit `493e40f`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 364.3 KiB | 382.0 KiB | 96.3 KiB | 101.2 KiB |
-| `/honua` | 472.1 KiB | 510.3 KiB | 125.2 KiB | 135.7 KiB |
-| `/contract` | 226.0 KiB | 235.3 KiB | 58.6 KiB | 66.1 KiB |
+| `.` (root) | 369.4 KiB | 382.0 KiB | 97.1 KiB | 101.2 KiB |
+| `/honua` | 479.8 KiB | 510.3 KiB | 126.5 KiB | 135.7 KiB |
+| `/contract` | 227.1 KiB | 235.3 KiB | 58.7 KiB | 66.1 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
-| `/runtime` | 419.5 KiB | 458.7 KiB | 109.4 KiB | 119.5 KiB |
+| `/runtime` | 420.6 KiB | 458.7 KiB | 109.6 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
-| `/esri-compat` | 944.6 KiB | 1026.2 KiB | 234.0 KiB | 253.6 KiB |
+| `/esri-compat` | 946.0 KiB | 1026.2 KiB | 234.2 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
-| `/geocoding` | 4.9 KiB | 5.3 KiB | 1.9 KiB | 2.1 KiB |
+| `/geocoding` | 12.5 KiB | 13.7 KiB | 3.9 KiB | 4.3 KiB |
+| `/routing` | 6.0 KiB | 6.6 KiB | 2.4 KiB | 2.7 KiB |
 | `/auth` | 12.0 KiB | 12.8 KiB | 3.8 KiB | 4.0 KiB |
 | `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
 | `/map` | 112.9 KiB | 123.8 KiB | 31.2 KiB | 34.2 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 17.2 KiB | 17.8 KiB | 6.2 KiB | 6.5 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 371.2 KiB | 405.7 KiB | 96.0 KiB | 104.5 KiB |
+| `/react` (react/react-dom external) | 372.3 KiB | 405.7 KiB | 96.2 KiB | 104.5 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 365.0 KiB | 382.8 KiB | 96.6 KiB | 101.5 KiB |
-| browser ESM (`./browser`) | 363.7 KiB | 381.4 KiB | 96.3 KiB | 101.2 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 191.0 KiB | 204.3 KiB | 48.7 KiB | 52.1 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 205.8 KiB | 220.4 KiB | 52.2 KiB | 55.8 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 370.1 KiB | 382.8 KiB | 97.4 KiB | 101.5 KiB |
+| browser ESM (`./browser`) | 368.8 KiB | 381.4 KiB | 97.1 KiB | 101.2 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 192.5 KiB | 204.3 KiB | 48.9 KiB | 52.1 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 207.3 KiB | 220.4 KiB | 52.3 KiB | 55.8 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 17.7 KiB | 18.8 KiB | 6.6 KiB | 7.0 KiB |
 
@@ -5992,6 +6224,7 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
 - React bindings (provider, hooks, map components): `@honua/sdk-js/react` — see [`docs/react.md`](./react.md)
 - Client-side geometry ops + reprojection (curated turf/proj4): `@honua/sdk-js/geometry` — see [`docs/geometry.md`](./geometry.md)
+- Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) + routing (OSRM/Valhalla/Honua): `@honua/sdk-js/geocoding`, `@honua/sdk-js/routing` — see [`docs/geocoding-routing-providers.md`](./geocoding-routing-providers.md)
 - Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`
 - Studio package-family projections, validation/preview envelopes, capability manifest, and publish/share/embed contracts (MCP/QGIS-safe): `@honua/sdk-js/studio` — see [`docs/studio-package-contracts.md`](./studio-package-contracts.md)
 
