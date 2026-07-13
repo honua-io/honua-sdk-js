@@ -124,6 +124,11 @@ const SECTIONS = [
           "Bounded safe-agent plan normalization, signed approvals, authenticated single-use execution, secret-safe durable audit, MCP adaptation, and verifiable receipts.",
       },
       {
+        path: "docs/agent-safety-threat-model.md",
+        description:
+          "Threat model for the stable agent surface: envelope forgery, replay, effect-budget bypass, receipt tampering, and plan-fingerprint mismatch, each with mitigations and conformance tests.",
+      },
+      {
         path: "docs/nl-map-control.md",
         description:
           "Natural-language map control: plan-first NL-to-plan compilation, BYO-LLM callback, agent-safety approval envelopes, receipts, and MCP/OpenAI tool publication.",
@@ -267,6 +272,11 @@ const ENTRYPOINTS = [
     path: "src/query-planner/index.ts",
     label: "@honua/sdk-js/query-planner",
     fallback: "Deterministic query IR, explain plans, and bounded execution.",
+  },
+  {
+    path: "src/agent-tools/index.ts",
+    label: "@honua/sdk-js/agent-tools",
+    fallback: "Agent-facing JSON Schema tool definitions and the bounded map/runtime tool executor.",
   },
   {
     path: "src/agent-safety/index.ts",

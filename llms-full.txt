@@ -28,7 +28,7 @@ single protocol-neutral `Dataset` → `Source` → `Query` → `Result` contract
 ships a MapLibre-first map runtime plus an Esri compatibility layer so existing ArcGIS apps
 can migrate file-by-file.
 
-**Release status: beta** (`0.1.0-beta`). The 20-entrypoint stable tier is frozen and guarded
+**Release status: beta** (`0.1.0-beta`). The 22-entrypoint stable tier is frozen and guarded
 by an API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
 [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md) and the
 machine-readable surface inventory in [`config/public-surface.json`](./config/public-surface.json).
@@ -392,10 +392,12 @@ correctly use this SDK:
     `@honua/sdk-js/geocoding`, `@honua/sdk-js/exploration`, `@honua/sdk-js/interactions`,
     `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`,
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
-    `@honua/sdk-js/cli`.
-  - **Experimental subpath-only APIs** (not re-exported from the root barrels): `/agent-tools`,
-    `/agent-safety`, `/nl-map-control`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`,
-    `/diagnostics`, `/routing` — with `/query-planner` below, 10 experimental subpaths in total.
+    `@honua/sdk-js/cli`, `@honua/sdk-js/agent-tools`, `@honua/sdk-js/agent-safety`.
+    The agent surface's security posture is documented in the
+    [agent-safety threat model](./docs/agent-safety-threat-model.md).
+  - **Experimental subpath-only APIs** (not re-exported from the root barrels):
+    `/nl-map-control`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`,
+    `/diagnostics`, `/routing` — with `/query-planner` below, 8 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
@@ -521,6 +523,8 @@ entrypoints are stable across minor versions.
 | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers; published standalone as `@honua/react`) |
 | `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops (buffer/area/simplify/reproject) |
 | `@honua/sdk-js/cli` | Programmatic `run()` entrypoint for the `honua` command-line client |
+| `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions and the bounded tool executor (MCP/OpenAI compatible); the in-repo `@honua/mcp-server` consumes it. See the [agent-safety threat model](./docs/agent-safety-threat-model.md). |
+| `@honua/sdk-js/agent-safety` | Bounded runtime validation, effect budgets, signed approval envelopes, authenticated single-use consumption, context revalidation, and deterministic execution-receipt verification for JSON-compatible plans ([threat model](./docs/agent-safety-threat-model.md)). |
 
 ## Experimental subpath entrypoints
 
@@ -534,8 +538,6 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 | Subpath | What it gives you |
 |---------|-------------------|
-| `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions (MCP/OpenAI compatible). Stays in the stable package (the in-repo `@honua/mcp-server` depends on it) but its symbols remain `@experimental` — not semver-frozen — while the AI surface settles. |
-| `@honua/sdk-js/agent-safety` | Bounded runtime validation, effect budgets, signed approval envelopes, authenticated single-use consumption, context revalidation, and deterministic execution-receipt verification for JSON-compatible plans. |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
@@ -3280,8 +3282,14 @@ and subpath-only so the root and browser bundles do not absorb it.
 
 # Safe agent plan boundary
 
-`@honua/sdk-js/agent-safety` is an experimental, deterministic trust boundary
-between untrusted plan proposals and host-owned effect execution. It validates
+`@honua/sdk-js/agent-safety` is a deterministic trust boundary
+between untrusted plan proposals and host-owned effect execution. It is part of
+the SDK's stable tier (semver-protected; see
+[`docs/decisions/agent-surface-stabilization.md`](./decisions/agent-surface-stabilization.md)),
+and its security posture — envelope forgery, replay, effect-budget bypass,
+receipt tampering, plan-fingerprint mismatch — is documented with per-threat
+conformance tests in the
+[agent-safety threat model](./agent-safety-threat-model.md). It validates
 JSON-compatible structured data, produces an immutable dry run and effect
 budget, binds a reviewer signature to the exact plan and policy, revalidates
 current source context, executes an exact approved operation through a
@@ -3492,6 +3500,200 @@ integration can automate that declaration in a later slice.
 
 ---
 
+# File: docs/agent-safety-threat-model.md
+
+# Agent-safety threat model
+
+`@honua/sdk-js/agent-safety` is the deterministic trust boundary between
+untrusted agent plan proposals and host-owned effect execution, and
+`@honua/sdk-js/agent-tools` is the bounded runtime-action surface those plans
+ultimately drive. Both entrypoints are in the SDK's **stable tier** (see
+[`docs/decisions/agent-surface-stabilization.md`](./decisions/agent-surface-stabilization.md)),
+so the contracts described here are semver-protected: security reviews may cite
+this document knowing a breaking change to any envelope or verification step
+requires a major version.
+
+This document enumerates the threats the surface is designed to stop, the
+mechanism that stops each one, and the conformance test that exercises it.
+Companion reference: [`docs/agent-safety.md`](./agent-safety.md) (full API
+walkthrough) and [`docs/nl-map-control.md`](./nl-map-control.md) (the NL layer
+that consumes this boundary end to end).
+
+## Trust boundaries and assumptions
+
+- **The plan proposer is untrusted.** Plans, operations, approvals, contexts,
+  evidence, and receipts all enter as `unknown` and are descriptor-snapshotted,
+  bounded (`AGENT_SAFETY_HARD_LIMITS`), and frozen before any digest or
+  signature check. Accessors are rejected without invocation; `Proxy` inputs
+  are out of contract.
+- **Key custody and persistence are host-owned.** `AgentEnvelopeSigner` /
+  `AgentEnvelopeVerifier` and the atomic `AgentApprovalUseConsumer` replay
+  store are host callbacks. The SDK guarantees *what* is signed and verified,
+  not *where* keys live.
+- **The SDK never invokes an effect on its own.** Dry runs are side-effect
+  free; `executeAgentPlanStep` is the single explicit effect boundary and only
+  runs a host executor after authorization, single-use consumption, and a
+  durable start audit.
+
+## Threats and mitigations
+
+Every threat below is exercised by a committed conformance test; the tests run
+in the default `npm test` suite.
+
+### 1. Envelope forgery
+
+**Threat.** An attacker fabricates or alters an approval envelope (or the dry
+run it binds to) to authorize a plan no reviewer signed — forging digests,
+swapping the approver, or presenting an approval for a different plan/policy.
+
+**Mitigation.** An approval binds `planDigest`, `policyDigest`,
+`bindingsDigest`, and `evaluatedAt` to one exact dry run, which is itself
+recomputed (`revalidateDryRun`) from the supplied plan and policy — a forged
+dry run cannot digest-match. The envelope digest is recomputed over the
+canonical unsigned payload, the signer identity (algorithm + key ID) must match
+the configured verifier, and the host `verifier.verify` must return exactly
+`true`. Any mutated field fails `integrity-failed` or `signature-invalid`
+before an effect is possible.
+
+**Tests.**
+- `test/agent-safety.test.ts` — "rejects forged dry runs, signature tampering,
+  expiry, and context drift"
+- `test/agent-safety.test.ts` — "binds the exact plan/policy/context and
+  permits only budget narrowing"
+- `test/agent-safety.test.ts` — "cannot issue a receipt from public digests
+  without host-authenticated consumption evidence"
+
+### 2. Replay (single-use consumption)
+
+**Threat.** A valid, signed approval is presented twice — concurrently or
+sequentially — to run the same approved step more than once (duplicate
+mutation, publish, job, …).
+
+**Mitigation.** Approvals are `use: "single"` per step. Authorization requires
+the host `AgentApprovalUseConsumer` to *atomically* consume the
+(approval digest, step ID, input digest) key and return an authenticated
+consumption record (nonce, consumption time, opaque token), which the SDK
+immediately re-verifies with the same store. A second consumption attempt
+returns nothing and fails `policy-denied`; the consumption record is bound into
+the receipt so post-hoc verification also proves single use. Expiry
+(`expiresAt`, bounded `maxClockSkewMs`) limits the replay window of any stolen
+envelope.
+
+**Tests.**
+- `test/agent-safety.test.ts` — "binds exact operation input and atomically
+  consumes each approved step once"
+- `test/agent-execution.test.ts` — "does not invoke an effect after
+  start-audit failure, executor mismatch, or replay"
+- `test/agent-safety.test.ts` — "rejects forged dry runs, signature tampering,
+  expiry, and context drift" (expiry arm)
+
+### 3. Effect-budget bypass
+
+**Threat.** A plan, approval, or execution result exceeds the reviewed
+row/byte/step/effect budget — a widened approval, an aggregate that hides a
+per-step overrun, an oversized operation payload, or an executor returning more
+data than approved.
+
+**Mitigation.** `dryRunAgentPlan` computes a frozen `AgentEffectBudgetV1` and
+rejects plans over policy ceilings (which are themselves capped by
+`AGENT_SAFETY_HARD_LIMITS`). Approvals may only *narrow* step limits — widening
+fails `policy-denied`, multi-step narrowing requires explicit `stepLimits`, and
+aggregate `approvedRows`/`approvedBytes` must equal the per-step sums. Operation
+parameters are bounded by policy byte/node/depth budgets before the replay
+store is touched. Execution evidence and receipts exceeding the approved
+per-step rows/bytes are refused before signing and on verification.
+
+**Tests.**
+- `test/agent-safety.test.ts` — "binds the exact plan/policy/context and
+  permits only budget narrowing"
+- `test/agent-safety.test.ts` — "requires explicit per-step allocation when
+  narrowing a multi-step approval"
+- `test/agent-safety.test.ts` — "enforces the policy operation-parameter budget
+  before replay-store consumption"
+- `test/agent-safety.test.ts` — "rejects over-budget evidence before receipt
+  signing and detects receipt tampering" (over-budget arm)
+- `test/agent-execution.test.ts` — "bounds wide results before reading excess
+  values and uses one captured array length"
+
+### 4. Receipt tampering
+
+**Threat.** An execution receipt is altered after signing — rows, result
+digest, approval binding, step ID, or use digest — to misrepresent what was
+executed or how much data was returned; or a receipt is minted from publicly
+visible digests without a real authenticated consumption.
+
+**Mitigation.** `issueAgentExecutionReceipt` signs the canonical union of
+evidence and the plan/policy/bindings/approval digests; the receipt digest is
+recomputed on verification and the receipt signer identity must match the
+verifier. `verifyAgentExecutionReceipt` deterministically repeats every
+issuance check (budget, binding, consumption authentication via the host
+`verify` callback, approval signature, digest equality) and rejects any
+modified field. Receipts are append-only evidence: nothing in the SDK mutates
+or re-issues one.
+
+**Tests.**
+- `test/agent-safety.test.ts` — "rejects over-budget evidence before receipt
+  signing and detects receipt tampering"
+- `test/agent-safety.test.ts` — "cannot issue a receipt from public digests
+  without host-authenticated consumption evidence"
+- `test/agent-safety-evidence.test.ts` — "fails closed on plan, discovery,
+  capability, and receipt substitution"
+
+### 5. Plan-fingerprint mismatch
+
+**Threat.** The operation a host is about to execute quietly differs from what
+the reviewer approved: same step ID and tool but a substituted query-plan body,
+different fields, a different source, or drifted parameters — including a
+"fingerprint-consistent" forgery where the attacker recomputes content hashes
+over altered content.
+
+**Mitigation.** Every plan step carries `queryPlan.fingerprint` (from
+`@honua/sdk-js/query-planner`), a canonical `parametersDigest`, and an
+`inputDigest` recomputed from the visible tool/effect/source/query-plan/fields
+identity — the claims cannot disagree at parse time. At authorization,
+`digestAgentOperationInput` recomputes the digest from the *proposed* operation
+and requires exact equality with the approved step's digest before the replay
+store is consumed; any divergence (id, fingerprint, fields, parameters) fails
+`integrity-failed`. The same binding is revalidated when receipts are issued
+and verified. In the NL layer, plan execution additionally re-derives effects
+and tool identity from plan content, so recomputed-fingerprint forgeries are
+rejected there too.
+
+**Tests.**
+- `test/agent-safety.test.ts` — "rejects an operation whose query-plan
+  fingerprint differs from the approved step"
+- `test/agent-safety.test.ts` — "binds exact operation input and atomically
+  consumes each approved step once" (query-plan id divergence arm)
+- `test/nl-map-control.test.ts` — "rejects a fingerprint-consistent plan whose
+  executed call differs from its declared tool" / "…that launders action
+  effects as read-only" / "…whose step names an unknown tool"
+
+## Adjacent hardening (context, not primary threats)
+
+- **Context drift** — approvals are re-verified against the *current* source
+  bindings (schema/source versions, data mode, provenance freshness); drift
+  fails `context-mismatch` ("rejects forged dry runs, signature tampering,
+  expiry, and context drift", "rechecks provenance freshness at the execution
+  clock").
+- **Secret exfiltration through tool results** — the `/agent-tools` executor
+  deeply redacts credential-bearing metadata before results reach a model
+  (`test/agent-tools.test.ts`), and audit events carry pseudonymous digests
+  only (`test/agent-execution.test.ts` — "persists only digests for every
+  free-text plan and source identity").
+- **Hostile host-callback shapes** — accessors on executors, stores, and
+  callbacks are rejected without invocation (`test/agent-execution.test.ts`).
+
+## What this model does not cover
+
+The SDK does not manage signing keys, persist the replay store or audit log,
+authenticate approvers, or constrain what a *host-authorized* executor does
+with data it legitimately received. Prompt-injection resistance of any LLM
+driving the surface is out of scope here; the mitigation posture is that a
+compromised model can only propose plans, and every effect still requires a
+signed, budgeted, single-use, context-checked approval.
+
+---
+
 # File: docs/nl-map-control.md
 
 # Natural-language map control (`@honua/sdk-js/nl-map-control`)
@@ -3667,6 +3869,10 @@ the plan's effects).
 
 - [`docs/agent-safety.md`](./agent-safety.md) — the envelope, budget, audit,
   and receipt contracts this layer builds on.
+- [`docs/agent-safety-threat-model.md`](./agent-safety-threat-model.md) — the
+  threat model for the (stable) `agent-tools`/`agent-safety` surface underneath
+  this layer: envelope forgery, replay, effect-budget bypass, receipt
+  tampering, and plan-fingerprint mismatch, each with its conformance test.
 - [`examples/nl-map-control/`](../examples/nl-map-control/) — deterministic
   MapLibre demo with a fixture LLM, plan/receipt JSON panes, and an approve
   button.
@@ -6202,7 +6408,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-13 at commit `933de19`._
+_Generated 2026-07-13 at commit `c887b7e`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -6210,6 +6416,7 @@ _Generated 2026-07-13 at commit `933de19`._
 | `/honua` | 480.3 KiB | 510.3 KiB | 126.7 KiB | 135.7 KiB |
 | `/contract` | 237.5 KiB | 261.1 KiB | 62.1 KiB | 66.1 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
+| `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
 | `/nl-map-control` | 60.6 KiB | 65.8 KiB | 18.7 KiB | 20.4 KiB |
 | `/runtime` | 429.4 KiB | 458.7 KiB | 112.7 KiB | 119.5 KiB |
@@ -6431,6 +6638,8 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
 - React bindings (provider, hooks, map components): `@honua/sdk-js/react` — see [`docs/react.md`](./react.md)
 - Client-side geometry ops + reprojection (curated turf/proj4): `@honua/sdk-js/geometry` — see [`docs/geometry.md`](./geometry.md)
+- Agent tool surface (bounded JSON-Schema map tools + executor, MCP/OpenAI compatible; stable tier): `@honua/sdk-js/agent-tools` — see the [agent-safety threat model](./agent-safety-threat-model.md)
+- Agent safety boundary (signed approvals, effect budgets, single-use consumption, receipts; stable tier): `@honua/sdk-js/agent-safety` — see [`docs/agent-safety.md`](./agent-safety.md) and the [threat model](./agent-safety-threat-model.md)
 - Natural-language map control (plan-first, BYO LLM, approval envelopes, receipts): `@honua/sdk-js/nl-map-control` — see [`docs/nl-map-control.md`](./nl-map-control.md)
 - Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) + routing (OSRM/Valhalla/Honua): `@honua/sdk-js/geocoding`, `@honua/sdk-js/routing` — see [`docs/geocoding-routing-providers.md`](./geocoding-routing-providers.md)
 - Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`

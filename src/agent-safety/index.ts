@@ -6,7 +6,11 @@
  * replay store are delegated to host-provided callbacks so key custody and
  * persistence stay outside the SDK.
  *
- * @experimental
+ * This entrypoint is part of the SDK's stable tier: symbols reachable from
+ * `@honua/sdk-js/agent-safety` are covered by the semver contract (see
+ * `docs/decisions/agent-surface-stabilization.md` and
+ * `docs/agent-safety-threat-model.md`).
+ *
  * @packageDocumentation
  */
 

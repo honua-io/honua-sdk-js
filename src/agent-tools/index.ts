@@ -7,8 +7,10 @@
  * JSON Schema-compatible objects so they can be reused by MCP, provider-native
  * function calling, or local policy engines.
  *
- * @experimental This entrypoint is not yet covered by the SDK's semver contract
- *   — the surface may change in any minor release prior to `1.0.0`.
+ * This entrypoint is part of the SDK's stable tier: symbols reachable from
+ * `@honua/sdk-js/agent-tools` are covered by the semver contract (see
+ * `docs/decisions/agent-surface-stabilization.md`).
+ *
  * @module
  */
 

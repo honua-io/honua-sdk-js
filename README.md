@@ -18,7 +18,7 @@ single protocol-neutral `Dataset` → `Source` → `Query` → `Result` contract
 ships a MapLibre-first map runtime plus an Esri compatibility layer so existing ArcGIS apps
 can migrate file-by-file.
 
-**Release status: beta** (`0.1.0-beta`). The 20-entrypoint stable tier is frozen and guarded
+**Release status: beta** (`0.1.0-beta`). The 22-entrypoint stable tier is frozen and guarded
 by an API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
 [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md) and the
 machine-readable surface inventory in [`config/public-surface.json`](./config/public-surface.json).
@@ -382,10 +382,12 @@ correctly use this SDK:
     `@honua/sdk-js/geocoding`, `@honua/sdk-js/exploration`, `@honua/sdk-js/interactions`,
     `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`,
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
-    `@honua/sdk-js/cli`.
-  - **Experimental subpath-only APIs** (not re-exported from the root barrels): `/agent-tools`,
-    `/agent-safety`, `/nl-map-control`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`,
-    `/diagnostics`, `/routing` — with `/query-planner` below, 10 experimental subpaths in total.
+    `@honua/sdk-js/cli`, `@honua/sdk-js/agent-tools`, `@honua/sdk-js/agent-safety`.
+    The agent surface's security posture is documented in the
+    [agent-safety threat model](./docs/agent-safety-threat-model.md).
+  - **Experimental subpath-only APIs** (not re-exported from the root barrels):
+    `/nl-map-control`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`,
+    `/diagnostics`, `/routing` — with `/query-planner` below, 8 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.

@@ -32,6 +32,8 @@ entrypoints are stable across minor versions.
 | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers; published standalone as `@honua/react`) |
 | `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops (buffer/area/simplify/reproject) |
 | `@honua/sdk-js/cli` | Programmatic `run()` entrypoint for the `honua` command-line client |
+| `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions and the bounded tool executor (MCP/OpenAI compatible); the in-repo `@honua/mcp-server` consumes it. See the [agent-safety threat model](./docs/agent-safety-threat-model.md). |
+| `@honua/sdk-js/agent-safety` | Bounded runtime validation, effect budgets, signed approval envelopes, authenticated single-use consumption, context revalidation, and deterministic execution-receipt verification for JSON-compatible plans ([threat model](./docs/agent-safety-threat-model.md)). |
 
 ## Experimental subpath entrypoints
 
@@ -45,8 +47,6 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 | Subpath | What it gives you |
 |---------|-------------------|
-| `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions (MCP/OpenAI compatible). Stays in the stable package (the in-repo `@honua/mcp-server` depends on it) but its symbols remain `@experimental` — not semver-frozen — while the AI surface settles. |
-| `@honua/sdk-js/agent-safety` | Bounded runtime validation, effect budgets, signed approval envelopes, authenticated single-use consumption, context revalidation, and deterministic execution-receipt verification for JSON-compatible plans. |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
