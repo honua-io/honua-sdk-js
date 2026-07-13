@@ -106,6 +106,11 @@ The honest comparisons are the service-client libraries, not the renderers:
   happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
   client, the ArcGIS migration path, or the server-authored `MapPackage` runtime.
 
+The numbers behind those claims — generated bundle sizes, a protocol-coverage matrix against
+raw MapLibre / `@esri/arcgis-rest-js` / OpenLayers, and a scripted time-to-first-map benchmark
+with a runnable repro (`npm run bench:ttfm`) — live in
+[`docs/comparison.md`](./docs/comparison.md).
+
 **No Honua server required.** The protocol clients work against **any** standards-speaking
 server: an existing ArcGIS Server / ArcGIS Online endpoint, any OGC API Features server
 (pygeoapi, ldproxy, GeoServer OGC API), a WFS 2.0 server, a STAC API or static catalog, or an
@@ -211,7 +216,9 @@ in.
 
 Full per-entrypoint table (min + gzip, generated, not hand-written):
 [`docs/bundle-sizes.md`](./docs/bundle-sizes.md). Refresh it with
-`npm run report:bundle-sizes`.
+`npm run report:bundle-sizes`. For how these sizes stack up against
+`@arcgis/core` and friends, see the generated
+[comparison page](./docs/comparison.md).
 
 ## 60-second quickstart
 
@@ -340,8 +347,15 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 30 executable examples: 11 flagship, 6 recipe, 9 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 31 executable examples: 11 flagship, 6 recipe, 10 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
 <!-- sample-catalog:end -->
+
+Linking to Honua from a plugin directory or ecosystem list? Point at the
+[server-optional standalone quickstart](./docs/standalone-quickstart.md)
+([hosted walkthrough](https://honua-io.github.io/honua-sdk-js/guides/standalone-quickstart.html),
+[source](./examples/standalone-quickstart/README.md)) — CI keeps it green with a Playwright
+browser smoke on every PR. Prepared directory entries live in
+[`docs/listings/maplibre-plugin-directory.md`](./docs/listings/maplibre-plugin-directory.md).
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
 

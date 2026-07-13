@@ -472,6 +472,23 @@
       "validation": ["npm run demo:25d:typecheck", "npm run demo:25d:build"]
     },
     {
+      "id": "temporal-playback",
+      "title": "Temporal playback",
+      "summary": "Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems().",
+      "tier": "advanced",
+      "supportStatus": "experimental",
+      "disposition": { "decision": "keep", "reason": "Canonical demo for first-class renderer objects + temporal playback (#497): renderer-driven styling, legend contracts, and filter-composed time windows." },
+      "sourcePath": "examples/temporal-playback",
+      "docsPath": "examples/temporal-playback/README.md",
+      "capabilities": ["map", "realtime", "renderer-adapters"],
+      "protocols": ["geojson"],
+      "renderers": ["maplibre"],
+      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Synthetic seismic events generated in the browser from a seeded PRNG; no network access.", "attribution": "Honua synthetic demo data.", "freshness": "Deterministic seeded generation per load." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:temporal-playback:build"] }, "live": { "status": "not-applicable", "commands": [] } },
+      "expectedDegradation": "Playback filters compose with bind-time layer filters; when MapLibre is unavailable the renderer objects still serialize and expose legend metadata headlessly.",
+      "validation": ["npm run demo:temporal-playback:typecheck", "npm run demo:temporal-playback:build"]
+    },
+    {
       "id": "terrain-rgb-elevation",
       "title": "Terrain RGB elevation",
       "summary": "Reads Terrain-RGB tiles for point elevation and route profiles.",

@@ -12,28 +12,12 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: "@honua/sdk-js/contract",
-        replacement: path.resolve(repoRoot, "src/contract/index.ts"),
-      },
-      {
-        find: "@honua/sdk-js/exploration",
-        replacement: path.resolve(repoRoot, "src/exploration/index.ts"),
-      },
-      {
-        find: "@honua/sdk-js/honua",
-        replacement: path.resolve(repoRoot, "src/honua.ts"),
-      },
-      {
-        find: "@honua/sdk-js/interactions",
-        replacement: path.resolve(repoRoot, "src/interactions/index.ts"),
+        find: "@honua/sdk-js/map",
+        replacement: path.resolve(repoRoot, "src/map/index.ts"),
       },
       {
         find: "@honua/sdk-js/style",
         replacement: path.resolve(repoRoot, "src/style/index.ts"),
-      },
-      {
-        find: "@honua/sdk-js/realtime",
-        replacement: path.resolve(repoRoot, "src/realtime/index.ts"),
       },
       {
         find: "@honua/sdk-js",
@@ -47,11 +31,8 @@ export default defineConfig({
       allow: [repoRoot],
     },
   },
-  preview: {
-    host: "127.0.0.1",
-  },
   build: {
-    outDir: "dist",
+    outDir: path.resolve(exampleRoot, "dist"),
     emptyOutDir: true,
   },
 });

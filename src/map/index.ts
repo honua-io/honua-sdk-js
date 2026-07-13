@@ -153,3 +153,16 @@ export type {
   WebMapMapLibreGapKind,
   WebMapMapLibreManualGap,
 } from "./webmap-maplibre.js";
+// Temporal playback (issue #497). All @experimental.
+export { HonuaTemporalPlaybackError, createTemporalPlayback } from "./temporal-playback.js";
+export type {
+  TemporalFilterHandle,
+  TemporalFilterMap,
+  TemporalInstant,
+  TemporalPlayback,
+  TemporalPlaybackEventType,
+  TemporalPlaybackOptions,
+  TemporalPlaybackSubscription,
+  TemporalPlaybackTick,
+  TemporalWindow,
+} from "./temporal-playback.js";
