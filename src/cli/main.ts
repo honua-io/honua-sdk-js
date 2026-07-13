@@ -28,6 +28,8 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "base-url" },
   { name: "api-key" },
   { name: "locator" },
+  { name: "provider" },
+  { name: "user-agent" },
   { name: "protocol" },
   { name: "id" },
   { name: "capabilities" },
@@ -105,6 +107,9 @@ STAC
 
 GEOCODING
   honua geocode "<address>" [--locator <name>] [--limit N]
+      --provider honua|nominatim|photon|pelias   Geocoding provider (default honua)
+      --base-url <url>     Provider endpoint (required for third-party providers; no default endpoint is baked in)
+      --user-agent <ua>    User-Agent for Nominatim public-instance policy compliance
 
 MAPS
   honua map export <service>[/<layers>] --bbox ... --size WxH [-o out.png]

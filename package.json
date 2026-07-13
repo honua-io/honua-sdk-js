@@ -77,6 +77,10 @@
       "types": "./dist/src/geocoding/index.d.ts",
       "default": "./dist/src/geocoding/index.js"
     },
+    "./routing": {
+      "types": "./dist/src/routing/index.d.ts",
+      "default": "./dist/src/routing/index.js"
+    },
     "./controls": {
       "types": "./dist/src/_deprecated/controls.d.ts",
       "default": "./dist/src/_deprecated/controls.js"
