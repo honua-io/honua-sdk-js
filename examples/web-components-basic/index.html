@@ -11,7 +11,20 @@
       <section class="workspace">
         <honua-map id="ops-map" label="Response map"></honua-map>
         <div class="side-panel">
-          <honua-search for="ops-map" source="incidents" placeholder="Find incidents"></honua-search>
+          <honua-search id="incident-search" for="ops-map" source="incidents" placeholder="Find incidents"></honua-search>
+          <!-- Survival-tier geocoding search (issue #493): a geocoding provider
+               (any HonuaGeocodingClient-shaped object) is assigned to the
+               element's `geocoder` property in main.ts. Typeahead suggestions
+               are debounced, keyboard-navigable (ArrowUp/ArrowDown/Enter/
+               Escape), and a selection pans/zooms the shared map controller. -->
+          <honua-search
+            id="place-search"
+            for="ops-map"
+            label="Find places"
+            placeholder="Find places"
+            zoom="14"
+            debounce="200"
+          ></honua-search>
           <honua-basemap-switcher for="ops-map" label="Basemaps" value="light"></honua-basemap-switcher>
           <!-- Controls-entry legend (registered first, so it owns the honua-legend
                tag here): explicit incident entries plus a section derived from the
@@ -43,6 +56,11 @@
         <honua-editor for="ops-map" source="incidents" label="Incident editor"></honua-editor>
         <honua-chart for="ops-map" label="Priority summary"></honua-chart>
         <honua-measure-control for="ops-map"></honua-measure-control>
+        <!-- Survival-tier measurement (issue #493): no drawing provider needed.
+             Click the map to add vertices, double-click (or Finish) to complete,
+             Escape (or Cancel) to discard; distance/area come from the
+             @honua/geometry geodesic ops. -->
+        <honua-measurement for="ops-map" label="Measure (built-in)"></honua-measurement>
         <honua-sketch-control for="ops-map"></honua-sketch-control>
         <honua-print-export for="ops-map" title="Response map"></honua-print-export>
         <honua-map-status for="ops-map" attribution="Honua demo data"></honua-map-status>

@@ -494,6 +494,12 @@ function createAppPlatformPackage() {
     "filter-registry",
     "gen",
     "geocoding",
+    // `web-components/measurement.js` (the survival-tier measurement widget,
+    // issue #493) computes distance/area through the public geometry ops, so
+    // the geometry closure — and its turf/proj4 runtime deps below — ships
+    // with the app platform (this also completes the esri-compat
+    // geometry-engine closure copied above).
+    "geometry",
     "interactions",
     "map",
     "query-planner",
@@ -529,6 +535,7 @@ function createAppPlatformPackage() {
       "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
       "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
+      ...geometryRuntimeDependencies(),
     },
     peerDependencies: {
       "maplibre-gl": rootPackageJson.peerDependencies["maplibre-gl"],

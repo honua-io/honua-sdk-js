@@ -60,6 +60,28 @@ This basic sample wires the bare in-memory controller **without** a provider, so
 both controls render disabled by design with a "configure a provider" message —
 that is the expected state, not a bug. Supply the providers above to enable them.
 
+## Survival-tier widget set (issue #493)
+
+The sample also exercises the four survival-tier components:
+
+- `<honua-layer-list>` now renders an opacity slider ("Opacity") and
+  keyboard-operable "Move up" / "Move down" reorder buttons (plus HTML5
+  drag-and-drop between rows) for every layer, bound to the controller's
+  `setLayerOpacity` / `moveLayer` layer-state operations.
+- The web-components `<honua-legend>` reacts to layer visibility: entries
+  carrying a `layerId` disappear while that layer is toggled off (the
+  controls-entry legend used in the markup demonstrates the same coupling via
+  `follow-layer-visibility`).
+- A second `<honua-search id="place-search">` gets a geocoding provider
+  assigned to its `geocoder` property (any `HonuaGeocodingClient`-shaped
+  object; the offline demo uses an in-memory gazetteer). Typing shows
+  debounced ARIA-combobox suggestions; selecting one pans/zooms the shared
+  map and emits `honua-geocode-select`.
+- `<honua-measurement>` measures distance/area with **no** external drawing
+  provider: click the map to add vertices, double-click or Finish to complete,
+  Escape or Cancel to discard. Values come from the geodesic
+  `@honua/geometry` ops.
+
 ```bash
 npm run demo:web-components
 ```
