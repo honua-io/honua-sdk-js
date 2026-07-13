@@ -277,7 +277,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 29 executable examples: 11 flagship, 6 recipe, 8 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 30 executable examples: 11 flagship, 6 recipe, 9 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
@@ -812,7 +812,7 @@ current API reference without following the migration notes.
 
 This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 29 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 30 executable examples
 
 | Sample | Tier | Support | Data | Disposition | Demonstration |
 | --- | --- | --- | --- | --- | --- |
@@ -838,6 +838,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | flagship | supported | hybrid | keep | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | [`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | reference | experimental | fixture | replace | Compares supported rendering paths and makes fidelity differences explicit. |
 | [`service-explorer`](../../examples/service-explorer/README.md) | flagship | supported | hybrid | rework | Browses heterogeneous spatial services with capability and cache diagnostics. |
+| [`sketch-editing`](../../examples/sketch-editing/README.md) | advanced | experimental | fixture | keep | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
 | [`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | flagship | experimental | hybrid | rework | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
 | [`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | advanced | supported | fixture | merge | Discovers STAC collections and previews supported imagery assets. |
 | [`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | flagship | supported | hybrid | merge | Connects a public Esri service directly to MapLibre without a Honua server. |
@@ -6201,7 +6202,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-13 at commit `c6d3dfd`._
+_Generated 2026-07-13 at commit `7c23768`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -6211,12 +6212,12 @@ _Generated 2026-07-13 at commit `c6d3dfd`._
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
 | `/nl-map-control` | 60.6 KiB | 65.8 KiB | 18.7 KiB | 20.4 KiB |
-| `/runtime` | 424.5 KiB | 458.7 KiB | 111.0 KiB | 119.5 KiB |
+| `/runtime` | 429.2 KiB | 458.7 KiB | 112.6 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
-| `/esri-compat` | 950.4 KiB | 1026.2 KiB | 235.5 KiB | 253.6 KiB |
+| `/esri-compat` | 951.0 KiB | 1026.2 KiB | 235.7 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
 | `/geocoding` | 12.5 KiB | 13.7 KiB | 3.9 KiB | 4.3 KiB |
@@ -6234,6 +6235,7 @@ _Generated 2026-07-13 at commit `c6d3dfd`._
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 207.3 KiB | 220.4 KiB | 52.3 KiB | 55.8 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 17.7 KiB | 18.8 KiB | 6.6 KiB | 7.0 KiB |
+| tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.0 KiB | 3.3 KiB | 1.4 KiB | 1.5 KiB |
 
 ---
 
@@ -9256,6 +9258,140 @@ runtime bundle.
   `#29` operator components are the documented home.
 - Finer-grained diff primitives (layer reorder without teardown) —
   extension point already in `diff.ts`; no consumer yet.
+
+---
+
+# File: docs/terra-draw-sketch.md
+
+# terra-draw sketch binding (`@honua/sdk-js/runtime`)
+
+Status: experimental (issue `#492`, Esri Widget Cliff workstream).
+Public entrypoint: `@honua/sdk-js/runtime` — `bindTerraDrawSketch`,
+`createTerraDrawSketch`, `createTerraDrawSnapping`,
+`terraDrawSketchToolCapabilities`, `editSketchToolForTerraDrawMode`,
+`TERRA_DRAW_SKETCH_TOOL_MODES`.
+
+Interactive drawing on the MapLibre path is provided by
+[terra-draw](https://terradraw.io), the engine-agnostic community successor to
+mapbox-gl-draw. The SDK does not fork or wrap terra-draw's rendering — it
+adapts terra-draw's mode events onto the renderer-neutral
+`EditSketchWorkflowModel` from `@honua/sdk-js/contract`, so undo/redo,
+validation, snapping configuration, and edit-session `applyEdits` submission
+are workflow features that apply to every sketch the same way.
+
+## Peer setup
+
+`terra-draw` and `terra-draw-maplibre-gl-adapter` are **optional** peer
+dependencies. The SDK never imports them at module scope: `bindTerraDrawSketch`
+accepts a duck-typed instance your app constructed, and `createTerraDrawSketch`
+loads both packages lazily via dynamic `import()` (throwing a descriptive error
+when they are missing). Importing `@honua/sdk-js/runtime` without terra-draw
+installed stays side-effect free; the `tree-shake:runtime-terra-draw-sketch`
+bundle-budget fixture guards this.
+
+```bash
+npm i terra-draw terra-draw-maplibre-gl-adapter   # only if you use the binding
+```
+
+## Modes and tools
+
+terra-draw mode names map onto the contract `EditSketchTool` values:
+
+| terra-draw mode | `EditSketchTool` |
+| --- | --- |
+| `point`, `marker` | `point` |
+| `linestring`, `polyline`, `freehand-linestring` | `line` |
+| `polygon`, `freehand`, `sector`, `sensor` | `polygon` |
+| `rectangle`, `angled-rectangle` | `rectangle` |
+| `circle` | `circle` |
+| `select`, `render`, `static`, custom modes | — (not applied) |
+
+The contract defaults mark `rectangle` and `circle` as unsupported (they need
+renderer support); pass `terraDrawSketchToolCapabilities()` as the workflow's
+`sketchTools` to mark the terra-draw-backed tools supported. `buffer` stays
+unsupported — it needs geometry-service support, not a drawing engine.
+
+## One-call setup
+
+```ts doc-test=skip reason="partial excerpt requires a map instance and an editable source"
+import { createEditSketchWorkflow, createSnapIndex } from "@honua/sdk-js/contract";
+import { createTerraDrawSketch, terraDrawSketchToolCapabilities } from "@honua/sdk-js/runtime";
+
+const workflow = createEditSketchWorkflow({
+  source,                                          // any editable contract Source
+  kind: "create",
+  feature: { attributes: {} },
+  sketchTools: terraDrawSketchToolCapabilities(),
+  snapping: { enabled: true, tolerance: 16 },
+});
+
+const index = createSnapIndex();
+index.setSourceFeatures("parcels", parcels);
+
+const sketch = await createTerraDrawSketch(map, {
+  model: workflow,
+  snapping: { index, model: workflow },
+});
+
+sketch.setTool("polygon");   // user draws on the map
+sketch.undo();               // workflow history, mirrored back into terra-draw
+await workflow.submit();     // edit-session applyEdits path, unchanged
+```
+
+Every terra-draw `finish` event — freshly drawn features and select-mode edits
+(dragged features, dragged/inserted/deleted coordinates) — flows through
+`model.setSketchGeometry`, so each is one undoable workflow step. Deleting the
+tracked feature stages an undoable `null` geometry. `undo()`/`redo()` on the
+handle drive the model and push the restored geometry back into terra-draw.
+
+Apps that need custom terra-draw mode options construct the instance
+themselves and call `bindTerraDrawSketch(draw, { model })` — the binding only
+attaches listeners (detached by `handle.remove()`).
+
+## Geometry round-trip and reprojection
+
+terra-draw emits EPSG:4326 GeoJSON. When the edit source stores another CRS,
+pass the `@honua/sdk-js/geometry` reprojection helpers through the binding:
+
+```ts doc-test=skip reason="partial excerpt requires a terra-draw instance and workflow model"
+import { toWebMercator, toWgs84 } from "@honua/sdk-js/geometry";
+
+bindTerraDrawSketch(draw, {
+  model,
+  transformGeometry: (g) => toWebMercator(g, 4326),  // model/applyEdits side
+  restoreGeometry: (g) => toWgs84(g, 3857),          // terra-draw side (undo/redo sync)
+});
+```
+
+## Snapping
+
+`createTerraDrawSnapping({ index, model })` produces a function with
+terra-draw's `Snapping.toCustom` shape, backed by the SDK `SnapIndex` and the
+workflow's live snapping config — the same deterministic candidate ordering as
+`bindEditSketchSnapping`. `createTerraDrawSketch` wires it automatically.
+
+The seam is honest: terra-draw exposes per-mode snapping options on its
+**linestring, polygon, and polyline** modes only. Point, rectangle, circle,
+and freehand modes have no custom-snapping hook in terra-draw's pointer
+pipeline, so those modes keep terra-draw-native behavior. If you need snapped
+point placement, resolve the position with `SnapIndex.resolve()` on click and
+set the geometry through the workflow directly.
+
+## esri-compat delegation
+
+The `Sketch` shim (`@honua/sdk-js/esri-compat`) feature-detects a binding via
+its `sketchBinding` option: any object with a callable `setTool` (the
+`bindTerraDrawSketch` / `createTerraDrawSketch` handle qualifies) receives
+`create` tool-mode changes (`polyline` → `line`), `update()` switches to
+select mode, and `cancel`/`reset` leave the drawing mode. Without a binding —
+including when terra-draw is not installed — the shim keeps its existing
+headless behavior and events.
+
+## Example
+
+`examples/sketch-editing` demonstrates draw/edit/delete with undo/redo,
+snapping, and fixture-lane `applyEdits` (`npm run demo:sketch-editing`,
+Playwright smoke via `npm run test:playwright:sketch-editing`).
 
 ---
 
