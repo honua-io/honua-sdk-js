@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 import { createAdapter } from "./lib/coding-agent-eval/adapters.mjs";
 import { startEvalFixtureServer } from "./lib/coding-agent-eval/fixture-server.mjs";
 import { runEvalLane } from "./lib/coding-agent-eval/runner.mjs";
-import { buildScorecard, publishScorecard, renderScorecardMarkdown } from "./lib/coding-agent-eval/scorecard.mjs";
+import { buildScorecard, evaluateGate, publishScorecard, renderScorecardMarkdown } from "./lib/coding-agent-eval/scorecard.mjs";
 import { loadTasks } from "./lib/coding-agent-eval/tasks.mjs";
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
@@ -125,16 +125,12 @@ async function main() {
     }
   }
 
-  if (options.expectFail) {
-    const unexpectedPasses = scored.filter((task) => task.pass);
-    if (scored.length === 0) {
-      console.error("expect-fail lane scored zero tasks");
-      process.exitCode = 1;
-    } else if (unexpectedPasses.length > 0) {
-      console.error(`expect-fail lane had unexpected passes: ${unexpectedPasses.map((task) => task.id).join(", ")}`);
-      process.exitCode = 1;
-    }
-  } else if (scorecard.summary.failed > 0 || scored.length === 0) {
+  // Gate: default lanes fail on any failed OR skipped task (a missing/renamed
+  // fixture generation must never masquerade as a pass); expect-fail lanes
+  // require every scored task to fail.
+  const gate = evaluateGate(scorecard, { expectFail: options.expectFail });
+  if (!gate.pass) {
+    console.error(`gate failed: ${gate.reason}`);
     process.exitCode = 1;
   }
 }

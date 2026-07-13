@@ -19,4 +19,8 @@ export declare function buildScorecard(options: {
   generatedAt?: string;
 }): Scorecard;
 export declare function renderScorecardMarkdown(scorecard: Scorecard): string;
+export declare function evaluateGate(
+  scorecard: Scorecard,
+  options?: { expectFail?: boolean },
+): { pass: boolean; reason?: string };
 export declare function publishScorecard(options: { repoRoot: string; scorecards: Scorecard[] }): string;

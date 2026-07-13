@@ -31,7 +31,7 @@ import {
 import type { EvalFixtureServer } from "../scripts/lib/coding-agent-eval/fixture-server.mjs";
 import { runEvalLane } from "../scripts/lib/coding-agent-eval/runner.mjs";
 import type { LaneResult, TaskScore } from "../scripts/lib/coding-agent-eval/runner.mjs";
-import { buildScorecard, renderScorecardMarkdown } from "../scripts/lib/coding-agent-eval/scorecard.mjs";
+import { buildScorecard, evaluateGate, renderScorecardMarkdown } from "../scripts/lib/coding-agent-eval/scorecard.mjs";
 import {
   MIN_TASK_COUNT,
   evaluateAssertion,
@@ -172,6 +172,42 @@ describe("coding-agent eval / scorecard", () => {
     expect(markdown).toContain("| sample-task | connect-query | pass | pass | pass | PASS |");
     expect(markdown).toContain("FAIL (typecheck)");
     expect(markdown).toContain("**failing-task** failed at typecheck");
+  });
+
+  function scorecardWith(tasks: TaskScore[]) {
+    return buildScorecard({
+      repoRoot: REPO_ROOT,
+      lane: "fixture-known-good",
+      laneResult: { adapter: laneResult.adapter, tasks },
+    });
+  }
+
+  const passingTask: TaskScore = laneResult.tasks[0];
+  const failingTask: TaskScore = laneResult.tasks[1];
+  const skippedTask: TaskScore = {
+    id: "skipped-task",
+    title: "Skipped",
+    category: "protocols",
+    skipped: true,
+    reason: "adapter has no generation for this task",
+  };
+
+  it("gate: default lane passes only when every task passed and none were skipped", () => {
+    expect(evaluateGate(scorecardWith([passingTask]))).toEqual({ pass: true });
+    expect(evaluateGate(scorecardWith([passingTask, failingTask])).pass).toBe(false);
+    expect(evaluateGate(scorecardWith([])).pass).toBe(false);
+  });
+
+  it("gate: a skipped task fails the default lane instead of masquerading as a pass", () => {
+    const gate = evaluateGate(scorecardWith([passingTask, skippedTask]));
+    expect(gate.pass).toBe(false);
+    expect(gate.reason).toContain("skipped-task");
+  });
+
+  it("gate: expect-fail lanes require every scored task to fail and tolerate skips", () => {
+    expect(evaluateGate(scorecardWith([failingTask, skippedTask]), { expectFail: true })).toEqual({ pass: true });
+    expect(evaluateGate(scorecardWith([passingTask, failingTask]), { expectFail: true }).pass).toBe(false);
+    expect(evaluateGate(scorecardWith([skippedTask]), { expectFail: true }).pass).toBe(false);
   });
 });
 

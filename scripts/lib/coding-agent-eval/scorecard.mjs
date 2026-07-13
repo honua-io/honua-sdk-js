@@ -106,6 +106,36 @@ export function renderScorecardMarkdown(scorecard) {
   return lines.join("\n");
 }
 
+/**
+ * Gate decision for a lane's scorecard.
+ *
+ * Default lanes fail on any failed task AND on any skipped task — a skipped
+ * task (new corpus entry without a fixture, renamed/missing generation file)
+ * must never masquerade as a pass. `expectFail` lanes (the known-bad
+ * test-of-the-test) invert: every *scored* task must fail; tasks the variant
+ * has no generation for are legitimately skipped there.
+ */
+export function evaluateGate(scorecard, { expectFail = false } = {}) {
+  const scored = scorecard.tasks.filter((task) => !task.skipped);
+  const skipped = scorecard.tasks.filter((task) => task.skipped).map((task) => task.id);
+  if (expectFail) {
+    if (scored.length === 0) return { pass: false, reason: "expect-fail lane scored zero tasks" };
+    const unexpectedPasses = scored.filter((task) => task.pass).map((task) => task.id);
+    if (unexpectedPasses.length > 0) {
+      return { pass: false, reason: `expect-fail lane had unexpected passes: ${unexpectedPasses.join(", ")}` };
+    }
+    return { pass: true };
+  }
+  if (scored.length === 0) return { pass: false, reason: "lane scored zero tasks" };
+  if (skipped.length > 0) {
+    return { pass: false, reason: `tasks were skipped (missing generations count as failures): ${skipped.join(", ")}` };
+  }
+  if (scorecard.summary.failed > 0) {
+    return { pass: false, reason: `${scorecard.summary.failed} task(s) failed` };
+  }
+  return { pass: true };
+}
+
 function historyRow(scorecard) {
   const adapter = `${scorecard.adapter.name}${scorecard.adapter.variant ? `/${scorecard.adapter.variant}` : ""}`;
   return `| ${scorecard.generatedAt.slice(0, 10)} | ${adapter} | \`${scorecard.adapter.model}\` | ${scorecard.summary.tasks} | ${scorecard.summary.passed} | ${(scorecard.summary.passRate * 100).toFixed(1)}% | \`${scorecard.repo.sha.slice(0, 12)}\` |`;
