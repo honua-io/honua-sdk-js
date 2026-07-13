@@ -14,6 +14,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [Learn the Honua SDK by task](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/generated/learning-paths.md): Task-oriented progression from first public map through connect, query, styling, analysis, editing, realtime/offline, 3D, migration, and safe automation.
 - [Standalone Quickstart: The SDK Against Any Public Endpoint](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-quickstart.md): Server-optional front door: run the SDK against any public GeoServices endpoint with no Honua server, key, or account.
 - [Quickstart Troubleshooting](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/quickstart-troubleshooting.md): Common quickstart failure modes and how to fix them.
+- [How Honua compares](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/comparison.md): Generated comparison page: bundle sizes vs @arcgis/core, protocol coverage vs raw MapLibre / arcgis-rest-js / OpenLayers, and the scripted time-to-first-map benchmark.
 
 ## Core contract and API
 

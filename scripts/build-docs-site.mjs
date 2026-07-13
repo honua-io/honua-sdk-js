@@ -210,6 +210,7 @@ const NAV_GROUPS = [
       "INSTALL.md",
       "docs/quickstart.md",
       "docs/quickstart-troubleshooting.md",
+      "docs/comparison.md",
       "docs/documentation-versions.md",
       "docs/guide.md",
     ],

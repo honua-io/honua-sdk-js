@@ -74,6 +74,11 @@ const SECTIONS = [
         path: "docs/quickstart-troubleshooting.md",
         description: "Common quickstart failure modes and how to fix them.",
       },
+      {
+        path: "docs/comparison.md",
+        description:
+          "Generated comparison page: bundle sizes vs @arcgis/core, protocol coverage vs raw MapLibre / arcgis-rest-js / OpenLayers, and the scripted time-to-first-map benchmark.",
+      },
     ],
   },
   {
