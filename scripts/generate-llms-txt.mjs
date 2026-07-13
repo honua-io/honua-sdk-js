@@ -189,6 +189,11 @@ const SECTIONS = [
         description: "loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.",
       },
       {
+        path: "docs/terra-draw-sketch.md",
+        description:
+          "terra-draw sketch binding: optional-peer draw modes adapted onto the edit-sketch workflow with undo/redo, snapping, and applyEdits.",
+      },
+      {
         path: "docs/pmtiles.md",
         description:
           "Native PMTiles support: auto-registered pmtiles:// protocol, lazy peer, describe() metadata, and a CDN recipe.",

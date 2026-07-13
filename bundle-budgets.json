@@ -31,7 +31,8 @@
     "/plugin was reset for the behavioral-conformance kit, signed-report verification, and support-status program (#392): the deterministic conformance harness, report digest re-verification, and supportStatus validation measure 40,714 minified / 13,410 gzip bytes; the ceiling is measured actual plus ~10% headroom.",
     "/scene-workspace guards renderer-neutral shared state while MapLibre and Cesium stay external optional peers.",
     "/contract min was reset for edit-sketch snapping (#491): the renderer-neutral SnapIndex packed grid, deterministic candidate resolution, and edit-session invalidation hooks measure 243,020 minified bytes (gzip stayed under its existing ceiling); the ceiling is measured actual plus ~10% headroom.",
-    "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom."
+    "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom.",
+    "'tree-shake:runtime-terra-draw-sketch' guards the terra-draw sketch binding (#492): terra-draw and terra-draw-maplibre-gl-adapter are optional peers kept external (reached only via dynamic import in createTerraDrawSketch), so importing { bindTerraDrawSketch } from /runtime measures 3,078 minified / 1,393 gzip bytes; the ceiling is measured actual plus ~10% headroom. /runtime absorbed the binding within its existing ceiling."
   ],
   "entrypoints": {
     ".": {
@@ -141,6 +142,10 @@
     "tree-shake:map-source-workflow": {
       "min": 19209,
       "gzip": 7214
+    },
+    "tree-shake:runtime-terra-draw-sketch": {
+      "min": 3386,
+      "gzip": 1533
     }
   }
 }

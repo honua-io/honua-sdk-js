@@ -51,6 +51,8 @@ const EXTERNAL = [
   "@connectrpc/connect-web",
   "@duckdb/duckdb-wasm",
   "apache-arrow",
+  "terra-draw",
+  "terra-draw-maplibre-gl-adapter",
 ];
 
 const SHARED_OPTIONS = {

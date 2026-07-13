@@ -2,7 +2,7 @@
 
 This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 27 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 28 executable examples
 
 | Sample | Tier | Support | Data | Disposition | Demonstration |
 | --- | --- | --- | --- | --- | --- |
@@ -26,6 +26,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | flagship | supported | hybrid | keep | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
 | [`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | reference | experimental | fixture | replace | Compares supported rendering paths and makes fidelity differences explicit. |
 | [`service-explorer`](../../examples/service-explorer/README.md) | flagship | supported | hybrid | rework | Browses heterogeneous spatial services with capability and cache diagnostics. |
+| [`sketch-editing`](../../examples/sketch-editing/README.md) | advanced | experimental | fixture | keep | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
 | [`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | flagship | experimental | hybrid | rework | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
 | [`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | advanced | supported | fixture | merge | Discovers STAC collections and previews supported imagery assets. |
 | [`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | flagship | supported | hybrid | merge | Connects a public Esri service directly to MapLibre without a Honua server. |
