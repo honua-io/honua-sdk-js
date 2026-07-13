@@ -277,7 +277,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 27 executable examples: 11 flagship, 5 recipe, 7 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 28 executable examples: 11 flagship, 6 recipe, 7 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
@@ -803,7 +803,7 @@ current API reference without following the migration notes.
 
 This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 27 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 28 executable examples
 
 | Sample | Tier | Support | Data | Disposition | Demonstration |
 | --- | --- | --- | --- | --- | --- |
@@ -811,6 +811,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`app-bootstrap-basic`](../../examples/app-bootstrap-basic/README.md) | reference | deprecated | fixture | retire | Bootstraps a minimal application through the legacy app-platform compatibility surface. |
 | [`arcgis-source-app`](../../examples/arcgis-source-app/README.md) | reference | internal | fixture | keep | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
 | [`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | flagship | supported | fixture | rework | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
+| [`endpoint-to-map`](../../examples/endpoint-to-map/README.md) | recipe | experimental | hybrid | keep | mountSource() turns a public FeatureServer into a styled, interactive MapLibre map in four statements. |
 | [`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | supported | hybrid | keep | Runs forward, reverse, and suggestion workflows with map feedback. |
 | [`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | advanced | supported | hybrid | merge | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
 | [`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | flagship | supported | hybrid | merge | Compares WMS imagery, COG-backed ImageServer tiles, and export previews. |
@@ -6007,28 +6008,28 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-13 at commit `b69c95a`._
+_Generated 2026-07-13 at commit `8f7af5e`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
 | `.` (root) | 369.4 KiB | 382.0 KiB | 97.1 KiB | 101.2 KiB |
-| `/honua` | 479.8 KiB | 510.3 KiB | 126.5 KiB | 135.7 KiB |
-| `/contract` | 227.1 KiB | 261.1 KiB | 58.7 KiB | 66.1 KiB |
+| `/honua` | 480.3 KiB | 510.3 KiB | 126.7 KiB | 135.7 KiB |
+| `/contract` | 237.5 KiB | 261.1 KiB | 62.1 KiB | 66.1 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
-| `/runtime` | 420.6 KiB | 458.7 KiB | 109.6 KiB | 119.5 KiB |
+| `/runtime` | 424.5 KiB | 458.7 KiB | 111.0 KiB | 119.5 KiB |
 | `/realtime` | 26.6 KiB | 29.3 KiB | 7.8 KiB | 8.6 KiB |
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
-| `/esri-compat` | 946.0 KiB | 1026.2 KiB | 234.2 KiB | 253.6 KiB |
+| `/esri-compat` | 950.4 KiB | 1026.2 KiB | 235.5 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
 | `/geocoding` | 12.5 KiB | 13.7 KiB | 3.9 KiB | 4.3 KiB |
-| `/routing` | 6.0 KiB | 6.6 KiB | 2.4 KiB | 2.7 KiB |
+| `/routing` | 6.1 KiB | 6.6 KiB | 2.5 KiB | 2.7 KiB |
 | `/auth` | 12.0 KiB | 12.8 KiB | 3.8 KiB | 4.0 KiB |
 | `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
-| `/map` | 112.9 KiB | 123.8 KiB | 31.2 KiB | 34.2 KiB |
+| `/map` | 136.3 KiB | 149.8 KiB | 37.8 KiB | 41.6 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 17.2 KiB | 17.8 KiB | 6.2 KiB | 6.5 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 372.3 KiB | 405.7 KiB | 96.2 KiB | 104.5 KiB |
@@ -6065,6 +6066,7 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 
 ### Core surfaces
 - [Shared client contract and exploration](#shared-client-contract-and-exploration)
+- [Standalone data-to-map bridge](#standalone-data-to-map-bridge)
 - [MapLibre GL JS runtime for `MapPackage`](#maplibre-gl-js-runtime-for-mappackage)
 - [Generated app preview runtime](#generated-app-preview-runtime)
 - [Request/auth bridge](#requestauth-bridge)
@@ -6317,6 +6319,34 @@ console.log(`Loaded ${result.features.length} features`);
 
 Capability misses throw `HonuaCapabilityNotSupportedError` (under `strict` policy). Exploration misuses throw
 `HonuaExplorationContextError`. Both are in the `HonuaError` union and pass `isHonuaError(e)`.
+
+## Standalone Data-To-Map Bridge
+
+`mountSource(map, source, options)` from `@honua/sdk-js/map` (`@experimental`) mounts any contract
+`Source` as a live, styled MapLibre layer set with no MapPackage and no Honua server — the standalone
+slice of the kernel ADR's `connection.mount(target)` contract. The bridge selects bounded GeoJSON
+materialization or the dynamic query-tile path from declared capabilities plus a result-size heuristic,
+applies geometry-appropriate default styling, wires optional click popups and hover feature-state, and
+returns one disposable handle whose `setFilter()`/`refresh()` diff-update in place.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import maplibregl from "maplibre-gl";
+import { connect } from "@honua/sdk-js";
+import { mountSource } from "@honua/sdk-js/map";
+
+const data = await connect({ endpoint: FEATURE_LAYER_URL, protocol: "auto", authorizationScopeFingerprint: "public" });
+const mounted = await mountSource(map, data.source(), {
+  popup: { factory: () => new maplibregl.Popup() },
+  hover: true,
+  fitBounds: true,
+});
+console.log(mounted.diagnostics.strategy, mounted.diagnostics.reasons);
+mounted.dispose();
+```
+
+- Full cookbook (strategy selection, options, disposal, overflow diagnostics):
+  [`docs/data-to-map-bridge.md`](./data-to-map-bridge.md).
+- Runnable fixture/live demo: [`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md).
 
 ## MapLibre GL JS Runtime For `MapPackage`
 
@@ -8219,6 +8249,19 @@ The runtime **does not** instantiate `maplibre-gl.Map`, issue edit
 writes, or duplicate query logic — `maplibre-gl` stays a peer
 dependency, edits flow through the existing adapters, and queries go
 through the contract's `Source` handles.
+
+## Standalone data-to-map bridge
+
+For the shortest path — any contract `Source` to a styled, interactive
+MapLibre layer set without a MapPackage, plan review, or Honua server — use
+`mountSource(map, source, options)` from `@honua/sdk-js/map`
+(`@experimental`). It selects bounded GeoJSON vs the dynamic query-tile path
+from capabilities plus a result-size heuristic, applies geometry-appropriate
+default styling, wires optional popups/hover, and returns one disposable
+handle with diff-updating `setFilter()`/`refresh()`. See the cookbook:
+[`docs/data-to-map-bridge.md`](./data-to-map-bridge.md). The plan-bound
+workflows below remain the right tool when you need fingerprinted plan
+review, provenance, and freshness policy.
 
 ## Accepted plan to native GeoJSON
 
