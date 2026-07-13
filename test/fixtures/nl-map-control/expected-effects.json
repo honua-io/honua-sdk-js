@@ -1,0 +1,38 @@
+{
+  "read-only-count": [
+    {
+      "op": "runWidgetQuery",
+      "request": {
+        "sourceId": "incidents",
+        "kind": "count",
+        "query": {
+          "where": "status = 'open'"
+        }
+      }
+    }
+  ],
+  "viewport-filter": [
+    {
+      "op": "setViewport",
+      "viewport": {
+        "center": [
+          -122.335,
+          47.605
+        ],
+        "zoom": 13
+      }
+    },
+    {
+      "op": "setFilter",
+      "id": "incidents-status",
+      "clause": {
+        "field": "status",
+        "operator": "=",
+        "value": "open",
+        "appliesTo": [
+          "incidents"
+        ]
+      }
+    }
+  ]
+}

@@ -8,7 +8,6 @@
 
 import type { Result, Source } from "../contract/types.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
-import type { HonuaTypedFeature } from "../core/types.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryFromCanonical, queryIrSourceIdentity } from "../query-planner/ir.js";
 import { hashQueryPlan } from "../query-planner/planner.js";
@@ -17,15 +16,21 @@ import {
   HonuaQueryPlanExecutionError,
   type QueryExecutionPlanV1,
 } from "../query-planner/types.js";
-import { esriGeometryToGeoJson } from "./feature-service-adapter.js";
-import type {
-  AdapterGeoJsonFeature,
-  AdapterGeoJsonFeatureCollection,
-  AdapterGeoJsonGeometry,
-} from "./feature-service-adapter.js";
+import type { AdapterGeoJsonFeatureCollection } from "./feature-service-adapter.js";
+import {
+  type MapLibreGeometryKind,
+  canonicalFeaturesToGeoJson,
+  defaultPaint,
+  geometryKind,
+  geometryKinds,
+  layerType,
+  mapLibreGeometryType,
+  removeUndefined,
+  safeId,
+} from "./geojson-projection.js";
 
 export type MapLibreSourceStrategy = "geojson-query";
-export type MapLibreGeometryKind = "point" | "line" | "polygon";
+export type { MapLibreGeometryKind } from "./geojson-projection.js";
 export type MapLibreSourceWorkflowState = "ready" | "empty" | "degraded" | "disposed";
 
 export type MapLibreSourceDiagnosticCode =
@@ -591,90 +596,6 @@ function assertFeaturePlan<T>(plan: QueryExecutionPlanV1, result?: Result<T>): v
   }
 }
 
-function canonicalFeaturesToGeoJson<T>(
-  features: readonly HonuaTypedFeature<T>[],
-  primaryKey?: string,
-): { data: AdapterGeoJsonFeatureCollection; unsupported: number } {
-  let unsupported = 0;
-  const converted = features.map((feature): AdapterGeoJsonFeature => {
-    const geometry = toGeoJsonGeometry(feature.geometry);
-    if (!geometry) unsupported += 1;
-    const attributes = asAttributes(feature.attributes);
-    const id = primaryKey ? attributes[primaryKey] : undefined;
-    return {
-      type: "Feature",
-      ...(typeof id === "string" || typeof id === "number" ? { id } : {}),
-      geometry,
-      properties: attributes,
-    };
-  });
-  return { data: { type: "FeatureCollection", features: converted }, unsupported };
-}
-
-function toGeoJsonGeometry(geometry: unknown): AdapterGeoJsonGeometry | null {
-  if (!geometry || typeof geometry !== "object") return null;
-  const record = geometry as Record<string, unknown>;
-  if (isGeoJsonGeometryType(record.type) && "coordinates" in record) {
-    return { type: record.type, coordinates: record.coordinates };
-  }
-  if (Array.isArray(record.points)) return esriGeometryToGeoJson(record, "esriGeometryMultipoint");
-  if (Array.isArray(record.paths)) return esriGeometryToGeoJson(record, "esriGeometryPolyline");
-  if (Array.isArray(record.rings)) return esriGeometryToGeoJson(record, "esriGeometryPolygon");
-  if ("xmin" in record && "ymin" in record && "xmax" in record && "ymax" in record) {
-    return esriGeometryToGeoJson(record, "esriGeometryEnvelope");
-  }
-  return esriGeometryToGeoJson(record, "esriGeometryPoint");
-}
-
-function geometryKinds(features: readonly AdapterGeoJsonFeature[]): MapLibreGeometryKind[] {
-  const kinds = new Set<MapLibreGeometryKind>();
-  for (const feature of features) {
-    const kind = geometryKind(feature.geometry);
-    if (kind) kinds.add(kind);
-  }
-  const order: readonly MapLibreGeometryKind[] = ["point", "line", "polygon"];
-  return order.filter((kind) => kinds.has(kind));
-}
-
-function geometryKind(geometry: AdapterGeoJsonGeometry | null): MapLibreGeometryKind | undefined {
-  const type = geometry?.type;
-  if (type === "Point" || type === "MultiPoint") return "point";
-  if (type === "LineString" || type === "MultiLineString") return "line";
-  if (type === "Polygon" || type === "MultiPolygon") return "polygon";
-  return undefined;
-}
-
-function isGeoJsonGeometryType(value: unknown): value is AdapterGeoJsonGeometry["type"] {
-  return (
-    value === "Point" ||
-    value === "MultiPoint" ||
-    value === "LineString" ||
-    value === "MultiLineString" ||
-    value === "Polygon" ||
-    value === "MultiPolygon"
-  );
-}
-
-function defaultPaint(kind: MapLibreGeometryKind): Readonly<Record<string, unknown>> {
-  if (kind === "point")
-    return {
-      "circle-color": "#16735b",
-      "circle-radius": 6,
-      "circle-stroke-color": "#ffffff",
-      "circle-stroke-width": 1.5,
-    };
-  if (kind === "line") return { "line-color": "#16735b", "line-width": 2.5 };
-  return { "fill-color": "#37a887", "fill-opacity": 0.55, "fill-outline-color": "#0e5643" };
-}
-
-function layerType(kind: MapLibreGeometryKind): "circle" | "line" | "fill" {
-  return kind === "point" ? "circle" : kind === "line" ? "line" : "fill";
-}
-
-function mapLibreGeometryType(kind: MapLibreGeometryKind): "Point" | "LineString" | "Polygon" {
-  return kind === "point" ? "Point" : kind === "line" ? "LineString" : "Polygon";
-}
-
 function assertMapIdsAvailable(map: SourceToMapLibreMap, projection: MapLibreSourceProjection): void {
   if (map.getSource(projection.sourceId)) {
     throw new HonuaMapLibreSourceAdapterError(
@@ -796,22 +717,4 @@ function projectedLayerIds(sourceId: string, options: ProjectSourceToMapLibreOpt
       ? ["point"]
       : ["point", "line", "polygon"];
   return kinds.length === 1 ? [base] : kinds.map((entry) => `${base}-${entry}`);
-}
-
-function asAttributes(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? { ...(value as Record<string, unknown>) } : {};
-}
-
-function safeId(value: string): string {
-  const normalized = value.toLowerCase().replaceAll(/[^a-z0-9_-]+/g, "-");
-  let start = 0;
-  let end = normalized.length;
-  while (start < end && normalized[start] === "-") start += 1;
-  while (end > start && normalized[end - 1] === "-") end -= 1;
-  const id = normalized.slice(start, end);
-  return id || "source";
-}
-
-function removeUndefined(value: Record<string, unknown>): void {
-  for (const key of Object.keys(value)) if (value[key] === undefined) delete value[key];
 }

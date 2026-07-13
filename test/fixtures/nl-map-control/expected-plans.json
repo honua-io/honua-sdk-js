@@ -1,0 +1,167 @@
+{
+  "capability-gap-recovered": {
+    "kind": "honua.nl-map-plan",
+    "version": "1.0",
+    "id": "nlplan_8b318efe8812b2a6",
+    "fingerprint": "sha256:8b318efe8812b2a60c6ce2472315a5a6ee7414504387a81e6e1ee606b0d14255",
+    "instruction": "Show the average parcel value near the waterfront",
+    "attempt": 2,
+    "readOnly": true,
+    "effects": [
+      "read"
+    ],
+    "steps": [
+      {
+        "id": "step-1",
+        "tool": "runWidgetQuery",
+        "effect": "read",
+        "call": {
+          "name": "runWidgetQuery",
+          "args": {
+            "sourceId": "incidents",
+            "kind": "count"
+          }
+        }
+      }
+    ]
+  },
+  "read-only-count": {
+    "kind": "honua.nl-map-plan",
+    "version": "1.0",
+    "id": "nlplan_164eb4f36474715b",
+    "fingerprint": "sha256:164eb4f36474715b04915f7c91a41b650fbc8d14b6144f0a67fbac4a3f4beea0",
+    "instruction": "How many open incidents are visible right now?",
+    "attempt": 1,
+    "readOnly": true,
+    "effects": [
+      "read"
+    ],
+    "steps": [
+      {
+        "id": "step-1",
+        "tool": "runWidgetQuery",
+        "effect": "read",
+        "call": {
+          "name": "runWidgetQuery",
+          "args": {
+            "sourceId": "incidents",
+            "kind": "count",
+            "query": {
+              "where": "status = 'open'"
+            }
+          }
+        },
+        "query": {
+          "where": {
+            "kind": "source-native",
+            "expression": "status = 'open'"
+          }
+        }
+      }
+    ]
+  },
+  "self-correction-unknown-tool": {
+    "kind": "honua.nl-map-plan",
+    "version": "1.0",
+    "id": "nlplan_297348cde11376d9",
+    "fingerprint": "sha256:297348cde11376d95c4929beec1fa6100334f459e267c936ac46aa133d3fb2ca",
+    "instruction": "Fly the map to the harbor",
+    "attempt": 2,
+    "readOnly": false,
+    "effects": [
+      "viewport"
+    ],
+    "steps": [
+      {
+        "id": "step-1",
+        "tool": "setViewport",
+        "effect": "viewport",
+        "call": {
+          "name": "setViewport",
+          "args": {
+            "center": [
+              -122.34,
+              47.59
+            ],
+            "zoom": 14
+          }
+        }
+      }
+    ]
+  },
+  "string-arguments-selection": {
+    "kind": "honua.nl-map-plan",
+    "version": "1.0",
+    "id": "nlplan_a26e0670464341f3",
+    "fingerprint": "sha256:a26e0670464341f3b787b758712fda0509e962b6cdad0537df80302014cabcbf",
+    "instruction": "Select incident 42 on the map",
+    "attempt": 1,
+    "readOnly": false,
+    "effects": [
+      "mutation"
+    ],
+    "steps": [
+      {
+        "id": "step-1",
+        "tool": "selectFeature",
+        "effect": "mutation",
+        "call": {
+          "name": "selectFeature",
+          "args": {
+            "sourceId": "incidents",
+            "id": 42
+          }
+        }
+      }
+    ]
+  },
+  "viewport-filter": {
+    "kind": "honua.nl-map-plan",
+    "version": "1.0",
+    "id": "nlplan_2ce1da8244abcf27",
+    "fingerprint": "sha256:2ce1da8244abcf27ee37814ffe035d4295c2c1e5bcbc5be5962e0daa28ae8258",
+    "instruction": "Zoom to downtown Seattle and only show open incidents",
+    "attempt": 1,
+    "readOnly": false,
+    "effects": [
+      "viewport",
+      "mutation"
+    ],
+    "steps": [
+      {
+        "id": "step-1",
+        "tool": "setViewport",
+        "effect": "viewport",
+        "call": {
+          "name": "setViewport",
+          "args": {
+            "center": [
+              -122.335,
+              47.605
+            ],
+            "zoom": 13
+          }
+        }
+      },
+      {
+        "id": "step-2",
+        "tool": "setFilter",
+        "effect": "mutation",
+        "call": {
+          "name": "setFilter",
+          "args": {
+            "id": "incidents-status",
+            "clause": {
+              "field": "status",
+              "operator": "=",
+              "value": "open",
+              "appliesTo": [
+                "incidents"
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

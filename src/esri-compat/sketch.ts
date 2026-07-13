@@ -1,9 +1,48 @@
+import type { EditSketchTool } from "../contract/edit-sketch.js";
 import type { SnappingConfig } from "../contract/edit-snapping.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { type SnappingOptionsCompat, snappingOptionsToSnappingConfig } from "./snapping.js";
 
 export type SketchCreationModeCompat = "single" | "update" | "continuous";
 export type SketchToolCompat = "point" | "polyline" | "polygon" | "rectangle" | "circle";
+
+/**
+ * Duck-typed subset of the runtime terra-draw sketch handle
+ * (`bindTerraDrawSketch` / `createTerraDrawSketch` from
+ * `@honua/sdk-js/runtime`) that the Sketch shim can delegate tool modes to.
+ * Structural on purpose: the compat layer never imports the optional
+ * terra-draw peer, it only feature-detects a binding the app wired up.
+ *
+ * @experimental
+ */
+export interface SketchToolBindingCompat {
+  setTool(tool: EditSketchTool): unknown;
+  select?(): void;
+  cancel?(): void;
+}
+
+const SKETCH_COMPAT_TOOL_TO_EDIT_TOOL: Readonly<Record<SketchToolCompat, EditSketchTool>> = Object.freeze({
+  point: "point",
+  polyline: "line",
+  polygon: "polygon",
+  rectangle: "rectangle",
+  circle: "circle",
+});
+
+/**
+ * Feature-detect a terra-draw sketch binding: any object exposing a callable
+ * `setTool` qualifies; anything else (including `undefined` when terra-draw
+ * is not installed) resolves to `undefined` and the shim keeps its current
+ * headless behavior.
+ *
+ * @experimental
+ */
+export function resolveSketchToolBindingCompat(value: unknown): SketchToolBindingCompat | undefined {
+  if (value !== null && typeof value === "object" && typeof (value as { setTool?: unknown }).setTool === "function") {
+    return value as SketchToolBindingCompat;
+  }
+  return undefined;
+}
 
 export interface SketchCreateOptionsCompat {
   mode?: "click" | "freehand" | "hybrid";
@@ -27,6 +66,14 @@ export interface SketchCompatOptions {
   defaultCreateOptions?: Partial<SketchCreateOptionsCompat>;
   defaultUpdateOptions?: Partial<SketchUpdateOptionsCompat>;
   snappingOptions?: SnappingOptionsCompat;
+  /**
+   * Optional terra-draw sketch binding (see {@link SketchToolBindingCompat}).
+   * When present, `create`/`update`/`cancel`/`reset` delegate tool-mode
+   * changes to the binding; otherwise the shim keeps its headless behavior.
+   *
+   * @experimental
+   */
+  sketchBinding?: unknown;
 }
 
 export interface SketchCreateResultCompat {
@@ -59,6 +106,7 @@ export class SketchCompat {
   public activeUpdateOptions: Partial<SketchUpdateOptionsCompat> | undefined;
   public snappingOptions: SnappingOptionsCompat;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
+  private readonly sketchBinding: SketchToolBindingCompat | undefined;
 
   public constructor(options: SketchCompatOptions = {}) {
     this.view = options.view;
@@ -78,6 +126,12 @@ export class SketchCompat {
     this.activeUpdateOptions = undefined;
     this.snappingOptions = { ...(options.snappingOptions ?? {}) };
     this.watchListeners = new Map();
+    this.sketchBinding = resolveSketchToolBindingCompat(options.sketchBinding);
+  }
+
+  /** Whether tool modes delegate to a terra-draw sketch binding. @experimental */
+  public delegatesToSketchBinding(): boolean {
+    return this.sketchBinding !== undefined;
   }
 
   /** Replace the ArcGIS-shaped snapping options and notify watchers. */
@@ -150,6 +204,7 @@ export class SketchCompat {
       },
       this,
     );
+    this.sketchBinding?.setTool(SKETCH_COMPAT_TOOL_TO_EDIT_TOOL[tool]);
   }
 
   public complete(graphic?: Record<string, unknown>): SketchCreateResultCompat | undefined {
@@ -170,6 +225,7 @@ export class SketchCompat {
       },
       this,
     );
+    if (this.creationMode !== "continuous") this.sketchBinding?.cancel?.();
     return {
       state: "complete",
       tool,
@@ -185,6 +241,7 @@ export class SketchCompat {
     const tool = this.activeTool;
     this.clearActiveState();
     this.eventBus.emit("sketch.create-cancelled", { tool }, this);
+    this.sketchBinding?.cancel?.();
     return {
       state: "cancel",
       tool,
@@ -211,6 +268,7 @@ export class SketchCompat {
       },
       this,
     );
+    this.sketchBinding?.select?.();
     return this.activeUpdateGraphics;
   }
 
@@ -250,6 +308,7 @@ export class SketchCompat {
     this.activeUpdateOptions = undefined;
     this.notifyWatchers("activeUpdateOptions", this.activeUpdateOptions);
     this.eventBus.emit("sketch.reset", undefined, this);
+    this.sketchBinding?.cancel?.();
   }
 
   private clearActiveState(): void {

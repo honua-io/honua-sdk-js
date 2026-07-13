@@ -17,6 +17,21 @@
  * @packageDocumentation
  */
 export { HonuaMap } from "./honua-map.js";
+export { HonuaDataToMapBridgeError, explainDataToMapStrategy, mountSource } from "./data-to-map-bridge.js";
+export type {
+  DataToMapBridgeErrorCode,
+  DataToMapDiagnostic,
+  DataToMapDiagnosticCode,
+  DataToMapLibreMap,
+  DataToMapOverflow,
+  DataToMapStrategy,
+  DataToMapStrategyExplanation,
+  MountedSource,
+  MountedSourceDiagnostics,
+  MountSourceOptions,
+  MountSourcePopupContext,
+  MountSourcePopupOptions,
+} from "./data-to-map-bridge.js";
 export {
   AUTOMATIC_MAPLIBRE_PLAN_KIND,
   AUTOMATIC_MAPLIBRE_PLAN_VERSION,
