@@ -19,6 +19,7 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 
 ### Core surfaces
 - [Shared client contract and exploration](#shared-client-contract-and-exploration)
+- [Standalone data-to-map bridge](#standalone-data-to-map-bridge)
 - [MapLibre GL JS runtime for `MapPackage`](#maplibre-gl-js-runtime-for-mappackage)
 - [Generated app preview runtime](#generated-app-preview-runtime)
 - [Request/auth bridge](#requestauth-bridge)
@@ -270,6 +271,34 @@ console.log(`Loaded ${result.features.length} features`);
 
 Capability misses throw `HonuaCapabilityNotSupportedError` (under `strict` policy). Exploration misuses throw
 `HonuaExplorationContextError`. Both are in the `HonuaError` union and pass `isHonuaError(e)`.
+
+## Standalone Data-To-Map Bridge
+
+`mountSource(map, source, options)` from `@honua/sdk-js/map` (`@experimental`) mounts any contract
+`Source` as a live, styled MapLibre layer set with no MapPackage and no Honua server — the standalone
+slice of the kernel ADR's `connection.mount(target)` contract. The bridge selects bounded GeoJSON
+materialization or the dynamic query-tile path from declared capabilities plus a result-size heuristic,
+applies geometry-appropriate default styling, wires optional click popups and hover feature-state, and
+returns one disposable handle whose `setFilter()`/`refresh()` diff-update in place.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import maplibregl from "maplibre-gl";
+import { connect } from "@honua/sdk-js";
+import { mountSource } from "@honua/sdk-js/map";
+
+const data = await connect({ endpoint: FEATURE_LAYER_URL, protocol: "auto", authorizationScopeFingerprint: "public" });
+const mounted = await mountSource(map, data.source(), {
+  popup: { factory: () => new maplibregl.Popup() },
+  hover: true,
+  fitBounds: true,
+});
+console.log(mounted.diagnostics.strategy, mounted.diagnostics.reasons);
+mounted.dispose();
+```
+
+- Full cookbook (strategy selection, options, disposal, overflow diagnostics):
+  [`docs/data-to-map-bridge.md`](./data-to-map-bridge.md).
+- Runnable fixture/live demo: [`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md).
 
 ## MapLibre GL JS Runtime For `MapPackage`
 
