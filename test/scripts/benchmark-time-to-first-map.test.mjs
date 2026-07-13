@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  ChromiumUnavailableError,
   parseArgs,
   TTFM_FORMAT,
   TTFM_LANES,
@@ -59,4 +60,15 @@ test("validateTtfmEvidence rejects warm caches, bad lanes, and missing environme
     () => validateTtfmEvidence(validEvidence({ environment: { node: "v20.19.0", platform: "", arch: "x64" } })),
     /environment\.platform is required/,
   );
+});
+
+test("auto-lane fallback is gated on ChromiumUnavailableError only", () => {
+  // Mirrors the runBenchmark gate: `--lane auto` may divert to node-query only
+  // when the browser environment is missing, never on build/render failures.
+  const shouldFallBack = (lane, error) => lane !== "browser" && error instanceof ChromiumUnavailableError;
+  assert.equal(shouldFallBack("auto", new ChromiumUnavailableError("chromium missing")), true);
+  assert.equal(shouldFallBack("browser", new ChromiumUnavailableError("chromium missing")), false);
+  assert.equal(shouldFallBack("auto", new Error("vite build failed")), false);
+  assert.equal(shouldFallBack("auto", new Error("waitForFunction timeout: map never rendered")), false);
+  assert.ok(new ChromiumUnavailableError("x") instanceof Error);
 });

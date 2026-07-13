@@ -10,14 +10,16 @@
  *   cache, so registry download + extraction cost is included.
  *
  *   Phase 2 — first map: build the deterministic `maplibre-quickstart`
- *   fixture-lane example (mock GeoServices server, NO live endpoints), serve
- *   it, and drive headless Chromium until the example reports
- *   rendered-map-ready (all five journey stages complete AND a MapLibre
- *   canvas is mounted). This is the same signal the CI quickstart timing lane
- *   gates on (`scripts/quickstart-time-to-map.mjs`).
+ *   fixture-lane example against the temp-installed published package (the
+ *   bundle resolves `@honua/sdk-js` from the phase-1 install via
+ *   `HONUA_QUICKSTART_SDK_DIR`, not repo source), serve it with the mock
+ *   GeoServices server (NO live endpoints), and drive headless Chromium until
+ *   the example reports rendered-map-ready (all five journey stages complete
+ *   AND a MapLibre canvas is mounted). This is the same signal the CI
+ *   quickstart timing lane gates on (`scripts/quickstart-time-to-map.mjs`).
  *
- *   Fallback (`--lane node-query`, or automatic when Chromium is
- *   unavailable) — instead of a browser measurement, phase 2 measures
+ *   Fallback (`--lane node-query`, or automatic ONLY when Playwright/Chromium
+ *   is unavailable) — instead of a browser measurement, phase 2 measures
  *   "fixture server ready + first successful feature query against the mock"
  *   executed with the temp-installed published package in Node. The lane is
  *   recorded in the evidence so the published figure always says exactly
@@ -51,6 +53,14 @@ export const TTFM_LANES = Object.freeze({
   browser: "browser-first-map",
   nodeQuery: "node-first-query",
 });
+
+/**
+ * Thrown when the browser lane cannot run because Playwright/Chromium is
+ * missing — the ONLY condition under which `--lane auto` may fall back to the
+ * node-query lane. Every other browser-lane failure (build error, rendered-map
+ * timeout) is a real regression and fails the benchmark.
+ */
+export class ChromiumUnavailableError extends Error {}
 
 export function parseArgs(argv) {
   const options = { output: DEFAULT_OUTPUT, lane: "auto", writeReference: false };
@@ -161,30 +171,54 @@ function measureColdInstall(workRoot) {
   return { projectDir, installMs, version: installedManifest.version };
 }
 
-async function measureBrowserFirstMap() {
+async function measureBrowserFirstMap(projectDir) {
   const startedAt = performance.now();
+
+  // Only a missing Playwright/Chromium environment may divert `--lane auto`
+  // to the node-query lane; build errors and render timeouts must fail the
+  // benchmark (see runBenchmark). Import the launcher up front so "not
+  // installed" is classified before any build work happens.
+  let chromium;
+  try {
+    ({ chromium } = await import("@playwright/test"));
+  } catch (error) {
+    throw new ChromiumUnavailableError(
+      `@playwright/test is not installed: ${error instanceof Error ? error.message : error}`,
+    );
+  }
 
   // Build the fixture-lane example exactly the way the mock server would
   // (same env contract), then serve the prebuilt output so the build is
-  // spawned once and under our Windows-safe spawn options.
+  // spawned once and under our Windows-safe spawn options. The bundle
+  // resolves @honua/sdk-js from the phase-1 temp install (published dist),
+  // not the repo source, so the evidence measures what consumers get.
   const { FIXTURE_BUILD_ENV, startQuickstartFixtureServer } = await import(
     "../examples/maplibre-quickstart/mock-server.mjs"
   );
   runNpm(["run", "demo:quickstart:build", "--silent"], {
     cwd: ROOT,
-    env: { ...process.env, ...FIXTURE_BUILD_ENV },
+    env: {
+      ...process.env,
+      ...FIXTURE_BUILD_ENV,
+      HONUA_QUICKSTART_SDK_DIR: path.join(projectDir, "node_modules", "@honua", "sdk-js"),
+    },
   });
 
   const fixtureServer = await startQuickstartFixtureServer({ build: false });
   let browser;
   try {
-    const { chromium } = await import("@playwright/test");
-    browser = await chromium.launch({
-      headless: true,
-      ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-        ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
-        : {}),
-    });
+    try {
+      browser = await chromium.launch({
+        headless: true,
+        ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+          ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+          : {}),
+      });
+    } catch (error) {
+      throw new ChromiumUnavailableError(
+        `Chromium launch failed: ${error instanceof Error ? error.message.split("\n")[0] : error}`,
+      );
+    }
     const page = await browser.newPage();
     await page.goto(fixtureServer.url, { timeout: PHASE_TIMEOUT_MS });
     await page.waitForFunction(
@@ -255,7 +289,7 @@ async function measureNodeFirstQuery(projectDir) {
 
 function laneDefinition(lane) {
   return lane === TTFM_LANES.browser
-    ? "Cold `npm install @honua/sdk-js` (empty npm cache) in a fresh temp project, plus: build the deterministic maplibre-quickstart fixture-lane example, serve it with the mock GeoServices server, and wait in headless Chromium for the rendered-map-ready signal (all five journey stages complete and a MapLibre canvas mounted). No live endpoints."
+    ? "Cold `npm install @honua/sdk-js` (empty npm cache) in a fresh temp project, plus: build the deterministic maplibre-quickstart fixture-lane example against the temp-installed published package (the bundle resolves @honua/sdk-js from the phase-1 install, not repo source), serve it with the mock GeoServices server, and wait in headless Chromium for the rendered-map-ready signal (all five journey stages complete and a MapLibre canvas mounted). No live endpoints."
     : "Cold `npm install @honua/sdk-js` (empty npm cache) in a fresh temp project, plus: start the deterministic maplibre-quickstart mock GeoServices server and run the first successful feature query against it in Node using the temp-installed published package. This lane measures dev-server-ready + first successful query against the mock, not a rendered browser map. No live endpoints.";
 }
 
@@ -272,9 +306,13 @@ export async function runBenchmark(options) {
       phase2 = await measureNodeFirstQuery(install.projectDir);
     } else {
       try {
-        phase2 = await measureBrowserFirstMap();
+        phase2 = await measureBrowserFirstMap(install.projectDir);
       } catch (error) {
-        if (options.lane === "browser") throw error;
+        // Auto-lane falls back ONLY when the browser environment itself is
+        // unavailable. A Vite build error or a rendered-map timeout with
+        // Chromium present is a real first-map regression and must fail
+        // rather than silently publish node-query evidence.
+        if (options.lane === "browser" || !(error instanceof ChromiumUnavailableError)) throw error;
         process.stdout.write(
           `  browser lane unavailable (${error instanceof Error ? error.message.split("\n")[0] : error}); falling back to node-query lane\n`,
         );
