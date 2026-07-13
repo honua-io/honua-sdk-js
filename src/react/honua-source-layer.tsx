@@ -24,15 +24,21 @@ import type {
   MountedSourceDiagnostics,
   MountSourcePopupOptions,
 } from "../map/data-to-map-bridge.js";
+import type { Renderer } from "../style/renderers.js";
 import { useHonuaMap } from "./external-map.js";
 import { useMapHoverBinding, useMapSelectionBinding } from "./selection.js";
 import { useMountedSource } from "./use-mounted-source.js";
 
 /**
- * Declarative styling for a {@link HonuaSourceLayer}: the bridge's renderer
+ * Declarative styling for a {@link HonuaSourceLayer}: the bridge's styling
  * surface (geometry restriction, per-geometry paint/layout overrides, or a
  * verbatim custom layer set). `paint` / `layout` changes are applied in place;
  * `geometry` / `layers` changes remount the layer set.
+ *
+ * The `renderer` prop also accepts a first-class renderer object from
+ * `@honua/sdk-js/style` (`classBreaksRenderer`, `uniqueValueRenderer`,
+ * `heatmapRenderer`, `clusterRenderer`); changes diff through the handle's
+ * `setRenderer` without teardown.
  *
  * @experimental
  */
@@ -40,6 +46,16 @@ export type HonuaSourceRenderer<T = Record<string, unknown>> = Pick<
   MountSourceOptions<T>,
   "geometry" | "layers" | "paint" | "layout"
 >;
+
+/** Recognize a first-class renderer object from `@honua/sdk-js/style`. */
+function isRendererObject(value: unknown): value is Renderer {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { kind?: unknown }).kind === "string" &&
+    typeof (value as { toMapLibre?: unknown }).toMapLibre === "function"
+  );
+}
 
 /** Props for {@link HonuaSourceLayer}. @experimental */
 export interface HonuaSourceLayerProps<T = Record<string, unknown>> {
@@ -52,8 +68,12 @@ export interface HonuaSourceLayerProps<T = Record<string, unknown>> {
   map?: DataToMapLibreMap | null;
   /** Filter applied to the mounted data; changes diff via `setFilter`. */
   query?: Readonly<Omit<Query<T>, "signal">>;
-  /** Renderer object: geometry restriction + paint/layout overrides or custom layers. */
-  renderer?: HonuaSourceRenderer<T>;
+  /**
+   * Styling: either a first-class renderer object from `@honua/sdk-js/style`
+   * (diffed via `setRenderer`) or a {@link HonuaSourceRenderer} bag of
+   * geometry restriction + paint/layout overrides or custom layers.
+   */
+  renderer?: HonuaSourceRenderer<T> | Renderer;
   /** Open a popup on feature click (`factory` usually `() => new maplibregl.Popup()`). */
   popup?: MountSourcePopupOptions;
   /** Toggle hover feature-state on the mounted layers (bridge `hover` option). */
@@ -110,13 +130,19 @@ export interface HonuaSourceLayerProps<T = Record<string, unknown>> {
  */
 export function HonuaSourceLayer<T = Record<string, unknown>>(props: HonuaSourceLayerProps<T>): ReactNode {
   const map = useHonuaMap(props.map);
-  const { handle } = useMountedSource<T>(map, props.source, {
+  // The renderer prop carries either a first-class renderer object (routed to
+  // the bridge's `renderer` option, diffed via setRenderer) or the
+  // geometry-default styling bag (diffed via property setters).
+  const rendererObject = isRendererObject(props.renderer) ? props.renderer : undefined;
+  const styleRenderer = rendererObject === undefined ? (props.renderer as HonuaSourceRenderer<T> | undefined) : undefined;
+  const { handle, diagnostics } = useMountedSource<T>(map, props.source, {
     enabled: props.enabled,
     query: props.query,
-    geometry: props.renderer?.geometry,
-    layers: props.renderer?.layers,
-    paint: props.renderer?.paint,
-    layout: props.renderer?.layout,
+    renderer: rendererObject,
+    geometry: styleRenderer?.geometry,
+    layers: styleRenderer?.layers,
+    paint: styleRenderer?.paint,
+    layout: styleRenderer?.layout,
     popup: props.popup,
     hover: props.hover,
     onDiagnostics: props.onDiagnostics,
@@ -133,10 +159,13 @@ export function HonuaSourceLayer<T = Record<string, unknown>>(props: HonuaSource
   });
 
   // Interactive layers exclude the polygon outline companion, mirroring the
-  // bridge's own popup/hover wiring.
+  // bridge's own popup/hover wiring. Re-read after every applied update
+  // (`diagnostics` changes) — a structural setRenderer swap replaces the
+  // owned layer ids on the same handle.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `diagnostics` signals layer-set changes; ids are read from the handle getter.
   const interactiveLayerIds = useMemo(
     () => (handle ? handle.layerIds.filter((id) => !id.endsWith("-polygon-outline")) : []),
-    [handle],
+    [handle, diagnostics],
   );
   const selection = props.selection;
   const selectionEnabled = Boolean(selection) && handle !== null;

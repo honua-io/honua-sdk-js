@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Query } from "../../src/contract/types.js";
 import type { MountSourceOptions, MountedSourceDiagnostics } from "../../src/map/data-to-map-bridge.js";
 import { HonuaMapProvider, HonuaSourceLayer, useHonuaMap, useMountedSource } from "../../src/react/index.js";
+import { classBreaksRenderer, uniqueValueRenderer } from "../../src/style/index.js";
+import type { Renderer } from "../../src/style/renderers.js";
 import { type BridgeAttrs, FakeMap, fakeBridgeSource } from "./map-support.js";
 
 afterEach(cleanup);
@@ -158,6 +160,54 @@ describe("useMountedSource", () => {
     // Still exactly one live copy of everything after the remount.
     expect(map.sources.size).toBe(1);
     expect([...map.layers.keys()]).toEqual(DEFAULT_LAYER_IDS);
+  });
+
+  it("diffs first-class renderer objects through setRenderer without teardown", async () => {
+    const map = new FakeMap();
+    const ctrl = fakeBridgeSource();
+    const priority = uniqueValueRenderer({
+      field: "priority",
+      values: [{ value: "high", color: "#b91c1c" }],
+      defaultColor: "#334155",
+    });
+    const magnitude = classBreaksRenderer({
+      field: "magnitude",
+      breaks: [{ min: 0, max: 3, color: "#fed976" }],
+      defaultColor: "#cccccc",
+    });
+
+    function RendererHarness({ renderer }: { renderer: Renderer }) {
+      useMountedSource(map, ctrl.source, { renderer });
+      return <span data-testid="mounted" />;
+    }
+
+    const view = render(
+      <StrictMode>
+        <RendererHarness renderer={priority} />
+      </StrictMode>,
+    );
+    await waitFor(() => expect(map.sources.size).toBe(1));
+    const pointBefore = map.layers.get("honua-parcels-point") as { paint: Record<string, unknown> };
+    expect(JSON.stringify(pointBefore.paint["circle-color"])).toContain("priority");
+    const addLayerCount = map.calls.filter((call) => call.startsWith("addLayer")).length;
+    const removeLayerCount = map.calls.filter((call) => call.startsWith("removeLayer")).length;
+
+    view.rerender(
+      <StrictMode>
+        <RendererHarness renderer={magnitude} />
+      </StrictMode>,
+    );
+    await waitFor(() =>
+      expect(
+        map.paintCalls.some((call) => call.layerId === "honua-parcels-point" && call.name === "circle-color"),
+      ).toBe(true),
+    );
+    // Same layer structure: setRenderer diffed paint in place — no
+    // teardown/re-add beyond the initial (StrictMode) mount cycle.
+    expect(map.calls.filter((call) => call.startsWith("addLayer")).length).toBe(addLayerCount);
+    expect(map.calls.filter((call) => call.startsWith("removeLayer")).length).toBe(removeLayerCount);
+    const pointAfter = map.layers.get("honua-parcels-point") as { paint: Record<string, unknown> };
+    expect(JSON.stringify(pointAfter.paint["circle-color"])).toContain("magnitude");
   });
 
   it("uses the latest popup render and factory props without remounting", async () => {

@@ -9,6 +9,9 @@
  *
  * Prop changes are diffed instead of torn down:
  * - `query` → `handle.setFilter(query)` (GeoJSON `setData` / tile URL rewrite);
+ * - `renderer` (a first-class renderer object from `@honua/sdk-js/style`) →
+ *   `handle.setRenderer(renderer)`, which diffs paint/layout in place and
+ *   recreates only the owned layers on a structural renderer change;
  * - `paint` / `layout` → per-property `map.setPaintProperty` /
  *   `map.setLayoutProperty` on the bridge-owned layers (falling back to a full
  *   remount when the host map does not expose those methods);
@@ -33,6 +36,7 @@ import type {
 } from "../map/data-to-map-bridge.js";
 import { mountSource } from "../map/data-to-map-bridge.js";
 import { type MapLibreGeometryKind, defaultPaint, defaultPolygonOutlinePaint } from "../map/geojson-projection.js";
+import type { Renderer } from "../style/renderers.js";
 import { useHonuaMap } from "./external-map.js";
 import { stableQueryHash } from "./query-cache.js";
 
@@ -83,7 +87,8 @@ function isAbortError(error: unknown): boolean {
 
 /**
  * Everything that requires a structural remount when it changes. `query`,
- * `paint`, and `layout` are intentionally absent (diff-updated in place);
+ * `renderer`, `paint`, and `layout` are intentionally absent (diff-updated in
+ * place through `setFilter` / `setRenderer` / property setters);
  * function-valued options (`popup.factory` / `popup.render`, callbacks) are
  * read through a ref so their identity never forces a remount.
  */
@@ -112,6 +117,22 @@ function structuralSignature<T>(options: UseMountedSourceOptions<T>): string {
         }
       : undefined,
   });
+}
+
+/**
+ * Stable identity for a renderer-object option: its serializable descriptor.
+ * Renderer instances are commonly rebuilt inline every render, so identity
+ * must come from `toJSON()`, not object reference.
+ */
+function rendererSignature(renderer: Renderer | undefined): string {
+  if (renderer === undefined) return "none";
+  try {
+    return stableQueryHash(renderer.toJSON());
+  } catch {
+    // Malformed renderer objects fail mountSource validation with a typed
+    // error; the signature only needs to be deterministic.
+    return stableQueryHash({ kind: (renderer as { kind?: unknown }).kind });
+  }
 }
 
 /**
@@ -230,6 +251,7 @@ export function useMountedSource<T = Record<string, unknown>>(
   const structuralKey = structuralSignature(options);
   const queryKey = stableQueryHash(options.query ?? null);
   const rendererKey = stableQueryHash({ paint: options.paint, layout: options.layout });
+  const rendererObjectKey = rendererSignature(options.renderer);
 
   const [remountToken, setRemountToken] = useState(0);
   const [state, setState] = useState<MountState<T>>(IDLE_STATE as MountState<T>);
@@ -237,7 +259,7 @@ export function useMountedSource<T = Record<string, unknown>>(
   // Hash keys applied by the *current* mount; diff effects compare against
   // these so a fresh mount (which reads the latest options) is never followed
   // by a redundant setFilter / repaint.
-  const appliedRef = useRef<{ query: string; renderer: string } | null>(null);
+  const appliedRef = useRef<{ query: string; renderer: string; rendererObject: string } | null>(null);
 
   // ── Mount / structural remount ─────────────────────────────────
   // biome-ignore lint/correctness/useExhaustiveDependencies: `structuralKey` hashes every structural option; the rest is read via optionsRef.
@@ -277,6 +299,7 @@ export function useMountedSource<T = Record<string, unknown>>(
         appliedRef.current = {
           query: stableQueryHash(snapshot.query ?? null),
           renderer: stableQueryHash({ paint: snapshot.paint, layout: snapshot.layout }),
+          rendererObject: rendererSignature(snapshot.renderer),
         };
         const diagnostics = handle.diagnostics;
         setState({ handle, diagnostics, error: undefined, isMounting: false });
@@ -324,6 +347,26 @@ export function useMountedSource<T = Record<string, unknown>>(
     );
   }, [handle, queryKey]);
 
+  // ── renderer object prop → setRenderer diff update ─────────────
+  useEffect(() => {
+    if (!handle || handle.state === "disposed") return;
+    const applied = appliedRef.current;
+    if (!applied || applied.rendererObject === rendererObjectKey) return;
+    applied.rendererObject = rendererObjectKey;
+    handle.setRenderer(optionsRef.current.renderer).then(
+      (diagnostics) => {
+        if (handle.state === "disposed") return;
+        setState((current) => (current.handle === handle ? { ...current, diagnostics, error: undefined } : current));
+        optionsRef.current.onDiagnostics?.(diagnostics);
+      },
+      (error) => {
+        if (handle.state === "disposed" || isAbortError(error)) return;
+        setState((current) => (current.handle === handle ? { ...current, error } : current));
+        optionsRef.current.onError?.(error);
+      },
+    );
+  }, [handle, rendererObjectKey]);
+
   // ── paint/layout props → in-place repaint (or structural remount) ──
   const previousRendererRef = useRef<Pick<MountSourceOptions<T>, "paint" | "layout"> | undefined>(undefined);
   useEffect(() => {
@@ -335,6 +378,13 @@ export function useMountedSource<T = Record<string, unknown>>(
         paint: optionsRef.current.paint,
         layout: optionsRef.current.layout,
       };
+      return;
+    }
+    if (optionsRef.current.renderer !== undefined) {
+      // A first-class renderer object owns the layer styling; the
+      // paint/layout override matrix applies only to geometry-default layers.
+      applied.renderer = rendererKey;
+      previousRendererRef.current = { paint: optionsRef.current.paint, layout: optionsRef.current.layout };
       return;
     }
     const next = { paint: optionsRef.current.paint, layout: optionsRef.current.layout };
