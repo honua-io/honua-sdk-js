@@ -88,6 +88,7 @@ function createSdkPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "deckgl"), path.join(packageRoot, "deckgl"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-tools"), path.join(packageRoot, "agent-tools"));
   copyDirectory(path.join(DIST_SRC_ROOT, "agent-safety"), path.join(packageRoot, "agent-safety"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "nl-map-control"), path.join(packageRoot, "nl-map-control"));
   copyDirectory(path.join(DIST_SRC_ROOT, "esri-compat"), path.join(packageRoot, "esri-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyDirectory(path.join(DIST_SRC_ROOT, "exploration"), path.join(packageRoot, "exploration"));
@@ -150,6 +151,10 @@ function createSdkPackage() {
       "./agent-safety": {
         types: "./agent-safety/index.d.ts",
         default: "./agent-safety/index.js",
+      },
+      "./nl-map-control": {
+        types: "./nl-map-control/index.d.ts",
+        default: "./nl-map-control/index.js",
       },
       "./exploration": {
         types: "./exploration/index.d.ts",

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071b22" />
+    <title>Honua × MapLibre — natural-language map control (plan-first, BYO LLM)</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <p class="eyebrow">Honua JavaScript SDK · <code>@honua/sdk-js/nl-map-control</code></p>
+        <h1>Natural language → inspectable plan → approved execution</h1>
+        <p class="hero-lede">
+          A canned instruction runs through a <strong>recorded fixture LLM</strong> (deterministic, no API key), compiles
+          into a serializable plan you can read, and executes only after approval. Mutating and viewport-changing plans
+          require a signed agent-safety envelope; every execution emits a receipt.
+        </p>
+        <div class="hero-proof" aria-label="Demo guarantees">
+          <span>No API key</span>
+          <span>Deterministic fixtures</span>
+          <span>Plan-first — no opaque NL execution</span>
+        </div>
+      </header>
+      <main class="layout">
+        <section class="panel controls" aria-label="Instruction">
+          <label for="instruction">Instruction (recorded scenarios)</label>
+          <select id="instruction" data-testid="instruction">
+            <option value="viewport-filter">Zoom to downtown Seattle and only show open incidents</option>
+            <option value="read-only-count">How many open incidents are visible right now?</option>
+            <option value="self-correction-unknown-tool">Fly the map to the harbor</option>
+          </select>
+          <div class="buttons">
+            <button id="propose" data-testid="propose" type="button">Propose plan</button>
+            <button id="approve" data-testid="approve" type="button" disabled>Approve &amp; execute</button>
+            <button id="reject" data-testid="reject" type="button" disabled>Reject</button>
+          </div>
+          <p id="status" data-testid="status" class="status" role="status">
+            Pick an instruction and propose a plan. Nothing executes without review.
+          </p>
+        </section>
+        <section class="panel" aria-label="Proposed plan">
+          <h2>Proposed plan <span class="hint">(what would run — inspect before approving)</span></h2>
+          <pre id="plan-json" data-testid="plan-json" class="json">—</pre>
+        </section>
+        <section class="panel" aria-label="Execution receipt">
+          <h2>Execution receipt <span class="hint">(emitted for every execution)</span></h2>
+          <pre id="receipt-json" data-testid="receipt-json" class="json">—</pre>
+        </section>
+        <section class="panel map-panel" aria-label="Map">
+          <div id="map" data-testid="map"></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
