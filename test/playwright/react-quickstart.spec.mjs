@@ -4,7 +4,7 @@ import { startReactQuickstartFixtureServer } from "../../examples/react-quicksta
 
 test.setTimeout(90_000);
 
-test("react quickstart renders provider-driven data and the honua map", async ({ page }) => {
+test("react quickstart renders external-map interop, bridge layers, and shared selection", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => {
     pageErrors.push(error.message);
@@ -15,8 +15,8 @@ test("react quickstart renders provider-driven data and the honua map", async ({
   try {
     await page.goto(fixtureServer.url);
 
-    // The HonuaMap runtime is ready (proves the map component owns its lifecycle
-    // under React StrictMode without leaking / erroring).
+    // The externally-created maplibre-gl map is live (proves the app-owned map
+    // lifecycle survives React StrictMode without leaking / erroring).
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_REACT_QUICKSTART__?.mapReady === true))
       .toBe(true);
@@ -26,8 +26,24 @@ test("react quickstart renders provider-driven data and the honua map", async ({
     await expect(page.getByTestId("feature-count")).toHaveText("3");
     await expect(page.getByTestId("feature-list").locator("li")).toHaveCount(3);
 
-    // The MapLibre canvas mounted inside HonuaMap.
+    // The MapLibre canvas mounted inside the app-owned container.
     await expect(page.locator(".map-canvas canvas")).toBeVisible();
+
+    // HonuaSourceLayer mounted the queried source through the bridge without
+    // reporting an error.
+    const bridgeError = await page.evaluate(() => window.__HONUA_REACT_QUICKSTART__?.error ?? null);
+    expect(bridgeError).toBeNull();
+
+    // Selection is shared: toggling a sidebar row updates the selection
+    // context (and, through the map binding, MapLibre feature-state).
+    await expect(page.getByTestId("selection-count")).toHaveText("0 selected");
+    await page.getByTestId("feature-list").locator("li button").first().click();
+    await expect(page.getByTestId("selection-count")).toContainText("1 selected");
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_REACT_QUICKSTART__?.selectedCount))
+      .toBe(1);
+    await page.getByTestId("selection-clear").click();
+    await expect(page.getByTestId("selection-count")).toHaveText("0 selected");
 
     expect(pageErrors).toEqual([]);
   } finally {

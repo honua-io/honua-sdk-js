@@ -190,6 +190,9 @@ jobs:
       - name: Verify llms.txt freshness
         run: npm run verify:llms
 
+      - name: Verify comparison page freshness
+        run: npm run docs:comparison:check
+
       - name: Verify documentation version manifest
         run: npm run docs:versions:check
 

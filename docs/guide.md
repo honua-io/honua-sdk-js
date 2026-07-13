@@ -303,6 +303,9 @@ mounted.dispose();
 - Full cookbook (strategy selection, options, disposal, overflow diagnostics):
   [`docs/data-to-map-bridge.md`](./data-to-map-bridge.md).
 - Runnable fixture/live demo: [`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md).
+- First-class renderer objects (`classBreaksRenderer`, `uniqueValueRenderer`, `heatmapRenderer`,
+  `clusterRenderer` on `/style`), `mountSource({ renderer })` + `setRenderer()` swaps, and temporal
+  playback (`createTemporalPlayback` on `/map`): [`docs/renderers.md`](./renderers.md).
 
 ## MapLibre GL JS Runtime For `MapPackage`
 

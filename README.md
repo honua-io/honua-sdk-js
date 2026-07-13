@@ -8,15 +8,50 @@
 [![node](https://img.shields.io/node/v/@honua/sdk-js?color=43853d)](./package.json)
 [![docs](https://img.shields.io/badge/docs-honua--io.github.io-2b6cb0)](https://honua-io.github.io/honua-sdk-js/)
 
-> One geospatial client for GeoServices, OGC APIs, WMS/WMTS/WFS, STAC, and OData —
-> with first-class TypeScript, a MapLibre runtime, and a drop-in ArcGIS migration path.
+> **MapLibre gives you the map. Honua gives you everything else.**
 
-`@honua/sdk-js` is the JavaScript / TypeScript client for the [Honua](https://github.com/honua-io)
-geospatial platform. It speaks the open protocols your data already uses (Esri GeoServices,
-OGC API Features / Tiles / Maps / Processes, STAC, WMS, WMTS, WFS 2.0, OData v4), exposes a
-single protocol-neutral `Dataset` → `Source` → `Query` → `Result` contract on top of them, and
-ships a MapLibre-first map runtime plus an Esri compatibility layer so existing ArcGIS apps
-can migrate file-by-file.
+`@honua/sdk-js` is the integration layer for the open map stack: typed clients for the
+protocols your data already speaks (Esri GeoServices, OGC API Features / Tiles / Maps /
+Processes, STAC, WMS, WMTS, WFS 2.0, OData v4), a one-call data→map bridge and MapLibre
+runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatibility
+layer with a codemod — everything around the renderer, so MapLibre (2D) and Cesium (3D)
+can do what they do best.
+
+**Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and is
+removed at 6.0 — planned for **Q1 2027**. If your app constructs one, that code stops
+compiling and running when you take the 6.0 upgrade. Run
+`npm run scan:arcgis:widgets -- ./src` for a per-file readiness report, then read the
+[widget-removal survival guide](./docs/widget-survival-guide.md) — every deprecated
+widget mapped to its Honua/MapLibre disposition.
+
+## A public endpoint to a styled map
+
+Nine application lines. No Honua server, no API key, no account — a public Esri Living
+Atlas FeatureServer becomes a styled, interactive MapLibre map:
+
+```ts doc-test=compile
+import { connect } from "@honua/sdk-js";
+import { mountSource } from "@honua/sdk-js/map";
+import maplibregl from "maplibre-gl";
+
+const endpoint = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0";
+const map = new maplibregl.Map({ container: "map", style: "https://demotiles.maplibre.org/style.json", center: [-98, 39], zoom: 3 });
+await map.once("load");
+const data = await connect({ endpoint, protocol: "auto", authorizationScopeFingerprint: "public" });
+await mountSource(map, data.source(), {
+  popup: { factory: () => new maplibregl.Popup(), fields: ["NAME", "Seats_2020"] },
+  hover: true,
+  fitBounds: true,
+});
+```
+
+For those nine lines the bridge selected a materialization strategy from the source's
+declared capabilities, installed geometry-appropriate default styling, wired click popups
+and hover feature-state, fit the map to the data, and returned one owned handle
+(`setFilter()` diff-updates in place; `dispose()` removes everything the bridge added).
+Run it locally with `npm run demo:endpoint-to-map`
+([`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md)); the full cookbook
+is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
 **Release status: beta** (`0.1.0-beta`). The 22-entrypoint stable tier is frozen and guarded
 by an API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
@@ -27,22 +62,39 @@ machine-readable surface inventory in [`config/public-surface.json`](./config/pu
 quickstart, the full guide corpus, the [TypeDoc API reference](https://honua-io.github.io/honua-sdk-js/api/),
 and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 
-- **Protocol-neutral.** One `Source.query(...)` call works against GeoServices, OGC, WFS, OData
-  and friends. Capability misses throw `HonuaCapabilityNotSupportedError` instead of returning
-  empty results.
-- **TypeScript first.** `strict` + `verbatimModuleSyntax`, exported types for every public symbol,
-  declaration maps, and JSDoc on the public client surface.
-- **Migrate, don't rewrite.** `FeatureLayerCompat`, `MapImageLayerCompat`, `MapViewCompat`,
-  `SceneViewCompat`, `WebMapCompat`, and a safe codemod (`honua-migrate`) keep existing ArcGIS
-  code running while you cut over.
-- **Open runtime.** `loadMapPackage(...)` + `HonuaMapRuntime` render a Honua `MapPackage` on
-  MapLibre GL JS. Cesium, kepler.gl, and OGC web-map sources are first-class.
+## Pick your path
+
+| | 🗺️ **Building on MapLibre** | 🚦 **Leaving ArcGIS** |
+| --- | --- | --- |
+| **You are…** | adding typed data access, styling, and interactions to a MapLibre (or brand-new) app | facing the classic-widget removal at ArcGIS JS 6.0 (planned Q1 2027) |
+| **Start** | [Standalone quickstart](./docs/standalone-quickstart.md) — the SDK against any public endpoint, no Honua server | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner |
+| **Then** | [Data-to-map bridge cookbook](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` strategies, styling, filters | [Widget survival guide](./docs/widget-survival-guide.md) — all 38 deprecated widgets mapped to automated / assisted / manual dispositions |
+| **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`esri-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) |
+| **Runnable proof** | [`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md) — the headline above, live | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end |
 
 ## Where it fits
 
-`@honua/sdk-js` is a typed geospatial *service client* and migration toolkit — it is
-**not a rendering engine**. 2D rendering rides MapLibre GL JS and 3D rides Cesium, so the
-honest comparisons are the service-client libraries, not the renderers:
+The rendering war is settled — MapLibre is the open 2D engine of record and Cesium owns
+open 3D. What the open stack has been missing is the layer *above* the renderer: service
+clients, styling, interactions, editing, geocoding, migration tooling — the glue every
+team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
+
+- **Protocol-neutral data access.** One `Source.query(...)` call works against
+  GeoServices, OGC, WFS, OData and friends. Capability misses throw
+  `HonuaCapabilityNotSupportedError` instead of returning empty results.
+- **Data to map in one call.** `connect()` + `mountSource()` turn a bare endpoint into a
+  styled, interactive MapLibre layer; `loadMapPackage(...)` + `HonuaMapRuntime` render
+  server-authored `MapPackage`s. Cesium, kepler.gl, and OGC web-map sources are first-class.
+- **TypeScript first.** `strict` + `verbatimModuleSyntax`, exported types for every public
+  symbol, declaration maps, and JSDoc on the public client surface.
+- **Migrate, don't rewrite.** `FeatureLayerCompat`, `MapImageLayerCompat`, `MapViewCompat`,
+  `SceneViewCompat`, `WebMapCompat`, and a safe codemod (`honua-migrate`) keep existing ArcGIS
+  code running while you cut over.
+- **No provider lock-in for the extras.** Geocoding and routing are provider-pluggable
+  interfaces with open-source adapters, not a facade for one vendor's API
+  ([`docs/geocoding-routing-providers.md`](./docs/geocoding-routing-providers.md)).
+
+The honest comparisons are the service-client libraries, not the renderers:
 
 - vs **`@esri/arcgis-rest-js`** — that's Esri's own client for Esri services only. Honua speaks
   GeoServices *plus* OGC API / WFS / WMS / WMTS / STAC / OData under one typed contract, with a
@@ -53,6 +105,11 @@ honest comparisons are the service-client libraries, not the renderers:
 - vs **`openlayers` / `maplibre-gl` directly** — pick those when you need a renderer and are
   happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
   client, the ArcGIS migration path, or the server-authored `MapPackage` runtime.
+
+The numbers behind those claims — generated bundle sizes, a protocol-coverage matrix against
+raw MapLibre / `@esri/arcgis-rest-js` / OpenLayers, and a scripted time-to-first-map benchmark
+with a runnable repro (`npm run bench:ttfm`) — live in
+[`docs/comparison.md`](./docs/comparison.md).
 
 **No Honua server required.** The protocol clients work against **any** standards-speaking
 server: an existing ArcGIS Server / ArcGIS Online endpoint, any OGC API Features server
@@ -65,6 +122,27 @@ servers. See the [server-optional quickstart](./docs/standalone-quickstart.md) a
 A [Honua Server](https://github.com/honua-io/honua-server) is the upgrade path, not the entry
 fee: it adds server-authored `MapPackage`s, realtime, collaboration, MCP/AI surfaces, and the
 OGC API Tiles / Maps / Processes / Records families (still facade-bound today).
+
+## What Honua does not do
+
+In the spirit of the [migration punch list](./docs/migration-punch-list.md), the
+non-goals are explicit rather than implied:
+
+- **It is not a rendering engine, on purpose.** 2D rendering rides
+  [MapLibre GL JS](https://maplibre.org/) and 3D rides [CesiumJS](https://cesium.com/platform/cesiumjs/);
+  Honua does not fork, wrap-and-hide, or compete with either. If you need renderer
+  features (custom shaders, globe projections, visual effects), take them from the
+  renderer directly — Honua stays out of the way.
+- **No 3D parity with ArcGIS SceneView.** Esri's 3D moat is real and we say so. Honua's
+  `SceneViewCompat` covers 2D-safe behavior only, and 3D-only widgets (e.g. `Daylight`)
+  are honestly marked `no-equivalent` in the
+  [widget survival guide](./docs/widget-survival-guide.md). For SceneView-class 3D, use
+  [CesiumJS](https://cesium.com/platform/cesiumjs/) or stay on the
+  [ArcGIS Maps SDK](https://developers.arcgis.com/javascript/latest/) for that part of
+  your app.
+- **Offline is experimental.** The `/offline` subpath is a replica-sync specification
+  without a production storage engine; it is excluded from the 1.0 narrative until a real
+  engine ships.
 
 ## Install
 
@@ -138,7 +216,9 @@ in.
 
 Full per-entrypoint table (min + gzip, generated, not hand-written):
 [`docs/bundle-sizes.md`](./docs/bundle-sizes.md). Refresh it with
-`npm run report:bundle-sizes`.
+`npm run report:bundle-sizes`. For how these sizes stack up against
+`@arcgis/core` and friends, see the generated
+[comparison page](./docs/comparison.md).
 
 ## 60-second quickstart
 
@@ -267,8 +347,15 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 30 executable examples: 11 flagship, 6 recipe, 9 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 31 executable examples: 11 flagship, 6 recipe, 10 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
 <!-- sample-catalog:end -->
+
+Linking to Honua from a plugin directory or ecosystem list? Point at the
+[server-optional standalone quickstart](./docs/standalone-quickstart.md)
+([hosted walkthrough](https://honua-io.github.io/honua-sdk-js/guides/standalone-quickstart.html),
+[source](./examples/standalone-quickstart/README.md)) — CI keeps it green with a Playwright
+browser smoke on every PR. Prepared directory entries live in
+[`docs/listings/maplibre-plugin-directory.md`](./docs/listings/maplibre-plugin-directory.md).
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
 
@@ -300,8 +387,10 @@ tables, and backwards-compatibility policy live in:
 - [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md) — what each protocol supports
 - [`docs/sdk-surface-alignment.md`](./docs/sdk-surface-alignment.md) — cross-language naming & semver policy
 - [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage()` / `HonuaMapRuntime`
+- [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` standalone bridge cookbook
 - [`docs/react.md`](./docs/react.md) — React bindings (`@honua/react`): provider, hooks, and map components
 - [`docs/geometry.md`](./docs/geometry.md) — `@honua/sdk-js/geometry` curated turf/proj4 ops (buffer/area/measure/simplify/reproject) + the `geometryEngine` compat shim
+- [`docs/geocoding-routing-providers.md`](./docs/geocoding-routing-providers.md) — provider-pluggable geocoding & routing adapters
 - [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/app-platform/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
 - [`docs/docs-samples-ownership.md`](./docs/docs-samples-ownership.md) — SDK/site ownership boundary for versioned docs and executable samples

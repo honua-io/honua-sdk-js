@@ -57,6 +57,19 @@ function geometryRuntimeDependencies() {
   return deps;
 }
 
+// npm discoverability (issue #499, REQ-003): every published @honua/* package
+// carries the shared discovery terms plus its own focus terms. Keep the lists
+// honest and non-spammy (~15 keywords max per package).
+const SHARED_KEYWORDS = ["gis", "geospatial", "maplibre", "typescript"];
+
+function packageKeywords(focusKeywords) {
+  const keywords = [...SHARED_KEYWORDS, ...focusKeywords];
+  if (keywords.length > 15) {
+    throw new Error(`keyword list exceeds the 15-entry discoverability budget: ${keywords.join(", ")}`);
+  }
+  return keywords;
+}
+
 resetOutputRoot();
 
 createSdkPackage();
@@ -124,7 +137,9 @@ function createSdkPackage() {
 
   writePackageJson(packageRoot, {
     name: "@honua/sdk",
-    description: "Honua JavaScript SDK core client",
+    description:
+      "Core Honua GIS client — typed queries for ArcGIS/Esri GeoServices, OGC API, WFS, WMS, STAC, and OData, with a MapLibre map bridge",
+    keywords: packageKeywords(["arcgis", "esri", "ogc-api", "wfs", "wms", "stac", "odata", "geocoding", "routing"]),
     main: "./index.js",
     types: "./index.d.ts",
     exports: {
@@ -251,12 +266,19 @@ function createCompatPackage() {
   // geometry package, so the compat tarball ships it and pulls turf/proj4.
   copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
+  // esri-compat/renderer-objects.js projects compat renderers through the
+  // first-class renderer objects (webmap/convert-renderer.js -> style/renderers.js),
+  // so the compat tarball ships both directories (issue #497).
+  copyDirectory(path.join(DIST_SRC_ROOT, "webmap"), path.join(packageRoot, "webmap"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "style"), path.join(packageRoot, "style"));
   copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "esri-compat-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
 
   writePackageJson(packageRoot, {
     name: "@honua/sdk-esri-compat",
-    description: "Esri compatibility bridge APIs for Honua JavaScript migration",
+    description:
+      "ArcGIS JS API compatibility layer for migrating Esri apps to the open Honua + MapLibre stack",
+    keywords: packageKeywords(["arcgis", "arcgis-migration", "esri", "compatibility"]),
     main: "./index.js",
     types: "./index.d.ts",
     exports: {
@@ -301,6 +323,7 @@ function createGeometryPackage() {
   writePackageJson(packageRoot, {
     name: "@honua/geometry",
     description: "Curated turf/proj4 client-side geometry operations for the Honua SDK",
+    keywords: packageKeywords(["geometry", "turf", "proj4", "buffer", "reprojection"]),
     main: "./geometry/index.js",
     types: "./geometry/index.d.ts",
     exports: {
@@ -351,6 +374,12 @@ function createMigrationPackage() {
     path.join(DIST_SRC_ROOT, "style", "specification.d.ts"),
     path.join(packageRoot, "style", "specification.d.ts"),
   );
+  // webmap/convert-renderer.js builds first-class renderer objects (issue
+  // #497), so the migration package also ships the style renderer module and
+  // its /expr dependency.
+  copyFile(path.join(DIST_SRC_ROOT, "style", "renderers.js"), path.join(packageRoot, "style", "renderers.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "style", "renderers.d.ts"), path.join(packageRoot, "style", "renderers.d.ts"));
+  copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   copyMigrationCoreTypeSupport(packageRoot);
   copyFile(path.join(DIST_SRC_ROOT, "migration-entry.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "migration-entry.d.ts"), path.join(packageRoot, "index.d.ts"));
@@ -359,6 +388,7 @@ function createMigrationPackage() {
   writePackageJson(packageRoot, {
     name: "@honua/honua-migrate",
     description: "ArcGIS-to-Honua migration scanner, codemod, and reporting tools",
+    keywords: packageKeywords(["arcgis", "arcgis-migration", "esri", "codemod", "migration"]),
     main: "./index.js",
     types: "./index.d.ts",
     bin: {
@@ -429,6 +459,7 @@ function createReactPackage() {
   writePackageJson(packageRoot, {
     name: "@honua/react",
     description: "React bindings for the Honua SDK: provider, hooks, and map components",
+    keywords: packageKeywords(["react", "hooks", "map", "arcgis", "ogc-api", "geocoding"]),
     main: "./react/index.js",
     types: "./react/index.d.ts",
     exports: {
@@ -527,6 +558,7 @@ function createAppPlatformPackage() {
 
   writePackageJson(packageRoot, {
     name: "@honua/app-platform",
+    keywords: packageKeywords(["cesium", "webmap", "app-platform"]),
     description:
       "Honua application-platform surfaces: app-shell, workspace, scene, operator, studio, and hosted-product clients",
     main: "./app-workspace/index.js",
@@ -587,6 +619,7 @@ function writePackageJson(packageRoot, overrides) {
     name: overrides.name,
     version,
     description: overrides.description,
+    keywords: overrides.keywords,
     license: rootPackageJson.license,
     // npm provenance (trusted publishing) rejects tarballs whose
     // repository.url does not match the repo the attestation names.

@@ -18,17 +18,52 @@ This file concatenates the documents indexed in `llms.txt` for single-fetch inge
 [![node](https://img.shields.io/node/v/@honua/sdk-js?color=43853d)](./package.json)
 [![docs](https://img.shields.io/badge/docs-honua--io.github.io-2b6cb0)](https://honua-io.github.io/honua-sdk-js/)
 
-> One geospatial client for GeoServices, OGC APIs, WMS/WMTS/WFS, STAC, and OData —
-> with first-class TypeScript, a MapLibre runtime, and a drop-in ArcGIS migration path.
+> **MapLibre gives you the map. Honua gives you everything else.**
 
-`@honua/sdk-js` is the JavaScript / TypeScript client for the [Honua](https://github.com/honua-io)
-geospatial platform. It speaks the open protocols your data already uses (Esri GeoServices,
-OGC API Features / Tiles / Maps / Processes, STAC, WMS, WMTS, WFS 2.0, OData v4), exposes a
-single protocol-neutral `Dataset` → `Source` → `Query` → `Result` contract on top of them, and
-ships a MapLibre-first map runtime plus an Esri compatibility layer so existing ArcGIS apps
-can migrate file-by-file.
+`@honua/sdk-js` is the integration layer for the open map stack: typed clients for the
+protocols your data already speaks (Esri GeoServices, OGC API Features / Tiles / Maps /
+Processes, STAC, WMS, WMTS, WFS 2.0, OData v4), a one-call data→map bridge and MapLibre
+runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatibility
+layer with a codemod — everything around the renderer, so MapLibre (2D) and Cesium (3D)
+can do what they do best.
 
-**Release status: beta** (`0.1.0-beta`). The 22-entrypoint stable tier is frozen and guarded
+**Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and is
+removed at 6.0 — planned for **Q1 2027**. If your app constructs one, that code stops
+compiling and running when you take the 6.0 upgrade. Run
+`npm run scan:arcgis:widgets -- ./src` for a per-file readiness report, then read the
+[widget-removal survival guide](./docs/widget-survival-guide.md) — every deprecated
+widget mapped to its Honua/MapLibre disposition.
+
+## A public endpoint to a styled map
+
+Nine application lines. No Honua server, no API key, no account — a public Esri Living
+Atlas FeatureServer becomes a styled, interactive MapLibre map:
+
+```ts doc-test=compile
+import { connect } from "@honua/sdk-js";
+import { mountSource } from "@honua/sdk-js/map";
+import maplibregl from "maplibre-gl";
+
+const endpoint = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0";
+const map = new maplibregl.Map({ container: "map", style: "https://demotiles.maplibre.org/style.json", center: [-98, 39], zoom: 3 });
+await map.once("load");
+const data = await connect({ endpoint, protocol: "auto", authorizationScopeFingerprint: "public" });
+await mountSource(map, data.source(), {
+  popup: { factory: () => new maplibregl.Popup(), fields: ["NAME", "Seats_2020"] },
+  hover: true,
+  fitBounds: true,
+});
+```
+
+For those nine lines the bridge selected a materialization strategy from the source's
+declared capabilities, installed geometry-appropriate default styling, wired click popups
+and hover feature-state, fit the map to the data, and returned one owned handle
+(`setFilter()` diff-updates in place; `dispose()` removes everything the bridge added).
+Run it locally with `npm run demo:endpoint-to-map`
+([`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md)); the full cookbook
+is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
+
+**Release status: beta** (`0.1.0-beta`). The 20-entrypoint stable tier is frozen and guarded
 by an API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
 [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md) and the
 machine-readable surface inventory in [`config/public-surface.json`](./config/public-surface.json).
@@ -37,22 +72,39 @@ machine-readable surface inventory in [`config/public-surface.json`](./config/pu
 quickstart, the full guide corpus, the [TypeDoc API reference](https://honua-io.github.io/honua-sdk-js/api/),
 and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 
-- **Protocol-neutral.** One `Source.query(...)` call works against GeoServices, OGC, WFS, OData
-  and friends. Capability misses throw `HonuaCapabilityNotSupportedError` instead of returning
-  empty results.
-- **TypeScript first.** `strict` + `verbatimModuleSyntax`, exported types for every public symbol,
-  declaration maps, and JSDoc on the public client surface.
-- **Migrate, don't rewrite.** `FeatureLayerCompat`, `MapImageLayerCompat`, `MapViewCompat`,
-  `SceneViewCompat`, `WebMapCompat`, and a safe codemod (`honua-migrate`) keep existing ArcGIS
-  code running while you cut over.
-- **Open runtime.** `loadMapPackage(...)` + `HonuaMapRuntime` render a Honua `MapPackage` on
-  MapLibre GL JS. Cesium, kepler.gl, and OGC web-map sources are first-class.
+## Pick your path
+
+| | 🗺️ **Building on MapLibre** | 🚦 **Leaving ArcGIS** |
+| --- | --- | --- |
+| **You are…** | adding typed data access, styling, and interactions to a MapLibre (or brand-new) app | facing the classic-widget removal at ArcGIS JS 6.0 (planned Q1 2027) |
+| **Start** | [Standalone quickstart](./docs/standalone-quickstart.md) — the SDK against any public endpoint, no Honua server | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner |
+| **Then** | [Data-to-map bridge cookbook](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` strategies, styling, filters | [Widget survival guide](./docs/widget-survival-guide.md) — all 38 deprecated widgets mapped to automated / assisted / manual dispositions |
+| **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`esri-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) |
+| **Runnable proof** | [`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md) — the headline above, live | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end |
 
 ## Where it fits
 
-`@honua/sdk-js` is a typed geospatial *service client* and migration toolkit — it is
-**not a rendering engine**. 2D rendering rides MapLibre GL JS and 3D rides Cesium, so the
-honest comparisons are the service-client libraries, not the renderers:
+The rendering war is settled — MapLibre is the open 2D engine of record and Cesium owns
+open 3D. What the open stack has been missing is the layer *above* the renderer: service
+clients, styling, interactions, editing, geocoding, migration tooling — the glue every
+team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
+
+- **Protocol-neutral data access.** One `Source.query(...)` call works against
+  GeoServices, OGC, WFS, OData and friends. Capability misses throw
+  `HonuaCapabilityNotSupportedError` instead of returning empty results.
+- **Data to map in one call.** `connect()` + `mountSource()` turn a bare endpoint into a
+  styled, interactive MapLibre layer; `loadMapPackage(...)` + `HonuaMapRuntime` render
+  server-authored `MapPackage`s. Cesium, kepler.gl, and OGC web-map sources are first-class.
+- **TypeScript first.** `strict` + `verbatimModuleSyntax`, exported types for every public
+  symbol, declaration maps, and JSDoc on the public client surface.
+- **Migrate, don't rewrite.** `FeatureLayerCompat`, `MapImageLayerCompat`, `MapViewCompat`,
+  `SceneViewCompat`, `WebMapCompat`, and a safe codemod (`honua-migrate`) keep existing ArcGIS
+  code running while you cut over.
+- **No provider lock-in for the extras.** Geocoding and routing are provider-pluggable
+  interfaces with open-source adapters, not a facade for one vendor's API
+  ([`docs/geocoding-routing-providers.md`](./docs/geocoding-routing-providers.md)).
+
+The honest comparisons are the service-client libraries, not the renderers:
 
 - vs **`@esri/arcgis-rest-js`** — that's Esri's own client for Esri services only. Honua speaks
   GeoServices *plus* OGC API / WFS / WMS / WMTS / STAC / OData under one typed contract, with a
@@ -63,6 +115,11 @@ honest comparisons are the service-client libraries, not the renderers:
 - vs **`openlayers` / `maplibre-gl` directly** — pick those when you need a renderer and are
   happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
   client, the ArcGIS migration path, or the server-authored `MapPackage` runtime.
+
+The numbers behind those claims — generated bundle sizes, a protocol-coverage matrix against
+raw MapLibre / `@esri/arcgis-rest-js` / OpenLayers, and a scripted time-to-first-map benchmark
+with a runnable repro (`npm run bench:ttfm`) — live in
+[`docs/comparison.md`](./docs/comparison.md).
 
 **No Honua server required.** The protocol clients work against **any** standards-speaking
 server: an existing ArcGIS Server / ArcGIS Online endpoint, any OGC API Features server
@@ -75,6 +132,27 @@ servers. See the [server-optional quickstart](./docs/standalone-quickstart.md) a
 A [Honua Server](https://github.com/honua-io/honua-server) is the upgrade path, not the entry
 fee: it adds server-authored `MapPackage`s, realtime, collaboration, MCP/AI surfaces, and the
 OGC API Tiles / Maps / Processes / Records families (still facade-bound today).
+
+## What Honua does not do
+
+In the spirit of the [migration punch list](./docs/migration-punch-list.md), the
+non-goals are explicit rather than implied:
+
+- **It is not a rendering engine, on purpose.** 2D rendering rides
+  [MapLibre GL JS](https://maplibre.org/) and 3D rides [CesiumJS](https://cesium.com/platform/cesiumjs/);
+  Honua does not fork, wrap-and-hide, or compete with either. If you need renderer
+  features (custom shaders, globe projections, visual effects), take them from the
+  renderer directly — Honua stays out of the way.
+- **No 3D parity with ArcGIS SceneView.** Esri's 3D moat is real and we say so. Honua's
+  `SceneViewCompat` covers 2D-safe behavior only, and 3D-only widgets (e.g. `Daylight`)
+  are honestly marked `no-equivalent` in the
+  [widget survival guide](./docs/widget-survival-guide.md). For SceneView-class 3D, use
+  [CesiumJS](https://cesium.com/platform/cesiumjs/) or stay on the
+  [ArcGIS Maps SDK](https://developers.arcgis.com/javascript/latest/) for that part of
+  your app.
+- **Offline is experimental.** The `/offline` subpath is a replica-sync specification
+  without a production storage engine; it is excluded from the 1.0 narrative until a real
+  engine ships.
 
 ## Install
 
@@ -148,7 +226,9 @@ in.
 
 Full per-entrypoint table (min + gzip, generated, not hand-written):
 [`docs/bundle-sizes.md`](./docs/bundle-sizes.md). Refresh it with
-`npm run report:bundle-sizes`.
+`npm run report:bundle-sizes`. For how these sizes stack up against
+`@arcgis/core` and friends, see the generated
+[comparison page](./docs/comparison.md).
 
 ## 60-second quickstart
 
@@ -277,8 +357,15 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 30 executable examples: 11 flagship, 6 recipe, 9 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 31 executable examples: 11 flagship, 6 recipe, 10 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
 <!-- sample-catalog:end -->
+
+Linking to Honua from a plugin directory or ecosystem list? Point at the
+[server-optional standalone quickstart](./docs/standalone-quickstart.md)
+([hosted walkthrough](https://honua-io.github.io/honua-sdk-js/guides/standalone-quickstart.html),
+[source](./examples/standalone-quickstart/README.md)) — CI keeps it green with a Playwright
+browser smoke on every PR. Prepared directory entries live in
+[`docs/listings/maplibre-plugin-directory.md`](./docs/listings/maplibre-plugin-directory.md).
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
 
@@ -310,8 +397,10 @@ tables, and backwards-compatibility policy live in:
 - [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md) — what each protocol supports
 - [`docs/sdk-surface-alignment.md`](./docs/sdk-surface-alignment.md) — cross-language naming & semver policy
 - [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage()` / `HonuaMapRuntime`
+- [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` standalone bridge cookbook
 - [`docs/react.md`](./docs/react.md) — React bindings (`@honua/react`): provider, hooks, and map components
 - [`docs/geometry.md`](./docs/geometry.md) — `@honua/sdk-js/geometry` curated turf/proj4 ops (buffer/area/measure/simplify/reproject) + the `geometryEngine` compat shim
+- [`docs/geocoding-routing-providers.md`](./docs/geocoding-routing-providers.md) — provider-pluggable geocoding & routing adapters
 - [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/app-platform/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
 - [`docs/docs-samples-ownership.md`](./docs/docs-samples-ownership.md) — SDK/site ownership boundary for versioned docs and executable samples
@@ -392,12 +481,10 @@ correctly use this SDK:
     `@honua/sdk-js/geocoding`, `@honua/sdk-js/exploration`, `@honua/sdk-js/interactions`,
     `@honua/sdk-js/filter-registry`, `@honua/sdk-js/style`, `@honua/sdk-js/map`,
     `@honua/sdk-js/realtime`, `@honua/sdk-js/react`, `@honua/sdk-js/geometry`,
-    `@honua/sdk-js/cli`, `@honua/sdk-js/agent-tools`, `@honua/sdk-js/agent-safety`.
-    The agent surface's security posture is documented in the
-    [agent-safety threat model](./docs/agent-safety-threat-model.md).
-  - **Experimental subpath-only APIs** (not re-exported from the root barrels):
-    `/nl-map-control`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`,
-    `/diagnostics`, `/routing` — with `/query-planner` below, 8 experimental subpaths in total.
+    `@honua/sdk-js/cli`.
+  - **Experimental subpath-only APIs** (not re-exported from the root barrels): `/agent-tools`,
+    `/agent-safety`, `/nl-map-control`, `/geoparquet`, `/plugin`, `/deckgl`, `/offline`,
+    `/diagnostics`, `/routing` — with `/query-planner` below, 10 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
@@ -523,8 +610,6 @@ entrypoints are stable across minor versions.
 | `@honua/sdk-js/react` | React provider, hooks, and map components (optional `react` / `react-dom` peers; published standalone as `@honua/react`) |
 | `@honua/sdk-js/geometry` | Curated turf/proj4 client-side geometry ops (buffer/area/simplify/reproject) |
 | `@honua/sdk-js/cli` | Programmatic `run()` entrypoint for the `honua` command-line client |
-| `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions and the bounded tool executor (MCP/OpenAI compatible); the in-repo `@honua/mcp-server` consumes it. See the [agent-safety threat model](./docs/agent-safety-threat-model.md). |
-| `@honua/sdk-js/agent-safety` | Bounded runtime validation, effect budgets, signed approval envelopes, authenticated single-use consumption, context revalidation, and deterministic execution-receipt verification for JSON-compatible plans ([threat model](./docs/agent-safety-threat-model.md)). |
 
 ## Experimental subpath entrypoints
 
@@ -538,6 +623,8 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 | Subpath | What it gives you |
 |---------|-------------------|
+| `@honua/sdk-js/agent-tools` | Agent-facing JSON Schema tool definitions (MCP/OpenAI compatible). Stays in the stable package (the in-repo `@honua/mcp-server` depends on it) but its symbols remain `@experimental` — not semver-frozen — while the AI surface settles. |
+| `@honua/sdk-js/agent-safety` | Bounded runtime validation, effect budgets, signed approval envelopes, authenticated single-use consumption, context revalidation, and deterministic execution-receipt verification for JSON-compatible plans. |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
@@ -814,7 +901,7 @@ current API reference without following the migration notes.
 
 This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 30 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 31 executable examples
 
 | Sample | Tier | Support | Data | Disposition | Demonstration |
 | --- | --- | --- | --- | --- | --- |
@@ -845,6 +932,7 @@ Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effecti
 | [`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | advanced | supported | fixture | merge | Discovers STAC collections and previews supported imagery assets. |
 | [`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | flagship | supported | hybrid | merge | Connects a public Esri service directly to MapLibre without a Honua server. |
 | [`storytelling-25d-map`](../../examples/storytelling-25d-map/README.md) | advanced | supported | hybrid | merge | Combines terrain, extrusion, OGC overlays, and route playback in a guided story. |
+| [`temporal-playback`](../../examples/temporal-playback/README.md) | advanced | experimental | fixture | keep | Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems(). |
 | [`terrain-rgb-elevation`](../../examples/terrain-rgb-elevation/README.md) | advanced | supported | hybrid | merge | Reads Terrain-RGB tiles for point elevation and route profiles. |
 | [`unified-ops-workspace`](../../examples/unified-ops-workspace/README.md) | advanced | deprecated | fixture | retire | Composes incident command, analysis, and shared workspace state. |
 | [`web-components-basic`](../../examples/web-components-basic/README.md) | reference | deprecated | fixture | retire | Demonstrates the SDK custom-element controls against a map. |
@@ -1554,6 +1642,171 @@ This repo still depends on one bounded external child ticket for long-term stagi
 
 - `honua-server`: expose and document a stable staging quickstart dataset for JS SDK CI, including the canonical
   service, layer, auth policy, and non-empty geometry contract.
+
+---
+
+# File: docs/comparison.md
+
+<!-- GENERATED FILE — do not edit by hand. -->
+<!-- Regenerate with: npm run docs:comparison -->
+<!-- Inputs: docs/bundle-sizes.md, docs/protocol-capability-matrix.md, docs/data/time-to-first-map.json, node_modules/maplibre-gl. -->
+<!-- Freshness is enforced by npm run docs:comparison:check. -->
+
+# How Honua compares
+
+**MapLibre gives you the map. Honua gives you everything else.** `@honua/sdk-js` is a typed,
+protocol-neutral geospatial *service client* and migration toolkit that rides open renderers —
+it is **not** a rendering engine, so this page does not compare rendering. It compares the
+things Honua actually claims: the bytes you ship, the protocols you get a real client for,
+and how fast a new project reaches a working map.
+
+Three ground rules keep this page honest:
+
+1. **Every Honua number is generated, never hand-edited.** This whole file is produced by
+   `npm run docs:comparison` from committed, regenerable inputs; CI fails when it drifts
+   (`npm run docs:comparison:check`). See [Methodology](#methodology-and-freshness).
+2. **Every external number carries a source URL and an as-of date.**
+3. **Non-goals are stated.** Esri's 3D/SceneView stack and MapLibre's rendering quality are
+   not competitions we enter; see the
+   [three-lanes strategy](./decisions/market-strategy-2026-three-lanes.md).
+
+## Bundle size
+
+Honua per-entrypoint sizes below are projected from the generated
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-13 at commit `40f98f5`;
+esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
+builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
+
+| What you import | Minified | Gzip |
+| --- | ---: | ---: |
+| Full root entrypoint: connect → query → explain → mount workflow | 369.4 KiB | 97.1 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 192.5 KiB | 48.9 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 17.7 KiB | 6.6 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 237.5 KiB | 62.1 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 960.0 KiB | 238.9 KiB |
+| Geocoding client | 12.5 KiB | 3.9 KiB |
+| Routing client | 6.1 KiB | 2.5 KiB |
+
+For context, the rendering engine itself — `maplibre-gl` 5.21.1, measured locally from
+this repo's pinned dependency (`dist/maplibre-gl.js`) — is 1024.9 KiB minified / **267.9 KiB gzip**.
+A complete Honua + MapLibre app therefore ships roughly the engine plus whichever Honua
+entrypoints it imports.
+
+### Against the alternatives
+
+**`@arcgis/core` 4.30 (ArcGIS Maps SDK for JavaScript).** Esri's own automated build metrics for its minimal `@arcgis/core` map samples (esbuild, Angular, React, Vue, Rollup, Webpack lanes). As of 2024-06-27 (4.30, the last core-sample metrics Esri published in jsapi-resources):
+the main bundle alone is 1.31–1.49 MB minified (0.36–0.42 MB gzip), a
+simple map view loads **3.5–4.1 MB of JavaScript** at startup, and the
+on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, retrieved 2026-07-13):
+<https://github.com/Esri/jsapi-resources/blob/9fe7d8cc709c5daf3a342e921e897d459955b347/core-samples/.metrics/4.30.0.csv>.
+
+To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
+apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 369.4 KiB ≈
+1.36 MB) against Esri's reported startup JavaScript total
+(3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
+0.36 MB over the wire with gzip. Esri's totals also grow with widgets;
+these figures are its *minimal* samples.
+
+**`@esri/arcgis-rest-js`** (<https://developers.arcgis.com/arcgis-rest-js/>, retrieved 2026-07-13).
+Esri's lightweight REST client family. Small per-package footprint; speaks ArcGIS services only, no map runtime. If all you need is small requests against ArcGIS-only services, it is a
+fine, lighter choice — the comparison that matters is protocol coverage (below), not bytes.
+
+**OpenLayers (`ol`)** (<https://openlayers.org/>, retrieved 2026-07-13). A full renderer + formats library, not a typed multi-protocol service client; size depends heavily on tree-shaken imports.
+
+## Protocol coverage
+
+What you get a first-party, *typed* client for — versus what you hand-roll. Honua's column is
+derived from the maintained
+[protocol × capability matrix](./protocol-capability-matrix.md) (per-operation detail lives
+there; capability misses throw `HonuaCapabilityNotSupportedError` instead of returning empty
+results). Competitor columns are deliberately coarse: ✓ first-party support, ◐ partial or
+manual assembly, — not provided.
+
+| Protocol lane | Honua SDK | raw `maplibre-gl` | `@esri/arcgis-rest-js` | OpenLayers |
+| --- | --- | --- | --- | --- |
+| Esri GeoServices (FeatureServer query/edit) | ✓ typed client | — | ✓ | ◐ (a) |
+| Esri GeoServices (MapServer / ImageServer render) | ✓ typed client | ◐ (b) | — | ✓ |
+| OGC API Features (query/edit) | ✓ typed client | ◐ (c) | — | ◐ (d) |
+| OGC API Tiles / Maps | ✓ typed client | ◐ (b) | — | ✓ |
+| OGC API Records (catalog search) | ✓ typed client | — | — | — |
+| STAC (cross-collection search) | ✓ typed client | — | — | ◐ (e) |
+| WFS 2.0 (typed filters, transactions) | ✓ typed client | — | — | ◐ (f) |
+| WMS (GetMap + typed GetFeatureInfo) | ✓ typed client | ◐ (b) | — | ✓ |
+| WMTS (capabilities-driven tiles) | ✓ typed client | ◐ (b) | — | ✓ |
+| OData v4 (tabular + spatial query, edits) | ✓ typed client | — | — | — |
+| GeoParquet (client-side SQL via DuckDB-WASM) | ✓ typed client (lazy peer) | — | — | — |
+| PMTiles archives | ✓ auto-registered protocol | ◐ (g) | — | ◐ (h) |
+| Geocoding (provider-pluggable) | ✓ Nominatim / Photon / Pelias / Honua | ◐ (i) | ✓ (j) | — |
+| Routing (provider-pluggable) | ✓ OSRM / Valhalla / Honua | — | ✓ (j) | — |
+| ArcGIS migration codemod | ✓ `honua-migrate` + esri-compat | — | — | — |
+
+Notes:
+
+- (a) OpenLayers ships an `EsriJSON` format; service discovery, paging, auth, and edits are hand-rolled requests.
+- (b) Raw MapLibre renders XYZ/raster endpoints you template by hand; there is no capabilities negotiation, feature query, or typed error surface.
+- (c) Point a MapLibre GeoJSON source at an `items` URL; paging, filters, CRS negotiation, and edits are yours to build.
+- (d) OpenLayers parses GeoJSON and has OGC API tile sources, but has no OGC API Features items client (paging, filters, transactions).
+- (e) Via the third-party `ol-stac` package, not OpenLayers itself.
+- (f) OpenLayers ships `ol/format/WFS` (GML parsing, filter builders); request orchestration, paging, and transaction bookkeeping are manual.
+- (g) Via the official `pmtiles` JS package: install it and call `maplibregl.addProtocol` yourself. Honua auto-registers the protocol on map attach.
+- (h) Via the third-party `ol-pmtiles` package.
+- (i) Via the `maplibre-gl-geocoder` control plugin, which needs a geocoding API adapter you supply.
+- (j) `@esri/arcgis-rest-geocoding` / `-routing` speak Esri's ArcGIS location services only (token/credit metering applies); Honua's providers are pluggable across open services.
+
+## Time to first map
+
+One scripted, reproducible measurement — from *nothing installed* to a working map against
+the deterministic fixture lane (mock GeoServices server; **no live endpoints**):
+
+| Phase | What is measured | Time |
+| --- | --- | ---: |
+| Cold install | `npm install @honua/sdk-js` (v0.1.0-beta.0) into a fresh temp project with an empty npm cache | 14.0 s |
+| First map | rendered-map-ready in headless Chromium (all five quickstart journey stages complete and a MapLibre canvas mounted) | 7.5 s |
+| **Total** | | **21.4 s** |
+
+Reference run: 2026-07-13, Node v24.7.0, win32/x64,
+22 logical CPUs, lane `browser-first-map`. Exact definition of the measured signal:
+
+> Cold `npm install @honua/sdk-js` (empty npm cache) in a fresh temp project, plus: build the deterministic maplibre-quickstart fixture-lane example, serve it with the mock GeoServices server, and wait in headless Chromium for the rendered-map-ready signal (all five journey stages complete and a MapLibre canvas mounted). No live endpoints.
+
+Reproduce on your machine from a clean checkout:
+
+```bash
+npm ci
+npm run bench:ttfm            # prints install / first-map / total; evidence JSON in test-results/
+```
+
+**Caveats, stated plainly.** The figure is machine-, network-, and registry-dependent — treat
+it as a reference point and rerun it locally, not as a guarantee. The mock lane deliberately
+excludes live-service latency (that is the point: it measures the SDK + toolchain path, not
+someone's server). When Chromium is unavailable the script falls back to the
+`node-first-query` lane and the evidence says exactly that — install + fixture-server ready +
+first successful query, with no browser rendering claimed.
+
+## Methodology and freshness
+
+Every number on this page is regenerable from a clean checkout with one command:
+
+| Figure | Regenerate with |
+| --- | --- |
+| Honua per-entrypoint sizes | `npm run report:bundle-sizes` (budgets enforced in CI by `npm run verify:bundle-budgets`) |
+| `maplibre-gl` engine size | measured from the pinned `node_modules/maplibre-gl` during `npm run docs:comparison` |
+| Protocol lanes (Honua column) | derived from [`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md) during `npm run docs:comparison` |
+| Time to first map | `npm run bench:ttfm -- --write-reference` |
+| This page | `npm run docs:comparison` |
+
+This file is **generated** (`scripts/generate-comparison-page.mjs`) and CI fails when it is
+hand-edited or stale (`npm run docs:comparison:check`), mirroring the README's
+generated-bundle-table discipline. External figures are cited claims with pinned source URLs
+and retrieval dates in the generator source — update them there, with a new date, or not at
+all.
+
+## Try it
+
+- [60-second quickstart](../README.md#60-second-quickstart) — public endpoint in, typed features out.
+- [`standalone-quickstart`](./standalone-quickstart.md) — the CI-kept-green, server-optional example: any public GeoServices endpoint → styled MapLibre map.
+- [Demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html) — all runnable examples.
 
 ---
 
@@ -3282,14 +3535,8 @@ and subpath-only so the root and browser bundles do not absorb it.
 
 # Safe agent plan boundary
 
-`@honua/sdk-js/agent-safety` is a deterministic trust boundary
-between untrusted plan proposals and host-owned effect execution. It is part of
-the SDK's stable tier (semver-protected; see
-[`docs/decisions/agent-surface-stabilization.md`](./decisions/agent-surface-stabilization.md)),
-and its security posture — envelope forgery, replay, effect-budget bypass,
-receipt tampering, plan-fingerprint mismatch — is documented with per-threat
-conformance tests in the
-[agent-safety threat model](./agent-safety-threat-model.md). It validates
+`@honua/sdk-js/agent-safety` is an experimental, deterministic trust boundary
+between untrusted plan proposals and host-owned effect execution. It validates
 JSON-compatible structured data, produces an immutable dry run and effect
 budget, binds a reviewer signature to the exact plan and policy, revalidates
 current source context, executes an exact approved operation through a
@@ -3500,200 +3747,6 @@ integration can automate that declaration in a later slice.
 
 ---
 
-# File: docs/agent-safety-threat-model.md
-
-# Agent-safety threat model
-
-`@honua/sdk-js/agent-safety` is the deterministic trust boundary between
-untrusted agent plan proposals and host-owned effect execution, and
-`@honua/sdk-js/agent-tools` is the bounded runtime-action surface those plans
-ultimately drive. Both entrypoints are in the SDK's **stable tier** (see
-[`docs/decisions/agent-surface-stabilization.md`](./decisions/agent-surface-stabilization.md)),
-so the contracts described here are semver-protected: security reviews may cite
-this document knowing a breaking change to any envelope or verification step
-requires a major version.
-
-This document enumerates the threats the surface is designed to stop, the
-mechanism that stops each one, and the conformance test that exercises it.
-Companion reference: [`docs/agent-safety.md`](./agent-safety.md) (full API
-walkthrough) and [`docs/nl-map-control.md`](./nl-map-control.md) (the NL layer
-that consumes this boundary end to end).
-
-## Trust boundaries and assumptions
-
-- **The plan proposer is untrusted.** Plans, operations, approvals, contexts,
-  evidence, and receipts all enter as `unknown` and are descriptor-snapshotted,
-  bounded (`AGENT_SAFETY_HARD_LIMITS`), and frozen before any digest or
-  signature check. Accessors are rejected without invocation; `Proxy` inputs
-  are out of contract.
-- **Key custody and persistence are host-owned.** `AgentEnvelopeSigner` /
-  `AgentEnvelopeVerifier` and the atomic `AgentApprovalUseConsumer` replay
-  store are host callbacks. The SDK guarantees *what* is signed and verified,
-  not *where* keys live.
-- **The SDK never invokes an effect on its own.** Dry runs are side-effect
-  free; `executeAgentPlanStep` is the single explicit effect boundary and only
-  runs a host executor after authorization, single-use consumption, and a
-  durable start audit.
-
-## Threats and mitigations
-
-Every threat below is exercised by a committed conformance test; the tests run
-in the default `npm test` suite.
-
-### 1. Envelope forgery
-
-**Threat.** An attacker fabricates or alters an approval envelope (or the dry
-run it binds to) to authorize a plan no reviewer signed — forging digests,
-swapping the approver, or presenting an approval for a different plan/policy.
-
-**Mitigation.** An approval binds `planDigest`, `policyDigest`,
-`bindingsDigest`, and `evaluatedAt` to one exact dry run, which is itself
-recomputed (`revalidateDryRun`) from the supplied plan and policy — a forged
-dry run cannot digest-match. The envelope digest is recomputed over the
-canonical unsigned payload, the signer identity (algorithm + key ID) must match
-the configured verifier, and the host `verifier.verify` must return exactly
-`true`. Any mutated field fails `integrity-failed` or `signature-invalid`
-before an effect is possible.
-
-**Tests.**
-- `test/agent-safety.test.ts` — "rejects forged dry runs, signature tampering,
-  expiry, and context drift"
-- `test/agent-safety.test.ts` — "binds the exact plan/policy/context and
-  permits only budget narrowing"
-- `test/agent-safety.test.ts` — "cannot issue a receipt from public digests
-  without host-authenticated consumption evidence"
-
-### 2. Replay (single-use consumption)
-
-**Threat.** A valid, signed approval is presented twice — concurrently or
-sequentially — to run the same approved step more than once (duplicate
-mutation, publish, job, …).
-
-**Mitigation.** Approvals are `use: "single"` per step. Authorization requires
-the host `AgentApprovalUseConsumer` to *atomically* consume the
-(approval digest, step ID, input digest) key and return an authenticated
-consumption record (nonce, consumption time, opaque token), which the SDK
-immediately re-verifies with the same store. A second consumption attempt
-returns nothing and fails `policy-denied`; the consumption record is bound into
-the receipt so post-hoc verification also proves single use. Expiry
-(`expiresAt`, bounded `maxClockSkewMs`) limits the replay window of any stolen
-envelope.
-
-**Tests.**
-- `test/agent-safety.test.ts` — "binds exact operation input and atomically
-  consumes each approved step once"
-- `test/agent-execution.test.ts` — "does not invoke an effect after
-  start-audit failure, executor mismatch, or replay"
-- `test/agent-safety.test.ts` — "rejects forged dry runs, signature tampering,
-  expiry, and context drift" (expiry arm)
-
-### 3. Effect-budget bypass
-
-**Threat.** A plan, approval, or execution result exceeds the reviewed
-row/byte/step/effect budget — a widened approval, an aggregate that hides a
-per-step overrun, an oversized operation payload, or an executor returning more
-data than approved.
-
-**Mitigation.** `dryRunAgentPlan` computes a frozen `AgentEffectBudgetV1` and
-rejects plans over policy ceilings (which are themselves capped by
-`AGENT_SAFETY_HARD_LIMITS`). Approvals may only *narrow* step limits — widening
-fails `policy-denied`, multi-step narrowing requires explicit `stepLimits`, and
-aggregate `approvedRows`/`approvedBytes` must equal the per-step sums. Operation
-parameters are bounded by policy byte/node/depth budgets before the replay
-store is touched. Execution evidence and receipts exceeding the approved
-per-step rows/bytes are refused before signing and on verification.
-
-**Tests.**
-- `test/agent-safety.test.ts` — "binds the exact plan/policy/context and
-  permits only budget narrowing"
-- `test/agent-safety.test.ts` — "requires explicit per-step allocation when
-  narrowing a multi-step approval"
-- `test/agent-safety.test.ts` — "enforces the policy operation-parameter budget
-  before replay-store consumption"
-- `test/agent-safety.test.ts` — "rejects over-budget evidence before receipt
-  signing and detects receipt tampering" (over-budget arm)
-- `test/agent-execution.test.ts` — "bounds wide results before reading excess
-  values and uses one captured array length"
-
-### 4. Receipt tampering
-
-**Threat.** An execution receipt is altered after signing — rows, result
-digest, approval binding, step ID, or use digest — to misrepresent what was
-executed or how much data was returned; or a receipt is minted from publicly
-visible digests without a real authenticated consumption.
-
-**Mitigation.** `issueAgentExecutionReceipt` signs the canonical union of
-evidence and the plan/policy/bindings/approval digests; the receipt digest is
-recomputed on verification and the receipt signer identity must match the
-verifier. `verifyAgentExecutionReceipt` deterministically repeats every
-issuance check (budget, binding, consumption authentication via the host
-`verify` callback, approval signature, digest equality) and rejects any
-modified field. Receipts are append-only evidence: nothing in the SDK mutates
-or re-issues one.
-
-**Tests.**
-- `test/agent-safety.test.ts` — "rejects over-budget evidence before receipt
-  signing and detects receipt tampering"
-- `test/agent-safety.test.ts` — "cannot issue a receipt from public digests
-  without host-authenticated consumption evidence"
-- `test/agent-safety-evidence.test.ts` — "fails closed on plan, discovery,
-  capability, and receipt substitution"
-
-### 5. Plan-fingerprint mismatch
-
-**Threat.** The operation a host is about to execute quietly differs from what
-the reviewer approved: same step ID and tool but a substituted query-plan body,
-different fields, a different source, or drifted parameters — including a
-"fingerprint-consistent" forgery where the attacker recomputes content hashes
-over altered content.
-
-**Mitigation.** Every plan step carries `queryPlan.fingerprint` (from
-`@honua/sdk-js/query-planner`), a canonical `parametersDigest`, and an
-`inputDigest` recomputed from the visible tool/effect/source/query-plan/fields
-identity — the claims cannot disagree at parse time. At authorization,
-`digestAgentOperationInput` recomputes the digest from the *proposed* operation
-and requires exact equality with the approved step's digest before the replay
-store is consumed; any divergence (id, fingerprint, fields, parameters) fails
-`integrity-failed`. The same binding is revalidated when receipts are issued
-and verified. In the NL layer, plan execution additionally re-derives effects
-and tool identity from plan content, so recomputed-fingerprint forgeries are
-rejected there too.
-
-**Tests.**
-- `test/agent-safety.test.ts` — "rejects an operation whose query-plan
-  fingerprint differs from the approved step"
-- `test/agent-safety.test.ts` — "binds exact operation input and atomically
-  consumes each approved step once" (query-plan id divergence arm)
-- `test/nl-map-control.test.ts` — "rejects a fingerprint-consistent plan whose
-  executed call differs from its declared tool" / "…that launders action
-  effects as read-only" / "…whose step names an unknown tool"
-
-## Adjacent hardening (context, not primary threats)
-
-- **Context drift** — approvals are re-verified against the *current* source
-  bindings (schema/source versions, data mode, provenance freshness); drift
-  fails `context-mismatch` ("rejects forged dry runs, signature tampering,
-  expiry, and context drift", "rechecks provenance freshness at the execution
-  clock").
-- **Secret exfiltration through tool results** — the `/agent-tools` executor
-  deeply redacts credential-bearing metadata before results reach a model
-  (`test/agent-tools.test.ts`), and audit events carry pseudonymous digests
-  only (`test/agent-execution.test.ts` — "persists only digests for every
-  free-text plan and source identity").
-- **Hostile host-callback shapes** — accessors on executors, stores, and
-  callbacks are rejected without invocation (`test/agent-execution.test.ts`).
-
-## What this model does not cover
-
-The SDK does not manage signing keys, persist the replay store or audit log,
-authenticate approvers, or constrain what a *host-authorized* executor does
-with data it legitimately received. Prompt-injection resistance of any LLM
-driving the surface is out of scope here; the mitigation posture is that a
-compromised model can only propose plans, and every effect still requires a
-signed, budgeted, single-use, context-checked approval.
-
----
-
 # File: docs/nl-map-control.md
 
 # Natural-language map control (`@honua/sdk-js/nl-map-control`)
@@ -3869,10 +3922,6 @@ the plan's effects).
 
 - [`docs/agent-safety.md`](./agent-safety.md) — the envelope, budget, audit,
   and receipt contracts this layer builds on.
-- [`docs/agent-safety-threat-model.md`](./agent-safety-threat-model.md) — the
-  threat model for the (stable) `agent-tools`/`agent-safety` surface underneath
-  this layer: envelope forgery, replay, effect-budget bypass, receipt
-  tampering, and plan-fingerprint mismatch, each with its conformance test.
 - [`examples/nl-map-control/`](../examples/nl-map-control/) — deterministic
   MapLibre demo with a fixture LLM, plan/receipt JSON panes, and an approve
   button.
@@ -6115,6 +6164,10 @@ export function Root() {
 | `useCapabilities(options?)` | Fetch the server's capability / compatibility descriptor. |
 | `useMapRuntime()` | The `HonuaMapRuntime` owned by the enclosing `HonuaMap`. |
 | `useRealtime(factory, deps?)` | Open a realtime subscription and tear it down on unmount. |
+| `useHonuaMap(map?)` *(experimental)* | Resolve the nearest MapLibre map (explicit arg → `HonuaMapProvider` → `HonuaMap`). |
+| `useMountedSource(map, source, options?)` *(experimental)* | Mount a `Source` through the data-to-map bridge for the component lifetime. |
+| `useSelection()` / `useHover()` *(experimental)* | Read/write the shared selection & hover state of the enclosing `HonuaSelectionProvider`. |
+| `useMapSelectionBinding(map, options)` / `useMapHoverBinding(map, options)` *(experimental)* | Two-way-bind MapLibre layers to the shared selection/hover state. |
 
 ```tsx doc-test=compile
 import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
@@ -6162,6 +6215,53 @@ To keep the query key stable, memoize the `query` object (or pass a literal) and
 the dataset `sources`. `refetch()` forces a fresh fetch; `useHonuaQueryCache()`
 exposes `invalidate(key)` / `clear()` for manual cache control.
 
+### Stale-while-revalidate, Suspense, and error boundaries (experimental)
+
+Three `useQuery` options extend the cache semantics (all `@experimental`):
+
+- **`staleTimeMs`** — when a consumer (re)mounts and the cached result is at
+  least this old, the cached data keeps rendering while a background refetch
+  runs (`isFetching: true`, `data` preserved). `0` revalidates on every mount;
+  omitted keeps the historical never-revalidate behavior. The snapshot's
+  `dataUpdatedAt` reports the last successful fetch time.
+- **`suspense`** — the hook suspends while the *first* fetch (no cached data)
+  is in flight, and throws errors to the nearest error boundary. Background
+  refetches never suspend. The render-phase fetch kick is idempotent, so
+  StrictMode does not double-fetch.
+- **`throwOnError`** — throw query errors during render without Suspense.
+  Typed errors (e.g. `HonuaCapabilityNotSupportedError` with its `capability` /
+  `protocol` fields) arrive at the boundary intact.
+
+```tsx doc-test=compile
+import { Suspense } from "react";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { useDataset, useQuery } from "@honua/react";
+
+function Rows() {
+  const dataset = useDataset({
+    id: "ops",
+    sources: [
+      {
+        id: "incidents",
+        protocol: "geoservices-feature-service",
+        locator: { url: "https://honua.example.com", serviceId: "incidents", layerId: 0 },
+        capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+      },
+    ],
+  });
+  const { data } = useQuery(dataset.source("incidents"), { where: "1=1" }, { suspense: true, staleTimeMs: 30_000 });
+  return <p>{data?.features.length ?? 0} rows</p>;
+}
+
+export function Panel() {
+  return (
+    <Suspense fallback={<p>Loading…</p>}>
+      <Rows />
+    </Suspense>
+  );
+}
+```
+
 ## Map components
 
 `HonuaMap` owns a `HonuaMapRuntime` over a MapLibre map. `HonuaLayer` and
@@ -6193,32 +6293,158 @@ By default `HonuaMap` creates and owns the MapLibre map (dynamically importing
 `maplibre-gl`). Pass `mapLibre={maplibregl}` to supply the module explicitly, or
 `mapOptions` to tune the constructor.
 
-### Composing with an externally-owned map (`@vis.gl/react-maplibre`)
+## External-map interop (`@vis.gl/react-maplibre`) — experimental
 
-When another library owns the map (e.g. `@vis.gl/react-maplibre`'s `<Map>`),
-pass the existing instance to `HonuaMap` via `map`. `HonuaMap` then attaches its
-runtime to that map and **does not** remove it on unmount — the owner keeps
-control of the map lifecycle; Honua only disposes its runtime.
+Every map-attached hook/component resolves its MapLibre map through the same
+chain: an explicit `map` prop/argument wins, then the nearest
+**`HonuaMapProvider`** (or enclosing `HonuaMap`, which publishes the same
+context). The map is duck-typed on the MapLibre `Map` instance —
+`@vis.gl/react-maplibre` is *not* a dependency; hand over the raw instance from
+its `useMap()` and everything works:
 
-```tsx doc-test=skip reason="partial excerpt requires application host context"
+```tsx doc-test=skip reason="requires the @vis.gl/react-maplibre host application"
 import { Map, useMap } from "@vis.gl/react-maplibre";
-import { HonuaMap, HonuaLayer } from "@honua/react";
+import { HonuaMapProvider, HonuaSourceLayer } from "@honua/react";
 
-function HonuaOverlay({ mapPackage }) {
+function HonuaOverlay({ source }) {
   const { current } = useMap();
-  const map = current?.getMap();
-  if (!map) return null;
   return (
-    <HonuaMap package={mapPackage} map={map}>
-      <HonuaLayer layer={{ id: "incidents", type: "circle", source: "incidents" }} />
-    </HonuaMap>
+    <HonuaMapProvider map={current?.getMap() ?? null}>
+      <HonuaSourceLayer source={source} hover />
+    </HonuaMapProvider>
   );
 }
 
 <Map initialViewState={{ longitude: -157.84, latitude: 21.31, zoom: 10 }} mapStyle={style}>
-  <HonuaOverlay mapPackage={mapPackage} />
+  <HonuaOverlay source={source} />
 </Map>;
 ```
+
+The provider never mutates or removes the map — the owner keeps the lifecycle.
+A plain, self-created `maplibre-gl` map works identically (see
+`examples/react-quickstart/`).
+
+## Bridge components: `HonuaSourceLayer` and `useMountedSource` — experimental
+
+`HonuaSourceLayer` is the declarative face of the data-to-map bridge
+(`mountSource` from `@honua/sdk-js/map`): it mounts a contract `Source` as a
+styled, interactive MapLibre layer set inside the enclosing map and owns the
+full disposal on unmount. React 18/19 **StrictMode double-mounts neither leak
+MapLibre resources nor double-add layers** — each effect run performs one fresh
+mount and its cleanup aborts/disposes it.
+
+Prop changes are **diffed in place, never torn down**:
+
+- `query` → `handle.setFilter(query)` (GeoJSON `setData` / tile URL rewrite);
+- `renderer.paint` / `renderer.layout` → per-property `setPaintProperty` /
+  `setLayoutProperty` on the bridge-owned layers (hosts without those methods
+  fall back to a transactional remount);
+- structural options (`renderer.geometry`, `renderer.layers`, `strategy`,
+  `sourceId`, `queryTiles`, …) → remount.
+
+```tsx doc-test=compile
+import type { DataToMapLibreMap } from "@honua/sdk-js/map";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { HonuaSourceLayer, useDataset } from "@honua/react";
+
+export function OpenIncidents({ map }: { map: DataToMapLibreMap | null }) {
+  const dataset = useDataset({
+    id: "ops",
+    sources: [
+      {
+        id: "incidents",
+        protocol: "geoservices-feature-service",
+        locator: { url: "https://honua.example.com", serviceId: "incidents", layerId: 0 },
+        capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+      },
+    ],
+  });
+  return (
+    <HonuaSourceLayer
+      map={map}
+      source={dataset.source("incidents")}
+      query={{ where: "STATUS = 'OPEN'" }}
+      renderer={{ paint: { point: { "circle-color": "#38bdf8" } } }}
+      hover
+      onDiagnostics={(diagnostics) => console.log(diagnostics.strategy, diagnostics.featureCount)}
+    />
+  );
+}
+```
+
+`useMountedSource(map, source, options)` is the same lifecycle as a hook: it
+returns `{ handle, diagnostics, error, isMounting, refresh }` for imperative
+composition (pass `undefined` as `map` to resolve it from context). Mount
+failures and update failures surface on `error` / `onError`; the bridge's
+strategy explanation and overflow reporting arrive through `diagnostics` /
+`onDiagnostics`.
+
+## Shared selection & hover: `HonuaSelectionProvider` — experimental
+
+`HonuaSelectionProvider` owns selection/hover state built on the interactions
+layer's source-qualified targets, so map and non-map components stay in sync:
+
+- `useSelection()` → `{ selected, isSelected, select, deselect, toggle, clear }`;
+- `useHover()` → `{ hovered, isHovered, setHovered, clearHovered }`;
+- `HonuaSourceLayer selection` (or `useMapSelectionBinding`) two-way-binds the
+  mounted layers: map clicks toggle the shared selection, and every selection
+  change — from the map *or* a sidebar — is mirrored onto MapLibre
+  feature-state (default key `"selected"`) for paint expressions;
+- `useMapHoverBinding` publishes the map-hovered feature; visual hover
+  feature-state stays with the bridge's `hover` option.
+
+```tsx doc-test=compile
+import type { DataToMapLibreMap } from "@honua/sdk-js/map";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { HonuaMapProvider, HonuaSelectionProvider, HonuaSourceLayer, useDataset, useSelection } from "@honua/react";
+
+function Sidebar() {
+  const { selected, clear } = useSelection();
+  return (
+    <button type="button" onClick={clear}>
+      {selected.length} selected
+    </button>
+  );
+}
+
+function ParcelsLayer() {
+  const dataset = useDataset({
+    id: "ops",
+    sources: [
+      {
+        id: "parcels",
+        protocol: "geoservices-feature-service",
+        locator: { url: "https://honua.example.com", serviceId: "parcels", layerId: 0 },
+        capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
+      },
+    ],
+  });
+  return <HonuaSourceLayer source={dataset.source("parcels")} hover selection />;
+}
+
+export function Workspace({ map }: { map: DataToMapLibreMap | null }) {
+  return (
+    <HonuaSelectionProvider>
+      <HonuaMapProvider map={map}>
+        <ParcelsLayer />
+      </HonuaMapProvider>
+      <Sidebar />
+    </HonuaSelectionProvider>
+  );
+}
+```
+
+Pair it with a selection-aware paint expression, e.g.
+`["case", ["boolean", ["feature-state", "selected"], false], "#f59e0b", "#2dd4bf"]`.
+Feature-state needs stable feature ids: give the source descriptor a
+`schema.primaryKey` (the bridge promotes it to MapLibre feature ids).
+
+### Attaching a `HonuaMap` runtime to an external map
+
+`HonuaMap` (the `MapPackage` runtime component) also accepts an existing map
+instance via its `map` prop; it then attaches its runtime and **does not**
+remove the map on unmount — the owner keeps control; Honua only disposes its
+runtime.
 
 ## Web components vs. React
 
@@ -6236,9 +6462,14 @@ Both talk to the same `HonuaClient` and runtime, so you can mix them.
 
 ## Runnable example
 
-`examples/react-quickstart/` is a Vite app wiring `HonuaProvider`, `useDataset`,
-`useQuery`, `useCapabilities`, `HonuaMap`, `HonuaLayer`, and `HonuaPopup`
-together under `StrictMode`:
+`examples/react-quickstart/` is a Vite app running under `StrictMode` that
+wires the whole depth-pass surface together: an **externally-created plain
+`maplibre-gl` map** (standing in for `@vis.gl/react-maplibre`'s `<Map>`)
+published through `HonuaMapProvider`, a `HonuaSourceLayer` with a
+selection-aware `renderer` prop, popups/hover from the bridge, and a sidebar
+list sharing selection with the map through `HonuaSelectionProvider` — plus
+the existing `HonuaProvider` / `useDataset` / `useQuery` / `useCapabilities`
+data panel:
 
 ```bash
 npm run demo:react-quickstart          # dev server
@@ -6408,15 +6639,14 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-13 at commit `c887b7e`._
+_Generated 2026-07-13 at commit `40f98f5`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
 | `.` (root) | 369.4 KiB | 382.0 KiB | 97.1 KiB | 101.2 KiB |
-| `/honua` | 480.3 KiB | 510.3 KiB | 126.7 KiB | 135.7 KiB |
+| `/honua` | 484.7 KiB | 510.3 KiB | 127.9 KiB | 135.7 KiB |
 | `/contract` | 237.5 KiB | 261.1 KiB | 62.1 KiB | 66.1 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 39.8 KiB | 43.7 KiB | 13.1 KiB | 14.4 KiB |
-| `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 50.2 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
 | `/nl-map-control` | 60.6 KiB | 65.8 KiB | 18.7 KiB | 20.4 KiB |
 | `/runtime` | 429.4 KiB | 458.7 KiB | 112.7 KiB | 119.5 KiB |
@@ -6424,17 +6654,17 @@ _Generated 2026-07-13 at commit `c887b7e`._
 | `/offline` | 23.6 KiB | 26.0 KiB | 7.7 KiB | 8.5 KiB |
 | `/query-planner` (worker runtime injected) | 73.3 KiB | 80.6 KiB | 21.7 KiB | 23.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 74.7 KiB | 77.8 KiB | 23.8 KiB | 24.9 KiB |
-| `/esri-compat` | 951.0 KiB | 1026.2 KiB | 235.7 KiB | 253.6 KiB |
+| `/esri-compat` | 960.0 KiB | 1026.2 KiB | 238.9 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
-| `/webmap` | 19.5 KiB | 21.5 KiB | 5.9 KiB | 6.5 KiB |
+| `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 12.5 KiB | 13.7 KiB | 3.9 KiB | 4.3 KiB |
 | `/routing` | 6.1 KiB | 6.6 KiB | 2.5 KiB | 2.7 KiB |
 | `/auth` | 12.0 KiB | 12.8 KiB | 3.8 KiB | 4.0 KiB |
-| `/style` | 37.5 KiB | 39.9 KiB | 8.4 KiB | 9.1 KiB |
-| `/map` | 136.3 KiB | 149.8 KiB | 37.8 KiB | 41.6 KiB |
+| `/style` | 46.7 KiB | 51.4 KiB | 11.3 KiB | 12.4 KiB |
+| `/map` | 147.6 KiB | 149.8 KiB | 41.3 KiB | 41.6 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 17.2 KiB | 17.8 KiB | 6.2 KiB | 6.5 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
-| `/react` (react/react-dom external) | 372.3 KiB | 405.7 KiB | 96.2 KiB | 104.5 KiB |
+| `/react` (react/react-dom external) | 410.7 KiB | 446.7 KiB | 107.7 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 370.1 KiB | 382.8 KiB | 97.4 KiB | 101.5 KiB |
 | browser ESM (`./browser`) | 368.8 KiB | 381.4 KiB | 97.1 KiB | 101.2 KiB |
@@ -6638,8 +6868,6 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
 - React bindings (provider, hooks, map components): `@honua/sdk-js/react` — see [`docs/react.md`](./react.md)
 - Client-side geometry ops + reprojection (curated turf/proj4): `@honua/sdk-js/geometry` — see [`docs/geometry.md`](./geometry.md)
-- Agent tool surface (bounded JSON-Schema map tools + executor, MCP/OpenAI compatible; stable tier): `@honua/sdk-js/agent-tools` — see the [agent-safety threat model](./agent-safety-threat-model.md)
-- Agent safety boundary (signed approvals, effect budgets, single-use consumption, receipts; stable tier): `@honua/sdk-js/agent-safety` — see [`docs/agent-safety.md`](./agent-safety.md) and the [threat model](./agent-safety-threat-model.md)
 - Natural-language map control (plan-first, BYO LLM, approval envelopes, receipts): `@honua/sdk-js/nl-map-control` — see [`docs/nl-map-control.md`](./nl-map-control.md)
 - Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) + routing (OSRM/Valhalla/Honua): `@honua/sdk-js/geocoding`, `@honua/sdk-js/routing` — see [`docs/geocoding-routing-providers.md`](./geocoding-routing-providers.md)
 - Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`
@@ -6753,6 +6981,9 @@ mounted.dispose();
 - Full cookbook (strategy selection, options, disposal, overflow diagnostics):
   [`docs/data-to-map-bridge.md`](./data-to-map-bridge.md).
 - Runnable fixture/live demo: [`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md).
+- First-class renderer objects (`classBreaksRenderer`, `uniqueValueRenderer`, `heatmapRenderer`,
+  `clusterRenderer` on `/style`), `mountSource({ renderer })` + `setRenderer()` swaps, and temporal
+  playback (`createTemporalPlayback` on `/map`): [`docs/renderers.md`](./renderers.md).
 
 ## MapLibre GL JS Runtime For `MapPackage`
 
@@ -8631,6 +8862,175 @@ Manual intervention is expected for:
 - complex Arcade expressions in labels/popups
 - renderer types outside simple/uniqueValue/classBreaks
 - inline `featureCollection` content
+
+---
+
+# File: docs/renderers.md
+
+# Renderer objects and temporal playback
+
+> Status: `@experimental` — the surfaces ship on the stable `/style` and
+> `/map` entrypoints but the descriptor shapes may still change in minor
+> releases. (Issue #497.)
+
+First-class renderer objects give standalone MapLibre users the smart-mapping
+vocabulary Esri/CARTO users expect — class breaks, unique values, heatmaps,
+clustering — without Honua becoming a renderer. A renderer object is a
+serializable, renderer-neutral description that compiles deterministically to
+MapLibre style fragments through the `/expr` builder. Compilation is a pure
+function: the same descriptor always produces byte-identical style JSON, and
+nothing is cached.
+
+```ts doc-test=skip reason="requires a browser MapLibre host"
+import { classBreaksRenderer } from "@honua/sdk-js/style";
+
+const renderer = classBreaksRenderer({
+  field: "magnitude",
+  breaks: [
+    { min: 0, max: 3, label: "Minor" },
+    { min: 3, max: 6, label: "Moderate" },
+    { min: 6, label: "Strong" },
+  ],
+  colors: ["#fed976", "#fd8d3c", "#b10026"],
+  defaultColor: "#cccccc",
+});
+
+const [fragment] = renderer.toMapLibre("point"); // "point" | "line" | "polygon"
+map.addLayer({ id: "quakes", type: fragment.type, source: "quakes", paint: fragment.paint });
+renderer.legendItems(); // [{ kind: "class-break", label: "Minor", color: "#fed976", minValue: 0, maxValue: 3 }, …]
+```
+
+## The four renderers
+
+All four factories live on `@honua/sdk-js/style` and share the same contract:
+`toMapLibre(geometryType)` returns layer fragments, `legendItems()` returns
+legend metadata, and `toJSON()` returns a serializable descriptor that
+`rendererFromJSON()` revives.
+
+| Factory | Compiles to | Notes |
+| --- | --- | --- |
+| `classBreaksRenderer({ field, breaks, colors?, defaultColor? })` | one `step` expression per styled property | `breaks[i].min ?? max` is the step threshold; positional `colors` fill in omitted break colors |
+| `uniqueValueRenderer({ field, values, defaultColor? })` | one `match` expression per styled property | `field2`/`field3` + `fieldDelimiter` concatenate multi-field keys |
+| `heatmapRenderer({ weightField?, radius?, intensity?, colorRamp? })` | a single `heatmap` layer fragment | `colorRamp` is explicit `{ stop, color }` stops or a color list spread evenly over density 0..1 |
+| `clusterRenderer({ radius?, maxZoom?, countField?, steps })` | `clusters` + `cluster-count` + `unclustered` fragments | `toMapLibreSource()` returns the GeoJSON-source cluster options; `countField` sums a property per cluster instead of counting points |
+
+Advanced entries accept a `style: { paint, layout }` override instead of the
+`color` shorthand — that is how WebMap symbols round-trip losslessly.
+
+### Legend metadata (stable contract)
+
+`legendItems()` always yields `{ kind, label, color }`, with `value` on
+unique-value entries, `minValue`/`maxValue` on ranged entries (class breaks,
+cluster steps), and the ramp position in `value` for heatmap stops. A trailing
+`kind: "default"` item appears when the renderer declares a default
+color/label/style. Legend components can consume this without knowing the
+renderer kind.
+
+### Serialization
+
+Descriptors are plain JSON:
+
+```ts doc-test=skip reason="illustrative snippet"
+const descriptor = renderer.toJSON(); // safe to persist / send over the wire
+const revived = rendererFromJSON(descriptor); // identical compile output
+```
+
+## One implementation everywhere
+
+WebMap JSON conversion (`@honua/sdk-js/webmap`'s `convertRenderer`) and the
+esri-compat renderer shims emit these objects and compile through the same
+`/expr` path — there is exactly one class-breaks/unique-value compiler in the
+SDK, and the WebMap converter's style output is unchanged byte for byte.
+
+- `uniqueValueRendererFromWebMap(renderer, warn)` /
+  `classBreaksRendererFromWebMap(renderer, warn)` build renderer objects from
+  WebMap renderer JSON.
+- `rendererObjectFromClassBreaksCompat(compat)` /
+  `rendererObjectFromUniqueValueCompat(compat)` (on `/esri-compat`) project a
+  `ClassBreaksRendererCompat` / `UniqueValueRendererCompat` shim to a renderer
+  object plus any symbol-conversion warnings.
+
+## Bridge integration
+
+`mountSource(map, source, { renderer })` derives the mounted layer set from a
+renderer object; explicit `paint`/`layout` overrides still win per property.
+A cluster renderer additionally configures GeoJSON-source clustering
+(`cluster`, `clusterRadius`, `clusterMaxZoom`, `clusterProperties`) and
+therefore requires the `"geojson"` strategy.
+
+```ts doc-test=skip reason="requires a browser MapLibre host"
+import { mountSource } from "@honua/sdk-js/map";
+import { uniqueValueRenderer, heatmapRenderer } from "@honua/sdk-js/style";
+
+const mounted = await mountSource(map, data.source(), {
+  renderer: uniqueValueRenderer({
+    field: "priority",
+    values: [
+      { value: "high", color: "#b91c1c" },
+      { value: "low", color: "#0f766e" },
+    ],
+  }),
+});
+
+// Swap renderers without teardown where MapLibre allows: same layer
+// structure → per-property setPaintProperty/setLayoutProperty diff;
+// structural change → only the owned layers (and, for cluster-option
+// changes, the source) are recreated.
+await mounted.setRenderer(heatmapRenderer({ weightField: "priorityScore" }));
+```
+
+Diagnostics record which path ran: `renderer-applied` (in-place diff),
+`renderer-recreated-layers`, or `renderer-recreated-source`.
+
+## Temporal playback
+
+`createTemporalPlayback` from `@honua/sdk-js/map` is a renderer-neutral
+play/pause/scrub controller over a time extent with a bounded frame cadence.
+It drives time filters through a thin binding — either the bridge handle
+(`MountedSource.setFilter` with a generated `where` clause) or client-side
+MapLibre layer filters composed with each layer's bind-time filter.
+
+```ts doc-test=skip reason="requires a browser MapLibre host"
+import { createTemporalPlayback } from "@honua/sdk-js/map";
+
+const playback = createTemporalPlayback({
+  handle: mounted, // or layer: { map, layerIds: ["quakes"] } for client-side filters
+  timeField: "event_time",
+  extent: ["2026-01-01T00:00:00Z", "2026-02-01T00:00:00Z"],
+  windowMs: 24 * 60 * 60 * 1000, // one-day window
+  stepMs: 6 * 60 * 60 * 1000, // advance six hours per frame
+  frameIntervalMs: 400,
+  loop: true,
+});
+playback.on("tick", ({ window, progress }) => updateSlider(progress));
+playback.play();
+playback.scrub("2026-01-15T00:00:00Z");
+playback.setWindow(3 * 24 * 60 * 60 * 1000);
+playback.dispose();
+```
+
+Memory is bounded by construction (issue #497 REQ-004): the controller keeps
+only the current window, and filter application is coalesced — at most one
+request in flight plus the single latest pending window; intermediate windows
+are dropped, never queued. No window data is pre-fetched or cached by the
+controller. Playback over static data has no realtime dependency; layering it
+over a live feed is where #393's snapshot-plus-delta resume vocabulary
+applies, and that integration is intentionally out of scope here.
+
+For the `layer` binding the time property must be numeric (epoch
+milliseconds) because MapLibre filters compare numbers; the `handle` binding
+generates `<timeField> >= <startMs> AND <timeField> < <endMs>` by default and
+accepts a `formatWhere` override for servers that need date literals.
+
+## Demos
+
+- [`examples/temporal-playback/`](../examples/temporal-playback/README.md) —
+  class-breaks renderer + playback over a deterministic time-enabled fixture
+  (mock lane, no network).
+- [`examples/service-explorer/`](../examples/service-explorer/README.md) and
+  [`examples/realtime-incident-dashboard/`](../examples/realtime-incident-dashboard/README.md)
+  build their categorical styling from `uniqueValueRenderer` instead of
+  hand-written `match` expressions.
 
 ---
 

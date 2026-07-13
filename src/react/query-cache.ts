@@ -29,6 +29,13 @@ export interface QuerySnapshot<T> {
   readonly isLoading: boolean;
   /** True whenever a fetch is in flight, including background refetches. */
   readonly isFetching: boolean;
+  /**
+   * Epoch milliseconds of the last successful fetch, `undefined` until one
+   * resolves. Drives stale-while-revalidate decisions.
+   *
+   * @experimental
+   */
+  readonly dataUpdatedAt?: number;
 }
 
 interface CacheEntry {
@@ -37,6 +44,8 @@ interface CacheEntry {
   controller: AbortController | undefined;
   /** Monotonic token used to ignore stale (superseded / raced) responses. */
   token: number;
+  /** Settles with the in-flight run (Suspense integration). */
+  promise: Promise<unknown> | undefined;
 }
 
 const IDLE_SNAPSHOT: QuerySnapshot<unknown> = Object.freeze({
@@ -100,6 +109,7 @@ export class HonuaQueryCache {
                   error: undefined,
                   isLoading: false,
                   isFetching: false,
+                  dataUpdatedAt: entry.snapshot.dataUpdatedAt,
                 };
         }
       }
@@ -107,15 +117,41 @@ export class HonuaQueryCache {
   }
 
   /**
-   * Kick off a fetch for `key` only when it has never resolved and is not
-   * already in flight. This is the idempotent entry point hooks call from an
-   * effect; StrictMode's double-invoke therefore does not double-fetch.
+   * Kick off a fetch for `key` when it has never resolved and is not already
+   * in flight. This is the idempotent entry point hooks call from an effect;
+   * StrictMode's double-invoke therefore does not double-fetch.
+   *
+   * With `options.staleTimeMs`, a resolved entry whose data is at least that
+   * old is additionally revalidated in the background (stale-while-revalidate:
+   * the cached data stays served while `isFetching` is true). `0` revalidates
+   * on every ensure; omitted keeps the historical never-revalidate behavior.
    */
-  ensure<T>(key: string, fetcher: QueryFetcher<T>): void {
+  ensure<T>(key: string, fetcher: QueryFetcher<T>, options: { staleTimeMs?: number } = {}): void {
     const entry = this.entryFor(key);
     if (entry.snapshot.status === "idle") {
       this.run(key, fetcher);
+      return;
     }
+    if (
+      options.staleTimeMs !== undefined &&
+      entry.snapshot.status === "success" &&
+      !entry.snapshot.isFetching &&
+      Date.now() - (entry.snapshot.dataUpdatedAt ?? 0) >= options.staleTimeMs
+    ) {
+      this.run(key, fetcher);
+    }
+  }
+
+  /**
+   * The promise of the in-flight run for `key`, or `undefined` when no fetch
+   * is running. Suspense-mode hooks throw this promise while the first load is
+   * pending; it never rejects (errors land on the snapshot instead).
+   *
+   * @experimental
+   */
+  getPromise(key: string): Promise<unknown> | undefined {
+    const entry = this.entries.get(key);
+    return entry?.snapshot.isFetching ? entry.promise : undefined;
   }
 
   /**
@@ -137,9 +173,10 @@ export class HonuaQueryCache {
       error: undefined,
       isLoading: entry.snapshot.data === undefined,
       isFetching: true,
+      dataUpdatedAt: entry.snapshot.dataUpdatedAt,
     });
 
-    fetcher(controller.signal).then(
+    entry.promise = fetcher(controller.signal).then(
       (value) => {
         if (entry.token !== token) return;
         entry.controller = undefined;
@@ -149,6 +186,7 @@ export class HonuaQueryCache {
           error: undefined,
           isLoading: false,
           isFetching: false,
+          dataUpdatedAt: Date.now(),
         });
       },
       (error) => {
@@ -160,6 +198,7 @@ export class HonuaQueryCache {
           error,
           isLoading: false,
           isFetching: false,
+          dataUpdatedAt: entry.snapshot.dataUpdatedAt,
         });
       },
     );
@@ -188,7 +227,7 @@ export class HonuaQueryCache {
   private entryFor(key: string): CacheEntry {
     let entry = this.entries.get(key);
     if (!entry) {
-      entry = { snapshot: IDLE_SNAPSHOT, listeners: new Set(), controller: undefined, token: 0 };
+      entry = { snapshot: IDLE_SNAPSHOT, listeners: new Set(), controller: undefined, token: 0, promise: undefined };
       this.entries.set(key, entry);
     }
     return entry;

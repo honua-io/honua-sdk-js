@@ -210,6 +210,7 @@ const NAV_GROUPS = [
       "INSTALL.md",
       "docs/quickstart.md",
       "docs/quickstart-troubleshooting.md",
+      "docs/comparison.md",
       "docs/documentation-versions.md",
       "docs/guide.md",
     ],
@@ -392,7 +393,10 @@ function galleryPage(demos) {
   const main = `<h1>Demo gallery</h1>
 <p>Runnable example apps that exercise the SDK end-to-end. Each ships its own env
 contract, mock + live run lanes, and Playwright smoke coverage. Clone the repo and
-run <code>npm run demo:&lt;name&gt;</code> (many also have a <code>:mock</code> lane).</p>
+run <code>npm run demo:&lt;name&gt;</code> (many also have a <code>:mock</code> lane).
+Building on MapLibre? Start with <code>endpoint-to-map</code> — a public endpoint to a
+styled map in nine application lines. Leaving ArcGIS ahead of the 6.0 widget removal
+(planned Q1 2027)? Start with <code>migration-workbench</code>.</p>
 ${featured.length ? `<h2>Start here</h2>\n<div class="demo-grid featured-grid">\n${featured.map((d) => card(d, true)).join("\n")}\n</div>` : ""}
 <h2>All demos</h2>
 <div class="demo-grid">
@@ -503,12 +507,14 @@ function main() {
   // Landing page from README.
   const landingMain = `<header class="hero">
   <h1>${escapeHtml(SITE_TITLE)}</h1>
-  <p class="tagline">One TypeScript geospatial client for Esri GeoServices, OGC API (Features / Tiles / Maps / Processes), STAC, WMS/WMTS, WFS 2.0, and OData v4 — with a MapLibre runtime and a drop-in ArcGIS migration path.</p>
+  <p class="tagline">MapLibre gives you the map. Honua gives you everything else: typed clients for Esri GeoServices, OGC API (Features / Tiles / Maps / Processes), STAC, WMS/WMTS, WFS 2.0, and OData v4 — plus a one-call data→map bridge and a drop-in ArcGIS migration path.</p>
   <p>
-    <a class="cta" href="guides/quickstart.html">Quickstart</a>
+    <a class="cta" href="guides/standalone-quickstart.html">Building on MapLibre → quickstart</a>
+    <a class="cta" href="guides/widget-survival-guide.html">Leaving ArcGIS → widget survival guide</a>
     <a class="cta secondary" href="api/index.html">API reference</a>
     <a class="cta secondary" href="gallery.html">Demo gallery</a>
   </p>
+  <p class="hero-note">Classic Esri widgets are deprecated at ArcGIS JS 5.0 and removed at 6.0 (planned Q1 2027). Scan your app: <code>npm run scan:arcgis:widgets -- ./src</code>.</p>
 </header>
 ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
   writeFile("index.html", page({ sitePath: "index.html", title: `${SITE_TITLE} — Documentation`, bodyClass: "page-home", main: landingMain }));

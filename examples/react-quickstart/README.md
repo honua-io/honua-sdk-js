@@ -2,10 +2,12 @@
 
 Browser sample for the `@honua/sdk-js/react` bindings (published standalone as `@honua/react`). It demonstrates:
 
+- an **externally-created plain `maplibre-gl` map** owned by the app (the `@vis.gl/react-maplibre` interop shape), published to Honua through `HonuaMapProvider`
+- `HonuaSourceLayer` mounting the queried source through the data-to-map bridge, with a selection/hover-aware `renderer` prop and click popups
+- `HonuaSelectionProvider` + `useSelection` / `useHover` sharing selection between map clicks and the sidebar feature list
 - `HonuaProvider` supplying a `HonuaClient` to the component tree
 - `useDataset` + `useQuery` driving a fixture-backed FeatureServer query with loading/error states
 - `useCapabilities` surfacing server compatibility in the UI
-- `HonuaMap` owning a MapLibre GL JS map lifecycle, with `HonuaLayer` and `HonuaPopup` children
 
 ## Fast Local Run
 
@@ -41,16 +43,17 @@ Supported env vars (see `.env.example`):
 
 | UI element | React surface |
 | --- | --- |
-| Feature list panel | `useQuery(source, query)` — abortable, referentially stable results |
+| Feature list panel | `useQuery(source, query)` — abortable, referentially stable results; rows toggle the shared selection |
+| Selection summary | `useSelection()` from `HonuaSelectionProvider` (map clicks and sidebar clicks share one store) |
 | Compatibility banner | `useCapabilities()` |
-| Map + overlay | `HonuaMap` with `HonuaLayer` (query results) and `HonuaPopup` |
+| Map | app-owned `maplibre-gl` map + `HonuaMapProvider` + `HonuaSourceLayer` (bridge mount, renderer prop, popup, hover) |
 
-MapLibre GL JS is loaded through a dynamic import inside `HonuaMap`, so the example stays
-SSR-safe and the map engine is code-split out of the initial chunk. The app renders under
-`<React.StrictMode>` on purpose: mount → unmount → remount must not leak subscriptions or
-double-fetch in production mode.
+The app renders under `<React.StrictMode>` on purpose: mount → unmount → remount must not
+leak MapLibre sources/layers/listeners, double-add layers, or double-fetch in production
+mode — the bridge components mount fresh per effect run and dispose on cleanup.
 
 For browser smoke tests and troubleshooting, the runtime exposes
-`window.__HONUA_REACT_QUICKSTART__` with readiness flags, feature counts, and the resolved
-configuration. The Playwright spec `test/playwright/react-quickstart.spec.mjs` asserts a
-StrictMode boot, three fixture features, a mounted map canvas, and zero page errors.
+`window.__HONUA_REACT_QUICKSTART__` with readiness flags, feature counts, the shared
+selection count, and any bridge error. The Playwright spec
+`test/playwright/react-quickstart.spec.mjs` asserts a StrictMode boot, three fixture
+features, a mounted map canvas, shared sidebar selection, and zero page errors.

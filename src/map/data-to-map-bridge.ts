@@ -20,6 +20,7 @@ import { createHoverHandler } from "../interactions/feature-state.js";
 import type { PopupBindingHandle, PopupFactory, PopupFeature } from "../runtime/popups.js";
 import { bindPopup } from "../runtime/popups.js";
 import { buildMapLibreQueryTileSourceSpec, diagnoseQueryTileSourceSupport } from "../runtime/query-tiles.js";
+import type { Renderer } from "../style/renderers.js";
 import type { AdapterGeoJsonFeatureCollection } from "./feature-service-adapter.js";
 import {
   type MapLibreGeometryKind,
@@ -64,7 +65,10 @@ export type DataToMapDiagnosticCode =
   | "tile-support"
   | "filter-applied"
   | "filter-recreated-source"
-  | "refresh-applied";
+  | "refresh-applied"
+  | "renderer-applied"
+  | "renderer-recreated-layers"
+  | "renderer-recreated-source";
 
 /** One strategy reason or lifecycle event. @experimental */
 export interface DataToMapDiagnostic {
@@ -162,6 +166,9 @@ export interface DataToMapLibreMap extends SourceToMapLibreMap {
     target: { source: string; id: string | number; sourceLayer?: string },
     state: Record<string, unknown>,
   ): void;
+  setPaintProperty?(layerId: string, name: string, value: unknown): void;
+  setLayoutProperty?(layerId: string, name: string, value: unknown): void;
+  setFilter?(layerId: string, filter: unknown): void;
   getFeatureState?(target: { source: string; id: string | number; sourceLayer?: string }): Record<string, unknown>;
   removeFeatureState?(target: { source: string; id: string | number; sourceLayer?: string }, key?: string): void;
   fitBounds?(bounds: [number, number, number, number], options?: Record<string, unknown>): void;
@@ -227,6 +234,16 @@ export interface MountSourceOptions<T = Record<string, unknown>> {
    * of the geometry-appropriate defaults. Each entry must carry a unique `id`.
    */
   readonly layers?: readonly Readonly<Record<string, unknown>>[];
+  /**
+   * First-class renderer object from `@honua/sdk-js/style`
+   * (`classBreaksRenderer`, `uniqueValueRenderer`, `heatmapRenderer`,
+   * `clusterRenderer`). Layers and paint derive from the renderer instead of
+   * the geometry defaults; `paint`/`layout` overrides still win per property.
+   * A cluster renderer additionally configures GeoJSON-source clustering and
+   * requires the `"geojson"` strategy. Mutually exclusive with `layers`.
+   * Swap at runtime with {@link MountedSource.setRenderer}.
+   */
+  readonly renderer?: Renderer;
   /** Per-geometry paint overrides merged over the defaults. */
   readonly paint?: Partial<
     Readonly<Record<MapLibreGeometryKind | "polygonOutline", Readonly<Record<string, unknown>>>>
@@ -262,6 +279,13 @@ export interface MountedSource<T = Record<string, unknown>> extends AsyncDisposa
   readonly strategy: DataToMapStrategy;
   readonly sourceId: string;
   readonly layerIds: readonly string[];
+  /**
+   * Resolved vector `source-layer` used by the mounted layers — the explicit
+   * option, or the default derived from the query-tile descriptor. Always
+   * `undefined` for the GeoJSON strategy. Feature-state operations against a
+   * vector tile source must target this same value.
+   */
+  readonly sourceLayer?: string;
   readonly state: "ready" | "disposed";
   readonly diagnostics: MountedSourceDiagnostics;
   /**
@@ -270,6 +294,16 @@ export interface MountedSource<T = Record<string, unknown>> extends AsyncDisposa
    * Passing `undefined` clears the filter.
    */
   setFilter(query: Readonly<Omit<Query<T>, "signal">> | undefined): Promise<MountedSourceDiagnostics>;
+  /**
+   * Swap the mounted renderer and diff-update in place where MapLibre
+   * allows: when the layer structure is unchanged, paint/layout/filter are
+   * updated per property (`setPaintProperty`/`setLayoutProperty`/
+   * `setFilter`) without layer teardown; a structural change (e.g. to or
+   * from a cluster/heatmap renderer) recreates only the owned layers, and
+   * changed GeoJSON cluster options recreate the source. Passing
+   * `undefined` restores the geometry-default styling.
+   */
+  setRenderer(renderer: Renderer | undefined): Promise<MountedSourceDiagnostics>;
   /** Re-execute the current filter and diff-update the mounted data. */
   refresh(): Promise<MountedSourceDiagnostics>;
   /** Remove every owned source, layer, and listener. Safe to call twice. */
@@ -447,6 +481,14 @@ export async function mountSource<T = Record<string, unknown>>(
   const reasons = [...explanation.reasons];
   const updates: DataToMapDiagnostic[] = [];
 
+  if (options.renderer?.kind === "cluster" && strategy !== "geojson") {
+    throw new HonuaDataToMapBridgeError(
+      "invalid-option",
+      'A cluster renderer requires the "geojson" strategy (MapLibre clustering is a GeoJSON-source feature); pass strategy: "geojson".',
+      { strategy },
+    );
+  }
+
   const sourceId = options.sourceId ?? `honua-${safeId(source.descriptor.id)}`;
   const layerBase = options.layerId ?? sourceId;
   const sourceLayer =
@@ -508,6 +550,7 @@ export async function mountSource<T = Record<string, unknown>>(
       data: converted.data,
       promoteId: source.descriptor.schema?.primaryKey,
       attribution: options.attribution ?? source.descriptor.attribution,
+      ...(options.renderer?.kind === "cluster" ? options.renderer.toMapLibreSource() : {}),
     };
     removeUndefined(sourceSpec);
   } else {
@@ -527,9 +570,12 @@ export async function mountSource<T = Record<string, unknown>>(
   }
 
   // ── Build the layer set ────────────────────────────────────────
-  const layers = buildLayers(strategy, sourceId, layerBase, sourceLayer, options);
-  const layerIds = layers.map((layer) => String(layer.id));
-  const interactiveLayerIds = options.layers ? layerIds : layerIds.filter((id) => !id.endsWith("-polygon-outline"));
+  let currentRenderer: Renderer | undefined = options.renderer;
+  let layers = buildLayers(strategy, sourceId, layerBase, sourceLayer, options, currentRenderer);
+  let layerIds = layers.map((layer) => String(layer.id));
+  const interactiveIdsFor = (ids: readonly string[]): readonly string[] =>
+    options.layers ? ids : ids.filter((id) => !id.endsWith("-polygon-outline") && !id.endsWith("-cluster-count"));
+  const interactiveLayerIds = interactiveIdsFor(layerIds);
 
   // ── Mutate the map transactionally ─────────────────────────────
   signal.throwIfAborted();
@@ -554,10 +600,10 @@ export async function mountSource<T = Record<string, unknown>>(
   // ── Interactions ───────────────────────────────────────────────
   const popupHandles: PopupBindingHandle[] = [];
   const hoverHandles: HoverHandle[] = [];
-  try {
+  const wireInteractions = (ids: readonly string[]): void => {
     if (options.popup) {
       const popup = options.popup;
-      for (const layerId of interactiveLayerIds) {
+      for (const layerId of ids) {
         popupHandles.push(
           bindPopup(map as MapEventTarget, {
             binding: { sourceId, ...(popup.title !== undefined ? { title: popup.title } : {}) },
@@ -570,7 +616,7 @@ export async function mountSource<T = Record<string, unknown>>(
     }
     if (options.hover) {
       const stateKey = typeof options.hover === "object" ? (options.hover.stateKey ?? "hover") : "hover";
-      for (const layerId of interactiveLayerIds) {
+      for (const layerId of ids) {
         hoverHandles.push(
           createHoverHandler(map as FeatureStateMap & MapEventTarget, {
             source: sourceId,
@@ -581,6 +627,9 @@ export async function mountSource<T = Record<string, unknown>>(
         );
       }
     }
+  };
+  try {
+    wireInteractions(interactiveLayerIds);
   } catch (cause) {
     removeInteractions(popupHandles, hoverHandles);
     rollback(map, sourceId, layerIds);
@@ -692,6 +741,94 @@ export async function mountSource<T = Record<string, unknown>>(
     );
   };
 
+  const clusterSourceOptionsOf = (renderer: Renderer | undefined): Record<string, unknown> | undefined =>
+    renderer?.kind === "cluster" ? renderer.toMapLibreSource() : undefined;
+
+  const applyRendererUpdate = async (next: Renderer | undefined): Promise<void> => {
+    if (next?.kind === "cluster" && strategy !== "geojson") {
+      throw new HonuaDataToMapBridgeError(
+        "invalid-option",
+        'A cluster renderer requires the "geojson" strategy (MapLibre clustering is a GeoJSON-source feature).',
+        { sourceId, strategy },
+      );
+    }
+    const nextLayers = buildLayers(strategy, sourceId, layerBase, sourceLayer, options, next);
+    const nextIds = nextLayers.map((layer) => String(layer.id));
+    const nextCluster = clusterSourceOptionsOf(next);
+    const clusterChanged = !sameJson(clusterSourceOptionsOf(currentRenderer), nextCluster);
+
+    const structureUnchanged =
+      !clusterChanged &&
+      nextIds.length === layerIds.length &&
+      nextIds.every((id, index) => id === layerIds[index] && nextLayers[index].type === layers[index].type);
+
+    if (structureUnchanged && typeof map.setPaintProperty === "function") {
+      // Diff-update in place: no layer teardown, no source touch.
+      for (let index = 0; index < nextLayers.length; index++) {
+        const id = nextIds[index];
+        diffProperties(recordOf(layers[index].paint), recordOf(nextLayers[index].paint), (name, value) =>
+          map.setPaintProperty?.(id, name, value),
+        );
+        if (typeof map.setLayoutProperty === "function") {
+          diffProperties(recordOf(layers[index].layout), recordOf(nextLayers[index].layout), (name, value) =>
+            map.setLayoutProperty?.(id, name, value),
+          );
+        }
+        if (typeof map.setFilter === "function" && !sameJson(layers[index].filter, nextLayers[index].filter)) {
+          map.setFilter(id, nextLayers[index].filter);
+        }
+      }
+      layers = nextLayers;
+      currentRenderer = next;
+      updates.push(info("renderer-applied", "Updated renderer paint/layout in place without layer teardown."));
+      return;
+    }
+
+    // Structural path: replace the owned layers; recreate the source only
+    // when GeoJSON cluster options changed. Materialize the replacement data
+    // BEFORE any teardown so a failed or aborted query leaves the previously
+    // working layers and interactions on the map untouched.
+    const replacement = clusterChanged
+      ? await (async () => {
+          const result = await materialize(currentQuery);
+          const converted = canonicalFeaturesToGeoJson(result.features, source.descriptor.schema?.primaryKey);
+          return { result, converted };
+        })()
+      : undefined;
+    removeInteractions(popupHandles, hoverHandles);
+    for (const layerId of [...layerIds].reverse()) if (map.getLayer(layerId)) map.removeLayer(layerId);
+    if (replacement) {
+      const { result, converted } = replacement;
+      if (map.getSource(sourceId)) map.removeSource(sourceId);
+      const nextSpec: Record<string, unknown> = {
+        type: "geojson",
+        data: converted.data,
+        promoteId: source.descriptor.schema?.primaryKey,
+        attribution: options.attribution ?? source.descriptor.attribution,
+        ...(nextCluster ?? {}),
+      };
+      removeUndefined(nextSpec);
+      map.addSource(sourceId, nextSpec);
+      featureCount = converted.data.features.length;
+      totalCount = resolveTotalCount(result);
+      overflow = computeOverflow(result, limit, updates);
+      presentKinds = geometryKinds(converted.data.features);
+    }
+    for (const layer of nextLayers) map.addLayer(layer, options.beforeId);
+    layers = nextLayers;
+    layerIds = nextIds;
+    currentRenderer = next;
+    wireInteractions(interactiveIdsFor(layerIds));
+    updates.push(
+      info(
+        clusterChanged ? "renderer-recreated-source" : "renderer-recreated-layers",
+        clusterChanged
+          ? "Renderer swap changed GeoJSON cluster options; the source and layers were recreated."
+          : "Renderer swap changed the layer structure; the owned layers were recreated in place.",
+      ),
+    );
+  };
+
   const enqueue = (work: () => Promise<void>): Promise<MountedSourceDiagnostics> => {
     const run = refreshTail.then(async () => {
       if (state === "disposed") {
@@ -743,7 +880,10 @@ export async function mountSource<T = Record<string, unknown>>(
   return {
     strategy,
     sourceId,
-    layerIds,
+    get layerIds() {
+      return [...layerIds];
+    },
+    sourceLayer,
     get state() {
       return state;
     },
@@ -756,6 +896,9 @@ export async function mountSource<T = Record<string, unknown>>(
         else await applyTileUpdate(query, "filter-applied");
         currentQuery = query;
       });
+    },
+    setRenderer(renderer) {
+      return enqueue(() => applyRendererUpdate(renderer));
     },
     refresh() {
       return enqueue(async () => {
@@ -785,6 +928,21 @@ function validateOptions<T>(map: DataToMapLibreMap, options: MountSourceOptions<
     throw new HonuaDataToMapBridgeError("invalid-option", `Unknown geometry "${String(options.geometry)}".`, {
       geometry: options.geometry,
     });
+  }
+  if (options.renderer !== undefined) {
+    if (options.layers !== undefined) {
+      throw new HonuaDataToMapBridgeError(
+        "invalid-option",
+        "options.renderer and options.layers are mutually exclusive; renderer-derived layers own the layer set.",
+      );
+    }
+    const renderer = options.renderer as Partial<Renderer>;
+    if (typeof renderer.toMapLibre !== "function" || typeof renderer.kind !== "string") {
+      throw new HonuaDataToMapBridgeError(
+        "invalid-option",
+        "options.renderer must be a renderer object from @honua/sdk-js/style (classBreaksRenderer, uniqueValueRenderer, heatmapRenderer, clusterRenderer).",
+      );
+    }
   }
   if (options.layers !== undefined) {
     if (options.layers.length === 0) {
@@ -857,6 +1015,7 @@ function buildLayers<T>(
   layerBase: string,
   sourceLayer: string | undefined,
   options: MountSourceOptions<T>,
+  renderer: Renderer | undefined,
 ): readonly Readonly<Record<string, unknown>>[] {
   if (options.layers) {
     return options.layers.map((layer) =>
@@ -869,10 +1028,40 @@ function buildLayers<T>(
       }),
     );
   }
+  if (renderer?.kind === "cluster") {
+    return renderer.toMapLibre("point").map((fragment) =>
+      Object.freeze({
+        id: `${layerBase}-${fragment.role}`,
+        type: fragment.type,
+        source: sourceId,
+        ...(fragment.filter !== undefined ? { filter: fragment.filter } : {}),
+        paint: { ...fragment.paint },
+        ...(Object.keys(fragment.layout).length > 0 ? { layout: { ...fragment.layout } } : {}),
+        metadata: { "honua:mount": "data-to-map-bridge", "honua:strategy": strategy, "honua:renderer": renderer.kind },
+      }),
+    );
+  }
+  if (renderer?.kind === "heatmap") {
+    const [fragment] = renderer.toMapLibre("point");
+    return [
+      Object.freeze({
+        id: `${layerBase}-heatmap`,
+        type: fragment.type,
+        source: sourceId,
+        ...(sourceLayer !== undefined ? { "source-layer": sourceLayer } : {}),
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: { ...fragment.paint },
+        ...(Object.keys(fragment.layout).length > 0 ? { layout: { ...fragment.layout } } : {}),
+        metadata: { "honua:mount": "data-to-map-bridge", "honua:strategy": strategy, "honua:renderer": renderer.kind },
+      }),
+    ];
+  }
   const requested = options.geometry === undefined || options.geometry === "auto" ? undefined : options.geometry;
   const kinds: readonly MapLibreGeometryKind[] = requested ? [requested] : ["point", "line", "polygon"];
   const layers: Record<string, unknown>[] = [];
   for (const kind of kinds) {
+    const fragment = renderer ? renderer.toMapLibre(kind)[0] : undefined;
+    const rendererLayout = fragment && Object.keys(fragment.layout).length > 0 ? fragment.layout : undefined;
     layers.push(
       layerSpec(
         strategy,
@@ -883,9 +1072,12 @@ function buildLayers<T>(
         sourceLayer,
         {
           ...defaultPaint(kind),
+          ...(fragment?.paint ?? {}),
           ...(options.paint?.[kind] ?? {}),
         },
-        options.layout?.[kind],
+        rendererLayout || options.layout?.[kind]
+          ? { ...(rendererLayout ?? {}), ...(options.layout?.[kind] ?? {}) }
+          : undefined,
       ),
     );
     if (kind === "polygon") {
@@ -1060,7 +1252,29 @@ function sameStringArray(left: readonly string[], right: readonly string[]): boo
 }
 
 function sameQuery(left: unknown, right: unknown): boolean {
+  return sameJson(left, right);
+}
+
+function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
+function recordOf(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+/** Apply added/changed keys and unset removed keys through a MapLibre setter. */
+function diffProperties(
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+  set: (name: string, value: unknown) => void,
+): void {
+  for (const [key, value] of Object.entries(next)) {
+    if (!sameJson(previous[key], value)) set(key, value);
+  }
+  for (const key of Object.keys(previous)) {
+    if (!(key in next)) set(key, undefined);
+  }
 }
 
 function combineSignals(signals: readonly (AbortSignal | undefined)[]): AbortSignal {

@@ -28,6 +28,10 @@ export default defineConfig({
         replacement: path.resolve(repoRoot, "src/interactions/index.ts"),
       },
       {
+        find: "@honua/sdk-js/style",
+        replacement: path.resolve(repoRoot, "src/style/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/realtime",
         replacement: path.resolve(repoRoot, "src/realtime/index.ts"),
       },

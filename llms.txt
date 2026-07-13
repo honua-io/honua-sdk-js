@@ -14,6 +14,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [Learn the Honua SDK by task](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/generated/learning-paths.md): Task-oriented progression from first public map through connect, query, styling, analysis, editing, realtime/offline, 3D, migration, and safe automation.
 - [Standalone Quickstart: The SDK Against Any Public Endpoint](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-quickstart.md): Server-optional front door: run the SDK against any public GeoServices endpoint with no Honua server, key, or account.
 - [Quickstart Troubleshooting](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/quickstart-troubleshooting.md): Common quickstart failure modes and how to fix them.
+- [How Honua compares](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/comparison.md): Generated comparison page: bundle sizes vs @arcgis/core, protocol coverage vs raw MapLibre / arcgis-rest-js / OpenLayers, and the scripted time-to-first-map benchmark.
 
 ## Core contract and API
 
@@ -49,6 +50,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 
 ## Map runtime
 
+- [Renderer objects and temporal playback](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/renderers.md): First-class renderer objects (classBreaks/uniqueValue/heatmap/cluster) with legend contracts, bridge integration, and temporal playback.
 - [MapLibre GL JS Runtime (@honua/sdk-js/runtime)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/maplibre-runtime.md): loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.
 - [terra-draw sketch binding (@honua/sdk-js/runtime)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/terra-draw-sketch.md): terra-draw sketch binding: optional-peer draw modes adapted onto the edit-sketch workflow with undo/redo, snapping, and applyEdits.
 - [PMTiles](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/pmtiles.md): Native PMTiles support: auto-registered pmtiles:// protocol, lazy peer, describe() metadata, and a CDN recipe.

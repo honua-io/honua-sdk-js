@@ -120,6 +120,34 @@ export interface UseQueryOptions {
   enabled?: boolean;
   /** Use `source.queryAll()` (drain every page) instead of a single page. */
   drainAllPages?: boolean;
+  /**
+   * Stale-while-revalidate window in milliseconds. When a consumer (re)mounts
+   * or the query key changes and the cached result is at least this old, the
+   * cached data keeps rendering while a background refetch runs
+   * (`isFetching: true`, `data` preserved). `0` revalidates on every mount.
+   * Omitted keeps the historical behavior: cached results are served without
+   * revalidation until `refetch()` or an explicit invalidation.
+   *
+   * @experimental
+   */
+  staleTimeMs?: number;
+  /**
+   * Throw query errors during render so the nearest React error boundary
+   * receives them (typed errors such as `HonuaCapabilityNotSupportedError`
+   * arrive intact). Default `false`: errors are returned on the snapshot.
+   *
+   * @experimental
+   */
+  throwOnError?: boolean;
+  /**
+   * Suspense mode: while the first fetch (no cached data yet) is in flight the
+   * hook suspends, and errors are thrown to the nearest error boundary. Wrap
+   * consumers in `<Suspense fallback={…}>`. Background refetches do not
+   * suspend — cached data keeps rendering stale-while-revalidate style.
+   *
+   * @experimental
+   */
+  suspense?: boolean;
 }
 
 /** Result of {@link useQuery}: a stable snapshot plus a `refetch` trigger. */
@@ -171,24 +199,48 @@ export function useQuery<T = Record<string, unknown>>(
     [cache, key],
   );
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, () => idleSnapshot<Result<T>>());
+  const staleTimeMs = options.staleTimeMs;
+
+  // `key` already encodes source id + query + mode, so the fetcher (like the
+  // effects below) is intentionally keyed on it rather than on the identity of
+  // the `source` / `query` objects — an inline literal cannot thrash the cache.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `key` already encodes source id + query + mode.
+  const fetcher = useCallback(
+    (signal: AbortSignal) =>
+      drainAllPages
+        ? (source as Source<T>).queryAll({ ...query, signal })
+        : (source as Source<T>).query({ ...query, signal }),
+    [key],
+  );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `key` already encodes source id + query + mode.
   useEffect(() => {
     if (!key || !source) return;
-    cache.ensure<Result<T>>(key, (signal) =>
-      drainAllPages ? source.queryAll({ ...query, signal }) : source.query({ ...query, signal }),
-    );
-  }, [cache, key]);
+    cache.ensure<Result<T>>(key, fetcher, staleTimeMs !== undefined ? { staleTimeMs } : {});
+  }, [cache, key, fetcher, staleTimeMs]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `key` already encodes source id + query + mode.
   const refetch = useCallback(() => {
     if (!key || !source) return;
-    cache.run<Result<T>>(key, (signal) =>
-      drainAllPages ? source.queryAll({ ...query, signal }) : source.query({ ...query, signal }),
-    );
-  }, [cache, key]);
+    cache.run<Result<T>>(key, fetcher);
+  }, [cache, key, fetcher]);
 
   useDebugValue(snapshot.status);
+
+  if (key && source && (options.suspense || options.throwOnError) && snapshot.status === "error") {
+    // Surface the typed error (e.g. HonuaCapabilityNotSupportedError) to the
+    // nearest error boundary. `refetch()` from the boundary retries.
+    throw snapshot.error;
+  }
+  if (options.suspense && key && source && snapshot.data === undefined) {
+    // First load with no cached data: kick the fetch during render (idempotent
+    // — `ensure` is a no-op once the entry left `idle`, so StrictMode's double
+    // render cannot double-fetch) and suspend on its promise.
+    cache.ensure<Result<T>>(key, fetcher, staleTimeMs !== undefined ? { staleTimeMs } : {});
+    const pending = cache.getPromise(key);
+    if (pending) throw pending;
+  }
+
   return useMemo(() => ({ ...snapshot, refetch }), [snapshot, refetch]);
 }
 
