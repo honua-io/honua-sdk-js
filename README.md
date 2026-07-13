@@ -429,8 +429,11 @@ Protocol-specific deep dives also live alongside the guide: see
 [`docs/wfs.md`](./docs/wfs.md), [`docs/ogc-api.md`](./docs/ogc-api.md),
 [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md),
 [`docs/webmap-json-compatibility.md`](./docs/webmap-json-compatibility.md),
-[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md), and
-[`docs/migration-punch-list.md`](./docs/migration-punch-list.md).
+[`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md),
+[`docs/migration-punch-list.md`](./docs/migration-punch-list.md), and
+[`docs/widget-survival-guide.md`](./docs/widget-survival-guide.md) (every ArcGIS widget
+deprecated at 5.0 mapped to its Honua/MapLibre disposition ahead of the 6.0 removal — run
+`npm run scan:arcgis:widgets -- ./src` for a per-file readiness report).
 
 ## Related Honua repositories
 

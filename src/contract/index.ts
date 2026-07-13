@@ -291,6 +291,30 @@ export type {
   EditWorkflowValidationResult,
   NormalizeEditWorkflowFailuresOptions,
 } from "./edit-session.js";
+export {
+  DEFAULT_SNAPPING_CONFIG,
+  SnapIndex,
+  compareSnapCandidates,
+  createSnapIndex,
+  createSnapIndexEditSessionHooks,
+  resolveSnapCandidate,
+  resolveSnappingConfig,
+  withSnappedActiveVertex,
+} from "./edit-snapping.js";
+export type {
+  SnapCandidate,
+  SnapCandidateKind,
+  SnapIndexEditSessionHookOptions,
+  SnapIndexFeatureInput,
+  SnapIndexStats,
+  SnapPosition,
+  SnapProjection,
+  SnapQueryInput,
+  SnapResolution,
+  SnapScreenPoint,
+  SnapSourceOptions,
+  SnappingConfig,
+} from "./edit-snapping.js";
 export { EditSketchWorkflowModel, createEditSketchWorkflow } from "./edit-sketch.js";
 export type {
   EditAnnotationPersistenceHook,
