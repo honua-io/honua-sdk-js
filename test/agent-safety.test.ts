@@ -752,6 +752,31 @@ describe("agent approval envelope", () => {
     ).rejects.toMatchObject({ code: "policy-denied" });
   });
 
+  it("rejects an operation whose query-plan fingerprint differs from the approved step", async () => {
+    // Threat: plan-fingerprint mismatch (docs/agent-safety-threat-model.md).
+    // The operation keeps the approved queryPlan id but points at a different
+    // compiled plan body; the recomputed operation-input digest must diverge
+    // from the reviewed step digest before any approval use is consumed.
+    const { dryRun, approval, approvalCrypto } = await approvedFixture();
+    const backingStore = approvalUseStore();
+    const consume = vi.fn(backingStore.consume.bind(backingStore));
+    const consumer = { consume, verify: backingStore.verify.bind(backingStore) };
+    await expect(
+      verifyAgentStepAuthorization(
+        dryRun,
+        policy(),
+        approval,
+        approvalCrypto.verifier,
+        context(),
+        "query-incidents",
+        { ...OPERATION_INPUT, queryPlan: { id: "query-plan-1", fingerprint: sha256("substituted-plan-body") } },
+        consumer,
+        { now: NOW },
+      ),
+    ).rejects.toMatchObject({ code: "integrity-failed" });
+    expect(consume).not.toHaveBeenCalled();
+  });
+
   it("requires explicit per-step allocation when narrowing a multi-step approval", async () => {
     const secondOperation = {
       ...OPERATION_INPUT,

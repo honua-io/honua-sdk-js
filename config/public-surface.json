@@ -2,7 +2,7 @@
   "$comment": "Canonical @honua/sdk-js public-surface inventory. package.json exports, INSTALL.md, TypeDoc, the stable API report, and the app-platform split are verified against this file.",
   "schemaVersion": 1,
   "ceilings": {
-    "stableEntrypoints": 20,
+    "stableEntrypoints": 22,
     "rootRuntimeExports": 37,
     "rootTypeExports": 124,
     "rootGzipBytes": 103648
@@ -33,9 +33,9 @@
     { "subpath": "./react", "tier": "stable" },
     { "subpath": "./geometry", "tier": "stable" },
     { "subpath": "./cli", "tier": "stable" },
+    { "subpath": "./agent-tools", "tier": "stable" },
+    { "subpath": "./agent-safety", "tier": "stable" },
 
-    { "subpath": "./agent-tools", "tier": "experimental" },
-    { "subpath": "./agent-safety", "tier": "experimental" },
     { "subpath": "./geoparquet", "tier": "experimental" },
     { "subpath": "./query-planner", "tier": "experimental" },
     { "subpath": "./plugin", "tier": "experimental" },

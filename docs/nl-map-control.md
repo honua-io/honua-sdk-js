@@ -171,6 +171,10 @@ the plan's effects).
 
 - [`docs/agent-safety.md`](./agent-safety.md) — the envelope, budget, audit,
   and receipt contracts this layer builds on.
+- [`docs/agent-safety-threat-model.md`](./agent-safety-threat-model.md) — the
+  threat model for the (stable) `agent-tools`/`agent-safety` surface underneath
+  this layer: envelope forgery, replay, effect-budget bypass, receipt
+  tampering, and plan-fingerprint mismatch, each with its conformance test.
 - [`examples/nl-map-control/`](../examples/nl-map-control/) — deterministic
   MapLibre demo with a fixture LLM, plan/receipt JSON panes, and an approve
   button.

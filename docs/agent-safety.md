@@ -1,7 +1,13 @@
 # Safe agent plan boundary
 
-`@honua/sdk-js/agent-safety` is an experimental, deterministic trust boundary
-between untrusted plan proposals and host-owned effect execution. It validates
+`@honua/sdk-js/agent-safety` is a deterministic trust boundary
+between untrusted plan proposals and host-owned effect execution. It is part of
+the SDK's stable tier (semver-protected; see
+[`docs/decisions/agent-surface-stabilization.md`](./decisions/agent-surface-stabilization.md)),
+and its security posture — envelope forgery, replay, effect-budget bypass,
+receipt tampering, plan-fingerprint mismatch — is documented with per-threat
+conformance tests in the
+[agent-safety threat model](./agent-safety-threat-model.md). It validates
 JSON-compatible structured data, produces an immutable dry run and effect
 budget, binds a reviewer signature to the exact plan and policy, revalidates
 current source context, executes an exact approved operation through a
