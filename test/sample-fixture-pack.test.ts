@@ -6,7 +6,7 @@ import path from "node:path";
 
 import type { FormatsPlugin } from "ajv-formats";
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { verifyFixturePacks } from "../samples/fixtures/verify.mjs";
 import {
@@ -198,7 +198,11 @@ describe("versioned sample fixture packs", () => {
       const root = path.join(projectRoot, "samples", "fixtures", id, "v1");
       const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
       expect(validate(manifest), JSON.stringify(validate.errors)).toBe(true);
-      expect(() => validateFixturePackDirectory(root)).not.toThrow();
+      const validated = validateFixturePackDirectory(root);
+      expectTypeOf(validated.manifestContent).toEqualTypeOf<string>();
+      expect(validated.id).toBe(id);
+      expect(validated.version).toBe("v1");
+      expect(JSON.parse(validated.manifestContent)).toEqual(manifest);
       for (const mutation of mutations) {
         const invalid = structuredClone(manifest);
         mutation.update(invalid);
@@ -219,6 +223,10 @@ describe("versioned sample fixture packs", () => {
   it("loads checksum- and metadata-bound packs as deeply frozen graphs", () => {
     for (const id of ["first-map", "incident-operations"] as const) {
       const pack = loadFixturePack(id);
+      expectTypeOf(pack.id).toEqualTypeOf<string>();
+      expectTypeOf(pack.version).toEqualTypeOf<string>();
+      expect(pack.id).toBe(id);
+      expect(pack.version).toBe("v1");
       expect(pack.manifest.fixturePackVersion).toBe("honua.fixture-pack/v1");
       expect(pack.manifest.identity).toMatchObject({ id, revision: "v1" });
       expect(Object.isFrozen(pack.manifest.schema)).toBe(true);
@@ -412,6 +420,22 @@ describe("versioned sample fixture packs", () => {
     expect(formattedManifest).toBe(refreshedManifest);
   });
 
+  it("refreshes from descriptor-bound manifest bytes without reopening the manifest path", () => {
+    const root = temporaryPack("first-map");
+    const fixturesRoot = introduceRefreshDrift(root);
+    const manifestPath = path.join(root, "manifest.json");
+    const realReadFileSync = fs.readFileSync.bind(fs);
+    const readSpy = vi.spyOn(fs, "readFileSync").mockImplementation(((file, options) => {
+      if (path.resolve(String(file)) === manifestPath) throw new Error("unsafe manifest path reopen");
+      return realReadFileSync(file, options as never);
+    }) as typeof fs.readFileSync);
+    try {
+      expect(verifyFixturePacks({ fixturesRoot, writeChecksums: true, acceptMetadata: true }).exitCode).toBe(0);
+    } finally {
+      readSpy.mockRestore();
+    }
+  });
+
   it("fails closed when fixture data changes during refresh preflight or commit", () => {
     const preflightRoot = temporaryPack("first-map");
     const preflightFixtures = introduceRefreshDrift(preflightRoot);
@@ -576,6 +600,64 @@ describe("versioned sample fixture packs", () => {
   });
 
   it("derives counts, extents, CRS/axis encoding, field consistency, ids, and event extent policy", () => {
+    const missingCapabilitiesRoot = temporaryPack("first-map");
+    fs.rmSync(path.join(missingCapabilitiesRoot, "capabilities.json"));
+    updateJson(path.join(missingCapabilitiesRoot, "manifest.json"), (manifest) => {
+      delete manifest.schema.files.capabilities;
+      delete manifest.integrity.files["capabilities.json"];
+    });
+    expect(() =>
+      validateFixturePackDirectory(missingCapabilitiesRoot, {
+        allowChecksumChanges: true,
+        allowMetadataChanges: true,
+      }),
+    ).toThrow(/logical file roles/i);
+
+    const capabilitiesRoot = temporaryPack("first-map");
+    updateJson(path.join(capabilitiesRoot, "capabilities.json"), (capabilities) => {
+      capabilities.data.compatibility.serverVersion = "9.9.9";
+      capabilities.data.compatibility.controlPlaneApi.major = 2;
+    });
+    expect(() =>
+      validateFixturePackDirectory(capabilitiesRoot, {
+        allowChecksumChanges: true,
+        allowMetadataChanges: true,
+      }),
+    ).toThrow(/capabilities projection is incompatible/i);
+
+    const firstMapGeometryRoot = temporaryPack("first-map");
+    updateJson(path.join(firstMapGeometryRoot, "manifest.json"), (manifest) => {
+      manifest.schema.geometryType = "Point";
+    });
+    expect(() =>
+      validateFixturePackDirectory(firstMapGeometryRoot, {
+        allowChecksumChanges: true,
+        allowMetadataChanges: true,
+      }),
+    ).toThrow(/geometryType must be Polygon/i);
+
+    const incidentGeometryRoot = temporaryPack("incident-operations");
+    updateJson(path.join(incidentGeometryRoot, "manifest.json"), (manifest) => {
+      manifest.schema.geometryType = "Polygon";
+    });
+    expect(() =>
+      validateFixturePackDirectory(incidentGeometryRoot, {
+        allowChecksumChanges: true,
+        allowMetadataChanges: true,
+      }),
+    ).toThrow(/geometryType must be Point/i);
+
+    const incidentProtocolRoot = temporaryPack("incident-operations");
+    updateJson(path.join(incidentProtocolRoot, "manifest.json"), (manifest) => {
+      manifest.schema.protocols = ["server-sent-events"];
+    });
+    expect(() =>
+      validateFixturePackDirectory(incidentProtocolRoot, {
+        allowChecksumChanges: true,
+        allowMetadataChanges: true,
+      }),
+    ).toThrow(/exactly its supported realtime protocols/i);
+
     const countRoot = temporaryPack("first-map");
     updateJson(path.join(countRoot, "manifest.json"), (manifest) => {
       manifest.schema.featureCount = 4;
@@ -749,6 +831,9 @@ describe("fixture canonicalization and response policy", () => {
     expect(headers).not.toHaveProperty("content-type");
     expect(headers).not.toHaveProperty("content-length");
     expect(headers).not.toHaveProperty("connection");
+    expect(fixtureHeaders({}, "private-fresh")["cache-control"]).toBe("private, max-age=60");
+    expect(fixtureHeaders({}, "private-revalidate")["cache-control"]).toBe("private, max-age=0, must-revalidate");
+    expect(() => fixtureHeaders({ "cache-control": "public" }, "public" as never)).toThrow(/cache policy/i);
 
     const framed = fixtureResponseHeaders(
       { contentType: "application/json; charset=utf-8", contentLength: 4 },

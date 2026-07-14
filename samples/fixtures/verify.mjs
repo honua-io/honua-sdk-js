@@ -38,9 +38,8 @@ function assertInspectionUnchanged(inspection) {
     allowChecksumChanges: true,
     allowMetadataChanges: true,
   });
-  const manifestContent = fs.readFileSync(current.manifestPath, "utf8");
   if (
-    manifestContent !== inspection.manifestContent ||
+    current.manifestContent !== inspection.manifestContent ||
     !sameJson(current.actualChecksums, inspection.validated.actualChecksums) ||
     !sameJson(current.checksumChanges, inspection.validated.checksumChanges) ||
     !sameJson(current.metadataChanges, inspection.validated.metadataChanges)
@@ -54,7 +53,7 @@ function validateAppliedUpdate(update, { writeChecksums, acceptMetadata }) {
     allowChecksumChanges: !writeChecksums,
     allowMetadataChanges: !acceptMetadata,
   });
-  if (fs.readFileSync(update.destination, "utf8") !== update.content) {
+  if (current.manifestContent !== update.content) {
     throw new Error(`Fixture pack ${update.inspection.report.pack} manifest changed during refresh commit.`);
   }
   if (
@@ -94,7 +93,7 @@ export function verifyFixturePacks({
     });
     return {
       validated,
-      manifestContent: fs.readFileSync(validated.manifestPath, "utf8"),
+      manifestContent: validated.manifestContent,
       report: {
         pack: `${validated.manifest.identity.id}@${validated.manifest.identity.version}`,
         manifest: path.relative(resolvedFixturesRoot, validated.manifestPath),

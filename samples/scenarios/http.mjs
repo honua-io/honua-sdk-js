@@ -30,6 +30,11 @@ const MIME_TYPES = Object.freeze({
 const MAXIMUM_STATIC_FILE_BYTES = 16 * 1024 * 1024;
 const MAXIMUM_STATIC_FILE_BYTES_BIGINT = BigInt(MAXIMUM_STATIC_FILE_BYTES);
 const READ_ONLY_NO_FOLLOW = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
+const CACHE_POLICIES = Object.freeze({
+  "no-store": "no-store",
+  "private-fresh": "private, max-age=60",
+  "private-revalidate": "private, max-age=0, must-revalidate",
+});
 
 const RESERVED_HEADERS = new Set([
   "cache-control",
@@ -48,10 +53,12 @@ function sanitizedExtraHeaders(extra) {
   return Object.fromEntries(Object.entries(extra).filter(([name]) => !RESERVED_HEADERS.has(name.toLowerCase())));
 }
 
-export function fixtureHeaders(extra = {}) {
+export function fixtureHeaders(extra = {}, cachePolicy = "no-store") {
+  const cacheControl = CACHE_POLICIES[cachePolicy];
+  if (!cacheControl) throw new TypeError("Fixture cache policy is invalid.");
   return {
     ...sanitizedExtraHeaders(extra),
-    "cache-control": "no-store",
+    "cache-control": cacheControl,
     "content-security-policy": FIXTURE_CSP,
     "cross-origin-resource-policy": "same-origin",
     "referrer-policy": "no-referrer",
@@ -60,7 +67,11 @@ export function fixtureHeaders(extra = {}) {
   };
 }
 
-export function fixtureResponseHeaders({ contentType, contentLength, connection }, extra = {}) {
+export function fixtureResponseHeaders(
+  { contentType, contentLength, connection },
+  extra = {},
+  cachePolicy = "no-store",
+) {
   const contentTypeSupported =
     typeof contentType === "string" &&
     (/^[\w.+-]+\/[\w.+-]+(?:; charset=utf-8)?$/.test(contentType) ||
@@ -75,28 +86,39 @@ export function fixtureResponseHeaders({ contentType, contentLength, connection 
     throw new TypeError("Fixture response connection mode is invalid.");
   }
   return {
-    ...fixtureHeaders(extra),
+    ...fixtureHeaders(extra, cachePolicy),
     ...(connection ? { connection } : {}),
     ...(contentLength === undefined ? {} : { "content-length": contentLength }),
     "content-type": contentType,
   };
 }
 
-export function sendJson(res, status, value, extraHeaders = {}) {
+export function sendJson(res, status, value, extraHeaders = {}, cachePolicy = "no-store") {
   const body = `${JSON.stringify(value)}\n`;
   res.writeHead(
     status,
     fixtureResponseHeaders(
       { contentLength: Buffer.byteLength(body), contentType: "application/json; charset=utf-8" },
       extraHeaders,
+      cachePolicy,
     ),
   );
   res.end(body);
 }
 
-export function sendText(res, status, body, contentType = "text/plain; charset=utf-8", extraHeaders = {}) {
+export function sendText(
+  res,
+  status,
+  body,
+  contentType = "text/plain; charset=utf-8",
+  extraHeaders = {},
+  cachePolicy = "no-store",
+) {
   const value = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
-  res.writeHead(status, fixtureResponseHeaders({ contentLength: value.byteLength, contentType }, extraHeaders));
+  res.writeHead(
+    status,
+    fixtureResponseHeaders({ contentLength: value.byteLength, contentType }, extraHeaders, cachePolicy),
+  );
   res.end(value);
 }
 

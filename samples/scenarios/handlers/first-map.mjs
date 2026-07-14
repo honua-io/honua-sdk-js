@@ -47,6 +47,12 @@ function scenarioHeaders(run, representation, value) {
   return {};
 }
 
+function scenarioCachePolicy(run) {
+  if (run.scenario === "cache-hit" || run.scenario === "cache-stale") return "private-fresh";
+  if (run.scenario === "cache-revalidate") return "private-revalidate";
+  return "no-store";
+}
+
 function ogcHeaders(run, representation, value) {
   return { ...scenarioHeaders(run, representation, value), "content-crs": `<${OGC_CRS84}>` };
 }
@@ -544,18 +550,19 @@ function sendQueryScenarioFailure(res, run, protocol) {
   return false;
 }
 
-function sendGeoJson(res, status, value, extraHeaders = {}) {
-  sendText(res, status, `${JSON.stringify(value)}\n`, OGC_GEOJSON_CONTENT_TYPE, extraHeaders);
+function sendGeoJson(res, status, value, extraHeaders = {}, cachePolicy = "no-store") {
+  sendText(res, status, `${JSON.stringify(value)}\n`, OGC_GEOJSON_CONTENT_TYPE, extraHeaders, cachePolicy);
 }
 
 function sendScenarioJson(req, res, run, representation, value, status = 200) {
   const headers = scenarioHeaders(run, representation, value);
+  const cachePolicy = scenarioCachePolicy(run);
   if (status === 200 && isNotModified(req, run, representation, value)) {
-    res.writeHead(304, fixtureHeaders(headers));
+    res.writeHead(304, fixtureHeaders(headers, cachePolicy));
     res.end();
     return;
   }
-  sendJson(res, status, value, headers);
+  sendJson(res, status, value, headers, cachePolicy);
 }
 
 function sendScenarioOgcJson(req, res, run, representation, value, contentType = null) {
@@ -563,20 +570,21 @@ function sendScenarioOgcJson(req, res, run, representation, value, contentType =
     contentType === OGC_GEOJSON_CONTENT_TYPE
       ? ogcHeaders(run, representation, value)
       : scenarioHeaders(run, representation, value);
+  const cachePolicy = scenarioCachePolicy(run);
   if (isNotModified(req, run, representation, value)) {
-    res.writeHead(304, fixtureHeaders(headers));
+    res.writeHead(304, fixtureHeaders(headers, cachePolicy));
     res.end();
     return;
   }
   if (contentType === OGC_OPENAPI_CONTENT_TYPE) {
-    sendText(res, 200, `${JSON.stringify(value)}\n`, contentType, headers);
+    sendText(res, 200, `${JSON.stringify(value)}\n`, contentType, headers, cachePolicy);
     return;
   }
   if (contentType === OGC_GEOJSON_CONTENT_TYPE) {
-    sendGeoJson(res, 200, value, headers);
+    sendGeoJson(res, 200, value, headers, cachePolicy);
     return;
   }
-  sendJson(res, 200, value, headers);
+  sendJson(res, 200, value, headers, cachePolicy);
 }
 
 function sendByteRange(req, res, value, extraHeaders = {}, contentType = "application/json; charset=utf-8") {

@@ -305,6 +305,12 @@ function scenarioHeaders(run, representation, value) {
   return {};
 }
 
+function scenarioCachePolicy(run) {
+  if (run.scenario === "cache-hit" || run.scenario === "cache-stale") return "private-fresh";
+  if (run.scenario === "cache-revalidate") return "private-revalidate";
+  return "no-store";
+}
+
 function sendRange(req, res, value) {
   const bytes = Buffer.from(`${canonicalJson(value)}\n`);
   if (req.headers.range === undefined) {
@@ -485,12 +491,13 @@ export function createIncidentOperationsHandler(pack) {
           },
         };
         const headers = scenarioHeaders(run, "capabilities", value);
+        const cachePolicy = scenarioCachePolicy(run);
         if (run.scenario === "cache-revalidate" && req.headers["if-none-match"] === headers.etag) {
-          res.writeHead(304, fixtureHeaders(headers));
+          res.writeHead(304, fixtureHeaders(headers, cachePolicy));
           res.end();
           return true;
         }
-        sendJson(res, 200, value, headers);
+        sendJson(res, 200, value, headers, cachePolicy);
         return true;
       }
       if (req.method === "GET" && url.pathname === "/api/v1/incidents") {
@@ -499,11 +506,12 @@ export function createIncidentOperationsHandler(pack) {
         if (run.scenario === "range") sendRange(req, res, value);
         else {
           const headers = scenarioHeaders(run, "snapshot", value);
+          const cachePolicy = scenarioCachePolicy(run);
           if (run.scenario === "cache-revalidate" && req.headers["if-none-match"] === headers.etag) {
-            res.writeHead(304, fixtureHeaders(headers));
+            res.writeHead(304, fixtureHeaders(headers, cachePolicy));
             res.end();
           } else {
-            sendJson(res, 200, value, headers);
+            sendJson(res, 200, value, headers, cachePolicy);
           }
         }
         return true;

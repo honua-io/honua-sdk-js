@@ -4,7 +4,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import {
   HARNESS_CI_BUDGET,
@@ -523,6 +523,22 @@ describe("First Map modular protocol scenarios", () => {
         expect(ogc.headers.get("content-range")).toMatch(/^bytes 0-31\//);
         expect(ogc.headers.get("content-type")).toBe("application/geo+json; charset=utf-8");
       }
+      for (const response of [geoservices, ogc]) {
+        if (scenario === "cache-hit") {
+          expect(response.headers.get("cache-control")).toBe("private, max-age=60");
+          expect(response.headers.get("age")).toBe("12");
+          expect(response.headers.get("warning")).toBeNull();
+        } else if (scenario === "cache-stale") {
+          expect(response.headers.get("cache-control")).toBe("private, max-age=60");
+          expect(response.headers.get("age")).toBe("600");
+          expect(response.headers.get("warning")).toBe('110 - "Response is stale"');
+        } else if (scenario === "cache-revalidate") {
+          expect(response.headers.get("cache-control")).toBe("private, max-age=0, must-revalidate");
+          expect(response.headers.get("etag")).toBeTruthy();
+          expect(response.headers.get("age")).toBeNull();
+          expect(response.headers.get("warning")).toBeNull();
+        }
+      }
       await fetch(`${harness.origin}/__fixture__/runs/geo-${scenario}`, { method: "DELETE" });
       await fetch(`${harness.origin}/__fixture__/runs/ogc-${scenario}`, { method: "DELETE" });
     }
@@ -805,6 +821,8 @@ describe("First Map modular protocol scenarios", () => {
     expect(geoservicesEtag).toBeTruthy();
     expect(ogcEtag).toBeTruthy();
     expect(geoservicesEtag).not.toBe(ogcEtag);
+    expect(geoservices.headers.get("cache-control")).toBe("private, max-age=0, must-revalidate");
+    expect(ogc.headers.get("cache-control")).toBe("private, max-age=0, must-revalidate");
     expect(
       (
         await fetch(`${harness.origin}${queryPath}`, {
@@ -819,20 +837,21 @@ describe("First Map modular protocol scenarios", () => {
         })
       ).status,
     ).toBe(200);
-    expect(
-      (
-        await fetch(`${harness.origin}${queryPath}`, {
-          headers: runHeaders("etag-truth", "public", { "if-none-match": geoservicesEtag ?? "" }),
-        })
-      ).status,
-    ).toBe(304);
-    expect(
-      (
-        await fetch(`${harness.origin}${ogcItemsPath}`, {
-          headers: runHeaders("etag-truth", "public", { "if-none-match": ogcEtag ?? "" }),
-        })
-      ).status,
-    ).toBe(304);
+    const geoservicesNotModified = await fetch(`${harness.origin}${queryPath}`, {
+      headers: runHeaders("etag-truth", "public", { "if-none-match": geoservicesEtag ?? "" }),
+    });
+    const ogcNotModified = await fetch(`${harness.origin}${ogcItemsPath}`, {
+      headers: runHeaders("etag-truth", "public", { "if-none-match": ogcEtag ?? "" }),
+    });
+    for (const [response, expectedEtag] of [
+      [geoservicesNotModified, geoservicesEtag],
+      [ogcNotModified, ogcEtag],
+    ] as const) {
+      expect(response.status).toBe(304);
+      expect(response.headers.get("cache-control")).toBe("private, max-age=0, must-revalidate");
+      expect(response.headers.get("etag")).toBe(expectedEtag);
+      expect(await response.text()).toBe("");
+    }
   });
 
   it("fails query capability discovery closed before rejecting forced unsupported I/O", async () => {
@@ -1109,13 +1128,14 @@ describe("Incident Operations realtime scenarios", () => {
     const firstEtag = first.headers.get("etag");
     const firstBody = await first.text();
     expect(firstEtag).toBeTruthy();
-    expect(
-      (
-        await fetch(snapshotUrl, {
-          headers: runHeaders("incident-etag", "public", { "if-none-match": firstEtag ?? "" }),
-        })
-      ).status,
-    ).toBe(304);
+    expect(first.headers.get("cache-control")).toBe("private, max-age=0, must-revalidate");
+    const notModified = await fetch(snapshotUrl, {
+      headers: runHeaders("incident-etag", "public", { "if-none-match": firstEtag ?? "" }),
+    });
+    expect(notModified.status).toBe(304);
+    expect(notModified.headers.get("cache-control")).toBe("private, max-age=0, must-revalidate");
+    expect(notModified.headers.get("etag")).toBe(firstEtag);
+    expect(await notModified.text()).toBe("");
     const step = await fetch(`${harness.origin}/__fixture__/runs/incident-etag/actions/step`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1128,6 +1148,22 @@ describe("Incident Operations realtime scenarios", () => {
     expect(changed.status).toBe(200);
     expect(changed.headers.get("etag")).not.toBe(firstEtag);
     expect(await changed.text()).not.toBe(firstBody);
+  });
+
+  it("marks incident cache-hit and cache-stale snapshots private with coherent freshness metadata", async () => {
+    const harness = await start({ sampleId: "incident-operations" });
+    for (const [scenario, age, warning] of [
+      ["cache-hit", "10", null],
+      ["cache-stale", "600", '110 - "Response is stale"'],
+    ] as const) {
+      const runId = `incident-${scenario}`;
+      await createRun(harness.origin, runId, scenario);
+      const response = await fetch(`${harness.origin}/api/v1/incidents`, { headers: runHeaders(runId) });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("private, max-age=60");
+      expect(response.headers.get("age")).toBe(age);
+      expect(response.headers.get("warning")).toBe(warning);
+    }
   });
 
   it("validates incident selectors before consuming throttle or stream capacity", async () => {
@@ -1382,6 +1418,70 @@ describe("Incident Operations realtime scenarios", () => {
 });
 
 describe("bounded registry and SSE primitives", () => {
+  it("disposes failed run construction without publishing partial state", () => {
+    const disposals: Array<{ runId: string; reason: string; marker: string | undefined; active: boolean }> = [];
+    const registry = createRunRegistry<{ marker: string }>({
+      handler: {
+        createRunState: (run) => {
+          if (run.id === "broken") {
+            run.state = { marker: "partial" };
+            throw new Error("sensitive construction failure");
+          }
+          return { marker: "ready" };
+        },
+        disposeRunState: (run, reason) => {
+          disposals.push({ runId: run.id, reason, marker: run.state?.marker, active: run.active });
+        },
+      },
+      maximumRuns: 3,
+    });
+
+    expect(() => registry.create({ id: "broken", scenario: "happy" })).toThrow(/creation failed/i);
+    expect(() => registry.get("broken")).toThrow(/unknown fixture run/i);
+    const defaultRun = registry.get();
+    expectTypeOf(defaultRun.ids.next).toBeFunction();
+    expectTypeOf(defaultRun.createdAt).toEqualTypeOf<number>();
+    expectTypeOf(defaultRun.touchedAt).toEqualTypeOf<number>();
+    expectTypeOf(defaultRun.mutation).toEqualTypeOf<Promise<unknown>>();
+    const compileOnlyAsyncMutation = () => {
+      // @ts-expect-error Fixture mutations must complete synchronously under the registry lock.
+      return registry.mutate(defaultRun, async () => "not-allowed");
+    };
+    expectTypeOf(compileOnlyAsyncMutation).toBeFunction();
+    expect(defaultRun.state).toEqual({ marker: "ready" });
+    expect(registry.size()).toBe(1);
+    expect(disposals).toEqual([
+      { runId: "broken", reason: "run-construction-failed", marker: "partial", active: false },
+    ]);
+    registry.close();
+  });
+
+  it("disposes out-of-band resources when construction throws before assigning state", () => {
+    const resources = new Set<string>();
+    const disposals: string[] = [];
+    const registry = createRunRegistry({
+      handler: {
+        createRunState: (run) => {
+          if (run.id === "broken") {
+            resources.add(run.id);
+            throw new Error("construction failed before state");
+          }
+          return {};
+        },
+        disposeRunState: (run, reason) => {
+          if (resources.delete(run.id)) disposals.push(reason);
+        },
+      },
+      maximumRuns: 3,
+    });
+
+    expect(() => registry.create({ id: "broken", scenario: "happy" })).toThrow(/creation failed/i);
+    expect(resources.size).toBe(0);
+    expect(disposals).toEqual(["run-construction-failed"]);
+    expect(registry.size()).toBe(1);
+    registry.close();
+  });
+
   it("validates run ids before TTL cleanup can dispose unrelated runs", () => {
     let registryTime = 10_000;
     const disposals: Array<{ runId: string; reason: string }> = [];
@@ -1519,6 +1619,7 @@ describe("bounded registry and SSE primitives", () => {
         inspectRunState: (target) => ({ marker: target.state.marker }),
         disposeRunState: (target, reason) => {
           if (reason === "reset") {
+            if (!target.state) throw new Error("reset disposal lost its detached state");
             target.state.marker = "partially-disposed-old-state";
             throw new Error("sensitive reset failure");
           }

@@ -442,6 +442,20 @@ function validateIncidentChanges(changes, description) {
 }
 
 function validateFirstMap(manifest, data) {
+  const expectedFileRoles = [
+    "capabilities",
+    "features",
+    "layer",
+    "ogcApiDefinition",
+    "ogcCollection",
+    "ogcConformance",
+    "ogcItems",
+    "ogcLanding",
+  ];
+  if (!sameValues(Object.keys(manifest.schema.files), expectedFileRoles)) {
+    throw new Error("First Map fixture logical file roles are incomplete or unsupported.");
+  }
+  const capabilities = data[manifest.schema.files.capabilities];
   const features = data[manifest.schema.files.features];
   const layer = data[manifest.schema.files.layer];
   const ogcLanding = data[manifest.schema.files.ogcLanding];
@@ -449,8 +463,20 @@ function validateFirstMap(manifest, data) {
   const ogcConformance = data[manifest.schema.files.ogcConformance];
   const ogcCollection = data[manifest.schema.files.ogcCollection];
   const ogcItems = data[manifest.schema.files.ogcItems];
-  if (!features || !layer || !ogcLanding || !ogcApiDefinition || !ogcConformance || !ogcCollection || !ogcItems) {
+  if (
+    !capabilities ||
+    !features ||
+    !layer ||
+    !ogcLanding ||
+    !ogcApiDefinition ||
+    !ogcConformance ||
+    !ogcCollection ||
+    !ogcItems
+  ) {
     throw new Error("First Map fixture is missing a GeoServices or OGC API Features projection file.");
+  }
+  if (manifest.schema.geometryType !== "Polygon") {
+    throw new Error("First Map manifest geometryType must be Polygon.");
   }
   if (
     !sameValues(manifest.schema.protocols, [
@@ -461,6 +487,30 @@ function validateFirstMap(manifest, data) {
   ) {
     throw new Error("First Map must declare both GeoServices and OGC API Features projections.");
   }
+  assertJsonEqual(
+    capabilities,
+    {
+      success: true,
+      data: {
+        metadataApiVersions: ["honua.io/v1alpha1"],
+        resourceKinds: ["Layer"],
+        compatibility: {
+          serverVersion: "1.2.0",
+          releaseChannel: "stable",
+          controlPlaneApi: { major: 1, basePath: "/api/v1/admin", deprecated: false },
+          metadataSchemas: [{ version: "honua.io/v1alpha1", deprecated: false }],
+          features: {
+            metadataResources: true,
+            manifestExport: true,
+            manifestApply: true,
+            manifestDryRun: true,
+            manifestPrune: true,
+          },
+        },
+      },
+    },
+    "First Map capabilities projection is incompatible with the immutable v1 baseline.",
+  );
   if (features.features.length !== manifest.schema.featureCount)
     throw new Error("First Map featureCount does not match payload.");
   if (features.spatialReference?.wkid !== 4326 || manifest.schema.authorityCrs !== "EPSG:4326") {
@@ -739,9 +789,18 @@ function validateFirstMap(manifest, data) {
 }
 
 function validateIncidentOperations(manifest, data) {
+  if (!sameValues(Object.keys(manifest.schema.files), ["events", "snapshot"])) {
+    throw new Error("Incident Operations fixture logical file roles are incomplete or unsupported.");
+  }
   const snapshot = data[manifest.schema.files.snapshot];
   const events = data[manifest.schema.files.events];
   if (!snapshot || !events) throw new Error("Incident Operations fixture is missing snapshot or event data.");
+  if (manifest.schema.geometryType !== "Point") {
+    throw new Error("Incident Operations manifest geometryType must be Point.");
+  }
+  if (!sameValues(manifest.schema.protocols, ["server-sent-events", "honua-realtime-feature-events"])) {
+    throw new Error("Incident Operations must declare exactly its supported realtime protocols.");
+  }
   if (snapshot.features.length !== manifest.schema.featureCount) {
     throw new Error("Incident Operations featureCount does not match payload.");
   }
@@ -930,8 +989,11 @@ export function validateFixturePackDirectory(
   if (metadataChanged && !allowMetadataChanges) throw new Error("Fixture semantic metadata fingerprint mismatch.");
 
   return {
+    id: packId,
+    version: revision,
     root: resolvedRoot,
     manifestPath,
+    manifestContent: manifestBytes.toString("utf8"),
     manifest: deepFreeze(structuredClone(manifest)),
     data: deepFreeze(structuredClone(data)),
     actualChecksums,

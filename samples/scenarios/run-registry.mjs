@@ -49,11 +49,20 @@ export function createRunRegistry({
   let closed = false;
 
   function createHandlerState(run) {
-    const state = handler.createRunState(run);
-    if (state && typeof state.then === "function") {
+    run.state = handler.createRunState(run);
+    if (run.state && typeof run.state.then === "function") {
       throw new TypeError("Fixture handlers must construct run state synchronously.");
     }
-    return state;
+    return run.state;
+  }
+
+  function constructionError(message, cause, disposalError) {
+    return Object.assign(new Error(message), {
+      cause: disposalError
+        ? new AggregateError([cause, disposalError], "Fixture run construction and cleanup both failed.")
+        : cause,
+      status: 500,
+    });
   }
 
   function buildRun({ id, scenario, authScope = "public", seed = id }) {
@@ -73,8 +82,14 @@ export function createRunRegistry({
       active: true,
       state: undefined,
     };
-    run.state = createHandlerState(run);
-    return run;
+    try {
+      createHandlerState(run);
+      return run;
+    } catch (error) {
+      run.active = false;
+      const disposalError = disposeState(run, "run-construction-failed");
+      throw constructionError("Fixture run creation failed while constructing state.", error, disposalError);
+    }
   }
 
   function buildResetCandidate(run) {
@@ -94,14 +109,12 @@ export function createRunRegistry({
       state: undefined,
     };
     try {
-      candidate.state = createHandlerState(candidate);
+      createHandlerState(candidate);
       return candidate;
     } catch (error) {
-      if (candidate.state !== undefined) disposeState(candidate, "reset-candidate-construction-failed");
-      throw Object.assign(new Error("Fixture run reset failed while constructing replacement state."), {
-        cause: error,
-        status: 500,
-      });
+      candidate.active = false;
+      const disposalError = disposeState(candidate, "reset-candidate-construction-failed");
+      throw constructionError("Fixture run reset failed while constructing replacement state.", error, disposalError);
     }
   }
 

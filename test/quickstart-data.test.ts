@@ -1,7 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { describe, expect, it, vi } from "vitest";
 
 import { resolveQuickstartConfig } from "../examples/maplibre-quickstart/src/config.js";
@@ -14,19 +10,25 @@ import {
   convertEsriFeaturesToGeoJson,
   summarizeRenderableGeometryTypes,
 } from "../examples/maplibre-quickstart/src/esri-geojson.js";
+import { loadFixturePack } from "../samples/scenarios/index.mjs";
 import type { Result } from "../src/contract/types.js";
 import type { HonuaLayerMetadata } from "../src/core/types.js";
 import { explainQuery } from "../src/query-planner/index.js";
 
-const fixtureRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "honua-quickstart-demo");
+const fixturePack = loadFixturePack("first-map");
+const fixtureFiles = (fixturePack.manifest.schema as unknown as { files: Record<string, string> }).files;
 
-function readFixture<T>(fileName: string): T {
-  return JSON.parse(fs.readFileSync(path.join(fixtureRoot, fileName), "utf8")) as T;
+function readFixture<T>(role: "capabilities" | "features" | "layer"): T {
+  return structuredClone(fixturePack.data[fixtureFiles[role]]) as T;
+}
+
+function fixtureBody(role: "capabilities" | "features" | "layer"): string {
+  return `${JSON.stringify(readFixture(role))}\n`;
 }
 
 function buildFixtureDataset(features: Result["features"], queryDurationMs = 9) {
   const config = resolveQuickstartConfig({});
-  const metadata = readFixture<HonuaLayerMetadata>("layer-metadata.json");
+  const metadata = readFixture<HonuaLayerMetadata>("layer");
   const descriptor = createQuickstartSourceDescriptor(config, metadata);
   const query = {
     where: config.where,
@@ -225,7 +227,7 @@ describe("maplibre quickstart data", () => {
   });
 
   it("builds a deterministic quickstart dataset from the query fixture", () => {
-    const response = readFixture<{ features: Result["features"] }>("query-features.json");
+    const response = readFixture<{ features: Result["features"] }>("features");
     const dataset = buildFixtureDataset(response.features, 18);
 
     expect(dataset.featureCount).toBe(3);
@@ -269,21 +271,21 @@ describe("maplibre quickstart data", () => {
           requests.push(`${url.pathname}?${url.searchParams.toString()}`);
 
           if (url.pathname === "/api/v1/admin/capabilities") {
-            return new Response(fs.readFileSync(path.join(fixtureRoot, "capabilities.json")), {
+            return new Response(fixtureBody("capabilities"), {
               status: 200,
               headers: { "content-type": "application/json" },
             });
           }
 
           if (url.pathname === "/rest/services/natural-earth/FeatureServer/0") {
-            return new Response(fs.readFileSync(path.join(fixtureRoot, "layer-metadata.json")), {
+            return new Response(fixtureBody("layer"), {
               status: 200,
               headers: { "content-type": "application/json" },
             });
           }
 
           if (url.pathname === "/rest/services/natural-earth/FeatureServer/0/query") {
-            return new Response(fs.readFileSync(path.join(fixtureRoot, "query-features.json")), {
+            return new Response(fixtureBody("features"), {
               status: 200,
               headers: { "content-type": "application/json" },
             });
@@ -362,13 +364,13 @@ describe("maplibre quickstart data", () => {
           fetchFn: async (input) => {
             const url = new URL(String(input));
             if (url.pathname === "/api/v1/admin/capabilities") {
-              return new Response(fs.readFileSync(path.join(fixtureRoot, "capabilities.json")), {
+              return new Response(fixtureBody("capabilities"), {
                 status: 200,
                 headers: { "content-type": "application/json" },
               });
             }
             if (url.pathname === "/rest/services/ops/FeatureServer/9") {
-              return new Response(fs.readFileSync(path.join(fixtureRoot, "layer-metadata.json")), {
+              return new Response(fixtureBody("layer"), {
                 status: 200,
                 headers: { "content-type": "application/json" },
               });
