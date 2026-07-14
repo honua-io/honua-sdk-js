@@ -1011,25 +1011,14 @@ describe("contract / GeoServices GP Service parity", () => {
     ).toThrow(/taskName/);
   });
 
-  it("allows GP descriptors without taskName when only `connect` is advertised (service-root metadata)", () => {
-    const client = makeMockClient({ routes: [] });
-    const dataset = createDataset({
-      id: "print",
-      client,
-      skipCompatibilityCheck: true,
-      sources: [
-        {
-          id: "print-gp-root",
-          protocol: "geoservices-gp-service",
-          locator: { url: "https://mock/", serviceId: "Print" },
-          capabilities: capabilities(["connect"]),
-        },
-      ],
-    });
-    // Constructing the source must succeed; the lifecycle routes that
-    // require a task name are not in the advertised capability set.
-    const source = dataset.source("print-gp-root");
-    expect(source).toBeDefined();
+  it("does not advertise public connect() discovery for ImageServer, GeometryServer, or GPServer", () => {
+    for (const protocol of [
+      "geoservices-image-service",
+      "geoservices-geometry-service",
+      "geoservices-gp-service",
+    ] as const) {
+      expect(PROTOCOL_DEFAULT_CAPABILITIES[protocol].has("connect"), protocol).toBe(false);
+    }
   });
 });
 

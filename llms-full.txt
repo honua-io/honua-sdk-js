@@ -4969,9 +4969,11 @@ real `User-Agent` for Nominatim.
 <!-- support-manifest:protocol-matrix:start -->
 Status: generated from [`config/support-manifest.v1.json`](../config/support-manifest.v1.json); do not edit this section by hand.
 
-The matrix is the default capability set per protocol. Per-source metadata may
-narrow it at runtime. An absent operation is explicitly `unsupported`; capability
-misses throw `HonuaCapabilityNotSupportedError` rather than returning empty data.
+Native (`✓`) claims mirror the default capability set per protocol; per-source
+metadata may narrow them at runtime. Client-fallback (`◐`) claims are explicit
+opt-in paths and are not protocol defaults. An absent operation is explicitly
+`unsupported`; capability misses throw `HonuaCapabilityNotSupportedError`
+rather than returning empty data.
 
 - `✓` supported with native execution
 - `◐` supported through an explicit client fallback
@@ -4991,12 +4993,12 @@ misses throw `HonuaCapabilityNotSupportedError` rather than returning empty data
 | `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — | ✓ | — | — | — | — | — |
 | `attachments` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | ✓ |
+| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — |
 | `tiles` | — | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | — |
 | `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ◇ | — | — | — |
 | `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `connect` | — | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `connect` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
@@ -5026,11 +5028,8 @@ policy in the manifest.
 | `geoservices-image-service` | `query`, `queryExtent`, `queryObjectIds` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
 | `geoservices-image-service` | `image`, `render` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
 | `geoservices-image-service` | `tiles` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
-| `geoservices-image-service` | `connect` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
 | `geoservices-geometry-service` | `geometry` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
-| `geoservices-geometry-service` | `connect` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
 | `geoservices-gp-service` | `geoprocess` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[fixture: geoprocessing-job-run-fixtures](../test/contract/geoprocessing-job-run.test.ts)<br>[fixture: process-runner-fixtures](../test/process-runner.test.ts) |
-| `geoservices-gp-service` | `connect` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
 | `ogc-features` | `query`, `queryObjectIds`, `applyEdits`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts) |
 | `ogc-features` | `queryAggregate`, `queryExtent` | `supported` | `protocol-adapter` | `client-fallback` | [fixture: contract-conformance](../test/contract/conformance.test.ts) |
 | `ogc-tiles` | `render`, `tiles` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts) |
@@ -5043,9 +5042,10 @@ policy in the manifest.
 | `odata` | `query`, `queryObjectIds`, `stream`, `applyEdits` | `supported` | `protocol-adapter` | `native` | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts) |
 | `pmtiles` | `tiles` | `supported` | `client-only` | `native` | [fixture: pmtiles-fixtures](../test/pmtiles-contract.test.ts) |
 | `geoparquet` | `query`, `queryAggregate`, `stream` | `experimental` | `client-only` | `native` | [fixture: geoparquet-fixtures](../test/geoparquet-source.test.ts) |
-| `maplibre-vector` | `render`, `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-source-fixtures](../test/contract/conformance.test.ts) |
-| `maplibre-raster` | `render`, `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-source-fixtures](../test/contract/conformance.test.ts) |
-| `maplibre-geojson` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-source-fixtures](../test/contract/conformance.test.ts) |
+| `maplibre-vector` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs) |
+| `maplibre-vector` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts) |
+| `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs) |
+| `maplibre-raster` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) |
 <!-- support-manifest:protocol-matrix:end -->
 
 MapLibre-native and PMTiles sources are included in the generated table even
@@ -5053,6 +5053,12 @@ though they do not flow through the `Source.query` path. GeoParquet is the
 experimental DuckDB-WASM-backed `Source` from `@honua/sdk-js/geoparquet`;
 envelope filters push down to `ST_Intersects`, while non-envelope filters reduce
 to their bounding box and are reported through `Result.degraded`.
+
+`maplibre-vector` and `maplibre-raster` are executable descriptor strategies
+with release-gated renderer coverage. `maplibre-geojson` remains a reserved
+protocol identifier with no positive default capability: the runtime can load
+an inline MapLibre `type: "geojson"` source, but the automatic/app descriptor
+path does not implement that protocol today.
 
 `spatialAggregate` is an indexed analytics capability rather than the
 field-statistics `queryAggregate` path. No protocol receives it by default. A
@@ -5126,7 +5132,7 @@ from the default capability set; the canonical methods throw
 ### GeoServices Geometry Service
 Geometry Service is a stateless utility — it does not host features —
 so the canonical query family throws on every method. The default
-capabilities advertise only `geometry` and `connect`. Operations
+capabilities advertise only `geometry`. Operations
 (`buffer`, `simplify`, `project`, `intersect`, `union`, `clip`,
 `difference`) live behind
 `Source.protocol("geoservices-geometry-service")` on a
@@ -5141,7 +5147,7 @@ etc.) intentionally have no wrapper.
 
 ### GeoServices GP Service
 GP Services run async tasks rather than hosting features. The default
-capabilities advertise only `geoprocess` and `connect`; the canonical
+capabilities advertise only `geoprocess`; the canonical
 query family throws. Task lifecycle — `submitJob`, `jobStatus`,
 `cancelJob`, `jobResult` — lives behind
 `Source.protocol("geoservices-gp-service")` on a
@@ -5151,9 +5157,7 @@ descriptor uniquely identifies a task without leaking task parameters
 into the canonical descriptor shape. `createDataset` rejects descriptors
 that advertise `geoprocess` without a `locator.taskName` because Honua
 Server publishes the lifecycle routes only under
-`/rest/services/<serviceId>/GPServer/<taskName>/...`; descriptors that
-advertise only `connect` (service-root metadata probe) may omit the
-task name.
+`/rest/services/<serviceId>/GPServer/<taskName>/...`.
 
 GeoServices GPServer also participates in the unified process runner:
 `client.geoprocessingRunner(serviceId, taskName)` returns a

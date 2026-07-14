@@ -32,6 +32,7 @@ export const EXECUTION_MODE_VOCABULARY = [
 
 const GENERATED_PATHS = {
   publicSurface: "config/public-surface.json",
+  supportProjectionSchema: "support/contract/v1/schemas/support-projection.schema.json",
   supportProjection: "support/projections/sdk-support.v1.json",
 };
 
@@ -103,6 +104,7 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
     if (protocolIds.includes(protocolId)) fail(`claim-only protocol duplicates a canonical protocol: ${protocolId}`);
   }
   const usedStatuses = new Set([manifest.sdk?.releaseStatus]);
+  const positiveOperationsByProtocol = new Map();
 
   for (const protocol of manifest.protocols ?? []) {
     if (protocol.defaultOperationStatus !== "unsupported") {
@@ -110,6 +112,7 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
     }
     usedStatuses.add(protocol.defaultOperationStatus);
     const claimedOperations = [];
+    const positiveOperations = new Set();
     for (const claim of protocol.operationClaims ?? []) {
       usedStatuses.add(claim.status);
       if (!STATUS_VOCABULARY.includes(claim.status)) fail(`${protocol.id} has invalid status ${claim.status}`);
@@ -125,12 +128,14 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
       for (const operation of claim.operations ?? []) {
         if (!protocolOperationSet.has(operation)) fail(`${protocol.id} references unknown protocol operation ${operation}`);
         claimedOperations.push(operation);
+        if (positiveStatus(claim.status)) positiveOperations.add(operation);
       }
       for (const evidenceId of claim.evidence ?? []) {
         if (!evidenceById.has(evidenceId)) fail(`${protocol.id} references unknown evidence ${evidenceId}`);
       }
     }
     if (!unique(claimedOperations)) fail(`${protocol.id} assigns an operation more than once`);
+    positiveOperationsByProtocol.set(protocol.id, positiveOperations);
   }
 
   const claimIds = (manifest.supportClaims ?? []).map((claim) => claim.id);
@@ -150,6 +155,17 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
     }
     for (const operation of claim.operations ?? []) {
       if (!claimCapabilitySet.has(operation)) fail(`${claim.id} references unknown claim capability ${operation}`);
+      const protocolOperations = positiveOperationsByProtocol.get(claim.protocol);
+      if (
+        positiveStatus(claim.status) &&
+        protocolOperationSet.has(operation) &&
+        protocolOperations &&
+        !protocolOperations.has(operation)
+      ) {
+        fail(
+          `${claim.id} positively claims ${operation} for ${claim.protocol}, but that protocol has no positive operation claim`,
+        );
+      }
     }
     if (positiveStatus(claim.status) && (claim.evidence ?? []).length === 0) {
       fail(`${claim.id} ${claim.status} support claim must link evidence`);
@@ -287,9 +303,11 @@ export function renderProtocolSection(manifest) {
   );
   return `Status: generated from [\`${MANIFEST_PATH}\`](../${MANIFEST_PATH}); do not edit this section by hand.
 
-The matrix is the default capability set per protocol. Per-source metadata may
-narrow it at runtime. An absent operation is explicitly \`unsupported\`; capability
-misses throw \`HonuaCapabilityNotSupportedError\` rather than returning empty data.
+Native (\`✓\`) claims mirror the default capability set per protocol; per-source
+metadata may narrow them at runtime. Client-fallback (\`◐\`) claims are explicit
+opt-in paths and are not protocol defaults. An absent operation is explicitly
+\`unsupported\`; capability misses throw \`HonuaCapabilityNotSupportedError\`
+rather than returning empty data.
 
 - \`✓\` supported with native execution
 - \`◐\` supported through an explicit client fallback
@@ -433,6 +451,68 @@ export function buildSupportProjection(manifest, packageJson) {
   };
 }
 
+export function buildSupportProjectionSchema(manifestSchema) {
+  const sharedPropertyNames = [
+    "statusVocabulary",
+    "environmentVocabulary",
+    "executionModeVocabulary",
+    "protocolOperations",
+    "claimCapabilities",
+    "claimOnlyProtocols",
+    "consumerContracts",
+    "freshnessPolicies",
+    "evidence",
+    "protocols",
+    "supportClaims",
+  ];
+  const sharedProperties = Object.fromEntries(
+    sharedPropertyNames.map((name) => {
+      const property = manifestSchema.properties?.[name];
+      if (!property) throw new Error(`Manifest schema is missing projection property ${name}`);
+      return [name, structuredClone(property)];
+    }),
+  );
+  const packageLifecycle = manifestSchema.$defs?.packageLifecycle;
+  if (!packageLifecycle) throw new Error("Manifest schema is missing $defs.packageLifecycle");
+
+  return {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    $id: "https://honua.io/schemas/sdk/support-projection.v1.schema.json",
+    $comment:
+      "Generated from config/support-manifest.schema.json so downstream consumers can compile this schema offline without pre-registering another schema.",
+    title: "Honua SDK downstream support projection",
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "format",
+      "schemaVersion",
+      "generatedFrom",
+      "sdk",
+      ...sharedPropertyNames,
+      "packageLifecycle",
+    ],
+    properties: {
+      $schema: { type: "string" },
+      format: { const: "honua.sdk.support-projection.v1" },
+      schemaVersion: { const: 1 },
+      generatedFrom: { const: MANIFEST_PATH },
+      sdk: {
+        type: "object",
+        additionalProperties: false,
+        required: ["package", "version", "releaseStatus"],
+        properties: {
+          package: { const: "@honua/sdk-js" },
+          version: { type: "string", minLength: 1 },
+          releaseStatus: { $ref: "#/$defs/status" },
+        },
+      },
+      ...sharedProperties,
+      packageLifecycle: structuredClone(packageLifecycle),
+    },
+    $defs: structuredClone(manifestSchema.$defs),
+  };
+}
+
 export function replaceManagedSection(markdown, name, body) {
   const start = `<!-- support-manifest:${name}:start -->`;
   const end = `<!-- support-manifest:${name}:end -->`;
@@ -446,6 +526,7 @@ function json(value) {
 }
 
 export function generateOutputs({ manifest, packageJson, projectRoot = PROJECT_ROOT }) {
+  const manifestSchema = readJson(path.join(projectRoot, "config/support-manifest.schema.json"));
   const protocolDoc = fs.readFileSync(path.join(projectRoot, "docs/protocol-capability-matrix.md"), "utf8");
   const standaloneDoc = fs.readFileSync(path.join(projectRoot, "docs/standalone-capability-matrix.md"), "utf8");
   const readme = fs.readFileSync(path.join(projectRoot, "README.md"), "utf8");
@@ -462,6 +543,7 @@ export function generateOutputs({ manifest, packageJson, projectRoot = PROJECT_R
     ],
     ["README.md", replaceManagedSection(replaceManagedSection(readme, "release", renderReadmeReleaseSection(manifest, packageJson)), "standalone", renderReadmeStandaloneSection(manifest))],
     ["INSTALL.md", replaceManagedSection(install, "install-status", renderInstallSupportSection(manifest))],
+    [GENERATED_PATHS.supportProjectionSchema, json(buildSupportProjectionSchema(manifestSchema))],
     [GENERATED_PATHS.supportProjection, json(buildSupportProjection(manifest, packageJson))],
   ]);
 }
