@@ -9,7 +9,7 @@
 
 export const HONUA_ERROR_KIND = "honua.sdk.error.v1" as const;
 
-export type HonuaErrorDomain = "core" | "discovery" | "query" | "map" | "runtime" | "realtime" | "offline";
+export type HonuaErrorDomain = "core" | "discovery" | "query" | "map" | "runtime" | "realtime" | "offline" | "plugin";
 
 export type HonuaErrorCategory =
   | "authentication"
@@ -399,6 +399,40 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Replica synchronization permission was denied",
   ),
+  "plugin.registry.validation": classification(
+    "plugin",
+    "validation",
+    false,
+    "Plugin registry input or lifecycle state is invalid",
+  ),
+  "plugin.compatibility": classification(
+    "plugin",
+    "capability",
+    false,
+    "Plugin declaration is incompatible with the host or its dependencies",
+  ),
+  "plugin.execution.policy-denied": classification(
+    "plugin",
+    "capability",
+    false,
+    "Plugin execution was denied by host policy",
+  ),
+  "plugin.capability-unavailable": classification(
+    "plugin",
+    "capability",
+    false,
+    "Plugin execution requires an unavailable capability or dependency",
+  ),
+  "plugin.lifecycle.activation": classification(
+    "plugin",
+    "internal",
+    false,
+    "Plugin activation or registration failed",
+  ),
+  "plugin.execution.validation": classification("plugin", "validation", false, "Plugin execution input is invalid"),
+  "plugin.lifecycle.cleanup": classification("plugin", "internal", false, "Plugin lifecycle cleanup failed"),
+  "plugin.cancelled": classification("plugin", "cancellation", false, "Plugin registration was cancelled"),
+  "plugin.internal": classification("plugin", "internal", false, "Plugin registry internal failure"),
 } as const satisfies Record<string, HonuaErrorCodeDescriptor>);
 
 export type HonuaErrorCode = keyof typeof HONUA_ERROR_CODE_REGISTRY;
@@ -771,6 +805,7 @@ const SAFE_ERROR_NAMES = new Set([
   "HonuaMapPackageError",
   "HonuaNetworkError",
   "HonuaOfflineRegionError",
+  "HonuaPluginRegistryError",
   "HonuaQueryPlanExecutionError",
   "HonuaQueryPlanningError",
   "HonuaRealtimeResumeError",

@@ -9,10 +9,11 @@ This release covers core transport/auth/protocol errors, discovery, the query
 planner, every public error exported by the stable `map` and `runtime`
 subpaths, the public realtime resume error, and the offline region plus replica
 synchronization classes migrated by
-[#569](https://github.com/honua-io/honua-sdk-js/issues/569). Agent
-([#570](https://github.com/honua-io/honua-sdk-js/issues/570)) and plugin
-([#571](https://github.com/honua-io/honua-sdk-js/issues/571)) errors remain
-explicit residuals. Other experimental domains likewise retain their current
+[#569](https://github.com/honua-io/honua-sdk-js/issues/569), plus the plugin
+registry error migrated by
+[#571](https://github.com/honua-io/honua-sdk-js/issues/571). Agent errors
+([#570](https://github.com/honua-io/honua-sdk-js/issues/570)) remain an explicit
+residual. Other experimental domains likewise retain their current
 domain-specific contracts until a scoped migration lands.
 
 ## Envelope contract
@@ -22,7 +23,7 @@ Every migrated instance has these common fields:
 | Field | Meaning |
 |-------|---------|
 | `kind` | Constant `"honua.sdk.error.v1"` tag used by the cross-realm guard. |
-| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, `runtime`, `realtime`, or `offline`. |
+| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, `runtime`, `realtime`, `offline`, or `plugin`. |
 | `sdkCode` | Globally unique code from `HONUA_ERROR_CODE_REGISTRY`. |
 | `category` | Stable `authentication`, `cancellation`, `capability`, `internal`, `network`, `protocol`, `timeout`, or `validation` classification. |
 | `retryable` | Stable boolean for this exact `sdkCode`. This metadata describes the existing policy; it does not initiate retries. |
@@ -42,9 +43,10 @@ Serialization is deliberately fail-closed. `serializeHonuaError` and
 and classification-only cause information. They omit raw messages, stacks,
 response bodies, details, cause payloads, credentials, authorization/cookie
 headers, cached feature bodies, raw cursors/resume tokens, signed URL values,
-query/filter/SQL values, local storage paths, binary payloads, and
-prototype-manipulation keys. The raw instance still retains its message,
-documented detail fields, and exact cause for local use.
+query/filter/SQL values, local storage paths, plugin manifests/configuration,
+tool payloads, cleanup failures, binary payloads, and prototype-manipulation
+keys. The raw instance still retains its message, documented detail fields,
+exact cause, and documented cleanup aggregates for local use.
 
 ```ts doc-test=skip reason="partial excerpt requires application retry and logging hosts"
 import { isHonuaError, serializeHonuaError } from "@honua/sdk-js";
@@ -87,6 +89,7 @@ try {
 | `HonuaRealtimeResumeError` | `@honua/sdk-js/realtime` | Realtime initialization, decoding, checkpoint, ordering, transport, or terminal delivery fails. | Branch on the existing reason `.code`; reconnect or request a replacement snapshot only when the stream contract already permits it. Envelope retryability is metadata and does not initiate reconnects. |
 | `HonuaOfflineRegionError` | `@honua/sdk-js/offline` | Offline manifest validation, quota admission, resource loading, integrity verification, cancellation, or atomic store work fails. | Branch on the existing detailed `.code`. Rebuild invalid manifests, free quota, and treat abort as terminal. Retry through the application's loader/store policy only when `.sdkCode` is `offline.transport.transient`; generic loader failures remain conservative. Raw resource identifiers and storage paths remain local-only. |
 | `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync` shim remains through 0.1.x) | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
+| `HonuaPluginRegistryError` | `@honua/sdk-js/plugin` | Plugin registry validation, compatibility, policy, capability, activation, execution validation, cancellation, or cleanup fails. | Branch on the existing `PLUGIN_*` `.code` or its grouped `.sdkCode`. Correct declarations or host policy/capability, treat cancellation as terminal, and inspect `.cause` / `.cleanupErrors` locally for activation or cleanup failures. No plugin classification is automatically retryable. |
 
 ## Registered code families
 
@@ -125,6 +128,7 @@ verifies registry shape plus this class/family documentation.
 | `HonuaRealtimeResumeError` | `realtime.cancelled`, `realtime.transport.reconnectable`, `realtime.checkpoint.invalid`, `realtime.sequence.gap`, `realtime.protocol.terminal` |
 | `HonuaOfflineRegionError` | `offline.region.validation`, `offline.region.quota`, `offline.region.integrity`, `offline.cancelled`, `offline.transport.failure`, `offline.transport.transient`, `offline.storage.*` |
 | `HonuaReplicaSyncError` | `offline.replica-sync.capability`, `offline.replica-sync.validation`, `offline.replica-sync.permission-denied`, `offline.transport.failure`, `offline.transport.transient` |
+| `HonuaPluginRegistryError` | `plugin.registry.validation`, `plugin.compatibility`, `plugin.execution.policy-denied`, `plugin.capability-unavailable`, `plugin.lifecycle.activation`, `plugin.execution.validation`, `plugin.lifecycle.cleanup`, `plugin.cancelled`, `plugin.internal` |
 
 `HonuaRealtimeResumeError.code` remains the existing detailed reason (for
 example, `invalid-checkpoint`, `sequence-gap`, `transport-gap`, or
@@ -145,6 +149,17 @@ details, and filesystem paths are kept on the local error instance only;
 serialization emits a fixed registered reason and classification. Retryability
 is descriptive and does not alter offline eviction, commit, transport, or
 conflict-resolution policy.
+
+`HonuaPluginRegistryError.code` remains the existing `PLUGIN_*` reason and
+`cleanupErrors` remains a frozen shallow copy of cleanup failures. The grouped
+`sdkCode` distinguishes registry validation, compatibility, host-policy denial,
+missing capability, activation, execution validation, cleanup, cancellation,
+and internal failures. Every plugin classification is conservatively
+non-retryable. Serialization emits only the registered classification and a
+fixed known `reasonCode`; it never emits manifests, plugin/configuration IDs,
+raw cause payloads, or cleanup payloads. Unknown runtime codes project to
+`plugin.internal` with `reasonCode: "PLUGIN_UNKNOWN"` without changing a valid
+string's local legacy `.code` or message.
 
 ### Individual code registry
 
@@ -242,6 +257,15 @@ conflict-resolution policy.
 | `offline.replica-sync.capability` | `offline` | `capability` | no | Replica synchronization capability is unavailable |
 | `offline.replica-sync.validation` | `offline` | `validation` | no | Replica synchronization request or state is invalid |
 | `offline.replica-sync.permission-denied` | `offline` | `authentication` | no | Replica synchronization permission was denied |
+| `plugin.registry.validation` | `plugin` | `validation` | no | Plugin registry input or lifecycle state is invalid |
+| `plugin.compatibility` | `plugin` | `capability` | no | Plugin declaration is incompatible with the host or its dependencies |
+| `plugin.execution.policy-denied` | `plugin` | `capability` | no | Plugin execution was denied by host policy |
+| `plugin.capability-unavailable` | `plugin` | `capability` | no | Plugin execution requires an unavailable capability or dependency |
+| `plugin.lifecycle.activation` | `plugin` | `internal` | no | Plugin activation or registration failed |
+| `plugin.execution.validation` | `plugin` | `validation` | no | Plugin execution input is invalid |
+| `plugin.lifecycle.cleanup` | `plugin` | `internal` | no | Plugin lifecycle cleanup failed |
+| `plugin.cancelled` | `plugin` | `cancellation` | no | Plugin registration was cancelled |
+| `plugin.internal` | `plugin` | `internal` | no | Plugin registry internal failure |
 <!-- error-code-registry:end -->
 
 ## Narrowing in `catch`
@@ -289,6 +313,7 @@ subset of these errors when configured:
 | `HonuaRealtimeResumeError` | **No automatic retry** — the realtime transport and resumable delivery gate retain their existing reconnect/resnapshot policy; use `.sdkCode` only to classify the observed transition. |
 | `HonuaOfflineRegionError` | **No automatic retry** — loader, transaction, quota, and eviction behavior is unchanged; the application/store owns any retry after an explicitly transient tagged cause. |
 | `HonuaReplicaSyncError` | **No automatic retry** — the replica transport and conflict workflow retain their existing policy; generic transport failures remain non-retryable. |
+| `HonuaPluginRegistryError` | **No automatic retry** — every plugin classification is conservatively non-retryable; the host must correct registry input, compatibility, policy, capability, or lifecycle state explicitly. |
 | `HonuaCapabilityNotSupportedError` | **No** — would never succeed |
 | `HonuaWfsExceptionError` | **No** — caller bug |
 | `HonuaExplorationContextError` | **No** — state bug |
