@@ -25,7 +25,7 @@ const result = spawnSync(
     "--yes",
     "typedoc@^0.26",
     "--tsconfig",
-    "tsconfig.json",
+    "tsconfig.docs.json",
     "--out",
     "dist/docs-api",
     "--excludeInternal",
