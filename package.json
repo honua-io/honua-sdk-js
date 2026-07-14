@@ -282,6 +282,7 @@
     "samples:generate": "node scripts/sample-contract.mjs write",
     "samples:migrate:v1": "node scripts/sample-contract.mjs migrate-v1",
     "samples:verify": "node scripts/sample-contract.mjs check",
+    "samples:fixtures:verify": "node samples/fixtures/verify.mjs && biome check samples/scenarios/ samples/fixtures/",
     "samples:verify:flagships": "node scripts/verify-flagship-evidence.mjs",
     "samples:artifacts": "npm run build:browser --silent && node scripts/sample-contract.mjs artifacts",
     "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",

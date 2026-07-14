@@ -1,109 +1,52 @@
 import { spawnSync } from "node:child_process";
-import fs from "node:fs";
-import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { startSampleFixtureHarness } from "../../samples/scenarios/index.mjs";
 import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
 const distRoot = path.resolve(exampleRoot, "dist");
 
-const MIME_TYPES = {
-  ".css": "text/css; charset=utf-8",
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".map": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-};
-
-function buildDemoIfNeeded() {
+function buildDemoIfNeeded(timeoutMs) {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 600_000) {
+    throw new Error("Incident fixture build timeout must be between 1000 and 600000ms.");
+  }
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   const result = spawnSync(npmCommand, ["run", "demo:incident:build", "--silent"], {
     cwd: projectRoot,
     stdio: "inherit",
     env: createFixtureBuildEnvironment(),
+    timeout: timeoutMs,
   });
-
   if (result.status !== 0) {
-    throw new Error("Failed to build the realtime incident dashboard before starting the mock server.");
+    if (result.error?.code === "ETIMEDOUT")
+      throw new Error(`Incident fixture build exceeded its ${timeoutMs}ms budget.`);
+    throw new Error("Failed to build the realtime incident dashboard before starting the fixture harness.");
   }
 }
 
-function serveBuffer(res, buffer, filePath) {
-  const extension = path.extname(filePath);
-  res.writeHead(200, {
-    "content-type": MIME_TYPES[extension] ?? "application/octet-stream",
-    "cache-control": "no-store",
+export async function startIncidentDashboardFixtureServer({ build = true, buildTimeoutMs = 120_000 } = {}) {
+  if (build) buildDemoIfNeeded(buildTimeoutMs);
+  const harness = await startSampleFixtureHarness({
+    sampleId: "incident-operations",
+    staticRoot: distRoot,
+    defaultRunId: "incident-operations",
   });
-  res.end(buffer);
-}
-
-function resolveStaticPath(pathname) {
-  const requestedPath = pathname === "/" ? "/index.html" : pathname;
-  const absolutePath = path.join(distRoot, requestedPath);
-  if (!absolutePath.startsWith(distRoot)) return undefined;
-  return absolutePath;
-}
-
-export async function startIncidentDashboardFixtureServer({ build = true } = {}) {
-  if (build) buildDemoIfNeeded();
-
-  const server = http.createServer((req, res) => {
-    const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
-
-    if (requestUrl.pathname === "/favicon.ico") {
-      res.writeHead(204);
-      res.end();
-      return;
-    }
-
-    const staticPath = resolveStaticPath(requestUrl.pathname);
-    if (staticPath && fs.existsSync(staticPath) && fs.statSync(staticPath).isFile()) {
-      serveBuffer(res, fs.readFileSync(staticPath), staticPath);
-      return;
-    }
-
-    const indexPath = path.join(distRoot, "index.html");
-    if (requestUrl.pathname === "/" || !path.extname(requestUrl.pathname)) {
-      serveBuffer(res, fs.readFileSync(indexPath), indexPath);
-      return;
-    }
-
-    res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-    res.end("Not found");
+  return Object.freeze({
+    ...harness,
+    url: `${harness.origin}/?transport=fixture-edit`,
   });
-
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-
-  const address = server.address();
-  if (!address || typeof address === "string") {
-    throw new Error("Failed to bind the incident dashboard fixture server.");
-  }
-
-  // Required CI lane: isolated deterministic editing, never the public replay
-  // fallback and never a deployed/shared source.
-  const url = `http://127.0.0.1:${address.port}/?transport=fixture-edit`;
-  return {
-    server,
-    url,
-    async close() {
-      await new Promise((resolve) => server.close(resolve));
-    },
-  };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { url, close } = await startIncidentDashboardFixtureServer();
   process.stdout.write(`incidentDashboardMockUrl=${url}\n`);
-
   const shutdown = async () => {
     await close();
     process.exit(0);
   };
-
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 }

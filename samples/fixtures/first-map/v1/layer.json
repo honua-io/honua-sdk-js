@@ -1,0 +1,23 @@
+{
+  "currentVersion": 11.3,
+  "id": 0,
+  "name": "Honolulu operations areas",
+  "type": "Feature Layer",
+  "geometryType": "esriGeometryPolygon",
+  "objectIdField": "OBJECTID",
+  "maxRecordCount": 25,
+  "extent": {
+    "xmin": -157.891,
+    "ymin": 21.286,
+    "xmax": -157.856,
+    "ymax": 21.311,
+    "spatialReference": { "wkid": 4326 }
+  },
+  "fields": [
+    { "name": "OBJECTID", "type": "esriFieldTypeOID", "alias": "OBJECTID" },
+    { "name": "NAME", "type": "esriFieldTypeString", "alias": "Name" },
+    { "name": "STATUS", "type": "esriFieldTypeString", "alias": "Status" },
+    { "name": "CATEGORY", "type": "esriFieldTypeString", "alias": "Category" }
+  ],
+  "capabilities": "Query"
+}

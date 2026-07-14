@@ -1,0 +1,57 @@
+{
+  "fixturePackVersion": "honua.fixture-pack/v1",
+  "identity": {
+    "id": "first-map",
+    "version": "1.0.0",
+    "revision": "v1",
+    "title": "First Map deterministic GeoServices projection"
+  },
+  "schema": {
+    "protocols": ["honua-capabilities-v1", "esri-geoservices-feature-server"],
+    "geometryType": "Polygon",
+    "authorityCrs": "EPSG:4326",
+    "coordinateEncoding": {
+      "format": "Esri JSON",
+      "axes": ["x-longitude", "y-latitude"],
+      "order": "xy"
+    },
+    "extent": [-157.891, 21.286, -157.856, 21.311],
+    "featureCount": 3,
+    "editableRecordId": 3,
+    "files": {
+      "capabilities": "capabilities.json",
+      "layer": "layer.json",
+      "features": "features.json"
+    }
+  },
+  "provenance": {
+    "source": "honua-sdk-js test/fixtures/honua-quickstart-demo",
+    "retrievedAt": "2026-07-13T00:00:00.000Z",
+    "transformation": "Promoted existing synthetic review data into a versioned fixture pack; coordinates and attributes are unchanged in meaning.",
+    "refreshCommand": "node samples/fixtures/verify.mjs --write first-map"
+  },
+  "license": {
+    "spdx": "Apache-2.0",
+    "attribution": "Copyright Honua contributors; synthetic demonstration data.",
+    "redistributionAllowed": true
+  },
+  "freshness": {
+    "policy": "immutable",
+    "asOf": "2026-07-13T00:00:00.000Z",
+    "refreshAfterDays": null
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "canonicalization": "File hashes cover exact data-file bytes. metadataFingerprint hashes recursively key-sorted JSON for every manifest field except the recursive integrity object; component hashes cover provenance and license.",
+    "metadataFingerprint": "87c212a1c8f10048dcec835a0eb7542673be1f2d61f501217882b6146151e76d",
+    "metadataComponents": {
+      "license": "8bf876dbb4503bdfb652437d00cb88531d0123b824edd4404020dba034cb9ea0",
+      "provenance": "8cd971be330ddb414e02f0936c250df7864bad32a02233c54ef6447f22c0dbcf"
+    },
+    "files": {
+      "capabilities.json": "fa46b688495c86e20f6ae20a09c5322f28edff96db84dd2f0d19002aecf47da2",
+      "features.json": "38009a1961a968a09889b2952e6090347ee13b90c5b12dd011e4320f25dc4660",
+      "layer.json": "ecc5aa98b183c036cd3c57ab90a3daee00771bb74deb9d61f94c04f66ecfdca3"
+    }
+  }
+}

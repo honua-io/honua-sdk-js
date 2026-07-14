@@ -1,0 +1,56 @@
+{
+  "fixturePackVersion": "honua.fixture-pack/v1",
+  "identity": {
+    "id": "incident-operations",
+    "version": "1.0.0",
+    "revision": "v1",
+    "title": "Incident Operations deterministic realtime projection"
+  },
+  "schema": {
+    "protocols": ["server-sent-events", "honua-realtime-feature-events"],
+    "geometryType": "Point",
+    "authorityCrs": "OGC:CRS84",
+    "coordinateEncoding": {
+      "format": "GeoJSON-compatible positions",
+      "axes": ["longitude", "latitude"],
+      "order": "xy"
+    },
+    "extent": [-157.9211, 21.2796, -157.8261, 21.3187],
+    "featureCount": 6,
+    "eventCount": 5,
+    "eventExtentPolicy": "within-declared-extent",
+    "files": {
+      "snapshot": "snapshot.json",
+      "events": "events.json"
+    }
+  },
+  "provenance": {
+    "source": "honua-sdk-js examples/realtime-incident-dashboard/src/fixtures.ts",
+    "retrievedAt": "2026-07-13T00:00:00.000Z",
+    "transformation": "Normalized the existing synthetic snapshot and scripted events into JSON; event time remains distinct from harness observation time.",
+    "refreshCommand": "node samples/fixtures/verify.mjs --write incident-operations"
+  },
+  "license": {
+    "spdx": "Apache-2.0",
+    "attribution": "Copyright Honua contributors; synthetic demonstration data.",
+    "redistributionAllowed": true
+  },
+  "freshness": {
+    "policy": "immutable",
+    "asOf": "2026-07-13T00:00:00.000Z",
+    "refreshAfterDays": null
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "canonicalization": "File hashes cover exact data-file bytes. metadataFingerprint hashes recursively key-sorted JSON for every manifest field except the recursive integrity object; component hashes cover provenance and license.",
+    "metadataFingerprint": "16e8d995e2551b7fcb73278b62e27cdb9a03da27aa2f052c530a01d03709dcd9",
+    "metadataComponents": {
+      "license": "8bf876dbb4503bdfb652437d00cb88531d0123b824edd4404020dba034cb9ea0",
+      "provenance": "c3a625022599f207f8812237efc44deadc79b94fd39482b4297137ce6de4a40d"
+    },
+    "files": {
+      "events.json": "ad183d8f2964b468f7f93395fd2170c2b867c4c3dffa967c2c406fc0a0666fa2",
+      "snapshot.json": "a97dbf11baa5a411371994a09c0776687f38889cd40a45c6d53bb2c69951b110"
+    }
+  }
+}

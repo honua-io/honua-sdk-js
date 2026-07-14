@@ -7,6 +7,7 @@ test.setTimeout(90_000);
 test("realtime incident dashboard keeps map, queue, filters, and detail linked", async ({ page }) => {
   const pageErrors = [];
   const consoleErrors = [];
+  const externalRequests = [];
   page.on("pageerror", (error) => {
     pageErrors.push(error.message);
   });
@@ -15,9 +16,15 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
   });
 
   const fixtureServer = await startIncidentDashboardFixtureServer();
+  const fixtureOrigin = new URL(fixtureServer.url).origin;
+  page.on("request", (request) => {
+    const requestUrl = new URL(request.url());
+    if (/^https?:$/.test(requestUrl.protocol) && requestUrl.origin !== fixtureOrigin) externalRequests.push(request.url());
+  });
 
   try {
-    await page.goto(fixtureServer.url);
+    const navigation = await page.goto(fixtureServer.url);
+    expect(navigation?.headers()["content-security-policy"]).toContain("connect-src 'self'");
 
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.ready === true))
@@ -119,6 +126,7 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
       .toBe(true);
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
+    expect(externalRequests).toEqual([]);
 
     const lastStepBeforeDispose = await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.lastStep);
     await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.dispose());
