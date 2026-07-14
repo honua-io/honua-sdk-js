@@ -233,6 +233,42 @@ features meet explicit transfer, memory, startup, and frame-rate budgets.
 6. Keep MCP/NL execution experimental until it consumes the stable planner and
    passes end-to-end certification.
 
+## Live execution backlog
+
+The GitHub hierarchy is the operational projection of this design:
+
+- [#384](https://github.com/honua-io/honua-sdk-js/issues/384) is the portfolio
+  umbrella.
+- Release-truth leaves are
+  [#519](https://github.com/honua-io/honua-sdk-js/issues/519),
+  [#520](https://github.com/honua-io/honua-sdk-js/issues/520),
+  [#521](https://github.com/honua-io/honua-sdk-js/issues/521), and
+  [#524](https://github.com/honua-io/honua-sdk-js/issues/524).
+- [#522](https://github.com/honua-io/honua-sdk-js/issues/522) is the senior
+  contract-design gate; schema and capability implementation begin at
+  [#523](https://github.com/honua-io/honua-sdk-js/issues/523) and
+  [#525](https://github.com/honua-io/honua-sdk-js/issues/525).
+- [#391](https://github.com/honua-io/honua-sdk-js/issues/391) owns bounded
+  discovery children; [#389](https://github.com/honua-io/honua-sdk-js/issues/389)
+  owns the typed-query/compiler/plan children.
+- Kernel lifecycle starts at
+  [#532](https://github.com/honua-io/honua-sdk-js/issues/532); connection query
+  and MapLibre mount are children of
+  [#390](https://github.com/honua-io/honua-sdk-js/issues/390).
+- [#394](https://github.com/honua-io/honua-sdk-js/issues/394) and
+  [#388](https://github.com/honua-io/honua-sdk-js/issues/388) own the bounded
+  GeoArrow/deck.gl path; [#393](https://github.com/honua-io/honua-sdk-js/issues/393)
+  owns the realtime contract, transports, reconciliation, and evidence.
+- [#539](https://github.com/honua-io/honua-sdk-js/issues/539) owns the canonical
+  sample portfolio. Its immediately executable foundations are
+  [#540](https://github.com/honua-io/honua-sdk-js/issues/540),
+  [#541](https://github.com/honua-io/honua-sdk-js/issues/541), and
+  [#542](https://github.com/honua-io/honua-sdk-js/issues/542).
+
+Native GitHub parent/sub-issue relationships, milestone assignment, and labels
+are authoritative for execution state. This document remains authoritative for
+the architecture, sequencing rules, and product boundary.
+
 ## Canonical demo and sample portfolio
 
 The current catalog is valuable but too broad for a coherent learning path: 31
