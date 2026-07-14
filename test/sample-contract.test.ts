@@ -583,13 +583,49 @@ launch("npm", ["run", "demo:fixture:build", "--silent"], { env: process.env });`
       validateFixtureBuildHarnessSource(
         'import * as childProcess from "node:child_process";\nconst method = "spawnSync";\nchildProcess[method](dynamicCommand);',
       ),
-    ).toThrow("child-process namespaces cannot escape static member access");
+    ).toThrow("child-process namespaces cannot escape launch API member access or const aliases");
     expect(() => validateFixtureBuildHarnessSource('consume(require("node:child_process"));')).toThrow(
-      "child-process namespaces cannot escape static member access",
+      "child-process namespaces cannot escape launch API member access or const aliases",
     );
     expect(() => validateFixtureBuildHarnessSource('consume(await import("node:child_process"));')).toThrow(
-      "child-process namespaces cannot escape static member access",
+      "child-process namespaces cannot escape launch API member access or const aliases",
     );
+    const validFixtureBuild = `${helperImport}
+spawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], {
+  env: createFixtureBuildEnvironment(),
+});`;
+    for (const source of [
+      `${validFixtureBuild}
+import("node:child_process").then((childProcess) =>
+  childProcess.spawnSync("npm", ["run", "demo:quickstart:build", "--silent"], { env: process.env }),
+);`,
+      `${validFixtureBuild}
+const childProcess = await import("node:child_process");
+childProcess.default.spawnSync("npm", ["run", "demo:quickstart:build", "--silent"], { env: process.env });`,
+    ]) {
+      expect(() => validateFixtureBuildHarnessSource(source, "mock-server.mjs", "demo:fixture:build")).toThrow(
+        "child-process namespaces cannot escape launch API member access or const aliases",
+      );
+    }
+    expect(() =>
+      validateFixtureBuildHarnessSource(
+        `${helperImport}
+import "./unsafe-build.mjs";
+spawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], {
+  env: createFixtureBuildEnvironment(),
+});`,
+        "mock-server.mjs",
+        "demo:fixture:build",
+      ),
+    ).toThrow("fixture build harnesses cannot import unreviewed local or data modules");
+    expect(() =>
+      validateFixtureBuildHarnessSource(
+        `${validFixtureBuild}
+await import("DATA:text/javascript,export default 1");`,
+        "mock-server.mjs",
+        "demo:fixture:build",
+      ),
+    ).toThrow("fixture build harnesses cannot dynamically load unreviewed local or data modules");
     expect(() =>
       validateFixtureBuildHarnessSource(
         'process.getBuiltinModule("node:child_process").spawnSync("npm", dynamicArguments);',

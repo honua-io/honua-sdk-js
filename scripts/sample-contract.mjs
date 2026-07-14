@@ -944,6 +944,15 @@ function isChildProcessModule(moduleName) {
   return moduleName === "child_process" || moduleName === "node:child_process";
 }
 
+function isUnreviewedHarnessModuleSpecifier(moduleName) {
+  return (
+    moduleName.startsWith(".") ||
+    /^(?:data|file):/i.test(moduleName) ||
+    path.posix.isAbsolute(moduleName) ||
+    path.win32.isAbsolute(moduleName)
+  );
+}
+
 function isConstVariableDeclaration(declaration) {
   return (
     ts.isVariableDeclarationList(declaration.parent) &&
@@ -1090,8 +1099,22 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
   }
 
   for (const statement of sourceFile.statements) {
+    if (ts.isExportDeclaration(statement) && statement.moduleSpecifier) {
+      const moduleName = stringLiteralValue(statement.moduleSpecifier);
+      invariant(
+        !moduleName || !isUnreviewedHarnessModuleSpecifier(moduleName),
+        `${file}: fixture build harnesses cannot re-export unreviewed local or data modules`,
+      );
+      continue;
+    }
     if (!ts.isImportDeclaration(statement)) continue;
     const moduleName = stringLiteralValue(statement.moduleSpecifier);
+    invariant(
+      !moduleName ||
+        !isUnreviewedHarnessModuleSpecifier(moduleName) ||
+        moduleName === FIXTURE_BUILD_ENVIRONMENT_HELPER,
+      `${file}: fixture build harnesses cannot import unreviewed local or data modules`,
+    );
     const importClause = statement.importClause;
     if (isChildProcessModule(moduleName)) {
       if (importClause?.name) childProcessNamespaces.add(importClause);
@@ -1101,6 +1124,7 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
         for (const element of bindings.elements) {
           const importedName = element.propertyName?.text ?? element.name.text;
           if (CHILD_PROCESS_LAUNCH_APIS.has(importedName)) childProcessImports.set(element, importedName);
+          if (importedName === "default") childProcessNamespaces.add(element);
         }
       }
     }
@@ -1377,7 +1401,10 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
         const importedName = propertyName(element.propertyName ?? element.name);
         invariant(!element.dotDotDotToken, `${file}: child-process destructuring cannot use a rest binding`);
         invariant(importedName, `${file}: child-process destructuring names must be static`);
-        if (!CHILD_PROCESS_LAUNCH_APIS.has(importedName)) continue;
+        invariant(
+          CHILD_PROCESS_LAUNCH_APIS.has(importedName),
+          `${file}: child-process destructuring permits only launch APIs`,
+        );
         invariant(ts.isIdentifier(element.name), `${file}: child-process launch aliases must be identifiers`);
         destructuredChildProcessImports.set(element, importedName);
       }
@@ -1629,6 +1656,10 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
           node.arguments.length === 1 && moduleNames,
           `${file}: dynamic module loader specifiers must be statically bounded`,
         );
+        invariant(
+          moduleNames.every((moduleName) => !isUnreviewedHarnessModuleSpecifier(moduleName)),
+          `${file}: fixture build harnesses cannot dynamically load unreviewed local or data modules`,
+        );
       }
       const api = resolveChildProcessApi(node.expression);
       if (api) {
@@ -1737,14 +1768,19 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
     if (isPotentialNamespaceReference && isChildProcessNamespace(node)) {
       const expression = outerTransparentExpression(node);
       const parent = expression.parent;
-      const isStaticMember =
-        (ts.isPropertyAccessExpression(parent) && parent.expression === expression) ||
-        (ts.isElementAccessExpression(parent) &&
-          parent.expression === expression &&
-          stringLiteralValue(unwrapExpression(parent.argumentExpression)) !== undefined);
+      const staticMember =
+        ts.isPropertyAccessExpression(parent) && parent.expression === expression
+          ? parent.name.text
+          : ts.isElementAccessExpression(parent) && parent.expression === expression
+            ? stringLiteralValue(unwrapExpression(parent.argumentExpression))
+            : undefined;
+      const isLaunchMember = staticMember !== undefined && CHILD_PROCESS_LAUNCH_APIS.has(staticMember);
       const isConstAlias =
         ts.isVariableDeclaration(parent) && parent.initializer === expression && isConstVariableDeclaration(parent);
-      invariant(isStaticMember || isConstAlias, `${file}: child-process namespaces cannot escape static member access`);
+      invariant(
+        isLaunchMember || isConstAlias,
+        `${file}: child-process namespaces cannot escape launch API member access or const aliases`,
+      );
     }
     ts.forEachChild(node, assertChildProcessReferencesDoNotEscape);
   };
