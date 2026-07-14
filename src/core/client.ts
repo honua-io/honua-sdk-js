@@ -413,6 +413,7 @@ export class HonuaClient {
   private authCredentialsCache: CachedAuthCredentials | undefined;
   private authRefreshPromise: Promise<CachedAuthCredentials | undefined> | undefined;
   private connectClient: Client<typeof FeatureService> | undefined;
+  private connectClientPromise: Promise<Client<typeof FeatureService>> | undefined;
   private readonly metadataCache = new Map<string, MetadataCacheEntry>();
   private readonly ogcLayoutCache = new Map<OgcApiLayoutMode, Promise<OgcEndpointLayout>>();
   private readonly wfsRootCache = new Map<string, HonuaWfs>();
@@ -479,10 +480,6 @@ export class HonuaClient {
         signal?: AbortSignal,
       ) => this.requestBinaryWithJsonFallback(method, path, params, signal) as Promise<T>,
     };
-
-    if (this.transport === "grpc-web") {
-      this.initConnectClient();
-    }
   }
 
   /**
@@ -562,31 +559,37 @@ export class HonuaClient {
     };
   }
 
-  private initConnectClient(): void {
-    // Dynamic imports are used to avoid bundling Connect dependencies
-    // when only the REST transport is used. The imports are resolved
-    // at module level since they are static ESM imports.
-    import("@connectrpc/connect").then(({ createClient }) =>
-      import("@connectrpc/connect-web").then(({ createGrpcWebTransport }) =>
-        import("../gen/honua/v1/feature_service_pb.js").then(({ FeatureService }) => {
-          const transport = createGrpcWebTransport(this.connectTransportOptions());
-          this.connectClient = createClient(FeatureService, transport);
-        }),
-      ),
-    );
-  }
-
   private async ensureConnectClient(): Promise<Client<typeof FeatureService>> {
     if (this.connectClient) {
       return this.connectClient;
     }
-    // If initConnectClient hasn't resolved yet, wait for it
-    const { createClient } = await import("@connectrpc/connect");
-    const { createGrpcWebTransport } = await import("@connectrpc/connect-web");
-    const { FeatureService } = await import("../gen/honua/v1/feature_service_pb.js");
-    const transport = createGrpcWebTransport(this.connectTransportOptions());
-    this.connectClient = createClient(FeatureService, transport);
-    return this.connectClient;
+
+    // Keep optional Connect peers out of the module graph until the first
+    // gRPC operation is actually awaited. Caching the in-flight promise also
+    // prevents concurrent first calls from constructing competing clients.
+    let initPromise = this.connectClientPromise;
+    if (!initPromise) {
+      initPromise = Promise.all([
+        import("@connectrpc/connect"),
+        import("@connectrpc/connect-web"),
+        import("../gen/honua/v1/feature_service_pb.js"),
+      ]).then(([{ createClient }, { createGrpcWebTransport }, { FeatureService }]) => {
+        const transport = createGrpcWebTransport(this.connectTransportOptions());
+        this.connectClient = createClient(FeatureService, transport);
+        return this.connectClient;
+      });
+      this.connectClientPromise = initPromise;
+    }
+
+    try {
+      return await initPromise;
+    } catch (error) {
+      // A transient module-loader failure must not poison every later call.
+      if (this.connectClientPromise === initPromise) {
+        this.connectClientPromise = undefined;
+      }
+      throw error;
+    }
   }
 
   /**

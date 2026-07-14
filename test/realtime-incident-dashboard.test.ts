@@ -171,6 +171,24 @@ describe("realtime incident dashboard fixture", () => {
     });
   });
 
+  it.each(["client_secret", "x-api-key", "X-Goog-Signature"])(
+    "rejects the %s credential query parameter from public endpoints",
+    (credentialKey) => {
+      const baseUrl = new URL("https://demo.honua.io");
+      baseUrl.searchParams.set(credentialKey, "must-not-enter-the-browser");
+      const search = new URLSearchParams({ baseUrl: baseUrl.href }).toString();
+      expect(() => readIncidentTransportConfig({ search: `?${search}` } as Location)).toThrow(
+        "Incident endpoint must not contain credential query parameters.",
+      );
+    },
+  );
+
+  it("preserves benign public endpoint query parameters", () => {
+    const baseUrl = "https://demo.honua.io/tenant?style=night&page_tokenized=true";
+    const search = new URLSearchParams({ baseUrl }).toString();
+    expect(readIncidentTransportConfig({ search: `?${search}` } as Location).demoBaseUrl).toBe(baseUrl);
+  });
+
   it("uses an explicit isolated fixture-edit lane for required CI", async () => {
     const fixtureLocation = {
       search: "?transport=fixture-edit",

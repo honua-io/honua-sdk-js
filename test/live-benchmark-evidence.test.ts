@@ -62,8 +62,13 @@ describe("live benchmark evidence", () => {
         freshness: { observedAt: "2026-01-01T00:00:00.000Z", sourceDataTimestamp: null },
         provenance: { source: "earth-search-sentinel-2-l2a" },
       },
-      { package: "@honua/sdk-js", version: "0.1.0-beta.0", gitCommit: null },
+      { package: "@honua/sdk-js", version: "0.1.0-beta.0", gitCommit: "1".repeat(40) },
       "2026-01-01T00:00:00.000Z",
+      {
+        kind: "producer-generator",
+        path: "scripts/live-benchmark-evidence.mjs",
+        sha256: "2".repeat(64),
+      },
     );
 
     expect(evidence).toMatchObject({
@@ -73,6 +78,7 @@ describe("live benchmark evidence", () => {
       status: "executed",
       provenance: { state: "live", sourceId: "earth-search-sentinel-2-l2a" },
       semantics: { itemCount: 1 },
+      artifacts: [{ kind: "producer-generator" }],
     });
   });
 

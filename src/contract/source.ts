@@ -3413,8 +3413,6 @@ function requireGPServiceLocator(
   // /rest/services/<serviceId>/GPServer/<taskName>/..., so descriptors that
   // advertise the `geoprocess` capability must carry a task name. Without
   // one the lifecycle routes resolve to non-existent paths on the server.
-  // Descriptors with only `connect` (service-root metadata probe) may omit
-  // taskName.
   if (caps.has("geoprocess") && (typeof taskName !== "string" || taskName.length === 0)) {
     throw new Error(
       `createDataset: source "${descriptor.id}" (geoservices-gp-service) advertises "geoprocess" but locator.taskName is missing; GP lifecycle routes require /GPServer/<taskName>/...`,
