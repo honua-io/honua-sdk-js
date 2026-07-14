@@ -52,6 +52,8 @@ export interface BrowserArtifactManifest {
   }>;
 }
 
+export function parseJsonDocument<T = unknown>(source: string, label?: string): T;
+
 export function migrateCatalogV1ToV2(
   catalog: Record<string, unknown>,
   migration: Record<string, unknown>,
