@@ -23,7 +23,11 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 import { currentDocsVersions, expandDocsVersionTokens, serializeDocsVersions } from "./docs-versions.mjs";
-import { createGalleryModel, renderGalleryContent } from "./lib/docs-gallery.mjs";
+import {
+  createGalleryModel,
+  renderGalleryContent,
+  verifyGalleryProjectionIntegrity,
+} from "./lib/docs-gallery.mjs";
 import { parseJsonDocument, validateSiteProjection } from "./sample-contract.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -31,6 +35,8 @@ const OUT = path.join(ROOT, "dist", "docs-site");
 const API_SRC = path.join(ROOT, "dist", "docs-api");
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_PROJECTION = path.join(ROOT, SITE_PROJECTION_PATH);
+const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+const SITE_CONSUMER_FIXTURE = path.join(ROOT, SITE_CONSUMER_FIXTURE_PATH);
 
 const SITE_TITLE = "@honua/sdk-js";
 const SITE_URL = "https://honua-io.github.io/honua-sdk-js/";
@@ -355,10 +361,13 @@ ${scripts}
 // ---------------------------------------------------------------------------
 
 async function loadGalleryModel() {
-  const source = fs.readFileSync(SITE_PROJECTION, "utf8");
-  const projection = parseJsonDocument(source, SITE_PROJECTION_PATH);
+  const projectionBytes = fs.readFileSync(SITE_PROJECTION, "utf8");
+  const consumerBytes = fs.readFileSync(SITE_CONSUMER_FIXTURE, "utf8");
+  const projection = parseJsonDocument(projectionBytes, SITE_PROJECTION_PATH);
+  const consumerFixture = parseJsonDocument(consumerBytes, SITE_CONSUMER_FIXTURE_PATH);
   await validateSiteProjection(projection);
-  return createGalleryModel(projection);
+  const integrity = verifyGalleryProjectionIntegrity({ projection, projectionBytes, consumerFixture });
+  return createGalleryModel(projection, integrity);
 }
 
 function demoSourceUrl(docsPath) {
@@ -429,6 +438,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .gallery-provenance{margin:1rem 0;border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;background:var(--sidebar-bg)}
 .gallery-provenance summary,.demo-card-details summary{cursor:pointer;font-weight:700;color:var(--accent)}
 .gallery-provenance .demo-facts{margin:.75rem 0 .25rem}
+.gallery-qualification-note{color:var(--muted);font-size:.9rem}
 .gallery-controls{display:flex;flex-wrap:wrap;align-items:end;gap:.8rem;margin:1.25rem 0;padding:1rem;border:1px solid var(--border);border-radius:10px;background:var(--sidebar-bg)}
 .gallery-control{display:flex;flex:1 1 200px;flex-direction:column;gap:.25rem}
 .gallery-control label{font-size:.82rem;font-weight:700}

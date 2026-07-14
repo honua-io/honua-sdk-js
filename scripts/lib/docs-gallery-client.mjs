@@ -46,7 +46,7 @@ function parseFacetValues(value) {
   }
 }
 
-function initializeGallery(root = document) {
+export function initializeGallery(root = document) {
   const controls = root.querySelector("[data-gallery-controls]");
   if (!controls) return;
 

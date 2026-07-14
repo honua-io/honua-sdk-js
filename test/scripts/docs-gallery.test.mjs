@@ -1,19 +1,83 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import test from "node:test";
+import { JSDOM } from "jsdom";
 
 import {
   filterGalleryCards,
+  initializeGallery,
   normalizeGalleryFilters,
 } from "../../scripts/lib/docs-gallery-client.mjs";
-import { createGalleryModel, renderGalleryContent } from "../../scripts/lib/docs-gallery.mjs";
+import {
+  createGalleryModel,
+  renderGalleryContent,
+  verifyGalleryProjectionIntegrity,
+} from "../../scripts/lib/docs-gallery.mjs";
 import { validateSiteProjection } from "../../scripts/sample-contract.mjs";
 
-const projection = JSON.parse(fs.readFileSync("samples/dist/honua-site-samples.v2.json", "utf8"));
+const projectionBytes = fs.readFileSync("samples/dist/honua-site-samples.v2.json", "utf8");
+const projection = JSON.parse(projectionBytes);
+const consumerFixture = JSON.parse(
+  fs.readFileSync("samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json", "utf8"),
+);
+const repositorySourceResolver = (sample) => ({ href: sample.source.docsPath, kind: "source" });
+
+function stableBytes(value) {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+function fixtureForProjection(value) {
+  const fixture = structuredClone(consumerFixture);
+  const bytes = stableBytes(value);
+  const sampleIds = value.samples.map((sample) => sample.id);
+  const routeIds = value.routes.map((route) => route.id);
+  fixture.accepts = {
+    projectionFormat: value.format,
+    projectionSchemaVersion: value.schemaVersion,
+    catalogFormat: value.catalog.format,
+    catalogSchemaVersion: value.catalog.schemaVersion,
+  };
+  fixture.input.sha256 = createHash("sha256").update(bytes).digest("hex");
+  fixture.assertions = {
+    sampleCount: value.samples.length,
+    rootExampleCount: value.samples.filter((sample) => sample.sourceKind === "root-example").length,
+    docsExampleCount: value.samples.filter((sample) => sample.sourceKind === "docs-example").length,
+    goldenJourneyCount: value.goldenJourneys.length,
+    qualifiedGoldenCount: value.goldenJourneys.filter((journey) => journey.status === "qualified").length,
+    routeCount: value.routes.length,
+    sampleIdsUnique: new Set(sampleIds).size === sampleIds.length,
+    routeIdsUnique: new Set(routeIds).size === routeIds.length,
+    routesEndInHtml: value.routes.every((route) => route.route.endsWith(".html")),
+    executableSourceOwner: value.contract.executableSourceOwner,
+    presentationOwner: value.contract.presentationOwner,
+    credentialValuesForbidden: true,
+  };
+  return fixture;
+}
+
+function verifiedGallery(value, { bytes = stableBytes(value), fixture = fixtureForProjection(value) } = {}) {
+  const integrity = verifyGalleryProjectionIntegrity({
+    projection: value,
+    projectionBytes: bytes,
+    consumerFixture: fixture,
+  });
+  return createGalleryModel(value, integrity);
+}
+
+function canonicalGallery() {
+  return verifiedGallery(projection, { bytes: projectionBytes, fixture: consumerFixture });
+}
+
+function renderGallery(gallery, resolveSourceLink = repositorySourceResolver) {
+  return renderGalleryContent(gallery, { resolveSourceLink });
+}
 
 function projectionWithSamples(...ids) {
   const selected = structuredClone(projection);
-  selected.samples = ids.map((id) => projection.samples.find((sample) => sample.id === id));
+  selected.samples = ids.map((id) => selected.samples.find((sample) => sample.id === id));
+  const selectedIds = new Set(ids);
+  selected.goldenJourneys = selected.goldenJourneys.filter((journey) => selectedIds.has(journey.candidateSampleId));
   return selected;
 }
 
@@ -25,11 +89,101 @@ function occurrenceCount(value, pattern) {
   return [...value.matchAll(pattern)].length;
 }
 
-test("projects one schema-valid catalog-v2 sample into one honest public gallery card", async () => {
+test("binds the canonical schema-valid projection to its v2 consumer fixture", async () => {
+  await assert.doesNotReject(validateSiteProjection(projection));
+  const gallery = canonicalGallery();
+
+  assert.deepEqual(gallery.integrity, {
+    consumerFixtureFormat: consumerFixture.format,
+    projectionSha256: consumerFixture.input.sha256,
+    publicationQualificationGate: "npm run samples:verify",
+  });
+  assert.throws(
+    () => createGalleryModel(projection, {}),
+    /gallery model requires integrity verified for this projection object/,
+  );
+});
+
+test("rejects consumer digest, format, assertion, and stable-byte tampering", () => {
+  const digestMismatch = structuredClone(consumerFixture);
+  digestMismatch.input.sha256 = "0".repeat(64);
+  assert.throws(
+    () =>
+      verifyGalleryProjectionIntegrity({
+        projection,
+        projectionBytes,
+        consumerFixture: digestMismatch,
+      }),
+    /consumer projection digest mismatch/,
+  );
+
+  const formatMismatch = structuredClone(consumerFixture);
+  formatMismatch.accepts.projectionFormat = "honua.site.sdk-sample-projection.v1";
+  assert.throws(
+    () =>
+      verifyGalleryProjectionIntegrity({
+        projection,
+        projectionBytes,
+        consumerFixture: formatMismatch,
+      }),
+    /accepted formats do not match/,
+  );
+
+  const fixtureFormatMismatch = structuredClone(consumerFixture);
+  fixtureFormatMismatch.format = "honua.site.sdk-sample-consumer-fixture.v1";
+  assert.throws(
+    () =>
+      verifyGalleryProjectionIntegrity({
+        projection,
+        projectionBytes,
+        consumerFixture: fixtureFormatMismatch,
+      }),
+    /consumer fixture format is not v2/,
+  );
+
+  const assertionMismatch = structuredClone(consumerFixture);
+  assertionMismatch.assertions.sampleCount += 1;
+  assert.throws(
+    () =>
+      verifyGalleryProjectionIntegrity({
+        projection,
+        projectionBytes,
+        consumerFixture: assertionMismatch,
+      }),
+    /consumer assertion sampleCount does not match/,
+  );
+
+  assert.throws(
+    () =>
+      verifyGalleryProjectionIntegrity({
+        projection,
+        projectionBytes: JSON.stringify(projection),
+        consumerFixture,
+      }),
+    /projection bytes are not canonical stable JSON/,
+  );
+});
+
+test("fails closed on missing quality profiles and forged golden qualification relations", () => {
+  const missingProfile = structuredClone(projection);
+  missingProfile.qualityProfiles = missingProfile.qualityProfiles.filter((profile) => profile.id !== "browser-recipe");
+  assert.throws(
+    () => verifiedGallery(missingProfile),
+    /references missing quality profile browser-recipe/,
+  );
+
+  const forgedQualification = structuredClone(projection);
+  forgedQualification.goldenJourneys[0].status = "qualified";
+  assert.throws(
+    () => verifiedGallery(forgedQualification),
+    /qualified candidate is not a golden card/,
+  );
+});
+
+test("projects one integrity-bound catalog-v2 sample into one honest public gallery card", () => {
   const oneCard = projectionWithSamples("endpoint-to-map");
 
-  await assert.doesNotReject(validateSiteProjection(oneCard));
-  const gallery = createGalleryModel(oneCard);
+  const gallery = verifiedGallery(oneCard);
   assert.equal(gallery.cardCount, 1);
   assert.deepEqual(gallery.groups.map(({ track, title }) => ({ track, title })), [
     { track: "recipe", title: "Recipes" },
@@ -51,26 +205,25 @@ test("projects one schema-valid catalog-v2 sample into one honest public gallery
   });
 });
 
-test("refuses to publish a schema-valid projection with zero public cards", async () => {
+test("refuses to publish an integrity-bound projection with zero public cards", () => {
   const empty = structuredClone(projection);
   empty.samples = [];
+  empty.goldenJourneys = [];
 
-  await assert.doesNotReject(validateSiteProjection(empty));
   assert.throws(
-    () => createGalleryModel(empty),
+    () => verifiedGallery(empty),
     /Gallery projection produced zero public cards; refusing to publish an empty gallery\./,
   );
 
   const fixtureOnly = projectionWithSamples("arcgis-source-app");
-  await assert.doesNotReject(validateSiteProjection(fixtureOnly));
   assert.throws(
-    () => createGalleryModel(fixtureOnly),
+    () => verifiedGallery(fixtureOnly),
     /Gallery projection produced zero public cards; refusing to publish an empty gallery\./,
   );
 });
 
 test("projects the canonical public portfolio without hiding lifecycle or replacement truth", () => {
-  const gallery = createGalleryModel(projection);
+  const gallery = canonicalGallery();
   const counts = Object.fromEntries(gallery.groups.map((group) => [group.track, group.cards.length]));
   const cards = galleryCards(gallery);
   const byId = new Map(cards.map((card) => [card.sample.id, card]));
@@ -95,10 +248,19 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   });
   assert.equal(byId.get("web-components-basic").sample.lifecycle.state, "retire");
   assert.equal(byId.get("realtime-incident-dashboard").journey.title, "Realtime Incident Operations");
+  assert.ok(cards.every((card) => card.qualification.label.includes("not receipt-qualified")));
+  assert.ok(cards.every((card) => card.qualification.state !== "receipt-qualified-golden"));
+  assert.deepEqual(byId.get("endpoint-to-map").qualification.requiredGates, [
+    "packedBuild",
+    "browser",
+    "accessibility",
+    "console",
+    "responsive",
+  ]);
 });
 
 test("sorts public capability and protocol facets deterministically", () => {
-  const gallery = createGalleryModel(projection);
+  const gallery = canonicalGallery();
   const capabilities = galleryCards(gallery).flatMap((card) => card.sample.capabilities);
   const protocols = galleryCards(gallery).flatMap((card) => card.sample.protocols);
 
@@ -108,7 +270,8 @@ test("sorts public capability and protocol facets deterministically", () => {
 });
 
 test("renders accessible controls, compact essentials, and disclosed catalog truth", () => {
-  const gallery = createGalleryModel(projectionWithSamples("realtime-incident-dashboard"));
+  const selectedProjection = projectionWithSamples("realtime-incident-dashboard");
+  const gallery = verifiedGallery(selectedProjection);
   const html = renderGalleryContent(gallery, {
     resolveSourceLink: () => ({ href: "https://github.com/honua-io/honua-sdk-js", kind: "source" }),
   });
@@ -117,6 +280,7 @@ test("renders accessible controls, compact essentials, and disclosed catalog tru
     "SDK",
     "Data",
     "Evidence state",
+    "Qualification",
     "Replacement",
     "Capabilities",
     "Protocols",
@@ -128,7 +292,8 @@ test("renders accessible controls, compact essentials, and disclosed catalog tru
     "Expected degradation",
     "Renderers",
     "Golden journey",
-    "Validation profile",
+    "Quality profile",
+    "Required gates",
     "Catalog",
     "Projection",
     "Contract",
@@ -149,8 +314,12 @@ test("renders accessible controls, compact essentials, and disclosed catalog tru
   assert.match(html, /Fixture: <strong>executed<\/strong>/);
   assert.match(html, /unavailable<\/code> · <strong>skipped<\/strong>/);
   assert.match(html, /evidence expires <time/);
-  assert.match(html, /2026-07-26T02:18:02\.730Z/);
+  assert.ok(html.includes(selectedProjection.samples[0].evidence.live.expiresAt));
   assert.match(html, /Realtime Incident Operations/);
+  assert.match(html, /Planned golden candidate · not receipt-qualified/);
+  assert.match(html, /Publication runs <code>npm run samples:verify<\/code>/);
+  assert.match(html, /validates the complete receipt/);
+  assert.match(html, /profile gates alone are only requirements/);
   assert.match(html, /safe-editing/);
   assert.match(html, /maplibre/);
   assert.match(html, /<summary>Evidence, provenance, lifecycle, and degradation<\/summary>/);
@@ -158,13 +327,17 @@ test("renders accessible controls, compact essentials, and disclosed catalog tru
 });
 
 test("renders global provenance once and puts every card CTA before its disclosure", () => {
-  const html = renderGalleryContent(createGalleryModel(projection));
+  const html = renderGallery(canonicalGallery());
   const cards = [...html.matchAll(/<article class="demo-card[\s\S]*?<\/article>/g)].map((match) => match[0]);
 
   assert.equal(occurrenceCount(html, /data-gallery-provenance/g), 1);
   assert.equal(occurrenceCount(html, /<dt>Catalog<\/dt>/g), 1);
   assert.equal(occurrenceCount(html, /<dt>Projection<\/dt>/g), 1);
   assert.equal(occurrenceCount(html, /<dt>Contract<\/dt>/g), 1);
+  assert.equal(occurrenceCount(html, /<dt>Consumer fixture<\/dt>/g), 1);
+  assert.equal(occurrenceCount(html, /<dt>Projection SHA-256<\/dt>/g), 1);
+  assert.ok(html.includes(consumerFixture.format));
+  assert.ok(html.includes(consumerFixture.input.sha256));
   assert.equal(cards.length, 32);
   for (const card of cards) {
     const ctaIndex = card.indexOf('<a class="demo-link"');
@@ -173,6 +346,56 @@ test("renders global provenance once and puts every card CTA before its disclosu
     assert.ok(ctaIndex >= 0 && detailsIndex > ctaIndex);
     assert.match(card, /<summary>Evidence, provenance, lifecycle, and degradation<\/summary>/);
   }
+});
+
+test("requires an explicit source resolver and rejects unsafe source URLs", () => {
+  const gallery = verifiedGallery(projectionWithSamples("endpoint-to-map"));
+  assert.throws(
+    () => renderGalleryContent(gallery),
+    /requires an explicit source-link resolver/,
+  );
+
+  const unsafeUrls = [
+    "javascript:alert(1)",
+    "http://example.test/source",
+    "//example.test/source",
+    "https://user:password@example.test/source",
+    "https://example.test/source?token=secret",
+    "https://example.test/source#access-token",
+    " https://example.test/source",
+    "guides/\u0000bad.html",
+    "guides\\bad.html",
+    "../secrets.txt",
+    "guides/../secrets.txt",
+    "guides/%2e%2e/secrets.txt",
+    "guides/%252e%252e/secrets.txt",
+    "guides/%255csecrets.txt",
+    "/absolute/source.html",
+  ];
+  for (const href of unsafeUrls) {
+    assert.throws(
+      () => renderGallery(gallery, () => ({ href, kind: "source" })),
+      /source resolver returned an unsafe URL/,
+      href,
+    );
+  }
+  assert.throws(
+    () => renderGallery(gallery, () => ({ href: "guides/quickstart.html", kind: "unknown" })),
+    /source resolver kind is unsupported/,
+  );
+  assert.throws(
+    () => renderGallery(gallery, () => ({ href: "guides/quickstart.html", kind: "guide", extra: true })),
+    /source resolver result keys must match/,
+  );
+
+  assert.match(
+    renderGallery(gallery, () => ({ href: "guides/quickstart.html", kind: "guide" })),
+    /href="guides\/quickstart\.html">Read the walkthrough/,
+  );
+  assert.match(
+    renderGallery(gallery, () => ({ href: "https://github.com/honua-io/honua-sdk-js", kind: "source" })),
+    /href="https:\/\/github\.com\/honua-io\/honua-sdk-js">View source/,
+  );
 });
 
 test("escapes projected content and links only credential-free HTTPS replacements", () => {
@@ -187,7 +410,7 @@ test("escapes projected content and links only credential-free HTTPS replacement
 
   for (const url of unsafeUrls) {
     unsafe.externalReplacements[0].url = url;
-    const html = renderGalleryContent(createGalleryModel(unsafe));
+    const html = renderGallery(verifiedGallery(unsafe));
 
     assert.match(html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
     assert.match(html, /&lt;\/dd&gt;&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt;/);
@@ -195,7 +418,7 @@ test("escapes projected content and links only credential-free HTTPS replacement
     assert.match(html, /external: @honua\/app-platform \(honua-app-platform\)/);
   }
 
-  const safeHtml = renderGalleryContent(createGalleryModel(projectionWithSamples("web-components-basic")));
+  const safeHtml = renderGallery(verifiedGallery(projectionWithSamples("web-components-basic")));
   assert.match(
     safeHtml,
     /href="https:\/\/www\.npmjs\.com\/package\/@honua\/app-platform" rel="noopener noreferrer"/,
@@ -203,7 +426,7 @@ test("escapes projected content and links only credential-free HTTPS replacement
 });
 
 test("filters task text with AND semantics and combines exact capability and protocol facets", () => {
-  const records = galleryCards(createGalleryModel(projection)).map((card) => ({
+  const records = galleryCards(canonicalGallery()).map((card) => ({
     id: card.sample.id,
     searchText: card.searchText,
     capabilities: card.sample.capabilities,
@@ -224,4 +447,69 @@ test("filters task text with AND semantics and combines exact capability and pro
     ["realtime-incident-dashboard"],
   );
   assert.deepEqual(filterGalleryCards(records, { capability: "safe-editing", protocol: "stac" }), []);
+});
+
+test("initializes accessible DOM filtering, implicit Enter submit, empty, and clear behavior", () => {
+  const dom = new JSDOM(renderGallery(canonicalGallery()), { url: "https://docs.example.test/gallery.html" });
+  const { document, Event } = dom.window;
+  initializeGallery(document);
+
+  const form = document.querySelector("[data-gallery-controls]");
+  const search = form.querySelector("[data-gallery-search]");
+  const capability = form.querySelector("[data-gallery-capability]");
+  const protocol = form.querySelector("[data-gallery-protocol]");
+  const clear = form.querySelector("[data-gallery-clear]");
+  const count = document.querySelector("[data-gallery-result-count]");
+  const empty = document.querySelector("[data-gallery-empty]");
+  const groups = [...document.querySelectorAll("[data-gallery-group]")];
+
+  assert.equal(count.textContent, "32");
+  assert.equal(clear.disabled, true);
+  assert.equal(empty.hidden, true);
+
+  search.value = "realtime guarded";
+  search.dispatchEvent(new Event("input", { bubbles: true }));
+  assert.equal(count.textContent, "1");
+  assert.deepEqual(
+    [...document.querySelectorAll("[data-gallery-card]:not([hidden])")].map((card) => card.dataset.sampleId),
+    ["realtime-incident-dashboard"],
+  );
+  assert.equal(document.querySelector("#gallery-recipe").closest("[data-gallery-group]").hidden, true);
+  assert.equal(document.querySelector("#gallery-lab").closest("[data-gallery-group]").hidden, false);
+
+  search.value = "";
+  capability.value = "safe-editing";
+  protocol.value = "sse";
+  capability.dispatchEvent(new Event("change", { bubbles: true }));
+  protocol.dispatchEvent(new Event("change", { bubbles: true }));
+  assert.equal(count.textContent, "1");
+
+  protocol.value = "stac";
+  protocol.dispatchEvent(new Event("change", { bubbles: true }));
+  assert.equal(count.textContent, "0");
+  assert.equal(empty.hidden, false);
+  assert.ok(groups.every((group) => group.hidden));
+
+  capability.value = "";
+  protocol.value = "";
+  search.value = "endpoint-to-map four statements";
+  let submitWasPrevented = false;
+  form.addEventListener("submit", (event) => {
+    submitWasPrevented = event.defaultPrevented;
+  });
+  // requestSubmit follows the form submit path used by implicit Enter on the
+  // search input without depending on JSDOM's incomplete keyboard defaults.
+  form.requestSubmit();
+  assert.equal(submitWasPrevented, true);
+  assert.equal(count.textContent, "1");
+
+  clear.click();
+  assert.equal(search.value, "");
+  assert.equal(capability.value, "");
+  assert.equal(protocol.value, "");
+  assert.equal(count.textContent, "32");
+  assert.equal(empty.hidden, true);
+  assert.ok(groups.every((group) => !group.hidden));
+  assert.equal(document.activeElement, search);
+  dom.window.close();
 });

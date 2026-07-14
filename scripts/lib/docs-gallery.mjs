@@ -1,10 +1,163 @@
+import { createHash } from "node:crypto";
 import { normalizeGalleryText } from "./docs-gallery-client.mjs";
+
+const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
+const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const CONSUMER_FIXTURE_FORMAT = "honua.site.sdk-sample-consumer-fixture.v2";
+const SITE_PROJECTION_FORMAT = "honua.site.sdk-sample-projection.v2";
+const SAMPLE_CATALOG_FORMAT = "honua.sdk.sample-catalog.v2";
+const REPRESENTATIVE_ROUTES = Object.freeze(["quickstart-map", "public-safety", "two-protocols"]);
+const QUALITY_GATE_KEYS = Object.freeze([
+  "packedBuild",
+  "browser",
+  "accessibility",
+  "console",
+  "responsive",
+  "screenshot",
+  "performance",
+  "liveEvidence",
+]);
+const VERIFIED_INTEGRITIES = new WeakSet();
 
 const PUBLIC_GALLERY_TRACKS = Object.freeze([
   { track: "golden", title: "Golden journeys" },
   { track: "recipe", title: "Recipes" },
   { track: "lab", title: "Labs" },
 ]);
+
+function invariant(condition, message) {
+  if (!condition) throw new Error(`Gallery projection integrity: ${message}`);
+}
+
+function assertPlainObject(value, label) {
+  const prototype = value !== null && typeof value === "object" ? Object.getPrototypeOf(value) : null;
+  invariant(
+    value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      (prototype === Object.prototype || prototype === null),
+    `${label} must be an object`,
+  );
+}
+
+function assertExactKeys(value, expected, label) {
+  assertPlainObject(value, label);
+  const actual = Object.keys(value).sort();
+  const sortedExpected = [...expected].sort();
+  invariant(JSON.stringify(actual) === JSON.stringify(sortedExpected), `${label} keys must match the v2 contract`);
+}
+
+function stableProjectionBytes(projection) {
+  return `${JSON.stringify(projection, null, 2)}\n`;
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+/**
+ * Bind a parsed site projection to the committed consumer fixture and its exact
+ * canonical bytes. The returned token is intentionally accepted only by this
+ * module's model builder, so callers cannot accidentally render an unverified
+ * in-memory projection.
+ */
+export function verifyGalleryProjectionIntegrity({ projection, projectionBytes, consumerFixture }) {
+  assertPlainObject(projection, "projection");
+  invariant(typeof projectionBytes === "string", "projection bytes must be supplied as UTF-8 text");
+  invariant(
+    projection.format === SITE_PROJECTION_FORMAT && projection.schemaVersion === 2,
+    "projection format is not the supported v2 contract",
+  );
+  invariant(
+    projection.catalog?.format === SAMPLE_CATALOG_FORMAT && projection.catalog?.schemaVersion === 2,
+    "catalog format is not the supported v2 contract",
+  );
+  const stableBytes = stableProjectionBytes(projection);
+  invariant(projectionBytes === stableBytes, "projection bytes are not canonical stable JSON");
+
+  assertExactKeys(
+    consumerFixture,
+    ["format", "schemaVersion", "accepts", "input", "assertions", "representativeRoutes"],
+    "consumer fixture",
+  );
+  invariant(consumerFixture.format === CONSUMER_FIXTURE_FORMAT, "consumer fixture format is not v2");
+  invariant(consumerFixture.schemaVersion === 2, "consumer fixture schemaVersion is not 2");
+
+  assertExactKeys(
+    consumerFixture.accepts,
+    ["projectionFormat", "projectionSchemaVersion", "catalogFormat", "catalogSchemaVersion"],
+    "consumer fixture accepts",
+  );
+  invariant(
+    consumerFixture.accepts.projectionFormat === projection.format &&
+      consumerFixture.accepts.projectionSchemaVersion === projection.schemaVersion &&
+      consumerFixture.accepts.catalogFormat === projection.catalog?.format &&
+      consumerFixture.accepts.catalogSchemaVersion === projection.catalog?.schemaVersion,
+    "consumer accepted formats do not match the projection",
+  );
+
+  assertExactKeys(consumerFixture.input, ["path", "schemaPath", "sha256"], "consumer fixture input");
+  invariant(consumerFixture.input.path === SITE_PROJECTION_PATH, "consumer input path is not canonical");
+  invariant(
+    consumerFixture.input.schemaPath === SITE_PROJECTION_SCHEMA_PATH,
+    "consumer schema path is not canonical",
+  );
+  invariant(/^[a-f0-9]{64}$/.test(consumerFixture.input.sha256), "consumer projection digest is malformed");
+  const projectionSha256 = sha256(stableBytes);
+  invariant(consumerFixture.input.sha256 === projectionSha256, "consumer projection digest mismatch");
+
+  const samples = Array.isArray(projection.samples) ? projection.samples : [];
+  const journeys = Array.isArray(projection.goldenJourneys) ? projection.goldenJourneys : [];
+  const routes = Array.isArray(projection.routes) ? projection.routes : [];
+  const sampleIds = samples.map((sample) => sample.id);
+  const routeIds = routes.map((route) => route.id);
+  const expectedAssertions = {
+    sampleCount: samples.length,
+    rootExampleCount: samples.filter((sample) => sample.sourceKind === "root-example").length,
+    docsExampleCount: samples.filter((sample) => sample.sourceKind === "docs-example").length,
+    goldenJourneyCount: journeys.length,
+    qualifiedGoldenCount: journeys.filter((journey) => journey.status === "qualified").length,
+    routeCount: routes.length,
+    sampleIdsUnique: new Set(sampleIds).size === sampleIds.length,
+    routeIdsUnique: new Set(routeIds).size === routeIds.length,
+    routesEndInHtml: routes.every((route) => typeof route.route === "string" && route.route.endsWith(".html")),
+    executableSourceOwner: projection.contract?.executableSourceOwner,
+    presentationOwner: projection.contract?.presentationOwner,
+    credentialValuesForbidden: true,
+  };
+  invariant(expectedAssertions.sampleIdsUnique, "projection sample IDs are not unique");
+  invariant(expectedAssertions.routeIdsUnique, "projection route IDs are not unique");
+  invariant(expectedAssertions.routesEndInHtml, "projection routes are not static HTML paths");
+  invariant(
+    expectedAssertions.executableSourceOwner === "honua-io/honua-sdk-js" &&
+      expectedAssertions.presentationOwner === "honua-io/honua-site",
+    "projection ownership is not the supported SDK/site boundary",
+  );
+  assertExactKeys(consumerFixture.assertions, Object.keys(expectedAssertions), "consumer fixture assertions");
+  for (const [name, expected] of Object.entries(expectedAssertions)) {
+    invariant(consumerFixture.assertions[name] === expected, `consumer assertion ${name} does not match`);
+  }
+
+  invariant(
+    Array.isArray(consumerFixture.representativeRoutes) &&
+      JSON.stringify(consumerFixture.representativeRoutes) === JSON.stringify(REPRESENTATIVE_ROUTES),
+    "consumer representative routes do not match the v2 contract",
+  );
+  const routeIdSet = new Set(routeIds);
+  invariant(
+    consumerFixture.representativeRoutes.every((routeId) => routeIdSet.has(routeId)),
+    "consumer representative route is absent from the projection",
+  );
+
+  const integrity = Object.freeze({
+    projection,
+    consumerFixtureFormat: consumerFixture.format,
+    projectionSha256,
+    publicationQualificationGate: "npm run samples:verify",
+  });
+  VERIFIED_INTEGRITIES.add(integrity);
+  return integrity;
+}
 
 function compareCodeUnits(left, right) {
   if (left === right) return 0;
@@ -13,6 +166,103 @@ function compareCodeUnits(left, right) {
 
 function sortedUnique(values) {
   return [...new Set(values)].sort(compareCodeUnits);
+}
+
+function qualificationFor(sample, journey, qualityProfile) {
+  const requiredGates = Object.entries(qualityProfile.gates)
+    .filter(([, required]) => required)
+    .map(([gate]) => gate);
+  if (sample.track === "golden") {
+    invariant(journey?.status === "qualified", `${sample.id} golden card is not bound to a qualified journey`);
+    invariant(sample.supportTier === "supported", `${sample.id} qualified golden card is not supported`);
+    invariant(sample.lifecycle.state === "active", `${sample.id} qualified golden card is not active`);
+    invariant(
+      sample.evidence.fixture.status === "executed",
+      `${sample.id} qualified golden card lacks executed fixture evidence`,
+    );
+    invariant(
+      Object.values(qualityProfile.gates).every(Boolean),
+      `${sample.id} qualified golden card does not require every qualification gate`,
+    );
+    if (qualityProfile.gates.liveEvidence) {
+      invariant(
+        sample.evidence.live.status === "executed",
+        `${sample.id} qualified golden card lacks executed live evidence`,
+      );
+    }
+    return {
+      state: "receipt-qualified-golden",
+      label: "Receipt-qualified golden journey",
+      requiredGates,
+    };
+  }
+  if (journey) {
+    invariant(journey.status === "planned", `${sample.id} non-golden journey card is forged as qualified`);
+    return {
+      state: "planned-golden-candidate",
+      label: "Planned golden candidate · not receipt-qualified",
+      requiredGates,
+    };
+  }
+  invariant(
+    sample.track === "recipe" || sample.track === "lab" || sample.track === "fixture",
+    `${sample.id} has no honest gallery qualification state`,
+  );
+  return {
+    state: "catalog-declared",
+    label: `${sample.track} declaration · CI gates only; not receipt-qualified`,
+    requiredGates,
+  };
+}
+
+function validateQualificationModel(siteProjection, indexes) {
+  invariant(Array.isArray(siteProjection.qualityProfiles), "projection qualityProfiles must be an array");
+  const qualityProfiles = new Map();
+  for (const profile of siteProjection.qualityProfiles) {
+    invariant(typeof profile.id === "string" && profile.id, "quality profile ID is missing");
+    invariant(typeof profile.description === "string" && profile.description, `${profile.id} description is missing`);
+    invariant(!qualityProfiles.has(profile.id), `duplicate quality profile ${profile.id}`);
+    assertExactKeys(profile.gates, QUALITY_GATE_KEYS, `${profile.id} quality profile gates`);
+    invariant(
+      Object.values(profile.gates).every((required) => typeof required === "boolean"),
+      `${profile.id} quality profile gates must be booleans`,
+    );
+    qualityProfiles.set(profile.id, profile);
+  }
+  for (const sample of siteProjection.samples) {
+    invariant(
+      qualityProfiles.has(sample.validationProfile),
+      `${sample.id} references missing quality profile ${sample.validationProfile}`,
+    );
+  }
+
+  for (const journey of indexes.journeys.values()) {
+    const sample = indexes.samples.get(journey.candidateSampleId);
+    invariant(sample, `${journey.id} candidate ${journey.candidateSampleId} is missing`);
+    invariant(sample.journeyId === journey.id, `${journey.id} candidate relation is inconsistent`);
+    if (journey.status === "qualified") {
+      invariant(sample.track === "golden", `${journey.id} qualified candidate is not a golden card`);
+    } else {
+      invariant(journey.status === "planned", `${journey.id} has an unknown qualification status`);
+      invariant(
+        sample.track === "recipe" || sample.track === "lab",
+        `${journey.id} planned candidate must remain a recipe or lab`,
+      );
+    }
+  }
+  for (const sample of siteProjection.samples) {
+    if (!sample.journeyId) {
+      invariant(sample.track !== "golden", `${sample.id} golden card has no journey relation`);
+      continue;
+    }
+    const journey = indexes.journeys.get(sample.journeyId);
+    invariant(journey, `${sample.id} references unknown journey ${sample.journeyId}`);
+    invariant(journey.candidateSampleId === sample.id, `${sample.id} is not the candidate for ${sample.journeyId}`);
+  }
+  const goldenCount = siteProjection.samples.filter((sample) => sample.track === "golden").length;
+  const qualifiedCount = [...indexes.journeys.values()].filter((journey) => journey.status === "qualified").length;
+  invariant(goldenCount === qualifiedCount, "golden card count does not match qualified journey count");
+  return qualityProfiles;
 }
 
 function resolvedReplacement(replacement, indexes, publicSampleIds) {
@@ -74,6 +324,10 @@ function gallerySearchText(card) {
       replacement?.kind,
       replacement?.id,
       replacement?.title,
+      card.qualification.state,
+      card.qualification.label,
+      card.qualityProfile.description,
+      ...card.qualification.requiredGates,
     ]
       .filter((value) => value !== undefined && value !== null)
       .join(" "),
@@ -85,7 +339,11 @@ function gallerySearchText(card) {
  * catalog-v2 site projection. Internal fixture entries remain available to
  * validation but are intentionally not promoted as public applications.
  */
-export function createGalleryModel(siteProjection) {
+export function createGalleryModel(siteProjection, integrity) {
+  invariant(
+    integrity && VERIFIED_INTEGRITIES.has(integrity) && integrity.projection === siteProjection,
+    "gallery model requires integrity verified for this projection object",
+  );
   if (!siteProjection || !Array.isArray(siteProjection.samples)) {
     throw new TypeError("Gallery projection must contain a samples array.");
   }
@@ -99,6 +357,7 @@ export function createGalleryModel(siteProjection) {
     journeys: new Map(journeys.map((journey) => [journey.id, journey])),
     externalReplacements: new Map(externalReplacements.map((replacement) => [replacement.id, replacement])),
   };
+  const qualityProfiles = validateQualificationModel(siteProjection, indexes);
   const publicTracks = new Set(PUBLIC_GALLERY_TRACKS.map(({ track }) => track));
   const publicSamples = siteProjection.samples.filter((sample) => publicTracks.has(sample.track));
   const publicSampleIds = new Set(publicSamples.map((sample) => sample.id));
@@ -122,7 +381,9 @@ export function createGalleryModel(siteProjection) {
           })
         : null,
       replacement: resolvedReplacement(sample.lifecycle.replacement, indexes, publicSampleIds),
+      qualityProfile: structuredClone(qualityProfiles.get(sample.validationProfile)),
     };
+    card.qualification = qualificationFor(sample, card.journey, card.qualityProfile);
     return { ...card, searchText: gallerySearchText(card) };
   });
   const groups = PUBLIC_GALLERY_TRACKS.map(({ track, title }) => ({
@@ -138,6 +399,11 @@ export function createGalleryModel(siteProjection) {
   return {
     cardCount: cards.length,
     provenance,
+    integrity: {
+      consumerFixtureFormat: integrity.consumerFixtureFormat,
+      projectionSha256: integrity.projectionSha256,
+      publicationQualificationGate: integrity.publicationQualificationGate,
+    },
     filters: {
       capabilities: sortedUnique(cards.flatMap((card) => card.sample.capabilities)),
       protocols: sortedUnique(cards.flatMap((card) => card.sample.protocols)),
@@ -155,13 +421,67 @@ function escapeHtml(value) {
 }
 
 function safeHttpUrl(value) {
-  if (!value) return null;
+  if (typeof value !== "string" || !value || /[\s\u007f\\]/u.test(value)) return null;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && !url.username && !url.password ? url.href : null;
+    return url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash
+      ? url.href
+      : null;
   } catch {
     return null;
   }
+}
+
+function fullyDecodeUrlComponent(value) {
+  let decoded = value;
+  for (let depth = 0; depth < 8 && /%[A-Fa-f0-9]{2}/u.test(decoded); depth += 1) {
+    decoded = decodeURIComponent(decoded);
+  }
+  return /%[A-Fa-f0-9]{2}/u.test(decoded) ? null : decoded;
+}
+
+function safeRepositoryRelativeUrl(value) {
+  if (
+    typeof value !== "string" ||
+    !value ||
+    value.startsWith("/") ||
+    /[\u0000-\u0020\u007f\\]/u.test(value) ||
+    !/^[A-Za-z0-9._~%/-]+(?:#[A-Za-z0-9._~%/-]+)?$/u.test(value)
+  ) {
+    return null;
+  }
+  const [pathPart, fragment] = value.split("#");
+  let decodedPath;
+  let decodedFragment;
+  try {
+    decodedPath = fullyDecodeUrlComponent(pathPart);
+    decodedFragment = fragment === undefined ? "" : fullyDecodeUrlComponent(fragment);
+  } catch {
+    return null;
+  }
+  if (
+    decodedPath === null ||
+    decodedFragment === null ||
+    !/^[A-Za-z0-9._~/-]+$/u.test(decodedPath) ||
+    (decodedFragment && !/^[A-Za-z0-9._~/-]+$/u.test(decodedFragment))
+  ) {
+    return null;
+  }
+  const segments = decodedPath.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) return null;
+  return value;
+}
+
+function validatedSourceLink(value) {
+  assertExactKeys(value, ["href", "kind"], "source resolver result");
+  invariant(value.kind === "guide" || value.kind === "source", "source resolver kind is unsupported");
+  const href = safeHttpUrl(value.href) ?? safeRepositoryRelativeUrl(value.href);
+  invariant(href, "source resolver returned an unsafe URL");
+  return { href, kind: value.kind };
 }
 
 function renderTags(values, label) {
@@ -271,6 +591,11 @@ function renderGalleryProvenance(gallery) {
       )}</code> · executable owner <code>${escapeHtml(
         contract.executableSourceOwner,
       )}</code> · presentation owner <code>${escapeHtml(contract.presentationOwner)}</code></dd>
+      <dt>Consumer fixture</dt><dd><code>${escapeHtml(gallery.integrity.consumerFixtureFormat)}</code></dd>
+      <dt>Projection SHA-256</dt><dd><code>${escapeHtml(gallery.integrity.projectionSha256)}</code></dd>
+      <dt>Golden publication gate</dt><dd><code>${escapeHtml(
+        gallery.integrity.publicationQualificationGate,
+      )}</code> receipt-validates qualified journeys before deployment</dd>
     </dl>
   </details>
 </aside>`;
@@ -278,7 +603,7 @@ function renderGalleryProvenance(gallery) {
 
 function renderCard(card, resolveSourceLink) {
   const { sample } = card;
-  const source = resolveSourceLink(sample);
+  const source = validatedSourceLink(resolveSourceLink(sample));
   const sourceLabel = source.kind === "guide" ? "Read the walkthrough" : "View source";
   const dataSummary = [
     `mode <code>${escapeHtml(sample.data.mode)}</code>`,
@@ -311,6 +636,7 @@ function renderCard(card, resolveSourceLink) {
     <dt>SDK</dt><dd><code>${escapeHtml(sample.sdk.package)}</code> <code>${escapeHtml(sample.sdk.version)}</code></dd>
     <dt>Data</dt><dd>${dataSummary.join(" · ")}</dd>
     <dt>Evidence state</dt><dd>${renderEvidenceSummary(sample)}</dd>
+    <dt>Qualification</dt><dd><strong>${escapeHtml(card.qualification.label)}</strong></dd>
     <dt>Replacement</dt><dd>${renderReplacement(card.replacement)}</dd>
     <dt>Capabilities</dt><dd>${renderTags(sample.capabilities, `${sample.title} capabilities`)}</dd>
     <dt>Protocols</dt><dd>${renderTags(sample.protocols, `${sample.title} protocols`)}</dd>
@@ -327,7 +653,13 @@ function renderCard(card, resolveSourceLink) {
       <dt>Expected degradation</dt><dd>${escapeHtml(sample.expectedDegradation)}</dd>
       <dt>Renderers</dt><dd>${renderTags(sample.renderers, `${sample.title} renderers`)}</dd>
       <dt>Golden journey</dt><dd>${renderJourney(card.journey)}</dd>
-      <dt>Validation profile</dt><dd><code>${escapeHtml(sample.validationProfile)}</code></dd>
+      <dt>Quality profile</dt><dd><code>${escapeHtml(card.qualityProfile.id)}</code> — ${escapeHtml(
+        card.qualityProfile.description,
+      )}</dd>
+      <dt>Required gates</dt><dd>${renderTags(
+        card.qualification.requiredGates,
+        `${sample.title} required quality gates`,
+      )}</dd>
     </dl>
   </details>
 </article>`;
@@ -335,12 +667,9 @@ function renderCard(card, resolveSourceLink) {
 
 /** Render only the gallery's main content; the docs builder owns site chrome. */
 export function renderGalleryContent(gallery, { resolveSourceLink } = {}) {
-  const sourceLink =
-    resolveSourceLink ??
-    ((sample) => ({
-      href: sample.source.docsPath,
-      kind: "source",
-    }));
+  if (typeof resolveSourceLink !== "function") {
+    throw new TypeError("renderGalleryContent requires an explicit source-link resolver");
+  }
   const capabilityOptions = gallery.filters.capabilities.map(renderOption).join("");
   const protocolOptions = gallery.filters.protocols.map(renderOption).join("");
   const groups = gallery.groups
@@ -348,7 +677,7 @@ export function renderGalleryContent(gallery, { resolveSourceLink } = {}) {
       (group) => `<section data-gallery-group aria-labelledby="gallery-${escapeHtml(group.track)}">
   <h2 id="gallery-${escapeHtml(group.track)}">${escapeHtml(group.title)}</h2>
   <div class="demo-grid">
-${group.cards.map((card) => renderCard(card, sourceLink)).join("\n")}
+${group.cards.map((card) => renderCard(card, resolveSourceLink)).join("\n")}
   </div>
 </section>`,
     )
@@ -360,6 +689,9 @@ and labs appear here now; qualified golden journeys join automatically as their
 evidence gates pass. Cards retain lifecycle, degradation, and evidence truth even
 when a sample is scheduled for replacement or retirement.</p>
 ${renderGalleryProvenance(gallery)}
+<p class="gallery-qualification-note">Recipe and lab cards are catalog declarations, not receipt or artifact
+qualification claims. Publication runs <code>npm run samples:verify</code>, which validates the complete receipt
+set before any future <strong>qualified golden journey</strong> is published; profile gates alone are only requirements.</p>
 <form class="gallery-controls" data-gallery-controls role="search" aria-label="Filter demo gallery">
   <div class="gallery-control">
     <label for="gallery-search">Task or sample</label>
