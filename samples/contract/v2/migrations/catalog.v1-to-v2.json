@@ -314,6 +314,11 @@
       "track": "lab",
       "journeyId": "service-explorer",
       "validationProfile": "browser-lab",
+      "validation": [
+        "npm run demo:service-explorer:typecheck",
+        "npm run demo:service-explorer:build",
+        "npm run test:playwright:service-explorer"
+      ],
       "configuration": {
         "status": "legacy-unsafe",
         "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
@@ -344,6 +349,11 @@
       "track": "recipe",
       "validationProfile": "browser-recipe",
       "replacement": { "kind": "journey", "id": "first-map" },
+      "validation": [
+        "npm run demo:standalone:typecheck",
+        "npm run demo:standalone:build",
+        "npm run test:playwright:standalone"
+      ],
       "live": { "mode": "public-live", "status": "planned" }
     },
     "storytelling-25d-map": {

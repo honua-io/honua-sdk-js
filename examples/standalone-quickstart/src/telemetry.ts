@@ -11,12 +11,14 @@ export interface StandaloneRuntimeState {
   geometryType?: string;
   layerIds: string[];
   usedServer: boolean;
+  disposed?: boolean;
   error?: string;
 }
 
 declare global {
   interface Window {
     __HONUA_STANDALONE_RUNTIME__?: StandaloneRuntimeState;
+    __HONUA_STANDALONE_DISPOSE__?: () => Promise<void>;
   }
 }
 

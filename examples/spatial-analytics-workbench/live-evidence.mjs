@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -5,12 +6,18 @@ import { fileURLToPath } from "node:url";
 import { capabilities, createDataset } from "../../dist/src/contract/index.js";
 import { HonuaClient } from "../../dist/src/honua.js";
 import { executeQueryPlan, explainQuery } from "../../dist/src/query-planner/index.js";
+import { liveEvidenceOutputContract } from "../../scripts/lib/live-evidence-output.mjs";
 import { validateEvidenceEnvelope } from "../../scripts/sample-contract.mjs";
 
-const outputPath = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../test-results/spatial-analytics-live-evidence.json",
+const producerPath = "examples/spatial-analytics-workbench/live-evidence.mjs";
+const producerSha256 = createHash("sha256")
+  .update(fs.readFileSync(fileURLToPath(import.meta.url)))
+  .digest("hex");
+const outputContract = liveEvidenceOutputContract(
+  "spatial-analytics-workbench",
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../test-results/spatial-analytics-live-evidence.json"),
 );
+const outputPath = outputContract.output;
 const observedAt = new Date().toISOString();
 const protocol = process.env.HONUA_SPATIAL_ANALYTICS_PROTOCOL ?? "geoservices-feature-service";
 const baseUrl = process.env.HONUA_SPATIAL_ANALYTICS_BASE_URL;
@@ -85,7 +92,11 @@ if (protocol === "ogc-features") {
     reason: null,
     observedAt,
     authMode: "anonymous",
-    sdk: { package: "@honua/sdk-js", version: "0.1.0-beta.0", gitCommit: process.env.GITHUB_SHA ?? null },
+    sdk: {
+      package: "@honua/sdk-js",
+      version: "0.1.0-beta.0",
+      gitCommit: outputContract.sourceRevision ?? process.env.GITHUB_SHA ?? null,
+    },
     source: {
       provider: "configured-geoservices",
       identity: descriptor.id,
@@ -108,7 +119,7 @@ if (protocol === "ogc-features") {
     },
     timing: { totalMs, firstSuccessfulInteractionMs: totalMs },
     degradation: { state: "none", reasons: [] },
-    artifacts: [],
+    artifacts: [{ kind: "producer-generator", path: producerPath, sha256: producerSha256 }],
   };
 }
 
@@ -128,7 +139,11 @@ function skipped(reason, timestamp) {
     reason,
     observedAt: timestamp,
     authMode: "anonymous",
-    sdk: { package: "@honua/sdk-js", version: "0.1.0-beta.0", gitCommit: process.env.GITHUB_SHA ?? null },
+    sdk: {
+      package: "@honua/sdk-js",
+      version: "0.1.0-beta.0",
+      gitCommit: outputContract.sourceRevision ?? process.env.GITHUB_SHA ?? null,
+    },
     source: {
       provider: "configured-geoservices",
       identity: "spatial-analytics-live-source",

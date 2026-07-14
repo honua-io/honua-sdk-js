@@ -30,6 +30,21 @@ npm run demo:standalone
 npm run demo:standalone:mock   # prints standaloneMockUrl=http://127.0.0.1:PORT
 ```
 
+The shared sample runner is the reproducible validation entrypoint. Source
+mode exercises the repository SDK; packed mode proves that the same app
+typechecks and runs through published package entrypoints:
+
+```bash
+npm run samples:run -- verify --sample standalone-quickstart --sdk-mode source
+npm run samples:run -- verify --sample standalone-quickstart --sdk-mode packed
+```
+
+The page identifies its SDK mode, deterministic fixture/live lane, and any
+metadata degradation. Each build separately emits bounded entrypoint and bundle
+resolution evidence in `dist/honua-sample-sdk-resolution.json`. Runtime failures
+remain visible, while explicit disposal aborts outstanding work and removes map
+and DOM resources.
+
 ## Configuration
 
 Copy `.env.example` to `.env` to override the defaults. All vars are optional;
@@ -49,7 +64,9 @@ Recorded GeoServices JSON lives in
 `mock-server.mjs` rebuilds the app with the FeatureServer URL pointed at a
 same-origin relative path, then replays those recordings — so CI and the
 Playwright smoke (`test/playwright/standalone-quickstart.spec.mjs`) never touch a
-third-party service.
+third-party service. The runner's fixture gate invokes its one-shot evidence
+mode, probes the bound loopback server, and verifies that the listener and all
+connections close before accepting a receipt.
 
 Refresh the recordings from the live endpoints on demand:
 

@@ -191,6 +191,11 @@ jobs:
           npm run samples:verify:flagships
           npm run samples:fixtures:verify
 
+      - name: Validate sample runner boundaries and generated selection
+        run: |
+          npm run samples:runner:test
+          npm run samples:run -- list --kit --json
+
       - name: Code style
         run: npm run check
 
@@ -208,6 +213,11 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Qualify shared-kit pilots from source and packed SDK
+        run: |
+          npm run samples:run -- verify --kit --sdk-mode source
+          npm run samples:run -- verify --kit --sdk-mode packed
 
       - name: Compile learning-path examples
         run: npm run docs:learning:typecheck

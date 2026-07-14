@@ -52,6 +52,8 @@ export interface BrowserArtifactManifest {
   }>;
 }
 
+export function parseJsonDocument<T = unknown>(source: string, label?: string): T;
+
 export function migrateCatalogV1ToV2(
   catalog: Record<string, unknown>,
   migration: Record<string, unknown>,
@@ -61,7 +63,12 @@ export function isRunnableRootExampleDirectory(name: string, markers: string[]):
 export function validateCatalog(
   catalog: SampleCatalog,
   packageJson: Record<string, unknown>,
-  options?: { now?: string },
+  options?: {
+    now?: string;
+    sourceRevision?: string;
+    receiptRoot?: string;
+    verifyCheckout?: boolean;
+  },
 ): Promise<void>;
 export function effectiveCatalog(
   catalog: SampleCatalog,
