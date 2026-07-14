@@ -94,6 +94,22 @@ export function extractSampleConfiguration(
   sourcePath: string,
   exemptions?: Array<{ name: string }>,
 ): Promise<string[]>;
+export interface SampleConfigurationInspection {
+  names: string[];
+  wholeEnvironmentEscapes: Array<{
+    file: string;
+    line: number;
+    column: number;
+    roots: Array<"process.env" | "import.meta.env">;
+    reason: string;
+  }>;
+}
+export function inspectSampleConfiguration(
+  sourcePath: string,
+  exemptions?: Array<{ name: string }>,
+): Promise<SampleConfigurationInspection>;
+export function validateFixtureBuildHarnessSource(source: string, file?: string): number;
+export function validateFixtureBuildHarnesses(): Promise<number>;
 export function classifyConfigurationName(name: string): {
   name: string;
   exposure: "browser-public" | "server-only";
