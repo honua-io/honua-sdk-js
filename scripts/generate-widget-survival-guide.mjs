@@ -46,7 +46,7 @@ const DISPOSITION_DESCRIPTIONS = {
 
 export function generateWidgetSurvivalGuideMarkdown(data) {
   const {
-    WIDGET_DISPOSITIONS,
+    WIDGET_DISPOSITION_DOCUMENTATION,
     WIDGET_DISPOSITION_KINDS,
     WIDGET_DISPOSITION_DATA_VERSION,
     ARCGIS_WIDGET_DEPRECATION_RELEASE,
@@ -55,7 +55,7 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
     ARCGIS_WIDGET_INVENTORY_SOURCE,
   } = data;
 
-  const widgets = [...WIDGET_DISPOSITIONS].sort((a, b) => a.widget.localeCompare(b.widget));
+  const widgets = [...WIDGET_DISPOSITION_DOCUMENTATION].sort((a, b) => a.widget.localeCompare(b.widget));
   const countsByDisposition = new Map(WIDGET_DISPOSITION_KINDS.map((kind) => [kind, 0]));
   for (const entry of widgets) {
     countsByDisposition.set(entry.disposition, (countsByDisposition.get(entry.disposition) ?? 0) + 1);

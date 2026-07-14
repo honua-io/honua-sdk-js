@@ -13,7 +13,8 @@ interface WidgetDispositionDocumentation extends WidgetDisposition {
 }
 
 export interface WidgetSurvivalGuideData {
-  WIDGET_DISPOSITIONS: readonly WidgetDispositionDocumentation[];
+  WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionDocumentation[];
+  WIDGET_DISPOSITIONS: readonly WidgetDisposition[];
   WIDGET_DISPOSITION_KINDS: readonly WidgetDispositionKind[];
   WIDGET_DISPOSITION_DATA_VERSION: string;
   ARCGIS_WIDGET_DEPRECATION_RELEASE: string;
