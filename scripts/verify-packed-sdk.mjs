@@ -180,6 +180,15 @@ try {
     cwd: consumerRoot,
   });
   fs.writeFileSync(
+    path.join(consumerRoot, "geocoding-smoke.mjs"),
+    `import { HonuaGeocodingClient } from "@honua/sdk-js/geocoding";
+if (typeof HonuaGeocodingClient !== "function") throw new Error("installed geocoding entrypoint is missing HonuaGeocodingClient");
+`,
+  );
+  run("installed geocoding subpath", process.execPath, ["geocoding-smoke.mjs"], {
+    cwd: consumerRoot,
+  });
+  fs.writeFileSync(
     path.join(consumerRoot, "plugin-registry-smoke.mjs"),
     `import { HONUA_PLUGIN_API_VERSION, HONUA_PLUGIN_MANIFEST_VERSION, HonuaPluginRegistry } from "@honua/sdk-js/plugin";
 const events = [];
@@ -321,7 +330,7 @@ if (events.join(",") !== "initialize,dispose") throw new Error(\`installed plugi
   );
 
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal offlineInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} geocoding=runtime rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal offlineInstall=true\n`,
   );
 } catch (error) {
   process.stderr.write(
