@@ -80,6 +80,12 @@ const TARGETS = [
     entry: "dist/src/source-schema.js",
     label: "`/source-schema` (focused schema + pinned PROJJSON validator)",
   },
+  {
+    key: "/source-capabilities",
+    kind: "bundle",
+    entry: "dist/src/source-capabilities.js",
+    label: "`/source-capabilities` (pure evaluator; schema validator excluded)",
+  },
   { key: "/plugin", kind: "bundle", entry: "dist/src/plugin/index.js", label: "`/plugin` (registry + certification, no heavy peers)" },
   { key: "/agent-tools", kind: "bundle", entry: "dist/src/agent-tools/index.js", label: "`/agent-tools`" },
   { key: "/agent-safety", kind: "bundle", entry: "dist/src/agent-safety/index.js", label: "`/agent-safety`" },
