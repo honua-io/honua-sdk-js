@@ -8,13 +8,19 @@ import { SUPPORTED_ARCGIS_MODULES } from "../src/migration/codemod.js";
 import * as widgetDispositionData from "../src/migration/widget-dispositions.js";
 import {
   WIDGET_DISPOSITIONS,
+  WIDGET_DISPOSITION_DOCUMENTATION,
   WIDGET_DISPOSITION_KINDS,
   WIDGET_SURVIVAL_GUIDE_PATH,
   widgetNameFromModulePath,
 } from "../src/migration/widget-dispositions.js";
 
 const GUIDE_PATH = path.join(process.cwd(), WIDGET_SURVIVAL_GUIDE_PATH);
-
+const SURVIVAL_TIER_COMPONENTS = [
+  { widget: "LayerList", tagName: "honua-layer-list", source: "src/web-components/elements.ts" },
+  { widget: "Legend", tagName: "honua-legend", source: "src/web-components/elements.ts" },
+  { widget: "Measurement", tagName: "honua-measurement", source: "src/web-components/measurement.ts" },
+  { widget: "Search", tagName: "honua-search", source: "src/web-components/elements.ts" },
+] as const;
 describe("widget disposition data", () => {
   it("has unique widget names and module paths", () => {
     const widgets = WIDGET_DISPOSITIONS.map((entry) => entry.widget);
@@ -33,6 +39,15 @@ describe("widget disposition data", () => {
     }
   });
 
+  it("keeps documentation-only component metadata off the public runtime rows", () => {
+    for (const entry of WIDGET_DISPOSITIONS) {
+      const expectedKeys = ["amdModules", "disposition", "esmModules", "notes", "target", "widget"];
+      if (entry.shimSource) expectedKeys.push("shimSource");
+      expect(Object.keys(entry).sort()).toEqual(expectedKeys.sort());
+      expect("appPlatformComponent" in entry).toBe(false);
+    }
+  });
+
   it("maps every module path back to its own widget", () => {
     for (const entry of WIDGET_DISPOSITIONS) {
       for (const modulePath of [...entry.esmModules, ...entry.amdModules]) {
@@ -47,6 +62,27 @@ describe("widget disposition data", () => {
         expect(entry.shimSource, `${entry.widget} must record its shim source`).toBeDefined();
         expect(fs.existsSync(path.join(process.cwd(), entry.shimSource!))).toBe(true);
       }
+    }
+  });
+
+  it("records the four survival-tier app-platform components in the shared disposition data", () => {
+    const componentRows = WIDGET_DISPOSITION_DOCUMENTATION.filter((entry) => entry.appPlatformComponent);
+    expect(componentRows.map((entry) => entry.widget).sort()).toEqual(
+      SURVIVAL_TIER_COMPONENTS.map((entry) => entry.widget).sort(),
+    );
+
+    for (const expected of SURVIVAL_TIER_COMPONENTS) {
+      const component = WIDGET_DISPOSITION_DOCUMENTATION.find(
+        (entry) => entry.widget === expected.widget,
+      )?.appPlatformComponent;
+      expect(component).toMatchObject({
+        moduleSpecifier: "@honua/app-platform/web-components",
+        tagName: expected.tagName,
+        source: expected.source,
+      });
+      expect(component?.usageHtml).toContain(`<${expected.tagName}`);
+      expect(component?.usageHtml).toContain('<honua-map id="map">');
+      expect(fs.existsSync(path.join(process.cwd(), expected.source))).toBe(true);
     }
   });
 
@@ -79,6 +115,22 @@ describe("widget survival guide", () => {
     const guide = fs.readFileSync(GUIDE_PATH, "utf8");
     for (const entry of WIDGET_DISPOSITIONS) {
       expect(guide).toContain(`### ${entry.widget}`);
+    }
+  });
+
+  it("links every survival-tier row to its app-platform component with generated usage", () => {
+    const guide = fs.readFileSync(GUIDE_PATH, "utf8");
+    for (const expected of SURVIVAL_TIER_COMPONENTS) {
+      const summaryRow = guide.split("\n").find((line) => line.startsWith(`| [${expected.widget}]`));
+      expect(summaryRow).toContain(
+        `Direct app-platform component: [\`<${expected.tagName}>\`](../${expected.source}) from \`@honua/app-platform/web-components\``,
+      );
+      const usageHtml = WIDGET_DISPOSITION_DOCUMENTATION.find((entry) => entry.widget === expected.widget)
+        ?.appPlatformComponent?.usageHtml;
+      if (!usageHtml) throw new Error(`${expected.widget} is missing app-platform usage markup`);
+      expect(guide).toContain('```ts doc-test=skip reason="requires the separately published app-platform package"');
+      expect(guide).toContain(`import "@honua/app-platform/web-components";`);
+      expect(guide).toContain(usageHtml);
     }
   });
 

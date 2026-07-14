@@ -46,7 +46,7 @@ const DISPOSITION_DESCRIPTIONS = {
 
 export function generateWidgetSurvivalGuideMarkdown(data) {
   const {
-    WIDGET_DISPOSITIONS,
+    WIDGET_DISPOSITION_DOCUMENTATION,
     WIDGET_DISPOSITION_KINDS,
     WIDGET_DISPOSITION_DATA_VERSION,
     ARCGIS_WIDGET_DEPRECATION_RELEASE,
@@ -55,7 +55,7 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
     ARCGIS_WIDGET_INVENTORY_SOURCE,
   } = data;
 
-  const widgets = [...WIDGET_DISPOSITIONS].sort((a, b) => a.widget.localeCompare(b.widget));
+  const widgets = [...WIDGET_DISPOSITION_DOCUMENTATION].sort((a, b) => a.widget.localeCompare(b.widget));
   const countsByDisposition = new Map(WIDGET_DISPOSITION_KINDS.map((kind) => [kind, 0]));
   for (const entry of widgets) {
     countsByDisposition.set(entry.disposition, (countsByDisposition.get(entry.disposition) ?? 0) + 1);
@@ -116,6 +116,12 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
       "`maplibre-plugin` count as assisted; `manual-workaround` and `no-equivalent` count as manual.",
   );
   lines.push("");
+  lines.push(
+    "A compat-backed row may also list a direct `@honua/app-platform` component. That component is the " +
+      "recommended destination for a deliberate UI rewrite; the disposition still describes what `honua-migrate` " +
+      "can automate today.",
+  );
+  lines.push("");
   lines.push("## Summary");
   lines.push("");
   lines.push("| Disposition | Widgets |");
@@ -130,12 +136,16 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
   lines.push("| Widget | ESM module | AMD module | Disposition | Target |");
   lines.push("| --- | --- | --- | --- | --- |");
   for (const entry of widgets) {
+    const appPlatformTarget = entry.appPlatformComponent
+      ? `<br>Direct app-platform component: [\`<${entry.appPlatformComponent.tagName}>\`](../${entry.appPlatformComponent.source}) ` +
+        `from \`${entry.appPlatformComponent.moduleSpecifier}\``
+      : "";
     lines.push(
       `| [${entry.widget}](#${data.widgetSurvivalGuideAnchor(entry.widget)}) | ${entry.esmModules
         .map((moduleId) => `\`${moduleId}\``)
         .join("<br>")} | ${entry.amdModules.map((moduleId) => `\`${moduleId}\``).join("<br>")} | \`${
         entry.disposition
-      }\` | ${escapeTableCell(entry.target)} |`,
+      }\` | ${escapeTableCell(`${entry.target}${appPlatformTarget}`)} |`,
     );
   }
   lines.push("");
@@ -150,7 +160,25 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
     if (entry.shimSource) {
       lines.push(`- Compat shim source: [\`${entry.shimSource}\`](../${entry.shimSource})`);
     }
+    if (entry.appPlatformComponent) {
+      lines.push(
+        `- Direct app-platform component: [\`<${entry.appPlatformComponent.tagName}>\`](../${entry.appPlatformComponent.source}) ` +
+          `from \`${entry.appPlatformComponent.moduleSpecifier}\``,
+      );
+    }
     lines.push(`- Notes: ${entry.notes}`);
+    if (entry.appPlatformComponent) {
+      lines.push("");
+      lines.push("App-platform usage (the module import auto-registers the element):");
+      lines.push("");
+      lines.push('```ts doc-test=skip reason="requires the separately published app-platform package"');
+      lines.push(`import "${entry.appPlatformComponent.moduleSpecifier}";`);
+      lines.push("```");
+      lines.push("");
+      lines.push("```html");
+      lines.push(entry.appPlatformComponent.usageHtml);
+      lines.push("```");
+    }
     lines.push("");
   }
   lines.push("## Out of scope");
