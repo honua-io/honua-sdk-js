@@ -38,6 +38,7 @@ const goldenJourneyIds = [
 describe("sample publication contract", () => {
   it("discovers every runnable example and reserves exactly seven golden journeys", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
+    expect(catalog.configuration.browserSecretPolicy).toMatch(/^Approved browser configuration/);
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
@@ -363,6 +364,12 @@ describe("sample publication contract", () => {
     await expect(validateCatalog(inventedExemption, packageJson, validationTime)).rejects.toThrow(
       "configuration exemption HONUA_FAKE_BUILTIN is not an approved standard built-in",
     );
+
+    const credentialPolicyDrift = structuredClone(catalog);
+    credentialPolicyDrift.configuration.credentialQueryParameters.pop();
+    await expect(validateCatalog(credentialPolicyDrift, packageJson, validationTime)).rejects.toThrow(
+      "configuration.credentialQueryParameters must exactly match the canonical normalized credential-key set",
+    );
   });
 
   it("resolves finite environment aliases and fails closed on dynamic reads", async () => {
@@ -398,6 +405,20 @@ describe("sample publication contract", () => {
     pathTraversal.samples[0].validation[0] = "npx vitest run ../outside.test.ts";
     await expect(validateCatalog(pathTraversal, packageJson, validationTime)).rejects.toThrow(
       "unsafe or unsupported catalog command",
+    );
+
+    const viteDevValidation = await readJson("samples/catalog.v2.json");
+    viteDevValidation.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").validation[0] =
+      "npm run demo:quickstart";
+    await expect(validateCatalog(viteDevValidation, packageJson, validationTime)).rejects.toThrow(
+      "automatic validation command is not in the reviewed bounded registry",
+    );
+
+    const deceptiveValidation = await readJson("samples/catalog.v2.json");
+    const deceptiveValidationPackage = structuredClone(packageJson);
+    deceptiveValidationPackage.scripts["demo:quickstart:build"] = "vite";
+    await expect(validateCatalog(deceptiveValidation, deceptiveValidationPackage, validationTime)).rejects.toThrow(
+      "automatic validation command is not in the reviewed bounded registry",
     );
 
     const viteDevLive = await readJson("samples/catalog.v2.json");
@@ -481,6 +502,12 @@ describe("sample publication contract", () => {
     const credentialUrl = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
     credentialUrl.source.endpoint = "https://example.test/features?api_key=secret";
     expect(() => validateEvidenceEnvelope(credentialUrl)).toThrow("forbidden credential query parameter api_key");
+
+    const broaderCredentialUrl = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    broaderCredentialUrl.source.endpoint = "https://example.test/features?authorization=secret";
+    expect(() => validateEvidenceEnvelope(broaderCredentialUrl)).toThrow(
+      "forbidden credential query parameter authorization",
+    );
 
     for (const lane of ["fixture.v1", "live-skipped.v1"]) {
       const safeAgentEvidence = await readJson(`examples/ai-spatial-app-builder/evidence/${lane}.json`);
