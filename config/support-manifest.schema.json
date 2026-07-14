@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json",
+  "title": "Honua JavaScript SDK support manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schemaVersion",
+    "sdk",
+    "statusVocabulary",
+    "freshnessPolicies",
+    "evidence",
+    "protocolOperations",
+    "claimCapabilities",
+    "claimOnlyProtocols",
+    "consumerContracts",
+    "packageLifecycle",
+    "protocols",
+    "supportClaims"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.support-manifest.v1" },
+    "schemaVersion": { "const": 1 },
+    "sdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "releaseStatus"],
+      "properties": {
+        "package": { "const": "@honua/sdk-js" },
+        "releaseStatus": { "$ref": "#/$defs/status" }
+      }
+    },
+    "statusVocabulary": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "supported" },
+        { "const": "beta" },
+        { "const": "experimental" },
+        { "const": "deprecated" },
+        { "const": "unsupported" },
+        { "const": "facade-required" }
+      ],
+      "items": false,
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true
+    },
+    "freshnessPolicies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cadence", "maxAgeDays"],
+        "properties": {
+          "cadence": { "type": "string", "minLength": 1 },
+          "maxAgeDays": { "type": ["integer", "null"], "minimum": 1 }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidence" }
+    },
+    "protocolOperations": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "claimCapabilities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "claimOnlyProtocols": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "consumerContracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sampleCatalog", "honuaSite"],
+      "properties": {
+        "sampleCatalog": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "source", "supportStatusMap", "protocols", "versionUpgrade"],
+          "properties": {
+            "format": { "const": "honua.sdk.sample-catalog.v1" },
+            "source": { "const": "samples/catalog.v1.json" },
+            "supportStatusMap": {
+              "type": "object",
+              "additionalProperties": { "oneOf": [{ "$ref": "#/$defs/status" }, { "type": "null" }] }
+            },
+            "protocols": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/consumerProtocol" }
+            },
+            "versionUpgrade": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["nextFormat", "issue", "rule"],
+              "properties": {
+                "nextFormat": { "const": "honua.sdk.sample-catalog.v2" },
+                "issue": { "type": "string" },
+                "rule": { "type": "string" }
+              }
+            }
+          }
+        },
+        "honuaSite": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "projectionFields", "joinKeys"],
+          "properties": {
+            "format": { "const": "honua.site.sdk-support.v1" },
+            "projectionFields": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+            "joinKeys": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+          }
+        }
+      }
+    },
+    "packageLifecycle": { "$ref": "#/$defs/packageLifecycle" },
+    "protocols": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/protocol" },
+      "minItems": 1
+    },
+    "supportClaims": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/supportClaim" },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "status": {
+      "enum": ["supported", "beta", "experimental", "deprecated", "unsupported", "facade-required"]
+    },
+    "consumerProtocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolIds", "supportClaimIds", "external"],
+      "properties": {
+        "protocolIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "supportClaimIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "external": { "type": "boolean" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "path", "freshnessPolicy"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "kind": { "enum": ["fixture", "integration", "live", "conformance"] },
+        "path": { "type": "string", "minLength": 1 },
+        "freshnessPolicy": { "type": "string", "minLength": 1 }
+      }
+    },
+    "packageLifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ceilings", "downstreamProjection", "entrypoints"],
+      "properties": {
+        "ceilings": { "type": "object" },
+        "downstreamProjection": { "type": "object" },
+        "entrypoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["subpath", "status"],
+            "properties": {
+              "subpath": { "type": "string" },
+              "status": { "enum": ["supported", "experimental", "deprecated"] },
+              "apiEquivalent": { "type": "string" },
+              "replacement": { "type": "string" },
+              "introducedIn": { "type": "string" },
+              "removeIn": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "operationClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operations", "environment", "executionMode", "status", "evidence"],
+      "properties": {
+        "operations": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "environment": { "type": "string", "minLength": 1 },
+        "executionMode": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/status" },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "defaultOperationStatus", "operationClaims"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "defaultOperationStatus": { "const": "unsupported" },
+        "operationClaims": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/operationClaim" }
+        }
+      }
+    },
+    "supportClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "operations",
+        "environment",
+        "executionMode",
+        "status",
+        "backendNeeded",
+        "api",
+        "notes",
+        "evidence"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "label": { "type": "string", "minLength": 1 },
+        "protocol": { "type": "string" },
+        "operations": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "environment": { "type": "string", "minLength": 1 },
+        "executionMode": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/status" },
+        "backendNeeded": { "type": "string" },
+        "api": { "type": "string" },
+        "notes": { "type": "string" },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

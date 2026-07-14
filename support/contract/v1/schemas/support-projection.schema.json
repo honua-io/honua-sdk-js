@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/support-projection.v1.schema.json",
+  "title": "Honua SDK downstream support projection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schemaVersion",
+    "generatedFrom",
+    "sdk",
+    "statusVocabulary",
+    "protocolOperations",
+    "claimCapabilities",
+    "claimOnlyProtocols",
+    "consumerContracts",
+    "freshnessPolicies",
+    "evidence",
+    "protocols",
+    "supportClaims",
+    "packageLifecycle"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.support-projection.v1" },
+    "schemaVersion": { "const": 1 },
+    "generatedFrom": { "const": "config/support-manifest.v1.json" },
+    "sdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "version", "releaseStatus"],
+      "properties": {
+        "package": { "const": "@honua/sdk-js" },
+        "version": { "type": "string" },
+        "releaseStatus": { "enum": ["supported", "beta", "experimental", "deprecated", "unsupported", "facade-required"] }
+      }
+    },
+    "statusVocabulary": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/statusVocabulary"
+    },
+    "protocolOperations": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/protocolOperations"
+    },
+    "claimCapabilities": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/claimCapabilities"
+    },
+    "claimOnlyProtocols": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/claimOnlyProtocols"
+    },
+    "consumerContracts": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/consumerContracts"
+    },
+    "freshnessPolicies": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/freshnessPolicies"
+    },
+    "evidence": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/evidence"
+    },
+    "protocols": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/protocols"
+    },
+    "supportClaims": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/supportClaims"
+    },
+    "packageLifecycle": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/$defs/packageLifecycle"
+    }
+  }
+}
