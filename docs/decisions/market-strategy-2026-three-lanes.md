@@ -18,22 +18,29 @@ A four-track competitive assessment (source-level audit of this repo plus
 market briefs on Esri, Mapbox/MapLibre, and CARTO/deck.gl/OpenLayers/Leaflet/
 Cesium/Google) found:
 
-- **The rendering war is settled.** MapLibre is the open 2D engine of record
-  (~3.25M npm downloads/week, 3.7x YoY; npm registry, week ending 2026-07-11 —
-  the standout gainer), Cesium owns 3D, Mapbox owns visual polish behind
-  per-load pricing. Competing as a renderer is a losing move; the kernel ADR
-  already declines it.
-- **The open stack has no integration layer.** MapLibre + PMTiles/OpenFreeMap
-  commoditized rendering and basemaps, but developers still hand-roll service
-  clients, styling, UI, editing, and geocoding. Esri itself now documents the
-  "MapLibre for rendering, ArcGIS for data" hybrid. Nobody owns the glue.
-- **Esri is forcing its own users to rewrite.** All classic widgets were
-  deprecated at ArcGIS JS SDK 5.0 (Feb 2026; current release is 5.1) and are
-  "planned for removal from the SDK as early as Q1 2027" at 6.0, together with
-  AMD/`require()`. Every
-  ArcGIS JS app faces a forced migration decision inside ~9 months. This is a
-  time-limited acquisition window that `honua-migrate` is uniquely positioned
-  to harvest.
+- **The renderer boundary is deliberate.** MapLibre is the default open web
+  renderer and now spans 2D, globe, terrain, building extrusions, and custom 3D
+  layers; Cesium remains the specialist for high-precision WGS84, 3D Tiles, and
+  deep temporal scenes. Competing as another renderer would dilute the kernel.
+  Sources: [MapLibre GL JS](https://maplibre.org/projects/gl-js/) and
+  [CesiumJS](https://cesium.com/platform/cesiumjs), verified 2026-07-13.
+- **The open stack has fragmented integrations, not an empty shelf.**
+  MapLibre's official plugin catalog already lists geocoding, routing, drawing,
+  Esri/OGC sources, COG, and PMTiles integrations. The opportunity is to unify
+  discovery, semantic query, capability truth, planning, fidelity, and
+  lifecycle behind one maintained contract rather than claiming those pieces
+  do not exist. Source: [MapLibre plugins](https://maplibre.org/maplibre-gl-js/docs/plugins/),
+  verified 2026-07-13.
+- **The Esri migration window is real but scoped.** ArcGIS Maps SDK 5.1 says
+  classic widgets were deprecated at 5.0 and removal is planned to begin with
+  6.0 as early as Q1 2027; `require()` is also deprecated and may be removed.
+  Existing widget applications continue on 5.x, and moving UI to components
+  does not replace the core maps, layers, renderers, or most view logic. The
+  acquisition target is therefore widget-, AMD-, or deprecated-API-dependent
+  applications already funding modernization, not every ArcGIS application or
+  a mandatory full rewrite. Sources: [5.1 release notes](https://developers.arcgis.com/javascript/latest/release-notes/)
+  and [component migration](https://developers.arcgis.com/javascript/latest/migrating-to-components/),
+  verified 2026-07-13.
 - **Every agent/MCP offering is a paid-platform on-ramp.** Mapbox MCP feeds
   Mapbox APIs; CARTO agents require the CARTO warehouse platform; Esri AI
   components require signed-in ArcGIS named users with no LLM choice; Google
@@ -54,21 +61,23 @@ order:
 
 ### Lane 1 — Harvest the Esri widget cliff (time-boxed, now → Q1 2027)
 
-When a team is forced to rewrite anyway, "rewrite onto the open stack with a
-codemod" competes head-to-head with "rewrite onto Esri web components," and
-Esri's own docs legitimize the hybrid. Work: a widget-removal survival guide,
-widget-usage detection and 6.0-readiness reporting in the migration scanner,
-editing snapping, terra-draw-based interactive sketch, a survival-tier widget
-set (in `@honua/app-platform`, per the accepted scope split), and positioning
-that says plainly: *your widgets are dying anyway.*
+When a widget-, AMD-, or deprecated-API-dependent team must modernize for 6.0,
+"move the affected UI onto the open stack with a codemod" competes with "move
+the affected UI onto Esri web components." Work: a widget-removal survival
+guide, usage detection and 6.0-readiness reporting in the migration scanner,
+editing snapping, terra-draw-based interactive sketch, and a survival-tier
+widget set (in `@honua/app-platform`, per the accepted scope split). Positioning
+must distinguish the affected UI/import surface from core ArcGIS code that can
+remain unchanged.
 
 We do **not** chase SceneView/3D migration parity. Esri's 3D moat is real; we
-say so explicitly. Candor is the brand and it buys trust for the 2D claim.
+say so explicitly. Candor is the brand and it buys trust for the open-kernel
+claim.
 
 ### Lane 2 — Be the batteries for MapLibre (continuous)
 
-The affirmative positioning: **"MapLibre gives you the map. Honua gives you
-everything else."** Work: a standalone data→map bridge that needs no
+The affirmative positioning: **"MapLibre renders the map. Honua connects,
+queries, explains, and mounts the data."** Work: a standalone data→map bridge that needs no
 MapPackage and no Honua server — a public endpoint to a styled map in ten or
 fewer application lines and under five minutes of setup, the #384 bar —
 building on #390 (the production MapLibre adapter / source-to-map workflow
@@ -151,9 +160,9 @@ missing them triggers the strategy revisit, not silent target adjustment.
 
 ## Alternatives considered
 
-- **Compete on renderer features** (3D, visual effects): rejected — settled
-  market, contradicts the kernel ADR, and the audit grades confirm we would
-  compete from weakness.
+- **Compete on renderer features** (3D, visual effects): rejected — mature
+  specialist projects already own those engines, the move contradicts the
+  kernel ADR, and the audit confirms we would compete from weakness.
 - **Enterprise-platform pivot (CARTO's path):** rejected for the SDK — it
   abandons the open-developer wedge that MapLibre's momentum is creating, and
   Honua Server already carries the platform story.
@@ -170,7 +179,7 @@ Positive:
   Lane 2, deliberately paced Lane 3 — instead of feature work competing
   undifferentiated for one maintainer's time.
 - Explicit non-goals (renderer features, 3D parity, platform pivot) prevent
-  quiet scope creep back into settled markets.
+  quiet scope creep into mature specialist markets.
 
 Costs:
 
