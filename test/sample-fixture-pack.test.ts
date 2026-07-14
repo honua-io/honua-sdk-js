@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
@@ -5,7 +6,7 @@ import path from "node:path";
 
 import type { FormatsPlugin } from "ajv-formats";
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { verifyFixturePacks } from "../samples/fixtures/verify.mjs";
 import {
@@ -39,6 +40,9 @@ function updateJson(filePath: string, update: (value: any) => void): void {
 function introduceRefreshDrift(root: string): string {
   updateJson(path.join(root, "features.json"), (features) => {
     features.features[0].attributes.STATUS = "Reviewed refresh";
+  });
+  updateJson(path.join(root, "ogc-items.json"), (items) => {
+    items.features[0].properties.STATUS = "Reviewed refresh";
   });
   updateJson(path.join(root, "manifest.json"), (manifest) => {
     manifest.identity.title = "Reviewed fixture refresh";
@@ -85,6 +89,43 @@ describe("versioned sample fixture packs", () => {
       { name: "unknown protocol", update: (value) => value.schema.protocols.push("unknown-protocol") },
       { name: "axis overflow", update: (value) => value.schema.coordinateEncoding.axes.push("z") },
       {
+        name: "projection unknown",
+        update: (value) => {
+          value.schema.projections = [
+            {
+              protocol: value.schema.protocols[0],
+              crs: value.schema.authorityCrs,
+              coordinateEncoding: value.schema.coordinateEncoding,
+              unreviewed: true,
+            },
+          ];
+        },
+      },
+      {
+        name: "projection CRS",
+        update: (value) => {
+          value.schema.projections = [
+            {
+              protocol: value.schema.protocols[0],
+              crs: "EPSG:3857",
+              coordinateEncoding: value.schema.coordinateEncoding,
+            },
+          ];
+        },
+      },
+      {
+        name: "projection encoding",
+        update: (value) => {
+          value.schema.projections = [
+            {
+              protocol: value.schema.protocols[0],
+              crs: value.schema.authorityCrs,
+              coordinateEncoding: { format: "Mystery", axes: ["x", "y"], order: "xy" },
+            },
+          ];
+        },
+      },
+      {
         name: "count overflow",
         update: (value) => {
           value.schema.featureCount = 100_001;
@@ -103,6 +144,12 @@ describe("versioned sample fixture packs", () => {
         },
       },
       {
+        name: "date-only provenance time",
+        update: (value) => {
+          value.provenance.retrievedAt = "2026-07-13";
+        },
+      },
+      {
         name: "license policy",
         update: (value) => {
           value.license.spdx = "LicenseRef-Unknown";
@@ -118,6 +165,12 @@ describe("versioned sample fixture packs", () => {
         name: "freshness policy",
         update: (value) => {
           value.freshness.policy = "mutable";
+        },
+      },
+      {
+        name: "impossible freshness time",
+        update: (value) => {
+          value.freshness.asOf = "2026-02-31T00:00:00Z";
         },
       },
       {
@@ -177,6 +230,79 @@ describe("versioned sample fixture packs", () => {
     }
   });
 
+  it("binds the First Map GeoServices and OGC projections to identical semantics and evidence", () => {
+    const pack = loadFixturePack("first-map");
+    const schema = pack.manifest.schema as unknown as {
+      extent: number[];
+      files: Record<string, string>;
+      protocols: string[];
+      projections: Array<{
+        protocol: string;
+        crs: string;
+        coordinateEncoding: { format: string; axes: string[]; order: string };
+      }>;
+    };
+    const esri = pack.data[schema.files.features] as {
+      features: Array<{ attributes: Record<string, unknown>; geometry: { rings: number[][][] } }>;
+    };
+    const layer = pack.data[schema.files.layer] as {
+      copyrightText: string;
+      provenance: Record<string, string>;
+    };
+    const collection = pack.data[schema.files.ogcCollection] as {
+      attribution: string;
+      crs: string[];
+      extent: { spatial: { bbox: number[][] } };
+      provenance: Record<string, string>;
+    };
+    const ogc = pack.data[schema.files.ogcItems] as {
+      attribution: string;
+      numberMatched: number;
+      provenance: Record<string, string>;
+      features: Array<{
+        id: number;
+        properties: Record<string, unknown>;
+        geometry: { coordinates: number[][][] };
+      }>;
+    };
+    const apiDefinition = pack.data[schema.files.ogcApiDefinition] as {
+      paths: Record<string, { get: { parameters: Array<Record<string, unknown>> } }>;
+    };
+
+    expect(schema.protocols).toContain("ogc-api-features-1.0");
+    expect(schema.projections).toEqual([
+      {
+        protocol: "esri-geoservices-feature-server",
+        crs: "EPSG:4326",
+        coordinateEncoding: { format: "Esri JSON", axes: ["x-longitude", "y-latitude"], order: "xy" },
+      },
+      {
+        protocol: "ogc-api-features-1.0",
+        crs: "OGC:CRS84",
+        coordinateEncoding: { format: "GeoJSON", axes: ["longitude", "latitude"], order: "xy" },
+      },
+    ]);
+    expect(
+      apiDefinition.paths["/collections/{collectionId}/items"].get.parameters.map((parameter) => parameter.name),
+    ).toEqual(["collectionId", "f", "limit", "bbox", "datetime", "offset", "run"]);
+    expect(ogc.numberMatched).toBe(esri.features.length);
+    expect(collection.extent.spatial.bbox).toEqual([schema.extent]);
+    expect(collection.crs).toEqual(["http://www.opengis.net/def/crs/OGC/1.3/CRS84"]);
+    expect(ogc.attribution).toBe(layer.copyrightText);
+    expect(collection.attribution).toBe(layer.copyrightText);
+    expect(ogc.provenance).toEqual(layer.provenance);
+    expect(collection.provenance).toEqual(layer.provenance);
+    for (const [index, feature] of esri.features.entries()) {
+      expect(ogc.features[index]).toMatchObject({
+        id: feature.attributes.OBJECTID,
+        properties: feature.attributes,
+      });
+      expect(ogc.features[index].geometry.coordinates).toEqual(
+        feature.geometry.rings.map((ring) => [...ring].reverse()),
+      );
+    }
+  });
+
   it("keeps lossy incident provenance and the First Map sample linked to their versioned packs", () => {
     const incident = loadFixturePack("incident-operations");
     const provenance = incident.manifest.provenance as { transformation: string };
@@ -205,11 +331,25 @@ describe("versioned sample fixture packs", () => {
     expect(() => validateFixturePackDirectory(root, { allowMetadataChanges: true })).toThrow(/v1|version|revision/i);
 
     const licenseRoot = temporaryPack("first-map");
+    const changedAttribution = "Changed without explicit acceptance";
     updateJson(path.join(licenseRoot, "manifest.json"), (manifest) => {
-      manifest.license.attribution = "Changed without explicit acceptance";
+      manifest.license.attribution = changedAttribution;
     });
-    expect(() => validateFixturePackDirectory(licenseRoot)).toThrow(/metadata fingerprint/i);
-    const reviewed = validateFixturePackDirectory(licenseRoot, { allowMetadataChanges: true });
+    updateJson(path.join(licenseRoot, "layer.json"), (layer) => {
+      layer.copyrightText = changedAttribution;
+    });
+    for (const fileName of ["ogc-landing.json", "ogc-collection.json", "ogc-items.json"]) {
+      updateJson(path.join(licenseRoot, fileName), (value) => {
+        value.attribution = changedAttribution;
+      });
+    }
+    expect(() => validateFixturePackDirectory(licenseRoot, { allowChecksumChanges: true })).toThrow(
+      /metadata fingerprint/i,
+    );
+    const reviewed = validateFixturePackDirectory(licenseRoot, {
+      allowChecksumChanges: true,
+      allowMetadataChanges: true,
+    });
     expect(reviewed.metadataChanges.license.before).not.toBe(reviewed.metadataChanges.license.after);
 
     const extraRoot = temporaryPack("first-map");
@@ -257,12 +397,162 @@ describe("versioned sample fixture packs", () => {
     expect(combined.exitCode).toBe(0);
     expect(combined.report.reports[0]).toMatchObject({ wroteChecksums: true, acceptedMetadata: true });
     expect(() => validateFixturePackDirectory(combinedRoot)).not.toThrow();
+    expect(verifyFixturePacks({ fixturesRoot: combinedFixtures }).exitCode).toBe(0);
+    const refreshedManifest = fs.readFileSync(path.join(combinedRoot, "manifest.json"), "utf8");
+    const formattedManifest = execFileSync(
+      process.execPath,
+      [
+        path.join(projectRoot, "node_modules/@biomejs/biome/bin/biome"),
+        "format",
+        "--stdin-file-path",
+        "samples/fixtures/generated-manifest.json",
+      ],
+      { cwd: projectRoot, encoding: "utf8", input: refreshedManifest, stdio: ["pipe", "pipe", "pipe"] },
+    );
+    expect(formattedManifest).toBe(refreshedManifest);
+  });
+
+  it("fails closed when fixture data changes during refresh preflight or commit", () => {
+    const preflightRoot = temporaryPack("first-map");
+    const preflightFixtures = introduceRefreshDrift(preflightRoot);
+    const preflightManifest = fs.readFileSync(path.join(preflightRoot, "manifest.json"), "utf8");
+    const realWriteFileSync = fs.writeFileSync.bind(fs);
+    let preflightInjected = false;
+    const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation(((file, data, options) => {
+      realWriteFileSync(file, data, options as never);
+      if (!preflightInjected && String(file).includes(".manifest-") && String(file).endsWith(".tmp")) {
+        preflightInjected = true;
+        const featuresPath = path.join(preflightRoot, "features.json");
+        realWriteFileSync(featuresPath, `${fs.readFileSync(featuresPath, "utf8")}\n`);
+      }
+    }) as typeof fs.writeFileSync);
+    try {
+      expect(() =>
+        verifyFixturePacks({
+          fixturesRoot: preflightFixtures,
+          writeChecksums: true,
+          acceptMetadata: true,
+        }),
+      ).toThrow(/changed during refresh preflight/i);
+    } finally {
+      writeSpy.mockRestore();
+    }
+    expect(fs.readFileSync(path.join(preflightRoot, "manifest.json"), "utf8")).toBe(preflightManifest);
+    expect(
+      fs.readdirSync(preflightFixtures).some((name) => name.startsWith(".manifest-") || name.endsWith(".lock")),
+    ).toBe(false);
+
+    const commitRoot = temporaryPack("first-map");
+    const commitFixtures = introduceRefreshDrift(commitRoot);
+    const commitManifest = fs.readFileSync(path.join(commitRoot, "manifest.json"), "utf8");
+    const realRenameSync = fs.renameSync.bind(fs);
+    let commitInjected = false;
+    const renameSpy = vi.spyOn(fs, "renameSync").mockImplementation((source, destination) => {
+      realRenameSync(source, destination);
+      if (!commitInjected && destination === path.join(commitRoot, "manifest.json")) {
+        commitInjected = true;
+        const featuresPath = path.join(commitRoot, "features.json");
+        realWriteFileSync(featuresPath, `${fs.readFileSync(featuresPath, "utf8")}\n`);
+      }
+    });
+    try {
+      expect(() =>
+        verifyFixturePacks({ fixturesRoot: commitFixtures, writeChecksums: true, acceptMetadata: true }),
+      ).toThrow(/checksum|post-write integrity/i);
+    } finally {
+      renameSpy.mockRestore();
+    }
+    expect(fs.readFileSync(path.join(commitRoot, "manifest.json"), "utf8")).toBe(commitManifest);
+    expect(fs.readdirSync(commitFixtures).some((name) => name.startsWith(".manifest-") || name.endsWith(".lock"))).toBe(
+      false,
+    );
+    expect(verifyFixturePacks({ fixturesRoot: commitFixtures }).exitCode).toBe(1);
+  });
+
+  it("rolls back every applied manifest when a multi-pack refresh fails validation", () => {
+    const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "honua-fixture-multi-refresh-"));
+    temporaryRoots.push(temporary);
+    const fixturesRoot = path.join(temporary, "fixtures");
+    const roots = ["first-map", "incident-operations"].map((pack) => {
+      const root = path.join(fixturesRoot, pack, "v1");
+      fs.mkdirSync(path.dirname(root), { recursive: true });
+      fs.cpSync(path.join(projectRoot, "samples/fixtures", pack, "v1"), root, { recursive: true });
+      updateJson(path.join(root, "manifest.json"), (manifest) => {
+        manifest.identity.title = `${manifest.identity.title} refresh`;
+      });
+      return root;
+    });
+    const originalManifests = new Map(
+      roots.map((root) => [root, fs.readFileSync(path.join(root, "manifest.json"), "utf8")]),
+    );
+    const firstManifest = path.join(roots[0], "manifest.json");
+    const firstData = path.join(roots[0], "features.json");
+    const realRenameSync = fs.renameSync.bind(fs);
+    let driftInjected = false;
+    const renameSpy = vi.spyOn(fs, "renameSync").mockImplementation((source, destination) => {
+      realRenameSync(source, destination);
+      if (!driftInjected && destination === firstManifest) {
+        driftInjected = true;
+        fs.appendFileSync(firstData, "\n");
+      }
+    });
+    try {
+      expect(() => verifyFixturePacks({ fixturesRoot, acceptMetadata: true })).toThrow(
+        /checksum|post-write integrity/i,
+      );
+    } finally {
+      renameSpy.mockRestore();
+    }
+    for (const root of roots) {
+      expect(fs.readFileSync(path.join(root, "manifest.json"), "utf8")).toBe(originalManifests.get(root));
+    }
+    expect(fs.readdirSync(fixturesRoot).some((name) => name.startsWith(".manifest-") || name.endsWith(".lock"))).toBe(
+      false,
+    );
+  });
+
+  it("rejects manifest and data growth while bounded fixture files are being read", () => {
+    for (const targetName of ["manifest.json", "features.json"]) {
+      const root = temporaryPack("first-map");
+      const target = path.join(root, targetName);
+      const targetIdentity = fs.lstatSync(target, { bigint: true });
+      const realReadSync = fs.readSync.bind(fs);
+      let injected = false;
+      const readSpy = vi.spyOn(fs, "readSync").mockImplementation(((descriptor, buffer, offset, length, position) => {
+        const bytesRead = realReadSync(descriptor, buffer, offset, length, position);
+        const identity = fs.fstatSync(descriptor, { bigint: true });
+        if (!injected && identity.dev === targetIdentity.dev && identity.ino === targetIdentity.ino) {
+          injected = true;
+          fs.appendFileSync(target, " ".repeat(targetName === "manifest.json" ? 128 * 1024 : 2 * 1024 * 1024));
+        }
+        return bytesRead;
+      }) as typeof fs.readSync);
+      try {
+        expect(() =>
+          validateFixturePackDirectory(root, { allowChecksumChanges: true, allowMetadataChanges: true }),
+        ).toThrow(/128 KiB|2 MiB|changed while it was being read/i);
+      } finally {
+        readSpy.mockRestore();
+      }
+    }
   });
 
   it("rejects symlinks, oversized files, traversal references, and manifest/data identity drift", () => {
     const symlinkRoot = temporaryPack("first-map");
     fs.symlinkSync(path.join(symlinkRoot, "features.json"), path.join(symlinkRoot, "linked.json"));
     expect(() => validateFixturePackDirectory(symlinkRoot, { allowMetadataChanges: true })).toThrow(/regular files/i);
+
+    const canonicalRoot = temporaryPack("first-map");
+    expect(() => validateFixturePackDirectory(canonicalRoot)).not.toThrow();
+    const aliasTemporary = fs.mkdtempSync(path.join(os.tmpdir(), "honua-fixture-ancestor-link-"));
+    temporaryRoots.push(aliasTemporary);
+    const aliasCanonicalRoot = path.join(aliasTemporary, "real", "fixtures", "first-map", "v1");
+    fs.mkdirSync(path.dirname(aliasCanonicalRoot), { recursive: true });
+    fs.cpSync(canonicalRoot, aliasCanonicalRoot, { recursive: true });
+    fs.symlinkSync(path.join(aliasTemporary, "real"), path.join(aliasTemporary, "view"));
+    expect(() =>
+      validateFixturePackDirectory(path.join(aliasTemporary, "view", "fixtures", "first-map", "v1")),
+    ).toThrow(/canonical real directories|real directory/i);
 
     const largeRoot = temporaryPack("first-map");
     fs.appendFileSync(path.join(largeRoot, "features.json"), " ".repeat(2 * 1024 * 1024));
@@ -297,6 +587,24 @@ describe("versioned sample fixture packs", () => {
       manifest.schema.coordinateEncoding.axes = ["latitude", "longitude"];
     });
     expect(() => validateFixturePackDirectory(axisRoot, { allowMetadataChanges: true })).toThrow(/x\/y encoding/i);
+
+    const projectionRoot = temporaryPack("first-map");
+    updateJson(path.join(projectionRoot, "manifest.json"), (manifest) => {
+      manifest.schema.projections[1].crs = "EPSG:4326";
+    });
+    expect(() => validateFixturePackDirectory(projectionRoot, { allowMetadataChanges: true })).toThrow(
+      /protocol-specific CRS/i,
+    );
+
+    const apiRoot = temporaryPack("first-map");
+    updateJson(path.join(apiRoot, "ogc-api-definition.json"), (definition) => {
+      definition.paths["/collections/{collectionId}/items"].get.parameters = definition.paths[
+        "/collections/{collectionId}/items"
+      ].get.parameters.filter((parameter: { name: string }) => parameter.name !== "run");
+    });
+    expect(() =>
+      validateFixturePackDirectory(apiRoot, { allowChecksumChanges: true, allowMetadataChanges: true }),
+    ).toThrow(/supported items parameters|run selector/i);
 
     const fieldRoot = temporaryPack("first-map");
     updateJson(path.join(fieldRoot, "features.json"), (features) => {
@@ -338,6 +646,22 @@ describe("versioned sample fixture packs", () => {
       validateFixturePackDirectory(extraAttributeRoot, { allowChecksumChanges: true, allowMetadataChanges: true }),
     ).toThrow(/attributes must exactly match/i);
 
+    const ogcPropertyRoot = temporaryPack("first-map");
+    updateJson(path.join(ogcPropertyRoot, "ogc-items.json"), (items) => {
+      items.features[0].properties.STATUS = "Projection drift";
+    });
+    expect(() =>
+      validateFixturePackDirectory(ogcPropertyRoot, { allowChecksumChanges: true, allowMetadataChanges: true }),
+    ).toThrow(/properties drifted/i);
+
+    const ogcAttributionRoot = temporaryPack("first-map");
+    updateJson(path.join(ogcAttributionRoot, "ogc-collection.json"), (collection) => {
+      collection.attribution = "Unreviewed attribution";
+    });
+    expect(() =>
+      validateFixturePackDirectory(ogcAttributionRoot, { allowChecksumChanges: true, allowMetadataChanges: true }),
+    ).toThrow(/attribution.*manifest/i);
+
     const eventRoot = temporaryPack("incident-operations");
     updateJson(path.join(eventRoot, "events.json"), (events) => {
       events.steps[1].feature.coordinate = [0, 0];
@@ -370,6 +694,28 @@ describe("versioned sample fixture packs", () => {
     expect(() =>
       validateFixturePackDirectory(unsafeRecordRoot, { allowChecksumChanges: true, allowMetadataChanges: true }),
     ).toThrow(/revision.*positive safe integer/i);
+
+    const invalidFeatureTimeRoot = temporaryPack("incident-operations");
+    updateJson(path.join(invalidFeatureTimeRoot, "snapshot.json"), (snapshot) => {
+      snapshot.features[0].updatedAt = "2026-05-05";
+    });
+    expect(() =>
+      validateFixturePackDirectory(invalidFeatureTimeRoot, {
+        allowChecksumChanges: true,
+        allowMetadataChanges: true,
+      }),
+    ).toThrow(/timestamps are invalid/i);
+
+    const invalidEventTimeRoot = temporaryPack("incident-operations");
+    updateJson(path.join(invalidEventTimeRoot, "events.json"), (events) => {
+      events.steps[0].eventTime = "2026-02-31T00:00:00Z";
+    });
+    expect(() =>
+      validateFixturePackDirectory(invalidEventTimeRoot, {
+        allowChecksumChanges: true,
+        allowMetadataChanges: true,
+      }),
+    ).toThrow(/eventTime values must be valid timestamps/i);
   });
 });
 
@@ -410,5 +756,10 @@ describe("fixture canonicalization and response policy", () => {
     );
     expect(framed["content-type"]).toBe("application/json; charset=utf-8");
     expect(framed["content-length"]).toBe(4);
+    expect(
+      fixtureResponseHeaders({
+        contentType: "application/vnd.oai.openapi+json;version=3.0; charset=utf-8",
+      })["content-type"],
+    ).toBe("application/vnd.oai.openapi+json;version=3.0; charset=utf-8");
   });
 });

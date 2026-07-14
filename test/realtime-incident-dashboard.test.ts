@@ -261,6 +261,15 @@ describe("realtime incident dashboard fixture", () => {
     expect(() => readIncidentTransportConfig({ origin, search: "?transport=fixture-edit" } as Location)).toThrow(
       /explicit valid fixtureRun/i,
     );
+    for (const search of [
+      "?transport=fixture-edit&fixtureRun=incident.operations",
+      "?transport=fixture-edit&fixtureRun=incident_operations",
+      "?transport=fixture-edit&fixtureRun=incident-a&fixtureRun=incident-b",
+    ]) {
+      expect(() => readIncidentTransportConfig({ origin, search } as Location), search).toThrow(
+        /explicit valid fixtureRun/i,
+      );
+    }
 
     for (const parameter of ["baseUrl", "streamUrl", "capabilitiesUrl"]) {
       const search = new URLSearchParams({
@@ -369,6 +378,23 @@ describe("realtime incident dashboard fixture", () => {
       const malformedSuccess = controlsFor(payload);
       await expect(malformedSuccess.edit(request)).rejects.toThrow(/malformed response/i);
       malformedSuccess.dispose();
+    }
+
+    for (const incident of [
+      { ...safeIncident, updatedAt: "2026-02-31T00:00:00Z", revision: 2 },
+      { ...safeIncident, reportedAt: "2026-05-05", revision: 2 },
+    ]) {
+      const malformedTimestamp = controlsFor({
+        outcome: "applied",
+        operation: "edit",
+        idempotencyKey: request.idempotencyKey,
+        reason: "Invalid RFC 3339 timestamp evidence",
+        expectedRevision: 1,
+        actualRevision: 2,
+        incident,
+      });
+      await expect(malformedTimestamp.edit(request)).rejects.toThrow(/malformed response/i);
+      malformedTimestamp.dispose();
     }
 
     const malformedReset = controlsFor({

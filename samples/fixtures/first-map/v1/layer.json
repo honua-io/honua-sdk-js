@@ -3,9 +3,20 @@
   "id": 0,
   "name": "Honolulu operations areas",
   "type": "Feature Layer",
+  "description": "The same three synthetic First Map polygons exposed by the OGC API Features projection.",
+  "copyrightText": "Copyright Honua contributors; synthetic demonstration data.",
+  "provenance": {
+    "source": "honua-sdk-js test/fixtures/honua-quickstart-demo",
+    "retrievedAt": "2026-07-13T00:00:00.000Z"
+  },
   "geometryType": "esriGeometryPolygon",
   "objectIdField": "OBJECTID",
   "maxRecordCount": 25,
+  "advancedQueryCapabilities": {
+    "supportsPagination": true,
+    "supportsReturningQueryExtent": false,
+    "supportsStatistics": false
+  },
   "extent": {
     "xmin": -157.891,
     "ymin": 21.286,

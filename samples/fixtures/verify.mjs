@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -6,6 +7,65 @@ import { fileURLToPath } from "node:url";
 import { validateFixturePackDirectory } from "../scenarios/fixture-validation.mjs";
 
 const defaultFixturesRoot = path.dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = path.resolve(defaultFixturesRoot, "../..");
+const biomeEntry = path.join(repositoryRoot, "node_modules/@biomejs/biome/bin/biome");
+
+function serializeManifest(manifest) {
+  const source = `${JSON.stringify(manifest, null, 2)}\n`;
+  try {
+    return execFileSync(
+      process.execPath,
+      [biomeEntry, "format", "--stdin-file-path", "samples/fixtures/generated-manifest.json"],
+      {
+        cwd: repositoryRoot,
+        encoding: "utf8",
+        input: source,
+        maxBuffer: 256 * 1024,
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
+  } catch (cause) {
+    throw new Error("Fixture refresh requires the repository-pinned Biome formatter from npm ci.", { cause });
+  }
+}
+
+function sameJson(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function assertInspectionUnchanged(inspection) {
+  const current = validateFixturePackDirectory(inspection.validated.root, {
+    allowChecksumChanges: true,
+    allowMetadataChanges: true,
+  });
+  const manifestContent = fs.readFileSync(current.manifestPath, "utf8");
+  if (
+    manifestContent !== inspection.manifestContent ||
+    !sameJson(current.actualChecksums, inspection.validated.actualChecksums) ||
+    !sameJson(current.checksumChanges, inspection.validated.checksumChanges) ||
+    !sameJson(current.metadataChanges, inspection.validated.metadataChanges)
+  ) {
+    throw new Error(`Fixture pack ${inspection.report.pack} changed during refresh preflight.`);
+  }
+}
+
+function validateAppliedUpdate(update, { writeChecksums, acceptMetadata }) {
+  const current = validateFixturePackDirectory(update.inspection.validated.root, {
+    allowChecksumChanges: !writeChecksums,
+    allowMetadataChanges: !acceptMetadata,
+  });
+  if (fs.readFileSync(update.destination, "utf8") !== update.content) {
+    throw new Error(`Fixture pack ${update.inspection.report.pack} manifest changed during refresh commit.`);
+  }
+  if (
+    (writeChecksums && current.checksumChanges.length > 0) ||
+    (!writeChecksums && !sameJson(current.checksumChanges, update.inspection.validated.checksumChanges)) ||
+    (acceptMetadata && current.metadataChanged) ||
+    (!acceptMetadata && !sameJson(current.metadataChanges, update.inspection.validated.metadataChanges))
+  ) {
+    throw new Error(`Fixture pack ${update.inspection.report.pack} failed post-write integrity validation.`);
+  }
+}
 
 export function verifyFixturePacks({
   fixturesRoot = defaultFixturesRoot,
@@ -34,6 +94,7 @@ export function verifyFixturePacks({
     });
     return {
       validated,
+      manifestContent: fs.readFileSync(validated.manifestPath, "utf8"),
       report: {
         pack: `${validated.manifest.identity.id}@${validated.manifest.identity.version}`,
         manifest: path.relative(resolvedFixturesRoot, validated.manifestPath),
@@ -52,11 +113,11 @@ export function verifyFixturePacks({
         ({ validated }) =>
           (writeChecksums && validated.checksumChanges.length > 0) || (acceptMetadata && validated.metadataChanged),
       )
-      .map(({ validated, report }, index) => {
+      .map((inspection, index) => {
+        const { validated } = inspection;
         const manifest = structuredClone(validated.manifest);
         if (writeChecksums && validated.checksumChanges.length > 0) {
           manifest.integrity.files = validated.actualChecksums;
-          report.wroteChecksums = true;
         }
         if (acceptMetadata && validated.metadataChanged) {
           manifest.integrity.metadataFingerprint = validated.hashes.combined;
@@ -64,19 +125,67 @@ export function verifyFixturePacks({
             license: validated.hashes.license,
             provenance: validated.hashes.provenance,
           };
-          report.acceptedMetadata = true;
         }
         return {
+          inspection,
           destination: validated.manifestPath,
-          temporary: `${validated.manifestPath}.tmp-${process.pid}-${index}`,
-          content: `${JSON.stringify(manifest, null, 2)}\n`,
+          temporary: path.join(
+            resolvedFixturesRoot,
+            `.manifest-${validated.manifest.identity.id}-${process.pid}-${index}.tmp`,
+          ),
+          content: serializeManifest(manifest),
+          originalContent: inspection.manifestContent,
         };
       });
-    try {
-      for (const update of pending) fs.writeFileSync(update.temporary, update.content, { flag: "wx" });
-      for (const update of pending) fs.renameSync(update.temporary, update.destination);
-    } finally {
-      for (const update of pending) if (fs.existsSync(update.temporary)) fs.rmSync(update.temporary);
+    if (pending.length > 0) {
+      const lockPath = path.join(resolvedFixturesRoot, ".fixture-refresh.lock");
+      let lockDescriptor;
+      const applied = [];
+      try {
+        lockDescriptor = fs.openSync(lockPath, "wx");
+        for (const update of pending) assertInspectionUnchanged(update.inspection);
+        for (const update of pending) fs.writeFileSync(update.temporary, update.content, { flag: "wx" });
+        for (const update of pending) assertInspectionUnchanged(update.inspection);
+        for (const update of pending) {
+          fs.renameSync(update.temporary, update.destination);
+          applied.push(update);
+        }
+        for (const update of pending) validateAppliedUpdate(update, { writeChecksums, acceptMetadata });
+        for (const update of pending) {
+          if (writeChecksums && update.inspection.validated.checksumChanges.length > 0) {
+            update.inspection.report.wroteChecksums = true;
+          }
+          if (acceptMetadata && update.inspection.validated.metadataChanged) {
+            update.inspection.report.acceptedMetadata = true;
+          }
+        }
+      } catch (error) {
+        const rollbackErrors = [];
+        for (const update of applied.reverse()) {
+          const rollback = `${update.temporary}.rollback`;
+          try {
+            fs.writeFileSync(rollback, update.originalContent, { flag: "wx" });
+            fs.renameSync(rollback, update.destination);
+          } catch (rollbackError) {
+            rollbackErrors.push(rollbackError);
+          } finally {
+            if (fs.existsSync(rollback)) fs.rmSync(rollback);
+          }
+        }
+        if (rollbackErrors.length > 0) {
+          throw new AggregateError(
+            [error, ...rollbackErrors],
+            "Fixture refresh failed and could not be fully rolled back.",
+          );
+        }
+        throw error;
+      } finally {
+        for (const update of pending) if (fs.existsSync(update.temporary)) fs.rmSync(update.temporary);
+        if (lockDescriptor !== undefined) {
+          fs.closeSync(lockDescriptor);
+          fs.rmSync(lockPath, { force: true });
+        }
+      }
     }
   }
 

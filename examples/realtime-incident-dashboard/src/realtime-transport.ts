@@ -1,3 +1,4 @@
+import { isFixtureRunId } from "../../../samples/scenarios/identifiers.mjs";
 import {
   type RealtimeFeatureEvent,
   type RealtimeFeatureTransport,
@@ -78,6 +79,38 @@ type ImportMetaWithOptionalEnvironment = ImportMeta & {
 const DEFAULT_DEMO_BASE_URL = "https://demo.honua.io";
 const DEFAULT_SOURCE_ID = "maui-incidents";
 const DEFAULT_LAYER_ID = 0;
+const RFC3339_INSTANT = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-](\d{2}):(\d{2}))$/;
+const LEAP_SECOND_TRANSITIONS = new Set(
+  [
+    "1972-07-01",
+    "1973-01-01",
+    "1974-01-01",
+    "1975-01-01",
+    "1976-01-01",
+    "1977-01-01",
+    "1978-01-01",
+    "1979-01-01",
+    "1980-01-01",
+    "1981-07-01",
+    "1982-07-01",
+    "1983-07-01",
+    "1985-07-01",
+    "1988-01-01",
+    "1990-01-01",
+    "1991-01-01",
+    "1992-07-01",
+    "1993-07-01",
+    "1994-07-01",
+    "1996-01-01",
+    "1997-07-01",
+    "1999-01-01",
+    "2006-01-01",
+    "2009-01-01",
+    "2012-07-01",
+    "2015-07-01",
+    "2017-01-01",
+  ].map((date) => Date.parse(`${date}T00:00:00Z`)),
+);
 const SENSITIVE_QUERY_KEY_TOKENS = new Set([
   "access_key",
   "access_key_id",
@@ -139,8 +172,9 @@ export function readIncidentTransportConfig(location: Location = window.location
   let fixtureRunId: string | undefined;
   let fixtureControlUrl: string | undefined;
   if (requestedMode === "fixture-edit") {
-    fixtureRunId = params.get("fixtureRun") ?? undefined;
-    if (!fixtureRunId || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(fixtureRunId)) {
+    const fixtureRunValues = params.getAll("fixtureRun");
+    fixtureRunId = fixtureRunValues[0];
+    if (fixtureRunValues.length !== 1 || !isFixtureRunId(fixtureRunId)) {
       throw new Error("Fixture-edit mode requires one explicit valid fixtureRun identifier.");
     }
     const expectedOrigin = new URL(fixtureOrigin ?? "").origin;
@@ -361,6 +395,39 @@ function actionRevision(value: unknown, action: string): number | undefined {
   return value as number;
 }
 
+function isStrictRfc3339Instant(value: string): boolean {
+  const match = RFC3339_INSTANT.exec(value);
+  if (!match) return false;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, offsetHourText, offsetMinuteText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const offsetHour = offsetHourText === undefined ? 0 : Number(offsetHourText);
+  const offsetMinute = offsetMinuteText === undefined ? 0 : Number(offsetMinuteText);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth[month - 1] ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 60 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  ) {
+    return false;
+  }
+  const parseable = second === 60 ? value.replace(/:60(?=(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$)/, ":59") : value;
+  const parsed = Date.parse(parseable);
+  if (!Number.isFinite(parsed)) return false;
+  return second !== 60 || LEAP_SECOND_TRANSITIONS.has(Math.floor((parsed + 1_000) / 1_000) * 1_000);
+}
+
 function decodeIncidentFeatureResult(value: unknown, action: string): IncidentFeature {
   const incident = actionRecord(value, action);
   const required = [
@@ -391,7 +458,7 @@ function decodeIncidentFeatureResult(value: unknown, action: string): IncidentFe
   }
   for (const name of ["updatedAt", "reportedAt"] as const) {
     const timestamp = actionString(incident[name], action, 64);
-    if (!Number.isFinite(Date.parse(timestamp))) malformedActionResult(action);
+    if (!isStrictRfc3339Instant(timestamp)) malformedActionResult(action);
   }
   if (
     !Array.isArray(incident.coordinate) ||

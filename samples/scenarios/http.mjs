@@ -27,6 +27,10 @@ const MIME_TYPES = Object.freeze({
   ".webp": "image/webp",
 });
 
+const MAXIMUM_STATIC_FILE_BYTES = 16 * 1024 * 1024;
+const MAXIMUM_STATIC_FILE_BYTES_BIGINT = BigInt(MAXIMUM_STATIC_FILE_BYTES);
+const READ_ONLY_NO_FOLLOW = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
+
 const RESERVED_HEADERS = new Set([
   "cache-control",
   "connection",
@@ -57,7 +61,11 @@ export function fixtureHeaders(extra = {}) {
 }
 
 export function fixtureResponseHeaders({ contentType, contentLength, connection }, extra = {}) {
-  if (typeof contentType !== "string" || !/^[\w.+-]+\/[\w.+-]+(?:; charset=utf-8)?$/.test(contentType)) {
+  const contentTypeSupported =
+    typeof contentType === "string" &&
+    (/^[\w.+-]+\/[\w.+-]+(?:; charset=utf-8)?$/.test(contentType) ||
+      contentType === "application/vnd.oai.openapi+json;version=3.0; charset=utf-8");
+  if (!contentTypeSupported) {
     throw new TypeError("Fixture response content type is invalid.");
   }
   if (contentLength !== undefined && (!Number.isSafeInteger(contentLength) || contentLength < 0)) {
@@ -110,8 +118,154 @@ export async function readJsonBody(req, maximumBytes = 65_536) {
   }
 }
 
+function isInsideRoot(root, candidate) {
+  return candidate === root || candidate.startsWith(`${root}${path.sep}`);
+}
+
+function isMissingPathError(error) {
+  return error?.code === "ENOENT" || error?.code === "ENOTDIR";
+}
+
+function fixtureStaticError(status, message) {
+  return Object.assign(new Error(message), { status });
+}
+
+export function createStaticRootBinding(staticRoot) {
+  const resolved = path.resolve(staticRoot);
+  const requestedStat = fs.lstatSync(resolved, { bigint: true });
+  if (!requestedStat.isDirectory() || requestedStat.isSymbolicLink()) {
+    throw new Error("Fixture staticRoot must be a real directory.");
+  }
+  const canonicalPath = fs.realpathSync(resolved);
+  const canonicalStat = fs.lstatSync(canonicalPath, { bigint: true });
+  const completedStat = fs.lstatSync(resolved, { bigint: true });
+  if (
+    !canonicalStat.isDirectory() ||
+    canonicalStat.isSymbolicLink() ||
+    !completedStat.isDirectory() ||
+    completedStat.isSymbolicLink() ||
+    requestedStat.dev !== canonicalStat.dev ||
+    requestedStat.ino !== canonicalStat.ino ||
+    completedStat.dev !== canonicalStat.dev ||
+    completedStat.ino !== canonicalStat.ino ||
+    fs.realpathSync(resolved) !== canonicalPath
+  ) {
+    throw new Error("Fixture staticRoot must resolve to a real directory.");
+  }
+  return Object.freeze({ canonicalPath, device: canonicalStat.dev, inode: canonicalStat.ino });
+}
+
+function assertStaticRootBinding(binding) {
+  let stat;
+  try {
+    stat = fs.lstatSync(binding.canonicalPath, { bigint: true });
+  } catch (error) {
+    if (isMissingPathError(error)) throw fixtureStaticError(403, "Fixture static root binding is no longer available.");
+    throw error;
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.dev !== binding.device || stat.ino !== binding.inode) {
+    throw fixtureStaticError(403, "Fixture static root binding changed after startup.");
+  }
+}
+
+function sameStableStaticFile(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
+function assertStaticFilePathBinding(binding, candidate, expectedReal, expectedStat) {
+  assertStaticRootBinding(binding);
+  let currentReal;
+  let currentStat;
+  try {
+    currentReal = fs.realpathSync(candidate);
+    currentStat = fs.lstatSync(currentReal, { bigint: true });
+  } catch (error) {
+    if (isMissingPathError(error)) throw fixtureStaticError(409, "Static file changed while it was being read.");
+    throw error;
+  }
+  if (
+    currentReal !== expectedReal ||
+    !isInsideRoot(binding.canonicalPath, currentReal) ||
+    !currentStat.isFile() ||
+    currentStat.isSymbolicLink() ||
+    !sameStableStaticFile(currentStat, expectedStat)
+  ) {
+    throw fixtureStaticError(403, "Static file path changed or escaped its root while it was being read.");
+  }
+}
+
+function readBoundedStaticFile(binding, candidate) {
+  assertStaticRootBinding(binding);
+  let real;
+  try {
+    real = fs.realpathSync(candidate);
+  } catch (error) {
+    if (isMissingPathError(error)) return undefined;
+    throw error;
+  }
+  if (!isInsideRoot(binding.canonicalPath, real)) {
+    throw fixtureStaticError(403, "Static symlink escape is not allowed.");
+  }
+
+  let expected;
+  try {
+    expected = fs.lstatSync(real, { bigint: true });
+  } catch (error) {
+    if (isMissingPathError(error)) return undefined;
+    throw error;
+  }
+  if (!expected.isFile() || expected.isSymbolicLink()) return undefined;
+  if (expected.size > MAXIMUM_STATIC_FILE_BYTES_BIGINT) {
+    throw fixtureStaticError(413, "Static file exceeds fixture limit.");
+  }
+
+  let descriptor;
+  try {
+    descriptor = fs.openSync(real, READ_ONLY_NO_FOLLOW);
+  } catch (error) {
+    if (isMissingPathError(error)) return undefined;
+    if (error?.code === "ELOOP") throw fixtureStaticError(403, "Static symlink escape is not allowed.");
+    throw error;
+  }
+  try {
+    const opened = fs.fstatSync(descriptor, { bigint: true });
+    if (!opened.isFile() || !sameStableStaticFile(opened, expected)) {
+      throw fixtureStaticError(403, "Static file changed while it was being opened.");
+    }
+    if (opened.size > MAXIMUM_STATIC_FILE_BYTES_BIGINT) {
+      throw fixtureStaticError(413, "Static file exceeds fixture limit.");
+    }
+    assertStaticFilePathBinding(binding, candidate, real, opened);
+
+    const expectedSize = Number(opened.size);
+    const body = Buffer.alloc(expectedSize);
+    let offset = 0;
+    while (offset < body.byteLength) {
+      const bytesRead = fs.readSync(descriptor, body, offset, body.byteLength - offset, offset);
+      if (bytesRead === 0) break;
+      offset += bytesRead;
+    }
+    const completed = fs.fstatSync(descriptor, { bigint: true });
+    if (!sameStableStaticFile(completed, opened) || offset !== expectedSize) {
+      throw fixtureStaticError(409, "Static file changed while it was being read.");
+    }
+    assertStaticFilePathBinding(binding, candidate, real, completed);
+    return { body, real };
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
 export function serveStaticFile(res, staticRoot, pathname) {
   if (!staticRoot) return false;
+  const binding = typeof staticRoot === "string" ? createStaticRootBinding(staticRoot) : staticRoot;
   let decoded;
   try {
     decoded = decodeURIComponent(pathname);
@@ -135,29 +289,26 @@ export function serveStaticFile(res, staticRoot, pathname) {
     sendText(res, 400, "Path traversal is not allowed.");
     return true;
   }
-  const root = fs.realpathSync(staticRoot);
+  const root = binding.canonicalPath;
   const requested = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
   const candidate = path.resolve(root, requested);
   if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) {
     sendText(res, 400, "Path traversal is not allowed.");
     return true;
   }
-  if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-    const real = fs.realpathSync(candidate);
-    if (real !== root && !real.startsWith(`${root}${path.sep}`)) {
-      sendText(res, 403, "Static symlink escape is not allowed.");
-      return true;
-    }
-    const contentType = MIME_TYPES[path.extname(real)] ?? "application/octet-stream";
-    sendText(res, 200, fs.readFileSync(real), contentType, {
+  const staticFile = readBoundedStaticFile(binding, candidate);
+  if (staticFile) {
+    const contentType = MIME_TYPES[path.extname(staticFile.real)] ?? "application/octet-stream";
+    sendText(res, 200, staticFile.body, contentType, {
       ...(contentType === "application/octet-stream" ? { "content-disposition": "attachment" } : {}),
     });
     return true;
   }
   if (decoded === "/" || !path.extname(decoded)) {
     const index = path.join(root, "index.html");
-    if (fs.existsSync(index)) {
-      sendText(res, 200, fs.readFileSync(index), "text/html; charset=utf-8");
+    const fallback = readBoundedStaticFile(binding, index);
+    if (fallback) {
+      sendText(res, 200, fallback.body, "text/html; charset=utf-8");
       return true;
     }
   }

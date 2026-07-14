@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
@@ -8,7 +7,7 @@ import { fingerprint } from "./determinism.mjs";
 import { loadFixturePack } from "./fixture-pack.mjs";
 import { createFirstMapHandler } from "./handlers/first-map.mjs";
 import { createIncidentOperationsHandler } from "./handlers/incident-operations.mjs";
-import { fixtureHeaders, readJsonBody, sendJson, sendText, serveStaticFile } from "./http.mjs";
+import { createStaticRootBinding, fixtureHeaders, readJsonBody, sendJson, sendText, serveStaticFile } from "./http.mjs";
 import { createRunRegistry } from "./run-registry.mjs";
 
 export const HARNESS_CI_BUDGET = Object.freeze({ startupMs: 2_000, resetMs: 100 });
@@ -62,7 +61,11 @@ function invalidNetworkRequest(req, port) {
 function selectRunId(req, url, fallback) {
   const header = req.headers["x-honua-fixture-run"];
   if (Array.isArray(header)) throw Object.assign(new Error("Only one fixture run header is allowed."), { status: 400 });
-  const query = url.searchParams.get("run");
+  const queryValues = url.searchParams.getAll("run");
+  if (queryValues.length > 1) {
+    throw Object.assign(new Error("Fixture run query parameter may appear only once."), { status: 400 });
+  }
+  const query = queryValues[0];
   if (header && query && header !== query) {
     throw Object.assign(new Error("Fixture run header and query parameter conflict."), { status: 400 });
   }
@@ -104,9 +107,17 @@ function routeId(pathname) {
   if (/^\/__fixture__\/runs\/[^/]+(?:\/.*)?$/.test(pathname)) return "fixture-run-operation";
   if (pathname === "/api/v1/admin/capabilities") return "honua-capabilities";
   if (pathname === "/__honua-quickstart__/basemap-style.json") return "first-map-basemap";
+  if (pathname === "/ogc/features") return "first-map-ogc-landing";
+  if (pathname === "/ogc/features/api") return "first-map-ogc-api-definition";
+  if (pathname === "/ogc/features/conformance") return "first-map-ogc-conformance";
+  if (pathname === "/ogc/features/collections") return "first-map-ogc-collections";
+  if (pathname === "/ogc/features/collections/operations-areas") return "first-map-ogc-collection";
+  if (pathname === "/ogc/features/collections/operations-areas/items") return "first-map-ogc-items";
+  if (/^\/ogc\/features\/collections\/operations-areas\/items\/[^/]+$/.test(pathname)) {
+    return "first-map-ogc-item";
+  }
   if (pathname === "/rest/services/natural-earth/FeatureServer/0") return "first-map-layer";
   if (pathname === "/rest/services/natural-earth/FeatureServer/0/query") return "first-map-query";
-  if (pathname === "/rest/services/natural-earth/FeatureServer/0/applyEdits") return "first-map-edits";
   if (pathname === "/api/v1/streaming/features/capabilities") return "incident-capabilities";
   if (pathname === "/api/v1/streaming/features") return "incident-stream";
   if (pathname === "/api/v1/incidents") return "incident-snapshot";
@@ -216,10 +227,7 @@ export async function startSampleFixtureHarness({
   handlerOverride,
 } = {}) {
   if (!Object.hasOwn(HANDLERS, sampleId)) throw new Error(`Unsupported fixture sample: ${sampleId}`);
-  if (staticRoot !== undefined) {
-    const stat = fs.lstatSync(staticRoot);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Fixture staticRoot must be a real directory.");
-  }
+  const staticRootBinding = staticRoot === undefined ? undefined : createStaticRootBinding(staticRoot);
   const started = performance.now();
   const pack = loadFixturePack(fixturePackId, fixturePackVersion);
   if (pack.manifest.identity.id !== sampleId) {
@@ -262,7 +270,7 @@ export async function startSampleFixtureHarness({
       if (!["GET", "HEAD"].includes(req.method ?? "GET")) body = await readJsonBody(req);
       const handled = await registry.mutate(run, () => handler.handle({ req, res, url, run, registry, body }));
       if (handled) return;
-      if (req.method === "GET" && serveStaticFile(res, staticRoot && path.resolve(staticRoot), url.pathname)) return;
+      if (req.method === "GET" && serveStaticFile(res, staticRootBinding, url.pathname)) return;
       if (url.pathname === "/favicon.ico") {
         res.writeHead(204, fixtureHeaders());
         res.end();

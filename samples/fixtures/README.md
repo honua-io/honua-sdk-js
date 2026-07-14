@@ -8,6 +8,17 @@ separately by a canonical, recursively key-sorted semantic fingerprint over
 every manifest field except the recursive `integrity` object. Component hashes
 make provenance and license review explicit.
 
+The First Map pack contains one canonical three-feature dataset with two
+protocol-native projections. GeoServices uses Esri JSON with EPSG:4326 x/y
+coordinates; OGC API Features uses GeoJSON with the equivalent CRS84
+longitude/latitude positions and right-hand-rule exterior rings. Runtime and
+pack tests bind feature IDs, properties, geometry, attribution, and provenance
+across both projections so they cannot drift independently. The generic
+`schema.projections` entries record each protocol's CRS and coordinate encoding
+instead of relying on prose or fixture-specific validator knowledge. The OGC
+projection also checks in a bounded OpenAPI definition for exactly the routes
+and query parameters implemented by the harness.
+
 Verify every pack:
 
 ```sh
@@ -45,3 +56,7 @@ reviews happen together, apply the preflighted updates in one invocation:
 ```sh
 node samples/fixtures/verify.mjs --write --accept-metadata first-map
 ```
+
+Refresh writes use the repository-pinned Biome formatter, so run `npm ci` before
+`--write` or `--accept-metadata`. Generated manifests remain compatible with the
+fixture format gate used by `npm run samples:fixtures:verify`.

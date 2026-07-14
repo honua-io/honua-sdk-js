@@ -564,6 +564,14 @@ describe("sample publication contract", () => {
         `${helperImport}\nspawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], { env: createFixtureBuildEnvironment() });`,
       ),
     ).toBe(1);
+    expect(
+      validateFixtureBuildHarnessSource(
+        `${helperImport}
+import { startSampleFixtureHarness } from "../../samples/scenarios/index.mjs";
+void startSampleFixtureHarness;
+spawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], { env: createFixtureBuildEnvironment() });`,
+      ),
+    ).toBe(1);
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}\nspawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], {});`,

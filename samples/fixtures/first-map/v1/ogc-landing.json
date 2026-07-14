@@ -1,0 +1,35 @@
+{
+  "title": "Honolulu operations areas",
+  "description": "Deterministic First Map fixture projected through OGC API Features.",
+  "attribution": "Copyright Honua contributors; synthetic demonstration data.",
+  "provenance": {
+    "source": "honua-sdk-js test/fixtures/honua-quickstart-demo",
+    "retrievedAt": "2026-07-13T00:00:00.000Z"
+  },
+  "links": [
+    {
+      "href": "/ogc/features",
+      "rel": "self",
+      "type": "application/json",
+      "title": "This landing page"
+    },
+    {
+      "href": "/ogc/features/conformance",
+      "rel": "conformance",
+      "type": "application/json",
+      "title": "Conformance classes"
+    },
+    {
+      "href": "/ogc/features/collections",
+      "rel": "data",
+      "type": "application/json",
+      "title": "Feature collections"
+    },
+    {
+      "href": "/ogc/features/api",
+      "rel": "service-desc",
+      "type": "application/vnd.oai.openapi+json;version=3.0",
+      "title": "Bounded OpenAPI definition"
+    }
+  ]
+}

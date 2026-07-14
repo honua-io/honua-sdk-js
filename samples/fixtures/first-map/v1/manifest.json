@@ -4,10 +4,10 @@
     "id": "first-map",
     "version": "1.0.0",
     "revision": "v1",
-    "title": "First Map deterministic GeoServices projection"
+    "title": "First Map deterministic GeoServices and OGC API Features projections"
   },
   "schema": {
-    "protocols": ["honua-capabilities-v1", "esri-geoservices-feature-server"],
+    "protocols": ["honua-capabilities-v1", "esri-geoservices-feature-server", "ogc-api-features-1.0"],
     "geometryType": "Polygon",
     "authorityCrs": "EPSG:4326",
     "coordinateEncoding": {
@@ -15,19 +15,44 @@
       "axes": ["x-longitude", "y-latitude"],
       "order": "xy"
     },
+    "projections": [
+      {
+        "protocol": "esri-geoservices-feature-server",
+        "crs": "EPSG:4326",
+        "coordinateEncoding": {
+          "format": "Esri JSON",
+          "axes": ["x-longitude", "y-latitude"],
+          "order": "xy"
+        }
+      },
+      {
+        "protocol": "ogc-api-features-1.0",
+        "crs": "OGC:CRS84",
+        "coordinateEncoding": {
+          "format": "GeoJSON",
+          "axes": ["longitude", "latitude"],
+          "order": "xy"
+        }
+      }
+    ],
     "extent": [-157.891, 21.286, -157.856, 21.311],
     "featureCount": 3,
     "editableRecordId": 3,
     "files": {
       "capabilities": "capabilities.json",
       "layer": "layer.json",
-      "features": "features.json"
+      "features": "features.json",
+      "ogcLanding": "ogc-landing.json",
+      "ogcApiDefinition": "ogc-api-definition.json",
+      "ogcConformance": "ogc-conformance.json",
+      "ogcCollection": "ogc-collection.json",
+      "ogcItems": "ogc-items.json"
     }
   },
   "provenance": {
     "source": "honua-sdk-js test/fixtures/honua-quickstart-demo",
     "retrievedAt": "2026-07-13T00:00:00.000Z",
-    "transformation": "Promoted existing synthetic review data into a versioned fixture pack; coordinates and attributes are unchanged in meaning.",
+    "transformation": "Promoted existing synthetic review data into a versioned fixture pack and added a lossless OGC API Features projection. Feature IDs, attributes, WGS84 longitude/latitude positions, attribution, and provenance are identical; exterior rings are reversed only to use GeoJSON right-hand-rule orientation.",
     "refreshCommand": "node samples/fixtures/verify.mjs --write first-map"
   },
   "license": {
@@ -43,15 +68,20 @@
   "integrity": {
     "algorithm": "sha256",
     "canonicalization": "File hashes cover exact data-file bytes. metadataFingerprint hashes recursively key-sorted JSON for every manifest field except the recursive integrity object; component hashes cover provenance and license.",
-    "metadataFingerprint": "87c212a1c8f10048dcec835a0eb7542673be1f2d61f501217882b6146151e76d",
+    "metadataFingerprint": "121ae474f4fe9d682866dd8c70443128e2af2f3aaf1aaa062bdf9ad44a1bb9d0",
     "metadataComponents": {
       "license": "8bf876dbb4503bdfb652437d00cb88531d0123b824edd4404020dba034cb9ea0",
-      "provenance": "8cd971be330ddb414e02f0936c250df7864bad32a02233c54ef6447f22c0dbcf"
+      "provenance": "328608a5e5d19fe57d92b934d02709499f9c92ea8380a609d299091cf8fed497"
     },
     "files": {
       "capabilities.json": "fa46b688495c86e20f6ae20a09c5322f28edff96db84dd2f0d19002aecf47da2",
       "features.json": "38009a1961a968a09889b2952e6090347ee13b90c5b12dd011e4320f25dc4660",
-      "layer.json": "ecc5aa98b183c036cd3c57ab90a3daee00771bb74deb9d61f94c04f66ecfdca3"
+      "layer.json": "1a4cf52f3edd9a06e07dbfae7b67ef02eeb1499497f6935448de45b1c484bc69",
+      "ogc-api-definition.json": "79805550ab15d0f0dd181d19997ee2c7d29af9109531ac804c4d82a854adb251",
+      "ogc-collection.json": "18dfafeebb1f1d71d15d881bd730ab00ad43993e1abe792759a593123aa46bba",
+      "ogc-conformance.json": "c6708ab48d2adba1f922fdc47013284135ad330e1fc8c4474cafe38f3b3f2373",
+      "ogc-items.json": "9eb91b1e5ac6d661053830f03c81c97ad76ee2488fea7b1fc32aec270b5d31b2",
+      "ogc-landing.json": "dbe58b43ef4238816ec19924bbc00f6ad300c14d8f3eb802350368517f4e9371"
     }
   }
 }

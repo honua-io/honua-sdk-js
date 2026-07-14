@@ -4,6 +4,7 @@ export type FixtureScenarioName =
   | "happy"
   | "empty"
   | "unsupported"
+  | "overflow"
   | "paginated"
   | "throttled"
   | "abort"
@@ -22,6 +23,9 @@ export const SCENARIO_NAMES: readonly FixtureScenarioName[];
 export const SCENARIOS: Readonly<Record<FixtureScenarioName, { readonly name: string; readonly description: string }>>;
 export const HARNESS_CI_BUDGET: Readonly<{ startupMs: number; resetMs: number }>;
 export const FIXTURE_CSP: string;
+export const FIXTURE_RUN_ID_PATTERN_SOURCE: "^[a-z0-9][a-z0-9-]{0,63}$";
+export const FIXTURE_RUN_ID_PATTERN: RegExp;
+export function isFixtureRunId(value: unknown): value is string;
 
 export interface SampleFixtureHarnessOptions {
   sampleId: "first-map" | "incident-operations";
@@ -49,7 +53,19 @@ export interface SampleFixtureHarness {
 export interface FixturePackManifest {
   fixturePackVersion: string;
   identity: { id: string; version: string; revision: string; title: string };
-  schema: { featureCount: number; [name: string]: unknown };
+  schema: {
+    featureCount: number;
+    projections?: Array<{
+      protocol: string;
+      crs: "EPSG:4326" | "OGC:CRS84";
+      coordinateEncoding: {
+        format: "Esri JSON" | "GeoJSON" | "GeoJSON-compatible positions";
+        axes: [string, string];
+        order: "xy";
+      };
+    }>;
+    [name: string]: unknown;
+  };
   [name: string]: unknown;
 }
 
@@ -100,6 +116,7 @@ export interface FixtureRunRegistry<State = unknown> {
   create(options: { id: string; scenario?: FixtureScenarioName; authScope?: string; seed?: string }): FixtureRun<State>;
   get(id?: string): FixtureRun<State>;
   authorize(run: FixtureRun<State>, suppliedScope?: string): void;
+  record(run: FixtureRun<State>, request: { method?: string; routeId?: string; queryNames?: readonly unknown[] }): void;
   mutate<Value>(run: FixtureRun<State>, operation: (run: FixtureRun<State>) => Value): Promise<Value>;
   reset(run: FixtureRun<State>): Promise<FixtureRun<State>>;
   remove(id: string): void;
@@ -115,7 +132,7 @@ export interface FixtureRunRegistry<State = unknown> {
   close(): ReadonlyArray<{ runId: string; reason: string; message: string }>;
 }
 
-export function startSampleFixtureHarness(options?: SampleFixtureHarnessOptions): Promise<SampleFixtureHarness>;
+export function startSampleFixtureHarness(options: SampleFixtureHarnessOptions): Promise<SampleFixtureHarness>;
 export function canonicalJson(value: unknown): string;
 export function fingerprint(value: string): string;
 export function fixtureHeaders(extra?: Record<string, string | number>): Record<string, string | number>;
@@ -128,7 +145,13 @@ export function validateFixturePackDirectory(
   root: string,
   options?: { allowChecksumChanges?: boolean; allowMetadataChanges?: boolean },
 ): FixturePackValidation;
-export function serveStaticFile(res: ServerResponse, root: string, pathname: string): boolean;
+export interface StaticRootBinding {
+  readonly canonicalPath: string;
+  readonly device: bigint;
+  readonly inode: bigint;
+}
+export function createStaticRootBinding(root: string): StaticRootBinding;
+export function serveStaticFile(res: ServerResponse, root: string | StaticRootBinding, pathname: string): boolean;
 export function createRunRegistry<State = unknown>(options: {
   handler: FixtureRunHandler<State>;
   defaultRunId?: string;

@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { canonicalJson, hasAsciiControlCharacters } from "../determinism.mjs";
 import { fixtureHeaders, fixtureResponseHeaders, sendJson, sendText } from "../http.mjs";
 import { createSseSubscriber } from "../sse.mjs";
@@ -6,6 +8,25 @@ const STREAM_PATH = "/api/v1/streaming/features";
 const CAPABILITIES_PATH = `${STREAM_PATH}/capabilities`;
 const SAFE_EDIT_ID = "DEMO-EDIT-0001";
 const MAXIMUM_IDEMPOTENCY_KEYS = 128;
+const STREAM_QUERY_NAMES = [
+  "cursor",
+  "deltaToken",
+  "fields",
+  "layerId",
+  "layers",
+  "metadata",
+  "mode",
+  "pageCursor",
+  "requestId",
+  "run",
+  "sequence",
+  "serviceId",
+  "sourceId",
+  "spatialFilter",
+  "timestamp",
+  "watermark",
+  "where",
+];
 
 function clone(value) {
   return structuredClone(value);
@@ -123,12 +144,23 @@ function resolveStreamFeatures(run, url) {
   const features = all.slice(offset, offset + 2);
   const nextOffset = offset + features.length;
   const nextPageCursor = nextOffset < all.length ? `page:${run.id}:${nextOffset}:${run.state.cursorGeneration}` : null;
-  if (nextPageCursor) rememberBounded(run.state.issuedPageCursors, nextPageCursor);
   return {
     features,
     nextPageCursor,
     continuation: requested !== null,
   };
+}
+
+function assertQueryParameters(url, allowedNames, description) {
+  const allowed = new Set(allowedNames);
+  for (const name of new Set(url.searchParams.keys())) {
+    if (!allowed.has(name)) {
+      throw Object.assign(new Error(`Unsupported ${description} query parameter: ${name}.`), { status: 400 });
+    }
+    if (url.searchParams.getAll(name).length !== 1) {
+      throw Object.assign(new Error(`${description} query parameter ${name} may appear only once.`), { status: 400 });
+    }
+  }
 }
 
 function validateResumeBinding(run, req, url) {
@@ -244,11 +276,29 @@ function assertIdempotencyCapacity(run) {
   }
 }
 
-function scenarioHeaders(run) {
+function representationEtag(run, representation, value) {
+  const stateVersion = `${run.state.cursorGeneration}:${run.state.sequence}:${run.state.stepIndex}`;
+  const digest = crypto
+    .createHash("sha256")
+    .update(run.id)
+    .update("\0")
+    .update(representation)
+    .update("\0")
+    .update(stateVersion)
+    .update("\0")
+    .update(canonicalJson(value))
+    .digest("hex")
+    .slice(0, 20);
+  return `"fixture-incidents-${representation}-${digest}"`;
+}
+
+function scenarioHeaders(run, representation, value) {
   if (run.scenario === "cache-hit") return { age: "10", "x-fixture-cache": "hit; fresh" };
   if (run.scenario === "cache-stale")
     return { age: "600", warning: '110 - "Response is stale"', "x-fixture-cache": "stale" };
-  if (run.scenario === "cache-revalidate") return { etag: '"fixture-incidents-v1"', "x-fixture-cache": "revalidated" };
+  if (run.scenario === "cache-revalidate") {
+    return { etag: representationEtag(run, representation, value), "x-fixture-cache": "revalidated" };
+  }
   if (run.scenario === "auth-scope") {
     return { vary: "x-honua-fixture-auth-scope", "x-fixture-cache-scope": run.authScopeFingerprint };
   }
@@ -257,7 +307,11 @@ function scenarioHeaders(run) {
 
 function sendRange(req, res, value) {
   const bytes = Buffer.from(`${canonicalJson(value)}\n`);
-  const match = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range ?? "");
+  if (req.headers.range === undefined) {
+    sendText(res, 200, bytes, "application/json; charset=utf-8", { "accept-ranges": "bytes" });
+    return;
+  }
+  const match = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range);
   if (!match) {
     sendText(res, 416, "A single byte range is required.", "text/plain; charset=utf-8", {
       "content-range": `bytes */${bytes.length}`,
@@ -419,26 +473,57 @@ export function createIncidentOperationsHandler(pack) {
     },
     handle({ req, res, url, run }) {
       if (req.method === "GET" && url.pathname === CAPABILITIES_PATH) {
-        if (run.scenario === "cache-revalidate" && req.headers["if-none-match"] === '"fixture-incidents-v1"') {
-          res.writeHead(304, fixtureHeaders(scenarioHeaders(run)));
+        assertQueryParameters(url, ["run"], "incident capabilities");
+        const enabled = run.scenario !== "unsupported";
+        const value = {
+          enabled,
+          data: {
+            enabled,
+            transport: "sse",
+            minimumEdition: "Community",
+            ...(enabled ? {} : { reason: "Fixture unsupported scenario disables realtime discovery." }),
+          },
+        };
+        const headers = scenarioHeaders(run, "capabilities", value);
+        if (run.scenario === "cache-revalidate" && req.headers["if-none-match"] === headers.etag) {
+          res.writeHead(304, fixtureHeaders(headers));
           res.end();
           return true;
         }
-        sendJson(
-          res,
-          200,
-          { enabled: true, data: { enabled: true, transport: "sse", minimumEdition: "Community" } },
-          scenarioHeaders(run),
-        );
+        sendJson(res, 200, value, headers);
         return true;
       }
       if (req.method === "GET" && url.pathname === "/api/v1/incidents") {
+        assertQueryParameters(url, ["run"], "incident snapshot");
         const value = { features: [...run.state.features.values()] };
         if (run.scenario === "range") sendRange(req, res, value);
-        else sendJson(res, 200, value, scenarioHeaders(run));
+        else {
+          const headers = scenarioHeaders(run, "snapshot", value);
+          if (run.scenario === "cache-revalidate" && req.headers["if-none-match"] === headers.etag) {
+            res.writeHead(304, fixtureHeaders(headers));
+            res.end();
+          } else {
+            sendJson(res, 200, value, headers);
+          }
+        }
         return true;
       }
       if (req.method !== "GET" || url.pathname !== STREAM_PATH) return false;
+      let selected;
+      try {
+        assertQueryParameters(url, STREAM_QUERY_NAMES, "incident stream");
+        validateResumeBinding(run, req, url);
+        selected = resolveStreamFeatures(run, url);
+      } catch (error) {
+        const status = error.status ?? 400;
+        sendJson(res, status, {
+          error: {
+            code: status === 410 ? "FIXTURE_STALE_CURSOR" : "FIXTURE_INVALID_CURSOR_BINDING",
+            message: error.message,
+          },
+        });
+        return true;
+      }
       if (run.scenario === "unsupported") {
         sendJson(res, 501, { error: { code: "FIXTURE_UNSUPPORTED", capability: "realtime" } });
         return true;
@@ -467,21 +552,7 @@ export function createIncidentOperationsHandler(pack) {
         sendJson(res, 429, { error: { code: "FIXTURE_STREAM_CAPACITY", maximumSubscribers: 8 } });
         return true;
       }
-
-      let selected;
-      try {
-        validateResumeBinding(run, req, url);
-        selected = resolveStreamFeatures(run, url);
-      } catch (error) {
-        const status = error.status ?? 400;
-        sendJson(res, status, {
-          error: {
-            code: status === 410 ? "FIXTURE_STALE_CURSOR" : "FIXTURE_INVALID_CURSOR_BINDING",
-            message: error.message,
-          },
-        });
-        return true;
-      }
+      if (selected.nextPageCursor) rememberBounded(run.state.issuedPageCursors, selected.nextPageCursor);
       const subscriber = createSseSubscriber(req, res, {
         maximumQueuedEvents: 32,
         onClose: () => run.state.subscribers.delete(subscriber),

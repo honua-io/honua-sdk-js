@@ -1,14 +1,14 @@
 import { assertScenarioName } from "./catalog.mjs";
 import { createFrozenClock, createSeededIds, fingerprint, hasAsciiControlCharacters } from "./determinism.mjs";
+import { isFixtureRunId } from "./identifiers.mjs";
 
-const RUN_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const AUTH_SCOPE = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
-const LOG_METHOD = /^(DELETE|GET|HEAD|OPTIONS|PATCH|POST|PUT)$/;
+const LOG_METHOD = /^(DELETE|GET|HEAD|OPTIONS|OTHER|PATCH|POST|PUT)$/;
 const LOG_NAME = /^[A-Za-z0-9._~-]{1,64}$/;
 const LOG_ROUTE = /^[a-z][a-z0-9-]{0,63}$/;
 
 export function assertRunId(value) {
-  if (typeof value !== "string" || !RUN_ID.test(value)) {
+  if (!isFixtureRunId(value)) {
     throw Object.assign(new Error("Invalid fixture run id."), { status: 400 });
   }
   return value;
@@ -136,11 +136,11 @@ export function createRunRegistry({
 
   function create(options) {
     if (closed) throw Object.assign(new Error("Fixture run registry is closed."), { status: 503 });
-    cleanupExpired();
     const id = assertRunId(options.id);
     const scenario = assertScenarioName(options.scenario ?? defaultScenario);
     const authScope = assertAuthScope(options.authScope ?? "public");
     const seed = assertSeed(options.seed ?? id);
+    cleanupExpired();
     const existing = runs.get(id);
     if (existing) {
       if (existing.scenario !== scenario || existing.authScope !== authScope || existing.seed !== seed) {
@@ -159,10 +159,10 @@ export function createRunRegistry({
   }
 
   function get(id = defaultRunId) {
+    const validId = assertRunId(id);
     cleanupExpired();
-    const run = runs.get(assertRunId(id));
+    const run = runs.get(validId);
     if (!run?.active) throw Object.assign(new Error("Unknown fixture run."), { status: 404 });
-    run.touchedAt = now();
     return run;
   }
 
@@ -171,27 +171,30 @@ export function createRunRegistry({
     if (run.authScope !== authScope) {
       throw Object.assign(new Error("Fixture authorization scope does not match this run."), { status: 403 });
     }
+    run.touchedAt = now();
   }
 
   function record(run, request) {
     if (!run.active) throw Object.assign(new Error("Fixture run is no longer active."), { status: 410 });
-    if (!LOG_METHOD.test(request.method) || typeof request.routeId !== "string" || !LOG_ROUTE.test(request.routeId)) {
-      throw new Error("Invalid fixture request-log method or route id.");
+    const method = typeof request.method === "string" && LOG_METHOD.test(request.method) ? request.method : "OTHER";
+    const routeId =
+      typeof request.routeId === "string" && LOG_ROUTE.test(request.routeId) ? request.routeId : "unknown-route";
+    const suppliedNames = Array.isArray(request.queryNames) ? request.queryNames : [];
+    const sanitizedNames = new Set();
+    let truncated = false;
+    for (const [index, name] of suppliedNames.entries()) {
+      if (index >= 31) {
+        truncated = true;
+        break;
+      }
+      sanitizedNames.add(typeof name === "string" && LOG_NAME.test(name) ? name : "invalid");
     }
-    if (!Array.isArray(request.queryNames) || request.queryNames.length > 32) {
-      throw new Error("Invalid fixture request-log query names.");
-    }
-    const queryNames = Object.freeze(
-      request.queryNames.map((name) => {
-        if (typeof name !== "string" || !LOG_NAME.test(name))
-          throw new Error("Invalid fixture request-log query name.");
-        return name;
-      }),
-    );
+    if (truncated) sanitizedNames.add("truncated");
+    const queryNames = Object.freeze([...sanitizedNames].sort());
     run.requests.push(
       Object.freeze({
-        method: request.method,
-        routeId: request.routeId,
+        method,
+        routeId,
         queryNames,
         observedAt: run.clock.iso(),
         requestId: run.ids.next("request"),

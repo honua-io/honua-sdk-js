@@ -45,6 +45,7 @@
             "enum": [
               "honua-capabilities-v1",
               "esri-geoservices-feature-server",
+              "ogc-api-features-1.0",
               "server-sent-events",
               "honua-realtime-feature-events"
             ]
@@ -57,7 +58,7 @@
           "additionalProperties": false,
           "required": ["format", "axes", "order"],
           "properties": {
-            "format": { "enum": ["Esri JSON", "GeoJSON-compatible positions"] },
+            "format": { "enum": ["Esri JSON", "GeoJSON", "GeoJSON-compatible positions"] },
             "axes": {
               "type": "array",
               "minItems": 2,
@@ -70,6 +71,49 @@
               }
             },
             "order": { "const": "xy" }
+          }
+        },
+        "projections": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["protocol", "crs", "coordinateEncoding"],
+            "properties": {
+              "protocol": {
+                "enum": [
+                  "honua-capabilities-v1",
+                  "esri-geoservices-feature-server",
+                  "ogc-api-features-1.0",
+                  "server-sent-events",
+                  "honua-realtime-feature-events"
+                ]
+              },
+              "crs": { "enum": ["EPSG:4326", "OGC:CRS84"] },
+              "coordinateEncoding": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["format", "axes", "order"],
+                "properties": {
+                  "format": { "enum": ["Esri JSON", "GeoJSON", "GeoJSON-compatible positions"] },
+                  "axes": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32,
+                      "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+                    }
+                  },
+                  "order": { "const": "xy" }
+                }
+              }
+            }
           }
         },
         "extent": {
