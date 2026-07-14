@@ -14,14 +14,36 @@
     "unsupported",
     "facade-required"
   ],
+  "environmentVocabulary": [
+    "build-time",
+    "client-only",
+    "honua-facade",
+    "protocol-adapter",
+    "standalone"
+  ],
+  "executionModeVocabulary": [
+    "client-fallback",
+    "discovery",
+    "facade",
+    "native",
+    "static",
+    "transport"
+  ],
   "freshnessPolicies": {
     "release-gated": { "cadence": "Every pull request and release", "maxAgeDays": null },
-    "nightly": { "cadence": "Nightly when integration credentials are available", "maxAgeDays": 2 },
+    "nightly": { "cadence": "Nightly self-contained integration workflow", "maxAgeDays": 2 },
     "scheduled-live": { "cadence": "Scheduled public-endpoint smoke", "maxAgeDays": 14 },
     "version-pinned": { "cadence": "Every conformance fixture release", "maxAgeDays": null }
   },
   "evidence": [
     { "id": "contract-conformance", "kind": "fixture", "path": "test/contract/conformance.test.ts", "freshnessPolicy": "release-gated" },
+    { "id": "honua-surface-fixtures", "kind": "fixture", "path": "test/honua-surface.test.ts", "freshnessPolicy": "release-gated" },
+    { "id": "connect-fixtures", "kind": "fixture", "path": "test/connect.test.ts", "freshnessPolicy": "release-gated" },
+    { "id": "core-client-fixtures", "kind": "fixture", "path": "test/core-client.test.ts", "freshnessPolicy": "release-gated" },
+    { "id": "tile-layer-fixtures", "kind": "fixture", "path": "test/tile-layer-compat.test.ts", "freshnessPolicy": "release-gated" },
+    { "id": "query-tiles-fixtures", "kind": "fixture", "path": "test/contract/query-tiles.test.ts", "freshnessPolicy": "release-gated" },
+    { "id": "geoprocessing-job-run-fixtures", "kind": "fixture", "path": "test/contract/geoprocessing-job-run.test.ts", "freshnessPolicy": "release-gated" },
+    { "id": "process-runner-fixtures", "kind": "fixture", "path": "test/process-runner.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "grpc-conformance", "kind": "conformance", "path": "test/conformance/feature-service.conformance.ts", "freshnessPolicy": "version-pinned" },
     { "id": "geoservices-conformance", "kind": "fixture", "path": "test/contract/geoservices-conformance.test.ts", "freshnessPolicy": "release-gated" },
     { "id": "map-service-integration", "kind": "integration", "path": "test/integration/surfaces/map-server.integration.ts", "freshnessPolicy": "nightly" },
@@ -120,7 +142,7 @@
     },
     "honuaSite": {
       "format": "honua.site.sdk-support.v1",
-      "projectionFields": ["sdk", "statusVocabulary", "protocols", "supportClaims", "packageLifecycle", "evidence"],
+      "projectionFields": ["sdk", "statusVocabulary", "environmentVocabulary", "executionModeVocabulary", "protocols", "supportClaims", "packageLifecycle", "evidence"],
       "joinKeys": ["protocols[].id", "supportClaims[].id", "packageLifecycle.entrypoints[].subpath"]
     }
   },
@@ -189,11 +211,11 @@
   },
   "protocols": [
     { "id": "grpc", "label": "gRPC", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["query", "queryAggregate", "queryExtent", "queryObjectIds", "applyEdits", "stream"], "environment": "honua-facade", "executionMode": "native", "status": "supported", "evidence": ["contract-conformance", "grpc-conformance"] }] },
-    { "id": "geoservices-feature-service", "label": "GS Feature", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["query", "queryAggregate", "queryExtent", "queryObjectIds", "queryRelated", "applyEdits", "attachments", "sql", "stream", "pbf", "connect"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["geoservices-conformance"] }, { "operations": ["tiles"], "environment": "protocol-adapter", "executionMode": "client-fallback", "status": "supported", "evidence": ["contract-conformance"] }] },
-    { "id": "geoservices-map-service", "label": "GS Map", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["query", "queryAggregate", "queryExtent", "queryObjectIds", "queryRelated", "render", "tiles", "sql", "stream"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["map-service-integration"] }] },
-    { "id": "geoservices-image-service", "label": "GS Image", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["query", "queryExtent", "queryObjectIds", "image", "render", "tiles", "connect"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["image-service-integration"] }] },
-    { "id": "geoservices-geometry-service", "label": "GS Geometry", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["geometry", "connect"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["geometry-service-integration"] }] },
-    { "id": "geoservices-gp-service", "label": "GS GP", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["geoprocess", "connect"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["gp-service-integration"] }] },
+    { "id": "geoservices-feature-service", "label": "GS Feature", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["query", "queryAggregate", "queryExtent"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["contract-conformance"] }, { "operations": ["queryObjectIds", "queryRelated", "applyEdits", "attachments"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["geoservices-conformance"] }, { "operations": ["sql", "stream"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["contract-conformance", "honua-surface-fixtures"] }, { "operations": ["pbf"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["core-client-fixtures"] }, { "operations": ["connect"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["connect-fixtures"] }, { "operations": ["tiles"], "environment": "protocol-adapter", "executionMode": "client-fallback", "status": "supported", "evidence": ["query-tiles-fixtures"] }] },
+    { "id": "geoservices-map-service", "label": "GS Map", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["query", "queryAggregate", "queryExtent", "queryObjectIds", "queryRelated"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["contract-conformance", "geoservices-conformance", "honua-surface-fixtures"] }, { "operations": ["render"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["honua-surface-fixtures"] }, { "operations": ["tiles"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["connect-fixtures", "tile-layer-fixtures"] }, { "operations": ["sql", "stream"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["contract-conformance", "honua-surface-fixtures"] }] },
+    { "id": "geoservices-image-service", "label": "GS Image", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["query", "queryExtent", "queryObjectIds"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["geoservices-conformance"] }, { "operations": ["image", "render", "tiles", "connect"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["geoservices-conformance"] }] },
+    { "id": "geoservices-geometry-service", "label": "GS Geometry", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["geometry", "connect"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["geoservices-conformance"] }] },
+    { "id": "geoservices-gp-service", "label": "GS GP", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["geoprocess"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["geoservices-conformance", "geoprocessing-job-run-fixtures", "process-runner-fixtures"] }, { "operations": ["connect"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["geoservices-conformance"] }] },
     { "id": "ogc-features", "label": "OGC Features", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["query", "queryObjectIds", "applyEdits", "stream"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["ogc-features-fixtures"] }, { "operations": ["queryAggregate", "queryExtent"], "environment": "protocol-adapter", "executionMode": "client-fallback", "status": "supported", "evidence": ["contract-conformance"] }] },
     { "id": "ogc-tiles", "label": "OGC Tiles", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["render", "tiles"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["ogc-tiles-fixtures"] }] },
     { "id": "ogc-maps", "label": "OGC Maps", "defaultOperationStatus": "unsupported", "operationClaims": [{ "operations": ["render"], "environment": "protocol-adapter", "executionMode": "native", "status": "supported", "evidence": ["ogc-maps-fixtures"] }] },
@@ -211,7 +233,7 @@
   ],
   "supportClaims": [
     { "id": "geoservices-feature-standalone", "label": "GeoServices FeatureServer query", "protocol": "geoservices-feature-service", "operations": ["query", "queryExtent", "queryObjectIds", "stream"], "environment": "standalone", "executionMode": "native", "status": "supported", "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint", "api": "connect(), HonuaClient.queryFeatures, Source", "notes": "Uses the raw FeatureServer query path; fixture- and live-proven without a Honua account or server.", "evidence": ["geoservices-conformance", "standalone-live"] },
-    { "id": "geoservices-map-image-standalone", "label": "GeoServices MapServer and ImageServer reads", "protocol": "geoservices-map-service", "operations": ["query", "render", "tiles", "image"], "environment": "standalone", "executionMode": "native", "status": "supported", "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint", "api": "HonuaClient.mapService, HonuaClient.imageService", "notes": "Uses raw GeoServices paths for query, export, identify, legend, and find.", "evidence": ["map-service-integration", "image-service-integration", "standalone-live"] },
+    { "id": "geoservices-map-image-standalone", "label": "GeoServices MapServer and ImageServer reads", "protocol": "geoservices-map-service", "operations": ["query", "render", "tiles", "image"], "environment": "standalone", "executionMode": "native", "status": "supported", "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint", "api": "HonuaClient.mapService, HonuaClient.imageService", "notes": "Uses raw GeoServices paths for query, export, identify, legend, and find.", "evidence": ["honua-surface-fixtures", "geoservices-conformance", "map-service-integration", "image-service-integration", "standalone-live"] },
     { "id": "esri-compat-standalone", "label": "Esri compatibility layer", "operations": ["query", "applyEdits"], "environment": "standalone", "executionMode": "native", "status": "supported", "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint", "api": "@honua/sdk-js/esri-compat", "notes": "Compatibility classes parse public GeoServices URLs and create their own client.", "evidence": ["esri-compat-fixtures"] },
     { "id": "migration-client-only", "label": "ArcGIS scanner and migration codemod", "operations": ["migration"], "environment": "build-time", "executionMode": "static", "status": "supported", "backendNeeded": "None", "api": "@honua/sdk-js/migration, honua-migrate", "notes": "Static analysis and rewrites run locally; no service is involved.", "evidence": ["migration-fixtures"] },
     { "id": "geometry-client-only", "label": "Geometry operations", "operations": ["geometry"], "environment": "client-only", "executionMode": "native", "status": "supported", "backendNeeded": "None", "api": "@honua/sdk-js/geometry", "notes": "Buffer, area, simplify, measure, and reprojection run in the client through optional peers.", "evidence": ["geometry-fixtures"] },

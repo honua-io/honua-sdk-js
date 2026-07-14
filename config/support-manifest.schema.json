@@ -9,6 +9,8 @@
     "schemaVersion",
     "sdk",
     "statusVocabulary",
+    "environmentVocabulary",
+    "executionModeVocabulary",
     "freshnessPolicies",
     "evidence",
     "protocolOperations",
@@ -41,6 +43,35 @@
         { "const": "deprecated" },
         { "const": "unsupported" },
         { "const": "facade-required" }
+      ],
+      "items": false,
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true
+    },
+    "environmentVocabulary": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "build-time" },
+        { "const": "client-only" },
+        { "const": "honua-facade" },
+        { "const": "protocol-adapter" },
+        { "const": "standalone" }
+      ],
+      "items": false,
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true
+    },
+    "executionModeVocabulary": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "client-fallback" },
+        { "const": "discovery" },
+        { "const": "facade" },
+        { "const": "native" },
+        { "const": "static" },
+        { "const": "transport" }
       ],
       "items": false,
       "minItems": 6,
@@ -140,6 +171,12 @@
     "status": {
       "enum": ["supported", "beta", "experimental", "deprecated", "unsupported", "facade-required"]
     },
+    "environment": {
+      "enum": ["build-time", "client-only", "honua-facade", "protocol-adapter", "standalone"]
+    },
+    "executionMode": {
+      "enum": ["client-fallback", "discovery", "facade", "native", "static", "transport"]
+    },
     "consumerProtocol": {
       "type": "object",
       "additionalProperties": false,
@@ -196,8 +233,8 @@
           "minItems": 1,
           "uniqueItems": true
         },
-        "environment": { "type": "string", "minLength": 1 },
-        "executionMode": { "type": "string", "minLength": 1 },
+        "environment": { "$ref": "#/$defs/environment" },
+        "executionMode": { "$ref": "#/$defs/executionMode" },
         "status": { "$ref": "#/$defs/status" },
         "evidence": {
           "type": "array",
@@ -245,8 +282,8 @@
           "minItems": 1,
           "uniqueItems": true
         },
-        "environment": { "type": "string", "minLength": 1 },
-        "executionMode": { "type": "string", "minLength": 1 },
+        "environment": { "$ref": "#/$defs/environment" },
+        "executionMode": { "$ref": "#/$defs/executionMode" },
         "status": { "$ref": "#/$defs/status" },
         "backendNeeded": { "type": "string" },
         "api": { "type": "string" },

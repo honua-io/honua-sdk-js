@@ -10,6 +10,8 @@
     "generatedFrom",
     "sdk",
     "statusVocabulary",
+    "environmentVocabulary",
+    "executionModeVocabulary",
     "protocolOperations",
     "claimCapabilities",
     "claimOnlyProtocols",
@@ -37,6 +39,12 @@
     },
     "statusVocabulary": {
       "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/statusVocabulary"
+    },
+    "environmentVocabulary": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/environmentVocabulary"
+    },
+    "executionModeVocabulary": {
+      "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/executionModeVocabulary"
     },
     "protocolOperations": {
       "$ref": "https://honua.io/schemas/sdk/support-manifest.v1.schema.json#/properties/protocolOperations"
