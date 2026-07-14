@@ -525,6 +525,13 @@ describe("sample publication contract", () => {
     await expect(validateCatalog(deceptiveProducer, deceptivePackage, validationTime)).rejects.toThrow(
       "scheduled live command is not in the reviewed bounded producer registry",
     );
+
+    const reboundProducer = await readJson("samples/catalog.v2.json");
+    const reboundPackage = structuredClone(packageJson);
+    reboundPackage.scripts["demo:standalone:live-smoke"] = "node scripts/overture-live-evidence.mjs";
+    await expect(validateCatalog(reboundProducer, reboundPackage, validationTime)).rejects.toThrow(
+      "scheduled live command is not in the reviewed bounded producer registry",
+    );
   });
 
   it("keeps candidates non-golden until the full qualification contract is satisfied", async () => {
@@ -666,10 +673,47 @@ describe("sample publication contract", () => {
 
     const nonBenchSample = structuredClone(sample);
     nonBenchSample.evidence.live.commands = ["npm run demo:spatial-analytics:live-evidence"];
-    const unboundNonBenchEvidence = structuredClone(evidence);
-    unboundNonBenchEvidence.artifacts[0].sha256 = "0".repeat(64);
-    await expect(validateLiveEvidenceProducer(unboundNonBenchEvidence, nonBenchSample)).rejects.toThrow(
-      "producer generator digest drift",
+    const nonBenchGeneratorPath = "examples/spatial-analytics-workbench/live-evidence.mjs";
+    const nonBenchEvidence = structuredClone(evidence);
+    nonBenchEvidence.artifacts[0] = {
+      kind: "producer-generator",
+      path: nonBenchGeneratorPath,
+      sha256: createHash("sha256")
+        .update(await readFile(nonBenchGeneratorPath))
+        .digest("hex"),
+    };
+    await expect(validateLiveEvidenceProducer(nonBenchEvidence, nonBenchSample)).resolves.toBeUndefined();
+
+    const arbitraryFile = structuredClone(nonBenchEvidence);
+    arbitraryFile.artifacts[0].path = "package.json";
+    arbitraryFile.artifacts[0].sha256 = createHash("sha256")
+      .update(await readFile("package.json"))
+      .digest("hex");
+    await expect(validateLiveEvidenceProducer(arbitraryFile, nonBenchSample)).rejects.toThrow(
+      `producer generator path for npm run demo:spatial-analytics:live-evidence must be ${nonBenchGeneratorPath}`,
+    );
+
+    const wrongPathAndDigest = structuredClone(nonBenchEvidence);
+    wrongPathAndDigest.artifacts[0].path = "package.json";
+    wrongPathAndDigest.artifacts[0].sha256 = "0".repeat(64);
+    await expect(validateLiveEvidenceProducer(wrongPathAndDigest, nonBenchSample)).rejects.toThrow(
+      `producer generator path for npm run demo:spatial-analytics:live-evidence must be ${nonBenchGeneratorPath}`,
+    );
+
+    const otherReviewedGenerator = structuredClone(nonBenchEvidence);
+    otherReviewedGenerator.artifacts[0].path = "scripts/overture-live-evidence.mjs";
+    otherReviewedGenerator.artifacts[0].sha256 = createHash("sha256")
+      .update(await readFile("scripts/overture-live-evidence.mjs"))
+      .digest("hex");
+    await expect(validateLiveEvidenceProducer(otherReviewedGenerator, nonBenchSample)).rejects.toThrow(
+      `producer generator path for npm run demo:spatial-analytics:live-evidence must be ${nonBenchGeneratorPath}`,
+    );
+
+    const ambiguousCommand = structuredClone(evidence);
+    const ambiguousSample = structuredClone(sample);
+    ambiguousSample.evidence.live.commands.push("npm run demo:spatial-analytics:live-evidence");
+    await expect(validateLiveEvidenceProducer(ambiguousCommand, ambiguousSample)).rejects.toThrow(
+      "executed live evidence requires exactly one reviewed producer command",
     );
 
     evidence.sdk.gitCommit = "e9ccbdb6e443f9abd3c97026d31e135f39bc0bc0";

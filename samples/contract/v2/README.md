@@ -48,10 +48,10 @@ validated as a whole: either an exact `npm run <repository-script>` invocation
 or a one-file Playwright/Vitest invocation through the repository-installed
 tool. Shell metacharacters, arguments, arbitrary `npx` packages, path traversal,
 and unbounded Vite development servers are rejected. Scheduled live commands
-are limited to an exact reviewed registry that also pins each producer's
-repository script definition; automatic validation uses its own positive
-registry and bounded definition grammar. A safe-looking script suffix is not
-sufficient in either lane.
+are limited to an exact reviewed registry that pins each producer's repository
+script definition and generator path; automatic validation uses its own
+positive registry and bounded definition grammar. A safe-looking script suffix
+is not sufficient in either lane.
 
 Configuration metadata is an exact static inventory of named `process.env`,
 `import.meta.env`, Node loader `env.NAME`, and literal-key helper reads in each
@@ -89,11 +89,13 @@ covers all 25 launchers and rejects default process inheritance, direct
 
 Executed live evidence carries a full reported source revision plus a
 `producer-generator` artifact. Verification content-binds that artifact to the
-current repository path and SHA-256 bytes for every producer; the benchmark
-generator additionally proves that it names the sample and journey. The
-reported revision is metadata, not a claim that the current bytes were read
-from or attested by that Git commit. Non-executed evidence may report a null
-revision.
+one unambiguous declared live command, that command's reviewed generator path,
+and the current SHA-256 bytes for every producer. Path identity is checked
+before content digest; a different repository file or another reviewed
+generator cannot satisfy the command. The benchmark generator additionally
+proves that it names the sample and journey. The reported revision is metadata,
+not a claim that the current bytes were read from or attested by that Git
+commit. Non-executed evidence may report a null revision.
 
 Lifecycle states other than `active` have a target release. `merge`, `replace`,
 and `retire` also identify a non-self sample, golden journey, or typed external
