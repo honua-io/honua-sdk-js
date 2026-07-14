@@ -358,6 +358,16 @@ test("fails closed on missing quality profiles and forged golden qualification r
   );
 });
 
+test("rejects a schema-valid empty public portfolio with the explicit zero-card error", async () => {
+  const emptyProjection = structuredClone(projection);
+  emptyProjection.samples = [];
+
+  await assert.rejects(() => verifiedGallery(emptyProjection), {
+    name: "Error",
+    message: "Gallery projection produced zero public cards; refusing to publish an empty gallery.",
+  });
+});
+
 test("projects one canonical catalog-v2 sample into an honest public gallery card", async () => {
   const gallery = await canonicalGallery();
   const card = galleryCards(gallery).find((candidate) => candidate.sample.id === "endpoint-to-map");
@@ -560,21 +570,28 @@ test("requires an ownership-bound source resolver and rejects unsafe or foreign 
   );
 });
 
-test("rejects traversal or encoding in declared docsPath before resolver composition", async () => {
-  for (const docsPath of ["../secret.md", "examples/%2e%2e/secret.md", "examples/%255csecret.md"]) {
+test("rejects unsafe public source paths before minting a model or invoking a resolver", async () => {
+  const unsafeSources = [
+    { field: "docsPath", value: "../secret.md", expected: /source docsPath is unsafe/ },
+    { field: "docsPath", value: "examples/%2e%2e/secret.md", expected: /source docsPath is unsafe/ },
+    { field: "docsPath", value: "examples/%255csecret.md", expected: /source docsPath is unsafe/ },
+    { field: "path", value: "../examples/ai-spatial-app-builder", expected: /source path is unsafe/ },
+  ];
+  for (const { field, value, expected } of unsafeSources) {
     const unsafeProjection = structuredClone(projection);
-    sampleById(unsafeProjection, "ai-spatial-app-builder").source.docsPath = docsPath;
-    const gallery = await verifiedGallery(unsafeProjection);
-    let unsafeSampleResolverCalled = false;
-    assert.throws(
-      () =>
+    sampleById(unsafeProjection, "ai-spatial-app-builder").source[field] = value;
+    let resolverCallCount = 0;
+    await assert.rejects(
+      async () => {
+        const gallery = await verifiedGallery(unsafeProjection);
         renderGallery(gallery, (sample) => {
-          if (sample.id === "ai-spatial-app-builder") unsafeSampleResolverCalled = true;
+          resolverCallCount += 1;
           return repositorySourceResolver(sample);
-        }),
-      /source docsPath is unsafe/,
+        });
+      },
+      expected,
     );
-    assert.equal(unsafeSampleResolverCalled, false);
+    assert.equal(resolverCallCount, 0);
   }
 });
 

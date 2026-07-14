@@ -383,6 +383,13 @@ export function createGalleryModel(integrity) {
     throw new TypeError("Gallery projection must contain a samples array.");
   }
 
+  const publicTracks = new Set(PUBLIC_GALLERY_TRACKS.map(({ track }) => track));
+  const publicSamples = siteProjection.samples.filter((sample) => publicTracks.has(sample.track));
+  if (publicSamples.length === 0) {
+    throw new Error("Gallery projection produced zero public cards; refusing to publish an empty gallery.");
+  }
+  for (const sample of publicSamples) validatedSampleSource(sample);
+
   const journeys = Array.isArray(siteProjection.goldenJourneys) ? siteProjection.goldenJourneys : [];
   const externalReplacements = Array.isArray(siteProjection.externalReplacements)
     ? siteProjection.externalReplacements
@@ -393,8 +400,6 @@ export function createGalleryModel(integrity) {
     externalReplacements: new Map(externalReplacements.map((replacement) => [replacement.id, replacement])),
   };
   const qualityProfiles = validateQualificationModel(siteProjection, indexes);
-  const publicTracks = new Set(PUBLIC_GALLERY_TRACKS.map(({ track }) => track));
-  const publicSamples = siteProjection.samples.filter((sample) => publicTracks.has(sample.track));
   const publicSampleIds = new Set(publicSamples.map((sample) => sample.id));
   const provenance = {
     projection: {
@@ -426,10 +431,6 @@ export function createGalleryModel(integrity) {
     title,
     cards: cards.filter((card) => card.sample.track === track),
   })).filter((group) => group.cards.length > 0);
-
-  if (cards.length === 0) {
-    throw new Error("Gallery projection produced zero public cards; refusing to publish an empty gallery.");
-  }
 
   const gallery = deepFreezeJson({
     cardCount: cards.length,
