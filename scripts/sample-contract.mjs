@@ -41,6 +41,23 @@ const STANDARD_CONFIGURATION_EXEMPTIONS = new Map([
   ["GITHUB_SHA", "github-actions"],
   ["MODE", "vite"],
 ]);
+const CREDENTIAL_QUERY_PARAMETERS = [
+  "access_token",
+  "api-key",
+  "api_key",
+  "apikey",
+  "authorization",
+  "awsaccesskeyid",
+  "credential",
+  "key",
+  "password",
+  "secret",
+  "sig",
+  "signature",
+  "token",
+  "x-amz-credential",
+  "x-amz-signature",
+];
 const REVIEWED_LIVE_PRODUCERS = new Map([
   ["bench:live", "node scripts/live-benchmark-evidence.mjs --output test-results/live-benchmark-evidence.json"],
   ["demo:ai-spatial-builder:live-evidence", "node examples/ai-spatial-app-builder/live-evidence.mjs"],
@@ -51,6 +68,63 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
   ["demo:standalone:live-smoke", "node scripts/standalone-live-smoke.mjs"],
   ["evidence:overture:live", "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json"],
 ]);
+const REVIEWED_BUILD_TYPECHECK_DEMOS = [
+  "25d",
+  "ai-spatial-builder",
+  "app-bootstrap",
+  "edit-workflow",
+  "endpoint-to-map",
+  "geocoding",
+  "gp-runner",
+  "imagery-cog",
+  "incident",
+  "mcp-gis-assistant",
+  "migration-workbench",
+  "nl-map-control",
+  "oauth-signin",
+  "overture",
+  "planning-workbench",
+  "pmtiles-static",
+  "quickstart",
+  "react-quickstart",
+  "runtime-parity",
+  "service-explorer",
+  "sketch-editing",
+  "spatial-analytics",
+  "stac-browser",
+  "standalone",
+  "temporal-playback",
+  "terrain-elevation",
+  "unified-ops",
+  "web-components",
+];
+const REVIEWED_VALIDATION_SCRIPTS = new Set([
+  ...REVIEWED_BUILD_TYPECHECK_DEMOS.flatMap((name) => [`demo:${name}:build`, `demo:${name}:typecheck`]),
+  "demo:ai-spatial-builder:evidence",
+  "demo:kepler:build",
+  "demo:kepler:smoke",
+  "demo:node-backend:smoke",
+  "demo:node-backend:typecheck",
+  "demo:spatial-analytics:evidence",
+  "test:migration:real-samples",
+  "test:playwright:ai-spatial-builder",
+  "test:playwright:incident",
+  "test:playwright:overture",
+  "test:playwright:quickstart",
+  "test:playwright:sketch-editing",
+  "test:playwright:spatial-analytics",
+]);
+const BOUNDED_VALIDATION_SEGMENTS = [
+  /^npm --prefix examples\/kepler-analytics run build$/,
+  /^npm run build --silent$/,
+  /^node examples\/(?:ai-spatial-app-builder|spatial-analytics-workbench)\/evidence-check\.mjs$/,
+  /^node examples\/node-backend-quickstart\/dist\/smoke\.js$/,
+  /^node scripts\/ensure-kepler-demo-deps\.mjs$/,
+  /^playwright test test\/playwright\/[a-z0-9.-]+\.spec\.mjs$/,
+  /^tsc -p examples\/[a-z0-9-]+\/tsconfig(?:\.build)?\.json(?: --noEmit)?$/,
+  /^vite build --config examples\/[a-z0-9-]+\/vite\.config\.ts$/,
+  /^vitest run(?: test\/[a-z0-9.-]+\.test\.ts)+$/,
+];
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -172,6 +246,18 @@ function isBoundedLiveCommand(parsed, packageJson) {
   return (
     parsed.runner === "npm" &&
     REVIEWED_LIVE_PRODUCERS.get(parsed.script) === packageJson.scripts?.[parsed.script]
+  );
+}
+
+function isBoundedValidationCommand(parsed, packageJson) {
+  if (parsed.runner !== "npm") return true;
+  if (!REVIEWED_VALIDATION_SCRIPTS.has(parsed.script)) return false;
+  const definition = packageJson.scripts?.[parsed.script];
+  if (typeof definition !== "string") return false;
+  const segments = definition.split("&&").map((segment) => segment.trim());
+  return (
+    segments.length > 0 &&
+    segments.every((segment) => BOUNDED_VALIDATION_SEGMENTS.some((pattern) => pattern.test(segment)))
   );
 }
 
@@ -643,7 +729,10 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     JSON.stringify(catalog.configuration?.allowedSchemes) === JSON.stringify(["http", "https"]),
     "catalog endpoints must be restricted to HTTP(S)",
   );
-  sortedUnique(catalog.configuration?.credentialQueryParameters, "configuration.credentialQueryParameters");
+  invariant(
+    JSON.stringify(catalog.configuration?.credentialQueryParameters) === JSON.stringify(CREDENTIAL_QUERY_PARAMETERS),
+    "configuration.credentialQueryParameters must exactly match the canonical normalized credential-key set",
+  );
   invariant(Number.isInteger(catalog.configuration?.evidenceExpiry?.executedMaxDays), "executed evidence expiry policy is required");
   invariant(Number.isInteger(catalog.configuration?.evidenceExpiry?.nonExecutedMaxDays), "non-executed evidence expiry policy is required");
   invariant(
@@ -793,8 +882,8 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     }
     for (const command of sample.validation) {
       invariant(
-        !/(?:^|:)(?:mock|live-evidence)(?:\s|$)|\bbench:live\b/.test(command),
-        `${sample.id}: validation command must be bounded; fixture and live producers belong in their evidence lanes`,
+        isBoundedValidationCommand(commandRecords.get(command), packageJson),
+        `${sample.id}: automatic validation command is not in the reviewed bounded registry: ${command}`,
       );
     }
     invariant(
@@ -1446,23 +1535,7 @@ export function validateEvidenceEnvelope(evidence, options = {}) {
     invariant(["http:", "https:"].includes(endpoint.protocol), "evidence source.endpoint must use HTTP(S)");
     invariant(!endpoint.username && !endpoint.password, "evidence source.endpoint must not contain credentials");
     invariant(!endpoint.hash, "evidence source.endpoint must not contain a fragment");
-    const sensitiveParameters = new Set([
-      "access_token",
-      "api-key",
-      "api_key",
-      "apikey",
-      "authorization",
-      "awsaccesskeyid",
-      "credential",
-      "key",
-      "password",
-      "secret",
-      "sig",
-      "signature",
-      "token",
-      "x-amz-credential",
-      "x-amz-signature",
-    ]);
+    const sensitiveParameters = new Set(CREDENTIAL_QUERY_PARAMETERS);
     for (const parameter of endpoint.searchParams.keys()) {
       invariant(
         !sensitiveParameters.has(parameter.toLowerCase()),

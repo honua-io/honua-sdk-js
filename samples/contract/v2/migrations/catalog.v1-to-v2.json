@@ -6,6 +6,24 @@
   "target": "samples/catalog.v2.json",
   "targetRelease": "0.2.0-beta.0",
   "configuration": {
+    "browserSecretPolicy": "Approved browser configuration may name public endpoints and asset identifiers but never credential values or signed URLs; observed legacy-unsafe names remain inventoried.",
+    "credentialQueryParameters": [
+      "access_token",
+      "api-key",
+      "api_key",
+      "apikey",
+      "authorization",
+      "awsaccesskeyid",
+      "credential",
+      "key",
+      "password",
+      "secret",
+      "sig",
+      "signature",
+      "token",
+      "x-amz-credential",
+      "x-amz-signature"
+    ],
     "evidenceExpiry": {
       "executedMaxDays": 31,
       "nonExecutedMaxDays": 90,
