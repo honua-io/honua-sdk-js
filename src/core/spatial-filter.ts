@@ -1,3 +1,4 @@
+import { HonuaGeometryError } from "./errors.js";
 import type { EsriGeometryType, EsriSpatialRel, HonuaSpatialReference } from "./types.js";
 
 /**
@@ -80,8 +81,12 @@ export function polygon(rings: number[][][], spatialReference?: HonuaSpatialRefe
 }
 
 /**
- * Create an envelope spatial filter centered on a point, approximating a
- * circular buffer as a bounding box.
+ * Create an axis-aligned envelope spatial filter centered on a point.
+ *
+ * This is a planar expansion in the input coordinate system's units. It is an
+ * envelope approximation, not a circular, geodesic, or topological geometry
+ * buffer. Use `buffer` from `@honua/sdk-js/geometry` when a true geometry
+ * buffer is required.
  *
  * @param x - Center x coordinate
  * @param y - Center y coordinate
@@ -93,16 +98,26 @@ export function polygon(rings: number[][][], spatialReference?: HonuaSpatialRefe
  * // 0.5-degree bounding box around a point
  * const req: QueryFeaturesRequest = {
  *   serviceId: "svc", layerId: 0,
- *   ...buffer(-118.24, 34.05, 0.5),
+ *   ...bufferEnvelope(-118.24, 34.05, 0.5),
  * };
  * ```
  */
-export function buffer(
+export function bufferEnvelope(
   x: number,
   y: number,
   distance: number,
   spatialReference?: HonuaSpatialReference,
 ): SpatialFilter {
+  if (![x, y, distance].every(isFiniteNumber) || distance < 0) {
+    throw new HonuaGeometryError(
+      "malformed-geometry",
+      "Cannot create a buffer envelope: x, y, and distance must be finite numbers and distance must be non-negative",
+      {
+        operation: "buffer-envelope",
+        reason: "invalid-coordinate-or-distance",
+      },
+    );
+  }
   return envelope(x - distance, y - distance, x + distance, y + distance, spatialReference);
 }
 
@@ -160,21 +175,187 @@ export function spatialWithin(geometry: Record<string, unknown>): SpatialFilter 
  *
  * @internal
  */
-function detectGeometryType(geometry: Record<string, unknown>): EsriGeometryType {
-  if ("xmin" in geometry && "ymin" in geometry && "xmax" in geometry && "ymax" in geometry) {
-    return "esriGeometryEnvelope";
+function detectGeometryType(geometry: unknown): EsriGeometryType {
+  if (!isGeometryRecord(geometry)) {
+    throw new HonuaGeometryError(
+      "malformed-geometry",
+      "Unable to classify geometry: geometry must be a non-null object",
+      {
+        operation: "classify",
+        reason: "geometry-must-be-object",
+        keys: [],
+      },
+    );
   }
-  if ("rings" in geometry) {
-    return "esriGeometryPolygon";
+  const keys = Object.keys(geometry).sort();
+  const candidates = [
+    hasAnyOwn(geometry, ["xmin", "ymin", "xmax", "ymax"]) ? "envelope" : undefined,
+    hasOwn(geometry, "rings") ? "polygon" : undefined,
+    hasOwn(geometry, "paths") ? "polyline" : undefined,
+    hasOwn(geometry, "points") ? "multipoint" : undefined,
+    hasAnyOwn(geometry, ["x", "y"]) ? "point" : undefined,
+  ].filter((candidate): candidate is GeometryShape => candidate !== undefined);
+
+  if (candidates.length === 0) {
+    throw geometryClassificationError("unknown-geometry", "no supported Esri geometry shape was found", keys);
   }
-  if ("paths" in geometry) {
-    return "esriGeometryPolyline";
+  if (candidates.length > 1) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      `geometry contains conflicting shape discriminators: ${candidates.join(", ")}`,
+      keys,
+    );
   }
-  if ("points" in geometry) {
-    return "esriGeometryMultipoint";
+
+  const candidate = candidates[0];
+  switch (candidate) {
+    case "envelope":
+      assertEnvelope(geometry, keys);
+      return "esriGeometryEnvelope";
+    case "polygon":
+      assertParts(geometry.rings, "rings", "polygon", 4, true, keys);
+      return "esriGeometryPolygon";
+    case "polyline":
+      assertParts(geometry.paths, "paths", "polyline", 2, false, keys);
+      return "esriGeometryPolyline";
+    case "multipoint":
+      assertPositions(geometry.points, "points", "multipoint", keys);
+      return "esriGeometryMultipoint";
+    case "point":
+      assertPoint(geometry, keys);
+      return "esriGeometryPoint";
   }
-  if ("x" in geometry && "y" in geometry) {
-    return "esriGeometryPoint";
+}
+
+type GeometryShape = "envelope" | "polygon" | "polyline" | "multipoint" | "point";
+
+function isGeometryRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(value: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function hasAnyOwn(value: object, keys: readonly string[]): boolean {
+  return keys.some((key) => hasOwn(value, key));
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isPosition(value: unknown): value is readonly number[] {
+  return Array.isArray(value) && value.length >= 2 && value.every(isFiniteNumber);
+}
+
+function assertPoint(geometry: Record<string, unknown>, keys: readonly string[]): void {
+  if (!isFiniteNumber(geometry.x) || !isFiniteNumber(geometry.y)) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      "point requires finite numeric x and y coordinates",
+      keys,
+      "point",
+    );
   }
-  return "esriGeometryPoint";
+}
+
+function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string[]): void {
+  const { xmin, ymin, xmax, ymax } = geometry;
+  if (![xmin, ymin, xmax, ymax].every(isFiniteNumber)) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      "envelope requires finite numeric xmin, ymin, xmax, and ymax coordinates",
+      keys,
+      "envelope",
+    );
+  }
+  if ((xmin as number) > (xmax as number) || (ymin as number) > (ymax as number)) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      "envelope minimum coordinates must not exceed maximum coordinates",
+      keys,
+      "envelope",
+    );
+  }
+}
+
+function assertPositions(
+  value: unknown,
+  property: string,
+  shape: GeometryShape,
+  keys: readonly string[],
+): asserts value is readonly (readonly number[])[] {
+  if (!Array.isArray(value) || !value.every(isPosition)) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      `${shape} ${property} must be an array of finite coordinate positions`,
+      keys,
+      shape,
+    );
+  }
+}
+
+function assertParts(
+  value: unknown,
+  property: string,
+  shape: GeometryShape,
+  minimumPositions: number,
+  requireClosure: boolean,
+  keys: readonly string[],
+): void {
+  if (!Array.isArray(value)) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      `${shape} ${property} must be an array of coordinate arrays`,
+      keys,
+      shape,
+    );
+  }
+  for (const part of value) {
+    if (!Array.isArray(part) || !part.every(isPosition)) {
+      throw geometryClassificationError(
+        "malformed-geometry",
+        `${shape} ${property} must contain only finite coordinate positions`,
+        keys,
+        shape,
+      );
+    }
+    // Empty parts preserve an explicitly empty geometry. Non-empty parts must
+    // be structurally usable rather than merely carrying a recognized key.
+    if (part.length > 0 && part.length < minimumPositions) {
+      throw geometryClassificationError(
+        "malformed-geometry",
+        `${shape} ${property} parts require at least ${minimumPositions} positions when non-empty`,
+        keys,
+        shape,
+      );
+    }
+    if (requireClosure && part.length > 0) {
+      const first = part[0];
+      const last = part[part.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) {
+        throw geometryClassificationError(
+          "malformed-geometry",
+          `${shape} ${property} parts must be closed`,
+          keys,
+          shape,
+        );
+      }
+    }
+  }
+}
+
+function geometryClassificationError(
+  code: "unknown-geometry" | "malformed-geometry",
+  reason: string,
+  keys: readonly string[],
+  shape?: GeometryShape,
+): HonuaGeometryError {
+  return new HonuaGeometryError(code, `Unable to classify geometry: ${reason}`, {
+    operation: "classify",
+    reason,
+    keys,
+    ...(shape === undefined ? {} : { shape }),
+  });
 }

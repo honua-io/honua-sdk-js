@@ -506,7 +506,7 @@ export interface AggregationMetric {
  * or the corresponding WFS / OData request.
  *
  * `spatialFilter` is a `SpatialFilter` produced by the spatial-filter builders
- * (`envelope`, `point`, `polygon`, `buffer`, …), not an inline literal.
+ * (`envelope`, `point`, `polygon`, `bufferEnvelope`, …), not an inline literal.
  *
  * @example
  * ```ts
