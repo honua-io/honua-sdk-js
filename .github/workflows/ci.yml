@@ -217,6 +217,9 @@ jobs:
       - name: Verify public-surface inventory and imports
         run: npm run verify:public-surface
 
+      - name: Verify generated support truth
+        run: npm run support:check
+
       - name: Verify browser artifact publication manifest
         run: node scripts/sample-contract.mjs artifacts
 

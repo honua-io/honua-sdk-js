@@ -49,6 +49,13 @@ test("parseMatrixProtocolColumns returns the protocol column headers", () => {
   assert.deepEqual(parseMatrixProtocolColumns(markdown), ["gRPC", "GS Feature", "WFS", "OData"]);
 });
 
+test("the generated protocol matrix exposes the canonical GeoParquet header", () => {
+  const matrix = fs.readFileSync(path.join(ROOT, "docs", "protocol-capability-matrix.md"), "utf8");
+  const columns = parseMatrixProtocolColumns(matrix);
+  assert.ok(columns.includes("GeoParquet"));
+  assert.equal(columns.includes("GeoParq"), false);
+});
+
 test("measureMapLibre reports the pinned version with KiB measurements", () => {
   const measured = measureMapLibre(ROOT);
   assert.match(measured.version, /^\d+\.\d+\.\d+/);

@@ -1,0 +1,1580 @@
+{
+  "format": "honua.sdk.sample-ci-selection.v2",
+  "schemaVersion": 2,
+  "catalog": {
+    "format": "honua.sdk.sample-catalog.v2",
+    "schemaVersion": 2
+  },
+  "goldenJourneys": [
+    {
+      "id": "first-map",
+      "title": "First Map",
+      "status": "planned",
+      "candidateSampleId": "maplibre-quickstart"
+    },
+    {
+      "id": "service-explorer",
+      "title": "Universal Service Explorer",
+      "status": "planned",
+      "candidateSampleId": "service-explorer"
+    },
+    {
+      "id": "planning-permitting",
+      "title": "Planning and Permitting",
+      "status": "planned",
+      "candidateSampleId": "planning-permitting-workbench"
+    },
+    {
+      "id": "incident-operations",
+      "title": "Realtime Incident Operations",
+      "status": "planned",
+      "candidateSampleId": "realtime-incident-dashboard"
+    },
+    {
+      "id": "imagery-terrain",
+      "title": "Imagery and Terrain",
+      "status": "planned",
+      "candidateSampleId": "imagery-cog-quickstart"
+    },
+    {
+      "id": "cloud-native-analysis",
+      "title": "Cloud-Native Spatial Analysis",
+      "status": "planned",
+      "candidateSampleId": "spatial-analytics-workbench"
+    },
+    {
+      "id": "arcgis-migration",
+      "title": "ArcGIS Migration Workbench",
+      "status": "planned",
+      "candidateSampleId": "migration-workbench"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "browser-fixture",
+      "gates": {
+        "packedBuild": false,
+        "browser": true,
+        "accessibility": false,
+        "console": true,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "sampleIds": [
+        "automatic-source-workflow"
+      ]
+    },
+    {
+      "id": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "sampleIds": [
+        "ai-spatial-app-builder",
+        "app-bootstrap-basic",
+        "cesium-route-playback",
+        "kepler-analytics",
+        "mcp-gis-assistant",
+        "migration-workbench",
+        "nl-map-control",
+        "overture-geoparquet",
+        "planning-permitting-workbench",
+        "realtime-incident-dashboard",
+        "runtime-parity-showcase",
+        "service-explorer",
+        "shared-renderer-state",
+        "spatial-analytics-workbench",
+        "storytelling-25d-map",
+        "unified-ops-workspace",
+        "web-components-basic"
+      ]
+    },
+    {
+      "id": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "sampleIds": [
+        "edit-workflow-demo",
+        "endpoint-to-map",
+        "geocoding-quickstart",
+        "geoprocessing-job-runner",
+        "imagery-cog-quickstart",
+        "maplibre-quickstart",
+        "oauth-signin",
+        "pmtiles-static",
+        "react-quickstart",
+        "sketch-editing",
+        "stac-imagery-browser",
+        "standalone-quickstart",
+        "temporal-playback",
+        "terrain-rgb-elevation"
+      ]
+    },
+    {
+      "id": "golden-browser",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": true,
+        "performance": true,
+        "liveEvidence": true
+      },
+      "sampleIds": []
+    },
+    {
+      "id": "headless-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": false,
+        "accessibility": false,
+        "console": false,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "sampleIds": [
+        "node-backend-quickstart"
+      ]
+    },
+    {
+      "id": "internal-fixture",
+      "gates": {
+        "packedBuild": false,
+        "browser": false,
+        "accessibility": false,
+        "console": false,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "sampleIds": [
+        "arcgis-source-app"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "id": "ai-spatial-app-builder",
+      "sourcePath": "examples/ai-spatial-app-builder",
+      "track": "lab",
+      "supportTier": "experimental",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:ai-spatial-builder:typecheck",
+            "npm run demo:ai-spatial-builder:build",
+            "npm run demo:ai-spatial-builder:evidence",
+            "npm run test:playwright:ai-spatial-builder"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:ai-spatial-builder:build",
+            "npm run demo:ai-spatial-builder:evidence"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": [
+            "npm run demo:ai-spatial-builder:live-evidence"
+          ]
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "targetMode": "authenticated",
+        "status": "skipped",
+        "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
+        "expiresAt": "2026-07-24T18:00:00.000Z"
+      }
+    },
+    {
+      "id": "app-bootstrap-basic",
+      "sourcePath": "examples/app-bootstrap-basic",
+      "track": "lab",
+      "supportTier": "deprecated",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:app-bootstrap:typecheck",
+            "npm run demo:app-bootstrap:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:app-bootstrap:build"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
+      }
+    },
+    {
+      "id": "arcgis-source-app",
+      "sourcePath": "examples/arcgis-source-app",
+      "track": "fixture",
+      "supportTier": "internal",
+      "validationProfile": "internal-fixture",
+      "gates": {
+        "packedBuild": false,
+        "browser": false,
+        "accessibility": false,
+        "console": false,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run test:migration:real-samples"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run test:migration:real-samples"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
+      }
+    },
+    {
+      "id": "automatic-source-workflow",
+      "sourcePath": "docs/examples/automatic-source-workflow",
+      "track": "fixture",
+      "supportTier": "internal",
+      "validationProfile": "browser-fixture",
+      "gates": {
+        "packedBuild": false,
+        "browser": true,
+        "accessibility": false,
+        "console": true,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npx playwright test test/playwright/automatic-source-workflow.spec.mjs"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npx playwright test test/playwright/automatic-source-workflow.spec.mjs"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
+      }
+    },
+    {
+      "id": "cesium-route-playback",
+      "sourcePath": "docs/examples/cesium-route-playback",
+      "track": "lab",
+      "supportTier": "experimental",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
+            "npx vitest run test/cesium-route-playback.test.ts"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
+            "npx vitest run test/cesium-route-playback.test.ts"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "edit-workflow-demo",
+      "sourcePath": "examples/edit-workflow-demo",
+      "track": "recipe",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:edit-workflow:typecheck",
+            "npm run demo:edit-workflow:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:edit-workflow:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "demo-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "endpoint-to-map",
+      "sourcePath": "examples/endpoint-to-map",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:endpoint-to-map:typecheck",
+            "npm run demo:endpoint-to-map:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:endpoint-to-map:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "public-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "geocoding-quickstart",
+      "sourcePath": "examples/geocoding-quickstart",
+      "track": "recipe",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:geocoding:typecheck",
+            "npm run demo:geocoding:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:geocoding:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "geoprocessing-job-runner",
+      "sourcePath": "examples/geoprocessing-job-runner",
+      "track": "recipe",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:gp-runner:typecheck",
+            "npm run demo:gp-runner:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:gp-runner:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "imagery-cog-quickstart",
+      "sourcePath": "examples/imagery-cog-quickstart",
+      "track": "recipe",
+      "journeyId": "imagery-terrain",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:imagery-cog:typecheck",
+            "npm run demo:imagery-cog:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:imagery-cog:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "kepler-analytics",
+      "sourcePath": "examples/kepler-analytics",
+      "track": "lab",
+      "supportTier": "experimental",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:kepler:build",
+            "npm run demo:kepler:smoke"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:kepler:smoke"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "public-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "maplibre-quickstart",
+      "sourcePath": "examples/maplibre-quickstart",
+      "track": "recipe",
+      "journeyId": "first-map",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:quickstart:typecheck",
+            "npm run demo:quickstart:build",
+            "npm run test:playwright:quickstart"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:quickstart:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": [
+            "npm run bench:live"
+          ]
+        }
+      },
+      "liveEvidence": {
+        "mode": "demo-live",
+        "status": "executed",
+        "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json",
+        "expiresAt": "2026-08-12T02:18:02.654Z"
+      }
+    },
+    {
+      "id": "mcp-gis-assistant",
+      "sourcePath": "examples/mcp-gis-assistant",
+      "track": "lab",
+      "supportTier": "experimental",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:mcp-gis-assistant:typecheck",
+            "npm run demo:mcp-gis-assistant:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:mcp-gis-assistant:build"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "demo-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "migration-workbench",
+      "sourcePath": "examples/migration-workbench",
+      "track": "lab",
+      "journeyId": "arcgis-migration",
+      "supportTier": "supported",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:migration-workbench:typecheck",
+            "npm run demo:migration-workbench:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:migration:featuretable"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "public-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "nl-map-control",
+      "sourcePath": "examples/nl-map-control",
+      "track": "lab",
+      "supportTier": "experimental",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:nl-map-control:typecheck",
+            "npm run demo:nl-map-control:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:nl-map-control:build"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "demo-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "node-backend-quickstart",
+      "sourcePath": "examples/node-backend-quickstart",
+      "track": "recipe",
+      "supportTier": "supported",
+      "validationProfile": "headless-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": false,
+        "accessibility": false,
+        "console": false,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:node-backend:typecheck",
+            "npm run demo:node-backend:smoke"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:node-backend:smoke"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "oauth-signin",
+      "sourcePath": "examples/oauth-signin",
+      "track": "recipe",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:oauth-signin:typecheck",
+            "npm run demo:oauth-signin:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:oauth-signin:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "overture-geoparquet",
+      "sourcePath": "examples/overture-geoparquet",
+      "track": "lab",
+      "supportTier": "experimental",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:overture:typecheck",
+            "npm run demo:overture:build",
+            "npx vitest run test/overture-large-data.test.ts",
+            "npm run test:playwright:overture"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run test:playwright:overture"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": [
+            "npm run evidence:overture:live"
+          ]
+        }
+      },
+      "liveEvidence": {
+        "mode": "public-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "planning-permitting-workbench",
+      "sourcePath": "examples/planning-permitting-workbench",
+      "track": "lab",
+      "journeyId": "planning-permitting",
+      "supportTier": "supported",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:planning-workbench:typecheck",
+            "npm run demo:planning-workbench:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:planning-workbench:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "demo-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "pmtiles-static",
+      "sourcePath": "examples/pmtiles-static",
+      "track": "recipe",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:pmtiles-static:typecheck",
+            "npm run demo:pmtiles-static:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:pmtiles-static:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "public-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "react-quickstart",
+      "sourcePath": "examples/react-quickstart",
+      "track": "recipe",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:react-quickstart:typecheck",
+            "npm run demo:react-quickstart:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:react-quickstart:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "realtime-incident-dashboard",
+      "sourcePath": "examples/realtime-incident-dashboard",
+      "track": "lab",
+      "journeyId": "incident-operations",
+      "supportTier": "supported",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:incident:typecheck",
+            "npm run demo:incident:build",
+            "npx vitest run test/realtime-incident-dashboard.test.ts",
+            "npm run test:playwright:incident"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:incident:mock",
+            "npm run test:playwright:incident"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": [
+            "npm run bench:live"
+          ]
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "targetMode": "demo-live",
+        "status": "skipped",
+        "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
+        "expiresAt": "2026-07-26T02:18:02.730Z"
+      }
+    },
+    {
+      "id": "runtime-parity-showcase",
+      "sourcePath": "examples/runtime-parity-showcase",
+      "track": "lab",
+      "supportTier": "experimental",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:runtime-parity:typecheck",
+            "npm run demo:runtime-parity:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:runtime-parity:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
+      }
+    },
+    {
+      "id": "service-explorer",
+      "sourcePath": "examples/service-explorer",
+      "track": "lab",
+      "journeyId": "service-explorer",
+      "supportTier": "supported",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:service-explorer:typecheck",
+            "npm run demo:service-explorer:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:service-explorer:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "shared-renderer-state",
+      "sourcePath": "docs/examples/shared-renderer-state",
+      "track": "lab",
+      "supportTier": "experimental",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npx playwright test test/playwright/shared-renderer-state.spec.mjs"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npx playwright test test/playwright/shared-renderer-state.spec.mjs"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
+      }
+    },
+    {
+      "id": "sketch-editing",
+      "sourcePath": "examples/sketch-editing",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:sketch-editing:typecheck",
+            "npm run demo:sketch-editing:build",
+            "npm run test:playwright:sketch-editing"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:sketch-editing:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "public-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "spatial-analytics-workbench",
+      "sourcePath": "examples/spatial-analytics-workbench",
+      "track": "lab",
+      "journeyId": "cloud-native-analysis",
+      "supportTier": "experimental",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:spatial-analytics:typecheck",
+            "npm run demo:spatial-analytics:build",
+            "npm run demo:spatial-analytics:evidence",
+            "npm run test:playwright:spatial-analytics"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:spatial-analytics:build",
+            "npm run demo:spatial-analytics:evidence"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": [
+            "npm run demo:spatial-analytics:live-evidence"
+          ]
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "targetMode": "public-live",
+        "status": "skipped",
+        "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
+        "expiresAt": "2026-07-24T08:00:00.000Z"
+      }
+    },
+    {
+      "id": "stac-imagery-browser",
+      "sourcePath": "examples/stac-imagery-browser",
+      "track": "recipe",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:stac-browser:typecheck",
+            "npm run demo:stac-browser:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:stac-browser:build"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "public-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "standalone-quickstart",
+      "sourcePath": "examples/standalone-quickstart",
+      "track": "recipe",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:standalone:typecheck",
+            "npm run demo:standalone:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:standalone:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": [
+            "npm run demo:standalone:live-smoke"
+          ]
+        }
+      },
+      "liveEvidence": {
+        "mode": "public-live",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "storytelling-25d-map",
+      "sourcePath": "examples/storytelling-25d-map",
+      "track": "lab",
+      "supportTier": "supported",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:25d:typecheck",
+            "npm run demo:25d:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:25d:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "temporal-playback",
+      "sourcePath": "examples/temporal-playback",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:temporal-playback:typecheck",
+            "npm run demo:temporal-playback:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:temporal-playback:build"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
+      }
+    },
+    {
+      "id": "terrain-rgb-elevation",
+      "sourcePath": "examples/terrain-rgb-elevation",
+      "track": "recipe",
+      "supportTier": "supported",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:terrain-elevation:typecheck",
+            "npm run demo:terrain-elevation:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:terrain-elevation:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "authenticated",
+        "status": "planned"
+      }
+    },
+    {
+      "id": "unified-ops-workspace",
+      "sourcePath": "examples/unified-ops-workspace",
+      "track": "lab",
+      "supportTier": "deprecated",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:unified-ops:typecheck",
+            "npm run demo:unified-ops:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:unified-ops:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
+      }
+    },
+    {
+      "id": "web-components-basic",
+      "sourcePath": "examples/web-components-basic",
+      "track": "lab",
+      "supportTier": "deprecated",
+      "validationProfile": "browser-lab",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:web-components:typecheck",
+            "npm run demo:web-components:build"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:web-components:mock"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
+      }
+    }
+  ]
+}

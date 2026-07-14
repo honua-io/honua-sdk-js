@@ -128,6 +128,13 @@ requests run. Passing a protocol without a reviewed connect adapter throws
 `unsupported-protocol`. Discovery never probes a Honua facade or a second
 authenticated protocol endpoint as fallback.
 
+`connect()` is product-level discovery, not an operation on an individual
+`Source`, so it is intentionally absent from `Capability`, `CAPABILITIES`, and
+`PROTOCOL_DEFAULT_CAPABILITIES`. The reviewed connector inventory is exported
+internally as `CONNECT_SOURCE_PROTOCOLS` and projected as `connectProtocols` in
+the support manifest. CI requires every entry to have exactly one positive
+`discovery` support claim and rejects connector claims outside that inventory.
+
 ```ts doc-test=compile
 import { connect } from "@honua/sdk-js/honua";
 
