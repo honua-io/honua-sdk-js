@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./test/playwright",
+  outputDir: process.env.HONUA_SAMPLE_PLAYWRIGHT_OUTPUT_DIR ?? "test-results",
   timeout: 30_000,
   expect: {
     timeout: 10_000,

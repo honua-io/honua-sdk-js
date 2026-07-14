@@ -8,6 +8,9 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { expectedGateCommand } from "./lib/sample-gates.mjs";
+import { validateQualificationReceiptSet } from "./sample-gate-receipt.mjs";
+
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
 const Ajv2020 = require("ajv/dist/2020").default;
@@ -194,8 +197,10 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:incident",
   "test:playwright:overture",
   "test:playwright:quickstart",
+  "test:playwright:service-explorer",
   "test:playwright:sketch-editing",
   "test:playwright:spatial-analytics",
+  "test:playwright:standalone",
 ]);
 const BOUNDED_VALIDATION_SEGMENTS = [
   /^npm --prefix examples\/kepler-analytics run build$/,
@@ -2676,11 +2681,27 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     const journey = catalog.goldenJourneys.find((candidate) => candidate.id === sample.journeyId);
     invariant(journey?.status === "qualified", `${sample.id}: golden sample journey must be qualified`);
     invariant(journey.candidateSampleId === sample.id, `${sample.id}: golden sample must be its journey candidate`);
+    const selectedSample = {
+      id: sample.id,
+      commandPlan: {
+        validation: { execution: "automatic", commands: [...sample.validation] },
+        fixtureEvidence: { execution: "orchestrated", commands: [...sample.evidence.fixture.commands] },
+        liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
+      },
+    };
+    const sourceRevision =
+      options.sourceRevision ?? execFileSync("git", ["rev-parse", "HEAD"], { cwd: PROJECT_ROOT, encoding: "utf8" }).trim();
+    await validateQualificationReceiptSet({
+      sample: selectedSample,
+      profile,
+      sourceRevision,
+      expectedCommand: expectedGateCommand,
+      receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, "samples/evidence")),
+      now: new Date(currentTime).toISOString(),
+      projectRoot: PROJECT_ROOT,
+      verifyCheckout: options.verifyCheckout,
+    });
   }
-  invariant(
-    goldenSamples.length === 0 && qualifiedJourneys.length === 0,
-    "golden promotion requires verifiable per-gate evidence receipts from #541",
-  );
 
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples

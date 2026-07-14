@@ -283,6 +283,9 @@
     "samples:migrate:v1": "node scripts/sample-contract.mjs migrate-v1",
     "samples:verify": "node scripts/sample-contract.mjs check",
     "samples:verify:flagships": "node scripts/verify-flagship-evidence.mjs",
+    "samples:run": "node scripts/sample-runner.mjs",
+    "samples:list": "node scripts/sample-runner.mjs list",
+    "samples:runner:test": "node --test test/scripts/sample-runner.test.mjs test/scripts/sample-gate-receipt.test.mjs",
     "samples:artifacts": "npm run build:browser --silent && node scripts/sample-contract.mjs artifacts",
     "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",
     "verify:api-report": "npm run build --silent && node scripts/report-api-surface.mjs --check",
@@ -511,6 +514,7 @@
     "@maplibre/maplibre-gl-style-spec": "^24.7.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@biomejs/biome": "1.9.4",
     "@bufbuild/buf": "^1.47.0",
     "@bufbuild/protobuf": "^2.0.0",

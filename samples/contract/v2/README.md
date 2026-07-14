@@ -13,8 +13,9 @@ execution evidence so none of those meanings has to be inferred from another.
   `lab`, and `fixture`), the seven reserved golden journey IDs, lifecycle
   targets, evidence declarations, and named validation profiles.
 - `sample-ci-selection.schema.json` describes the generated, command-safe CI
-  projection. It is the handoff to the shared runner tracked by #541; it does
-  not implement that runner.
+  projection consumed by `scripts/sample-runner.mjs`. The runner checks that
+  the projection is an exact, current derivation of the catalog before it
+  executes any command.
 - `site-projection.schema.json` contains presentation-safe metadata for every
   catalog entry and the existing route migration map. Commands, configuration
   names, credential material, and executable source are not copied to the site.
@@ -44,7 +45,7 @@ CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence
 producers are `scheduled-only`. Consumers must never flatten those groups or
 run `*:mock`/live producers as unconditional pull-request steps. Profile gates
-remain the selection contract for the shared runner in #541. Every command is
+remain the selection contract for the shared runner. Every command is
 validated as a whole: either an exact `npm run <repository-script>` invocation
 or a one-file Playwright/Vitest invocation through the repository-installed
 tool. Shell metacharacters, arguments, arbitrary `npx` packages, path traversal,
@@ -118,4 +119,18 @@ Run:
 npm run samples:migrate:v1 # reproduce catalog.v2.json
 npm run samples:generate   # write generated docs and projections
 npm run samples:verify     # validate inventory, evidence, and output drift
+npm run samples:list -- --kit # inspect kit-managed samples
+npm run samples:run -- verify --kit --sdk-mode source
+npm run samples:run -- verify --kit --sdk-mode packed
 ```
+
+Gate qualification is receipt-based. `samples:run evidence` captures a clean
+source snapshot before launching a producer, preserves and content-binds the
+tracked `test-results` baselines, writes one versioned receipt for each required
+profile gate, and rejects stale, missing, extra, metadata-only, or
+source-unbound evidence. Browser receipts are bound to the exact pilot test,
+project, first-attempt result, and assertion attachment set. Fixture receipts
+prove loopback readiness, a real probe, and zero listeners or connections after
+shutdown. Packed receipts bind the package tarball and re-read the final bounded
+dist tree and resolution evidence. See
+[`examples/_kit/README.md`](../../../examples/_kit/README.md) for runner usage.

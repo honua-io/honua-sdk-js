@@ -2288,7 +2288,8 @@
       "validationProfile": "browser-lab",
       "validation": [
         "npm run demo:service-explorer:typecheck",
-        "npm run demo:service-explorer:build"
+        "npm run demo:service-explorer:build",
+        "npm run test:playwright:service-explorer"
       ]
     },
     {
@@ -2733,7 +2734,8 @@
       "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:standalone:typecheck",
-        "npm run demo:standalone:build"
+        "npm run demo:standalone:build",
+        "npm run test:playwright:standalone"
       ]
     },
     {

@@ -50,6 +50,19 @@ When `/api/v1/admin` is not exposed, control-plane calls return `{ supported: fa
 npm run demo:service-explorer
 ```
 
+Use the shared runner for the maintained source and packed-package workflows:
+
+```sh
+npm run samples:run -- verify --sample service-explorer --sdk-mode source
+npm run samples:run -- verify --sample service-explorer --sdk-mode packed
+```
+
+The presentation shell identifies the SDK mode and keeps cloud-to-fixture
+degradation explicit. Each build separately records bounded entrypoint and
+bundle resolution evidence in `dist/honua-sample-sdk-resolution.json`. Explicit
+disposal aborts in-flight discovery, removes map and delegated DOM listeners,
+and rejects work registered after teardown.
+
 To open a specific fixture source, pass `?source=<id>` in the URL. Useful source ids include `honolulu-civic-services:0`, `grpc-service-requests`, `ogc-features-parcels`, `ogc-records-catalog`, `stac-imagery`, `imageserver-elevation`, `geometry-utility`, `gp-routing`, `wms-hazard`, `ogc-tiles-basemap`, `wfs-service-requests`, `wmts-basemap`, `ogc-maps-zoning`, `odata-assets`, and `maplibre-vector-basemap`.
 
 ## Validate
@@ -60,6 +73,12 @@ npm run demo:service-explorer:build
 npm test -- test/service-explorer-workspace.test.ts
 npm run test:playwright:service-explorer
 ```
+
+The Playwright workflow exercises the source picker, map, result table, and
+chart at desktop and mobile viewports, performs a real keyboard activation,
+runs axe-core, and fails on page or console errors. It also proves table and
+chart handlers are inert after disposal. The runner's one-shot fixture gate
+additionally proves loopback readiness and complete server shutdown.
 
 ## Slice Coverage
 

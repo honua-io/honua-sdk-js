@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -76,25 +77,79 @@ export async function startServiceExplorerFixtureServer({ build = true } = {}) {
     res.end("Not found");
   });
 
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
 
   const address = server.address();
   if (!address || typeof address === "string") {
     throw new Error("Failed to bind the service explorer fixture server.");
   }
 
+  let closePromise;
   return {
     server,
     url: `http://127.0.0.1:${address.port}`,
     async close() {
-      await new Promise((resolve) => server.close(resolve));
+      closePromise ??= new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+      await closePromise;
     },
   };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { url, close } = await startServiceExplorerFixtureServer();
+  const arguments_ = process.argv.slice(2);
+  const evidenceOnce = arguments_.length === 1 && arguments_[0] === "--evidence-once";
+  if (arguments_.length > 0 && !evidenceOnce) {
+    throw new Error("Unknown service explorer fixture server argument");
+  }
+
+  const { server, url, close } = await startServiceExplorerFixtureServer();
   process.stdout.write(`serviceExplorerMockUrl=${url}\n`);
+
+  if (evidenceOnce) {
+    let probe;
+    try {
+      const response = await fetch(url);
+      const body = Buffer.from(await response.arrayBuffer());
+      probe = {
+        method: "GET",
+        path: "/",
+        status: response.status,
+        bodyBytes: body.byteLength,
+        bodySha256: createHash("sha256").update(body).digest("hex"),
+        contentType: response.headers.get("content-type"),
+      };
+      if (!response.ok) throw new Error(`Fixture evidence probe failed with HTTP ${response.status}`);
+    } finally {
+      await close();
+    }
+    const activeConnectionsAfterClose = await new Promise((resolve, reject) => {
+      server.getConnections((error, count) => (error ? reject(error) : resolve(count)));
+    });
+    const endpoint = new URL(url);
+    process.stdout.write(
+      `fixtureEvidence=${JSON.stringify({
+        transport: "loopback-http",
+        networkScope: "loopback-only",
+        host: endpoint.hostname,
+        port: Number(endpoint.port),
+        ready: true,
+        started: true,
+        probe,
+        closed: true,
+        listeningAfterClose: server.listening,
+        activeConnectionsAfterClose,
+      })}\n`,
+    );
+    process.exit(0);
+  }
 
   const shutdown = async () => {
     await close();

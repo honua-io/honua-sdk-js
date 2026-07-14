@@ -20,8 +20,9 @@ import { uniqueValueRenderer } from "@honua/sdk-js/style";
 import maplibregl from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 
+import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
+import { mountSamplePresentation } from "../../_kit/presentation.js";
 import { resolveServiceExplorerConfig } from "./config.js";
-import { loadServiceExplorerDataset } from "./data.js";
 import {
   beginServiceExplorerMetadataRevalidation,
   completeServiceExplorerMetadataRevalidation,
@@ -46,7 +47,9 @@ import type {
   ServiceExplorerProjectionResult,
   ServiceExplorerProtocol,
 } from "./types.js";
+import { runServiceExplorerWorkflow } from "./workflow.js";
 
+import "../../_kit/presentation.css";
 import "./styles.css";
 
 declare global {
@@ -59,7 +62,10 @@ declare global {
       readonly queryable: boolean;
       readonly visibleCount: number;
       readonly filterCount: number;
+      readonly interactionCount: number;
+      readonly disposed?: boolean;
     };
+    __HONUA_SERVICE_EXPLORER_DISPOSE__?: () => Promise<void>;
   }
 }
 
@@ -296,7 +302,6 @@ function renderTable(
   dataset: ServiceExplorerDataset,
   result: ServiceExplorerProjectionResult,
   selectedFeatureId: string | undefined,
-  selectRow: (summary: ServiceExplorerFeatureSummary) => void,
 ): void {
   const body = getElement<HTMLElement>("#result-table-body");
   body.innerHTML = "";
@@ -326,7 +331,7 @@ function renderTable(
     button.type = "button";
     button.className = "icon-text-button";
     button.textContent = "Select";
-    button.addEventListener("click", () => selectRow(summary));
+    button.dataset.featureId = summary.id;
     action.append(button);
     row.append(action);
     body.append(row);
@@ -337,7 +342,6 @@ function renderChart(
   dataset: ServiceExplorerDataset,
   result: ServiceExplorerProjectionResult,
   projection: LinkedViewQueryProjection,
-  selectBucket: (field: string, value: string) => void,
 ): void {
   if (!isQueryableSource(dataset)) {
     setText("#chart-field", "render-only");
@@ -362,16 +366,6 @@ function renderChart(
       `,
     )
     .join("");
-
-  getElement<HTMLElement>("#chart-buckets")
-    .querySelectorAll<HTMLButtonElement>(".chart-bucket")
-    .forEach((button) => {
-      button.addEventListener("click", () => {
-        const field = button.dataset.field;
-        const value = button.dataset.value;
-        if (field && value) selectBucket(field, value);
-      });
-    });
 }
 
 function renderDetail(workspace: ReturnType<typeof createServiceExplorerWorkspace>): void {
@@ -459,7 +453,11 @@ function featureBounds(summaries: readonly ServiceExplorerFeatureSummary[]): map
     : bounds;
 }
 
-async function createMap(dataset: ServiceExplorerDataset): Promise<maplibregl.Map> {
+async function createMap(
+  dataset: ServiceExplorerDataset,
+  cleanupRegistry: SampleCleanupRegistry,
+  signal: AbortSignal,
+): Promise<maplibregl.Map> {
   const firstCoordinate = dataset.featureSummaries.find((summary) => summary.coordinate)?.coordinate ?? [
     -157.8583, 21.3069,
   ];
@@ -469,8 +467,27 @@ async function createMap(dataset: ServiceExplorerDataset): Promise<maplibregl.Ma
     center: [...firstCoordinate] as [number, number],
     zoom: 11,
   });
+  try {
+    cleanupRegistry.resource(map);
+  } catch (error) {
+    map.remove();
+    throw error;
+  }
 
   return await new Promise((resolve, reject) => {
+    let settled = false;
+    const succeed = () => {
+      if (settled) return;
+      settled = true;
+      removeInitialListeners();
+      resolve(map);
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      removeInitialListeners();
+      reject(error);
+    };
     const onLoad = () => {
       try {
         map.addSource(dataset.sourceId, {
@@ -512,51 +529,104 @@ async function createMap(dataset: ServiceExplorerDataset): Promise<maplibregl.Ma
           },
         });
         map.fitBounds(featureBounds(dataset.featureSummaries), { padding: 72, duration: 0, maxZoom: 12 });
-        cleanup();
-        resolve(map);
+        succeed();
       } catch (error) {
-        cleanup();
-        reject(error);
+        fail(error);
       }
     };
     const onError = (event: { error?: { message?: string } }) => {
-      cleanup();
-      reject(new Error(event.error?.message ?? "Map failed to load"));
+      fail(new Error(event.error?.message ?? "Map failed to load"));
     };
-    const cleanup = () => {
+    const onAbort = () => fail(signal.reason);
+    const removeInitialListeners = () => {
       map.off("load", onLoad);
       map.off("error", onError);
+      signal.removeEventListener("abort", onAbort);
     };
     map.on("load", onLoad);
     map.on("error", onError);
+    signal.addEventListener("abort", onAbort, { once: true });
+    cleanupRegistry.add(removeInitialListeners);
+    if (signal.aborted) onAbort();
   });
 }
 
 async function bootstrap(): Promise<void> {
-  const resolvedConfig = resolveServiceExplorerConfig(import.meta.env as Record<string, string | undefined>);
-  const config = {
-    ...resolvedConfig,
-    selectedSourceId: selectedSourceIdFromLocation(resolvedConfig.selectedSourceId),
+  const cleanup = new SampleCleanupRegistry();
+  const bootstrapController = new AbortController();
+  cleanup.add(() => bootstrapController.abort());
+  let presentation: ReturnType<typeof mountSamplePresentation>;
+  const teardown = async () => {
+    bootstrapController.abort();
+    await cleanup.dispose();
+    window.__HONUA_SERVICE_EXPLORER_RUNTIME__ = {
+      ...window.__HONUA_SERVICE_EXPLORER_RUNTIME__,
+      ready: false,
+      disposed: true,
+    } as NonNullable<Window["__HONUA_SERVICE_EXPLORER_RUNTIME__"]>;
   };
+  const dispose = async () => {
+    await teardown();
+    presentation.root.remove();
+  };
+  presentation = mountSamplePresentation({
+    sampleId: "service-explorer",
+    evidence: {
+      mode: "resolved at startup",
+      target: "configured service or deterministic fixture",
+      authentication: "catalog policy",
+    },
+    onDispose: dispose,
+  });
+  window.__HONUA_SERVICE_EXPLORER_DISPOSE__ = dispose;
+  cleanup.add(() => {
+    delete window.__HONUA_SERVICE_EXPLORER_DISPOSE__;
+  });
+  cleanup.listen(window, "beforeunload", () => void dispose(), { once: true });
   setOverlay("loading", "Loading service explorer", "Resolving cloud Honua configuration and local fixture fallback.");
 
   try {
-    const dataset = await loadServiceExplorerDataset(config);
+    const resolvedConfig = resolveServiceExplorerConfig(import.meta.env as Record<string, string | undefined>);
+    const config = {
+      ...resolvedConfig,
+      selectedSourceId: selectedSourceIdFromLocation(resolvedConfig.selectedSourceId),
+    };
+    const dataset = await runServiceExplorerWorkflow(config, { signal: bootstrapController.signal });
+    bootstrapController.signal.throwIfAborted();
+    let endpointHost = "relative fixture origin";
+    try {
+      endpointHost = new URL(config.honuaBaseUrl).host;
+    } catch {
+      // Keep the safe relative-origin label; never surface raw configured URLs.
+    }
+    presentation.updateEvidence({
+      mode: dataset.source === "cloud" ? "cloud service" : "fixture fallback",
+      endpoint: endpointHost,
+      attribution: "Source catalog attribution retained",
+      cache: dataset.metadata.cache.state.status,
+    });
+    presentation.showDegradation(dataset.diagnostics.filter((item) => item.level !== "info").map((item) => item.title));
     const workspace = createServiceExplorerWorkspace(dataset);
+    cleanup.resource(workspace);
     renderDiscovery(dataset);
     renderMetadata(dataset);
     renderFilterOptions(dataset);
     renderCacheAndDiagnostics(dataset, workspace);
 
     setOverlay("loading", "Loading map", "Binding map, table, chart, filter, detail, cache, and diagnostics views.");
-    const map = await createMap(dataset);
+    const map = await createMap(dataset, cleanup, bootstrapController.signal);
+    bootstrapController.signal.throwIfAborted();
     const sourcePicker = getElement<HTMLSelectElement>("#source-picker");
     const filterSelect = getElement<HTMLSelectElement>("#attribute-filter");
     const clearFilterButton = getElement<HTMLButtonElement>("#clear-filter-button");
     const revalidateButton = getElement<HTMLButtonElement>("#revalidate-cache-button");
     const markStaleButton = getElement<HTMLButtonElement>("#mark-stale-button");
+    const resultTableBody = getElement<HTMLElement>("#result-table-body");
+    const chartBuckets = getElement<HTMLElement>("#chart-buckets");
     let selectedFeatureId: string | undefined;
     let latestResult: ServiceExplorerProjectionResult | undefined;
+    let interactionCount = 0;
+    const featureSummariesById = new Map(dataset.featureSummaries.map((summary) => [summary.id, summary]));
 
     const removableHandles = [
       syncFeatureStateSelection(map as unknown as FeatureStateMap, workspace.views.map, {
@@ -601,11 +671,7 @@ async function bootstrap(): Promise<void> {
           });
           latestResult = result;
           recordServiceExplorerQueryProjection(workspace.workspace, result);
-          renderTable(dataset, result, selectedFeatureId, (summary) => {
-            workspace.controllers.table.select([sourceFeatureSelectionTarget(dataset.sourceId, summary.id)], {
-              replace: true,
-            });
-          });
+          renderTable(dataset, result, selectedFeatureId);
           renderQuery(result);
           renderCacheAndDiagnostics(dataset, workspace);
         },
@@ -617,13 +683,7 @@ async function bootstrap(): Promise<void> {
             latestResult?.projection === projection
               ? latestResult
               : applyServiceExplorerProjection(dataset.featureSummaries, projection, { sourceId: dataset.sourceId });
-          renderChart(dataset, result, projection, (field, value) => {
-            workspace.controllers.chart.selectBucket({
-              filters: {
-                [`chart-${field}`]: { field, operator: "=", value, appliesTo: [dataset.sourceId] },
-              },
-            });
-          });
+          renderChart(dataset, result, projection);
         },
         { sourceId: dataset.sourceId },
       ),
@@ -633,14 +693,47 @@ async function bootstrap(): Promise<void> {
         () => renderCacheAndDiagnostics(dataset, workspace),
       ),
     ];
+    for (const unsubscribe of unsubscribeHandles) cleanup.add(unsubscribe);
+    for (const handle of removableHandles) cleanup.resource(handle);
 
-    map.on("mouseenter", MAP_LAYER_ID, () => {
+    const onMapMouseEnter = () => {
       map.getCanvas().style.cursor = "pointer";
-    });
-    map.on("mouseleave", MAP_LAYER_ID, () => {
+    };
+    const onMapMouseLeave = () => {
       map.getCanvas().style.cursor = "";
+    };
+    map.on("mouseenter", MAP_LAYER_ID, onMapMouseEnter);
+    map.on("mouseleave", MAP_LAYER_ID, onMapMouseLeave);
+    cleanup.add(() => {
+      map.off("mouseenter", MAP_LAYER_ID, onMapMouseEnter);
+      map.off("mouseleave", MAP_LAYER_ID, onMapMouseLeave);
     });
-    filterSelect.addEventListener("change", () => {
+    cleanup.listen(resultTableBody, "click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const button = event.target.closest<HTMLButtonElement>("button[data-feature-id]");
+      if (!button || !resultTableBody.contains(button)) return;
+      const summary = button.dataset.featureId ? featureSummariesById.get(button.dataset.featureId) : undefined;
+      if (!summary) return;
+      interactionCount += 1;
+      workspace.controllers.table.select([sourceFeatureSelectionTarget(dataset.sourceId, summary.id)], {
+        replace: true,
+      });
+    });
+    cleanup.listen(chartBuckets, "click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const button = event.target.closest<HTMLButtonElement>("button.chart-bucket");
+      if (!button || !chartBuckets.contains(button)) return;
+      const field = button.dataset.field;
+      const value = button.dataset.value;
+      if (!field || !value) return;
+      interactionCount += 1;
+      workspace.controllers.chart.selectBucket({
+        filters: {
+          [`chart-${field}`]: { field, operator: "=", value, appliesTo: [dataset.sourceId] },
+        },
+      });
+    });
+    cleanup.listen(filterSelect, "change", () => {
       const selected = parseFilterValue(filterSelect.value);
       if (!selected) {
         workspace.controllers.filters.clearFilter("attribute");
@@ -653,20 +746,20 @@ async function bootstrap(): Promise<void> {
         appliesTo: [dataset.sourceId],
       });
     });
-    sourcePicker.addEventListener("change", () => {
+    cleanup.listen(sourcePicker, "change", () => {
       updateSourceLocation(sourcePicker.value);
     });
-    clearFilterButton.addEventListener("click", () => {
+    cleanup.listen(clearFilterButton, "click", () => {
       filterSelect.value = "";
       workspace.controllers.filters.clearFilter("attribute");
     });
-    revalidateButton.addEventListener("click", () => {
+    cleanup.listen(revalidateButton, "click", () => {
       beginServiceExplorerMetadataRevalidation(workspace.workspace, dataset);
-      window.setTimeout(() => {
+      cleanup.timeout(() => {
         completeServiceExplorerMetadataRevalidation(workspace.workspace, dataset, { status: "ready" });
       }, 350);
     });
-    markStaleButton.addEventListener("click", () => {
+    cleanup.listen(markStaleButton, "click", () => {
       completeServiceExplorerMetadataRevalidation(workspace.workspace, dataset, { status: "stale" });
     });
 
@@ -693,18 +786,27 @@ async function bootstrap(): Promise<void> {
       get filterCount() {
         return latestResult ? Object.keys(latestResult.projection.filters).length : 0;
       },
+      get interactionCount() {
+        return interactionCount;
+      },
     };
-
-    window.addEventListener("beforeunload", () => {
-      for (const unsubscribe of unsubscribeHandles) unsubscribe();
-      for (const handle of removableHandles) handle.remove();
-      workspace.dispose();
-      map.remove();
+    const onRuntimeError = (event: { error?: { message?: string } }) => {
+      const error = new Error(event.error?.message ?? "Map runtime error");
+      setOverlay("error", "Service explorer map error", error.message);
+      presentation.showError(error);
+      void teardown().catch((cleanupError) => presentation.showError(cleanupError));
+    };
+    map.on("error", onRuntimeError);
+    cleanup.add(() => {
+      map.off("error", onRuntimeError);
     });
   } catch (error) {
+    if (bootstrapController.signal.aborted) return;
     const message = error instanceof Error ? error.message : String(error);
     setOverlay("error", "Unable to start the service explorer", message);
     setText("#diagnostic-list", message);
+    presentation.showError(error);
+    await teardown().catch((cleanupError) => presentation.showError(cleanupError));
   }
 }
 

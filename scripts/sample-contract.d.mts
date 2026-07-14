@@ -61,7 +61,12 @@ export function isRunnableRootExampleDirectory(name: string, markers: string[]):
 export function validateCatalog(
   catalog: SampleCatalog,
   packageJson: Record<string, unknown>,
-  options?: { now?: string },
+  options?: {
+    now?: string;
+    sourceRevision?: string;
+    receiptRoot?: string;
+    verifyCheckout?: boolean;
+  },
 ): Promise<void>;
 export function effectiveCatalog(
   catalog: SampleCatalog,

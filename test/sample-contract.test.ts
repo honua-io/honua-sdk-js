@@ -977,7 +977,7 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
       await mkdir("test-results", { recursive: true });
       await writeFile(evidencePath, `${JSON.stringify(executedEvidence, null, 2)}\n`);
       await expect(validateCatalog(metadataOnly.catalog, packageJson, validationTime)).rejects.toThrow(
-        "golden promotion requires verifiable per-gate evidence receipts from #541",
+        "realtime-incident-dashboard: missing gate receipt directory",
       );
     } finally {
       await rm(evidencePath, { force: true });

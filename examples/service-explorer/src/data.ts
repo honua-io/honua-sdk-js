@@ -1,6 +1,7 @@
-import { HonuaClient, createHonuaCacheState } from "@honua/sdk-js/honua";
+import { createHonuaCacheState } from "@honua/sdk-js/honua";
 import type {
   HonuaCacheState,
+  HonuaClient,
   HonuaFeature,
   HonuaLayerMetadata,
   HonuaServiceMetadata,
@@ -30,7 +31,9 @@ import type {
 
 export interface LoadServiceExplorerDatasetOptions {
   readonly fetchFn?: typeof fetch;
+  readonly signal?: AbortSignal;
   readonly now?: number;
+  readonly client?: HonuaClient;
 }
 
 export async function loadServiceExplorerDataset(
@@ -57,6 +60,7 @@ export async function loadServiceExplorerDataset(
   try {
     return await loadCloudServiceExplorerDataset(config, options);
   } catch (error) {
+    options.signal?.throwIfAborted();
     if (config.mode === "cloud") throw error;
     const message = error instanceof Error ? error.message : String(error);
     return createFixtureServiceExplorerDataset({
@@ -120,16 +124,13 @@ async function loadCloudServiceExplorerDataset(
   options: LoadServiceExplorerDatasetOptions,
 ): Promise<ServiceExplorerDataset> {
   const now = options.now ?? Date.now();
-  const fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
-  const client = new HonuaClient({
-    baseUrl: config.honuaBaseUrl,
-    apiKey: config.apiKey,
-    bearerToken: config.bearerToken,
-    fetchFn,
-  });
+  const client = options.client;
+  if (!client) throw new Error("cloud service explorer workflow requires an SDK client");
   const diagnostics: ServiceExplorerDiagnostic[] = [];
+  options.signal?.throwIfAborted();
 
   const compatibility = await client.checkCompatibility();
+  options.signal?.throwIfAborted();
   if (!compatibility.supported) {
     diagnostics.push({
       level: "warning",
@@ -140,9 +141,9 @@ async function loadCloudServiceExplorerDataset(
   }
 
   const [servicesResponse, serviceMetadata, layerMetadata] = await Promise.all([
-    client.listServices(),
-    client.getFeatureServiceMetadata(config.serviceId),
-    client.getLayerMetadata(config.serviceId, config.layerId),
+    client.listServices({ signal: options.signal }),
+    client.getFeatureServiceMetadata(config.serviceId, { signal: options.signal }),
+    client.getLayerMetadata(config.serviceId, config.layerId, { signal: options.signal }),
   ]);
 
   const queryStartedAt = Date.now();
@@ -154,6 +155,7 @@ async function loadCloudServiceExplorerDataset(
     returnGeometry: true,
     outSr: 4326,
     resultRecordCount: config.resultRecordCount,
+    signal: options.signal,
   });
   const queryDurationMs = Date.now() - queryStartedAt;
   const services = servicesFromResponse(servicesResponse, config.serviceId, serviceMetadata);

@@ -1,0 +1,45 @@
+.honua-sample-kit {
+  align-items: center;
+  background: #071b22;
+  border-bottom: 1px solid #24515b;
+  color: #f0fdfa;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.45rem 0.75rem;
+  position: relative;
+  z-index: 10;
+}
+
+.honua-sample-kit__mode {
+  background: #0f766e;
+  border-radius: 999px;
+  font: 600 0.75rem/1 system-ui, sans-serif;
+  padding: 0.35rem 0.55rem;
+  text-transform: uppercase;
+}
+
+.honua-sample-kit details dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  margin: 0.5rem 0;
+  min-width: 18rem;
+}
+
+.honua-sample-kit details dd {
+  margin-inline-start: 1rem;
+}
+
+.honua-sample-kit [role="alert"] {
+  color: #fecaca;
+}
+
+.honua-sample-kit__sr-only {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}

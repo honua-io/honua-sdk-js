@@ -1,13 +1,18 @@
 import { expect, test } from "@playwright/test";
 
 import { startStandaloneFixtureServer } from "../../examples/standalone-quickstart/mock-server.mjs";
+import { attestBrowserQuality, attestClosedFixture } from "./sample-gate-assertions.mjs";
 
 test.setTimeout(90_000);
 
-test("standalone quickstart renders public-endpoint features with no Honua server", async ({ page }) => {
+test("standalone quickstart renders public-endpoint features with no Honua server", async ({ page }, testInfo) => {
   const pageErrors = [];
+  const consoleErrors = [];
   page.on("pageerror", (error) => {
     pageErrors.push(error.message);
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
   });
 
   const fixtureServer = await startStandaloneFixtureServer();
@@ -31,6 +36,9 @@ test("standalone quickstart renders public-endpoint features with no Honua serve
     await expect(page.locator("#status-feature-count")).not.toHaveText("0");
     await expect(page.locator("#status-error")).toHaveText("None");
     await expect(page.locator("#feature-list")).toContainText("California");
+    await expect(page.getByTestId("honua-sample-mode")).toHaveText(/source|packed/);
+    await expect(page.getByTestId("honua-sample-evidence")).toContainText("Evidence");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
     // MapLibre wired the SDK-produced geojson source into real layers.
     await expect
@@ -39,8 +47,26 @@ test("standalone quickstart renders public-endpoint features with no Honua serve
     const layerIds = await page.evaluate(() => window.__HONUA_STANDALONE_RUNTIME__?.layerIds ?? []);
     expect(layerIds).toContain("standalone-fill");
 
-    expect(pageErrors).toEqual([]);
+    const runtimeReady = await page.evaluate(() => window.__HONUA_STANDALONE_RUNTIME__?.ready === true);
+    await attestBrowserQuality({
+      page,
+      testInfo,
+      sampleId: "standalone-quickstart",
+      runtimeReady,
+      pageErrors,
+      consoleErrors,
+      responsiveViewports: [
+        { width: 1280, height: 720 },
+        { width: 390, height: 844 },
+      ],
+      workflowSelectors: ["#status-feature-count", "#feature-list", "#map"],
+    });
+
+    await page.evaluate(() => window.__HONUA_STANDALONE_DISPOSE__?.());
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_STANDALONE_RUNTIME__?.disposed)).toBe(true);
+    await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
   } finally {
     await fixtureServer.close();
+    await attestClosedFixture(testInfo, "standalone-quickstart", "startStandaloneFixtureServer");
   }
 });

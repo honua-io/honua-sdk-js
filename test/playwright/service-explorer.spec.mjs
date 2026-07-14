@@ -1,13 +1,18 @@
 import { expect, test } from "@playwright/test";
 
 import { startServiceExplorerFixtureServer } from "../../examples/service-explorer/mock-server.mjs";
+import { attestBrowserQuality, attestClosedFixture } from "./sample-gate-assertions.mjs";
 
 test.setTimeout(90_000);
 
-test("service explorer source picker handles queryable and render-only standards sources", async ({ page }) => {
+test("service explorer source picker handles queryable and render-only standards sources", async ({ page }, testInfo) => {
   const pageErrors = [];
+  const consoleErrors = [];
   page.on("pageerror", (error) => {
     pageErrors.push(error.message);
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
   });
 
   const fixtureServer = await startServiceExplorerFixtureServer();
@@ -32,6 +37,9 @@ test("service explorer source picker handles queryable and render-only standards
     expect(familyLabels).toContain("OGC API & catalogs");
     await expect(page.locator("#source-kind")).toHaveText("FeatureServer / queryable");
     await expect(page.locator("#visible-count")).toHaveText("8");
+    await expect(page.getByTestId("honua-sample-mode")).toHaveText(/source|packed/);
+    await expect(page.getByTestId("honua-sample-evidence")).toContainText("Evidence");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
     await page.locator("#attribute-filter").selectOption({ label: "status: open" });
     await expect(page.locator("#visible-count")).toHaveText("3");
@@ -65,8 +73,48 @@ test("service explorer source picker handles queryable and render-only standards
     await expect(page.locator("#attribute-filter")).toBeDisabled();
     await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.queryable)).toBe(false);
 
-    expect(pageErrors).toEqual([]);
+    // Return to a queryable lane for the shared quality workflow and teardown
+    // lifecycle check.
+    await page.goto(`${fixtureServer.url}/?source=stac-imagery`);
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready)).toBe(true);
+
+    const runtimeReady = await page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready === true);
+    await attestBrowserQuality({
+      page,
+      testInfo,
+      sampleId: "service-explorer",
+      runtimeReady,
+      pageErrors,
+      consoleErrors,
+      responsiveViewports: [
+        { width: 1280, height: 720 },
+        { width: 390, height: 844 },
+      ],
+      workflowSelectors: ["#source-picker", "#map", "#result-table-body"],
+    });
+
+    // Prove the table/chart delegated handlers work before teardown and become
+    // inert after their cleanup runs.
+    await page.locator("#result-table-body button[data-feature-id]").first().click();
+    await page.locator("#chart-buckets button.chart-bucket").first().click();
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.interactionCount)).toBe(2);
+    const interactionCountBeforeDispose = await page.evaluate(
+      () => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.interactionCount,
+    );
+    const pageErrorCountBeforeDispose = pageErrors.length;
+    const consoleErrorCountBeforeDispose = consoleErrors.length;
+    await page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_DISPOSE__?.());
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.disposed)).toBe(true);
+    await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
+    await page.locator("#result-table-body button[data-feature-id]").first().evaluate((button) => button.click());
+    await page.locator("#chart-buckets button.chart-bucket").first().evaluate((button) => button.click());
+    expect(await page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.interactionCount)).toBe(
+      interactionCountBeforeDispose,
+    );
+    expect(pageErrors).toHaveLength(pageErrorCountBeforeDispose);
+    expect(consoleErrors).toHaveLength(consoleErrorCountBeforeDispose);
   } finally {
     await fixtureServer.close();
+    await attestClosedFixture(testInfo, "service-explorer", "startServiceExplorerFixtureServer");
   }
 });
