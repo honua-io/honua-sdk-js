@@ -161,16 +161,13 @@
       "queryObjectIds",
       "image",
       "render",
-      "tiles",
-      "connect"
+      "tiles"
     ],
     "geoservices-geometry-service": [
-      "geometry",
-      "connect"
+      "geometry"
     ],
     "geoservices-gp-service": [
-      "geoprocess",
-      "connect"
+      "geoprocess"
     ],
     "ogc-features": [
       "query",
@@ -233,9 +230,7 @@
       "render",
       "tiles"
     ],
-    "maplibre-geojson": [
-      "render"
-    ]
+    "maplibre-geojson": []
   },
   "resultScenarios": [
     {

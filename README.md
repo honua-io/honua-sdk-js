@@ -53,10 +53,16 @@ Run it locally with `npm run demo:endpoint-to-map`
 ([`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md)); the full cookbook
 is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
-**Release status: beta** (`0.1.0-beta`). The 22-entrypoint stable tier is frozen and guarded
-by an API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
-[`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md) and the
-machine-readable surface inventory in [`config/public-surface.json`](./config/public-surface.json).
+<!-- support-manifest:release:start -->
+**Release status: beta** (`0.1.0-beta.0`). The 22-entrypoint stable tier is frozen and guarded
+by an API-surface gate; 8 experimental subpaths may change before 1.0, and
+18 deprecated compatibility subpaths have explicit removal versions. See
+[`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
+[`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
+[`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
+site/sample consumer contract, and
+[the scope decision](./docs/decisions/scope-split-and-1.0.md).
+<!-- support-manifest:release:end -->
 
 📚 **Hosted docs:** [honua-io.github.io/honua-sdk-js](https://honua-io.github.io/honua-sdk-js/) —
 quickstart, the full guide corpus, the [TypeDoc API reference](https://honua-io.github.io/honua-sdk-js/api/),
@@ -111,17 +117,20 @@ raw MapLibre / `@esri/arcgis-rest-js` / OpenLayers, and a scripted time-to-first
 with a runnable repro (`npm run bench:ttfm`) — live in
 [`docs/comparison.md`](./docs/comparison.md).
 
-**No Honua server required.** The protocol clients work against **any** standards-speaking
-server: an existing ArcGIS Server / ArcGIS Online endpoint, any OGC API Features server
-(pygeoapi, ldproxy, GeoServer OGC API), a WFS 2.0 server, a STAC API or static catalog, or an
-OData v4 service. The OGC API Features and STAC lanes discover the raw endpoint layout from the
-landing page; WFS follows the capabilities DCP URLs; set `locator.layout` for non-facade
-servers. See the [server-optional quickstart](./docs/standalone-quickstart.md) and the
-[backend-agnostic capability matrix](./docs/standalone-capability-matrix.md).
+<!-- support-manifest:standalone:start -->
+**Honua Server is optional for standards clients.** Supported GeoServices, OGC API
+Features, WFS 2.0, STAC, and OData claims work against raw standards-speaking endpoints.
+OGC API Tiles (`beta`), Maps (`beta`), and Records
+(`beta`) also discover and use raw advertised paths. OGC API Processes
+keeps two honest lanes: raw discovery is `experimental`, while typed execution
+is `facade-required`.
 
-A [Honua Server](https://github.com/honua-io/honua-server) is the upgrade path, not the entry
-fee: it adds server-authored `MapPackage`s, realtime, collaboration, MCP/AI surfaces, and the
-OGC API Tiles / Maps / Processes / Records families (still facade-bound today).
+A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
+`MapPackage`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
+the facade-required execution paths. See the generated
+[backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
+claim, execution mode, and evidence link.
+<!-- support-manifest:standalone:end -->
 
 ## What Honua does not do
 

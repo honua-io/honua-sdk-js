@@ -1,61 +1,53 @@
 # Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix
 
-This is the honest line between what `@honua/sdk-js` does against **any**
-standards-speaking server (no Honua infrastructure) and what needs a
-[Honua Server](https://github.com/honua-io/honua-server). It complements the
-per-protocol [Protocol × Capability Matrix](./protocol-capability-matrix.md),
-which is the code-of-record for what each protocol's client supports; this page
-answers the orthogonal question: *does the capability require a Honua server?*
+<!-- support-manifest:standalone-matrix:start -->
+This is the generated, evidence-linked line between capabilities that work
+against raw standards-speaking endpoints and capabilities that require the Honua
+facade. The source of truth is [`config/support-manifest.v1.json`](../config/support-manifest.v1.json).
+See the [standalone quickstart](./standalone-quickstart.md) for the runnable path.
 
-See the [standalone quickstart](./standalone-quickstart.md) for the runnable
-backend-agnostic path.
+## Status vocabulary
 
-## Legend
+- `supported` — release-gated implementation with linked evidence
+- `beta` — implemented and evidenced, but still in pre-GA hardening
+- `experimental` — usable evidence-backed preview whose shape may change
+- `deprecated` — compatibility-only surface with a named replacement
+- `unsupported` — no implementation claim
+- `facade-required` — typed capability exists but execution requires Honua Server
 
-- `standalone` — works against any public/self-hosted standards server (an ArcGIS
-  Server / ArcGIS Online endpoint, etc.) with no Honua server, key, or account.
-  Proven live against public endpoints; replayed from fixtures in CI.
-- `backend-agnostic` — the typed surface addresses a raw third-party endpoint's
-  own path layout (discovered from the server, not a fixed prefix), no Honua
-  infrastructure required. The Honua facade layout stays a detected fast path.
-  Proven from recorded fixtures per raw layout in CI; live-proven against the
-  named public servers by the scheduled `standalone-live-smoke` lane.
-- `honua-enhanced` — requires a Honua Server (or a server that implements Honua's
-  facade paths). These are the upgrade-path features.
-- `facade-bound` — the *typed* SDK surface exists and is protocol-correct, but it
-  currently addresses Honua's server facade paths (e.g. `/ogc/features/...`)
-  rather than a raw third-party endpoint's own path layout. Backend-agnostic
-  support for raw endpoints is roadmap; use GeoServices or the backend-agnostic
-  lanes for the standalone path today.
+Environment and execution mode are separate from status: `standalone` tells you
+where a claim works, while `discovery`, `native`, `client-fallback`, and
+`facade` tell you how it works.
 
 ## Matrix
 
-| Capability | Standalone? | Backend needed | Sample app / API | Notes |
-| --- | :-: | --- | --- | --- |
-| GeoServices FeatureServer query (`queryFeatures`, `queryFeaturesAll`, streaming, count, extent) | `standalone` | Any ArcGIS Server / Online | `examples/standalone-quickstart`, `HonuaClient.queryFeatures`, `Source` (`geoservices-feature-service`) | Raw `/rest/services/.../FeatureServer/{id}/query` path; verified live against `services.arcgis.com`. |
-| GeoServices MapServer / ImageServer reads (query, export, identify, legend, find) | `standalone` | Any ArcGIS Server / Online | `HonuaClient.mapService` / `imageService` | Raw GeoServices paths; verified live against `sampleserver6.arcgisonline.com`. |
-| Esri → GeoJSON → MapLibre source | `standalone` | Any ArcGIS Server / Online | `loadHonuaFeatureServiceGeoJson` (`@honua/sdk-js/map`) | One call from a public FeatureServer URL to a MapLibre `geojson` source. |
-| Esri compat drop-in (`FeatureLayerCompat`, `MapImageLayerCompat`, query/edits API) | `standalone` | Any ArcGIS Server / Online | `@honua/sdk-js/esri-compat`, `examples/standalone-quickstart` | The `esri-leaflet` migration path; parses `services.arcgis.com`-style URLs and builds its own client. |
-| `honua-migrate` codemod / ArcGIS scanner | `standalone` | None (build-time) | `@honua/sdk-js/migration`, `npm run scan:arcgis` | Static analysis + rewrites; no server involved at all. |
-| Geometry ops (buffer/area/measure/simplify/reproject) | `standalone` | None (client-side) | `@honua/sdk-js/geometry` | Pure client-side turf/proj4 ops. |
-| OGC API Features query (`Source` `ogc-features`) | `backend-agnostic` | Any OGC API Features server | `Source` (`ogc-features`, `locator.layout: "ogc-api" \| "auto"`), `HonuaClient.resolveOgcFeaturesLayout` | Discovers the collections/items layout from the landing page `rel="data"`/`rel="conformance"` links (OGC API - Common); item paths follow the `{collections}/{id}/items` template. Fixture-proven against **pygeoapi** (`demo.pygeoapi.io/master`) and **ldproxy** (`demo.ldproxy.net`); same typed `Query` yields an identical `Result` on a raw collection and the Honua facade. Facade (`/ogc/features/...`) stays the zero-round-trip default. |
-| WFS 2.0 query / GetFeature (`Source` `wfs`) | `backend-agnostic` | Any WFS 2.0 server | `Source` (`wfs`), `HonuaWfs` | Drives a raw `GetCapabilities` endpoint and issues GetFeature against the **DCP operation URL** the server advertises (`ows:DCP/ows:HTTP/*/@xlink:href`), not an assumed path — e.g. a GeoServer mounted at `/geoserver/ows` that advertises `/geoserver/wfs`. Fixture-proven against **GeoServer** (`ahocevar.com/geoserver`). |
-| STAC search (`Source` `stac`) | `backend-agnostic` | Any STAC API or static catalog | `Source` (`stac`, `locator.layout: "stac-api" \| "stac-static"`), `HonuaStacSearch`, `HonuaStacStaticCatalog` | `stac-api` runs `/search` under a raw API root; `stac-static` walks a static `catalog.json` tree via `rel="child"`/`rel="item"` links with client-side filtering. Fixture-proven against **Earth Search** (`earth-search.aws.element84.com/v1`) and a static catalog tree. |
-| OData v4 query (`Source` `odata`) | `backend-agnostic` | Any OData v4 service | `Source` (`odata`), `HonuaOdataEntitySet` | Capability-negotiated via `$metadata`; the service `basePath` is taken from `locator.url` so any service root works. Fixture-proven against the OASIS **TripPin** reference service (`services.odata.org/TripPinRESTierService`). |
-| OGC API Tiles / Maps / Processes / Records (typed surface) | `facade-bound` | Honua Server (facade paths) today | `Source` (`ogc-tiles`, `ogc-maps`, `ogc-records`), `HonuaClient` OGC methods | Protocol-correct clients that still address Honua's `/ogc/...` facade paths; raw third-party layout discovery for these families is roadmap. Use the backend-agnostic Features/WFS/STAC/OData lanes or GeoServices for the standalone path today. |
-| Server compatibility gate (`checkCompatibility`) | `honua-enhanced` | Honua Server | `HonuaClient.checkCompatibility` | Reads `/api/v1/admin/capabilities`; skip it for standalone reads. |
-| Authored `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) | `honua-enhanced` | Honua Server | `@honua/sdk-js/runtime`, `examples/maplibre-quickstart` | Server-authored styles/layer order/metadata. |
-| Realtime subscriptions | `honua-enhanced` | Honua Server | `@honua/sdk-js/realtime`, `examples/realtime-incident-dashboard` | Subscription-backed live updates. |
-| Collaboration / saved maps | `honua-enhanced` | Honua Server | `@honua/sdk-js/collaboration` | Shared/saved maps, multi-user sessions. |
-| MCP tools / AI surfaces | `honua-enhanced` | Honua Server + `@honua/mcp-server` | `mcp/`, `@honua/sdk-js/agent-tools` | Assistant discovery/query over MCP. |
+| Capability | Status | Environment | Execution | Backend needed | API | Evidence | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| GeoServices FeatureServer query | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.queryFeatures, Source | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Uses the raw FeatureServer query path; fixture- and live-proven without a Honua account or server. |
+| GeoServices MapServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | HonuaClient.mapService, Source | [fixture: honua-surface-fixtures](../test/honua-surface.test.ts)<br>[fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: tile-layer-fixtures](../test/tile-layer-compat.test.ts)<br>[integration: map-service-integration](../test/integration/surfaces/map-server.integration.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles. |
+| GeoServices ImageServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | HonuaClient.imageService, Source.protocol() | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[integration: image-service-integration](../test/integration/surfaces/image-server.integration.ts) | Uses raw ImageServer paths for raster-catalog queries, export, identify, and cached tiles. |
+| Esri compatibility layer | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | @honua/sdk-js/esri-compat | [fixture: esri-compat-fixtures](../test/feature-layer-compat.test.ts) | Compatibility classes parse public GeoServices URLs and create their own client. |
+| ArcGIS scanner and migration codemod | `supported` | `build-time` | `static` | None | @honua/sdk-js/migration, honua-migrate | [fixture: migration-fixtures](../test/migration-codemod.test.ts) | Static analysis and rewrites run locally; no service is involved. |
+| Geometry operations | `supported` | `client-only` | `native` | None | @honua/sdk-js/geometry | [fixture: geometry-fixtures](../test/geometry/ops.test.ts) | Buffer, area, simplify, measure, and reprojection run in the client through optional peers. |
+| OGC API Features | `supported` | `standalone` | `discovery` | Any OGC API Features server | connect(), Source with locator.layout=ogc-api or auto | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path. |
+| WFS 2.0 | `supported` | `standalone` | `discovery` | Any WFS 2.0 server | Source, HonuaWfs | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path. |
+| STAC API and static catalogs | `supported` | `standalone` | `discovery` | Any STAC API or static catalog | Source with locator.layout=stac-api or stac-static | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Searches a raw STAC API or walks static catalog links with client-side filtering. |
+| OData v4 | `supported` | `standalone` | `discovery` | Any OData v4 service | Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
+| OGC API Tiles | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. |
+| OGC API Maps | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. |
+| OGC API Records | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. |
+| OGC API Processes discovery | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source. |
+| OGC API Processes execution | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient OGC Processes methods | [integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Typed execution uses the Honua facade today; raw third-party execution is not claimed. |
+| Server compatibility gate | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
+| Authored MapPackage runtime | `facade-required` | `honua-facade` | `facade` | Honua Server | @honua/sdk-js/runtime | [fixture: map-package-fixtures](../test/runtime/map-package-fetch.test.ts) | Loads server-authored styles, layer order, and metadata. |
+| Realtime subscriptions | `facade-required` | `honua-facade` | `transport` | Honua Server | @honua/sdk-js/realtime | [integration: realtime-integration](../test/integration/surfaces/realtime.integration.ts) | Subscription-backed live updates depend on the Honua realtime contract. |
+| Collaboration and saved maps compatibility shim | `deprecated` | `honua-facade` | `facade` | Honua Server and @honua/app-platform | @honua/sdk-js/collaboration | Lifecycle-only claim | The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration. |
+| MCP tools and AI execution | `facade-required` | `honua-facade` | `facade` | Honua Server and @honua/mcp-server | mcp/, @honua/sdk-js/agent-tools | [fixture: agent-tools-fixtures](../test/agent-tools.test.ts) | Tool definitions are local, while discovery and query execution use the bounded Honua server surface. |
 
-## Rule of thumb
+## Current OGC line
 
-If your data lives behind an ArcGIS Server / ArcGIS Online endpoint, an OGC API
-Features server (pygeoapi, ldproxy, GeoServer OGC API), a WFS 2.0 server, a STAC
-API or static catalog, or an OData v4 service, the SDK is a drop-in typed client
-**today, standalone** — point a `Source` at the raw endpoint (set
-`locator.layout` for OGC API Features / STAC where the server is not a Honua
-facade). Reach for a Honua Server when you need authored map packages, realtime,
-collaboration, the MCP/AI surfaces, or the OGC API Tiles / Maps / Processes /
-Records families (still facade-bound today).
+Raw OGC API Tiles, Maps, and Records discovery/use is `beta` and fixture-proven.
+Raw OGC API Processes discovery is `experimental`; typed Processes execution is
+still `facade-required`. Those are deliberately separate claims so discovery
+evidence can never be mistaken for execution support.
+<!-- support-manifest:standalone-matrix:end -->
