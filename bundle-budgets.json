@@ -43,7 +43,7 @@
     "/agent-tools gained its first dedicated guard when it was promoted to the stable tier alongside /agent-safety (#502): the ten JSON-Schema tool definitions, the bounded executor with audit/redaction, the runtime adapters, and the MCP/OpenAI exporters measure 21,131 minified / 6,523 gzip bytes; the ceiling is measured actual plus ~10% headroom. Both agent entrypoints remain subpath-only — root and browser barrels are unchanged.",
     "The affected entrypoint ceilings were reset for the unified error envelope (#524): migrated public errors now carry stable domain/category/retryability metadata, bounded redacted context, cause projection, and a governed 102-code registry. Small domain entrypoints gain roughly 3.5–4.4 KiB gzip for this common runtime contract; only exceeded metrics were reset to measured actual plus 10% headroom. After the geometry error family joined the envelope on trunk, the root/browser gzip ceilings were reset from the merged measurements to restore the same 10% headroom policy.",
     "The exceeded /honua, /contract, /runtime, and /geoparquet metrics were reset for the merged SourceSchemaV2 contract foundation (#523). /geoparquet carries bounded GeoParquet metadata consistency and native-geometry support validation while preserving v1 query-result normalization; the other entrypoints expose or consume the stable schema envelope. Only exceeded metrics were reset to measured actual plus 10% headroom.",
-    "/source-capabilities was reset after #525 slice 1 review required complete ResolvedCrsDefinition and official PROJJSON v0.7 validation plus bounded, pollution-safe, freshness-aware capability evaluation. The focused experimental subpath intentionally shares the pinned CRS validator and measures 239,749 minified / 27,275 gzip bytes; ceilings are measured actual plus 10% headroom."
+    "/source-capabilities was reset after #525 slice 1 review required complete ResolvedCrsDefinition and official PROJJSON v0.7 validation plus bounded, pollution-safe, freshness-aware capability evaluation. The full experimental subpath retains one-time static ingestion and measures 247,612 minified / 28,929 gzip bytes without widening its existing ceiling. The named evaluateCapabilityProfile fixture measures 15,030 / 5,165 bytes and fails if the CRS/PROJJSON validator is retained; its new ceiling is measured actual plus 10% headroom."
   ],
   "entrypoints": {
     ".": {
@@ -157,6 +157,10 @@
     "tree-shake:root-connect": {
       "min": 367787,
       "gzip": 95076
+    },
+    "tree-shake:source-capabilities-evaluate": {
+      "min": 16533,
+      "gzip": 5682
     },
     "/react": {
       "min": 457456,

@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CAPABILITY_EVIDENCE_PROFILE_KIND,
+  CAPABILITY_EVIDENCE_PROFILE_VERSION,
   CAPABILITY_PROFILE_KIND,
   CAPABILITY_PROFILE_VERSION,
   type CapabilityEvaluationContext,
   type CapabilityEvaluationEntry,
+  createCapabilityEvidenceProfile,
   evaluateCapabilityProfile,
+  parseCapabilityEvidenceProfile,
+  parseCapabilityProfile,
+  serializeCapabilityEvidenceProfile,
   serializeCapabilityProfile,
 } from "../src/source-capabilities.js";
 
@@ -14,7 +20,7 @@ const EVALUATED_AT = "2026-07-14T12:00:00Z";
 const EXPIRES_AT = "2026-07-20T12:00:00Z";
 
 function evaluate(entries: readonly CapabilityEvaluationEntry[], context: CapabilityEvaluationContext = {}) {
-  return evaluateCapabilityProfile(entries, { evaluatedAt: EVALUATED_AT, ...context });
+  return evaluateCapabilityProfile(createCapabilityEvidenceProfile(entries), { evaluatedAt: EVALUATED_AT, ...context });
 }
 
 function evidenceEntry(
@@ -184,7 +190,7 @@ describe("source capability profile", () => {
     );
   });
 
-  it("excludes observation timestamps but retains schema evidence identity in the fingerprint", () => {
+  it("content-addresses observation windows and schema evidence identity", () => {
     const base = evidenceEntry("query", "supported", "supported", {
       evidence: [
         {
@@ -228,7 +234,7 @@ describe("source capability profile", () => {
     const refreshed = evaluate([later]);
     const changed = evaluate([differentSchema]);
 
-    expect(first.fingerprint).toBe(refreshed.fingerprint);
+    expect(first.fingerprint).not.toBe(refreshed.fingerprint);
     expect(serializeCapabilityProfile(first)).not.toBe(serializeCapabilityProfile(refreshed));
     expect(first.fingerprint).not.toBe(changed.fingerprint);
   });
@@ -311,9 +317,10 @@ describe("source capability profile", () => {
 
   it("fails closed when freshness is not evaluated or observed evidence is stale", () => {
     const entry = evidenceEntry("query");
-    const withoutClock = evaluateCapabilityProfile([entry]);
-    const stale = evaluateCapabilityProfile([entry], { evaluatedAt: "2026-07-21T12:00:00Z" });
-    const fresh = evaluateCapabilityProfile([entry], { evaluatedAt: EVALUATED_AT });
+    const profile = createCapabilityEvidenceProfile([entry]);
+    const withoutClock = evaluateCapabilityProfile(profile);
+    const stale = evaluateCapabilityProfile(profile, { evaluatedAt: "2026-07-21T12:00:00Z" });
+    const fresh = evaluateCapabilityProfile(profile, { evaluatedAt: EVALUATED_AT });
     const nanosecondWindow = {
       ...entry,
       evidence: entry.evidence.map((item) =>
@@ -334,12 +341,12 @@ describe("source capability profile", () => {
     expect(stale.entries[0]).toMatchObject({ effective: "unknown", reasons: ["evidence-stale"] });
     expect(fresh.entries[0]?.effective).toBe("supported");
     expect(
-      evaluateCapabilityProfile([nanosecondWindow], {
+      evaluateCapabilityProfile(createCapabilityEvidenceProfile([nanosecondWindow]), {
         evaluatedAt: "2026-07-14T12:00:00.000000002Z",
       }).entries[0]?.effective,
     ).toBe("supported");
     expect(
-      evaluateCapabilityProfile([nanosecondWindow], {
+      evaluateCapabilityProfile(createCapabilityEvidenceProfile([nanosecondWindow]), {
         evaluatedAt: "2026-07-14T12:00:00.000000003Z",
       }).entries[0],
     ).toMatchObject({ effective: "unknown", reasons: ["evidence-stale"] });
@@ -588,7 +595,8 @@ describe("source capability profile", () => {
       },
     });
 
-    expect(() => evaluateCapabilityProfile([evidenceEntry("query")], context)).toThrow(/accessors are not supported/);
+    const profile = createCapabilityEvidenceProfile([evidenceEntry("query")]);
+    expect(() => evaluateCapabilityProfile(profile, context)).toThrow(/accessors are not supported/);
     expect(invoked).toBe(false);
   });
 
@@ -638,12 +646,12 @@ describe("source capability profile", () => {
     expect(deepRun).toThrow(TypeError);
     expect(deepRun).toThrow(/maximum graph depth 16/);
     expect(oversizedRun).toThrow(TypeError);
-    expect(oversizedRun).toThrow(/byte profile limit/);
+    expect(oversizedRun).toThrow(/byte limit/);
 
     let hostileProfile: Record<string, unknown> = { leaf: true };
     for (let index = 0; index < 100; index++) hostileProfile = { nested: hostileProfile };
     expect(() => serializeCapabilityProfile(hostileProfile as never)).toThrow(TypeError);
-    expect(() => serializeCapabilityProfile(hostileProfile as never)).toThrow(/maximum input graph depth 48/);
+    expect(() => serializeCapabilityProfile(hostileProfile as never)).toThrow(/must be evaluated or parsed/);
   });
 
   it.each([
@@ -707,5 +715,197 @@ describe("source capability profile", () => {
     },
   ])("rejects $label", ({ run, message }) => {
     expect(run).toThrowError(message);
+  });
+
+  it("creates a versioned, fingerprinted, deeply immutable static evidence envelope", () => {
+    const first = createCapabilityEvidenceProfile([evidenceEntry("tiles"), evidenceEntry("query")]);
+    const second = createCapabilityEvidenceProfile([evidenceEntry("query"), evidenceEntry("tiles")]);
+
+    expect(first).toEqual(second);
+    expect(first).toMatchObject({
+      kind: CAPABILITY_EVIDENCE_PROFILE_KIND,
+      version: CAPABILITY_EVIDENCE_PROFILE_VERSION,
+      sourceFingerprint: SCHEMA_FINGERPRINT,
+      entries: [{ id: "query" }, { id: "tiles" }],
+    });
+    expect(first.fingerprint).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(Object.isFrozen(first)).toBe(true);
+    expect(Object.isFrozen(first.entries[0]?.evidence)).toBe(true);
+    expect(parseCapabilityEvidenceProfile(serializeCapabilityEvidenceProfile(first))).toEqual(first);
+  });
+
+  it("enforces one coherent source identity across an evidence profile", () => {
+    const otherFingerprint = `sha256:${"b".repeat(64)}` as const;
+    const mixed = evidenceEntry("query", "supported", "supported", {
+      evidence: evidenceEntry("query").evidence.map((item, index) => ({
+        ...item,
+        sourceFingerprint: index === 0 ? SCHEMA_FINGERPRINT : otherFingerprint,
+      })),
+    });
+
+    expect(() => createCapabilityEvidenceProfile([mixed])).toThrow(/multiple source fingerprints/);
+    expect(() =>
+      createCapabilityEvidenceProfile([evidenceEntry("query")], { sourceFingerprint: otherFingerprint }),
+    ).toThrow(/does not match expected/);
+
+    const valid = createCapabilityEvidenceProfile([evidenceEntry("query")]);
+    const forged = JSON.parse(serializeCapabilityEvidenceProfile(valid)) as Record<string, unknown>;
+    forged.sourceFingerprint = otherFingerprint;
+    expect(() => parseCapabilityEvidenceProfile(forged)).toThrow(/does not match expected/);
+  });
+
+  it("round-trips evaluated transport only after replaying its retained context", () => {
+    const staticProfile = createCapabilityEvidenceProfile([
+      evidenceEntry("query", "supported", "supported", {
+        requirements: { environments: ["worker"], peers: ["peer-a"] },
+        authorizationScopes: ["dataset:read"],
+      }),
+    ]);
+    const evaluated = evaluateCapabilityProfile(staticProfile, {
+      evaluatedAt: EVALUATED_AT,
+      environment: "worker",
+      availablePeers: ["peer-a"],
+      authorization: { grantedScopes: ["dataset:read"] },
+    });
+    const parsed = parseCapabilityProfile(serializeCapabilityProfile(evaluated));
+
+    expect(parsed).toEqual(evaluated);
+    expect(parsed.evidenceFingerprint).toBe(staticProfile.fingerprint);
+    expect(parsed.sourceFingerprint).toBe(SCHEMA_FINGERPRINT);
+    expect(parsed.evaluatedAt).toBe(EVALUATED_AT);
+    expect(parsed.validUntil).toBe(EXPIRES_AT);
+    expect(parsed.context).toEqual({
+      environment: "worker",
+      availablePeers: ["peer-a"],
+      authorization: { grantedScopes: ["dataset:read"], deniedScopes: [] },
+    });
+  });
+
+  it.each([
+    {
+      label: "effective decision",
+      mutate: (profile: Record<string, unknown>) => {
+        (profile.entries as Array<Record<string, unknown>>)[0]!.effective = "unsupported";
+      },
+    },
+    {
+      label: "decision reason",
+      mutate: (profile: Record<string, unknown>) => {
+        (profile.entries as Array<Record<string, unknown>>)[0]!.reasons = ["unsupported-by-claim"];
+      },
+    },
+    {
+      label: "validity boundary",
+      mutate: (profile: Record<string, unknown>) => {
+        profile.validUntil = "2026-07-21T12:00:00Z";
+      },
+    },
+    {
+      label: "profile fingerprint",
+      mutate: (profile: Record<string, unknown>) => {
+        profile.fingerprint = `sha256:${"f".repeat(64)}`;
+      },
+    },
+    {
+      label: "evidence fingerprint",
+      mutate: (profile: Record<string, unknown>) => {
+        profile.evidenceFingerprint = `sha256:${"e".repeat(64)}`;
+      },
+    },
+    {
+      label: "profile kind",
+      mutate: (profile: Record<string, unknown>) => {
+        profile.kind = "honua.capabilities.future";
+      },
+    },
+    {
+      label: "profile version",
+      mutate: (profile: Record<string, unknown>) => {
+        profile.version = "2.0";
+      },
+    },
+    {
+      label: "unknown root field",
+      mutate: (profile: Record<string, unknown>) => {
+        profile.verified = true;
+      },
+    },
+    {
+      label: "unknown decision field",
+      mutate: (profile: Record<string, unknown>) => {
+        (profile.entries as Array<Record<string, unknown>>)[0]!.confidence = 1;
+      },
+    },
+  ])("rejects a forged transported $label", ({ mutate }) => {
+    const evaluated = evaluate([evidenceEntry("query")]);
+    const transported = JSON.parse(serializeCapabilityProfile(evaluated)) as Record<string, unknown>;
+    mutate(transported);
+    expect(() => parseCapabilityProfile(transported)).toThrow(TypeError);
+  });
+
+  it("reports nullable evaluation time and a conservative freshness boundary", () => {
+    const evidence = createCapabilityEvidenceProfile([evidenceEntry("query")]);
+    const unevaluated = evaluateCapabilityProfile(evidence);
+    const stale = evaluateCapabilityProfile(evidence, { evaluatedAt: "2026-07-21T12:00:00Z" });
+
+    expect(unevaluated).toMatchObject({ evaluatedAt: null, validUntil: null });
+    expect(stale).toMatchObject({
+      evaluatedAt: "2026-07-21T12:00:00Z",
+      validUntil: "2026-07-21T12:00:00Z",
+    });
+  });
+
+  it("rejects undefined members and unpaired UTF-16 surrogates before canonicalization", () => {
+    const undefinedMember = {
+      ...evidenceEntry("query"),
+      constraints: { outputFormats: undefined },
+    } as unknown as CapabilityEvaluationEntry;
+    const unpairedValue = evidenceEntry("query", "supported", "supported", {
+      constraints: { outputFormats: ["bad\ud800"] },
+    });
+    const unpairedKey = evidenceEntry("query", "supported", "supported", {
+      constraints: { extensions: { ["com.example.\udc00"]: true } as never },
+    });
+
+    expect(() => createCapabilityEvidenceProfile([undefinedMember])).toThrow(/must not be undefined/);
+    expect(() => createCapabilityEvidenceProfile([unpairedValue])).toThrow(/unpaired high Unicode surrogate/);
+    expect(() => createCapabilityEvidenceProfile([unpairedKey])).toThrow(/unpaired low Unicode surrogate/);
+    expect(() => parseCapabilityEvidenceProfile('{"kind":"honua.capability-evidence","bad":"\\ud800"}')).toThrow(
+      /unpaired high Unicode surrogate/,
+    );
+    const serialized = serializeCapabilityEvidenceProfile(createCapabilityEvidenceProfile([evidenceEntry("query")]));
+    const duplicateName = serialized.replace(
+      "{",
+      '{"kind":"honua.capability-evidence","kind":"honua.capability-evidence",',
+    );
+    expect(() => parseCapabilityEvidenceProfile(duplicateName)).toThrow(/duplicate object name kind/);
+  });
+
+  it("caps supported CRS definitions at 64 before heavy validation", () => {
+    expect(() =>
+      createCapabilityEvidenceProfile([
+        evidenceEntry("query", "supported", "supported", {
+          constraints: { supportedCrs: Array.from({ length: 65 }, () => null) as never },
+        }),
+      ]),
+    ).toThrow(/maximum count 64/);
+  });
+
+  it("keeps repeat evaluation synchronous and reuses the validated static envelope", () => {
+    const staticProfile = createCapabilityEvidenceProfile([
+      evidenceEntry("query", "supported", "supported", {
+        constraints: { outputFormats: ["application/geo+json"] },
+      }),
+    ]);
+
+    for (let index = 0; index < 100; index++) {
+      const evaluated = evaluateCapabilityProfile(staticProfile, {
+        evaluatedAt: EVALUATED_AT,
+        policy: { deny: index % 2 === 0 ? [] : ["query"] },
+      });
+      expect(evaluated).not.toBeInstanceOf(Promise);
+      expect(evaluated.entries[0]?.constraints).toBe(staticProfile.entries[0]?.constraints);
+    }
+    expect(() => evaluateCapabilityProfile(staticProfile.entries as never)).toThrow(/must be created or parsed/);
   });
 });

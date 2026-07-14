@@ -138,6 +138,17 @@ function createSdkPackage() {
   copyFile(path.join(DIST_SRC_ROOT, "source-schema.d.ts"), path.join(packageRoot, "source-schema.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "source-capabilities.js"), path.join(packageRoot, "source-capabilities.js"));
   copyFile(path.join(DIST_SRC_ROOT, "source-capabilities.d.ts"), path.join(packageRoot, "source-capabilities.d.ts"));
+  for (const moduleName of [
+    "source-capability-types",
+    "source-capability-json",
+    "source-capability-registry",
+    "source-capability-evidence",
+    "source-capability-evaluation",
+    "source-capability-transport",
+  ]) {
+    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.js`), path.join(packageRoot, `${moduleName}.js`));
+    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.d.ts`), path.join(packageRoot, `${moduleName}.d.ts`));
+  }
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.d.ts"), path.join(packageRoot, "index.d.ts"));
 
@@ -148,6 +159,7 @@ function createSdkPackage() {
     keywords: packageKeywords(["arcgis", "esri", "ogc-api", "wfs", "wms", "stac", "odata", "geocoding", "routing"]),
     main: "./index.js",
     types: "./index.d.ts",
+    sideEffects: false,
     exports: {
       ".": {
         types: "./index.d.ts",
@@ -646,6 +658,7 @@ function writePackageJson(packageRoot, overrides) {
     dependencies: overrides.dependencies,
     peerDependencies: overrides.peerDependencies,
     peerDependenciesMeta: overrides.peerDependenciesMeta,
+    sideEffects: overrides.sideEffects,
     engines: publishedEngines,
   };
 

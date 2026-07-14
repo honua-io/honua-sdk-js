@@ -885,22 +885,31 @@ interface CapabilityRequirements {
   readonly peers?: readonly string[];
 }
 
-interface CapabilityDecision {
+interface CapabilityEvidenceEntry {
   readonly id: CapabilityId;
   readonly claimed: CapabilityTruth;
   readonly observed: CapabilityTruth | "not-observed";
-  readonly effective: EffectiveCapabilityState;
   readonly evidence: readonly CapabilityEvidence[];
-  readonly reasons: readonly string[];
   readonly authorizationScopes?: readonly string[];
   readonly constraints?: CapabilityConstraints;
   readonly requirements?: CapabilityRequirements;
 }
 
+interface CapabilityEvidenceProfile {
+  readonly kind: "honua.capability-evidence"; readonly version: "1.0";
+  readonly fingerprint: Sha256; readonly sourceFingerprint?: Sha256;
+  readonly entries: readonly CapabilityEvidenceEntry[];
+}
+
+interface CapabilityDecision extends CapabilityEvidenceEntry {
+  readonly effective: EffectiveCapabilityState; readonly reasons: readonly string[];
+}
+
 interface CapabilityProfile {
-  readonly kind: "honua.capabilities";
-  readonly version: "1.0";
-  readonly fingerprint: Sha256;
+  readonly kind: "honua.capabilities"; readonly version: "1.0";
+  readonly fingerprint: Sha256; readonly evidenceFingerprint: Sha256;
+  readonly sourceFingerprint?: Sha256; readonly context: CapabilityEvaluationContextSnapshot;
+  readonly evaluatedAt: string | null; readonly validUntil: string | null;
   readonly entries: readonly CapabilityDecision[];
 }
 ```
@@ -923,6 +932,15 @@ predicates are separate declarations, not aliases for an adapter-created
 polygon or buffer. Runtime validation and capability combination belong to
 [#525](https://github.com/honua-io/honua-sdk-js/issues/525).
 
+Static evidence ingestion and dynamic evaluation are separate boundaries. A
+versioned, fingerprinted, deeply immutable `CapabilityEvidenceProfile` owns
+one source and performs heavy CRS/PROJJSON and I-JSON validation once. Repeat
+evaluation consumes only that validated profile, reuses its static values, and
+fingerprints the evidence identity plus dynamic decisions rather than walking
+the full static envelope. Mixed evidence `sourceFingerprint` values and an
+expected source mismatch are rejected. Explicit empty constraint sets remain
+distinct from omitted/unknown sets; `supportedCrs` is capped at 64 definitions.
+
 Metadata, conformance and probe evidence carries an observation instant and an
 exclusive expiry instant. Effective evaluation receives `evaluatedAt`
 explicitly; it never reads the wall clock. Omitted evaluation time and stale or
@@ -932,6 +950,16 @@ evidence and do not carry those timestamps. Requirements are retained in the
 effective decision because environment and peer eligibility are semantic
 inputs, not transient diagnostics.
 
+Evaluated transport retains `evaluatedAt`, a conservative exclusive
+`validUntil`, and normalized credential-free policy/environment/peer/scope
+context. Strict parsing reconstructs the evidence profile and re-evaluates the
+decision; it never treats caller-authored `effective` state as evidence.
+Undefined object members, duplicate JSON names and unpaired UTF-16 surrogates
+are rejected before RFC 8785 canonicalization. `CapabilityEvaluationPolicy` is
+the canonical v2 allow/deny policy; stable `DiscoveryCapabilityPolicy` and the
+stable `"strict" | "degraded"` `CapabilityPolicy` are compatibility adapters,
+not alternative v2 policy vocabularies.
+
 Example JSON:
 
 ```json
@@ -939,6 +967,13 @@ Example JSON:
   "kind": "honua.capabilities",
   "version": "1.0",
   "fingerprint": "sha256:5c72...",
+  "evidenceFingerprint": "sha256:923a...",
+  "evaluatedAt": "2026-07-14T12:00:00Z",
+  "validUntil": "2026-07-20T12:00:00Z",
+  "context": {
+    "availablePeers": [],
+    "authorization": { "grantedScopes": [], "deniedScopes": [] }
+  },
   "entries": [
     {
       "id": "query",
