@@ -22,4 +22,5 @@ export function toSampleEvidence(
   target: Record<string, unknown>,
   sdk: { package: string; version: string; gitCommit: string | null },
   generatedAt: string,
+  producerArtifact: { kind: "producer-generator"; path: string; sha256: string },
 ): Record<string, unknown>;

@@ -41,23 +41,36 @@ const STANDARD_CONFIGURATION_EXEMPTIONS = new Map([
   ["GITHUB_SHA", "github-actions"],
   ["MODE", "vite"],
 ]);
-const CREDENTIAL_QUERY_PARAMETERS = [
+const CREDENTIAL_QUERY_PARAMETER_SET = new Set([
+  "access_key",
+  "access_key_id",
   "access_token",
-  "api-key",
   "api_key",
   "apikey",
+  "auth_token",
   "authorization",
+  "aws_access_key_id",
   "awsaccesskeyid",
+  "bearer_token",
+  "client_secret",
   "credential",
+  "id_token",
   "key",
   "password",
+  "private_key",
+  "refresh_token",
+  "sas",
   "secret",
   "sig",
   "signature",
+  "subscription_key",
   "token",
-  "x-amz-credential",
-  "x-amz-signature",
-];
+  "x_amz_credential",
+  "x_amz_signature",
+  "x_api_key",
+  "x_goog_signature",
+]);
+const CREDENTIAL_QUERY_PARAMETERS = [...CREDENTIAL_QUERY_PARAMETER_SET].sort();
 const REVIEWED_LIVE_PRODUCERS = new Map([
   ["bench:live", "node scripts/live-benchmark-evidence.mjs --output test-results/live-benchmark-evidence.json"],
   ["demo:ai-spatial-builder:live-evidence", "node examples/ai-spatial-app-builder/live-evidence.mjs"],
@@ -258,6 +271,23 @@ function isBoundedValidationCommand(parsed, packageJson) {
   return (
     segments.length > 0 &&
     segments.every((segment) => BOUNDED_VALIDATION_SEGMENTS.some((pattern) => pattern.test(segment)))
+  );
+}
+
+function normalizeCredentialQueryParameter(name) {
+  return name
+    .normalize("NFKC")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function isCredentialQueryParameter(name) {
+  const normalized = normalizeCredentialQueryParameter(name);
+  return [...CREDENTIAL_QUERY_PARAMETER_SET].some(
+    (candidate) => normalized === candidate || normalized.endsWith(`_${candidate}`),
   );
 }
 
@@ -1080,22 +1110,16 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
 }
 
 export async function validateLiveEvidenceProducer(evidence, sample) {
-  if (!evidence.sdk.gitCommit) return;
+  if (evidence.status !== "executed") return;
+  const producer = evidence.artifacts.find((artifact) => artifact.kind === "producer-generator");
+  invariant(producer, `${sample.id}: live evidence requires a producer-generator artifact`);
+  assertRelativePath(producer.path, `${sample.id}.producer.path`);
+  const generatorBytes = await readFile(path.join(PROJECT_ROOT, producer.path));
+  invariant(
+    sha256(generatorBytes) === producer.sha256,
+    `${sample.id}: producer generator digest drift`,
+  );
   if (sample.evidence.live.commands.includes("npm run bench:live")) {
-    const producer = evidence.artifacts.find((artifact) =>
-      artifact.kind.startsWith("producer-generator:"),
-    );
-    invariant(producer, `${sample.id}: live evidence requires a producer-generator artifact`);
-    invariant(
-      producer.kind === `producer-generator:${evidence.sdk.gitCommit}`,
-      `${sample.id}: producer artifact does not match sdk.gitCommit`,
-    );
-    assertRelativePath(producer.path, `${sample.id}.producer.path`);
-    const generatorBytes = await readFile(path.join(PROJECT_ROOT, producer.path));
-    invariant(
-      sha256(generatorBytes) === producer.sha256,
-      `${sample.id}: producer generator digest drift`,
-    );
     const generator = generatorBytes.toString("utf8");
     const sampleLiteral = `sampleId: "${sample.id}"`;
     const journeyLiteral = `journeyId: "${evidence.semantics.operation}"`;
@@ -1514,8 +1538,8 @@ export function validateEvidenceEnvelope(evidence, options = {}) {
   invariant(evidence.sdk?.package === "@honua/sdk-js", "evidence sdk.package is invalid");
   invariant(typeof evidence.sdk?.version === "string", "evidence sdk.version is required");
   invariant(
-    evidence.sdk?.gitCommit === null || typeof evidence.sdk?.gitCommit === "string",
-    "evidence sdk.gitCommit is invalid",
+    evidence.sdk?.gitCommit === null || /^[a-f0-9]{40}$/.test(evidence.sdk?.gitCommit),
+    "evidence sdk.gitCommit must be null or a full reported source revision",
   );
   invariant(typeof evidence.source?.provider === "string", "evidence source.provider is required");
   invariant(typeof evidence.source?.identity === "string", "evidence source.identity is required");
@@ -1535,10 +1559,9 @@ export function validateEvidenceEnvelope(evidence, options = {}) {
     invariant(["http:", "https:"].includes(endpoint.protocol), "evidence source.endpoint must use HTTP(S)");
     invariant(!endpoint.username && !endpoint.password, "evidence source.endpoint must not contain credentials");
     invariant(!endpoint.hash, "evidence source.endpoint must not contain a fragment");
-    const sensitiveParameters = new Set(CREDENTIAL_QUERY_PARAMETERS);
     for (const parameter of endpoint.searchParams.keys()) {
       invariant(
-        !sensitiveParameters.has(parameter.toLowerCase()),
+        !isCredentialQueryParameter(parameter),
         `evidence source.endpoint contains forbidden credential query parameter ${parameter}`,
       );
     }
@@ -1604,13 +1627,23 @@ export function validateEvidenceEnvelope(evidence, options = {}) {
   );
   invariant(Array.isArray(evidence.artifacts), "evidence artifacts must be an array");
   for (const artifact of evidence.artifacts ?? []) {
-    invariant(typeof artifact?.kind === "string", "evidence artifact.kind is required");
-    invariant(typeof artifact?.path === "string", "evidence artifact.path is required");
+    invariant(typeof artifact?.kind === "string" && artifact.kind.length > 0, "evidence artifact.kind is required");
+    invariant(typeof artifact?.path === "string" && artifact.path.length > 0, "evidence artifact.path is required");
     invariant(/^[a-f0-9]{64}$/.test(artifact?.sha256), "evidence artifact.sha256 is invalid");
   }
   if (evidence.status === "executed") {
     invariant(typeof evidence.semantics?.outcome === "string", "executed evidence requires semantic outcome");
     invariant(typeof evidence.timing?.totalMs === "number" && evidence.timing.totalMs >= 0, "executed evidence requires timing");
+    if (evidence.lane === "live") {
+      invariant(
+        typeof evidence.sdk.gitCommit === "string" && /^[a-f0-9]{40}$/.test(evidence.sdk.gitCommit),
+        "executed live evidence requires a full reported source revision",
+      );
+      invariant(
+        evidence.artifacts.some((artifact) => artifact.kind === "producer-generator"),
+        "executed live evidence requires a producer-generator artifact",
+      );
+    }
   } else {
     invariant(typeof evidence.reason === "string" && evidence.reason.length > 0, "non-executed evidence requires a reason");
   }

@@ -15,5 +15,11 @@
   "timing": { "totalMs": 850, "firstSuccessfulInteractionMs": 410 },
   "degradation": { "state": "none", "reasons": [] },
   "realtime": { "snapshotAt": "2026-01-01T00:00:59.000Z", "cursor": "redacted-stable-cursor", "lagMs": 1000, "observationWindowMs": 60000, "reconnectOutcome": "resumed" },
-  "artifacts": []
+  "artifacts": [
+    {
+      "kind": "producer-generator",
+      "path": "scripts/live-benchmark-evidence.mjs",
+      "sha256": "ab377b4280e50fe711604c633b933b05a0c97e0038ac968d85e83a3f02dfcb0e"
+    }
+  ]
 }
