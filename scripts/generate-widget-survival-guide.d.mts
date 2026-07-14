@@ -3,7 +3,17 @@ import type {
   WidgetDispositionKind,
 } from "../src/migration/widget-dispositions.js";
 
+interface WidgetDispositionDocumentation extends WidgetDisposition {
+  appPlatformComponent?: {
+    moduleSpecifier: string;
+    tagName: string;
+    source: string;
+    usageHtml: string;
+  };
+}
+
 export interface WidgetSurvivalGuideData {
+  WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionDocumentation[];
   WIDGET_DISPOSITIONS: readonly WidgetDisposition[];
   WIDGET_DISPOSITION_KINDS: readonly WidgetDispositionKind[];
   WIDGET_DISPOSITION_DATA_VERSION: string;
