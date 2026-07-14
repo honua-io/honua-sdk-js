@@ -24,6 +24,8 @@ const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+const FIXTURE_BUILD_ENVIRONMENT_HELPER = "../../scripts/lib/fixture-build-environment.mjs";
+const EXPECTED_FIXTURE_BUILD_HARNESS_COUNT = 25;
 const README_START = "<!-- sample-catalog:start -->";
 const README_END = "<!-- sample-catalog:end -->";
 const RESERVED_GOLDEN_JOURNEY_IDS = [
@@ -334,6 +336,15 @@ function isDirectEnvironmentRoot(node) {
   );
 }
 
+function directEnvironmentRootKind(node) {
+  const expression = unwrapExpression(node);
+  if (!ts.isPropertyAccessExpression(expression) || expression.name.text !== "env") return undefined;
+  const target = unwrapExpression(expression.expression);
+  if (ts.isIdentifier(target) && target.text === "process") return "process.env";
+  if (ts.isMetaProperty(target) && target.keywordToken === ts.SyntaxKind.ImportKeyword) return "import.meta.env";
+  return undefined;
+}
+
 function propertyName(node) {
   if (ts.isIdentifier(node) || ts.isStringLiteral(node) || ts.isNumericLiteral(node)) return node.text;
   return undefined;
@@ -347,6 +358,7 @@ function functionName(node) {
 
 function analyzeConfigurationSource(sourceFile, file) {
   const names = new Set();
+  const wholeEnvironmentEscapes = [];
   const declarations = [];
   const calls = [];
   const functionInfoByNode = new Map();
@@ -382,38 +394,126 @@ function analyzeConfigurationSource(sourceFile, file) {
           ),
         };
         functionInfoByNode.set(node, info);
-        functionsByName.set(name, info);
+        if (!functionsByName.has(name)) functionsByName.set(name, []);
+        functionsByName.get(name).push(info);
       }
     }
     ts.forEachChild(node, collect);
   };
   collect(sourceFile);
 
-  const aliases = new Set(["env"]);
-  let aliasesChanged = true;
-  while (aliasesChanged) {
-    aliasesChanged = false;
+  const enclosingFunction = (node) => {
+    let current = node.parent;
+    while (current) {
+      const info = functionInfoByNode.get(current);
+      if (info) return info;
+      current = current.parent;
+    }
+    return undefined;
+  };
+
+  for (const info of functionInfoByNode.values()) {
+    info.parent = enclosingFunction(info.node);
+  }
+
+  const sourceOwner = sourceFile;
+  const ownerFor = (node) => enclosingFunction(node)?.node ?? sourceOwner;
+  const bindingsByOwner = new Map();
+  const addBinding = (owner, name, node) => {
+    if (!bindingsByOwner.has(owner)) bindingsByOwner.set(owner, new Map());
+    const bindings = bindingsByOwner.get(owner);
+    if (!bindings.has(name)) bindings.set(name, []);
+    bindings.get(name).push(node);
+  };
+  for (const info of functionInfoByNode.values()) {
+    for (const parameter of info.node.parameters) {
+      if (ts.isIdentifier(parameter.name)) addBinding(info.node, parameter.name.text, parameter);
+    }
+  }
+  for (const declaration of declarations) {
+    if (ts.isIdentifier(declaration.name)) addBinding(ownerFor(declaration), declaration.name.text, declaration);
+  }
+
+  const ownerChain = (node) => {
+    const owners = [];
+    let info = enclosingFunction(node);
+    while (info) {
+      owners.push(info.node);
+      info = info.parent;
+    }
+    owners.push(sourceOwner);
+    return owners;
+  };
+  const resolveBinding = (identifier) => {
+    for (const owner of ownerChain(identifier)) {
+      const bindings = bindingsByOwner.get(owner)?.get(identifier.text);
+      if (!bindings) continue;
+      if (bindings.length === 1) return bindings[0];
+      const carrierBindings = bindings.filter((binding) => carrierKinds.has(binding));
+      invariant(carrierBindings.length <= 1, `${file}: ambiguous environment carrier ${identifier.text}`);
+      return carrierBindings[0];
+    }
+    return undefined;
+  };
+
+  const carrierKinds = new Map();
+  const mergeCarrierKinds = (binding, kinds) => {
+    if (!binding || kinds.size === 0) return false;
+    if (!carrierKinds.has(binding)) carrierKinds.set(binding, new Set());
+    const current = carrierKinds.get(binding);
+    const size = current.size;
+    for (const kind of kinds) current.add(kind);
+    return current.size !== size;
+  };
+  const environmentKinds = (node) => {
+    if (!node) return new Set();
+    const expression = unwrapExpression(node);
+    const directKind = directEnvironmentRootKind(expression);
+    if (directKind) return new Set([directKind]);
+    if (!ts.isIdentifier(expression)) return new Set();
+    return new Set(carrierKinds.get(resolveBinding(expression)) ?? []);
+  };
+  const localFunctionForCall = (call) => {
+    const target = unwrapExpression(call.expression);
+    if (!ts.isIdentifier(target)) return undefined;
+    const candidates = functionsByName.get(target.text) ?? [];
+    return candidates.length === 1 ? candidates[0] : undefined;
+  };
+
+  let carriersChanged = true;
+  while (carriersChanged) {
+    carriersChanged = false;
+    for (const info of functionInfoByNode.values()) {
+      for (const parameter of info.node.parameters) {
+        if (parameter.initializer && mergeCarrierKinds(parameter, environmentKinds(parameter.initializer))) {
+          carriersChanged = true;
+        }
+      }
+    }
     for (const declaration of declarations) {
       if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
-      const initializer = unwrapExpression(declaration.initializer);
-      const isAlias =
-        isDirectEnvironmentRoot(initializer) ||
-        (ts.isIdentifier(initializer) && aliases.has(initializer.text));
-      if (!isAlias || aliases.has(declaration.name.text)) continue;
+      const kinds = environmentKinds(declaration.initializer);
+      if (kinds.size === 0) continue;
       const declarationList = declaration.parent;
       invariant(
         ts.isVariableDeclarationList(declarationList) && (declarationList.flags & ts.NodeFlags.Const) !== 0,
         `${file}: environment aliases must be const`,
       );
-      aliases.add(declaration.name.text);
-      aliasesChanged = true;
+      if (mergeCarrierKinds(declaration, kinds)) carriersChanged = true;
+    }
+    for (const call of calls) {
+      const target = localFunctionForCall(call);
+      if (!target) continue;
+      for (let index = 0; index < call.arguments.length; index += 1) {
+        const parameter = target.node.parameters[index];
+        if (parameter && mergeCarrierKinds(parameter, environmentKinds(call.arguments[index]))) {
+          carriersChanged = true;
+        }
+      }
     }
   }
 
-  const isEnvironmentObject = (node) => {
-    const expression = unwrapExpression(node);
-    return isDirectEnvironmentRoot(expression) || (ts.isIdentifier(expression) && aliases.has(expression.text));
-  };
+  const isEnvironmentObject = (node) => environmentKinds(node).size > 0;
 
   for (const declaration of declarations) {
     if (!ts.isObjectBindingPattern(declaration.name) || !declaration.initializer) continue;
@@ -426,16 +526,6 @@ function analyzeConfigurationSource(sourceFile, file) {
       names.add(name);
     }
   }
-
-  const enclosingFunction = (node) => {
-    let current = node.parent;
-    while (current) {
-      const info = functionInfoByNode.get(current);
-      if (info) return info;
-      current = current.parent;
-    }
-    return undefined;
-  };
 
   const resolveFiniteNames = (node) => {
     if (!node) return undefined;
@@ -457,11 +547,84 @@ function analyzeConfigurationSource(sourceFile, file) {
   const sinkParameters = new Map();
   const addSinkParameter = (info, index) => {
     invariant(info, `${file}: unresolved dynamic environment read outside a named function`);
-    if (!sinkParameters.has(info.name)) sinkParameters.set(info.name, new Set());
-    const parameters = sinkParameters.get(info.name);
+    if (!sinkParameters.has(info)) sinkParameters.set(info, new Set());
+    const parameters = sinkParameters.get(info);
     const size = parameters.size;
     parameters.add(index);
     return parameters.size !== size;
+  };
+
+  const outerExpression = (node) => {
+    let current = node;
+    while (
+      current.parent &&
+      (ts.isParenthesizedExpression(current.parent) ||
+        ts.isAsExpression(current.parent) ||
+        ts.isTypeAssertionExpression(current.parent) ||
+        ts.isNonNullExpression(current.parent) ||
+        (ts.isSatisfiesExpression && ts.isSatisfiesExpression(current.parent))) &&
+      current.parent.expression === current
+    ) {
+      current = current.parent;
+    }
+    return current;
+  };
+
+  const isIdentifierReference = (node) => {
+    if (!ts.isIdentifier(node)) return false;
+    const parent = node.parent;
+    if (ts.isVariableDeclaration(parent) && parent.name === node) return false;
+    if (ts.isParameter(parent) && parent.name === node) return false;
+    if (ts.isBindingElement(parent) && (parent.name === node || parent.propertyName === node)) return false;
+    if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false;
+    if (ts.isPropertyAssignment(parent) && parent.name === node) return false;
+    if (ts.isMethodDeclaration(parent) && parent.name === node) return false;
+    return true;
+  };
+
+  const safeWholeEnvironmentUse = (node) => {
+    const outer = outerExpression(node);
+    const parent = outer.parent;
+    if (ts.isPropertyAccessExpression(parent) && parent.expression === outer) return true;
+    if (ts.isElementAccessExpression(parent) && parent.expression === outer) return true;
+    if (environmentKinds(node).has("import.meta.env")) return false;
+    if (ts.isVariableDeclaration(parent) && parent.initializer === outer) {
+      return ts.isObjectBindingPattern(parent.name) || carrierKinds.has(parent);
+    }
+    if (ts.isParameter(parent) && parent.initializer === outer) return carrierKinds.has(parent);
+    if (ts.isCallExpression(parent)) {
+      const argumentIndex = parent.arguments.indexOf(outer);
+      if (argumentIndex < 0) return false;
+      const target = localFunctionForCall(parent);
+      return Boolean(target && carrierKinds.has(target.node.parameters[argumentIndex]));
+    }
+    return false;
+  };
+
+  const escapeReason = (node) => {
+    const parent = outerExpression(node).parent;
+    if (ts.isCallExpression(parent)) {
+      return localFunctionForCall(parent) ? "passed whole to a local call" : "passed to an untraceable call";
+    }
+    if (ts.isPropertyAssignment(parent) || ts.isShorthandPropertyAssignment(parent)) {
+      return "embedded in an object";
+    }
+    if (ts.isSpreadAssignment(parent) || ts.isSpreadElement(parent)) return "spread as a whole object";
+    if (ts.isReturnStatement(parent)) return "returned as a whole object";
+    return "used as a whole object";
+  };
+
+  const recordWholeEnvironmentEscape = (node) => {
+    const kinds = environmentKinds(node);
+    if (kinds.size === 0 || safeWholeEnvironmentUse(node)) return;
+    const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+    wholeEnvironmentEscapes.push({
+      file,
+      line: start.line + 1,
+      column: start.character + 1,
+      roots: [...kinds].sort(),
+      reason: escapeReason(node),
+    });
   };
 
   const scan = (node) => {
@@ -495,6 +658,9 @@ function analyzeConfigurationSource(sourceFile, file) {
       const name = node.initializer ? stringLiteralValue(node.initializer) : undefined;
       if (name && CONFIGURATION_NAME_PATTERN.test(name)) names.add(name);
     }
+    if (isDirectEnvironmentRoot(node) || (isIdentifierReference(node) && isEnvironmentObject(node))) {
+      recordWholeEnvironmentEscape(node);
+    }
     ts.forEachChild(node, scan);
   };
   scan(sourceFile);
@@ -503,9 +669,8 @@ function analyzeConfigurationSource(sourceFile, file) {
   while (sinksChanged) {
     sinksChanged = false;
     for (const call of calls) {
-      const target = unwrapExpression(call.expression);
-      if (!ts.isIdentifier(target)) continue;
-      const sink = sinkParameters.get(target.text);
+      const target = localFunctionForCall(call);
+      const sink = sinkParameters.get(target);
       if (!sink) continue;
       for (const parameterIndex of sink) {
         const argument = call.arguments[parameterIndex];
@@ -522,42 +687,41 @@ function analyzeConfigurationSource(sourceFile, file) {
             : -1;
         invariant(
           callerParameterIndex >= 0,
-          `${file}: unresolved call into dynamic environment reader ${target.text}`,
+          `${file}: unresolved call into dynamic environment reader ${target.name}`,
         );
         if (addSinkParameter(caller, callerParameterIndex)) sinksChanged = true;
       }
     }
   }
 
-  for (const [name, parameterIndexes] of sinkParameters) {
-    const info = functionsByName.get(name);
-    invariant(info, `${file}: dynamic environment reader ${name} is not statically traceable`);
+  for (const [info, parameterIndexes] of sinkParameters) {
     invariant(
       !info.node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword),
-      `${file}: exported dynamic environment reader ${name} is not statically bounded`,
+      `${file}: exported dynamic environment reader ${info.name} is not statically bounded`,
     );
     for (const parameterIndex of parameterIndexes) {
       invariant(
-        calls.some((call) => ts.isIdentifier(unwrapExpression(call.expression)) && unwrapExpression(call.expression).text === name && call.arguments[parameterIndex]),
-        `${file}: dynamic environment reader ${name} has no finite call sites`,
+        calls.some((call) => localFunctionForCall(call) === info && call.arguments[parameterIndex]),
+        `${file}: dynamic environment reader ${info.name} has no finite call sites`,
       );
     }
     for (const declaration of declarations) {
       const initializer = declaration.initializer ? unwrapExpression(declaration.initializer) : undefined;
       invariant(
-        !(initializer && ts.isIdentifier(initializer) && initializer.text === name),
-        `${file}: dynamic environment reader ${name} cannot be aliased`,
+        !(initializer && ts.isIdentifier(initializer) && initializer.text === info.name),
+        `${file}: dynamic environment reader ${info.name} cannot be aliased`,
       );
     }
   }
 
-  return names;
+  return { names, wholeEnvironmentEscapes };
 }
 
 const sampleConfigurationCache = new Map();
 
 async function scanSampleConfiguration(sourcePath) {
   const names = new Set();
+  const wholeEnvironmentEscapes = [];
   const files = (await walkFiles(sourcePath)).filter(
     (file) =>
       SAMPLE_SOURCE_EXTENSIONS.has(path.extname(file)) &&
@@ -572,18 +736,103 @@ async function scanSampleConfiguration(sourcePath) {
       true,
       file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
     );
-    for (const name of analyzeConfigurationSource(sourceFile, file)) names.add(name);
+    const report = analyzeConfigurationSource(sourceFile, file);
+    for (const name of report.names) names.add(name);
+    wholeEnvironmentEscapes.push(...report.wholeEnvironmentEscapes);
   }
-  return [...names].sort();
+  return {
+    names: [...names].sort(),
+    wholeEnvironmentEscapes: wholeEnvironmentEscapes.sort(
+      (left, right) =>
+        left.file.localeCompare(right.file) || left.line - right.line || left.column - right.column,
+    ),
+  };
 }
 
-export async function extractSampleConfiguration(sourcePath, exemptions = []) {
+export async function inspectSampleConfiguration(sourcePath, exemptions = []) {
   if (!sampleConfigurationCache.has(sourcePath)) {
     sampleConfigurationCache.set(sourcePath, scanSampleConfiguration(sourcePath));
   }
-  const names = await sampleConfigurationCache.get(sourcePath);
+  const report = await sampleConfigurationCache.get(sourcePath);
   const exemptionNames = new Set(exemptions.map((entry) => entry.name));
-  return names.filter((name) => !exemptionNames.has(name));
+  return {
+    names: report.names.filter((name) => !exemptionNames.has(name)),
+    wholeEnvironmentEscapes: report.wholeEnvironmentEscapes.map((escape) => ({ ...escape, roots: [...escape.roots] })),
+  };
+}
+
+export async function extractSampleConfiguration(sourcePath, exemptions = []) {
+  return (await inspectSampleConfiguration(sourcePath, exemptions)).names;
+}
+
+export function validateFixtureBuildHarnessSource(source, file = "mock-server.mjs") {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const importsFixtureEnvironment = sourceFile.statements.some(
+    (statement) =>
+      ts.isImportDeclaration(statement) &&
+      stringLiteralValue(statement.moduleSpecifier) === FIXTURE_BUILD_ENVIRONMENT_HELPER &&
+      ts.isNamedImports(statement.importClause?.namedBindings) &&
+      statement.importClause.namedBindings.elements.some(
+        (element) => !element.propertyName && element.name.text === "createFixtureBuildEnvironment",
+      ),
+  );
+  let buildCalls = 0;
+
+  const visit = (node) => {
+    if (ts.isCallExpression(node)) {
+      const target = unwrapExpression(node.expression);
+      const argv = node.arguments[1];
+      const values = argv && ts.isArrayLiteralExpression(argv)
+        ? argv.elements.map((element) => stringLiteralValue(unwrapExpression(element)))
+        : [];
+      const isFixtureBuild =
+        ts.isIdentifier(target) &&
+        target.text === "spawnSync" &&
+        values.length === 3 &&
+        values[0] === "run" &&
+        /^demo:[a-z0-9-]+:build$/.test(values[1] ?? "") &&
+        values[2] === "--silent";
+      if (isFixtureBuild) {
+        buildCalls += 1;
+        invariant(importsFixtureEnvironment, `${file}: fixture build must import createFixtureBuildEnvironment`);
+        const options = node.arguments[2];
+        invariant(options && ts.isObjectLiteralExpression(options), `${file}: fixture build options must be an object literal`);
+        const environmentProperty = options.properties.find(
+          (property) => ts.isPropertyAssignment(property) && propertyName(property.name) === "env",
+        );
+        invariant(environmentProperty, `${file}: fixture build must declare an explicit env option`);
+        const environmentCall = unwrapExpression(environmentProperty.initializer);
+        invariant(
+          ts.isCallExpression(environmentCall) &&
+            ts.isIdentifier(unwrapExpression(environmentCall.expression)) &&
+            unwrapExpression(environmentCall.expression).text === "createFixtureBuildEnvironment" &&
+            environmentCall.arguments.length <= 1,
+          `${file}: fixture build env must come directly from createFixtureBuildEnvironment`,
+        );
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return buildCalls;
+}
+
+let fixtureBuildHarnessValidation;
+
+export async function validateFixtureBuildHarnesses() {
+  fixtureBuildHarnessValidation ??= (async () => {
+    const files = (await walkFiles("examples")).filter((file) => file.endsWith("/mock-server.mjs"));
+    let buildCalls = 0;
+    for (const file of files) {
+      buildCalls += validateFixtureBuildHarnessSource(await readFile(path.join(PROJECT_ROOT, file), "utf8"), file);
+    }
+    invariant(
+      buildCalls === EXPECTED_FIXTURE_BUILD_HARNESS_COUNT,
+      `fixture build harness inventory drift: expected ${EXPECTED_FIXTURE_BUILD_HARNESS_COUNT}, found ${buildCalls}`,
+    );
+    return buildCalls;
+  })();
+  return fixtureBuildHarnessValidation;
 }
 
 async function runnableDocsExampleDirectories() {
@@ -748,6 +997,7 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
 
 export async function validateCatalog(catalog, packageJson, options = {}) {
   await validateJsonSchema(catalog, CATALOG_SCHEMA_PATH);
+  await validateFixtureBuildHarnesses();
   invariant(catalog.format === "honua.sdk.sample-catalog.v2", "catalog format must be v2");
   invariant(catalog.schemaVersion === 2, "catalog schemaVersion must be 2");
   invariant(catalog.migratedFrom?.path === V1_CATALOG_PATH, "catalog v1 migration source is required");
@@ -859,7 +1109,17 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     invariant(typeof sample.data.freshness === "string", `${sample.id}: freshness is required`);
     invariant(Array.isArray(sample.data.config) && sample.data.config.every((entry) => typeof entry === "string"), `${sample.id}: data.config must contain variable names`);
     if (sample.data.config.length > 0) sortedUnique(sample.data.config, `${sample.id}.data.config`);
-    const sourceConfiguration = await extractSampleConfiguration(sample.sourcePath);
+    const sourceInspection = await inspectSampleConfiguration(sample.sourcePath);
+    const sourceConfiguration = sourceInspection.names;
+    invariant(
+      sample.data.configurationStatus === "legacy-unsafe" || sourceInspection.wholeEnvironmentEscapes.length === 0,
+      `${sample.id}: ${sample.data.configurationStatus} configuration cannot expose a whole environment object: ${sourceInspection.wholeEnvironmentEscapes
+        .map(
+          (escape) =>
+            `${escape.file}:${escape.line}:${escape.column} ${escape.roots.join("+")} ${escape.reason}`,
+        )
+        .join("; ")}`,
+    );
     const exemptionNames = new Set(environmentReadExemptions.map((entry) => entry.name));
     for (const name of sourceConfiguration) {
       if (exemptionNames.has(name)) observedEnvironmentReadExemptions.add(name);

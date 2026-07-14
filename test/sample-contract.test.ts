@@ -4,6 +4,7 @@ import { readFile, rm } from "node:fs/promises";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
+import { createFixtureBuildEnvironment } from "../scripts/lib/fixture-build-environment.mjs";
 import {
   buildBrowserArtifactManifest,
   classifyConfigurationName,
@@ -13,11 +14,14 @@ import {
   generateSiteProjection,
   generatedOutputDrift,
   generatedOutputs,
+  inspectSampleConfiguration,
   isRunnableRootExampleDirectory,
   migrateCatalogV1ToV2,
   validateCatalog,
   validateCiSelection,
   validateEvidenceEnvelope,
+  validateFixtureBuildHarnessSource,
+  validateFixtureBuildHarnesses,
   validateLiveEvidenceProducer,
   validateSiteProjection,
   verifyBrowserArtifactManifest,
@@ -353,6 +357,16 @@ describe("sample publication contract", () => {
       "kepler-analytics: browser-public credentials require legacy-unsafe status and bounded rework",
     );
 
+    const unboundedBrowserPromotion = structuredClone(catalog);
+    const maplibre = unboundedBrowserPromotion.samples.find(
+      (sample: { id: string }) => sample.id === "maplibre-quickstart",
+    );
+    maplibre.data.configurationStatus = "approved";
+    delete maplibre.data.configurationGap;
+    await expect(validateCatalog(unboundedBrowserPromotion, packageJson, validationTime)).rejects.toThrow(
+      "maplibre-quickstart: approved configuration cannot expose a whole environment object",
+    );
+
     const inventedExemption = structuredClone(catalog);
     inventedExemption.configuration.environmentReadExemptions.push({
       name: "HONUA_FAKE_BUILTIN",
@@ -385,6 +399,79 @@ describe("sample publication contract", () => {
     await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-rest")).rejects.toThrow(
       "environment rest destructuring is not statically bounded",
     );
+  });
+
+  it("traces scoped environment carriers and reports whole-object browser escapes", async () => {
+    await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-forwarded")).resolves.toEqual({
+      names: ["HONUA_FORWARDED_URL"],
+      wholeEnvironmentEscapes: [],
+    });
+    await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-defaulted")).resolves.toEqual({
+      names: ["HONUA_DEFAULTED_URL"],
+      wholeEnvironmentEscapes: [],
+    });
+    await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-browser-projected")).resolves.toEqual({
+      names: ["VITE_PROJECTED_URL"],
+      wholeEnvironmentEscapes: [],
+    });
+
+    const wholeBrowserEnvironment = await inspectSampleConfiguration("test/fixtures/sample-contract/env-browser-whole");
+    expect(wholeBrowserEnvironment.names).toEqual(["VITE_WHOLE_INVENTORIED_URL"]);
+    expect(wholeBrowserEnvironment.wholeEnvironmentEscapes).toEqual([
+      expect.objectContaining({
+        file: "test/fixtures/sample-contract/env-browser-whole/index.ts",
+        roots: ["import.meta.env"],
+        reason: "passed to an untraceable call",
+      }),
+    ]);
+
+    const localBrowserEnvironment = await inspectSampleConfiguration("test/fixtures/sample-contract/env-browser-local");
+    expect(localBrowserEnvironment.names).toEqual(["VITE_LOCAL_URL"]);
+    expect(localBrowserEnvironment.wholeEnvironmentEscapes).toEqual([
+      expect.objectContaining({ roots: ["import.meta.env"], reason: "used as a whole object" }),
+      expect.objectContaining({ roots: ["import.meta.env"], reason: "passed whole to a local call" }),
+    ]);
+  });
+
+  it("isolates fixture Vite environments and gates every build launcher", async () => {
+    const environment = createFixtureBuildEnvironment(
+      { VITE_DECLARED: "fixture", VITE_EMPTY: "" },
+      {
+        PATH: "/usr/bin",
+        HONUA_KEEP: "yes",
+        VITE_DECLARED: "ambient",
+        VITE_UNDECLARED_FIXTURE_SENTINEL: "must-not-leak",
+        vite_mixed_case_sentinel: "must-not-leak",
+      },
+    );
+    expect(environment).toEqual({
+      PATH: "/usr/bin",
+      HONUA_KEEP: "yes",
+      VITE_DECLARED: "fixture",
+      VITE_EMPTY: "",
+    });
+    expect(() => createFixtureBuildEnvironment({ HONUA_NOT_PUBLIC: "invalid" }, {})).toThrow(
+      "Fixture build overrides must use uppercase VITE_* names",
+    );
+
+    const helperImport =
+      'import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";';
+    expect(
+      validateFixtureBuildHarnessSource(
+        `${helperImport}\nspawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], { env: createFixtureBuildEnvironment() });`,
+      ),
+    ).toBe(1);
+    expect(() =>
+      validateFixtureBuildHarnessSource(
+        `${helperImport}\nspawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], {});`,
+      ),
+    ).toThrow("fixture build must declare an explicit env option");
+    expect(() =>
+      validateFixtureBuildHarnessSource(
+        `${helperImport}\nspawnSync(npmCommand, ["run", "demo:fixture:build", "--silent"], { env: process.env });`,
+      ),
+    ).toThrow("fixture build env must come directly from createFixtureBuildEnvironment");
+    await expect(validateFixtureBuildHarnesses()).resolves.toBe(25);
   });
 
   it("accepts only bounded, whole catalog commands", async () => {

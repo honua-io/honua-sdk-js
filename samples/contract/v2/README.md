@@ -55,9 +55,15 @@ sufficient in either lane.
 
 Configuration metadata is an exact static inventory of named `process.env`,
 `import.meta.env`, Node loader `env.NAME`, and literal-key helper reads in each
-sample source tree. Finite aliases, destructuring, and dynamic helper call
-chains are resolved; unbounded computed reads, environment rest destructuring,
-exported dynamic readers, and reader aliases fail closed. Validation rejects
+sample source tree. Scoped `process.env` aliases, bounded defaults, fixed
+destructuring, and finite dynamic helper call chains are resolved regardless of
+parameter names. Unbounded computed reads, environment rest destructuring,
+exported dynamic readers, and reader aliases fail closed. A whole
+`import.meta.env` occurrence is always unsafe because Vite can serialize every
+available `VITE_*` value even when a local callee reads one field; approved and
+not-required samples must use explicit named projections. Other whole
+environment escapes also require `legacy-unsafe` status and bounded rework,
+without hiding the names that static analysis can inventory. Validation rejects
 missing and invented names. The only exempt reads are the explicitly declared
 Vite `MODE` and GitHub Actions `GITHUB_SHA` built-ins. Each retained name is
 classified as browser-public or server-only and as non-secret or credential;
@@ -74,6 +80,12 @@ key fails verification. Query names are NFKC-normalized, split at camel-case
 boundaries, lowercased, and reduced to underscore-delimited tokens before exact
 or token-boundary suffix matching. Ordinary words that merely contain `key`,
 `token`, `secret`, or `signature` remain valid.
+
+Every mock-server Vite build uses the shared fixture environment boundary. It
+preserves non-browser build controls, removes all inherited `VITE_*` values,
+then applies only the harness's explicit fixture overrides. A structural gate
+covers all 25 launchers and rejects default process inheritance, direct
+`process.env`, or an omitted child `env` option.
 
 Executed live evidence carries a full reported source revision plus a
 `producer-generator` artifact. Verification content-binds that artifact to the
