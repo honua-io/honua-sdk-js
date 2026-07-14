@@ -189,17 +189,21 @@ export interface HonuaConnection {
   source<T = Record<string, unknown>>(id?: SourceId): Source<T>;
 }
 
-export type ConnectResolvedProtocol =
-  | "ogc-features"
-  | "stac"
-  | "wfs"
-  | "odata"
-  | "geoparquet"
-  | "ogc-records"
-  | "ogc-tiles"
-  | "ogc-maps"
-  | "geoservices-feature-service"
-  | "geoservices-map-service";
+/** Source-backed protocols with a reviewed top-level {@link connect} discovery adapter. */
+export const CONNECT_SOURCE_PROTOCOLS = [
+  "ogc-features",
+  "stac",
+  "wfs",
+  "odata",
+  "geoparquet",
+  "ogc-records",
+  "ogc-tiles",
+  "ogc-maps",
+  "geoservices-feature-service",
+  "geoservices-map-service",
+] as const satisfies readonly Protocol[];
+
+export type ConnectResolvedProtocol = (typeof CONNECT_SOURCE_PROTOCOLS)[number];
 
 /**
  * Discover an explicitly identified endpoint and return reviewed descriptors.

@@ -17,7 +17,7 @@
     "sdk": {
       "type": "object",
       "required": ["package", "version", "gitCommit"],
-      "properties": { "package": { "const": "@honua/sdk-js" }, "version": { "type": "string" }, "gitCommit": { "type": ["string", "null"] } },
+      "properties": { "package": { "const": "@honua/sdk-js" }, "version": { "type": "string" }, "gitCommit": { "type": ["string", "null"], "pattern": "^[a-f0-9]{40}$" } },
       "additionalProperties": false
     },
     "source": {
@@ -92,10 +92,32 @@
       "items": {
         "type": "object",
         "required": ["kind", "path", "sha256"],
-        "properties": { "kind": { "type": "string" }, "path": { "type": "string" }, "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" } },
+        "properties": { "kind": { "type": "string", "minLength": 1 }, "path": { "type": "string", "minLength": 1 }, "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" } },
         "additionalProperties": false
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "lane": { "const": "live" }, "status": { "const": "executed" } },
+        "required": ["lane", "status"]
+      },
+      "then": {
+        "properties": {
+          "sdk": { "type": "object", "properties": { "gitCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" } } },
+          "artifacts": {
+            "type": "array",
+            "minItems": 1,
+            "contains": {
+              "type": "object",
+              "properties": { "kind": { "const": "producer-generator" } },
+              "required": ["kind"]
+            }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

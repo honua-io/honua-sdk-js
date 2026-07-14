@@ -69,7 +69,7 @@ describe("contract / intersectCapabilities", () => {
     ]);
     // The intersection of FS (query, queryAggregate, queryExtent,
     // queryObjectIds, queryRelated, applyEdits, attachments, sql,
-    // stream, pbf, connect) and OGC Features (query, queryObjectIds,
+    // stream, pbf) and OGC Features (query, queryObjectIds,
     // applyEdits, stream) is exactly { query, queryObjectIds,
     // applyEdits, stream }.
     expect(intersected.has("query")).toBe(true);

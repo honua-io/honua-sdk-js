@@ -11,7 +11,7 @@ const readJson = (relativePath) => JSON.parse(fs.readFileSync(path.join(root, re
 const manifest = readJson("docs/learning-paths.v1.json");
 const packageJson = readJson("package.json");
 const publicSurface = readJson("config/public-surface.json");
-const sampleCatalog = readJson("samples/catalog.v1.json");
+const sampleCatalog = readJson("samples/catalog.v2.json");
 
 function copyManifest() {
   return structuredClone(manifest);
@@ -62,8 +62,8 @@ test("derives learning-card metadata from the versioned sample catalog", async (
   );
 
   const markdown = generateLearningMarkdown(manifest, sampleCatalog);
-  assert.match(markdown, /spatial-analytics-workbench[\s\S]*Sample contract: `flagship` · `experimental`/);
-  assert.match(markdown, /storytelling-25d-map[\s\S]*Sample contract: `advanced` · `supported`/);
+  assert.match(markdown, /spatial-analytics-workbench[\s\S]*Sample contract: `lab` · `experimental` · `rework`/);
+  assert.match(markdown, /storytelling-25d-map[\s\S]*Sample contract: `lab` · `supported` · `merge`/);
   assert.match(markdown, /Data and auth: `hybrid` · `anonymous`/);
   assert.match(markdown, /Live sample: \[demo\.html\]\(https:\/\/honua\.io\/demo\.html\)/);
   assert.match(markdown, /effective version derived from `package\.json`|version in \[`package\.json`\]/);

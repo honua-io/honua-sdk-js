@@ -64,14 +64,57 @@ export interface ResolveIncidentTransportOptions {
   readonly timeoutMs?: number;
 }
 
+type ImportMetaWithOptionalEnvironment = ImportMeta & {
+  readonly env?: Record<string, string | undefined>;
+};
+
 const DEFAULT_DEMO_BASE_URL = "https://demo.honua.io";
 const DEFAULT_SOURCE_ID = "maui-incidents";
 const DEFAULT_LAYER_ID = 0;
-const SENSITIVE_QUERY_KEYS = ["access_token", "api_key", "key", "sig", "signature", "token"];
+const SENSITIVE_QUERY_KEY_TOKENS = new Set([
+  "access_key",
+  "access_key_id",
+  "access_token",
+  "api_key",
+  "apikey",
+  "auth_token",
+  "authorization",
+  "aws_access_key_id",
+  "awsaccesskeyid",
+  "bearer_token",
+  "client_secret",
+  "credential",
+  "id_token",
+  "key",
+  "password",
+  "private_key",
+  "refresh_token",
+  "sas",
+  "secret",
+  "sig",
+  "signature",
+  "subscription_key",
+  "token",
+  "x_amz_credential",
+  "x_amz_signature",
+  "x_api_key",
+  "x_goog_signature",
+]);
 
 export function readIncidentTransportConfig(location: Location = window.location): IncidentTransportConfig {
   const params = new URLSearchParams(location.search);
-  const env = (import.meta as ImportMeta & { readonly env?: Record<string, string | undefined> }).env;
+  const env = {
+    VITE_HONUA_INCIDENT_BASE_URL: (import.meta as ImportMetaWithOptionalEnvironment).env?.VITE_HONUA_INCIDENT_BASE_URL,
+    VITE_HONUA_INCIDENT_CAPABILITIES_URL: (import.meta as ImportMetaWithOptionalEnvironment).env
+      ?.VITE_HONUA_INCIDENT_CAPABILITIES_URL,
+    VITE_HONUA_INCIDENT_LAYER_ID: (import.meta as ImportMetaWithOptionalEnvironment).env?.VITE_HONUA_INCIDENT_LAYER_ID,
+    VITE_HONUA_INCIDENT_SOURCE_ID: (import.meta as ImportMetaWithOptionalEnvironment).env
+      ?.VITE_HONUA_INCIDENT_SOURCE_ID,
+    VITE_HONUA_INCIDENT_STREAM_URL: (import.meta as ImportMetaWithOptionalEnvironment).env
+      ?.VITE_HONUA_INCIDENT_STREAM_URL,
+    VITE_HONUA_INCIDENT_TRANSPORT: (import.meta as ImportMetaWithOptionalEnvironment).env
+      ?.VITE_HONUA_INCIDENT_TRANSPORT,
+  };
   const requestedMode = normalizeRequestedMode(params.get("transport") ?? env?.VITE_HONUA_INCIDENT_TRANSPORT);
   const demoBaseUrl = sanitizedPublicUrl(
     params.get("baseUrl") ?? env?.VITE_HONUA_INCIDENT_BASE_URL ?? DEFAULT_DEMO_BASE_URL,
@@ -261,12 +304,31 @@ function normalizeRequestedMode(value: string | undefined): IncidentRequestedTra
   return "auto";
 }
 
+function normalizeQueryKey(name: string): string {
+  return name
+    .normalize("NFKC")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function isSensitiveQueryKey(name: string): boolean {
+  const normalized = normalizeQueryKey(name);
+  return [...SENSITIVE_QUERY_KEY_TOKENS].some(
+    (candidate) => normalized === candidate || normalized.endsWith(`_${candidate}`),
+  );
+}
+
 function sanitizedPublicUrl(value: string): string {
   const url = new URL(value);
   if (!/^https?:$/.test(url.protocol)) throw new Error("Incident endpoint must use HTTP(S).");
   if (url.username || url.password) throw new Error("Incident endpoint must not contain credentials.");
-  for (const key of SENSITIVE_QUERY_KEYS) {
-    if (url.searchParams.has(key)) throw new Error("Incident endpoint must not contain credential query parameters.");
+  for (const key of url.searchParams.keys()) {
+    if (isSensitiveQueryKey(key)) {
+      throw new Error("Incident endpoint must not contain credential query parameters.");
+    }
   }
   url.hash = "";
   return url.href.replace(/\/$/, "");

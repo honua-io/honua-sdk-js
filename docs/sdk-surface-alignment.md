@@ -86,6 +86,12 @@ semantic identifiers rather than inventing per-repo names for the same
 operation. Default capability sets per protocol live in
 `PROTOCOL_DEFAULT_CAPABILITIES` and are mirrored in
 [`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md).
+Every identifier must also have exactly one reviewed entry in the support
+manifest's `operationSurfaces` registry. That registry binds the operation to
+either a compile-checked canonical `Source` member or a named typed adapter
+member, plus executable evidence; CI fails if vocabulary and surfaces drift.
+Top-level `connect()` discovery is tracked separately as a product support
+claim because it is not an operation on a `Source`.
 
 Capability misses must be explicit. The required behavior is a typed SDK error
 that names the missing capability and protocol (`HonuaCapabilityNotSupportedError`
