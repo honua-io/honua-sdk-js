@@ -21,6 +21,35 @@ describe("HonuaClient transport selection", () => {
     expect(client.isGrpcWeb).toBe(true);
   });
 
+  it("defers and deduplicates Connect client initialization until it is awaited", async () => {
+    // Preload the optional modules so a constructor-started import chain would
+    // deterministically settle before the assertion below.
+    await Promise.all([
+      import("@connectrpc/connect"),
+      import("@connectrpc/connect-web"),
+      import("../src/gen/honua/v1/feature_service_pb.js"),
+    ]);
+
+    const client = new HonuaClient({
+      baseUrl: "https://example.test",
+      transport: "grpc-web",
+      fetchFn: async () => new Response("{}", { status: 200 }),
+    });
+    const internals = client as unknown as {
+      connectClient?: unknown;
+      connectClientPromise?: Promise<unknown>;
+      ensureConnectClient(): Promise<unknown>;
+    };
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(internals.connectClient).toBeUndefined();
+    expect(internals.connectClientPromise).toBeUndefined();
+
+    const [first, second] = await Promise.all([internals.ensureConnectClient(), internals.ensureConnectClient()]);
+    expect(first).toBe(second);
+    expect(internals.connectClient).toBe(first);
+  });
+
   it("uses REST path when transport is rest", async () => {
     let requestedUrl = "";
     const client = new HonuaClient({
