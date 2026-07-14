@@ -157,6 +157,8 @@ export {
   unionCapabilities,
 } from "./types.js";
 
+export type { SourceSchemaV2Envelope } from "./schema-envelope.js";
+
 export {
   HONUA_DISCOVERY_ADAPTER_VERSION,
   HONUA_DISCOVERY_PROJECTION_VERSION,

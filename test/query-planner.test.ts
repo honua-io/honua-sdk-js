@@ -75,6 +75,34 @@ describe("query IR", () => {
     expect(Object.isFrozen(first.query.spatialFilter?.geometry)).toBe(true);
   });
 
+  it("fails closed for malformed authority credentials while preserving safe relative paths", () => {
+    const malformed = descriptor();
+    malformed.locator.url = "https://user:password@example.test:bad/FeatureServer?token=secret";
+    const malformedIr = createQueryIr({ descriptor: malformed, query: {} });
+    expect(malformedIr.source.endpoint).toBe("[invalid-endpoint]");
+    expect(JSON.stringify(malformedIr)).not.toContain("user");
+    expect(JSON.stringify(malformedIr)).not.toContain("password");
+    expect(JSON.stringify(malformedIr)).not.toContain("secret");
+
+    const backslashAuthority = descriptor();
+    backslashAuthority.locator.url = String.raw`https:\\user:backslash-password@example.test:bad\path?token=backslash-token`;
+    const backslashIr = createQueryIr({ descriptor: backslashAuthority, query: {} });
+    expect(backslashIr.source.endpoint).toBe("[invalid-endpoint]");
+    expect(JSON.stringify(backslashIr)).not.toContain("backslash-password");
+    expect(JSON.stringify(backslashIr)).not.toContain("backslash-token");
+
+    const whitespaceAuthority = descriptor();
+    whitespaceAuthority.locator.url = "https ://user:space-password@example.test?token=space-token";
+    const whitespaceIr = createQueryIr({ descriptor: whitespaceAuthority, query: {} });
+    expect(whitespaceIr.source.endpoint).toBe("[invalid-endpoint]");
+    expect(JSON.stringify(whitespaceIr)).not.toContain("space-password");
+    expect(JSON.stringify(whitespaceIr)).not.toContain("space-token");
+
+    const relative = descriptor();
+    relative.locator.url = "fixtures/places.parquet?token=secret#fragment";
+    expect(createQueryIr({ descriptor: relative, query: {} }).source.endpoint).toBe("fixtures/places.parquet");
+  });
+
   it("rejects non-serializable geometry and invalid pagination", () => {
     const cyclic: Record<string, unknown> = {};
     cyclic.self = cyclic;
@@ -241,6 +269,7 @@ describe("executeQueryPlan", () => {
       capabilityPolicy: "degraded",
       fallback: { mode: "bounded-local", maxRows: 2 },
       authorizationScope: ["read"],
+      schemaVersion: "schema-one",
     });
     const overflow = fakeSource(descriptor(false), {
       queryAll: vi.fn().mockResolvedValue({
@@ -248,23 +277,32 @@ describe("executeQueryPlan", () => {
         exceededTransferLimit: false,
       }),
     });
-    await expect(executeQueryPlan(plan, overflow, { authorizationScope: ["read"] })).rejects.toMatchObject({
+    await expect(
+      executeQueryPlan(plan, overflow, { authorizationScope: ["read"], schemaVersion: "schema-one" }),
+    ).rejects.toMatchObject({
       code: "unsafe-materialization",
     });
     const truncated = fakeSource(descriptor(false), {
       queryAll: vi.fn().mockResolvedValue({ features: [feature({ OBJECTID: 1 })], exceededTransferLimit: true }),
     });
-    await expect(executeQueryPlan(plan, truncated, { authorizationScope: ["read"] })).rejects.toMatchObject({
+    await expect(
+      executeQueryPlan(plan, truncated, { authorizationScope: ["read"], schemaVersion: "schema-one" }),
+    ).rejects.toMatchObject({
       code: "unsafe-materialization",
     });
-    await expect(executeQueryPlan(plan, overflow, { authorizationScope: ["other"] })).rejects.toMatchObject({
+    await expect(
+      executeQueryPlan(plan, overflow, { authorizationScope: ["other"], schemaVersion: "schema-one" }),
+    ).rejects.toMatchObject({
       code: "plan-context-mismatch",
     });
+    await expect(
+      executeQueryPlan(plan, overflow, { authorizationScope: ["read"], schemaVersion: "schema-two" }),
+    ).rejects.toMatchObject({ code: "plan-context-mismatch" });
 
     const tampered = { ...plan, warnings: ["changed"] } as typeof plan;
-    await expect(executeQueryPlan(tampered, overflow, { authorizationScope: ["read"] })).rejects.toBeInstanceOf(
-      HonuaQueryPlanExecutionError,
-    );
+    await expect(
+      executeQueryPlan(tampered, overflow, { authorizationScope: ["read"], schemaVersion: "schema-one" }),
+    ).rejects.toBeInstanceOf(HonuaQueryPlanExecutionError);
   });
 
   it("enforces the optional runtime byte ceiling", async () => {

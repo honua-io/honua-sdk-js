@@ -17,6 +17,8 @@
     "'tree-shake:HonuaClient' is a deep-import-hygiene guard: a fixture importing ONLY",
     "{ HonuaClient } from the root entry must stay under its ceiling, proving a single",
     "symbol does not drag the whole SDK into a consumer bundle.",
+    "/source-schema is the focused experimental SourceSchemaV2 runtime, including the pinned PROJJSON validator. 'tree-shake:root-connect' proves default root discovery does not retain that validation stack. Both ceilings are measured actual plus ~10% headroom.",
+    "/geoparquet was reset for bounded GeoParquet 1.0/1.1 projection validation (exact versions, geometry types, bbox, epoch, and covering checks): 22,092 minified / 7,889 gzip bytes. /map's gzip ceiling was reset after the lightweight structural SourceSchemaV2 envelope check reached its shared discovery path: 42,656 gzip bytes. Ceilings are measured actual plus ~10% headroom; root, /honua, browser, /contract, and /query-planner ceilings remain unchanged.",
     "/react and /geometry landed with the adoption-wave-1 bundle (issues #349/#351). /esri-compat's budget was reset for the geometryEngine shim's turf/proj4 backing; 'tree-shake:esri-compat-FeatureLayerCompat' guards that compat consumers who never touch geometryEngine keep paying only the pre-shim cost. 'tree-shake:geometry-buffer' is intentionally large: @turf/buffer carries a JSTS port (~66 KiB gzip); light ops like area() shake down to ~1 KiB.",
     "/map was reset for the accepted-plan source workflow (#390): 62.6 to 79.5 KiB min and 16.2 to 21.8 KiB gzip after removing the generic aggregate executor. Keeping the adapter on /map preserves the canonical endpoint-to-map import; 'tree-shake:map-source-workflow' isolates its 17.1 KiB min / 6.4 KiB gzip consumer cost.",
     "/contract gzip was reset for credential-safe discovery (#391): provider-aware Azure SAS, CloudFront, AWS, and GCS signed-URL normalization plus runtime evidence-kind validation. The measured 61,493 bytes gzip is budgeted at 67,643 bytes per the 10% headroom policy.",
@@ -39,7 +41,8 @@
     "/style and /webmap were reset for first-class renderer objects (#497): the /style entrypoint gains the classBreaks/uniqueValue/heatmap/cluster renderer factories, legend contracts, and the shared /expr-based compiler (measured 47,836 minified / 11,551 gzip; gzip growth over the prior actual is ~3 KiB, within the 6 KiB NFR-001 allowance); /webmap now emits renderer objects and compiles through the same single implementation, adding the shared compiler to its bundle (measured 25,383 minified / 7,705 gzip). Each ceiling is measured actual plus ~10% headroom.",
     "/react was reset for the react depth pass (#498): HonuaSourceLayer/useMountedSource pull the data-to-map bridge (mountSource + geojson projection + popup/hover wiring) and the selection context pulls the interactions feature-state + exploration selection-target primitives onto the entrypoint. Measured 415,869 minified / 109,064 gzip before the trunk rebase (+0.4 KiB min / +2.0 KiB gzip over the prior ceiling); ceilings are measured actual plus ~10% headroom.",
     "/agent-tools gained its first dedicated guard when it was promoted to the stable tier alongside /agent-safety (#502): the ten JSON-Schema tool definitions, the bounded executor with audit/redaction, the runtime adapters, and the MCP/OpenAI exporters measure 21,131 minified / 6,523 gzip bytes; the ceiling is measured actual plus ~10% headroom. Both agent entrypoints remain subpath-only — root and browser barrels are unchanged.",
-    "The affected entrypoint ceilings were reset for the unified error envelope (#524): migrated public errors now carry stable domain/category/retryability metadata, bounded redacted context, cause projection, and a governed 102-code registry. Small domain entrypoints gain roughly 3.5–4.4 KiB gzip for this common runtime contract; only exceeded metrics were reset to measured actual plus 10% headroom. After the geometry error family joined the envelope on trunk, the root/browser gzip ceilings were reset from the merged measurements to restore the same 10% headroom policy."
+    "The affected entrypoint ceilings were reset for the unified error envelope (#524): migrated public errors now carry stable domain/category/retryability metadata, bounded redacted context, cause projection, and a governed 102-code registry. Small domain entrypoints gain roughly 3.5–4.4 KiB gzip for this common runtime contract; only exceeded metrics were reset to measured actual plus 10% headroom. After the geometry error family joined the envelope on trunk, the root/browser gzip ceilings were reset from the merged measurements to restore the same 10% headroom policy.",
+    "The exceeded /honua, /contract, /runtime, and /geoparquet metrics were reset for the merged SourceSchemaV2 contract foundation (#523). /geoparquet carries bounded GeoParquet metadata consistency and native-geometry support validation while preserving v1 query-result normalization; the other entrypoints expose or consume the stable schema envelope. Only exceeded metrics were reset to measured actual plus 10% headroom."
   ],
   "entrypoints": {
     ".": {
@@ -47,12 +50,16 @@
       "gzip": 115241
     },
     "/honua": {
-      "min": 522505,
-      "gzip": 138981
+      "min": 579760,
+      "gzip": 153185
     },
     "/contract": {
-      "min": 267322,
+      "min": 294195,
       "gzip": 74642
+    },
+    "/source-schema": {
+      "min": 679677,
+      "gzip": 137190
     },
     "/plugin": {
       "min": 64080,
@@ -72,7 +79,7 @@
     },
     "/runtime": {
       "min": 469747,
-      "gzip": 122338
+      "gzip": 134911
     },
     "/realtime": {
       "min": 50483,
@@ -123,8 +130,8 @@
       "gzip": 51896
     },
     "/geoparquet": {
-      "min": 37405,
-      "gzip": 11708
+      "min": 47583,
+      "gzip": 14941
     },
     "/deckgl": {
       "min": 16916,
@@ -141,6 +148,10 @@
     "tree-shake:HonuaClient": {
       "min": 235231,
       "gzip": 59002
+    },
+    "tree-shake:root-connect": {
+      "min": 367787,
+      "gzip": 95076
     },
     "/react": {
       "min": 457456,

@@ -689,15 +689,16 @@ void source.query({
   select: ["parcelId", "missingField"] as const,
 });
 
-void source.query({
+const ordinaryStringTemporalQuery = {
   kind: "features",
-  // @ts-expect-error Ordinary string fields are not schema/role-derived temporal values.
   filter: {
     op: "before",
     field: "owner",
     value: { kind: "instant", value: "2026-07-13T00:00:00Z" },
   },
-});
+} as const;
+// @ts-expect-error Ordinary string fields are not schema/role-derived temporal values.
+void source.query(ordinaryStringTemporalQuery);
 
 void source.query({
   kind: "features",
@@ -770,14 +771,15 @@ void nonSpatialSource.query({
   outputCrs: crs84.definition,
 });
 
-void source.query({
+const nonSpatialGeometryQuery = {
   kind: "features",
-  // @ts-expect-error A non-spatial marker is not an executable geometry operand.
   filter: {
     op: "intersects",
     geometry: { state: "none", reason: "non-spatial" },
   },
-});
+} as const;
+// @ts-expect-error A non-spatial marker is not an executable geometry operand.
+void source.query(nonSpatialGeometryQuery);
 
 void source.query({
   kind: "features",
@@ -825,23 +827,25 @@ void source.query({
   },
 });
 
-void source.query({
+const unknownCrsSpatialQuery = {
   kind: "features",
-  // @ts-expect-error Spatial execution requires a resolved CRS and known payload order.
   filter: {
     op: "intersects",
     geometry: unknownCrsSpatialOperand,
   },
-});
+} as const;
+// @ts-expect-error Spatial execution requires a resolved CRS and known payload order.
+void source.query(unknownCrsSpatialQuery);
 
-void source.query({
+const unknownOrderSpatialQuery = {
   kind: "features",
-  // @ts-expect-error A resolved CRS alone is insufficient when payload coordinate order is unknown.
   filter: {
     op: "intersects",
     geometry: unknownOrderSpatialOperand,
   },
-});
+} as const;
+// @ts-expect-error A resolved CRS alone is insufficient when payload coordinate order is unknown.
+void source.query(unknownOrderSpatialQuery);
 
 void wfsSource.query({
   kind: "features",

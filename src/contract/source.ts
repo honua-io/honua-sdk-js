@@ -4136,10 +4136,10 @@ function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
     signal?: AbortSignal;
   } = {};
   if (envelope.adds && envelope.adds.length > 0) {
-    out.adds = envelope.adds.map((f) => canonicalToHonuaFeature(f));
+    out.adds = envelope.adds.map(canonicalToHonuaFeature);
   }
   if (envelope.updates && envelope.updates.length > 0) {
-    out.updates = envelope.updates.map((f) => canonicalToHonuaFeature(f));
+    out.updates = envelope.updates.map(canonicalToHonuaFeature);
   }
   if (envelope.deletes && envelope.deletes.length > 0) {
     const numericIds: number[] = [];

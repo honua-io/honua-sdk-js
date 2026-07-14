@@ -1,6 +1,6 @@
 /** Internal OData v4 `$metadata` (CSDL) projection for connect(). */
 
-import type { ConnectDiscoverySourceSnapshot, ConnectOptions } from "./connect.js";
+import type { ConnectDiscoverySourceSnapshot, ConnectOptions, ConnectSourceSchemaProjection } from "./connect.js";
 import type { DiscoveryCacheIdentity, DiscoveryCapabilityEvidence, DiscoveryProvenance } from "./contract/discovery.js";
 import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES, type SourceSchema } from "./contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
@@ -43,6 +43,7 @@ export async function discoverOdataSources(
   identity: DiscoveryCacheIdentity,
   basePath: string,
   options: ConnectOptions,
+  sourceSchemaProjection?: ConnectSourceSchemaProjection,
 ): Promise<OdataDiscoveryResult> {
   const request: HonuaMetadataRequestOptions = {
     ...options.metadata,
@@ -65,7 +66,7 @@ export async function discoverOdataSources(
   ]);
 
   const sources = entitySetNames.map((name) =>
-    discoveredOdataSourceSnapshot(identity.endpoint, name, metadata, provenance),
+    discoveredOdataSourceSnapshot(identity.endpoint, name, metadata, provenance, sourceSchemaProjection),
   );
   return Object.freeze({ retrievedAt, evidence: Object.freeze([]), sources: Object.freeze(sources) });
 }
@@ -75,6 +76,7 @@ function discoveredOdataSourceSnapshot(
   entitySet: string,
   metadata: HonuaOdataMetadata,
   provenance: readonly DiscoveryProvenance[],
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): ConnectDiscoverySourceSnapshot {
   const typeName = metadata.entitySets[entitySet];
   const keys = (typeName ? metadata.keys[typeName] : undefined) ?? [];
@@ -93,6 +95,10 @@ function discoveredOdataSourceSnapshot(
           ...(keys.length === 1 ? { primaryKey: keys[0] } : {}),
         })
       : undefined;
+  const schemaV2 = sourceSchemaProjection?.odata(metadata, entitySet, {
+    source: `${endpoint}/$metadata`,
+    observedAt: provenance[0]!.retrievedAt,
+  });
 
   const evidence: readonly DiscoveryCapabilityEvidence[] = Object.freeze([
     Object.freeze({
@@ -108,6 +114,7 @@ function discoveredOdataSourceSnapshot(
     locator: Object.freeze({ url: endpoint, entitySet }),
     title: entitySet,
     ...(schema ? { schema } : {}),
+    ...(schemaV2 ? { schemaV2 } : {}),
     evidence,
   });
 }

@@ -59,6 +59,13 @@
       "samples/**/*.mts",
       "samples/**/*.json"
     ],
-    "ignore": ["dist", "node_modules", "src/gen", "test/fixtures", "examples/arcgis-source-app"]
+    "ignore": [
+      "dist",
+      "node_modules",
+      "src/gen",
+      "src/contract/generated",
+      "test/fixtures",
+      "examples/arcgis-source-app"
+    ]
   }
 }

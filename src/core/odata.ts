@@ -31,6 +31,8 @@ import type { HonuaClient } from "./client.js";
 import { trimTrailingSlashes } from "./path-utils.js";
 import type { HonuaFieldInfo } from "./types.js";
 
+const MAX_ODATA_METADATA_CHARACTERS = 4 * 1024 * 1024;
+
 // ── Locator + options ─────────────────────────────────────────
 
 /**
@@ -130,9 +132,56 @@ export interface HonuaOdataMetadata {
   keys: Readonly<Record<string, readonly string[]>>;
   /** Entity-type name → field metadata, including spatial typing hints. */
   fields: Readonly<Record<string, readonly HonuaOdataFieldInfo[]>>;
+  /** Complex-type name → nested property metadata. */
+  complexTypes?: Readonly<Record<string, readonly HonuaOdataFieldInfo[]>>;
+  /** Enum-type name → underlying scalar and declared members. */
+  enumTypes?: Readonly<Record<string, HonuaOdataEnumTypeInfo>>;
+  /** Entity types explicitly declared with CSDL `OpenType="true"`. */
+  openTypes?: Readonly<Record<string, true>>;
   /** Entity-set name → coarse capability flags advertised by `Capabilities.*` annotations. */
   capabilities: Readonly<Record<string, HonuaOdataAdvertisedCapabilities>>;
   cache?: HonuaCacheState;
+}
+
+/** @internal Parser evidence used only by the opt-in SourceSchemaV2 projector. */
+export interface HonuaOdataSourceSchemaProjectionSafety {
+  readonly csdlVersion?: string;
+  readonly ambiguousTypeNames: readonly string[];
+  readonly inheritedTypeNames: readonly string[];
+  readonly openComplexTypeNames: readonly string[];
+  readonly unqualifiedTypeNames: readonly string[];
+}
+
+const ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY = Symbol("honua.odata.source-schema-projection-safety");
+const ODATA_SOURCE_SCHEMA_PROJECTION_DETAILS = Symbol("honua.odata.source-schema-projection-details");
+
+interface HonuaOdataSourceSchemaProjectionDetails {
+  readonly fields: Readonly<Record<string, readonly HonuaOdataFieldInfo[]>>;
+  readonly complexTypes: Readonly<Record<string, readonly HonuaOdataFieldInfo[]>>;
+  readonly enumTypes: Readonly<Record<string, HonuaOdataEnumTypeInfo>>;
+  readonly openTypes: Readonly<Record<string, true>>;
+}
+
+/** @internal Read parser evidence without changing the legacy string-keyed metadata shape. */
+export function getOdataSourceSchemaProjectionSafety(
+  metadata: HonuaOdataMetadata,
+): HonuaOdataSourceSchemaProjectionSafety | undefined {
+  return (
+    metadata as HonuaOdataMetadata & {
+      readonly [ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY]?: HonuaOdataSourceSchemaProjectionSafety;
+    }
+  )[ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY];
+}
+
+/** @internal Read rich CSDL state without changing the legacy string-keyed metadata shape. */
+export function getOdataSourceSchemaProjectionDetails(
+  metadata: HonuaOdataMetadata,
+): HonuaOdataSourceSchemaProjectionDetails | undefined {
+  return (
+    metadata as HonuaOdataMetadata & {
+      readonly [ODATA_SOURCE_SCHEMA_PROJECTION_DETAILS]?: HonuaOdataSourceSchemaProjectionDetails;
+    }
+  )[ODATA_SOURCE_SCHEMA_PROJECTION_DETAILS];
 }
 
 /** Per-field metadata carried by {@link HonuaOdataMetadata.fields}. */
@@ -140,10 +189,41 @@ export interface HonuaOdataFieldInfo {
   name: string;
   type: string;
   nullable?: boolean;
+  maxLength?: number | "max";
+  precision?: number;
+  scale?: number | "variable" | "floating";
   /** True when the field is an `Edm.Geography` / `Edm.Geometry` column. */
   isSpatial?: boolean;
   /** Optional SRID hint declared in the type or annotation. */
-  srid?: number;
+  srid?: number | "variable";
+}
+
+export interface HonuaOdataEnumMemberInfo {
+  readonly name: string;
+  readonly value: string | number;
+}
+
+export type HonuaOdataEnumDeclaration =
+  | { readonly state: "valid"; readonly valueMode: "explicit" | "implicit" | "mixed" }
+  | {
+      readonly state: "invalid";
+      readonly reason:
+        | "invalid-underlying-type"
+        | "empty-declaration"
+        | "flags-require-explicit-values"
+        | "invalid-member-name"
+        | "duplicate-member-name"
+        | "invalid-member-value"
+        | "out-of-range"
+        | "negative-flags-value";
+    };
+
+export interface HonuaOdataEnumTypeInfo {
+  readonly underlyingType: string;
+  readonly isFlags: boolean;
+  readonly members: readonly HonuaOdataEnumMemberInfo[];
+  /** CSDL declaration validation; absent on metadata assembled by older callers. */
+  readonly declaration?: HonuaOdataEnumDeclaration;
 }
 
 /**
@@ -406,9 +486,7 @@ export class HonuaOdataEntitySet {
       url: stripLeadingSlash(op.url),
       ...(op.headers
         ? { headers: { "Content-Type": "application/json", ...op.headers } }
-        : {
-            headers: { "Content-Type": "application/json" },
-          }),
+        : { headers: { "Content-Type": "application/json" } }),
       ...(op.body !== undefined ? { body: op.body } : {}),
       ...(groupId !== undefined ? { atomicityGroup: groupId } : {}),
     }));
@@ -754,39 +832,44 @@ function ensureTrailingSlash(url: string): string {
  * well-defined by OData CSDL §6 and the Honua Server spec page.
  */
 export function parseOdataMetadata(xml: string): HonuaOdataMetadata {
-  const entitySets: Record<string, string> = {};
-  const keys: Record<string, string[]> = {};
-  const fields: Record<string, HonuaOdataFieldInfo[]> = {};
-  const capabilities: Record<string, HonuaOdataAdvertisedCapabilities> = {};
+  if (xml.length > MAX_ODATA_METADATA_CHARACTERS) {
+    throw new RangeError(`OData metadata exceeds ${MAX_ODATA_METADATA_CHARACTERS} characters`);
+  }
+  const entitySets = Object.create(null) as Record<string, string>;
+  const keys = Object.create(null) as Record<string, string[]>;
+  const fields = Object.create(null) as Record<string, HonuaOdataFieldInfo[]>;
+  const projectionFields = Object.create(null) as Record<string, HonuaOdataFieldInfo[]>;
+  const complexTypes = Object.create(null) as Record<string, HonuaOdataFieldInfo[]>;
+  const enumTypes = Object.create(null) as Record<string, HonuaOdataEnumTypeInfo>;
+  const openTypes = Object.create(null) as Record<string, true>;
+  const capabilities = Object.create(null) as Record<string, HonuaOdataAdvertisedCapabilities>;
 
   // Sibling annotations: <Annotations Target="<schema>.<container>/<entitySet>">
   // …</Annotations>. Honua Server emits Capabilities.* this way (next to
   // the EntityContainer) rather than nesting them inside <EntitySet>, so
   // capability negotiation must merge both shapes.
   const siblingByEntitySet = new Map<string, string>();
-  const siblingAnnotationsRe = /<Annotations\s+([^>]*?)>([\s\S]*?)<\/Annotations>/g;
-  for (const match of xml.matchAll(siblingAnnotationsRe)) {
-    const attrs = match[1] ?? "";
+  for (const element of xmlElements(xml, "Annotations")) {
+    const attrs = element.attributes;
     const target = readAttr(attrs, "Target");
     if (!target) continue;
     const slash = target.lastIndexOf("/");
     if (slash === -1) continue;
     const setName = target.slice(slash + 1);
     if (!setName) continue;
-    const body = match[2] ?? "";
+    const body = element.body;
     const existing = siblingByEntitySet.get(setName);
     siblingByEntitySet.set(setName, existing === undefined ? body : `${existing}\n${body}`);
   }
 
   // Entity sets: <EntitySet Name="Foo" EntityType="ns.FooEntity"/>
-  const entitySetRe = /<EntitySet\s+([^>]*?)\/>|<EntitySet\s+([^>]*?)>([\s\S]*?)<\/EntitySet>/g;
-  for (const match of xml.matchAll(entitySetRe)) {
-    const attrs = match[1] ?? match[2] ?? "";
+  for (const element of xmlElements(xml, "EntitySet")) {
+    const attrs = element.attributes;
     const name = readAttr(attrs, "Name");
     const type = readAttr(attrs, "EntityType");
     if (!name || !type) continue;
     entitySets[name] = stripNamespace(type);
-    const inlineBody = match[3] ?? "";
+    const inlineBody = element.body;
     const siblingBody = siblingByEntitySet.get(name) ?? "";
     capabilities[name] = parseEntitySetAnnotations(`${inlineBody}\n${siblingBody}`);
     siblingByEntitySet.delete(name);
@@ -799,43 +882,222 @@ export function parseOdataMetadata(xml: string): HonuaOdataMetadata {
   }
 
   // Entity types: <EntityType Name="FooEntity">…<Key><PropertyRef Name="Id"/></Key><Property…/>…</EntityType>
-  const entityTypeRe = /<EntityType\s+([^>]*?)>([\s\S]*?)<\/EntityType>/g;
-  for (const match of xml.matchAll(entityTypeRe)) {
-    const attrs = match[1] ?? "";
-    const body = match[2] ?? "";
+  for (const element of xmlElements(xml, "EntityType")) {
+    const attrs = element.attributes;
+    const body = element.body;
     const name = readAttr(attrs, "Name");
     if (!name) continue;
+    if (readAttr(attrs, "OpenType")?.toLowerCase() === "true") openTypes[name] = true;
     const keyNames: string[] = [];
-    const keyBlock = /<Key>([\s\S]*?)<\/Key>/.exec(body);
-    if (keyBlock) {
-      for (const ref of keyBlock[1].matchAll(/<PropertyRef\s+([^>]*?)\/>/g)) {
-        const refName = readAttr(ref[1], "Name");
+    const keyBlock = xmlElements(body, "Key").next();
+    if (!keyBlock.done) {
+      for (const refAttrs of xmlStartTags(keyBlock.value.body, "PropertyRef")) {
+        const refName = readAttr(refAttrs, "Name");
         if (refName) keyNames.push(refName);
       }
     }
     keys[name] = keyNames;
-    const props: HonuaOdataFieldInfo[] = [];
-    for (const propMatch of body.matchAll(/<Property\s+([^>]*?)\/>|<Property\s+([^>]*?)>/g)) {
-      const propAttrs = propMatch[1] ?? propMatch[2] ?? "";
-      const propName = readAttr(propAttrs, "Name");
-      const propType = readAttr(propAttrs, "Type");
-      if (!propName || !propType) continue;
-      const nullable = readAttr(propAttrs, "Nullable");
-      const sridAttr = readAttr(propAttrs, "SRID");
-      const isSpatial = propType.startsWith("Edm.Geography") || propType.startsWith("Edm.Geometry");
-      const info: HonuaOdataFieldInfo = { name: propName, type: propType };
-      if (nullable !== undefined) info.nullable = nullable !== "false";
-      if (isSpatial) info.isSpatial = true;
-      if (sridAttr !== undefined) {
-        const srid = Number(sridAttr);
-        if (Number.isFinite(srid)) info.srid = srid;
-      }
-      props.push(info);
-    }
-    fields[name] = props;
+    const richFields = parseOdataProperties(body);
+    projectionFields[name] = richFields;
+    fields[name] = richFields.map(legacyOdataFieldInfo);
   }
 
-  return { entitySets, keys, fields, capabilities };
+  for (const element of xmlElements(xml, "ComplexType")) {
+    const name = readAttr(element.attributes, "Name");
+    if (name) complexTypes[name] = parseOdataProperties(element.body);
+  }
+
+  for (const element of xmlElements(xml, "EnumType")) {
+    const attrs = element.attributes;
+    const name = readAttr(attrs, "Name");
+    if (!name) continue;
+    const underlyingType = readAttr(attrs, "UnderlyingType") ?? "Edm.Int32";
+    const isFlags = readAttr(attrs, "IsFlags")?.toLowerCase() === "true";
+    const declarations = [...xmlStartTags(element.body, "Member")].map((memberAttrs) => ({
+      name: readAttr(memberAttrs, "Name"),
+      rawValue: readAttr(memberAttrs, "Value"),
+    }));
+    const hasExplicit = declarations.some((member) => member.rawValue !== undefined);
+    const hasImplicit = declarations.some((member) => member.rawValue === undefined);
+    const valueMode = hasExplicit ? (hasImplicit ? "mixed" : "explicit") : "implicit";
+    let declarationReason: Extract<HonuaOdataEnumDeclaration, { state: "invalid" }>["reason"] | undefined;
+    const invalidate = (reason: NonNullable<typeof declarationReason>): void => {
+      declarationReason ??= reason;
+    };
+    const bounds = odataEnumBounds(underlyingType);
+    if (declarations.length === 0) invalidate("empty-declaration");
+    if (!bounds) invalidate("invalid-underlying-type");
+    if (isFlags && hasImplicit) invalidate("flags-require-explicit-values");
+
+    const members: HonuaOdataEnumMemberInfo[] = [];
+    const names = new Set<string>();
+    let previousValue: bigint | undefined;
+    for (const [index, declaration] of declarations.entries()) {
+      let parsed: bigint | undefined;
+      if (declaration.rawValue === undefined) {
+        if (!isFlags) {
+          parsed = index === 0 ? 0n : previousValue === undefined ? undefined : previousValue + 1n;
+        }
+      } else if (declaration.rawValue.length <= 20 && /^[+-]?\d+$/.test(declaration.rawValue)) {
+        try {
+          parsed = BigInt(declaration.rawValue);
+        } catch {
+          parsed = undefined;
+        }
+      }
+      if (parsed === undefined) invalidate("invalid-member-value");
+      else if (isFlags && parsed < 0n) invalidate("negative-flags-value");
+      else if (bounds && (parsed < bounds.minimum || parsed > bounds.maximum)) invalidate("out-of-range");
+      previousValue = parsed;
+      if (!declaration.name || !odataSimpleIdentifier(declaration.name)) {
+        invalidate("invalid-member-name");
+        continue;
+      }
+      if (names.has(declaration.name)) invalidate("duplicate-member-name");
+      names.add(declaration.name);
+      if (parsed === undefined) continue;
+      const value =
+        underlyingType === "Edm.Int64" || !Number.isSafeInteger(Number(parsed)) ? parsed.toString() : Number(parsed);
+      members.push({ name: declaration.name, value });
+    }
+    enumTypes[name] = {
+      underlyingType,
+      isFlags,
+      members,
+      declaration: declarationReason ? { state: "invalid", reason: declarationReason } : { state: "valid", valueMode },
+    };
+  }
+
+  const metadata: HonuaOdataMetadata = {
+    entitySets,
+    keys,
+    fields,
+    capabilities,
+  };
+  Object.defineProperty(metadata, ODATA_SOURCE_SCHEMA_PROJECTION_DETAILS, {
+    value: { fields: projectionFields, complexTypes, enumTypes, openTypes },
+    enumerable: true,
+  });
+  Object.defineProperty(metadata, ODATA_SOURCE_SCHEMA_PROJECTION_SAFETY, {
+    value: inspectOdataSourceSchemaProjectionSafety(xml),
+    enumerable: true,
+  });
+  return metadata;
+}
+
+function inspectOdataSourceSchemaProjectionSafety(xml: string): HonuaOdataSourceSchemaProjectionSafety {
+  const edmxAttributes = firstXmlStartTagByLocalName(xml, "Edmx");
+  const csdlVersion = edmxAttributes === undefined ? undefined : readAttr(edmxAttributes, "Version");
+  const declarations = new Map<string, Map<string, number>>();
+  const inheritedTypeNames = new Set<string>();
+  const openComplexTypeNames = new Set<string>();
+  const unqualifiedTypeNames = new Set<string>();
+  for (const schema of xmlElements(xml, "Schema")) {
+    const namespace = readAttr(schema.attributes, "Namespace");
+    for (const kind of ["EntityType", "ComplexType", "EnumType"] as const) {
+      for (const attributes of xmlStartTags(schema.body, kind)) {
+        const name = readAttr(attributes, "Name");
+        if (!name) continue;
+        const qualifiedIdentity = `${kind}:${namespace ? `${namespace}.${name}` : name}`;
+        const identities = declarations.get(name) ?? new Map<string, number>();
+        identities.set(qualifiedIdentity, (identities.get(qualifiedIdentity) ?? 0) + 1);
+        declarations.set(name, identities);
+        if (!namespace) unqualifiedTypeNames.add(name);
+        if (kind !== "EnumType" && readAttr(attributes, "BaseType")) inheritedTypeNames.add(name);
+        if (kind === "ComplexType" && readAttr(attributes, "OpenType")?.toLowerCase() === "true") {
+          openComplexTypeNames.add(name);
+        }
+      }
+    }
+  }
+  const ambiguousTypeNames = [...declarations]
+    .filter(([, identities]) => identities.size > 1 || [...identities.values()].some((count) => count > 1))
+    .map(([name]) => name)
+    .sort();
+  return Object.freeze({
+    ...(csdlVersion === undefined ? {} : { csdlVersion }),
+    ambiguousTypeNames: Object.freeze(ambiguousTypeNames),
+    inheritedTypeNames: Object.freeze([...inheritedTypeNames].sort()),
+    openComplexTypeNames: Object.freeze([...openComplexTypeNames].sort()),
+    unqualifiedTypeNames: Object.freeze([...unqualifiedTypeNames].sort()),
+  });
+}
+
+function odataEnumBounds(underlyingType: string): { readonly minimum: bigint; readonly maximum: bigint } | undefined {
+  switch (underlyingType) {
+    case "Edm.Byte":
+      return { minimum: 0n, maximum: 255n };
+    case "Edm.SByte":
+      return { minimum: -128n, maximum: 127n };
+    case "Edm.Int16":
+      return { minimum: -32_768n, maximum: 32_767n };
+    case "Edm.Int32":
+      return { minimum: -2_147_483_648n, maximum: 2_147_483_647n };
+    case "Edm.Int64":
+      return { minimum: -(1n << 63n), maximum: (1n << 63n) - 1n };
+    default:
+      return undefined;
+  }
+}
+
+function odataSimpleIdentifier(value: string): boolean {
+  if (value.length > 256) return false;
+  let codePoints = 0;
+  for (const _character of value) {
+    codePoints += 1;
+    if (codePoints > 128) return false;
+  }
+  return /^[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]*$/u.test(value);
+}
+
+function parseOdataProperties(body: string): HonuaOdataFieldInfo[] {
+  const props: HonuaOdataFieldInfo[] = [];
+  for (const propAttrs of xmlStartTags(body, "Property")) {
+    const propName = readAttr(propAttrs, "Name");
+    const propType = readAttr(propAttrs, "Type");
+    if (!propName || !propType) continue;
+    const nullable = readAttr(propAttrs, "Nullable");
+    const maxLengthAttr = readAttr(propAttrs, "MaxLength");
+    const precisionAttr = readAttr(propAttrs, "Precision");
+    const scaleAttr = readAttr(propAttrs, "Scale");
+    const sridAttr = readAttr(propAttrs, "SRID");
+    const isSpatial = propType.startsWith("Edm.Geography") || propType.startsWith("Edm.Geometry");
+    const info: HonuaOdataFieldInfo = { name: propName, type: propType };
+    if (nullable !== undefined) info.nullable = nullable !== "false";
+    if (maxLengthAttr?.toLowerCase() === "max") info.maxLength = "max";
+    else if (maxLengthAttr !== undefined) {
+      const maxLength = Number(maxLengthAttr);
+      if (Number.isSafeInteger(maxLength) && maxLength >= 0) info.maxLength = maxLength;
+    }
+    if (precisionAttr !== undefined) {
+      const precision = Number(precisionAttr);
+      if (Number.isSafeInteger(precision) && precision >= 0) info.precision = precision;
+    }
+    if (scaleAttr?.toLowerCase() === "variable" || scaleAttr?.toLowerCase() === "floating") {
+      info.scale = scaleAttr.toLowerCase() as "variable" | "floating";
+    } else if (scaleAttr !== undefined) {
+      const scale = Number(scaleAttr);
+      if (Number.isSafeInteger(scale) && scale >= 0) info.scale = scale;
+    }
+    if (isSpatial) info.isSpatial = true;
+    if (sridAttr?.toLowerCase() === "variable") info.srid = "variable";
+    else if (sridAttr !== undefined) {
+      const srid = Number(sridAttr);
+      if (Number.isSafeInteger(srid) && srid >= 0) info.srid = srid;
+    }
+    props.push(info);
+  }
+  return props;
+}
+
+function legacyOdataFieldInfo(field: HonuaOdataFieldInfo): HonuaOdataFieldInfo {
+  return {
+    name: field.name,
+    type: field.type,
+    ...(field.nullable === undefined ? {} : { nullable: field.nullable }),
+    ...(field.isSpatial === true ? { isSpatial: true } : {}),
+    ...(typeof field.srid === "number" ? { srid: field.srid } : {}),
+  };
 }
 
 /**
@@ -864,11 +1126,11 @@ function edmToHonuaFieldType(edm: string): HonuaFieldInfo["type"] {
 
 function parseEntitySetAnnotations(body: string): HonuaOdataAdvertisedCapabilities {
   const out: HonuaOdataAdvertisedCapabilities = {};
-  for (const match of body.matchAll(/<Annotation\s+([^>]*?)(?:\/>|>([\s\S]*?)<\/Annotation>)/g)) {
-    const attrs = match[1] ?? "";
+  for (const element of xmlElements(body, "Annotation")) {
+    const attrs = element.attributes;
     const term = readAttr(attrs, "Term");
     if (!term || !term.includes("Capabilities.")) continue;
-    const inner = (match[2] ?? "").trim();
+    const inner = element.body.trim();
     const boolValue =
       readAttr(attrs, "Bool") ??
       matchBool(inner) ??
@@ -913,9 +1175,141 @@ function parseEntitySetAnnotations(body: string): HonuaOdataAdvertisedCapabiliti
 }
 
 function readAttr(attrs: string, name: string): string | undefined {
-  const re = new RegExp(`${name}\\s*=\\s*"([^"]*)"`);
-  const match = re.exec(attrs);
-  return match ? match[1] : undefined;
+  let cursor = 0;
+  while (cursor < attrs.length) {
+    while (cursor < attrs.length && xmlWhitespace(attrs.charCodeAt(cursor))) cursor += 1;
+    if (cursor >= attrs.length || attrs.charCodeAt(cursor) === 47) return undefined;
+    const nameStart = cursor;
+    while (cursor < attrs.length) {
+      const code = attrs.charCodeAt(cursor);
+      if (xmlWhitespace(code) || code === 61 || code === 47 || code === 62) break;
+      cursor += 1;
+    }
+    const attributeName = attrs.slice(nameStart, cursor);
+    while (cursor < attrs.length && xmlWhitespace(attrs.charCodeAt(cursor))) cursor += 1;
+    if (attrs.charCodeAt(cursor) !== 61) {
+      cursor += 1;
+      continue;
+    }
+    cursor += 1;
+    while (cursor < attrs.length && xmlWhitespace(attrs.charCodeAt(cursor))) cursor += 1;
+    const quote = attrs.charCodeAt(cursor);
+    if (quote !== 34 && quote !== 39) {
+      cursor += 1;
+      continue;
+    }
+    const valueStart = ++cursor;
+    while (cursor < attrs.length && attrs.charCodeAt(cursor) !== quote) cursor += 1;
+    if (cursor >= attrs.length) return undefined;
+    if (attributeName === name) return attrs.slice(valueStart, cursor);
+    cursor += 1;
+  }
+  return undefined;
+}
+
+interface XmlElementSlice {
+  readonly attributes: string;
+  readonly body: string;
+}
+
+function* xmlElements(xml: string, tagName: string): Generator<XmlElementSlice> {
+  const marker = `<${tagName}`;
+  const closing = `</${tagName}>`;
+  let cursor = 0;
+  while (cursor < xml.length) {
+    const start = findXmlTag(xml, marker, cursor);
+    if (start === -1) return;
+    const tagEnd = findXmlTagEnd(xml, start + marker.length);
+    if (tagEnd === -1) return;
+    const attributes = xml.slice(start + marker.length, tagEnd);
+    if (xmlSelfClosing(attributes)) {
+      yield { attributes, body: "" };
+      cursor = tagEnd + 1;
+      continue;
+    }
+    const closeStart = xml.indexOf(closing, tagEnd + 1);
+    if (closeStart === -1) return;
+    yield { attributes, body: xml.slice(tagEnd + 1, closeStart) };
+    cursor = closeStart + closing.length;
+  }
+}
+
+function* xmlStartTags(xml: string, tagName: string): Generator<string> {
+  const marker = `<${tagName}`;
+  let cursor = 0;
+  while (cursor < xml.length) {
+    const start = findXmlTag(xml, marker, cursor);
+    if (start === -1) return;
+    const tagEnd = findXmlTagEnd(xml, start + marker.length);
+    if (tagEnd === -1) return;
+    yield xml.slice(start + marker.length, tagEnd);
+    cursor = tagEnd + 1;
+  }
+}
+
+function firstXmlStartTagByLocalName(xml: string, localName: string): string | undefined {
+  let cursor = 0;
+  while (cursor < xml.length) {
+    const start = xml.indexOf("<", cursor);
+    if (start === -1) return undefined;
+    const nameStart = start + 1;
+    const first = xml.charCodeAt(nameStart);
+    if (first === 33 || first === 47 || first === 63) {
+      cursor = nameStart + 1;
+      continue;
+    }
+    let nameEnd = nameStart;
+    while (nameEnd < xml.length) {
+      const code = xml.charCodeAt(nameEnd);
+      if (xmlWhitespace(code) || code === 47 || code === 62) break;
+      nameEnd += 1;
+    }
+    const qualifiedName = xml.slice(nameStart, nameEnd);
+    const colon = qualifiedName.lastIndexOf(":");
+    if (qualifiedName.slice(colon + 1) === localName) {
+      const tagEnd = findXmlTagEnd(xml, nameEnd);
+      return tagEnd === -1 ? undefined : xml.slice(nameEnd, tagEnd);
+    }
+    cursor = nameEnd > nameStart ? nameEnd : nameStart + 1;
+  }
+  return undefined;
+}
+
+function findXmlTag(xml: string, marker: string, from: number): number {
+  let cursor = from;
+  while (cursor < xml.length) {
+    const start = xml.indexOf(marker, cursor);
+    if (start === -1) return -1;
+    const boundary = xml.charCodeAt(start + marker.length);
+    if (xmlWhitespace(boundary) || boundary === 47 || boundary === 62) return start;
+    cursor = start + marker.length;
+  }
+  return -1;
+}
+
+function findXmlTagEnd(xml: string, from: number): number {
+  let quote = 0;
+  for (let cursor = from; cursor < xml.length; cursor += 1) {
+    const code = xml.charCodeAt(cursor);
+    if (quote !== 0) {
+      if (code === quote) quote = 0;
+    } else if (code === 34 || code === 39) {
+      quote = code;
+    } else if (code === 62) {
+      return cursor;
+    }
+  }
+  return -1;
+}
+
+function xmlSelfClosing(attributes: string): boolean {
+  let cursor = attributes.length - 1;
+  while (cursor >= 0 && xmlWhitespace(attributes.charCodeAt(cursor))) cursor -= 1;
+  return cursor >= 0 && attributes.charCodeAt(cursor) === 47;
+}
+
+function xmlWhitespace(code: number): boolean {
+  return code === 9 || code === 10 || code === 13 || code === 32;
 }
 
 function stripNamespace(name: string): string {
@@ -924,14 +1318,18 @@ function stripNamespace(name: string): string {
 }
 
 function matchBool(inner: string): string | undefined {
-  const m = /<Bool>(true|false)<\/Bool>/.exec(inner);
-  return m ? m[1] : undefined;
+  const element = xmlElements(inner, "Bool").next();
+  if (element.done) return undefined;
+  return element.value.body === "true" || element.value.body === "false" ? element.value.body : undefined;
 }
 
 function matchPropertyValueBool(inner: string, property: string): string | undefined {
-  const re = new RegExp(`<PropertyValue\\s+Property="${property}"\\s+Bool="(true|false)"`);
-  const match = re.exec(inner);
-  return match ? match[1] : undefined;
+  for (const attributes of xmlStartTags(inner, "PropertyValue")) {
+    if (readAttr(attributes, "Property") !== property) continue;
+    const value = readAttr(attributes, "Bool");
+    if (value === "true" || value === "false") return value;
+  }
+  return undefined;
 }
 
 const UNSUPPORTED_OPERATOR_RES: ReadonlyArray<{ token: string; re: RegExp }> = [

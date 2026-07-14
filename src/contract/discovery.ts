@@ -7,6 +7,7 @@
  */
 
 import { HonuaDiscoveryError } from "../core/errors.js";
+import { sourceSchemaV2EnvelopeFingerprint } from "./schema-envelope.js";
 
 /** Default adapter implementation version included in every discovery cache identity. */
 export const HONUA_DISCOVERY_ADAPTER_VERSION = "honua-discovery-adapter@1";
@@ -697,8 +698,26 @@ function immutableDescriptor(descriptor: SourceDescriptor, effectiveCapabilities
     locator: cloneAndDeepFreeze(descriptor.locator),
     capabilities: immutableCapabilities([...effectiveCapabilities]),
     ...(descriptor.schema ? { schema: cloneAndDeepFreeze(descriptor.schema) } : {}),
+    ...(descriptor.schemaV2 !== undefined ? { schemaV2: immutableSourceSchemaV2(descriptor.schemaV2) } : {}),
     ...(descriptor.analytics ? { analytics: cloneAndDeepFreeze(descriptor.analytics) } : {}),
   });
+}
+
+function immutableSourceSchemaV2(
+  value: NonNullable<SourceDescriptor["schemaV2"]>,
+): NonNullable<SourceDescriptor["schemaV2"]> {
+  const cloned = cloneAndDeepFreeze(value);
+  try {
+    sourceSchemaV2EnvelopeFingerprint(cloned);
+  } catch (cause) {
+    throw new HonuaDiscoveryError(
+      "invalid-capability",
+      "Source discovery schemaV2 has an invalid discriminator or fingerprint envelope.",
+      undefined,
+      { cause },
+    );
+  }
+  return cloned;
 }
 
 function cloneAndDeepFreeze<T>(value: T): T {

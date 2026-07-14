@@ -377,6 +377,7 @@ type CrsDefinition =
   | {
       readonly kind: "wkt";
       readonly wkt: string;
+      readonly validation: "unverified" | "engine";
       readonly definitionAxisOrder: AxisOrder;
     }
   | {
@@ -420,6 +421,11 @@ The `definitionAxisOrder` describes the CRS definition; `coordinateOrder`
 describes numbers in this payload. Thus EPSG:4326 can retain latitude/longitude
 definition axes while a GeoJSON or GeoParquet payload records
 longitude/latitude or x/y encoding order.
+
+For `provenance.method: "reprojected"`, the binding's public `definition` must
+semantically equal `reprojection.target`; source and target are both resolved.
+This prevents provenance from claiming a transform into one CRS while the
+payload binding advertises another.
 
 Resolved CRS identity includes reviewed authority/code, WKT, an absolute
 canonical URI, or bounded PROJJSON. An adapter does not have to invent an
@@ -625,6 +631,10 @@ geographic antimeridian-crossing boxes rather than applying a naïve `west <=
 east` rule. `xyz` versus `xym` is never inferred from the third number alone;
 it comes from schema/encoding evidence.
 
+A non-null geometry `defaultValue` passes the same runtime geometry decoder.
+Its ordinate arity must agree with a known field layout, and its root geometry
+kind must equal known type knowledge or be a member of mixed type knowledge.
+
 Canonical bounding boxes are spatial-only. `xy` bounds are
 `[minX,minY,maxX,maxY]`; `xyz` bounds are
 `[minX,minY,minZ,maxX,maxY,maxZ]`. An `xym` value projects its spatial x/y
@@ -647,9 +657,14 @@ promotion leaves it in `properties`.
 Temporal extent is independent from temporal field roles. A known value has
 one or more intervals; `null` is an explicitly open lower/upper bound, not a
 substitute date. Gregorian/STAC positions are runtime-validated and
-canonicalized as RFC 3339 instants. Other temporal reference systems retain a
-URI and adapter-specific lexical validation. Empty, unavailable and declared
-non-temporal all carry evidence and never manufacture dates or default bounds.
+canonicalized as RFC 3339 instants. A lexical `:60` leap second is accepted
+only when its offset-normalized instant is the UTC end of June or December;
+equivalent offset spellings are validated against that UTC boundary. Other
+temporal reference systems retain a URI and adapter-specific lexical
+validation. Empty, unavailable and declared non-temporal all carry evidence
+and never manufacture dates or default bounds.
+`duration` is a scalar amount, not an instant or endpoint, and therefore cannot
+populate the source temporal instant, interval or mixed-field positions.
 
 An adapter encountering an unrecognized executable geometry must not construct
 `CanonicalGeometry`. It preserves the native type on
@@ -756,6 +771,13 @@ type SchemaIdentityFor<S extends SchemaState> =
       : never;
 ```
 
+`LogicalField.path` is an absolute native path from the source-record root.
+Every struct descendant strictly extends its parent's path. Paths are unique
+among fields that can be addressed simultaneously; mutually exclusive union
+branches may reuse the same native path for one logical location. This keeps
+path-based projection and mutation deterministic without rejecting
+polymorphic representations.
+
 An observed zero-field schema is `{ state: "known", value: { fields: [] } }`.
 Failed/unrequested metadata is `{ state: "unavailable" }`. A native field type
 that is present but not understood is a logical `{ kind: "unknown" }`, not a
@@ -765,6 +787,12 @@ unknown.
 Schema identity is equally honest: a descriptor/result with unavailable schema
 metadata carries the unavailable reason and provenance, not a fabricated hash.
 Moving from unavailable to known schema is an identity change.
+
+A `known` key is directly usable as `FeatureIdentity`: every referenced field
+is non-nullable and has a scalar logical encoding that produces string, number
+or boolean. A nullable, unknown-nullability, list, struct, geometry, JSON or
+unknown field cannot be certified as a known key. Protocol defaults such as an
+omitted OData key-property `Nullable` facet are applied before this check.
 
 Every logical field explicitly carries domain and constraint knowledge.
 `none` means metadata affirmatively says unconstrained/not applicable;
@@ -778,9 +806,11 @@ constraints together with non-empty native references to what was not mapped.
 
 Runtime construction enforces field-type compatibility, finite numeric values,
 at least one range endpoint, comparable endpoint encodings and minimum <=
-maximum. Coded values are unique by canonical JSON value. Constraint kinds are
-unique per field; duplicate built-ins/extensions and a constraint that
-contradicts logical-type metadata (for example two different maximum lengths)
+maximum. Equal endpoints are valid only when both are inclusive; an exclusive
+side would describe an empty domain. Coded values are unique by canonical JSON
+value. Constraint kinds are unique per field; duplicate built-ins/extensions
+and a constraint that contradicts logical-type metadata (for example two
+different maximum lengths)
 fail as `conflicting`, rather than applying last-one-wins. Coded domains are
 bounded to 10,000 entries and the canonical domain-plus-constraint projection
 to 1 MiB per field; overflow becomes `unknown/limit-exceeded` with bounded
@@ -1469,6 +1499,12 @@ left column except inside `native[]` provenance.
 | STAC `id`, `geometry`, `datetime`, `assets` | feature ID role, RFC 7946 geometry, UTC timestamp role, JSON/struct asset metadata; STAC extensions remain namespaced |
 | GeoParquet Arrow field | logical scalar/list/struct; `geo.primary_column` identifies default geometry; empty `geometry_types` is unknown, multiple values are mixed |
 | Unknown extension/native type | logical `unknown` with `NativeTypeReference`; never coerced to string or point |
+
+An OData adapter may claim `openContent: "closed"` only after projecting the
+complete selected entity shape. Namespace-local type collisions and unresolved
+`BaseType` inheritance on the selected entity or a referenced complex type
+make focused schema projection unavailable/invalid rather than producing a
+closed partial field list.
 
 Resolved locator examples:
 

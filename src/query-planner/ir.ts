@@ -178,16 +178,89 @@ function asJsonObject(value: unknown, path: string): { readonly [key: string]: J
 }
 
 function credentialFreeEndpoint(rawUrl: string): string {
+  const invalidEndpoint = "[invalid-endpoint]";
   try {
     const parsed = new URL(rawUrl);
+    if (!parsed.username && !parsed.password && hasOpaqueSchemeUserInfo(rawUrl)) return invalidEndpoint;
     parsed.username = "";
     parsed.password = "";
     parsed.search = "";
     parsed.hash = "";
     return parsed.toString().replace(/\/$/, "");
   } catch {
-    return rawUrl.split(/[?#]/, 1)[0] ?? rawUrl;
+    const path = rawUrl.split(/[?#]/, 1)[0] ?? rawUrl;
+    const malformedAuthority = hasSchemeAuthorityPrefix(rawUrl) || startsWithDoubleSlash(rawUrl);
+    const bareUserInfo = hasBareUserInfo(rawUrl);
+    let unsafeCharacters = false;
+    for (const character of rawUrl) {
+      const codePoint = character.codePointAt(0)!;
+      if (codePoint <= 0x20 || codePoint === 0x7f || character.trim() === "") {
+        unsafeCharacters = true;
+        break;
+      }
+    }
+    return malformedAuthority || bareUserInfo || unsafeCharacters ? invalidEndpoint : path;
   }
+}
+
+function hasSchemeAuthorityPrefix(value: string): boolean {
+  const colon = value.indexOf(":");
+  if (colon < 1 || !asciiAlpha(value.charCodeAt(0))) return false;
+  for (let index = 1; index < colon; index += 1) {
+    const code = value.charCodeAt(index);
+    if (!(asciiAlpha(code) || (code >= 48 && code <= 57) || code === 43 || code === 45 || code === 46)) {
+      return false;
+    }
+  }
+  return isSlash(value.charCodeAt(colon + 1)) && isSlash(value.charCodeAt(colon + 2));
+}
+
+function startsWithDoubleSlash(value: string): boolean {
+  return isSlash(value.charCodeAt(0)) && isSlash(value.charCodeAt(1));
+}
+
+function hasOpaqueSchemeUserInfo(value: string): boolean {
+  const colon = value.indexOf(":");
+  if (colon < 1 || !asciiAlpha(value.charCodeAt(0))) return false;
+  for (let index = 1; index < colon; index += 1) {
+    const code = value.charCodeAt(index);
+    if (!(asciiAlpha(code) || (code >= 48 && code <= 57) || code === 43 || code === 45 || code === 46)) {
+      return false;
+    }
+  }
+  for (let index = colon + 1; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code === 64) return true;
+    if (endpointDelimiter(code, false)) return false;
+  }
+  return false;
+}
+
+function hasBareUserInfo(value: string): boolean {
+  let colon = -1;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (endpointDelimiter(code, true)) return false;
+    if (code === 58 && colon === -1) {
+      if (index === 0) return false;
+      colon = index;
+    } else if (code === 64) {
+      return colon !== -1;
+    }
+  }
+  return false;
+}
+
+function endpointDelimiter(code: number, backslash: boolean): boolean {
+  return code <= 32 || code === 47 || code === 63 || code === 35 || (backslash && code === 92);
+}
+
+function asciiAlpha(code: number): boolean {
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+function isSlash(code: number): boolean {
+  return code === 47 || code === 92;
 }
 
 export function deepFreeze<T>(value: T): T {

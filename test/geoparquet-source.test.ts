@@ -80,14 +80,14 @@ describe("geoparquet Source — real DuckDB-WASM against fixtures", () => {
         }
       });
 
-      it("describe() surfaces schema, geometry column, CRS, and a row estimate", async () => {
+      it("describe() surfaces schema and geometry and only defaults CRS from GeoParquet metadata", async () => {
         const source = geoparquetSource(descriptor(`d-${url}`, url), { runtime });
         const handle = source.protocol("geoparquet");
         expect(handle).toBeDefined();
         const description = await handle!.describe();
         expect(description.geometryColumns).toEqual(["geometry"]);
         expect(description.rowEstimate).toBe(8);
-        expect(description.crs).toBeTruthy();
+        expect(description.crs).toBe(url === GEOPARQUET_URL ? "OGC:CRS84" : undefined);
         expect(description.schema.map((f) => f.name)).toEqual(
           expect.arrayContaining(["id", "name", "category", "population"]),
         );
@@ -145,6 +145,205 @@ describe("geoparquet Source — real DuckDB-WASM against fixtures", () => {
     const pages: number[] = [];
     for await (const page of source.stream({})) pages.push(page.features.length);
     expect(pages).toEqual([8]);
+  });
+});
+
+describe("geoparquet profile safety", () => {
+  it("preserves hostile geometry column names while merging partition metadata", async () => {
+    const geoMetadata =
+      '{"version":"1.1.0","primary_column":"__proto__","columns":{"__proto__":{"encoding":"WKB","geometry_types":["Point"]},"constructor":{"encoding":"WKB","geometry_types":["Point"]}}}';
+    const runtime = new GeoparquetRuntime({
+      driverFactory: async () => ({
+        async run() {},
+        async query(sql: string) {
+          if (sql.startsWith("DESCRIBE")) {
+            return [
+              { column_name: "__proto__", column_type: "GEOMETRY", null: "YES" },
+              { column_name: "constructor", column_type: "GEOMETRY", null: "YES" },
+            ];
+          }
+          if (sql.includes("parquet_kv_metadata")) {
+            return [
+              { file_name: "a.parquet", value: geoMetadata },
+              { file_name: "b.parquet", value: geoMetadata },
+            ];
+          }
+          return [{ row_estimate: 2 }];
+        },
+        async registerFileBuffer() {},
+        async close() {},
+      }),
+    });
+
+    const profile = await runtime.profile(["a.parquet", "b.parquet"]);
+    expect(profile.geometry?.column).toBe("__proto__");
+    expect(profile.geometries?.map((geometry) => geometry.column).sort()).toEqual(["__proto__", "constructor"]);
+    await runtime.dispose();
+  });
+
+  it("merges compatible per-file geometry types and bboxes across a partitioned relation", async () => {
+    const runtime = new GeoparquetRuntime({
+      driverFactory: async () => ({
+        async run() {},
+        async query(sql: string) {
+          if (sql.startsWith("DESCRIBE")) {
+            return [{ column_name: "geometry", column_type: "GEOMETRY", null: "YES" }];
+          }
+          if (sql.includes("parquet_kv_metadata")) {
+            return [
+              {
+                file_name: "a.parquet",
+                value: JSON.stringify({
+                  version: "1.1.0",
+                  primary_column: "geometry",
+                  columns: { geometry: { encoding: "WKB", geometry_types: ["Point"], bbox: [0, 0, 1, 1] } },
+                }),
+              },
+              {
+                file_name: "b.parquet",
+                value: JSON.stringify({
+                  version: "1.1.0",
+                  primary_column: "geometry",
+                  columns: { geometry: { encoding: "WKB", geometry_types: ["Polygon"], bbox: [2, -1, 4, 3] } },
+                }),
+              },
+            ];
+          }
+          return [{ row_estimate: 2 }];
+        },
+        async registerFileBuffer() {},
+        async close() {},
+      }),
+    });
+
+    const profile = await runtime.profile(["a.parquet", "b.parquet"]);
+    expect(profile.geometry).toMatchObject({
+      metadataState: "valid",
+      geometryTypes: ["Point", "Polygon"],
+    });
+    await runtime.dispose();
+  });
+
+  it("rejects a malformed bbox even when another file omits bbox metadata", async () => {
+    const runtime = new GeoparquetRuntime({
+      driverFactory: async () => ({
+        async run() {},
+        async query(sql: string) {
+          if (sql.startsWith("DESCRIBE")) {
+            return [{ column_name: "geometry", column_type: "GEOMETRY", null: "YES" }];
+          }
+          if (sql.includes("parquet_kv_metadata")) {
+            return [
+              {
+                file_name: "a.parquet",
+                value: JSON.stringify({
+                  version: "1.1.0",
+                  primary_column: "geometry",
+                  columns: { geometry: { encoding: "WKB", geometry_types: ["Point"], bbox: [0, 0, 1] } },
+                }),
+              },
+              {
+                file_name: "b.parquet",
+                value: JSON.stringify({
+                  version: "1.1.0",
+                  primary_column: "geometry",
+                  columns: { geometry: { encoding: "WKB", geometry_types: ["Point"] } },
+                }),
+              },
+            ];
+          }
+          return [{ row_estimate: 2 }];
+        },
+        async registerFileBuffer() {},
+        async close() {},
+      }),
+    });
+
+    await expect(runtime.profile(["a.parquet", "b.parquet"])).rejects.toThrow(/invalid bbox/);
+    await runtime.dispose();
+  });
+
+  it("rejects incompatible CRS metadata across a multi-file relation", async () => {
+    const runtime = new GeoparquetRuntime({
+      driverFactory: async () => ({
+        async run() {},
+        async query(sql: string) {
+          if (sql.startsWith("DESCRIBE")) {
+            return [{ column_name: "geometry", column_type: "GEOMETRY", null: "YES" }];
+          }
+          if (sql.includes("parquet_kv_metadata")) {
+            return [
+              {
+                file_name: "a.parquet",
+                value: JSON.stringify({
+                  version: "1.1.0",
+                  primary_column: "geometry",
+                  columns: {
+                    geometry: {
+                      encoding: "WKB",
+                      geometry_types: ["Point"],
+                      crs: { id: { authority: "EPSG", code: 4326 } },
+                    },
+                  },
+                }),
+              },
+              {
+                file_name: "b.parquet",
+                value: JSON.stringify({
+                  version: "1.1.0",
+                  primary_column: "geometry",
+                  columns: {
+                    geometry: {
+                      encoding: "WKB",
+                      geometry_types: ["Point"],
+                      crs: { id: { authority: "EPSG", code: 3857 } },
+                    },
+                  },
+                }),
+              },
+            ];
+          }
+          return [{ row_estimate: 2 }];
+        },
+        async registerFileBuffer() {},
+        async close() {},
+      }),
+    });
+
+    await expect(runtime.profile(["a.parquet", "b.parquet"])).rejects.toThrow(/incompatible metadata/);
+    await runtime.dispose();
+  });
+
+  it("rejects deeply nested metadata before multi-file canonicalization", async () => {
+    let nested: unknown = { name: "leaf" };
+    for (let depth = 0; depth < 40; depth += 1) nested = { nested };
+    const document = JSON.stringify({
+      version: "1.1.0",
+      primary_column: "geometry",
+      columns: { geometry: { encoding: "WKB", geometry_types: ["Point"], crs: nested } },
+    });
+    const runtime = new GeoparquetRuntime({
+      driverFactory: async () => ({
+        async run() {},
+        async query(sql: string) {
+          if (sql.startsWith("DESCRIBE")) {
+            return [{ column_name: "geometry", column_type: "GEOMETRY", null: "YES" }];
+          }
+          if (sql.includes("parquet_kv_metadata")) {
+            return [
+              { file_name: "a.parquet", value: document },
+              { file_name: "b.parquet", value: document },
+            ];
+          }
+          return [{ row_estimate: 2 }];
+        },
+        async registerFileBuffer() {},
+        async close() {},
+      }),
+    });
+
+    await expect(runtime.profile(["a.parquet", "b.parquet"])).rejects.toThrow(/nesting-depth safety bound/);
+    await runtime.dispose();
   });
 });
 

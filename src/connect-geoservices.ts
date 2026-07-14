@@ -1,6 +1,11 @@
 /** Internal GeoServices URL classification and metadata projection for connect(). */
 
-import type { ConnectDiscoverySourceSnapshot, ConnectProtocolHint, ConnectResolvedProtocol } from "./connect.js";
+import type {
+  ConnectDiscoverySourceSnapshot,
+  ConnectProtocolHint,
+  ConnectResolvedProtocol,
+  ConnectSourceSchemaProjection,
+} from "./connect.js";
 import type { DiscoveryCapabilityEvidence, DiscoveryProvenance } from "./contract/discovery.js";
 import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES, type SourceSchema } from "./contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
@@ -170,6 +175,7 @@ export async function discoverGeoServicesSources(
   client: HonuaClient,
   target: ConnectTarget,
   options: GeoServicesDiscoveryOptions,
+  sourceSchemaProjection?: ConnectSourceSchemaProjection,
 ): Promise<GeoServicesDiscoveryResult> {
   const serviceId = target.serviceId;
   if (!serviceId) throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices discovery requires a service id.");
@@ -190,7 +196,15 @@ export async function discoverGeoServicesSources(
     }
     return Object.freeze({
       retrievedAt,
-      sources: Object.freeze([sourceSnapshot(target, metadata, layerEvidence(target, metadata, retrievedAt))]),
+      sources: Object.freeze([
+        sourceSnapshot(
+          target,
+          metadata,
+          layerEvidence(target, metadata, retrievedAt),
+          retrievedAt,
+          sourceSchemaProjection,
+        ),
+      ]),
     });
   }
 
@@ -209,6 +223,8 @@ export async function discoverGeoServicesSources(
         target,
         metadata,
         Object.freeze([...serviceEvidence, ...layerEvidence(target, metadata, retrievedAt)]),
+        retrievedAt,
+        sourceSchemaProjection,
       );
     } catch (error) {
       if (options.signal?.aborted || error instanceof HonuaAbortError) throw error;
@@ -221,6 +237,8 @@ export async function discoverGeoServicesSources(
         target,
         { id: summary.id, name: summary.name },
         Object.freeze([...serviceEvidence, unavailable]),
+        retrievedAt,
+        sourceSchemaProjection,
       );
     }
   });
@@ -305,6 +323,8 @@ function sourceSnapshot(
   target: ConnectTarget,
   metadata: HonuaLayerMetadata,
   evidence: readonly DiscoveryCapabilityEvidence[],
+  retrievedAt: string,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): ConnectDiscoverySourceSnapshot {
   if (!Number.isInteger(metadata.id) || metadata.id < 0 || typeof metadata.name !== "string" || !metadata.name.trim()) {
     throw new HonuaDiscoveryError("invalid-endpoint", "GeoServices returned invalid layer metadata.");
@@ -316,12 +336,18 @@ function sourceSnapshot(
   const schema: SourceSchema | undefined = fields
     ? Object.freeze({ fields, ...(primaryKey ? { primaryKey } : {}) })
     : undefined;
+  const schemaV2 = sourceSchemaProjection?.geoServices(metadata, {
+    protocol: target.protocol as "geoservices-feature-service" | "geoservices-map-service",
+    source: layerUrl(target, metadata.id),
+    observedAt: retrievedAt,
+  });
   return Object.freeze({
     id: String(metadata.id),
     locator: Object.freeze({ url: target.clientBaseUrl, serviceId, layerId: metadata.id }),
     title: metadata.name,
     ...(metadata.description ? { description: metadata.description } : {}),
     ...(schema ? { schema } : {}),
+    ...(schemaV2 ? { schemaV2 } : {}),
     evidence,
   });
 }

@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 142,
-      "signatureSha256": "cda81df2271504a05af08513ff7ab067aad96dd0e150a21bd10dd9f5cecc6c10",
+      "signatureSha256": "53dab264f19244bcff072c7ee612f16fbcec7cb204c9dad9c31adf2e2840258e",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -155,7 +155,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 142,
-      "signatureSha256": "cda81df2271504a05af08513ff7ab067aad96dd0e150a21bd10dd9f5cecc6c10",
+      "signatureSha256": "53dab264f19244bcff072c7ee612f16fbcec7cb204c9dad9c31adf2e2840258e",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -305,7 +305,7 @@
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
       "exportCount": 1102,
-      "signatureSha256": "73056f56235d7ce184ed859052304b4f783765a3ddcb50a3c4f47d86c2837c70",
+      "signatureSha256": "bda2350ebea2114f4a32aae73a791f545695ef300e3d684671bfc6a9ccef243f",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -1443,8 +1443,8 @@
     {
       "subpath": "@honua/sdk-js/contract",
       "types": "dist/src/contract/index.d.ts",
-      "exportCount": 426,
-      "signatureSha256": "50b5e306143b7536fae07303a1135525ec848808fb63063f3e4421e8a4228695",
+      "exportCount": 427,
+      "signatureSha256": "6502e566b06218a27c2e8c073e611c204ada2af66d066c56ae2bb58b1121fb36",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -1664,6 +1664,7 @@
         "SourceLocator — interface",
         "SourceResolver — type",
         "SourceSchema — interface",
+        "SourceSchemaV2Envelope — interface",
         "SourceTimeSeriesCapabilityMetadata — interface",
         "SpatialAggregationCacheMetadata — interface",
         "SpatialAggregationCategoryBucket — interface",
