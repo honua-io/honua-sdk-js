@@ -1,6 +1,14 @@
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+
 import { afterEach, describe, expect, it } from "vitest";
 
-import { collectOvertureLiveEvidence, summarizeOvertureRangeTraffic } from "../scripts/overture-live-evidence.mjs";
+import {
+  OVERTURE_LIVE_PRODUCER_ARTIFACT,
+  collectOvertureLiveEvidence,
+  summarizeOvertureRangeTraffic,
+} from "../scripts/overture-live-evidence.mjs";
+import { validateEvidenceEnvelope } from "../scripts/sample-contract.mjs";
 
 const original = process.env.HONUA_OVERTURE_LIVE_ENABLED;
 
@@ -113,5 +121,46 @@ describe("Overture live evidence", () => {
     });
     expect(evidence.reason).toContain("opt-in");
     expect(JSON.stringify(evidence)).not.toMatch(/AKIA|Bearer\s|[?&](token|key|signature)=/i);
+  });
+
+  it("content-binds the producer on a representative successful envelope without network access", async () => {
+    const producerBytes = await readFile(OVERTURE_LIVE_PRODUCER_ARTIFACT.path);
+    expect(OVERTURE_LIVE_PRODUCER_ARTIFACT.sha256).toBe(createHash("sha256").update(producerBytes).digest("hex"));
+    const observedAt = "2026-07-01T00:00:00.000Z";
+    const evidence = {
+      format: "honua.sdk.sample-evidence.v1",
+      schemaVersion: 1,
+      sampleId: "overture-geoparquet",
+      lane: "live",
+      status: "executed",
+      reason: null,
+      observedAt,
+      authMode: "anonymous",
+      sdk: { package: "@honua/sdk-js", version: "0.1.0-beta.0", gitCommit: "1".repeat(40) },
+      source: {
+        provider: "overture-aws-open-data",
+        identity: "release/theme=places/type=place/part.parquet",
+        endpoint: "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/part.parquet",
+        deploymentVersion: "2026-06-17.0",
+        dataVersion: "v1.17.0",
+      },
+      provenance: {
+        sourceId: "overture:2026-06-17.0:places:place:00000",
+        observedAt,
+        validAt: observedAt,
+        state: "live",
+        attribution: "Overture Maps Foundation Open Map Data",
+      },
+      semantics: {
+        operation: "bounded-aoi-columnar-query",
+        outcome: "bounded-range-result-engine-pruning-unverified",
+        itemCount: 3,
+        assertions: ["unbounded-http-gets=0", "duckdb-full-http-fallback=disabled"],
+      },
+      timing: { totalMs: 250, firstSuccessfulInteractionMs: 100 },
+      degradation: { state: "expected", reasons: ["row-group counters are not exposed"] },
+      artifacts: [OVERTURE_LIVE_PRODUCER_ARTIFACT],
+    };
+    expect(validateEvidenceEnvelope(evidence, { now: observedAt })).toBe(evidence);
   });
 });

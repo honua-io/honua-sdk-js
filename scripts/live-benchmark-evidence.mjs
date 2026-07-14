@@ -45,6 +45,9 @@ function parseArgs(argv) {
 }
 
 function gitCommit() {
+  if (/^[a-f0-9]{40}$/.test(process.env.HONUA_SAMPLE_SOURCE_REVISION ?? "")) {
+    return process.env.HONUA_SAMPLE_SOURCE_REVISION;
+  }
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   } catch {
@@ -272,10 +275,11 @@ export async function collectLiveEvidence(env = process.env) {
   const generatedAt = new Date().toISOString();
   const packageJson = JSON.parse(await readFile("package.json", "utf8"));
   const producerArtifact = await contentBoundProducerArtifact();
-  const enabled = env.HONUA_BENCH_LIVE_ENABLED === "true";
+  const enabled =
+    env.HONUA_SAMPLE_LIVE_ENABLED === "true" || env.HONUA_BENCH_LIVE_ENABLED === "true";
   if (!enabled) {
     const sdk = { package: packageJson.name, version: packageJson.version, gitCommit: gitCommit() };
-    const reason = "HONUA_BENCH_LIVE_ENABLED is not true; live probes are opt-in";
+    const reason = "Live benchmark enablement is not true; live probes are opt-in";
     const disabledTargets = [
       {
         id: "honua-demo-maplibre-quickstart",
@@ -601,10 +605,20 @@ export async function collectLiveEvidence(env = process.env) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const evidence = await collectLiveEvidence();
-  await mkdir(path.dirname(options.output), { recursive: true });
-  await writeFile(options.output, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  const receiptOutput = process.env.HONUA_SAMPLE_LIVE_OUTPUT;
+  const receiptSampleId = process.env.HONUA_SAMPLE_LIVE_SAMPLE_ID;
+  const selectedEvidence = receiptOutput
+    ? evidence.targets.find((target) => target.sampleEvidence?.sampleId === receiptSampleId)?.sampleEvidence
+    : undefined;
+  if (receiptOutput && !selectedEvidence) {
+    throw new Error(`Live benchmark did not produce evidence for ${receiptSampleId ?? "the requested sample"}`);
+  }
+  const output = receiptOutput ?? options.output;
+  const persisted = selectedEvidence ?? evidence;
+  await mkdir(path.dirname(output), { recursive: true });
+  await writeFile(output, `${JSON.stringify(persisted, null, 2)}\n`, "utf8");
   process.stdout.write(
-    `Live benchmark evidence: ${evidence.run.status}; ${evidence.targets.length} target(s); ${options.output}\n`,
+    `Live benchmark evidence: ${evidence.run.status}; ${evidence.targets.length} target(s); ${output}\n`,
   );
   for (const target of evidence.targets) {
     process.stdout.write(`  ${target.id}: ${target.status}${target.skipReason ? ` (${target.skipReason})` : ""}\n`);

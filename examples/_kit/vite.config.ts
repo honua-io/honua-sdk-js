@@ -171,6 +171,9 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
   }
   const mode = sdkMode();
   const resolved = aliases(mode, options.sdkEntrypoints);
+  let buildMode = false;
+  let outputRoot: string | undefined;
+  let emittedBundle: Array<{ fileName: string; kind: "asset" | "chunk" }> | undefined;
 
   return defineConfig({
     root: exampleRoot,
@@ -197,24 +200,40 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
       },
       {
         name: "honua-sample-sdk-resolution",
+        configResolved(config) {
+          buildMode = config.command === "build";
+          if (buildMode) outputRoot = path.resolve(config.root, config.build.outDir);
+        },
         generateBundle(_outputOptions, bundle) {
-          const bundleEvidence = Object.values(bundle).map((entry) => {
-            const bytes = Buffer.from(entry.type === "chunk" ? entry.code : entry.source);
-            if (bytes.byteLength > 32 * 1024 * 1024)
-              throw new Error(`sample bundle entry is too large: ${entry.fileName}`);
+          emittedBundle = Object.values(bundle).map((entry) => ({ fileName: entry.fileName, kind: entry.type }));
+          if (emittedBundle.length === 0 || emittedBundle.length > 1_000)
+            throw new Error("sample bundle inventory is invalid");
+        },
+        closeBundle() {
+          if (!buildMode) return;
+          if (!outputRoot || !emittedBundle)
+            throw new Error("sample bundle closed without a resolved output inventory");
+          const finalOutputRoot = outputRoot;
+          const bundleEvidence = emittedBundle.map((entry) => {
+            const absolute = path.resolve(finalOutputRoot, entry.fileName);
+            if (!absolute.startsWith(`${finalOutputRoot}${path.sep}`)) {
+              throw new Error(`sample bundle entry escaped the output root: ${entry.fileName}`);
+            }
+            const metadata = fs.lstatSync(absolute);
+            if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 32 * 1024 * 1024) {
+              throw new Error(`sample bundle entry is not a bounded regular file: ${entry.fileName}`);
+            }
+            const bytes = fs.readFileSync(absolute);
             return {
-              fileName: entry.fileName,
-              kind: entry.type,
+              ...entry,
+              hashSubject: "final-written-bundle-file",
               bytes: bytes.byteLength,
               sha256: createHash("sha256").update(bytes).digest("hex"),
             };
           });
-          if (bundleEvidence.length === 0 || bundleEvidence.length > 1_000)
-            throw new Error("sample bundle inventory is invalid");
-          this.emitFile({
-            type: "asset",
-            fileName: "honua-sample-sdk-resolution.json",
-            source: `${JSON.stringify(
+          fs.writeFileSync(
+            path.join(finalOutputRoot, "honua-sample-sdk-resolution.json"),
+            `${JSON.stringify(
               {
                 format: "honua.sdk.sample-resolution.v1",
                 schemaVersion: 1,
@@ -226,7 +245,7 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
               null,
               2,
             )}\n`,
-          });
+          );
         },
       },
     ],

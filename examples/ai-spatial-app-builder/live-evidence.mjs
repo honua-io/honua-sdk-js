@@ -1,7 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { liveEvidenceOutputContract } from "../../scripts/lib/live-evidence-output.mjs";
 import { validateEvidenceEnvelope } from "../../scripts/sample-contract.mjs";
+
+const outputContract = liveEvidenceOutputContract(
+  "ai-spatial-app-builder",
+  "test-results/ai-spatial-app-builder-live-evidence.json",
+);
 
 const observedAt = new Date().toISOString();
 const proposalEndpoint = process.env.HONUA_AGENT_HOST_URL;
@@ -14,7 +20,11 @@ const baseEvidence = {
   status: "skipped",
   observedAt,
   authMode: "host-mediated",
-  sdk: { package: "@honua/sdk-js", version: "0.1.0-beta.0", gitCommit: null },
+  sdk: {
+    package: "@honua/sdk-js",
+    version: "0.1.0-beta.0",
+    gitCommit: outputContract.sourceRevision ?? null,
+  },
   provenance: null,
   semantics: {
     operation: "safe-agent-plan-approve-query-receipt",
@@ -62,7 +72,7 @@ if (!proposalEndpoint || !dataEndpoint) {
       "Credential-free host endpoints were configured, but the external proposal/data adapter and scheduled-run authorization are not available in this repository; no request was sent and no fixture data was substituted.",
   };
 }
-const output = path.resolve("test-results/ai-spatial-app-builder-live-evidence.json");
+const output = path.resolve(outputContract.output);
 evidence = validateEvidenceEnvelope(evidence);
 await mkdir(path.dirname(output), { recursive: true });
 await writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`);

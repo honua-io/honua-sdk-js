@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -12,6 +13,12 @@ import { validateEvidenceEnvelope } from "./sample-contract.mjs";
 
 const MAX_OBSERVED_RANGE_BYTES = 32 * 1024 * 1024;
 const OVERTURE_OBJECT_ORIGIN = "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com";
+const OVERTURE_LIVE_PRODUCER_PATH = "scripts/overture-live-evidence.mjs";
+export const OVERTURE_LIVE_PRODUCER_ARTIFACT = Object.freeze({
+  kind: "producer-generator",
+  path: OVERTURE_LIVE_PRODUCER_PATH,
+  sha256: createHash("sha256").update(await readFile(new URL("./overture-live-evidence.mjs", import.meta.url))).digest("hex"),
+});
 
 function parseArgs(argv) {
   const options = { output: "test-results/overture-live-evidence.json", strict: false };
@@ -26,6 +33,9 @@ function parseArgs(argv) {
 }
 
 function gitCommit() {
+  if (/^[a-f0-9]{40}$/.test(process.env.HONUA_SAMPLE_SOURCE_REVISION ?? "")) {
+    return process.env.HONUA_SAMPLE_SOURCE_REVISION;
+  }
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   } catch {
@@ -321,7 +331,7 @@ export async function collectOvertureLiveEvidence() {
           "Playwright observed exact HTTP range requests and response bytes; DuckDB does not expose rows scanned or a row-group-pruned counter.",
         ],
       },
-      artifacts: [],
+      artifacts: [OVERTURE_LIVE_PRODUCER_ARTIFACT],
     });
   } catch (error) {
     return validateEvidenceEnvelope(
@@ -336,9 +346,13 @@ export async function collectOvertureLiveEvidence() {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const evidence = await collectOvertureLiveEvidence();
-  await mkdir(path.dirname(options.output), { recursive: true });
-  await writeFile(options.output, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-  process.stdout.write(`Overture live evidence: ${evidence.status}; ${options.output}\n`);
+  if (process.env.HONUA_SAMPLE_LIVE_SAMPLE_ID && process.env.HONUA_SAMPLE_LIVE_SAMPLE_ID !== evidence.sampleId) {
+    throw new Error(`Overture live evidence cannot satisfy ${process.env.HONUA_SAMPLE_LIVE_SAMPLE_ID}`);
+  }
+  const output = process.env.HONUA_SAMPLE_LIVE_OUTPUT ?? options.output;
+  await mkdir(path.dirname(output), { recursive: true });
+  await writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  process.stdout.write(`Overture live evidence: ${evidence.status}; ${output}\n`);
   if (options.strict && evidence.status !== "executed") process.exitCode = 1;
 }
 

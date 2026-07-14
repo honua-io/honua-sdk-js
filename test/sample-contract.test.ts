@@ -900,6 +900,29 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     await expect(validateCatalog(reboundProducer, reboundPackage, validationTime)).rejects.toThrow(
       "scheduled live command is not in the reviewed bounded producer registry",
     );
+
+    for (const hook of ["prebench:live", "postbench:live"]) {
+      const hookedPackage = structuredClone(packageJson);
+      hookedPackage.scripts[hook] = "node scripts/forged-live-hook.mjs";
+      await expect(
+        validateCatalog(await readJson("samples/catalog.v2.json"), hookedPackage, validationTime),
+      ).rejects.toThrow("scheduled live command is not in the reviewed bounded producer registry");
+    }
+
+    for (const [script, definition] of [
+      ["build", "tsc -p forged.json"],
+      ["clean", "rm -rf dist forged"],
+      ["prebuild", "node scripts/forged-live-hook.mjs"],
+      ["postbuild", "node scripts/forged-live-hook.mjs"],
+      ["preclean", "node scripts/forged-live-hook.mjs"],
+      ["postclean", "node scripts/forged-live-hook.mjs"],
+    ]) {
+      const driftedDependencyPackage = structuredClone(packageJson);
+      driftedDependencyPackage.scripts[script] = definition;
+      await expect(
+        validateCatalog(await readJson("samples/catalog.v2.json"), driftedDependencyPackage, validationTime),
+      ).rejects.toThrow("scheduled live command is not in the reviewed bounded producer registry");
+    }
   });
 
   it("keeps candidates non-golden until the full qualification contract is satisfied", async () => {

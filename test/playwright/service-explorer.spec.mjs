@@ -1,11 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 import { startServiceExplorerFixtureServer } from "../../examples/service-explorer/mock-server.mjs";
-import { attestBrowserQuality, attestClosedFixture } from "./sample-gate-assertions.mjs";
+import { attestBrowserQuality, attestClosedFixture, finalizeSampleConsole } from "./sample-gate-assertions.mjs";
 
 test.setTimeout(90_000);
 
-test("service explorer source picker handles queryable and render-only standards sources", async ({ page }, testInfo) => {
+test("service explorer source picker handles queryable and render-only standards sources", async ({ browser, browserName }, testInfo) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
   const pageErrors = [];
   const consoleErrors = [];
   page.on("pageerror", (error) => {
@@ -79,13 +81,14 @@ test("service explorer source picker handles queryable and render-only standards
     await expect.poll(async () => page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready)).toBe(true);
 
     const runtimeReady = await page.evaluate(() => window.__HONUA_SERVICE_EXPLORER_RUNTIME__?.ready === true);
+    const sampleReadyDurationMs = await page.evaluate(() => performance.now());
     await attestBrowserQuality({
       page,
       testInfo,
       sampleId: "service-explorer",
+      browserName,
+      sampleReadyDurationMs,
       runtimeReady,
-      pageErrors,
-      consoleErrors,
       responsiveViewports: [
         { width: 1280, height: 720 },
         { width: 390, height: 844 },
@@ -114,7 +117,18 @@ test("service explorer source picker handles queryable and render-only standards
     expect(pageErrors).toHaveLength(pageErrorCountBeforeDispose);
     expect(consoleErrors).toHaveLength(consoleErrorCountBeforeDispose);
   } finally {
-    await fixtureServer.close();
-    await attestClosedFixture(testInfo, "service-explorer", "startServiceExplorerFixtureServer");
+    try {
+      await fixtureServer.close();
+      await attestClosedFixture(testInfo, "service-explorer", "startServiceExplorerFixtureServer");
+    } finally {
+      await finalizeSampleConsole({
+        testInfo,
+        sampleId: "service-explorer",
+        page,
+        context,
+        pageErrors,
+        consoleErrors,
+      });
+    }
   }
 });

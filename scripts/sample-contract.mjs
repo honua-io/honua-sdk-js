@@ -137,6 +137,10 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     {
       definition: "npm run build --silent && node examples/spatial-analytics-workbench/live-evidence.mjs",
       generatorPath: "examples/spatial-analytics-workbench/live-evidence.mjs",
+      dependencies: {
+        build: "npm run clean --silent && tsc -p tsconfig.json",
+        clean: "rm -rf dist",
+      },
     },
   ],
   [
@@ -333,7 +337,14 @@ async function validateCatalogCommand(command, sampleId, packageJson) {
 function isBoundedLiveCommand(parsed, packageJson) {
   if (parsed.runner !== "npm") return false;
   const producer = REVIEWED_LIVE_PRODUCERS.get(parsed.script);
-  return producer?.definition === packageJson.scripts?.[parsed.script];
+  if (!producer || producer.definition !== packageJson.scripts?.[parsed.script]) return false;
+  const reviewed = { [parsed.script]: producer.definition, ...(producer.dependencies ?? {}) };
+  return Object.entries(reviewed).every(
+    ([script, definition]) =>
+      packageJson.scripts?.[script] === definition &&
+      !Object.hasOwn(packageJson.scripts ?? {}, `pre${script}`) &&
+      !Object.hasOwn(packageJson.scripts ?? {}, `post${script}`),
+  );
 }
 
 function isBoundedValidationCommand(parsed, packageJson) {
@@ -2689,12 +2700,9 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
       },
     };
-    const sourceRevision =
-      options.sourceRevision ?? execFileSync("git", ["rev-parse", "HEAD"], { cwd: PROJECT_ROOT, encoding: "utf8" }).trim();
     await validateQualificationReceiptSet({
       sample: selectedSample,
       profile,
-      sourceRevision,
       expectedCommand: expectedGateCommand,
       receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, "samples/evidence")),
       now: new Date(currentTime).toISOString(),

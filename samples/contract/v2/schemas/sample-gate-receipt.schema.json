@@ -11,6 +11,8 @@
     "status",
     "sdkMode",
     "sourceRevision",
+    "sourceDigest",
+    "runRoot",
     "command",
     "producer",
     "observedAt",
@@ -38,7 +40,21 @@
     },
     "status": { "const": "passed" },
     "sdkMode": { "enum": ["source", "packed"] },
-    "sourceRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "sourceRevision": {
+      "description": "Named source commit whose evidence-neutral tree matches sourceDigest and which is an ancestor of validation HEAD.",
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "sourceDigest": {
+      "description": "SHA-256 binding for the evidence-neutral source index and revision tree.",
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "runRoot": {
+      "description": "Canonical lowercase UUIDv4 per-run root containing every generated artifact bound by this receipt.",
+      "type": "string",
+      "pattern": "^samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
     "command": {
       "type": "object",
       "required": ["argv"],

@@ -1,11 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 import { startStandaloneFixtureServer } from "../../examples/standalone-quickstart/mock-server.mjs";
-import { attestBrowserQuality, attestClosedFixture } from "./sample-gate-assertions.mjs";
+import { attestBrowserQuality, attestClosedFixture, finalizeSampleConsole } from "./sample-gate-assertions.mjs";
 
 test.setTimeout(90_000);
 
-test("standalone quickstart renders public-endpoint features with no Honua server", async ({ page }, testInfo) => {
+test("standalone quickstart renders public-endpoint features with no Honua server", async ({ browser, browserName }, testInfo) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
   const pageErrors = [];
   const consoleErrors = [];
   page.on("pageerror", (error) => {
@@ -48,13 +50,14 @@ test("standalone quickstart renders public-endpoint features with no Honua serve
     expect(layerIds).toContain("standalone-fill");
 
     const runtimeReady = await page.evaluate(() => window.__HONUA_STANDALONE_RUNTIME__?.ready === true);
+    const sampleReadyDurationMs = await page.evaluate(() => performance.now());
     await attestBrowserQuality({
       page,
       testInfo,
       sampleId: "standalone-quickstart",
+      browserName,
+      sampleReadyDurationMs,
       runtimeReady,
-      pageErrors,
-      consoleErrors,
       responsiveViewports: [
         { width: 1280, height: 720 },
         { width: 390, height: 844 },
@@ -66,7 +69,18 @@ test("standalone quickstart renders public-endpoint features with no Honua serve
     await expect.poll(async () => page.evaluate(() => window.__HONUA_STANDALONE_RUNTIME__?.disposed)).toBe(true);
     await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
   } finally {
-    await fixtureServer.close();
-    await attestClosedFixture(testInfo, "standalone-quickstart", "startStandaloneFixtureServer");
+    try {
+      await fixtureServer.close();
+      await attestClosedFixture(testInfo, "standalone-quickstart", "startStandaloneFixtureServer");
+    } finally {
+      await finalizeSampleConsole({
+        testInfo,
+        sampleId: "standalone-quickstart",
+        page,
+        context,
+        pageErrors,
+        consoleErrors,
+      });
+    }
   }
 });

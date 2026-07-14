@@ -96,10 +96,15 @@ and the current SHA-256 bytes for every producer. Path identity is checked
 before content digest; a different repository file or another reviewed
 generator cannot satisfy the command. The benchmark generator additionally
 proves that it names the sample and journey. The reported revision is metadata,
-not a claim that the current bytes were read from or attested by that Git
-commit. Non-executed evidence may report a null revision and may omit a producer
-claim, but any producer artifact it does publish is subject to the same exact
-command, path, digest, sample, and journey binding.
+not by itself a claim that arbitrary catalog evidence was read from or attested
+by that Git commit. Receipt production adds the stronger qualification
+boundary: the runner supplies a named source revision to the producer, requires
+fresh evidence at its per-run output path, and accepts that revision only when
+it exists, has the same evidence-neutral source tree, and is an ancestor of the
+checkout being used to validate the receipt. Non-executed evidence may report a
+null revision and may omit a producer claim, but any producer artifact it does
+publish is subject to the same exact command, path, digest, sample, and journey
+binding.
 
 Lifecycle states other than `active` have a target release. `merge`, `replace`,
 and `retire` also identify a non-self sample, golden journey, or typed external
@@ -124,13 +129,40 @@ npm run samples:run -- verify --kit --sdk-mode source
 npm run samples:run -- verify --kit --sdk-mode packed
 ```
 
-Gate qualification is receipt-based. `samples:run evidence` captures a clean
-source snapshot before launching a producer, preserves and content-binds the
-tracked `test-results` baselines, writes one versioned receipt for each required
-profile gate, and rejects stale, missing, extra, metadata-only, or
-source-unbound evidence. Browser receipts are bound to the exact pilot test,
-project, first-attempt result, and assertion attachment set. Fixture receipts
-prove loopback readiness, a real probe, and zero listeners or connections after
-shutdown. Packed receipts bind the package tarball and re-read the final bounded
-dist tree and resolution evidence. See
+Gate qualification is receipt-based. `samples:run evidence` captures a clean,
+evidence-neutral source digest before launching a producer. It rejects
+skip-worktree and assume-unchanged inputs; binds the index, `HEAD`, and named
+source revision to the same digest; and requires the named revision to remain an
+ancestor of `HEAD`. This permits an evidence-only descendant commit while
+rejecting unrelated or source-changing revisions. Existing
+`samples/evidence` state is content-bound before execution.
+
+Each command group receives a fresh canonical
+`samples/evidence/<sample>/runs/<lowercase-uuid-v4>` root. Its receipts require
+that exact `runRoot`, and every generated artifact is checked
+component-by-component as a regular, non-symlink descendant. Only current
+receipt paths and that run may change. All receipts co-produced by one command
+are validated before a complete receipt tree is staged and directory-swapped
+into place. Publication failures restore the prior tree, and qualification
+requires each expected command group to share one `runRoot`; separately
+executed commands retain separate roots. Replacing a command group's receipts
+preserves all runs still referenced by any receipt; cleanup prunes only
+unreferenced UUID runs left by obsolete or failed attempts. Because the source
+digest excludes only the canonical evidence tree, committed receipts can be
+validated after promotion without recursively hashing themselves.
+
+Browser receipts are bound to the exact pilot test, every declared project and
+browser engine, first-attempt results, and finalized assertion attachment sets.
+Console assertions are finalized after quality checks, fixture teardown, and
+explicit closure of the pilot-owned page and browser context.
+Screenshot and performance receipts come from that exact browser workflow and
+bind the canonical evidence project, engine, viewport, a structurally decoded
+PNG, positive monotonic navigation/resource/interaction measurements,
+sample-ready measurement, and budget. Fixture receipts prove loopback
+readiness, a real probe, and zero listeners or connections after shutdown.
+Packed receipts bind the package tarball and re-read a self-contained copy of
+the final sample `dist` tree and resolution evidence from the same run. Live
+receipts require the reviewed producer to honor the runner's explicit enable
+flag, write a fresh envelope to the runner-provided per-run path, and reject
+exact forwarded credential values in the envelope or any declared artifact. See
 [`examples/_kit/README.md`](../../../examples/_kit/README.md) for runner usage.

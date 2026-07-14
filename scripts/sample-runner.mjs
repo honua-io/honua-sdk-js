@@ -3,7 +3,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -14,12 +14,14 @@ import {
   isPlaywrightCommand,
   parseSampleCommand,
 } from "./lib/sample-command.mjs";
-import { expectedGateCommand } from "./lib/sample-gates.mjs";
+import { expectedGateCommand, isSampleEvidenceRunId } from "./lib/sample-gates.mjs";
 import {
   captureGateSourceSnapshot,
   createGateReceipt,
+  readCanonicalBoundedFile,
   requiredReceiptGates,
   SAMPLE_GATE_NAMES,
+  validateGateReceiptStructure,
 } from "./sample-gate-receipt.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -30,6 +32,7 @@ const PACKAGE_PATH = path.join(PROJECT_ROOT, "package.json");
 const ACTIONS = new Set(["list", "dev", "typecheck", "build", "test", "verify", "evidence"]);
 const SDK_MODES = new Set(["source", "packed"]);
 const TRACKS = new Set(["golden", "recipe", "lab", "fixture"]);
+const PLAYWRIGHT_BROWSERS = new Set(["chromium", "firefox", "webkit"]);
 const PROFILE_GATE_KEYS = [
   "packedBuild",
   "browser",
@@ -61,6 +64,7 @@ const SAFE_HOST_ENVIRONMENT = new Set([
   "XDG_RUNTIME_DIR",
 ]);
 const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
+const MAX_GATE_ARTIFACT_BYTES = 16 * 1024 * 1024;
 const MAX_PACKED_FILES = 6_000;
 const MAX_PACKED_BYTES = 128 * 1024 * 1024;
 
@@ -289,7 +293,27 @@ export async function validateKit(kit, selection, scripts, options = {}) {
     ) {
       fail(`${sample.id}: sample kit Playwright title is invalid`);
     }
-    if (typeof sample.playwrightProject !== "string") fail(`${sample.id}: sample kit Playwright project is invalid`);
+    if (
+      !Array.isArray(sample.playwrightProjects) ||
+      sample.playwrightProjects.length === 0 ||
+      sample.playwrightProjects.length > PLAYWRIGHT_BROWSERS.size ||
+      sample.playwrightProjects.some(
+        (project) =>
+          !isPlainRecord(project) ||
+          !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(project.name) ||
+          !PLAYWRIGHT_BROWSERS.has(project.browserName),
+      ) ||
+      new Set(sample.playwrightProjects.map((project) => project.name)).size !== sample.playwrightProjects.length ||
+      new Set(sample.playwrightProjects.map((project) => project.browserName)).size !== sample.playwrightProjects.length
+    ) {
+      fail(`${sample.id}: sample kit Playwright projects are invalid`);
+    }
+    if (
+      typeof sample.evidenceProject !== "string" ||
+      !sample.playwrightProjects.some((project) => project.name === sample.evidenceProject)
+    ) {
+      fail(`${sample.id}: sample kit evidence project is invalid`);
+    }
     if (options.checkPaths !== false) {
       const sourcePath = safeRelativePath(selectedSample.sourcePath, `${sample.id}.sourcePath`);
       await containedRegularFile(root, sourcePath, sample.viteConfig, `${sample.id}.viteConfig`);
@@ -351,11 +375,14 @@ function commandsForAction(sample, action) {
 
 export { expectedGateCommand };
 
-function commandForSpawn(argv) {
-  if (process.platform !== "win32") return argv;
-  if (argv[0] === "npm") return ["npm.cmd", ...argv.slice(1)];
-  if (argv[0] === "npx") return ["npx.cmd", ...argv.slice(1)];
-  return argv;
+export function commandForSpawn(argv) {
+  const executable = process.platform === "win32" && argv[0] === "npm"
+    ? "npm.cmd"
+    : process.platform === "win32" && argv[0] === "npx"
+      ? "npx.cmd"
+      : argv[0];
+  if (argv[0] === "npm" && argv[1] === "run") return [executable, "run", "--ignore-scripts", ...argv.slice(2)];
+  return [executable, ...argv.slice(1)];
 }
 
 export function safeChildEnvironment(overrides = {}, allowedNames = []) {
@@ -368,6 +395,7 @@ export function safeChildEnvironment(overrides = {}, allowedNames = []) {
     if (value !== undefined) environment[name] = String(value);
   }
   environment.npm_config_update_notifier = "false";
+  environment.npm_config_ignore_scripts = "true";
   return environment;
 }
 
@@ -514,6 +542,7 @@ async function readInputs() {
     readFile(PACKAGE_PATH, "utf8").then(JSON.parse),
     import("./sample-contract.mjs"),
   ]);
+  await contract.validateCatalog(catalog, packageJson);
   const expectedSelection = contract.generateCiSelection(catalog);
   await validateSelection(selection, {
     packageScripts: packageJson.scripts,
@@ -609,6 +638,20 @@ export function allowedLiveEnvironment(catalogSample) {
     if (!classification) fail(`live evidence configuration is unclassified: ${name}`);
     return !(classification.exposure === "browser-public" && classification.valueKind === "credential");
   });
+}
+
+export function forwardedLiveCredentials(catalogSample) {
+  const allowed = new Set(allowedLiveEnvironment(catalogSample));
+  return (catalogSample?.data?.configClassifications ?? [])
+    .filter((classification) => allowed.has(classification.name) && classification.valueKind === "credential")
+    .map((classification) => ({ name: classification.name, value: process.env[classification.name] }))
+    .filter(({ value }) => typeof value === "string" && value.length > 0);
+}
+
+export function assertCredentialFreeContent(bytes, credentials, label) {
+  for (const credential of credentials) {
+    if (bytes.includes(Buffer.from(credential.value))) fail(`${label} contains forwarded credential ${credential.name}`);
+  }
 }
 
 export async function resolvePackedDeclaration(sdkRoot, target) {
@@ -729,8 +772,25 @@ function commandDigest(argv) {
   return createHash("sha256").update(canonicalCommand(argv)).digest("hex").slice(0, 16);
 }
 
-async function buildPackedReport(sample, revision, packed, command) {
-  const dist = path.join(PROJECT_ROOT, sample.sourcePath, "dist");
+async function persistBoundedTree(source, destination) {
+  const files = await boundedTree(source, { maxFiles: 1_000, maxBytes: 64 * 1024 * 1024 });
+  await rm(destination, { recursive: true, force: true });
+  await mkdir(destination, { recursive: true });
+  for (const file of files) {
+    const relative = path.relative(source, file.absolute);
+    if (relative.startsWith("..") || path.isAbsolute(relative)) fail("bounded tree copy escaped its source");
+    const target = path.join(destination, relative);
+    await mkdir(path.dirname(target), { recursive: true });
+    await copyFile(file.absolute, target);
+  }
+  return files.length;
+}
+
+async function buildPackedReport(sample, revision, packed, command, runRoot) {
+  const builtDist = path.join(PROJECT_ROOT, sample.sourcePath, "dist");
+  const dist = path.join(runRoot, "artifacts/packed-sample-dist");
+  const copiedFiles = await persistBoundedTree(builtDist, dist);
+  if (copiedFiles <= 1) fail(`${sample.id}: packed sample dist file count is invalid`);
   const resolution = JSON.parse(await readFile(path.join(dist, "honua-sample-sdk-resolution.json"), "utf8"));
   if (resolution.format !== "honua.sdk.sample-resolution.v1" || resolution.mode !== "packed") {
     fail(`${sample.id}: build did not emit packed SDK resolution evidence`);
@@ -749,7 +809,7 @@ async function buildPackedReport(sample, revision, packed, command) {
   const files = [];
   for (const file of await boundedTree(dist, { maxFiles: 1_000, maxBytes: 64 * 1024 * 1024 })) {
     files.push({
-      path: path.relative(PROJECT_ROOT, file.absolute).replaceAll(path.sep, "/"),
+      path: path.relative(dist, file.absolute).replaceAll(path.sep, "/"),
       bytes: file.bytes,
       sha256: await fileSha256(file.absolute),
     });
@@ -763,6 +823,7 @@ async function buildPackedReport(sample, revision, packed, command) {
     packageTarballSha256: packed.tarballSha256,
     packageTarball: path.relative(PROJECT_ROOT, packed.tarballPath).replaceAll(path.sep, "/"),
     packageTarballBytes: (await stat(packed.tarballPath)).size,
+    sampleDistRoot: path.relative(PROJECT_ROOT, dist).replaceAll(path.sep, "/"),
     resolution,
     files,
   };
@@ -795,22 +856,56 @@ function fixtureObservation(stdout, sampleId) {
   return observation;
 }
 
-async function writeGateReport({ sample, catalogSample, gate, revision, command, result, runRoot, packed }) {
+function projectRelativeArtifactPath(absolute, label) {
+  const relative = path.relative(PROJECT_ROOT, absolute).replaceAll(path.sep, "/");
+  return safeRelativePath(relative, label);
+}
+
+async function readGateArtifact(absolute, label, minimumMtimeMs) {
+  const relative = projectRelativeArtifactPath(absolute, label);
+  const bytes = await readCanonicalBoundedFile(PROJECT_ROOT, relative, {
+    label,
+    maxBytes: MAX_GATE_ARTIFACT_BYTES,
+    minimumMtimeMs,
+  });
+  return { bytes, relative };
+}
+
+async function readGateArtifactJson(absolute, label, minimumMtimeMs) {
+  const artifact = await readGateArtifact(absolute, label, minimumMtimeMs);
+  return { ...artifact, value: JSON.parse(artifact.bytes.toString("utf8")) };
+}
+
+async function writeGateReport({
+  sample,
+  gate,
+  revision,
+  command,
+  result,
+  runRoot,
+  packed,
+  sourceSnapshot,
+  liveCredentials = [],
+}) {
   const artifactRoot = path.join(runRoot, "artifacts");
   await mkdir(artifactRoot, { recursive: true });
   if (["browser", "accessibility", "console", "responsive"].includes(gate)) {
     const playwrightPath = path.join(artifactRoot, "playwright.json");
-    await stat(playwrightPath);
+    const playwright = await readGateArtifactJson(
+      playwrightPath,
+      `${sample.id} Playwright report`,
+      sourceSnapshot.capturedAtMs,
+    );
     const report = {
       format: "honua.sdk.sample-playwright-gate.v1",
       sampleId: sample.id,
       sourceRevision: revision,
       gate,
       command,
-      playwright: JSON.parse(await readFile(playwrightPath, "utf8")),
+      playwright: playwright.value,
     };
     const reportPath = path.join(artifactRoot, `${gate}.json`);
-    await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+    await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, { flag: "wx" });
     return { kind: "playwright-gate-report", path: path.relative(PROJECT_ROOT, reportPath).replaceAll(path.sep, "/") };
   }
   let kind;
@@ -826,28 +921,44 @@ async function writeGateReport({ sample, catalogSample, gate, revision, command,
     };
   } else if (gate === "packed-build") {
     kind = "packed-build-report";
-    report = await buildPackedReport(sample, revision, packed, command);
+    report = await buildPackedReport(sample, revision, packed, command, runRoot);
   } else if (gate === "live") {
     kind = "live-evidence-report";
-    const evidencePath = sample.liveEvidence?.evidencePath;
-    const catalogEvidencePath = catalogSample?.evidence?.live?.evidencePath;
-    if (typeof evidencePath !== "string" || typeof catalogEvidencePath !== "string") {
-      fail(`${sample.id}: live producer has no bound evidence artifact`);
-    }
-    if (evidencePath !== catalogEvidencePath) {
-      fail(`${sample.id}: generated live-evidence binding does not match the catalog`);
-    }
-    const normalizedEvidencePath = safeRelativePath(evidencePath, `${sample.id}.evidence.live.evidencePath`);
-    const absoluteEvidencePath = path.resolve(PROJECT_ROOT, normalizedEvidencePath);
-    const canonicalEvidencePath = await realpath(absoluteEvidencePath);
-    const evidenceMetadata = await lstat(absoluteEvidencePath);
-    if (
-      !canonicalEvidencePath.startsWith(`${PROJECT_ROOT}${path.sep}`) ||
-      !evidenceMetadata.isFile() ||
-      evidenceMetadata.isSymbolicLink() ||
-      evidenceMetadata.size > 16 * 1024 * 1024
-    ) {
-      fail(`${sample.id}: catalog live evidence path is not a bounded repository file`);
+    const absoluteEvidencePath = path.join(artifactRoot, "live-evidence.json");
+    const normalizedEvidencePath = path.relative(PROJECT_ROOT, absoluteEvidencePath).replaceAll(path.sep, "/");
+    const { bytes: evidenceBytes } = await readGateArtifact(
+      absoluteEvidencePath,
+      `${sample.id} fresh live evidence output`,
+      sourceSnapshot.capturedAtMs,
+    );
+    assertCredentialFreeContent(evidenceBytes, liveCredentials, `${sample.id} live evidence`);
+    const evidence = JSON.parse(evidenceBytes.toString("utf8"));
+    for (const artifact of evidence.artifacts ?? []) {
+      if (
+        typeof artifact?.path !== "string" ||
+        typeof artifact.sha256 !== "string" ||
+        !/^[a-f0-9]{64}$/.test(artifact.sha256)
+      ) {
+        fail(`${sample.id}: live producer artifact binding is invalid`);
+      }
+      const normalizedArtifactPath = safeRelativePath(artifact.path, `${sample.id} live artifact path`);
+      const runRelative = path.relative(PROJECT_ROOT, runRoot).replaceAll(path.sep, "/");
+      if (artifact.kind === "producer-generator") {
+        if (normalizedArtifactPath.startsWith("samples/evidence/")) {
+          fail(`${sample.id}: live producer source cannot be supplied by the evidence tree`);
+        }
+      } else if (!normalizedArtifactPath.startsWith(`${runRelative}/`)) {
+        fail(`${sample.id}: live artifact is outside this evidence run`);
+      }
+      const artifactBytes = await readCanonicalBoundedFile(PROJECT_ROOT, normalizedArtifactPath, {
+        label: `${sample.id} live artifact ${artifact.path}`,
+        maxBytes: MAX_GATE_ARTIFACT_BYTES,
+        minimumMtimeMs: artifact.kind === "producer-generator" ? undefined : sourceSnapshot.capturedAtMs,
+      });
+      if (createHash("sha256").update(artifactBytes).digest("hex") !== artifact.sha256) {
+        fail(`${sample.id}: live artifact digest does not match its evidence binding`);
+      }
+      assertCredentialFreeContent(artifactBytes, liveCredentials, `${sample.id} live artifact ${artifact.path}`);
     }
     report = {
       format: "honua.sdk.sample-live-gate.v1",
@@ -855,34 +966,1057 @@ async function writeGateReport({ sample, catalogSample, gate, revision, command,
       sourceRevision: revision,
       command,
       evidencePath: normalizedEvidencePath,
-      evidence: JSON.parse(await readFile(canonicalEvidencePath, "utf8")),
+      evidence,
     };
   } else if (gate === "screenshot") {
     kind = "screenshot-report";
     const producerPath = path.join(artifactRoot, "screenshot-gate.json");
-    await stat(producerPath);
+    const producer = await readGateArtifactJson(
+      producerPath,
+      `${sample.id} screenshot report`,
+      sourceSnapshot.capturedAtMs,
+    );
     report = {
       format: "honua.sdk.sample-screenshot-gate.v1",
       sampleId: sample.id,
       sourceRevision: revision,
       command,
-      screenshot: JSON.parse(await readFile(producerPath, "utf8")),
+      screenshot: producer.value,
     };
   } else if (gate === "performance") {
     kind = "performance-report";
     const producerPath = path.join(artifactRoot, "performance-gate.json");
-    await stat(producerPath);
+    const producer = await readGateArtifactJson(
+      producerPath,
+      `${sample.id} performance report`,
+      sourceSnapshot.capturedAtMs,
+    );
     report = {
       format: "honua.sdk.sample-performance-gate.v1",
       sampleId: sample.id,
       sourceRevision: revision,
       command,
-      measurement: JSON.parse(await readFile(producerPath, "utf8")),
+      measurement: producer.value,
     };
   } else fail(`unsupported evidence gate: ${gate}`);
   const reportPath = path.join(artifactRoot, `${gate}.json`);
-  await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+  await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, { flag: "wx" });
   return { kind, path: path.relative(PROJECT_ROOT, reportPath).replaceAll(path.sep, "/") };
+}
+
+export function groupEvidenceGates(sample, gates) {
+  const groups = new Map();
+  for (const gate of gates) {
+    const command = expectedGateCommand(sample, gate);
+    const key = canonicalCommand(command);
+    const group = groups.get(key) ?? { command, gates: [] };
+    group.gates.push(gate);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
+function validEvidenceSampleId(sampleId) {
+  return typeof sampleId === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(sampleId);
+}
+
+async function ensureCanonicalToolingDirectory(absolute, expectedCanonical, label) {
+  try {
+    await mkdir(absolute);
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+  }
+  const metadata = await lstat(absolute);
+  if (
+    !metadata.isDirectory() ||
+    metadata.isSymbolicLink() ||
+    (await realpath(absolute)) !== expectedCanonical
+  ) {
+    fail(`${label} is not a canonical directory`);
+  }
+}
+
+async function canonicalEvidenceLockRoot(projectRoot) {
+  const lexicalProjectRoot = path.resolve(projectRoot);
+  const projectMetadata = await lstat(lexicalProjectRoot);
+  const canonicalProjectRoot = await realpath(lexicalProjectRoot);
+  if (
+    !projectMetadata.isDirectory() ||
+    projectMetadata.isSymbolicLink() ||
+    canonicalProjectRoot !== lexicalProjectRoot
+  ) {
+    fail("sample evidence lock project root is not canonical");
+  }
+  const temporaryRoot = path.join(lexicalProjectRoot, ".tmp");
+  const lockRoot = path.join(temporaryRoot, "sample-runner-locks");
+  await ensureCanonicalToolingDirectory(
+    temporaryRoot,
+    path.join(canonicalProjectRoot, ".tmp"),
+    "sample evidence temporary root",
+  );
+  await ensureCanonicalToolingDirectory(
+    lockRoot,
+    path.join(canonicalProjectRoot, ".tmp/sample-runner-locks"),
+    "sample evidence lock root",
+  );
+  return lockRoot;
+}
+
+async function readEvidenceLockOwner(lockPath, projectRoot) {
+  try {
+    const ownerPath = path.join(lockPath, "owner.json");
+    const relative = path.relative(projectRoot, ownerPath).replaceAll(path.sep, "/");
+    const owner = JSON.parse((await readCanonicalBoundedFile(projectRoot, relative, {
+      label: "sample evidence lock owner",
+      maxBytes: 4_096,
+    })).toString("utf8"));
+    if (
+      !Number.isSafeInteger(owner?.pid) ||
+      owner.pid <= 0 ||
+      !validEvidenceSampleId(owner.sampleId) ||
+      typeof owner.token !== "string" ||
+      !/^[a-f0-9-]{36}$/.test(owner.token) ||
+      (owner.processStart !== null && !/^\d+$/.test(owner.processStart))
+    ) {
+      return undefined;
+    }
+    return owner;
+  } catch (error) {
+    if (error?.code === "ENOENT" || error instanceof SyntaxError) return undefined;
+    throw error;
+  }
+}
+
+async function processStartIdentity(pid) {
+  if (process.platform !== "linux") return null;
+  try {
+    const value = await readFile(`/proc/${pid}/stat`, "utf8");
+    const close = value.lastIndexOf(")");
+    const fields = value.slice(close + 2).split(" ");
+    return /^\d+$/.test(fields[19] ?? "") ? fields[19] : null;
+  } catch (error) {
+    if (new Set(["ENOENT", "ESRCH", "EACCES", "EPERM"]).has(error?.code)) return null;
+    throw error;
+  }
+}
+
+async function processIsOwnerAlive(owner) {
+  try {
+    process.kill(owner.pid, 0);
+  } catch (error) {
+    if (error?.code !== "EPERM") return false;
+  }
+  if (owner.processStart === null) return true;
+  return (await processStartIdentity(owner.pid)) === owner.processStart;
+}
+
+/**
+ * Serialize all evidence generation across processes. Source snapshots cover
+ * the complete evidence tree, so cross-sample runs must share this one lock.
+ * The canonical
+ * lock is published only after its immutable owner record exists, so a second
+ * runner can safely reclaim a lock whose process no longer exists.
+ */
+export async function acquireSampleEvidenceLock(sampleId, options = {}) {
+  if (!validEvidenceSampleId(sampleId)) fail("sample evidence lock sample ID is invalid");
+  const projectRoot = path.resolve(options.projectRoot ?? PROJECT_ROOT);
+  const lockRoot = await canonicalEvidenceLockRoot(projectRoot);
+  const token = randomUUID();
+  const lockPath = path.join(lockRoot, "evidence");
+  const candidatePath = path.join(lockRoot, `.candidate-${token}`);
+  await mkdir(candidatePath);
+  const processStart = await processStartIdentity(process.pid);
+  await writeFile(
+    path.join(candidatePath, "owner.json"),
+    `${JSON.stringify({ pid: process.pid, processStart, sampleId, token, createdAt: new Date().toISOString() })}\n`,
+    { flag: "wx" },
+  );
+
+  let acquired = false;
+  try {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        await rename(candidatePath, lockPath);
+        acquired = true;
+        break;
+      } catch (error) {
+        if (!new Set(["EEXIST", "ENOTEMPTY"]).has(error?.code)) throw error;
+      }
+      const owner = await readEvidenceLockOwner(lockPath, projectRoot);
+      if (owner && await processIsOwnerAlive(owner)) {
+        fail(`${sampleId}: another sample evidence run is active for ${owner.sampleId} (pid ${owner.pid})`);
+      }
+      const stalePath = path.join(lockRoot, `.stale-${randomUUID()}`);
+      try {
+        await rename(lockPath, stalePath);
+      } catch (error) {
+        if (error?.code === "ENOENT") continue;
+        throw error;
+      }
+      try {
+        await recoverInterruptedReceiptTransactions(undefined, owner?.sampleId, {
+          projectRoot,
+          transactionRoot: stalePath,
+        });
+      } catch (error) {
+        throw new AggregateError(
+          [error],
+          `${sampleId}: stale evidence lock recovery failed; preserved ${path.basename(stalePath)}`,
+        );
+      }
+      await rm(stalePath, { recursive: true, force: false });
+    }
+    if (!acquired) fail(`${sampleId}: could not acquire the sample evidence lock`);
+  } finally {
+    if (!acquired) await rm(candidatePath, { recursive: true, force: true });
+  }
+
+  let released = false;
+  return {
+    path: lockPath,
+    sampleId,
+    token,
+    async release() {
+      if (released) return;
+      const owner = await readEvidenceLockOwner(lockPath, projectRoot);
+      if (!owner || owner.token !== token || owner.pid !== process.pid) {
+        fail(`${sampleId}: sample evidence lock ownership changed before release`);
+      }
+      const releasePath = path.join(lockRoot, `.release-${sampleId}-${token}`);
+      await rename(lockPath, releasePath);
+      await rm(releasePath, { recursive: true, force: false });
+      released = true;
+    },
+  };
+}
+
+async function canonicalExistingDirectory(absolute, expectedCanonical, label, optional = false) {
+  let metadata;
+  try {
+    metadata = await lstat(absolute);
+  } catch (error) {
+    if (optional && error?.code === "ENOENT") return undefined;
+    throw error;
+  }
+  if (
+    !metadata.isDirectory() ||
+    metadata.isSymbolicLink() ||
+    (await realpath(absolute)) !== expectedCanonical
+  ) {
+    fail(`${label} is a symlink or escaped directory`);
+  }
+  return { absolute, canonical: expectedCanonical, dev: metadata.dev, ino: metadata.ino };
+}
+
+function receiptNameGate(name) {
+  const suffix = ".v1.json";
+  const gate = typeof name === "string" && name.endsWith(suffix) ? name.slice(0, -suffix.length) : "";
+  return SAMPLE_GATE_NAMES.includes(gate) ? gate : undefined;
+}
+
+function receiptSnapshotManifest(sampleId, snapshot) {
+  return {
+    format: "honua.sdk.sample-receipt-guard.v1",
+    schemaVersion: 1,
+    sampleId,
+    receiptRoot: `samples/evidence/${sampleId}/receipts`,
+    receipts: [...snapshot]
+      .map(([name, value]) => ({
+        name,
+        bytes: value.bytes.byteLength,
+        sha256: createHash("sha256").update(value.bytes).digest("hex"),
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name)),
+  };
+}
+
+function validateReceiptGuardManifest(manifest, sampleId) {
+  if (
+    !isPlainRecord(manifest) ||
+    manifest.format !== "honua.sdk.sample-receipt-guard.v1" ||
+    manifest.schemaVersion !== 1 ||
+    !validEvidenceSampleId(manifest.sampleId) ||
+    (sampleId && manifest.sampleId !== sampleId) ||
+    manifest.receiptRoot !== `samples/evidence/${manifest.sampleId}/receipts` ||
+    !Array.isArray(manifest.receipts)
+  ) {
+    fail("interrupted receipt guard manifest is invalid");
+  }
+  const names = new Set();
+  for (const receipt of manifest.receipts) {
+    if (
+      !isPlainRecord(receipt) ||
+      !receiptNameGate(receipt.name) ||
+      names.has(receipt.name) ||
+      !Number.isSafeInteger(receipt.bytes) ||
+      receipt.bytes < 0 ||
+      receipt.bytes > 1024 * 1024 ||
+      typeof receipt.sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/.test(receipt.sha256)
+    ) {
+      fail(`${manifest.sampleId}: interrupted receipt guard entry is invalid`);
+    }
+    names.add(receipt.name);
+  }
+  const sorted = [...manifest.receipts].sort((left, right) => left.name.localeCompare(right.name));
+  if (!sameJson(sorted, manifest.receipts)) fail(`${manifest.sampleId}: receipt guard entries are not sorted`);
+  return manifest;
+}
+
+async function readReceiptGuard(transactionRoot, expectedSampleId, projectRoot, expectedSnapshot) {
+  const guardRoot = path.join(transactionRoot, "receipt-guard");
+  let guardMetadata;
+  try {
+    guardMetadata = await lstat(guardRoot);
+  } catch (error) {
+    if (error?.code === "ENOENT") return undefined;
+    throw error;
+  }
+  if (
+    !guardMetadata.isDirectory() ||
+    guardMetadata.isSymbolicLink() ||
+    (await realpath(guardRoot)) !== guardRoot
+  ) {
+    fail("interrupted receipt guard is not a canonical directory");
+  }
+  const guardEntries = await readdir(guardRoot, { withFileTypes: true });
+  if (
+    guardEntries.length !== 2 ||
+    !guardEntries.some((entry) => entry.name === "manifest.json" && entry.isFile() && !entry.isSymbolicLink()) ||
+    !guardEntries.some((entry) => entry.name === "previous" && entry.isDirectory() && !entry.isSymbolicLink())
+  ) {
+    fail("interrupted receipt guard has an unexpected structure");
+  }
+  const manifestRelative = path.relative(projectRoot, path.join(guardRoot, "manifest.json")).replaceAll(path.sep, "/");
+  const manifestBytes = await readCanonicalBoundedFile(projectRoot, manifestRelative, {
+    label: "interrupted receipt guard manifest",
+    maxBytes: 64 * 1024,
+  });
+  const manifest = validateReceiptGuardManifest(JSON.parse(manifestBytes.toString("utf8")), expectedSampleId);
+  const previousRoot = path.join(guardRoot, "previous");
+  const previousMetadata = await lstat(previousRoot);
+  if (
+    !previousMetadata.isDirectory() ||
+    previousMetadata.isSymbolicLink() ||
+    (await realpath(previousRoot)) !== previousRoot
+  ) {
+    fail(`${manifest.sampleId}: receipt guard rollback directory is not canonical`);
+  }
+  const entries = await readdir(previousRoot, { withFileTypes: true });
+  if (
+    entries.length !== manifest.receipts.length ||
+    entries.some((entry) => !entry.isFile() || entry.isSymbolicLink() || !receiptNameGate(entry.name))
+  ) {
+    fail(`${manifest.sampleId}: receipt guard rollback set is invalid`);
+  }
+  const snapshot = new Map();
+  for (const binding of manifest.receipts) {
+    const relative = path.relative(projectRoot, path.join(previousRoot, binding.name)).replaceAll(path.sep, "/");
+    const bytes = await readCanonicalBoundedFile(projectRoot, relative, {
+      label: `${manifest.sampleId} guarded receipt ${binding.name}`,
+      maxBytes: 1024 * 1024,
+    });
+    if (
+      bytes.byteLength !== binding.bytes ||
+      createHash("sha256").update(bytes).digest("hex") !== binding.sha256 ||
+      (expectedSnapshot && !bytes.equals(expectedSnapshot.get(binding.name)?.bytes))
+    ) {
+      fail(`${manifest.sampleId}: guarded receipt bytes are invalid: ${binding.name}`);
+    }
+    validateGateReceiptStructure(JSON.parse(bytes.toString("utf8")), {
+      sampleId: manifest.sampleId,
+      gate: receiptNameGate(binding.name),
+    });
+    snapshot.set(binding.name, { bytes });
+  }
+  return { guardRoot, manifest, previousRoot, snapshot };
+}
+
+async function canonicalReceiptRecoveryParent(projectRoot, sampleId) {
+  const canonicalProjectRoot = await realpath(projectRoot);
+  if (canonicalProjectRoot !== projectRoot) fail(`${sampleId}: receipt recovery project root is not canonical`);
+  for (const relative of ["samples", "samples/evidence", `samples/evidence/${sampleId}`]) {
+    await canonicalExistingDirectory(
+      path.join(projectRoot, relative),
+      path.join(canonicalProjectRoot, relative),
+      `${sampleId}: receipt recovery ${relative}`,
+    );
+  }
+  return path.join(projectRoot, `samples/evidence/${sampleId}/receipts`);
+}
+
+async function restoreReceiptGuard(guard, transactionRoot, projectRoot) {
+  const { sampleId } = guard.manifest;
+  const receiptRoot = await canonicalReceiptRecoveryParent(projectRoot, sampleId);
+  const discarded = path.join(transactionRoot, "discarded-receipts");
+  try {
+    await lstat(discarded);
+    fail(`${sampleId}: receipt recovery quarantine already exists`);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  let discardedExisting = false;
+  try {
+    const existing = await canonicalExistingDirectory(
+      receiptRoot,
+      receiptRoot,
+      `${sampleId}: receipt recovery canonical receipts`,
+      true,
+    );
+    if (existing) {
+      await rename(receiptRoot, discarded);
+      discardedExisting = true;
+    }
+    await rename(guard.previousRoot, receiptRoot);
+  } catch (error) {
+    if (discardedExisting) {
+      try {
+        await rename(discarded, receiptRoot);
+      } catch (rollbackError) {
+        throw new AggregateError([error, rollbackError], `${sampleId}: receipt guard recovery rollback failed`);
+      }
+    }
+    throw error;
+  }
+  const restoredEntries = await readdir(receiptRoot);
+  if (
+    restoredEntries.length !== guard.snapshot.size ||
+    restoredEntries.some((name) => !guard.snapshot.has(name))
+  ) {
+    fail(`${sampleId}: restored receipt set is incomplete`);
+  }
+  for (const [name, expected] of guard.snapshot) {
+    const relative = path.relative(projectRoot, path.join(receiptRoot, name)).replaceAll(path.sep, "/");
+    const bytes = await readCanonicalBoundedFile(projectRoot, relative, {
+      label: `${sampleId} restored receipt ${name}`,
+      maxBytes: 1024 * 1024,
+    });
+    if (!bytes.equals(expected.bytes)) fail(`${sampleId}: restored receipt bytes changed: ${name}`);
+  }
+  if (discardedExisting) await rm(discarded, { recursive: true, force: false });
+}
+
+/** Recover only a pre-execution guard owned by a stale global evidence lock. */
+export async function recoverInterruptedReceiptTransactions(_baseRoot, sampleId, options = {}) {
+  const projectRoot = path.resolve(options.projectRoot ?? PROJECT_ROOT);
+  const transactionRoot = options.transactionRoot;
+  if (!transactionRoot) return false;
+  const guard = await readReceiptGuard(transactionRoot, sampleId, projectRoot);
+  if (!guard) return false;
+  await restoreReceiptGuard(guard, transactionRoot, projectRoot);
+  await rm(guard.guardRoot, { recursive: true, force: false });
+  return true;
+}
+
+async function canonicalPruneDirectories(baseRoot, sampleId, projectRoot) {
+  if (!validEvidenceSampleId(sampleId)) fail("evidence cleanup sample ID is invalid");
+  const lexicalProjectRoot = path.resolve(projectRoot);
+  const expectedBaseRoot = path.join(lexicalProjectRoot, "samples/evidence", sampleId);
+  if (path.resolve(baseRoot) !== expectedBaseRoot) fail(`${sampleId}: evidence cleanup root is not canonical`);
+
+  const directories = [];
+  const relativeDirectories = ["", "samples", "samples/evidence", `samples/evidence/${sampleId}`,
+    `samples/evidence/${sampleId}/receipts`, `samples/evidence/${sampleId}/runs`];
+  let canonicalProjectRoot;
+  for (const relative of relativeDirectories) {
+    const absolute = relative ? path.join(lexicalProjectRoot, relative) : lexicalProjectRoot;
+    let metadata;
+    try {
+      metadata = await lstat(absolute);
+    } catch (error) {
+      if (error?.code === "ENOENT") return undefined;
+      throw error;
+    }
+    if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
+      fail(`${sampleId}: evidence cleanup directory is a symlink or non-directory: ${absolute}`);
+    }
+    const canonical = await realpath(absolute);
+    if (relative === "") canonicalProjectRoot = canonical;
+    const expectedCanonical = relative ? path.join(canonicalProjectRoot, relative) : lexicalProjectRoot;
+    if (canonical !== expectedCanonical) fail(`${sampleId}: evidence cleanup directory escapes its canonical root`);
+    directories.push({ absolute, canonical, dev: metadata.dev, ino: metadata.ino });
+  }
+  return {
+    projectRoot: lexicalProjectRoot,
+    directories,
+    receiptRoot: directories.at(-2),
+    runsRoot: directories.at(-1),
+  };
+}
+
+async function revalidatePruneDirectories(binding, sampleId) {
+  for (const directory of binding.directories) {
+    const metadata = await lstat(directory.absolute);
+    if (
+      !metadata.isDirectory() ||
+      metadata.isSymbolicLink() ||
+      metadata.dev !== directory.dev ||
+      metadata.ino !== directory.ino ||
+      (await realpath(directory.absolute)) !== directory.canonical
+    ) {
+      fail(`${sampleId}: evidence cleanup directory changed during pruning`);
+    }
+  }
+}
+
+async function validateEvidenceRunDirectory(binding, runRoot, sampleId) {
+  const runId = path.basename(runRoot);
+  const expectedRunRoot = path.join(binding.runsRoot.absolute, runId);
+  if (!isSampleEvidenceRunId(runId) || path.resolve(runRoot) !== expectedRunRoot) {
+    fail(`${sampleId}: evidence transaction run root is not canonical`);
+  }
+  await revalidatePruneDirectories(binding, sampleId);
+  const metadata = await lstat(expectedRunRoot);
+  if (
+    !metadata.isDirectory() ||
+    metadata.isSymbolicLink() ||
+    (await realpath(expectedRunRoot)) !== path.join(binding.runsRoot.canonical, runId)
+  ) {
+    fail(`${sampleId}: evidence transaction run root is a symlink or escaped directory`);
+  }
+  return {
+    absolute: expectedRunRoot,
+    canonical: path.join(binding.runsRoot.canonical, runId),
+    dev: metadata.dev,
+    ino: metadata.ino,
+    runId,
+  };
+}
+
+async function revalidateEvidenceRunDirectory(binding, run, sampleId) {
+  await revalidatePruneDirectories(binding, sampleId);
+  const metadata = await lstat(run.absolute);
+  if (
+    !metadata.isDirectory() ||
+    metadata.isSymbolicLink() ||
+    metadata.dev !== run.dev ||
+    metadata.ino !== run.ino ||
+    (await realpath(run.absolute)) !== run.canonical
+  ) {
+    fail(`${sampleId}: evidence transaction run root changed during publication`);
+  }
+}
+
+async function absentPublicationPath(value, transaction) {
+  if (path.dirname(value) !== transaction.evidenceLock.path) {
+    fail(`${transaction.sampleId}: evidence publication path escapes its lock`);
+  }
+  try {
+    await lstat(value);
+    fail(`${transaction.sampleId}: evidence publication path already exists: ${path.basename(value)}`);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+}
+
+async function copyCanonicalReceiptsToStage(binding, stageRoot, sampleId) {
+  const receiptNames = new Set(SAMPLE_GATE_NAMES.map((gate) => `${gate}.v1.json`));
+  const entries = await readdir(binding.receiptRoot.absolute, { withFileTypes: true });
+  const snapshot = new Map();
+  for (const entry of entries) {
+    if (!receiptNames.has(entry.name) || !entry.isFile() || entry.isSymbolicLink()) {
+      fail(`${sampleId}: canonical receipt tree contains an unsafe entry: ${entry.name}`);
+    }
+    await revalidatePruneDirectories(binding, sampleId);
+    const sourcePath = path.join(binding.receiptRoot.absolute, entry.name);
+    const metadata = await lstat(sourcePath);
+    if (
+      !metadata.isFile() ||
+      metadata.isSymbolicLink() ||
+      metadata.size > 1024 * 1024 ||
+      (await realpath(sourcePath)) !== path.join(binding.receiptRoot.canonical, entry.name)
+    ) {
+      fail(`${sampleId}: canonical receipt is not a bounded regular file: ${entry.name}`);
+    }
+    const relative = path.relative(binding.projectRoot, sourcePath).replaceAll(path.sep, "/");
+    const bytes = await readCanonicalBoundedFile(binding.projectRoot, relative, {
+      label: `${sampleId} canonical receipt ${entry.name}`,
+      maxBytes: 1024 * 1024,
+    });
+    const current = await lstat(sourcePath);
+    if (
+      !current.isFile() ||
+      current.isSymbolicLink() ||
+      current.dev !== metadata.dev ||
+      current.ino !== metadata.ino ||
+      (await realpath(sourcePath)) !== path.join(binding.receiptRoot.canonical, entry.name)
+    ) {
+      fail(`${sampleId}: canonical receipt changed during transaction staging: ${entry.name}`);
+    }
+    validateGateReceiptStructure(JSON.parse(bytes.toString("utf8")), {
+      sampleId,
+      gate: receiptNameGate(entry.name),
+    });
+    await writeFile(path.join(stageRoot, entry.name), bytes, { flag: "wx" });
+    snapshot.set(entry.name, { bytes, dev: metadata.dev, ino: metadata.ino });
+  }
+  return snapshot;
+}
+
+async function validateReceiptSnapshotAt(
+  directory,
+  canonicalDirectory,
+  directoryIdentity,
+  snapshot,
+  sampleId,
+  projectRoot,
+) {
+  const directoryMetadata = await lstat(directory);
+  if (
+    !directoryMetadata.isDirectory() ||
+    directoryMetadata.isSymbolicLink() ||
+    directoryMetadata.dev !== directoryIdentity.dev ||
+    directoryMetadata.ino !== directoryIdentity.ino ||
+    (await realpath(directory)) !== canonicalDirectory
+  ) {
+    fail(`${sampleId}: canonical receipt directory changed during transaction publication`);
+  }
+  const entries = await readdir(directory, { withFileTypes: true });
+  if (
+    entries.length !== snapshot.size ||
+    entries.some((entry) => !snapshot.has(entry.name) || !entry.isFile() || entry.isSymbolicLink())
+  ) {
+    fail(`${sampleId}: canonical receipt set changed during transaction publication`);
+  }
+  for (const entry of entries) {
+    const expected = snapshot.get(entry.name);
+    const receiptPath = path.join(directory, entry.name);
+    const metadata = await lstat(receiptPath);
+    const relative = path.relative(projectRoot, receiptPath).replaceAll(path.sep, "/");
+    const bytes = await readCanonicalBoundedFile(projectRoot, relative, {
+      label: `${sampleId} receipt transaction snapshot ${entry.name}`,
+      maxBytes: 1024 * 1024,
+    });
+    const current = await lstat(receiptPath);
+    if (
+      !metadata.isFile() ||
+      metadata.isSymbolicLink() ||
+      metadata.dev !== expected.dev ||
+      metadata.ino !== expected.ino ||
+      !current.isFile() ||
+      current.isSymbolicLink() ||
+      current.dev !== metadata.dev ||
+      current.ino !== metadata.ino ||
+      (await realpath(receiptPath)) !== path.join(canonicalDirectory, entry.name) ||
+      !bytes.equals(expected.bytes)
+    ) {
+      fail(`${sampleId}: canonical receipt changed during transaction publication: ${entry.name}`);
+    }
+  }
+}
+
+export async function beginGateReceiptTransaction(options) {
+  const projectRoot = path.resolve(options.projectRoot ?? PROJECT_ROOT);
+  const { baseRoot, sampleId, evidenceLock } = options;
+  if (
+    !evidenceLock ||
+    evidenceLock.sampleId !== sampleId ||
+    typeof evidenceLock.token !== "string" ||
+    path.resolve(evidenceLock.path) !== path.join(projectRoot, ".tmp/sample-runner-locks/evidence")
+  ) {
+    fail(`${sampleId}: receipt guard requires the active global evidence lock`);
+  }
+  const owner = await readEvidenceLockOwner(evidenceLock.path, projectRoot);
+  if (
+    !owner ||
+    owner.pid !== process.pid ||
+    owner.token !== evidenceLock.token ||
+    owner.sampleId !== sampleId
+  ) {
+    fail(`${sampleId}: receipt guard lock ownership is invalid`);
+  }
+  const binding = await canonicalPruneDirectories(baseRoot, sampleId, projectRoot);
+  if (!binding) fail(`${sampleId}: receipt guard canonical directories are missing`);
+  const guardRoot = path.join(evidenceLock.path, "receipt-guard");
+  const candidateRoot = path.join(evidenceLock.path, `.guard-candidate-${evidenceLock.token}`);
+  for (const value of [guardRoot, candidateRoot]) {
+    try {
+      await lstat(value);
+      fail(`${sampleId}: receipt guard already exists`);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  await mkdir(candidateRoot);
+  const candidatePrevious = path.join(candidateRoot, "previous");
+  await mkdir(candidatePrevious);
+  try {
+    const snapshot = await copyCanonicalReceiptsToStage(binding, candidatePrevious, sampleId);
+    const manifest = receiptSnapshotManifest(sampleId, snapshot);
+    await writeFile(path.join(candidateRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, {
+      flag: "wx",
+    });
+    await rename(candidateRoot, guardRoot);
+    const transaction = {
+      baseRoot,
+      binding,
+      evidenceLock,
+      guardRoot,
+      previousRoot: path.join(guardRoot, "previous"),
+      projectRoot,
+      published: false,
+      sampleId,
+      snapshot,
+      closed: false,
+    };
+    await readReceiptGuard(evidenceLock.path, sampleId, projectRoot, snapshot);
+    return transaction;
+  } catch (error) {
+    await rm(candidateRoot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function validateGateReceiptTransaction(transaction) {
+  if (!transaction || transaction.closed) fail("evidence receipt guard is not active");
+  const owner = await readEvidenceLockOwner(transaction.evidenceLock.path, transaction.projectRoot);
+  if (
+    !owner ||
+    owner.pid !== process.pid ||
+    owner.token !== transaction.evidenceLock.token ||
+    owner.sampleId !== transaction.sampleId
+  ) {
+    fail(`${transaction.sampleId}: receipt guard lock ownership changed`);
+  }
+  await readReceiptGuard(
+    transaction.evidenceLock.path,
+    transaction.sampleId,
+    transaction.projectRoot,
+    transaction.snapshot,
+  );
+  await validateReceiptSnapshotAt(
+    transaction.binding.receiptRoot.absolute,
+    transaction.binding.receiptRoot.canonical,
+    transaction.binding.receiptRoot,
+    transaction.snapshot,
+    transaction.sampleId,
+    transaction.projectRoot,
+  );
+}
+
+export async function rollbackGateReceiptTransaction(transaction) {
+  if (!transaction || transaction.closed) return;
+  const guard = await readReceiptGuard(
+    transaction.evidenceLock.path,
+    transaction.sampleId,
+    transaction.projectRoot,
+    transaction.snapshot,
+  );
+  if (!guard) fail(`${transaction.sampleId}: receipt rollback guard is missing`);
+  await restoreReceiptGuard(guard, transaction.evidenceLock.path, transaction.projectRoot);
+  await rm(guard.guardRoot, { recursive: true, force: false });
+  transaction.closed = true;
+}
+
+export async function commitGateReceiptTransaction(transaction) {
+  if (!transaction || transaction.closed || !transaction.published) {
+    fail("evidence receipt guard cannot commit before publication");
+  }
+  await readReceiptGuard(
+    transaction.evidenceLock.path,
+    transaction.sampleId,
+    transaction.projectRoot,
+    transaction.snapshot,
+  );
+  const committedRoot = path.join(transaction.evidenceLock.path, "receipt-guard-committed");
+  await absentPublicationPath(committedRoot, transaction);
+  await rename(transaction.guardRoot, committedRoot);
+  transaction.closed = true;
+  await rm(committedRoot, { recursive: true, force: false });
+}
+
+async function invokeReceiptTransactionFault(fault, point) {
+  if (fault) await fault(point);
+}
+
+async function validateStagedReceiptDirectory(
+  stageRoot,
+  stageCanonical,
+  stageIdentity,
+  expectedBytes,
+  sampleId,
+  projectRoot,
+) {
+  const stagedDirectory = await lstat(stageRoot);
+  if (
+    !stagedDirectory.isDirectory() ||
+    stagedDirectory.isSymbolicLink() ||
+    stagedDirectory.dev !== stageIdentity.dev ||
+    stagedDirectory.ino !== stageIdentity.ino ||
+    (await realpath(stageRoot)) !== stageCanonical
+  ) {
+    fail(`${sampleId}: evidence receipt staging directory changed during publication`);
+  }
+  const entries = await readdir(stageRoot, { withFileTypes: true });
+  if (
+    entries.length !== expectedBytes.size ||
+    entries.some((entry) => !expectedBytes.has(entry.name) || !entry.isFile() || entry.isSymbolicLink())
+  ) {
+    fail(`${sampleId}: staged evidence receipt set is incomplete`);
+  }
+  const snapshot = new Map();
+  for (const entry of entries) {
+    const stagedPath = path.join(stageRoot, entry.name);
+    const metadata = await lstat(stagedPath);
+    const relative = path.relative(projectRoot, stagedPath).replaceAll(path.sep, "/");
+    const bytes = await readCanonicalBoundedFile(projectRoot, relative, {
+      label: `${sampleId} staged receipt ${entry.name}`,
+      maxBytes: 1024 * 1024,
+    });
+    const current = await lstat(stagedPath);
+    if (
+      !metadata.isFile() ||
+      metadata.isSymbolicLink() ||
+      metadata.dev !== current.dev ||
+      metadata.ino !== current.ino ||
+      (await realpath(stagedPath)) !== path.join(stageCanonical, entry.name) ||
+      !bytes.equals(expectedBytes.get(entry.name))
+    ) {
+      fail(`${sampleId}: staged evidence receipt is not a stable bounded regular file: ${entry.name}`);
+    }
+    validateGateReceiptStructure(JSON.parse(bytes.toString("utf8")), {
+      sampleId,
+      gate: receiptNameGate(entry.name),
+    });
+    snapshot.set(entry.name, { bytes, dev: metadata.dev, ino: metadata.ino });
+  }
+  return snapshot;
+}
+
+export async function publishGateReceiptGroups(options) {
+  const { baseRoot, groups, sampleId, transaction } = options;
+  if (
+    !transaction ||
+    transaction.baseRoot !== baseRoot ||
+    transaction.sampleId !== sampleId ||
+    transaction.closed ||
+    transaction.published ||
+    path.resolve(options.projectRoot ?? PROJECT_ROOT) !== transaction.projectRoot
+  ) {
+    fail(`${sampleId}: evidence receipt transaction has no pre-execution guard`);
+  }
+  if (!Array.isArray(groups) || groups.length === 0) {
+    fail(`${sampleId}: evidence receipt transaction has no publication groups`);
+  }
+  await validateGateReceiptTransaction(transaction);
+  const binding = transaction.binding;
+  const uniqueGates = new Set();
+  const validatedGroups = [];
+  for (const group of groups) {
+    if (!group || !Array.isArray(group.receipts) || group.receipts.length === 0) {
+      fail(`${sampleId}: evidence receipt transaction contains an empty publication group`);
+    }
+    const run = await validateEvidenceRunDirectory(binding, group.runRoot, sampleId);
+    const expectedRunRoot = `samples/evidence/${sampleId}/runs/${run.runId}`;
+    for (const entry of group.receipts) {
+      if (
+        !entry ||
+        !SAMPLE_GATE_NAMES.includes(entry.gate) ||
+        uniqueGates.has(entry.gate) ||
+        entry.receipt?.sampleId !== sampleId ||
+        entry.receipt?.gate !== entry.gate ||
+        entry.receipt?.runRoot !== expectedRunRoot
+      ) {
+        fail(`${sampleId}: evidence receipt transaction has an invalid gate or run binding`);
+      }
+      validateGateReceiptStructure(entry.receipt, { sampleId, gate: entry.gate });
+      uniqueGates.add(entry.gate);
+    }
+    validatedGroups.push({ ...group, run });
+  }
+
+  const stageRoot = path.join(transaction.evidenceLock.path, "receipt-publication-next");
+  const backupRoot = path.join(transaction.evidenceLock.path, "receipt-publication-previous");
+  const failedRoot = path.join(transaction.evidenceLock.path, "receipt-publication-failed");
+  for (const publicationPath of [stageRoot, backupRoot, failedRoot]) {
+    await absentPublicationPath(publicationPath, transaction);
+  }
+  let stageMetadata;
+  let stagedReceipts;
+  let previousMoved = false;
+  let nextPublished = false;
+  try {
+    await mkdir(stageRoot);
+    stageMetadata = await lstat(stageRoot);
+    const stageCanonical = path.join(await realpath(transaction.evidenceLock.path), path.basename(stageRoot));
+    if (
+      !stageMetadata.isDirectory() ||
+      stageMetadata.isSymbolicLink() ||
+      (await realpath(stageRoot)) !== stageCanonical
+    ) {
+      fail(`${sampleId}: evidence receipt staging directory is not canonical`);
+    }
+    const stagedReceiptBytes = new Map();
+    for (const [name, value] of transaction.snapshot) {
+      await writeFile(path.join(stageRoot, name), value.bytes, { flag: "wx" });
+      stagedReceiptBytes.set(name, value.bytes);
+    }
+    for (const group of validatedGroups) {
+      for (const { gate, receipt } of group.receipts) {
+        await invokeReceiptTransactionFault(options.fault, `before-stage-write:${gate}`);
+        const name = `${gate}.v1.json`;
+        const bytes = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`);
+        if (bytes.byteLength > 1024 * 1024) fail(`${sampleId}: staged evidence receipt exceeds its size limit: ${name}`);
+        const stagedPath = path.join(stageRoot, name);
+        await rm(stagedPath, { force: true });
+        await writeFile(stagedPath, bytes, { flag: "wx" });
+        stagedReceiptBytes.set(name, bytes);
+      }
+    }
+    stagedReceipts = await validateStagedReceiptDirectory(
+      stageRoot,
+      stageCanonical,
+      stageMetadata,
+      stagedReceiptBytes,
+      sampleId,
+      transaction.projectRoot,
+    );
+    for (const group of validatedGroups) {
+      await revalidateEvidenceRunDirectory(binding, group.run, sampleId);
+    }
+    await validateGateReceiptTransaction(transaction);
+    await rename(binding.receiptRoot.absolute, backupRoot);
+    previousMoved = true;
+    await validateReceiptSnapshotAt(
+      backupRoot,
+      path.join(await realpath(transaction.evidenceLock.path), path.basename(backupRoot)),
+      binding.receiptRoot,
+      transaction.snapshot,
+      sampleId,
+      binding.projectRoot,
+    );
+    await invokeReceiptTransactionFault(options.fault, "before-publish-rename");
+    await rename(stageRoot, binding.receiptRoot.absolute);
+    nextPublished = true;
+    await validateReceiptSnapshotAt(
+      binding.receiptRoot.absolute,
+      binding.receiptRoot.canonical,
+      stageMetadata,
+      stagedReceipts,
+      sampleId,
+      binding.projectRoot,
+    );
+    await invokeReceiptTransactionFault(options.fault, "after-publish-rename");
+    await rm(backupRoot, { recursive: true, force: false });
+    previousMoved = false;
+  } catch (error) {
+    const rollbackErrors = [];
+    let failedMoved = false;
+    if (nextPublished) {
+      try {
+        await rename(binding.receiptRoot.absolute, failedRoot);
+        failedMoved = true;
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    }
+    if (previousMoved && (!nextPublished || failedMoved)) {
+      try {
+        await rename(backupRoot, binding.receiptRoot.absolute);
+        previousMoved = false;
+        await validateReceiptSnapshotAt(
+          binding.receiptRoot.absolute,
+          binding.receiptRoot.canonical,
+          binding.receiptRoot,
+          transaction.snapshot,
+          sampleId,
+          binding.projectRoot,
+        );
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    }
+    if (failedMoved) {
+      try {
+        await rm(failedRoot, { recursive: true, force: false });
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    }
+    try {
+      await rm(stageRoot, { recursive: true, force: true });
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError);
+    }
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError([error, ...rollbackErrors], `${sampleId}: evidence receipt transaction rollback failed`);
+    }
+    throw error;
+  }
+  transaction.published = true;
+}
+
+export async function publishGateReceiptGroup(options) {
+  const { runRoot, receipts, ...shared } = options;
+  return publishGateReceiptGroups({ ...shared, groups: [{ runRoot, receipts }] });
+}
+
+export async function pruneUnreferencedEvidenceRuns(baseRoot, sampleId, options = {}) {
+  const binding = await canonicalPruneDirectories(baseRoot, sampleId, options.projectRoot ?? PROJECT_ROOT);
+  if (!binding) return;
+  await revalidatePruneDirectories(binding, sampleId);
+  const [receiptEntries, runEntries] = await Promise.all([
+    readdir(binding.receiptRoot.absolute, { withFileTypes: true }),
+    readdir(binding.runsRoot.absolute, { withFileTypes: true }),
+  ]);
+  const referenced = new Set();
+  const receiptNames = new Set(SAMPLE_GATE_NAMES.map((gate) => `${gate}.v1.json`));
+  for (const entry of receiptEntries) {
+    if (!receiptNames.has(entry.name) || !entry.isFile() || entry.isSymbolicLink()) {
+      fail(`${sampleId}: canonical receipt tree contains an unsafe entry: ${entry.name}`);
+    }
+    await revalidatePruneDirectories(binding, sampleId);
+    const receiptPath = path.join(binding.receiptRoot.absolute, entry.name);
+    const relative = path.relative(binding.projectRoot, receiptPath).replaceAll(path.sep, "/");
+    const receiptBytes = await readCanonicalBoundedFile(binding.projectRoot, relative, {
+      label: `${sampleId} canonical receipt ${entry.name}`,
+      maxBytes: 1024 * 1024,
+    });
+    await revalidatePruneDirectories(binding, sampleId);
+    const receipt = JSON.parse(receiptBytes.toString("utf8"));
+    const gate = entry.name.slice(0, -".v1.json".length);
+    validateGateReceiptStructure(receipt, { sampleId, gate });
+    const prefix = `samples/evidence/${sampleId}/runs/`;
+    const runId = typeof receipt.runRoot === "string" ? receipt.runRoot.slice(prefix.length) : "";
+    if (receipt.runRoot !== `${prefix}${runId}` || !isSampleEvidenceRunId(runId)) {
+      fail(`${sampleId}: cannot prune around a receipt with an invalid run root`);
+    }
+    referenced.add(runId);
+  }
+  for (const entry of runEntries) {
+    if (
+      !entry.isDirectory() ||
+      entry.isSymbolicLink() ||
+      !isSampleEvidenceRunId(entry.name)
+    ) {
+      fail(`${sampleId}: canonical evidence run tree contains an unsafe entry: ${entry.name}`);
+    }
+    await revalidatePruneDirectories(binding, sampleId);
+    const runPath = path.join(binding.runsRoot.absolute, entry.name);
+    const initial = await lstat(runPath);
+    if (
+      !initial.isDirectory() ||
+      initial.isSymbolicLink() ||
+      (await realpath(runPath)) !== path.join(binding.runsRoot.canonical, entry.name)
+    ) {
+      fail(`${sampleId}: canonical evidence run is a symlink or escaped directory: ${entry.name}`);
+    }
+    if (!referenced.has(entry.name)) {
+      await revalidatePruneDirectories(binding, sampleId);
+      const current = await lstat(runPath);
+      if (
+        !current.isDirectory() ||
+        current.isSymbolicLink() ||
+        current.dev !== initial.dev ||
+        current.ino !== initial.ino ||
+        (await realpath(runPath)) !== path.join(binding.runsRoot.canonical, entry.name)
+      ) {
+        fail(`${sampleId}: evidence run changed before cleanup: ${entry.name}`);
+      }
+      await rm(runPath, { recursive: true, force: false });
+      await revalidatePruneDirectories(binding, sampleId);
+    }
+  }
 }
 
 async function executeEvidence(sample, options, context) {
@@ -892,87 +2026,165 @@ async function executeEvidence(sample, options, context) {
   if (gates.includes("live") && !options.allowLive) fail("live evidence requires explicit --allow-live");
   const revision = (await context.supervisor.run(["git", "rev-parse", "HEAD"])).stdout.trim();
   if (!/^[a-f0-9]{40}$/.test(revision)) fail("could not resolve a full source revision");
-  const baseRoot = path.join(PROJECT_ROOT, "test-results/sample-evidence", sample.id);
-  await rm(baseRoot, { recursive: true, force: true });
-  const sourceSnapshot = await captureGateSourceSnapshot({
-    sourceRevision: revision,
-    outputRoot: path.relative(PROJECT_ROOT, baseRoot).replaceAll(path.sep, "/"),
-    projectRoot: PROJECT_ROOT,
-  });
+  const baseRoot = path.join(PROJECT_ROOT, "samples/evidence", sample.id);
   const receiptRoot = path.join(baseRoot, "receipts");
-  const runRoot = path.join(baseRoot, "runs", randomUUID());
-  await mkdir(path.join(runRoot, "logs"), { recursive: true });
-  await mkdir(receiptRoot, { recursive: true });
-
-  const groups = new Map();
-  for (const gate of gates) {
-    const command = expectedGateCommand(sample, gate);
-    const key = canonicalCommand(command);
-    const group = groups.get(key) ?? { command, gates: [] };
-    group.gates.push(gate);
-    groups.set(key, group);
-  }
-
-  for (const group of groups.values()) {
-    const containsLiveGate = group.gates.includes("live");
-    const commandMode = group.gates.includes("packed-build") ? "packed" : options.sdkMode;
-    let packed = context.packed;
-    if (commandMode === "packed" && !packed) {
-      packed = await preparePackedSdk(context.supervisor, path.join(runRoot, "tooling/packed-sdk"));
-      context.packed = packed;
-    }
-    const playwrightReport = group.gates.some((gate) => ["browser", "accessibility", "console", "responsive"].includes(gate))
-      ? path.join(runRoot, "artifacts/playwright.json")
-      : undefined;
-    const screenshotReport = group.gates.includes("screenshot")
-      ? path.join(runRoot, "artifacts/screenshot-gate.json")
-      : undefined;
-    const performanceReport = group.gates.includes("performance")
-      ? path.join(runRoot, "artifacts/performance-gate.json")
-      : undefined;
-    for (const expectedReport of [playwrightReport, screenshotReport, performanceReport]) {
-      if (expectedReport) await rm(expectedReport, { force: true });
-    }
-    const result = await context.supervisor.run(group.command, {
-      env: sdkEnvironment(commandMode, packed, {
-        ...(playwrightReport ? { PLAYWRIGHT_JSON_OUTPUT_NAME: playwrightReport } : {}),
-        ...(playwrightReport ? { HONUA_SAMPLE_PLAYWRIGHT_OUTPUT_DIR: path.join(runRoot, "artifacts/playwright-output") } : {}),
-        ...(screenshotReport ? { HONUA_SAMPLE_SCREENSHOT_OUTPUT: screenshotReport } : {}),
-        ...(performanceReport ? { HONUA_SAMPLE_PERFORMANCE_OUTPUT: performanceReport } : {}),
-      }),
-      allowedEnvironmentNames: group.gates.includes("live") ? allowedLiveEnvironment(context.catalogSample) : [],
-      echoOutput: containsLiveGate ? false : undefined,
-      captureOutput: containsLiveGate ? false : undefined,
-      artifactPath: containsLiveGate ? undefined : path.join(runRoot, "logs", `${commandDigest(group.command)}.log`),
-    });
-    for (const gate of group.gates) {
-      const receiptPath = path.join(receiptRoot, `${gate}.v1.json`);
-      const artifact = await writeGateReport({
-        sample,
-        catalogSample: context.catalogSample,
-        gate,
-        revision,
-        command: group.command,
-        result,
-        runRoot,
-        packed,
-      });
-      const receipt = await createGateReceipt({
-        sampleId: sample.id,
-        gate,
-        sdkMode: commandMode,
+  const groups = groupEvidenceGates(sample, gates);
+  const evidenceLock = await acquireSampleEvidenceLock(sample.id);
+  const publicationGroups = [];
+  let transaction;
+  let primaryError;
+  let rollbackFailed = false;
+  try {
+    for (const group of groups) {
+      const runId = randomUUID();
+      const runRoot = path.join(baseRoot, "runs", runId);
+      const groupToolingRoot = path.join(context.toolingRoot, "evidence", sample.id, runId);
+      const sourceSnapshot = await captureGateSourceSnapshot({
         sourceRevision: revision,
-        command: group.command,
-        durationMs: result.durationMs,
-        artifacts: [artifact],
-        receiptPath: path.relative(PROJECT_ROOT, receiptPath).replaceAll(path.sep, "/"),
+        outputRoot: path.relative(PROJECT_ROOT, baseRoot).replaceAll(path.sep, "/"),
+        runRoot: path.relative(PROJECT_ROOT, runRoot).replaceAll(path.sep, "/"),
         projectRoot: PROJECT_ROOT,
-        sourceSnapshot,
       });
-      await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
-      process.stdout.write(`sample gate receipt: ${path.relative(PROJECT_ROOT, receiptPath)}\n`);
+      transaction ??= await beginGateReceiptTransaction({
+        baseRoot,
+        evidenceLock,
+        projectRoot: PROJECT_ROOT,
+        sampleId: sample.id,
+      });
+      await mkdir(path.join(groupToolingRoot, "logs"), { recursive: true });
+      const containsLiveGate = group.gates.includes("live");
+      const commandMode = group.gates.includes("packed-build") ? "packed" : options.sdkMode;
+      let packed = context.packed;
+      if (commandMode === "packed" && !packed) {
+        packed = await preparePackedSdk(context.supervisor, path.join(context.toolingRoot, "packed-sdk"));
+        context.packed = packed;
+      }
+      const playwrightReport = group.gates.some((gate) => ["browser", "accessibility", "console", "responsive"].includes(gate))
+        ? path.join(runRoot, "artifacts/playwright.json")
+        : undefined;
+      const playwrightOutput = isPlaywrightCommand(group.command)
+        ? path.join(groupToolingRoot, "playwright-output")
+        : undefined;
+      const screenshotReport = group.gates.includes("screenshot")
+        ? path.join(runRoot, "artifacts/screenshot-gate.json")
+        : undefined;
+      const performanceReport = group.gates.includes("performance")
+        ? path.join(runRoot, "artifacts/performance-gate.json")
+        : undefined;
+      const evidenceProject = screenshotReport || performanceReport ? context.kitSample?.evidenceProject : undefined;
+      if ((screenshotReport || performanceReport) && !evidenceProject) {
+        fail(`${sample.id}: visual or performance evidence requires a declared evidence project`);
+      }
+      for (const expectedReport of [playwrightReport, screenshotReport, performanceReport]) {
+        if (expectedReport) await rm(expectedReport, { force: true });
+      }
+      const liveEvidenceOutput = containsLiveGate ? path.join(runRoot, "artifacts/live-evidence.json") : undefined;
+      if (liveEvidenceOutput) await mkdir(path.dirname(liveEvidenceOutput), { recursive: true });
+      const liveCredentials = containsLiveGate ? forwardedLiveCredentials(context.catalogSample) : [];
+      const result = await context.supervisor.run(group.command, {
+        env: sdkEnvironment(commandMode, packed, {
+          ...(playwrightReport ? { PLAYWRIGHT_JSON_OUTPUT_NAME: playwrightReport } : {}),
+          ...(playwrightOutput ? { HONUA_SAMPLE_PLAYWRIGHT_OUTPUT_DIR: playwrightOutput } : {}),
+          ...(screenshotReport ? { HONUA_SAMPLE_SCREENSHOT_OUTPUT: screenshotReport } : {}),
+          ...(performanceReport ? { HONUA_SAMPLE_PERFORMANCE_OUTPUT: performanceReport } : {}),
+          ...(evidenceProject ? { HONUA_SAMPLE_EVIDENCE_PROJECT: evidenceProject } : {}),
+          ...(liveEvidenceOutput ? { HONUA_SAMPLE_LIVE_OUTPUT: liveEvidenceOutput } : {}),
+          ...(liveEvidenceOutput ? { HONUA_SAMPLE_LIVE_ENABLED: "true" } : {}),
+          ...(liveEvidenceOutput ? { HONUA_SAMPLE_LIVE_SAMPLE_ID: sample.id } : {}),
+          ...(liveEvidenceOutput ? { HONUA_SAMPLE_SOURCE_REVISION: revision } : {}),
+        }),
+        allowedEnvironmentNames: group.gates.includes("live") ? allowedLiveEnvironment(context.catalogSample) : [],
+        echoOutput: containsLiveGate ? false : undefined,
+        captureOutput: containsLiveGate ? false : undefined,
+        artifactPath: containsLiveGate ? undefined : path.join(groupToolingRoot, "logs", `${commandDigest(group.command)}.log`),
+      });
+      let receiptPacked = packed;
+      if (group.gates.includes("packed-build")) {
+        const tarballPath = path.join(runRoot, "artifacts", path.basename(packed.tarballPath));
+        await mkdir(path.dirname(tarballPath), { recursive: true });
+        await copyFile(packed.tarballPath, tarballPath);
+        receiptPacked = { ...packed, tarballPath };
+      }
+      const artifacts = new Map();
+      for (const gate of group.gates) {
+        artifacts.set(gate, await writeGateReport({
+          sample,
+          gate,
+          revision,
+          command: group.command,
+          result,
+          runRoot,
+          packed: receiptPacked,
+          liveCredentials,
+          sourceSnapshot,
+        }));
+      }
+      const receipts = [];
+      for (const gate of group.gates) {
+        const receiptPath = path.join(receiptRoot, `${gate}.v1.json`);
+        const receipt = await createGateReceipt({
+          sampleId: sample.id,
+          gate,
+          sdkMode: commandMode,
+          sourceRevision: revision,
+          command: group.command,
+          durationMs: result.durationMs,
+          artifacts: [artifacts.get(gate)],
+          receiptPath: path.relative(PROJECT_ROOT, receiptPath).replaceAll(path.sep, "/"),
+          projectRoot: PROJECT_ROOT,
+          sourceSnapshot,
+        });
+        receipts.push({ gate, receipt });
+      }
+      publicationGroups.push({ runRoot, receipts });
+    }
+    await publishGateReceiptGroups({
+      baseRoot,
+      groups: publicationGroups,
+      projectRoot: PROJECT_ROOT,
+      sampleId: sample.id,
+      transaction,
+    });
+    await commitGateReceiptTransaction(transaction);
+    for (const group of publicationGroups) {
+      for (const { gate } of group.receipts) {
+        process.stdout.write(`sample gate receipt: ${path.relative(PROJECT_ROOT, path.join(receiptRoot, `${gate}.v1.json`))}\n`);
+      }
+    }
+  } catch (error) {
+    primaryError = error;
+    if (transaction && !transaction.closed) {
+      try {
+        await rollbackGateReceiptTransaction(transaction);
+      } catch (rollbackError) {
+        rollbackFailed = true;
+        primaryError = new AggregateError(
+          [error, rollbackError],
+          `${sample.id}: evidence generation failed and receipt rollback could not be validated`,
+        );
+      }
     }
   }
+
+  const cleanupErrors = [];
+  if (!rollbackFailed) {
+    try {
+      await pruneUnreferencedEvidenceRuns(baseRoot, sample.id);
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    try {
+      await evidenceLock.release();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+  }
+  if (primaryError && cleanupErrors.length > 0) {
+    throw new AggregateError([primaryError, ...cleanupErrors], `${sample.id}: evidence generation and cleanup failed`);
+  }
+  if (primaryError) throw primaryError;
+  if (cleanupErrors.length === 1) throw cleanupErrors[0];
+  if (cleanupErrors.length > 1) throw new AggregateError(cleanupErrors, `${sample.id}: evidence cleanup failed`);
 }
 
 function printList(samples, json) {

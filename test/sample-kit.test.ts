@@ -1,6 +1,7 @@
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { createServer } from "vite";
 import { describe, expect, it, vi } from "vitest";
 
 import { SampleCleanupRegistry } from "../examples/_kit/cleanup.js";
@@ -82,6 +83,23 @@ describe("shared sample kit", () => {
       expect(() => resolveContainedExport(root, "./dist/linked.js")).toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("starts and closes the Vite dev server without invoking build-only final-byte attestation", async () => {
+    const config = createSampleViteConfig(
+      new URL("../examples/standalone-quickstart/vite.config.ts", import.meta.url).href,
+      { sdkEntrypoints: ["@honua/sdk-js"] },
+    );
+    const server = await createServer({
+      ...config,
+      server: { ...config.server, host: "127.0.0.1", port: 0 },
+      logLevel: "silent",
+    });
+    try {
+      await server.listen();
+    } finally {
+      await server.close();
     }
   });
 });

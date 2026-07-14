@@ -1,9 +1,15 @@
-import {
-  canonicalCommand,
-  classifySampleCommand,
-  isPlaywrightCommand,
-  parseSampleCommand,
-} from "./sample-command.mjs";
+import { classifySampleCommand, isPlaywrightCommand, parseSampleCommand } from "./sample-command.mjs";
+
+export const SAMPLE_SCREENSHOT_VIEWPORT = Object.freeze({ width: 1280, height: 720 });
+export const SAMPLE_PERFORMANCE_METRIC = "sample-ready-duration";
+export const SAMPLE_PERFORMANCE_BUDGET_MS = 5_000;
+
+export function isSampleEvidenceRunId(value) {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value)
+  );
+}
 
 function fail(message) {
   throw new Error(message);
@@ -32,9 +38,6 @@ export function expectedGateCommand(sample, gate) {
   }
   if (gate === "live") return oneCommand(sample.commandPlan.liveEvidence.commands.map(parseSampleCommand), `${sample.id} live gate`);
   const validation = sample.commandPlan.validation.commands.map(parseSampleCommand);
-  if (gate === "performance") {
-    return oneCommand(validation.filter((argv) => canonicalCommand(argv).match(/(?:bench|performance)/)), `${sample.id} performance gate`);
-  }
   return evidencePlaywrightCommand(
     oneCommand(validation.filter(isPlaywrightCommand), `${sample.id} ${gate} gate`),
   );
