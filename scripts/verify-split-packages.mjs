@@ -47,6 +47,11 @@ for (const [name, directory] of Object.entries(packageDirs)) {
     process.exit(1);
   }
 
+  if (name === "@honua/sdk" && packageJson.sideEffects !== false) {
+    process.stderr.write("Split @honua/sdk must declare sideEffects=false for named-import tree shaking.\n");
+    process.exit(1);
+  }
+
   if (!fs.existsSync(path.join(directory, "LICENSE"))) {
     process.stderr.write(`Missing LICENSE file in split package ${name}: ${directory}\n`);
     process.exit(1);
@@ -110,7 +115,7 @@ import { osrmRoutingProvider, valhallaRoutingProvider } from "@honua/sdk/routing
 import { oauth2, clientCredentials, apiKeyAuth, InMemoryCredentialStore } from "@honua/sdk/auth";
 import { HONUA_PLUGIN_MANIFEST_VERSION, validateHonuaPluginManifest } from "@honua/sdk/plugin";
 import { createSourceSchemaV2 } from "@honua/sdk/source-schema";
-import { evaluateCapabilityProfile } from "@honua/sdk/source-capabilities";
+import { createCapabilityEvidenceProfile, evaluateCapabilityProfile } from "@honua/sdk/source-capabilities";
 import {
   HONUA_CONTROL_PLANE_BASE_PATH,
   createHonuaControlPlane,
@@ -343,7 +348,7 @@ if (HONUA_PLUGIN_MANIFEST_VERSION !== 1 || typeof validateHonuaPluginManifest !=
 if (typeof createSourceSchemaV2 !== "function")
   throw new Error("createSourceSchemaV2 export missing from @honua/sdk/source-schema");
 const capabilityProfile = evaluateCapabilityProfile(
-  [
+  createCapabilityEvidenceProfile([
     {
       id: "query",
       claimed: "supported",
@@ -359,7 +364,7 @@ const capabilityProfile = evaluateCapabilityProfile(
         },
       ],
     },
-  ],
+  ]),
   { evaluatedAt: "2026-07-14T12:00:01Z" },
 );
 if (capabilityProfile.entries[0]?.effective !== "supported")
