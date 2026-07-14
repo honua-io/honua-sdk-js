@@ -972,6 +972,9 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
   const childProcessNamespaces = new Set();
   const createRequireImports = new Set();
   const fixtureEnvironmentImports = new Set();
+  const getBuiltinModuleImports = new Set();
+  const moduleObjectImports = new Set();
+  const processObjectImports = new Set();
   const variableDeclarations = [];
   const functionNodes = new Set();
   const catchClauses = [];
@@ -1103,11 +1106,27 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
     }
     if (moduleName === "module" || moduleName === "node:module") {
       const bindings = importClause?.namedBindings;
+      if (importClause?.name) moduleObjectImports.add(importClause);
+      if (bindings && ts.isNamespaceImport(bindings)) moduleObjectImports.add(bindings);
       if (bindings && ts.isNamedImports(bindings)) {
         for (const element of bindings.elements) {
-          if ((element.propertyName?.text ?? element.name.text) === "createRequire") {
+          const importedName = element.propertyName?.text ?? element.name.text;
+          if (importedName === "createRequire") {
             createRequireImports.add(element);
           }
+          if (importedName === "default") moduleObjectImports.add(element);
+        }
+      }
+    }
+    if (moduleName === "process" || moduleName === "node:process") {
+      const bindings = importClause?.namedBindings;
+      if (importClause?.name) processObjectImports.add(importClause);
+      if (bindings && ts.isNamespaceImport(bindings)) processObjectImports.add(bindings);
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          const importedName = element.propertyName?.text ?? element.name.text;
+          if (importedName === "getBuiltinModule") getBuiltinModuleImports.add(element);
+          if (importedName === "default") processObjectImports.add(element);
         }
       }
     }
@@ -1181,20 +1200,45 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
     return undefined;
   };
 
-  const isCreateRequireFactoryTarget = (node, seen = new Set()) => {
+  const isImportedIdentity = (node, imports, label, seen = new Set()) => {
     const target = unwrapExpression(node);
     if (!ts.isIdentifier(target)) return false;
     const resolution = resolveLexicalBinding(target);
     if (resolution.ambiguous || !resolution.binding) return false;
-    if (createRequireImports.has(resolution.binding)) return true;
+    if (imports.has(resolution.binding)) return true;
     if (seen.has(resolution.binding) || !ts.isVariableDeclaration(resolution.binding)) return false;
     const { initializer } = resolution.binding;
     if (!initializer) return false;
     const nextSeen = new Set(seen);
     nextSeen.add(resolution.binding);
-    if (!isCreateRequireFactoryTarget(initializer, nextSeen)) return false;
-    invariant(isConstVariableDeclaration(resolution.binding), `${file}: createRequire aliases must be const`);
+    if (!isImportedIdentity(initializer, imports, label, nextSeen)) return false;
+    invariant(isConstVariableDeclaration(resolution.binding), `${file}: ${label} aliases must be const`);
     return true;
+  };
+
+  const isCreateRequireFactoryTarget = (node, seen = new Set()) => {
+    const target = unwrapExpression(node);
+    if (ts.isIdentifier(target)) {
+      const resolution = resolveLexicalBinding(target);
+      if (resolution.ambiguous || !resolution.binding) return false;
+      if (createRequireImports.has(resolution.binding)) return true;
+      if (seen.has(resolution.binding) || !ts.isVariableDeclaration(resolution.binding)) return false;
+      const { initializer } = resolution.binding;
+      if (!initializer) return false;
+      const nextSeen = new Set(seen);
+      nextSeen.add(resolution.binding);
+      if (!isCreateRequireFactoryTarget(initializer, nextSeen)) return false;
+      invariant(isConstVariableDeclaration(resolution.binding), `${file}: createRequire aliases must be const`);
+      return true;
+    }
+    if (!ts.isPropertyAccessExpression(target) && !ts.isElementAccessExpression(target)) return false;
+    const name = ts.isPropertyAccessExpression(target)
+      ? target.name.text
+      : stringLiteralValue(unwrapExpression(target.argumentExpression));
+    return (
+      name === "createRequire" &&
+      isImportedIdentity(target.expression, moduleObjectImports, "node:module object")
+    );
   };
 
   const isTracedRequireBinding = (binding, seen = new Set()) => {
@@ -1215,32 +1259,79 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
     return true;
   };
 
+  const isGlobalThisProcessRoot = (node) => {
+    const target = unwrapExpression(node);
+    if (!ts.isPropertyAccessExpression(target) && !ts.isElementAccessExpression(target)) return false;
+    const name = ts.isPropertyAccessExpression(target)
+      ? target.name.text
+      : stringLiteralValue(unwrapExpression(target.argumentExpression));
+    const host = unwrapExpression(target.expression);
+    return (
+      name === "process" &&
+      ts.isIdentifier(host) &&
+      host.text === "globalThis" &&
+      !resolveLexicalBinding(host).binding
+    );
+  };
+
+  const isProcessObjectRoot = (node, seen = new Set()) => {
+    const target = unwrapExpression(node);
+    if (isGlobalThisProcessRoot(target)) return true;
+    if (!ts.isIdentifier(target)) return false;
+    const resolution = resolveLexicalBinding(target);
+    if (target.text === "process" && !resolution.binding) return true;
+    if (isImportedIdentity(target, processObjectImports, "node:process object")) return true;
+    if (
+      resolution.ambiguous ||
+      !resolution.binding ||
+      seen.has(resolution.binding) ||
+      !ts.isVariableDeclaration(resolution.binding) ||
+      !resolution.binding.initializer
+    ) {
+      return false;
+    }
+    const nextSeen = new Set(seen);
+    nextSeen.add(resolution.binding);
+    if (!isProcessObjectRoot(resolution.binding.initializer, nextSeen)) return false;
+    invariant(isConstVariableDeclaration(resolution.binding), `${file}: process object aliases must be const`);
+    return true;
+  };
+
+  const isGetBuiltinModuleTarget = (node, seen = new Set()) => {
+    const target = unwrapExpression(node);
+    if (ts.isIdentifier(target)) {
+      const resolution = resolveLexicalBinding(target);
+      if (isImportedIdentity(target, getBuiltinModuleImports, "node:process getBuiltinModule")) return true;
+      if (
+        resolution.ambiguous ||
+        !resolution.binding ||
+        seen.has(resolution.binding) ||
+        !ts.isVariableDeclaration(resolution.binding) ||
+        !resolution.binding.initializer
+      ) {
+        return false;
+      }
+      const nextSeen = new Set(seen);
+      nextSeen.add(resolution.binding);
+      if (!isGetBuiltinModuleTarget(resolution.binding.initializer, nextSeen)) return false;
+      invariant(isConstVariableDeclaration(resolution.binding), `${file}: getBuiltinModule aliases must be const`);
+      return true;
+    }
+    if (!ts.isPropertyAccessExpression(target) && !ts.isElementAccessExpression(target)) return false;
+    const name = ts.isPropertyAccessExpression(target)
+      ? target.name.text
+      : stringLiteralValue(unwrapExpression(target.argumentExpression));
+    return name === "getBuiltinModule" && isProcessObjectRoot(target.expression);
+  };
+
   const isModuleLoaderTarget = (node) => {
     const target = unwrapExpression(node);
     if (target.kind === ts.SyntaxKind.ImportKeyword) return true;
+    if (isGetBuiltinModuleTarget(target)) return true;
     if (ts.isIdentifier(target)) {
       const resolution = resolveLexicalBinding(target);
       if (target.text === "require" && !resolution.binding) return true;
       return !resolution.ambiguous && resolution.binding && isTracedRequireBinding(resolution.binding);
-    }
-    if (ts.isPropertyAccessExpression(target)) {
-      const host = unwrapExpression(target.expression);
-      return (
-        target.name.text === "getBuiltinModule" &&
-        ts.isIdentifier(host) &&
-        host.text === "process" &&
-        !resolveLexicalBinding(host).binding
-      );
-    }
-    if (ts.isElementAccessExpression(target)) {
-      const name = stringLiteralValue(unwrapExpression(target.argumentExpression));
-      const host = unwrapExpression(target.expression);
-      return (
-        name === "getBuiltinModule" &&
-        ts.isIdentifier(host) &&
-        host.text === "process" &&
-        !resolveLexicalBinding(host).binding
-      );
     }
     return (
       ts.isCallExpression(target) &&
@@ -1345,7 +1436,7 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
         ? expression.name.text
         : stringLiteralValue(unwrapExpression(expression.argumentExpression));
       const isEnvironmentHost =
-        (ts.isIdentifier(target) && target.text === "process") ||
+        isProcessObjectRoot(target) ||
         (ts.isMetaProperty(target) && target.keywordToken === ts.SyntaxKind.ImportKeyword);
       if (isEnvironmentHost && (name === "env" || ts.isElementAccessExpression(expression))) return true;
     }
@@ -1570,6 +1661,7 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
             invariant(
               api === "spawnSync" &&
                 commands.every(isNpmExecutable) &&
+                argv.length === 1 &&
                 buildCandidates.length === 1 &&
                 buildCandidates[0].length === 3 &&
                 buildCandidates[0][0] === "run" &&

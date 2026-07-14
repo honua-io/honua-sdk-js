@@ -605,6 +605,20 @@ launch("npm", ["run", "demo:fixture:build", "--silent"], { env: process.env });`
         'import { createRequire as cr } from "node:module";\nconst load = cr(import.meta.url);\nconst moduleName = "node:child_process";\nconst childProcess = load(moduleName);\nchildProcess.spawnSync("npm", dynamicArguments);',
       ),
     ).toThrow("spawnSync argv must be statically bounded");
+    for (const source of [
+      'import * as Module from "node:module";\nconst load = Module.createRequire(import.meta.url);\nconst childProcess = load("node:child_process");\nchildProcess.spawnSync("npm", dynamicArguments);',
+      'import Module from "node:module";\nconst load = Module.createRequire(import.meta.url);\nconst childProcess = load("node:child_process");\nchildProcess.spawnSync("npm", dynamicArguments);',
+    ]) {
+      expect(() => validateFixtureBuildHarnessSource(source)).toThrow("spawnSync argv must be statically bounded");
+    }
+    for (const source of [
+      'import proc from "node:process";\nconst processAlias = proc;\nconst childProcess = processAlias.getBuiltinModule("node:child_process");\nchildProcess.spawnSync("npm", dynamicArguments);',
+      'import { getBuiltinModule as loadBuiltin } from "node:process";\nconst load = loadBuiltin;\nconst childProcess = load("node:child_process");\nchildProcess.spawnSync("npm", dynamicArguments);',
+      'const childProcess = globalThis.process.getBuiltinModule("node:child_process");\nchildProcess.spawnSync("npm", dynamicArguments);',
+      'const proc = globalThis.process;\nconst load = proc.getBuiltinModule;\nconst childProcess = load("node:child_process");\nchildProcess.spawnSync("npm", dynamicArguments);',
+    ]) {
+      expect(() => validateFixtureBuildHarnessSource(source)).toThrow("spawnSync argv must be statically bounded");
+    }
     expect(() =>
       validateFixtureBuildHarnessSource("async function load(moduleName) { return import(moduleName); }"),
     ).toThrow("static process-launch value moduleName must be a lexical const");
@@ -650,12 +664,41 @@ function launch(argv) {
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}
+spawnSync("npm", ["run", condition ? "demo:fixture:build" : "unsafe-script", "--silent"], {
+  env: createFixtureBuildEnvironment(),
+});`,
+      ),
+    ).toThrow("unsupported fixture build invocation");
+    expect(() =>
+      validateFixtureBuildHarnessSource(
+        `${helperImport}
 const leaked = process.env.VITE_HONUA_LEAKED_URL;
 spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
   env: createFixtureBuildEnvironment({ VITE_HONUA_FIXTURE_URL: leaked }),
 });`,
       ),
     ).toThrow("fixture build overrides cannot derive from ambient environment variables");
+    for (const source of [
+      `${helperImport}
+import proc from "node:process";
+const processAlias = proc;
+spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+  env: createFixtureBuildEnvironment({ VITE_HONUA_FIXTURE_URL: processAlias.env.VITE_HONUA_FIXTURE_URL }),
+});`,
+      `${helperImport}
+spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+  env: createFixtureBuildEnvironment({ VITE_HONUA_FIXTURE_URL: globalThis.process.env.VITE_HONUA_FIXTURE_URL }),
+});`,
+      `${helperImport}
+const processAlias = globalThis.process;
+spawnSync("npm", ["run", "demo:fixture:build", "--silent"], {
+  env: createFixtureBuildEnvironment({ VITE_HONUA_FIXTURE_URL: processAlias.env.VITE_HONUA_FIXTURE_URL }),
+});`,
+    ]) {
+      expect(() => validateFixtureBuildHarnessSource(source)).toThrow(
+        "fixture build overrides cannot derive from ambient environment variables",
+      );
+    }
     expect(() =>
       validateFixtureBuildHarnessSource(
         `${helperImport}
