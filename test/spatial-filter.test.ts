@@ -244,6 +244,14 @@ describe("SpatialFilter builders", () => {
       expect(f.geometryType).toBe("esriGeometryMultipoint");
     });
 
+    it("ignores empty ArcGIS multipoint slots while validating non-empty positions", () => {
+      const geometry = { points: [[], [0, 0], [], [1, 1]] };
+      const filter = spatialIntersects(geometry);
+
+      expect(filter.geometryType).toBe("esriGeometryMultipoint");
+      expect(filter.geometry).toBe(geometry);
+    });
+
     it.each([
       [{ x: null }, "esriGeometryPoint"],
       [{ points: [] }, "esriGeometryMultipoint"],
@@ -337,7 +345,6 @@ describe("SpatialFilter builders", () => {
       { x: null, y: 0 },
       { xmin: null, ymin: 0 },
       { points: [[0]] },
-      { points: [[]] },
       { points: [[0, 0, 1]] },
       { points: [[0, 0]], hasZ: true },
       { points: [[0, 0, null]], hasZ: true },

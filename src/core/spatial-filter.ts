@@ -318,7 +318,13 @@ function assertPositions(geometry: Record<string, unknown>, keys: readonly strin
     );
   }
   const dimensions = geometryDimensions(geometry, "multipoint", keys);
-  for (const position of value) assertPosition(position, dimensions, "multipoint", keys);
+  for (const position of value) {
+    // ArcGIS permits empty point slots in multipoints and ignores them during
+    // spatial evaluation. Preserve that wire-compatible behavior while still
+    // rejecting every non-empty malformed position.
+    if (Array.isArray(position) && position.length === 0) continue;
+    assertPosition(position, dimensions, "multipoint", keys);
+  }
 }
 
 function assertParts(
