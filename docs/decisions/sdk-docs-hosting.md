@@ -29,8 +29,10 @@ GitHub Actions.**
 - **Build:** `scripts/build-docs-site.mjs` assembles a static site with a small
   vendored Markdown pipeline (`marked`, a zero-runtime-dependency devDependency)
   — deliberately **not** a heavy docs framework (Docusaurus / VitePress / Next).
-  The build is a pure function of the committed sources plus the TypeDoc output,
-  so it is deterministic and fast (< 1s locally; the CI job target is ≤ 5 min).
+  The gallery consumes the schema-validated, presentation-safe catalog-v2
+  projection rather than reparsing README prose. The build is a pure function of
+  the committed sources plus the TypeDoc output, so it is deterministic and fast
+  (< 1s locally; the CI job target is ≤ 5 min).
 
 ### Why repo-local, not honua-site's GitBook
 
@@ -63,7 +65,7 @@ under a docs subpath) without owning its build.
 | `/guides/<name>.html` | `docs/<name>.md` (and `INSTALL.md`) rendered with nav |
 | `/guides/<subdir>/<name>.html` | `docs/<subdir>/**` (decisions, features, examples) |
 | `/api/` | TypeDoc API reference (`npm run docs:api` output) |
-| `/gallery.html` | Demo gallery from the README "What you can build" tables |
+| `/gallery.html` | Public golden, recipe, and lab cards from the catalog-v2 site projection |
 
 Paths are stable and content-addressed by doc filename, so future redirects
 (e.g. onto a custom domain) are a straight prefix swap. Every internal `docs/`
@@ -107,6 +109,9 @@ When a `docs.honua.io` (or `honua.io/sdk-js`) subdomain/subpath is provisioned:
 
 `.github/workflows/docs-site.yml` runs on `push` to `trunk` and
 `workflow_dispatch`: `npm ci` → `verify:llms` (freshness gate, REQ-004) →
-`docs:api` (TypeDoc) → `docs:site` (assemble) → `docs:site:linkcheck` →
-`upload-pages-artifact` → `deploy-pages`. `node_modules` is cached and the full
-SDK test suite is intentionally skipped to hold the ≤ 5 min budget (NFR-001).
+`samples:verify` plus the non-empty gallery regression → `docs:api` (TypeDoc) →
+`docs:site` (assemble) → `docs:site:linkcheck` → `upload-pages-artifact` →
+`deploy-pages`. Catalog verification schema-checks the public projection and
+its generated consumer digest before publication. `node_modules` is cached and
+the full SDK test suite is intentionally skipped to hold the ≤ 5 min budget
+(NFR-001).
