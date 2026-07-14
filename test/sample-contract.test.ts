@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
@@ -499,15 +500,27 @@ describe("sample publication contract", () => {
     invalid.reason = null;
     expect(() => validateEvidenceEnvelope(invalid)).toThrow("requires a reason");
 
-    const credentialUrl = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
-    credentialUrl.source.endpoint = "https://example.test/features?api_key=secret";
-    expect(() => validateEvidenceEnvelope(credentialUrl)).toThrow("forbidden credential query parameter api_key");
+    for (const parameter of [
+      "client_secret",
+      "access-token",
+      "auth_token",
+      "x-api-key",
+      "x_amz_signature",
+      "X-Goog-Signature",
+      "clientSecret",
+      "ｘ－ａｐｉ－ｋｅｙ",
+    ]) {
+      const credentialUrl = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+      credentialUrl.source.endpoint = `https://example.test/features?${parameter}=secret`;
+      expect(() => validateEvidenceEnvelope(credentialUrl)).toThrow(
+        `forbidden credential query parameter ${parameter}`,
+      );
+    }
 
-    const broaderCredentialUrl = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
-    broaderCredentialUrl.source.endpoint = "https://example.test/features?authorization=secret";
-    expect(() => validateEvidenceEnvelope(broaderCredentialUrl)).toThrow(
-      "forbidden credential query parameter authorization",
-    );
+    const benignQuery = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    benignQuery.source.endpoint =
+      "https://example.test/features?monkey=1&hockey=2&keyboard=3&tokenizer=4&secretary=5&signature_version=v4&token_type=bearer";
+    expect(validateEvidenceEnvelope(benignQuery)).toBe(benignQuery);
 
     for (const lane of ["fixture.v1", "live-skipped.v1"]) {
       const safeAgentEvidence = await readJson(`examples/ai-spatial-app-builder/evidence/${lane}.json`);
@@ -556,20 +569,46 @@ describe("sample publication contract", () => {
     }
   });
 
-  it("binds live producer provenance to its commit, generator digest, sample, and journey", async () => {
+  it("content-binds executed live evidence to its current generator, sample, and journey", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === "maplibre-quickstart");
     const evidence = await readJson(sample.evidence.live.evidencePath);
 
+    expect(validateEvidenceEnvelope(evidence)).toBe(evidence);
     await expect(validateLiveEvidenceProducer(evidence, sample)).resolves.toBeUndefined();
-    evidence.sdk.gitCommit = "e9ccbdb6e443f9abd3c97026d31e135f39bc0bc0";
-    await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow(
-      "producer artifact does not match sdk.gitCommit",
+
+    const nonBenchSample = structuredClone(sample);
+    nonBenchSample.evidence.live.commands = ["npm run demo:spatial-analytics:live-evidence"];
+    const unboundNonBenchEvidence = structuredClone(evidence);
+    unboundNonBenchEvidence.artifacts[0].sha256 = "0".repeat(64);
+    await expect(validateLiveEvidenceProducer(unboundNonBenchEvidence, nonBenchSample)).rejects.toThrow(
+      "producer generator digest drift",
     );
-    evidence.sdk.gitCommit = "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b";
+
+    evidence.sdk.gitCommit = "e9ccbdb6e443f9abd3c97026d31e135f39bc0bc0";
+    await expect(validateLiveEvidenceProducer(evidence, sample)).resolves.toBeUndefined();
+
+    const missingRevision = structuredClone(evidence);
+    missingRevision.sdk.gitCommit = null;
+    expect(() => validateEvidenceEnvelope(missingRevision)).toThrow(
+      "executed live evidence requires a full reported source revision",
+    );
+    const emptyRevision = structuredClone(evidence);
+    emptyRevision.sdk.gitCommit = "";
+    expect(() => validateEvidenceEnvelope(emptyRevision)).toThrow(
+      "evidence sdk.gitCommit must be null or a full reported source revision",
+    );
+    const missingProducer = structuredClone(evidence);
+    missingProducer.artifacts = [];
+    expect(() => validateEvidenceEnvelope(missingProducer)).toThrow(
+      "executed live evidence requires a producer-generator artifact",
+    );
+
     evidence.artifacts[0].sha256 = "0".repeat(64);
     await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow("producer generator digest drift");
-    evidence.artifacts[0].sha256 = "f4e279e9aeeab199af0be1dc9bf80133c6b938f563a99e97e443f656b364034b";
+    evidence.artifacts[0].sha256 = createHash("sha256")
+      .update(await readFile(evidence.artifacts[0].path))
+      .digest("hex");
     evidence.semantics.operation = "unsupported-old-journey";
     await expect(validateLiveEvidenceProducer(evidence, sample)).rejects.toThrow(
       "producer generator does not support this journey",

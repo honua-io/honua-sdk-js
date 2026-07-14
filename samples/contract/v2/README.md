@@ -70,7 +70,18 @@ also explicitly legacy-unsafe with an empty environment inventory because its
 remaining unsafe inputs are URL-query parameters.
 `credentialQueryParameters` is the canonical normalized deny-list shared by the
 catalog and evidence-envelope URL validator; catalog drift or a matching query
-key fails verification.
+key fails verification. Query names are NFKC-normalized, split at camel-case
+boundaries, lowercased, and reduced to underscore-delimited tokens before exact
+or token-boundary suffix matching. Ordinary words that merely contain `key`,
+`token`, `secret`, or `signature` remain valid.
+
+Executed live evidence carries a full reported source revision plus a
+`producer-generator` artifact. Verification content-binds that artifact to the
+current repository path and SHA-256 bytes for every producer; the benchmark
+generator additionally proves that it names the sample and journey. The
+reported revision is metadata, not a claim that the current bytes were read
+from or attested by that Git commit. Non-executed evidence may report a null
+revision.
 
 Lifecycle states other than `active` have a target release. `merge`, `replace`,
 and `retire` also identify a non-self sample, golden journey, or typed external
