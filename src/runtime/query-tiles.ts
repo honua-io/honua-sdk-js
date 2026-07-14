@@ -37,6 +37,7 @@ import {
   stableJson,
 } from "../contract/tiles.js";
 import type { Capability, Protocol } from "../contract/types.js";
+import { HonuaSdkError } from "../core/error-envelope.js";
 import { trimLeadingSlashes, trimTrailingSlashes } from "../core/path-utils.js";
 
 export interface MapLibreQueryTileSourceSpec {
@@ -106,7 +107,7 @@ export interface QueryTileFeatureDetailFetchResult<T = Record<string, unknown>> 
   degraded?: readonly QueryTileServerDegradation[];
 }
 
-export class QueryTileServerResponseError extends Error {
+export class QueryTileServerResponseError extends HonuaSdkError {
   public readonly status: number;
   public readonly url: string;
   public readonly response: QueryTileServerErrorResponse | undefined;
@@ -121,7 +122,13 @@ export class QueryTileServerResponseError extends Error {
     body?: unknown;
     validators?: QueryTileServerCacheValidators;
   }) {
-    super(options.message);
+    super(
+      QUERY_TILE_RETRYABLE_STATUSES.has(options.status)
+        ? "runtime.query-tiles.transient"
+        : "runtime.query-tiles.rejected",
+      options.message,
+      { context: { status: options.status, url: options.url } },
+    );
     this.name = "QueryTileServerResponseError";
     this.status = options.status;
     this.url = options.url;
@@ -130,6 +137,8 @@ export class QueryTileServerResponseError extends Error {
     this.validators = options.validators ?? {};
   }
 }
+
+const QUERY_TILE_RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
 export interface QueryTileViewport {
   /** `[west, south, east, north]` in WGS84 degrees. */

@@ -1,10 +1,62 @@
 # Error reference
 
-The Honua JS SDK exposes a small, named error hierarchy from `@honua/sdk-js`. Every
-error thrown by the SDK is an instance of one of the classes below, plus the
-runtime-type guard `isHonuaError(error)` for ergonomic narrowing in `catch`
-blocks. Use them to gate retry / refresh / surface-to-user decisions instead of
-parsing message strings.
+The Honua JS SDK exposes a tagged error envelope from `@honua/sdk-js`. Public
+errors migrated in the table below pass the cross-realm `isHonuaError(error)`
+guard. Use their stable classifications to gate retry, refresh, fallback, and
+surface-to-user decisions instead of parsing message strings.
+
+This release covers core transport/auth/protocol errors, discovery, the query
+planner, and every public error exported by the stable `map` and `runtime`
+subpaths. Realtime ([#568](https://github.com/honua-io/honua-sdk-js/issues/568)),
+offline ([#569](https://github.com/honua-io/honua-sdk-js/issues/569)), agent
+([#570](https://github.com/honua-io/honua-sdk-js/issues/570)), and plugin
+([#571](https://github.com/honua-io/honua-sdk-js/issues/571)) errors are explicit
+residuals and are not yet recognized merely because they are SDK-defined errors.
+Other experimental domains likewise retain their current domain-specific
+contracts until a scoped migration lands.
+
+## Envelope contract
+
+Every migrated instance has these common fields:
+
+| Field | Meaning |
+|-------|---------|
+| `kind` | Constant `"honua.sdk.error.v1"` tag used by the cross-realm guard. |
+| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, or `runtime`. |
+| `sdkCode` | Globally unique code from `HONUA_ERROR_CODE_REGISTRY`. |
+| `category` | Stable `authentication`, `cancellation`, `capability`, `internal`, `network`, `protocol`, `timeout`, or `validation` classification. |
+| `retryable` | Stable boolean for this exact `sdkCode`. This metadata describes the existing policy; it does not initiate retries. |
+| `operationId` / `requestId` | Optional sanitized correlation identifiers when the throwing boundary has them. |
+| `context` | Frozen, recursively sanitized structured context. |
+| `cause` | Original cause, retained on the in-process instance for debugging. |
+
+Existing error-specific `.code` values remain compatible. For example,
+`HonuaGrpcError.code` is still the numeric gRPC status and
+`HonuaDiscoveryError.code` is still `"invalid-endpoint"` (or another legacy
+discovery code). Use `.sdkCode` when one globally unique value is required.
+`serializeHonuaError(error)` projects `.sdkCode` as the serialized envelope's
+`.code`.
+
+Serialization is deliberately fail-closed. `serializeHonuaError` and
+`JSON.stringify(error)` include classification, identifiers, sanitized context,
+and classification-only cause information. They omit raw messages, stacks,
+response bodies, details, cause payloads, credentials, authorization/cookie
+headers, raw cursors/resume tokens, sensitive URL parameters, query/filter/SQL
+values, binary payloads, and prototype-manipulation keys. The raw instance still
+retains its message, documented detail fields, and exact cause for local use.
+
+```ts doc-test=skip reason="partial excerpt requires application retry and logging hosts"
+import { isHonuaError, serializeHonuaError } from "@honua/sdk-js";
+
+try {
+  await operation();
+} catch (error) {
+  if (!isHonuaError(error)) throw error;
+  console.error(serializeHonuaError(error));
+  if (error.category === "cancellation") return;
+  if (error.retryable) scheduleRetry();
+}
+```
 
 ## At-a-glance table
 
@@ -19,8 +71,134 @@ parsing message strings.
 | `HonuaCapabilityNotSupportedError` | `Source.query` / `Source.applyEdits` / etc. | Under the default `capabilityPolicy: "strict"`, the active source does not support the requested operation (e.g. `query()` on a `wmts` source). | Either downgrade the request (drop the unsupported clause), fall back to `Source.protocol(...)` for raw protocol access, or set `capabilityPolicy: "degraded"` on `createDataset` to coerce best-effort behavior with a `degraded` reason in the `Result`. |
 | `HonuaDiscoveryError` | `connect`, discovery truth, cache identity | Endpoint metadata, protocol hints, source selection, or cached discovery observations are invalid or ambiguous. | Branch on `.code`: provide an explicit supported protocol for `ambiguous-protocol`; select a listed source ID for `ambiguous-source`; use a reviewed adapter for `unsupported-protocol`; evict/rebuild entries for `invalid-discovery-cache`. Do not retry unchanged invalid input. |
 | `HonuaExplorationContextError` | `@honua/sdk-js/exploration` | An exploration intent referenced a missing slice / view, or the snapshot is incompatible with the active context schema. | Surface to user (UI bug) or migrate the saved snapshot. Do not retry. |
-| `HonuaWfsExceptionError` | `wfs` adapter | The WFS server returned a `<ows:ExceptionReport>`. The original `exceptionCode`, `locator`, and `exceptionText` are preserved on the instance. | Branch on `.exceptionCode` (`InvalidParameterValue`, `OperationNotSupported`, `MissingParameterValue`, etc.). Most are caller bugs; surface to user. |
+| `HonuaWfsExceptionError` | `wfs` adapter | The WFS server returned a `<ows:ExceptionReport>`. The `exceptionCode`, optional `locator`, and formatted exception message are preserved on the instance. | Branch on `.exceptionCode` (`InvalidParameterValue`, `OperationNotSupported`, `MissingParameterValue`, etc.). Most are caller bugs; surface to user. |
 | `HonuaJobFailedError` | OGC Processes / geoprocessing job polling | An async job (`IJobRun.results()`) reached a non-success terminal state (`failed` / `dismissed`). The terminal `.status`, `.errorCode`, and `.details` are preserved on the instance. | Branch on `.status` / `.errorCode`. Usually a server-side or input error; surface to user. Do not blindly retry. |
+| `HonuaQueryPlanningError` / `HonuaQueryPlanExecutionError` | `@honua/sdk-js/query-planner` | Query validation/compilation/planning or accepted-plan execution fails. | Branch on the existing short `.code`; fix validation/context errors or choose a supported capability/fallback. |
+| `HonuaMapLibreSourceAdapterError` | Root or `@honua/sdk-js/map` source workflow | Source projection, plan compatibility, identifier conflict, lifecycle, or renderer mutation fails. | Branch on the existing short `.code`; recreate disposed mounts and correct conflicts/options before retrying. |
+| `HonuaDataToMapBridgeError` | `@honua/sdk-js/map` | The high-level bridge rejects options, renderer capabilities, conflicts, lifecycle, or mutation. | Correct options/host capability or recreate the mount. |
+| `HonuaAutomaticMapLibreStrategyError` | `@honua/sdk-js/map` | Automatic strategy selection/mounting has no exact candidate, a stale plan, conflict, cancellation, disposal, or renderer failure. | Re-explain stale plans; treat cancellation as terminal; correct host conflicts/capabilities. |
+| `HonuaMapLibreRasterStrategyError` | `@honua/sdk-js/map` | Raster strategy capability/metadata/options, identifiers, or renderer mutation fail. | Correct source truth/options or host conflicts; do not silently select a lossy fallback. |
+| `HonuaAutomaticMapLibreIntegrationError` | `@honua/sdk-js/map` | Incremental integration is disposed or receives an invalid target. | Recreate the integration or correct the target. |
+| `HonuaTemporalPlaybackError` | `@honua/sdk-js/map` | Playback options or temporal extent are invalid. | Correct input; do not retry unchanged input. |
+| `HonuaMapPackageError` | `@honua/sdk-js/runtime` | Map-package fetch/load/validation/update/style/source/view/popup/disposal stage fails. | Branch on `.stage`; only fetch and disposal classifications are marked retryable. |
+| `HonuaRuntimeDiagnosticError` | `@honua/sdk-js/runtime` | Runtime style/source/layer validation produces error diagnostics. | Inspect the local `.diagnostics` and correct invalid runtime input. Serialized context carries codes/count only. |
+| `QueryTileServerResponseError` | `@honua/sdk-js/runtime` | Query-tile HTTP response is unsuccessful. | Inspect `.status`; transient HTTP statuses are classified retryable without changing request policy. |
+
+## Registered code families
+
+The exported `HONUA_ERROR_CODE_REGISTRY` is the canonical, typed inventory. Its
+object keys are globally unique at compile time, every migrated constructor
+rejects unregistered codes, and `npm run check:error-codes` verifies registry
+shape plus this class/family documentation.
+
+| Public class | Registered `sdkCode` family |
+|--------------|-----------------------------|
+| `HonuaHttpError` | `core.http.transient`, `core.http.rejected` |
+| `HonuaTimeoutError` | `core.timeout` |
+| `HonuaNetworkError` | `core.network` |
+| `HonuaAbortError` | `core.cancelled` |
+| `HonuaGrpcError` | `core.grpc.transient`, `core.grpc.rejected` |
+| `HonuaAuthError` | `core.auth.interaction-required`, `core.auth.refresh-failed`, `core.auth.invalid-grant` |
+| `HonuaCapabilityNotSupportedError` | `core.capability-not-supported` |
+| `HonuaExplorationContextError` | `core.exploration-context` |
+| `HonuaWfsExceptionError` | `core.wfs-exception` |
+| `HonuaJobFailedError` | `core.job-failed` |
+| `HonuaWmsCapabilitiesParseError` | `core.wms-capabilities-parse` |
+| `HonuaWmtsCapabilitiesParseError` | `core.wmts-capabilities-parse` |
+| `HonuaDiscoveryError` | `discovery.*` (the eight values in `HonuaDiscoveryErrorCode`) |
+| `HonuaQueryPlanningError` | `query.planning.*` (the six values in `QueryPlanningErrorCode`) |
+| `HonuaQueryPlanExecutionError` | `query.execution.*` (the three values in `QueryPlanExecutionErrorCode`) |
+| `HonuaMapLibreSourceAdapterError` | `map.source-adapter.*` |
+| `HonuaDataToMapBridgeError` | `map.data-bridge.*` |
+| `HonuaAutomaticMapLibreStrategyError` | `map.automatic-strategy.*` |
+| `HonuaMapLibreRasterStrategyError` | `map.raster-strategy.*` |
+| `HonuaAutomaticMapLibreIntegrationError` | `map.automatic-integration.*` |
+| `HonuaTemporalPlaybackError` | `map.temporal-playback.invalid-option` |
+| `HonuaMapPackageError` | `runtime.map-package.*` (one code per public stage) |
+| `HonuaRuntimeDiagnosticError` | `runtime.diagnostic` |
+| `QueryTileServerResponseError` | `runtime.query-tiles.transient`, `runtime.query-tiles.rejected` |
+
+### Individual code registry
+
+<!-- error-code-registry:start -->
+| Registered code | Domain | Category | Retryable | Summary |
+|-----------------|--------|----------|-----------|---------|
+| `core.http.transient` | `core` | `protocol` | yes | Retryable HTTP response failure |
+| `core.http.rejected` | `core` | `protocol` | no | Non-retryable HTTP response failure |
+| `core.timeout` | `core` | `timeout` | yes | Request deadline elapsed |
+| `core.network` | `core` | `network` | yes | Network transport failure |
+| `core.cancelled` | `core` | `cancellation` | no | Caller cancelled the operation |
+| `core.grpc.transient` | `core` | `protocol` | yes | Retryable gRPC-Web transport failure |
+| `core.grpc.rejected` | `core` | `protocol` | no | Non-retryable gRPC-Web transport failure |
+| `core.auth.interaction-required` | `core` | `authentication` | no | Interactive authentication is required |
+| `core.auth.refresh-failed` | `core` | `authentication` | yes | Credential refresh failed transiently |
+| `core.auth.invalid-grant` | `core` | `authentication` | no | Authorization grant is invalid or expired |
+| `core.capability-not-supported` | `core` | `capability` | no | Requested source capability is unavailable |
+| `core.exploration-context` | `core` | `validation` | no | Exploration context operation is invalid |
+| `core.wfs-exception` | `core` | `protocol` | no | WFS exception report |
+| `core.job-failed` | `core` | `protocol` | no | Remote job reached a failed terminal state |
+| `core.wms-capabilities-parse` | `core` | `protocol` | no | WMS capabilities document is invalid |
+| `core.wmts-capabilities-parse` | `core` | `protocol` | no | WMTS capabilities document is invalid |
+| `discovery.ambiguous-protocol` | `discovery` | `validation` | no | Multiple protocols match the endpoint |
+| `discovery.ambiguous-source` | `discovery` | `validation` | no | Multiple sources match the selection |
+| `discovery.invalid-endpoint` | `discovery` | `validation` | no | Discovery endpoint is invalid |
+| `discovery.invalid-cache-identity` | `discovery` | `validation` | no | Discovery cache identity is invalid |
+| `discovery.invalid-discovery-cache` | `discovery` | `validation` | no | Discovery cache entry is invalid |
+| `discovery.invalid-capability` | `discovery` | `validation` | no | Discovered capability evidence is invalid |
+| `discovery.unsupported-protocol` | `discovery` | `capability` | no | Endpoint protocol is unsupported |
+| `discovery.protocol-mismatch` | `discovery` | `validation` | no | Endpoint protocol conflicts with its hint |
+| `query.planning.invalid-query` | `query` | `validation` | no | Query is invalid |
+| `query.planning.unsupported-compiler` | `query` | `capability` | no | No compiler supports the source protocol |
+| `query.planning.unsupported-query` | `query` | `capability` | no | Query cannot be represented by the compiler |
+| `query.planning.capability-not-supported` | `query` | `capability` | no | Query requires an unavailable capability |
+| `query.planning.fallback-disabled` | `query` | `capability` | no | Required local fallback is disabled |
+| `query.planning.unsafe-materialization` | `query` | `validation` | no | Planned local materialization exceeds its safety bound |
+| `query.execution.invalid-plan` | `query` | `validation` | no | Query plan is invalid |
+| `query.execution.plan-context-mismatch` | `query` | `validation` | no | Execution context does not match the accepted query plan |
+| `query.execution.unsafe-materialization` | `query` | `validation` | no | Query execution exceeded its materialization bound |
+| `map.source-adapter.disposed` | `map` | `validation` | no | Map source adapter is disposed |
+| `map.source-adapter.source-conflict` | `map` | `validation` | no | Map source identifier already exists |
+| `map.source-adapter.layer-conflict` | `map` | `validation` | no | Map layer identifier already exists |
+| `map.source-adapter.unsupported-plan` | `map` | `capability` | no | Query plan cannot be rendered by the source adapter |
+| `map.source-adapter.invalid-option` | `map` | `validation` | no | Map source adapter option is invalid |
+| `map.source-adapter.map-mutation-failed` | `map` | `internal` | no | Renderer mutation failed |
+| `map.data-bridge.invalid-option` | `map` | `validation` | no | Data-to-map option is invalid |
+| `map.data-bridge.disposed` | `map` | `validation` | no | Data-to-map bridge is disposed |
+| `map.data-bridge.source-conflict` | `map` | `validation` | no | Data-to-map source identifier already exists |
+| `map.data-bridge.layer-conflict` | `map` | `validation` | no | Data-to-map layer identifier already exists |
+| `map.data-bridge.map-mutation-failed` | `map` | `internal` | no | Data-to-map renderer mutation failed |
+| `map.data-bridge.interaction-unsupported` | `map` | `capability` | no | Renderer interaction is unsupported |
+| `map.data-bridge.filter-unsupported` | `map` | `capability` | no | Renderer filter mutation is unsupported |
+| `map.automatic-strategy.no-eligible-strategy` | `map` | `capability` | no | No exact map source strategy is eligible |
+| `map.automatic-strategy.stale-plan` | `map` | `validation` | no | Map strategy plan is stale |
+| `map.automatic-strategy.source-conflict` | `map` | `validation` | no | Automatic strategy source identifier already exists |
+| `map.automatic-strategy.layer-conflict` | `map` | `validation` | no | Automatic strategy layer identifier already exists |
+| `map.automatic-strategy.map-mutation-failed` | `map` | `internal` | no | Automatic strategy renderer mutation failed |
+| `map.automatic-strategy.cancelled` | `map` | `cancellation` | no | Automatic map strategy was cancelled |
+| `map.automatic-strategy.disposed` | `map` | `validation` | no | Automatic map strategy is disposed |
+| `map.raster-strategy.unsupported-strategy` | `map` | `capability` | no | Raster strategy is unsupported |
+| `map.raster-strategy.capability-mismatch` | `map` | `capability` | no | Raster source lacks a required capability |
+| `map.raster-strategy.missing-metadata` | `map` | `validation` | no | Raster source metadata is incomplete |
+| `map.raster-strategy.invalid-option` | `map` | `validation` | no | Raster option is invalid |
+| `map.raster-strategy.source-conflict` | `map` | `validation` | no | Raster source identifier already exists |
+| `map.raster-strategy.layer-conflict` | `map` | `validation` | no | Raster layer identifier already exists |
+| `map.raster-strategy.map-mutation-failed` | `map` | `internal` | no | Raster renderer mutation failed |
+| `map.automatic-integration.disposed` | `map` | `validation` | no | Automatic map integration is disposed |
+| `map.automatic-integration.invalid-target` | `map` | `validation` | no | Automatic map integration target is invalid |
+| `map.temporal-playback.invalid-option` | `map` | `validation` | no | Temporal playback option is invalid |
+| `runtime.map-package.fetch` | `runtime` | `network` | yes | Map package fetch failed |
+| `runtime.map-package.load` | `runtime` | `internal` | no | Map package load failed |
+| `runtime.map-package.validate` | `runtime` | `validation` | no | Map package validation failed |
+| `runtime.map-package.update` | `runtime` | `internal` | no | Map package update failed |
+| `runtime.map-package.style-compose` | `runtime` | `validation` | no | Map package style composition failed |
+| `runtime.map-package.source-bind` | `runtime` | `internal` | no | Map package source binding failed |
+| `runtime.map-package.view` | `runtime` | `internal` | no | Renderer view mutation failed |
+| `runtime.map-package.popup` | `runtime` | `validation` | no | Popup binding failed |
+| `runtime.map-package.dispose` | `runtime` | `internal` | yes | Runtime disposal failed |
+| `runtime.diagnostic` | `runtime` | `validation` | no | Runtime validation diagnostic |
+| `runtime.query-tiles.transient` | `runtime` | `protocol` | yes | Retryable query-tile response failure |
+| `runtime.query-tiles.rejected` | `runtime` | `protocol` | no | Non-retryable query-tile response failure |
+<!-- error-code-registry:end -->
 
 ## Narrowing in `catch`
 

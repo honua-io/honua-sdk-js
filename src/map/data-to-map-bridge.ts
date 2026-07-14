@@ -14,6 +14,7 @@
 
 import type { QueryTileSourceDescriptor } from "../contract/tiles.js";
 import type { Query, Result, Source } from "../contract/types.js";
+import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import type { FeatureStateMap, HoverHandle, MapEventTarget } from "../interactions/feature-state.js";
 import { createHoverHandler } from "../interactions/feature-state.js";
@@ -131,17 +132,30 @@ export type DataToMapBridgeErrorCode =
   | "filter-unsupported";
 
 /** A stable, machine-readable bridge failure. @experimental */
-export class HonuaDataToMapBridgeError extends Error {
+export class HonuaDataToMapBridgeError extends HonuaSdkError {
   public constructor(
     public readonly code: DataToMapBridgeErrorCode,
     message: string,
     public readonly detail?: Readonly<Record<string, unknown>>,
-    options?: ErrorOptions,
+    options: HonuaErrorOptions = {},
   ) {
-    super(message, options);
+    super(DATA_TO_MAP_ERROR_CODES[code], message, {
+      ...options,
+      context: mergeHonuaErrorContext(detail, options.context),
+    });
     this.name = "HonuaDataToMapBridgeError";
   }
 }
+
+const DATA_TO_MAP_ERROR_CODES = {
+  "invalid-option": "map.data-bridge.invalid-option",
+  disposed: "map.data-bridge.disposed",
+  "source-conflict": "map.data-bridge.source-conflict",
+  "layer-conflict": "map.data-bridge.layer-conflict",
+  "map-mutation-failed": "map.data-bridge.map-mutation-failed",
+  "interaction-unsupported": "map.data-bridge.interaction-unsupported",
+  "filter-unsupported": "map.data-bridge.filter-unsupported",
+} as const satisfies Record<DataToMapBridgeErrorCode, `map.data-bridge.${string}`>;
 
 /**
  * Minimal injected MapLibre map surface. Source/layer mutation is required;
