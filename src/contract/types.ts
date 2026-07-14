@@ -110,7 +110,6 @@ export type Capability =
   | "sql"
   | "stream"
   | "pbf"
-  | "connect"
   | "image"
   | "geometry"
   | "geoprocess"
@@ -131,7 +130,6 @@ export const CAPABILITIES: readonly Capability[] = [
   "sql",
   "stream",
   "pbf",
-  "connect",
   "image",
   "geometry",
   "geoprocess",
@@ -228,7 +226,6 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
     "sql",
     "stream",
     "pbf",
-    "connect",
   ]),
   "geoservices-map-service": capabilities([
     "query",

@@ -13,7 +13,9 @@
     "statusVocabulary",
     "environmentVocabulary",
     "executionModeVocabulary",
+    "connectProtocols",
     "protocolOperations",
+    "operationSurfaces",
     "claimCapabilities",
     "claimOnlyProtocols",
     "consumerContracts",
@@ -135,6 +137,14 @@
       "maxItems": 6,
       "uniqueItems": true
     },
+    "connectProtocols": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
     "protocolOperations": {
       "type": "array",
       "items": {
@@ -143,6 +153,13 @@
       },
       "minItems": 1,
       "uniqueItems": true
+    },
+    "operationSurfaces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/operationSurface"
+      },
+      "minItems": 1
     },
     "claimCapabilities": {
       "type": "array",
@@ -506,6 +523,40 @@
           "items": {
             "type": "string"
           },
+          "uniqueItems": true
+        }
+      }
+    },
+    "operationSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "kind",
+        "surface",
+        "evidence"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "canonical-source",
+            "typed-adapter"
+          ]
+        },
+        "surface": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
           "uniqueItems": true
         }
       }

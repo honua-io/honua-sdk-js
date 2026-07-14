@@ -32,7 +32,6 @@ rather than returning empty data.
 | `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ◇ | — | — | — |
 | `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `connect` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
@@ -51,7 +50,6 @@ policy in the manifest.
 | `geoservices-feature-service` | `sql` | `supported` | `protocol-adapter` | `native` | [fixture: core-client-fixtures](../test/core-client.test.ts) |
 | `geoservices-feature-service` | `stream` | `supported` | `protocol-adapter` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts) |
 | `geoservices-feature-service` | `pbf` | `supported` | `protocol-adapter` | `native` | [fixture: core-client-fixtures](../test/core-client.test.ts) |
-| `geoservices-feature-service` | `connect` | `supported` | `protocol-adapter` | `native` | [fixture: connect-fixtures](../test/connect.test.ts) |
 | `geoservices-feature-service` | `tiles` | `supported` | `protocol-adapter` | `client-fallback` | [fixture: query-tiles-fixtures](../test/contract/query-tiles.test.ts) |
 | `geoservices-map-service` | `query`, `queryAggregate`, `queryExtent` | `supported` | `protocol-adapter` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts) |
 | `geoservices-map-service` | `queryObjectIds`, `queryRelated` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts) |

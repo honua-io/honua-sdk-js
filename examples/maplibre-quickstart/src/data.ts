@@ -176,7 +176,7 @@ export function createQuickstartSourceDescriptor(
   config: QuickstartConfig,
   metadata: HonuaLayerMetadata,
 ): SourceDescriptor {
-  const verifiedCapabilities: Capability[] = ["connect", "query"];
+  const verifiedCapabilities: Capability[] = ["query"];
   if (metadata.supportsAttachments === true) verifiedCapabilities.push("attachments");
   return {
     id: config.sourceId,
