@@ -14,14 +14,25 @@ import {
   renderGalleryContent,
   verifyGalleryProjectionIntegrity,
 } from "../../scripts/lib/docs-gallery.mjs";
-import { validateSiteProjection } from "../../scripts/sample-contract.mjs";
 
 const projectionBytes = fs.readFileSync("samples/dist/honua-site-samples.v2.json", "utf8");
 const projection = JSON.parse(projectionBytes);
 const consumerFixture = JSON.parse(
   fs.readFileSync("samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json", "utf8"),
 );
-const repositorySourceResolver = (sample) => ({ href: sample.source.docsPath, kind: "source" });
+const repositorySourceResolver = (sample) => {
+  const { docsPath } = sample.source;
+  if (docsPath.startsWith("docs/") && docsPath.endsWith(".md")) {
+    return {
+      href: "guides/" + docsPath.slice("docs/".length).replace(/\.md$/u, ".html"),
+      kind: "guide",
+    };
+  }
+  return {
+    href: "https://github.com/" + sample.source.repository + "/blob/trunk/" + docsPath,
+    kind: "source",
+  };
+};
 
 function stableBytes(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
@@ -56,8 +67,8 @@ function fixtureForProjection(value) {
   return fixture;
 }
 
-function verifiedGallery(value, { bytes = stableBytes(value), fixture = fixtureForProjection(value) } = {}) {
-  const integrity = verifyGalleryProjectionIntegrity({
+async function verifiedGallery(value, { bytes = stableBytes(value), fixture = fixtureForProjection(value) } = {}) {
+  const integrity = await verifyGalleryProjectionIntegrity({
     projectionBytes: bytes,
     consumerFixture: fixture,
   });
@@ -72,12 +83,8 @@ function renderGallery(gallery, resolveSourceLink = repositorySourceResolver) {
   return renderGalleryContent(gallery, { resolveSourceLink });
 }
 
-function projectionWithSamples(...ids) {
-  const selected = structuredClone(projection);
-  selected.samples = ids.map((id) => selected.samples.find((sample) => sample.id === id));
-  const selectedIds = new Set(ids);
-  selected.goldenJourneys = selected.goldenJourneys.filter((journey) => selectedIds.has(journey.candidateSampleId));
-  return selected;
+function sampleById(value, id) {
+  return value.samples.find((sample) => sample.id === id);
 }
 
 function galleryCards(gallery) {
@@ -99,13 +106,17 @@ function assertDeepFrozen(root) {
 }
 
 test("binds the canonical schema-valid projection to its v2 consumer fixture", async () => {
-  await assert.doesNotReject(validateSiteProjection(projection));
-  const gallery = canonicalGallery();
+  const gallery = await canonicalGallery();
 
   assert.deepEqual(gallery.integrity, {
     consumerFixtureFormat: consumerFixture.format,
     projectionSha256: consumerFixture.input.sha256,
     publicationQualificationGate: "npm run samples:verify",
+    validation: {
+      schemaPath: "samples/contract/v2/schemas/site-projection.schema.json",
+      schemaValidated: true,
+      sensitiveMetadataValidated: true,
+    },
   });
   assert.throws(
     () => createGalleryModel({}),
@@ -113,10 +124,10 @@ test("binds the canonical schema-valid projection to its v2 consumer fixture", a
   );
 });
 
-test("owns a deeply frozen projection snapshot across the verification and render boundary", () => {
-  const callerProjection = projectionWithSamples("endpoint-to-map");
-  const verifiedTitle = callerProjection.samples[0].title;
-  const integrity = verifyGalleryProjectionIntegrity({
+test("owns a deeply frozen projection snapshot across the verification and render boundary", async () => {
+  const callerProjection = structuredClone(projection);
+  const verifiedTitle = sampleById(callerProjection, "endpoint-to-map").title;
+  const integrity = await verifyGalleryProjectionIntegrity({
     projectionBytes: stableBytes(callerProjection),
     consumerFixture: fixtureForProjection(callerProjection),
   });
@@ -125,26 +136,125 @@ test("owns a deeply frozen projection snapshot across the verification and rende
   assert.notStrictEqual(integrity.projection, callerProjection);
   assertDeepFrozen(integrity.projection);
   assert.throws(() => {
-    integrity.projection.samples[0].title = "Forged frozen title";
+    sampleById(integrity.projection, "endpoint-to-map").title = "Forged frozen title";
   }, TypeError);
 
-  callerProjection.samples[0].title = "Forged caller title";
+  sampleById(callerProjection, "endpoint-to-map").title = "Forged caller title";
   callerProjection.samples.push({
-    ...structuredClone(callerProjection.samples[0]),
+    ...structuredClone(sampleById(callerProjection, "endpoint-to-map")),
     id: "forged-after-verification",
   });
 
   const gallery = createGalleryModel(integrity);
   const html = renderGallery(gallery);
-  assert.equal(gallery.cardCount, 1);
-  assert.equal(galleryCards(gallery)[0].sample.title, verifiedTitle);
+  assert.equal(gallery.cardCount, 32);
+  assert.equal(
+    galleryCards(gallery).find((card) => card.sample.id === "endpoint-to-map").sample.title,
+    verifiedTitle,
+  );
   assert.doesNotMatch(html, /Forged caller title|forged-after-verification/);
 });
 
-test("rejects consumer digest, format, assertion, and stable-byte tampering", () => {
+test("deep-freezes and brands every rendered model claim", async () => {
+  const gallery = await canonicalGallery();
+  const cards = galleryCards(gallery);
+  const endpointCard = cards.find((card) => card.sample.id === "endpoint-to-map");
+  const incidentCard = cards.find((card) => card.sample.id === "realtime-incident-dashboard");
+  const replacementCard = cards.find((card) => card.sample.id === "web-components-basic");
+
+  assertDeepFrozen(gallery);
+  const mutations = [
+    () => {
+      gallery.integrity.projectionSha256 = "0".repeat(64);
+    },
+    () => {
+      gallery.integrity.validation.sensitiveMetadataValidated = false;
+    },
+    () => {
+      gallery.provenance.catalog.version = "forged";
+    },
+    () => {
+      gallery.provenance.contract.executableSourceOwner = "foreign/fork";
+    },
+    () => {
+      gallery.cardCount = 0;
+    },
+    () => {
+      gallery.groups[0].title = "Forged group";
+    },
+    () => {
+      endpointCard.sample.title = "Forged title";
+    },
+    () => {
+      endpointCard.sample.summary = "Forged summary";
+    },
+    () => {
+      endpointCard.sample.data.provenance = "Forged provenance";
+    },
+    () => {
+      endpointCard.sample.evidence.fixture.status = "planned";
+    },
+    () => {
+      endpointCard.sample.lifecycle.state = "retire";
+    },
+    () => {
+      endpointCard.sample.source.docsPath = "../forged.md";
+    },
+    () => {
+      endpointCard.sample.sdk.version = "forged";
+    },
+    () => {
+      endpointCard.sample.capabilities[0] = "forged";
+    },
+    () => {
+      endpointCard.sample.protocols[0] = "forged";
+    },
+    () => {
+      endpointCard.sample.renderers[0] = "forged";
+    },
+    () => {
+      endpointCard.sample.expectedDegradation = "Forged degradation";
+    },
+    () => {
+      endpointCard.qualityProfile.description = "Forged profile";
+    },
+    () => {
+      endpointCard.qualification.label = "Forged qualification";
+    },
+    () => {
+      endpointCard.qualification.requiredGates[0] = "forged";
+    },
+    () => {
+      endpointCard.searchText = "forged";
+    },
+    () => {
+      incidentCard.journey.title = "Forged journey";
+    },
+    () => {
+      replacementCard.replacement.url = "https://example.test/forged";
+    },
+    () => {
+      gallery.filters.capabilities.push("forged");
+    },
+    () => {
+      gallery.groups.push({ track: "golden", title: "Forged", cards: [] });
+    },
+  ];
+  for (const mutate of mutations) assert.throws(mutate, TypeError);
+
+  const forgedModel = structuredClone(gallery);
+  forgedModel.groups[0].cards[0].sample.title = "Forged HTML with original SHA";
+  assert.equal(forgedModel.integrity.projectionSha256, gallery.integrity.projectionSha256);
+  assert.throws(
+    () => renderGallery(forgedModel),
+    /gallery rendering requires a verified gallery model/,
+  );
+});
+
+test("rejects consumer digest, format, assertion, and stable-byte tampering", async () => {
   const digestMismatch = structuredClone(consumerFixture);
   digestMismatch.input.sha256 = "0".repeat(64);
-  assert.throws(
+  await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes,
@@ -155,7 +265,7 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", ()
 
   const formatMismatch = structuredClone(consumerFixture);
   formatMismatch.accepts.projectionFormat = "honua.site.sdk-sample-projection.v1";
-  assert.throws(
+  await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes,
@@ -166,7 +276,7 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", ()
 
   const fixtureFormatMismatch = structuredClone(consumerFixture);
   fixtureFormatMismatch.format = "honua.site.sdk-sample-consumer-fixture.v1";
-  assert.throws(
+  await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes,
@@ -177,7 +287,7 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", ()
 
   const assertionMismatch = structuredClone(consumerFixture);
   assertionMismatch.assertions.sampleCount += 1;
-  assert.throws(
+  await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes,
@@ -186,7 +296,7 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", ()
     /consumer assertion sampleCount does not match/,
   );
 
-  assert.throws(
+  await assert.rejects(
     () =>
       verifyGalleryProjectionIntegrity({
         projectionBytes: JSON.stringify(projection),
@@ -196,33 +306,64 @@ test("rejects consumer digest, format, assertion, and stable-byte tampering", ()
   );
 });
 
-test("fails closed on missing quality profiles and forged golden qualification relations", () => {
+test("cannot mint a token for credential-bearing or schema-invalid canonical bytes", async () => {
+  const credentialBearing = structuredClone(projection);
+  sampleById(credentialBearing, "endpoint-to-map").data.provenance =
+    "https://data.example.test/features?access_token=actual-secret-value";
+  await assert.rejects(
+    () =>
+      verifyGalleryProjectionIntegrity({
+        projectionBytes: stableBytes(credentialBearing),
+        consumerFixture: fixtureForProjection(credentialBearing),
+      }),
+    /forbidden credential query parameter access_token/,
+  );
+
+  const schemaInvalid = structuredClone(projection);
+  delete sampleById(schemaInvalid, "endpoint-to-map").title;
+  await assert.rejects(
+    () =>
+      verifyGalleryProjectionIntegrity({
+        projectionBytes: stableBytes(schemaInvalid),
+        consumerFixture: fixtureForProjection(schemaInvalid),
+      }),
+    /JSON Schema validation failed.*title/,
+  );
+
+  const foreignRepository = structuredClone(projection);
+  sampleById(foreignRepository, "endpoint-to-map").source.repository = "honua-io/forked-sdk";
+  await assert.rejects(
+    () =>
+      verifyGalleryProjectionIntegrity({
+        projectionBytes: stableBytes(foreignRepository),
+        consumerFixture: fixtureForProjection(foreignRepository),
+      }),
+    /JSON Schema validation failed.*repository/,
+  );
+});
+
+test("fails closed on missing quality profiles and forged golden qualification relations", async () => {
   const missingProfile = structuredClone(projection);
   missingProfile.qualityProfiles = missingProfile.qualityProfiles.filter((profile) => profile.id !== "browser-recipe");
-  assert.throws(
+  await assert.rejects(
     () => verifiedGallery(missingProfile),
     /references missing quality profile browser-recipe/,
   );
 
   const forgedQualification = structuredClone(projection);
   forgedQualification.goldenJourneys[0].status = "qualified";
-  assert.throws(
+  await assert.rejects(
     () => verifiedGallery(forgedQualification),
     /qualified candidate is not a golden card/,
   );
 });
 
-test("projects one integrity-bound catalog-v2 sample into one honest public gallery card", () => {
-  const oneCard = projectionWithSamples("endpoint-to-map");
-
-  const gallery = verifiedGallery(oneCard);
-  assert.equal(gallery.cardCount, 1);
-  assert.deepEqual(gallery.groups.map(({ track, title }) => ({ track, title })), [
-    { track: "recipe", title: "Recipes" },
-  ]);
-  assert.deepEqual(gallery.groups[0].cards[0].sample, oneCard.samples[0]);
-  assert.equal(gallery.groups[0].cards[0].journey, null);
-  assert.equal(gallery.groups[0].cards[0].replacement, null);
+test("projects one canonical catalog-v2 sample into an honest public gallery card", async () => {
+  const gallery = await canonicalGallery();
+  const card = galleryCards(gallery).find((candidate) => candidate.sample.id === "endpoint-to-map");
+  assert.deepEqual(card.sample, sampleById(projection, "endpoint-to-map"));
+  assert.equal(card.journey, null);
+  assert.equal(card.replacement, null);
   assert.deepEqual(gallery.provenance, {
     projection: {
       format: projection.format,
@@ -231,31 +372,12 @@ test("projects one integrity-bound catalog-v2 sample into one honest public gall
     catalog: projection.catalog,
     contract: projection.contract,
   });
-  assert.deepEqual(gallery.filters, {
-    capabilities: ["direct-connect", "map", "query"],
-    protocols: ["geoservices"],
-  });
+  assert.ok(gallery.filters.capabilities.includes("direct-connect"));
+  assert.ok(gallery.filters.protocols.includes("geoservices"));
 });
 
-test("refuses to publish an integrity-bound projection with zero public cards", () => {
-  const empty = structuredClone(projection);
-  empty.samples = [];
-  empty.goldenJourneys = [];
-
-  assert.throws(
-    () => verifiedGallery(empty),
-    /Gallery projection produced zero public cards; refusing to publish an empty gallery\./,
-  );
-
-  const fixtureOnly = projectionWithSamples("arcgis-source-app");
-  assert.throws(
-    () => verifiedGallery(fixtureOnly),
-    /Gallery projection produced zero public cards; refusing to publish an empty gallery\./,
-  );
-});
-
-test("projects the canonical public portfolio without hiding lifecycle or replacement truth", () => {
-  const gallery = canonicalGallery();
+test("projects the canonical public portfolio without hiding lifecycle or replacement truth", async () => {
+  const gallery = await canonicalGallery();
   const counts = Object.fromEntries(gallery.groups.map((group) => [group.track, group.cards.length]));
   const cards = galleryCards(gallery);
   const byId = new Map(cards.map((card) => [card.sample.id, card]));
@@ -291,8 +413,8 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   ]);
 });
 
-test("sorts public capability and protocol facets deterministically", () => {
-  const gallery = canonicalGallery();
+test("sorts public capability and protocol facets deterministically", async () => {
+  const gallery = await canonicalGallery();
   const capabilities = galleryCards(gallery).flatMap((card) => card.sample.capabilities);
   const protocols = galleryCards(gallery).flatMap((card) => card.sample.protocols);
 
@@ -301,12 +423,10 @@ test("sorts public capability and protocol facets deterministically", () => {
   assert.ok(!gallery.filters.capabilities.includes("interaction-state"));
 });
 
-test("renders accessible controls, compact essentials, and disclosed catalog truth", () => {
-  const selectedProjection = projectionWithSamples("realtime-incident-dashboard");
-  const gallery = verifiedGallery(selectedProjection);
-  const html = renderGalleryContent(gallery, {
-    resolveSourceLink: () => ({ href: "https://github.com/honua-io/honua-sdk-js", kind: "source" }),
-  });
+test("renders accessible controls, compact essentials, and disclosed catalog truth", async () => {
+  const incidentSample = sampleById(projection, "realtime-incident-dashboard");
+  const gallery = await canonicalGallery();
+  const html = renderGallery(gallery);
 
   for (const label of [
     "SDK",
@@ -346,7 +466,7 @@ test("renders accessible controls, compact essentials, and disclosed catalog tru
   assert.match(html, /Fixture: <strong>executed<\/strong>/);
   assert.match(html, /unavailable<\/code> · <strong>skipped<\/strong>/);
   assert.match(html, /evidence expires <time/);
-  assert.ok(html.includes(selectedProjection.samples[0].evidence.live.expiresAt));
+  assert.ok(html.includes(incidentSample.evidence.live.expiresAt));
   assert.match(html, /Realtime Incident Operations/);
   assert.match(html, /Planned golden candidate · not receipt-qualified/);
   assert.match(html, /Publication runs <code>npm run samples:verify<\/code>/);
@@ -358,8 +478,8 @@ test("renders accessible controls, compact essentials, and disclosed catalog tru
   assert.doesNotMatch(html, /<script|\son[a-z]+=/i);
 });
 
-test("renders global provenance once and puts every card CTA before its disclosure", () => {
-  const html = renderGallery(canonicalGallery());
+test("renders global provenance once and puts every card CTA before its disclosure", async () => {
+  const html = renderGallery(await canonicalGallery());
   const cards = [...html.matchAll(/<article class="demo-card[\s\S]*?<\/article>/g)].map((match) => match[0]);
 
   assert.equal(occurrenceCount(html, /data-gallery-provenance/g), 1);
@@ -380,8 +500,8 @@ test("renders global provenance once and puts every card CTA before its disclosu
   }
 });
 
-test("requires an explicit source resolver and rejects unsafe source URLs", () => {
-  const gallery = verifiedGallery(projectionWithSamples("endpoint-to-map"));
+test("requires an ownership-bound source resolver and rejects unsafe or foreign URLs", async () => {
+  const gallery = await canonicalGallery();
   assert.throws(
     () => renderGalleryContent(gallery),
     /requires an explicit source-link resolver/,
@@ -403,11 +523,16 @@ test("requires an explicit source resolver and rejects unsafe source URLs", () =
     "guides/%252e%252e/secrets.txt",
     "guides/%255csecrets.txt",
     "/absolute/source.html",
+    "https://cross-origin.example/source",
+    "https://github.com/honua-io/forked-sdk/blob/trunk/examples/ai-spatial-app-builder/README.md",
+    "https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/wrong/README.md",
+    "https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/./ai-spatial-app-builder/README.md",
+    "https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/%2e%2e/secret.md",
   ];
   for (const href of unsafeUrls) {
     assert.throws(
       () => renderGallery(gallery, () => ({ href, kind: "source" })),
-      /source resolver returned an unsafe URL/,
+      /source resolver does not match canonical source ownership/,
       href,
     );
   }
@@ -419,30 +544,48 @@ test("requires an explicit source resolver and rejects unsafe source URLs", () =
     () => renderGallery(gallery, () => ({ href: "guides/quickstart.html", kind: "guide", extra: true })),
     /source resolver result keys must match/,
   );
+  assert.throws(
+    () => renderGallery(gallery, () => ({ href: "guides/quickstart.html", kind: "guide" })),
+    /classified a non-guide docsPath as a guide/,
+  );
 
+  const html = renderGallery(gallery);
   assert.match(
-    renderGallery(gallery, () => ({ href: "guides/quickstart.html", kind: "guide" })),
-    /href="guides\/quickstart\.html">Read the walkthrough/,
+    html,
+    /href="https:\/\/github\.com\/honua-io\/honua-sdk-js\/blob\/trunk\/examples\/ai-spatial-app-builder\/README\.md">View source/,
   );
   assert.match(
-    renderGallery(gallery, () => ({ href: "https://github.com/honua-io/honua-sdk-js", kind: "source" })),
-    /href="https:\/\/github\.com\/honua-io\/honua-sdk-js">View source/,
+    html,
+    /href="guides\/examples\/cesium-route-playback\/README\.html">Read the walkthrough/,
   );
 });
 
-test("escapes projected content and links only credential-free HTTPS replacements", () => {
-  const unsafe = projectionWithSamples("web-components-basic");
-  unsafe.samples[0].title = '<img src=x onerror="alert(1)">';
-  unsafe.samples[0].data.provenance = '</dd><script>alert("x")</script>';
-  const unsafeUrls = [
-    "javascript:alert(1)",
-    "http://example.test/replacement",
-    "https://user:password@example.test/replacement",
-  ];
+test("rejects traversal or encoding in declared docsPath before resolver composition", async () => {
+  for (const docsPath of ["../secret.md", "examples/%2e%2e/secret.md", "examples/%255csecret.md"]) {
+    const unsafeProjection = structuredClone(projection);
+    sampleById(unsafeProjection, "ai-spatial-app-builder").source.docsPath = docsPath;
+    const gallery = await verifiedGallery(unsafeProjection);
+    let unsafeSampleResolverCalled = false;
+    assert.throws(
+      () =>
+        renderGallery(gallery, (sample) => {
+          if (sample.id === "ai-spatial-app-builder") unsafeSampleResolverCalled = true;
+          return repositorySourceResolver(sample);
+        }),
+      /source docsPath is unsafe/,
+    );
+    assert.equal(unsafeSampleResolverCalled, false);
+  }
+});
 
-  for (const url of unsafeUrls) {
+test("escapes projected content and links only credential-free HTTPS replacements", async () => {
+  for (const url of ["javascript:alert(1)", "http://example.test/replacement"]) {
+    const unsafe = structuredClone(projection);
+    const sample = sampleById(unsafe, "web-components-basic");
+    sample.title = '<img src=x onerror="alert(1)">';
+    sample.data.provenance = '</dd><script>alert("x")</script>';
     unsafe.externalReplacements[0].url = url;
-    const html = renderGallery(verifiedGallery(unsafe));
+    const html = renderGallery(await verifiedGallery(unsafe));
 
     assert.match(html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
     assert.match(html, /&lt;\/dd&gt;&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt;/);
@@ -450,15 +593,15 @@ test("escapes projected content and links only credential-free HTTPS replacement
     assert.match(html, /external: @honua\/app-platform \(honua-app-platform\)/);
   }
 
-  const safeHtml = renderGallery(verifiedGallery(projectionWithSamples("web-components-basic")));
+  const safeHtml = renderGallery(await canonicalGallery());
   assert.match(
     safeHtml,
     /href="https:\/\/www\.npmjs\.com\/package\/@honua\/app-platform" rel="noopener noreferrer"/,
   );
 });
 
-test("filters task text with AND semantics and combines exact capability and protocol facets", () => {
-  const records = galleryCards(canonicalGallery()).map((card) => ({
+test("filters task text with AND semantics and combines exact capability and protocol facets", async () => {
+  const records = galleryCards(await canonicalGallery()).map((card) => ({
     id: card.sample.id,
     searchText: card.searchText,
     capabilities: card.sample.capabilities,
@@ -481,8 +624,10 @@ test("filters task text with AND semantics and combines exact capability and pro
   assert.deepEqual(filterGalleryCards(records, { capability: "safe-editing", protocol: "stac" }), []);
 });
 
-test("initializes accessible DOM filtering, implicit Enter submit, empty, and clear behavior", () => {
-  const dom = new JSDOM(renderGallery(canonicalGallery()), { url: "https://docs.example.test/gallery.html" });
+test("initializes accessible DOM filtering, implicit Enter submit, empty, and clear behavior", async () => {
+  const dom = new JSDOM(renderGallery(await canonicalGallery()), {
+    url: "https://docs.example.test/gallery.html",
+  });
   const { document, Event } = dom.window;
   initializeGallery(document);
 

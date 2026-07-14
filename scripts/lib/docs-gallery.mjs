@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
+import { validateSiteProjection } from "../sample-contract.mjs";
 import { normalizeGalleryText } from "./docs-gallery-client.mjs";
 
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const CANONICAL_SOURCE_REPOSITORY = "honua-io/honua-sdk-js";
+const CANONICAL_SOURCE_BASE = "https://github.com/honua-io/honua-sdk-js/blob/trunk";
 const CONSUMER_FIXTURE_FORMAT = "honua.site.sdk-sample-consumer-fixture.v2";
 const SITE_PROJECTION_FORMAT = "honua.site.sdk-sample-projection.v2";
 const SAMPLE_CATALOG_FORMAT = "honua.sdk.sample-catalog.v2";
@@ -18,6 +21,7 @@ const QUALITY_GATE_KEYS = Object.freeze([
   "liveEvidence",
 ]);
 const VERIFIED_INTEGRITIES = new WeakSet();
+const VERIFIED_GALLERY_MODELS = new WeakSet();
 
 const PUBLIC_GALLERY_TRACKS = Object.freeze([
   { track: "golden", title: "Golden journeys" },
@@ -58,13 +62,17 @@ function sha256(value) {
 function deepFreezeJson(value) {
   const objects = [];
   const pending = [value];
+  const seen = new WeakSet();
   while (pending.length > 0) {
     const current = pending.pop();
-    if (current === null || typeof current !== "object" || Object.isFrozen(current)) continue;
+    if (current === null || typeof current !== "object" || seen.has(current)) continue;
+    seen.add(current);
     objects.push(current);
     pending.push(...Object.values(current));
   }
-  for (let index = objects.length - 1; index >= 0; index -= 1) Object.freeze(objects[index]);
+  for (let index = objects.length - 1; index >= 0; index -= 1) {
+    if (!Object.isFrozen(objects[index])) Object.freeze(objects[index]);
+  }
   return value;
 }
 
@@ -74,7 +82,7 @@ function deepFreezeJson(value) {
  * accepted only by this module's model builder, so callers cannot mutate or
  * substitute projection state after verification.
  */
-export function verifyGalleryProjectionIntegrity({ projectionBytes, consumerFixture }) {
+export async function verifyGalleryProjectionIntegrity({ projectionBytes, consumerFixture }) {
   invariant(typeof projectionBytes === "string", "projection bytes must be supplied as UTF-8 text");
   let projection;
   try {
@@ -94,6 +102,7 @@ export function verifyGalleryProjectionIntegrity({ projectionBytes, consumerFixt
   const stableBytes = stableProjectionBytes(projection);
   invariant(projectionBytes === stableBytes, "projection bytes are not canonical stable JSON");
   deepFreezeJson(projection);
+  await validateSiteProjection(projection);
 
   assertExactKeys(
     consumerFixture,
@@ -174,6 +183,11 @@ export function verifyGalleryProjectionIntegrity({ projectionBytes, consumerFixt
     consumerFixtureFormat: consumerFixture.format,
     projectionSha256,
     publicationQualificationGate: "npm run samples:verify",
+    validation: Object.freeze({
+      schemaPath: SITE_PROJECTION_SCHEMA_PATH,
+      schemaValidated: true,
+      sensitiveMetadataValidated: true,
+    }),
   });
   VERIFIED_INTEGRITIES.add(integrity);
   return integrity;
@@ -417,20 +431,23 @@ export function createGalleryModel(integrity) {
     throw new Error("Gallery projection produced zero public cards; refusing to publish an empty gallery.");
   }
 
-  return {
+  const gallery = deepFreezeJson({
     cardCount: cards.length,
     provenance,
     integrity: {
       consumerFixtureFormat: integrity.consumerFixtureFormat,
       projectionSha256: integrity.projectionSha256,
       publicationQualificationGate: integrity.publicationQualificationGate,
+      validation: structuredClone(integrity.validation),
     },
     filters: {
       capabilities: sortedUnique(cards.flatMap((card) => card.sample.capabilities)),
       protocols: sortedUnique(cards.flatMap((card) => card.sample.protocols)),
     },
     groups,
-  };
+  });
+  VERIFIED_GALLERY_MODELS.add(gallery);
+  return gallery;
 }
 
 function escapeHtml(value) {
@@ -497,12 +514,50 @@ function safeRepositoryRelativeUrl(value) {
   return value;
 }
 
-function validatedSourceLink(value) {
+function safeRepositoryPath(value) {
+  if (typeof value !== "string" || value.includes("%") || value.includes("#")) return null;
+  return safeRepositoryRelativeUrl(value);
+}
+
+function guideRouteForDocsPath(docsPath) {
+  if (docsPath === "README.md") return "index.html";
+  if (docsPath === "INSTALL.md") return "guides/INSTALL.html";
+  if (docsPath.startsWith("docs/") && docsPath.endsWith(".md")) {
+    return "guides/" + docsPath.slice("docs/".length).replace(/\.md$/u, ".html");
+  }
+  return null;
+}
+
+function validatedSampleSource(sample) {
+  assertExactKeys(sample.source, ["repository", "path", "docsPath"], sample.id + " source");
+  invariant(
+    sample.source.repository === CANONICAL_SOURCE_REPOSITORY,
+    sample.id + " source repository is not canonical",
+  );
+  const docsPath = safeRepositoryPath(sample.source.docsPath);
+  invariant(docsPath, sample.id + " source docsPath is unsafe");
+  invariant(safeRepositoryPath(sample.source.path), sample.id + " source path is unsafe");
+  return docsPath;
+}
+
+function validatedSourceLink(value, docsPath) {
   assertExactKeys(value, ["href", "kind"], "source resolver result");
   invariant(value.kind === "guide" || value.kind === "source", "source resolver kind is unsupported");
-  const href = safeHttpUrl(value.href) ?? safeRepositoryRelativeUrl(value.href);
-  invariant(href, "source resolver returned an unsafe URL");
-  return { href, kind: value.kind };
+  if (value.kind === "source") {
+    const expectedHref = CANONICAL_SOURCE_BASE + "/" + docsPath;
+    invariant(
+      value.href === expectedHref && safeHttpUrl(value.href) === expectedHref,
+      "source resolver does not match canonical source ownership",
+    );
+    return { href: expectedHref, kind: value.kind };
+  }
+  const expectedHref = guideRouteForDocsPath(docsPath);
+  invariant(expectedHref, "source resolver classified a non-guide docsPath as a guide");
+  invariant(
+    safeRepositoryRelativeUrl(value.href) === expectedHref,
+    "guide resolver does not match the repository-built route",
+  );
+  return { href: expectedHref, kind: value.kind };
 }
 
 function renderTags(values, label) {
@@ -624,7 +679,8 @@ function renderGalleryProvenance(gallery) {
 
 function renderCard(card, resolveSourceLink) {
   const { sample } = card;
-  const source = validatedSourceLink(resolveSourceLink(sample));
+  const docsPath = validatedSampleSource(sample);
+  const source = validatedSourceLink(resolveSourceLink(sample), docsPath);
   const sourceLabel = source.kind === "guide" ? "Read the walkthrough" : "View source";
   const dataSummary = [
     `mode <code>${escapeHtml(sample.data.mode)}</code>`,
@@ -688,6 +744,10 @@ function renderCard(card, resolveSourceLink) {
 
 /** Render only the gallery's main content; the docs builder owns site chrome. */
 export function renderGalleryContent(gallery, { resolveSourceLink } = {}) {
+  invariant(
+    gallery && VERIFIED_GALLERY_MODELS.has(gallery),
+    "gallery rendering requires a verified gallery model",
+  );
   if (typeof resolveSourceLink !== "function") {
     throw new TypeError("renderGalleryContent requires an explicit source-link resolver");
   }
