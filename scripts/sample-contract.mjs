@@ -12,6 +12,7 @@ const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const require = createRequire(import.meta.url);
 const Ajv2020 = require("ajv/dist/2020").default;
 const addFormats = require("ajv-formats").default;
+const ts = require("typescript");
 const CATALOG_PATH = "samples/catalog.v2.json";
 const V1_CATALOG_PATH = "samples/catalog.v1.json";
 const V1_MIGRATION_PATH = "samples/contract/v2/migrations/catalog.v1-to-v2.json";
@@ -34,6 +35,22 @@ const RESERVED_GOLDEN_JOURNEY_IDS = [
   "cloud-native-analysis",
   "arcgis-migration",
 ];
+const SAMPLE_SOURCE_EXTENSIONS = new Set([".js", ".mjs", ".ts", ".tsx"]);
+const CONFIGURATION_NAME_PATTERN = /^(?:HONUA|STANDALONE|VITE)_[A-Z0-9_]+$/;
+const STANDARD_CONFIGURATION_EXEMPTIONS = new Map([
+  ["GITHUB_SHA", "github-actions"],
+  ["MODE", "vite"],
+]);
+const REVIEWED_LIVE_PRODUCERS = new Map([
+  ["bench:live", "node scripts/live-benchmark-evidence.mjs --output test-results/live-benchmark-evidence.json"],
+  ["demo:ai-spatial-builder:live-evidence", "node examples/ai-spatial-app-builder/live-evidence.mjs"],
+  [
+    "demo:spatial-analytics:live-evidence",
+    "npm run build --silent && node examples/spatial-analytics-workbench/live-evidence.mjs",
+  ],
+  ["demo:standalone:live-smoke", "node scripts/standalone-live-smoke.mjs"],
+  ["evidence:overture:live", "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json"],
+]);
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -122,9 +139,335 @@ async function pathExists(relativePath) {
   }
 }
 
-function parseNpmCommand(command) {
-  const match = /^npm run ([a-zA-Z0-9:_-]+)(?:\s|$)/.exec(command);
-  return match?.[1];
+function parseCatalogCommand(command) {
+  invariant(typeof command === "string", "catalog commands must be strings");
+  const npm = /^npm run ([a-z0-9][a-z0-9:_-]*)$/.exec(command);
+  if (npm) return { runner: "npm", script: npm[1] };
+
+  const npx = /^npx (playwright test|vitest run) ([A-Za-z0-9][A-Za-z0-9._/-]*)$/.exec(command);
+  invariant(npx, `unsafe or unsupported catalog command: ${command}`);
+  const target = npx[2];
+  assertRelativePath(target, `catalog command target ${target}`);
+  if (npx[1] === "playwright test") {
+    invariant(/\.spec\.mjs$/.test(target), `Playwright catalog commands must target one .spec.mjs file: ${command}`);
+    return { runner: "playwright", target };
+  }
+  invariant(/\.test\.(?:mjs|ts)$/.test(target), `Vitest catalog commands must target one test file: ${command}`);
+  return { runner: "vitest", target };
+}
+
+async function validateCatalogCommand(command, sampleId, packageJson) {
+  const parsed = parseCatalogCommand(command);
+  if (parsed.runner === "npm") {
+    invariant(packageJson.scripts?.[parsed.script], `${sampleId}: unknown package script ${parsed.script}`);
+    return parsed;
+  }
+  const dependency = parsed.runner === "playwright" ? "@playwright/test" : "vitest";
+  invariant(packageJson.devDependencies?.[dependency], `${sampleId}: ${dependency} must be installed by the repository`);
+  invariant(await pathExists(parsed.target), `${sampleId}: catalog command target does not exist: ${parsed.target}`);
+  return parsed;
+}
+
+function isBoundedLiveCommand(parsed, packageJson) {
+  return (
+    parsed.runner === "npm" &&
+    REVIEWED_LIVE_PRODUCERS.get(parsed.script) === packageJson.scripts?.[parsed.script]
+  );
+}
+
+export function classifyConfigurationName(name) {
+  const isCredential =
+    name !== "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN" &&
+    name !== "HONUA_SERVICE_ACCOUNT_TOKEN_TTL_MS" &&
+    /(?:^|_)(?:ACCESS_KEY|API_KEY|BEARER_TOKEN|CLIENT_SECRET|PASSWORD|PRIVATE_KEY|SECRET|TOKEN)(?:_|$)/.test(name);
+  return {
+    name,
+    exposure: name.startsWith("VITE_") ? "browser-public" : "server-only",
+    valueKind: isCredential ? "credential" : "non-secret",
+    ...(isCredential
+      ? { credentialScope: name === "VITE_MAPBOX_TOKEN" ? "public-token" : "secret" }
+      : {}),
+  };
+}
+
+function stringLiteralValue(node) {
+  return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : undefined;
+}
+
+function unwrapExpression(node) {
+  let current = node;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    (ts.isSatisfiesExpression && ts.isSatisfiesExpression(current))
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function isDirectEnvironmentRoot(node) {
+  const expression = unwrapExpression(node);
+  if (!ts.isPropertyAccessExpression(expression) || expression.name.text !== "env") return false;
+  const target = unwrapExpression(expression.expression);
+  return (
+    (ts.isIdentifier(target) && target.text === "process") ||
+    (ts.isMetaProperty(target) && target.keywordToken === ts.SyntaxKind.ImportKeyword)
+  );
+}
+
+function propertyName(node) {
+  if (ts.isIdentifier(node) || ts.isStringLiteral(node) || ts.isNumericLiteral(node)) return node.text;
+  return undefined;
+}
+
+function functionName(node) {
+  if (node.name && ts.isIdentifier(node.name)) return node.name.text;
+  if (ts.isVariableDeclaration(node.parent) && ts.isIdentifier(node.parent.name)) return node.parent.name.text;
+  return undefined;
+}
+
+function analyzeConfigurationSource(sourceFile, file) {
+  const names = new Set();
+  const declarations = [];
+  const calls = [];
+  const functionInfoByNode = new Map();
+  const functionsByName = new Map();
+  const constValues = new Map();
+  const propertyValues = new Map();
+
+  const collect = (node) => {
+    if (ts.isVariableDeclaration(node)) {
+      declarations.push(node);
+      if (ts.isIdentifier(node.name) && node.initializer) {
+        const value = stringLiteralValue(node.initializer);
+        if (value) constValues.set(node.name.text, value);
+      }
+    }
+    if (ts.isPropertyAssignment(node)) {
+      const key = propertyName(node.name);
+      const value = stringLiteralValue(node.initializer);
+      if (key && value) {
+        if (!propertyValues.has(key)) propertyValues.set(key, new Set());
+        propertyValues.get(key).add(value);
+      }
+    }
+    if (ts.isCallExpression(node)) calls.push(node);
+    if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
+      const name = functionName(node);
+      if (name) {
+        const info = {
+          name,
+          node,
+          parameters: node.parameters.map((parameter) =>
+            ts.isIdentifier(parameter.name) ? parameter.name.text : undefined,
+          ),
+        };
+        functionInfoByNode.set(node, info);
+        functionsByName.set(name, info);
+      }
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(sourceFile);
+
+  const aliases = new Set(["env"]);
+  let aliasesChanged = true;
+  while (aliasesChanged) {
+    aliasesChanged = false;
+    for (const declaration of declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
+      const initializer = unwrapExpression(declaration.initializer);
+      const isAlias =
+        isDirectEnvironmentRoot(initializer) ||
+        (ts.isIdentifier(initializer) && aliases.has(initializer.text));
+      if (!isAlias || aliases.has(declaration.name.text)) continue;
+      const declarationList = declaration.parent;
+      invariant(
+        ts.isVariableDeclarationList(declarationList) && (declarationList.flags & ts.NodeFlags.Const) !== 0,
+        `${file}: environment aliases must be const`,
+      );
+      aliases.add(declaration.name.text);
+      aliasesChanged = true;
+    }
+  }
+
+  const isEnvironmentObject = (node) => {
+    const expression = unwrapExpression(node);
+    return isDirectEnvironmentRoot(expression) || (ts.isIdentifier(expression) && aliases.has(expression.text));
+  };
+
+  for (const declaration of declarations) {
+    if (!ts.isObjectBindingPattern(declaration.name) || !declaration.initializer) continue;
+    if (!isEnvironmentObject(declaration.initializer)) continue;
+    for (const element of declaration.name.elements) {
+      invariant(!element.dotDotDotToken, `${file}: environment rest destructuring is not statically bounded`);
+      invariant(ts.isIdentifier(element.name), `${file}: nested environment destructuring is not supported`);
+      const name = element.propertyName ? propertyName(element.propertyName) : element.name.text;
+      invariant(name && /^[A-Z][A-Z0-9_]+$/.test(name), `${file}: environment destructuring key is not static`);
+      names.add(name);
+    }
+  }
+
+  const enclosingFunction = (node) => {
+    let current = node.parent;
+    while (current) {
+      const info = functionInfoByNode.get(current);
+      if (info) return info;
+      current = current.parent;
+    }
+    return undefined;
+  };
+
+  const resolveFiniteNames = (node) => {
+    if (!node) return undefined;
+    const expression = unwrapExpression(node);
+    const literal = stringLiteralValue(expression);
+    if (literal && /^[A-Z][A-Z0-9_]+$/.test(literal)) return [literal];
+    if (ts.isIdentifier(expression)) {
+      const value = constValues.get(expression.text);
+      if (value && /^[A-Z][A-Z0-9_]+$/.test(value)) return [value];
+      return undefined;
+    }
+    if (ts.isPropertyAccessExpression(expression)) {
+      const values = propertyValues.get(expression.name.text);
+      if (values && [...values].every((value) => /^[A-Z][A-Z0-9_]+$/.test(value))) return [...values];
+    }
+    return undefined;
+  };
+
+  const sinkParameters = new Map();
+  const addSinkParameter = (info, index) => {
+    invariant(info, `${file}: unresolved dynamic environment read outside a named function`);
+    if (!sinkParameters.has(info.name)) sinkParameters.set(info.name, new Set());
+    const parameters = sinkParameters.get(info.name);
+    const size = parameters.size;
+    parameters.add(index);
+    return parameters.size !== size;
+  };
+
+  const scan = (node) => {
+    if (ts.isPropertyAccessExpression(node) && isEnvironmentObject(node.expression)) {
+      names.add(node.name.text);
+    }
+    if (ts.isElementAccessExpression(node) && isEnvironmentObject(node.expression)) {
+      const finiteNames = resolveFiniteNames(node.argumentExpression);
+      if (finiteNames) {
+        for (const name of finiteNames) names.add(name);
+      } else {
+        const info = enclosingFunction(node);
+        const argument = unwrapExpression(node.argumentExpression);
+        const parameterIndex =
+          info && ts.isIdentifier(argument) ? info.parameters.indexOf(argument.text) : -1;
+        invariant(parameterIndex >= 0, `${file}: unresolved dynamic environment read`);
+        addSinkParameter(info, parameterIndex);
+      }
+    }
+    if (ts.isCallExpression(node)) {
+      for (const argument of node.arguments) {
+        const name = stringLiteralValue(argument);
+        if (name && CONFIGURATION_NAME_PATTERN.test(name)) names.add(name);
+      }
+    }
+    if (ts.isPropertyAssignment(node) && ["layerEnv", "serviceEnv"].includes(propertyName(node.name))) {
+      const name = stringLiteralValue(node.initializer);
+      if (name) names.add(name);
+    }
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && /(?:ENV|TOKEN_OPT_IN)/.test(node.name.text)) {
+      const name = node.initializer ? stringLiteralValue(node.initializer) : undefined;
+      if (name && CONFIGURATION_NAME_PATTERN.test(name)) names.add(name);
+    }
+    ts.forEachChild(node, scan);
+  };
+  scan(sourceFile);
+
+  let sinksChanged = true;
+  while (sinksChanged) {
+    sinksChanged = false;
+    for (const call of calls) {
+      const target = unwrapExpression(call.expression);
+      if (!ts.isIdentifier(target)) continue;
+      const sink = sinkParameters.get(target.text);
+      if (!sink) continue;
+      for (const parameterIndex of sink) {
+        const argument = call.arguments[parameterIndex];
+        const finiteNames = resolveFiniteNames(argument);
+        if (finiteNames) {
+          for (const name of finiteNames) names.add(name);
+          continue;
+        }
+        const caller = enclosingFunction(call);
+        const unwrappedArgument = argument ? unwrapExpression(argument) : undefined;
+        const callerParameterIndex =
+          caller && unwrappedArgument && ts.isIdentifier(unwrappedArgument)
+            ? caller.parameters.indexOf(unwrappedArgument.text)
+            : -1;
+        invariant(
+          callerParameterIndex >= 0,
+          `${file}: unresolved call into dynamic environment reader ${target.text}`,
+        );
+        if (addSinkParameter(caller, callerParameterIndex)) sinksChanged = true;
+      }
+    }
+  }
+
+  for (const [name, parameterIndexes] of sinkParameters) {
+    const info = functionsByName.get(name);
+    invariant(info, `${file}: dynamic environment reader ${name} is not statically traceable`);
+    invariant(
+      !info.node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword),
+      `${file}: exported dynamic environment reader ${name} is not statically bounded`,
+    );
+    for (const parameterIndex of parameterIndexes) {
+      invariant(
+        calls.some((call) => ts.isIdentifier(unwrapExpression(call.expression)) && unwrapExpression(call.expression).text === name && call.arguments[parameterIndex]),
+        `${file}: dynamic environment reader ${name} has no finite call sites`,
+      );
+    }
+    for (const declaration of declarations) {
+      const initializer = declaration.initializer ? unwrapExpression(declaration.initializer) : undefined;
+      invariant(
+        !(initializer && ts.isIdentifier(initializer) && initializer.text === name),
+        `${file}: dynamic environment reader ${name} cannot be aliased`,
+      );
+    }
+  }
+
+  return names;
+}
+
+const sampleConfigurationCache = new Map();
+
+async function scanSampleConfiguration(sourcePath) {
+  const names = new Set();
+  const files = (await walkFiles(sourcePath)).filter(
+    (file) =>
+      SAMPLE_SOURCE_EXTENSIONS.has(path.extname(file)) &&
+      !file.split("/").some((segment) => ["dist", "node_modules", "test-results"].includes(segment)),
+  );
+  for (const file of files) {
+    const source = await readFile(path.join(PROJECT_ROOT, file), "utf8");
+    const sourceFile = ts.createSourceFile(
+      file,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    );
+    for (const name of analyzeConfigurationSource(sourceFile, file)) names.add(name);
+  }
+  return [...names].sort();
+}
+
+export async function extractSampleConfiguration(sourcePath, exemptions = []) {
+  if (!sampleConfigurationCache.has(sourcePath)) {
+    sampleConfigurationCache.set(sourcePath, scanSampleConfiguration(sourcePath));
+  }
+  const names = await sampleConfigurationCache.get(sourcePath);
+  const exemptionNames = new Set(exemptions.map((entry) => entry.name));
+  return names.filter((name) => !exemptionNames.has(name));
 }
 
 async function runnableDocsExampleDirectories() {
@@ -181,14 +524,17 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
     `migration overrides must cover every v1 sample exactly:\nsource ${sourceIds.join(", ")}\noverrides ${overrideIds.join(", ")}`,
   );
 
-  const migratedSamples = catalog.samples.map((sample) => {
+  const migratedSamples = await Promise.all(catalog.samples.map(async (sample) => {
     const override = migration.sampleOverrides[sample.id];
-    const state = sample.disposition.decision === "keep" ? "active" : sample.disposition.decision;
+    const migratedState = sample.disposition.decision === "keep" ? "active" : sample.disposition.decision;
+    const state = override.lifecycle?.state ?? migratedState;
     const lifecycle = {
       state,
-      reason: sample.disposition.reason,
+      reason: override.lifecycle?.reason ?? sample.disposition.reason,
       ...(state === "active" ? {} : { targetRelease: migration.targetRelease }),
-      ...(override.replacement ? { replacement: override.replacement } : {}),
+      ...(override.lifecycle?.replacement || override.replacement
+        ? { replacement: override.lifecycle?.replacement ?? override.replacement }
+        : {}),
     };
     const originalLive = sample.lanes.live;
     const liveOverride = override.live ?? {};
@@ -196,12 +542,18 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
       mode: liveOverride.mode ?? inferredLiveMode(sample),
       ...(liveOverride.targetMode ? { targetMode: liveOverride.targetMode } : {}),
       status: liveOverride.status ?? originalLive.status,
-      commands: [...originalLive.commands],
+      commands: [...(liveOverride.commands ?? originalLive.commands)],
       ...(liveOverride.evidencePath || originalLive.evidencePath
         ? { evidencePath: liveOverride.evidencePath ?? originalLive.evidencePath }
         : {}),
       ...(liveOverride.expiresAt ? { expiresAt: liveOverride.expiresAt } : {}),
     };
+    const config = await extractSampleConfiguration(
+      sample.sourcePath,
+      migration.configuration.environmentReadExemptions,
+    );
+    const configClassifications = config.map(classifyConfigurationName);
+    const configurationStatus = override.configuration?.status ?? (config.length > 0 ? "approved" : "not-required");
     return {
       id: sample.id,
       title: sample.title,
@@ -218,7 +570,10 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
       renderers: [...sample.renderers],
       data: {
         ...structuredClone(sample.data),
-        configurationStatus: sample.data.config.length > 0 ? "approved" : "not-required",
+        configurationStatus,
+        ...(override.configuration?.gap ? { configurationGap: override.configuration.gap } : {}),
+        config,
+        configClassifications,
       },
       evidence: {
         fixture: {
@@ -233,7 +588,15 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
       validationProfile: override.validationProfile,
       validation: [...sample.validation],
     };
-  });
+  }));
+
+  const addedSamples = migration.addedSamples.map((sample) => ({
+    ...structuredClone(sample),
+    data: {
+      ...structuredClone(sample.data),
+      configClassifications: sample.data.config.map(classifyConfigurationName),
+    },
+  }));
 
   const siteMappings = catalog.siteMappings.map((mapping) => {
     if (mapping.ownership === "sdk-projection") return structuredClone(mapping);
@@ -255,12 +618,12 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
     sdk: structuredClone(catalog.sdk),
     configuration: {
       ...structuredClone(catalog.configuration),
-      evidenceExpiry: structuredClone(migration.configuration.evidenceExpiry),
+      ...structuredClone(migration.configuration),
     },
     goldenJourneys: structuredClone(migration.goldenJourneys),
     qualityProfiles: structuredClone(migration.qualityProfiles),
     externalReplacements: structuredClone(migration.externalReplacements),
-    samples: [...migratedSamples, ...structuredClone(migration.addedSamples)].sort((left, right) =>
+    samples: [...migratedSamples, ...addedSamples].sort((left, right) =>
       left.id.localeCompare(right.id),
     ),
     siteMappings,
@@ -283,6 +646,21 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   sortedUnique(catalog.configuration?.credentialQueryParameters, "configuration.credentialQueryParameters");
   invariant(Number.isInteger(catalog.configuration?.evidenceExpiry?.executedMaxDays), "executed evidence expiry policy is required");
   invariant(Number.isInteger(catalog.configuration?.evidenceExpiry?.nonExecutedMaxDays), "non-executed evidence expiry policy is required");
+  invariant(
+    Number.isInteger(catalog.configuration?.evidenceExpiry?.maxFutureSkewSeconds),
+    "future evidence clock-skew policy is required",
+  );
+  const environmentReadExemptions = catalog.configuration?.environmentReadExemptions ?? [];
+  sortedUnique(
+    environmentReadExemptions.map((entry) => entry.name),
+    "configuration.environmentReadExemptions",
+  );
+  for (const exemption of environmentReadExemptions) {
+    invariant(
+      STANDARD_CONFIGURATION_EXEMPTIONS.get(exemption.name) === exemption.provider,
+      `configuration exemption ${exemption.name} is not an approved standard built-in`,
+    );
+  }
   invariant(Array.isArray(catalog.samples), "catalog samples must be an array");
   invariant(Array.isArray(catalog.siteMappings), "catalog siteMappings must be an array");
 
@@ -313,6 +691,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
 
   const sampleIds = new Set();
   const sourcePaths = new Set();
+  const observedEnvironmentReadExemptions = new Set();
   const orderedSampleIds = catalog.samples.map((sample) => sample.id);
   invariant(JSON.stringify(orderedSampleIds) === JSON.stringify([...orderedSampleIds].sort()), "catalog samples must be sorted by id");
   const currentTime = options.now === undefined ? Date.now() : parseDateTime(options.now, "validation time");
@@ -361,6 +740,21 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     invariant(typeof sample.data.freshness === "string", `${sample.id}: freshness is required`);
     invariant(Array.isArray(sample.data.config) && sample.data.config.every((entry) => typeof entry === "string"), `${sample.id}: data.config must contain variable names`);
     if (sample.data.config.length > 0) sortedUnique(sample.data.config, `${sample.id}.data.config`);
+    const sourceConfiguration = await extractSampleConfiguration(sample.sourcePath);
+    const exemptionNames = new Set(environmentReadExemptions.map((entry) => entry.name));
+    for (const name of sourceConfiguration) {
+      if (exemptionNames.has(name)) observedEnvironmentReadExemptions.add(name);
+    }
+    const supportedConfiguration = sourceConfiguration.filter((name) => !exemptionNames.has(name));
+    invariant(
+      JSON.stringify(sample.data.config) === JSON.stringify(supportedConfiguration),
+      `${sample.id}: configuration declaration drift; source reads [${supportedConfiguration.join(", ")}], catalog declares [${sample.data.config.join(", ")}]`,
+    );
+    const expectedClassifications = supportedConfiguration.map(classifyConfigurationName);
+    invariant(
+      JSON.stringify(sample.data.configClassifications) === JSON.stringify(expectedClassifications),
+      `${sample.id}: configuration exposure/classification drift`,
+    );
     if (sample.data.configurationStatus === "approved") {
       invariant(sample.data.config.length > 0, `${sample.id}: approved configuration requires declared config names`);
       invariant(!sample.data.configurationGap, `${sample.id}: approved configuration cannot declare a gap`);
@@ -369,13 +763,18 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
       invariant(!sample.data.configurationGap, `${sample.id}: not-required configuration cannot declare a gap`);
     } else {
       invariant(sample.data.configurationStatus === "legacy-unsafe", `${sample.id}: invalid configuration status`);
-      invariant(sample.data.config.length === 0, `${sample.id}: legacy-unsafe configuration cannot be approved by name`);
       invariant(
         typeof sample.data.configurationGap === "string" && sample.data.configurationGap.length > 0,
         `${sample.id}: legacy-unsafe configuration requires a configurationGap`,
       );
       invariant(sample.lifecycle.state !== "active", `${sample.id}: legacy-unsafe configuration requires bounded rework`);
     }
+    invariant(
+      !sample.data.configClassifications.some(
+        (entry) => entry.exposure === "browser-public" && entry.valueKind === "credential",
+      ) || sample.data.configurationStatus === "legacy-unsafe",
+      `${sample.id}: browser-public credentials require legacy-unsafe status and bounded rework`,
+    );
     if (
       ["hybrid", "authenticated-live"].includes(sample.data.mode) &&
       !["none", "anonymous"].includes(sample.data.authMode)
@@ -385,25 +784,12 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         `${sample.id}: credentialed live data requires approved configuration or an explicit legacy gap`,
       );
     }
-    if (sample.data.config.length > 0) {
-      const configFiles = (await walkFiles(sample.sourcePath)).filter(
-        (file) =>
-          !file.endsWith("package-lock.json") &&
-          [".ts", ".tsx", ".js", ".mjs", ".md", ".html", ".json"].includes(path.extname(file)),
-      );
-      const configSurface = (
-        await Promise.all(configFiles.map((file) => readFile(path.join(PROJECT_ROOT, file), "utf8")))
-      ).join("\n");
-      for (const variable of sample.data.config) {
-        invariant(configSurface.includes(variable), `${sample.id}: undeclared implementation config ${variable}`);
-      }
-    }
     invariant(!JSON.stringify(sample).match(/(?:AKIA|Bearer\s|api[_-]?key\s*[=:]\s*[^<])/i), `${sample.id}: catalog appears to contain a credential`);
     invariant(typeof sample.expectedDegradation === "string", `${sample.id}: expectedDegradation is required`);
     invariant(Array.isArray(sample.validation) && sample.validation.length > 0, `${sample.id}: validation is required`);
+    const commandRecords = new Map();
     for (const command of [...sample.evidence.fixture.commands, ...sample.evidence.live.commands, ...sample.validation]) {
-      const npmScript = parseNpmCommand(command);
-      if (npmScript) invariant(packageJson.scripts?.[npmScript], `${sample.id}: unknown package script ${npmScript}`);
+      commandRecords.set(command, await validateCatalogCommand(command, sample.id, packageJson));
     }
     for (const command of sample.validation) {
       invariant(
@@ -424,10 +810,14 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     );
     const evidenceBoundStatuses = new Set(["executed", "skipped", "credential-unavailable", "failed"]);
     if (evidenceBoundStatuses.has(sample.evidence.live.status)) {
+      invariant(sample.evidence.live.commands.length > 0, `${sample.id}: evidence-bound live status requires a producer command`);
       invariant(sample.evidence.live.evidencePath, `${sample.id}: ${sample.evidence.live.status} live status requires evidencePath`);
       invariant(sample.evidence.live.expiresAt, `${sample.id}: ${sample.evidence.live.status} live status requires expiresAt`);
       assertRelativePath(sample.evidence.live.evidencePath, `${sample.id}.evidence.live.evidencePath`);
-      const evidence = validateEvidenceEnvelope(await readJson(sample.evidence.live.evidencePath));
+      const evidence = validateEvidenceEnvelope(await readJson(sample.evidence.live.evidencePath), {
+        now: new Date(currentTime).toISOString(),
+        maxFutureSkewSeconds: catalog.configuration.evidenceExpiry.maxFutureSkewSeconds,
+      });
       invariant(evidence.sampleId === sample.id, `${sample.id}: live evidence sampleId drift`);
       invariant(evidence.lane === "live", `${sample.id}: catalog evidence must be a live envelope`);
       invariant(evidence.status === sample.evidence.live.status, `${sample.id}: live lane status must match evidence`);
@@ -474,7 +864,19 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         );
       }
     }
+    for (const command of sample.evidence.live.commands) {
+      invariant(
+        isBoundedLiveCommand(commandRecords.get(command), packageJson),
+        `${sample.id}: scheduled live command is not in the reviewed bounded producer registry: ${command}`,
+      );
+    }
   }
+
+  invariant(
+    JSON.stringify([...observedEnvironmentReadExemptions].sort()) ===
+      JSON.stringify(environmentReadExemptions.map((entry) => entry.name)),
+    "configuration.environmentReadExemptions must list exactly the observed standard built-in reads",
+  );
 
   for (const sample of catalog.samples) {
     const replacement = sample.lifecycle.replacement;
@@ -484,17 +886,24 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     if (replacement.kind === "journey") invariant(journeyIds.includes(replacement.id), `${sample.id}: unknown replacement journey ${replacement.id}`);
     if (replacement.kind === "external") invariant(externalReplacements.has(replacement.id), `${sample.id}: unknown external replacement ${replacement.id}`);
   }
-  const sampleReplacement = new Map(
-    catalog.samples
-      .filter((sample) => sample.lifecycle.replacement?.kind === "sample")
-      .map((sample) => [sample.id, sample.lifecycle.replacement.id]),
-  );
-  for (const start of sampleReplacement.keys()) {
+  const replacementGraph = new Map();
+  for (const sample of catalog.samples) {
+    const replacement = sample.lifecycle.replacement;
+    if (!replacement || replacement.kind === "external") continue;
+    replacementGraph.set(
+      `sample:${sample.id}`,
+      `${replacement.kind}:${replacement.id}`,
+    );
+  }
+  for (const journey of catalog.goldenJourneys) {
+    replacementGraph.set(`journey:${journey.id}`, `sample:${journey.candidateSampleId}`);
+  }
+  for (const start of replacementGraph.keys()) {
     const chain = [start];
     let current = start;
-    while (sampleReplacement.has(current)) {
-      const next = sampleReplacement.get(current);
-      invariant(!chain.includes(next), `sample replacement cycle: ${[...chain, next].join(" -> ")}`);
+    while (replacementGraph.has(current)) {
+      const next = replacementGraph.get(current);
+      invariant(!chain.includes(next), `sample/journey replacement cycle: ${[...chain, next].join(" -> ")}`);
       chain.push(next);
       current = next;
     }
@@ -876,51 +1285,10 @@ export async function generatedOutputs(catalog, packageJson) {
   ]);
 }
 
-function normalizeProjectionVersion(serialized) {
-  const projection = JSON.parse(serialized);
-  projection.catalog.version = "$PACKAGE_VERSION";
-  for (const sample of projection.samples) {
-    if (sample.sdk) sample.sdk.version = "$PACKAGE_VERSION";
-  }
-  return stableJson(projection);
-}
-
-function normalizeConsumerProjectionHash(serialized) {
-  const fixture = JSON.parse(serialized);
-  fixture.input.sha256 = "$PROJECTION_SHA256";
-  return stableJson(fixture);
-}
-
 export function generatedOutputDrift(expectedOutputs, currentOutputs) {
-  const failures = [];
-  const expectedProjection = expectedOutputs.get(SITE_PROJECTION_PATH);
-  const currentProjection = currentOutputs.get(SITE_PROJECTION_PATH) ?? "";
-  const projectionVersionOnly =
-    expectedProjection !== currentProjection &&
-    normalizeProjectionVersion(expectedProjection) === normalizeProjectionVersion(currentProjection);
-  const currentConsumerFixture = JSON.parse(currentOutputs.get(SITE_CONSUMER_FIXTURE_PATH) ?? "{}");
-  const expectedConsumerFixture = JSON.parse(expectedOutputs.get(SITE_CONSUMER_FIXTURE_PATH) ?? "{}");
-  const currentProjectionDigestIsValid =
-    currentConsumerFixture.input?.sha256 === sha256(Buffer.from(currentProjection));
-  const expectedProjectionDigestIsValid =
-    expectedConsumerFixture.input?.sha256 === sha256(Buffer.from(expectedProjection));
-
-  for (const [relativePath, expected] of expectedOutputs) {
-    const current = currentOutputs.get(relativePath) ?? "";
-    if (current === expected) continue;
-    if (relativePath === SITE_PROJECTION_PATH && projectionVersionOnly) continue;
-    if (
-      relativePath === SITE_CONSUMER_FIXTURE_PATH &&
-      projectionVersionOnly &&
-      currentProjectionDigestIsValid &&
-      expectedProjectionDigestIsValid &&
-      normalizeConsumerProjectionHash(expected) === normalizeConsumerProjectionHash(current)
-    ) {
-      continue;
-    }
-    failures.push(relativePath);
-  }
-  return failures;
+  return [...expectedOutputs]
+    .filter(([relativePath, expected]) => currentOutputs.get(relativePath) !== expected)
+    .map(([relativePath]) => relativePath);
 }
 
 function gitSha() {
@@ -1027,7 +1395,7 @@ export async function verifyBrowserArtifactManifest(manifest) {
   }
 }
 
-export function validateEvidenceEnvelope(evidence) {
+export function validateEvidenceEnvelope(evidence, options = {}) {
   const isDateTime = (value) =>
     typeof value === "string" &&
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
@@ -1041,6 +1409,18 @@ export function validateEvidenceEnvelope(evidence) {
   );
   invariant(typeof evidence.sampleId === "string", "evidence sampleId is required");
   invariant(isDateTime(evidence.observedAt), "evidence observedAt must be an RFC 3339 date-time");
+  const observedAt = Date.parse(evidence.observedAt);
+  const validationTime = options.now === undefined ? Date.now() : parseDateTime(options.now, "evidence validation time");
+  const maxFutureSkewSeconds = options.maxFutureSkewSeconds ?? 300;
+  invariant(
+    Number.isInteger(maxFutureSkewSeconds) && maxFutureSkewSeconds >= 0 && maxFutureSkewSeconds <= 300,
+    "evidence maxFutureSkewSeconds must be between 0 and 300",
+  );
+  const maxFutureSkewMs = maxFutureSkewSeconds * 1000;
+  invariant(
+    observedAt <= validationTime + maxFutureSkewMs,
+    `evidence observedAt is more than ${maxFutureSkewSeconds} seconds in the future`,
+  );
   invariant(["none", "anonymous", "api-key", "bearer", "oauth", "host-mediated"].includes(evidence.authMode), "evidence authMode is invalid");
   invariant(evidence.sdk?.package === "@honua/sdk-js", "evidence sdk.package is invalid");
   invariant(typeof evidence.sdk?.version === "string", "evidence sdk.version is required");
@@ -1097,6 +1477,15 @@ export function validateEvidenceEnvelope(evidence) {
   }
   if (evidence.provenance !== null) {
     invariant(isDateTime(evidence.provenance?.observedAt), "evidence provenance.observedAt must be an RFC 3339 date-time");
+    const provenanceObservedAt = Date.parse(evidence.provenance.observedAt);
+    invariant(
+      provenanceObservedAt <= observedAt + maxFutureSkewMs,
+      "evidence provenance.observedAt cannot follow evidence observedAt beyond clock skew",
+    );
+    invariant(
+      provenanceObservedAt <= validationTime + maxFutureSkewMs,
+      `evidence provenance.observedAt is more than ${maxFutureSkewSeconds} seconds in the future`,
+    );
     invariant(
       evidence.provenance?.validAt === null || isDateTime(evidence.provenance?.validAt),
       "evidence provenance.validAt must be null or an RFC 3339 date-time",

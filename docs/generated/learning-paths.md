@@ -89,7 +89,7 @@ Labels: `fixture` · `demo-live` · `experimental`
 - Executable entry: [examples/maplibre-quickstart/src/main.ts](../../examples/maplibre-quickstart/src/main.ts)
 - Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
 - Compile check: `npm run demo:quickstart:typecheck`
-- Sample contract: `golden` · `supported` · `active`
+- Sample contract: `recipe` · `supported` · `rework`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.
 - Freshness: Fixture capture time and data version, or live response observation time.

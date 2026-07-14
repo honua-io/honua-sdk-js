@@ -16,9 +16,10 @@ This directory is the versioned handoff between `honua-sdk-js` and presentation 
 The canonical catalog deliberately stores the SDK package name but not a
 version. Generation derives the effective version from root `package.json` and
 materializes it into the site projection. Version-only projection and digest
-changes are accepted during release-please bumps, while semantic or independent
-integrity drift still fails. The publish workflow regenerates the projection
-before packing, so the npm artifact always carries its exact release version.
+changes are tracked drift during release-please bumps: the projection and its
+consumer digest must both be regenerated and committed. The publish workflow
+regenerates the projection before packing, so the npm artifact always carries
+its exact release version.
 
 Schema evolution is additive within v1. Removing or changing a required field requires a new format/schema version and a coordinated consumer migration. Required pull-request validation is offline. Live evidence is produced only by scheduled, manual, or deployment-gated workflows and must never contain credentials or feature payloads.
 

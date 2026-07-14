@@ -8,11 +8,24 @@
   "configuration": {
     "evidenceExpiry": {
       "executedMaxDays": 31,
-      "nonExecutedMaxDays": 90
-    }
+      "nonExecutedMaxDays": 90,
+      "maxFutureSkewSeconds": 300
+    },
+    "environmentReadExemptions": [
+      {
+        "name": "GITHUB_SHA",
+        "provider": "github-actions",
+        "reason": "GitHub Actions supplies the commit identity used only for evidence provenance."
+      },
+      {
+        "name": "MODE",
+        "provider": "vite",
+        "reason": "Vite supplies its built-in execution mode metadata."
+      }
+    ]
   },
   "goldenJourneys": [
-    { "id": "first-map", "title": "First Map", "status": "qualified", "candidateSampleId": "maplibre-quickstart" },
+    { "id": "first-map", "title": "First Map", "status": "planned", "candidateSampleId": "maplibre-quickstart" },
     { "id": "service-explorer", "title": "Universal Service Explorer", "status": "planned", "candidateSampleId": "service-explorer" },
     { "id": "planning-permitting", "title": "Planning and Permitting", "status": "planned", "candidateSampleId": "planning-permitting-workbench" },
     { "id": "incident-operations", "title": "Realtime Incident Operations", "status": "planned", "candidateSampleId": "realtime-incident-dashboard" },
@@ -140,32 +153,64 @@
     },
     "endpoint-to-map": {
       "track": "recipe",
-      "validationProfile": "browser-recipe"
+      "validationProfile": "browser-recipe",
+      "live": { "commands": [] }
     },
     "geocoding-quickstart": {
       "track": "recipe",
-      "validationProfile": "browser-recipe"
+      "validationProfile": "browser-recipe",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Move browser credential inputs behind a host-mediated flow before recipe promotion."
+      },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+      }
     },
     "geoprocessing-job-runner": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
-      "replacement": { "kind": "journey", "id": "cloud-native-analysis" }
+      "replacement": { "kind": "journey", "id": "cloud-native-analysis" },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads a process-service token variable."
+      }
     },
     "imagery-cog-quickstart": {
       "track": "recipe",
       "journeyId": "imagery-terrain",
       "validationProfile": "browser-recipe",
-      "replacement": { "kind": "journey", "id": "imagery-terrain" }
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Consolidate the imagery candidate and its overlapping recipes before journey qualification."
+      },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+      }
     },
     "kepler-analytics": {
       "track": "lab",
       "validationProfile": "browser-lab",
-      "live": { "mode": "public-live", "status": "planned" }
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle reads a public Mapbox token; it is explicitly classified as public, but the current browser policy does not approve credential values."
+      },
+      "live": { "mode": "public-live", "status": "planned", "commands": [] }
     },
     "maplibre-quickstart": {
-      "track": "golden",
+      "track": "recipe",
       "journeyId": "first-map",
-      "validationProfile": "golden-browser",
+      "validationProfile": "browser-recipe",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Remove the rejected browser credential variables from the supported configuration surface before journey qualification."
+      },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The source still reads browser API-key and bearer-token variables in order to reject them."
+      },
       "live": {
         "mode": "demo-live",
         "status": "executed",
@@ -181,7 +226,11 @@
       "track": "lab",
       "journeyId": "arcgis-migration",
       "validationProfile": "browser-lab",
-      "live": { "mode": "public-live", "status": "planned" }
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads a cloud-admin API-key variable."
+      },
+      "live": { "mode": "public-live", "status": "planned", "commands": [] }
     },
     "nl-map-control": {
       "track": "lab",
@@ -199,7 +248,7 @@
     "overture-geoparquet": {
       "track": "lab",
       "validationProfile": "browser-lab",
-      "live": { "mode": "public-live", "status": "planned" }
+      "live": { "mode": "public-live", "status": "planned", "commands": ["npm run evidence:overture:live"] }
     },
     "planning-permitting-workbench": {
       "track": "lab",
@@ -234,7 +283,11 @@
     "service-explorer": {
       "track": "lab",
       "journeyId": "service-explorer",
-      "validationProfile": "browser-lab"
+      "validationProfile": "browser-lab",
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+      }
     },
     "sketch-editing": {
       "track": "recipe",
@@ -266,7 +319,11 @@
     "storytelling-25d-map": {
       "track": "lab",
       "validationProfile": "browser-lab",
-      "replacement": { "kind": "journey", "id": "imagery-terrain" }
+      "replacement": { "kind": "journey", "id": "imagery-terrain" },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads a Honua API-key variable."
+      }
     },
     "temporal-playback": {
       "track": "recipe",
@@ -275,7 +332,11 @@
     "terrain-rgb-elevation": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
-      "replacement": { "kind": "journey", "id": "imagery-terrain" }
+      "replacement": { "kind": "journey", "id": "imagery-terrain" },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+      }
     },
     "unified-ops-workspace": {
       "track": "lab",

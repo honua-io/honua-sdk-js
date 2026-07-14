@@ -356,7 +356,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 34 executable examples: 1 qualified golden sample, 14 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 6 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 34 executable examples: 0 qualified golden samples, 15 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 7 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at the

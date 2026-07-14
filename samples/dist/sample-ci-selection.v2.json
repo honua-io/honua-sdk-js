@@ -9,7 +9,7 @@
     {
       "id": "first-map",
       "title": "First Map",
-      "status": "qualified",
+      "status": "planned",
       "candidateSampleId": "maplibre-quickstart"
     },
     {
@@ -116,6 +116,7 @@
         "geocoding-quickstart",
         "geoprocessing-job-runner",
         "imagery-cog-quickstart",
+        "maplibre-quickstart",
         "oauth-signin",
         "pmtiles-static",
         "react-quickstart",
@@ -138,9 +139,7 @@
         "performance": true,
         "liveEvidence": true
       },
-      "sampleIds": [
-        "maplibre-quickstart"
-      ]
+      "sampleIds": []
     },
     {
       "id": "headless-recipe",
@@ -455,9 +454,7 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": [
-            "npm run demo:endpoint-to-map"
-          ]
+          "commands": []
         }
       },
       "liveEvidence": {
@@ -618,9 +615,7 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": [
-            "npm run demo:kepler:refresh-fixture"
-          ]
+          "commands": []
         }
       },
       "liveEvidence": {
@@ -631,19 +626,19 @@
     {
       "id": "maplibre-quickstart",
       "sourcePath": "examples/maplibre-quickstart",
-      "track": "golden",
+      "track": "recipe",
       "journeyId": "first-map",
       "supportTier": "supported",
-      "validationProfile": "golden-browser",
+      "validationProfile": "browser-recipe",
       "gates": {
         "packedBuild": true,
         "browser": true,
         "accessibility": true,
         "console": true,
         "responsive": true,
-        "screenshot": true,
-        "performance": true,
-        "liveEvidence": true
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
       },
       "commandPlan": {
         "validation": {
@@ -747,9 +742,7 @@
         },
         "liveEvidence": {
           "execution": "scheduled-only",
-          "commands": [
-            "npm run demo:migration:featuretable:live"
-          ]
+          "commands": []
         }
       },
       "liveEvidence": {
@@ -912,7 +905,7 @@
         "liveEvidence": {
           "execution": "scheduled-only",
           "commands": [
-            "npm run evidence:overture:live -- --strict"
+            "npm run evidence:overture:live"
           ]
         }
       },

@@ -52,7 +52,37 @@
           "journeyId": { "type": "string" },
           "validationProfile": { "type": "string" },
           "replacement": { "type": "object" },
-          "live": { "type": "object" }
+          "configuration": {
+            "type": "object",
+            "required": ["status", "gap"],
+            "properties": {
+              "status": { "const": "legacy-unsafe" },
+              "gap": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          },
+          "lifecycle": {
+            "type": "object",
+            "required": ["state", "reason"],
+            "properties": {
+              "state": { "enum": ["active", "rework", "merge", "replace", "retire"] },
+              "reason": { "type": "string", "minLength": 1 },
+              "replacement": { "type": "object" }
+            },
+            "additionalProperties": false
+          },
+          "live": {
+            "type": "object",
+            "properties": {
+              "mode": { "enum": ["public-live", "demo-live", "authenticated", "degraded", "unavailable"] },
+              "targetMode": { "enum": ["public-live", "demo-live", "authenticated"] },
+              "status": { "enum": ["executed", "not-applicable", "planned", "skipped", "credential-unavailable", "failed"] },
+              "commands": { "type": "array", "items": { "type": "string" } },
+              "evidencePath": { "type": "string" },
+              "expiresAt": { "type": "string", "format": "date-time" }
+            },
+            "additionalProperties": false
+          }
         },
         "additionalProperties": false
       }

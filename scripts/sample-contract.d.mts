@@ -90,7 +90,20 @@ export function generatedOutputDrift(
   expectedOutputs: Map<string, string>,
   currentOutputs: Map<string, string>,
 ): string[];
-export function validateEvidenceEnvelope<T>(evidence: T): T;
+export function extractSampleConfiguration(
+  sourcePath: string,
+  exemptions?: Array<{ name: string }>,
+): Promise<string[]>;
+export function classifyConfigurationName(name: string): {
+  name: string;
+  exposure: "browser-public" | "server-only";
+  valueKind: "credential" | "non-secret";
+  credentialScope?: "public-token" | "secret";
+};
+export function validateEvidenceEnvelope<T>(
+  evidence: T,
+  options?: { now?: string; maxFutureSkewSeconds?: number },
+): T;
 export function validateLiveEvidenceProducer(
   evidence: Record<string, unknown>,
   sample: Record<string, unknown>,
