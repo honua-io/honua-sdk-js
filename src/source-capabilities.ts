@@ -10,7 +10,7 @@
  * @module
  */
 
-import type { ResolvedCrsDefinition } from "./contract/schema.js";
+import { type ResolvedCrsDefinition, validateSourceCrsDefinition } from "./contract/schema.js";
 import { type Capability as BuiltInCapabilityId, CAPABILITIES } from "./contract/types.js";
 import { canonicalStringify, sha256, toJsonValue } from "./query-planner/canonical.js";
 import type { JsonValue } from "./query-planner/types.js";
@@ -77,13 +77,23 @@ const SPATIAL_PREDICATES = new Set<SpatialPredicate>([
 const TEMPORAL_PREDICATES = new Set<TemporalPredicate>(["before", "after", "during", "time-intersects"]);
 const PAGINATION_MODES = new Set<PaginationMode>(["offset", "cursor", "next-link"]);
 const BUILT_IN_ENVIRONMENTS = new Set<string>(["browser", "worker", "node", "edge"]);
-const LIMIT_KEYS = new Set(["maxRecords", "maxRequestBytes", "maxResponseBytes"]);
-const RESOLVED_CRS_KINDS = new Set(["authority", "wkt", "uri", "projjson"]);
 const EXTENSION_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9_-]*\.)+[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const ISO_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 const MAX_IDENTIFIER_LENGTH = 256;
 const MAX_REFERENCE_LENGTH = 8_192;
+const MAX_CAPABILITY_ENTRIES = 256;
+const MAX_EVIDENCE_PER_ENTRY = 64;
+const MAX_SET_VALUES = 1_024;
+const MAX_PROFILE_GRAPH_DEPTH = 48;
+const MAX_PROFILE_GRAPH_NODES = 65_536;
+const MAX_PROFILE_BYTES = 2 * 1_024 * 1_024;
+const MAX_EXTENSION_GRAPH_DEPTH = 16;
+const MAX_EXTENSION_GRAPH_NODES = 4_096;
+const MAX_EXTENSION_BYTES = 256 * 1_024;
+const MAX_CRS_GRAPH_DEPTH = 36;
+const MAX_CRS_GRAPH_NODES = 8_192;
+const MAX_CRS_BYTES = 128 * 1_024;
 
 export type ExtensionIdentifier = `${string}.${string}`;
 export type Sha256 = `sha256:${string}`;
@@ -101,6 +111,8 @@ export interface CapabilityEvidence {
   /** Stable metadata/conformance/declaration identity; never credentials. */
   readonly reference: string;
   readonly observedAt?: IsoInstant;
+  /** Exclusive freshness boundary for metadata, conformance, and probe evidence. */
+  readonly expiresAt?: IsoInstant;
   /** Evidence identity only. The evaluator has no separate schema input. */
   readonly sourceFingerprint?: Sha256;
 }
@@ -199,6 +211,8 @@ export interface CapabilityAuthorizationContext {
 
 /** Dynamic inputs that must be refreshed before effective capability use. */
 export interface CapabilityEvaluationContext {
+  /** Explicit deterministic clock input. Omission makes observed evidence freshness unknown. */
+  readonly evaluatedAt?: IsoInstant;
   readonly policy?: CapabilityPolicy;
   readonly environment?: CapabilityRuntimeEnvironment;
   readonly availablePeers?: readonly string[];
@@ -222,6 +236,9 @@ export type CapabilityDecisionReason =
   | "claim-unknown"
   | "observation-unknown"
   | "observation-not-observed"
+  | "freshness-not-evaluated"
+  | "evidence-not-yet-current"
+  | "evidence-stale"
   | "policy-disabled"
   | `environment-unavailable:${string}`
   | `peer-unavailable:${string}`
@@ -237,6 +254,7 @@ export interface CapabilityDecision {
   readonly reasons: readonly CapabilityDecisionReason[];
   readonly authorizationScopes?: readonly string[];
   readonly constraints?: CapabilityConstraints;
+  readonly requirements?: CapabilityRequirements;
 }
 
 export interface CapabilityProfile {
@@ -248,6 +266,7 @@ export interface CapabilityProfile {
 }
 
 interface NormalizedContext {
+  readonly evaluatedAt?: bigint;
   readonly allow?: ReadonlySet<CapabilityId>;
   readonly deny: ReadonlySet<CapabilityId>;
   readonly environment?: CapabilityRuntimeEnvironment;
@@ -269,15 +288,35 @@ export function evaluateCapabilityProfile(
   context: CapabilityEvaluationContext = {},
 ): CapabilityProfile {
   if (!Array.isArray(entries)) throw new TypeError("Capability entries must be an array");
-  const normalizedContext = normalizeContext(context);
+  const inputBudget: InputBudget = { nodes: 0, bytes: 0 };
+  const safeEntries = snapshotInput(
+    entries,
+    "Capability entries",
+    new WeakSet<object>(),
+    inputBudget,
+  ) as readonly CapabilityEvaluationEntry[];
+  const safeContext = snapshotInput(
+    context,
+    "Capability evaluation context",
+    new WeakSet<object>(),
+    inputBudget,
+  ) as CapabilityEvaluationContext;
+  assertMaximumCount(safeEntries.length, MAX_CAPABILITY_ENTRIES, "Capability entries");
+  const normalizedContext = normalizeContext(safeContext);
   const ids = new Set<string>();
-  const decisions = entries.map((entry, index) => {
+  const decisions = safeEntries.map((entry, index) => {
     const normalized = normalizeEntry(entry, `entries[${index}]`);
     if (ids.has(normalized.id)) throw new TypeError(`Capability entries contain duplicate id ${normalized.id}`);
     ids.add(normalized.id);
     return evaluateEntry(normalized, normalizedContext);
   });
   decisions.sort((left, right) => compareStrings(left.id, right.id));
+
+  assertGraphBounds(decisions, "Capability profile", {
+    depth: MAX_PROFILE_GRAPH_DEPTH,
+    nodes: MAX_PROFILE_GRAPH_NODES,
+    bytes: MAX_PROFILE_BYTES,
+  });
 
   const fingerprint = capabilityProfileFingerprint(decisions);
   return deepFreeze({
@@ -290,19 +329,30 @@ export function evaluateCapabilityProfile(
 
 /** Deterministic JSON serialization for diagnostics and transport. */
 export function serializeCapabilityProfile(profile: CapabilityProfile): string {
-  return canonicalStringify(toJsonValue(profile));
+  const budget: InputBudget = { nodes: 0, bytes: 0 };
+  const safeProfile = snapshotInput(profile, "Capability profile", new WeakSet<object>(), budget) as CapabilityProfile;
+  return canonicalStringify(toJsonValue(safeProfile));
 }
 
 function evaluateEntry(entry: CapabilityEvaluationEntry, context: NormalizedContext): CapabilityDecision {
   let effective: EffectiveCapabilityState;
   let reasons: CapabilityDecisionReason[];
+  const freshnessReasons = observationFreshnessFailures(entry, context);
 
-  if (entry.claimed === "unsupported" || entry.observed === "unsupported") {
+  if (entry.claimed === "unsupported") {
     effective = "unsupported";
     reasons = [
-      ...(entry.claimed === "unsupported" ? (["unsupported-by-claim"] as const) : []),
-      ...(entry.observed === "unsupported" ? (["unsupported-by-observation"] as const) : []),
+      "unsupported-by-claim",
+      ...(entry.observed === "unsupported" && freshnessReasons.length === 0
+        ? (["unsupported-by-observation"] as const)
+        : []),
     ];
+  } else if (freshnessReasons.length > 0) {
+    effective = "unknown";
+    reasons = [...(entry.claimed === "unknown" ? (["claim-unknown"] as const) : []), ...freshnessReasons];
+  } else if (entry.observed === "unsupported") {
+    effective = "unsupported";
+    reasons = ["unsupported-by-observation"];
   } else if (entry.claimed === "unknown" || entry.observed === "unknown" || entry.observed === "not-observed") {
     effective = "unknown";
     reasons = [
@@ -343,6 +393,7 @@ function evaluateEntry(entry: CapabilityEvaluationEntry, context: NormalizedCont
     reasons: Object.freeze([...reasons].sort(compareStrings)),
     ...(entry.authorizationScopes === undefined ? {} : { authorizationScopes: entry.authorizationScopes }),
     ...(entry.constraints === undefined ? {} : { constraints: entry.constraints }),
+    ...(entry.requirements === undefined ? {} : { requirements: entry.requirements }),
   };
   return deepFreeze(decision);
 }
@@ -369,10 +420,51 @@ function availabilityFailures(
   return reasons.sort(compareStrings);
 }
 
+function observationFreshnessFailures(
+  entry: CapabilityEvaluationEntry,
+  context: NormalizedContext,
+): CapabilityDecisionReason[] {
+  if (entry.observed === "not-observed") return [];
+  if (context.evaluatedAt === undefined) return ["freshness-not-evaluated"];
+  const evaluatedAt = context.evaluatedAt;
+  const matching = entry.evidence.filter(
+    (evidence) => OBSERVED_EVIDENCE_KINDS.has(evidence.kind) && evidence.truth === entry.observed,
+  );
+  if (
+    matching.some(
+      (evidence) =>
+        isoInstantNanoseconds(evidence.observedAt!) <= evaluatedAt &&
+        evaluatedAt < isoInstantNanoseconds(evidence.expiresAt!),
+    )
+  ) {
+    return [];
+  }
+  const reasons: CapabilityDecisionReason[] = [];
+  if (matching.some((evidence) => evaluatedAt < isoInstantNanoseconds(evidence.observedAt!))) {
+    reasons.push("evidence-not-yet-current");
+  }
+  if (matching.some((evidence) => evaluatedAt >= isoInstantNanoseconds(evidence.expiresAt!))) {
+    reasons.push("evidence-stale");
+  }
+  return reasons.length === 0 ? ["evidence-stale"] : reasons.sort(compareStrings);
+}
+
 function normalizeContext(context: CapabilityEvaluationContext): NormalizedContext {
-  assertPlainObject(context, "Capability evaluation context");
-  if (context.policy !== undefined) assertPlainObject(context.policy, "policy");
-  if (context.authorization !== undefined) assertPlainObject(context.authorization, "authorization");
+  assertPlainObject(context, "Capability evaluation context", [
+    "evaluatedAt",
+    "policy",
+    "environment",
+    "availablePeers",
+    "authorization",
+  ]);
+  if (context.policy !== undefined) assertPlainObject(context.policy, "policy", ["allow", "deny"]);
+  if (context.authorization !== undefined) {
+    assertPlainObject(context.authorization, "authorization", ["grantedScopes", "deniedScopes"]);
+  }
+  const evaluatedAt = context.evaluatedAt;
+  if (evaluatedAt !== undefined && !isIsoInstant(evaluatedAt)) {
+    throw new TypeError("evaluatedAt must be an ISO-8601 UTC instant");
+  }
   const allow =
     context.policy?.allow === undefined ? undefined : normalizeCapabilityIds(context.policy.allow, "policy.allow");
   const deny = normalizeCapabilityIds(context.policy?.deny ?? [], "policy.deny");
@@ -390,7 +482,15 @@ function normalizeContext(context: CapabilityEvaluationContext): NormalizedConte
   for (const scope of grantedScopes) {
     if (deniedScopes.has(scope)) throw new TypeError(`Authorization scope ${scope} cannot be both granted and denied`);
   }
-  return { allow, deny, environment, availablePeers, grantedScopes, deniedScopes };
+  return {
+    ...(evaluatedAt === undefined ? {} : { evaluatedAt: isoInstantNanoseconds(evaluatedAt) }),
+    allow,
+    deny,
+    environment,
+    availablePeers,
+    grantedScopes,
+    deniedScopes,
+  };
 }
 
 function normalizeEntry(entry: CapabilityEvaluationEntry, path: string): CapabilityEvaluationEntry {
@@ -398,6 +498,15 @@ function normalizeEntry(entry: CapabilityEvaluationEntry, path: string): Capabil
   if (Object.hasOwn(entry, "effective")) {
     throw new TypeError(`${path} must contain cacheable evidence, not a previously effective decision`);
   }
+  assertExactKeys(entry, path, [
+    "id",
+    "claimed",
+    "observed",
+    "evidence",
+    "authorizationScopes",
+    "constraints",
+    "requirements",
+  ]);
   validateCapabilityId(entry.id, `${path}.id`);
   if (!CAPABILITY_TRUTHS.has(entry.claimed)) throw new TypeError(`${path}.claimed is not a capability truth`);
   if (entry.observed !== "not-observed" && !CAPABILITY_TRUTHS.has(entry.observed)) {
@@ -426,15 +535,29 @@ function normalizeEntry(entry: CapabilityEvaluationEntry, path: string): Capabil
 
 function normalizeEvidence(values: readonly CapabilityEvidence[], path: string): readonly CapabilityEvidence[] {
   if (!Array.isArray(values) || values.length === 0) throw new TypeError(`${path} must be a non-empty array`);
+  assertMaximumCount(values.length, MAX_EVIDENCE_PER_ENTRY, path);
   const identities = new Set<string>();
   const evidence = values.map((value, index): CapabilityEvidence => {
     const itemPath = `${path}[${index}]`;
-    assertPlainObject(value, itemPath);
+    assertPlainObject(value, itemPath, ["kind", "truth", "reference", "observedAt", "expiresAt", "sourceFingerprint"]);
     if (!EVIDENCE_KINDS.has(value.kind)) throw new TypeError(`${itemPath}.kind is not supported`);
     if (!CAPABILITY_TRUTHS.has(value.truth)) throw new TypeError(`${itemPath}.truth is not supported`);
     validateBoundedText(value.reference, `${itemPath}.reference`, MAX_REFERENCE_LENGTH);
     if (value.observedAt !== undefined && !isIsoInstant(value.observedAt)) {
       throw new TypeError(`${itemPath}.observedAt must be an ISO-8601 UTC instant`);
+    }
+    if (value.expiresAt !== undefined && !isIsoInstant(value.expiresAt)) {
+      throw new TypeError(`${itemPath}.expiresAt must be an ISO-8601 UTC instant`);
+    }
+    if (OBSERVED_EVIDENCE_KINDS.has(value.kind)) {
+      if (value.observedAt === undefined || value.expiresAt === undefined) {
+        throw new TypeError(`${itemPath} observed evidence requires observedAt and expiresAt freshness bounds`);
+      }
+      if (isoInstantNanoseconds(value.expiresAt) <= isoInstantNanoseconds(value.observedAt)) {
+        throw new TypeError(`${itemPath}.expiresAt must be later than observedAt`);
+      }
+    } else if (value.observedAt !== undefined || value.expiresAt !== undefined) {
+      throw new TypeError(`${itemPath} claim evidence must not contain observation freshness timestamps`);
     }
     if (value.sourceFingerprint !== undefined && !SHA256_PATTERN.test(value.sourceFingerprint)) {
       throw new TypeError(`${itemPath}.sourceFingerprint must be a lowercase SHA-256 digest`);
@@ -454,6 +577,7 @@ function normalizeEvidence(values: readonly CapabilityEvidence[], path: string):
       truth: value.truth,
       reference: value.reference,
       ...(value.observedAt === undefined ? {} : { observedAt: value.observedAt }),
+      ...(value.expiresAt === undefined ? {} : { expiresAt: value.expiresAt }),
       ...(value.sourceFingerprint === undefined ? {} : { sourceFingerprint: value.sourceFingerprint }),
     });
   });
@@ -490,7 +614,17 @@ function assertEvidenceMatchesTruth(
 }
 
 function normalizeConstraints(value: CapabilityConstraints, path: string): CapabilityConstraints {
-  assertPlainObject(value, path);
+  assertPlainObject(value, path, [
+    "inputFormats",
+    "outputFormats",
+    "filterOperators",
+    "spatialPredicates",
+    "temporalPredicates",
+    "supportedCrs",
+    "pagination",
+    "limits",
+    "extensions",
+  ]);
   const inputFormats = normalizeOptionalStrings(value.inputFormats, `${path}.inputFormats`);
   const outputFormats = normalizeOptionalStrings(value.outputFormats, `${path}.outputFormats`);
   const filterOperators = normalizeOptionalIdentifiers(
@@ -543,11 +677,11 @@ function normalizeConstraints(value: CapabilityConstraints, path: string): Capab
 }
 
 function normalizeRequirements(value: CapabilityRequirements, path: string): CapabilityRequirements {
-  assertPlainObject(value, path);
+  assertPlainObject(value, path, ["environments", "peers"]);
   const environments =
     value.environments === undefined
       ? undefined
-      : normalizeOptionalIdentifiers(value.environments, `${path}.environments`, validateEnvironment);
+      : normalizeRequiredIdentifiers(value.environments, `${path}.environments`, validateEnvironment);
   const peers =
     value.peers === undefined ? undefined : normalizeRequiredOpaqueIdentifiers(value.peers, `${path}.peers`);
   if (environments === undefined && peers === undefined)
@@ -559,8 +693,8 @@ function normalizeRequirements(value: CapabilityRequirements, path: string): Cap
 }
 
 function normalizePagination(value: NonNullable<CapabilityConstraints["pagination"]>, path: string) {
-  assertPlainObject(value, path);
-  const modes = normalizeRequiredIdentifiers(value.modes, `${path}.modes`, (entry, itemPath) => {
+  assertPlainObject(value, path, ["modes", "maxPageSize"]);
+  const modes = normalizeSetIdentifiers(value.modes, `${path}.modes`, (entry, itemPath) => {
     if (!PAGINATION_MODES.has(entry as PaginationMode)) throw new TypeError(`${itemPath} is not a pagination mode`);
   }) as readonly PaginationMode[];
   if (value.maxPageSize !== undefined) validatePositiveInteger(value.maxPageSize, `${path}.maxPageSize`);
@@ -568,9 +702,8 @@ function normalizePagination(value: NonNullable<CapabilityConstraints["paginatio
 }
 
 function normalizeLimits(value: NonNullable<CapabilityConstraints["limits"]>, path: string) {
-  assertPlainObject(value, path);
+  assertPlainObject(value, path, ["maxRecords", "maxRequestBytes", "maxResponseBytes"]);
   for (const [name, limit] of Object.entries(value)) {
-    if (!LIMIT_KEYS.has(name)) continue;
     if (limit !== undefined) validatePositiveInteger(limit, `${path}.${name}`);
   }
   const normalized = {
@@ -583,21 +716,21 @@ function normalizeLimits(value: NonNullable<CapabilityConstraints["limits"]>, pa
 }
 
 function normalizeCrs(values: readonly ResolvedCrsDefinition[], path: string): readonly ResolvedCrsDefinition[] {
-  if (!Array.isArray(values) || values.length === 0) throw new TypeError(`${path} must be a non-empty array`);
+  if (!Array.isArray(values)) throw new TypeError(`${path} must be an array`);
+  assertMaximumCount(values.length, MAX_SET_VALUES, path);
   const canonical = values.map((value, index) => {
-    const json = toJsonValue(value, `${path}[${index}]`);
-    if (json === null || Array.isArray(json) || typeof json !== "object") {
-      throw new TypeError(`${path}[${index}] must be a resolved CRS object`);
-    }
-    const crs = json as { readonly kind?: JsonValue; readonly validation?: JsonValue };
-    if (
-      typeof crs.kind !== "string" ||
-      !RESOLVED_CRS_KINDS.has(crs.kind) ||
-      (crs.kind === "wkt" && crs.validation !== "engine")
-    ) {
+    assertGraphBounds(value, `${path}[${index}]`, {
+      depth: MAX_CRS_GRAPH_DEPTH,
+      nodes: MAX_CRS_GRAPH_NODES,
+      bytes: MAX_CRS_BYTES,
+    });
+    const definition = validateSourceCrsDefinition(value);
+    if (definition.kind === "unknown" || (definition.kind === "wkt" && definition.validation !== "engine")) {
       throw new TypeError(`${path}[${index}] must contain an executable resolved CRS`);
     }
-    return { key: canonicalStringify(json), value: json as unknown as ResolvedCrsDefinition };
+    const resolved = definition as ResolvedCrsDefinition;
+    const json = toJsonValue(resolved, `${path}[${index}]`);
+    return { key: canonicalStringify(json), value: resolved };
   });
   rejectDuplicateKeys(
     canonical.map((entry) => entry.key),
@@ -609,6 +742,11 @@ function normalizeCrs(values: readonly ResolvedCrsDefinition[], path: string): r
 
 function normalizeExtensions(value: ExtensionMap, path: string): ExtensionMap {
   assertPlainObject(value, path);
+  assertGraphBounds(value, path, {
+    depth: MAX_EXTENSION_GRAPH_DEPTH,
+    nodes: MAX_EXTENSION_GRAPH_NODES,
+    bytes: MAX_EXTENSION_BYTES,
+  });
   for (const key of Object.keys(value)) {
     if (!isExtensionIdentifier(key)) throw new TypeError(`${path}.${key} must use a reverse-DNS extension id`);
   }
@@ -620,7 +758,7 @@ function normalizeExtensions(value: ExtensionMap, path: string): ExtensionMap {
 
 function normalizeOptionalStrings(values: readonly string[] | undefined, path: string): readonly string[] | undefined {
   if (values === undefined) return undefined;
-  return normalizeRequiredIdentifiers(values, path, (value, itemPath) =>
+  return normalizeSetIdentifiers(values, path, (value, itemPath) =>
     validateBoundedText(value, itemPath, MAX_REFERENCE_LENGTH),
   );
 }
@@ -631,7 +769,7 @@ function normalizeOptionalIdentifiers<T extends string>(
   validate: (value: string, path: string) => void,
 ): readonly T[] | undefined {
   if (values === undefined) return undefined;
-  return normalizeRequiredIdentifiers(values, path, validate) as readonly T[];
+  return normalizeSetIdentifiers(values, path, validate);
 }
 
 function normalizeRequiredIdentifiers<T extends string>(
@@ -640,6 +778,16 @@ function normalizeRequiredIdentifiers<T extends string>(
   validate: (value: string, path: string) => void,
 ): readonly T[] {
   if (!Array.isArray(values) || values.length === 0) throw new TypeError(`${path} must be a non-empty array`);
+  return normalizeSetIdentifiers(values, path, validate);
+}
+
+function normalizeSetIdentifiers<T extends string>(
+  values: readonly T[],
+  path: string,
+  validate: (value: string, path: string) => void,
+): readonly T[] {
+  if (!Array.isArray(values)) throw new TypeError(`${path} must be an array`);
+  assertMaximumCount(values.length, MAX_SET_VALUES, path);
   const normalized = values.map((value, index) => {
     validate(value, `${path}[${index}]`);
     return value;
@@ -650,6 +798,7 @@ function normalizeRequiredIdentifiers<T extends string>(
 
 function normalizeCapabilityIds(values: readonly CapabilityId[], path: string): ReadonlySet<CapabilityId> {
   if (!Array.isArray(values)) throw new TypeError(`${path} must be an array`);
+  assertMaximumCount(values.length, MAX_SET_VALUES, path);
   values.forEach((value, index) => validateCapabilityId(value, `${path}[${index}]`));
   rejectDuplicateKeys(values, path);
   return new Set(values);
@@ -657,6 +806,7 @@ function normalizeCapabilityIds(values: readonly CapabilityId[], path: string): 
 
 function normalizeOpaqueIdentifiers(values: readonly string[], path: string): ReadonlySet<string> {
   if (!Array.isArray(values)) throw new TypeError(`${path} must be an array`);
+  assertMaximumCount(values.length, MAX_SET_VALUES, path);
   values.forEach((value, index) => validateBoundedText(value, `${path}[${index}]`, MAX_IDENTIFIER_LENGTH));
   rejectDuplicateKeys(values, path);
   return new Set(values);
@@ -709,6 +859,12 @@ function isIsoInstant(value: string): boolean {
   return !Number.isNaN(timestamp) && new Date(timestamp).toISOString().slice(0, 19) === value.slice(0, 19);
 }
 
+function isoInstantNanoseconds(value: IsoInstant): bigint {
+  const fraction = ISO_INSTANT_PATTERN.exec(value)?.[0].split(".")[1]?.slice(0, -1) ?? "";
+  const second = Date.parse(`${value.slice(0, 19)}Z`);
+  return BigInt(second) * 1_000_000n + BigInt(fraction.padEnd(9, "0") || "0");
+}
+
 function evidenceSortKey(value: CapabilityEvidence): string {
   return canonicalStringify(toJsonValue([value.kind, value.truth, value.reference, value.sourceFingerprint ?? ""]));
 }
@@ -722,20 +878,203 @@ function capabilityProfileFingerprint(entries: readonly CapabilityDecision[]): S
       claimed: entry.claimed,
       observed: entry.observed,
       effective: entry.effective,
-      evidence: entry.evidence.map(({ observedAt: _observedAt, ...evidence }) => evidence),
+      evidence: entry.evidence.map(({ observedAt: _observedAt, expiresAt: _expiresAt, ...evidence }) => evidence),
       reasons: entry.reasons,
       ...(entry.authorizationScopes === undefined ? {} : { authorizationScopes: entry.authorizationScopes }),
       ...(entry.constraints === undefined ? {} : { constraints: entry.constraints }),
+      ...(entry.requirements === undefined ? {} : { requirements: entry.requirements }),
     })),
   };
   return sha256(`${CAPABILITY_PROFILE_FINGERPRINT_DOMAIN}\n${canonicalStringify(toJsonValue(projection))}`);
 }
 
-function assertPlainObject(value: unknown, path: string): void {
+function assertPlainObject(value: unknown, path: string, allowedKeys?: readonly string[]): void {
   if (value === null || typeof value !== "object" || Array.isArray(value))
     throw new TypeError(`${path} must be an object`);
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) throw new TypeError(`${path} must be a plain object`);
+  if (allowedKeys !== undefined) assertExactKeys(value, path, allowedKeys);
+}
+
+interface InputBudget {
+  nodes: number;
+  bytes: number;
+}
+
+interface GraphLimits {
+  readonly depth: number;
+  readonly nodes: number;
+  readonly bytes: number;
+}
+
+/** Clone untrusted inputs without consulting prototypes or invoking accessors. */
+function snapshotInput(
+  value: unknown,
+  path: string,
+  ancestors: WeakSet<object>,
+  budget: InputBudget,
+  depth = 0,
+): unknown {
+  consumeInputBudget(value, path, budget, depth);
+  if (
+    value === undefined ||
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value;
+  }
+  if (typeof value !== "object") throw new TypeError(`${path} contains unsupported ${typeof value}`);
+  if (ancestors.has(value)) throw new TypeError(`${path} must not contain cycles`);
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) return snapshotArray(value, path, ancestors, budget, depth);
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new TypeError(`${path} must contain only plain objects and arrays`);
+    }
+    const snapshot: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    for (const key of Reflect.ownKeys(value)) {
+      if (typeof key !== "string") throw new TypeError(`${path} must not contain symbol keys`);
+      consumeInputText(key, `${path}.${key}`, budget);
+      const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
+      assertEnumerableDataProperty(descriptor, `${path}.${key}`);
+      Object.defineProperty(snapshot, key, {
+        value: snapshotInput(descriptor.value, `${path}.${key}`, ancestors, budget, depth + 1),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return snapshot;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
+function snapshotArray(
+  value: readonly unknown[],
+  path: string,
+  ancestors: WeakSet<object>,
+  budget: InputBudget,
+  depth: number,
+): readonly unknown[] {
+  if (value.length > MAX_PROFILE_GRAPH_NODES - budget.nodes) {
+    throw new TypeError(`${path} exceeds the ${MAX_PROFILE_GRAPH_NODES} node profile limit`);
+  }
+  for (const key of Reflect.ownKeys(value)) {
+    if (key === "length") continue;
+    if (typeof key !== "string" || !isArrayIndex(key, value.length)) {
+      throw new TypeError(`${path} contains unsupported array property ${String(key)}`);
+    }
+  }
+  const snapshot: unknown[] = [];
+  for (let index = 0; index < value.length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (descriptor === undefined) throw new TypeError(`${path}[${index}] must be an own data property`);
+    assertEnumerableDataProperty(descriptor, `${path}[${index}]`);
+    snapshot.push(snapshotInput(descriptor.value, `${path}[${index}]`, ancestors, budget, depth + 1));
+  }
+  return snapshot;
+}
+
+function consumeInputBudget(value: unknown, path: string, budget: InputBudget, depth: number): void {
+  if (depth > MAX_PROFILE_GRAPH_DEPTH) {
+    throw new TypeError(`${path} exceeds the maximum input graph depth ${MAX_PROFILE_GRAPH_DEPTH}`);
+  }
+  budget.nodes += 1;
+  if (budget.nodes > MAX_PROFILE_GRAPH_NODES) {
+    throw new TypeError(`${path} exceeds the ${MAX_PROFILE_GRAPH_NODES} node profile limit`);
+  }
+  budget.bytes += scalarByteLength(value) + 1;
+  if (budget.bytes > MAX_PROFILE_BYTES) {
+    throw new TypeError(`${path} exceeds the ${MAX_PROFILE_BYTES} byte profile limit`);
+  }
+}
+
+function consumeInputText(value: string, path: string, budget: InputBudget): void {
+  const remaining = MAX_PROFILE_BYTES - budget.bytes;
+  if (value.length > remaining) throw new TypeError(`${path} exceeds the ${MAX_PROFILE_BYTES} byte profile limit`);
+  budget.bytes += scalarByteLength(value) + 1;
+  if (budget.bytes > MAX_PROFILE_BYTES) {
+    throw new TypeError(`${path} exceeds the ${MAX_PROFILE_BYTES} byte profile limit`);
+  }
+}
+
+function scalarByteLength(value: unknown): number {
+  if (typeof value === "string") {
+    if (value.length > MAX_PROFILE_BYTES) return MAX_PROFILE_BYTES + 1;
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  }
+  if (typeof value === "number") return String(value).length;
+  if (typeof value === "boolean") return value ? 4 : 5;
+  if (value === null) return 4;
+  if (value === undefined) return 9;
+  return 2;
+}
+
+function assertGraphBounds(value: unknown, path: string, limits: GraphLimits): void {
+  const stack: Array<{ readonly value: unknown; readonly depth: number }> = [{ value, depth: 0 }];
+  const seen = new WeakSet<object>();
+  let nodes = 0;
+  let bytes = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (current.depth > limits.depth) {
+      throw new TypeError(`${path} exceeds the maximum graph depth ${limits.depth}`);
+    }
+    nodes += 1;
+    if (nodes > limits.nodes) throw new TypeError(`${path} exceeds the ${limits.nodes} node limit`);
+    bytes += scalarByteLength(current.value) + 1;
+    if (bytes > limits.bytes) throw new TypeError(`${path} exceeds the ${limits.bytes} byte limit`);
+    if (current.value === null || typeof current.value !== "object") continue;
+    if (seen.has(current.value)) throw new TypeError(`${path} must not contain repeated or cyclic object references`);
+    seen.add(current.value);
+    if (Array.isArray(current.value)) {
+      if (current.value.length > limits.nodes - nodes) {
+        throw new TypeError(`${path} exceeds the ${limits.nodes} node limit`);
+      }
+      for (let index = current.value.length - 1; index >= 0; index--) {
+        stack.push({ value: current.value[index], depth: current.depth + 1 });
+      }
+      continue;
+    }
+    for (const key of Object.keys(current.value)) {
+      bytes += scalarByteLength(key) + 1;
+      if (bytes > limits.bytes) throw new TypeError(`${path} exceeds the ${limits.bytes} byte limit`);
+      stack.push({
+        value: (current.value as Record<string, unknown>)[key],
+        depth: current.depth + 1,
+      });
+    }
+  }
+}
+
+function assertMaximumCount(count: number, maximum: number, path: string): void {
+  if (count > maximum) throw new TypeError(`${path} exceeds the maximum count ${maximum}`);
+}
+
+function assertEnumerableDataProperty(
+  descriptor: PropertyDescriptor,
+  path: string,
+): asserts descriptor is PropertyDescriptor & {
+  readonly value: unknown;
+} {
+  if (!("value" in descriptor)) throw new TypeError(`${path} must be a data property; accessors are not supported`);
+  if (!descriptor.enumerable) throw new TypeError(`${path} must be enumerable`);
+}
+
+function isArrayIndex(key: string, length: number): boolean {
+  if (!/^(?:0|[1-9]\d*)$/.test(key)) return false;
+  const index = Number(key);
+  return Number.isSafeInteger(index) && index >= 0 && index < length && String(index) === key;
+}
+
+function assertExactKeys(value: object, path: string, allowedKeys: readonly string[]): void {
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key)) throw new TypeError(`${path} contains unknown key ${key}`);
+  }
 }
 
 function rejectDuplicateKeys(values: readonly string[], path: string): void {

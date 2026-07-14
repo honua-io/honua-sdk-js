@@ -46,7 +46,7 @@
     "/query-planner was reset for versioned opaque GeoParquet resource handles and the lifecycle-scoped resolver registry (#587): strict scope/expiry/cancellation checks, bounded private locator resolution, and fixed redacted errors measure 101,266 minified / 29,409 gzip bytes. Both ceilings are measured actual plus 10% headroom. /geoparquet's exceeded minified ceiling was likewise reset after the shared resource-resolution error codes added 9 bytes to that entrypoint; its gzip ceiling remained unchanged.",
     "/query-planner was reset for the typed semantic-query S1 runtime (#526): bounded untrusted parsing, complete SourceSchemaV2 field/type/domain validation, exact decimal and temporal admission, immutable typed builders, and native-dialect checks measure 380,453 minified / 66,427 gzip bytes. The opt-in subpath ceiling is the measured exact-head size plus 10% headroom; root, /honua, browser, and protocol-specific entrypoints remain unchanged.",
     "/query-planner was reset at the completed semantic-query S2 boundary (#526): deterministic canonical identity, strict lossless CQL2 JSON 1.0 interchange with prototype-pollution resistance, and the explicit raw-where compatibility bridge measure 408,678 minified / 73,290 gzip bytes. Both ceilings are the measured exact-head size plus 10% headroom; the codec remains opt-in, and root, /honua, browser, and protocol-specific budget ceilings remain unchanged.",
-    "/source-capabilities gained its first dedicated guard with the pure capability-profile evaluator (#525 slice 1): claimed/observed evidence normalization, effective policy/environment/peer/authorization evaluation, and deterministic fingerprinting measure 16,720 minified / 5,624 gzip bytes. The focused experimental subpath excludes the SourceSchemaV2 validator and has 10% headroom."
+    "/source-capabilities was reset after #525 slice 1 review required complete ResolvedCrsDefinition and official PROJJSON v0.7 validation plus bounded, pollution-safe, freshness-aware capability evaluation. The focused experimental subpath intentionally shares the pinned CRS validator and measures 239,749 minified / 27,275 gzip bytes; ceilings are measured actual plus 10% headroom."
   ],
   "entrypoints": {
     ".": {
@@ -66,8 +66,8 @@
       "gzip": 137190
     },
     "/source-capabilities": {
-      "min": 18392,
-      "gzip": 6187
+      "min": 263724,
+      "gzip": 30003
     },
     "/plugin": {
       "min": 64080,

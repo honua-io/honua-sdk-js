@@ -342,15 +342,26 @@ if (HONUA_PLUGIN_MANIFEST_VERSION !== 1 || typeof validateHonuaPluginManifest !=
   throw new Error("plugin certification exports missing from @honua/sdk/plugin");
 if (typeof createSourceSchemaV2 !== "function")
   throw new Error("createSourceSchemaV2 export missing from @honua/sdk/source-schema");
-const capabilityProfile = evaluateCapabilityProfile([{
-  id: "query",
-  claimed: "supported",
-  observed: "supported",
-  evidence: [
-    { kind: "protocol-default", truth: "supported", reference: "split-package-smoke" },
-    { kind: "metadata", truth: "supported", reference: "split-package-smoke" },
+const capabilityProfile = evaluateCapabilityProfile(
+  [
+    {
+      id: "query",
+      claimed: "supported",
+      observed: "supported",
+      evidence: [
+        { kind: "protocol-default", truth: "supported", reference: "split-package-smoke" },
+        {
+          kind: "metadata",
+          truth: "supported",
+          reference: "split-package-smoke",
+          observedAt: "2026-07-14T12:00:00Z",
+          expiresAt: "2026-07-15T12:00:00Z",
+        },
+      ],
+    },
   ],
-}]);
+  { evaluatedAt: "2026-07-14T12:00:01Z" },
+);
 if (capabilityProfile.entries[0]?.effective !== "supported")
   throw new Error("evaluateCapabilityProfile export missing from @honua/sdk/source-capabilities");
 {
