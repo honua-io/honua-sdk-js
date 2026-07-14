@@ -535,7 +535,17 @@
         },
         {
           "operations": [
-            "sql",
+            "sql"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "core-client-fixtures"
+          ]
+        },
+        {
+          "operations": [
             "stream"
           ],
           "environment": "protocol-adapter",
@@ -590,7 +600,18 @@
           "operations": [
             "query",
             "queryAggregate",
-            "queryExtent",
+            "queryExtent"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "contract-conformance",
+            "honua-surface-fixtures"
+          ]
+        },
+        {
+          "operations": [
             "queryObjectIds",
             "queryRelated"
           ],
@@ -598,7 +619,6 @@
           "executionMode": "native",
           "status": "supported",
           "evidence": [
-            "contract-conformance",
             "geoservices-conformance",
             "honua-surface-fixtures"
           ]
@@ -628,7 +648,17 @@
         },
         {
           "operations": [
-            "sql",
+            "sql"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "honua-surface-fixtures"
+          ]
+        },
+        {
+          "operations": [
             "stream"
           ],
           "environment": "protocol-adapter",
@@ -662,8 +692,28 @@
         {
           "operations": [
             "image",
-            "render",
-            "tiles",
+            "render"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance"
+          ]
+        },
+        {
+          "operations": [
+            "tiles"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance"
+          ]
+        },
+        {
+          "operations": [
             "connect"
           ],
           "environment": "protocol-adapter",
@@ -682,7 +732,17 @@
       "operationClaims": [
         {
           "operations": [
-            "geometry",
+            "geometry"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance"
+          ]
+        },
+        {
+          "operations": [
             "connect"
           ],
           "environment": "protocol-adapter",
@@ -1030,14 +1090,38 @@
       "api": "connect(), HonuaClient.queryFeatures, Source",
       "notes": "Uses the raw FeatureServer query path; fixture- and live-proven without a Honua account or server.",
       "evidence": [
+        "contract-conformance",
         "geoservices-conformance",
         "standalone-live"
       ]
     },
     {
-      "id": "geoservices-map-image-standalone",
-      "label": "GeoServices MapServer and ImageServer reads",
+      "id": "geoservices-map-standalone",
+      "label": "GeoServices MapServer reads",
       "protocol": "geoservices-map-service",
+      "operations": [
+        "query",
+        "render",
+        "tiles"
+      ],
+      "environment": "standalone",
+      "executionMode": "native",
+      "status": "supported",
+      "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
+      "api": "HonuaClient.mapService, Source",
+      "notes": "Uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles.",
+      "evidence": [
+        "honua-surface-fixtures",
+        "connect-fixtures",
+        "tile-layer-fixtures",
+        "map-service-integration",
+        "standalone-live"
+      ]
+    },
+    {
+      "id": "geoservices-image-standalone",
+      "label": "GeoServices ImageServer reads",
+      "protocol": "geoservices-image-service",
       "operations": [
         "query",
         "render",
@@ -1048,14 +1132,11 @@
       "executionMode": "native",
       "status": "supported",
       "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
-      "api": "HonuaClient.mapService, HonuaClient.imageService",
-      "notes": "Uses raw GeoServices paths for query, export, identify, legend, and find.",
+      "api": "HonuaClient.imageService, Source.protocol()",
+      "notes": "Uses raw ImageServer paths for raster-catalog queries, export, identify, and cached tiles.",
       "evidence": [
-        "honua-surface-fixtures",
         "geoservices-conformance",
-        "map-service-integration",
-        "image-service-integration",
-        "standalone-live"
+        "image-service-integration"
       ]
     },
     {
