@@ -77,11 +77,18 @@ Mapbox token. Legacy status never hides observed names. The Cesium route lab is
 also explicitly legacy-unsafe with an empty environment inventory because its
 remaining unsafe inputs are URL-query parameters.
 `credentialQueryParameters` is the canonical normalized deny-list shared by the
-catalog and evidence-envelope URL validator; catalog drift or a matching query
-key fails verification. Query names are NFKC-normalized, split at camel-case
-boundaries, lowercased, and reduced to underscore-delimited tokens before exact
-or token-boundary suffix matching. Ordinary words that merely contain `key`,
-`token`, `secret`, or `signature` remain valid.
+catalog, generated projections, and evidence-envelope URL validator; catalog
+drift, user information in any valid `scheme://` URL, or a matching query key
+fails verification. Credential-shaped bearer/JWT values, correctly formed AWS
+access-key identifiers, private-key headers, and non-placeholder credential
+assignments with token-like lengths also fail before publication. Query names
+are NFKC-normalized, split at camel-case boundaries, lowercased, and reduced to
+underscore-delimited tokens before exact or token-boundary suffix matching.
+Ordinary words that merely contain `key`, `token`, `secret`, or `signature`
+remain valid. Property names participate in the same scan; normalized sensitive
+properties accept only declarative placeholders or configuration-name
+references. Traversal rejects cycles and is bounded to 64 levels and 50,000
+nodes before any schema engine sees programmatic input.
 
 Every mock-server Vite build uses the shared fixture environment boundary. It
 preserves non-browser build controls, removes all inherited `VITE_*` values,
