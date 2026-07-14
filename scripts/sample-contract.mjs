@@ -352,39 +352,6 @@ function unwrapExpression(node) {
   return current;
 }
 
-function directEnvironmentRootKind(node) {
-  const expression = unwrapExpression(node);
-  let target;
-  if (ts.isPropertyAccessExpression(expression) && expression.name.text === "env") {
-    target = unwrapExpression(expression.expression);
-  } else if (
-    ts.isElementAccessExpression(expression) &&
-    stringLiteralValue(unwrapExpression(expression.argumentExpression)) === "env"
-  ) {
-    target = unwrapExpression(expression.expression);
-  } else {
-    return undefined;
-  }
-  if (ts.isIdentifier(target) && target.text === "process") return "process.env";
-  if (ts.isMetaProperty(target) && target.keywordToken === ts.SyntaxKind.ImportKeyword) return "import.meta.env";
-  return undefined;
-}
-
-function isDirectEnvironmentRoot(node) {
-  return directEnvironmentRootKind(node) !== undefined;
-}
-
-function isDynamicEnvironmentRoot(node) {
-  const expression = unwrapExpression(node);
-  if (!ts.isElementAccessExpression(expression)) return false;
-  if (stringLiteralValue(unwrapExpression(expression.argumentExpression)) !== undefined) return false;
-  const target = unwrapExpression(expression.expression);
-  return (
-    (ts.isIdentifier(target) && target.text === "process") ||
-    (ts.isMetaProperty(target) && target.keywordToken === ts.SyntaxKind.ImportKeyword)
-  );
-}
-
 function propertyName(node) {
   if (ts.isIdentifier(node) || ts.isStringLiteral(node) || ts.isNumericLiteral(node)) return node.text;
   return undefined;
@@ -401,28 +368,31 @@ function analyzeConfigurationSource(sourceFile, file) {
   const wholeEnvironmentEscapes = [];
   const declarations = [];
   const calls = [];
+  const lexicalValueDeclarations = [];
   const functionInfoByNode = new Map();
-  const functionsByName = new Map();
 
   const collect = (node) => {
     if (ts.isVariableDeclaration(node)) {
       declarations.push(node);
     }
     if (ts.isCallExpression(node)) calls.push(node);
+    if (
+      (ts.isClassDeclaration(node) || ts.isEnumDeclaration(node) || ts.isModuleDeclaration(node)) &&
+      node.name &&
+      ts.isIdentifier(node.name)
+    ) {
+      lexicalValueDeclarations.push(node);
+    }
+    if (ts.isCatchClause(node) && node.variableDeclaration) {
+      lexicalValueDeclarations.push(node.variableDeclaration);
+    }
     if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
       const name = functionName(node);
       const info = {
         name,
         node,
-        parameters: node.parameters.map((parameter) =>
-          ts.isIdentifier(parameter.name) ? parameter.name.text : undefined,
-        ),
       };
       functionInfoByNode.set(node, info);
-      if (name) {
-        if (!functionsByName.has(name)) functionsByName.set(name, []);
-        functionsByName.get(name).push(info);
-      }
     }
     ts.forEachChild(node, collect);
   };
@@ -437,18 +407,14 @@ function analyzeConfigurationSource(sourceFile, file) {
     }
     return undefined;
   };
-
-  for (const info of functionInfoByNode.values()) {
-    info.parent = enclosingFunction(info.node);
-  }
-
   const isLexicalScope = (node) =>
     ts.isSourceFile(node) ||
     ts.isBlock(node) ||
     ts.isCaseBlock(node) ||
     ts.isForStatement(node) ||
     ts.isForInStatement(node) ||
-    ts.isForOfStatement(node);
+    ts.isForOfStatement(node) ||
+    ts.isCatchClause(node);
   const variableScope = (declaration) => {
     const declarationList = declaration.parent;
     let current = declaration.parent;
@@ -472,14 +438,48 @@ function analyzeConfigurationSource(sourceFile, file) {
     if (!lexicalBindingsByName.has(name)) lexicalBindingsByName.set(name, []);
     lexicalBindingsByName.get(name).push({ scope, node });
   };
+  const declarationScope = (node) => {
+    let current = node.parent;
+    while (current && !isLexicalScope(current) && !functionInfoByNode.has(current)) {
+      current = current.parent;
+    }
+    return current;
+  };
+  const addBindingName = (scope, name, binding) => {
+    if (ts.isIdentifier(name)) {
+      addLexicalBinding(scope, name.text, binding);
+      return;
+    }
+    for (const element of name.elements) {
+      if (!ts.isOmittedExpression(element)) addBindingName(scope, element.name, element);
+    }
+  };
   for (const info of functionInfoByNode.values()) {
     for (const parameter of info.node.parameters) {
-      if (ts.isIdentifier(parameter.name)) addLexicalBinding(info.node, parameter.name.text, parameter);
+      addBindingName(info.node, parameter.name, parameter);
     }
   }
   for (const declaration of declarations) {
-    if (ts.isIdentifier(declaration.name)) {
-      addLexicalBinding(variableScope(declaration), declaration.name.text, declaration);
+    addBindingName(variableScope(declaration), declaration.name, declaration);
+  }
+  for (const declaration of lexicalValueDeclarations) {
+    if (ts.isVariableDeclaration(declaration)) {
+      addBindingName(declaration.parent, declaration.name, declaration);
+    } else {
+      addLexicalBinding(declarationScope(declaration), declaration.name.text, declaration);
+    }
+  }
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause) continue;
+    const { importClause } = statement;
+    if (importClause.name) addLexicalBinding(sourceFile, importClause.name.text, importClause);
+    if (importClause.namedBindings && ts.isNamespaceImport(importClause.namedBindings)) {
+      addLexicalBinding(sourceFile, importClause.namedBindings.name.text, importClause.namedBindings);
+    }
+    if (importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
+      for (const element of importClause.namedBindings.elements) {
+        addLexicalBinding(sourceFile, element.name.text, element);
+      }
     }
   }
 
@@ -508,20 +508,78 @@ function analyzeConfigurationSource(sourceFile, file) {
     };
   };
 
+  const functionInfoByBinding = new Map();
+  for (const info of functionInfoByNode.values()) {
+    let binding;
+    if (ts.isFunctionDeclaration(info.node) && info.node.name) {
+      binding = info.node;
+      addLexicalBinding(declarationScope(info.node), info.node.name.text, binding);
+    } else if (ts.isVariableDeclaration(info.node.parent) && ts.isIdentifier(info.node.parent.name)) {
+      binding = info.node.parent;
+    } else if (ts.isFunctionExpression(info.node) && info.node.name) {
+      binding = info.node;
+    }
+    info.binding = binding;
+    if (binding && (!ts.isFunctionDeclaration(info.node) || info.node.body)) {
+      functionInfoByBinding.set(binding, info);
+    }
+    if (ts.isFunctionExpression(info.node) && info.node.name) {
+      addLexicalBinding(info.node, info.node.name.text, info.node);
+      functionInfoByBinding.set(info.node, info);
+    }
+  }
+
   const carrierKinds = new Map();
-  const mergeCarrierKinds = (binding, kinds) => {
+  const environmentHostKindsByBinding = new Map();
+  const mergeKinds = (map, binding, kinds) => {
     if (!binding || kinds.size === 0) return false;
-    if (!carrierKinds.has(binding)) carrierKinds.set(binding, new Set());
-    const current = carrierKinds.get(binding);
+    if (!map.has(binding)) map.set(binding, new Set());
+    const current = map.get(binding);
     const size = current.size;
     for (const kind of kinds) current.add(kind);
     return current.size !== size;
   };
+  const mergeCarrierKinds = (binding, kinds) => mergeKinds(carrierKinds, binding, kinds);
+  const mergeEnvironmentHostKinds = (binding, kinds) =>
+    mergeKinds(environmentHostKindsByBinding, binding, kinds);
+  const staticMemberName = (node) => {
+    const expression = unwrapExpression(node);
+    if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+    if (ts.isElementAccessExpression(expression)) {
+      return stringLiteralValue(unwrapExpression(expression.argumentExpression));
+    }
+    return undefined;
+  };
+  const environmentHostKinds = (node) => {
+    if (!node) return new Set();
+    const expression = unwrapExpression(node);
+    if (ts.isMetaProperty(expression) && expression.keywordToken === ts.SyntaxKind.ImportKeyword) {
+      return new Set(["import.meta.env"]);
+    }
+    if (ts.isIdentifier(expression)) {
+      const resolution = resolveLexicalBinding(expression);
+      if (resolution.ambiguous) return new Set();
+      if (resolution.binding) {
+        return new Set(environmentHostKindsByBinding.get(resolution.binding) ?? []);
+      }
+      return expression.text === "process" ? new Set(["process.env"]) : new Set();
+    }
+    if (staticMemberName(expression) !== "process") return new Set();
+    const container = unwrapExpression(expression.expression);
+    if (!ts.isIdentifier(container) || !["global", "globalThis"].includes(container.text)) return new Set();
+    const resolution = resolveLexicalBinding(container);
+    return !resolution.ambiguous && !resolution.binding ? new Set(["process.env"]) : new Set();
+  };
   const environmentKinds = (node) => {
     if (!node) return new Set();
     const expression = unwrapExpression(node);
-    const directKind = directEnvironmentRootKind(expression);
-    if (directKind) return new Set([directKind]);
+    if (
+      (ts.isPropertyAccessExpression(expression) && expression.name.text === "env") ||
+      (ts.isElementAccessExpression(expression) &&
+        stringLiteralValue(unwrapExpression(expression.argumentExpression)) === "env")
+    ) {
+      return environmentHostKinds(expression.expression);
+    }
     if (!ts.isIdentifier(expression)) return new Set();
     const resolution = resolveLexicalBinding(expression);
     if (resolution.ambiguous) return new Set();
@@ -530,9 +588,59 @@ function analyzeConfigurationSource(sourceFile, file) {
   const localFunctionForCall = (call) => {
     const target = unwrapExpression(call.expression);
     if (!ts.isIdentifier(target)) return undefined;
-    const candidates = functionsByName.get(target.text) ?? [];
-    return candidates.length === 1 ? candidates[0] : undefined;
+    const resolution = resolveLexicalBinding(target);
+    if (resolution.ambiguous || !resolution.binding) return undefined;
+    const info = functionInfoByBinding.get(resolution.binding);
+    if (!info || !ts.isVariableDeclaration(resolution.binding)) return info;
+    const declarationList = resolution.binding.parent;
+    return ts.isVariableDeclarationList(declarationList) && (declarationList.flags & ts.NodeFlags.Const) !== 0
+      ? info
+      : undefined;
   };
+  const assertConstEnvironmentAlias = (declaration) => {
+    const declarationList = declaration.parent;
+    invariant(
+      ts.isVariableDeclarationList(declarationList) && (declarationList.flags & ts.NodeFlags.Const) !== 0,
+      `${file}: environment aliases must be const`,
+    );
+  };
+  const projectEnvironmentHostPattern = (pattern, kinds) => {
+    let changed = false;
+    for (const element of pattern.elements) {
+      invariant(!element.dotDotDotToken, `${file}: environment host rest destructuring is not statically bounded`);
+      const name = element.propertyName
+        ? propertyName(element.propertyName)
+        : ts.isIdentifier(element.name)
+          ? element.name.text
+          : undefined;
+      if (name !== "env") continue;
+      invariant(ts.isIdentifier(element.name), `${file}: nested environment host destructuring is not supported`);
+      if (mergeCarrierKinds(element, kinds)) changed = true;
+    }
+    return changed;
+  };
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause) continue;
+    const moduleName = stringLiteralValue(statement.moduleSpecifier);
+    if (moduleName !== "node:process" && moduleName !== "process") continue;
+    const { importClause } = statement;
+    if (importClause.name) {
+      mergeEnvironmentHostKinds(importClause, new Set(["process.env"]));
+    }
+    if (importClause.namedBindings && ts.isNamespaceImport(importClause.namedBindings)) {
+      mergeEnvironmentHostKinds(importClause.namedBindings, new Set(["process.env"]));
+    }
+    if (importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
+      for (const element of importClause.namedBindings.elements) {
+        const importedName = element.propertyName?.text ?? element.name.text;
+        if (importedName === "env") mergeCarrierKinds(element, new Set(["process.env"]));
+        if (importedName === "default") {
+          mergeEnvironmentHostKinds(element, new Set(["process.env"]));
+        }
+      }
+    }
+  }
 
   let carriersChanged = true;
   while (carriersChanged) {
@@ -542,17 +650,39 @@ function analyzeConfigurationSource(sourceFile, file) {
         if (parameter.initializer && mergeCarrierKinds(parameter, environmentKinds(parameter.initializer))) {
           carriersChanged = true;
         }
+        if (
+          parameter.initializer &&
+          mergeEnvironmentHostKinds(parameter, environmentHostKinds(parameter.initializer))
+        ) {
+          carriersChanged = true;
+        }
+        const hostKinds = environmentHostKindsByBinding.get(parameter) ?? new Set();
+        if (
+          hostKinds.size > 0 &&
+          ts.isObjectBindingPattern(parameter.name) &&
+          projectEnvironmentHostPattern(parameter.name, hostKinds)
+        ) {
+          carriersChanged = true;
+        }
       }
     }
     for (const declaration of declarations) {
-      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
+      if (!declaration.initializer) continue;
+      const hostKinds = environmentHostKinds(declaration.initializer);
+      if (hostKinds.size > 0) {
+        assertConstEnvironmentAlias(declaration);
+        if (ts.isIdentifier(declaration.name)) {
+          if (mergeEnvironmentHostKinds(declaration, hostKinds)) carriersChanged = true;
+        } else if (
+          ts.isObjectBindingPattern(declaration.name) &&
+          projectEnvironmentHostPattern(declaration.name, hostKinds)
+        ) {
+          carriersChanged = true;
+        }
+      }
       const kinds = environmentKinds(declaration.initializer);
-      if (kinds.size === 0) continue;
-      const declarationList = declaration.parent;
-      invariant(
-        ts.isVariableDeclarationList(declarationList) && (declarationList.flags & ts.NodeFlags.Const) !== 0,
-        `${file}: environment aliases must be const`,
-      );
+      if (kinds.size === 0 || !ts.isIdentifier(declaration.name)) continue;
+      assertConstEnvironmentAlias(declaration);
       if (mergeCarrierKinds(declaration, kinds)) carriersChanged = true;
     }
     for (const call of calls) {
@@ -561,6 +691,9 @@ function analyzeConfigurationSource(sourceFile, file) {
       for (let index = 0; index < call.arguments.length; index += 1) {
         const parameter = target.node.parameters[index];
         if (parameter && mergeCarrierKinds(parameter, environmentKinds(call.arguments[index]))) {
+          carriersChanged = true;
+        }
+        if (parameter && mergeEnvironmentHostKinds(parameter, environmentHostKinds(call.arguments[index]))) {
           carriersChanged = true;
         }
       }
@@ -713,6 +846,20 @@ function analyzeConfigurationSource(sourceFile, file) {
     if (ts.isVariableDeclaration(parent) && parent.name === node) return false;
     if (ts.isParameter(parent) && parent.name === node) return false;
     if (ts.isBindingElement(parent) && (parent.name === node || parent.propertyName === node)) return false;
+    if (ts.isImportClause(parent) && parent.name === node) return false;
+    if (ts.isNamespaceImport(parent) && parent.name === node) return false;
+    if (ts.isImportSpecifier(parent) && (parent.name === node || parent.propertyName === node)) return false;
+    if (
+      (ts.isFunctionDeclaration(parent) ||
+        ts.isFunctionExpression(parent) ||
+        ts.isClassDeclaration(parent) ||
+        ts.isClassExpression(parent) ||
+        ts.isEnumDeclaration(parent) ||
+        ts.isModuleDeclaration(parent)) &&
+      parent.name === node
+    ) {
+      return false;
+    }
     if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false;
     if (ts.isPropertyAssignment(parent) && parent.name === node) return false;
     if (ts.isMethodDeclaration(parent) && parent.name === node) return false;
@@ -763,9 +910,15 @@ function analyzeConfigurationSource(sourceFile, file) {
       reason: escapeReason(node),
     });
   };
+  const isUnresolvedEnvironmentRoot = (node) => {
+    const expression = unwrapExpression(node);
+    if (!ts.isElementAccessExpression(expression)) return false;
+    if (stringLiteralValue(unwrapExpression(expression.argumentExpression)) !== undefined) return false;
+    return environmentHostKinds(expression.expression).size > 0;
+  };
 
   const scan = (node) => {
-    invariant(!isDynamicEnvironmentRoot(node), `${file}: unresolved dynamic environment root`);
+    invariant(!isUnresolvedEnvironmentRoot(node), `${file}: unresolved dynamic environment root`);
     if (ts.isPropertyAccessExpression(node) && isEnvironmentObject(node.expression)) {
       names.add(node.name.text);
     }
@@ -777,7 +930,11 @@ function analyzeConfigurationSource(sourceFile, file) {
         const info = enclosingFunction(node);
         const argument = unwrapExpression(node.argumentExpression);
         const parameterIndex =
-          info && ts.isIdentifier(argument) ? info.parameters.indexOf(argument.text) : -1;
+          info && ts.isIdentifier(argument)
+            ? info.node.parameters.findIndex(
+                (parameter) => resolveLexicalBinding(argument).binding === parameter,
+              )
+            : -1;
         invariant(parameterIndex >= 0, `${file}: unresolved dynamic environment read`);
         addSinkParameter(info, parameterIndex);
       }
@@ -792,12 +949,69 @@ function analyzeConfigurationSource(sourceFile, file) {
       const name = node.initializer ? stringLiteralValue(node.initializer) : undefined;
       if (name && CONFIGURATION_NAME_PATTERN.test(name)) names.add(name);
     }
-    if (isDirectEnvironmentRoot(node) || (isIdentifierReference(node) && isEnvironmentObject(node))) {
+    const environmentExpression = unwrapExpression(node);
+    if (
+      environmentExpression === node &&
+      isEnvironmentObject(node) &&
+      (!ts.isIdentifier(node) || isIdentifierReference(node))
+    ) {
       recordWholeEnvironmentEscape(node);
     }
     ts.forEachChild(node, scan);
   };
   scan(sourceFile);
+
+  const hasExportModifier = (node) =>
+    node?.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false;
+  const exportedBindings = new Set();
+  for (const statement of sourceFile.statements) {
+    if (
+      ts.isExportDeclaration(statement) &&
+      !statement.moduleSpecifier &&
+      statement.exportClause &&
+      ts.isNamedExports(statement.exportClause)
+    ) {
+      for (const element of statement.exportClause.elements) {
+        const localName = element.propertyName ?? element.name;
+        const resolution = resolveLexicalBinding(localName);
+        if (!resolution.ambiguous && resolution.binding) exportedBindings.add(resolution.binding);
+      }
+    }
+    if (ts.isExportAssignment(statement)) {
+      const expression = unwrapExpression(statement.expression);
+      if (ts.isIdentifier(expression)) {
+        const resolution = resolveLexicalBinding(expression);
+        if (!resolution.ambiguous && resolution.binding) exportedBindings.add(resolution.binding);
+      }
+    }
+  }
+  const isExportedFunction = (info) => {
+    if (hasExportModifier(info.node) || exportedBindings.has(info.binding)) return true;
+    if (!info.binding || !ts.isVariableDeclaration(info.binding)) return false;
+    const declarationList = info.binding.parent;
+    const statement = ts.isVariableDeclarationList(declarationList) ? declarationList.parent : undefined;
+    return ts.isVariableStatement(statement) && hasExportModifier(statement);
+  };
+  const readerBindingEscapes = (info) => {
+    if (!info.binding) return [];
+    const escapes = [];
+    const visit = (node) => {
+      if (ts.isIdentifier(node) && isIdentifierReference(node)) {
+        const resolution = resolveLexicalBinding(node);
+        if (resolution.binding === info.binding) {
+          const isDeclaredFunctionName =
+            (ts.isFunctionDeclaration(info.node) || ts.isFunctionExpression(info.node)) &&
+            info.node.name === node;
+          const outer = outerExpression(node);
+          const isDirectCall = ts.isCallExpression(outer.parent) && outer.parent.expression === outer;
+          if (!isDeclaredFunctionName && !isDirectCall) escapes.push(node);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    return escapes;
+  };
 
   let sinksChanged = true;
   while (sinksChanged) {
@@ -817,7 +1031,9 @@ function analyzeConfigurationSource(sourceFile, file) {
         const unwrappedArgument = argument ? unwrapExpression(argument) : undefined;
         const callerParameterIndex =
           caller && unwrappedArgument && ts.isIdentifier(unwrappedArgument)
-            ? caller.parameters.indexOf(unwrappedArgument.text)
+            ? caller.node.parameters.findIndex(
+                (parameter) => resolveLexicalBinding(unwrappedArgument).binding === parameter,
+              )
             : -1;
         invariant(
           callerParameterIndex >= 0,
@@ -830,7 +1046,7 @@ function analyzeConfigurationSource(sourceFile, file) {
 
   for (const [info, parameterIndexes] of sinkParameters) {
     invariant(
-      !info.node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword),
+      !isExportedFunction(info),
       `${file}: exported dynamic environment reader ${info.name} is not statically bounded`,
     );
     for (const parameterIndex of parameterIndexes) {
@@ -839,13 +1055,10 @@ function analyzeConfigurationSource(sourceFile, file) {
         `${file}: dynamic environment reader ${info.name} has no finite call sites`,
       );
     }
-    for (const declaration of declarations) {
-      const initializer = declaration.initializer ? unwrapExpression(declaration.initializer) : undefined;
-      invariant(
-        !(initializer && ts.isIdentifier(initializer) && initializer.text === info.name),
-        `${file}: dynamic environment reader ${info.name} cannot be aliased`,
-      );
-    }
+    invariant(
+      readerBindingEscapes(info).length === 0,
+      `${file}: dynamic environment reader ${info.name} cannot escape its lexical call targets`,
+    );
   }
 
   return { names, wholeEnvironmentEscapes };

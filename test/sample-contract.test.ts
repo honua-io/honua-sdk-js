@@ -427,6 +427,15 @@ describe("sample publication contract", () => {
     await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-parameter-rest")).rejects.toThrow(
       "environment rest destructuring is not statically bounded",
     );
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-exported-arrow-reader")).rejects.toThrow(
+      "exported dynamic environment reader readEnvironment is not statically bounded",
+    );
+    await expect(
+      extractSampleConfiguration("test/fixtures/sample-contract/env-exported-specifier-reader"),
+    ).rejects.toThrow("exported dynamic environment reader readEnvironment is not statically bounded");
+    await expect(
+      extractSampleConfiguration("test/fixtures/sample-contract/env-dynamic-call-target-shadow"),
+    ).rejects.toThrow("dynamic environment reader readEnvironment has no finite call sites");
   });
 
   it("inventories computed environment roots and fixed object-binding defaults", async () => {
@@ -436,6 +445,24 @@ describe("sample publication contract", () => {
     ]);
     await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-binding-defaults")).resolves.toEqual({
       names: ["HONUA_BINDING_DEFAULT_URL", "HONUA_PARAMETER_DEFAULT_URL"],
+      wholeEnvironmentEscapes: [],
+    });
+    await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-process-aliases")).resolves.toEqual({
+      names: ["HONUA_DESTRUCTURED_ENV_URL", "HONUA_PROCESS_ALIAS_URL"],
+      wholeEnvironmentEscapes: [],
+    });
+    await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-process-imports")).resolves.toEqual({
+      names: ["HONUA_DEFAULT_PROCESS_IMPORT_URL", "HONUA_NAMED_ENV_IMPORT_URL", "HONUA_NAMESPACE_PROCESS_IMPORT_URL"],
+      wholeEnvironmentEscapes: [],
+    });
+    await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-global-process-roots")).resolves.toEqual(
+      {
+        names: ["HONUA_COMPUTED_GLOBAL_THIS_PROCESS_URL", "HONUA_GLOBAL_PROCESS_URL", "HONUA_GLOBAL_THIS_PROCESS_URL"],
+        wholeEnvironmentEscapes: [],
+      },
+    );
+    await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-shadowed-host-roots")).resolves.toEqual({
+      names: [],
       wholeEnvironmentEscapes: [],
     });
   });
@@ -479,6 +506,12 @@ describe("sample publication contract", () => {
     expect(localBrowserEnvironment.wholeEnvironmentEscapes).toEqual([
       expect.objectContaining({ roots: ["import.meta.env"], reason: "used as a whole object" }),
       expect.objectContaining({ roots: ["import.meta.env"], reason: "passed whole to a local call" }),
+    ]);
+
+    const shadowedCallTarget = await inspectSampleConfiguration("test/fixtures/sample-contract/env-call-target-shadow");
+    expect(shadowedCallTarget.names).toEqual([]);
+    expect(shadowedCallTarget.wholeEnvironmentEscapes).toEqual([
+      expect.objectContaining({ roots: ["process.env"], reason: "passed to an untraceable call" }),
     ]);
   });
 
