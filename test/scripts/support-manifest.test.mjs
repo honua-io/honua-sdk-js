@@ -70,7 +70,7 @@ test("positive support claims cannot lose their evidence", () => {
   assert.match(validateSupportManifest(changed).join("\n"), /beta support claim must link evidence/);
 });
 
-test("every GeoServices operation group has non-skipping fixture or conformance evidence", () => {
+test("every GeoServices operation group cites a release-gated fixture or pinned conformance suite", () => {
   const evidenceById = new Map(manifest.evidence.map((evidence) => [evidence.id, evidence]));
   for (const protocol of manifest.protocols.filter((candidate) => candidate.id.startsWith("geoservices-"))) {
     for (const claim of protocol.operationClaims) {
@@ -80,18 +80,24 @@ test("every GeoServices operation group has non-skipping fixture or conformance 
           return (
             evidence &&
             ["fixture", "conformance"].includes(evidence.kind) &&
-            !evidence.path.startsWith("test/integration/")
+            ["release-gated", "version-pinned"].includes(evidence.freshnessPolicy)
           );
         }),
-        `${protocol.id} ${claim.operations.join(",")} lacks non-skipping fixture/conformance evidence`,
+        `${protocol.id} ${claim.operations.join(",")} lacks release-gated fixture or pinned conformance evidence`,
       );
     }
   }
-  const broadReadClaim = manifest.supportClaims.find((claim) => claim.id === "geoservices-map-image-standalone");
-  assert.ok(
-    broadReadClaim.evidence.some((id) => evidenceById.get(id)?.kind === "fixture"),
-    "GeoServices MapServer/ImageServer standalone claim needs fixture evidence",
-  );
+  assert.equal(manifest.supportClaims.some((claim) => claim.id === "geoservices-map-image-standalone"), false);
+  for (const claimId of ["geoservices-map-standalone", "geoservices-image-standalone"]) {
+    const readClaim = manifest.supportClaims.find((claim) => claim.id === claimId);
+    assert.ok(readClaim, `${claimId} is missing`);
+    assert.ok(
+      readClaim.evidence.some(
+        (id) => evidenceById.get(id)?.kind === "fixture" && evidenceById.get(id)?.freshnessPolicy === "release-gated",
+      ),
+      `${claimId} needs release-gated fixture evidence`,
+    );
+  }
 });
 
 test("unknown protocol operations and product capabilities fail validation", () => {
