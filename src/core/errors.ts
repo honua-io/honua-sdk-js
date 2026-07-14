@@ -57,6 +57,26 @@ export class HonuaDiscoveryError extends Error {
   }
 }
 
+/** Stable reason codes for geometry inputs that cannot be classified safely. */
+export type HonuaGeometryErrorCode = "unknown-geometry" | "malformed-geometry";
+
+/**
+ * Thrown when a geometry cannot be classified without guessing. The structured
+ * `code` and `detail` fields let callers distinguish an unsupported shape from
+ * a recognized-but-malformed Esri geometry without parsing the message.
+ */
+export class HonuaGeometryError extends Error {
+  public constructor(
+    public readonly code: HonuaGeometryErrorCode,
+    message: string,
+    public readonly detail?: Readonly<Record<string, unknown>>,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "HonuaGeometryError";
+  }
+}
+
 /**
  * Thrown when the server returns a non-2xx HTTP status. Branch on
  * `.statusCode` to decide recovery: refresh credentials on 401/403, respect
@@ -236,7 +256,8 @@ export type HonuaError =
   | HonuaJobFailedError
   | HonuaWmsCapabilitiesParseError
   | HonuaWmtsCapabilitiesParseError
-  | HonuaDiscoveryError;
+  | HonuaDiscoveryError
+  | HonuaGeometryError;
 
 /** Type guard that narrows any value to one of the Honua SDK error types. */
 export function isHonuaError(error: unknown): error is HonuaError {
@@ -253,6 +274,7 @@ export function isHonuaError(error: unknown): error is HonuaError {
     error instanceof HonuaJobFailedError ||
     error instanceof HonuaWmsCapabilitiesParseError ||
     error instanceof HonuaWmtsCapabilitiesParseError ||
-    error instanceof HonuaDiscoveryError
+    error instanceof HonuaDiscoveryError ||
+    error instanceof HonuaGeometryError
   );
 }
