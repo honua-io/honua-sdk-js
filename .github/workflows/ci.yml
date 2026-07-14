@@ -190,6 +190,7 @@ jobs:
           npm run samples:verify
           npm run samples:verify:flagships
           npm run samples:fixtures:verify
+          npm run docs:site:gallery:test
 
       - name: Validate sample runner boundaries and generated selection
         run: |

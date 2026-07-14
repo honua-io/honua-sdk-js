@@ -5,7 +5,7 @@
 // Inputs (all committed sources, plus the TypeDoc build):
 //   - README.md              -> landing page (index.html)
 //   - INSTALL.md, docs/**.md -> guide corpus rendered to /guides/*.html with nav
-//   - README "What you can build" tables -> /gallery.html demo gallery
+//   - catalog-v2 site projection -> /gallery.html demo gallery
 //   - dist/docs-api/**        -> TypeDoc API reference mounted at /api/
 //
 // The site is a pure function of the repo (no timestamps, no network) so the
@@ -23,10 +23,14 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 import { currentDocsVersions, expandDocsVersionTokens, serializeDocsVersions } from "./docs-versions.mjs";
+import { createGalleryModel } from "./lib/docs-gallery.mjs";
+import { parseJsonDocument, validateSiteProjection } from "./sample-contract.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "dist", "docs-site");
 const API_SRC = path.join(ROOT, "dist", "docs-api");
+const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
+const SITE_PROJECTION = path.join(ROOT, SITE_PROJECTION_PATH);
 
 const SITE_TITLE = "@honua/sdk-js";
 const SITE_URL = "https://honua-io.github.io/honua-sdk-js/";
@@ -343,65 +347,51 @@ ${main}
 }
 
 // ---------------------------------------------------------------------------
-// Demo gallery from the README "What you can build" tables.
+// Demo gallery from the presentation-safe catalog-v2 site projection.
 // ---------------------------------------------------------------------------
 
-function parseDemoTables(readme) {
-  const start = readme.indexOf("## What you can build");
-  if (start === -1) return [];
-  const rest = readme.slice(start + 1);
-  const end = rest.indexOf("\n## ");
-  const section = end === -1 ? rest : rest.slice(0, end);
-  const rows = [];
-  for (const line of section.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("|")) continue;
-    const cells = trimmed.slice(1, trimmed.endsWith("|") ? -1 : undefined).split("|").map((c) => c.trim());
-    if (cells.length < 2) continue;
-    if (/^-+$/.test(cells[0].replace(/[:\s]/g, "")) || cells[0] === "") continue;
-    if (/^Demo$/i.test(cells[0])) continue; // header row
-    const m = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(cells[0]);
-    if (!m) continue;
-    rows.push({ name: m[1].replace(/`/g, ""), link: m[2], desc: cells[1].replace(/`/g, "") });
-  }
-  return rows;
+async function loadGalleryModel() {
+  const source = fs.readFileSync(SITE_PROJECTION, "utf8");
+  const projection = parseJsonDocument(source, SITE_PROJECTION_PATH);
+  await validateSiteProjection(projection);
+  return createGalleryModel(projection);
 }
 
-function demoSourceUrl(link) {
-  // README links point at example README files relative to repo root.
-  const target = path.posix.normalize(link.replace(/^\.\//, ""));
+function demoSourceUrl(docsPath) {
+  const target = path.posix.normalize(docsPath);
   const sitePath = repoPathToSitePath(target);
   if (sitePath) return { href: relativeUrl("gallery.html", sitePath), kind: "guide" };
   return { href: `${BLOB_BASE}/${target}`, kind: "source" };
 }
 
-function galleryPage(demos) {
-  const FEATURED = new Set(["react-quickstart", "migration-workbench"]);
-  const featured = demos.filter((d) => FEATURED.has(d.name));
-  const rest = demos.filter((d) => !FEATURED.has(d.name));
-
-  const card = (d, big) => {
-    const src = demoSourceUrl(d.link);
+function galleryPage(gallery) {
+  const card = (sample) => {
+    const src = demoSourceUrl(sample.source.docsPath);
     const label = src.kind === "guide" ? "Read the walkthrough" : "View source";
-    return `<article class="demo-card${big ? " featured" : ""}">
-  <h3><code>${escapeHtml(d.name)}</code></h3>
-  <p>${escapeHtml(d.desc)}</p>
-  <a class="demo-link" href="${src.href}">${label} →</a>
+    return `<article class="demo-card" data-gallery-card data-sample-id="${escapeHtml(sample.id)}" data-track="${escapeHtml(sample.track)}">
+  <h3>${escapeHtml(sample.title)}</h3>
+  <p class="demo-id"><code>${escapeHtml(sample.id)}</code></p>
+  <p class="demo-summary">${escapeHtml(sample.summary)}</p>
+  <a class="demo-link" href="${escapeHtml(src.href)}">${label} →</a>
 </article>`;
   };
 
+  const groups = gallery.groups
+    .map(
+      (group) => `<section aria-labelledby="gallery-${escapeHtml(group.track)}">
+  <h2 id="gallery-${escapeHtml(group.track)}">${escapeHtml(group.title)}</h2>
+  <div class="demo-grid">
+${group.samples.map((sample) => card(sample)).join("\n")}
+  </div>
+</section>`,
+    )
+    .join("\n");
+
   const main = `<h1>Demo gallery</h1>
-<p>Runnable example apps that exercise the SDK end-to-end. Each ships its own env
-contract, mock + live run lanes, and Playwright smoke coverage. Clone the repo and
-run <code>npm run demo:&lt;name&gt;</code> (many also have a <code>:mock</code> lane).
-Building on MapLibre? Start with <code>endpoint-to-map</code> — a public endpoint to a
-styled map in nine application lines. Leaving ArcGIS ahead of the 6.0 widget removal
-(planned Q1 2027)? Start with <code>migration-workbench</code>.</p>
-${featured.length ? `<h2>Start here</h2>\n<div class="demo-grid featured-grid">\n${featured.map((d) => card(d, true)).join("\n")}\n</div>` : ""}
-<h2>All demos</h2>
-<div class="demo-grid">
-${rest.map((d) => card(d, false)).join("\n")}
-</div>`;
+<p>Runnable examples projected from the versioned SDK sample catalog. Public recipes
+and labs appear here now; qualified golden journeys join automatically as their
+evidence gates pass. Each card links to SDK-owned source or its walkthrough.</p>
+${groups}`;
   return page({ sitePath: "gallery.html", title: `Demo gallery · ${SITE_TITLE}`, bodyClass: "page-gallery", main });
 }
 
@@ -451,11 +441,11 @@ a:hover{text-decoration:underline}
 .cta:hover{text-decoration:none;opacity:.92}
 .cta.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 .demo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin:1rem 0}
-.featured-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
 .demo-card{border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.2rem;background:var(--sidebar-bg);display:flex;flex-direction:column}
-.demo-card.featured{border-color:var(--accent);box-shadow:0 1px 0 var(--accent) inset}
 .demo-card h3{margin:.1rem 0 .5rem}
-.demo-card p{color:var(--muted);flex:1 1 auto;margin:0 0 .8rem}
+.demo-card p{color:var(--muted);margin:0 0 .8rem}
+.demo-card .demo-id{flex:0 0 auto}
+.demo-card .demo-summary{flex:1 1 auto}
 .demo-link{font-weight:600}
 .site-footer{border-top:1px solid var(--border);margin-top:2rem;padding:1.5rem;text-align:center;color:var(--muted);font-size:.85rem}
 @media (max-width:820px){.layout{flex-direction:column;padding:0 1rem}.sidebar{position:static;flex-basis:auto;max-height:none;width:100%;border-bottom:1px solid var(--border)}}
@@ -485,8 +475,9 @@ function copyDir(src, dest) {
   }
 }
 
-function main() {
+async function main() {
   const started = Date.now();
+  const gallery = await loadGalleryModel();
   rmrf(OUT);
   fs.mkdirSync(OUT, { recursive: true });
 
@@ -563,8 +554,7 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
   }
 
   // Demo gallery.
-  const demos = parseDemoTables(readme);
-  writeFile("gallery.html", galleryPage(demos));
+  writeFile("gallery.html", galleryPage(gallery));
   pageCount++;
 
   // Assets.
@@ -593,7 +583,7 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
 
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   process.stdout.write(
-    `built docs site -> ${path.relative(ROOT, OUT)} (${pageCount} content pages, ${demos.length} demos, ${apiPages} API pages) in ${secs}s\n`,
+    `built docs site -> ${path.relative(ROOT, OUT)} (${pageCount} content pages, ${gallery.cardCount} gallery cards, ${apiPages} API pages) in ${secs}s\n`,
   );
 }
 
@@ -627,4 +617,9 @@ function walkCount(dir, ext) {
   return n;
 }
 
-main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    process.stderr.write(`docs site build failed: ${error instanceof Error ? error.stack : String(error)}\n`);
+    process.exitCode = 1;
+  });
+}

@@ -15,15 +15,23 @@ on:
       - "src/**"
       - "package.json"
       - "package-lock.json"
+      - "tsconfig.docs.json"
       - ".release-please-manifest.json"
       - "release-please-config.json"
       - "CHANGELOG.md"
+      - "samples/catalog.v2.json"
+      - "samples/contract/v2/**"
+      - "samples/dist/honua-site-samples.v2.json"
       - "scripts/build-docs-site.mjs"
+      - "scripts/docs-api.mjs"
       - "scripts/check-docs-site-links.mjs"
       - "scripts/check-docs-versions-site.mjs"
       - "scripts/docs-versions.mjs"
       - "scripts/generate-llms-txt.mjs"
       - "scripts/generate-comparison-page.mjs"
+      - "scripts/lib/docs-gallery.mjs"
+      - "scripts/sample-contract.mjs"
+      - "test/scripts/docs-gallery.test.mjs"
       - ".github/workflows/docs-site.yml"
   workflow_dispatch:
 
@@ -76,6 +84,11 @@ jobs:
           # that bounded race, but never publish a selector with a missing tag.
           HONUA_DOCS_TAG_VERIFY_ATTEMPTS: "12"
         run: npm run docs:versions:verify-tags
+
+      - name: Verify sample gallery projection
+        run: |
+          npm run samples:verify
+          npm run docs:site:gallery:test
 
       - name: Build TypeDoc API reference
         run: npm run docs:api
