@@ -122,6 +122,39 @@ test("unknown protocol operations and product capabilities fail validation", () 
   assert.match(validateSupportManifest(productDrift).join("\n"), /unknown claim capability invented-capability/);
 });
 
+test("every protocol operation is bound to one reviewed, evidenced surface", () => {
+  const missing = clone(manifest);
+  missing.operationSurfaces = missing.operationSurfaces.slice(1);
+  assert.match(validateSupportManifest(missing).join("\n"), /protocol operation query has no reviewed operation surface/);
+
+  const unknown = clone(manifest);
+  unknown.operationSurfaces[0].operation = "invented-operation";
+  assert.match(
+    validateSupportManifest(unknown).join("\n"),
+    /operation surface references unknown protocol operation invented-operation/,
+  );
+
+  const noEvidence = clone(manifest);
+  noEvidence.operationSurfaces[0].evidence = [];
+  assert.match(validateSupportManifest(noEvidence).join("\n"), /operation surface query must link evidence/);
+});
+
+test("connect() coverage stays separate from Source capabilities and discovery claims cannot drift", () => {
+  const unregistered = clone(manifest);
+  unregistered.connectProtocols = unregistered.connectProtocols.slice(1);
+  assert.match(
+    validateSupportManifest(unregistered).join("\n"),
+    /ogc-features-standalone claims connect\(\) discovery for unregistered protocol ogc-features/,
+  );
+
+  const missingClaim = clone(manifest);
+  missingClaim.supportClaims.find((claim) => claim.id === "wfs-standalone").operations = ["query"];
+  assert.match(
+    validateSupportManifest(missingClaim).join("\n"),
+    /connect\(\) protocol wfs must have exactly one positive discovery support claim/,
+  );
+});
+
 test("support claims cannot reference an undeclared protocol family", () => {
   const changed = clone(manifest);
   changed.supportClaims[0].protocol = "invented-protocol";

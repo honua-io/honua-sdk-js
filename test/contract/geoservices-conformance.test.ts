@@ -16,6 +16,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CAPABILITIES,
+  PROTOCOLS,
   PROTOCOL_DEFAULT_CAPABILITIES,
   type SourceDescriptor,
   capabilities,
@@ -1011,13 +1013,10 @@ describe("contract / GeoServices GP Service parity", () => {
     ).toThrow(/taskName/);
   });
 
-  it("does not advertise public connect() discovery for ImageServer, GeometryServer, or GPServer", () => {
-    for (const protocol of [
-      "geoservices-image-service",
-      "geoservices-geometry-service",
-      "geoservices-gp-service",
-    ] as const) {
-      expect(PROTOCOL_DEFAULT_CAPABILITIES[protocol].has("connect"), protocol).toBe(false);
+  it("does not model top-level connect() discovery as a per-Source capability", () => {
+    expect(CAPABILITIES).not.toContain("connect");
+    for (const protocol of PROTOCOLS) {
+      expect([...PROTOCOL_DEFAULT_CAPABILITIES[protocol]], protocol).not.toContain("connect");
     }
   });
 });

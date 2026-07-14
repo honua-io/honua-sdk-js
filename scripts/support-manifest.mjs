@@ -97,8 +97,38 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
   if (claimCapabilitySet.size !== (manifest.protocolOperations?.length ?? 0) + (manifest.claimCapabilities?.length ?? 0)) {
     fail("protocolOperations and claimCapabilities must not overlap");
   }
+  const operationSurfaceOperations = (manifest.operationSurfaces ?? []).map((entry) => entry.operation);
+  if (!unique(operationSurfaceOperations)) fail("operation surfaces must assign each operation exactly once");
+  for (const surface of manifest.operationSurfaces ?? []) {
+    if (!protocolOperationSet.has(surface.operation)) {
+      fail(`operation surface references unknown protocol operation ${surface.operation}`);
+    }
+    if (!["canonical-source", "typed-adapter"].includes(surface.kind)) {
+      fail(`operation surface ${surface.operation} has invalid kind ${surface.kind ?? "missing"}`);
+    }
+    if (typeof surface.surface !== "string" || surface.surface.length === 0) {
+      fail(`operation surface ${surface.operation} must name a concrete surface`);
+    }
+    if ((surface.evidence ?? []).length === 0) {
+      fail(`operation surface ${surface.operation} must link evidence`);
+    }
+    for (const evidenceId of surface.evidence ?? []) {
+      if (!evidenceById.has(evidenceId)) {
+        fail(`operation surface ${surface.operation} references unknown evidence ${evidenceId}`);
+      }
+    }
+  }
+  for (const operation of manifest.protocolOperations ?? []) {
+    if (!operationSurfaceOperations.includes(operation)) {
+      fail(`protocol operation ${operation} has no reviewed operation surface`);
+    }
+  }
   const protocolIds = (manifest.protocols ?? []).map((protocol) => protocol.id);
   if (!unique(protocolIds)) fail("protocol ids must be unique");
+  if (!unique(manifest.connectProtocols ?? [])) fail("connectProtocols must be unique");
+  for (const protocolId of manifest.connectProtocols ?? []) {
+    if (!protocolIds.includes(protocolId)) fail(`connect() references unknown protocol ${protocolId}`);
+  }
   if (!unique(manifest.claimOnlyProtocols ?? [])) fail("claimOnlyProtocols must be unique");
   for (const protocolId of manifest.claimOnlyProtocols ?? []) {
     if (protocolIds.includes(protocolId)) fail(`claim-only protocol duplicates a canonical protocol: ${protocolId}`);
@@ -172,6 +202,25 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
     }
     for (const evidenceId of claim.evidence ?? []) {
       if (!evidenceById.has(evidenceId)) fail(`${claim.id} references unknown evidence ${evidenceId}`);
+    }
+  }
+  const connectProtocolSet = new Set(manifest.connectProtocols ?? []);
+  const connectClaims = (manifest.supportClaims ?? []).filter(
+    (claim) =>
+      positiveStatus(claim.status) &&
+      claim.protocol &&
+      (claim.operations ?? []).includes("discovery") &&
+      /\bconnect\s*\(/.test(claim.api ?? ""),
+  );
+  for (const protocolId of connectProtocolSet) {
+    const matchingClaims = connectClaims.filter((claim) => claim.protocol === protocolId);
+    if (matchingClaims.length !== 1) {
+      fail(`connect() protocol ${protocolId} must have exactly one positive discovery support claim`);
+    }
+  }
+  for (const claim of connectClaims) {
+    if (!connectProtocolSet.has(claim.protocol)) {
+      fail(`${claim.id} claims connect() discovery for unregistered protocol ${claim.protocol}`);
     }
   }
 
@@ -438,7 +487,9 @@ export function buildSupportProjection(manifest, packageJson) {
     statusVocabulary: manifest.statusVocabulary,
     environmentVocabulary: manifest.environmentVocabulary,
     executionModeVocabulary: manifest.executionModeVocabulary,
+    connectProtocols: manifest.connectProtocols,
     protocolOperations: manifest.protocolOperations,
+    operationSurfaces: manifest.operationSurfaces,
     claimCapabilities: manifest.claimCapabilities,
     claimOnlyProtocols: manifest.claimOnlyProtocols,
     consumerContracts: manifest.consumerContracts,
@@ -455,7 +506,9 @@ export function buildSupportProjectionSchema(manifestSchema) {
     "statusVocabulary",
     "environmentVocabulary",
     "executionModeVocabulary",
+    "connectProtocols",
     "protocolOperations",
+    "operationSurfaces",
     "claimCapabilities",
     "claimOnlyProtocols",
     "consumerContracts",

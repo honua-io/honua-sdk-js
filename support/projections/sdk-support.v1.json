@@ -31,6 +31,18 @@
     "static",
     "transport"
   ],
+  "connectProtocols": [
+    "ogc-features",
+    "stac",
+    "wfs",
+    "odata",
+    "geoparquet",
+    "ogc-records",
+    "ogc-tiles",
+    "ogc-maps",
+    "geoservices-feature-service",
+    "geoservices-map-service"
+  ],
   "protocolOperations": [
     "query",
     "queryAggregate",
@@ -45,11 +57,148 @@
     "sql",
     "stream",
     "pbf",
-    "connect",
     "image",
     "geometry",
     "geoprocess",
     "processes"
+  ],
+  "operationSurfaces": [
+    {
+      "operation": "query",
+      "kind": "canonical-source",
+      "surface": "Source.query",
+      "evidence": [
+        "contract-conformance"
+      ]
+    },
+    {
+      "operation": "queryAggregate",
+      "kind": "canonical-source",
+      "surface": "Source.queryAggregate",
+      "evidence": [
+        "contract-conformance"
+      ]
+    },
+    {
+      "operation": "spatialAggregate",
+      "kind": "typed-adapter",
+      "surface": "HonuaFeatureLayer.querySpatialAggregation",
+      "evidence": [
+        "spatial-aggregation-fixtures"
+      ]
+    },
+    {
+      "operation": "queryExtent",
+      "kind": "canonical-source",
+      "surface": "Source.queryExtent",
+      "evidence": [
+        "contract-conformance"
+      ]
+    },
+    {
+      "operation": "queryObjectIds",
+      "kind": "canonical-source",
+      "surface": "Source.queryObjectIds",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "queryRelated",
+      "kind": "canonical-source",
+      "surface": "Source.queryRelated",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "applyEdits",
+      "kind": "canonical-source",
+      "surface": "Source.applyEdits",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "attachments",
+      "kind": "canonical-source",
+      "surface": "Source.attachments",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "render",
+      "kind": "typed-adapter",
+      "surface": "HonuaOgcCollectionMap.map",
+      "evidence": [
+        "ogc-maps-fixtures"
+      ]
+    },
+    {
+      "operation": "tiles",
+      "kind": "typed-adapter",
+      "surface": "HonuaOgcTileset.tile",
+      "evidence": [
+        "ogc-tiles-fixtures"
+      ]
+    },
+    {
+      "operation": "sql",
+      "kind": "canonical-source",
+      "surface": "Source.query",
+      "evidence": [
+        "connect-fixtures"
+      ]
+    },
+    {
+      "operation": "stream",
+      "kind": "canonical-source",
+      "surface": "Source.stream",
+      "evidence": [
+        "contract-conformance"
+      ]
+    },
+    {
+      "operation": "pbf",
+      "kind": "typed-adapter",
+      "surface": "HonuaFeatureLayer.queryFeatures",
+      "evidence": [
+        "core-client-fixtures"
+      ]
+    },
+    {
+      "operation": "image",
+      "kind": "typed-adapter",
+      "surface": "HonuaImageService.exportImage",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "geometry",
+      "kind": "typed-adapter",
+      "surface": "HonuaGeometryService.project",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "geoprocess",
+      "kind": "typed-adapter",
+      "surface": "HonuaGeoprocessingService.submit",
+      "evidence": [
+        "geoprocessing-job-run-fixtures"
+      ]
+    },
+    {
+      "operation": "processes",
+      "kind": "typed-adapter",
+      "surface": "HonuaOgcProcesses.execute",
+      "evidence": [
+        "process-runner-fixtures"
+      ]
+    }
   ],
   "claimCapabilities": [
     "discovery",
@@ -291,6 +440,12 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "spatial-aggregation-fixtures",
+      "kind": "fixture",
+      "path": "test/spatial-aggregation-query-h3.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "geoprocessing-job-run-fixtures",
       "kind": "fixture",
       "path": "test/contract/geoprocessing-job-run.test.ts",
@@ -414,6 +569,12 @@
       "id": "geoparquet-fixtures",
       "kind": "fixture",
       "path": "test/geoparquet-source.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "geoparquet-connect-fixtures",
+      "kind": "fixture",
+      "path": "test/connect-geoparquet.test.ts",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -572,17 +733,6 @@
           "status": "supported",
           "evidence": [
             "core-client-fixtures"
-          ]
-        },
-        {
-          "operations": [
-            "connect"
-          ],
-          "environment": "protocol-adapter",
-          "executionMode": "native",
-          "status": "supported",
-          "evidence": [
-            "connect-fixtures"
           ]
         },
         {
@@ -1062,6 +1212,7 @@
       "label": "GeoServices FeatureServer query",
       "protocol": "geoservices-feature-service",
       "operations": [
+        "discovery",
         "query",
         "queryExtent",
         "queryObjectIds",
@@ -1072,8 +1223,9 @@
       "status": "supported",
       "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
       "api": "connect(), HonuaClient.queryFeatures, Source",
-      "notes": "Uses the raw FeatureServer query path; fixture- and live-proven without a Honua account or server.",
+      "notes": "Discovers and uses the raw FeatureServer query path; fixture- and live-proven without a Honua account or server.",
       "evidence": [
+        "connect-fixtures",
         "contract-conformance",
         "geoservices-conformance",
         "standalone-live"
@@ -1084,6 +1236,7 @@
       "label": "GeoServices MapServer reads",
       "protocol": "geoservices-map-service",
       "operations": [
+        "discovery",
         "query",
         "render",
         "tiles"
@@ -1092,11 +1245,11 @@
       "executionMode": "native",
       "status": "supported",
       "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
-      "api": "HonuaClient.mapService, Source",
-      "notes": "Uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles.",
+      "api": "connect(), HonuaClient.mapService, Source",
+      "notes": "Discovers and uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles.",
       "evidence": [
-        "honua-surface-fixtures",
         "connect-fixtures",
+        "honua-surface-fixtures",
         "tile-layer-fixtures",
         "map-service-integration",
         "standalone-live"
@@ -1210,7 +1363,7 @@
       "executionMode": "discovery",
       "status": "supported",
       "backendNeeded": "Any WFS 2.0 server",
-      "api": "Source, HonuaWfs",
+      "api": "connect(), Source, HonuaWfs",
       "notes": "Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path.",
       "evidence": [
         "wfs-fixtures",
@@ -1231,7 +1384,7 @@
       "executionMode": "discovery",
       "status": "supported",
       "backendNeeded": "Any STAC API or static catalog",
-      "api": "Source with locator.layout=stac-api or stac-static",
+      "api": "connect(), Source with locator.layout=stac-api or stac-static",
       "notes": "Searches a raw STAC API or walks static catalog links with client-side filtering.",
       "evidence": [
         "stac-fixtures",
@@ -1253,11 +1406,28 @@
       "executionMode": "discovery",
       "status": "supported",
       "backendNeeded": "Any OData v4 service",
-      "api": "Source, HonuaOdataEntitySet",
+      "api": "connect(), Source, HonuaOdataEntitySet",
       "notes": "Reads $metadata, intersects advertised capabilities, and uses the raw service root.",
       "evidence": [
         "odata-fixtures",
         "standalone-live"
+      ]
+    },
+    {
+      "id": "geoparquet-discovery-client-only",
+      "label": "GeoParquet asset discovery",
+      "protocol": "geoparquet",
+      "operations": [
+        "discovery"
+      ],
+      "environment": "client-only",
+      "executionMode": "discovery",
+      "status": "experimental",
+      "backendNeeded": "None; caller provides a GeoParquet profiler",
+      "api": "connect({ protocol: 'geoparquet', geoparquet: { profiler } })",
+      "notes": "Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver.",
+      "evidence": [
+        "geoparquet-connect-fixtures"
       ]
     },
     {
