@@ -7,13 +7,13 @@ surface-to-user decisions instead of parsing message strings.
 
 This release covers core transport/auth/protocol errors, discovery, the query
 planner, every public error exported by the stable `map` and `runtime`
-subpaths, and the public realtime resume error. Offline
-([#569](https://github.com/honua-io/honua-sdk-js/issues/569)), agent
-([#570](https://github.com/honua-io/honua-sdk-js/issues/570)), and plugin
-([#571](https://github.com/honua-io/honua-sdk-js/issues/571)) errors are explicit
-residuals and are not yet recognized merely because they are SDK-defined errors.
-Other experimental domains likewise retain their current domain-specific
-contracts until a scoped migration lands.
+subpaths, the public realtime resume error, and the offline region plus replica
+synchronization classes migrated by
+[#569](https://github.com/honua-io/honua-sdk-js/issues/569). Agent
+([#570](https://github.com/honua-io/honua-sdk-js/issues/570)) and plugin
+([#571](https://github.com/honua-io/honua-sdk-js/issues/571)) errors remain
+explicit residuals. Other experimental domains likewise retain their current
+domain-specific contracts until a scoped migration lands.
 
 ## Envelope contract
 
@@ -22,7 +22,7 @@ Every migrated instance has these common fields:
 | Field | Meaning |
 |-------|---------|
 | `kind` | Constant `"honua.sdk.error.v1"` tag used by the cross-realm guard. |
-| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, `runtime`, or `realtime`. |
+| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, `runtime`, `realtime`, or `offline`. |
 | `sdkCode` | Globally unique code from `HONUA_ERROR_CODE_REGISTRY`. |
 | `category` | Stable `authentication`, `cancellation`, `capability`, `internal`, `network`, `protocol`, `timeout`, or `validation` classification. |
 | `retryable` | Stable boolean for this exact `sdkCode`. This metadata describes the existing policy; it does not initiate retries. |
@@ -41,9 +41,10 @@ Serialization is deliberately fail-closed. `serializeHonuaError` and
 `JSON.stringify(error)` include classification, identifiers, sanitized context,
 and classification-only cause information. They omit raw messages, stacks,
 response bodies, details, cause payloads, credentials, authorization/cookie
-headers, raw cursors/resume tokens, sensitive URL parameters, query/filter/SQL
-values, binary payloads, and prototype-manipulation keys. The raw instance still
-retains its message, documented detail fields, and exact cause for local use.
+headers, cached feature bodies, raw cursors/resume tokens, signed URL values,
+query/filter/SQL values, local storage paths, binary payloads, and
+prototype-manipulation keys. The raw instance still retains its message,
+documented detail fields, and exact cause for local use.
 
 ```ts doc-test=skip reason="partial excerpt requires application retry and logging hosts"
 import { isHonuaError, serializeHonuaError } from "@honua/sdk-js";
@@ -84,13 +85,16 @@ try {
 | `HonuaRuntimeDiagnosticError` | `@honua/sdk-js/runtime` | Runtime style/source/layer validation produces error diagnostics. | Inspect the local `.diagnostics` and correct invalid runtime input. Serialized context carries codes/count only. |
 | `QueryTileServerResponseError` | `@honua/sdk-js/runtime` | Query-tile HTTP response is unsuccessful. | Inspect `.status`; transient HTTP statuses are classified retryable without changing request policy. |
 | `HonuaRealtimeResumeError` | `@honua/sdk-js/realtime` | Realtime initialization, decoding, checkpoint, ordering, transport, or terminal delivery fails. | Branch on the existing reason `.code`; reconnect or request a replacement snapshot only when the stream contract already permits it. Envelope retryability is metadata and does not initiate reconnects. |
+| `HonuaOfflineRegionError` | `@honua/sdk-js/offline` | Offline manifest validation, quota admission, resource loading, integrity verification, cancellation, or atomic store work fails. | Branch on the existing detailed `.code`. Rebuild invalid manifests, free quota, and treat abort as terminal. Retry through the application's loader/store policy only when `.sdkCode` is `offline.transport.transient`; generic loader failures remain conservative. Raw resource identifiers and storage paths remain local-only. |
+| `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync` shim remains through 0.1.x) | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
 
 ## Registered code families
 
 The exported `HONUA_ERROR_CODE_REGISTRY` is the canonical, typed inventory. Its
-object keys are globally unique at compile time, every migrated constructor
-rejects unregistered codes, and `npm run check:error-codes` verifies registry
-shape plus this class/family documentation.
+object keys are globally unique at compile time, the common base accepts only
+registered codes, and domain constructors either reject unknown runtime reasons
+or project them to a fixed registered fallback. `npm run check:error-codes`
+verifies registry shape plus this class/family documentation.
 
 | Public class | Registered `sdkCode` family |
 |--------------|-----------------------------|
@@ -119,6 +123,8 @@ shape plus this class/family documentation.
 | `HonuaRuntimeDiagnosticError` | `runtime.diagnostic` |
 | `QueryTileServerResponseError` | `runtime.query-tiles.transient`, `runtime.query-tiles.rejected` |
 | `HonuaRealtimeResumeError` | `realtime.cancelled`, `realtime.transport.reconnectable`, `realtime.checkpoint.invalid`, `realtime.sequence.gap`, `realtime.protocol.terminal` |
+| `HonuaOfflineRegionError` | `offline.region.validation`, `offline.region.quota`, `offline.region.integrity`, `offline.cancelled`, `offline.transport.failure`, `offline.transport.transient`, `offline.storage.*` |
+| `HonuaReplicaSyncError` | `offline.replica-sync.capability`, `offline.replica-sync.validation`, `offline.replica-sync.permission-denied`, `offline.transport.failure`, `offline.transport.transient` |
 
 `HonuaRealtimeResumeError.code` remains the existing detailed reason (for
 example, `invalid-checkpoint`, `sequence-gap`, `transport-gap`, or
@@ -127,6 +133,18 @@ classes. `realtime.transport.reconnectable` and `realtime.sequence.gap` are
 marked retryable because the existing contract permits reconnect or replacement
 snapshot recovery; the envelope does not perform either action. SSE abort,
 unsubscribe, and close still complete normally without emitting an error.
+
+`HonuaOfflineRegionError.code` and `HonuaReplicaSyncError.code` likewise retain
+their detailed legacy reasons. Their grouped `sdkCode` values distinguish
+invalid state, quota/storage, cancellation, integrity, capability, permission,
+and transport recovery classes. Generic resource/replica transport failures are
+non-retryable by default; `offline.transport.transient` is selected only when the
+wrapped cause is itself a valid tagged, retryable network or timeout error. Raw
+cached content, sync cursors, signed URLs, filter values, resource locators,
+details, and filesystem paths are kept on the local error instance only;
+serialization emits a fixed registered reason and classification. Retryability
+is descriptive and does not alter offline eviction, commit, transport, or
+conflict-resolution policy.
 
 ### Individual code registry
 
@@ -213,6 +231,17 @@ unsubscribe, and close still complete normally without emitting an error.
 | `realtime.checkpoint.invalid` | `realtime` | `validation` | no | Realtime checkpoint or resume context is invalid |
 | `realtime.sequence.gap` | `realtime` | `protocol` | yes | Realtime ordering requires a replacement snapshot |
 | `realtime.protocol.terminal` | `realtime` | `protocol` | no | Realtime delivery reached a terminal failure |
+| `offline.region.validation` | `offline` | `validation` | no | Offline region input or lifecycle state is invalid |
+| `offline.region.quota` | `offline` | `validation` | no | Offline region exceeds a logical storage quota |
+| `offline.region.integrity` | `offline` | `protocol` | no | Offline resource integrity verification failed |
+| `offline.cancelled` | `offline` | `cancellation` | no | Offline operation was cancelled |
+| `offline.transport.failure` | `offline` | `network` | no | Offline resource or replica transport failed without a transient classification |
+| `offline.transport.transient` | `offline` | `network` | yes | Offline resource or replica transport failed transiently |
+| `offline.storage.concurrent` | `offline` | `internal` | yes | Offline storage inventory changed before commit |
+| `offline.storage.failure` | `offline` | `internal` | no | Offline storage operation failed |
+| `offline.replica-sync.capability` | `offline` | `capability` | no | Replica synchronization capability is unavailable |
+| `offline.replica-sync.validation` | `offline` | `validation` | no | Replica synchronization request or state is invalid |
+| `offline.replica-sync.permission-denied` | `offline` | `authentication` | no | Replica synchronization permission was denied |
 <!-- error-code-registry:end -->
 
 ## Narrowing in `catch`
@@ -258,6 +287,8 @@ subset of these errors when configured:
 | `HonuaAuthError` | **No** — resolved by the auth provider's own silent-refresh / single-flight logic; a 401/403 additionally triggers one force-refresh + replay. Branch on `.code` to sign in or surface. |
 | `HonuaAbortError` | **No** — caller asked to stop |
 | `HonuaRealtimeResumeError` | **No automatic retry** — the realtime transport and resumable delivery gate retain their existing reconnect/resnapshot policy; use `.sdkCode` only to classify the observed transition. |
+| `HonuaOfflineRegionError` | **No automatic retry** — loader, transaction, quota, and eviction behavior is unchanged; the application/store owns any retry after an explicitly transient tagged cause. |
+| `HonuaReplicaSyncError` | **No automatic retry** — the replica transport and conflict workflow retain their existing policy; generic transport failures remain non-retryable. |
 | `HonuaCapabilityNotSupportedError` | **No** — would never succeed |
 | `HonuaWfsExceptionError` | **No** — caller bug |
 | `HonuaExplorationContextError` | **No** — state bug |

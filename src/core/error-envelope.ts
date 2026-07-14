@@ -9,7 +9,7 @@
 
 export const HONUA_ERROR_KIND = "honua.sdk.error.v1" as const;
 
-export type HonuaErrorDomain = "core" | "discovery" | "query" | "map" | "runtime" | "realtime";
+export type HonuaErrorDomain = "core" | "discovery" | "query" | "map" | "runtime" | "realtime" | "offline";
 
 export type HonuaErrorCategory =
   | "authentication"
@@ -343,6 +343,62 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Realtime delivery reached a terminal failure",
   ),
+  "offline.region.validation": classification(
+    "offline",
+    "validation",
+    false,
+    "Offline region input or lifecycle state is invalid",
+  ),
+  "offline.region.quota": classification(
+    "offline",
+    "validation",
+    false,
+    "Offline region exceeds a logical storage quota",
+  ),
+  "offline.region.integrity": classification(
+    "offline",
+    "protocol",
+    false,
+    "Offline resource integrity verification failed",
+  ),
+  "offline.cancelled": classification("offline", "cancellation", false, "Offline operation was cancelled"),
+  "offline.transport.failure": classification(
+    "offline",
+    "network",
+    false,
+    "Offline resource or replica transport failed without a transient classification",
+  ),
+  "offline.transport.transient": classification(
+    "offline",
+    "network",
+    true,
+    "Offline resource or replica transport failed transiently",
+  ),
+  "offline.storage.concurrent": classification(
+    "offline",
+    "internal",
+    true,
+    "Offline storage inventory changed before commit",
+  ),
+  "offline.storage.failure": classification("offline", "internal", false, "Offline storage operation failed"),
+  "offline.replica-sync.capability": classification(
+    "offline",
+    "capability",
+    false,
+    "Replica synchronization capability is unavailable",
+  ),
+  "offline.replica-sync.validation": classification(
+    "offline",
+    "validation",
+    false,
+    "Replica synchronization request or state is invalid",
+  ),
+  "offline.replica-sync.permission-denied": classification(
+    "offline",
+    "authentication",
+    false,
+    "Replica synchronization permission was denied",
+  ),
 } as const satisfies Record<string, HonuaErrorCodeDescriptor>);
 
 export type HonuaErrorCode = keyof typeof HONUA_ERROR_CODE_REGISTRY;
@@ -502,6 +558,19 @@ export function isHonuaErrorCode(code: string): code is HonuaErrorCode {
   return Object.hasOwn(HONUA_ERROR_CODE_REGISTRY, code);
 }
 
+/** @internal True only for a valid tagged retryable network or timeout classification. */
+export function isRetryableNetworkOrTimeoutHonuaError(error: unknown): boolean {
+  try {
+    if (!isHonuaSdkError(error)) return false;
+    const sdkCode = ownDataProperty(error, "sdkCode");
+    if (typeof sdkCode !== "string" || !isHonuaErrorCode(sdkCode)) return false;
+    const descriptor = HONUA_ERROR_CODE_REGISTRY[sdkCode];
+    return descriptor.retryable && (descriptor.category === "network" || descriptor.category === "timeout");
+  } catch {
+    return false;
+  }
+}
+
 function classification(
   domain: HonuaErrorDomain,
   category: HonuaErrorCategory,
@@ -524,6 +593,8 @@ const MAX_ARRAY_ITEMS = 100;
 const MAX_STRING_LENGTH = 2_048;
 const SENSITIVE_KEY =
   /(?:authorization|proxy-authorization|cookie|set-cookie|credential|password|passwd|secret|token|api[-_]?key|access[-_]?key|access[-_]?id|signature|cursor|resume[-_]?token|where|filter|query|sql|cql|body|payload|form|parameters?)/i;
+const STORAGE_LOCATOR_KEY =
+  /^(?:local[-_]?storage|storage|cache(?:[-_]?file)?|file|filesystem)[-_]?(?:path|directory|url|uri|location)$/i;
 const URL_KEY = /(?:url|uri|href|endpoint|location)$/i;
 
 function sanitizeRecord(
@@ -545,7 +616,8 @@ function sanitizeRecord(
       continue;
     }
     const item = "value" in descriptor ? descriptor.value : "[ACCESSOR]";
-    output[key] = SENSITIVE_KEY.test(key) ? REDACTED : sanitizeValue(item, key, seen, depth + 1);
+    output[key] =
+      SENSITIVE_KEY.test(key) || STORAGE_LOCATOR_KEY.test(key) ? REDACTED : sanitizeValue(item, key, seen, depth + 1);
   }
   if (unsafeKeyCount > 0) output.__redacted_keys__ = unsafeKeyCount;
   if (Reflect.ownKeys(value).length > descriptors.length) output.__truncated__ = TRUNCATED;
@@ -621,20 +693,24 @@ function asOptionalString(value: unknown): string | undefined {
 
 function serializeCause(cause: unknown): SerializedHonuaErrorCause | undefined {
   if (cause === undefined) return undefined;
-  if (isHonuaSdkError(cause)) {
-    const sdkCode = ownDataProperty(cause, "sdkCode");
-    if (typeof sdkCode !== "string" || !isHonuaErrorCode(sdkCode)) return { name: "Error" };
-    const descriptor = HONUA_ERROR_CODE_REGISTRY[sdkCode];
-    return {
-      name: sanitizeErrorName(ownDataProperty(cause, "name")),
-      domain: descriptor.domain,
-      code: sdkCode,
-      category: descriptor.category,
-      retryable: descriptor.retryable,
-    };
+  try {
+    if (isHonuaSdkError(cause)) {
+      const sdkCode = ownDataProperty(cause, "sdkCode");
+      if (typeof sdkCode !== "string" || !isHonuaErrorCode(sdkCode)) return { name: "Error" };
+      const descriptor = HONUA_ERROR_CODE_REGISTRY[sdkCode];
+      return {
+        name: sanitizeErrorName(ownDataProperty(cause, "name")),
+        domain: descriptor.domain,
+        code: sdkCode,
+        category: descriptor.category,
+        retryable: descriptor.retryable,
+      };
+    }
+    if (cause instanceof Error) return { name: errorNameWithoutGetters(cause) };
+    return { name: typeof cause };
+  } catch {
+    return { name: "Error" };
   }
-  if (cause instanceof Error) return { name: errorNameWithoutGetters(cause) };
-  return { name: typeof cause };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -694,9 +770,11 @@ const SAFE_ERROR_NAMES = new Set([
   "HonuaMapLibreSourceAdapterError",
   "HonuaMapPackageError",
   "HonuaNetworkError",
+  "HonuaOfflineRegionError",
   "HonuaQueryPlanExecutionError",
   "HonuaQueryPlanningError",
   "HonuaRealtimeResumeError",
+  "HonuaReplicaSyncError",
   "HonuaRuntimeDiagnosticError",
   "HonuaSdkError",
   "HonuaTemporalPlaybackError",

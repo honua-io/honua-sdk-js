@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { TemporalFeatureTimelineRequest } from "../src/contract/temporal.js";
+import { isHonuaError } from "../src/index.js";
 import type { FeatureId } from "../src/replica-sync/index.js";
 import {
   createFixtureReplicaSyncTransport,
@@ -43,7 +44,7 @@ describe("disconnected replica contracts", () => {
     expect(replica.device?.platform).toBe("android");
 
     await expect(sync.getReplica("missing")).rejects.toSatisfy(
-      (error) => isHonuaReplicaSyncError(error) && error.code === "replica-not-found",
+      (error) => isHonuaError(error) && isHonuaReplicaSyncError(error) && error.code === "replica-not-found",
     );
   });
 
