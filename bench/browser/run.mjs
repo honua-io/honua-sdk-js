@@ -19,6 +19,40 @@ const WARMUP_RUNS = 1;
 const MEASUREMENT_RUNS = 3;
 const SCENARIO_TIMEOUT_MS = 20_000;
 
+// Reviewed scenario producers only. SDK implementation sources and third-party
+// packages are intentionally identified by gitCommit and the environment block
+// instead: changing the implementation under test must not silently define a
+// new benchmark corpus.
+export const BROWSER_CORPUS_SOURCE_FILES = Object.freeze([
+  "bench/browser/index.html",
+  "bench/browser/main.ts",
+  "bench/browser/run.mjs",
+  "examples/maplibre-quickstart/index.html",
+  "examples/maplibre-quickstart/mock-server.mjs",
+  "examples/maplibre-quickstart/src/config.ts",
+  "examples/maplibre-quickstart/src/data.ts",
+  "examples/maplibre-quickstart/src/esri-geojson.ts",
+  "examples/maplibre-quickstart/src/linked-exploration.ts",
+  "examples/maplibre-quickstart/src/main.ts",
+  "examples/maplibre-quickstart/src/styles.css",
+  "examples/maplibre-quickstart/src/telemetry.ts",
+  "examples/maplibre-quickstart/tsconfig.json",
+  "examples/maplibre-quickstart/vite.config.ts",
+  "samples/scenarios/catalog.mjs",
+  "samples/scenarios/determinism.mjs",
+  "samples/scenarios/fixture-pack.mjs",
+  "samples/scenarios/fixture-validation.mjs",
+  "samples/scenarios/handlers/first-map.mjs",
+  "samples/scenarios/handlers/incident-operations.mjs",
+  "samples/scenarios/http.mjs",
+  "samples/scenarios/identifiers.mjs",
+  "samples/scenarios/index.mjs",
+  "samples/scenarios/run-registry.mjs",
+  "samples/scenarios/server.mjs",
+  "samples/scenarios/sse.mjs",
+  "scripts/lib/fixture-build-environment.mjs",
+]);
+
 function gitCommit() {
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], { cwd: REPO_ROOT, encoding: "utf8" }).trim();
@@ -27,22 +61,43 @@ function gitCommit() {
   }
 }
 
-async function corpusFingerprint() {
-  const files = [
-    "bench/browser/main.ts",
-    "examples/maplibre-quickstart/src/main.ts",
-    "test/fixtures/honua-quickstart-demo/capabilities.json",
-    "test/fixtures/honua-quickstart-demo/layer-metadata.json",
-    "test/fixtures/honua-quickstart-demo/query-features.json",
+export async function browserCorpusFingerprint({
+  repoRoot = REPO_ROOT,
+  fixtureRoot = path.join(repoRoot, "samples/fixtures/first-map/v1"),
+} = {}) {
+  const manifestPath = path.join(fixtureRoot, "manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const fixtureFiles = [...new Set(Object.values(manifest.schema?.files ?? {}))].sort();
+  if (
+    fixtureFiles.length === 0 ||
+    fixtureFiles.some(
+      (file) => typeof file !== "string" || path.basename(file) !== file || file === "manifest.json",
+    )
+  ) {
+    throw new Error("Browser benchmark fixture manifest has an invalid schema.files inventory");
+  }
+  const entries = [
+    ...BROWSER_CORPUS_SOURCE_FILES.map((logicalPath) => ({
+      logicalPath,
+      absolutePath: path.join(repoRoot, logicalPath),
+    })),
+    {
+      logicalPath: "samples/fixtures/first-map/v1/manifest.json",
+      absolutePath: manifestPath,
+    },
+    ...fixtureFiles.map((file) => ({
+      logicalPath: `samples/fixtures/first-map/v1/${file}`,
+      absolutePath: path.join(fixtureRoot, file),
+    })),
   ];
   const hash = createHash("sha256");
-  for (const file of files) {
-    hash.update(file);
+  for (const entry of entries) {
+    hash.update(entry.logicalPath);
     hash.update("\0");
-    hash.update(await readFile(path.join(REPO_ROOT, file)));
+    hash.update(await readFile(entry.absolutePath));
     hash.update("\0");
   }
-  return { files, sha256: hash.digest("hex") };
+  return { files: entries.map((entry) => entry.logicalPath), sha256: hash.digest("hex") };
 }
 
 function parseArgs(argv) {
@@ -334,7 +389,7 @@ async function main() {
   const budgetsBytes = await readFile(path.resolve(REPO_ROOT, options.budgets));
   const budgets = JSON.parse(budgetsBytes.toString("utf8"));
   if (budgets.schemaVersion !== 1) throw new Error("Unsupported browser benchmark budget schema");
-  const fingerprint = await corpusFingerprint();
+  const fingerprint = await browserCorpusFingerprint();
 
   // The fixture server owns the build so its local basemap/service env is
   // guaranteed to be present; a bare Vite build would silently reach the

@@ -283,6 +283,7 @@
     "samples:generate": "node scripts/sample-contract.mjs write",
     "samples:migrate:v1": "node scripts/sample-contract.mjs migrate-v1",
     "samples:verify": "node scripts/sample-contract.mjs check",
+    "samples:fixtures:verify": "node samples/fixtures/verify.mjs && biome check samples/scenarios/ samples/fixtures/",
     "samples:verify:flagships": "node scripts/verify-flagship-evidence.mjs",
     "samples:run": "node scripts/sample-runner.mjs",
     "samples:list": "node scripts/sample-runner.mjs list",

@@ -28,6 +28,10 @@ const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
 const FIXTURE_BUILD_ENVIRONMENT_HELPER = "../../scripts/lib/fixture-build-environment.mjs";
+const REVIEWED_FIXTURE_HARNESS_IMPORTS = new Set([
+  FIXTURE_BUILD_ENVIRONMENT_HELPER,
+  "../../samples/scenarios/index.mjs",
+]);
 const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/ai-spatial-app-builder/mock-server.mjs", "demo:ai-spatial-builder:build"],
   ["examples/app-bootstrap-basic/mock-server.mjs", "demo:app-bootstrap:build"],
@@ -1629,7 +1633,7 @@ export function validateFixtureBuildHarnessSource(source, file = "mock-server.mj
     invariant(
       !moduleName ||
         !isUnreviewedHarnessModuleSpecifier(moduleName) ||
-        moduleName === FIXTURE_BUILD_ENVIRONMENT_HELPER,
+        REVIEWED_FIXTURE_HARNESS_IMPORTS.has(moduleName),
       `${file}: fixture build harnesses cannot import unreviewed local or data modules`,
     );
     const importClause = statement.importClause;
