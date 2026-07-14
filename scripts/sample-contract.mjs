@@ -74,14 +74,41 @@ const CREDENTIAL_QUERY_PARAMETER_SET = new Set([
 ]);
 const CREDENTIAL_QUERY_PARAMETERS = [...CREDENTIAL_QUERY_PARAMETER_SET].sort();
 const REVIEWED_LIVE_PRODUCERS = new Map([
-  ["bench:live", "node scripts/live-benchmark-evidence.mjs --output test-results/live-benchmark-evidence.json"],
-  ["demo:ai-spatial-builder:live-evidence", "node examples/ai-spatial-app-builder/live-evidence.mjs"],
+  [
+    "bench:live",
+    {
+      definition: "node scripts/live-benchmark-evidence.mjs --output test-results/live-benchmark-evidence.json",
+      generatorPath: "scripts/live-benchmark-evidence.mjs",
+    },
+  ],
+  [
+    "demo:ai-spatial-builder:live-evidence",
+    {
+      definition: "node examples/ai-spatial-app-builder/live-evidence.mjs",
+      generatorPath: "examples/ai-spatial-app-builder/live-evidence.mjs",
+    },
+  ],
   [
     "demo:spatial-analytics:live-evidence",
-    "npm run build --silent && node examples/spatial-analytics-workbench/live-evidence.mjs",
+    {
+      definition: "npm run build --silent && node examples/spatial-analytics-workbench/live-evidence.mjs",
+      generatorPath: "examples/spatial-analytics-workbench/live-evidence.mjs",
+    },
   ],
-  ["demo:standalone:live-smoke", "node scripts/standalone-live-smoke.mjs"],
-  ["evidence:overture:live", "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json"],
+  [
+    "demo:standalone:live-smoke",
+    {
+      definition: "node scripts/standalone-live-smoke.mjs",
+      generatorPath: "scripts/standalone-live-smoke.mjs",
+    },
+  ],
+  [
+    "evidence:overture:live",
+    {
+      definition: "node scripts/overture-live-evidence.mjs --output test-results/overture-live-evidence.json",
+      generatorPath: "scripts/overture-live-evidence.mjs",
+    },
+  ],
 ]);
 const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "25d",
@@ -258,10 +285,9 @@ async function validateCatalogCommand(command, sampleId, packageJson) {
 }
 
 function isBoundedLiveCommand(parsed, packageJson) {
-  return (
-    parsed.runner === "npm" &&
-    REVIEWED_LIVE_PRODUCERS.get(parsed.script) === packageJson.scripts?.[parsed.script]
-  );
+  if (parsed.runner !== "npm") return false;
+  const producer = REVIEWED_LIVE_PRODUCERS.get(parsed.script);
+  return producer?.definition === packageJson.scripts?.[parsed.script];
 }
 
 function isBoundedValidationCommand(parsed, packageJson) {
@@ -1176,6 +1202,12 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         `${sample.id}: automatic validation command is not in the reviewed bounded registry: ${command}`,
       );
     }
+    for (const command of sample.evidence.live.commands) {
+      invariant(
+        isBoundedLiveCommand(commandRecords.get(command), packageJson),
+        `${sample.id}: scheduled live command is not in the reviewed bounded producer registry: ${command}`,
+      );
+    }
     invariant(
       ["executed", "not-applicable", "planned"].includes(sample.evidence.fixture.status),
       `${sample.id}: invalid fixture lane status`,
@@ -1242,12 +1274,6 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
           `${sample.id}: planned live evidence requires a target live mode`,
         );
       }
-    }
-    for (const command of sample.evidence.live.commands) {
-      invariant(
-        isBoundedLiveCommand(commandRecords.get(command), packageJson),
-        `${sample.id}: scheduled live command is not in the reviewed bounded producer registry: ${command}`,
-      );
     }
   }
 
@@ -1371,15 +1397,29 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
 
 export async function validateLiveEvidenceProducer(evidence, sample) {
   if (evidence.status !== "executed") return;
-  const producer = evidence.artifacts.find((artifact) => artifact.kind === "producer-generator");
-  invariant(producer, `${sample.id}: live evidence requires a producer-generator artifact`);
+  const commands = sample.evidence?.live?.commands;
+  invariant(
+    Array.isArray(commands) && commands.length === 1,
+    `${sample.id}: executed live evidence requires exactly one reviewed producer command`,
+  );
+  const [command] = commands;
+  const parsed = parseCatalogCommand(command);
+  const binding = parsed.runner === "npm" ? REVIEWED_LIVE_PRODUCERS.get(parsed.script) : undefined;
+  invariant(binding, `${sample.id}: executed live evidence command is not in the reviewed producer registry: ${command}`);
+  const producers = (evidence.artifacts ?? []).filter((artifact) => artifact.kind === "producer-generator");
+  invariant(producers.length === 1, `${sample.id}: live evidence requires exactly one producer-generator artifact`);
+  const [producer] = producers;
   assertRelativePath(producer.path, `${sample.id}.producer.path`);
+  invariant(
+    producer.path === binding.generatorPath,
+    `${sample.id}: producer generator path for ${command} must be ${binding.generatorPath}`,
+  );
   const generatorBytes = await readFile(path.join(PROJECT_ROOT, producer.path));
   invariant(
     sha256(generatorBytes) === producer.sha256,
     `${sample.id}: producer generator digest drift`,
   );
-  if (sample.evidence.live.commands.includes("npm run bench:live")) {
+  if (parsed.script === "bench:live") {
     const generator = generatorBytes.toString("utf8");
     const sampleLiteral = `sampleId: "${sample.id}"`;
     const journeyLiteral = `journeyId: "${evidence.semantics.operation}"`;
