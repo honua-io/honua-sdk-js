@@ -67,6 +67,9 @@ const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
 const MAX_GATE_ARTIFACT_BYTES = 16 * 1024 * 1024;
 const MAX_PACKED_FILES = 6_000;
 const MAX_PACKED_BYTES = 128 * 1024 * 1024;
+const EVIDENCE_LOCK_OWNER_FORMAT = "honua.sdk.sample-evidence-lock-owner.v1";
+const UUID_V4 = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+const evidenceLockStates = new WeakMap();
 
 function fail(message) {
   throw new Error(message);
@@ -1070,13 +1073,29 @@ async function readEvidenceLockOwner(lockPath, projectRoot) {
       label: "sample evidence lock owner",
       maxBytes: 4_096,
     })).toString("utf8"));
+    const createdAt = typeof owner?.createdAt === "string" ? Date.parse(owner.createdAt) : Number.NaN;
     if (
+      !isPlainRecord(owner) ||
+      !sameJson(Object.keys(owner).sort(), [
+        "createdAt",
+        "format",
+        "pid",
+        "processStart",
+        "sampleId",
+        "schemaVersion",
+        "token",
+      ]) ||
+      owner.format !== EVIDENCE_LOCK_OWNER_FORMAT ||
+      owner.schemaVersion !== 1 ||
       !Number.isSafeInteger(owner?.pid) ||
       owner.pid <= 0 ||
       !validEvidenceSampleId(owner.sampleId) ||
       typeof owner.token !== "string" ||
-      !/^[a-f0-9-]{36}$/.test(owner.token) ||
-      (owner.processStart !== null && !/^\d+$/.test(owner.processStart))
+      !UUID_V4.test(owner.token) ||
+      typeof owner.processStart !== "string" ||
+      !/^\d+$/.test(owner.processStart) ||
+      !Number.isFinite(createdAt) ||
+      new Date(createdAt).toISOString() !== owner.createdAt
     ) {
       return undefined;
     }
@@ -1088,14 +1107,20 @@ async function readEvidenceLockOwner(lockPath, projectRoot) {
 }
 
 async function processStartIdentity(pid) {
-  if (process.platform !== "linux") return null;
+  if (process.platform !== "linux") fail("sample evidence locking requires Linux process-instance identity");
   try {
     const value = await readFile(`/proc/${pid}/stat`, "utf8");
     const close = value.lastIndexOf(")");
     const fields = value.slice(close + 2).split(" ");
-    return /^\d+$/.test(fields[19] ?? "") ? fields[19] : null;
+    if (close < 1 || !/^\d+$/.test(fields[19] ?? "")) {
+      fail(`sample evidence lock process identity is malformed for pid ${pid}`);
+    }
+    return fields[19];
   } catch (error) {
-    if (new Set(["ENOENT", "ESRCH", "EACCES", "EPERM"]).has(error?.code)) return null;
+    if (new Set(["ENOENT", "ESRCH"]).has(error?.code)) return undefined;
+    if (new Set(["EACCES", "EPERM"]).has(error?.code)) {
+      fail(`sample evidence lock process identity cannot be verified for pid ${pid}`);
+    }
     throw error;
   }
 }
@@ -1104,10 +1129,11 @@ async function processIsOwnerAlive(owner) {
   try {
     process.kill(owner.pid, 0);
   } catch (error) {
-    if (error?.code !== "EPERM") return false;
+    if (error?.code === "ESRCH") return false;
+    if (error?.code !== "EPERM") throw error;
   }
-  if (owner.processStart === null) return true;
-  return (await processStartIdentity(owner.pid)) === owner.processStart;
+  const processStart = await processStartIdentity(owner.pid);
+  return processStart !== undefined && processStart === owner.processStart;
 }
 
 /**
@@ -1115,24 +1141,44 @@ async function processIsOwnerAlive(owner) {
  * the complete evidence tree, so cross-sample runs must share this one lock.
  * The canonical
  * lock is published only after its immutable owner record exists, so a second
- * runner can safely reclaim a lock whose process no longer exists.
+ * runner can safely reclaim a lock whose process no longer exists. Recovery
+ * boundaries cover process interruption (including SIGKILL), not storage
+ * persistence across sudden host power loss.
  */
 export async function acquireSampleEvidenceLock(sampleId, options = {}) {
   if (!validEvidenceSampleId(sampleId)) fail("sample evidence lock sample ID is invalid");
+  if (process.platform !== "linux") fail("sample evidence locking is supported only on Linux");
   const projectRoot = path.resolve(options.projectRoot ?? PROJECT_ROOT);
   const lockRoot = await canonicalEvidenceLockRoot(projectRoot);
   const token = randomUUID();
   const lockPath = path.join(lockRoot, "evidence");
   const candidatePath = path.join(lockRoot, `.candidate-${token}`);
-  await mkdir(candidatePath);
   const processStart = await processStartIdentity(process.pid);
+  if (processStart === undefined) fail("sample evidence lock could not bind the current process instance");
+  await mkdir(candidatePath);
+  const lockOwner = {
+    format: EVIDENCE_LOCK_OWNER_FORMAT,
+    schemaVersion: 1,
+    pid: process.pid,
+    processStart,
+    sampleId,
+    token,
+    createdAt: new Date().toISOString(),
+  };
   await writeFile(
     path.join(candidatePath, "owner.json"),
-    `${JSON.stringify({ pid: process.pid, processStart, sampleId, token, createdAt: new Date().toISOString() })}\n`,
+    `${JSON.stringify(lockOwner)}\n`,
     { flag: "wx" },
   );
 
   let acquired = false;
+  const evidenceLock = {
+    owner: Object.freeze(lockOwner),
+    path: lockPath,
+    processStart,
+    sampleId,
+    token,
+  };
   try {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       try {
@@ -1142,10 +1188,24 @@ export async function acquireSampleEvidenceLock(sampleId, options = {}) {
       } catch (error) {
         if (!new Set(["EEXIST", "ENOTEMPTY"]).has(error?.code)) throw error;
       }
-      const owner = await readEvidenceLockOwner(lockPath, projectRoot);
+      let contestedBinding;
+      let owner;
+      try {
+        contestedBinding = await canonicalExistingDirectory(
+          lockPath,
+          lockPath,
+          "contested sample evidence lock",
+        );
+        owner = await readEvidenceLockOwner(lockPath, projectRoot);
+        await revalidateCanonicalDirectory(contestedBinding, "contested sample evidence lock");
+      } catch (error) {
+        if (error?.code === "ENOENT") continue;
+        throw error;
+      }
       if (owner && await processIsOwnerAlive(owner)) {
         fail(`${sampleId}: another sample evidence run is active for ${owner.sampleId} (pid ${owner.pid})`);
       }
+      await invokeReceiptRecoveryFault(options.fault, "before-stale-lock-quarantined");
       const stalePath = path.join(lockRoot, `.stale-${randomUUID()}`);
       try {
         await rename(lockPath, stalePath);
@@ -1153,41 +1213,88 @@ export async function acquireSampleEvidenceLock(sampleId, options = {}) {
         if (error?.code === "ENOENT") continue;
         throw error;
       }
-      try {
-        await recoverInterruptedReceiptTransactions(undefined, owner?.sampleId, {
-          projectRoot,
-          transactionRoot: stalePath,
-        });
-      } catch (error) {
-        throw new AggregateError(
-          [error],
-          `${sampleId}: stale evidence lock recovery failed; preserved ${path.basename(stalePath)}`,
+      const movedBinding = await canonicalExistingDirectory(stalePath, stalePath, "quarantined sample evidence lock");
+      const movedOwner = await readEvidenceLockOwner(stalePath, projectRoot);
+      const movedOwnerAlive = movedOwner ? await processIsOwnerAlive(movedOwner) : false;
+      await revalidateCanonicalDirectory(movedBinding, "quarantined sample evidence lock");
+      const confirmedMovedOwner = await readEvidenceLockOwner(stalePath, projectRoot);
+      if (
+        movedBinding.dev !== contestedBinding.dev ||
+        movedBinding.ino !== contestedBinding.ino ||
+        !sameJson(movedOwner, owner) ||
+        !sameJson(confirmedMovedOwner, movedOwner) ||
+        movedOwnerAlive
+      ) {
+        try {
+          await rename(stalePath, lockPath);
+        } catch (error) {
+          if (!new Set(["EEXIST", "ENOTEMPTY"]).has(error?.code)) throw error;
+          fail(`${sampleId}: a changed sample evidence lock was displaced and could not be restored`);
+        }
+        const restoredBinding = await canonicalExistingDirectory(
+          lockPath,
+          lockPath,
+          "restored sample evidence lock",
         );
+        if (restoredBinding.dev !== movedBinding.dev || restoredBinding.ino !== movedBinding.ino) {
+          fail(`${sampleId}: restored sample evidence lock identity changed`);
+        }
+        const restoredOwner = await readEvidenceLockOwner(lockPath, projectRoot);
+        if (!sameJson(restoredOwner, confirmedMovedOwner)) {
+          fail(`${sampleId}: restored sample evidence lock owner changed`);
+        }
+        fail(`${sampleId}: sample evidence lock changed during stale-owner reclamation`);
       }
-      await rm(stalePath, { recursive: true, force: false });
+      await invokeReceiptRecoveryFault(options.fault, "after-stale-lock-quarantined");
     }
     if (!acquired) fail(`${sampleId}: could not acquire the sample evidence lock`);
+    evidenceLock.binding = Object.freeze(
+      await canonicalExistingDirectory(lockPath, lockPath, "canonical sample evidence lock"),
+    );
+    await recoverEvidenceLockResidues(evidenceLock, projectRoot, options.fault);
+  } catch (error) {
+    if (acquired) {
+      try {
+        await discardOwnedEvidenceLock(evidenceLock, projectRoot);
+      } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], `${sampleId}: failed recovery lock could not be released`);
+      }
+    }
+    throw error;
   } finally {
     if (!acquired) await rm(candidatePath, { recursive: true, force: true });
   }
 
   let released = false;
-  return {
-    path: lockPath,
-    sampleId,
-    token,
-    async release() {
-      if (released) return;
-      const owner = await readEvidenceLockOwner(lockPath, projectRoot);
-      if (!owner || owner.token !== token || owner.pid !== process.pid) {
-        fail(`${sampleId}: sample evidence lock ownership changed before release`);
-      }
-      const releasePath = path.join(lockRoot, `.release-${sampleId}-${token}`);
-      await rename(lockPath, releasePath);
-      await rm(releasePath, { recursive: true, force: false });
-      released = true;
-    },
+  evidenceLock.release = async () => {
+    if (released) return;
+    await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+    const owner = await readEvidenceLockOwner(lockPath, projectRoot);
+    if (!owner || !sameJson(owner, lockOwner)) {
+      fail(`${sampleId}: sample evidence lock ownership changed before release`);
+    }
+    await validateEvidenceLockReleaseDecision(evidenceLock, projectRoot);
+    const resolvedPath = path.join(lockRoot, `.resolved-${randomUUID()}`);
+    await rename(lockPath, resolvedPath);
+    const releasedBinding = await canonicalExistingDirectory(
+      resolvedPath,
+      resolvedPath,
+      "released sample evidence lock",
+    );
+    if (
+      releasedBinding.dev !== evidenceLock.binding.dev ||
+      releasedBinding.ino !== evidenceLock.binding.ino
+    ) {
+      fail(`${sampleId}: released sample evidence lock identity changed`);
+    }
+    await invokeReceiptRecoveryFault(options.fault, "after-evidence-lock-resolved");
+    await invokeReceiptRecoveryFault(options.fault, "before-evidence-lock-cleanup");
+    await rm(resolvedPath, { recursive: true, force: false });
+    await invokeReceiptRecoveryFault(options.fault, "after-evidence-lock-cleanup");
+    released = true;
   };
+  evidenceLockStates.set(evidenceLock, { receiptDecision: "none" });
+  return Object.freeze(evidenceLock);
 }
 
 async function canonicalExistingDirectory(absolute, expectedCanonical, label, optional = false) {
@@ -1208,17 +1315,36 @@ async function canonicalExistingDirectory(absolute, expectedCanonical, label, op
   return { absolute, canonical: expectedCanonical, dev: metadata.dev, ino: metadata.ino };
 }
 
+async function revalidateCanonicalDirectory(binding, label) {
+  const metadata = await lstat(binding.absolute);
+  if (
+    !metadata.isDirectory() ||
+    metadata.isSymbolicLink() ||
+    metadata.dev !== binding.dev ||
+    metadata.ino !== binding.ino ||
+    (await realpath(binding.absolute)) !== binding.canonical
+  ) {
+    fail(`${label} changed after it was bound`);
+  }
+}
+
 function receiptNameGate(name) {
   const suffix = ".v1.json";
   const gate = typeof name === "string" && name.endsWith(suffix) ? name.slice(0, -suffix.length) : "";
   return SAMPLE_GATE_NAMES.includes(gate) ? gate : undefined;
 }
 
-function receiptSnapshotManifest(sampleId, snapshot) {
+function receiptSnapshotManifest(
+  lockOwner,
+  snapshot,
+  format = "honua.sdk.sample-receipt-guard.v1",
+) {
+  const { sampleId } = lockOwner;
   return {
-    format: "honua.sdk.sample-receipt-guard.v1",
+    format,
     schemaVersion: 1,
     sampleId,
+    lockOwner: structuredClone(lockOwner),
     receiptRoot: `samples/evidence/${sampleId}/receipts`,
     receipts: [...snapshot]
       .map(([name, value]) => ({
@@ -1230,13 +1356,30 @@ function receiptSnapshotManifest(sampleId, snapshot) {
   };
 }
 
-function validateReceiptGuardManifest(manifest, sampleId) {
+function validateReceiptGuardManifest(
+  manifest,
+  expectedOwner,
+  expectedFormat = "honua.sdk.sample-receipt-guard.v1",
+) {
   if (
+    !expectedOwner ||
+    !validEvidenceSampleId(expectedOwner.sampleId) ||
+    typeof expectedOwner.token !== "string" ||
+    !UUID_V4.test(expectedOwner.token) ||
     !isPlainRecord(manifest) ||
-    manifest.format !== "honua.sdk.sample-receipt-guard.v1" ||
+    !sameJson(Object.keys(manifest).sort(), [
+      "format",
+      "lockOwner",
+      "receiptRoot",
+      "receipts",
+      "sampleId",
+      "schemaVersion",
+    ]) ||
+    manifest.format !== expectedFormat ||
     manifest.schemaVersion !== 1 ||
     !validEvidenceSampleId(manifest.sampleId) ||
-    (sampleId && manifest.sampleId !== sampleId) ||
+    manifest.sampleId !== expectedOwner.sampleId ||
+    !sameJson(manifest.lockOwner, expectedOwner) ||
     manifest.receiptRoot !== `samples/evidence/${manifest.sampleId}/receipts` ||
     !Array.isArray(manifest.receipts)
   ) {
@@ -1246,6 +1389,7 @@ function validateReceiptGuardManifest(manifest, sampleId) {
   for (const receipt of manifest.receipts) {
     if (
       !isPlainRecord(receipt) ||
+      !sameJson(Object.keys(receipt).sort(), ["bytes", "name", "sha256"]) ||
       !receiptNameGate(receipt.name) ||
       names.has(receipt.name) ||
       !Number.isSafeInteger(receipt.bytes) ||
@@ -1263,8 +1407,31 @@ function validateReceiptGuardManifest(manifest, sampleId) {
   return manifest;
 }
 
-async function readReceiptGuard(transactionRoot, expectedSampleId, projectRoot, expectedSnapshot) {
-  const guardRoot = path.join(transactionRoot, "receipt-guard");
+async function readReceiptGuard(
+  transactionRoot,
+  expectedOwner,
+  projectRoot,
+  expectedSnapshot,
+  guardName = "receipt-guard",
+) {
+  const configuration = {
+    "receipt-commit": {
+      format: "honua.sdk.sample-receipt-commit.v1",
+      snapshotName: "published",
+    },
+    "receipt-guard": {
+      format: "honua.sdk.sample-receipt-guard.v1",
+      snapshotName: "previous",
+    },
+    "receipt-guard-committed": {
+      format: "honua.sdk.sample-receipt-guard.v1",
+      snapshotName: "previous",
+    },
+  }[guardName];
+  if (!configuration) {
+    fail("interrupted receipt guard name is invalid");
+  }
+  const guardRoot = path.join(transactionRoot, guardName);
   let guardMetadata;
   try {
     guardMetadata = await lstat(guardRoot);
@@ -1279,11 +1446,22 @@ async function readReceiptGuard(transactionRoot, expectedSampleId, projectRoot, 
   ) {
     fail("interrupted receipt guard is not a canonical directory");
   }
+  const guardBinding = {
+    absolute: guardRoot,
+    canonical: guardRoot,
+    dev: guardMetadata.dev,
+    ino: guardMetadata.ino,
+  };
   const guardEntries = await readdir(guardRoot, { withFileTypes: true });
   if (
     guardEntries.length !== 2 ||
     !guardEntries.some((entry) => entry.name === "manifest.json" && entry.isFile() && !entry.isSymbolicLink()) ||
-    !guardEntries.some((entry) => entry.name === "previous" && entry.isDirectory() && !entry.isSymbolicLink())
+    !guardEntries.some(
+      (entry) =>
+        entry.name === configuration.snapshotName &&
+        entry.isDirectory() &&
+        !entry.isSymbolicLink(),
+    )
   ) {
     fail("interrupted receipt guard has an unexpected structure");
   }
@@ -1292,8 +1470,12 @@ async function readReceiptGuard(transactionRoot, expectedSampleId, projectRoot, 
     label: "interrupted receipt guard manifest",
     maxBytes: 64 * 1024,
   });
-  const manifest = validateReceiptGuardManifest(JSON.parse(manifestBytes.toString("utf8")), expectedSampleId);
-  const previousRoot = path.join(guardRoot, "previous");
+  const manifest = validateReceiptGuardManifest(
+    JSON.parse(manifestBytes.toString("utf8")),
+    expectedOwner,
+    configuration.format,
+  );
+  const previousRoot = path.join(guardRoot, configuration.snapshotName);
   const previousMetadata = await lstat(previousRoot);
   if (
     !previousMetadata.isDirectory() ||
@@ -1302,12 +1484,27 @@ async function readReceiptGuard(transactionRoot, expectedSampleId, projectRoot, 
   ) {
     fail(`${manifest.sampleId}: receipt guard rollback directory is not canonical`);
   }
+  const previousBinding = {
+    absolute: previousRoot,
+    canonical: previousRoot,
+    dev: previousMetadata.dev,
+    ino: previousMetadata.ino,
+  };
   const entries = await readdir(previousRoot, { withFileTypes: true });
   if (
     entries.length !== manifest.receipts.length ||
     entries.some((entry) => !entry.isFile() || entry.isSymbolicLink() || !receiptNameGate(entry.name))
   ) {
     fail(`${manifest.sampleId}: receipt guard rollback set is invalid`);
+  }
+  if (
+    expectedSnapshot &&
+    (
+      expectedSnapshot.size !== manifest.receipts.length ||
+      manifest.receipts.some((binding) => !expectedSnapshot.has(binding.name))
+    )
+  ) {
+    fail(`${manifest.sampleId}: receipt guard snapshot binding set is invalid`);
   }
   const snapshot = new Map();
   for (const binding of manifest.receipts) {
@@ -1329,7 +1526,15 @@ async function readReceiptGuard(transactionRoot, expectedSampleId, projectRoot, 
     });
     snapshot.set(binding.name, { bytes });
   }
+  await revalidateCanonicalDirectory(previousBinding, `${manifest.sampleId}: receipt guard rollback directory`);
+  await revalidateCanonicalDirectory(guardBinding, `${manifest.sampleId}: receipt guard directory`);
   return { guardRoot, manifest, previousRoot, snapshot };
+}
+
+async function requireReceiptGuard(...args) {
+  const guard = await readReceiptGuard(...args);
+  if (!guard) fail("required receipt transaction guard is missing");
+  return guard;
 }
 
 async function canonicalReceiptRecoveryParent(projectRoot, sampleId) {
@@ -1345,66 +1550,488 @@ async function canonicalReceiptRecoveryParent(projectRoot, sampleId) {
   return path.join(projectRoot, `samples/evidence/${sampleId}/receipts`);
 }
 
-async function restoreReceiptGuard(guard, transactionRoot, projectRoot) {
-  const { sampleId } = guard.manifest;
-  const receiptRoot = await canonicalReceiptRecoveryParent(projectRoot, sampleId);
-  const discarded = path.join(transactionRoot, "discarded-receipts");
-  try {
-    await lstat(discarded);
-    fail(`${sampleId}: receipt recovery quarantine already exists`);
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-  }
-  let discardedExisting = false;
-  try {
-    const existing = await canonicalExistingDirectory(
-      receiptRoot,
-      receiptRoot,
-      `${sampleId}: receipt recovery canonical receipts`,
-      true,
-    );
-    if (existing) {
-      await rename(receiptRoot, discarded);
-      discardedExisting = true;
-    }
-    await rename(guard.previousRoot, receiptRoot);
-  } catch (error) {
-    if (discardedExisting) {
-      try {
-        await rename(discarded, receiptRoot);
-      } catch (rollbackError) {
-        throw new AggregateError([error, rollbackError], `${sampleId}: receipt guard recovery rollback failed`);
-      }
-    }
-    throw error;
-  }
-  const restoredEntries = await readdir(receiptRoot);
+async function receiptSnapshotMatchesAt(directory, snapshot, sampleId, projectRoot) {
+  const binding = await canonicalExistingDirectory(
+    directory,
+    directory,
+    `${sampleId}: canonical receipt recovery directory`,
+    true,
+  );
+  if (!binding) return false;
+  const entries = await readdir(directory, { withFileTypes: true });
   if (
-    restoredEntries.length !== guard.snapshot.size ||
-    restoredEntries.some((name) => !guard.snapshot.has(name))
+    entries.length !== snapshot.size ||
+    entries.some((entry) => !snapshot.has(entry.name) || !entry.isFile() || entry.isSymbolicLink())
+  ) {
+    return false;
+  }
+  for (const entry of entries) {
+    const expected = snapshot.get(entry.name);
+    const receiptPath = path.join(directory, entry.name);
+    const before = await lstat(receiptPath);
+    const relative = path.relative(projectRoot, receiptPath).replaceAll(path.sep, "/");
+    const bytes = await readCanonicalBoundedFile(projectRoot, relative, {
+      label: `${sampleId} receipt recovery comparison ${entry.name}`,
+      maxBytes: 1024 * 1024,
+    });
+    const after = await lstat(receiptPath);
+    if (
+      !before.isFile() ||
+      before.isSymbolicLink() ||
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      (await realpath(receiptPath)) !== path.join(directory, entry.name) ||
+      !bytes.equals(expected.bytes)
+    ) {
+      return false;
+    }
+  }
+  await revalidateCanonicalDirectory(binding, `${sampleId}: canonical receipt recovery directory`);
+  return true;
+}
+
+async function validateRestoredReceiptSnapshotAt(directory, snapshot, sampleId, projectRoot) {
+  const binding = await canonicalExistingDirectory(
+    directory,
+    directory,
+    `${sampleId}: restored receipt directory`,
+  );
+  const entries = await readdir(binding.absolute, { withFileTypes: true });
+  if (
+    entries.length !== snapshot.size ||
+    entries.some((entry) => !snapshot.has(entry.name) || !entry.isFile() || entry.isSymbolicLink())
   ) {
     fail(`${sampleId}: restored receipt set is incomplete`);
   }
-  for (const [name, expected] of guard.snapshot) {
-    const relative = path.relative(projectRoot, path.join(receiptRoot, name)).replaceAll(path.sep, "/");
+  for (const entry of entries) {
+    const expected = snapshot.get(entry.name);
+    const receiptPath = path.join(binding.absolute, entry.name);
+    const before = await lstat(receiptPath);
+    const relative = path.relative(projectRoot, receiptPath).replaceAll(path.sep, "/");
     const bytes = await readCanonicalBoundedFile(projectRoot, relative, {
-      label: `${sampleId} restored receipt ${name}`,
+      label: `${sampleId} restored receipt ${entry.name}`,
       maxBytes: 1024 * 1024,
     });
-    if (!bytes.equals(expected.bytes)) fail(`${sampleId}: restored receipt bytes changed: ${name}`);
+    const after = await lstat(receiptPath);
+    if (
+      !before.isFile() ||
+      before.isSymbolicLink() ||
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      (await realpath(receiptPath)) !== path.join(binding.canonical, entry.name) ||
+      !bytes.equals(expected.bytes)
+    ) {
+      fail(`${sampleId}: restored receipt bytes changed: ${entry.name}`);
+    }
+    validateGateReceiptStructure(JSON.parse(bytes.toString("utf8")), {
+      sampleId,
+      gate: receiptNameGate(entry.name),
+    });
   }
-  if (discardedExisting) await rm(discarded, { recursive: true, force: false });
+  await revalidateCanonicalDirectory(binding, `${sampleId}: restored receipt directory`);
 }
 
-/** Recover only a pre-execution guard owned by a stale global evidence lock. */
+async function invokeReceiptRecoveryFault(fault, point) {
+  if (fault) await fault(point);
+}
+
+// Keep guard/previous immutable until the containing stale lock is resolved.
+// Recovery publishes a copy, so interruption after either rename can replay
+// from the same owner-bound snapshot without interpreting partial cleanup.
+async function restoreReceiptGuard(guard, transactionRoot, projectRoot, options = {}) {
+  const { sampleId } = guard.manifest;
+  const receiptRoot = await canonicalReceiptRecoveryParent(projectRoot, sampleId);
+  if (await receiptSnapshotMatchesAt(receiptRoot, guard.snapshot, sampleId, projectRoot)) return;
+
+  const recoveryToken = randomUUID();
+  const next = path.join(transactionRoot, `.recovery-next-${recoveryToken}`);
+  const discarded = path.join(transactionRoot, `.recovery-discarded-${recoveryToken}`);
+  await mkdir(next);
+  for (const [name, value] of guard.snapshot) {
+    await writeFile(path.join(next, name), value.bytes, { flag: "wx" });
+  }
+  await validateRestoredReceiptSnapshotAt(next, guard.snapshot, sampleId, projectRoot);
+  await invokeReceiptRecoveryFault(options.fault, "after-recovery-stage-ready");
+  await options.revalidate?.();
+
+  const current = await canonicalExistingDirectory(
+    receiptRoot,
+    receiptRoot,
+    `${sampleId}: receipt recovery canonical receipts`,
+    true,
+  );
+  if (current) {
+    await rename(receiptRoot, discarded);
+    await invokeReceiptRecoveryFault(options.fault, "after-current-receipts-quarantined");
+  }
+  await options.revalidate?.();
+  await rename(next, receiptRoot);
+  await invokeReceiptRecoveryFault(options.fault, "after-guard-snapshot-published");
+  await validateRestoredReceiptSnapshotAt(receiptRoot, guard.snapshot, sampleId, projectRoot);
+  await invokeReceiptRecoveryFault(options.fault, "after-restored-receipts-validated");
+}
+
+function evidenceLockResidue(name) {
+  if (name.startsWith(".stale-")) {
+    const token = name.slice(".stale-".length);
+    return UUID_V4.test(token) ? { kind: "recoverable", token } : { kind: "invalid" };
+  }
+  if (name.startsWith(".resolving-")) {
+    const token = name.slice(".resolving-".length);
+    return UUID_V4.test(token) ? { kind: "recoverable", token } : { kind: "invalid" };
+  }
+  if (name.startsWith(".resolved-")) {
+    const token = name.slice(".resolved-".length);
+    return UUID_V4.test(token) ? { kind: "resolved", token } : { kind: "invalid" };
+  }
+  // Older release residues cannot be trusted after an interrupted recursive
+  // deletion because the owner or receipt decision may already be missing.
+  if (name.startsWith(".release-")) return { kind: "invalid" };
+  return undefined;
+}
+
+async function validateOwnedEvidenceLock(evidenceLock, projectRoot) {
+  const expectedPath = path.join(projectRoot, ".tmp/sample-runner-locks/evidence");
+  if (!evidenceLock || path.resolve(evidenceLock.path) !== expectedPath) {
+    fail("receipt recovery requires the current canonical evidence lock");
+  }
+  if (!evidenceLock.binding) fail("receipt recovery evidence lock identity is missing");
+  await revalidateCanonicalDirectory(evidenceLock.binding, "receipt recovery evidence lock");
+  const owner = await readEvidenceLockOwner(evidenceLock.path, projectRoot);
+  if (!owner || !sameJson(owner, evidenceLock.owner)) {
+    fail("receipt recovery evidence lock ownership changed");
+  }
+  return owner;
+}
+
+function evidenceLockState(evidenceLock) {
+  const state = evidenceLockStates.get(evidenceLock);
+  if (!state) fail("sample evidence lock handle is not the acquired lock instance");
+  return state;
+}
+
+async function discardOwnedEvidenceLock(evidenceLock, projectRoot) {
+  await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+  const resolved = path.join(path.dirname(evidenceLock.path), `.resolved-${randomUUID()}`);
+  await rename(evidenceLock.path, resolved);
+  const resolvedBinding = await canonicalExistingDirectory(resolved, resolved, "discarded recovery evidence lock");
+  if (resolvedBinding.dev !== evidenceLock.binding.dev || resolvedBinding.ino !== evidenceLock.binding.ino) {
+    fail("discarded recovery evidence lock identity changed");
+  }
+  await rm(resolved, { recursive: true, force: false });
+}
+
+async function receiptGuardMarkers(transactionRoot) {
+  const guard = await canonicalExistingDirectory(
+    path.join(transactionRoot, "receipt-guard"),
+    path.join(transactionRoot, "receipt-guard"),
+    "stale receipt rollback guard",
+    true,
+  );
+  const committed = await canonicalExistingDirectory(
+    path.join(transactionRoot, "receipt-guard-committed"),
+    path.join(transactionRoot, "receipt-guard-committed"),
+    "stale committed receipt guard",
+    true,
+  );
+  if (guard && committed) fail("stale evidence lock has conflicting receipt transaction decisions");
+  return { committed: Boolean(committed), guard: Boolean(guard) };
+}
+
+async function validateEvidenceLockReleaseDecision(evidenceLock, projectRoot) {
+  const owner = await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+  const state = evidenceLockState(evidenceLock);
+  const markers = await receiptGuardMarkers(evidenceLock.path);
+  if (state.receiptDecision === "none") {
+    if (markers.guard || markers.committed) {
+      fail(`${owner.sampleId}: sample evidence lock has an untracked receipt transaction`);
+    }
+    return;
+  }
+  if (new Set(["pending", "committing", "rolling-back"]).has(state.receiptDecision)) {
+    fail(`${owner.sampleId}: sample evidence lock cannot release before its receipt transaction is decided`);
+  }
+  if (state.receiptDecision === "rolled-back") {
+    if (!markers.guard || markers.committed) {
+      fail(`${owner.sampleId}: rolled-back receipt transaction marker is missing`);
+    }
+    if (!(state.rollbackSnapshot instanceof Map)) {
+      fail(`${owner.sampleId}: rolled-back receipt snapshot is missing from the active lock`);
+    }
+    const guard = await requireReceiptGuard(
+      evidenceLock.path,
+      owner,
+      projectRoot,
+      state.rollbackSnapshot,
+    );
+    const receiptRoot = await canonicalReceiptRecoveryParent(projectRoot, owner.sampleId);
+    if (!await receiptSnapshotMatchesAt(receiptRoot, guard.snapshot, owner.sampleId, projectRoot)) {
+      fail(`${owner.sampleId}: receipt rollback is incomplete before evidence lock release`);
+    }
+    return;
+  }
+  if (state.receiptDecision === "committed") {
+    if (markers.guard || !markers.committed) {
+      fail(`${owner.sampleId}: committed receipt transaction marker is missing`);
+    }
+    await requireReceiptGuard(
+      evidenceLock.path,
+      owner,
+      projectRoot,
+      undefined,
+      "receipt-guard-committed",
+    );
+    if (!(state.publishedSnapshot instanceof Map)) {
+      fail(`${owner.sampleId}: committed receipt snapshot is missing from the active lock`);
+    }
+    const commit = await requireReceiptGuard(
+      evidenceLock.path,
+      owner,
+      projectRoot,
+      state.publishedSnapshot,
+      "receipt-commit",
+    );
+    const receiptRoot = await canonicalReceiptRecoveryParent(projectRoot, owner.sampleId);
+    if (!await receiptSnapshotMatchesAt(receiptRoot, commit.snapshot, owner.sampleId, projectRoot)) {
+      fail(`${owner.sampleId}: committed receipt bytes changed before evidence lock release`);
+    }
+    return;
+  }
+  fail(`${owner.sampleId}: sample evidence lock receipt decision is invalid`);
+}
+
+async function recoverEvidenceTransactionRoot(transactionRoot, evidenceLock, projectRoot, options = {}) {
+  const lockRoot = path.dirname(evidenceLock.path);
+  if (path.dirname(transactionRoot) !== lockRoot) fail("stale evidence lock is outside the canonical lock root");
+  const residue = evidenceLockResidue(path.basename(transactionRoot));
+  if (residue?.kind !== "recoverable") fail("stale evidence lock name is invalid");
+  const transactionBinding = await canonicalExistingDirectory(transactionRoot, transactionRoot, "stale evidence lock");
+  await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+
+  const owner = await readEvidenceLockOwner(transactionRoot, projectRoot);
+  const markers = await receiptGuardMarkers(transactionRoot);
+  if ((markers.guard || markers.committed) && !owner) {
+    fail("ownerless stale evidence lock contains an owner-bound receipt guard");
+  }
+  if (owner && await processIsOwnerAlive(owner)) {
+    fail(`${owner.sampleId}: stale evidence lock owner is still active`);
+  }
+  if (owner && residue.sampleId && (residue.sampleId !== owner.sampleId || residue.token !== owner.token)) {
+    fail("released evidence lock name does not match its owner binding");
+  }
+  if (options.sampleId && owner && options.sampleId !== owner.sampleId) {
+    fail("stale evidence lock sample does not match the requested recovery");
+  }
+
+  let committedGuardSnapshot;
+  let committedReceipt;
+  let rollbackGuard;
+  if (markers.guard) {
+    const guard = await requireReceiptGuard(transactionRoot, owner, projectRoot);
+    rollbackGuard = guard;
+    const revalidate = async () => {
+      await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+      await revalidateCanonicalDirectory(transactionBinding, "stale evidence lock");
+      const currentOwner = await readEvidenceLockOwner(transactionRoot, projectRoot);
+      if (!currentOwner || !sameJson(currentOwner, owner) || await processIsOwnerAlive(currentOwner)) {
+        fail(`${owner.sampleId}: stale evidence lock owner binding changed during recovery`);
+      }
+      await requireReceiptGuard(transactionRoot, currentOwner, projectRoot, guard.snapshot);
+    };
+    await restoreReceiptGuard(guard, transactionRoot, projectRoot, { fault: options.fault, revalidate });
+    await revalidate();
+  } else if (markers.committed) {
+    const committedGuard = await requireReceiptGuard(
+      transactionRoot,
+      owner,
+      projectRoot,
+      undefined,
+      "receipt-guard-committed",
+    );
+    committedGuardSnapshot = committedGuard.snapshot;
+    const commit = await requireReceiptGuard(
+      transactionRoot,
+      owner,
+      projectRoot,
+      undefined,
+      "receipt-commit",
+    );
+    committedReceipt = commit;
+    const revalidate = async () => {
+      await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+      await revalidateCanonicalDirectory(transactionBinding, "stale evidence lock");
+      const currentOwner = await readEvidenceLockOwner(transactionRoot, projectRoot);
+      if (!currentOwner || !sameJson(currentOwner, owner) || await processIsOwnerAlive(currentOwner)) {
+        fail(`${owner.sampleId}: stale committed evidence lock owner binding changed during recovery`);
+      }
+      await requireReceiptGuard(
+        transactionRoot,
+        currentOwner,
+        projectRoot,
+        committedGuard.snapshot,
+        "receipt-guard-committed",
+      );
+      await requireReceiptGuard(
+        transactionRoot,
+        currentOwner,
+        projectRoot,
+        commit.snapshot,
+        "receipt-commit",
+      );
+    };
+    await revalidate();
+    const receiptRoot = await canonicalReceiptRecoveryParent(projectRoot, commit.manifest.sampleId);
+    if (!await receiptSnapshotMatchesAt(
+      receiptRoot,
+      commit.snapshot,
+      commit.manifest.sampleId,
+      projectRoot,
+    )) {
+      fail(`${commit.manifest.sampleId}: committed receipt bytes changed before recovery`);
+    }
+  }
+
+  await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+  await revalidateCanonicalDirectory(transactionBinding, "stale evidence lock");
+  if (rollbackGuard) {
+    const receiptRoot = await canonicalReceiptRecoveryParent(projectRoot, rollbackGuard.manifest.sampleId);
+    if (!await receiptSnapshotMatchesAt(
+      receiptRoot,
+      rollbackGuard.snapshot,
+      rollbackGuard.manifest.sampleId,
+      projectRoot,
+    )) {
+      fail(`${rollbackGuard.manifest.sampleId}: recovered receipt bytes changed before transaction resolution`);
+    }
+  } else if (committedReceipt) {
+    const receiptRoot = await canonicalReceiptRecoveryParent(projectRoot, committedReceipt.manifest.sampleId);
+    if (!await receiptSnapshotMatchesAt(
+      receiptRoot,
+      committedReceipt.snapshot,
+      committedReceipt.manifest.sampleId,
+      projectRoot,
+    )) {
+      fail(`${committedReceipt.manifest.sampleId}: committed receipt bytes changed before transaction resolution`);
+    }
+  }
+  // A resolving root remains recoverable until its owner, decision marker,
+  // and canonical receipt bytes are revalidated under the moved pathname.
+  const resolving = path.join(lockRoot, `.resolving-${randomUUID()}`);
+  await rename(transactionRoot, resolving);
+  const resolvingBinding = await canonicalExistingDirectory(
+    resolving,
+    resolving,
+    "resolving stale evidence lock",
+  );
+  if (resolvingBinding.dev !== transactionBinding.dev || resolvingBinding.ino !== transactionBinding.ino) {
+    fail("resolving stale evidence lock identity changed");
+  }
+  await invokeReceiptRecoveryFault(options.fault, "after-recovery-root-resolving");
+  await invokeReceiptRecoveryFault(options.fault, "before-recovery-root-resolved");
+  const resolvingOwner = await readEvidenceLockOwner(resolving, projectRoot);
+  if (
+    !sameJson(resolvingOwner, owner) ||
+    (resolvingOwner && await processIsOwnerAlive(resolvingOwner))
+  ) {
+    fail("resolving stale evidence lock owner binding changed");
+  }
+  const resolvingMarkers = await receiptGuardMarkers(resolving);
+  if (rollbackGuard) {
+    if (!resolvingMarkers.guard || resolvingMarkers.committed) {
+      fail(`${owner.sampleId}: rollback decision marker changed before transaction resolution`);
+    }
+    await requireReceiptGuard(
+      resolving,
+      resolvingOwner,
+      projectRoot,
+      rollbackGuard.snapshot,
+    );
+    const receiptRoot = await canonicalReceiptRecoveryParent(projectRoot, rollbackGuard.manifest.sampleId);
+    if (!await receiptSnapshotMatchesAt(
+      receiptRoot,
+      rollbackGuard.snapshot,
+      rollbackGuard.manifest.sampleId,
+      projectRoot,
+    )) {
+      fail(`${rollbackGuard.manifest.sampleId}: rollback receipt bytes changed during transaction resolution`);
+    }
+  } else if (committedReceipt) {
+    if (resolvingMarkers.guard || !resolvingMarkers.committed) {
+      fail(`${owner.sampleId}: committed decision marker changed before transaction resolution`);
+    }
+    await requireReceiptGuard(
+      resolving,
+      resolvingOwner,
+      projectRoot,
+      committedGuardSnapshot,
+      "receipt-guard-committed",
+    );
+    await requireReceiptGuard(
+      resolving,
+      resolvingOwner,
+      projectRoot,
+      committedReceipt.snapshot,
+      "receipt-commit",
+    );
+    const receiptRoot = await canonicalReceiptRecoveryParent(projectRoot, committedReceipt.manifest.sampleId);
+    if (!await receiptSnapshotMatchesAt(
+      receiptRoot,
+      committedReceipt.snapshot,
+      committedReceipt.manifest.sampleId,
+      projectRoot,
+    )) {
+      fail(`${committedReceipt.manifest.sampleId}: committed receipt bytes changed during transaction resolution`);
+    }
+  } else if (resolvingMarkers.guard || resolvingMarkers.committed) {
+    fail("receipt transaction decision appeared during transaction resolution");
+  }
+  await revalidateCanonicalDirectory(resolvingBinding, "resolving stale evidence lock");
+  // This rename is the process-crash completion point. Recursive deletion
+  // after it is cleanup-only and can be resumed by the next lock owner.
+  const resolved = path.join(lockRoot, `.resolved-${randomUUID()}`);
+  await rename(resolving, resolved);
+  const resolvedBinding = await canonicalExistingDirectory(resolved, resolved, "resolved stale evidence lock");
+  if (resolvedBinding.dev !== resolvingBinding.dev || resolvedBinding.ino !== resolvingBinding.ino) {
+    fail("resolved stale evidence lock identity changed");
+  }
+  await invokeReceiptRecoveryFault(options.fault, "after-recovery-root-resolved");
+  await invokeReceiptRecoveryFault(options.fault, "before-resolved-root-cleanup");
+  await rm(resolved, { recursive: true, force: false });
+  await invokeReceiptRecoveryFault(options.fault, "after-resolved-root-cleanup");
+}
+
+async function recoverEvidenceLockResidues(evidenceLock, projectRoot, fault) {
+  await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+  const lockRoot = path.dirname(evidenceLock.path);
+  const entries = await readdir(lockRoot, { withFileTypes: true });
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    const residue = evidenceLockResidue(entry.name);
+    if (!residue) continue;
+    if (residue.kind === "invalid" || !entry.isDirectory() || entry.isSymbolicLink()) {
+      fail(`sample evidence lock residue is invalid: ${entry.name}`);
+    }
+    const residuePath = path.join(lockRoot, entry.name);
+    if (residue.kind === "resolved") {
+      await canonicalExistingDirectory(residuePath, residuePath, "resolved evidence lock residue");
+      await invokeReceiptRecoveryFault(fault, "before-resolved-residue-cleanup");
+      await rm(residuePath, { recursive: true, force: false });
+      await invokeReceiptRecoveryFault(fault, "after-resolved-residue-cleanup");
+      continue;
+    }
+    await recoverEvidenceTransactionRoot(residuePath, evidenceLock, projectRoot, { fault });
+  }
+}
+
+/** Recover only while owning the replacement canonical global evidence lock. */
 export async function recoverInterruptedReceiptTransactions(_baseRoot, sampleId, options = {}) {
   const projectRoot = path.resolve(options.projectRoot ?? PROJECT_ROOT);
   const transactionRoot = options.transactionRoot;
   if (!transactionRoot) return false;
-  const guard = await readReceiptGuard(transactionRoot, sampleId, projectRoot);
-  if (!guard) return false;
-  await restoreReceiptGuard(guard, transactionRoot, projectRoot);
-  await rm(guard.guardRoot, { recursive: true, force: false });
+  if (!options.recoveryLock) fail("interrupted receipt recovery requires the replacement evidence lock");
+  await recoverEvidenceTransactionRoot(transactionRoot, options.recoveryLock, projectRoot, {
+    fault: options.fault,
+    sampleId,
+  });
   return true;
 }
 
@@ -1603,6 +2230,15 @@ async function validateReceiptSnapshotAt(
       fail(`${sampleId}: canonical receipt changed during transaction publication: ${entry.name}`);
     }
   }
+  await revalidateCanonicalDirectory(
+    {
+      absolute: directory,
+      canonical: canonicalDirectory,
+      dev: directoryIdentity.dev,
+      ino: directoryIdentity.ino,
+    },
+    `${sampleId}: canonical receipt directory`,
+  );
 }
 
 export async function beginGateReceiptTransaction(options) {
@@ -1616,13 +2252,12 @@ export async function beginGateReceiptTransaction(options) {
   ) {
     fail(`${sampleId}: receipt guard requires the active global evidence lock`);
   }
-  const owner = await readEvidenceLockOwner(evidenceLock.path, projectRoot);
-  if (
-    !owner ||
-    owner.pid !== process.pid ||
-    owner.token !== evidenceLock.token ||
-    owner.sampleId !== sampleId
-  ) {
+  const lockState = evidenceLockState(evidenceLock);
+  if (lockState.receiptDecision !== "none") {
+    fail(`${sampleId}: receipt guard lock already has a transaction decision`);
+  }
+  const owner = await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+  if (owner.sampleId !== sampleId) {
     fail(`${sampleId}: receipt guard lock ownership is invalid`);
   }
   const binding = await canonicalPruneDirectories(baseRoot, sampleId, projectRoot);
@@ -1642,10 +2277,18 @@ export async function beginGateReceiptTransaction(options) {
   await mkdir(candidatePrevious);
   try {
     const snapshot = await copyCanonicalReceiptsToStage(binding, candidatePrevious, sampleId);
-    const manifest = receiptSnapshotManifest(sampleId, snapshot);
+    const manifest = receiptSnapshotManifest(owner, snapshot);
     await writeFile(path.join(candidateRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, {
       flag: "wx",
     });
+    const publicationOwner = await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+    if (!sameJson(publicationOwner, owner)) {
+      fail(`${sampleId}: receipt guard lock ownership changed before publication`);
+    }
+    lockState.rollbackSnapshot = new Map(
+      [...snapshot].map(([name, value]) => [name, { bytes: Buffer.from(value.bytes) }]),
+    );
+    lockState.receiptDecision = "pending";
     await rename(candidateRoot, guardRoot);
     const transaction = {
       baseRoot,
@@ -1659,7 +2302,11 @@ export async function beginGateReceiptTransaction(options) {
       snapshot,
       closed: false,
     };
-    await readReceiptGuard(evidenceLock.path, sampleId, projectRoot, snapshot);
+    const currentOwner = await validateOwnedEvidenceLock(evidenceLock, projectRoot);
+    if (!sameJson(currentOwner, owner)) {
+      fail(`${sampleId}: receipt guard owner binding changed during publication`);
+    }
+    await requireReceiptGuard(evidenceLock.path, currentOwner, projectRoot, snapshot);
     return transaction;
   } catch (error) {
     await rm(candidateRoot, { recursive: true, force: true });
@@ -1669,18 +2316,19 @@ export async function beginGateReceiptTransaction(options) {
 
 async function validateGateReceiptTransaction(transaction) {
   if (!transaction || transaction.closed) fail("evidence receipt guard is not active");
-  const owner = await readEvidenceLockOwner(transaction.evidenceLock.path, transaction.projectRoot);
+  if (evidenceLockState(transaction.evidenceLock).receiptDecision !== "pending") {
+    fail(`${transaction.sampleId}: evidence receipt guard decision is not pending`);
+  }
+  const owner = await validateOwnedEvidenceLock(transaction.evidenceLock, transaction.projectRoot);
   if (
-    !owner ||
-    owner.pid !== process.pid ||
-    owner.token !== transaction.evidenceLock.token ||
+    !sameJson(owner, transaction.evidenceLock.owner) ||
     owner.sampleId !== transaction.sampleId
   ) {
     fail(`${transaction.sampleId}: receipt guard lock ownership changed`);
   }
-  await readReceiptGuard(
+  await requireReceiptGuard(
     transaction.evidenceLock.path,
-    transaction.sampleId,
+    owner,
     transaction.projectRoot,
     transaction.snapshot,
   );
@@ -1696,33 +2344,195 @@ async function validateGateReceiptTransaction(transaction) {
 
 export async function rollbackGateReceiptTransaction(transaction) {
   if (!transaction || transaction.closed) return;
-  const guard = await readReceiptGuard(
+  const lockState = evidenceLockState(transaction.evidenceLock);
+  if (lockState.receiptDecision !== "pending") {
+    fail(`${transaction.sampleId}: receipt rollback decision is not pending`);
+  }
+  lockState.receiptDecision = "rolling-back";
+  const owner = await validateOwnedEvidenceLock(transaction.evidenceLock, transaction.projectRoot);
+  if (!sameJson(owner, transaction.evidenceLock.owner)) {
+    fail(`${transaction.sampleId}: receipt rollback lock ownership changed`);
+  }
+  const guard = await requireReceiptGuard(
     transaction.evidenceLock.path,
-    transaction.sampleId,
+    owner,
     transaction.projectRoot,
     transaction.snapshot,
   );
-  if (!guard) fail(`${transaction.sampleId}: receipt rollback guard is missing`);
-  await restoreReceiptGuard(guard, transaction.evidenceLock.path, transaction.projectRoot);
-  await rm(guard.guardRoot, { recursive: true, force: false });
+  const revalidate = async () => {
+    const currentOwner = await validateOwnedEvidenceLock(
+      transaction.evidenceLock,
+      transaction.projectRoot,
+    );
+    if (!sameJson(currentOwner, owner)) {
+      fail(`${transaction.sampleId}: receipt rollback owner binding changed`);
+    }
+    await requireReceiptGuard(
+      transaction.evidenceLock.path,
+      currentOwner,
+      transaction.projectRoot,
+      transaction.snapshot,
+    );
+  };
+  await restoreReceiptGuard(guard, transaction.evidenceLock.path, transaction.projectRoot, { revalidate });
+  await revalidate();
+  lockState.receiptDecision = "rolled-back";
   transaction.closed = true;
+}
+
+async function publishReceiptCommitSnapshot(transaction, owner, snapshot) {
+  const commitRoot = path.join(transaction.evidenceLock.path, "receipt-commit");
+  const candidateRoot = path.join(
+    transaction.evidenceLock.path,
+    `.receipt-commit-candidate-${randomUUID()}`,
+  );
+  await absentPublicationPath(commitRoot, transaction);
+  await absentPublicationPath(candidateRoot, transaction);
+  const publishedRoot = path.join(candidateRoot, "published");
+  try {
+    await mkdir(candidateRoot);
+    await mkdir(publishedRoot);
+    for (const [name, value] of snapshot) {
+      await writeFile(path.join(publishedRoot, name), value.bytes, { flag: "wx" });
+    }
+    const manifest = receiptSnapshotManifest(
+      owner,
+      snapshot,
+      "honua.sdk.sample-receipt-commit.v1",
+    );
+    await writeFile(
+      path.join(candidateRoot, "manifest.json"),
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      { flag: "wx" },
+    );
+    validateReceiptGuardManifest(
+      manifest,
+      owner,
+      "honua.sdk.sample-receipt-commit.v1",
+    );
+    await validateRestoredReceiptSnapshotAt(
+      publishedRoot,
+      snapshot,
+      transaction.sampleId,
+      transaction.projectRoot,
+    );
+    await validateOwnedEvidenceLock(transaction.evidenceLock, transaction.projectRoot);
+    await requireReceiptGuard(
+      transaction.evidenceLock.path,
+      owner,
+      transaction.projectRoot,
+      transaction.snapshot,
+    );
+    await rename(candidateRoot, commitRoot);
+    return await requireReceiptGuard(
+      transaction.evidenceLock.path,
+      owner,
+      transaction.projectRoot,
+      snapshot,
+      "receipt-commit",
+    );
+  } catch (error) {
+    await rm(candidateRoot, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 export async function commitGateReceiptTransaction(transaction) {
   if (!transaction || transaction.closed || !transaction.published) {
     fail("evidence receipt guard cannot commit before publication");
   }
-  await readReceiptGuard(
+  const lockState = evidenceLockState(transaction.evidenceLock);
+  if (lockState.receiptDecision !== "pending") {
+    fail(`${transaction.sampleId}: receipt commit decision is not pending`);
+  }
+  lockState.receiptDecision = "committing";
+  const publishedSnapshot = lockState.publishedSnapshot;
+  if (!(publishedSnapshot instanceof Map)) {
+    fail(`${transaction.sampleId}: committed receipt snapshot is missing`);
+  }
+  const owner = await validateOwnedEvidenceLock(transaction.evidenceLock, transaction.projectRoot);
+  if (!sameJson(owner, transaction.evidenceLock.owner)) {
+    fail(`${transaction.sampleId}: receipt commit lock ownership changed`);
+  }
+  await requireReceiptGuard(
     transaction.evidenceLock.path,
-    transaction.sampleId,
+    owner,
     transaction.projectRoot,
     transaction.snapshot,
   );
+  const receiptRoot = await canonicalReceiptRecoveryParent(
+    transaction.projectRoot,
+    transaction.sampleId,
+  );
+  if (!await receiptSnapshotMatchesAt(
+    receiptRoot,
+    publishedSnapshot,
+    transaction.sampleId,
+    transaction.projectRoot,
+  )) {
+    fail(`${transaction.sampleId}: published receipt bytes changed before commit`);
+  }
+  await publishReceiptCommitSnapshot(transaction, owner, publishedSnapshot);
   const committedRoot = path.join(transaction.evidenceLock.path, "receipt-guard-committed");
   await absentPublicationPath(committedRoot, transaction);
+  const currentOwner = await validateOwnedEvidenceLock(transaction.evidenceLock, transaction.projectRoot);
+  if (!sameJson(currentOwner, owner)) {
+    fail(`${transaction.sampleId}: receipt commit owner binding changed before publication`);
+  }
+  await requireReceiptGuard(
+    transaction.evidenceLock.path,
+    currentOwner,
+    transaction.projectRoot,
+    transaction.snapshot,
+  );
+  const publicationOwner = await validateOwnedEvidenceLock(
+    transaction.evidenceLock,
+    transaction.projectRoot,
+  );
+  if (!sameJson(publicationOwner, owner)) {
+    fail(`${transaction.sampleId}: receipt commit owner binding changed during publication`);
+  }
+  await requireReceiptGuard(
+    transaction.evidenceLock.path,
+    publicationOwner,
+    transaction.projectRoot,
+    publishedSnapshot,
+    "receipt-commit",
+  );
+  if (!await receiptSnapshotMatchesAt(
+    receiptRoot,
+    publishedSnapshot,
+    transaction.sampleId,
+    transaction.projectRoot,
+  )) {
+    fail(`${transaction.sampleId}: published receipt bytes changed during commit`);
+  }
   await rename(transaction.guardRoot, committedRoot);
+  lockState.receiptDecision = "committed";
   transaction.closed = true;
-  await rm(committedRoot, { recursive: true, force: false });
+  await validateOwnedEvidenceLock(transaction.evidenceLock, transaction.projectRoot);
+  await requireReceiptGuard(
+    transaction.evidenceLock.path,
+    currentOwner,
+    transaction.projectRoot,
+    transaction.snapshot,
+    "receipt-guard-committed",
+  );
+  await requireReceiptGuard(
+    transaction.evidenceLock.path,
+    currentOwner,
+    transaction.projectRoot,
+    publishedSnapshot,
+    "receipt-commit",
+  );
+  if (!await receiptSnapshotMatchesAt(
+    receiptRoot,
+    publishedSnapshot,
+    transaction.sampleId,
+    transaction.projectRoot,
+  )) {
+    fail(`${transaction.sampleId}: committed receipt bytes changed after decision publication`);
+  }
 }
 
 async function invokeReceiptTransactionFault(fault, point) {
@@ -1943,6 +2753,9 @@ export async function publishGateReceiptGroups(options) {
     }
     throw error;
   }
+  evidenceLockState(transaction.evidenceLock).publishedSnapshot = new Map(
+    [...stagedReceipts].map(([name, value]) => [name, { bytes: Buffer.from(value.bytes) }]),
+  );
   transaction.published = true;
 }
 
