@@ -110,6 +110,7 @@ import { osrmRoutingProvider, valhallaRoutingProvider } from "@honua/sdk/routing
 import { oauth2, clientCredentials, apiKeyAuth, InMemoryCredentialStore } from "@honua/sdk/auth";
 import { HONUA_PLUGIN_MANIFEST_VERSION, validateHonuaPluginManifest } from "@honua/sdk/plugin";
 import { createSourceSchemaV2 } from "@honua/sdk/source-schema";
+import { evaluateCapabilityProfile } from "@honua/sdk/source-capabilities";
 import {
   HONUA_CONTROL_PLANE_BASE_PATH,
   createHonuaControlPlane,
@@ -341,6 +342,17 @@ if (HONUA_PLUGIN_MANIFEST_VERSION !== 1 || typeof validateHonuaPluginManifest !=
   throw new Error("plugin certification exports missing from @honua/sdk/plugin");
 if (typeof createSourceSchemaV2 !== "function")
   throw new Error("createSourceSchemaV2 export missing from @honua/sdk/source-schema");
+const capabilityProfile = evaluateCapabilityProfile([{
+  id: "query",
+  claimed: "supported",
+  observed: "supported",
+  evidence: [
+    { kind: "protocol-default", truth: "supported", reference: "split-package-smoke" },
+    { kind: "metadata", truth: "supported", reference: "split-package-smoke" },
+  ],
+}]);
+if (capabilityProfile.entries[0]?.effective !== "supported")
+  throw new Error("evaluateCapabilityProfile export missing from @honua/sdk/source-capabilities");
 {
   const staticProvider = apiKeyAuth("k");
   const provided = staticProvider.getCredentials({ reason: "initial", forceRefresh: false });

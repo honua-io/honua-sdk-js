@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-14 at commit `117b5db`._
+_Generated 2026-07-14 at commit `4d519e9`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -16,6 +16,7 @@ _Generated 2026-07-14 at commit `117b5db`._
 | `/honua` | 513.2 KiB | 566.2 KiB | 135.4 KiB | 149.6 KiB |
 | `/contract` | 260.0 KiB | 287.3 KiB | 68.4 KiB | 72.9 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 631.5 KiB | 663.7 KiB | 129.5 KiB | 134.0 KiB |
+| `/source-capabilities` (pure evaluator; schema validator excluded) | 16.3 KiB | 18.0 KiB | 5.5 KiB | 6.0 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 57.1 KiB | 62.6 KiB | 17.6 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 50.1 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
@@ -33,7 +34,7 @@ _Generated 2026-07-14 at commit `117b5db`._
 | `/auth` | 28.0 KiB | 30.6 KiB | 8.0 KiB | 8.7 KiB |
 | `/style` | 63.0 KiB | 69.0 KiB | 15.7 KiB | 17.2 KiB |
 | `/map` | 166.9 KiB | 182.2 KiB | 46.5 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 45.5 KiB | 46.5 KiB | 14.2 KiB | 14.6 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 46.0 KiB | 46.5 KiB | 14.4 KiB | 14.6 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 15.0 KiB | 16.5 KiB | 5.0 KiB | 5.6 KiB |
 | `/react` (react/react-dom external) | 433.5 KiB | 446.7 KiB | 114.2 KiB | 117.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |

@@ -136,6 +136,8 @@ function createSdkPackage() {
   copyFile(path.join(DIST_SRC_ROOT, "connect.d.ts"), path.join(packageRoot, "connect.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "source-schema.js"), path.join(packageRoot, "source-schema.js"));
   copyFile(path.join(DIST_SRC_ROOT, "source-schema.d.ts"), path.join(packageRoot, "source-schema.d.ts"));
+  copyFile(path.join(DIST_SRC_ROOT, "source-capabilities.js"), path.join(packageRoot, "source-capabilities.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "source-capabilities.d.ts"), path.join(packageRoot, "source-capabilities.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.js"), path.join(packageRoot, "index.js"));
   copyFile(path.join(DIST_SRC_ROOT, "honua.d.ts"), path.join(packageRoot, "index.d.ts"));
 
@@ -162,6 +164,10 @@ function createSdkPackage() {
       "./source-schema": {
         types: "./source-schema.d.ts",
         default: "./source-schema.js",
+      },
+      "./source-capabilities": {
+        types: "./source-capabilities.d.ts",
+        default: "./source-capabilities.js",
       },
       "./deckgl": {
         types: "./deckgl/index.d.ts",
