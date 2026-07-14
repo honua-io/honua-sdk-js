@@ -4,7 +4,7 @@ Choose the outcome you need, then follow the linked guide and runnable implement
 
 API reference is SDK-owned at [https://honua-io.github.io/honua-sdk-js/api/](https://honua-io.github.io/honua-sdk-js/api/); the task narrative and deployed sample catalog are site-owned at [https://honua.io/samples](https://honua.io/samples).
 
-These paths describe the SDK version in [`package.json`](../../package.json). Sample support, tier, data, provenance, freshness, and degradation metadata comes from the [versioned sample catalog](../../samples/contract/v1/README.md); use the [installation and compatibility guide](../../INSTALL.md) when reading docs for another release.
+These paths describe the SDK version in [`package.json`](../../package.json). Sample track, support, lifecycle, data, provenance, freshness, and degradation metadata comes from the [versioned sample catalog](../../samples/contract/v2/README.md); use the [installation and compatibility guide](../../INSTALL.md) when reading docs for another release.
 
 ## Execution labels
 
@@ -28,7 +28,7 @@ Labels: `fixture` · `public-live`
 - Executable entry: [examples/standalone-quickstart/src/main.ts](../../examples/standalone-quickstart/src/main.ts)
 - Example notes: [examples/standalone-quickstart/README.md](../../examples/standalone-quickstart/README.md)
 - Compile check: `npm run demo:standalone:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `recipe` · `supported` · `merge`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Committed public-response fixture or public Esri endpoint.
 - Freshness: Fixture retrieval metadata or live response time.
@@ -48,7 +48,7 @@ Labels: `fixture` · `demo-live` · `authenticated` · `degraded`
 - Executable entry: [examples/service-explorer/src/data.ts](../../examples/service-explorer/src/data.ts)
 - Example notes: [examples/service-explorer/README.md](../../examples/service-explorer/README.md)
 - Compile check: `npm run demo:service-explorer:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `lab` · `supported` · `rework`
 - Data and auth: `hybrid` · `api-key`
 - Provenance: Committed multi-protocol catalog or configured Honua catalog.
 - Freshness: Metadata cache and live observation timestamps.
@@ -69,7 +69,7 @@ Labels: `fixture` · `demo-live` · `authenticated` · `degraded`
 - Executable entry: [examples/node-backend-quickstart/src/server.ts](../../examples/node-backend-quickstart/src/server.ts)
 - Example notes: [examples/node-backend-quickstart/README.md](../../examples/node-backend-quickstart/README.md)
 - Compile check: `npm run demo:node-backend:typecheck`
-- Sample contract: `recipe` · `supported`
+- Sample contract: `recipe` · `supported` · `active`
 - Data and auth: `hybrid` · `api-key`
 - Provenance: Committed mock responses or configured Honua endpoint.
 - Freshness: Fixture replay or live query observation time.
@@ -89,7 +89,7 @@ Labels: `fixture` · `demo-live` · `experimental`
 - Executable entry: [examples/maplibre-quickstart/src/main.ts](../../examples/maplibre-quickstart/src/main.ts)
 - Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
 - Compile check: `npm run demo:quickstart:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.
 - Freshness: Fixture capture time and data version, or live response observation time.
@@ -109,7 +109,7 @@ Labels: `fixture` · `experimental` · `degraded`
 - Executable entry: [examples/spatial-analytics-workbench/src/main.ts](../../examples/spatial-analytics-workbench/src/main.ts)
 - Example notes: [examples/spatial-analytics-workbench/README.md](../../examples/spatial-analytics-workbench/README.md)
 - Compile check: `npm run demo:spatial-analytics:typecheck`
-- Sample contract: `flagship` · `experimental`
+- Sample contract: `lab` · `experimental` · `rework`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Committed analysis fixtures or a configured public GeoServices source.
 - Freshness: Fixture replay uses a fixed observation; configured live execution records its observation time.
@@ -130,7 +130,7 @@ Labels: `fixture` · `degraded`
 - Executable entry: [examples/edit-workflow-demo/src/main.ts](../../examples/edit-workflow-demo/src/main.ts)
 - Example notes: [examples/edit-workflow-demo/README.md](../../examples/edit-workflow-demo/README.md)
 - Compile check: `npm run demo:edit-workflow:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `recipe` · `supported` · `rework`
 - Data and auth: `fixture` · `none`
 - Provenance: Committed deterministic edit fixture.
 - Freshness: Deterministic fixture replay time.
@@ -151,7 +151,7 @@ Labels: `fixture` · `demo-live` · `degraded`
 - Executable entry: [examples/realtime-incident-dashboard/src/realtime-transport.ts](../../examples/realtime-incident-dashboard/src/realtime-transport.ts)
 - Example notes: [examples/realtime-incident-dashboard/README.md](../../examples/realtime-incident-dashboard/README.md)
 - Compile check: `npm run demo:incident:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `lab` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Deployed demo stream when advertised; otherwise visibly labeled deterministic replay. Edits are limited to an isolated resettable fixture profile.
 - Freshness: Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes.
@@ -172,7 +172,7 @@ Labels: `fixture` · `authenticated` · `experimental` · `degraded`
 - Executable entry: [examples/storytelling-25d-map/src/map.ts](../../examples/storytelling-25d-map/src/map.ts)
 - Example notes: [examples/storytelling-25d-map/README.md](../../examples/storytelling-25d-map/README.md)
 - Compile check: `npm run demo:25d:typecheck`
-- Sample contract: `advanced` · `supported`
+- Sample contract: `lab` · `supported` · `merge`
 - Data and auth: `hybrid` · `api-key`
 - Provenance: Committed Oahu story fixtures or configured Honua services.
 - Freshness: Fixture capture or live layer observation time.
@@ -193,7 +193,7 @@ Labels: `fixture` · `public-live` · `degraded`
 - Executable entry: [examples/migration-workbench/src/main.ts](../../examples/migration-workbench/src/main.ts)
 - Example notes: [docs/migration-honua-maplibre.md](../migration-honua-maplibre.md)
 - Compile check: `npm run demo:migration-workbench:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `lab` · `supported` · `rework`
 - Data and auth: `fixture` · `none`
 - Provenance: Committed ArcGIS source fixtures and migration reports.
 - Freshness: Versioned with the migration corpus.
@@ -214,7 +214,7 @@ Labels: `fixture` · `experimental` · `degraded`
 - Executable entry: [examples/mcp-gis-assistant/src/assistant.ts](../../examples/mcp-gis-assistant/src/assistant.ts)
 - Example notes: [examples/mcp-gis-assistant/README.md](../../examples/mcp-gis-assistant/README.md)
 - Compile check: `npm run demo:mcp-gis-assistant:typecheck`
-- Sample contract: `advanced` · `experimental`
+- Sample contract: `lab` · `experimental` · `rework`
 - Data and auth: `fixture` · `none`
 - Provenance: Committed MCP response fixture.
 - Freshness: Deterministic fixture replay time.
@@ -227,5 +227,5 @@ Labels: `fixture` · `experimental` · `degraded`
 
 - Guides link to runnable example source and never maintain a copied implementation snippet.
 - Repository documentation uses relative links; canonical API and site narrative links use the declared owners.
-- Site consumers join the [learning navigation manifest](../learning-paths.v1.json) to the [static sample projection](../../samples/dist/honua-site-samples.v1.json) by `sampleId`; catalog-owned metadata is not copied into another source file.
-- Sample metadata/artifact/evidence projection is coordinated by [SDK issue #401](https://github.com/honua-io/honua-sdk-js/issues/401) and [honua-site issue #120](https://github.com/honua-io/honua-site/issues/120).
+- Site consumers join the [learning navigation manifest](../learning-paths.v1.json) to the [static sample projection](../../samples/dist/honua-site-samples.v2.json) by `sampleId`; catalog-owned metadata is not copied into another source file.
+- Sample metadata and evidence are owned by [SDK issue #540](https://github.com/honua-io/honua-sdk-js/issues/540); the generated consumer projection is coordinated by [SDK issue #550](https://github.com/honua-io/honua-sdk-js/issues/550).
