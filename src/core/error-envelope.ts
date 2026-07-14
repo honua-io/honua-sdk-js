@@ -40,6 +40,18 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "core.cancelled": classification("core", "cancellation", false, "Caller cancelled the operation"),
   "core.grpc.transient": classification("core", "protocol", true, "Retryable gRPC-Web transport failure"),
   "core.grpc.rejected": classification("core", "protocol", false, "Non-retryable gRPC-Web transport failure"),
+  "core.geometry.unknown-geometry": classification(
+    "core",
+    "validation",
+    false,
+    "Geometry shape cannot be classified safely",
+  ),
+  "core.geometry.malformed-geometry": classification(
+    "core",
+    "validation",
+    false,
+    "Recognized geometry has invalid coordinates or structure",
+  ),
   "core.auth.interaction-required": classification(
     "core",
     "authentication",

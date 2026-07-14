@@ -27,6 +27,7 @@ const MIGRATED_PUBLIC_CLASSES = [
   "HonuaNetworkError",
   "HonuaAbortError",
   "HonuaGrpcError",
+  "HonuaGeometryError",
   "HonuaAuthError",
   "HonuaCapabilityNotSupportedError",
   "HonuaExplorationContextError",

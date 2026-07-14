@@ -31,7 +31,7 @@
   },
   "final": {
     "runtime": [
-      "buffer",
+      "bufferEnvelope",
       "capabilities",
       "connect",
       "createDataset",
@@ -50,6 +50,7 @@
       "HonuaCapabilityNotSupportedError",
       "HonuaClient",
       "HonuaDiscoveryError",
+      "HonuaGeometryError",
       "HonuaGrpcError",
       "HonuaHttpError",
       "HonuaMapLibreSourceAdapterError",
@@ -88,7 +89,7 @@
       "AggregationTimeIntervalUnit",
       "AggregationTimeSeriesAliases",
       "AggregationTimeSeriesSpec",
-      "buffer",
+      "bufferEnvelope",
       "CanonicalFeature",
       "CanonicalQuery",
       "CanonicalSpatialFilter",
@@ -148,6 +149,8 @@
       "HonuaErrorEnvelopeContextValue",
       "HonuaErrorMetadata",
       "HonuaErrorOptions",
+      "HonuaGeometryError",
+      "HonuaGeometryErrorCode",
       "HonuaGrpcError",
       "HonuaHttpError",
       "HonuaMapLibreSourceAdapterError",
@@ -220,6 +223,10 @@
   },
   "promotions": [
     {
+      "symbol": "bufferEnvelope",
+      "kind": "runtime"
+    },
+    {
       "symbol": "CanonicalQuery",
       "kind": "type"
     },
@@ -253,6 +260,14 @@
     },
     {
       "symbol": "HonuaDiscoveryErrorCode",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaGeometryError",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HonuaGeometryErrorCode",
       "kind": "type"
     },
     {
@@ -706,6 +721,12 @@
       "symbol": "bindTableSelectionToExploration",
       "kind": "runtime",
       "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "buffer",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js",
+      "replacementSymbol": "bufferEnvelope"
     },
     {
       "symbol": "buildAnalyticsSourceCacheKey",

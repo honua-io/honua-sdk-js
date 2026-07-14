@@ -287,13 +287,14 @@ export {
   HonuaNetworkError,
   HonuaAbortError,
   HonuaGrpcError,
+  HonuaGeometryError,
   HonuaAuthError,
   HonuaCapabilityNotSupportedError,
   HonuaExplorationContextError,
   HonuaWfsExceptionError,
   isHonuaError,
 } from "./core/errors.js";
-export type { HonuaError, HonuaAuthErrorCode } from "./core/errors.js";
+export type { HonuaError, HonuaAuthErrorCode, HonuaGeometryErrorCode } from "./core/errors.js";
 export {
   HONUA_ERROR_CODE_REGISTRY,
   HONUA_ERROR_KIND,
@@ -319,7 +320,7 @@ export {
   envelope,
   point,
   polygon,
-  buffer,
+  bufferEnvelope,
   spatialIntersects,
   spatialContains,
   spatialWithin,

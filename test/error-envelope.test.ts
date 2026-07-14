@@ -12,6 +12,7 @@ import {
   HonuaAuthError,
   HonuaCapabilityNotSupportedError,
   HonuaDiscoveryError,
+  HonuaGeometryError,
   HonuaGrpcError,
   HonuaHttpError,
   HonuaNetworkError,
@@ -39,6 +40,7 @@ describe("tagged SDK error envelope", () => {
     const errors = [
       new HonuaNetworkError("offline", new TypeError("fetch failed")),
       new HonuaDiscoveryError("invalid-endpoint", "bad endpoint"),
+      new HonuaGeometryError("malformed-geometry", "bad geometry"),
       new HonuaQueryPlanningError("invalid-query", "bad query"),
       new HonuaQueryPlanExecutionError("invalid-plan", "bad plan"),
       new HonuaMapLibreSourceAdapterError("invalid-option", "bad option"),
@@ -141,6 +143,7 @@ describe("tagged SDK error envelope", () => {
         QueryTileServerResponseError,
       ],
       [new HonuaRealtimeResumeError("checkpoint-load-failed", "load failed", { cause }), HonuaRealtimeResumeError],
+      [new HonuaGeometryError("malformed-geometry", "invalid geometry", detail, { cause }), HonuaGeometryError],
     ] as const;
 
     for (const [error, ErrorClass] of instances) {
@@ -172,8 +175,53 @@ describe("tagged SDK error envelope", () => {
     expect((instances[23][0] as QueryTileServerResponseError).status).toBe(503);
     expect((instances[24][0] as HonuaRealtimeResumeError).code).toBe("checkpoint-load-failed");
     expect((instances[24][0] as HonuaRealtimeResumeError).cause).toBe(cause);
+    expect((instances[25][0] as HonuaGeometryError).code).toBe("malformed-geometry");
+    expect((instances[25][0] as HonuaGeometryError).detail).toBe(detail);
+    expect((instances[25][0] as HonuaGeometryError).cause).toBe(cause);
     expect(Object.hasOwn(new HonuaMapLibreSourceAdapterError("disposed", "disposed"), "cause")).toBe(false);
     expect(Object.hasOwn(new HonuaAuthError("interaction_required", "sign in"), "cause")).toBe(true);
+  });
+
+  it("maps geometry reasons to exact safe envelope classifications", () => {
+    const cause = new TypeError("geometry-cause-secret");
+    const cases = [
+      ["unknown-geometry", "core.geometry.unknown-geometry"],
+      ["malformed-geometry", "core.geometry.malformed-geometry"],
+    ] as const;
+
+    for (const [code, sdkCode] of cases) {
+      const error = new HonuaGeometryError(
+        code,
+        "invalid geometry with message-secret",
+        { coordinateCount: 7, authorization: "Bearer detail-secret" },
+        { cause, context: { requestStage: "classify" } },
+      );
+
+      expect(error).toMatchObject({
+        code,
+        sdkCode,
+        domain: "core",
+        category: "validation",
+        retryable: false,
+        context: {
+          coordinateCount: 7,
+          authorization: "[REDACTED]",
+          requestStage: "classify",
+        },
+      });
+      expect(error.cause).toBe(cause);
+      expect(serializeHonuaError(error)).toMatchObject({
+        code: sdkCode,
+        domain: "core",
+        category: "validation",
+        retryable: false,
+        cause: { name: "TypeError" },
+      });
+      const json = JSON.stringify(error);
+      expect(json).not.toContain("message-secret");
+      expect(json).not.toContain("detail-secret");
+      expect(json).not.toContain("geometry-cause-secret");
+    }
   });
 
   it("keeps retryability and cancellation/capability/validation/internal categories stable", () => {

@@ -45,6 +45,29 @@ import { area, buffer, project, toWgs84 } from "@honua/geometry";
 | `nearestPoint(target, points)` | `@turf/nearest-point` | Nearest candidate `Feature<Point>`. |
 | `convex(geom)` | `@turf/convex` | Convex hull; `null` if undefined. |
 
+## Spatial-filter envelope migration
+
+Before 1.0, the package root exposed `buffer(x, y, distance, spatialReference?)`
+for an axis-aligned bounding box around a point. Despite its name, that helper
+never created a geometry buffer. It has been renamed so the approximation is
+visible at the call site:
+
+```ts doc-test=compile
+import { bufferEnvelope } from "@honua/sdk-js";
+
+const nearbyFilter = bufferEnvelope(-157.858, 21.307, 0.01, { wkid: 4326 });
+```
+
+`bufferEnvelope` expands x and y by `distance` in the input coordinate system's
+units. It is planar and axis-aligned; it is not circular, geodesic, or suitable
+for measuring a setback. Pre-1.0 callers should mechanically rename root or
+`/honua` imports and calls from `buffer` to `bufferEnvelope` when they intended
+the old envelope behavior. Callers that intended a true geometry buffer must
+instead import `buffer(geometry, radius, unit?)` from `@honua/sdk-js/geometry`
+or `@honua/geometry`, supply WGS84 coordinates, and consume its polygonal
+GeoJSON result. The two operations deliberately have different signatures and
+return types.
+
 ### Units
 
 Linear units (`buffer`, `length`): `"meters"` (default), `"kilometers"`,

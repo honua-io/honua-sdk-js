@@ -43,6 +43,7 @@ export {
   HonuaCapabilityNotSupportedError,
   HonuaDiscoveryError,
   HonuaGrpcError,
+  HonuaGeometryError,
   HonuaHttpError,
   HonuaNetworkError,
   HonuaTimeoutError,
@@ -71,11 +72,12 @@ export type {
 export type {
   HonuaAuthErrorCode,
   HonuaDiscoveryErrorCode,
+  HonuaGeometryErrorCode,
   HonuaError,
 } from "./core/errors.js";
 
 export {
-  buffer,
+  bufferEnvelope,
   envelope,
   point,
   polygon,

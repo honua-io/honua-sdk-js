@@ -73,6 +73,7 @@ try {
 | `HonuaAuthError` | `@honua/sdk-js/auth` providers (`oauth2`, `clientCredentials`) | A credential could not be produced. | Branch on `.code`: `interaction_required` → start interactive sign-in (`auth.signIn()`); `refresh_failed` → transient token-endpoint failure, retry later; `invalid_grant` → refresh token/authorization code expired or revoked (the stored credential is cleared) → interactive sign-in. The underlying transport/parse failure, when present, is on `.cause`. |
 | `HonuaCapabilityNotSupportedError` | `Source.query` / `Source.applyEdits` / etc. | Under the default `capabilityPolicy: "strict"`, the active source does not support the requested operation (e.g. `query()` on a `wmts` source). | Either downgrade the request (drop the unsupported clause), fall back to `Source.protocol(...)` for raw protocol access, or set `capabilityPolicy: "degraded"` on `createDataset` to coerce best-effort behavior with a `degraded` reason in the `Result`. |
 | `HonuaDiscoveryError` | `connect`, discovery truth, cache identity | Endpoint metadata, protocol hints, source selection, or cached discovery observations are invalid or ambiguous. | Branch on `.code`: provide an explicit supported protocol for `ambiguous-protocol`; select a listed source ID for `ambiguous-source`; use a reviewed adapter for `unsupported-protocol`; evict/rebuild entries for `invalid-discovery-cache`. Do not retry unchanged invalid input. |
+| `HonuaGeometryError` | Spatial-filter builders | Geometry classification would otherwise require guessing, or a recognized Esri geometry is malformed. | Branch on `.code`: `unknown-geometry` means no supported Esri shape discriminator was found; `malformed-geometry` means a recognized shape, coordinate, or envelope expansion is invalid. Fix the input; do not retry it unchanged. Diagnostic context is on `.detail`. |
 | `HonuaExplorationContextError` | `@honua/sdk-js/exploration` | An exploration intent referenced a missing slice / view, or the snapshot is incompatible with the active context schema. | Surface to user (UI bug) or migrate the saved snapshot. Do not retry. |
 | `HonuaWfsExceptionError` | `wfs` adapter | The WFS server returned a `<ows:ExceptionReport>`. The `exceptionCode`, optional `locator`, and formatted exception message are preserved on the instance. | Branch on `.exceptionCode` (`InvalidParameterValue`, `OperationNotSupported`, `MissingParameterValue`, etc.). Most are caller bugs; surface to user. |
 | `HonuaJobFailedError` | OGC Processes / geoprocessing job polling | An async job (`IJobRun.results()`) reached a non-success terminal state (`failed` / `dismissed`). The terminal `.status`, `.errorCode`, and `.details` are preserved on the instance. | Branch on `.status` / `.errorCode`. Usually a server-side or input error; surface to user. Do not blindly retry. |
@@ -106,6 +107,7 @@ verifies registry shape plus this class/family documentation.
 | `HonuaNetworkError` | `core.network` |
 | `HonuaAbortError` | `core.cancelled` |
 | `HonuaGrpcError` | `core.grpc.transient`, `core.grpc.rejected` |
+| `HonuaGeometryError` | `core.geometry.unknown-geometry`, `core.geometry.malformed-geometry` |
 | `HonuaAuthError` | `core.auth.interaction-required`, `core.auth.refresh-failed`, `core.auth.invalid-grant` |
 | `HonuaCapabilityNotSupportedError` | `core.capability-not-supported` |
 | `HonuaExplorationContextError` | `core.exploration-context` |
@@ -173,6 +175,8 @@ string's local legacy `.code` or message.
 | `core.cancelled` | `core` | `cancellation` | no | Caller cancelled the operation |
 | `core.grpc.transient` | `core` | `protocol` | yes | Retryable gRPC-Web transport failure |
 | `core.grpc.rejected` | `core` | `protocol` | no | Non-retryable gRPC-Web transport failure |
+| `core.geometry.unknown-geometry` | `core` | `validation` | no | Geometry shape cannot be classified safely |
+| `core.geometry.malformed-geometry` | `core` | `validation` | no | Recognized geometry has invalid coordinates or structure |
 | `core.auth.interaction-required` | `core` | `authentication` | no | Interactive authentication is required |
 | `core.auth.refresh-failed` | `core` | `authentication` | yes | Credential refresh failed transiently |
 | `core.auth.invalid-grant` | `core` | `authentication` | no | Authorization grant is invalid or expired |
@@ -315,6 +319,7 @@ subset of these errors when configured:
 | `HonuaReplicaSyncError` | **No automatic retry** — the replica transport and conflict workflow retain their existing policy; generic transport failures remain non-retryable. |
 | `HonuaPluginRegistryError` | **No automatic retry** — every plugin classification is conservatively non-retryable; the host must correct registry input, compatibility, policy, capability, or lifecycle state explicitly. |
 | `HonuaCapabilityNotSupportedError` | **No** — would never succeed |
+| `HonuaGeometryError` | **No** — input must be corrected |
 | `HonuaWfsExceptionError` | **No** — caller bug |
 | `HonuaExplorationContextError` | **No** — state bug |
 
