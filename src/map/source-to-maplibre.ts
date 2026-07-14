@@ -7,6 +7,7 @@
  */
 
 import type { Result, Source } from "../contract/types.js";
+import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryFromCanonical, queryIrSourceIdentity } from "../query-planner/ir.js";
@@ -64,17 +65,29 @@ export type MapLibreSourceAdapterErrorCode =
   | "map-mutation-failed";
 
 /** A stable, machine-readable adapter failure. */
-export class HonuaMapLibreSourceAdapterError extends Error {
+export class HonuaMapLibreSourceAdapterError extends HonuaSdkError {
   public constructor(
     public readonly code: MapLibreSourceAdapterErrorCode,
     message: string,
     public readonly detail?: Readonly<Record<string, unknown>>,
-    options?: ErrorOptions,
+    options: HonuaErrorOptions = {},
   ) {
-    super(message, options);
+    super(MAPLIBRE_SOURCE_ADAPTER_CODES[code], message, {
+      ...options,
+      context: mergeHonuaErrorContext(detail, options.context),
+    });
     this.name = "HonuaMapLibreSourceAdapterError";
   }
 }
+
+const MAPLIBRE_SOURCE_ADAPTER_CODES = {
+  disposed: "map.source-adapter.disposed",
+  "source-conflict": "map.source-adapter.source-conflict",
+  "layer-conflict": "map.source-adapter.layer-conflict",
+  "unsupported-plan": "map.source-adapter.unsupported-plan",
+  "invalid-option": "map.source-adapter.invalid-option",
+  "map-mutation-failed": "map.source-adapter.map-mutation-failed",
+} as const satisfies Record<MapLibreSourceAdapterErrorCode, `map.source-adapter.${string}`>;
 
 /** Minimal injected MapLibre map surface. */
 export interface SourceToMapLibreMap {

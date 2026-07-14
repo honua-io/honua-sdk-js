@@ -13,6 +13,7 @@
  */
 
 import type { FeatureId } from "../contract/types.js";
+import { HonuaSdkError } from "../core/error-envelope.js";
 import {
   type FilterClause,
   type FilterRegistry,
@@ -35,16 +36,21 @@ import type { AutomaticMapLibrePlan, MountedAutomaticMapLibreSource } from "./au
 /** A stable, machine-readable integration failure. */
 export type AutomaticMapLibreIntegrationErrorCode = "disposed" | "invalid-target";
 
-export class HonuaAutomaticMapLibreIntegrationError extends Error {
+export class HonuaAutomaticMapLibreIntegrationError extends HonuaSdkError {
   public constructor(
     public readonly code: AutomaticMapLibreIntegrationErrorCode,
     message: string,
     public readonly detail?: Readonly<Record<string, unknown>>,
   ) {
-    super(message);
+    super(AUTOMATIC_MAPLIBRE_INTEGRATION_ERROR_CODES[code], message, { context: detail });
     this.name = "HonuaAutomaticMapLibreIntegrationError";
   }
 }
+
+const AUTOMATIC_MAPLIBRE_INTEGRATION_ERROR_CODES = {
+  disposed: "map.automatic-integration.disposed",
+  "invalid-target": "map.automatic-integration.invalid-target",
+} as const satisfies Record<AutomaticMapLibreIntegrationErrorCode, `map.automatic-integration.${string}`>;
 
 /**
  * Minimal MapLibre-shaped surface the integration mutates incrementally. A real

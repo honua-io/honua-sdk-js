@@ -42,6 +42,8 @@
       "HONUA_CONNECT_ADAPTER_VERSION",
       "HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION",
       "HONUA_CONNECT_PROJECTION_VERSION",
+      "HONUA_ERROR_CODE_REGISTRY",
+      "HONUA_ERROR_KIND",
       "HONUA_MINIMUM_SUPPORTED_SERVER_VERSION",
       "HonuaAbortError",
       "HonuaAuthError",
@@ -55,8 +57,10 @@
       "HonuaNetworkError",
       "HonuaQueryPlanExecutionError",
       "HonuaQueryPlanningError",
+      "HonuaSdkError",
       "HonuaTimeoutError",
       "isHonuaError",
+      "isHonuaErrorCode",
       "MAX_LOCAL_MATERIALIZATION_ROWS",
       "mountSourceToMapLibre",
       "point",
@@ -66,6 +70,8 @@
       "QUERY_IR_VERSION",
       "QUERY_PLAN_KIND",
       "QUERY_PLAN_VERSION",
+      "sanitizeHonuaErrorContext",
+      "serializeHonuaError",
       "spatialContains",
       "spatialIntersects",
       "spatialWithin"
@@ -116,6 +122,8 @@
       "HONUA_CONNECT_ADAPTER_VERSION",
       "HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION",
       "HONUA_CONNECT_PROJECTION_VERSION",
+      "HONUA_ERROR_CODE_REGISTRY",
+      "HONUA_ERROR_KIND",
       "HONUA_MINIMUM_SUPPORTED_SERVER_VERSION",
       "HonuaAbortError",
       "HonuaAuthCredentials",
@@ -133,6 +141,14 @@
       "HonuaDiscoveryError",
       "HonuaDiscoveryErrorCode",
       "HonuaError",
+      "HonuaErrorCategory",
+      "HonuaErrorCode",
+      "HonuaErrorCodeDescriptor",
+      "HonuaErrorDomain",
+      "HonuaErrorEnvelopeContext",
+      "HonuaErrorEnvelopeContextValue",
+      "HonuaErrorMetadata",
+      "HonuaErrorOptions",
       "HonuaGeometryError",
       "HonuaGeometryErrorCode",
       "HonuaGrpcError",
@@ -141,9 +157,11 @@
       "HonuaNetworkError",
       "HonuaQueryPlanExecutionError",
       "HonuaQueryPlanningError",
+      "HonuaSdkError",
       "HonuaTimeoutError",
       "HonuaTransport",
       "isHonuaError",
+      "isHonuaErrorCode",
       "JsonPrimitive",
       "JsonValue",
       "LocalAggregatePlanStep",
@@ -181,6 +199,10 @@
       "RemoteCompiledQueryV1",
       "RemoteQueryPlanStep",
       "Result",
+      "sanitizeHonuaErrorContext",
+      "SerializedHonuaError",
+      "SerializedHonuaErrorCause",
+      "serializeHonuaError",
       "SortSpec",
       "Source",
       "SourceAnalyticsCapabilities",
@@ -382,6 +404,70 @@
     },
     {
       "symbol": "SourceToMapLibreMap",
+      "kind": "type"
+    },
+    {
+      "symbol": "HONUA_ERROR_CODE_REGISTRY",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HONUA_ERROR_KIND",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HonuaSdkError",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "isHonuaErrorCode",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "sanitizeHonuaErrorContext",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "serializeHonuaError",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HonuaErrorCategory",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorCode",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorCodeDescriptor",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorDomain",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorEnvelopeContext",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorEnvelopeContextValue",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorMetadata",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "SerializedHonuaError",
+      "kind": "type"
+    },
+    {
+      "symbol": "SerializedHonuaErrorCause",
       "kind": "type"
     }
   ],

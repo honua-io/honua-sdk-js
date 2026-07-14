@@ -10,6 +10,7 @@
  */
 
 import type { SourceId } from "../contract/types.js";
+import { type HonuaErrorCode, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
 import type {
   RealtimeDeleteEvent,
   RealtimeDeltaEvent,
@@ -140,15 +141,62 @@ export interface ResumableRealtimeSubscription<TFeature = unknown> {
   close(reason?: string): void;
 }
 
-export class HonuaRealtimeResumeError extends Error {
+/**
+ * Public realtime failure with the original detailed reason on `.code` and a
+ * stable common-envelope recovery class on `.sdkCode`. Classification metadata
+ * does not reconnect a transport or request a replacement snapshot.
+ */
+export class HonuaRealtimeResumeError extends HonuaSdkError {
   public constructor(
     public readonly code: ResumableRealtimeReasonCode,
     message: string,
     options?: ErrorOptions,
   ) {
-    super(message, options);
+    super(realtimeResumeSdkCode(code), message, {
+      ...options,
+      context: mergeHonuaErrorContext({ reasonCode: realtimeResumeContextReason(code) }),
+    });
     this.name = "HonuaRealtimeResumeError";
   }
+}
+
+const REALTIME_RESUME_ERROR_CODES = {
+  compatible: "realtime.protocol.terminal",
+  "invalid-checkpoint": "realtime.checkpoint.invalid",
+  "source-changed": "realtime.checkpoint.invalid",
+  "query-changed": "realtime.checkpoint.invalid",
+  "source-version-changed": "realtime.checkpoint.invalid",
+  "schema-version-changed": "realtime.checkpoint.invalid",
+  "authorization-scope-changed": "realtime.checkpoint.invalid",
+  "snapshot-required": "realtime.sequence.gap",
+  "replacement-snapshot-required": "realtime.sequence.gap",
+  "invalid-event": "realtime.protocol.terminal",
+  "sequence-missing": "realtime.sequence.gap",
+  "checkpoint-conflict": "realtime.checkpoint.invalid",
+  "sequence-gap": "realtime.sequence.gap",
+  "event-id-reused": "realtime.sequence.gap",
+  "buffer-overflow": "realtime.sequence.gap",
+  "consumer-failed": "realtime.protocol.terminal",
+  "delivery-failed": "realtime.protocol.terminal",
+  "checkpoint-load-failed": "realtime.protocol.terminal",
+  "checkpoint-save-failed": "realtime.protocol.terminal",
+  "cursor-expired": "realtime.transport.reconnectable",
+  "resume-unsupported": "realtime.transport.reconnectable",
+  "transport-gap": "realtime.transport.reconnectable",
+  cancelled: "realtime.cancelled",
+  closed: "realtime.cancelled",
+} as const satisfies Record<ResumableRealtimeReasonCode, HonuaErrorCode>;
+
+function realtimeResumeSdkCode(code: ResumableRealtimeReasonCode): HonuaErrorCode {
+  return isRegisteredRealtimeResumeReason(code) ? REALTIME_RESUME_ERROR_CODES[code] : "realtime.protocol.terminal";
+}
+
+function realtimeResumeContextReason(code: ResumableRealtimeReasonCode): ResumableRealtimeReasonCode {
+  return isRegisteredRealtimeResumeReason(code) ? code : "invalid-event";
+}
+
+function isRegisteredRealtimeResumeReason(code: unknown): code is ResumableRealtimeReasonCode {
+  return typeof code === "string" && Object.hasOwn(REALTIME_RESUME_ERROR_CODES, code);
 }
 
 const DEFAULT_MAX_PENDING_EVENTS = 64;

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { isHonuaError } from "../src/index.js";
 import {
   type CreateOfflineRegionManifestInput,
   type HonuaOfflineRegionError,
@@ -116,6 +117,7 @@ function bytesFor(resource: OfflineRegionResourceV1): Uint8Array {
 }
 
 function expectCode(value: unknown, code: HonuaOfflineRegionError["code"], path?: string): void {
+  expect(isHonuaError(value)).toBe(true);
   expect(value).toMatchObject({ name: "HonuaOfflineRegionError", code, ...(path ? { path } : {}) });
 }
 
@@ -124,7 +126,14 @@ async function expectRejected(
   code: HonuaOfflineRegionError["code"],
   path?: string,
 ): Promise<void> {
-  await expect(promise).rejects.toMatchObject({
+  let caught: unknown;
+  try {
+    await promise;
+  } catch (error) {
+    caught = error;
+  }
+  expect(isHonuaError(caught)).toBe(true);
+  expect(caught).toMatchObject({
     name: "HonuaOfflineRegionError",
     code,
     ...(path ? { path } : {}),

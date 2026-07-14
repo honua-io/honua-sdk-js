@@ -8,6 +8,8 @@
  * @module
  */
 
+import { type HonuaErrorCode, HonuaSdkError, isRetryableNetworkOrTimeoutHonuaError } from "../core/error-envelope.js";
+
 export type ReplicaSyncErrorCode =
   | "unsupported-sync"
   | "unsupported-conflict-review"
@@ -20,7 +22,7 @@ export type ReplicaSyncErrorCode =
   | "permission-denied"
   | "transport-failure";
 
-export class HonuaReplicaSyncError extends Error {
+export class HonuaReplicaSyncError extends HonuaSdkError {
   public readonly code: ReplicaSyncErrorCode;
   public readonly details: unknown;
 
@@ -29,7 +31,11 @@ export class HonuaReplicaSyncError extends Error {
     message: string,
     options: { readonly details?: unknown; readonly cause?: unknown } = {},
   ) {
-    super(message, options.cause === undefined ? undefined : { cause: options.cause });
+    const cause = options.cause;
+    super(replicaSyncSdkCode(code, cause), message, {
+      ...(cause === undefined ? {} : { cause }),
+      context: { reasonCode: replicaSyncContextReason(code) },
+    });
     this.name = "HonuaReplicaSyncError";
     this.code = code;
     this.details = options.details;
@@ -48,4 +54,33 @@ export function isUnsupportedReplicaSyncError(error: unknown): error is HonuaRep
       error.code === "unsupported-conflict-review" ||
       error.code === "unsupported-conflict-resolution")
   );
+}
+
+const REPLICA_SYNC_ERROR_CODES = {
+  "unsupported-sync": "offline.replica-sync.capability",
+  "unsupported-conflict-review": "offline.replica-sync.capability",
+  "unsupported-conflict-resolution": "offline.replica-sync.capability",
+  "replica-not-found": "offline.replica-sync.validation",
+  "conflict-not-found": "offline.replica-sync.validation",
+  "replica-expired": "offline.replica-sync.validation",
+  "conflict-already-resolved": "offline.replica-sync.validation",
+  "merge-required": "offline.replica-sync.validation",
+  "permission-denied": "offline.replica-sync.permission-denied",
+  "transport-failure": "offline.transport.failure",
+} as const satisfies Record<ReplicaSyncErrorCode, HonuaErrorCode>;
+
+function replicaSyncSdkCode(code: unknown, cause: unknown): HonuaErrorCode {
+  if (!isReplicaSyncErrorCode(code)) return "offline.replica-sync.validation";
+  if (code === "transport-failure" && isRetryableNetworkOrTimeoutHonuaError(cause)) {
+    return "offline.transport.transient";
+  }
+  return REPLICA_SYNC_ERROR_CODES[code];
+}
+
+function replicaSyncContextReason(code: unknown): ReplicaSyncErrorCode | "invalid-error-code" {
+  return isReplicaSyncErrorCode(code) ? code : "invalid-error-code";
+}
+
+function isReplicaSyncErrorCode(code: unknown): code is ReplicaSyncErrorCode {
+  return typeof code === "string" && Object.hasOwn(REPLICA_SYNC_ERROR_CODES, code);
 }

@@ -1,3 +1,4 @@
+import { type HonuaErrorCode, HonuaSdkError } from "../core/error-envelope.js";
 import { certifyHonuaPluginManifest, validateHonuaPluginCertificationHost } from "./certification.js";
 import type {
   HonuaPluginDependency,
@@ -224,12 +225,58 @@ function snapshotInstance(instance: AnyInstance, manifest: HonuaPluginManifest):
   }) as ErasedInstance;
 }
 
-/** Stable error carrying cleanup failures separately from the primary cause. */
-export class HonuaPluginRegistryError extends Error {
+const PLUGIN_ERROR_SDK_CODES = {
+  PLUGIN_ABORT_SIGNAL_INVALID: "plugin.registry.validation",
+  PLUGIN_DEPENDENCY_DUPLICATE: "plugin.registry.validation",
+  PLUGIN_BATCH_INVALID: "plugin.registry.validation",
+  PLUGIN_BATCH_SPARSE: "plugin.registry.validation",
+  PLUGIN_REGISTRY_DISPOSED: "plugin.registry.validation",
+  PLUGIN_DUPLICATE_ID: "plugin.registry.validation",
+  PLUGIN_DEPENDENCY_CYCLE: "plugin.registry.validation",
+  PLUGIN_HOST_REJECTED: "plugin.compatibility",
+  PLUGIN_CERTIFICATION_FAILED: "plugin.compatibility",
+  PLUGIN_DEPENDENCY_VERSION_CONFLICT: "plugin.compatibility",
+  PLUGIN_DEPENDENCY_KIND_CONFLICT: "plugin.compatibility",
+  PLUGIN_NETWORK_ORIGIN_DENIED: "plugin.execution.policy-denied",
+  PLUGIN_CREDENTIAL_SCOPE_DENIED: "plugin.execution.policy-denied",
+  PLUGIN_ABORT_SIGNAL_UNAVAILABLE: "plugin.capability-unavailable",
+  PLUGIN_DEPENDENCY_MISSING: "plugin.capability-unavailable",
+  PLUGIN_DISPOSE_HOOK_REQUIRED: "plugin.lifecycle.activation",
+  PLUGIN_REGISTRATION_FAILED: "plugin.lifecycle.activation",
+  PLUGIN_NETWORK_URL_INVALID: "plugin.execution.validation",
+  PLUGIN_DISPOSAL_FAILED: "plugin.lifecycle.cleanup",
+  PLUGIN_REGISTRATION_CANCELLED: "plugin.cancelled",
+  PLUGIN_REVALIDATION_FAILED: "plugin.internal",
+} as const satisfies Readonly<Record<string, HonuaErrorCode>>;
+
+type KnownPluginRegistryErrorCode = keyof typeof PLUGIN_ERROR_SDK_CODES;
+
+function isKnownPluginRegistryErrorCode(code: unknown): code is KnownPluginRegistryErrorCode {
+  return typeof code === "string" && Object.hasOwn(PLUGIN_ERROR_SDK_CODES, code);
+}
+
+function pluginSdkCode(code: unknown): HonuaErrorCode {
+  return isKnownPluginRegistryErrorCode(code) ? PLUGIN_ERROR_SDK_CODES[code] : "plugin.internal";
+}
+
+function pluginReasonCode(code: unknown): KnownPluginRegistryErrorCode | "PLUGIN_UNKNOWN" {
+  return isKnownPluginRegistryErrorCode(code) ? code : "PLUGIN_UNKNOWN";
+}
+
+/**
+ * Stable tagged error carrying cleanup failures separately from the primary
+ * cause. Raw causes and cleanup failures remain local to the instance.
+ */
+export class HonuaPluginRegistryError extends HonuaSdkError {
   readonly code: string;
   readonly cleanupErrors: readonly unknown[];
+
   constructor(code: string, options: { cause?: unknown; cleanupErrors?: readonly unknown[] } = {}) {
-    super(code, options.cause === undefined ? undefined : { cause: options.cause });
+    const cause = options.cause;
+    super(pluginSdkCode(code), typeof code === "string" ? code : "PLUGIN_UNKNOWN", {
+      ...(cause === undefined ? {} : { cause }),
+      context: { reasonCode: pluginReasonCode(code) },
+    });
     this.name = "HonuaPluginRegistryError";
     this.code = code;
     this.cleanupErrors = Object.freeze([...(options.cleanupErrors ?? [])]);

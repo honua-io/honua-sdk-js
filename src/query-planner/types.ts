@@ -8,6 +8,7 @@ import type {
   Source,
   SourceDescriptor,
 } from "../contract/types.js";
+import { type HonuaErrorOptions, HonuaSdkError } from "../core/error-envelope.js";
 import type { EsriGeometryType, EsriSpatialRel } from "../core/types.js";
 
 export const QUERY_IR_VERSION = "1.0" as const;
@@ -305,27 +306,44 @@ export type QueryPlanningErrorCode =
   | "fallback-disabled"
   | "unsafe-materialization";
 
-export class HonuaQueryPlanningError extends Error {
+export class HonuaQueryPlanningError extends HonuaSdkError {
   public constructor(
     public readonly code: QueryPlanningErrorCode,
     message: string,
+    options: HonuaErrorOptions = {},
   ) {
-    super(message);
+    super(QUERY_PLANNING_CODES[code], message, options);
     this.name = "HonuaQueryPlanningError";
   }
 }
 
 export type QueryPlanExecutionErrorCode = "invalid-plan" | "plan-context-mismatch" | "unsafe-materialization";
 
-export class HonuaQueryPlanExecutionError extends Error {
+export class HonuaQueryPlanExecutionError extends HonuaSdkError {
   public constructor(
     public readonly code: QueryPlanExecutionErrorCode,
     message: string,
+    options: HonuaErrorOptions = {},
   ) {
-    super(message);
+    super(QUERY_EXECUTION_CODES[code], message, options);
     this.name = "HonuaQueryPlanExecutionError";
   }
 }
+
+const QUERY_PLANNING_CODES = {
+  "invalid-query": "query.planning.invalid-query",
+  "unsupported-compiler": "query.planning.unsupported-compiler",
+  "unsupported-query": "query.planning.unsupported-query",
+  "capability-not-supported": "query.planning.capability-not-supported",
+  "fallback-disabled": "query.planning.fallback-disabled",
+  "unsafe-materialization": "query.planning.unsafe-materialization",
+} as const satisfies Record<QueryPlanningErrorCode, `query.planning.${string}`>;
+
+const QUERY_EXECUTION_CODES = {
+  "invalid-plan": "query.execution.invalid-plan",
+  "plan-context-mismatch": "query.execution.plan-context-mismatch",
+  "unsafe-materialization": "query.execution.unsafe-materialization",
+} as const satisfies Record<QueryPlanExecutionErrorCode, `query.execution.${string}`>;
 
 export interface ExecuteQueryPlanOptions {
   readonly signal?: AbortSignal;
