@@ -6,9 +6,9 @@ guard. Use their stable classifications to gate retry, refresh, fallback, and
 surface-to-user decisions instead of parsing message strings.
 
 This release covers core transport/auth/protocol errors, discovery, the query
-planner, and every public error exported by the stable `map` and `runtime`
-subpaths. Realtime ([#568](https://github.com/honua-io/honua-sdk-js/issues/568)),
-offline ([#569](https://github.com/honua-io/honua-sdk-js/issues/569)), agent
+planner, every public error exported by the stable `map` and `runtime`
+subpaths, and the public realtime resume error. Offline
+([#569](https://github.com/honua-io/honua-sdk-js/issues/569)), agent
 ([#570](https://github.com/honua-io/honua-sdk-js/issues/570)), and plugin
 ([#571](https://github.com/honua-io/honua-sdk-js/issues/571)) errors are explicit
 residuals and are not yet recognized merely because they are SDK-defined errors.
@@ -22,7 +22,7 @@ Every migrated instance has these common fields:
 | Field | Meaning |
 |-------|---------|
 | `kind` | Constant `"honua.sdk.error.v1"` tag used by the cross-realm guard. |
-| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, or `runtime`. |
+| `domain` | Stable broad owner: `core`, `discovery`, `query`, `map`, `runtime`, or `realtime`. |
 | `sdkCode` | Globally unique code from `HONUA_ERROR_CODE_REGISTRY`. |
 | `category` | Stable `authentication`, `cancellation`, `capability`, `internal`, `network`, `protocol`, `timeout`, or `validation` classification. |
 | `retryable` | Stable boolean for this exact `sdkCode`. This metadata describes the existing policy; it does not initiate retries. |
@@ -83,6 +83,7 @@ try {
 | `HonuaMapPackageError` | `@honua/sdk-js/runtime` | Map-package fetch/load/validation/update/style/source/view/popup/disposal stage fails. | Branch on `.stage`; only fetch and disposal classifications are marked retryable. |
 | `HonuaRuntimeDiagnosticError` | `@honua/sdk-js/runtime` | Runtime style/source/layer validation produces error diagnostics. | Inspect the local `.diagnostics` and correct invalid runtime input. Serialized context carries codes/count only. |
 | `QueryTileServerResponseError` | `@honua/sdk-js/runtime` | Query-tile HTTP response is unsuccessful. | Inspect `.status`; transient HTTP statuses are classified retryable without changing request policy. |
+| `HonuaRealtimeResumeError` | `@honua/sdk-js/realtime` | Realtime initialization, decoding, checkpoint, ordering, transport, or terminal delivery fails. | Branch on the existing reason `.code`; reconnect or request a replacement snapshot only when the stream contract already permits it. Envelope retryability is metadata and does not initiate reconnects. |
 
 ## Registered code families
 
@@ -117,6 +118,15 @@ shape plus this class/family documentation.
 | `HonuaMapPackageError` | `runtime.map-package.*` (one code per public stage) |
 | `HonuaRuntimeDiagnosticError` | `runtime.diagnostic` |
 | `QueryTileServerResponseError` | `runtime.query-tiles.transient`, `runtime.query-tiles.rejected` |
+| `HonuaRealtimeResumeError` | `realtime.cancelled`, `realtime.transport.reconnectable`, `realtime.checkpoint.invalid`, `realtime.sequence.gap`, `realtime.protocol.terminal` |
+
+`HonuaRealtimeResumeError.code` remains the existing detailed reason (for
+example, `invalid-checkpoint`, `sequence-gap`, `transport-gap`, or
+`delivery-failed`). Its `sdkCode` groups those reasons into stable recovery
+classes. `realtime.transport.reconnectable` and `realtime.sequence.gap` are
+marked retryable because the existing contract permits reconnect or replacement
+snapshot recovery; the envelope does not perform either action. SSE abort,
+unsubscribe, and close still complete normally without emitting an error.
 
 ### Individual code registry
 
@@ -198,6 +208,11 @@ shape plus this class/family documentation.
 | `runtime.diagnostic` | `runtime` | `validation` | no | Runtime validation diagnostic |
 | `runtime.query-tiles.transient` | `runtime` | `protocol` | yes | Retryable query-tile response failure |
 | `runtime.query-tiles.rejected` | `runtime` | `protocol` | no | Non-retryable query-tile response failure |
+| `realtime.cancelled` | `realtime` | `cancellation` | no | Realtime operation was cancelled |
+| `realtime.transport.reconnectable` | `realtime` | `network` | yes | Realtime transport can reconnect or resnapshot |
+| `realtime.checkpoint.invalid` | `realtime` | `validation` | no | Realtime checkpoint or resume context is invalid |
+| `realtime.sequence.gap` | `realtime` | `protocol` | yes | Realtime ordering requires a replacement snapshot |
+| `realtime.protocol.terminal` | `realtime` | `protocol` | no | Realtime delivery reached a terminal failure |
 <!-- error-code-registry:end -->
 
 ## Narrowing in `catch`
@@ -242,6 +257,7 @@ subset of these errors when configured:
 | `HonuaGrpcError` with retryable code | **No** — the built-in `retry` policy is not applied to the gRPC-web transport; wrap these calls yourself |
 | `HonuaAuthError` | **No** — resolved by the auth provider's own silent-refresh / single-flight logic; a 401/403 additionally triggers one force-refresh + replay. Branch on `.code` to sign in or surface. |
 | `HonuaAbortError` | **No** — caller asked to stop |
+| `HonuaRealtimeResumeError` | **No automatic retry** — the realtime transport and resumable delivery gate retain their existing reconnect/resnapshot policy; use `.sdkCode` only to classify the observed transition. |
 | `HonuaCapabilityNotSupportedError` | **No** — would never succeed |
 | `HonuaWfsExceptionError` | **No** — caller bug |
 | `HonuaExplorationContextError` | **No** — state bug |

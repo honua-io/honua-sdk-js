@@ -1,8 +1,9 @@
 /**
  * Tagged hierarchy for the migrated Honua SDK error domains. The common
- * `isHonuaError(error)` guard also recognizes migrated query, map, and runtime
- * subclasses. See [`docs/errors.md`](../../docs/errors.md) for exact coverage,
- * residual domains, recovery hints, and the retryability classification.
+ * `isHonuaError(error)` guard also recognizes migrated query, map, runtime, and
+ * realtime subclasses. See [`docs/errors.md`](../../docs/errors.md) for exact
+ * coverage, residual domains, recovery hints, and the retryability
+ * classification.
  *
  * @example
  * ```ts

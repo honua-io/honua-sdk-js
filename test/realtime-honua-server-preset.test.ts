@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { isHonuaError } from "../src/index.js";
 import {
   HONUA_SERVER_STREAMING_FEATURES_PATH,
+  HonuaRealtimeResumeError,
   createHonuaServerRealtimeSubscription,
   decodeHonuaServerRealtimeEvent,
   encodeHonuaServerRealtimeRequest,
@@ -135,8 +137,48 @@ describe("honua-server realtime preset", () => {
     expect(event).toEqual({ type: "status", status: "reconnecting", reason: "server-restart" });
   });
 
+  it("normalizes server error envelopes through the tagged realtime redaction boundary", () => {
+    const rawError = {
+      authorization: "Bearer raw-header-secret",
+      token: "raw-token-secret",
+      payload: { owner: "raw-payload-secret" },
+      filter: "owner = 'raw-filter-secret'",
+    };
+    const event = decodeHonuaServerRealtimeEvent({
+      type: "error",
+      terminal: true,
+      code: "AUTH",
+      cursor: "raw-cursor-secret",
+      error: rawError,
+    });
+
+    expect(event.type).toBe("error");
+    if (event.type !== "error") throw new Error("expected a realtime error event");
+    expect(event.error).toBeInstanceOf(HonuaRealtimeResumeError);
+    expect(isHonuaError(event.error)).toBe(true);
+    expect(event.error).toMatchObject({
+      code: "invalid-event",
+      sdkCode: "realtime.protocol.terminal",
+      retryable: false,
+      cause: rawError,
+    });
+    const serialized = JSON.stringify(event.error);
+    for (const secret of [
+      "raw-cursor-secret",
+      "raw-header-secret",
+      "raw-token-secret",
+      "raw-payload-secret",
+      "raw-filter-secret",
+    ]) {
+      expect(serialized).not.toContain(secret);
+    }
+  });
+
   it("throws on a malformed feature-change envelope", () => {
     expect(() => decodeHonuaServerRealtimeEvent({ kind: "feature-change", changes: [] })).toThrow();
+    expect(() => decodeHonuaServerRealtimeEvent({ kind: "feature-change", changes: [null] })).toThrow(
+      HonuaRealtimeResumeError,
+    );
     expect(() =>
       decodeHonuaServerRealtimeEvent({ kind: "feature-change", changes: [{ op: "update", feature: {} }] }),
     ).toThrow();

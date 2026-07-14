@@ -14,6 +14,7 @@ import {
   HonuaGrpcError,
   HonuaHttpError,
   HonuaNetworkError,
+  HonuaSdkError,
   HonuaTimeoutError,
   isHonuaError,
   isHonuaErrorCode,
@@ -26,12 +27,14 @@ import { HonuaMapLibreRasterStrategyError } from "../src/map/raster-source-strat
 import { HonuaMapLibreSourceAdapterError } from "../src/map/source-to-maplibre.js";
 import { HonuaTemporalPlaybackError } from "../src/map/temporal-playback.js";
 import { HonuaQueryPlanExecutionError, HonuaQueryPlanningError } from "../src/query-planner/types.js";
+import { HonuaRealtimeResumeError } from "../src/realtime/index.js";
+import type { ResumableRealtimeReasonCode } from "../src/realtime/index.js";
 import { HonuaMapPackageError } from "../src/runtime/errors.js";
 import { QueryTileServerResponseError } from "../src/runtime/query-tiles.js";
 import { HonuaRuntimeDiagnosticError } from "../src/runtime/style-interactions.js";
 
 describe("tagged SDK error envelope", () => {
-  it("recognizes core, discovery, query, map, and runtime public errors", () => {
+  it("recognizes core, discovery, query, map, runtime, and realtime public errors", () => {
     const errors = [
       new HonuaNetworkError("offline", new TypeError("fetch failed")),
       new HonuaDiscoveryError("invalid-endpoint", "bad endpoint"),
@@ -46,6 +49,7 @@ describe("tagged SDK error envelope", () => {
       new HonuaMapPackageError("bad package", { stage: "validate" }),
       new HonuaRuntimeDiagnosticError("bad style", []),
       new QueryTileServerResponseError({ status: 400, url: "https://example.test/tiles", message: "bad tile" }),
+      new HonuaRealtimeResumeError("invalid-checkpoint", "bad checkpoint"),
     ];
 
     for (const error of errors) {
@@ -61,6 +65,7 @@ describe("tagged SDK error envelope", () => {
     const discovery = new HonuaDiscoveryError("invalid-endpoint", "bad endpoint");
     const planning = new HonuaQueryPlanningError("invalid-query", "bad query");
     const map = new HonuaMapLibreSourceAdapterError("disposed", "disposed");
+    const realtime = new HonuaRealtimeResumeError("sequence-gap", "gap");
 
     expect(grpc.code).toBe(14);
     expect(grpc.sdkCode).toBe("core.grpc.transient");
@@ -74,6 +79,9 @@ describe("tagged SDK error envelope", () => {
     expect(map.code).toBe("disposed");
     expect(map.sdkCode).toBe("map.source-adapter.disposed");
     expect(map).toBeInstanceOf(HonuaMapLibreSourceAdapterError);
+    expect(realtime.code).toBe("sequence-gap");
+    expect(realtime.sdkCode).toBe("realtime.sequence.gap");
+    expect(realtime).toBeInstanceOf(HonuaRealtimeResumeError);
   });
 
   it("preserves legacy fields, causes, and instanceof behavior for every migrated class family", () => {
@@ -131,6 +139,7 @@ describe("tagged SDK error envelope", () => {
         }),
         QueryTileServerResponseError,
       ],
+      [new HonuaRealtimeResumeError("checkpoint-load-failed", "load failed", { cause }), HonuaRealtimeResumeError],
     ] as const;
 
     for (const [error, ErrorClass] of instances) {
@@ -160,6 +169,8 @@ describe("tagged SDK error envelope", () => {
     expect((instances[22][0] as HonuaRuntimeDiagnosticError).cause).toBe(cause);
     expect((instances[23][0] as QueryTileServerResponseError).body).toBe(body);
     expect((instances[23][0] as QueryTileServerResponseError).status).toBe(503);
+    expect((instances[24][0] as HonuaRealtimeResumeError).code).toBe("checkpoint-load-failed");
+    expect((instances[24][0] as HonuaRealtimeResumeError).cause).toBe(cause);
     expect(Object.hasOwn(new HonuaMapLibreSourceAdapterError("disposed", "disposed"), "cause")).toBe(false);
     expect(Object.hasOwn(new HonuaAuthError("interaction_required", "sign in"), "cause")).toBe(true);
   });
@@ -178,6 +189,96 @@ describe("tagged SDK error envelope", () => {
     expect([internal.category, internal.retryable]).toEqual(["internal", false]);
     expect([retryableHttp.sdkCode, retryableHttp.retryable]).toEqual(["core.http.transient", true]);
     expect([rejectedHttp.sdkCode, rejectedHttp.retryable]).toEqual(["core.http.rejected", false]);
+  });
+
+  it("classifies every required realtime recovery boundary without changing the legacy reason code", () => {
+    const cases = [
+      ["cancelled", "realtime.cancelled", "cancellation", false],
+      ["transport-gap", "realtime.transport.reconnectable", "network", true],
+      ["invalid-checkpoint", "realtime.checkpoint.invalid", "validation", false],
+      ["sequence-gap", "realtime.sequence.gap", "protocol", true],
+      ["delivery-failed", "realtime.protocol.terminal", "protocol", false],
+    ] as const;
+
+    for (const [reason, sdkCode, category, retryable] of cases) {
+      const error = new HonuaRealtimeResumeError(reason, `local ${reason} detail`);
+      expect(error.code).toBe(reason);
+      expect(error.sdkCode).toBe(sdkCode);
+      expect(error.domain).toBe("realtime");
+      expect(error.category).toBe(category);
+      expect(error.retryable).toBe(retryable);
+      expect(error.name).toBe("HonuaRealtimeResumeError");
+      expect(error).toBeInstanceOf(HonuaRealtimeResumeError);
+      expect(error).toBeInstanceOf(HonuaSdkError);
+      expect(error).toBeInstanceOf(Error);
+      expect(isHonuaError(error)).toBe(true);
+      expect(HONUA_ERROR_CODE_REGISTRY[sdkCode]).toMatchObject({ domain: "realtime", category, retryable });
+    }
+  });
+
+  it("serializes realtime failures without messages, authorization, tokens, payloads, or filter values", () => {
+    const cause = {
+      authorization: "Bearer realtime-header-secret",
+      resumeToken: "resume-token-secret",
+      cursor: "cursor-secret",
+      payload: { feature: { owner: "payload-owner-secret" } },
+      filter: "owner = 'filter-owner-secret'",
+    };
+    const error = new HonuaRealtimeResumeError("delivery-failed", "terminal stream failure for message-owner-secret", {
+      cause,
+    });
+
+    expect(error.cause).toBe(cause);
+    expect(error.context).toEqual({ reasonCode: "delivery-failed" });
+    const json = JSON.stringify(error);
+    for (const secret of [
+      "realtime-header-secret",
+      "resume-token-secret",
+      "cursor-secret",
+      "payload-owner-secret",
+      "filter-owner-secret",
+      "message-owner-secret",
+    ]) {
+      expect(json).not.toContain(secret);
+    }
+    expect(JSON.parse(json)).toMatchObject({
+      name: "HonuaRealtimeResumeError",
+      domain: "realtime",
+      code: "realtime.protocol.terminal",
+      context: { reasonCode: "delivery-failed" },
+      cause: { name: "object" },
+    });
+  });
+
+  it("keeps unregistered runtime realtime reasons local and projects only a fixed safe context reason", () => {
+    const rawString = "resumeToken=runtime-string-secret";
+    let coercionAttempted = false;
+    const rawObject = {
+      payload: "runtime-object-secret",
+      [Symbol.toPrimitive]() {
+        coercionAttempted = true;
+        throw new Error("runtime-object-coercion-secret");
+      },
+    };
+    const stringError = new HonuaRealtimeResumeError(rawString as ResumableRealtimeReasonCode, "local failure");
+    const objectError = new HonuaRealtimeResumeError(
+      rawObject as unknown as ResumableRealtimeReasonCode,
+      "local failure",
+    );
+
+    expect(stringError.code).toBe(rawString);
+    expect(objectError.code).toBe(rawObject);
+    expect(coercionAttempted).toBe(false);
+    for (const error of [stringError, objectError]) {
+      expect(error).toMatchObject({
+        sdkCode: "realtime.protocol.terminal",
+        context: { reasonCode: "invalid-event" },
+      });
+      const json = JSON.stringify(error);
+      for (const secret of ["runtime-string-secret", "runtime-object-secret", "runtime-object-coercion-secret"]) {
+        expect(json).not.toContain(secret);
+      }
+    }
   });
 
   it("serializes identifiers and redacted context while preserving the raw cause on the instance", () => {

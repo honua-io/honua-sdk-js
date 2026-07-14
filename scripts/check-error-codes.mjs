@@ -10,7 +10,7 @@ const DOC_PATH = path.join(ROOT, "docs/errors.md");
 let doc = fs.readFileSync(DOC_PATH, "utf8");
 const TABLE_START = "<!-- error-code-registry:start -->";
 const TABLE_END = "<!-- error-code-registry:end -->";
-const VALID_DOMAINS = new Set(["core", "discovery", "query", "map", "runtime"]);
+const VALID_DOMAINS = new Set(["core", "discovery", "query", "map", "runtime", "realtime"]);
 const VALID_CATEGORIES = new Set([
   "authentication",
   "cancellation",
@@ -46,6 +46,7 @@ const MIGRATED_PUBLIC_CLASSES = [
   "HonuaMapPackageError",
   "HonuaRuntimeDiagnosticError",
   "QueryTileServerResponseError",
+  "HonuaRealtimeResumeError",
 ];
 
 const codes = Object.keys(HONUA_ERROR_CODE_REGISTRY);
@@ -97,7 +98,7 @@ for (const requiredText of [
   "HONUA_ERROR_CODE_REGISTRY",
   "sdkCode",
   "serializeHonuaError",
-  "#568",
+  "HonuaRealtimeResumeError",
   "#569",
   "#570",
   "#571",

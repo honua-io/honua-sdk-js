@@ -9,7 +9,7 @@
 
 export const HONUA_ERROR_KIND = "honua.sdk.error.v1" as const;
 
-export type HonuaErrorDomain = "core" | "discovery" | "query" | "map" | "runtime";
+export type HonuaErrorDomain = "core" | "discovery" | "query" | "map" | "runtime" | "realtime";
 
 export type HonuaErrorCategory =
   | "authentication"
@@ -317,6 +317,31 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     "protocol",
     false,
     "Non-retryable query-tile response failure",
+  ),
+  "realtime.cancelled": classification("realtime", "cancellation", false, "Realtime operation was cancelled"),
+  "realtime.transport.reconnectable": classification(
+    "realtime",
+    "network",
+    true,
+    "Realtime transport can reconnect or resnapshot",
+  ),
+  "realtime.checkpoint.invalid": classification(
+    "realtime",
+    "validation",
+    false,
+    "Realtime checkpoint or resume context is invalid",
+  ),
+  "realtime.sequence.gap": classification(
+    "realtime",
+    "protocol",
+    true,
+    "Realtime ordering requires a replacement snapshot",
+  ),
+  "realtime.protocol.terminal": classification(
+    "realtime",
+    "protocol",
+    false,
+    "Realtime delivery reached a terminal failure",
   ),
 } as const satisfies Record<string, HonuaErrorCodeDescriptor>);
 
@@ -671,6 +696,7 @@ const SAFE_ERROR_NAMES = new Set([
   "HonuaNetworkError",
   "HonuaQueryPlanExecutionError",
   "HonuaQueryPlanningError",
+  "HonuaRealtimeResumeError",
   "HonuaRuntimeDiagnosticError",
   "HonuaSdkError",
   "HonuaTemporalPlaybackError",
