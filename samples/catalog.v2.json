@@ -28,14 +28,27 @@
     ],
     "evidenceExpiry": {
       "executedMaxDays": 31,
-      "nonExecutedMaxDays": 90
-    }
+      "nonExecutedMaxDays": 90,
+      "maxFutureSkewSeconds": 300
+    },
+    "environmentReadExemptions": [
+      {
+        "name": "GITHUB_SHA",
+        "provider": "github-actions",
+        "reason": "GitHub Actions supplies the commit identity used only for evidence provenance."
+      },
+      {
+        "name": "MODE",
+        "provider": "vite",
+        "reason": "Vite supplies its built-in execution mode metadata."
+      }
+    ]
   },
   "goldenJourneys": [
     {
       "id": "first-map",
       "title": "First Map",
-      "status": "qualified",
+      "status": "planned",
       "candidateSampleId": "maplibre-quickstart"
     },
     {
@@ -207,7 +220,19 @@
         "provenance": "Committed parcel fixture plus optional host-mediated proposal and live-data endpoints.",
         "attribution": "City and County of Honolulu — deterministic demonstration fixture.",
         "freshness": "Fixture snapshot 2026-07-10; optional live lane records its observation time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "HONUA_AGENT_HOST_URL",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_LIVE_DATA_URL",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -272,7 +297,8 @@
         "provenance": "Committed bootstrap fixture.",
         "attribution": "Honua fixture data.",
         "freshness": "Deterministic replay.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -325,7 +351,8 @@
         "provenance": "Committed migration input fixture.",
         "attribution": "Synthetic parcel fixture.",
         "freshness": "Versioned with the repository.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -381,7 +408,8 @@
         "config": [],
         "provenance": "In-memory feature and tile fixtures served from the local test origin.",
         "attribution": "Honua deterministic browser fixtures.",
-        "freshness": "Versioned with the repository."
+        "freshness": "Versioned with the repository.",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -436,7 +464,8 @@
         "config": [],
         "provenance": "Committed route query fixture or an explicitly configured Honua feature layer.",
         "attribution": "Route and terrain providers remain visible in diagnostics.",
-        "freshness": "Fixture version or live query observation time."
+        "freshness": "Fixture version or live query observation time.",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -493,7 +522,8 @@
         "provenance": "Committed deterministic edit fixture.",
         "attribution": "Honua synthetic operations data.",
         "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -551,7 +581,24 @@
         "provenance": "Committed public-response fixture or public Esri Living Atlas endpoint.",
         "attribution": "Endpoint attribution shown in the sample.",
         "freshness": "Fixture retrieval metadata or live response time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "VITE_ENDPOINT_TO_MAP_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_ENDPOINT_TO_MAP_MAX_FEATURES",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_ENDPOINT_TO_MAP_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -564,9 +611,7 @@
         "live": {
           "mode": "public-live",
           "status": "planned",
-          "commands": [
-            "npm run demo:endpoint-to-map"
-          ]
+          "commands": []
         }
       },
       "expectedDegradation": "Strategy selection, overflow truncation, and capability gaps are reported through the mounted handle's diagnostics.",
@@ -584,8 +629,9 @@
       "track": "recipe",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "active",
-        "reason": "Focused geocoding recipe with deterministic and live configuration."
+        "state": "rework",
+        "reason": "Move browser credential inputs behind a host-mediated flow before recipe promotion.",
+        "targetRelease": "0.2.0-beta.0"
       },
       "sourcePath": "examples/geocoding-quickstart",
       "docsPath": "examples/geocoding-quickstart/README.md",
@@ -604,12 +650,70 @@
         "mode": "hybrid",
         "authMode": "api-key",
         "config": [
-          "VITE_HONUA_GEOCODING_BASE_URL"
+          "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
+          "VITE_HONUA_GEOCODING_API_KEY",
+          "VITE_HONUA_GEOCODING_BASE_URL",
+          "VITE_HONUA_GEOCODING_BEARER_TOKEN",
+          "VITE_HONUA_GEOCODING_COUNTRY_CODES",
+          "VITE_HONUA_GEOCODING_INITIAL_QUERY",
+          "VITE_HONUA_GEOCODING_LOCATOR_NAME",
+          "VITE_HONUA_GEOCODING_MAX_RESULTS",
+          "VITE_HONUA_GEOCODING_MAX_SUGGESTIONS"
         ],
         "provenance": "Committed gazetteer responses or configured Honua GeocodeServer.",
         "attribution": "Gazetteer attribution supplied by the endpoint.",
         "freshness": "Fixture capture metadata or live response time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables.",
+        "configClassifications": [
+          {
+            "name": "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_GEOCODING_API_KEY",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_GEOCODING_BASE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_GEOCODING_BEARER_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_GEOCODING_COUNTRY_CODES",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_GEOCODING_INITIAL_QUERY",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_GEOCODING_LOCATOR_NAME",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_GEOCODING_MAX_RESULTS",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_GEOCODING_MAX_SUGGESTIONS",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -672,7 +776,21 @@
         "provenance": "Committed job-state fixture or configured process endpoint.",
         "attribution": "Process-owner attribution from service metadata.",
         "freshness": "Job receipt and poll observation times.",
-        "configurationStatus": "approved"
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads a process-service token variable.",
+        "configClassifications": [
+          {
+            "name": "VITE_HONUA_PROCESS_SERVICE_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_PROCESS_SERVICE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -704,13 +822,9 @@
       "journeyId": "imagery-terrain",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "merge",
-        "reason": "Combine with STAC and terrain into one imagery journey.",
-        "targetRelease": "0.2.0-beta.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "imagery-terrain"
-        }
+        "state": "rework",
+        "reason": "Consolidate the imagery candidate and its overlapping recipes before journey qualification.",
+        "targetRelease": "0.2.0-beta.0"
       },
       "sourcePath": "examples/imagery-cog-quickstart",
       "docsPath": "examples/imagery-cog-quickstart/README.md",
@@ -730,12 +844,40 @@
         "mode": "hybrid",
         "authMode": "api-key",
         "config": [
-          "VITE_HONUA_IMAGERY_BASE_URL"
+          "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
+          "VITE_HONUA_IMAGERY_API_KEY",
+          "VITE_HONUA_IMAGERY_BASE_URL",
+          "VITE_HONUA_IMAGERY_BEARER_TOKEN"
         ],
         "provenance": "Committed imagery metadata or configured Honua imagery service.",
         "attribution": "Imagery-provider attribution is rendered on the map.",
         "freshness": "Capture metadata or live response observation time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables.",
+        "configClassifications": [
+          {
+            "name": "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_IMAGERY_API_KEY",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_IMAGERY_BASE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_IMAGERY_BEARER_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -797,12 +939,86 @@
           "HONUA_DEMO_INCIDENTS_LAYER_ID",
           "HONUA_DEMO_INCIDENTS_SERVICE_ID",
           "HONUA_DEMO_UNIT_TRACKS_LAYER_ID",
-          "HONUA_DEMO_UNIT_TRACKS_SERVICE_ID"
+          "HONUA_DEMO_UNIT_TRACKS_SERVICE_ID",
+          "VITE_KEPLER_STYLE_URL",
+          "VITE_KEPLER_USE_MAPBOX_DEFAULTS",
+          "VITE_MAPBOX_TOKEN"
         ],
         "provenance": "Committed Honua export with refresh metadata.",
         "attribution": "Synthetic Honua operations fixture.",
         "freshness": "Fixture metadata records the source retrieval time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle reads a public Mapbox token; it is explicitly classified as public, but the current browser policy does not approve credential values.",
+        "configClassifications": [
+          {
+            "name": "HONUA_DEMO_API_KEY",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_DEMO_BASE_URL",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_DEMO_BEARER_TOKEN",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_DEMO_COVERAGE_ZONES_LAYER_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_DEMO_COVERAGE_ZONES_SERVICE_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_DEMO_ENV_LABEL",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_DEMO_INCIDENTS_LAYER_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_DEMO_INCIDENTS_SERVICE_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_DEMO_UNIT_TRACKS_LAYER_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_DEMO_UNIT_TRACKS_SERVICE_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_KEPLER_STYLE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_KEPLER_USE_MAPBOX_DEFAULTS",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_MAPBOX_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "public-token"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -815,9 +1031,7 @@
         "live": {
           "mode": "public-live",
           "status": "planned",
-          "commands": [
-            "npm run demo:kepler:refresh-fixture"
-          ]
+          "commands": []
         }
       },
       "expectedDegradation": "The committed export is labeled replayed rather than live.",
@@ -832,12 +1046,13 @@
       "title": "Honua × MapLibre flagship workflow",
       "summary": "Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence.",
       "sourceKind": "root-example",
-      "track": "golden",
+      "track": "recipe",
       "journeyId": "first-map",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "active",
-        "reason": "Canonical five-minute north-star journey with deterministic fixture and secret-free live modes."
+        "state": "rework",
+        "reason": "Remove the rejected browser credential variables from the supported configuration surface before journey qualification.",
+        "targetRelease": "0.2.0-beta.0"
       },
       "sourcePath": "examples/maplibre-quickstart",
       "docsPath": "examples/maplibre-quickstart/README.md",
@@ -860,16 +1075,138 @@
         "mode": "hybrid",
         "authMode": "anonymous",
         "config": [
+          "HONUA_QUICKSTART_SDK_DIR",
+          "HONUA_STAGING_API_KEY",
+          "HONUA_STAGING_BASE_URL",
+          "HONUA_STAGING_BEARER_TOKEN",
+          "HONUA_STAGING_CAPTURED_AT",
+          "HONUA_STAGING_DATA_VERSION",
+          "HONUA_STAGING_LAYER_ID",
+          "HONUA_STAGING_RESULT_RECORD_COUNT",
+          "HONUA_STAGING_SERVICE_ID",
+          "HONUA_STAGING_WHERE",
+          "VITE_HONUA_QUICKSTART_API_KEY",
+          "VITE_HONUA_QUICKSTART_BASEMAP_STYLE",
           "VITE_HONUA_QUICKSTART_BASE_URL",
+          "VITE_HONUA_QUICKSTART_BEARER_TOKEN",
           "VITE_HONUA_QUICKSTART_CAPTURED_AT",
           "VITE_HONUA_QUICKSTART_DATA_VERSION",
           "VITE_HONUA_QUICKSTART_LAYER_ID",
-          "VITE_HONUA_QUICKSTART_SERVICE_ID"
+          "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT",
+          "VITE_HONUA_QUICKSTART_SERVICE_ID",
+          "VITE_HONUA_QUICKSTART_WHERE"
         ],
         "provenance": "Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.",
         "attribution": "Source attribution and protocol identity are shown beside the map.",
         "freshness": "Fixture capture time and data version, or live response observation time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The source still reads browser API-key and bearer-token variables in order to reject them.",
+        "configClassifications": [
+          {
+            "name": "HONUA_QUICKSTART_SDK_DIR",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_STAGING_API_KEY",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_STAGING_BASE_URL",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_STAGING_BEARER_TOKEN",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_STAGING_CAPTURED_AT",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_STAGING_DATA_VERSION",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_STAGING_LAYER_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_STAGING_RESULT_RECORD_COUNT",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_STAGING_SERVICE_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_STAGING_WHERE",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_QUICKSTART_API_KEY",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_QUICKSTART_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_QUICKSTART_BASE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_QUICKSTART_BEARER_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_QUICKSTART_CAPTURED_AT",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_QUICKSTART_DATA_VERSION",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_QUICKSTART_LAYER_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_QUICKSTART_SERVICE_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_QUICKSTART_WHERE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -890,7 +1227,7 @@
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
-      "validationProfile": "golden-browser",
+      "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:quickstart:typecheck",
         "npm run demo:quickstart:build",
@@ -930,7 +1267,8 @@
         "provenance": "Committed MCP response fixture.",
         "attribution": "Tool results preserve source attribution.",
         "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -982,11 +1320,76 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "config": [],
+        "config": [
+          "VITE_ARCGIS_SOURCE_LAYER_ID",
+          "VITE_ARCGIS_SOURCE_SERVICE_URL",
+          "VITE_HONUA_CLOUD_ADMIN_API_KEY",
+          "VITE_HONUA_CLOUD_ADMIN_BASE_URL",
+          "VITE_HONUA_IMPORT_POLL_INTERVAL_MS",
+          "VITE_HONUA_IMPORT_TABLE_NAME",
+          "VITE_HONUA_IMPORT_TIMEOUT_MS",
+          "VITE_HONUA_MIGRATION_WORKBENCH_FIXTURE",
+          "VITE_HONUA_MIGRATION_WORKBENCH_GENERATED_AT",
+          "VITE_HONUA_MIGRATION_WORKBENCH_LIVE_IMPORT"
+        ],
         "provenance": "Committed ArcGIS source fixtures and migration reports.",
         "attribution": "Fixture source attribution is preserved in output.",
         "freshness": "Versioned with the migration corpus.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads a cloud-admin API-key variable.",
+        "configClassifications": [
+          {
+            "name": "VITE_ARCGIS_SOURCE_LAYER_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_ARCGIS_SOURCE_SERVICE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_CLOUD_ADMIN_API_KEY",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_CLOUD_ADMIN_BASE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_IMPORT_POLL_INTERVAL_MS",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_IMPORT_TABLE_NAME",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_IMPORT_TIMEOUT_MS",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_MIGRATION_WORKBENCH_FIXTURE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_MIGRATION_WORKBENCH_GENERATED_AT",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_MIGRATION_WORKBENCH_LIVE_IMPORT",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -999,9 +1402,7 @@
         "live": {
           "mode": "public-live",
           "status": "planned",
-          "commands": [
-            "npm run demo:migration:featuretable:live"
-          ]
+          "commands": []
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -1044,7 +1445,8 @@
         "provenance": "Committed recorded LLM completions and incident fixtures from test/fixtures/nl-map-control/.",
         "attribution": "Honua demo fixture attribution is shown in the sample.",
         "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -1095,12 +1497,144 @@
         "mode": "hybrid",
         "authMode": "api-key",
         "config": [
-          "HONUA_BASE_URL"
+          "HONUA_API_KEY",
+          "HONUA_BASE_URL",
+          "HONUA_DEFAULT_FEATURE_LIMIT",
+          "HONUA_LAYER_ID",
+          "HONUA_MAX_FEATURE_LIMIT",
+          "HONUA_MOCK_EXPECT_API_KEY",
+          "HONUA_MOCK_EXPECT_BEARER_TOKEN",
+          "HONUA_MOCK_PORT",
+          "HONUA_NODE_BACKEND_HOST",
+          "HONUA_NODE_BACKEND_PORT",
+          "HONUA_OGC_COLLECTION_ID",
+          "HONUA_RETRY_BASE_DELAY_MS",
+          "HONUA_RETRY_MAX_DELAY_MS",
+          "HONUA_RETRY_MAX_RETRIES",
+          "HONUA_SERVICE_ACCOUNT_API_KEY",
+          "HONUA_SERVICE_ACCOUNT_TOKEN",
+          "HONUA_SERVICE_ACCOUNT_TOKEN_TTL_MS",
+          "HONUA_SERVICE_ID",
+          "HONUA_TIMEOUT_MS",
+          "HOST",
+          "PORT"
         ],
         "provenance": "Committed mock responses or configured Honua endpoint.",
         "attribution": "Response provenance is returned by the service.",
         "freshness": "Fixture replay or live query observation time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "HONUA_API_KEY",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_BASE_URL",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_DEFAULT_FEATURE_LIMIT",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_LAYER_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_MAX_FEATURE_LIMIT",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_MOCK_EXPECT_API_KEY",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_MOCK_EXPECT_BEARER_TOKEN",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_MOCK_PORT",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_NODE_BACKEND_HOST",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_NODE_BACKEND_PORT",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_OGC_COLLECTION_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_RETRY_BASE_DELAY_MS",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_RETRY_MAX_DELAY_MS",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_RETRY_MAX_RETRIES",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SERVICE_ACCOUNT_API_KEY",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_SERVICE_ACCOUNT_TOKEN",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_SERVICE_ACCOUNT_TOKEN_TTL_MS",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SERVICE_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_TIMEOUT_MS",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HOST",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "PORT",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -1154,7 +1688,8 @@
         "provenance": "Self-hosted deterministic OAuth identity-provider fixture.",
         "attribution": "No spatial data is rendered.",
         "freshness": "Fixture session issuance and expiry times.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -1212,7 +1747,8 @@
         "provenance": "Committed deterministic GeoParquet fixture or pinned Overture STAC item 2026-06-17.0/places/place/00000 on public AWS Open Data.",
         "attribution": "Overture Maps Foundation Open Map Data with per-feature upstream sources preserved by the live schema.",
         "freshness": "Pinned release, schema, object ETag, last modification, and execution observation time are shown separately.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -1226,7 +1762,7 @@
           "mode": "public-live",
           "status": "planned",
           "commands": [
-            "npm run evidence:overture:live -- --strict"
+            "npm run evidence:overture:live"
           ]
         }
       },
@@ -1274,7 +1810,8 @@
         "provenance": "Committed Maui planning fixtures.",
         "attribution": "Dataset attribution is visible per layer.",
         "freshness": "Fixture version committed with the repository.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -1328,7 +1865,8 @@
         "provenance": "Committed fixture-sized PMTiles archive.",
         "attribution": "Archive attribution must be supplied by the host.",
         "freshness": "Fixture version committed with the repository.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -1379,12 +1917,37 @@
         "mode": "hybrid",
         "authMode": "api-key",
         "config": [
-          "VITE_HONUA_REACT_BASE_URL"
+          "VITE_HONUA_REACT_BASE_URL",
+          "VITE_HONUA_REACT_LAYER_ID",
+          "VITE_HONUA_REACT_SERVICE_ID",
+          "VITE_HONUA_REACT_WHERE"
         ],
         "provenance": "Committed quickstart fixture or configured Honua service.",
         "attribution": "Service attribution shown in the map runtime.",
         "freshness": "Fixture capture metadata or live observation time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "VITE_HONUA_REACT_BASE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_REACT_LAYER_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_REACT_SERVICE_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_REACT_WHERE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -1450,7 +2013,39 @@
         "provenance": "Deployed demo stream when advertised; otherwise visibly labeled deterministic replay. Edits are limited to an isolated resettable fixture profile.",
         "attribution": "Synthetic incident operations data.",
         "freshness": "Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes.",
-        "configurationStatus": "approved"
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "VITE_HONUA_INCIDENT_BASE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_INCIDENT_CAPABILITIES_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_INCIDENT_LAYER_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_INCIDENT_SOURCE_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_INCIDENT_STREAM_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_INCIDENT_TRANSPORT",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -1519,7 +2114,8 @@
         "provenance": "Committed renderer comparison fixtures.",
         "attribution": "Honua synthetic fixtures.",
         "freshness": "Versioned with the repository.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -1578,12 +2174,82 @@
         "mode": "hybrid",
         "authMode": "api-key",
         "config": [
-          "VITE_HONUA_SERVICE_EXPLORER_BASE_URL"
+          "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
+          "VITE_HONUA_SERVICE_EXPLORER_API_KEY",
+          "VITE_HONUA_SERVICE_EXPLORER_BASE_URL",
+          "VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN",
+          "VITE_HONUA_SERVICE_EXPLORER_LAYER_ID",
+          "VITE_HONUA_SERVICE_EXPLORER_MAP_MOVE_DEBOUNCE_MS",
+          "VITE_HONUA_SERVICE_EXPLORER_MODE",
+          "VITE_HONUA_SERVICE_EXPLORER_RESULT_RECORD_COUNT",
+          "VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID",
+          "VITE_HONUA_SERVICE_EXPLORER_SOURCE_ID",
+          "VITE_HONUA_SERVICE_EXPLORER_WHERE"
         ],
         "provenance": "Committed multi-protocol catalog or configured Honua catalog.",
         "attribution": "Source attribution is retained per selected service.",
         "freshness": "Metadata cache and live observation timestamps.",
-        "configurationStatus": "approved"
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables.",
+        "configClassifications": [
+          {
+            "name": "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_API_KEY",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_BASE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_BEARER_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_LAYER_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_MAP_MOVE_DEBOUNCE_MS",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_MODE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_RESULT_RECORD_COUNT",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_SOURCE_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SERVICE_EXPLORER_WHERE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -1639,7 +2305,8 @@
         "config": [],
         "provenance": "Deterministic renderer-neutral state fixture.",
         "attribution": "Honua synthetic state fixture.",
-        "freshness": "Versioned with the repository."
+        "freshness": "Versioned with the repository.",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -1692,7 +2359,8 @@
         "provenance": "Committed deterministic harbor-parcel fixture.",
         "attribution": "Honua synthetic operations data.",
         "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -1750,6 +2418,18 @@
         "mode": "hybrid",
         "authMode": "anonymous",
         "config": [
+          "HONUA_SPATIAL_ANALYTICS_ATTRIBUTION",
+          "HONUA_SPATIAL_ANALYTICS_BASE_URL",
+          "HONUA_SPATIAL_ANALYTICS_DEPLOYMENT_VERSION",
+          "HONUA_SPATIAL_ANALYTICS_GROUP_FIELD",
+          "HONUA_SPATIAL_ANALYTICS_ID_FIELD",
+          "HONUA_SPATIAL_ANALYTICS_LAYER_ID",
+          "HONUA_SPATIAL_ANALYTICS_PROTOCOL",
+          "HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION",
+          "HONUA_SPATIAL_ANALYTICS_SERVICE_ID",
+          "HONUA_SPATIAL_ANALYTICS_SOURCE_VERSION",
+          "HONUA_SPATIAL_ANALYTICS_VALUE_FIELD",
+          "HONUA_SPATIAL_ANALYTICS_WHERE",
           "VITE_HONUA_SPATIAL_ANALYTICS_BASE_URL",
           "VITE_HONUA_SPATIAL_ANALYTICS_LAYER_ID",
           "VITE_HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION",
@@ -1759,7 +2439,94 @@
         "provenance": "Committed analysis fixtures or a configured public GeoServices source.",
         "attribution": "Input/output attribution, source/schema versions, observation time, cache decision, and plan fingerprint are retained.",
         "freshness": "Fixture replay uses a fixed observation; configured live execution records its observation time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_ATTRIBUTION",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_BASE_URL",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_DEPLOYMENT_VERSION",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_GROUP_FIELD",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_ID_FIELD",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_LAYER_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_PROTOCOL",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_SERVICE_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_SOURCE_VERSION",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_VALUE_FIELD",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SPATIAL_ANALYTICS_WHERE",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SPATIAL_ANALYTICS_BASE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SPATIAL_ANALYTICS_LAYER_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SPATIAL_ANALYTICS_SERVICE_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_SPATIAL_ANALYTICS_SOURCE_VERSION",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -1826,7 +2593,8 @@
         "provenance": "Committed deterministic STAC catalog.",
         "attribution": "Asset-provider attribution from STAC metadata.",
         "freshness": "Fixture item datetime and catalog version.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -1882,6 +2650,7 @@
         "mode": "hybrid",
         "authMode": "anonymous",
         "config": [
+          "STANDALONE_FEATURE_LAYER_URL",
           "VITE_STANDALONE_BASEMAP_STYLE",
           "VITE_STANDALONE_FEATURE_LAYER_URL",
           "VITE_STANDALONE_MAX_PAGES",
@@ -1891,7 +2660,39 @@
         "provenance": "Committed public-response fixture or public Esri endpoint.",
         "attribution": "Endpoint attribution shown in the sample.",
         "freshness": "Fixture retrieval metadata or live response time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "STANDALONE_FEATURE_LAYER_URL",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_STANDALONE_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_STANDALONE_FEATURE_LAYER_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_STANDALONE_MAX_PAGES",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_STANDALONE_OUT_FIELDS",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_STANDALONE_WHERE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -1950,12 +2751,51 @@
         "mode": "hybrid",
         "authMode": "api-key",
         "config": [
-          "VITE_HONUA_25D_BASE_URL"
+          "VITE_HONUA_25D_API_KEY",
+          "VITE_HONUA_25D_ASSETS_COLLECTION",
+          "VITE_HONUA_25D_BASEMAP_STYLE",
+          "VITE_HONUA_25D_BASE_URL",
+          "VITE_HONUA_25D_ROUTE_COLLECTION",
+          "VITE_HONUA_25D_STOPS_COLLECTION"
         ],
         "provenance": "Committed Oahu story fixtures or configured Honua services.",
         "attribution": "Basemap, terrain, and thematic source attribution is displayed.",
         "freshness": "Fixture capture or live layer observation time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads a Honua API-key variable.",
+        "configClassifications": [
+          {
+            "name": "VITE_HONUA_25D_API_KEY",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_25D_ASSETS_COLLECTION",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_25D_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_25D_BASE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_25D_ROUTE_COLLECTION",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_25D_STOPS_COLLECTION",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -2009,7 +2849,8 @@
         "provenance": "Synthetic seismic events generated in the browser from a seeded PRNG; no network access.",
         "attribution": "Honua synthetic demo data.",
         "freshness": "Deterministic seeded generation per load.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -2065,12 +2906,46 @@
         "mode": "hybrid",
         "authMode": "api-key",
         "config": [
-          "VITE_HONUA_TERRAIN_BASE_URL"
+          "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
+          "VITE_HONUA_TERRAIN_API_KEY",
+          "VITE_HONUA_TERRAIN_BASE_URL",
+          "VITE_HONUA_TERRAIN_BEARER_TOKEN",
+          "VITE_HONUA_TERRAIN_SERVICE_ID"
         ],
         "provenance": "Committed Oahu DEM fixture or configured terrain service.",
         "attribution": "Elevation-source attribution displayed with results.",
         "freshness": "Fixture asset version or live response time.",
-        "configurationStatus": "approved"
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables.",
+        "configClassifications": [
+          {
+            "name": "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_TERRAIN_API_KEY",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_TERRAIN_BASE_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "VITE_HONUA_TERRAIN_BEARER_TOKEN",
+            "exposure": "browser-public",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "VITE_HONUA_TERRAIN_SERVICE_ID",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -2130,7 +3005,8 @@
         "provenance": "Committed operations workspace fixture.",
         "attribution": "Synthetic Honua operations data.",
         "freshness": "Deterministic snapshot and delta replay.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -2189,7 +3065,8 @@
         "provenance": "Committed control-gallery fixture.",
         "attribution": "Honua fixture data.",
         "freshness": "Versioned with the repository.",
-        "configurationStatus": "not-required"
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {

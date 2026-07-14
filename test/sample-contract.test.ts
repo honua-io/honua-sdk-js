@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildBrowserArtifactManifest,
+  classifyConfigurationName,
   compareReleases,
+  extractSampleConfiguration,
   generateCiSelection,
   generateSiteProjection,
   generatedOutputDrift,
@@ -47,12 +49,12 @@ describe("sample publication contract", () => {
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
-    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(1);
+    expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(0);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
-      1,
+      0,
     );
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
-      6,
+      7,
     );
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
       lifecycle: { state: "rework", targetRelease: "0.2.0-beta.0" },
@@ -161,7 +163,10 @@ describe("sample publication contract", () => {
     const bumpedProjection = JSON.parse(bumpedOutputs.get("samples/dist/honua-site-samples.v2.json")!);
     expect(bumpedProjection.catalog.version).toBe("0.1.1-beta.0");
     expect(bumpedProjection.samples[0].sdk.version).toBe("0.1.1-beta.0");
-    expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([]);
+    expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
+      "samples/dist/honua-site-samples.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
+    ]);
 
     const semanticDrift = new Map(currentOutputs);
     semanticDrift.set(
@@ -176,7 +181,10 @@ describe("sample publication contract", () => {
     consumerFixture.input.sha256 = "0".repeat(64);
     integrityDrift.set(fixturePath, `${JSON.stringify(consumerFixture, null, 2)}\n`);
     expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
-    expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([fixturePath]);
+    expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
+      "samples/dist/honua-site-samples.v2.json",
+      fixturePath,
+    ]);
   });
 
   it("rejects taxonomy, lifecycle, inventory, and evidence-policy drift", async () => {
@@ -223,7 +231,17 @@ describe("sample publication contract", () => {
     first.lifecycle.replacement = { kind: "sample", id: second.id };
     second.lifecycle.replacement = { kind: "sample", id: first.id };
     await expect(validateCatalog(replacementCycle, packageJson, validationTime)).rejects.toThrow(
-      "sample replacement cycle: geoprocessing-job-runner -> stac-imagery-browser -> geoprocessing-job-runner",
+      "sample/journey replacement cycle: sample:geoprocessing-job-runner -> sample:stac-imagery-browser -> sample:geoprocessing-job-runner",
+    );
+
+    const expandedJourneyCycle = await readJson("samples/catalog.v2.json");
+    const imagery = expandedJourneyCycle.samples.find(
+      (sample: { id: string }) => sample.id === "imagery-cog-quickstart",
+    );
+    imagery.lifecycle.state = "merge";
+    imagery.lifecycle.replacement = { kind: "journey", id: "imagery-terrain" };
+    await expect(validateCatalog(expandedJourneyCycle, packageJson, validationTime)).rejects.toThrow(
+      "sample/journey replacement cycle: sample:imagery-cog-quickstart -> journey:imagery-terrain -> sample:imagery-cog-quickstart",
     );
 
     const unboundExecuted = await readJson("samples/catalog.v2.json");
@@ -231,6 +249,7 @@ describe("sample publication contract", () => {
       (sample: { evidence: { live: { status: string } } }) => sample.evidence.live.status === "planned",
     );
     planned.evidence.live.status = "executed";
+    planned.evidence.live.commands = ["npm run bench:live"];
     await expect(validateCatalog(unboundExecuted, packageJson, validationTime)).rejects.toThrow(
       "executed live status requires evidencePath",
     );
@@ -252,42 +271,193 @@ describe("sample publication contract", () => {
     );
   });
 
-  it("promotes only supported, active, fully evidenced candidates to golden", async () => {
+  it("binds exact source configuration reads and makes browser credential exposure explicit", async () => {
     const packageJson = await readJson("package.json");
+    const catalog = await readJson("samples/catalog.v2.json");
+    const node = catalog.samples.find((sample: { id: string }) => sample.id === "node-backend-quickstart");
+    expect(node.data.config).toEqual(
+      expect.arrayContaining(["HONUA_API_KEY", "HONUA_BASE_URL", "HONUA_SERVICE_ACCOUNT_TOKEN", "HOST", "PORT"]),
+    );
+    expect(
+      node.data.configClassifications.every((entry: { exposure: string }) => entry.exposure === "server-only"),
+    ).toBe(true);
+    expect(
+      node.data.configClassifications.find(
+        (entry: { name: string }) => entry.name === "HONUA_SERVICE_ACCOUNT_TOKEN_TTL_MS",
+      ),
+    ).toEqual({
+      name: "HONUA_SERVICE_ACCOUNT_TOKEN_TTL_MS",
+      exposure: "server-only",
+      valueKind: "non-secret",
+    });
+    expect(
+      node.data.configClassifications.find((entry: { name: string }) => entry.name === "HONUA_SERVICE_ACCOUNT_TOKEN"),
+    ).toMatchObject({ valueKind: "credential", credentialScope: "secret" });
+    for (const name of [
+      "VITE_CLIENT_SECRET",
+      "VITE_DATABASE_PASSWORD",
+      "VITE_SIGNING_PRIVATE_KEY",
+      "VITE_STORAGE_ACCESS_KEY_ID",
+      "VITE_CLIENT_SECRET_TOKEN_TTL_MS",
+    ]) {
+      expect(classifyConfigurationName(name)).toMatchObject({
+        exposure: "browser-public",
+        valueKind: "credential",
+        credentialScope: "secret",
+      });
+    }
+    const kepler = catalog.samples.find((sample: { id: string }) => sample.id === "kepler-analytics");
+    expect(kepler).toMatchObject({
+      lifecycle: { state: "rework" },
+      data: { configurationStatus: "legacy-unsafe" },
+    });
+    expect(
+      kepler.data.configClassifications.find((entry: { name: string }) => entry.name === "VITE_MAPBOX_TOKEN"),
+    ).toEqual({
+      name: "VITE_MAPBOX_TOKEN",
+      exposure: "browser-public",
+      valueKind: "credential",
+      credentialScope: "public-token",
+    });
 
-    const unsupported = await readJson("samples/catalog.v2.json");
-    unsupported.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").supportTier =
-      "experimental";
-    await expect(validateCatalog(unsupported, packageJson, validationTime)).rejects.toThrow(
-      "maplibre-quickstart: golden samples must be supported",
+    const missingRead = structuredClone(catalog);
+    const missingNode = missingRead.samples.find((sample: { id: string }) => sample.id === "node-backend-quickstart");
+    const missingIndex = missingNode.data.config.indexOf("HONUA_SERVICE_ACCOUNT_TOKEN");
+    missingNode.data.config.splice(missingIndex, 1);
+    missingNode.data.configClassifications.splice(missingIndex, 1);
+    await expect(validateCatalog(missingRead, packageJson, validationTime)).rejects.toThrow(
+      "node-backend-quickstart: configuration declaration drift",
     );
 
-    const inactive = await readJson("samples/catalog.v2.json");
-    inactive.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").lifecycle = {
+    const inventedRead = structuredClone(catalog);
+    const inventedNode = inventedRead.samples.find((sample: { id: string }) => sample.id === "node-backend-quickstart");
+    inventedNode.data.config.push("ZZZ_INVENTED_CONFIG");
+    inventedNode.data.configClassifications.push({
+      name: "ZZZ_INVENTED_CONFIG",
+      exposure: "server-only",
+      valueKind: "non-secret",
+    });
+    await expect(validateCatalog(inventedRead, packageJson, validationTime)).rejects.toThrow(
+      "node-backend-quickstart: configuration declaration drift",
+    );
+
+    const hiddenBrowserCredential = structuredClone(catalog);
+    const hiddenKepler = hiddenBrowserCredential.samples.find(
+      (sample: { id: string }) => sample.id === "kepler-analytics",
+    );
+    hiddenKepler.data.configurationStatus = "approved";
+    delete hiddenKepler.data.configurationGap;
+    await expect(validateCatalog(hiddenBrowserCredential, packageJson, validationTime)).rejects.toThrow(
+      "kepler-analytics: browser-public credentials require legacy-unsafe status and bounded rework",
+    );
+
+    const inventedExemption = structuredClone(catalog);
+    inventedExemption.configuration.environmentReadExemptions.push({
+      name: "HONUA_FAKE_BUILTIN",
+      provider: "vite",
+      reason: "Invalid test exemption.",
+    });
+    inventedExemption.configuration.environmentReadExemptions.sort((left: { name: string }, right: { name: string }) =>
+      left.name.localeCompare(right.name),
+    );
+    await expect(validateCatalog(inventedExemption, packageJson, validationTime)).rejects.toThrow(
+      "configuration exemption HONUA_FAKE_BUILTIN is not an approved standard built-in",
+    );
+  });
+
+  it("resolves finite environment aliases and fails closed on dynamic reads", async () => {
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-static")).resolves.toEqual([
+      "HONUA_ALIASED_URL",
+      "HONUA_DESTRUCTURED_URL",
+      "HONUA_DYNAMIC_URL",
+    ]);
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-unresolved")).rejects.toThrow(
+      "unresolved dynamic environment read",
+    );
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-rest")).rejects.toThrow(
+      "environment rest destructuring is not statically bounded",
+    );
+  });
+
+  it("accepts only bounded, whole catalog commands", async () => {
+    const packageJson = await readJson("package.json");
+
+    const shellInjection = await readJson("samples/catalog.v2.json");
+    shellInjection.samples[0].validation[0] = "npm run demo:quickstart:build && curl https://example.test";
+    await expect(validateCatalog(shellInjection, packageJson, validationTime)).rejects.toThrow(
+      "unsafe or unsupported catalog command",
+    );
+
+    const uninstalledNpx = await readJson("samples/catalog.v2.json");
+    uninstalledNpx.samples[0].validation[0] = "npx cowsay test/sample.test.ts";
+    await expect(validateCatalog(uninstalledNpx, packageJson, validationTime)).rejects.toThrow(
+      "unsafe or unsupported catalog command",
+    );
+
+    const pathTraversal = await readJson("samples/catalog.v2.json");
+    pathTraversal.samples[0].validation[0] = "npx vitest run ../outside.test.ts";
+    await expect(validateCatalog(pathTraversal, packageJson, validationTime)).rejects.toThrow(
+      "unsafe or unsupported catalog command",
+    );
+
+    const viteDevLive = await readJson("samples/catalog.v2.json");
+    viteDevLive.samples.find((sample: { id: string }) => sample.id === "endpoint-to-map").evidence.live.commands = [
+      "npm run demo:endpoint-to-map",
+    ];
+    await expect(validateCatalog(viteDevLive, packageJson, validationTime)).rejects.toThrow(
+      "scheduled live command is not in the reviewed bounded producer registry",
+    );
+
+    const deceptiveProducer = await readJson("samples/catalog.v2.json");
+    deceptiveProducer.samples.find((sample: { id: string }) => sample.id === "endpoint-to-map").evidence.live.commands =
+      ["npm run demo:evil:live-smoke"];
+    const deceptivePackage = structuredClone(packageJson);
+    deceptivePackage.scripts["demo:evil:live-smoke"] = "vite";
+    await expect(validateCatalog(deceptiveProducer, deceptivePackage, validationTime)).rejects.toThrow(
+      "scheduled live command is not in the reviewed bounded producer registry",
+    );
+  });
+
+  it("keeps candidates non-golden until the full qualification contract is satisfied", async () => {
+    const packageJson = await readJson("package.json");
+
+    const promoteIncident = async () => {
+      const catalog = await readJson("samples/catalog.v2.json");
+      catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations").status =
+        "qualified";
+      const sample = catalog.samples.find(
+        (candidate: { id: string }) => candidate.id === "realtime-incident-dashboard",
+      );
+      sample.track = "golden";
+      sample.validationProfile = "golden-browser";
+      return { catalog, sample };
+    };
+
+    const unsupported = await promoteIncident();
+    unsupported.sample.supportTier = "experimental";
+    await expect(validateCatalog(unsupported.catalog, packageJson, validationTime)).rejects.toThrow(
+      "realtime-incident-dashboard: golden samples must be supported",
+    );
+
+    const inactive = await promoteIncident();
+    inactive.sample.lifecycle = {
       state: "rework",
       reason: "Promotion regression fixture.",
       targetRelease: "0.2.0-beta.0",
     };
-    await expect(validateCatalog(inactive, packageJson, validationTime)).rejects.toThrow(
-      "maplibre-quickstart: golden samples must be active",
+    await expect(validateCatalog(inactive.catalog, packageJson, validationTime)).rejects.toThrow(
+      "realtime-incident-dashboard: golden samples must be active",
     );
 
-    const missingFixture = await readJson("samples/catalog.v2.json");
-    missingFixture.samples.find(
-      (sample: { id: string }) => sample.id === "maplibre-quickstart",
-    ).evidence.fixture.status = "planned";
-    await expect(validateCatalog(missingFixture, packageJson, validationTime)).rejects.toThrow(
-      "maplibre-quickstart: golden samples require executed fixture evidence",
+    const missingFixture = await promoteIncident();
+    missingFixture.sample.evidence.fixture.status = "planned";
+    await expect(validateCatalog(missingFixture.catalog, packageJson, validationTime)).rejects.toThrow(
+      "realtime-incident-dashboard: golden samples require executed fixture evidence",
     );
 
-    const missingLive = await readJson("samples/catalog.v2.json");
-    const live = missingLive.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart").evidence
-      .live;
-    live.status = "planned";
-    delete live.evidencePath;
-    delete live.expiresAt;
-    await expect(validateCatalog(missingLive, packageJson, validationTime)).rejects.toThrow(
-      "maplibre-quickstart: golden samples require current executed live evidence",
+    const missingLive = await promoteIncident();
+    await expect(validateCatalog(missingLive.catalog, packageJson, validationTime)).rejects.toThrow(
+      "realtime-incident-dashboard: golden samples require current executed live evidence",
     );
 
     const prematurePromotion = await readJson("samples/catalog.v2.json");
@@ -320,6 +490,25 @@ describe("sample publication contract", () => {
     const missingSource = await readJson("examples/ai-spatial-app-builder/evidence/fixture.v1.json");
     delete missingSource.source;
     expect(() => validateEvidenceEnvelope(missingSource)).toThrow("source.provider is required");
+
+    const futureObservation = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    futureObservation.observedAt = "2026-01-01T00:10:01.000Z";
+    futureObservation.provenance.observedAt = futureObservation.observedAt;
+    expect(() =>
+      validateEvidenceEnvelope(futureObservation, {
+        now: "2026-01-01T00:05:00.000Z",
+        maxFutureSkewSeconds: 300,
+      }),
+    ).toThrow("evidence observedAt is more than 300 seconds in the future");
+
+    const inconsistentProvenance = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    inconsistentProvenance.provenance.observedAt = "2026-01-01T00:06:01.000Z";
+    expect(() =>
+      validateEvidenceEnvelope(inconsistentProvenance, {
+        now: "2026-01-01T01:00:00.000Z",
+        maxFutureSkewSeconds: 300,
+      }),
+    ).toThrow("evidence provenance.observedAt cannot follow evidence observedAt beyond clock skew");
   });
 
   it("records the configured live-data endpoint instead of the proposal host", async () => {

@@ -69,7 +69,8 @@
         "allowedSchemes",
         "browserSecretPolicy",
         "credentialQueryParameters",
-        "evidenceExpiry"
+        "evidenceExpiry",
+        "environmentReadExemptions"
       ],
       "properties": {
         "endpointValuePolicy": { "const": "environment-name-only" },
@@ -83,12 +84,27 @@
         },
         "evidenceExpiry": {
           "type": "object",
-          "required": ["executedMaxDays", "nonExecutedMaxDays"],
+          "required": ["executedMaxDays", "nonExecutedMaxDays", "maxFutureSkewSeconds"],
           "properties": {
             "executedMaxDays": { "type": "integer", "minimum": 1 },
-            "nonExecutedMaxDays": { "type": "integer", "minimum": 1 }
+            "nonExecutedMaxDays": { "type": "integer", "minimum": 1 },
+            "maxFutureSkewSeconds": { "type": "integer", "minimum": 0, "maximum": 300 }
           },
           "additionalProperties": false
+        },
+        "environmentReadExemptions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["name", "provider", "reason"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+              "provider": { "enum": ["github-actions", "vite"] },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false
@@ -230,13 +246,35 @@
         "renderers": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
         "data": {
           "type": "object",
-          "required": ["mode", "authMode", "configurationStatus", "config", "provenance", "attribution", "freshness"],
+          "required": ["mode", "authMode", "configurationStatus", "config", "configClassifications", "provenance", "attribution", "freshness"],
           "properties": {
             "mode": { "enum": ["fixture", "public-live", "demo-live", "authenticated-live", "hybrid", "none"] },
             "authMode": { "enum": ["none", "anonymous", "api-key", "bearer", "oauth", "host-mediated"] },
             "configurationStatus": { "enum": ["approved", "not-required", "legacy-unsafe"] },
             "configurationGap": { "type": "string", "minLength": 1 },
             "config": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" } },
+            "configClassifications": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "required": ["name", "exposure", "valueKind"],
+                "properties": {
+                  "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+                  "exposure": { "enum": ["browser-public", "server-only"] },
+                  "valueKind": { "enum": ["credential", "non-secret"] },
+                  "credentialScope": { "enum": ["public-token", "secret"] }
+                },
+                "allOf": [
+                  {
+                    "if": { "properties": { "valueKind": { "const": "credential" } } },
+                    "then": { "required": ["credentialScope"] },
+                    "else": { "not": { "required": ["credentialScope"] } }
+                  }
+                ],
+                "additionalProperties": false
+              }
+            },
             "provenance": { "type": "string", "minLength": 1 },
             "attribution": { "type": "string", "minLength": 1 },
             "freshness": { "type": "string", "minLength": 1 }
@@ -245,20 +283,19 @@
             {
               "if": { "properties": { "configurationStatus": { "const": "approved" } } },
               "then": {
-                "properties": { "config": { "minItems": 1 } },
+                "properties": { "config": { "minItems": 1 }, "configClassifications": { "minItems": 1 } },
                 "not": { "required": ["configurationGap"] }
               }
             },
             {
               "if": { "properties": { "configurationStatus": { "const": "legacy-unsafe" } } },
               "then": {
-                "required": ["configurationGap"],
-                "properties": { "config": { "maxItems": 0 } }
+                "required": ["configurationGap"]
               },
               "else": {
                 "if": { "properties": { "configurationStatus": { "const": "not-required" } } },
                 "then": {
-                  "properties": { "config": { "maxItems": 0 } },
+                  "properties": { "config": { "maxItems": 0 }, "configClassifications": { "maxItems": 0 } },
                   "not": { "required": ["configurationGap"] }
                 }
               }
