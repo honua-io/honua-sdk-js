@@ -603,8 +603,7 @@ of package lifecycle: raw endpoint support, facade requirements, execution mode,
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
-for both honua.io and `samples/catalog.v1.json`; issue #540 must repoint that contract
-explicitly when the sample catalog advances to v2.
+for both honua.io and the canonical `samples/catalog.v2.json` inventory.
 <!-- support-manifest:install-status:end -->
 
 ## Stable subpath entrypoints

@@ -176,9 +176,9 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
   }
 
   const sampleContract = manifest.consumerContracts?.sampleCatalog;
-  for (const [sampleStatus, supportStatus] of Object.entries(sampleContract?.supportStatusMap ?? {})) {
+  for (const [sampleTier, supportStatus] of Object.entries(sampleContract?.supportTierMap ?? {})) {
     if (supportStatus !== null && !STATUS_VOCABULARY.includes(supportStatus)) {
-      fail(`sample status ${sampleStatus} maps to unknown support status ${supportStatus}`);
+      fail(`sample tier ${sampleTier} maps to unknown support status ${supportStatus}`);
     }
   }
   const knownClaimIds = new Set(claimIds);
@@ -421,8 +421,7 @@ of package lifecycle: raw endpoint support, facade requirements, execution mode,
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
-for both honua.io and \`samples/catalog.v1.json\`; issue #540 must repoint that contract
-explicitly when the sample catalog advances to v2.`;
+for both honua.io and the canonical \`samples/catalog.v2.json\` inventory.`;
 }
 
 export function buildSupportProjection(manifest, packageJson) {

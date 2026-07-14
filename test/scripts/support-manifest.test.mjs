@@ -137,7 +137,7 @@ test("protocol-bound support claims cannot promote unsupported protocol operatio
   );
 });
 
-test("the generic projection contracts every sample catalog status and protocol token", () => {
+test("the generic projection contracts every v2 sample catalog tier and protocol token", () => {
   const projection = buildSupportProjection(manifest, packageJson);
   const catalog = JSON.parse(
     fs.readFileSync(path.join(PROJECT_ROOT, projection.consumerContracts.sampleCatalog.source), "utf8"),
@@ -151,8 +151,8 @@ test("the generic projection contracts every sample catalog status and protocol 
   const claimIds = new Set(projection.supportClaims.map((claim) => claim.id));
   for (const sample of catalog.samples) {
     assert.ok(
-      Object.hasOwn(contract.supportStatusMap, sample.supportStatus),
-      `${sample.id} has uncontracted supportStatus ${sample.supportStatus}`,
+      Object.hasOwn(contract.supportTierMap, sample.supportTier),
+      `${sample.id} has uncontracted supportTier ${sample.supportTier}`,
     );
     for (const protocol of sample.protocols) {
       const mapping = contract.protocols[protocol];
@@ -161,8 +161,8 @@ test("the generic projection contracts every sample catalog status and protocol 
       for (const claimId of mapping.supportClaimIds) assert.ok(claimIds.has(claimId), claimId);
     }
   }
-  assert.equal(contract.versionUpgrade.nextFormat, "honua.sdk.sample-catalog.v2");
-  assert.match(contract.versionUpgrade.issue, /issues\/540$/);
+  assert.equal(contract.format, "honua.sdk.sample-catalog.v2");
+  assert.equal(contract.source, "samples/catalog.v2.json");
 });
 
 test("sample consumer mappings reject undeclared protocol and support claim ids", () => {

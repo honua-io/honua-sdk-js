@@ -108,9 +108,9 @@
   ],
   "consumerContracts": {
     "sampleCatalog": {
-      "format": "honua.sdk.sample-catalog.v1",
-      "source": "samples/catalog.v1.json",
-      "supportStatusMap": {
+      "format": "honua.sdk.sample-catalog.v2",
+      "source": "samples/catalog.v2.json",
+      "supportTierMap": {
         "supported": "supported",
         "experimental": "experimental",
         "deprecated": "deprecated",
@@ -135,11 +135,6 @@
         "wfs": { "protocolIds": ["wfs"], "supportClaimIds": ["wfs-standalone"], "external": false },
         "wms": { "protocolIds": ["wms"], "supportClaimIds": [], "external": false },
         "wmts": { "protocolIds": ["wmts"], "supportClaimIds": [], "external": false }
-      },
-      "versionUpgrade": {
-        "nextFormat": "honua.sdk.sample-catalog.v2",
-        "issue": "https://github.com/honua-io/honua-sdk-js/issues/540",
-        "rule": "Catalog v2 must explicitly repoint this consumer contract from v1 to v2; v1 mappings must not be reused implicitly."
       }
     },
     "honuaSite": {
