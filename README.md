@@ -55,7 +55,7 @@ is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.0-beta.0`). The 22-entrypoint stable tier is frozen and guarded
-by an API-surface gate; 8 experimental subpaths may change before 1.0, and
+by an API-surface gate; 9 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
