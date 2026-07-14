@@ -98,7 +98,10 @@ interface HonuaConnection<T> extends AsyncDisposable {
     queryOrPlan: Readonly<Query<T>> | ExecutionPlan<T, F>,
     options?: QueryOptions<F>,
   ): Promise<PlannedQueryResult<T, F>>;
-  mount(target: string | Element | object, options: MountOptions<T>): Promise<MountedMap>;
+  mount<TKind extends RendererKind = RendererKind, TRaw = unknown>(
+    target: string | Element | object,
+    options: MountOptions<T, TKind, TRaw>,
+  ): Promise<MountedMap<TKind, TRaw>>;
   dispose(): Promise<void>;
 }
 ```
@@ -193,21 +196,34 @@ never represented as a complete `Result`.
 ### Mount and renderer escape hatches
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-interface RendererAdapter<TRaw = unknown> {
-  readonly kind: "maplibre" | "deckgl" | "cesium";
+type BuiltInRendererKind = "maplibre" | "deckgl" | "cesium";
+type RendererKind = BuiltInRendererKind | (string & {});
+
+interface RendererAdapter<TKind extends RendererKind = RendererKind, TRaw = unknown> {
+  readonly kind: TKind;
   readonly environments: readonly ("browser" | "node" | "worker")[];
   readonly peer: unknown; // caller-injected module; never a core import
 }
 
-interface MountedMap extends AsyncDisposable {
+interface MountedMap<TKind extends RendererKind = RendererKind, TRaw = unknown>
+  extends AsyncDisposable {
   readonly id: string;
-  readonly renderer: "maplibre" | "deckgl" | "cesium";
+  readonly renderer: TKind;
   readonly ready: Promise<void>;
   readonly diagnostics: DiagnosticChannel;
-  raw<T = unknown>(kind: "maplibre" | "deckgl" | "cesium"): T | undefined;
+  raw(kind: TKind): TRaw | undefined;
   dispose(): Promise<void>;
 }
 ```
+
+The three built-in identifiers are convenience literals, not a closed renderer
+vocabulary. A third-party renderer declares a stable namespaced identifier in
+its plugin manifest, registers it explicitly, and receives the same typed raw
+handle through the generic adapter. Registration rejects unknown or
+API-incompatible adapters with structured diagnostics; core never infers a
+renderer merely from an arbitrary string. Certification is independent evidence,
+not a hard-coded runtime allowlist. The kit in #392 must prove this seam with an
+external-style renderer that is not imported by SDK core.
 
 `mount()` resolves after the adapter accepts the source/layer plan. `ready`
 resolves after the first usable frame and rejects with render diagnostics.
@@ -337,6 +353,7 @@ The authoritative compile fixtures are:
 1. [`public-url-to-map.ts`](../../test/design/north-star-api/public-url-to-map.ts)
 2. [`large-data-linked-analysis.ts`](../../test/design/north-star-api/large-data-linked-analysis.ts)
 3. [`safe-agent-proposal.ts`](../../test/design/north-star-api/safe-agent-proposal.ts)
+4. [`third-party-renderer.ts`](../../test/design/north-star-api/third-party-renderer.ts)
 
 They are checked by `npm run verify:north-star-api`. They import a design-only
 contract under `test/design`; no production API was added for this ADR.

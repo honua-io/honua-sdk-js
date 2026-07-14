@@ -20,7 +20,9 @@ import type { ExplorationContext, ExplorationStateSnapshot } from "../../../src/
 
 export type EnvironmentKind = "browser" | "node" | "worker";
 export type QueryFormat = "features" | "columnar";
-export type RendererKind = "maplibre" | "deckgl" | "cesium";
+export type BuiltInRendererKind = "maplibre" | "deckgl" | "cesium";
+/** Registry key. Built-ins stay discoverable while plugins may add namespaced keys. */
+export type RendererKind = BuiltInRendererKind | (string & {});
 
 export interface ProvenanceRecord {
   readonly sourceUrl: string;
@@ -163,8 +165,8 @@ export interface ExplainOptions<TFormat extends QueryFormat = "features"> {
 
 export interface QueryOptions<TFormat extends QueryFormat = "features"> extends ExplainOptions<TFormat> {}
 
-export interface RendererAdapter<TRaw = unknown> {
-  readonly kind: RendererKind;
+export interface RendererAdapter<TKind extends RendererKind = RendererKind, TRaw = unknown> {
+  readonly kind: TKind;
   readonly environments: readonly EnvironmentKind[];
   /** The renderer module is injected here; core never imports the heavy peer. */
   readonly peer: unknown;
@@ -178,8 +180,8 @@ export interface MountLayer<T = Record<string, unknown>, TFormat extends QueryFo
   readonly style?: "auto" | Readonly<Record<string, unknown>>;
 }
 
-export interface MountOptions<T = Record<string, unknown>> {
-  readonly renderer: RendererAdapter;
+export interface MountOptions<T = Record<string, unknown>, TKind extends RendererKind = RendererKind, TRaw = unknown> {
+  readonly renderer: RendererAdapter<TKind, TRaw>;
   readonly layers?: readonly MountLayer<T, QueryFormat>[];
   readonly style?: "auto" | Readonly<Record<string, unknown>>;
   readonly context?: ExplorationContext;
@@ -189,12 +191,12 @@ export interface MountOptions<T = Record<string, unknown>> {
   readonly ownership?: "owned" | "borrowed";
 }
 
-export interface MountedMap extends AsyncDisposable {
+export interface MountedMap<TKind extends RendererKind = RendererKind, TRaw = unknown> extends AsyncDisposable {
   readonly id: string;
-  readonly renderer: RendererKind;
+  readonly renderer: TKind;
   readonly ready: Promise<void>;
   readonly diagnostics: DiagnosticChannel;
-  raw<TRaw = unknown>(kind: RendererKind): TRaw | undefined;
+  raw(kind: TKind): TRaw | undefined;
   dispose(): Promise<void>;
 }
 
@@ -214,7 +216,10 @@ export interface HonuaConnection<T = Record<string, unknown>> extends AsyncDispo
     queryOrPlan: Readonly<Query<T>> | ExecutionPlan<T, TFormat>,
     options?: QueryOptions<TFormat>,
   ): Promise<PlannedQueryResult<T, TFormat>>;
-  mount(target: string | Element | object, options: MountOptions<T>): Promise<MountedMap>;
+  mount<TKind extends RendererKind = RendererKind, TRaw = unknown>(
+    target: string | Element | object,
+    options: MountOptions<T, TKind, TRaw>,
+  ): Promise<MountedMap<TKind, TRaw>>;
   dispose(): Promise<void>;
 }
 
@@ -229,7 +234,7 @@ export interface HonuaKernelOptions {
 export interface HonuaPlugin {
   readonly apiVersion: 1;
   readonly id: string;
-  readonly kind: "protocol" | "loader" | "auth" | "cache" | "realtime" | "analysis";
+  readonly kind: "protocol" | "loader" | "renderer" | "auth" | "cache" | "realtime" | "analysis";
   readonly environments: readonly EnvironmentKind[];
 }
 
@@ -246,8 +251,8 @@ export interface HonuaKernel extends AsyncDisposable {
 export declare function createHonua(options?: HonuaKernelOptions): HonuaKernel;
 
 /** Proposed optional renderer factories; their peer modules stay caller-supplied. */
-export declare function maplibreRenderer(peer: unknown): RendererAdapter;
-export declare function deckGlRenderer(peer: unknown): RendererAdapter;
+export declare function maplibreRenderer(peer: unknown): RendererAdapter<"maplibre">;
+export declare function deckGlRenderer(peer: unknown): RendererAdapter<"deckgl">;
 export declare function geoparquetPlugin(peer: unknown): HonuaPlugin;
 
 export type AgentPermission = "data:read" | "map:write" | "data:write" | "publish";

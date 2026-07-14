@@ -55,6 +55,22 @@ Honua does not own:
 - a permanently Esri-shaped canonical model;
 - an AI-only execution path that bypasses normal planning and authorization.
 
+## Competitive posture
+
+This decision table records product-boundary evidence verified from official
+sources on 2026-07-13. It is not an evergreen feature-score claim: #499 owns
+versioned competitor evidence, expiry, and reproducible comparison methodology.
+
+| Alternative | Verified official position | Honua decision |
+| --- | --- | --- |
+| ArcGIS Maps SDK for JavaScript 5.1 | A vertically integrated 2D/3D renderer, component/UI, analysis, and layer SDK. Its layer inventory includes OGC Features, WFS, WMS, WMTS, and beta GeoParquet. Widgets were deprecated at 5.0, but Esri says existing widget applications continue on 5.x and component migration does not replace the core API. [Release notes](https://developers.arcgis.com/javascript/latest/release-notes/), [migration guide](https://developers.arcgis.com/javascript/latest/migrating-to-components/), [layer inventory](https://developers.arcgis.com/javascript/latest/references/core/layers/Layer/) | Compete for vendor-neutral execution and the widget/AMD-dependent modernization decision. Integrate only at migration and compatibility boundaries; do not chase SceneView, its component catalog, or renderer parity. |
+| MapLibre GL JS 5.x | An extensible GPU renderer with 2D, globe, terrain, extrusions, custom 3D layers, custom protocols, and an established plugin ecosystem. [Product](https://maplibre.org/projects/gl-js/), [`addProtocol`](https://maplibre.org/maplibre-gl-js/docs/API/functions/addProtocol/), [plugins](https://maplibre.org/maplibre-gl-js/docs/plugins/) | Default renderer integration. Honua owns the coherent discovery/query/plan/fidelity/lifecycle layer, not MapLibre rendering or every adjacent control. |
+| OpenLayers 10.9 | A renderer and source/format toolkit with arbitrary projections and raster reprojection, WFS 2.0 transaction serialization, and OGC API tile sources. [WFS](https://openlayers.org/en/latest/apidoc/module-ol_format_WFS-WFS.html), [OGC map tiles](https://openlayers.org/en/latest/apidoc/module-ol_source_OGCMapTile-OGCMapTile.html), [reprojection](https://openlayers.org/en/latest/examples/reprojection.html) | Do not duplicate its renderer or format library. Use a non-Web-Mercator OpenLayers plugin as the external certification proof for the renderer seam; first-party support remains adoption-gated. |
+| deck.gl | A large-data GPU visualization framework whose layers accept async iterables and direct binary attributes and whose MapLibre bridge has interleaved, overlaid, and reverse-controlled modes. [Layer data](https://deck.gl/docs/api-reference/core/layer), [MapLibre integration](https://deck.gl/docs/developer-guide/base-maps/using-with-maplibre) | Integrate through bounded GeoArrow/binary batches and explicit device/fallback diagnostics. Do not create another GPU layer framework. |
+| CesiumJS | An open high-precision WGS84 globe with 3D Tiles, terrain/imagery, models, and time-dynamic/4D visualization. [CesiumJS](https://cesium.com/platform/cesiumjs) | Optional renderer for 3D Tiles, precision, and deep temporal workflows. Do not chase Cesium renderer parity; depth remains conditional on an adopter. |
+| `@esri/arcgis-rest-js` | A lightweight modular ArcGIS-only service client with authentication, feature query/edit, portal, geocoding, routing, elevation, and documented interoperability with multiple renderers. [Introduction](https://developers.arcgis.com/arcgis-rest-js/introduction/), [API reference](https://developers.arcgis.com/arcgis-rest-js/api-reference/) | Direct competitor for ArcGIS-only headless access. Document coexistence and migration; differentiate on cross-protocol semantics, capability truth, and explainable planning rather than importing it. |
+| DuckDB Spatial / GDAL | DuckDB supplies Parquet filter/projection pushdown and spatial SQL; its WebAssembly client defaults to one thread and has a 4 GB address-space ceiling. GDAL is the broad raster/vector translation engine used by DuckDB's `ST_Read`. [Parquet](https://duckdb.org/docs/stable/data/parquet/overview), [Wasm limits](https://duckdb.org/docs/stable/clients/wasm/overview), [spatial functions](https://duckdb.org/docs/stable/core_extensions/spatial/functions), [GDAL](https://gdal.org/en/stable/about.html) | Treat DuckDB as one optional, capability-observed execution engine and GDAL as server/CLI preparation infrastructure. Do not attempt browser-GDAL breadth or silently exceed worker limits. |
+
 ## Target architecture
 
 ```text
@@ -259,6 +275,11 @@ The GitHub hierarchy is the operational projection of this design:
   [#388](https://github.com/honua-io/honua-sdk-js/issues/388) own the bounded
   GeoArrow/deck.gl path; [#393](https://github.com/honua-io/honua-sdk-js/issues/393)
   owns the realtime contract, transports, reconciliation, and evidence.
+- [#392](https://github.com/honua-io/honua-sdk-js/issues/392) owns the plugin
+  lifecycle and independent certification kit. Its external renderer proof is
+  the OpenLayers non-Web-Mercator child
+  [#566](https://github.com/honua-io/honua-sdk-js/issues/566), blocked by the
+  generic mount seam in [#534](https://github.com/honua-io/honua-sdk-js/issues/534).
 - [#539](https://github.com/honua-io/honua-sdk-js/issues/539) owns the canonical
   sample portfolio. Its immediately executable foundations are
   [#540](https://github.com/honua-io/honua-sdk-js/issues/540),
