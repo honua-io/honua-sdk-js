@@ -15,6 +15,7 @@ const surface = {
   entrypoints: [
     { subpath: ".", tier: "stable" },
     { subpath: "./honua", tier: "stable" },
+    { subpath: "./geocoding", tier: "stable" },
     { subpath: "./plugin", tier: "experimental" },
     { subpath: "./app", tier: "deprecated" },
   ],
@@ -29,6 +30,8 @@ function packageFixture(t) {
     "index.d.ts",
     "honua.js",
     "honua.d.ts",
+    "geocoding.js",
+    "geocoding.d.ts",
     "plugin.js",
     "plugin.d.ts",
     "bin.js",
@@ -41,6 +44,7 @@ function packageFixture(t) {
       exports: {
         ".": { default: "./index.js", types: "./index.d.ts" },
         "./honua": { default: "./honua.js", types: "./honua.d.ts" },
+        "./geocoding": { default: "./geocoding.js", types: "./geocoding.d.ts" },
         "./plugin": { default: "./plugin.js", types: "./plugin.d.ts" },
       },
       bin: { honua: "./bin.js" },
@@ -48,14 +52,19 @@ function packageFixture(t) {
   };
 }
 
-test("derives stable and experimental coverage while excluding deprecated shims", () => {
+test("covers stable subpaths including geocoding while excluding deprecated shims", () => {
   assert.deepEqual(
     entrypoints.map((entrypoint) => entrypoint.subpath),
-    [".", "./honua", "./plugin"],
+    [".", "./honua", "./geocoding", "./plugin"],
   );
   const runtime = runtimeSmokeSource("@honua/sdk-js", entrypoints);
   const types = typeSmokeSource("@honua/sdk-js", entrypoints);
-  for (const specifier of ["@honua/sdk-js", "@honua/sdk-js/honua", "@honua/sdk-js/plugin"]) {
+  for (const specifier of [
+    "@honua/sdk-js",
+    "@honua/sdk-js/honua",
+    "@honua/sdk-js/geocoding",
+    "@honua/sdk-js/plugin",
+  ]) {
     assert.ok(runtime.includes(specifier));
     assert.ok(types.includes(specifier));
   }
