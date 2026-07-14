@@ -847,7 +847,7 @@ describe("odata / pipeline integrity", () => {
     expect(observedAuth).toBe("ak-test");
   });
 
-  it("negotiates IEEE754-compatible OData JSON for reads and writes", async () => {
+  it("negotiates lossless responses without mislabeling ordinary JSON writes", async () => {
     const observed: Array<{ method: string; url: string; accept: string | null; contentType: string | null }> = [];
     const client = new (await import("../../src/core/client.js")).HonuaClient({
       baseUrl: "https://mock.honua.test",
@@ -886,8 +886,8 @@ describe("odata / pipeline integrity", () => {
     const reads = observed.filter((entry) => entry.method === "GET");
     expect(reads).toHaveLength(2);
     expect(new URL(reads[1]!.url).searchParams.get("$skiptoken")).toBe("ieee754-next");
-    expect(observed.find((o) => o.method === "POST")?.contentType).toBe(mediaType);
-    expect(observed.find((o) => o.method === "PATCH")?.contentType).toBe(mediaType);
+    expect(observed.find((o) => o.method === "POST")?.contentType).toBe("application/json");
+    expect(observed.find((o) => o.method === "PATCH")?.contentType).toBe("application/json");
   });
 });
 

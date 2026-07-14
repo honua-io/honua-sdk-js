@@ -31,7 +31,7 @@
   },
   "final": {
     "runtime": [
-      "buffer",
+      "bufferEnvelope",
       "capabilities",
       "connect",
       "createDataset",
@@ -42,20 +42,25 @@
       "HONUA_CONNECT_ADAPTER_VERSION",
       "HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION",
       "HONUA_CONNECT_PROJECTION_VERSION",
+      "HONUA_ERROR_CODE_REGISTRY",
+      "HONUA_ERROR_KIND",
       "HONUA_MINIMUM_SUPPORTED_SERVER_VERSION",
       "HonuaAbortError",
       "HonuaAuthError",
       "HonuaCapabilityNotSupportedError",
       "HonuaClient",
       "HonuaDiscoveryError",
+      "HonuaGeometryError",
       "HonuaGrpcError",
       "HonuaHttpError",
       "HonuaMapLibreSourceAdapterError",
       "HonuaNetworkError",
       "HonuaQueryPlanExecutionError",
       "HonuaQueryPlanningError",
+      "HonuaSdkError",
       "HonuaTimeoutError",
       "isHonuaError",
+      "isHonuaErrorCode",
       "MAX_LOCAL_MATERIALIZATION_ROWS",
       "mountSourceToMapLibre",
       "point",
@@ -65,6 +70,8 @@
       "QUERY_IR_VERSION",
       "QUERY_PLAN_KIND",
       "QUERY_PLAN_VERSION",
+      "sanitizeHonuaErrorContext",
+      "serializeHonuaError",
       "spatialContains",
       "spatialIntersects",
       "spatialWithin"
@@ -82,7 +89,7 @@
       "AggregationTimeIntervalUnit",
       "AggregationTimeSeriesAliases",
       "AggregationTimeSeriesSpec",
-      "buffer",
+      "bufferEnvelope",
       "CanonicalFeature",
       "CanonicalQuery",
       "CanonicalSpatialFilter",
@@ -115,6 +122,8 @@
       "HONUA_CONNECT_ADAPTER_VERSION",
       "HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION",
       "HONUA_CONNECT_PROJECTION_VERSION",
+      "HONUA_ERROR_CODE_REGISTRY",
+      "HONUA_ERROR_KIND",
       "HONUA_MINIMUM_SUPPORTED_SERVER_VERSION",
       "HonuaAbortError",
       "HonuaAuthCredentials",
@@ -132,15 +141,27 @@
       "HonuaDiscoveryError",
       "HonuaDiscoveryErrorCode",
       "HonuaError",
+      "HonuaErrorCategory",
+      "HonuaErrorCode",
+      "HonuaErrorCodeDescriptor",
+      "HonuaErrorDomain",
+      "HonuaErrorEnvelopeContext",
+      "HonuaErrorEnvelopeContextValue",
+      "HonuaErrorMetadata",
+      "HonuaErrorOptions",
+      "HonuaGeometryError",
+      "HonuaGeometryErrorCode",
       "HonuaGrpcError",
       "HonuaHttpError",
       "HonuaMapLibreSourceAdapterError",
       "HonuaNetworkError",
       "HonuaQueryPlanExecutionError",
       "HonuaQueryPlanningError",
+      "HonuaSdkError",
       "HonuaTimeoutError",
       "HonuaTransport",
       "isHonuaError",
+      "isHonuaErrorCode",
       "JsonPrimitive",
       "JsonValue",
       "LocalAggregatePlanStep",
@@ -178,6 +199,10 @@
       "RemoteCompiledQueryV1",
       "RemoteQueryPlanStep",
       "Result",
+      "sanitizeHonuaErrorContext",
+      "SerializedHonuaError",
+      "SerializedHonuaErrorCause",
+      "serializeHonuaError",
       "SortSpec",
       "Source",
       "SourceAnalyticsCapabilities",
@@ -197,6 +222,10 @@
     ]
   },
   "promotions": [
+    {
+      "symbol": "bufferEnvelope",
+      "kind": "runtime"
+    },
     {
       "symbol": "CanonicalQuery",
       "kind": "type"
@@ -231,6 +260,14 @@
     },
     {
       "symbol": "HonuaDiscoveryErrorCode",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaGeometryError",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HonuaGeometryErrorCode",
       "kind": "type"
     },
     {
@@ -367,6 +404,70 @@
     },
     {
       "symbol": "SourceToMapLibreMap",
+      "kind": "type"
+    },
+    {
+      "symbol": "HONUA_ERROR_CODE_REGISTRY",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HONUA_ERROR_KIND",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HonuaSdkError",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "isHonuaErrorCode",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "sanitizeHonuaErrorContext",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "serializeHonuaError",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "HonuaErrorCategory",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorCode",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorCodeDescriptor",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorDomain",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorEnvelopeContext",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorEnvelopeContextValue",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorMetadata",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaErrorOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "SerializedHonuaError",
+      "kind": "type"
+    },
+    {
+      "symbol": "SerializedHonuaErrorCause",
       "kind": "type"
     }
   ],
@@ -620,6 +721,12 @@
       "symbol": "bindTableSelectionToExploration",
       "kind": "runtime",
       "replacement": "@honua/sdk-js/interactions"
+    },
+    {
+      "symbol": "buffer",
+      "kind": "runtime",
+      "replacement": "@honua/sdk-js",
+      "replacementSymbol": "bufferEnvelope"
     },
     {
       "symbol": "buildAnalyticsSourceCacheKey",

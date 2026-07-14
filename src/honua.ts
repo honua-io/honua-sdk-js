@@ -287,19 +287,40 @@ export {
   HonuaNetworkError,
   HonuaAbortError,
   HonuaGrpcError,
+  HonuaGeometryError,
   HonuaAuthError,
   HonuaCapabilityNotSupportedError,
   HonuaExplorationContextError,
   HonuaWfsExceptionError,
   isHonuaError,
 } from "./core/errors.js";
-export type { HonuaError, HonuaAuthErrorCode } from "./core/errors.js";
+export type { HonuaError, HonuaAuthErrorCode, HonuaGeometryErrorCode } from "./core/errors.js";
+export {
+  HONUA_ERROR_CODE_REGISTRY,
+  HONUA_ERROR_KIND,
+  HonuaSdkError,
+  isHonuaErrorCode,
+  sanitizeHonuaErrorContext,
+  serializeHonuaError,
+} from "./core/error-envelope.js";
+export type {
+  HonuaErrorCategory,
+  HonuaErrorCode,
+  HonuaErrorCodeDescriptor,
+  HonuaErrorEnvelopeContext,
+  HonuaErrorEnvelopeContextValue,
+  HonuaErrorDomain,
+  HonuaErrorMetadata,
+  HonuaErrorOptions,
+  SerializedHonuaError,
+  SerializedHonuaErrorCause,
+} from "./core/error-envelope.js";
 export { QueryBuilder, MapLayerQueryBuilder, OgcQueryBuilder } from "./core/query-builder.js";
 export {
   envelope,
   point,
   polygon,
-  buffer,
+  bufferEnvelope,
   spatialIntersects,
   spatialContains,
   spatialWithin,

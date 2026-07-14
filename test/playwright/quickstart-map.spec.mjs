@@ -7,16 +7,23 @@ test.setTimeout(90_000);
 test("flagship workflow is transparent, linked, accessible, responsive, and disposable", async ({ page }) => {
   const pageErrors = [];
   const consoleErrors = [];
+  const externalRequests = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
 
   const fixtureServer = await startQuickstartFixtureServer();
+  const fixtureOrigin = new URL(fixtureServer.url).origin;
+  page.on("request", (request) => {
+    const requestUrl = new URL(request.url());
+    if (/^https?:$/.test(requestUrl.protocol) && requestUrl.origin !== fixtureOrigin) externalRequests.push(request.url());
+  });
 
   try {
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.goto(fixtureServer.url);
+    const navigation = await page.goto(fixtureServer.url);
+    expect(navigation?.headers()["content-security-policy"]).toContain("connect-src 'self'");
 
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.journeyComplete === true))
@@ -80,6 +87,7 @@ test("flagship workflow is transparent, linked, accessible, responsive, and disp
     await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
+    expect(externalRequests).toEqual([]);
   } finally {
     await fixtureServer.close();
   }

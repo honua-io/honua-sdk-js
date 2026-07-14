@@ -99,7 +99,13 @@ function addFeatureLayers(map: maplibregl.Map, dataset: StandaloneDataset, sourc
 }
 
 async function bootstrap(): Promise<void> {
-  const config = resolveStandaloneConfig();
+  const config = resolveStandaloneConfig({
+    VITE_STANDALONE_BASEMAP_STYLE: import.meta.env.VITE_STANDALONE_BASEMAP_STYLE,
+    VITE_STANDALONE_FEATURE_LAYER_URL: import.meta.env.VITE_STANDALONE_FEATURE_LAYER_URL,
+    VITE_STANDALONE_MAX_PAGES: import.meta.env.VITE_STANDALONE_MAX_PAGES,
+    VITE_STANDALONE_OUT_FIELDS: import.meta.env.VITE_STANDALONE_OUT_FIELDS,
+    VITE_STANDALONE_WHERE: import.meta.env.VITE_STANDALONE_WHERE,
+  });
   setText("status-endpoint", "Querying…");
 
   let dataset: StandaloneDataset;

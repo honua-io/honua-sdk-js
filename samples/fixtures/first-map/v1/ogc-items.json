@@ -1,0 +1,75 @@
+{
+  "type": "FeatureCollection",
+  "timeStamp": "2026-07-13T00:00:00.000Z",
+  "numberMatched": 3,
+  "numberReturned": 3,
+  "attribution": "Copyright Honua contributors; synthetic demonstration data.",
+  "provenance": {
+    "source": "honua-sdk-js test/fixtures/honua-quickstart-demo",
+    "retrievedAt": "2026-07-13T00:00:00.000Z"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 1,
+      "properties": {
+        "OBJECTID": 1,
+        "NAME": "Civic center service zone",
+        "STATUS": "Monitoring",
+        "CATEGORY": "Operations"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[-157.866, 21.311], [-157.866, 21.302], [-157.856, 21.302], [-157.856, 21.311], [-157.866, 21.311]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 2,
+      "properties": {
+        "OBJECTID": 2,
+        "NAME": "Harbor response district",
+        "STATUS": "Field review",
+        "CATEGORY": "Maritime"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[-157.891, 21.304], [-157.891, 21.294], [-157.879, 21.294], [-157.879, 21.304], [-157.891, 21.304]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 3,
+      "properties": {
+        "OBJECTID": 3,
+        "NAME": "Kakaako utility corridor",
+        "STATUS": "Ready",
+        "CATEGORY": "Infrastructure"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[-157.87, 21.296], [-157.87, 21.286], [-157.856, 21.286], [-157.856, 21.296], [-157.87, 21.296]]
+        ]
+      }
+    }
+  ],
+  "links": [
+    {
+      "href": "/ogc/features/collections/operations-areas/items",
+      "rel": "self",
+      "type": "application/geo+json",
+      "title": "Collection items"
+    },
+    {
+      "href": "/ogc/features/collections/operations-areas",
+      "rel": "collection",
+      "type": "application/json",
+      "title": "Collection metadata"
+    }
+  ]
+}

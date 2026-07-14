@@ -137,6 +137,142 @@ function validateSpatialExtent(extent, label) {
   }
 }
 
+const pageModes = new Set(["offset", "cursor", "next-link"]);
+const pageEvidenceKinds = new Set([
+  "protocol-contract",
+  "response-flag",
+  "continuation",
+  "short-page",
+  "unpaged",
+]);
+const unknownPageReasons = new Set([
+  "missing-completeness-evidence",
+  "conflicting-completeness-evidence",
+  "invalid-continuation-evidence",
+]);
+
+function exactKeys(value, expected) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...expected].sort())
+  );
+}
+
+function validatePageEvidence(evidence, label) {
+  if (!Array.isArray(evidence) || evidence.length === 0) {
+    fail(`${label} must carry non-empty evidence`);
+    return false;
+  }
+  let valid = true;
+  for (const [index, item] of evidence.entries()) {
+    const reference = item?.reference;
+    if (
+      !exactKeys(item, ["kind", "reference"]) ||
+      !pageEvidenceKinds.has(item.kind) ||
+      typeof reference !== "string" ||
+      reference.length === 0 ||
+      reference.length > 256 ||
+      reference.trim() !== reference ||
+      /[\u0000-\u001f\u007f]|https?:\/\/|[?&](?:api[_-]?key|token|signature|skiptoken)=/i.test(reference)
+    ) {
+      fail(`${label} evidence ${index} is not a sanitized kind/reference pair`);
+      valid = false;
+    }
+  }
+  return valid;
+}
+
+function validateContinuation(continuation, mode, label) {
+  const expectedKeys = continuation?.expiresAt === undefined
+    ? ["kind", "mode", "binding"]
+    : ["kind", "mode", "binding", "expiresAt"];
+  if (
+    !exactKeys(continuation, expectedKeys) ||
+    continuation.kind !== "honua.page-continuation" ||
+    continuation.mode !== mode ||
+    !exactKeys(continuation.binding, ["descriptorFingerprint", "queryFingerprint"]) ||
+    ![continuation.binding?.descriptorFingerprint, continuation.binding?.queryFingerprint].every(
+      (value) => typeof value === "string" && /^sha256:[a-zA-Z0-9._-]+$/.test(value),
+    ) ||
+    (continuation.expiresAt !== undefined &&
+      (typeof continuation.expiresAt !== "string" || !Number.isFinite(Date.parse(continuation.expiresAt))))
+  ) {
+    fail(`${label} must contain only an opaque ${mode} continuation and safe binding metadata`);
+    return false;
+  }
+  return true;
+}
+
+function validateResultPage(page, returned, label) {
+  if (page === null || typeof page !== "object" || Array.isArray(page)) {
+    fail(`${label} must be a page result object`);
+    return;
+  }
+  if (!Number.isSafeInteger(page.returned) || page.returned < 0 || page.returned !== returned) {
+    fail(`${label}.returned must be a non-negative safe integer equal to its result array length`);
+  }
+  const evidenceValid = validatePageEvidence(page.evidence, label);
+  if (page.state === "complete") {
+    if (
+      !exactKeys(page, ["state", "mode", "returned", "evidence"]) ||
+      !new Set([...pageModes, "none"]).has(page.mode)
+    ) {
+      fail(`${label} complete state has invalid mode or members`);
+    }
+    if (evidenceValid && page.evidence.some((item) => item.kind === "continuation")) {
+      fail(`${label} complete state cannot cite continuation evidence`);
+    }
+    return;
+  }
+  if (page.state === "unknown") {
+    if (
+      !exactKeys(page, ["state", "mode", "returned", "reason", "evidence"]) ||
+      !new Set([...pageModes, "none", "unknown"]).has(page.mode) ||
+      !unknownPageReasons.has(page.reason)
+    ) {
+      fail(`${label} unknown state has invalid mode, reason, or members`);
+    }
+    return;
+  }
+  if (page.state !== "more" || !exactKeys(page, ["state", "mode", "returned", "next", "evidence"])) {
+    fail(`${label} has an unsupported state or invalid members`);
+    return;
+  }
+  if (!pageModes.has(page.mode)) {
+    fail(`${label} more state has an unsupported mode`);
+    return;
+  }
+  if (page.mode === "offset") {
+    const expectedKeys = page.next?.limit === undefined ? ["kind", "offset"] : ["kind", "offset", "limit"];
+    if (
+      !exactKeys(page.next, expectedKeys) ||
+      page.next.kind !== "offset" ||
+      !Number.isSafeInteger(page.next.offset) ||
+      page.next.offset < 0 ||
+      (page.next.limit !== undefined && (!Number.isSafeInteger(page.next.limit) || page.next.limit <= 0))
+    ) {
+      fail(`${label} offset mode must carry a valid offset request`);
+    }
+    if (
+      evidenceValid &&
+      !page.evidence.some((item) => item.kind === "response-flag" || item.kind === "protocol-contract")
+    ) {
+      fail(`${label} offset mode requires explicit more-data evidence`);
+    }
+    return;
+  }
+  if (!exactKeys(page.next, ["kind", "continuation"]) || page.next.kind !== "continuation") {
+    fail(`${label} ${page.mode} mode must carry an opaque continuation request`);
+  } else {
+    validateContinuation(page.next.continuation, page.mode, `${label}.next.continuation`);
+  }
+  if (evidenceValid && !page.evidence.some((item) => item.kind === "continuation")) {
+    fail(`${label} ${page.mode} mode requires continuation evidence`);
+  }
+}
+
 for (const [index, example] of jsonExamples.entries()) {
   if (example && typeof example === "object" && !Array.isArray(example) && "extent" in example) {
     validateSpatialExtent(example.extent, `JSON fence ${index + 1} .extent`);
@@ -154,16 +290,7 @@ for (const [index, example] of jsonExamples.entries()) {
     if (!Array.isArray(values)) {
       fail(`JSON fence ${index + 1} result must carry an array payload`);
     }
-    if (
-      example.page === null ||
-      typeof example.page !== "object" ||
-      !Array.isArray(example.page.evidence) ||
-      example.page.evidence.length === 0
-    ) {
-      fail(`JSON fence ${index + 1} result page must carry non-empty evidence`);
-    } else if (Array.isArray(values) && example.page.returned !== values.length) {
-      fail(`JSON fence ${index + 1} page.returned must equal its result array length`);
-    }
+    validateResultPage(example.page, Array.isArray(values) ? values.length : -1, `JSON fence ${index + 1} result page`);
     const expectedScope = example.kind === "feature-result" ? "matched-features" : "result-rows";
     if (
       example.count === null ||

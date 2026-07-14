@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isHonuaError } from "../src/index.js";
 import {
   HONUA_PLUGIN_API_VERSION,
   HONUA_PLUGIN_MANIFEST_VERSION,
@@ -201,8 +202,16 @@ describe("HonuaPluginRegistry", () => {
     const registry = new HonuaPluginRegistry({ host });
     const error = await registry.register([second, first]).catch((value: unknown) => value);
     expect(error).toBeInstanceOf(HonuaPluginRegistryError);
-    expect(error).toMatchObject({ code: "PLUGIN_REGISTRATION_FAILED" });
+    expect(isHonuaError(error)).toBe(true);
+    expect(error).toMatchObject({
+      code: "PLUGIN_REGISTRATION_FAILED",
+      sdkCode: "plugin.lifecycle.activation",
+      context: { reasonCode: "PLUGIN_REGISTRATION_FAILED" },
+    });
     expect((error as HonuaPluginRegistryError).cleanupErrors).toHaveLength(1);
+    expect((error as HonuaPluginRegistryError).cause).toMatchObject({ message: "primary secret" });
+    expect(JSON.stringify(error)).not.toContain("primary secret");
+    expect(JSON.stringify(error)).not.toContain("cleanup secret");
     expect(events.slice(-2)).toEqual(["stop:a", "dispose:a"]);
     expect(registry.get("style", a.id)).toBeUndefined();
     expect(JSON.stringify(registry.diagnostics)).not.toContain("secret");

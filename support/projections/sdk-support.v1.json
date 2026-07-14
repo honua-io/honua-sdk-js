@@ -1,0 +1,1865 @@
+{
+  "$schema": "../contract/v1/schemas/support-projection.schema.json",
+  "format": "honua.sdk.support-projection.v1",
+  "schemaVersion": 1,
+  "generatedFrom": "config/support-manifest.v1.json",
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.0-beta.0",
+    "releaseStatus": "beta"
+  },
+  "statusVocabulary": [
+    "supported",
+    "beta",
+    "experimental",
+    "deprecated",
+    "unsupported",
+    "facade-required"
+  ],
+  "environmentVocabulary": [
+    "build-time",
+    "client-only",
+    "honua-facade",
+    "protocol-adapter",
+    "standalone"
+  ],
+  "executionModeVocabulary": [
+    "client-fallback",
+    "discovery",
+    "facade",
+    "native",
+    "static",
+    "transport"
+  ],
+  "connectProtocols": [
+    "ogc-features",
+    "stac",
+    "wfs",
+    "odata",
+    "geoparquet",
+    "ogc-records",
+    "ogc-tiles",
+    "ogc-maps",
+    "geoservices-feature-service",
+    "geoservices-map-service"
+  ],
+  "protocolOperations": [
+    "query",
+    "queryAggregate",
+    "spatialAggregate",
+    "queryExtent",
+    "queryObjectIds",
+    "queryRelated",
+    "applyEdits",
+    "attachments",
+    "render",
+    "tiles",
+    "sql",
+    "stream",
+    "pbf",
+    "image",
+    "geometry",
+    "geoprocess",
+    "processes"
+  ],
+  "operationSurfaces": [
+    {
+      "operation": "query",
+      "kind": "canonical-source",
+      "surface": "Source.query",
+      "evidence": [
+        "contract-conformance"
+      ]
+    },
+    {
+      "operation": "queryAggregate",
+      "kind": "canonical-source",
+      "surface": "Source.queryAggregate",
+      "evidence": [
+        "contract-conformance"
+      ]
+    },
+    {
+      "operation": "spatialAggregate",
+      "kind": "typed-adapter",
+      "surface": "HonuaFeatureLayer.querySpatialAggregation",
+      "evidence": [
+        "spatial-aggregation-fixtures"
+      ]
+    },
+    {
+      "operation": "queryExtent",
+      "kind": "canonical-source",
+      "surface": "Source.queryExtent",
+      "evidence": [
+        "contract-conformance"
+      ]
+    },
+    {
+      "operation": "queryObjectIds",
+      "kind": "canonical-source",
+      "surface": "Source.queryObjectIds",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "queryRelated",
+      "kind": "canonical-source",
+      "surface": "Source.queryRelated",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "applyEdits",
+      "kind": "canonical-source",
+      "surface": "Source.applyEdits",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "attachments",
+      "kind": "canonical-source",
+      "surface": "Source.attachments",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "render",
+      "kind": "typed-adapter",
+      "surface": "HonuaOgcCollectionMap.map",
+      "evidence": [
+        "ogc-maps-fixtures"
+      ]
+    },
+    {
+      "operation": "tiles",
+      "kind": "typed-adapter",
+      "surface": "HonuaOgcTileset.tile",
+      "evidence": [
+        "ogc-tiles-fixtures"
+      ]
+    },
+    {
+      "operation": "sql",
+      "kind": "canonical-source",
+      "surface": "Source.query",
+      "evidence": [
+        "connect-fixtures"
+      ]
+    },
+    {
+      "operation": "stream",
+      "kind": "canonical-source",
+      "surface": "Source.stream",
+      "evidence": [
+        "contract-conformance"
+      ]
+    },
+    {
+      "operation": "pbf",
+      "kind": "typed-adapter",
+      "surface": "HonuaFeatureLayer.queryFeatures",
+      "evidence": [
+        "core-client-fixtures"
+      ]
+    },
+    {
+      "operation": "image",
+      "kind": "typed-adapter",
+      "surface": "HonuaImageService.exportImage",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "geometry",
+      "kind": "typed-adapter",
+      "surface": "HonuaGeometryService.project",
+      "evidence": [
+        "geoservices-conformance"
+      ]
+    },
+    {
+      "operation": "geoprocess",
+      "kind": "typed-adapter",
+      "surface": "HonuaGeoprocessingService.submit",
+      "evidence": [
+        "geoprocessing-job-run-fixtures"
+      ]
+    },
+    {
+      "operation": "processes",
+      "kind": "typed-adapter",
+      "surface": "HonuaOgcProcesses.execute",
+      "evidence": [
+        "process-runner-fixtures"
+      ]
+    }
+  ],
+  "claimCapabilities": [
+    "discovery",
+    "migration",
+    "compatibility",
+    "realtime",
+    "collaboration",
+    "agent-tools"
+  ],
+  "claimOnlyProtocols": [
+    "ogc-processes"
+  ],
+  "consumerContracts": {
+    "sampleCatalog": {
+      "format": "honua.sdk.sample-catalog.v2",
+      "source": "samples/catalog.v2.json",
+      "supportTierMap": {
+        "supported": "supported",
+        "experimental": "experimental",
+        "deprecated": "deprecated",
+        "internal": null
+      },
+      "protocols": {
+        "geojson": {
+          "protocolIds": [
+            "maplibre-geojson"
+          ],
+          "supportClaimIds": [],
+          "external": false
+        },
+        "geoparquet": {
+          "protocolIds": [
+            "geoparquet"
+          ],
+          "supportClaimIds": [],
+          "external": false
+        },
+        "geoservices": {
+          "protocolIds": [
+            "geoservices-feature-service",
+            "geoservices-map-service",
+            "geoservices-image-service",
+            "geoservices-geometry-service",
+            "geoservices-gp-service"
+          ],
+          "supportClaimIds": [],
+          "external": false
+        },
+        "honua": {
+          "protocolIds": [
+            "grpc"
+          ],
+          "supportClaimIds": [
+            "compatibility-gate-facade"
+          ],
+          "external": false
+        },
+        "mcp": {
+          "protocolIds": [],
+          "supportClaimIds": [
+            "agent-tools-facade"
+          ],
+          "external": false
+        },
+        "oauth": {
+          "protocolIds": [],
+          "supportClaimIds": [],
+          "external": true
+        },
+        "odata": {
+          "protocolIds": [
+            "odata"
+          ],
+          "supportClaimIds": [
+            "odata-standalone"
+          ],
+          "external": false
+        },
+        "ogc": {
+          "protocolIds": [
+            "ogc-features",
+            "ogc-tiles",
+            "ogc-maps",
+            "ogc-records",
+            "ogc-processes"
+          ],
+          "supportClaimIds": [],
+          "external": false
+        },
+        "ogc-features": {
+          "protocolIds": [
+            "ogc-features"
+          ],
+          "supportClaimIds": [
+            "ogc-features-standalone"
+          ],
+          "external": false
+        },
+        "ogc-processes": {
+          "protocolIds": [
+            "ogc-processes"
+          ],
+          "supportClaimIds": [
+            "ogc-processes-discovery-standalone",
+            "ogc-processes-execution-facade"
+          ],
+          "external": false
+        },
+        "pmtiles": {
+          "protocolIds": [
+            "pmtiles"
+          ],
+          "supportClaimIds": [],
+          "external": false
+        },
+        "s3": {
+          "protocolIds": [],
+          "supportClaimIds": [],
+          "external": true
+        },
+        "sse": {
+          "protocolIds": [],
+          "supportClaimIds": [
+            "realtime-facade"
+          ],
+          "external": false
+        },
+        "stac": {
+          "protocolIds": [
+            "stac"
+          ],
+          "supportClaimIds": [
+            "stac-standalone"
+          ],
+          "external": false
+        },
+        "terrain-rgb": {
+          "protocolIds": [],
+          "supportClaimIds": [],
+          "external": true
+        },
+        "wfs": {
+          "protocolIds": [
+            "wfs"
+          ],
+          "supportClaimIds": [
+            "wfs-standalone"
+          ],
+          "external": false
+        },
+        "wms": {
+          "protocolIds": [
+            "wms"
+          ],
+          "supportClaimIds": [],
+          "external": false
+        },
+        "wmts": {
+          "protocolIds": [
+            "wmts"
+          ],
+          "supportClaimIds": [],
+          "external": false
+        }
+      }
+    },
+    "honuaSite": {
+      "format": "honua.site.sdk-support.v1",
+      "projectionFields": [
+        "sdk",
+        "statusVocabulary",
+        "environmentVocabulary",
+        "executionModeVocabulary",
+        "protocols",
+        "supportClaims",
+        "packageLifecycle",
+        "evidence"
+      ],
+      "joinKeys": [
+        "protocols[].id",
+        "supportClaims[].id",
+        "packageLifecycle.entrypoints[].subpath"
+      ]
+    }
+  },
+  "freshnessPolicies": {
+    "release-gated": {
+      "cadence": "Every pull request and release",
+      "maxAgeDays": null
+    },
+    "nightly": {
+      "cadence": "Nightly self-contained integration workflow",
+      "maxAgeDays": 2
+    },
+    "scheduled-live": {
+      "cadence": "Scheduled public-endpoint smoke",
+      "maxAgeDays": 14
+    },
+    "version-pinned": {
+      "cadence": "Every conformance fixture release",
+      "maxAgeDays": null
+    }
+  },
+  "evidence": [
+    {
+      "id": "contract-conformance",
+      "kind": "fixture",
+      "path": "test/contract/conformance.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "honua-surface-fixtures",
+      "kind": "fixture",
+      "path": "test/honua-surface.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "connect-fixtures",
+      "kind": "fixture",
+      "path": "test/connect.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "core-client-fixtures",
+      "kind": "fixture",
+      "path": "test/core-client.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "tile-layer-fixtures",
+      "kind": "fixture",
+      "path": "test/tile-layer-compat.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "query-tiles-fixtures",
+      "kind": "fixture",
+      "path": "test/contract/query-tiles.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "spatial-aggregation-fixtures",
+      "kind": "fixture",
+      "path": "test/spatial-aggregation-query-h3.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "geoprocessing-job-run-fixtures",
+      "kind": "fixture",
+      "path": "test/contract/geoprocessing-job-run.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "process-runner-fixtures",
+      "kind": "fixture",
+      "path": "test/process-runner.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "grpc-conformance",
+      "kind": "conformance",
+      "path": "test/conformance/feature-service.conformance.ts",
+      "freshnessPolicy": "version-pinned"
+    },
+    {
+      "id": "geoservices-conformance",
+      "kind": "fixture",
+      "path": "test/contract/geoservices-conformance.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "map-service-integration",
+      "kind": "integration",
+      "path": "test/integration/surfaces/map-server.integration.ts",
+      "freshnessPolicy": "nightly"
+    },
+    {
+      "id": "image-service-integration",
+      "kind": "integration",
+      "path": "test/integration/surfaces/image-server.integration.ts",
+      "freshnessPolicy": "nightly"
+    },
+    {
+      "id": "geometry-service-integration",
+      "kind": "integration",
+      "path": "test/integration/surfaces/geometry-server.integration.ts",
+      "freshnessPolicy": "nightly"
+    },
+    {
+      "id": "gp-service-integration",
+      "kind": "integration",
+      "path": "test/integration/surfaces/gp-server.integration.ts",
+      "freshnessPolicy": "nightly"
+    },
+    {
+      "id": "ogc-features-fixtures",
+      "kind": "fixture",
+      "path": "test/contract/ogc-features-backend-agnostic.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "ogc-tiles-fixtures",
+      "kind": "fixture",
+      "path": "test/connect-ogc-tiles.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "ogc-maps-fixtures",
+      "kind": "fixture",
+      "path": "test/connect-ogc-maps.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "ogc-records-fixtures",
+      "kind": "fixture",
+      "path": "test/connect-ogc.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "ogc-processes-fixtures",
+      "kind": "fixture",
+      "path": "test/connect-ogc-processes.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "ogc-processes-integration",
+      "kind": "integration",
+      "path": "test/integration/surfaces/ogc-processes.integration.ts",
+      "freshnessPolicy": "nightly"
+    },
+    {
+      "id": "stac-fixtures",
+      "kind": "fixture",
+      "path": "test/contract/stac-backend-agnostic.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "wfs-fixtures",
+      "kind": "fixture",
+      "path": "test/contract/wfs-backend-agnostic.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "wms-fixtures",
+      "kind": "fixture",
+      "path": "test/contract/wms.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "wmts-fixtures",
+      "kind": "fixture",
+      "path": "test/contract/wmts.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "odata-fixtures",
+      "kind": "fixture",
+      "path": "test/contract/odata-backend-agnostic.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "pmtiles-fixtures",
+      "kind": "fixture",
+      "path": "test/pmtiles-contract.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "geoparquet-fixtures",
+      "kind": "fixture",
+      "path": "test/geoparquet-source.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "geoparquet-connect-fixtures",
+      "kind": "fixture",
+      "path": "test/connect-geoparquet.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "standalone-live",
+      "kind": "live",
+      "path": "scripts/standalone-live-smoke.mjs",
+      "freshnessPolicy": "scheduled-live"
+    },
+    {
+      "id": "esri-compat-fixtures",
+      "kind": "fixture",
+      "path": "test/feature-layer-compat.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "migration-fixtures",
+      "kind": "fixture",
+      "path": "test/migration-codemod.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "geometry-fixtures",
+      "kind": "fixture",
+      "path": "test/geometry/ops.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "server-compatibility-fixtures",
+      "kind": "fixture",
+      "path": "test/server-compatibility.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "map-package-fixtures",
+      "kind": "fixture",
+      "path": "test/runtime/map-package-fetch.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "realtime-integration",
+      "kind": "integration",
+      "path": "test/integration/surfaces/realtime.integration.ts",
+      "freshnessPolicy": "nightly"
+    },
+    {
+      "id": "agent-tools-fixtures",
+      "kind": "fixture",
+      "path": "test/agent-tools.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "maplibre-automatic-source-fixtures",
+      "kind": "fixture",
+      "path": "test/automatic-source-strategy.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "maplibre-raster-source-fixtures",
+      "kind": "fixture",
+      "path": "test/raster-source-strategy.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "maplibre-automatic-browser",
+      "kind": "integration",
+      "path": "test/playwright/automatic-source-workflow.spec.mjs",
+      "freshnessPolicy": "release-gated"
+    }
+  ],
+  "protocols": [
+    {
+      "id": "grpc",
+      "label": "gRPC",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "query",
+            "queryAggregate",
+            "queryExtent",
+            "queryObjectIds",
+            "applyEdits",
+            "stream"
+          ],
+          "environment": "honua-facade",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "contract-conformance",
+            "grpc-conformance"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "geoservices-feature-service",
+      "label": "GS Feature",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "query",
+            "queryAggregate",
+            "queryExtent"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "contract-conformance"
+          ]
+        },
+        {
+          "operations": [
+            "queryObjectIds",
+            "queryRelated",
+            "applyEdits",
+            "attachments"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance"
+          ]
+        },
+        {
+          "operations": [
+            "sql"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "core-client-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "stream"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "contract-conformance",
+            "honua-surface-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "pbf"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "core-client-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "tiles"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "client-fallback",
+          "status": "supported",
+          "evidence": [
+            "query-tiles-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "geoservices-map-service",
+      "label": "GS Map",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "query",
+            "queryAggregate",
+            "queryExtent"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "contract-conformance",
+            "honua-surface-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "queryObjectIds",
+            "queryRelated"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance",
+            "honua-surface-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "render"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "honua-surface-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "tiles"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "connect-fixtures",
+            "tile-layer-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "sql"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "honua-surface-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "stream"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "contract-conformance",
+            "honua-surface-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "geoservices-image-service",
+      "label": "GS Image",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "query",
+            "queryExtent",
+            "queryObjectIds"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance"
+          ]
+        },
+        {
+          "operations": [
+            "image",
+            "render"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance"
+          ]
+        },
+        {
+          "operations": [
+            "tiles"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "geoservices-geometry-service",
+      "label": "GS Geometry",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "geometry"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "geoservices-gp-service",
+      "label": "GS GP",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "geoprocess"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "geoservices-conformance",
+            "geoprocessing-job-run-fixtures",
+            "process-runner-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ogc-features",
+      "label": "OGC Features",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "query",
+            "queryObjectIds",
+            "applyEdits",
+            "stream"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "ogc-features-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "queryAggregate",
+            "queryExtent"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "client-fallback",
+          "status": "supported",
+          "evidence": [
+            "contract-conformance"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ogc-tiles",
+      "label": "OGC Tiles",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "render",
+            "tiles"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "ogc-tiles-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ogc-maps",
+      "label": "OGC Maps",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "render"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "ogc-maps-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ogc-records",
+      "label": "OGC Records",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "query",
+            "queryObjectIds",
+            "stream"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "ogc-records-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stac",
+      "label": "STAC",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "query",
+            "queryObjectIds",
+            "stream"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "stac-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wfs",
+      "label": "WFS",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "query",
+            "queryExtent",
+            "queryObjectIds",
+            "applyEdits",
+            "stream"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "wfs-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wms",
+      "label": "WMS",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "render",
+            "tiles",
+            "query"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "wms-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wmts",
+      "label": "WMTS",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "render",
+            "tiles"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "wmts-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "odata",
+      "label": "OData",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "query",
+            "queryObjectIds",
+            "stream",
+            "applyEdits"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "odata-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pmtiles",
+      "label": "PMTiles",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "tiles"
+          ],
+          "environment": "client-only",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "pmtiles-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "geoparquet",
+      "label": "GeoParquet",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "query",
+            "queryAggregate",
+            "stream"
+          ],
+          "environment": "client-only",
+          "executionMode": "native",
+          "status": "experimental",
+          "evidence": [
+            "geoparquet-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "maplibre-vector",
+      "label": "MapLibre vector",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "render"
+          ],
+          "environment": "client-only",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "maplibre-automatic-source-fixtures",
+            "maplibre-automatic-browser"
+          ]
+        },
+        {
+          "operations": [
+            "tiles"
+          ],
+          "environment": "client-only",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "maplibre-automatic-source-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "maplibre-raster",
+      "label": "MapLibre raster",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "render"
+          ],
+          "environment": "client-only",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "maplibre-raster-source-fixtures",
+            "maplibre-automatic-browser"
+          ]
+        },
+        {
+          "operations": [
+            "tiles"
+          ],
+          "environment": "client-only",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "maplibre-raster-source-fixtures"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "maplibre-geojson",
+      "label": "MapLibre GeoJSON",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": []
+    }
+  ],
+  "supportClaims": [
+    {
+      "id": "geoservices-feature-standalone",
+      "label": "GeoServices FeatureServer query",
+      "protocol": "geoservices-feature-service",
+      "operations": [
+        "discovery",
+        "query",
+        "queryExtent",
+        "queryObjectIds",
+        "stream"
+      ],
+      "environment": "standalone",
+      "executionMode": "native",
+      "status": "supported",
+      "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
+      "api": "connect(), HonuaClient.queryFeatures, Source",
+      "notes": "Discovers and uses the raw FeatureServer query path; fixture- and live-proven without a Honua account or server.",
+      "evidence": [
+        "connect-fixtures",
+        "contract-conformance",
+        "geoservices-conformance",
+        "standalone-live"
+      ]
+    },
+    {
+      "id": "geoservices-map-standalone",
+      "label": "GeoServices MapServer reads",
+      "protocol": "geoservices-map-service",
+      "operations": [
+        "discovery",
+        "query",
+        "render",
+        "tiles"
+      ],
+      "environment": "standalone",
+      "executionMode": "native",
+      "status": "supported",
+      "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
+      "api": "connect(), HonuaClient.mapService, Source",
+      "notes": "Discovers and uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles.",
+      "evidence": [
+        "connect-fixtures",
+        "honua-surface-fixtures",
+        "tile-layer-fixtures",
+        "map-service-integration",
+        "standalone-live"
+      ]
+    },
+    {
+      "id": "geoservices-image-standalone",
+      "label": "GeoServices ImageServer reads",
+      "protocol": "geoservices-image-service",
+      "operations": [
+        "query",
+        "render",
+        "tiles",
+        "image"
+      ],
+      "environment": "standalone",
+      "executionMode": "native",
+      "status": "supported",
+      "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
+      "api": "HonuaClient.imageService, Source.protocol()",
+      "notes": "Uses raw ImageServer paths for raster-catalog queries, export, identify, and cached tiles.",
+      "evidence": [
+        "geoservices-conformance",
+        "image-service-integration"
+      ]
+    },
+    {
+      "id": "esri-compat-standalone",
+      "label": "Esri compatibility layer",
+      "operations": [
+        "query",
+        "applyEdits"
+      ],
+      "environment": "standalone",
+      "executionMode": "native",
+      "status": "supported",
+      "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
+      "api": "@honua/sdk-js/esri-compat",
+      "notes": "Compatibility classes parse public GeoServices URLs and create their own client.",
+      "evidence": [
+        "esri-compat-fixtures"
+      ]
+    },
+    {
+      "id": "migration-client-only",
+      "label": "ArcGIS scanner and migration codemod",
+      "operations": [
+        "migration"
+      ],
+      "environment": "build-time",
+      "executionMode": "static",
+      "status": "supported",
+      "backendNeeded": "None",
+      "api": "@honua/sdk-js/migration, honua-migrate",
+      "notes": "Static analysis and rewrites run locally; no service is involved.",
+      "evidence": [
+        "migration-fixtures"
+      ]
+    },
+    {
+      "id": "geometry-client-only",
+      "label": "Geometry operations",
+      "operations": [
+        "geometry"
+      ],
+      "environment": "client-only",
+      "executionMode": "native",
+      "status": "supported",
+      "backendNeeded": "None",
+      "api": "@honua/sdk-js/geometry",
+      "notes": "Buffer, area, simplify, measure, and reprojection run in the client through optional peers.",
+      "evidence": [
+        "geometry-fixtures"
+      ]
+    },
+    {
+      "id": "ogc-features-standalone",
+      "label": "OGC API Features",
+      "protocol": "ogc-features",
+      "operations": [
+        "discovery",
+        "query",
+        "queryObjectIds",
+        "applyEdits",
+        "stream"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "supported",
+      "backendNeeded": "Any OGC API Features server",
+      "api": "connect(), Source with locator.layout=ogc-api or auto",
+      "notes": "Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path.",
+      "evidence": [
+        "ogc-features-fixtures",
+        "standalone-live"
+      ]
+    },
+    {
+      "id": "wfs-standalone",
+      "label": "WFS 2.0",
+      "protocol": "wfs",
+      "operations": [
+        "discovery",
+        "query",
+        "queryExtent",
+        "queryObjectIds",
+        "applyEdits",
+        "stream"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "supported",
+      "backendNeeded": "Any WFS 2.0 server",
+      "api": "connect(), Source, HonuaWfs",
+      "notes": "Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path.",
+      "evidence": [
+        "wfs-fixtures",
+        "standalone-live"
+      ]
+    },
+    {
+      "id": "stac-standalone",
+      "label": "STAC API and static catalogs",
+      "protocol": "stac",
+      "operations": [
+        "discovery",
+        "query",
+        "queryObjectIds",
+        "stream"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "supported",
+      "backendNeeded": "Any STAC API or static catalog",
+      "api": "connect(), Source with locator.layout=stac-api or stac-static",
+      "notes": "Searches a raw STAC API or walks static catalog links with client-side filtering.",
+      "evidence": [
+        "stac-fixtures",
+        "standalone-live"
+      ]
+    },
+    {
+      "id": "odata-standalone",
+      "label": "OData v4",
+      "protocol": "odata",
+      "operations": [
+        "discovery",
+        "query",
+        "queryObjectIds",
+        "applyEdits",
+        "stream"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "supported",
+      "backendNeeded": "Any OData v4 service",
+      "api": "connect(), Source, HonuaOdataEntitySet",
+      "notes": "Reads $metadata, intersects advertised capabilities, and uses the raw service root.",
+      "evidence": [
+        "odata-fixtures",
+        "standalone-live"
+      ]
+    },
+    {
+      "id": "geoparquet-discovery-client-only",
+      "label": "GeoParquet asset discovery",
+      "protocol": "geoparquet",
+      "operations": [
+        "discovery"
+      ],
+      "environment": "client-only",
+      "executionMode": "discovery",
+      "status": "experimental",
+      "backendNeeded": "None; caller provides a GeoParquet profiler",
+      "api": "connect({ protocol: 'geoparquet', geoparquet: { profiler } })",
+      "notes": "Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver.",
+      "evidence": [
+        "geoparquet-connect-fixtures"
+      ]
+    },
+    {
+      "id": "ogc-tiles-standalone",
+      "label": "OGC API Tiles",
+      "protocol": "ogc-tiles",
+      "operations": [
+        "discovery",
+        "render",
+        "tiles"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "beta",
+      "backendNeeded": "Any link-driven OGC API Tiles server",
+      "api": "connect(), Source protocol ogc-tiles",
+      "notes": "Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles.",
+      "evidence": [
+        "ogc-tiles-fixtures"
+      ]
+    },
+    {
+      "id": "ogc-maps-standalone",
+      "label": "OGC API Maps",
+      "protocol": "ogc-maps",
+      "operations": [
+        "discovery",
+        "render"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "beta",
+      "backendNeeded": "Any link-driven OGC API Maps server",
+      "api": "connect(), Source protocol ogc-maps",
+      "notes": "Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps.",
+      "evidence": [
+        "ogc-maps-fixtures"
+      ]
+    },
+    {
+      "id": "ogc-records-standalone",
+      "label": "OGC API Records",
+      "protocol": "ogc-records",
+      "operations": [
+        "discovery",
+        "query",
+        "queryObjectIds",
+        "stream"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "beta",
+      "backendNeeded": "Any link-driven OGC API Records server",
+      "api": "connect(), Source protocol ogc-records",
+      "notes": "Discovers and queries the raw records path advertised by the service; does not require /ogc/records.",
+      "evidence": [
+        "ogc-records-fixtures"
+      ]
+    },
+    {
+      "id": "ogc-processes-discovery-standalone",
+      "label": "OGC API Processes discovery",
+      "protocol": "ogc-processes",
+      "operations": [
+        "discovery"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "experimental",
+      "backendNeeded": "Any link-driven OGC API Processes server",
+      "api": "discoverOgcProcesses()",
+      "notes": "Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source.",
+      "evidence": [
+        "ogc-processes-fixtures"
+      ]
+    },
+    {
+      "id": "ogc-processes-execution-facade",
+      "label": "OGC API Processes execution",
+      "protocol": "ogc-processes",
+      "operations": [
+        "processes"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "status": "facade-required",
+      "backendNeeded": "Honua Server",
+      "api": "HonuaClient OGC Processes methods",
+      "notes": "Typed execution uses the Honua facade today; raw third-party execution is not claimed.",
+      "evidence": [
+        "ogc-processes-integration"
+      ]
+    },
+    {
+      "id": "compatibility-gate-facade",
+      "label": "Server compatibility gate",
+      "operations": [
+        "compatibility"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "status": "facade-required",
+      "backendNeeded": "Honua Server",
+      "api": "HonuaClient.checkCompatibility()",
+      "notes": "Reads the Honua administrative capabilities contract and should be skipped for standalone reads.",
+      "evidence": [
+        "server-compatibility-fixtures"
+      ]
+    },
+    {
+      "id": "map-package-facade",
+      "label": "Authored MapPackage runtime",
+      "operations": [
+        "render"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "status": "facade-required",
+      "backendNeeded": "Honua Server",
+      "api": "@honua/sdk-js/runtime",
+      "notes": "Loads server-authored styles, layer order, and metadata.",
+      "evidence": [
+        "map-package-fixtures"
+      ]
+    },
+    {
+      "id": "realtime-facade",
+      "label": "Realtime subscriptions",
+      "operations": [
+        "realtime"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "transport",
+      "status": "facade-required",
+      "backendNeeded": "Honua Server",
+      "api": "@honua/sdk-js/realtime",
+      "notes": "Subscription-backed live updates depend on the Honua realtime contract.",
+      "evidence": [
+        "realtime-integration"
+      ]
+    },
+    {
+      "id": "collaboration-deprecated",
+      "label": "Collaboration and saved maps compatibility shim",
+      "operations": [
+        "collaboration"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "status": "deprecated",
+      "backendNeeded": "Honua Server and @honua/app-platform",
+      "api": "@honua/sdk-js/collaboration",
+      "notes": "The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration.",
+      "evidence": []
+    },
+    {
+      "id": "agent-tools-facade",
+      "label": "MCP tools and AI execution",
+      "operations": [
+        "agent-tools"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "status": "facade-required",
+      "backendNeeded": "Honua Server and @honua/mcp-server",
+      "api": "mcp/, @honua/sdk-js/agent-tools",
+      "notes": "Tool definitions are local, while discovery and query execution use the bounded Honua server surface.",
+      "evidence": [
+        "agent-tools-fixtures"
+      ]
+    }
+  ],
+  "packageLifecycle": {
+    "ceilings": {
+      "stableEntrypoints": 22,
+      "rootRuntimeExports": 44,
+      "rootTypeExports": 142,
+      "rootGzipBytes": 115241
+    },
+    "downstreamProjection": {
+      "catalogOwner": "honua-io/honua-site",
+      "siteIssue": "https://github.com/honua-io/honua-site/issues/120",
+      "artifactContractIssue": "https://github.com/honua-io/honua-sdk-js/issues/401"
+    },
+    "entrypoints": [
+      {
+        "subpath": ".",
+        "status": "supported"
+      },
+      {
+        "subpath": "./browser",
+        "status": "supported",
+        "apiEquivalent": "."
+      },
+      {
+        "subpath": "./honua",
+        "status": "supported"
+      },
+      {
+        "subpath": "./auth",
+        "status": "supported"
+      },
+      {
+        "subpath": "./contract",
+        "status": "supported"
+      },
+      {
+        "subpath": "./esri-compat",
+        "status": "supported"
+      },
+      {
+        "subpath": "./migration",
+        "status": "supported"
+      },
+      {
+        "subpath": "./runtime",
+        "status": "supported"
+      },
+      {
+        "subpath": "./expr",
+        "status": "supported"
+      },
+      {
+        "subpath": "./webmap",
+        "status": "supported"
+      },
+      {
+        "subpath": "./geocoding",
+        "status": "supported"
+      },
+      {
+        "subpath": "./exploration",
+        "status": "supported"
+      },
+      {
+        "subpath": "./interactions",
+        "status": "supported"
+      },
+      {
+        "subpath": "./filter-registry",
+        "status": "supported"
+      },
+      {
+        "subpath": "./style",
+        "status": "supported"
+      },
+      {
+        "subpath": "./map",
+        "status": "supported"
+      },
+      {
+        "subpath": "./realtime",
+        "status": "supported"
+      },
+      {
+        "subpath": "./react",
+        "status": "supported"
+      },
+      {
+        "subpath": "./geometry",
+        "status": "supported"
+      },
+      {
+        "subpath": "./cli",
+        "status": "supported"
+      },
+      {
+        "subpath": "./agent-tools",
+        "status": "supported"
+      },
+      {
+        "subpath": "./agent-safety",
+        "status": "supported"
+      },
+      {
+        "subpath": "./geoparquet",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./query-planner",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./plugin",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./deckgl",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./offline",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./diagnostics",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./nl-map-control",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./routing",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./app",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/app",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./app-controller",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/app-controller",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./app-workspace",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/app-workspace",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./scene-workspace",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/scene-workspace",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./collaboration",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/collaboration",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./control-plane",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/control-plane",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./replica-sync",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/replica-sync",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./share",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/share",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./operate",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/operate",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./generated-app",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/generated-app",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./studio",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/studio",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./operator",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/operator",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./operator/controllers",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/operator/controllers",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./operator/workspace",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/operator/workspace",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./operator/theming",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/operator/theming",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./operator/i18n",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/operator/i18n",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./controls",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/controls",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      },
+      {
+        "subpath": "./web-components",
+        "status": "deprecated",
+        "replacement": "@honua/app-platform/web-components",
+        "introducedIn": "0.1.0-beta.0",
+        "removeIn": "0.2.0"
+      }
+    ]
+  }
+}

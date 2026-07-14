@@ -277,7 +277,7 @@ describe("contract / discovery capability truth", () => {
     );
     expect(inspection.descriptor.schemaV2).toEqual(schemaV2);
     expect(inspection.descriptor.schemaV2).not.toBe(transported);
-    expect(Object.isFrozen(inspection.descriptor.schemaV2?.fields[0])).toBe(true);
+    expect(Object.isFrozen((inspection.descriptor.schemaV2 as typeof schemaV2).fields[0])).toBe(true);
 
     expect(() =>
       inspectDiscoveredSource(

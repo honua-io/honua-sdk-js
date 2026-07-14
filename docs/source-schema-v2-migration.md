@@ -21,6 +21,10 @@ The focused connection uses a distinct cache identity and validates cached v2
 fingerprints before use. Plain root `connect()` neither emits nor trusts an
 injected `schemaV2`; this keeps the schema runtime and pinned PROJJSON validator
 out of root, `/honua`, browser, query-planner, and ordinary `/contract` bundles.
+Its focused return type exposes the complete validated schema. Generic
+`SourceDescriptor` and discovery-cache types expose only the lightweight
+`kind`, `version`, and `fingerprint` transport envelope; pass such a value to
+`parseSourceSchemaV2` before inspecting schema semantics.
 
 ## Compatibility window
 
@@ -107,10 +111,12 @@ binding without fabricating EPSG:0. GeoParquet PROJJSON is checked against a
 pinned, generated validator for the official v0.7 CRS schema. Invalid CRS
 metadata degrades that binding to `unknown` without discarding the field or
 geometry inventory.
-GeoServices WKT is promoted only when it has a recognized WKT1/WKT2 CRS root
-and balanced, fully closed delimiters; arbitrary strings remain bounded native
-evidence under an `unknown/unrecognized` definition. Reprojected bindings also
-require their public definition to match the normalized reprojection target.
+GeoServices WKT is retained only when it has a recognized WKT1/WKT2 CRS root,
+a quoted name, and balanced, fully closed delimiters. It is marked
+`validation: "unverified"` and is not an executable CRS until an engine-backed
+validator promotes it; arbitrary strings remain bounded native evidence under
+an `unknown/unrecognized` definition. Reprojected bindings also require their
+public definition to match the normalized reprojection target.
 
 Non-null geometry defaults use exact canonical RFC 7946 shapes. All positions
 must have one ordinate arity, polygon rings must close, and the value's root
@@ -137,10 +143,24 @@ and revalidates the full v2 fingerprint on every cache read. Default
 Generic query-planner entry points do not consume `descriptor.schemaV2` yet.
 They cannot distinguish a focused, validated value from an arbitrary object on
 a caller-constructed `SourceDescriptor` without importing the full validator.
-Until the trusted ingestion work lands, only the caller-supplied
-`schemaVersion` compatibility label participates in query IR. This slice
-therefore makes no plan-cache invalidation or execution-security claim from a
-descriptor's v2 fingerprint.
+Until descriptor-native plan identity lands, use the focused validating bridge
+to feed the verified fingerprint through the existing planner context:
+
+```ts doc-test=skip reason="requires a live focused connection and executable source"
+import { executeQueryPlan, explainQuery } from "@honua/sdk-js/query-planner";
+import { sourceSchemaV2QueryContext } from "@honua/sdk-js/source-schema";
+
+const source = connection.source();
+const schemaContext = sourceSchemaV2QueryContext(source.descriptor);
+const plan = explainQuery({ descriptor: source.descriptor, query, ...schemaContext });
+await executeQueryPlan(plan, source, schemaContext);
+```
+
+The helper reparses the full schema, so a forged or drifted fingerprint fails
+before it can become cache identity. A changed validated schema changes plan
+identity and old-plan execution fails with `plan-context-mismatch`. Full
+descriptor, capability, and schema plan identity remains owned by the planned
+descriptor-identity work rather than trusting generic transport envelopes.
 
 Use `serializeSourceSchemaV2`, `parseSourceSchemaV2`, and
 `cloneSourceSchemaV2` for JSON-safe boundaries. They validate the discriminator,

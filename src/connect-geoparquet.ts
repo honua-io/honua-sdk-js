@@ -21,6 +21,8 @@ export interface GeoParquetGeometryPlan {
   readonly column: string;
   /** How the geometry is physically stored. */
   readonly encoding: GeoParquetGeometryEncoding;
+  /** False when metadata is valid but the active SQL runtime did not materialize an executable geometry value. */
+  readonly runtimeSupported?: boolean;
   /** Optional GeoParquet 1.1 bbox-covering struct column used for row-group pruning. */
   readonly bboxColumn?: string;
   /**
@@ -140,7 +142,7 @@ export async function discoverGeoParquetSources(
     }),
   ]);
 
-  const geometry = profile.geometry;
+  const geometry = profile.geometry?.runtimeSupported === false ? undefined : profile.geometry;
   const geoparquetLocator: NonNullable<SourceLocator["geoparquet"]> = {
     ...(additionalUrls.length > 0 ? { urls: Object.freeze([...additionalUrls]) } : {}),
     ...(geometry ? { geometryColumn: geometry.column, geometryEncoding: geometry.encoding } : {}),

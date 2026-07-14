@@ -7,6 +7,7 @@
  */
 
 import type { Source } from "../contract/types.js";
+import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryIrSourceIdentity } from "../query-planner/ir.js";
 import { hashQueryPlan } from "../query-planner/planner.js";
@@ -163,17 +164,30 @@ export type AutomaticMapLibreErrorCode =
   | "cancelled"
   | "disposed";
 
-export class HonuaAutomaticMapLibreStrategyError extends Error {
+export class HonuaAutomaticMapLibreStrategyError extends HonuaSdkError {
   public constructor(
     public readonly code: AutomaticMapLibreErrorCode,
     message: string,
     public readonly detail?: Readonly<Record<string, unknown>>,
-    options?: ErrorOptions,
+    options: HonuaErrorOptions = {},
   ) {
-    super(message, options);
+    super(AUTOMATIC_MAPLIBRE_ERROR_CODES[code], message, {
+      ...options,
+      context: mergeHonuaErrorContext(detail, options.context),
+    });
     this.name = "HonuaAutomaticMapLibreStrategyError";
   }
 }
+
+const AUTOMATIC_MAPLIBRE_ERROR_CODES = {
+  "no-eligible-strategy": "map.automatic-strategy.no-eligible-strategy",
+  "stale-plan": "map.automatic-strategy.stale-plan",
+  "source-conflict": "map.automatic-strategy.source-conflict",
+  "layer-conflict": "map.automatic-strategy.layer-conflict",
+  "map-mutation-failed": "map.automatic-strategy.map-mutation-failed",
+  cancelled: "map.automatic-strategy.cancelled",
+  disposed: "map.automatic-strategy.disposed",
+} as const satisfies Record<AutomaticMapLibreErrorCode, `map.automatic-strategy.${string}`>;
 
 const STRATEGIES: readonly AutomaticMapLibreStrategy[] = [
   "dynamic-query-tiles",

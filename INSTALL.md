@@ -4,6 +4,18 @@ The Honua JavaScript SDK ships as a single npm package â€” **`@honua/sdk-js`** â
 subpath entrypoints. The core client, the Esri compatibility layer, the migration helpers,
 and the protocol-neutral contract are all reachable from this one install.
 
+<!-- support-manifest:install-status:start -->
+## Generated support status
+
+The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
+It projects 22 supported (documented below as stable), 8 experimental,
+and 18 deprecated package entrypoints. Protocol status is independent
+of package lifecycle: raw endpoint support, facade requirements, execution mode, and
+evidence are listed in the generated
+[backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
+[support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
+for both honua.io and the canonical `samples/catalog.v2.json` inventory.
+<!-- support-manifest:install-status:end -->
 
 ## Stable subpath entrypoints
 
@@ -121,7 +133,7 @@ entrypoint was removed outright (its projection helpers are owned by the
 ## Prerequisites
 
 - Node.js 20 or later
-- A running Honua Server instance (for runtime queries)
+- A Honua Server instance only for capabilities marked `facade-required`; standalone protocol clients do not require one
 
 ## Install
 

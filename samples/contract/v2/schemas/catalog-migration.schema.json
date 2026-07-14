@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/catalog-migration.v1-to-v2.schema.json",
+  "title": "Honua SDK sample catalog v1 to v2 migration",
+  "type": "object",
+  "required": [
+    "format",
+    "schemaVersion",
+    "source",
+    "target",
+    "targetRelease",
+    "configuration",
+    "goldenJourneys",
+    "qualityProfiles",
+    "externalReplacements",
+    "sampleOverrides",
+    "addedSamples"
+  ],
+  "properties": {
+    "$schema": { "const": "../schemas/catalog-migration.schema.json" },
+    "format": { "const": "honua.sdk.sample-catalog-migration.v1-to-v2" },
+    "schemaVersion": { "const": 1 },
+    "source": { "const": "samples/catalog.v1.json" },
+    "target": { "const": "samples/catalog.v2.json" },
+    "targetRelease": { "type": "string" },
+    "configuration": { "type": "object" },
+    "goldenJourneys": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "status", "candidateSampleId"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "enum": ["planned", "qualified"] },
+          "candidateSampleId": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "qualityProfiles": { "type": "array", "minItems": 1 },
+    "externalReplacements": { "type": "array" },
+    "sampleOverrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["track", "validationProfile"],
+        "properties": {
+          "track": { "enum": ["golden", "recipe", "lab", "fixture"] },
+          "journeyId": { "type": "string" },
+          "validationProfile": { "type": "string" },
+          "replacement": { "type": "object" },
+          "configuration": {
+            "type": "object",
+            "required": ["status", "gap"],
+            "properties": {
+              "status": { "const": "legacy-unsafe" },
+              "gap": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          },
+          "lifecycle": {
+            "type": "object",
+            "required": ["state", "reason"],
+            "properties": {
+              "state": { "enum": ["active", "rework", "merge", "replace", "retire"] },
+              "reason": { "type": "string", "minLength": 1 },
+              "replacement": { "type": "object" }
+            },
+            "additionalProperties": false
+          },
+          "live": {
+            "type": "object",
+            "properties": {
+              "mode": { "enum": ["public-live", "demo-live", "authenticated", "degraded", "unavailable"] },
+              "targetMode": { "enum": ["public-live", "demo-live", "authenticated"] },
+              "status": { "enum": ["executed", "not-applicable", "planned", "skipped", "credential-unavailable", "failed"] },
+              "commands": { "type": "array", "items": { "type": "string" } },
+              "evidencePath": { "type": "string" },
+              "expiresAt": { "type": "string", "format": "date-time" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "addedSamples": { "type": "array" }
+  },
+  "additionalProperties": false
+}

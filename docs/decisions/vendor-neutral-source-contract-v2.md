@@ -377,6 +377,7 @@ type CrsDefinition =
   | {
       readonly kind: "wkt";
       readonly wkt: string;
+      readonly validation: "unverified" | "engine";
       readonly definitionAxisOrder: AxisOrder;
     }
   | {

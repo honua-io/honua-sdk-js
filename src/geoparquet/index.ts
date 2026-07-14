@@ -178,10 +178,9 @@ export class GeoparquetRuntime {
     let geoJson: string | undefined;
     try {
       const rows = await driver.query(geoMetadataSql(sources));
-      const value = rows[0]?.value;
-      if (typeof value === "string") geoJson = value;
-      else if (value instanceof Uint8Array) geoJson = new TextDecoder().decode(value);
-    } catch {
+      geoJson = consistentGeoMetadata(rows);
+    } catch (cause) {
+      if (cause instanceof InconsistentGeoMetadataError || sources.length > 1) throw cause;
       geoJson = undefined;
     }
     let rowEstimate: number | undefined;
@@ -229,6 +228,157 @@ function toNumber(value: unknown): number | undefined {
   if (typeof value === "number") return value;
   if (typeof value === "bigint") return Number(value);
   return undefined;
+}
+
+class InconsistentGeoMetadataError extends Error {}
+
+function consistentGeoMetadata(rows: readonly DuckRow[]): string | undefined {
+  if (rows.length === 0) return undefined;
+  const documents = rows.map((row) => {
+    const value = row.value;
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === "string") return value;
+    if (value instanceof Uint8Array) return new TextDecoder().decode(value);
+    throw new InconsistentGeoMetadataError("geoparquet: geo metadata contains a non-text value");
+  });
+  if (documents.every((value) => value === undefined)) return undefined;
+  if (documents.some((value) => value === undefined)) {
+    throw new InconsistentGeoMetadataError("geoparquet: only some source files contain geo metadata");
+  }
+  if (documents.length === 1) {
+    assertGeoMetadataSize(documents[0]!);
+    return documents[0];
+  }
+  const parsed = documents.map((value) => parseGeoMetadata(value!));
+  return JSON.stringify(mergeCompatibleGeoMetadata(parsed));
+}
+
+function assertGeoMetadataSize(value: string): void {
+  if (value.length > 1024 * 1024 || new TextEncoder().encode(value).byteLength > 1024 * 1024) {
+    throw new InconsistentGeoMetadataError("geoparquet: geo metadata exceeds the one-megabyte safety bound");
+  }
+}
+
+function parseGeoMetadata(value: string): Record<string, unknown> {
+  assertGeoMetadataSize(value);
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!isJsonRecord(parsed)) throw new InconsistentGeoMetadataError("geoparquet: geo metadata is not an object");
+    return parsed;
+  } catch (cause) {
+    if (cause instanceof InconsistentGeoMetadataError) throw cause;
+    throw new InconsistentGeoMetadataError("geoparquet: geo metadata is not valid JSON");
+  }
+}
+
+function mergeCompatibleGeoMetadata(documents: readonly Record<string, unknown>[]): Record<string, unknown> {
+  const first = documents[0]!;
+  const version = first.version;
+  const primaryColumn = first.primary_column;
+  const firstColumns = geoMetadataColumns(first);
+  const columnNames = Object.keys(firstColumns).sort();
+  for (const document of documents.slice(1)) {
+    if (document.version !== version || document.primary_column !== primaryColumn) {
+      throw new InconsistentGeoMetadataError("geoparquet: source files contain incompatible geo metadata");
+    }
+    const names = Object.keys(geoMetadataColumns(document)).sort();
+    if (JSON.stringify(names) !== JSON.stringify(columnNames)) {
+      throw new InconsistentGeoMetadataError("geoparquet: source files declare different geometry columns");
+    }
+  }
+
+  const mergedColumns: Record<string, unknown> = {};
+  for (const columnName of columnNames) {
+    const columns = documents.map((document) => geoMetadataColumns(document)[columnName]);
+    if (columns.some((column) => !isJsonRecord(column))) {
+      throw new InconsistentGeoMetadataError("geoparquet: geometry column metadata is not an object");
+    }
+    const typedColumns = columns as Record<string, unknown>[];
+    const compatibility = typedColumns.map((column) => {
+      const { bbox: _bbox, geometry_types: _geometryTypes, ...critical } = column;
+      void _bbox;
+      void _geometryTypes;
+      return JSON.stringify(sortJsonValue(critical));
+    });
+    if (new Set(compatibility).size !== 1) {
+      throw new InconsistentGeoMetadataError(
+        `geoparquet: source files contain incompatible metadata for geometry column ${columnName}`,
+      );
+    }
+    const merged = { ...typedColumns[0] };
+    const geometryTypes = typedColumns.flatMap((column) =>
+      Array.isArray(column.geometry_types) ? column.geometry_types : [],
+    );
+    if (typedColumns.every((column) => Array.isArray(column.geometry_types))) {
+      merged.geometry_types = [...new Set(geometryTypes)].sort();
+    } else if (typedColumns.some((column) => column.geometry_types !== undefined)) {
+      throw new InconsistentGeoMetadataError(
+        `geoparquet: source files contain invalid geometry types for column ${columnName}`,
+      );
+    }
+    const bboxes = typedColumns.map((column) => column.bbox);
+    const providedBboxes = bboxes.filter((bbox) => bbox !== undefined);
+    if (providedBboxes.some((bbox) => !validGeoMetadataBbox(bbox))) {
+      throw new InconsistentGeoMetadataError(
+        `geoparquet: source files contain an invalid bbox for column ${columnName}`,
+      );
+    }
+    if (providedBboxes.length === bboxes.length) {
+      merged.bbox = unionGeoMetadataBboxes(providedBboxes as number[][]);
+    } else {
+      delete merged.bbox;
+    }
+    mergedColumns[columnName] = merged;
+  }
+  return { ...first, columns: mergedColumns };
+}
+
+function geoMetadataColumns(document: Record<string, unknown>): Record<string, unknown> {
+  if (!isJsonRecord(document.columns)) {
+    throw new InconsistentGeoMetadataError("geoparquet: geo metadata columns are not an object");
+  }
+  return document.columns;
+}
+
+function validGeoMetadataBbox(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    (value.length === 4 || value.length === 6) &&
+    value.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))
+  );
+}
+
+function unionGeoMetadataBboxes(values: readonly number[][]): number[] {
+  const dimensions = values[0]!.length / 2;
+  if (values.some((bbox) => bbox.length !== dimensions * 2)) {
+    throw new InconsistentGeoMetadataError("geoparquet: source files use different bbox dimensions");
+  }
+  const minimums = Array.from({ length: dimensions }, (_, index) => Math.min(...values.map((bbox) => bbox[index]!)));
+  const maximums = Array.from({ length: dimensions }, (_, index) =>
+    Math.max(...values.map((bbox) => bbox[index + dimensions]!)),
+  );
+  return [...minimums, ...maximums];
+}
+
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function sortJsonValue(value: unknown): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new InconsistentGeoMetadataError("geoparquet: geo metadata is not finite JSON");
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(sortJsonValue);
+  if (typeof value !== "object") {
+    throw new InconsistentGeoMetadataError("geoparquet: geo metadata is not JSON data");
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => [key, sortJsonValue(child)]),
+  );
 }
 
 /** Normalize DuckDB scalar values (BigInt → number) for JSON-friendly output. */
@@ -355,10 +505,11 @@ export function geoparquetSource<T = Record<string, unknown>>(
 
   async function compileOptions(): Promise<{ profile: SourceProfile; opts: CompileOptions }> {
     const profile = await runtime.profile(sources, geometryColumnOverride);
+    const geometry = profile.geometry?.runtimeSupported === false ? undefined : profile.geometry;
     const opts: CompileOptions = {
       sources,
       geometryAlias: GEOPARQUET_ALIAS,
-      ...(profile.geometry ? { geometry: profile.geometry } : {}),
+      ...(geometry ? { geometry } : {}),
       ...(profile.columns.length > 0 ? { columns: profile.columns } : {}),
     };
     return { profile, opts };
@@ -388,7 +539,9 @@ export function geoparquetSource<T = Record<string, unknown>>(
       return {
         schema: fieldsFromDescribe(describe),
         geometryColumns: profile.geometry ? [profile.geometry.column] : [],
-        ...(profile.geometry ? { geometryEncoding: profile.geometry.encoding } : {}),
+        ...(profile.geometry?.runtimeSupported === false || !profile.geometry
+          ? {}
+          : { geometryEncoding: profile.geometry.encoding }),
         ...(profile.crs ? { crs: profile.crs } : {}),
         ...(profile.rowEstimate !== undefined ? { rowEstimate: profile.rowEstimate } : {}),
       };
@@ -406,7 +559,7 @@ export function geoparquetSource<T = Record<string, unknown>>(
     if (request?.aggregation) {
       return runAggregate({ ...(request as Query<T>), aggregation: request.aggregation }, profile);
     }
-    const wantGeometry = request?.returnGeometry !== false && profile.geometry !== undefined;
+    const wantGeometry = request?.returnGeometry !== false && opts.geometry !== undefined;
     const compiled = compileQuery(request ?? {}, opts);
     const rows = await runtime.query(compiled.sql, { signal: request?.signal });
     const features = rows.map((row) => rowToFeature<T>(row, wantGeometry));
@@ -426,12 +579,12 @@ export function geoparquetSource<T = Record<string, unknown>>(
   ): Promise<Result<T>> {
     ensureCapability(descriptor, caps, "queryAggregate");
     const opts = profile
-      ? {
+      ? ({
           sources,
           geometryAlias: GEOPARQUET_ALIAS,
-          ...(profile.geometry ? { geometry: profile.geometry } : {}),
+          ...(profile.geometry && profile.geometry.runtimeSupported !== false ? { geometry: profile.geometry } : {}),
           ...(profile.columns.length > 0 ? { columns: profile.columns } : {}),
-        }
+        } satisfies CompileOptions)
       : (await compileOptions()).opts;
     const compiled = compileAggregate(request, opts);
     const rows = await runtime.query(compiled.sql, { signal: request.signal });
@@ -477,8 +630,8 @@ export function geoparquetSource<T = Record<string, unknown>>(
         yield await runAggregate({ ...(request as Query<T>), aggregation: request.aggregation });
         return;
       }
-      const { profile, opts } = await compileOptions();
-      const wantGeometry = request?.returnGeometry !== false && profile.geometry !== undefined;
+      const { opts } = await compileOptions();
+      const wantGeometry = request?.returnGeometry !== false && opts.geometry !== undefined;
       const compiled = compileQuery(request ?? {}, opts);
       for await (const rows of runtime.stream(compiled.sql, { signal: request?.signal })) {
         const features = rows.map((row) => rowToFeature<T>(row, wantGeometry));

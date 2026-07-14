@@ -6,10 +6,13 @@ import { type HonuaOdataMetadata, parseOdataMetadata } from "../src/core/odata.j
 import { buildSourceProfile } from "../src/geoparquet/metadata.js";
 import { createQueryIr, hashQueryIr, queryIrSourceIdentity } from "../src/query-planner/ir.js";
 import {
+  type JsonValue,
   connectWithSourceSchemaV2,
+  createSourceSchemaV2,
   geoParquetSourceSchemaV2,
   geoServicesSourceSchemaV2,
   odataSourceSchemaV2,
+  sourceSchemaV2QueryContext,
 } from "../src/source-schema.js";
 
 const context = { source: "https://example.test/metadata", observedAt: "2026-07-13T00:00:00Z" };
@@ -25,12 +28,14 @@ describe("source schema v2 discovery adapters", () => {
       { ...context, protocol: "geoservices-feature-service" },
     )!;
     const odata = odataSourceSchemaV2(
-      {
-        entitySets: { Counts: "Example.Count" },
-        keys: { "Example.Count": [] },
-        fields: { "Example.Count": [{ name: "Count", type: "Edm.Int32", nullable: true }] },
-        capabilities: {},
-      },
+      parseOdataMetadata(`
+        <edmx:Edmx Version="4.0">
+          <Schema Namespace="Example">
+            <EntityType Name="Count"><Property Name="Count" Type="Edm.Int32" Nullable="true"/></EntityType>
+            <EntityContainer Name="Container"><EntitySet Name="Counts" EntityType="Example.Count"/></EntityContainer>
+          </Schema>
+        </edmx:Edmx>
+      `),
       "Counts",
       context,
     )!;
@@ -169,6 +174,24 @@ describe("source schema v2 discovery adapters", () => {
     expect(second.source).not.toHaveProperty("schemaFingerprint");
     expect(first.source).toEqual(second.source);
     expect(hashQueryIr(first)).toBe(hashQueryIr(second));
+
+    const verifiedFirst = createQueryIr({
+      descriptor: descriptor(firstSchema),
+      ...sourceSchemaV2QueryContext(descriptor(firstSchema)),
+    });
+    const verifiedSecond = createQueryIr({
+      descriptor: descriptor(secondSchema),
+      ...sourceSchemaV2QueryContext(descriptor(secondSchema)),
+    });
+    expect(verifiedFirst.source.schemaVersion).toBe(firstSchema.fingerprint);
+    expect(verifiedSecond.source.schemaVersion).toBe(secondSchema.fingerprint);
+    expect(hashQueryIr(verifiedFirst)).not.toBe(hashQueryIr(verifiedSecond));
+
+    const forged = {
+      ...descriptor(firstSchema),
+      schemaV2: { ...firstSchema, fingerprint: secondSchema.fingerprint },
+    };
+    expect(() => sourceSchemaV2QueryContext(forged)).toThrow(/fingerprint/i);
   });
 
   it("preserves unknown native scalar types instead of coercing them to string", () => {
@@ -624,7 +647,11 @@ describe("source schema v2 discovery adapters", () => {
       });
 
     expect(profile("1.0.0").geometry?.metadataState).toBe("invalid");
-    expect(profile("1.1.0").geometry?.metadataState).toBe("valid");
+    expect(profile("1.1.0").geometry).toMatchObject({
+      metadataState: "valid",
+      encoding: "native",
+      runtimeSupported: false,
+    });
 
     const wkbProfile = (version: string) =>
       buildSourceProfile({
@@ -643,6 +670,27 @@ describe("source schema v2 discovery adapters", () => {
     expect(wkbProfile("1.1.0").geometry?.metadataState).toBe("valid");
     expect(wkbProfile("1.0.1").geometry?.metadataState).toBe("invalid");
     expect(wkbProfile("1.1.1").geometry?.metadataState).toBe("invalid");
+  });
+
+  it("fails GeoParquet metadata closed on contradictory encoding declarations", () => {
+    const profile = (encoding: string, geometryTypes: readonly string[], columnType: string) =>
+      buildSourceProfile({
+        describe: [{ column_name: "geometry", column_type: columnType }],
+        geoJson: JSON.stringify({
+          version: "1.1.0",
+          primary_column: "geometry",
+          columns: { geometry: { encoding, geometry_types: geometryTypes } },
+        }),
+      });
+
+    expect(profile("WKB", ["Point"], "STRUCT<x DOUBLE, y DOUBLE>").geometry).toMatchObject({
+      metadataState: "invalid",
+      runtimeSupported: false,
+    });
+    expect(profile("point", ["Polygon"], "STRUCT<x DOUBLE, y DOUBLE>").geometry).toMatchObject({
+      metadataState: "invalid",
+      runtimeSupported: false,
+    });
   });
 
   it.each([
@@ -1096,7 +1144,7 @@ describe("source schema v2 discovery adapters", () => {
       fields: [
         {
           crs: {
-            definition: { kind: "wkt", dialect: "wkt1" },
+            definition: { kind: "wkt", dialect: "wkt1", validation: "unverified" },
             coordinateOrder: {
               state: "known",
               source: "encoding",
@@ -1110,10 +1158,28 @@ describe("source schema v2 discovery adapters", () => {
       ],
     });
 
+    const boundWkt = geoServicesSourceSchemaV2(
+      {
+        id: 0,
+        name: "Bound WKT grid",
+        geometryType: "esriGeometryPoint",
+        spatialReference: {
+          wkt: 'BOUNDCRS[SOURCECRS[GEOGCRS["Source"]],TARGETCRS[GEOGCRS["Target"]],ABRIDGEDTRANSFORMATION["Shift"]]',
+        },
+        fields: [{ name: "Shape", type: "esriFieldTypeGeometry" }],
+      },
+      { ...context, protocol: "geoservices-feature-service" },
+    );
+    expect(boundWkt?.geometry).toMatchObject({
+      state: "known",
+      fields: [{ crs: { definition: { kind: "wkt", dialect: "wkt2", validation: "unverified" } } }],
+    });
+
     for (const malformedWkt of [
       "Engineering grid",
       'GEOGCS["Unclosed"',
       'GEOGCS["Closed"] trailing-junk',
+      "PROJCRS[garbage]",
       'VENDORCRS["Unsupported root"]',
     ]) {
       const malformed = geoServicesSourceSchemaV2(
@@ -1163,6 +1229,10 @@ describe("source schema v2 discovery adapters", () => {
     expect(schemaFor(102113, 3857).geometry).toMatchObject({
       state: "known",
       fields: [{ crs: { definition: { kind: "authority", authority: "EPSG", code: "3857" } } }],
+    });
+    expect(schemaFor(26704, 26904).geometry).toMatchObject({
+      state: "known",
+      fields: [{ crs: { definition: { kind: "unknown", reason: "unrecognized" } } }],
     });
   });
 
@@ -1655,9 +1725,113 @@ describe("source schema v2 discovery adapters", () => {
       </Schema>
     `);
     expect(odataSourceSchemaV2(unrelatedInheritance, "SafeSet", context)).toMatchObject({
+      openContent: "unknown",
+      fields: [{ name: "Name" }],
+    });
+  });
+
+  it("supports CSDL 4.01 and fails closed for unreviewed versions and open complex types", () => {
+    const csdl401 = parseOdataMetadata(`
+      <edmx:Edmx Version="4.01">
+        <Schema Namespace="Example">
+          <EntityType Name="Asset"><Property Name="Name" Type="Edm.String"/></EntityType>
+          <EntityContainer Name="Container"><EntitySet Name="Assets" EntityType="Example.Asset"/></EntityContainer>
+        </Schema>
+      </edmx:Edmx>
+    `);
+    expect(odataSourceSchemaV2(csdl401, "Assets", context)).toMatchObject({
       openContent: "closed",
       fields: [{ name: "Name" }],
     });
+
+    const unreviewed = parseOdataMetadata(`
+      <edmx:Edmx Version="4.02">
+        <Schema Namespace="Example">
+          <EntityType Name="Asset"><Property Name="Name" Type="Edm.String"/></EntityType>
+          <EntityContainer Name="Container"><EntitySet Name="Assets" EntityType="Example.Asset"/></EntityContainer>
+        </Schema>
+      </edmx:Edmx>
+    `);
+    expect(() => odataSourceSchemaV2(unreviewed, "Assets", context)).toThrow(
+      /unsupported or missing CSDL version 4\.02/,
+    );
+
+    const openComplex = parseOdataMetadata(`
+      <edmx:Edmx Version="4.0">
+        <Schema Namespace="Example">
+          <ComplexType Name="Address" OpenType="true"><Property Name="City" Type="Edm.String"/></ComplexType>
+          <EntityType Name="Asset"><Property Name="Address" Type="Example.Address"/></EntityType>
+          <EntityContainer Name="Container"><EntitySet Name="Assets" EntityType="Example.Asset"/></EntityContainer>
+        </Schema>
+      </edmx:Edmx>
+    `);
+    expect(() => odataSourceSchemaV2(openComplex, "Assets", context)).toThrow(/open complex types.*Address/);
+  });
+
+  it("maps legal OData scalar wire representations without narrowing them incorrectly", () => {
+    const schema = odataSourceSchemaV2(
+      parseOdataMetadata(`
+        <edmx:Edmx Version="4.01">
+          <Schema Namespace="Example">
+            <EntityType Name="Values">
+              <Property Name="Amount" Type="Edm.Decimal" Precision="18"/>
+              <Property Name="ObservedAt" Type="Edm.DateTimeOffset"/>
+              <Property Name="FineTime" Type="Edm.TimeOfDay" Precision="6"/>
+              <Property Name="TooFine" Type="Edm.Duration" Precision="12"/>
+              <Property Name="Payload" Type="Edm.Binary"/>
+              <Property Name="Reading" Type="Edm.Double"/>
+            </EntityType>
+            <EntityContainer Name="Container"><EntitySet Name="Values" EntityType="Example.Values"/></EntityContainer>
+          </Schema>
+        </edmx:Edmx>
+      `),
+      "Values",
+      context,
+    )!;
+
+    expect(schema.fields.find((field) => field.name === "Amount")?.type).toEqual({
+      kind: "decimal",
+      precision: 18,
+      scale: 0,
+      jsonEncoding: "string",
+    });
+    expect(schema.fields.find((field) => field.name === "ObservedAt")?.type).toEqual({
+      kind: "timestamp",
+      unit: "second",
+      timezone: "offset",
+    });
+    expect(schema.fields.find((field) => field.name === "FineTime")?.type).toEqual({
+      kind: "time",
+      unit: "microsecond",
+    });
+    expect(schema.fields.find((field) => field.name === "TooFine")?.type).toMatchObject({
+      kind: "unknown",
+      reason: "unsupported",
+    });
+    expect(schema.fields.find((field) => field.name === "Payload")?.type).toEqual({
+      kind: "binary",
+      encoding: "opaque",
+    });
+    expect(schema.fields.find((field) => field.name === "Reading")?.type).toEqual({
+      kind: "union",
+      members: [
+        { kind: "float", bits: 64 },
+        { kind: "string", encoding: "odata-special-float" },
+      ],
+    });
+  });
+
+  it("does not certify cloned or caller-assembled OData metadata as closed", () => {
+    const parsed = parseOdataMetadata(`
+      <edmx:Edmx Version="4.0">
+        <Schema Namespace="Example">
+          <EntityType Name="Asset"><Property Name="Name" Type="Edm.String"/></EntityType>
+          <EntityContainer Name="Container"><EntitySet Name="Assets" EntityType="Example.Asset"/></EntityContainer>
+        </Schema>
+      </edmx:Edmx>
+    `);
+    expect(odataSourceSchemaV2(parsed, "Assets", context)?.openContent).toBe("closed");
+    expect(odataSourceSchemaV2(structuredClone(parsed), "Assets", context)?.openContent).toBe("unknown");
   });
 
   it("preserves nested OData geometry while degrading the unaddressable source inventory", () => {
@@ -2000,6 +2174,69 @@ describe("source schema v2 discovery adapters", () => {
     expect(defaultConnection.source().descriptor.schemaV2).toBeUndefined();
 
     const cached = structuredClone(snapshot);
+
+    const missingSchema = structuredClone(snapshot);
+    delete (missingSchema.sources[0] as { schemaV2?: unknown }).schemaV2;
+    const missingSchemaFetch = vi.fn(async () => new Response("unexpected", { status: 500 }));
+    await expect(
+      connectWithSourceSchemaV2({
+        endpoint: "https://example.test/odata",
+        protocol: "odata",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn: missingSchemaFetch },
+        cache: { get: () => missingSchema, set: vi.fn() },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+    expect(missingSchemaFetch).not.toHaveBeenCalled();
+
+    let deepExtension: JsonValue = "leaf";
+    for (let depth = 0; depth < 28; depth += 1) deepExtension = { next: deepExtension };
+    const largeSchema = createSourceSchemaV2({
+      fields: [],
+      key: { state: "none" },
+      geometry: { state: "none", reason: "no-geometry-fields" },
+      temporal: { state: "none" },
+      openContent: "closed",
+      provenance: [{ method: "observed", protocol: "odata", source: "https://example.test/$metadata" }],
+      extensions: {
+        "io.honua.cache-bounds": {
+          wide: Array.from({ length: 10_001 }, (_, index) => index),
+          deep: deepExtension,
+        },
+      },
+    });
+    const largeCached = structuredClone(snapshot);
+    (largeCached.sources[0] as { schemaV2?: unknown }).schemaV2 = largeSchema;
+    const largeHit = await connectWithSourceSchemaV2({
+      endpoint: "https://example.test/odata",
+      protocol: "odata",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: vi.fn(async () => new Response("unexpected", { status: 500 })) },
+      cache: { get: () => largeCached, set: vi.fn() },
+    });
+    expect(largeHit.source().descriptor.schemaV2?.fingerprint).toBe(largeSchema.fingerprint);
+    expect(Object.isFrozen(largeHit.source().descriptor.schemaV2?.extensions?.["io.honua.cache-bounds"])).toBe(true);
+
+    const accessorCached = structuredClone(snapshot);
+    let accessorReads = 0;
+    Object.defineProperty(accessorCached.sources[0]!, "schemaV2", {
+      enumerable: true,
+      get: () => {
+        accessorReads += 1;
+        return largeSchema;
+      },
+    });
+    await expect(
+      connectWithSourceSchemaV2({
+        endpoint: "https://example.test/odata",
+        protocol: "odata",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn: vi.fn() },
+        cache: { get: () => accessorCached, set: vi.fn() },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+    expect(accessorReads).toBe(0);
+
     const hit = await connectWithSourceSchemaV2({
       endpoint: "https://example.test/odata",
       protocol: "odata",
@@ -2040,6 +2277,30 @@ describe("source schema v2 discovery adapters", () => {
         cache: { get: () => tampered, set: vi.fn() },
       }),
     ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+  });
+
+  it("does not cache a focused projection when metadata advertises no field inventory", async () => {
+    const metadata = `<?xml version="1.0"?>
+<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+  <edmx:DataServices>
+    <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="Example">
+      <EntityContainer Name="Container"><EntitySet Name="Assets" EntityType="Example.Missing"/></EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>`;
+    const cacheSet = vi.fn();
+    const result = await connectWithSourceSchemaV2({
+      endpoint: "https://example.test/odata",
+      protocol: "odata",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: vi.fn(async () => new Response(metadata, { headers: { "Content-Type": "application/xml" } })),
+      },
+      cache: { get: () => undefined, set: cacheSet },
+    });
+
+    expect(result.source().descriptor.schemaV2).toBeUndefined();
+    expect(cacheSet).not.toHaveBeenCalled();
   });
 
   it("degrades a malformed OData key reference without changing legacy connect success", async () => {

@@ -5,14 +5,17 @@
  * It is scheduled/manual only: default PR and local validation never contact it.
  */
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import { validateEvidenceEnvelope } from "./sample-contract.mjs";
 
 const TIMEOUT_MS = 30_000;
 const INCIDENT_OBSERVATION_WINDOW_MS = 12_000;
+const PRODUCER_PATH = "scripts/live-benchmark-evidence.mjs";
 
 class SkipTargetError extends Error {
   constructor(message) {
@@ -47,6 +50,15 @@ function gitCommit() {
   } catch {
     return null;
   }
+}
+
+async function contentBoundProducerArtifact() {
+  const bytes = await readFile(fileURLToPath(import.meta.url));
+  return {
+    kind: "producer-generator",
+    path: PRODUCER_PATH,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
 }
 
 function sanitizedBaseUrl(value) {
@@ -207,7 +219,7 @@ function assertionStrings(checks) {
   return Object.entries(checks ?? {}).map(([name, value]) => `${name}=${JSON.stringify(value)}`);
 }
 
-export function toSampleEvidence(target, sdk, generatedAt) {
+export function toSampleEvidence(target, sdk, generatedAt, producerArtifact) {
   const executed = target.status === "passed";
   const failed = target.status === "failed";
   const observedAt = target.freshness?.observedAt ?? target.completedAt ?? generatedAt;
@@ -252,13 +264,14 @@ export function toSampleEvidence(target, sdk, generatedAt) {
       reasons: executed ? [] : [target.error ?? target.skipReason ?? "Live target did not execute."],
     },
     ...(target.realtime ? { realtime: target.realtime } : {}),
-    artifacts: [],
+    artifacts: producerArtifact ? [producerArtifact] : [],
   });
 }
 
 export async function collectLiveEvidence(env = process.env) {
   const generatedAt = new Date().toISOString();
   const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+  const producerArtifact = await contentBoundProducerArtifact();
   const enabled = env.HONUA_BENCH_LIVE_ENABLED === "true";
   if (!enabled) {
     const sdk = { package: packageJson.name, version: packageJson.version, gitCommit: gitCommit() };
@@ -310,7 +323,7 @@ export async function collectLiveEvidence(env = process.env) {
       },
       targets: disabledTargets.map((rawTarget) => {
         const { sampleId: _sampleId, journeyId: _journeyId, attribution: _attribution, ...target } = rawTarget;
-        return { ...target, sampleEvidence: toSampleEvidence(rawTarget, sdk, generatedAt) };
+        return { ...target, sampleEvidence: toSampleEvidence(rawTarget, sdk, generatedAt, producerArtifact) };
       }),
     };
   }
@@ -562,7 +575,7 @@ export async function collectLiveEvidence(env = process.env) {
   ]);
   const targets = rawTargets.map((rawTarget) => {
     const { sampleId: _sampleId, journeyId: _journeyId, attribution: _attribution, ...target } = rawTarget;
-    return { ...target, sampleEvidence: toSampleEvidence(rawTarget, sdk, generatedAt) };
+    return { ...target, sampleEvidence: toSampleEvidence(rawTarget, sdk, generatedAt, producerArtifact) };
   });
 
   const failed = targets.filter((target) => target.status === "failed").length;

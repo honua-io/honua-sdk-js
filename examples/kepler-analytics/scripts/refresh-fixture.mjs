@@ -49,7 +49,41 @@ const DATASET_SPECS = [
 ];
 
 function env(name, fallback = "") {
-  const value = process.env[name];
+  let value;
+  switch (name) {
+    case "HONUA_DEMO_API_KEY":
+      value = process.env.HONUA_DEMO_API_KEY;
+      break;
+    case "HONUA_DEMO_BASE_URL":
+      value = process.env.HONUA_DEMO_BASE_URL;
+      break;
+    case "HONUA_DEMO_BEARER_TOKEN":
+      value = process.env.HONUA_DEMO_BEARER_TOKEN;
+      break;
+    case "HONUA_DEMO_COVERAGE_ZONES_LAYER_ID":
+      value = process.env.HONUA_DEMO_COVERAGE_ZONES_LAYER_ID;
+      break;
+    case "HONUA_DEMO_COVERAGE_ZONES_SERVICE_ID":
+      value = process.env.HONUA_DEMO_COVERAGE_ZONES_SERVICE_ID;
+      break;
+    case "HONUA_DEMO_ENV_LABEL":
+      value = process.env.HONUA_DEMO_ENV_LABEL;
+      break;
+    case "HONUA_DEMO_INCIDENTS_LAYER_ID":
+      value = process.env.HONUA_DEMO_INCIDENTS_LAYER_ID;
+      break;
+    case "HONUA_DEMO_INCIDENTS_SERVICE_ID":
+      value = process.env.HONUA_DEMO_INCIDENTS_SERVICE_ID;
+      break;
+    case "HONUA_DEMO_UNIT_TRACKS_LAYER_ID":
+      value = process.env.HONUA_DEMO_UNIT_TRACKS_LAYER_ID;
+      break;
+    case "HONUA_DEMO_UNIT_TRACKS_SERVICE_ID":
+      value = process.env.HONUA_DEMO_UNIT_TRACKS_SERVICE_ID;
+      break;
+    default:
+      throw new Error(`Unsupported environment variable ${name}.`);
+  }
   return typeof value === "string" ? value.trim() || fallback : fallback;
 }
 

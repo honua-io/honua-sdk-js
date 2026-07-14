@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import type { ExecutableBoundingBox, IsoInstant, SchemaIdentityFor, SourceSchemaV2 } from "../../src/contract/index.js";
 import {
   cloneSourceSchemaV2,
   createSourceSchemaV2,
@@ -10,10 +9,14 @@ import {
 } from "../../src/source-schema.js";
 import type {
   CrsDefinition,
+  ExecutableBoundingBox,
   GeometryTypeKnowledge,
+  IsoInstant,
   JsonObject,
   LogicalField,
   MetadataProvenance,
+  SchemaIdentityFor,
+  SourceSchemaV2,
   SourceSchemaV2Input,
 } from "../../src/source-schema.js";
 
@@ -686,6 +689,13 @@ describe("SourceSchemaV2 canonical contract", () => {
       }),
     },
     {
+      name: "decimal beyond declared integer digits",
+      field: integerField({
+        type: { kind: "decimal", precision: 3, scale: 2, jsonEncoding: "string" },
+        domain: { state: "coded", values: [{ value: "123" }], openness: "closed" },
+      }),
+    },
+    {
       name: "invalid calendar date",
       field: integerField({ type: { kind: "date" }, defaultValue: "2026-02-30" }),
     },
@@ -1127,6 +1137,8 @@ describe("SourceSchemaV2 canonical contract", () => {
       "private-material",
       "AKIA1234567890ABCDEF",
       "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dGVzdHNpZ25hdHVyZQ",
+      "backslash-password",
+      "backslash-token",
     ];
     const schema = createSourceSchemaV2(
       tabularInput({
@@ -1157,6 +1169,9 @@ describe("SourceSchemaV2 canonical contract", () => {
                     },
                     {
                       value: "endpoint=http://malformed:malformed-password@example.test:bad/path?token=malformed-token",
+                    },
+                    {
+                      value: String.raw`endpoint=https:\\backslash:backslash-password@example.test:bad\path?token=backslash-token`,
                     },
                     { value: secrets[13] },
                     { value: secrets[14] },

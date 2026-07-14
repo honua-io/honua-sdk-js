@@ -189,6 +189,7 @@ jobs:
         run: |
           npm run samples:verify
           npm run samples:verify:flagships
+          npm run samples:fixtures:verify
 
       - name: Code style
         run: npm run check
@@ -222,6 +223,9 @@ jobs:
 
       - name: Verify public-surface inventory and imports
         run: npm run verify:public-surface
+
+      - name: Verify generated support truth
+        run: npm run support:check
 
       - name: Verify browser artifact publication manifest
         run: node scripts/sample-contract.mjs artifacts

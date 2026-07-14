@@ -339,6 +339,7 @@ export type CrsDefinition =
       readonly kind: "wkt";
       readonly wkt: string;
       readonly dialect: "wkt1" | "wkt2" | "unknown";
+      readonly validation: "unverified" | "engine";
       readonly name?: string;
       readonly definitionAxisOrder: AxisOrder;
     }
@@ -362,7 +363,9 @@ export type CrsDefinition =
       readonly native?: NativeTypeReference;
     };
 
-export type ResolvedCrsDefinition = Exclude<CrsDefinition, { readonly kind: "unknown" }>;
+export type ResolvedCrsDefinition =
+  | Exclude<CrsDefinition, { readonly kind: "unknown" | "wkt" }>
+  | (Extract<CrsDefinition, { readonly kind: "wkt" }> & { readonly validation: "engine" });
 
 export interface ReprojectionRecord {
   readonly source: ResolvedCrsDefinition;

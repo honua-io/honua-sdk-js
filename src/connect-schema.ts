@@ -42,6 +42,7 @@ import { canonicalStringify, toJsonValue } from "./query-planner/canonical.js";
 const MAX_NATIVE_DEFINITION_BYTES = 64 * 1024;
 const MAX_FIELD_DOMAIN_BYTES = 1024 * 1024;
 const MAX_CODED_DOMAIN_VALUES = 10_000;
+const SUPPORTED_CSDL_VERSIONS = new Set(["4.0", "4.01"]);
 
 export interface SchemaNormalizationContext {
   readonly protocol: SourceProtocol;
@@ -181,7 +182,12 @@ export function odataSourceSchemaV2(
     // A scalar date/time type does not establish a semantic time dimension.
     // OData needs an explicit protocol annotation before we assign time roles.
     temporal: { state: "none" },
-    openContent: metadata.openTypes?.[typeName] === true ? "open" : "closed",
+    openContent:
+      metadata.openTypes?.[typeName] === true
+        ? "open"
+        : SUPPORTED_CSDL_VERSIONS.has(getOdataSourceSchemaProjectionSafety(metadata)?.csdlVersion ?? "")
+          ? "closed"
+          : "unknown",
     provenance: [provenance({ ...context, protocol: "odata" })],
   });
 }
@@ -203,6 +209,12 @@ function odataProjectionIssue(
 ): { readonly typeName: string; readonly reason: string } | undefined {
   const safety = getOdataSourceSchemaProjectionSafety(metadata);
   if (!safety) return undefined;
+  if (safety.csdlVersion !== undefined && !SUPPORTED_CSDL_VERSIONS.has(safety.csdlVersion)) {
+    return {
+      typeName,
+      reason: `unsupported or missing CSDL version ${safety.csdlVersion ?? "unknown"}`,
+    };
+  }
   const collection = /^Collection\((.+)\)$/.exec(typeName);
   const nativeTypeName = collection?.[1] ?? typeName;
   if (nativeTypeName.startsWith("Edm.")) return undefined;
@@ -217,6 +229,9 @@ function odataProjectionIssue(
   }
   if (safety.inheritedTypeNames.includes(localName)) {
     return { typeName: localName, reason: "BaseType inheritance is not projected" };
+  }
+  if (safety.openComplexTypeNames.includes(localName)) {
+    return { typeName: localName, reason: "open complex types are not projected" };
   }
   const referencedFields = metadata.fields[localName] ?? metadata.complexTypes?.[localName];
   for (const field of referencedFields ?? []) {
@@ -568,30 +583,36 @@ function odataLogicalType(
     case "Edm.Int64":
       return { kind: "integer", bits: 64, signed: true, jsonEncoding: "string" };
     case "Edm.Single":
-      return { kind: "float", bits: 32 };
+      return odataFloatType(32);
     case "Edm.Double":
-      return { kind: "float", bits: 64 };
+      return odataFloatType(64);
     case "Edm.Decimal":
+      if (field.precision !== undefined && field.precision === 0) {
+        return { kind: "unknown", reason: "unrecognized", native };
+      }
       return {
         kind: "decimal",
         ...(field.precision === undefined ? {} : { precision: field.precision }),
-        ...(typeof field.scale === "number" ? { scale: field.scale } : {}),
+        ...(field.scale === undefined ? { scale: 0 } : typeof field.scale === "number" ? { scale: field.scale } : {}),
         jsonEncoding: "string",
       };
     case "Edm.String":
       return { kind: "string", ...(typeof field.maxLength === "number" ? { maxLength: field.maxLength } : {}) };
     case "Edm.Binary":
-      return { kind: "binary", encoding: "base64" };
+      // OData uses unpadded base64url. The current contract has no dedicated
+      // base64url discriminator, so retain the exact native type and avoid
+      // falsely validating it as RFC 4648 base64 with `+`, `/`, and padding.
+      return { kind: "binary", encoding: "opaque" };
     case "Edm.Guid":
       return { kind: "uuid" };
     case "Edm.Date":
       return { kind: "date" };
     case "Edm.TimeOfDay":
-      return { kind: "time", unit: "nanosecond" };
+      return odataTemporalType("time", field.precision, native);
     case "Edm.DateTimeOffset":
-      return { kind: "timestamp", unit: "nanosecond", timezone: "offset" };
+      return odataTemporalType("timestamp", field.precision, native);
     case "Edm.Duration":
-      return { kind: "duration", unit: "nanosecond" };
+      return odataTemporalType("duration", field.precision, native);
     case "Edm.Stream":
       return { kind: "binary", encoding: "url" };
     default:
@@ -599,6 +620,31 @@ function odataLogicalType(
         ? { kind: "geometry" }
         : { kind: "unknown", reason: "unrecognized", native };
   }
+}
+
+function odataFloatType(bits: 32 | 64): LogicalType {
+  return {
+    kind: "union",
+    members: [
+      { kind: "float", bits },
+      { kind: "string", encoding: "odata-special-float" },
+    ],
+  };
+}
+
+function odataTemporalType(
+  kind: "time" | "timestamp" | "duration",
+  precision: number | undefined,
+  native: NativeTypeReference,
+): LogicalType {
+  const digits = precision ?? 0;
+  if (!Number.isSafeInteger(digits) || digits < 0 || digits > 12) {
+    return { kind: "unknown", reason: "unrecognized", native };
+  }
+  if (digits > 9) return { kind: "unknown", reason: "unsupported", native };
+  const unit = digits === 0 ? "second" : digits <= 3 ? "millisecond" : digits <= 6 ? "microsecond" : "nanosecond";
+  if (kind === "timestamp") return { kind, unit, timezone: "offset" };
+  return { kind, unit };
 }
 
 function odataDomain(
@@ -802,19 +848,20 @@ function duckDbLogicalType(
   const varchar = /^(?:VARCHAR|CHAR|BPCHAR)\s*\(\s*(\d+)\s*\)$/i.exec(type);
   if (varchar) return { kind: "string", maxLength: Number(varchar[1]) };
   if (/^(?:VARCHAR|CHAR|BPCHAR|TEXT|STRING)$/i.test(type)) return { kind: "string" };
-  if (/^(?:BLOB|BYTEA|BINARY|VARBINARY)$/i.test(type)) return { kind: "binary", encoding: "opaque" };
+  if (/^(?:BLOB|BYTEA|BINARY|VARBINARY)$/i.test(type)) return { kind: "binary", encoding: "base64" };
   if (upper === "UUID") return { kind: "uuid" };
   if (upper === "DATE") return { kind: "date" };
   if (upper.startsWith("TIME") && !upper.startsWith("TIMESTAMP"))
     return { kind: "time", unit: duckTemporalUnit(upper) };
   if (upper.startsWith("TIMESTAMP")) {
+    if (upper.includes("_NS")) return { kind: "unknown", reason: "unsupported", native };
     return {
       kind: "timestamp",
       unit: duckTemporalUnit(upper),
       timezone: /(?:TZ|WITH TIME ZONE)$/.test(upper) ? "utc" : "local",
     };
   }
-  if (upper === "INTERVAL") return { kind: "duration", unit: "microsecond" };
+  if (upper === "INTERVAL") return { kind: "unknown", reason: "unsupported", native };
   if (upper === "JSON") return { kind: "json" };
   if (upper.includes("GEOMETRY") || upper.includes("GEOGRAPHY")) return { kind: "geometry" };
   return {
@@ -1013,6 +1060,7 @@ function geoServicesCrs(
           kind: "wkt",
           wkt,
           dialect,
+          validation: "unverified",
           definitionAxisOrder: { state: "unknown", reason: "unrecognized", native },
         }
       : { kind: "unknown", reason: "unrecognized", native };
@@ -1028,8 +1076,13 @@ function geoServicesCrs(
     const conflictingPair =
       canonicalDeclaredWkid !== undefined &&
       canonicalLatestWkid !== undefined &&
-      canonicalDeclaredWkid !== canonicalLatestWkid;
-    const wkid = conflictingPair ? undefined : (canonicalDeclaredWkid ?? canonicalLatestWkid);
+      canonicalDeclaredWkid !== canonicalLatestWkid &&
+      recognizedGeoServicesAuthorityWkid(canonicalDeclaredWkid) &&
+      recognizedGeoServicesAuthorityWkid(canonicalLatestWkid);
+    // Esri defines latestWkid as the current identifier for the same spatial
+    // reference. Prefer it when present; only call a pair contradictory when
+    // both identifiers independently resolve to different reviewed CRSs.
+    const wkid = conflictingPair ? undefined : (canonicalLatestWkid ?? canonicalDeclaredWkid);
     if (wkid === undefined) {
       definition = {
         kind: "unknown",
@@ -1059,6 +1112,12 @@ function recognizedWktDialect(value: string): "wkt1" | "wkt2" | undefined {
   const root = /^\s*([A-Za-z][A-Za-z0-9_]*)\s*([[(])/.exec(value);
   if (!root || !balancedWktDelimiters(value.slice(root[0].length - 1))) return undefined;
   const name = root[1]!.toUpperCase();
+  const body = value.slice(root[0].length);
+  if (name === "BOUNDCRS") {
+    if (!/^\s*SOURCECRS\s*[[(]/i.test(body) || !/\bTARGETCRS\s*[[(]/i.test(body)) return undefined;
+  } else if (!/^\s*"(?:[^"]|"")+"\s*(?:,|[\])])/.test(body)) {
+    return undefined;
+  }
   if (new Set(["GEOGCS", "PROJCS", "GEOCCS", "VERT_CS", "LOCAL_CS", "COMPD_CS", "FITTED_CS"]).has(name)) {
     return "wkt1";
   }
@@ -1106,6 +1165,10 @@ function canonicalGeoServicesWkid(value: number | undefined): number | undefined
   return value === 102100 || value === 102113 ? 3857 : value;
 }
 
+function recognizedGeoServicesAuthorityWkid(value: number): boolean {
+  return value === 4326 || value === 3857;
+}
+
 function crsFromValue(value: unknown, native: NativeTypeReference): CrsDefinition {
   if (typeof value === "string") {
     const authority = /^([A-Za-z][A-Za-z0-9_-]*):([^\s:]+)$/.exec(value);
@@ -1123,13 +1186,13 @@ function crsFromValue(value: unknown, native: NativeTypeReference): CrsDefinitio
   const json = boundedJson(value);
   if (json && !Array.isArray(json) && typeof json === "object") {
     const projjson = json as JsonObject;
-    if (typeof projjson.type === "string" && typeof projjson.name === "string") {
+    if (typeof projjson.type === "string") {
       const axis = projJsonAxisOrder(projjson, native);
       try {
         return validateSourceCrsDefinition({
           kind: "projjson",
           projjson,
-          name: projjson.name,
+          ...(typeof projjson.name === "string" ? { name: projjson.name } : {}),
           definitionAxisOrder: axis,
         });
       } catch {

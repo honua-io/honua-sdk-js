@@ -18,7 +18,7 @@
 import type { HonuaClient } from "../core/client.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { HonuaExtent, HonuaFieldInfo, HonuaServerCompatibilityFeature, HonuaTypedFeature } from "../core/types.js";
-import type { SourceSchemaV2 } from "./schema.js";
+import type { SourceSchemaV2Envelope } from "./schema-envelope.js";
 
 // ── Protocol identifiers ──────────────────────────────────────
 
@@ -111,7 +111,6 @@ export type Capability =
   | "sql"
   | "stream"
   | "pbf"
-  | "connect"
   | "image"
   | "geometry"
   | "geoprocess"
@@ -132,7 +131,6 @@ export const CAPABILITIES: readonly Capability[] = [
   "sql",
   "stream",
   "pbf",
-  "connect",
   "image",
   "geometry",
   "geoprocess",
@@ -229,7 +227,6 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
     "sql",
     "stream",
     "pbf",
-    "connect",
   ]),
   "geoservices-map-service": capabilities([
     "query",
@@ -242,17 +239,9 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
     "sql",
     "stream",
   ]),
-  "geoservices-image-service": capabilities([
-    "query",
-    "queryExtent",
-    "queryObjectIds",
-    "image",
-    "render",
-    "tiles",
-    "connect",
-  ]),
-  "geoservices-geometry-service": capabilities(["geometry", "connect"]),
-  "geoservices-gp-service": capabilities(["geoprocess", "connect"]),
+  "geoservices-image-service": capabilities(["query", "queryExtent", "queryObjectIds", "image", "render", "tiles"]),
+  "geoservices-geometry-service": capabilities(["geometry"]),
+  "geoservices-gp-service": capabilities(["geoprocess"]),
   "ogc-features": capabilities(["query", "queryObjectIds", "applyEdits", "stream"]),
   "ogc-tiles": capabilities(["render", "tiles"]),
   "ogc-maps": capabilities(["render"]),
@@ -270,7 +259,9 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   geoparquet: capabilities(["query", "queryAggregate", "stream"]),
   "maplibre-vector": capabilities(["render", "tiles"]),
   "maplibre-raster": capabilities(["render", "tiles"]),
-  "maplibre-geojson": capabilities(["render"]),
+  // Reserved/recognized protocol token only: inline MapPackage GeoJSON is supported,
+  // but descriptor-to-runtime support for maplibre-geojson is not implemented.
+  "maplibre-geojson": capabilities([]),
 };
 
 // ── Source identity ───────────────────────────────────────────
@@ -419,8 +410,12 @@ export interface SourceDescriptor {
   locator: SourceLocator;
   capabilities: Capabilities;
   schema?: SourceSchema;
-  /** Experimental vendor-neutral schema, dual-read alongside legacy `schema`. */
-  schemaV2?: SourceSchemaV2;
+  /**
+   * Identity envelope for an experimental vendor-neutral schema projected
+   * alongside legacy `schema`. Use `@honua/sdk-js/source-schema` to validate
+   * and inspect the complete schema value.
+   */
+  schemaV2?: SourceSchemaV2Envelope;
   analytics?: SourceAnalyticsCapabilities;
   attribution?: string;
 }
@@ -509,7 +504,7 @@ export interface AggregationMetric {
  * or the corresponding WFS / OData request.
  *
  * `spatialFilter` is a `SpatialFilter` produced by the spatial-filter builders
- * (`envelope`, `point`, `polygon`, `buffer`, …), not an inline literal.
+ * (`envelope`, `point`, `polygon`, `bufferEnvelope`, …), not an inline literal.
  *
  * @example
  * ```ts

@@ -698,7 +698,7 @@ function immutableDescriptor(descriptor: SourceDescriptor, effectiveCapabilities
     locator: cloneAndDeepFreeze(descriptor.locator),
     capabilities: immutableCapabilities([...effectiveCapabilities]),
     ...(descriptor.schema ? { schema: cloneAndDeepFreeze(descriptor.schema) } : {}),
-    ...(descriptor.schemaV2 ? { schemaV2: immutableSourceSchemaV2(descriptor.schemaV2) } : {}),
+    ...(descriptor.schemaV2 !== undefined ? { schemaV2: immutableSourceSchemaV2(descriptor.schemaV2) } : {}),
     ...(descriptor.analytics ? { analytics: cloneAndDeepFreeze(descriptor.analytics) } : {}),
   });
 }

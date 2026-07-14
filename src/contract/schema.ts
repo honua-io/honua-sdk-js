@@ -12,7 +12,7 @@
 
 import { canonicalStringify, sha256, toJsonValue } from "../query-planner/canonical.js";
 import validateProjJsonV07Crs from "./generated/projjson-v0.7-crs-validator.js";
-import { SOURCE_SCHEMA_V2_KIND, SOURCE_SCHEMA_V2_VERSION } from "./schema-envelope.js";
+import { SOURCE_SCHEMA_V2_KIND, SOURCE_SCHEMA_V2_VERSION, type SourceSchemaV2Envelope } from "./schema-envelope.js";
 import { PROTOCOLS, type Protocol } from "./types.js";
 
 export { SOURCE_SCHEMA_V2_KIND, SOURCE_SCHEMA_V2_VERSION } from "./schema-envelope.js";
@@ -120,6 +120,8 @@ export type CrsDefinition =
       readonly kind: "wkt";
       readonly wkt: string;
       readonly dialect: "wkt1" | "wkt2" | "unknown";
+      /** Only engine-validated WKT is safe to use for execution. */
+      readonly validation: "unverified" | "engine";
       readonly name?: string;
       readonly definitionAxisOrder: AxisOrder;
     }
@@ -141,7 +143,9 @@ export type CrsDefinition =
       readonly native?: NativeTypeReference;
     };
 
-export type ResolvedCrsDefinition = Exclude<CrsDefinition, { readonly kind: "unknown" }>;
+export type ResolvedCrsDefinition =
+  | Exclude<CrsDefinition, { readonly kind: "unknown" | "wkt" }>
+  | (Extract<CrsDefinition, { readonly kind: "wkt" }> & { readonly validation: "engine" });
 
 export interface ReprojectionRecord {
   readonly source: ResolvedCrsDefinition;
@@ -528,10 +532,7 @@ export type TemporalSchema =
   | { readonly state: "mixed"; readonly fields: NonEmptyReadonlyArray<string> }
   | { readonly state: "unknown"; readonly reason: "metadata-unavailable" | "not-declared" | "conflicting" };
 
-export interface SourceSchemaV2 {
-  readonly kind: typeof SOURCE_SCHEMA_V2_KIND;
-  readonly version: typeof SOURCE_SCHEMA_V2_VERSION;
-  readonly fingerprint: Sha256;
+export interface SourceSchemaV2 extends SourceSchemaV2Envelope {
   readonly fields: readonly LogicalField[];
   readonly key: KeyDefinition;
   readonly geometry: SourceGeometrySchema;
@@ -1544,13 +1545,17 @@ function normalizeCrsDefinition(value: unknown, path: string): CrsDefinition {
         definitionAxisOrder: normalizeAxisOrder(record.definitionAxisOrder, `${path}.definitionAxisOrder`),
       };
     case "wkt":
-      exactKeys(record, path, ["kind", "wkt", "dialect", "name", "definitionAxisOrder"]);
+      exactKeys(record, path, ["kind", "wkt", "dialect", "validation", "name", "definitionAxisOrder"]);
       if (!includes(["wkt1", "wkt2", "unknown"] as const, record.dialect))
         throw new TypeError(`${path}.dialect is invalid`);
+      if (!includes(["unverified", "engine"] as const, record.validation)) {
+        throw new TypeError(`${path}.validation is invalid`);
+      }
       return {
         kind: "wkt",
         wkt: text(record.wkt, `${path}.wkt`),
         dialect: record.dialect,
+        validation: record.validation,
         ...(record.name === undefined ? {} : { name: text(record.name, `${path}.name`) }),
         definitionAxisOrder: normalizeAxisOrder(record.definitionAxisOrder, `${path}.definitionAxisOrder`),
       };
@@ -1649,7 +1654,7 @@ function normalizeCrsProvenance(value: unknown, path: string): CrsProvenance {
     ]);
     const source = normalizeCrsDefinition(reprojection.source, `${path}.reprojection.source`);
     const target = normalizeCrsDefinition(reprojection.target, `${path}.reprojection.target`);
-    if (source.kind === "unknown" || target.kind === "unknown")
+    if (!isResolvedCrsDefinition(source) || !isResolvedCrsDefinition(target))
       throw new TypeError(`${path}.reprojection CRS must be resolved`);
     return {
       method: "reprojected",
@@ -1683,6 +1688,10 @@ function normalizeCrsProvenance(value: unknown, path: string): CrsProvenance {
     method: record.method,
     ...(record.native === undefined ? {} : { native: normalizeNative(record.native, `${path}.native`) }),
   };
+}
+
+function isResolvedCrsDefinition(definition: CrsDefinition): definition is ResolvedCrsDefinition {
+  return definition.kind !== "unknown" && (definition.kind !== "wkt" || definition.validation === "engine");
 }
 
 function normalizeNative(value: unknown, path: string): NativeTypeReference {
@@ -1752,7 +1761,7 @@ function sanitizeNativeDefinition(value: JsonValue): JsonValue {
 
 function sanitizeNativeString(value: string): string {
   if (/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/.test(value)) return REDACTED_NATIVE_VALUE;
-  let sanitized = value.replace(/[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s<>"',]+/g, (url) => sanitizeNativeUrl(url));
+  let sanitized = value.replace(/[A-Za-z][A-Za-z0-9+.-]*:[/\\]{2}[^\s<>"',]+/g, (url) => sanitizeNativeUrl(url));
   sanitized = sanitized.replace(/\b(Bearer|Basic)\s+[^\s,;]+/gi, `$1 ${REDACTED_NATIVE_VALUE}`);
   sanitized = sanitized.replace(
     /\b(?:eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|(?:AKIA|ASIA|AIDA|AROA|AIPA|ANPA|ANVA|ASCA)[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{20,})\b/g,
@@ -1769,7 +1778,8 @@ function sanitizeNativeString(value: string): string {
 }
 
 function sanitizeNativeUrl(value: string): string {
-  if (!/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value)) return value;
+  if (!/^[A-Za-z][A-Za-z0-9+.-]*:[/\\]{2}/.test(value)) return value;
+  if (value.includes("\\")) return REDACTED_NATIVE_VALUE;
   try {
     const url = new URL(value);
     url.username = "";
@@ -2008,6 +2018,7 @@ function crsDefinitionFingerprintProjection(definition: CrsDefinition): JsonValu
         kind: definition.kind,
         wkt: definition.wkt,
         dialect: definition.dialect,
+        validation: definition.validation,
         definitionAxisOrder: axisFingerprintProjection(definition.definitionAxisOrder),
       };
     case "uri":
@@ -2488,6 +2499,7 @@ function decimalDigitsFit(
 ): boolean {
   if (scale !== undefined && fraction.length > scale) return false;
   const integerDigits = integer === "0" ? 0 : integer.length;
+  if (precision !== undefined && scale !== undefined && integerDigits > precision - scale) return false;
   const totalDigits = Math.max(1, integerDigits + fraction.length);
   return precision === undefined || totalDigits <= precision;
 }

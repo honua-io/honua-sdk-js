@@ -145,8 +145,10 @@ export interface HonuaOdataMetadata {
 
 /** @internal Parser evidence used only by the opt-in SourceSchemaV2 projector. */
 export interface HonuaOdataSourceSchemaProjectionSafety {
+  readonly csdlVersion?: string;
   readonly ambiguousTypeNames: readonly string[];
   readonly inheritedTypeNames: readonly string[];
+  readonly openComplexTypeNames: readonly string[];
   readonly unqualifiedTypeNames: readonly string[];
 }
 
@@ -170,7 +172,7 @@ export interface HonuaOdataFieldInfo {
   nullable?: boolean;
   maxLength?: number | "max";
   precision?: number;
-  scale?: number | "variable";
+  scale?: number | "variable" | "floating";
   /** True when the field is an `Edm.Geography` / `Edm.Geometry` column. */
   isSpatial?: boolean;
   /** Optional SRID hint declared in the type or annotation. */
@@ -412,7 +414,7 @@ export class HonuaOdataEntitySet {
   ): Promise<T> {
     const path = this.entitySetPath();
     return this.requestJson<T>("POST", path, undefined, options.signal, JSON.stringify(body), {
-      "Content-Type": ODATA_IEEE754_JSON,
+      "Content-Type": "application/json",
     });
   }
 
@@ -430,7 +432,7 @@ export class HonuaOdataEntitySet {
   ): Promise<T | undefined> {
     const path = `${this.entitySetPath()}(${encodeOdataKey(key)})`;
     return this.requestJson<T | undefined>("PATCH", path, undefined, options.signal, JSON.stringify(body), {
-      "Content-Type": ODATA_IEEE754_JSON,
+      "Content-Type": "application/json",
     });
   }
 
@@ -463,11 +465,7 @@ export class HonuaOdataEntitySet {
       id: op.id ?? String(index + 1),
       method: op.method,
       url: stripLeadingSlash(op.url),
-      ...(op.headers
-        ? { headers: odataIeee754Headers(op.headers, true) }
-        : {
-            headers: odataIeee754Headers(undefined, true),
-          }),
+      headers: odataJsonWriteHeaders(op.headers),
       ...(op.body !== undefined ? { body: op.body } : {}),
       ...(groupId !== undefined ? { atomicityGroup: groupId } : {}),
     }));
@@ -477,7 +475,7 @@ export class HonuaOdataEntitySet {
       undefined,
       options.signal,
       JSON.stringify({ requests }),
-      { "Content-Type": ODATA_IEEE754_JSON },
+      { "Content-Type": "application/json" },
     );
     return { responses: response.responses ?? [] };
   }
@@ -652,20 +650,26 @@ export class HonuaOdataEntitySet {
 
 // ── Helpers ───────────────────────────────────────────────────
 
-function odataIeee754Headers(
-  headers: Readonly<Record<string, string>> | undefined,
-  contentType = false,
-): Record<string, string> {
+function odataIeee754Headers(headers: Readonly<Record<string, string>> | undefined): Record<string, string> {
   const normalized = Object.fromEntries(
-    Object.entries(headers ?? {}).filter(
-      ([name]) => name.toLowerCase() !== "accept" && (!contentType || name.toLowerCase() !== "content-type"),
-    ),
+    Object.entries(headers ?? {}).filter(([name]) => name.toLowerCase() !== "accept"),
   );
   return {
     ...normalized,
     Accept: ODATA_IEEE754_JSON,
-    ...(contentType ? { "Content-Type": ODATA_IEEE754_JSON } : {}),
   };
+}
+
+function odataJsonWriteHeaders(headers: Readonly<Record<string, string>> | undefined): Record<string, string> {
+  let contentType = "application/json";
+  const normalized = Object.fromEntries(
+    Object.entries(headers ?? {}).filter(([name, value]) => {
+      if (name.toLowerCase() !== "content-type") return name.toLowerCase() !== "accept";
+      contentType = value;
+      return false;
+    }),
+  );
+  return { ...normalized, Accept: ODATA_IEEE754_JSON, "Content-Type": contentType };
 }
 
 function withOdataMetadataCacheState(
@@ -981,8 +985,11 @@ export function parseOdataMetadata(xml: string): HonuaOdataMetadata {
 }
 
 function inspectOdataSourceSchemaProjectionSafety(xml: string): HonuaOdataSourceSchemaProjectionSafety {
+  const edmx = /<(?:[A-Za-z_][\w.-]*:)?Edmx\b([^>]*)>/i.exec(xml);
+  const csdlVersion = edmx ? readAttr(edmx[1] ?? "", "Version") : undefined;
   const declarations = new Map<string, Map<string, number>>();
   const inheritedTypeNames = new Set<string>();
+  const openComplexTypeNames = new Set<string>();
   const unqualifiedTypeNames = new Set<string>();
   for (const schemaMatch of xml.matchAll(/<Schema\b([^>]*)>([\s\S]*?)<\/Schema>/g)) {
     const schemaAttributes = schemaMatch[1] ?? "";
@@ -999,6 +1006,9 @@ function inspectOdataSourceSchemaProjectionSafety(xml: string): HonuaOdataSource
       declarations.set(name, identities);
       if (!namespace) unqualifiedTypeNames.add(name);
       if (kind !== "EnumType" && readAttr(attributes, "BaseType")) inheritedTypeNames.add(name);
+      if (kind === "ComplexType" && readAttr(attributes, "OpenType")?.toLowerCase() === "true") {
+        openComplexTypeNames.add(name);
+      }
     }
   }
   const ambiguousTypeNames = [...declarations]
@@ -1006,8 +1016,10 @@ function inspectOdataSourceSchemaProjectionSafety(xml: string): HonuaOdataSource
     .map(([name]) => name)
     .sort();
   return Object.freeze({
+    ...(csdlVersion === undefined ? {} : { csdlVersion }),
     ambiguousTypeNames: Object.freeze(ambiguousTypeNames),
     inheritedTypeNames: Object.freeze([...inheritedTypeNames].sort()),
+    openComplexTypeNames: Object.freeze([...openComplexTypeNames].sort()),
     unqualifiedTypeNames: Object.freeze([...unqualifiedTypeNames].sort()),
   });
 }
@@ -1055,10 +1067,11 @@ function parseOdataProperties(body: string): HonuaOdataFieldInfo[] {
     }
     if (precisionAttr !== undefined) {
       const precision = Number(precisionAttr);
-      if (Number.isSafeInteger(precision) && precision > 0) info.precision = precision;
+      if (Number.isSafeInteger(precision) && precision >= 0) info.precision = precision;
     }
-    if (scaleAttr?.toLowerCase() === "variable") info.scale = "variable";
-    else if (scaleAttr !== undefined) {
+    if (scaleAttr?.toLowerCase() === "variable" || scaleAttr?.toLowerCase() === "floating") {
+      info.scale = scaleAttr.toLowerCase() as "variable" | "floating";
+    } else if (scaleAttr !== undefined) {
       const scale = Number(scaleAttr);
       if (Number.isSafeInteger(scale) && scale >= 0) info.scale = scale;
     }

@@ -4,6 +4,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
+
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
 const distRoot = path.resolve(exampleRoot, "dist");
@@ -21,7 +23,7 @@ function buildDemoIfNeeded() {
   const result = spawnSync(npmCommand, ["run", "demo:stac-browser:build", "--silent"], {
     cwd: projectRoot,
     stdio: "inherit",
-    env: process.env,
+    env: createFixtureBuildEnvironment(),
   });
   if (result.status !== 0) throw new Error("Failed to build the STAC Imagery Catalog Browser sample.");
 }

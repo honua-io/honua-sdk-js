@@ -191,6 +191,13 @@ await registry.dispose();
   cleanup failure; `HonuaPluginRegistryError.cleanupErrors` preserves those
   failures separately, so the primary `cause` is not hidden. Cleanup receives a
   fresh non-aborted signal even when the registration signal caused rollback.
+- `HonuaPluginRegistryError` participates in the common tagged SDK error
+  envelope while preserving its existing `PLUGIN_*` `.code`, message,
+  `instanceof`, primary `cause`, and frozen cleanup aggregate. Its grouped
+  `.sdkCode` is always non-retryable. Serialization reports only a fixed known
+  reason code plus safe cause classification; manifests, configuration/plugin
+  identifiers, cause payloads, and cleanup failures stay local. Unknown runtime
+  codes fail closed as `plugin.internal` / `PLUGIN_UNKNOWN` without coercion.
 - `dispose()` is idempotent, returns the same promise to concurrent callers, and
   performs reverse stop/dispose exactly once. Duplicate ids prevent implicit
   upgrades or state migration; because manifest v1 has no state-migration

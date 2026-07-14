@@ -40,7 +40,7 @@ import {
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
 } from "./contract/discovery.js";
-import type { SourceSchemaV2 } from "./contract/schema.js";
+import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
 import { createDataset } from "./contract/source.js";
 import type {
   Dataset,
@@ -85,22 +85,22 @@ export interface ConnectSourceSchemaProjectionContext {
  */
 export interface ConnectSourceSchemaProjection {
   readonly cacheIdentity: string;
-  parseCached(value: unknown): SourceSchemaV2;
+  parseCached(value: unknown): SourceSchemaV2Envelope;
   geoServices(
     metadata: HonuaLayerMetadata,
     context: ConnectSourceSchemaProjectionContext & {
       readonly protocol: "geoservices-feature-service" | "geoservices-map-service";
     },
-  ): SourceSchemaV2 | undefined;
+  ): SourceSchemaV2Envelope | undefined;
   odata(
     metadata: HonuaOdataMetadata,
     entitySet: string,
     context: ConnectSourceSchemaProjectionContext,
-  ): SourceSchemaV2 | undefined;
+  ): SourceSchemaV2Envelope | undefined;
   geoParquet(
     profile: GeoParquetSourceProfile,
     context: ConnectSourceSchemaProjectionContext,
-  ): SourceSchemaV2 | undefined;
+  ): SourceSchemaV2Envelope | undefined;
 }
 
 /** Schema version for values stored through {@link ConnectDiscoveryCache}. */
@@ -141,8 +141,8 @@ export interface ConnectDiscoverySourceSnapshot {
   readonly crs?: readonly string[];
   readonly extent?: ConnectDiscoveryExtent;
   readonly schema?: SourceSchema;
-  /** Experimental v2 schema projected alongside the byte-compatible legacy schema. */
-  readonly schemaV2?: SourceSchemaV2;
+  /** Lightweight identity envelope for an opt-in v2 schema cache payload. */
+  readonly schemaV2?: SourceSchemaV2Envelope;
   readonly evidence?: readonly DiscoveryCapabilityEvidence[];
 }
 
@@ -232,17 +232,21 @@ export interface HonuaConnection {
   source<T = Record<string, unknown>>(id?: SourceId): Source<T>;
 }
 
-export type ConnectResolvedProtocol =
-  | "ogc-features"
-  | "stac"
-  | "wfs"
-  | "odata"
-  | "geoparquet"
-  | "ogc-records"
-  | "ogc-tiles"
-  | "ogc-maps"
-  | "geoservices-feature-service"
-  | "geoservices-map-service";
+/** Source-backed protocols with a reviewed top-level {@link connect} discovery adapter. */
+export const CONNECT_SOURCE_PROTOCOLS = [
+  "ogc-features",
+  "stac",
+  "wfs",
+  "odata",
+  "geoparquet",
+  "ogc-records",
+  "ogc-tiles",
+  "ogc-maps",
+  "geoservices-feature-service",
+  "geoservices-map-service",
+] as const satisfies readonly Protocol[];
+
+export type ConnectResolvedProtocol = (typeof CONNECT_SOURCE_PROTOCOLS)[number];
 
 /**
  * Discover an explicitly identified endpoint and return reviewed descriptors.
@@ -353,7 +357,12 @@ export async function connectWithSourceSchemaProjection(
                     : target.protocol === "ogc-maps"
                       ? await discoverOgcMaps(client, identity, target, options)
                       : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
-    if (options.cache) {
+    if (
+      options.cache &&
+      (!sourceSchemaProjection ||
+        !sourceSchemaProjectionApplies(target.protocol) ||
+        snapshot.sources.every((source) => source.schemaV2 !== undefined))
+    ) {
       await awaitAbortable(options.cache.set(identity, snapshot, cacheContext), options.signal);
       throwIfAborted(options.signal);
     }
@@ -1117,7 +1126,8 @@ function validateSnapshot(
   typeName: string | undefined,
   sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): ConnectDiscoverySnapshot {
-  const owned = snapshotCacheData(value);
+  const projectionApplies = Boolean(sourceSchemaProjection && sourceSchemaProjectionApplies(target.protocol));
+  const owned = snapshotCacheData(value, projectionApplies ? sourceSchemaProjection : undefined);
   if (
     owned.version !== HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION ||
     owned.identityKey !== identity.key ||
@@ -1151,9 +1161,9 @@ function validateSnapshot(
     if (source.schema?.fields !== undefined && !Array.isArray(source.schema.fields)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source schema fields must be an array.");
     }
-    let schemaV2: SourceSchemaV2 | undefined;
+    let schemaV2: SourceSchemaV2Envelope | undefined;
     if (source.schemaV2 !== undefined) {
-      if (!sourceSchemaProjection) {
+      if (!sourceSchemaProjection || !projectionApplies) {
         throw new HonuaDiscoveryError(
           "invalid-discovery-cache",
           "Cached source schemaV2 requires the focused source-schema connection path.",
@@ -1169,6 +1179,11 @@ function validateSnapshot(
           { cause },
         );
       }
+    } else if (projectionApplies) {
+      throw new HonuaDiscoveryError(
+        "invalid-discovery-cache",
+        "Focused discovery cache source is missing its validated schemaV2 payload.",
+      );
     }
     if (source.evidence !== undefined && (!Array.isArray(source.evidence) || source.evidence.length === 0)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached source evidence must be a non-empty array.");
@@ -1213,9 +1228,31 @@ function validateSnapshot(
   return Object.freeze({ ...owned, evidence: sharedEvidence, sources: Object.freeze(sources) });
 }
 
-function snapshotCacheData(value: unknown): ConnectDiscoverySnapshot {
+function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boolean {
+  return (
+    protocol === "odata" ||
+    protocol === "geoparquet" ||
+    protocol === "geoservices-feature-service" ||
+    protocol === "geoservices-map-service"
+  );
+}
+
+type CacheClonePosition = "root" | "root-sources" | "source" | "ordinary";
+
+function snapshotCacheData(
+  value: unknown,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
+): ConnectDiscoverySnapshot {
   try {
-    const cloned = cloneCacheData(value, "$", new Set(), { nodes: 0, properties: 0, stringCodeUnits: 0 }, 0);
+    const cloned = cloneCacheData(
+      value,
+      "$",
+      new Set(),
+      { nodes: 0, properties: 0, stringCodeUnits: 0 },
+      0,
+      "root",
+      sourceSchemaProjection,
+    );
     if (!isPlainObject(cloned)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache snapshot must be a plain object.");
     }
@@ -1245,6 +1282,8 @@ function cloneCacheData(
   seen: Set<object>,
   budget: CacheCloneBudget,
   depth: number,
+  position: CacheClonePosition,
+  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): unknown {
   if (depth > MAX_CACHE_SNAPSHOT_DEPTH) {
     throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached snapshot exceeds the maximum nesting depth.");
@@ -1296,7 +1335,17 @@ function cloneCacheData(
         if (!descriptor || "get" in descriptor || !descriptor.enumerable) {
           throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached array at ${path} must be dense data.`);
         }
-        out.push(cloneCacheData(descriptor.value, `${path}[${index}]`, seen, budget, depth + 1));
+        out.push(
+          cloneCacheData(
+            descriptor.value,
+            `${path}[${index}]`,
+            seen,
+            budget,
+            depth + 1,
+            position === "root-sources" ? "source" : "ordinary",
+            sourceSchemaProjection,
+          ),
+        );
       }
       const extra = stringKeys.filter((key) => key !== "length" && !/^(0|[1-9]\d*)$/.test(key));
       if (extra.length > 0) {
@@ -1317,7 +1366,28 @@ function cloneCacheData(
       if ("get" in descriptor || !descriptor.enumerable) {
         throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached property ${path}.${key} must be data.`);
       }
-      out[key] = cloneCacheData(descriptor.value, `${path}.${key}`, seen, budget, depth + 1);
+      if (position === "source" && key === "schemaV2" && sourceSchemaProjection) {
+        try {
+          out[key] = sourceSchemaProjection.parseCached(descriptor.value);
+        } catch (cause) {
+          throw new HonuaDiscoveryError(
+            "invalid-discovery-cache",
+            "Cached source schemaV2 is invalid or its fingerprint has drifted.",
+            undefined,
+            { cause },
+          );
+        }
+        continue;
+      }
+      out[key] = cloneCacheData(
+        descriptor.value,
+        `${path}.${key}`,
+        seen,
+        budget,
+        depth + 1,
+        position === "root" && key === "sources" ? "root-sources" : "ordinary",
+        sourceSchemaProjection,
+      );
     }
     return Object.freeze(out);
   } finally {

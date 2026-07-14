@@ -54,7 +54,10 @@
       "examples/**/*.ts",
       "examples/**/*.tsx",
       "examples/**/*.mjs",
-      "examples/**/*.json"
+      "examples/**/*.json",
+      "samples/**/*.mjs",
+      "samples/**/*.mts",
+      "samples/**/*.json"
     ],
     "ignore": [
       "dist",

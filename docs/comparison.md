@@ -24,19 +24,19 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-14 at commit `f88a38e`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-14 at commit `d792539`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 374.6 KiB | 99.1 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 195.9 KiB | 50.2 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 18.0 KiB | 6.8 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 241.6 KiB | 63.6 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 963.4 KiB | 240.2 KiB |
-| Geocoding client | 12.5 KiB | 3.9 KiB |
-| Routing client | 6.1 KiB | 2.5 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 398.3 KiB | 104.7 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 212.9 KiB | 53.9 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 35.8 KiB | 11.3 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 258.5 KiB | 68.0 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 980.4 KiB | 243.8 KiB |
+| Geocoding client | 28.9 KiB | 8.4 KiB |
+| Routing client | 22.6 KiB | 7.0 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 5.21.1, measured locally from
 this repo's pinned dependency (`dist/maplibre-gl.js`) — is 1024.9 KiB minified / **267.9 KiB gzip**.
@@ -53,8 +53,8 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 374.6 KiB ≈
-1.37 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1024.9 KiB + Honua root 398.3 KiB ≈
+1.39 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
 0.36 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.

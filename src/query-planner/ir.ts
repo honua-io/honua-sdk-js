@@ -131,8 +131,8 @@ function geoparquetIdentity(
 ): QueryIrSourceIdentity["geoparquet"] {
   const { url, geoparquet } = descriptor.locator;
   const sources: string[] = [];
-  if (typeof url === "string" && url.length > 0) sources.push(url);
-  if (geoparquet?.urls) sources.push(...geoparquet.urls);
+  if (typeof url === "string" && url.length > 0) sources.push(credentialFreePlanResource(url));
+  if (geoparquet?.urls) sources.push(...geoparquet.urls.map(credentialFreePlanResource));
   const geometryColumn = geoparquet?.geometryColumn ?? geometryProperty;
   return {
     sources,
@@ -140,6 +140,32 @@ function geoparquetIdentity(
     ...(geoparquet?.geometryEncoding ? { geometryEncoding: geoparquet.geometryEncoding } : {}),
     ...(geoparquet?.bboxColumn ? { bboxColumn: geoparquet.bboxColumn } : {}),
   };
+}
+
+function credentialFreePlanResource(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+      throw new HonuaQueryPlanningError(
+        "invalid-query",
+        "GeoParquet plan sources must be credential-free stable resource URLs; inject authorization outside query IR.",
+      );
+    }
+    return parsed.toString();
+  } catch (cause) {
+    if (cause instanceof HonuaQueryPlanningError) throw cause;
+    if (rawUrl.includes("?") || rawUrl.includes("#")) {
+      throw new HonuaQueryPlanningError(
+        "invalid-query",
+        "GeoParquet plan sources must not contain query or fragment credentials.",
+      );
+    }
+    const safe = credentialFreeEndpoint(rawUrl);
+    if (safe === "[invalid-endpoint]") {
+      throw new HonuaQueryPlanningError("invalid-query", "GeoParquet plan source URL is unsafe.");
+    }
+    return safe;
+  }
 }
 
 function canonicalizeAggregation(aggregation: AggregationSpec): AggregationSpec {
@@ -190,7 +216,7 @@ function credentialFreeEndpoint(rawUrl: string): string {
     return parsed.toString().replace(/\/$/, "");
   } catch {
     const path = rawUrl.split(/[?#]/, 1)[0] ?? rawUrl;
-    const malformedAuthority = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(rawUrl) || /^\/\//.test(rawUrl);
+    const malformedAuthority = /^[A-Za-z][A-Za-z0-9+.-]*:[/\\]{2}/.test(rawUrl) || /^[/\\]{2}/.test(rawUrl);
     const bareUserInfo = /^[^/?#\\\s]+:[^/?#\\\s]*@/.test(rawUrl);
     const unsafeCharacters = [...rawUrl].some((character) => {
       const codePoint = character.codePointAt(0)!;

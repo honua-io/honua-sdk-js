@@ -414,6 +414,7 @@ export function rowEstimateSql(sources: readonly string[]): string {
  * rows for Parquet-native geometry files, which carry no `geo` metadata.
  */
 export function geoMetadataSql(sources: readonly string[]): string {
-  const first = stringLiteral(sources[0] ?? "");
-  return `SELECT value FROM parquet_kv_metadata(${first}) WHERE decode(key) = 'geo'`;
+  const list = sources.map(stringLiteral);
+  const arg = list.length === 1 ? list[0] : `[${list.join(", ")}]`;
+  return `SELECT files.file_name, geo.value FROM parquet_file_metadata(${arg}) AS files LEFT JOIN parquet_kv_metadata(${arg}) AS geo ON geo.file_name = files.file_name AND decode(geo.key) = 'geo' ORDER BY files.file_name`;
 }

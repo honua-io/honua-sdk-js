@@ -7,6 +7,8 @@
  * @module
  */
 
+import { type HonuaErrorMetadata, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+
 /**
  * Stage of the runtime pipeline a failure occurred in. Keeping this as a
  * string union lets callers switch on it without a dependency on the
@@ -36,7 +38,7 @@ export type HonuaMapPackageErrorStage =
  * query-time rejections forwarded by mixed-source consumers — see
  * `docs/composition.md`.
  */
-export class HonuaMapPackageError extends Error {
+export class HonuaMapPackageError extends HonuaSdkError {
   public readonly packageId: string | undefined;
   public readonly stage: HonuaMapPackageErrorStage;
   public readonly detail: unknown;
@@ -49,9 +51,14 @@ export class HonuaMapPackageError extends Error {
       stage: HonuaMapPackageErrorStage;
       detail?: unknown;
       cause?: unknown;
-    },
+    } & HonuaErrorMetadata,
   ) {
-    super(message);
+    super(MAP_PACKAGE_ERROR_CODES[options.stage], message, {
+      cause: options.cause,
+      operationId: options.operationId,
+      requestId: options.requestId,
+      context: mergeHonuaErrorContext(options.context, { packageId: options.packageId, stage: options.stage }),
+    });
     this.name = "HonuaMapPackageError";
     this.packageId = options.packageId;
     this.stage = options.stage;
@@ -59,3 +66,15 @@ export class HonuaMapPackageError extends Error {
     this.cause = options.cause;
   }
 }
+
+const MAP_PACKAGE_ERROR_CODES = {
+  fetch: "runtime.map-package.fetch",
+  load: "runtime.map-package.load",
+  validate: "runtime.map-package.validate",
+  update: "runtime.map-package.update",
+  "style-compose": "runtime.map-package.style-compose",
+  "source-bind": "runtime.map-package.source-bind",
+  view: "runtime.map-package.view",
+  popup: "runtime.map-package.popup",
+  dispose: "runtime.map-package.dispose",
+} as const satisfies Record<HonuaMapPackageErrorStage, `runtime.map-package.${string}`>;

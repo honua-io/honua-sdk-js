@@ -84,9 +84,40 @@ describe("query IR", () => {
     expect(JSON.stringify(malformedIr)).not.toContain("password");
     expect(JSON.stringify(malformedIr)).not.toContain("secret");
 
+    const backslashAuthority = descriptor();
+    backslashAuthority.locator.url = String.raw`https:\\user:backslash-password@example.test:bad\path?token=backslash-token`;
+    const backslashIr = createQueryIr({ descriptor: backslashAuthority, query: {} });
+    expect(backslashIr.source.endpoint).toBe("[invalid-endpoint]");
+    expect(JSON.stringify(backslashIr)).not.toContain("backslash-password");
+    expect(JSON.stringify(backslashIr)).not.toContain("backslash-token");
+
     const relative = descriptor();
     relative.locator.url = "fixtures/places.parquet?token=secret#fragment";
     expect(createQueryIr({ descriptor: relative, query: {} }).source.endpoint).toBe("fixtures/places.parquet");
+  });
+
+  it("never serializes credentials from GeoParquet execution sources", () => {
+    const geoparquet: SourceDescriptor = {
+      id: "places",
+      protocol: "geoparquet",
+      locator: {
+        url: "https://user:primary-password@example.test/places.parquet?token=primary-token",
+        geoparquet: {
+          urls: ["https://other:additional-password@example.test/more.parquet?sig=additional-token"],
+        },
+      },
+      capabilities: capabilities(["query"]),
+    };
+
+    expect(() => createQueryIr({ descriptor: geoparquet, query: {} })).toThrow(HonuaQueryPlanningError);
+    try {
+      createQueryIr({ descriptor: geoparquet, query: {} });
+    } catch (error) {
+      expect(JSON.stringify(error)).not.toContain("primary-password");
+      expect(JSON.stringify(error)).not.toContain("additional-password");
+      expect(String(error)).not.toContain("primary-token");
+      expect(String(error)).not.toContain("additional-token");
+    }
   });
 
   it("rejects non-serializable geometry and invalid pagination", () => {
@@ -255,6 +286,7 @@ describe("executeQueryPlan", () => {
       capabilityPolicy: "degraded",
       fallback: { mode: "bounded-local", maxRows: 2 },
       authorizationScope: ["read"],
+      schemaVersion: "schema-one",
     });
     const overflow = fakeSource(descriptor(false), {
       queryAll: vi.fn().mockResolvedValue({
@@ -262,23 +294,32 @@ describe("executeQueryPlan", () => {
         exceededTransferLimit: false,
       }),
     });
-    await expect(executeQueryPlan(plan, overflow, { authorizationScope: ["read"] })).rejects.toMatchObject({
+    await expect(
+      executeQueryPlan(plan, overflow, { authorizationScope: ["read"], schemaVersion: "schema-one" }),
+    ).rejects.toMatchObject({
       code: "unsafe-materialization",
     });
     const truncated = fakeSource(descriptor(false), {
       queryAll: vi.fn().mockResolvedValue({ features: [feature({ OBJECTID: 1 })], exceededTransferLimit: true }),
     });
-    await expect(executeQueryPlan(plan, truncated, { authorizationScope: ["read"] })).rejects.toMatchObject({
+    await expect(
+      executeQueryPlan(plan, truncated, { authorizationScope: ["read"], schemaVersion: "schema-one" }),
+    ).rejects.toMatchObject({
       code: "unsafe-materialization",
     });
-    await expect(executeQueryPlan(plan, overflow, { authorizationScope: ["other"] })).rejects.toMatchObject({
+    await expect(
+      executeQueryPlan(plan, overflow, { authorizationScope: ["other"], schemaVersion: "schema-one" }),
+    ).rejects.toMatchObject({
       code: "plan-context-mismatch",
     });
+    await expect(
+      executeQueryPlan(plan, overflow, { authorizationScope: ["read"], schemaVersion: "schema-two" }),
+    ).rejects.toMatchObject({ code: "plan-context-mismatch" });
 
     const tampered = { ...plan, warnings: ["changed"] } as typeof plan;
-    await expect(executeQueryPlan(tampered, overflow, { authorizationScope: ["read"] })).rejects.toBeInstanceOf(
-      HonuaQueryPlanExecutionError,
-    );
+    await expect(
+      executeQueryPlan(tampered, overflow, { authorizationScope: ["read"], schemaVersion: "schema-one" }),
+    ).rejects.toBeInstanceOf(HonuaQueryPlanExecutionError);
   });
 
   it("enforces the optional runtime byte ceiling", async () => {

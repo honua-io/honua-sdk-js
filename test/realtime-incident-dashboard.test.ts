@@ -171,9 +171,28 @@ describe("realtime incident dashboard fixture", () => {
     });
   });
 
+  it.each(["client_secret", "x-api-key", "X-Goog-Signature"])(
+    "rejects the %s credential query parameter from public endpoints",
+    (credentialKey) => {
+      const baseUrl = new URL("https://demo.honua.io");
+      baseUrl.searchParams.set(credentialKey, "must-not-enter-the-browser");
+      const search = new URLSearchParams({ baseUrl: baseUrl.href }).toString();
+      expect(() => readIncidentTransportConfig({ search: `?${search}` } as Location)).toThrow(
+        "Incident endpoint must not contain credential query parameters.",
+      );
+    },
+  );
+
+  it("preserves benign public endpoint query parameters", () => {
+    const baseUrl = "https://demo.honua.io/tenant?style=night&page_tokenized=true";
+    const search = new URLSearchParams({ baseUrl }).toString();
+    expect(readIncidentTransportConfig({ search: `?${search}` } as Location).demoBaseUrl).toBe(baseUrl);
+  });
+
   it("uses an explicit isolated fixture-edit lane for required CI", async () => {
     const fixtureLocation = {
-      search: "?transport=fixture-edit",
+      origin: "http://127.0.0.1:4173",
+      search: "?transport=fixture-edit&fixtureRun=incident-operations",
     } as Location;
     const fixtureConfig = readIncidentTransportConfig(fixtureLocation);
     const fixtureResolved = await resolveIncidentTransportConfig(fixtureConfig, {
@@ -181,7 +200,29 @@ describe("realtime incident dashboard fixture", () => {
         throw new Error("fixture configuration must not access the network");
       },
     });
-    const fixture = createIncidentDashboardTransport(fixtureResolved);
+    const actionRequests: string[] = [];
+    const fixture = createIncidentDashboardTransport(fixtureResolved, {
+      fetchFn: (async (input, init) => {
+        actionRequests.push(String(input));
+        if (String(input).endsWith("/actions/refresh")) {
+          return await new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener(
+              "abort",
+              () => reject(new DOMException("Fixture action aborted.", "AbortError")),
+              { once: true },
+            );
+          });
+        }
+        return new Response(
+          JSON.stringify({
+            label: "Escalate outage",
+            kind: "upsert",
+            event: { type: "upsert", feature: { id: "INC-1002", feature: INITIAL_INCIDENTS[1] } },
+          }),
+          { status: 200 },
+        );
+      }) as typeof fetch,
+    });
 
     expect(fixture.controls).toMatchObject({
       mode: "fixture-edit",
@@ -189,7 +230,13 @@ describe("realtime incident dashboard fixture", () => {
       safeDemoEditing: true,
       authorized: true,
     });
-    expect(fixture.transport.capabilities?.kind).toBe("mock");
+    expect(fixtureConfig).toMatchObject({
+      demoBaseUrl: "http://127.0.0.1:4173",
+      streamUrl: "http://127.0.0.1:4173/api/v1/streaming/features",
+      fixtureRunId: "incident-operations",
+      fixtureControlUrl: "http://127.0.0.1:4173/__fixture__/runs/incident-operations",
+    });
+    expect(fixture.transport.capabilities?.kind).toBe("sse");
     expect(fixture.request).toMatchObject({
       requestId: "realtime-incident-dashboard",
       sourceId: INCIDENT_SOURCE_ID,
@@ -200,6 +247,182 @@ describe("realtime incident dashboard fixture", () => {
         livePreferred: true,
       },
     });
+    await expect(fixture.controls.step()).resolves.toMatchObject({ label: "Escalate outage", kind: "upsert" });
+    expect(actionRequests).toEqual(["http://127.0.0.1:4173/__fixture__/runs/incident-operations/actions/step"]);
+    const pendingRefresh = fixture.controls.refresh();
+    fixture.controls.dispose();
+    await expect(pendingRefresh).rejects.toMatchObject({ name: "AbortError" });
+    await expect(fixture.controls.step()).rejects.toMatchObject({ name: "AbortError" });
+    expect(actionRequests.at(-1)).toBe("http://127.0.0.1:4173/__fixture__/runs/incident-operations/actions/refresh");
+  });
+
+  it("rejects missing runs and cross-origin fixture-edit endpoints before creating controls", () => {
+    const origin = "http://127.0.0.1:4173";
+    expect(() => readIncidentTransportConfig({ origin, search: "?transport=fixture-edit" } as Location)).toThrow(
+      /explicit valid fixtureRun/i,
+    );
+    for (const search of [
+      "?transport=fixture-edit&fixtureRun=incident.operations",
+      "?transport=fixture-edit&fixtureRun=incident_operations",
+      "?transport=fixture-edit&fixtureRun=incident-a&fixtureRun=incident-b",
+    ]) {
+      expect(() => readIncidentTransportConfig({ origin, search } as Location), search).toThrow(
+        /explicit valid fixtureRun/i,
+      );
+    }
+
+    for (const parameter of ["baseUrl", "streamUrl", "capabilitiesUrl"]) {
+      const search = new URLSearchParams({
+        transport: "fixture-edit",
+        fixtureRun: "incident-operations",
+        [parameter]: "http://127.0.0.1:9999/foreign",
+      });
+      expect(() => readIncidentTransportConfig({ origin, search: `?${search}` } as Location)).toThrow(/same origin/i);
+    }
+  });
+
+  it("rejects malformed remote action acknowledgements, events, incidents, and conflict receipts", async () => {
+    const config = {
+      ...readIncidentTransportConfig({
+        origin: "http://127.0.0.1:4173",
+        search: "?transport=fixture-edit&fixtureRun=incident-operations",
+      } as Location),
+      mode: "fixture-edit" as const,
+    };
+    const controlsFor = (payload: unknown, status = 200) =>
+      createIncidentDashboardTransport(config, {
+        fetchFn: (async () => new Response(JSON.stringify(payload), { status })) as typeof fetch,
+      }).controls;
+    const invalidActions: Array<{
+      payload: unknown;
+      invoke(controls: ReturnType<typeof controlsFor>): Promise<unknown>;
+    }> = [
+      { payload: { label: 7, kind: "upsert" }, invoke: (controls) => controls.step() },
+      { payload: { label: "Step", kind: "move" }, invoke: (controls) => controls.step() },
+      {
+        payload: {
+          label: "Step",
+          kind: "upsert",
+          event: { type: "upsert", feature: { id: "INC-1002", feature: { id: "INC-1002" } } },
+        },
+        invoke: (controls) => controls.step(),
+      },
+      { payload: { reconnecting: false }, invoke: (controls) => controls.reconnect() },
+      { payload: { resumed: "true" }, invoke: (controls) => controls.resume() },
+      { payload: [], invoke: (controls) => controls.refresh() },
+      { payload: { duplicated: 1 }, invoke: (controls) => controls.duplicateLast() },
+      { payload: { staleCursorInjected: null }, invoke: (controls) => controls.staleCursor() },
+      {
+        payload: { incident: { id: SAFE_DEMO_INCIDENT_ID } },
+        invoke: (controls) => controls.simulateConcurrentUpdate(),
+      },
+    ];
+    for (const invalid of invalidActions) {
+      const controls = controlsFor(invalid.payload);
+      await expect(invalid.invoke(controls)).rejects.toThrow(/malformed response/i);
+      controls.dispose();
+    }
+    const noPriorDuplicate = controlsFor({ duplicated: false });
+    await expect(noPriorDuplicate.duplicateLast()).resolves.toBeUndefined();
+    noPriorDuplicate.dispose();
+
+    const request = {
+      incidentId: SAFE_DEMO_INCIDENT_ID,
+      expectedRevision: 1,
+      idempotencyKey: "malformed-edit",
+      patch: { status: "monitoring" as const, assignedTo: "Exercise Lead" },
+    };
+    for (const status of [200, 409]) {
+      const controls = controlsFor(
+        {
+          outcome: 7,
+          operation: "edit",
+          idempotencyKey: request.idempotencyKey,
+          reason: "Invalid outcome type",
+        },
+        status,
+      );
+      await expect(controls.edit(request)).rejects.toThrow(/malformed response/i);
+      controls.dispose();
+    }
+    const mismatchedReceipt = controlsFor({
+      outcome: "conflict",
+      operation: "edit",
+      idempotencyKey: "another-request",
+      reason: "Mismatched request binding",
+    });
+    await expect(mismatchedReceipt.edit(request)).rejects.toThrow(/malformed response/i);
+    mismatchedReceipt.dispose();
+
+    const safeIncident = INITIAL_INCIDENTS.find((incident) => incident.id === SAFE_DEMO_INCIDENT_ID);
+    expect(safeIncident).toBeDefined();
+    if (!safeIncident) throw new Error("Test fixture is missing its safe incident.");
+    for (const payload of [
+      {
+        outcome: "applied",
+        operation: "edit",
+        idempotencyKey: request.idempotencyKey,
+        reason: "Missing expected revision evidence",
+        actualRevision: 2,
+        incident: { ...safeIncident, revision: 2 },
+      },
+      {
+        outcome: "duplicate",
+        operation: "edit",
+        idempotencyKey: request.idempotencyKey,
+        reason: "Missing actual revision evidence",
+        expectedRevision: 1,
+        incident: { ...safeIncident, revision: 2 },
+      },
+    ]) {
+      const malformedSuccess = controlsFor(payload);
+      await expect(malformedSuccess.edit(request)).rejects.toThrow(/malformed response/i);
+      malformedSuccess.dispose();
+    }
+
+    for (const incident of [
+      { ...safeIncident, updatedAt: "2026-02-31T00:00:00Z", revision: 2 },
+      { ...safeIncident, reportedAt: "2026-05-05", revision: 2 },
+    ]) {
+      const malformedTimestamp = controlsFor({
+        outcome: "applied",
+        operation: "edit",
+        idempotencyKey: request.idempotencyKey,
+        reason: "Invalid RFC 3339 timestamp evidence",
+        expectedRevision: 1,
+        actualRevision: 2,
+        incident,
+      });
+      await expect(malformedTimestamp.edit(request)).rejects.toThrow(/malformed response/i);
+      malformedTimestamp.dispose();
+    }
+
+    const malformedReset = controlsFor({
+      outcome: "reset",
+      operation: "reset-edit",
+      idempotencyKey: "malformed-reset",
+      reason: "Invalid operation vocabulary",
+    });
+    await expect(
+      malformedReset.reset({ incidentId: SAFE_DEMO_INCIDENT_ID, idempotencyKey: "malformed-reset" }),
+    ).rejects.toThrow(/malformed response/i);
+    malformedReset.dispose();
+
+    const malformedResetRevision = controlsFor({
+      outcome: "reset",
+      operation: "reset",
+      idempotencyKey: "malformed-reset-revision",
+      reason: "Mismatched reset revision evidence",
+      actualRevision: 3,
+      incident: { ...safeIncident, revision: 2 },
+    });
+    await expect(
+      malformedResetRevision.reset({
+        incidentId: SAFE_DEMO_INCIDENT_ID,
+        idempotencyKey: "malformed-reset-revision",
+      }),
+    ).rejects.toThrow(/malformed response/i);
+    malformedResetRevision.dispose();
   });
 
   it("adapts Honua server stream envelopes to the dashboard's protocol-neutral source", () => {
