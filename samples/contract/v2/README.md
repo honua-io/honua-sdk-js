@@ -13,8 +13,9 @@ execution evidence so none of those meanings has to be inferred from another.
   `lab`, and `fixture`), the seven reserved golden journey IDs, lifecycle
   targets, evidence declarations, and named validation profiles.
 - `sample-ci-selection.schema.json` describes the generated, command-safe CI
-  projection. It is the handoff to the shared runner tracked by #541; it does
-  not implement that runner.
+  projection consumed by `scripts/sample-runner.mjs`. The runner checks that
+  the projection is an exact, current derivation of the catalog before it
+  executes any command.
 - `site-projection.schema.json` contains presentation-safe metadata for every
   catalog entry and the existing route migration map. Commands, configuration
   names, credential material, and executable source are not copied to the site.
@@ -44,7 +45,7 @@ CI commands preserve execution semantics. Bounded validation actions are
 `automatic`; fixture services and setup are `orchestrated`; live-evidence
 producers are `scheduled-only`. Consumers must never flatten those groups or
 run `*:mock`/live producers as unconditional pull-request steps. Profile gates
-remain the selection contract for the shared runner in #541. Every command is
+remain the selection contract for the shared runner. Every command is
 validated as a whole: either an exact `npm run <repository-script>` invocation
 or a one-file Playwright/Vitest invocation through the repository-installed
 tool. Shell metacharacters, arguments, arbitrary `npx` packages, path traversal,
@@ -76,11 +77,18 @@ Mapbox token. Legacy status never hides observed names. The Cesium route lab is
 also explicitly legacy-unsafe with an empty environment inventory because its
 remaining unsafe inputs are URL-query parameters.
 `credentialQueryParameters` is the canonical normalized deny-list shared by the
-catalog and evidence-envelope URL validator; catalog drift or a matching query
-key fails verification. Query names are NFKC-normalized, split at camel-case
-boundaries, lowercased, and reduced to underscore-delimited tokens before exact
-or token-boundary suffix matching. Ordinary words that merely contain `key`,
-`token`, `secret`, or `signature` remain valid.
+catalog, generated projections, and evidence-envelope URL validator; catalog
+drift, user information in any valid `scheme://` URL, or a matching query key
+fails verification. Credential-shaped bearer/JWT values, correctly formed AWS
+access-key identifiers, private-key headers, and non-placeholder credential
+assignments with token-like lengths also fail before publication. Query names
+are NFKC-normalized, split at camel-case boundaries, lowercased, and reduced to
+underscore-delimited tokens before exact or token-boundary suffix matching.
+Ordinary words that merely contain `key`, `token`, `secret`, or `signature`
+remain valid. Property names participate in the same scan; normalized sensitive
+properties accept only declarative placeholders or configuration-name
+references. Traversal rejects cycles and is bounded to 64 levels and 50,000
+nodes before any schema engine sees programmatic input.
 
 Every mock-server Vite build uses the shared fixture environment boundary. It
 preserves non-browser build controls, removes all inherited `VITE_*` values,
@@ -95,10 +103,15 @@ and the current SHA-256 bytes for every producer. Path identity is checked
 before content digest; a different repository file or another reviewed
 generator cannot satisfy the command. The benchmark generator additionally
 proves that it names the sample and journey. The reported revision is metadata,
-not a claim that the current bytes were read from or attested by that Git
-commit. Non-executed evidence may report a null revision and may omit a producer
-claim, but any producer artifact it does publish is subject to the same exact
-command, path, digest, sample, and journey binding.
+not by itself a claim that arbitrary catalog evidence was read from or attested
+by that Git commit. Receipt production adds the stronger qualification
+boundary: the runner supplies a named source revision to the producer, requires
+fresh evidence at its per-run output path, and accepts that revision only when
+it exists, has the same evidence-neutral source tree, and is an ancestor of the
+checkout being used to validate the receipt. Non-executed evidence may report a
+null revision and may omit a producer claim, but any producer artifact it does
+publish is subject to the same exact command, path, digest, sample, and journey
+binding.
 
 Lifecycle states other than `active` have a target release. `merge`, `replace`,
 and `retire` also identify a non-self sample, golden journey, or typed external
@@ -118,4 +131,45 @@ Run:
 npm run samples:migrate:v1 # reproduce catalog.v2.json
 npm run samples:generate   # write generated docs and projections
 npm run samples:verify     # validate inventory, evidence, and output drift
+npm run samples:list -- --kit # inspect kit-managed samples
+npm run samples:run -- verify --kit --sdk-mode source
+npm run samples:run -- verify --kit --sdk-mode packed
 ```
+
+Gate qualification is receipt-based. `samples:run evidence` captures a clean,
+evidence-neutral source digest before launching a producer. It rejects
+skip-worktree and assume-unchanged inputs; binds the index, `HEAD`, and named
+source revision to the same digest; and requires the named revision to remain an
+ancestor of `HEAD`. This permits an evidence-only descendant commit while
+rejecting unrelated or source-changing revisions. Existing
+`samples/evidence` state is content-bound before execution.
+
+Each command group receives a fresh canonical
+`samples/evidence/<sample>/runs/<lowercase-uuid-v4>` root. Its receipts require
+that exact `runRoot`, and every generated artifact is checked
+component-by-component as a regular, non-symlink descendant. Only current
+receipt paths and that run may change. All receipts co-produced by one command
+are validated before a complete receipt tree is staged and directory-swapped
+into place. Publication failures restore the prior tree, and qualification
+requires each expected command group to share one `runRoot`; separately
+executed commands retain separate roots. Replacing a command group's receipts
+preserves all runs still referenced by any receipt; cleanup prunes only
+unreferenced UUID runs left by obsolete or failed attempts. Because the source
+digest excludes only the canonical evidence tree, committed receipts can be
+validated after promotion without recursively hashing themselves.
+
+Browser receipts are bound to the exact pilot test, every declared project and
+browser engine, first-attempt results, and finalized assertion attachment sets.
+Console assertions are finalized after quality checks, fixture teardown, and
+explicit closure of the pilot-owned page and browser context.
+Screenshot and performance receipts come from that exact browser workflow and
+bind the canonical evidence project, engine, viewport, a structurally decoded
+PNG, positive monotonic navigation/resource/interaction measurements,
+sample-ready measurement, and budget. Fixture receipts prove loopback
+readiness, a real probe, and zero listeners or connections after shutdown.
+Packed receipts bind the package tarball and re-read a self-contained copy of
+the final sample `dist` tree and resolution evidence from the same run. Live
+receipts require the reviewed producer to honor the runner's explicit enable
+flag, write a fresh envelope to the runner-provided per-run path, and reject
+exact forwarded credential values in the envelope or any declared artifact. See
+[`examples/_kit/README.md`](../../../examples/_kit/README.md) for runner usage.

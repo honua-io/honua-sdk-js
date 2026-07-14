@@ -48,6 +48,8 @@ export interface FeatureLayerQueryOptions {
   returnGeometry?: boolean;
   method?: QueryMethod;
   extraParams?: Record<string, string | number | boolean>;
+  /** Abort the in-flight query when the owning view or workflow is disposed. */
+  signal?: AbortSignal;
 }
 
 export type FeatureLayerQueryAllOptions = FeatureLayerQueryOptions & {
@@ -431,6 +433,7 @@ export class FeatureLayerCompat {
       outFields: options.outFields ?? this.outFields,
       returnGeometry: options.returnGeometry,
       method: options.method,
+      signal: options.signal,
       extraParams: timeParam ? { ...(options.extraParams ?? {}), time: timeParam } : options.extraParams,
     });
   }

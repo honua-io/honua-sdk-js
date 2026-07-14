@@ -7,12 +7,6 @@
 //      (`FeatureLayerCompat`), proving an `esri-leaflet`-style API works against
 //      services.arcgis.com URLs with zero server involvement.
 
-import { FeatureLayerCompat, parseFeatureLayerUrl } from "@honua/sdk-js/esri-compat";
-import { HonuaClient } from "@honua/sdk-js/honua";
-import { loadHonuaFeatureServiceGeoJson } from "@honua/sdk-js/map";
-
-import type { StandaloneConfig } from "./config.js";
-
 export interface StandaloneGeoJsonFeature {
   type: "Feature";
   id?: string | number;
@@ -34,12 +28,14 @@ export interface StandaloneDataset {
   compatFeatureCount: number;
   layerName: string;
   geometryType?: string;
+  /** Visible non-fatal observations, such as metadata fallback. */
+  degradationReasons: string[];
   /** `[west, south, east, north]` for `fitBounds`, when computable. */
   bounds?: [number, number, number, number];
   endpointHost: string;
 }
 
-function describeHost(url: string): string {
+export function describeHost(url: string): string {
   if (/^https?:\/\//i.test(url)) {
     try {
       return new URL(url).host;
@@ -50,7 +46,7 @@ function describeHost(url: string): string {
   return "same-origin (recorded fixture)";
 }
 
-function computeBounds(geojson: StandaloneGeoJson): [number, number, number, number] | undefined {
+export function computeBounds(geojson: StandaloneGeoJson): [number, number, number, number] | undefined {
   let west = Number.POSITIVE_INFINITY;
   let south = Number.POSITIVE_INFINITY;
   let east = Number.NEGATIVE_INFINITY;
@@ -83,40 +79,4 @@ function computeBounds(geojson: StandaloneGeoJson): [number, number, number, num
     return undefined;
   }
   return [west, south, east, north];
-}
-
-export async function loadStandaloneDataset(config: StandaloneConfig): Promise<StandaloneDataset> {
-  const parsed = parseFeatureLayerUrl(config.featureLayerUrl);
-  const client = new HonuaClient({ baseUrl: parsed.baseUrl });
-
-  // (1) One SDK call: public FeatureServer URL -> MapLibre `geojson` source.
-  const source = (await loadHonuaFeatureServiceGeoJson(client, config.featureLayerUrl, {
-    definitionExpression: config.where,
-    outFields: config.outFields,
-    maxPages: config.maxPages,
-  })) as { type: "geojson"; data: StandaloneGeoJson };
-  const geojson = source.data;
-
-  // Typed layer metadata (name/geometry) — same client, same public endpoint.
-  const metadata = await client.getLayerMetadata(parsed.serviceId, parsed.layerId).catch(() => undefined);
-
-  // (2) The esri-compat drop-in against the identical URL. This is the migration
-  // proof: `esri-leaflet`-shaped code runs standalone.
-  const featureLayer = new FeatureLayerCompat({ url: config.featureLayerUrl, client });
-  const compatResponse = await featureLayer.queryFeatures({
-    where: config.where,
-    outFields: config.outFields,
-    returnGeometry: false,
-  });
-
-  return {
-    source,
-    geojson,
-    featureCount: geojson.features.length,
-    compatFeatureCount: compatResponse.features?.length ?? 0,
-    layerName: metadata?.name ?? parsed.serviceId,
-    geometryType: metadata?.geometryType,
-    bounds: computeBounds(geojson),
-    endpointHost: describeHost(config.featureLayerUrl),
-  };
 }

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": "../..",
+    "types": ["vite/client"],
+    "paths": {
+      "@honua/sdk-js": ["src/index.ts"],
+      "@honua/sdk-js/app-workspace": ["src/_deprecated/app-workspace.ts"],
+      "@honua/sdk-js/contract": ["src/contract/index.ts"],
+      "@honua/sdk-js/esri-compat": ["src/esri-compat-entry.ts"],
+      "@honua/sdk-js/exploration": ["src/exploration/index.ts"],
+      "@honua/sdk-js/honua": ["src/honua.ts"],
+      "@honua/sdk-js/interactions": ["src/interactions/index.ts"],
+      "@honua/sdk-js/map": ["src/map/index.ts"],
+      "@honua/sdk-js/query-planner": ["src/query-planner/index.ts"],
+      "@honua/sdk-js/style": ["src/style/index.ts"]
+    }
+  }
+}

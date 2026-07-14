@@ -18,6 +18,12 @@
 // test/fixtures/backend-agnostic/.
 
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { validateEvidenceEnvelope } from "./sample-contract.mjs";
 
 const TIMEOUT_MS = 30_000;
 
@@ -130,10 +136,13 @@ async function probe(endpoint) {
 }
 
 async function main() {
+  const observedAt = new Date().toISOString();
   const rows = [];
   let failures = 0;
+  let totalMs = 0;
   for (const endpoint of ENDPOINTS) {
     const result = await probe(endpoint);
+    totalMs += result.ms;
     if (!result.ok) {
       failures += 1;
     }
@@ -160,6 +169,71 @@ async function main() {
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (summaryPath) {
     fs.appendFileSync(summaryPath, `${summary}\n`);
+  }
+
+  const evidenceOutput = process.env.HONUA_SAMPLE_LIVE_OUTPUT;
+  if (evidenceOutput) {
+    if (process.env.HONUA_SAMPLE_LIVE_SAMPLE_ID !== "standalone-quickstart") {
+      throw new Error(`Standalone live smoke cannot satisfy ${process.env.HONUA_SAMPLE_LIVE_SAMPLE_ID ?? "an unnamed sample"}`);
+    }
+    let revision = process.env.HONUA_SAMPLE_SOURCE_REVISION;
+    if (!/^[a-f0-9]{40}$/.test(revision ?? "")) {
+      revision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    }
+    const packageJson = JSON.parse(fs.readFileSync(path.resolve("package.json"), "utf8"));
+    const producerPath = "scripts/standalone-live-smoke.mjs";
+    const producerBytes = fs.readFileSync(fileURLToPath(import.meta.url));
+    const evidence = validateEvidenceEnvelope({
+      format: "honua.sdk.sample-evidence.v1",
+      schemaVersion: 1,
+      sampleId: "standalone-quickstart",
+      lane: "live",
+      status: failures === 0 ? "executed" : "failed",
+      reason: failures === 0 ? null : `${failures} documented public endpoint probe(s) failed`,
+      observedAt,
+      authMode: "anonymous",
+      sdk: { package: packageJson.name, version: packageJson.version, gitCommit: revision },
+      source: {
+        provider: "documented-public-endpoints",
+        identity: "standalone-live-smoke",
+        endpoint: "https://services.arcgis.com/",
+        deploymentVersion: null,
+        dataVersion: null,
+      },
+      provenance:
+        failures === 0
+          ? {
+              sourceId: "standalone-live-smoke",
+              observedAt,
+              validAt: null,
+              state: "live",
+              attribution: "Public endpoint providers listed by the standalone quickstart.",
+            }
+          : null,
+      semantics: {
+        operation: "standalone-public-endpoint-probe",
+        outcome: failures === 0 ? "all-documented-endpoints-responded" : null,
+        itemCount: failures === 0 ? ENDPOINTS.length : null,
+        assertions: failures === 0 ? ["all-response-shapes-matched", "no-server-required"] : [],
+      },
+      timing: {
+        totalMs,
+        firstSuccessfulInteractionMs: failures < ENDPOINTS.length ? totalMs / ENDPOINTS.length : null,
+      },
+      degradation: {
+        state: failures === 0 ? "none" : "unexpected",
+        reasons: failures === 0 ? [] : ["public-endpoint-probe-failed"],
+      },
+      artifacts: [
+        {
+          kind: "producer-generator",
+          path: producerPath,
+          sha256: createHash("sha256").update(producerBytes).digest("hex"),
+        },
+      ],
+    });
+    fs.mkdirSync(path.dirname(evidenceOutput), { recursive: true });
+    fs.writeFileSync(evidenceOutput, `${JSON.stringify(evidence, null, 2)}\n`);
   }
 
   process.exitCode = failures === 0 ? 0 : 1;

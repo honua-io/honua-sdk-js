@@ -1,0 +1,39 @@
+{
+  "format": "honua.sdk.sample-kit.v1",
+  "schemaVersion": 1,
+  "samples": [
+    {
+      "id": "service-explorer",
+      "viteConfig": "examples/service-explorer/vite.config.ts",
+      "tsconfig": "examples/service-explorer/tsconfig.json",
+      "playwrightScript": "test:playwright:service-explorer",
+      "playwrightFile": "test/playwright/service-explorer.spec.mjs",
+      "playwrightTestTitle": "service explorer source picker handles queryable and render-only standards sources",
+      "playwrightProjects": [{ "name": "chromium", "browserName": "chromium" }],
+      "evidenceProject": "chromium",
+      "sdkEntrypoints": [
+        "@honua/sdk-js",
+        "@honua/sdk-js/app-workspace",
+        "@honua/sdk-js/exploration",
+        "@honua/sdk-js/honua",
+        "@honua/sdk-js/interactions",
+        "@honua/sdk-js/style"
+      ],
+      "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
+      "workflowSelectors": ["#source-picker", "#map", "#result-table-body"]
+    },
+    {
+      "id": "standalone-quickstart",
+      "viteConfig": "examples/standalone-quickstart/vite.config.ts",
+      "tsconfig": "examples/standalone-quickstart/tsconfig.json",
+      "playwrightScript": "test:playwright:standalone",
+      "playwrightFile": "test/playwright/standalone-quickstart.spec.mjs",
+      "playwrightTestTitle": "standalone quickstart renders public-endpoint features with no Honua server",
+      "playwrightProjects": [{ "name": "chromium", "browserName": "chromium" }],
+      "evidenceProject": "chromium",
+      "sdkEntrypoints": ["@honua/sdk-js", "@honua/sdk-js/esri-compat", "@honua/sdk-js/honua", "@honua/sdk-js/map"],
+      "responsiveViewports": [{ "width": 1280, "height": 720 }, { "width": 390, "height": 844 }],
+      "workflowSelectors": ["#status-feature-count", "#feature-list", "#map"]
+    }
+  ]
+}

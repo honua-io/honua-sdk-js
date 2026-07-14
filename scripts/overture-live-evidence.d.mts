@@ -12,6 +12,12 @@ export interface OvertureLiveEvidenceEnvelope {
   readonly [key: string]: unknown;
 }
 
+export const OVERTURE_LIVE_PRODUCER_ARTIFACT: Readonly<{
+  kind: "producer-generator";
+  path: "scripts/overture-live-evidence.mjs";
+  sha256: string;
+}>;
+
 export function collectOvertureLiveEvidence(): Promise<OvertureLiveEvidenceEnvelope>;
 export function summarizeOvertureRangeTraffic(
   entries: readonly {

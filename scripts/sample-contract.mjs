@@ -8,6 +8,9 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { expectedGateCommand } from "./lib/sample-gates.mjs";
+import { validateQualificationReceiptSet } from "./sample-gate-receipt.mjs";
+
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
 const Ajv2020 = require("ajv/dist/2020").default;
@@ -118,6 +121,19 @@ const CREDENTIAL_QUERY_PARAMETER_SET = new Set([
   "x_goog_signature",
 ]);
 const CREDENTIAL_QUERY_PARAMETERS = [...CREDENTIAL_QUERY_PARAMETER_SET].sort();
+const ABSOLUTE_URL_PATTERN = /[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s<>"'`\\]+/gu;
+const AWS_ACCESS_KEY_ID_PATTERN = /\bAKIA[0-9A-Z]{16}\b/u;
+const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/u;
+const PRIVATE_KEY_PATTERN = /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/u;
+const BEARER_VALUE_PATTERN = /\bBearer\s+([A-Za-z0-9._~+/-]{24,}=*)/giu;
+const CREDENTIAL_ASSIGNMENT_PATTERN =
+  /(?:^|[\s"'({,;?&#])(?:access[_-]?key(?:[_-]?id)?|access[_-]?token|api[_-]?key|auth[_-]?token|authorization|bearer[_-]?token|client[_-]?secret|credential|id[_-]?token|password|private[_-]?key|refresh[_-]?token|secret|sig(?:nature)?|subscription[_-]?key|token)\s*[:=]\s*["']?([A-Za-z0-9._~+/-]{8,}=*)/giu;
+const SAFE_CREDENTIAL_PLACEHOLDER_PATTERN =
+  /^(?:allowed|auth(?:entication|orization)?|config(?:uration|ured)?|credentials?|denied|disabled|documentation|enabled|env(?:ironment)?|example|external|granted|host-mediated|missing|none|not-applicable|not-required|null|omitted|optional|placeholder|present|redacted|rejected|required|runtime|unavailable|undefined|unknown)(?:[-_.].*)?$/iu;
+const CREDENTIAL_CONFIGURATION_NAME_PATTERN =
+  /(?:^|_)(?:ACCESS_KEY|API_KEY|BEARER_TOKEN|CLIENT_SECRET|CREDENTIAL|PASSWORD|PRIVATE_KEY|REFRESH_TOKEN|SECRET|TOKEN)(?:_|$)/u;
+const MAX_SENSITIVE_METADATA_DEPTH = 64;
+const MAX_SENSITIVE_METADATA_NODES = 50_000;
 const REVIEWED_LIVE_PRODUCERS = new Map([
   [
     "bench:live",
@@ -138,6 +154,10 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     {
       definition: "npm run build --silent && node examples/spatial-analytics-workbench/live-evidence.mjs",
       generatorPath: "examples/spatial-analytics-workbench/live-evidence.mjs",
+      dependencies: {
+        build: "npm run clean --silent && tsc -p tsconfig.json",
+        clean: "rm -rf dist",
+      },
     },
   ],
   [
@@ -198,8 +218,10 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:incident",
   "test:playwright:overture",
   "test:playwright:quickstart",
+  "test:playwright:service-explorer",
   "test:playwright:sketch-editing",
   "test:playwright:spatial-analytics",
+  "test:playwright:standalone",
 ]);
 const BOUNDED_VALIDATION_SEGMENTS = [
   /^npm --prefix examples\/kepler-analytics run build$/,
@@ -229,8 +251,33 @@ function assertRelativePath(value, label) {
   invariant(!path.isAbsolute(value) && !value.includes(".."), `${label} must stay inside the repository`);
 }
 
+export function parseJsonDocument(source, label = "JSON document") {
+  invariant(typeof source === "string", `${label} must be text`);
+  const value = JSON.parse(source);
+  const sourceFile = ts.parseJsonText(label, source);
+  const visit = (node) => {
+    if (ts.isObjectLiteralExpression(node)) {
+      const seen = new Map();
+      for (const property of node.properties) {
+        const key = propertyName(property.name);
+        if (key === undefined) continue;
+        const { line } = sourceFile.getLineAndCharacterOfPosition(property.name.getStart(sourceFile));
+        const firstLine = seen.get(key);
+        invariant(
+          firstLine === undefined,
+          `${label}:${line + 1}: duplicate JSON property "${key}" (first declared at line ${firstLine})`,
+        );
+        seen.set(key, line + 1);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return value;
+}
+
 async function readJson(relativePath) {
-  return JSON.parse(await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"));
+  return parseJsonDocument(await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"), relativePath);
 }
 
 async function validateJsonSchema(value, schemaPath) {
@@ -332,7 +379,14 @@ async function validateCatalogCommand(command, sampleId, packageJson) {
 function isBoundedLiveCommand(parsed, packageJson) {
   if (parsed.runner !== "npm") return false;
   const producer = REVIEWED_LIVE_PRODUCERS.get(parsed.script);
-  return producer?.definition === packageJson.scripts?.[parsed.script];
+  if (!producer || producer.definition !== packageJson.scripts?.[parsed.script]) return false;
+  const reviewed = { [parsed.script]: producer.definition, ...(producer.dependencies ?? {}) };
+  return Object.entries(reviewed).every(
+    ([script, definition]) =>
+      packageJson.scripts?.[script] === definition &&
+      !Object.hasOwn(packageJson.scripts ?? {}, `pre${script}`) &&
+      !Object.hasOwn(packageJson.scripts ?? {}, `post${script}`),
+  );
 }
 
 function isBoundedValidationCommand(parsed, packageJson) {
@@ -362,6 +416,106 @@ function isCredentialQueryParameter(name) {
   return [...CREDENTIAL_QUERY_PARAMETER_SET].some(
     (candidate) => normalized === candidate || normalized.endsWith(`_${candidate}`),
   );
+}
+
+function isSafeCredentialPlaceholder(value) {
+  return SAFE_CREDENTIAL_PLACEHOLDER_PATTERN.test(value);
+}
+
+function isCredentialConfigurationReference(value) {
+  let name = value;
+  if (name.startsWith("${") && name.endsWith("}")) name = name.slice(2, -1);
+  for (const prefix of ["process.env.", "import.meta.env."]) {
+    if (name.startsWith(prefix)) name = name.slice(prefix.length);
+  }
+  return /^[A-Z][A-Z0-9_]+$/.test(name) && CREDENTIAL_CONFIGURATION_NAME_PATTERN.test(name);
+}
+
+function containsCredentialValue(value) {
+  if (
+    AWS_ACCESS_KEY_ID_PATTERN.test(value) ||
+    JWT_PATTERN.test(value) ||
+    PRIVATE_KEY_PATTERN.test(value)
+  ) {
+    return true;
+  }
+  for (const match of value.matchAll(BEARER_VALUE_PATTERN)) {
+    if (!isSafeCredentialPlaceholder(match[1])) return true;
+  }
+  for (const match of value.matchAll(CREDENTIAL_ASSIGNMENT_PATTERN)) {
+    if (!isSafeCredentialPlaceholder(match[1])) return true;
+  }
+  return false;
+}
+
+function validateSensitiveString(value, label) {
+  for (const match of value.matchAll(ABSOLUTE_URL_PATTERN)) {
+    let url;
+    try {
+      url = new URL(match[0]);
+    } catch {
+      continue;
+    }
+    invariant(!url.username && !url.password, `${label} URL must not contain embedded credentials`);
+    for (const parameter of url.searchParams.keys()) {
+      invariant(
+        !isCredentialQueryParameter(parameter),
+        `${label} URL contains forbidden credential query parameter ${parameter}`,
+      );
+    }
+  }
+  invariant(!containsCredentialValue(value), `${label} contains a credential value`);
+}
+
+function validateSensitiveMetadata(value, label) {
+  const activeObjects = new WeakSet();
+  let nodeCount = 0;
+  const countNode = (location) => {
+    nodeCount += 1;
+    invariant(
+      nodeCount <= MAX_SENSITIVE_METADATA_NODES,
+      `${label}${location} exceeds the ${MAX_SENSITIVE_METADATA_NODES}-node metadata limit`,
+    );
+  };
+  const visit = (current, location, depth, sensitiveContext = false) => {
+    invariant(
+      depth <= MAX_SENSITIVE_METADATA_DEPTH,
+      `${label}${location} exceeds the metadata depth limit of ${MAX_SENSITIVE_METADATA_DEPTH}`,
+    );
+    countNode(location);
+    if (typeof current === "string") {
+      validateSensitiveString(current, `${label}${location}`);
+      if (sensitiveContext) {
+        invariant(
+          isSafeCredentialPlaceholder(current) || isCredentialConfigurationReference(current),
+          `${label}${location} contains a credential value under a sensitive property name`,
+        );
+      }
+      return;
+    }
+    if (!current || typeof current !== "object") {
+      if (sensitiveContext && current !== null && current !== undefined && typeof current !== "boolean") {
+        throw new Error(`${label}${location} contains a credential value under a sensitive property name`);
+      }
+      return;
+    }
+    invariant(!activeObjects.has(current), `${label}${location} contains a cyclic metadata reference`);
+    activeObjects.add(current);
+    try {
+      if (Array.isArray(current)) {
+        current.forEach((entry, index) => visit(entry, `${location}[${index}]`, depth + 1, sensitiveContext));
+        return;
+      }
+      for (const [key, entry] of Object.entries(current)) {
+        countNode(`${location}.${key}#key`);
+        validateSensitiveString(key, `${label}${location} property name`);
+        visit(entry, `${location}.${key}`, depth + 1, sensitiveContext || isCredentialQueryParameter(key));
+      }
+    } finally {
+      activeObjects.delete(current);
+    }
+  };
+  visit(value, "$", 0);
 }
 
 export function classifyConfigurationName(name) {
@@ -2236,6 +2390,8 @@ function inferredLiveMode(sample) {
 }
 
 export async function migrateCatalogV1ToV2(catalog, migration) {
+  validateSensitiveMetadata(catalog, "migration source catalog");
+  validateSensitiveMetadata(migration, "catalog migration");
   await validateJsonSchema(migration, MIGRATION_SCHEMA_PATH);
   invariant(catalog.format === "honua.sdk.sample-catalog.v1", "migration source catalog format must be v1");
   invariant(catalog.schemaVersion === 1, "migration source catalog schemaVersion must be 1");
@@ -2308,7 +2464,7 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
       },
       expectedDegradation: sample.expectedDegradation,
       validationProfile: override.validationProfile,
-      validation: [...sample.validation],
+      validation: [...(override.validation ?? sample.validation)],
     };
   }));
 
@@ -2332,7 +2488,7 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
     return { ...rest, track, supportTier: mapping.supportStatus };
   });
 
-  return {
+  const migratedCatalog = {
     $schema: "./contract/v2/schemas/sample-catalog.schema.json",
     format: "honua.sdk.sample-catalog.v2",
     schemaVersion: 2,
@@ -2350,9 +2506,12 @@ export async function migrateCatalogV1ToV2(catalog, migration) {
     ),
     siteMappings,
   };
+  await validateJsonSchema(migratedCatalog, CATALOG_SCHEMA_PATH);
+  return migratedCatalog;
 }
 
 export async function validateCatalog(catalog, packageJson, options = {}) {
+  validateSensitiveMetadata(catalog, "catalog");
   await validateJsonSchema(catalog, CATALOG_SCHEMA_PATH);
   await validateFixtureBuildHarnesses();
   invariant(catalog.format === "honua.sdk.sample-catalog.v2", "catalog format must be v2");
@@ -2520,7 +2679,6 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         `${sample.id}: credentialed live data requires approved configuration or an explicit legacy gap`,
       );
     }
-    invariant(!JSON.stringify(sample).match(/(?:AKIA|Bearer\s|api[_-]?key\s*[=:]\s*[^<])/i), `${sample.id}: catalog appears to contain a credential`);
     invariant(typeof sample.expectedDegradation === "string", `${sample.id}: expectedDegradation is required`);
     invariant(Array.isArray(sample.validation) && sample.validation.length > 0, `${sample.id}: validation is required`);
     const commandRecords = new Map();
@@ -2680,11 +2838,24 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     const journey = catalog.goldenJourneys.find((candidate) => candidate.id === sample.journeyId);
     invariant(journey?.status === "qualified", `${sample.id}: golden sample journey must be qualified`);
     invariant(journey.candidateSampleId === sample.id, `${sample.id}: golden sample must be its journey candidate`);
+    const selectedSample = {
+      id: sample.id,
+      commandPlan: {
+        validation: { execution: "automatic", commands: [...sample.validation] },
+        fixtureEvidence: { execution: "orchestrated", commands: [...sample.evidence.fixture.commands] },
+        liveEvidence: { execution: "scheduled-only", commands: [...sample.evidence.live.commands] },
+      },
+    };
+    await validateQualificationReceiptSet({
+      sample: selectedSample,
+      profile,
+      expectedCommand: expectedGateCommand,
+      receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, "samples/evidence")),
+      now: new Date(currentTime).toISOString(),
+      projectRoot: PROJECT_ROOT,
+      verifyCheckout: options.verifyCheckout,
+    });
   }
-  invariant(
-    goldenSamples.length === 0 && qualifiedJourneys.length === 0,
-    "golden promotion requires verifiable per-gate evidence receipts from #541",
-  );
 
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
@@ -2920,10 +3091,12 @@ export function generateCiSelection(catalog) {
 }
 
 export async function validateSiteProjection(projection) {
+  validateSensitiveMetadata(projection, "site projection");
   await validateJsonSchema(projection, SITE_PROJECTION_SCHEMA_PATH);
 }
 
 export async function validateCiSelection(selection) {
+  validateSensitiveMetadata(selection, "CI selection");
   await validateJsonSchema(selection, CI_SELECTION_SCHEMA_PATH);
 }
 
@@ -3145,6 +3318,7 @@ export async function verifyBrowserArtifactManifest(manifest) {
 }
 
 export function validateEvidenceEnvelope(evidence, options = {}) {
+  validateSensitiveMetadata(evidence, "evidence");
   const isDateTime = (value) =>
     typeof value === "string" &&
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
@@ -3228,7 +3402,6 @@ export function validateEvidenceEnvelope(evidence, options = {}) {
     );
     invariant(typeof evidence.provenance?.attribution === "string", "evidence provenance.attribution is required");
   }
-  invariant(!JSON.stringify(evidence).match(/(?:AKIA|Bearer\s|[?&](?:token|key|signature)=)/i), "evidence appears to contain a credential");
   invariant(typeof evidence.semantics?.operation === "string", "evidence semantics.operation is required");
   invariant(
     evidence.semantics?.outcome === null || typeof evidence.semantics?.outcome === "string",
@@ -3337,7 +3510,7 @@ async function main(argv) {
       await readJson(V1_CATALOG_PATH),
       await readJson(V1_MIGRATION_PATH),
     );
-    await validateJsonSchema(catalog, CATALOG_SCHEMA_PATH);
+    await validateCatalog(catalog, await readJson("package.json"), { verifyCheckout: false });
     await writeFile(path.join(PROJECT_ROOT, CATALOG_PATH), stableJson(catalog), "utf8");
     process.stdout.write(`Migrated ${catalog.samples.length} executable examples to ${CATALOG_PATH}\n`);
     return;

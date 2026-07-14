@@ -17,6 +17,7 @@ import {
   inspectSampleConfiguration,
   isRunnableRootExampleDirectory,
   migrateCatalogV1ToV2,
+  parseJsonDocument,
   validateCatalog,
   validateCiSelection,
   validateEvidenceEnvelope,
@@ -80,6 +81,15 @@ describe("sample publication contract", () => {
     await expect(migrateCatalogV1ToV2(v1, migration)).rejects.toThrow(
       "migration overrides must cover every v1 sample exactly",
     );
+  });
+
+  it("rejects duplicate JSON properties before permissive parsing can hide them", () => {
+    expect(() =>
+      parseJsonDocument('{"data":{"attribution":"first","attribution":"second"}}', "duplicate-catalog.json"),
+    ).toThrow('duplicate-catalog.json:1: duplicate JSON property "attribution"');
+    expect(parseJsonDocument('{"data":{"attribution":"single"}}')).toEqual({
+      data: { attribution: "single" },
+    });
   });
 
   it("discovers runnable roots without treating reserved infrastructure as a sample", () => {
@@ -148,6 +158,12 @@ describe("sample publication contract", () => {
     const malformedProjection = structuredClone(projection);
     delete malformedProjection.samples[0].lifecycle.state;
     await expect(validateSiteProjection(malformedProjection)).rejects.toThrow("JSON Schema validation failed");
+
+    const sensitiveProjection = structuredClone(projection);
+    sensitiveProjection.externalReplacements[0].url = "https://example.test/replacement?clientSecret=secret";
+    await expect(validateSiteProjection(sensitiveProjection)).rejects.toThrow(
+      "forbidden credential query parameter clientSecret",
+    );
 
     const flattenedCi = structuredClone(ciSelection);
     const flattenedSample = flattenedCi.samples[0] as unknown as Record<string, unknown>;
@@ -275,6 +291,29 @@ describe("sample publication contract", () => {
     await expect(validateCatalog(unsafeActiveConfig, packageJson, validationTime)).rejects.toThrow(
       "cesium-route-playback: legacy-unsafe configuration requires bounded rework",
     );
+
+    const sensitiveReplacementUrl = await readJson("samples/catalog.v2.json");
+    sensitiveReplacementUrl.externalReplacements[0].url = "https://example.test/replacement?X-Goog-Signature=secret";
+    await expect(validateCatalog(sensitiveReplacementUrl, packageJson, validationTime)).rejects.toThrow(
+      "forbidden credential query parameter X-Goog-Signature",
+    );
+
+    const embeddedUrlCredential = await readJson("samples/catalog.v2.json");
+    embeddedUrlCredential.externalReplacements[0].url = "https://publisher:password@example.test/replacement";
+    await expect(validateCatalog(embeddedUrlCredential, packageJson, validationTime)).rejects.toThrow(
+      "URL must not contain embedded credentials",
+    );
+
+    const literalCredential = await readJson("samples/catalog.v2.json");
+    literalCredential.samples[0].summary = "Unsafe Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature";
+    await expect(validateCatalog(literalCredential, packageJson, validationTime)).rejects.toThrow(
+      "contains a credential value",
+    );
+
+    const benignCredentialLanguage = await readJson("samples/catalog.v2.json");
+    benignCredentialLanguage.samples[0].summary =
+      "Bearer authentication, Bearer credentials, authorization=required, and AKIA12345678 are documentation text.";
+    await expect(validateCatalog(benignCredentialLanguage, packageJson, validationTime)).resolves.toBeUndefined();
   });
 
   it("binds exact source configuration reads and makes browser credential exposure explicit", async () => {
@@ -908,6 +947,29 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     await expect(validateCatalog(reboundProducer, reboundPackage, validationTime)).rejects.toThrow(
       "scheduled live command is not in the reviewed bounded producer registry",
     );
+
+    for (const hook of ["prebench:live", "postbench:live"]) {
+      const hookedPackage = structuredClone(packageJson);
+      hookedPackage.scripts[hook] = "node scripts/forged-live-hook.mjs";
+      await expect(
+        validateCatalog(await readJson("samples/catalog.v2.json"), hookedPackage, validationTime),
+      ).rejects.toThrow("scheduled live command is not in the reviewed bounded producer registry");
+    }
+
+    for (const [script, definition] of [
+      ["build", "tsc -p forged.json"],
+      ["clean", "rm -rf dist forged"],
+      ["prebuild", "node scripts/forged-live-hook.mjs"],
+      ["postbuild", "node scripts/forged-live-hook.mjs"],
+      ["preclean", "node scripts/forged-live-hook.mjs"],
+      ["postclean", "node scripts/forged-live-hook.mjs"],
+    ]) {
+      const driftedDependencyPackage = structuredClone(packageJson);
+      driftedDependencyPackage.scripts[script] = definition;
+      await expect(
+        validateCatalog(await readJson("samples/catalog.v2.json"), driftedDependencyPackage, validationTime),
+      ).rejects.toThrow("scheduled live command is not in the reviewed bounded producer registry");
+    }
   });
 
   it("keeps candidates non-golden until the full qualification contract is satisfied", async () => {
@@ -984,9 +1046,9 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     try {
       await mkdir("test-results", { recursive: true });
       await writeFile(evidencePath, `${JSON.stringify(executedEvidence, null, 2)}\n`);
-      await expect(validateCatalog(metadataOnly.catalog, packageJson, validationTime)).rejects.toThrow(
-        "golden promotion requires verifiable per-gate evidence receipts from #541",
-      );
+      await expect(
+        validateCatalog(metadataOnly.catalog, packageJson, { ...validationTime, verifyCheckout: false }),
+      ).rejects.toThrow("realtime-incident-dashboard: missing gate receipt directory");
     } finally {
       await rm(evidencePath, { force: true });
     }
@@ -1023,6 +1085,74 @@ spawnSync("npm", ["run", "demo:wrong:build", "--silent"], {
     benignQuery.source.endpoint =
       "https://example.test/features?monkey=1&hockey=2&keyboard=3&tokenizer=4&secretary=5&signature_version=v4&token_type=bearer";
     expect(validateEvidenceEnvelope(benignQuery)).toBe(benignQuery);
+
+    const websocketCredentials = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    websocketCredentials.source.endpoint = "wss://publisher:password@example.test/events";
+    expect(() => validateEvidenceEnvelope(websocketCredentials)).toThrow("URL must not contain embedded credentials");
+
+    const customSchemeQuery = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    customSchemeQuery.source.identity = "s3://sample-bucket/data?clientSecret=secret";
+    expect(() => validateEvidenceEnvelope(customSchemeQuery)).toThrow(
+      "forbidden credential query parameter clientSecret",
+    );
+
+    for (const literal of [
+      "Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature",
+      "AKIA1234567890ABCDEF",
+      "-----BEGIN PRIVATE KEY-----",
+      "client_secret=s3cr3t-value",
+    ]) {
+      const literalCredentialEvidence = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+      literalCredentialEvidence.source.identity = literal;
+      expect(() => validateEvidenceEnvelope(literalCredentialEvidence)).toThrow("contains a credential value");
+    }
+
+    const benignCredentialLanguage = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    benignCredentialLanguage.source.identity =
+      "Bearer authentication, Bearer credentials, authorization=required, and AKIA12345678 are documentation text.";
+    expect(validateEvidenceEnvelope(benignCredentialLanguage)).toBe(benignCredentialLanguage);
+
+    for (const { key, value } of [
+      { key: "apiKey", value: "this-is-an-actual-secret-value-123456" },
+      { key: "password", value: "correct-horse-battery-staple" },
+      { key: "password", value: 8675309 },
+    ]) {
+      const nestedSecret = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+      nestedSecret.extra = { nested: { [key]: value } };
+      expect(() => validateEvidenceEnvelope(nestedSecret)).toThrow(
+        "contains a credential value under a sensitive property name",
+      );
+    }
+
+    const benignSensitiveProperties = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    benignSensitiveProperties.extra = {
+      apiKey: "HONUA_API_KEY",
+      authorization: "required",
+      clientSecret: "not-applicable",
+      password: "redacted",
+    };
+    expect(validateEvidenceEnvelope(benignSensitiveProperties)).toBe(benignSensitiveProperties);
+
+    const sensitiveUrlProperty = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    sensitiveUrlProperty.extra = { "s3://sample-bucket/data?password=secret": "documentation" };
+    expect(() => validateEvidenceEnvelope(sensitiveUrlProperty)).toThrow(
+      "forbidden credential query parameter password",
+    );
+
+    const cyclicEvidence = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    const cycle: Record<string, unknown> = {};
+    cycle.self = cycle;
+    cyclicEvidence.extra = cycle;
+    expect(() => validateEvidenceEnvelope(cyclicEvidence)).toThrow("contains a cyclic metadata reference");
+
+    const deepEvidence = await readJson("samples/contract/v1/fixtures/sample-evidence.live.json");
+    let deepCursor = deepEvidence as Record<string, unknown>;
+    for (let depth = 0; depth < 70; depth += 1) {
+      const next: Record<string, unknown> = {};
+      deepCursor.extra = next;
+      deepCursor = next;
+    }
+    expect(() => validateEvidenceEnvelope(deepEvidence)).toThrow("exceeds the metadata depth limit of 64");
 
     for (const lane of ["fixture.v1", "live-skipped.v1"]) {
       const safeAgentEvidence = await readJson(`examples/ai-spatial-app-builder/evidence/${lane}.json`);
