@@ -1127,7 +1127,7 @@ function validateSnapshot(
   sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): ConnectDiscoverySnapshot {
   const projectionApplies = Boolean(sourceSchemaProjection && sourceSchemaProjectionApplies(target.protocol));
-  const owned = snapshotCacheData(value, projectionApplies ? sourceSchemaProjection : undefined);
+  const owned = snapshotCacheData(value);
   if (
     owned.version !== HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION ||
     owned.identityKey !== identity.key ||
@@ -1237,22 +1237,9 @@ function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boole
   );
 }
 
-type CacheClonePosition = "root" | "root-sources" | "source" | "ordinary";
-
-function snapshotCacheData(
-  value: unknown,
-  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
-): ConnectDiscoverySnapshot {
+function snapshotCacheData(value: unknown): ConnectDiscoverySnapshot {
   try {
-    const cloned = cloneCacheData(
-      value,
-      "$",
-      new Set(),
-      { nodes: 0, properties: 0, stringCodeUnits: 0 },
-      0,
-      "root",
-      sourceSchemaProjection,
-    );
+    const cloned = cloneCacheData(value, "$", new Set(), { nodes: 0, properties: 0, stringCodeUnits: 0 }, 0);
     if (!isPlainObject(cloned)) {
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache snapshot must be a plain object.");
     }
@@ -1282,8 +1269,6 @@ function cloneCacheData(
   seen: Set<object>,
   budget: CacheCloneBudget,
   depth: number,
-  position: CacheClonePosition,
-  sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): unknown {
   if (depth > MAX_CACHE_SNAPSHOT_DEPTH) {
     throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached snapshot exceeds the maximum nesting depth.");
@@ -1335,17 +1320,7 @@ function cloneCacheData(
         if (!descriptor || "get" in descriptor || !descriptor.enumerable) {
           throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached array at ${path} must be dense data.`);
         }
-        out.push(
-          cloneCacheData(
-            descriptor.value,
-            `${path}[${index}]`,
-            seen,
-            budget,
-            depth + 1,
-            position === "root-sources" ? "source" : "ordinary",
-            sourceSchemaProjection,
-          ),
-        );
+        out.push(cloneCacheData(descriptor.value, `${path}[${index}]`, seen, budget, depth + 1));
       }
       const extra = stringKeys.filter((key) => key !== "length" && !/^(0|[1-9]\d*)$/.test(key));
       if (extra.length > 0) {
@@ -1366,28 +1341,7 @@ function cloneCacheData(
       if ("get" in descriptor || !descriptor.enumerable) {
         throw new HonuaDiscoveryError("invalid-discovery-cache", `Cached property ${path}.${key} must be data.`);
       }
-      if (position === "source" && key === "schemaV2" && sourceSchemaProjection) {
-        try {
-          out[key] = sourceSchemaProjection.parseCached(descriptor.value);
-        } catch (cause) {
-          throw new HonuaDiscoveryError(
-            "invalid-discovery-cache",
-            "Cached source schemaV2 is invalid or its fingerprint has drifted.",
-            undefined,
-            { cause },
-          );
-        }
-        continue;
-      }
-      out[key] = cloneCacheData(
-        descriptor.value,
-        `${path}.${key}`,
-        seen,
-        budget,
-        depth + 1,
-        position === "root" && key === "sources" ? "root-sources" : "ordinary",
-        sourceSchemaProjection,
-      );
+      out[key] = cloneCacheData(descriptor.value, `${path}.${key}`, seen, budget, depth + 1);
     }
     return Object.freeze(out);
   } finally {

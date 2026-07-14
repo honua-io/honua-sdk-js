@@ -19,6 +19,7 @@ import { HonuaCapabilityNotSupportedError } from "../../src/core/errors.js";
 import {
   HonuaOdataEntitySet,
   buildOdataSpatialFilter,
+  getOdataSourceSchemaProjectionDetails,
   parseOdataMetadata,
   rewriteWhereToOdataFilter,
 } from "../../src/core/odata.js";
@@ -104,7 +105,7 @@ describe("odata / parseOdataMetadata", () => {
       </Schema>
     `);
 
-    expect(meta.enumTypes?.ShippingMethod).toEqual({
+    expect(getOdataSourceSchemaProjectionDetails(meta)?.enumTypes.ShippingMethod).toEqual({
       underlyingType: "Edm.Int32",
       isFlags: false,
       members: [
@@ -113,6 +114,71 @@ describe("odata / parseOdataMetadata", () => {
         { name: "Overnight", value: 5 },
       ],
       declaration: { state: "valid", valueMode: "mixed" },
+    });
+  });
+
+  it("keeps SourceSchemaV2-only CSDL details out of the legacy metadata shape", () => {
+    const meta = parseOdataMetadata(`
+      <Schema Namespace="Example">
+        <EnumType Name="Status"><Member Name="Active" Value="1"/></EnumType>
+        <ComplexType Name="Address"><Property Name="Street" Type="Edm.String" MaxLength="128"/></ComplexType>
+        <EntityType Name="Asset" OpenType="true">
+          <Property Name="Name" Type="Edm.String" MaxLength="64"/>
+          <Property Name="Address" Type="Example.Address"/>
+          <Property Name="Status" Type="Example.Status"/>
+        </EntityType>
+        <EntityContainer Name="Container"><EntitySet Name="Assets" EntityType="Example.Asset"/></EntityContainer>
+      </Schema>
+    `);
+
+    expect(Object.keys(meta)).toEqual(["entitySets", "keys", "fields", "capabilities"]);
+    expect(meta.fields.Asset).toEqual([
+      { name: "Name", type: "Edm.String" },
+      { name: "Address", type: "Example.Address" },
+      { name: "Status", type: "Example.Status" },
+    ]);
+    expect(JSON.stringify(meta)).not.toMatch(/complexTypes|enumTypes|openTypes|maxLength/);
+    const details = getOdataSourceSchemaProjectionDetails(meta);
+    expect(details?.fields.Asset?.[0]).toMatchObject({ name: "Name", maxLength: 64 });
+    expect(details).toMatchObject({
+      complexTypes: { Address: [{ name: "Street", maxLength: 128 }] },
+      enumTypes: { Status: { members: [{ name: "Active", value: 1 }] } },
+      openTypes: { Asset: true },
+    });
+  });
+
+  it("keeps hostile CSDL identifiers as inert lookup keys", () => {
+    const meta = parseOdataMetadata(`
+      <Schema Namespace="Example">
+        <EnumType Name="constructor"><Member Name="Active" Value="1"/></EnumType>
+        <EntityType Name="__proto__"><Property Name="Status" Type="Example.constructor"/></EntityType>
+        <EntityContainer Name="Container">
+          <EntitySet Name="__proto__" EntityType="Example.__proto__"/>
+        </EntityContainer>
+      </Schema>
+    `);
+    const details = getOdataSourceSchemaProjectionDetails(meta);
+
+    expect(Object.getPrototypeOf(meta.entitySets)).toBeNull();
+    expect(Object.getPrototypeOf(meta.fields)).toBeNull();
+    expect(Object.hasOwn(meta.entitySets, "__proto__")).toBe(true);
+    expect(Object.hasOwn(meta.fields, "__proto__")).toBe(true);
+    expect(Object.getPrototypeOf(details?.enumTypes)).toBeNull();
+    expect(Object.hasOwn(details?.enumTypes ?? {}, "constructor")).toBe(true);
+  });
+
+  it("bounds hostile CSDL scans and enum integer lexemes", () => {
+    const malformed = parseOdataMetadata("<EntitySet ".repeat(20_000));
+    expect(Object.keys(malformed.entitySets)).toEqual([]);
+
+    const meta = parseOdataMetadata(`
+      <Schema Namespace="Example">
+        <EnumType Name="Huge"><Member Name="Value" Value="${"9".repeat(100_000)}"/></EnumType>
+      </Schema>
+    `);
+    expect(getOdataSourceSchemaProjectionDetails(meta)?.enumTypes.Huge?.declaration).toEqual({
+      state: "invalid",
+      reason: "invalid-member-value",
     });
   });
 });
@@ -847,7 +913,7 @@ describe("odata / pipeline integrity", () => {
     expect(observedAuth).toBe("ak-test");
   });
 
-  it("negotiates lossless responses without mislabeling ordinary JSON writes", async () => {
+  it("preserves the v1 ordinary JSON media type for reads and writes", async () => {
     const observed: Array<{ method: string; url: string; accept: string | null; contentType: string | null }> = [];
     const client = new (await import("../../src/core/client.js")).HonuaClient({
       baseUrl: "https://mock.honua.test",
@@ -881,7 +947,7 @@ describe("odata / pipeline integrity", () => {
     await entity.add({ NAME: "x" });
     await entity.update("1", { NAME: "y" });
 
-    const mediaType = "application/json;IEEE754Compatible=true";
+    const mediaType = "application/json";
     expect(observed.every((entry) => entry.accept === mediaType)).toBe(true);
     const reads = observed.filter((entry) => entry.method === "GET");
     expect(reads).toHaveLength(2);

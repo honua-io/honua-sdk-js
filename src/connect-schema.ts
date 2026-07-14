@@ -28,6 +28,7 @@ import type { Protocol } from "./contract/types.js";
 import {
   type HonuaOdataFieldInfo,
   type HonuaOdataMetadata,
+  getOdataSourceSchemaProjectionDetails,
   getOdataSourceSchemaProjectionSafety,
 } from "./core/odata.js";
 import type {
@@ -42,6 +43,9 @@ import { canonicalStringify, toJsonValue } from "./query-planner/canonical.js";
 const MAX_NATIVE_DEFINITION_BYTES = 64 * 1024;
 const MAX_FIELD_DOMAIN_BYTES = 1024 * 1024;
 const MAX_CODED_DOMAIN_VALUES = 10_000;
+// SourceSchemaV2 reserves one of its 32 logical-type levels for the field's
+// root type, leaving 31 safe recursive adapter steps.
+const MAX_DISCOVERED_TYPE_DEPTH = 31;
 const SUPPORTED_CSDL_VERSIONS = new Set(["4.0", "4.01"]);
 
 export interface SchemaNormalizationContext {
@@ -124,7 +128,7 @@ export function odataSourceSchemaV2(
 ): SourceSchemaV2 | undefined {
   const typeName = metadata.entitySets[entitySet];
   if (!typeName) return undefined;
-  const nativeFields = metadata.fields[typeName];
+  const nativeFields = odataProjectionFields(metadata)[typeName];
   if (!nativeFields) return undefined;
   const projectionIssue = odataProjectionIssue(metadata, typeName);
   if (projectionIssue) {
@@ -183,7 +187,7 @@ export function odataSourceSchemaV2(
     // OData needs an explicit protocol annotation before we assign time roles.
     temporal: { state: "none" },
     openContent:
-      metadata.openTypes?.[typeName] === true
+      odataProjectionOpenTypes(metadata)?.[typeName] === true
         ? "open"
         : SUPPORTED_CSDL_VERSIONS.has(getOdataSourceSchemaProjectionSafety(metadata)?.csdlVersion ?? "")
           ? "closed"
@@ -206,7 +210,11 @@ function odataProjectionIssue(
   metadata: HonuaOdataMetadata,
   typeName: string,
   visited: Set<string> = new Set(),
+  depth = 0,
 ): { readonly typeName: string; readonly reason: string } | undefined {
+  if (depth >= MAX_DISCOVERED_TYPE_DEPTH) {
+    return { typeName: "nested type", reason: `type nesting exceeds ${MAX_DISCOVERED_TYPE_DEPTH} levels` };
+  }
   const safety = getOdataSourceSchemaProjectionSafety(metadata);
   if (!safety) return undefined;
   if (safety.csdlVersion !== undefined && !SUPPORTED_CSDL_VERSIONS.has(safety.csdlVersion)) {
@@ -215,8 +223,9 @@ function odataProjectionIssue(
       reason: `unsupported or missing CSDL version ${safety.csdlVersion ?? "unknown"}`,
     };
   }
-  const collection = /^Collection\((.+)\)$/.exec(typeName);
-  const nativeTypeName = collection?.[1] ?? typeName;
+  const collection = unwrapOdataCollection(typeName);
+  if (collection !== undefined) return odataProjectionIssue(metadata, collection, visited, depth + 1);
+  const nativeTypeName = typeName;
   if (nativeTypeName.startsWith("Edm.")) return undefined;
   const localName = stripOdataNamespace(nativeTypeName);
   if (visited.has(localName)) return undefined;
@@ -233,12 +242,36 @@ function odataProjectionIssue(
   if (safety.openComplexTypeNames.includes(localName)) {
     return { typeName: localName, reason: "open complex types are not projected" };
   }
-  const referencedFields = metadata.fields[localName] ?? metadata.complexTypes?.[localName];
+  const referencedFields =
+    odataProjectionFields(metadata)[localName] ?? odataProjectionComplexTypes(metadata)?.[localName];
   for (const field of referencedFields ?? []) {
-    const issue = odataProjectionIssue(metadata, field.type, visited);
+    const issue = odataProjectionIssue(metadata, field.type, visited, depth + 1);
     if (issue) return issue;
   }
   return undefined;
+}
+
+function odataProjectionFields(metadata: HonuaOdataMetadata): Readonly<Record<string, readonly HonuaOdataFieldInfo[]>> {
+  return getOdataSourceSchemaProjectionDetails(metadata)?.fields ?? metadata.fields;
+}
+
+function odataProjectionComplexTypes(metadata: HonuaOdataMetadata): HonuaOdataMetadata["complexTypes"] {
+  return getOdataSourceSchemaProjectionDetails(metadata)?.complexTypes ?? metadata.complexTypes;
+}
+
+function odataProjectionEnumTypes(metadata: HonuaOdataMetadata): HonuaOdataMetadata["enumTypes"] {
+  return getOdataSourceSchemaProjectionDetails(metadata)?.enumTypes ?? metadata.enumTypes;
+}
+
+function odataProjectionOpenTypes(metadata: HonuaOdataMetadata): HonuaOdataMetadata["openTypes"] {
+  return getOdataSourceSchemaProjectionDetails(metadata)?.openTypes ?? metadata.openTypes;
+}
+
+function unwrapOdataCollection(value: string): string | undefined {
+  const prefix = "Collection(";
+  if (!value.startsWith(prefix) || !value.endsWith(")")) return undefined;
+  const inner = value.slice(prefix.length, -1);
+  return inner === "" ? undefined : inner;
 }
 
 /** Normalize a GeoParquet footer/DESCRIBE profile. Unknown native types stay unknown. */
@@ -482,7 +515,7 @@ function odataField(
   typeName: string,
   metadata: HonuaOdataMetadata,
 ): LogicalField {
-  const enumType = metadata.enumTypes?.[stripOdataNamespace(field.type)];
+  const enumType = odataProjectionEnumTypes(metadata)?.[stripOdataNamespace(field.type)];
   const native = nativeReference("odata", field.type, [typeName, field.name], {
     ...(field.nullable === undefined ? {} : { nullable: field.nullable }),
     ...(field.maxLength === undefined ? {} : { maxLength: field.maxLength }),
@@ -522,20 +555,22 @@ function odataLogicalType(
   metadata: HonuaOdataMetadata,
   path: readonly [string, ...string[]],
   ancestors: ReadonlySet<string>,
+  depth = 0,
 ): LogicalType {
-  const collection = /^Collection\((.+)\)$/.exec(field.type);
-  if (collection) {
+  if (depth >= MAX_DISCOVERED_TYPE_DEPTH) return { kind: "unknown", reason: "unsupported", native };
+  const collection = unwrapOdataCollection(field.type);
+  if (collection !== undefined) {
     return {
       kind: "list",
-      element: odataLogicalType({ ...field, type: collection[1]! }, native, metadata, path, ancestors),
+      element: odataLogicalType({ ...field, type: collection }, native, metadata, path, ancestors, depth + 1),
     };
   }
   const typeName = stripOdataNamespace(field.type);
-  const enumType = metadata.enumTypes?.[typeName];
+  const enumType = odataProjectionEnumTypes(metadata)?.[typeName];
   if (enumType) {
     return enumType.isFlags ? { kind: "unknown", reason: "unsupported", native } : { kind: "string" };
   }
-  const complex = metadata.complexTypes?.[typeName];
+  const complex = odataProjectionComplexTypes(metadata)?.[typeName];
   if (complex) {
     if (ancestors.has(typeName)) return { kind: "unknown", reason: "unsupported", native };
     const nestedAncestors = new Set(ancestors);
@@ -544,7 +579,7 @@ function odataLogicalType(
       kind: "struct",
       fields: complex.map((child) => {
         const childPath: [string, ...string[]] = [path[0], ...path.slice(1), child.name];
-        const childEnumType = metadata.enumTypes?.[stripOdataNamespace(child.type)];
+        const childEnumType = odataProjectionEnumTypes(metadata)?.[stripOdataNamespace(child.type)];
         const childNative = nativeReference("odata", child.type, [typeName, ...childPath], {
           ...(child.nullable === undefined ? {} : { nullable: child.nullable }),
           ...(child.maxLength === undefined ? {} : { maxLength: child.maxLength }),
@@ -552,7 +587,7 @@ function odataLogicalType(
           ...(child.scale === undefined ? {} : { scale: child.scale }),
           ...(childEnumType === undefined ? {} : { enumType: childEnumType }),
         });
-        const childType = odataLogicalType(child, childNative, metadata, childPath, nestedAncestors);
+        const childType = odataLogicalType(child, childNative, metadata, childPath, nestedAncestors, depth + 1);
         const roles: FieldRole[] = [];
         if (childType.kind === "geometry") roles.push("geometry");
         return {
@@ -653,7 +688,7 @@ function odataDomain(
   native: NativeTypeReference,
   type: LogicalType,
 ): FieldValueDomain {
-  const enumType = metadata.enumTypes?.[stripOdataNamespace(field.type)];
+  const enumType = odataProjectionEnumTypes(metadata)?.[stripOdataNamespace(field.type)];
   if (!enumType) return domainInapplicable(type) ? { state: "none", reason: "not-applicable" } : notReportedDomain();
   if (type.kind !== "string") return { state: "unknown", reason: "unrecognized", native };
   if (enumType.declaration?.state === "invalid") {
@@ -788,15 +823,17 @@ function duckDbLogicalType(
   rawType: string,
   native: NativeTypeReference,
   parentPath: readonly [string, ...string[]],
+  depth = 0,
 ): LogicalType {
+  if (depth >= MAX_DISCOVERED_TYPE_DEPTH) return { kind: "unknown", reason: "unsupported", native };
   const type = rawType.trim();
   if (!type) return { kind: "unknown", reason: "missing", native };
   const upper = type.toUpperCase();
   if (upper.endsWith("[]")) {
-    return { kind: "list", element: duckDbLogicalType(type.slice(0, -2), native, parentPath) };
+    return { kind: "list", element: duckDbLogicalType(type.slice(0, -2), native, parentPath, depth + 1) };
   }
   const list = /^LIST\((.*)\)$/i.exec(type);
-  if (list) return { kind: "list", element: duckDbLogicalType(list[1]!, native, parentPath) };
+  if (list) return { kind: "list", element: duckDbLogicalType(list[1]!, native, parentPath, depth + 1) };
   const struct = /^STRUCT\((.*)\)$/i.exec(type);
   if (struct) {
     const members: Array<LogicalField | undefined> = splitTopLevel(struct[1]!).map((member, index) => {
@@ -805,7 +842,7 @@ function duckDbLogicalType(
       const name = (match[1]?.replace(/""/g, '"') ?? match[2] ?? `field_${index}`).trim();
       const childPath: [string, ...string[]] = [parentPath[0], ...parentPath.slice(1), name];
       const childNative = nativeReference("geoparquet", match[3]!, childPath);
-      const childType = duckDbLogicalType(match[3]!, childNative, childPath);
+      const childType = duckDbLogicalType(match[3]!, childNative, childPath, depth + 1);
       return {
         name,
         path: childPath,
@@ -851,6 +888,9 @@ function duckDbLogicalType(
   if (/^(?:BLOB|BYTEA|BINARY|VARBINARY)$/i.test(type)) return { kind: "binary", encoding: "base64" };
   if (upper === "UUID") return { kind: "uuid" };
   if (upper === "DATE") return { kind: "date" };
+  if (upper === "TIMETZ" || upper.includes("TIME WITH TIME ZONE")) {
+    return { kind: "unknown", reason: "unsupported", native };
+  }
   if (upper.startsWith("TIME") && !upper.startsWith("TIMESTAMP"))
     return { kind: "time", unit: duckTemporalUnit(upper) };
   if (upper.startsWith("TIMESTAMP")) {
@@ -1497,6 +1537,7 @@ function normalizeUtcMillisecondTimestamp(value: string): string | undefined {
 }
 
 function canonicalInteger(value: string, bits: 8 | 16 | 32 | 64, signed: boolean): boolean {
+  if (value.length > 20) return false;
   if (!(signed ? /^-?(?:0|[1-9]\d*)$/ : /^(?:0|[1-9]\d*)$/).test(value) || value === "-0") return false;
   try {
     return integerBigIntFits(BigInt(value), bits, signed);

@@ -107,6 +107,8 @@ const GEOPARQUET_1_0_COLUMN_MEMBERS = new Set([
 ]);
 const GEOPARQUET_1_1_COLUMN_MEMBERS = new Set([...GEOPARQUET_1_0_COLUMN_MEMBERS, "covering"]);
 const MAX_GEOPARQUET_METADATA_BYTES = 1024 * 1024;
+const MAX_GEOPARQUET_METADATA_DEPTH = 32;
+const MAX_GEOPARQUET_METADATA_NODES = 100_000;
 
 /**
  * Encoding is derived from the DuckDB DESCRIBE column type, not the GeoParquet
@@ -148,16 +150,19 @@ function crsFromGeoMeta(crs: unknown): string | undefined {
 }
 
 function findBboxColumn(
-  describe: readonly DescribeRow[],
+  rowsByName: ReadonlyMap<string, DescribeRow>,
+  rowsByLowerName: ReadonlyMap<string, DescribeRow>,
   geometryRow: DescribeRow,
   preferred?: string,
 ): string | undefined {
   const matches = (row: DescribeRow) =>
     isGeoParquetBboxStruct(row.column_type) && geoParquetRepetitionMatches(geometryRow, row);
   if (preferred !== undefined) {
-    return describe.find((row) => row.column_name === preferred && matches(row))?.column_name;
+    const row = rowsByName.get(preferred);
+    return row && matches(row) ? row.column_name : undefined;
   }
-  const named = describe.find((row) => row.column_name.toLowerCase() === "bbox" && matches(row));
+  const named = rowsByLowerName.get("bbox");
+  if (!named || !matches(named)) return undefined;
   return named?.column_name;
 }
 
@@ -208,6 +213,13 @@ export interface BuildProfileInput {
 export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
   const { describe, geoJson, geometryColumnOverride, rowEstimate } = input;
   const allColumns = describe.map((r) => r.column_name);
+  const rowsByName = new Map<string, DescribeRow>();
+  const rowsByLowerName = new Map<string, DescribeRow>();
+  for (const row of describe) {
+    if (!rowsByName.has(row.column_name)) rowsByName.set(row.column_name, row);
+    const lowerName = row.column_name.toLowerCase();
+    if (!rowsByLowerName.has(lowerName)) rowsByLowerName.set(lowerName, row);
+  }
 
   let geometry: SourceProfile["geometry"];
   let geometries: SourceProfileGeometry[] | undefined;
@@ -222,7 +234,7 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
   ) {
     try {
       const parsed = JSON.parse(geoJson) as unknown;
-      if (isGeoColumnMetadata(parsed)) {
+      if (isGeoColumnMetadata(parsed) && boundedGeoMetadataGraph(parsed)) {
         geo = parsed as GeoMeta;
         geoDocumentState = "parsed";
       }
@@ -231,13 +243,13 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
     }
   }
 
-  const rowFor = (name: string) => describe.find((r) => r.column_name === name);
+  const rowFor = (name: string) => rowsByName.get(name);
   const declaredMetadata = isGeoColumnsMetadata(geo?.columns) ? geo.columns : undefined;
   const declaredPrimary =
     typeof geo?.primary_column === "string" && geo.primary_column !== "" ? geo.primary_column : undefined;
   const declaredGeometryColumns = Object.keys(declaredMetadata ?? {}).filter((column) => rowFor(column));
   const primaryRow = declaredPrimary ? rowFor(declaredPrimary) : undefined;
-  const metadataValid = geo ? validGeoMetadataProjectionSlice(geo, describe) : false;
+  const metadataValid = geo ? validGeoMetadataProjectionSlice(geo, rowsByName, rowsByLowerName) : false;
 
   if (geo && (primaryRow || declaredGeometryColumns.length > 0)) {
     // GeoParquet metadata is authoritative for *which* column and the CRS; the
@@ -249,7 +261,15 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
     geometries = declaredColumns.flatMap((column) => {
       const row = rowFor(column);
       return row
-        ? [geometryPlanFromGeoMetadata(describe, row, declaredMetadata?.[column], metadataValid ? "valid" : "invalid")]
+        ? [
+            geometryPlanFromGeoMetadata(
+              rowsByName,
+              rowsByLowerName,
+              row,
+              declaredMetadata?.[column],
+              metadataValid ? "valid" : "invalid",
+            ),
+          ]
         : [];
     });
     geometry = declaredPrimary ? geometries.find((candidate) => candidate.column === declaredPrimary) : undefined;
@@ -267,7 +287,7 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
     const chosen = geometryColumnOverride ? rowFor(geometryColumnOverride) : (nativeRow ?? heuristicRow);
     if (chosen) {
       const encoding = encodingFromColumnType(chosen.column_type) ?? "wkb";
-      const bboxColumn = findBboxColumn(describe, chosen);
+      const bboxColumn = findBboxColumn(rowsByName, rowsByLowerName, chosen);
       const metadataState =
         geoDocumentState === "invalid" || (geoDocumentState === "parsed" && !metadataValid) ? "invalid" : "missing";
       geometry = {
@@ -284,9 +304,14 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
     }
   }
 
-  const geometryColumns = new Set((geometries ?? []).map((candidate) => candidate.column));
+  const primaryGeometryColumn = geometry?.column;
+  const primaryBboxColumn = geometry?.bboxColumn;
   const bboxColumns = new Set((geometries ?? []).flatMap((candidate) => candidate.bboxColumn ?? []));
-  const columns = allColumns.filter((column) => !geometryColumns.has(column) && !bboxColumns.has(column));
+  // `columns` feeds the v1 query compiler. Preserve its historical behavior:
+  // only the selected primary geometry and its covering column are omitted.
+  // Secondary geometry/covering columns remain ordinary attributes until a
+  // versioned result contract gives callers an explicit multi-geometry shape.
+  const columns = allColumns.filter((column) => column !== primaryGeometryColumn && column !== primaryBboxColumn);
 
   return {
     columns,
@@ -305,7 +330,8 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
 }
 
 function geometryPlanFromGeoMetadata(
-  describe: readonly DescribeRow[],
+  rowsByName: ReadonlyMap<string, DescribeRow>,
+  rowsByLowerName: ReadonlyMap<string, DescribeRow>,
   row: DescribeRow,
   columnMetadata: GeoColumnMeta | undefined,
   metadataState: "valid" | "invalid",
@@ -313,7 +339,7 @@ function geometryPlanFromGeoMetadata(
   const metadata = isGeoColumnMetadata(columnMetadata) ? columnMetadata : undefined;
   const bboxColumn =
     metadataState === "valid"
-      ? findBboxColumn(describe, row, geoParquetBboxCoveringColumn(metadata?.covering))
+      ? findBboxColumn(rowsByName, rowsByLowerName, row, geoParquetBboxCoveringColumn(metadata?.covering))
       : undefined;
   const inspectedGeometryTypes = inspectGeometryTypes(metadata);
   const geometryTypesState =
@@ -364,12 +390,39 @@ function isGeoColumnsMetadata(value: unknown): value is Record<string, GeoColumn
   return isGeoColumnMetadata(value);
 }
 
+function boundedGeoMetadataGraph(root: unknown): boolean {
+  const stack: Array<{ readonly value: unknown; readonly depth: number }> = [{ value: root, depth: 0 }];
+  let nodes = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    nodes += 1;
+    if (nodes > MAX_GEOPARQUET_METADATA_NODES || current.depth > MAX_GEOPARQUET_METADATA_DEPTH) return false;
+    const value = current.value;
+    if (value === null || typeof value === "string" || typeof value === "boolean") continue;
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) return false;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const child of value) stack.push({ value: child, depth: current.depth + 1 });
+      continue;
+    }
+    if (!isPlainRecord(value)) return false;
+    for (const child of Object.values(value)) stack.push({ value: child, depth: current.depth + 1 });
+  }
+  return true;
+}
+
 /**
  * Validate the exact GeoParquet members this projection consumes. This is not
  * advertised as whole-document conformance because CRS objects are preserved
  * as native evidence and validated by the focused PROJJSON runtime later.
  */
-function validGeoMetadataProjectionSlice(geo: GeoMeta, describe: readonly DescribeRow[]): boolean {
+function validGeoMetadataProjectionSlice(
+  geo: GeoMeta,
+  rowsByName: ReadonlyMap<string, DescribeRow>,
+  rowsByLowerName: ReadonlyMap<string, DescribeRow>,
+): boolean {
   if (typeof geo.version !== "string") return false;
   const version = GEOPARQUET_SUPPORTED_VERSION.exec(geo.version);
   if (!version) return false;
@@ -378,12 +431,18 @@ function validGeoMetadataProjectionSlice(geo: GeoMeta, describe: readonly Descri
   if (!isGeoColumnsMetadata(geo.columns)) return false;
   const entries = Object.entries(geo.columns);
   if (entries.length === 0 || !Object.hasOwn(geo.columns, geo.primary_column)) return false;
-  const physicalColumns = new Set(describe.map((row) => row.column_name));
   return entries.every(
     ([column, metadata]) =>
       column !== "" &&
-      physicalColumns.has(column) &&
-      validGeoColumnMetadataProjection(metadata, encodings, version[1] === "1.1.0", describe, column),
+      rowsByName.has(column) &&
+      validGeoColumnMetadataProjection(
+        metadata,
+        encodings,
+        version[1] === "1.1.0",
+        rowsByName,
+        rowsByLowerName,
+        column,
+      ),
   );
 }
 
@@ -391,7 +450,8 @@ function validGeoColumnMetadataProjection(
   value: unknown,
   encodings: ReadonlySet<string>,
   supportsCovering: boolean,
-  describe: readonly DescribeRow[],
+  rowsByName: ReadonlyMap<string, DescribeRow>,
+  rowsByLowerName: ReadonlyMap<string, DescribeRow>,
   geometryColumn: string,
 ): value is GeoColumnMeta {
   if (!isGeoColumnMetadata(value)) return false;
@@ -400,8 +460,13 @@ function validGeoColumnMetadataProjection(
   if (typeof value.encoding !== "string" || !encodings.has(value.encoding)) return false;
   const geometryTypes = inspectGeometryTypes(value);
   if (geometryTypes.state !== "valid") return false;
-  const geometryRow = describe.find((row) => row.column_name === geometryColumn);
-  if (!geometryRow || !geoParquetEncodingMatchesPhysicalType(value.encoding, geometryRow.column_type)) return false;
+  const geometryRow = rowsByName.get(geometryColumn);
+  if (
+    !geometryRow ||
+    !geoParquetEncodingMatchesPhysicalType(value.encoding, geometryRow.column_type, geometryTypes.values ?? [])
+  ) {
+    return false;
+  }
   if (!geoParquetEncodingMatchesGeometryTypes(value.encoding, geometryTypes.values ?? [])) return false;
   if (Object.hasOwn(value, "crs") && value.crs !== null && !isGeoColumnMetadata(value.crs)) return false;
   if (Object.hasOwn(value, "edges") && value.edges !== "planar" && value.edges !== "spherical") return false;
@@ -414,7 +479,7 @@ function validGeoColumnMetadataProjection(
     if (
       coveringColumn === undefined ||
       geometryRow === undefined ||
-      findBboxColumn(describe, geometryRow, coveringColumn) !== coveringColumn
+      findBboxColumn(rowsByName, rowsByLowerName, geometryRow, coveringColumn) !== coveringColumn
     ) {
       return false;
     }
@@ -422,14 +487,170 @@ function validGeoColumnMetadataProjection(
   return true;
 }
 
-function geoParquetEncodingMatchesPhysicalType(encoding: string, columnType: string): boolean {
-  const delivered = encodingFromColumnType(columnType);
+function geoParquetEncodingMatchesPhysicalType(
+  encoding: string,
+  columnType: string,
+  geometryTypes: readonly string[],
+): boolean {
+  const delivered = exactGeometryEncodingFromColumnType(columnType);
   if (delivered === "native") return true;
   if (encoding === "WKB") return delivered === "wkb";
-  const upper = columnType.toUpperCase();
-  const coordinates = /STRUCT\s*[<(][^>)]*\bX\s+(?:FLOAT|DOUBLE)\b[^>)]*\bY\s+(?:FLOAT|DOUBLE)\b/.test(upper);
-  if (encoding === "point") return coordinates;
-  return coordinates && (upper.includes("[]") || upper.includes("LIST"));
+  const expectedDepth =
+    encoding === "point"
+      ? 0
+      : encoding === "linestring" || encoding === "multipoint"
+        ? 1
+        : encoding === "polygon" || encoding === "multilinestring"
+          ? 2
+          : encoding === "multipolygon"
+            ? 3
+            : undefined;
+  if (expectedDepth === undefined) return false;
+  const physical = parseNativeCoordinateType(columnType);
+  if (!physical || physical.listDepth !== expectedDepth) return false;
+  const declaresZ = geometryTypes.some((type) => type.endsWith(" Z"));
+  const declaresTwoDimensions = geometryTypes.some((type) => !type.endsWith(" Z"));
+  if (declaresZ && declaresTwoDimensions) return false;
+  if (declaresZ && !physical.hasZ) return false;
+  if (!declaresZ && declaresTwoDimensions && physical.hasZ) return false;
+  return true;
+}
+
+function exactGeometryEncodingFromColumnType(columnType: string): GeometryEncoding | undefined {
+  const type = columnType.trim().toUpperCase();
+  if (type === "GEOMETRY" || type === "GEOGRAPHY") return "native";
+  if (type === "BLOB" || type === "BYTEA" || type === "BINARY" || type === "VARBINARY") return "wkb";
+  if (type === "JSON" || type === "VARCHAR" || type === "TEXT") return "geojson";
+  return undefined;
+}
+
+interface NativeCoordinateType {
+  readonly listDepth: number;
+  readonly hasZ: boolean;
+}
+
+function parseNativeCoordinateType(columnType: string): NativeCoordinateType | undefined {
+  if (columnType.length > 4096) return undefined;
+  let type = columnType.trim();
+  let listDepth = 0;
+  while (true) {
+    if (type.endsWith("[]")) {
+      listDepth += 1;
+      type = type.slice(0, -2).trim();
+      continue;
+    }
+    const listed = unwrapDuckType(type, "LIST") ?? unwrapDuckType(type, "ARRAY");
+    if (listed === undefined) break;
+    listDepth += 1;
+    type = listed.trim();
+  }
+  const struct = unwrapDuckType(type, "STRUCT");
+  if (struct === undefined) return undefined;
+  const members = splitDuckTypeMembers(struct).map(parseCoordinateMember);
+  if (members.some((member) => member === undefined) || (members.length !== 2 && members.length !== 3)) {
+    return undefined;
+  }
+  const defined = members as Array<{ readonly name: string; readonly type: string }>;
+  const expectedNames = members.length === 2 ? ["x", "y"] : ["x", "y", "z"];
+  if (!defined.every((member, index) => member.name === expectedNames[index])) return undefined;
+  if (!defined.every((member) => member.type === "DOUBLE")) return undefined;
+  return { listDepth, hasZ: members.length === 3 };
+}
+
+function unwrapDuckType(value: string, name: string): string | undefined {
+  let cursor = name.length;
+  if (value.slice(0, cursor).toUpperCase() !== name) return undefined;
+  while (cursor < value.length && asciiWhitespace(value.charCodeAt(cursor))) cursor += 1;
+  const open = value.charCodeAt(cursor);
+  const close = open === 40 ? 41 : open === 60 ? 62 : 0;
+  if (close === 0) return undefined;
+  const bodyStart = cursor + 1;
+  let depth = 1;
+  let quote = 0;
+  for (cursor = bodyStart; cursor < value.length; cursor += 1) {
+    const code = value.charCodeAt(cursor);
+    if (quote !== 0) {
+      if (code === quote) {
+        if (value.charCodeAt(cursor + 1) === quote) cursor += 1;
+        else quote = 0;
+      }
+      continue;
+    }
+    if (code === 34 || code === 39) {
+      quote = code;
+    } else if (code === open) {
+      depth += 1;
+    } else if (code === close) {
+      depth -= 1;
+      if (depth === 0) {
+        return value.slice(cursor + 1).trim() === "" ? value.slice(bodyStart, cursor) : undefined;
+      }
+    }
+  }
+  return undefined;
+}
+
+function splitDuckTypeMembers(value: string): string[] {
+  const members: string[] = [];
+  let start = 0;
+  let roundDepth = 0;
+  let angleDepth = 0;
+  let quote = 0;
+  for (let cursor = 0; cursor < value.length; cursor += 1) {
+    const code = value.charCodeAt(cursor);
+    if (quote !== 0) {
+      if (code === quote) {
+        if (value.charCodeAt(cursor + 1) === quote) cursor += 1;
+        else quote = 0;
+      }
+      continue;
+    }
+    if (code === 34 || code === 39) quote = code;
+    else if (code === 40) roundDepth += 1;
+    else if (code === 41) roundDepth -= 1;
+    else if (code === 60) angleDepth += 1;
+    else if (code === 62) angleDepth -= 1;
+    else if (code === 44 && roundDepth === 0 && angleDepth === 0) {
+      members.push(value.slice(start, cursor));
+      start = cursor + 1;
+    }
+    if (roundDepth < 0 || angleDepth < 0) return [];
+  }
+  if (quote !== 0 || roundDepth !== 0 || angleDepth !== 0) return [];
+  members.push(value.slice(start));
+  return members;
+}
+
+function parseCoordinateMember(value: string): { readonly name: string; readonly type: string } | undefined {
+  const member = value.trim();
+  if (member === "") return undefined;
+  let cursor = 0;
+  let name: string;
+  const quote = member.charCodeAt(0);
+  if (quote === 34 || quote === 39) {
+    cursor = 1;
+    const nameStart = cursor;
+    while (cursor < member.length && member.charCodeAt(cursor) !== quote) cursor += 1;
+    if (cursor >= member.length) return undefined;
+    name = member.slice(nameStart, cursor);
+    cursor += 1;
+  } else {
+    while (cursor < member.length && !asciiWhitespace(member.charCodeAt(cursor)) && member.charCodeAt(cursor) !== 58) {
+      cursor += 1;
+    }
+    name = member.slice(0, cursor);
+  }
+  while (cursor < member.length && asciiWhitespace(member.charCodeAt(cursor))) cursor += 1;
+  if (member.charCodeAt(cursor) === 58) {
+    cursor += 1;
+    while (cursor < member.length && asciiWhitespace(member.charCodeAt(cursor))) cursor += 1;
+  }
+  const type = member.slice(cursor).trim().toUpperCase();
+  return name === "" || type === "" ? undefined : { name, type };
+}
+
+function asciiWhitespace(code: number): boolean {
+  return code === 9 || code === 10 || code === 13 || code === 32;
 }
 
 function geoParquetEncodingMatchesGeometryTypes(encoding: string, geometryTypes: readonly string[]): boolean {

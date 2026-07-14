@@ -876,9 +876,19 @@ describe("SourceSchemaV2 canonical contract", () => {
     { name: "noncanonical UUID", type: { kind: "uuid" as const }, value: "550E8400-E29B-41D4-A716-446655440000" },
     { name: "invalid base64", type: { kind: "binary" as const, encoding: "base64" as const }, value: "%%%=" },
     {
+      name: "oversized 64-bit integer",
+      type: { kind: "integer" as const, bits: 64 as const, signed: true, jsonEncoding: "string" as const },
+      value: "9".repeat(100_000),
+    },
+    {
       name: "noncanonical binary URL",
       type: { kind: "binary" as const, encoding: "url" as const },
       value: "https://example.test/blob#",
+    },
+    {
+      name: "credential-bearing binary URL",
+      type: { kind: "binary" as const, encoding: "url" as const },
+      value: "https://example.test/blob?sig=secret",
     },
   ])("rejects incompatible default: $name", ({ type, value }) => {
     expect(() =>
@@ -1139,6 +1149,14 @@ describe("SourceSchemaV2 canonical contract", () => {
       "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dGVzdHNpZ25hdHVyZQ",
       "backslash-password",
       "backslash-token",
+      "native-pwd-secret",
+      "query-pwd-secret",
+      "assignment-pwd-secret",
+      "protocol-relative-secret",
+      "bare-userinfo-secret",
+      "space-authority-secret",
+      "auth-token-secret",
+      "nested-fragment-secret",
     ];
     const schema = createSourceSchemaV2(
       tabularInput({
@@ -1160,10 +1178,19 @@ describe("SourceSchemaV2 canonical contract", () => {
                     "http://user:http-password@example.test/path?accessToken=http-access-token",
                     "wss://socket:wss-password@example.test/live?clientSecret=wss-client-secret",
                     "s3://access:s3-password@bucket/key?X-Amz-Signature=s3-signature&policy=signed-policy",
+                    "https://example.test/path?pwd=query-pwd-secret",
+                    "https://example.test/path?authToken=auth-token-secret",
                   ],
                   nested: [
                     { value: "Bearer bearer-secret" },
                     { value: "clientSecret=literal-client-secret" },
+                    { value: "pwd=assignment-pwd-secret" },
+                    { value: "endpoint=//native:protocol-relative-secret@example.test/path" },
+                    { value: "native:bare-userinfo-secret@example.test/path" },
+                    { value: "https ://native:space-authority-secret@example.test/path" },
+                    {
+                      value: `${"x://nested/#".repeat(12)}native:nested-fragment-secret@example.test/path`,
+                    },
                     {
                       value: "endpoint=http://embedded:embedded-password@example.test/path?refreshToken=embedded-token",
                     },
@@ -1180,6 +1207,8 @@ describe("SourceSchemaV2 canonical contract", () => {
                   config: {
                     token: "${TOKEN}",
                     apiKey: "<API_KEY>",
+                    pwd: "native-pwd-secret",
+                    authToken: "auth-token-secret",
                     example: "clientSecret={{CLIENT_SECRET}}",
                     documentation: "Use [TOKEN] from the environment",
                   },
@@ -1209,6 +1238,42 @@ describe("SourceSchemaV2 canonical contract", () => {
     expect(serialized).not.toContain("user:");
     expect(serialized).not.toContain("socket:");
     expect(serialized).not.toContain("access:");
+  });
+
+  it("sanitizes many non-credential at-signs in linear time", () => {
+    const diagnostic = "a@".repeat(8_000);
+    const schema = createSourceSchemaV2(
+      tabularInput({
+        fields: [
+          integerField({
+            native: [{ protocol: "odata", name: "Edm.Int32", definition: { diagnostic } }],
+          }),
+        ],
+      }),
+    );
+    expect((schema.fields[0]?.native[0]?.definition as JsonObject).diagnostic).toBe(diagnostic);
+  });
+
+  it("redacts many distinct sensitive URL parameters in one pass", () => {
+    const query = Array.from({ length: 500 }, (_, index) => `x-amz-token-${index}=secret-${index}`).join("&");
+    const schema = createSourceSchemaV2(
+      tabularInput({
+        fields: [
+          integerField({
+            native: [
+              {
+                protocol: "odata",
+                name: "Edm.Int32",
+                definition: { diagnostic: `https://example.test/path?${query}` },
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    const serialized = serializeSourceSchemaV2(schema);
+    expect(serialized).not.toContain("secret-");
+    expect(serialized).toContain("REDACTED");
   });
 
   it("sanitizes provenance text while preserving identity-bearing validators", () => {
@@ -1380,6 +1445,9 @@ describe("SourceSchemaV2 canonical contract", () => {
     "https://user:secret@example.test/crs",
     "https://example.test/crs#axis",
     "https://example.test/crs#",
+    "https://example.test/crs?token=secret",
+    "https://example.test/crs?sig=secret",
+    "https://example.test/crs?",
     "javascript:alert(1)",
     "file:///tmp/crs.json",
     "https://EXAMPLE.test/crs",
@@ -1395,7 +1463,7 @@ describe("SourceSchemaV2 canonical contract", () => {
           definitionAxisOrder: { state: "unknown", reason: "unrecognized" },
         }),
       ),
-    ).toThrow(/URI|user-info|fragment|scheme|percent|canonical/);
+    ).toThrow(/URI|user-info|query|fragment|scheme|percent|canonical/);
   });
 
   it("accepts canonical HTTPS and URN CRS identifiers", () => {
@@ -1452,6 +1520,45 @@ describe("SourceSchemaV2 canonical contract", () => {
         }),
       ),
     ).toThrow(/v0\.7 CRS root/);
+
+    expect(() =>
+      createSourceSchemaV2(
+        spatialInput({
+          kind: "projjson",
+          projjson: {
+            ...valid,
+            id: { authority: "EPSG", code: 4326, uri: "https://example.test/crs?token=secret" },
+          },
+          definitionAxisOrder: { state: "unknown", reason: "unrecognized" },
+        }),
+      ),
+    ).toThrow(/query/);
+  });
+
+  it("does not retain malformed credential-bearing URI input in validation errors", () => {
+    const secretUrl = "https://user:super-secret@example.test:bad?token=query-secret";
+    let thrown: unknown;
+    try {
+      createSourceSchemaV2(
+        spatialInput({
+          kind: "projjson",
+          projjson: {
+            $schema: "https://proj.org/schemas/v0.7/projjson.schema.json",
+            ...geodeticCrs(),
+            id: { authority: "EPSG", code: 4326, uri: secretUrl },
+          },
+          definitionAxisOrder: { state: "unknown", reason: "unrecognized" },
+        }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(TypeError);
+    expect((thrown as Error & { cause?: unknown }).cause).toBeUndefined();
+    const serialized = JSON.stringify(thrown, Object.getOwnPropertyNames(thrown as object));
+    expect(`${String(thrown)}\n${serialized}`).not.toContain("super-secret");
+    expect(`${String(thrown)}\n${serialized}`).not.toContain("query-secret");
   });
 
   it.each([

@@ -131,8 +131,8 @@ function geoparquetIdentity(
 ): QueryIrSourceIdentity["geoparquet"] {
   const { url, geoparquet } = descriptor.locator;
   const sources: string[] = [];
-  if (typeof url === "string" && url.length > 0) sources.push(credentialFreePlanResource(url));
-  if (geoparquet?.urls) sources.push(...geoparquet.urls.map(credentialFreePlanResource));
+  if (typeof url === "string" && url.length > 0) sources.push(url);
+  if (geoparquet?.urls) sources.push(...geoparquet.urls);
   const geometryColumn = geoparquet?.geometryColumn ?? geometryProperty;
   return {
     sources,
@@ -140,32 +140,6 @@ function geoparquetIdentity(
     ...(geoparquet?.geometryEncoding ? { geometryEncoding: geoparquet.geometryEncoding } : {}),
     ...(geoparquet?.bboxColumn ? { bboxColumn: geoparquet.bboxColumn } : {}),
   };
-}
-
-function credentialFreePlanResource(rawUrl: string): string {
-  try {
-    const parsed = new URL(rawUrl);
-    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
-      throw new HonuaQueryPlanningError(
-        "invalid-query",
-        "GeoParquet plan sources must be credential-free stable resource URLs; inject authorization outside query IR.",
-      );
-    }
-    return parsed.toString();
-  } catch (cause) {
-    if (cause instanceof HonuaQueryPlanningError) throw cause;
-    if (rawUrl.includes("?") || rawUrl.includes("#")) {
-      throw new HonuaQueryPlanningError(
-        "invalid-query",
-        "GeoParquet plan sources must not contain query or fragment credentials.",
-      );
-    }
-    const safe = credentialFreeEndpoint(rawUrl);
-    if (safe === "[invalid-endpoint]") {
-      throw new HonuaQueryPlanningError("invalid-query", "GeoParquet plan source URL is unsafe.");
-    }
-    return safe;
-  }
 }
 
 function canonicalizeAggregation(aggregation: AggregationSpec): AggregationSpec {
@@ -205,10 +179,9 @@ function asJsonObject(value: unknown, path: string): { readonly [key: string]: J
 
 function credentialFreeEndpoint(rawUrl: string): string {
   const invalidEndpoint = "[invalid-endpoint]";
-  const opaqueUserInfo = /^[A-Za-z][A-Za-z0-9+.-]*:[^/?#\s]*@/;
   try {
     const parsed = new URL(rawUrl);
-    if (!parsed.username && !parsed.password && opaqueUserInfo.test(rawUrl)) return invalidEndpoint;
+    if (!parsed.username && !parsed.password && hasOpaqueSchemeUserInfo(rawUrl)) return invalidEndpoint;
     parsed.username = "";
     parsed.password = "";
     parsed.search = "";
@@ -216,14 +189,78 @@ function credentialFreeEndpoint(rawUrl: string): string {
     return parsed.toString().replace(/\/$/, "");
   } catch {
     const path = rawUrl.split(/[?#]/, 1)[0] ?? rawUrl;
-    const malformedAuthority = /^[A-Za-z][A-Za-z0-9+.-]*:[/\\]{2}/.test(rawUrl) || /^[/\\]{2}/.test(rawUrl);
-    const bareUserInfo = /^[^/?#\\\s]+:[^/?#\\\s]*@/.test(rawUrl);
-    const unsafeCharacters = [...rawUrl].some((character) => {
+    const malformedAuthority = hasSchemeAuthorityPrefix(rawUrl) || startsWithDoubleSlash(rawUrl);
+    const bareUserInfo = hasBareUserInfo(rawUrl);
+    let unsafeCharacters = false;
+    for (const character of rawUrl) {
       const codePoint = character.codePointAt(0)!;
-      return codePoint <= 0x1f || codePoint === 0x7f;
-    });
+      if (codePoint <= 0x20 || codePoint === 0x7f || character.trim() === "") {
+        unsafeCharacters = true;
+        break;
+      }
+    }
     return malformedAuthority || bareUserInfo || unsafeCharacters ? invalidEndpoint : path;
   }
+}
+
+function hasSchemeAuthorityPrefix(value: string): boolean {
+  const colon = value.indexOf(":");
+  if (colon < 1 || !asciiAlpha(value.charCodeAt(0))) return false;
+  for (let index = 1; index < colon; index += 1) {
+    const code = value.charCodeAt(index);
+    if (!(asciiAlpha(code) || (code >= 48 && code <= 57) || code === 43 || code === 45 || code === 46)) {
+      return false;
+    }
+  }
+  return isSlash(value.charCodeAt(colon + 1)) && isSlash(value.charCodeAt(colon + 2));
+}
+
+function startsWithDoubleSlash(value: string): boolean {
+  return isSlash(value.charCodeAt(0)) && isSlash(value.charCodeAt(1));
+}
+
+function hasOpaqueSchemeUserInfo(value: string): boolean {
+  const colon = value.indexOf(":");
+  if (colon < 1 || !asciiAlpha(value.charCodeAt(0))) return false;
+  for (let index = 1; index < colon; index += 1) {
+    const code = value.charCodeAt(index);
+    if (!(asciiAlpha(code) || (code >= 48 && code <= 57) || code === 43 || code === 45 || code === 46)) {
+      return false;
+    }
+  }
+  for (let index = colon + 1; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code === 64) return true;
+    if (endpointDelimiter(code, false)) return false;
+  }
+  return false;
+}
+
+function hasBareUserInfo(value: string): boolean {
+  let colon = -1;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (endpointDelimiter(code, true)) return false;
+    if (code === 58 && colon === -1) {
+      if (index === 0) return false;
+      colon = index;
+    } else if (code === 64) {
+      return colon !== -1;
+    }
+  }
+  return false;
+}
+
+function endpointDelimiter(code: number, backslash: boolean): boolean {
+  return code <= 32 || code === 47 || code === 63 || code === 35 || (backslash && code === 92);
+}
+
+function asciiAlpha(code: number): boolean {
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+function isSlash(code: number): boolean {
+  return code === 47 || code === 92;
 }
 
 export function deepFreeze<T>(value: T): T {

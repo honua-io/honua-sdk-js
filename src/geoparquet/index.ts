@@ -87,6 +87,11 @@ import { createBrowserDuckDbDriver } from "./driver.js";
 import type { DuckDbDriver, DuckDbQueryOptions, DuckRow } from "./driver.js";
 
 const GEOPARQUET_ALIAS = "__geometry_geojson";
+const MAX_GEO_METADATA_BYTES = 1024 * 1024;
+const MAX_GEO_METADATA_TOTAL_BYTES = 8 * 1024 * 1024;
+const MAX_GEO_METADATA_DOCUMENTS = 10_000;
+const MAX_GEO_METADATA_DEPTH = 32;
+const MAX_GEO_METADATA_NODES = 100_000;
 
 /** Lifecycle options supplied while a fresh {@link DuckDbDriver} is initialized. */
 export interface DuckDbDriverFactoryOptions {
@@ -234,29 +239,45 @@ class InconsistentGeoMetadataError extends Error {}
 
 function consistentGeoMetadata(rows: readonly DuckRow[]): string | undefined {
   if (rows.length === 0) return undefined;
+  if (rows.length > MAX_GEO_METADATA_DOCUMENTS) {
+    throw new InconsistentGeoMetadataError("geoparquet: too many geo metadata documents");
+  }
+  let totalBytes = 0;
   const documents = rows.map((row) => {
     const value = row.value;
     if (value === null || value === undefined) return undefined;
-    if (typeof value === "string") return value;
-    if (value instanceof Uint8Array) return new TextDecoder().decode(value);
-    throw new InconsistentGeoMetadataError("geoparquet: geo metadata contains a non-text value");
+    if (value instanceof Uint8Array && value.byteLength > MAX_GEO_METADATA_BYTES) {
+      throw new InconsistentGeoMetadataError("geoparquet: geo metadata exceeds the one-megabyte safety bound");
+    }
+    const document =
+      typeof value === "string" ? value : value instanceof Uint8Array ? new TextDecoder().decode(value) : undefined;
+    if (document === undefined) {
+      throw new InconsistentGeoMetadataError("geoparquet: geo metadata contains a non-text value");
+    }
+    totalBytes += assertGeoMetadataSize(document);
+    if (totalBytes > MAX_GEO_METADATA_TOTAL_BYTES) {
+      throw new InconsistentGeoMetadataError("geoparquet: aggregate geo metadata exceeds the safety bound");
+    }
+    return document;
   });
   if (documents.every((value) => value === undefined)) return undefined;
   if (documents.some((value) => value === undefined)) {
     throw new InconsistentGeoMetadataError("geoparquet: only some source files contain geo metadata");
   }
   if (documents.length === 1) {
-    assertGeoMetadataSize(documents[0]!);
+    parseGeoMetadata(documents[0]!);
     return documents[0];
   }
   const parsed = documents.map((value) => parseGeoMetadata(value!));
   return JSON.stringify(mergeCompatibleGeoMetadata(parsed));
 }
 
-function assertGeoMetadataSize(value: string): void {
-  if (value.length > 1024 * 1024 || new TextEncoder().encode(value).byteLength > 1024 * 1024) {
+function assertGeoMetadataSize(value: string): number {
+  const byteLength = new TextEncoder().encode(value).byteLength;
+  if (value.length > MAX_GEO_METADATA_BYTES || byteLength > MAX_GEO_METADATA_BYTES) {
     throw new InconsistentGeoMetadataError("geoparquet: geo metadata exceeds the one-megabyte safety bound");
   }
+  return byteLength;
 }
 
 function parseGeoMetadata(value: string): Record<string, unknown> {
@@ -264,10 +285,42 @@ function parseGeoMetadata(value: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(value) as unknown;
     if (!isJsonRecord(parsed)) throw new InconsistentGeoMetadataError("geoparquet: geo metadata is not an object");
+    assertBoundedGeoMetadataGraph(parsed);
     return parsed;
   } catch (cause) {
     if (cause instanceof InconsistentGeoMetadataError) throw cause;
     throw new InconsistentGeoMetadataError("geoparquet: geo metadata is not valid JSON");
+  }
+}
+
+function assertBoundedGeoMetadataGraph(root: unknown): void {
+  const stack: Array<{ readonly value: unknown; readonly depth: number }> = [{ value: root, depth: 0 }];
+  let nodes = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    nodes += 1;
+    if (nodes > MAX_GEO_METADATA_NODES) {
+      throw new InconsistentGeoMetadataError("geoparquet: geo metadata exceeds the node-count safety bound");
+    }
+    if (current.depth > MAX_GEO_METADATA_DEPTH) {
+      throw new InconsistentGeoMetadataError("geoparquet: geo metadata exceeds the nesting-depth safety bound");
+    }
+    const value = current.value;
+    if (value === null || typeof value === "string" || typeof value === "boolean") continue;
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) {
+        throw new InconsistentGeoMetadataError("geoparquet: geo metadata is not finite JSON");
+      }
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const child of value) stack.push({ value: child, depth: current.depth + 1 });
+      continue;
+    }
+    if (!isJsonRecord(value)) {
+      throw new InconsistentGeoMetadataError("geoparquet: geo metadata is not JSON data");
+    }
+    for (const child of Object.values(value)) stack.push({ value: child, depth: current.depth + 1 });
   }
 }
 
@@ -287,7 +340,7 @@ function mergeCompatibleGeoMetadata(documents: readonly Record<string, unknown>[
     }
   }
 
-  const mergedColumns: Record<string, unknown> = {};
+  const mergedColumns = Object.create(null) as Record<string, unknown>;
   for (const columnName of columnNames) {
     const columns = documents.map((document) => geoMetadataColumns(document)[columnName]);
     if (columns.some((column) => !isJsonRecord(column))) {

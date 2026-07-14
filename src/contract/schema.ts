@@ -1697,16 +1697,15 @@ function isResolvedCrsDefinition(definition: CrsDefinition): definition is Resol
 function normalizeNative(value: unknown, path: string): NativeTypeReference {
   const record = object(value, path, ["protocol", "name", "namespace", "path", "definition"]);
   const protocol = sourceProtocol(record.protocol, `${path}.protocol`);
-  const definition =
-    record.definition === undefined
-      ? undefined
-      : sanitizeNativeDefinition(jsonValue(record.definition, `${path}.definition`));
+  const rawDefinition =
+    record.definition === undefined ? undefined : jsonValue(record.definition, `${path}.definition`);
   if (
-    definition !== undefined &&
-    new TextEncoder().encode(canonicalStringify(toJsonValue(definition))).byteLength > MAX_NATIVE_DEFINITION_BYTES
+    rawDefinition !== undefined &&
+    new TextEncoder().encode(canonicalStringify(toJsonValue(rawDefinition))).byteLength > MAX_NATIVE_DEFINITION_BYTES
   ) {
     throw new TypeError(`${path}.definition exceeds ${MAX_NATIVE_DEFINITION_BYTES} bytes`);
   }
+  const definition = rawDefinition === undefined ? undefined : sanitizeNativeDefinition(rawDefinition);
   return {
     protocol,
     name: text(record.name, `${path}.name`),
@@ -1717,11 +1716,15 @@ function normalizeNative(value: unknown, path: string): NativeTypeReference {
 }
 
 const REDACTED_NATIVE_VALUE = "[REDACTED]";
+const MAX_NATIVE_SANITIZER_DEPTH = 8;
 const SENSITIVE_NATIVE_KEY =
-  /^(?:authorization|proxy[-_]?authorization|bearer[-_]?token|token|access[-_]?token|refresh[-_]?token|id[-_]?token|api[-_]?key|apikey|secret|client[-_]?secret|password|passwd|credential|private[-_]?key|session[-_]?token|cookie|set[-_]?cookie|aws[-_]?access[-_]?key[-_]?id|aws[-_]?secret[-_]?access[-_]?key)$/i;
+  /^(?:authorization|proxy[-_]?authorization|auth[-_]?token|bearer|bearer[-_]?token|jwt|token|access[-_]?token|refresh[-_]?token|id[-_]?token|api[-_]?key|apikey|subscription[-_]?key|ocp[-_]?apim[-_]?subscription[-_]?key|secret|client[-_]?secret|password|passwd|pwd|credential|private[-_]?key|session(?:[-_]?id|[-_]?token)?|cookie|set[-_]?cookie|aws[-_]?access[-_]?key[-_]?id|aws[-_]?secret[-_]?access[-_]?key)$/i;
 const SENSITIVE_QUERY_NAMES = new Set([
   "authorization",
   "auth",
+  "authtoken",
+  "bearer",
+  "jwt",
   "token",
   "accesstoken",
   "refreshtoken",
@@ -1731,7 +1734,12 @@ const SENSITIVE_QUERY_NAMES = new Set([
   "secret",
   "clientsecret",
   "password",
+  "pwd",
   "credential",
+  "session",
+  "sessionid",
+  "subscriptionkey",
+  "ocpapimsubscriptionkey",
   "signature",
   "sig",
   "policy",
@@ -1759,16 +1767,17 @@ function sanitizeNativeDefinition(value: JsonValue): JsonValue {
   return sanitized;
 }
 
-function sanitizeNativeString(value: string): string {
+function sanitizeNativeString(value: string, depth = 0): string {
   if (/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/.test(value)) return REDACTED_NATIVE_VALUE;
-  let sanitized = value.replace(/[A-Za-z][A-Za-z0-9+.-]*:[/\\]{2}[^\s<>"',]+/g, (url) => sanitizeNativeUrl(url));
+  let sanitized = replaceNativeUrls(value, depth);
+  sanitized = replaceUnqualifiedUserInfo(sanitized);
   sanitized = sanitized.replace(/\b(Bearer|Basic)\s+[^\s,;]+/gi, `$1 ${REDACTED_NATIVE_VALUE}`);
   sanitized = sanitized.replace(
     /\b(?:eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|(?:AKIA|ASIA|AIDA|AROA|AIPA|ANPA|ANVA|ASCA)[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{20,})\b/g,
     REDACTED_NATIVE_VALUE,
   );
   sanitized = sanitized.replace(
-    /\b(token|access[-_]?token|refresh[-_]?token|id[-_]?token|api[-_]?key|apikey|secret|client[-_]?secret|password|passwd|credential|signature|sig|aws[-_]?access[-_]?key[-_]?id|aws[-_]?secret[-_]?access[-_]?key)\s*([=:])\s*([^\s&,;"']+)/gi,
+    /\b(auth[-_]?token|bearer|jwt|token|access[-_]?token|refresh[-_]?token|id[-_]?token|api[-_]?key|apikey|subscription[-_]?key|secret|client[-_]?secret|password|passwd|pwd|credential|session(?:[-_]?id|[-_]?token)?|signature|sig|aws[-_]?access[-_]?key[-_]?id|aws[-_]?secret[-_]?access[-_]?key)\s*([=:])\s*([^\s&,;"']+)/gi,
     (_match, key: string, separator: string, credential: string) =>
       credentialPlaceholder(credential)
         ? `${key}${separator}${credential}`
@@ -1777,25 +1786,122 @@ function sanitizeNativeString(value: string): string {
   return sanitized;
 }
 
-function sanitizeNativeUrl(value: string): string {
-  if (!/^[A-Za-z][A-Za-z0-9+.-]*:[/\\]{2}/.test(value)) return value;
+function replaceNativeUrls(value: string, depth: number): string {
+  let output = "";
+  let copiedThrough = 0;
+  let cursor = 0;
+  while (cursor < value.length) {
+    if (!asciiLetter(value.charCodeAt(cursor))) {
+      cursor += 1;
+      continue;
+    }
+    const start = cursor;
+    cursor += 1;
+    while (cursor < value.length && asciiSchemeCharacter(value.charCodeAt(cursor))) cursor += 1;
+    if (!schemeAuthorityAt(value, start, cursor)) continue;
+    let end = cursor + 3;
+    while (end < value.length && !nativeUrlTerminator(value.charCodeAt(end))) end += 1;
+    output += value.slice(copiedThrough, start);
+    output += sanitizeNativeUrl(value.slice(start, end), depth);
+    copiedThrough = end;
+    cursor = end;
+  }
+  return copiedThrough === 0 ? value : output + value.slice(copiedThrough);
+}
+
+function sanitizeNativeUrl(value: string, depth: number): string {
+  const colon = value.indexOf(":");
+  if (colon < 1 || !schemeAuthorityAt(value, 0, colon)) return value;
   if (value.includes("\\")) return REDACTED_NATIVE_VALUE;
   try {
     const url = new URL(value);
     url.username = "";
     url.password = "";
-    for (const key of [...url.searchParams.keys()]) {
-      if (sensitiveQueryParameter(key) && url.searchParams.getAll(key).some((entry) => !credentialPlaceholder(entry))) {
-        url.searchParams.set(key, REDACTED_NATIVE_VALUE);
-      }
+    const sanitizedQuery = new URLSearchParams();
+    for (const [key, entry] of url.searchParams) {
+      sanitizedQuery.append(
+        key,
+        sensitiveQueryParameter(key) && !credentialPlaceholder(entry) ? REDACTED_NATIVE_VALUE : entry,
+      );
     }
-    if (url.hash) url.hash = sanitizeNativeString(url.hash);
+    url.search = sanitizedQuery.toString();
+    if (url.hash) {
+      url.hash =
+        depth >= MAX_NATIVE_SANITIZER_DEPTH ? REDACTED_NATIVE_VALUE : sanitizeNativeString(url.hash, depth + 1);
+    }
     return url.toString();
   } catch {
     // A malformed authority/port cannot be safely decomposed. Native evidence
     // is diagnostic-only, so fail closed rather than preserve possible userinfo.
     return REDACTED_NATIVE_VALUE;
   }
+}
+
+function replaceUnqualifiedUserInfo(value: string): string {
+  let output = "";
+  let cursor = 0;
+  while (cursor < value.length) {
+    if (nativeCredentialBoundary(value.charCodeAt(cursor))) {
+      output += value[cursor];
+      cursor += 1;
+      continue;
+    }
+    const start = cursor;
+    let end = cursor + 1;
+    while (end < value.length && !nativeCredentialBoundary(value.charCodeAt(end))) end += 1;
+    output += nativeSegmentContainsUserInfo(value, start, end) ? REDACTED_NATIVE_VALUE : value.slice(start, end);
+    cursor = end;
+  }
+  return output;
+}
+
+function nativeSegmentContainsUserInfo(value: string, start: number, end: number): boolean {
+  let colon = -1;
+  for (let cursor = start; cursor < end; cursor += 1) {
+    const code = value.charCodeAt(cursor);
+    if (code === 58) colon = cursor;
+    else if (code === 64 && colon > start && colon < cursor && cursor + 1 < end) return true;
+  }
+  return false;
+}
+
+function nativeCredentialBoundary(code: number): boolean {
+  return (
+    code <= 32 ||
+    code === 34 ||
+    code === 39 ||
+    code === 40 ||
+    code === 41 ||
+    code === 44 ||
+    code === 59 ||
+    code === 60 ||
+    code === 61 ||
+    code === 62
+  );
+}
+
+function schemeAuthorityAt(value: string, start: number, colon: number): boolean {
+  if (colon <= start || value.charCodeAt(colon) !== 58 || !asciiLetter(value.charCodeAt(start))) return false;
+  for (let index = start + 1; index < colon; index += 1) {
+    if (!asciiSchemeCharacter(value.charCodeAt(index))) return false;
+  }
+  return slashOrBackslash(value.charCodeAt(colon + 1)) && slashOrBackslash(value.charCodeAt(colon + 2));
+}
+
+function asciiLetter(code: number): boolean {
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+function asciiSchemeCharacter(code: number): boolean {
+  return asciiLetter(code) || (code >= 48 && code <= 57) || code === 43 || code === 45 || code === 46;
+}
+
+function slashOrBackslash(code: number): boolean {
+  return code === 47 || code === 92;
+}
+
+function nativeUrlTerminator(code: number): boolean {
+  return code <= 32 || code === 34 || code === 39 || code === 44 || code === 60 || code === 62;
 }
 
 function sensitiveQueryParameter(key: string): boolean {
@@ -1842,14 +1948,7 @@ function normalizeProvenance(value: unknown, path: string): MetadataProvenance {
 }
 
 function sanitizeProvenanceText(value: string): string {
-  const sanitized = sanitizeNativeString(value);
-  // Native URL sanitization handles valid absolute URLs. Fail closed for
-  // protocol-relative, bare, or malformed user-info that URL parsing cannot
-  // safely decompose, while retaining surrounding diagnostic prose.
-  return sanitized.replace(
-    /(^|[\s(=])(?:\/\/)?[^\s/@:]+:[^\s/@]*@[^\s,;)]+/g,
-    (_match, prefix: string) => `${prefix}${REDACTED_NATIVE_VALUE}`,
-  );
+  return sanitizeNativeString(value);
 }
 
 function normalizeValidator(value: unknown, path: string): NonNullable<MetadataProvenance["validator"]> {
@@ -2214,13 +2313,17 @@ function absoluteUri(value: unknown, path: string): string {
   let parsed: URL;
   try {
     parsed = new URL(textValue);
-  } catch (cause) {
-    throw new TypeError(`${path} must be an absolute URI`, { cause });
+  } catch {
+    // URL parse errors retain the full input, including credentials, on their
+    // `input` property. Keep validation errors path-only so they are safe to
+    // serialize or log.
+    throw new TypeError(`${path} must be an absolute URI`);
   }
   if (!parsed.protocol || !["http:", "https:", "urn:"].includes(parsed.protocol)) {
     throw new TypeError(`${path} uses an unsafe or unsupported URI scheme`);
   }
   if (parsed.username || parsed.password) throw new TypeError(`${path} must not include user-info`);
+  if (textValue.includes("?")) throw new TypeError(`${path} must not include a query`);
   if (textValue.includes("#")) throw new TypeError(`${path} must not include a fragment`);
   if (/%(?![0-9A-Fa-f]{2})/.test(textValue)) throw new TypeError(`${path} contains malformed percent encoding`);
   for (const match of textValue.matchAll(/%([0-9A-Fa-f]{2})/g)) {
@@ -2447,6 +2550,7 @@ function daysFromCivil(year: number, month: number, day: number): number {
 }
 
 function integerString(value: string, bits: 8 | 16 | 32 | 64, signed: boolean): boolean {
+  if (value.length > 20) return false;
   if (!(signed ? /^-?(?:0|[1-9]\d*)$/ : /^(?:0|[1-9]\d*)$/).test(value) || value === "-0") return false;
   return integerBigInt(BigInt(value), bits, signed);
 }
@@ -2675,8 +2779,12 @@ function decimalParts(value: string): {
   const negative = value.startsWith("-");
   const unsigned = negative ? value.slice(1) : value;
   const [integer = "0", fraction = ""] = unsigned.split(".");
-  const normalizedInteger = integer.replace(/^0+(?=\d)/, "");
-  const normalizedFraction = fraction.replace(/0+$/, "");
+  let integerStart = 0;
+  while (integerStart < integer.length - 1 && integer.charCodeAt(integerStart) === 48) integerStart += 1;
+  let fractionEnd = fraction.length;
+  while (fractionEnd > 0 && fraction.charCodeAt(fractionEnd - 1) === 48) fractionEnd -= 1;
+  const normalizedInteger = integer.slice(integerStart);
+  const normalizedFraction = fraction.slice(0, fractionEnd);
   const zero = normalizedInteger === "0" && normalizedFraction === "";
   return { negative: zero ? false : negative, integer: normalizedInteger, fraction: normalizedFraction };
 }
@@ -2712,6 +2820,26 @@ function validateProjJson(projjson: JsonObject, path: string): void {
         : instancePath;
     const detail = selected?.message ? `: ${selected.message}` : "";
     throw new TypeError(`${path}${selectedPath} does not satisfy the official PROJJSON v0.7 CRS schema${detail}`);
+  }
+  validateProjJsonUris(projjson, path);
+}
+
+function validateProjJsonUris(projjson: JsonObject, path: string): void {
+  const stack: Array<{ readonly value: JsonValue; readonly path: string }> = [{ value: projjson, path }];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (current.value === null || typeof current.value !== "object") continue;
+    if (Array.isArray(current.value)) {
+      for (const [index, child] of current.value.entries()) {
+        stack.push({ value: child, path: `${current.path}[${index}]` });
+      }
+      continue;
+    }
+    for (const [key, child] of Object.entries(current.value)) {
+      const childPath = `${current.path}.${key}`;
+      if (key === "uri") absoluteUri(child, childPath);
+      else stack.push({ value: child, path: childPath });
+    }
   }
 }
 

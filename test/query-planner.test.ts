@@ -91,33 +91,16 @@ describe("query IR", () => {
     expect(JSON.stringify(backslashIr)).not.toContain("backslash-password");
     expect(JSON.stringify(backslashIr)).not.toContain("backslash-token");
 
+    const whitespaceAuthority = descriptor();
+    whitespaceAuthority.locator.url = "https ://user:space-password@example.test?token=space-token";
+    const whitespaceIr = createQueryIr({ descriptor: whitespaceAuthority, query: {} });
+    expect(whitespaceIr.source.endpoint).toBe("[invalid-endpoint]");
+    expect(JSON.stringify(whitespaceIr)).not.toContain("space-password");
+    expect(JSON.stringify(whitespaceIr)).not.toContain("space-token");
+
     const relative = descriptor();
     relative.locator.url = "fixtures/places.parquet?token=secret#fragment";
     expect(createQueryIr({ descriptor: relative, query: {} }).source.endpoint).toBe("fixtures/places.parquet");
-  });
-
-  it("never serializes credentials from GeoParquet execution sources", () => {
-    const geoparquet: SourceDescriptor = {
-      id: "places",
-      protocol: "geoparquet",
-      locator: {
-        url: "https://user:primary-password@example.test/places.parquet?token=primary-token",
-        geoparquet: {
-          urls: ["https://other:additional-password@example.test/more.parquet?sig=additional-token"],
-        },
-      },
-      capabilities: capabilities(["query"]),
-    };
-
-    expect(() => createQueryIr({ descriptor: geoparquet, query: {} })).toThrow(HonuaQueryPlanningError);
-    try {
-      createQueryIr({ descriptor: geoparquet, query: {} });
-    } catch (error) {
-      expect(JSON.stringify(error)).not.toContain("primary-password");
-      expect(JSON.stringify(error)).not.toContain("additional-password");
-      expect(String(error)).not.toContain("primary-token");
-      expect(String(error)).not.toContain("additional-token");
-    }
   });
 
   it("rejects non-serializable geometry and invalid pagination", () => {

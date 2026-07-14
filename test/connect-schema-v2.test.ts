@@ -2,11 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 
 import { type ConnectDiscoverySnapshot, HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION, connect } from "../src/connect.js";
 import { type SourceDescriptor, capabilities } from "../src/contract/types.js";
-import { type HonuaOdataMetadata, parseOdataMetadata } from "../src/core/odata.js";
+import {
+  type HonuaOdataMetadata,
+  getOdataSourceSchemaProjectionDetails,
+  parseOdataMetadata,
+} from "../src/core/odata.js";
 import { buildSourceProfile } from "../src/geoparquet/metadata.js";
 import { createQueryIr, hashQueryIr, queryIrSourceIdentity } from "../src/query-planner/ir.js";
 import {
   type JsonValue,
+  type LogicalType,
   connectWithSourceSchemaV2,
   createSourceSchemaV2,
   geoParquetSourceSchemaV2,
@@ -220,6 +225,59 @@ describe("source schema v2 discovery adapters", () => {
     }
   });
 
+  it("does not erase timezone semantics from DuckDB TIME values", () => {
+    const schema = geoParquetSourceSchemaV2(
+      {
+        columns: ["timetz", "time_with_zone", "timestamp_with_zone"],
+        fields: [
+          { name: "timetz", type: "TIMETZ" },
+          { name: "time_with_zone", type: "TIME WITH TIME ZONE" },
+          { name: "timestamp_with_zone", type: "TIMESTAMP WITH TIME ZONE" },
+        ],
+      },
+      context,
+    );
+
+    expect(schema.fields.find((field) => field.name === "timetz")?.type).toMatchObject({
+      kind: "unknown",
+      reason: "unsupported",
+    });
+    expect(schema.fields.find((field) => field.name === "time_with_zone")?.type).toMatchObject({
+      kind: "unknown",
+      reason: "unsupported",
+    });
+    expect(schema.fields.find((field) => field.name === "timestamp_with_zone")?.type).toEqual({
+      kind: "timestamp",
+      unit: "microsecond",
+      timezone: "utc",
+    });
+  });
+
+  it("bounds recursively nested remote scalar types", () => {
+    const nestedOdata = `${"Collection(".repeat(1_000)}Edm.Int32${")".repeat(1_000)}`;
+    const metadata = parseOdataMetadata(`
+      <edmx:Edmx Version="4.0">
+        <Schema Namespace="Example">
+          <EntityType Name="Asset"><Property Name="Nested" Type="${nestedOdata}"/></EntityType>
+          <EntityContainer Name="Container"><EntitySet Name="Assets" EntityType="Example.Asset"/></EntityContainer>
+        </Schema>
+      </edmx:Edmx>
+    `);
+    expect(() => odataSourceSchemaV2(metadata, "Assets", context)).toThrow(/nesting exceeds/);
+
+    const nestedDuckDb = `INTEGER${"[]".repeat(1_000)}`;
+    const schema = geoParquetSourceSchemaV2(
+      { columns: ["nested"], fields: [{ name: "nested", type: nestedDuckDb }] },
+      context,
+    );
+    let type: LogicalType | undefined = schema.fields[0]?.type;
+    for (let depth = 0; depth < 31; depth += 1) {
+      expect(type?.kind).toBe("list");
+      type = type?.kind === "list" ? type.element : undefined;
+    }
+    expect(type).toMatchObject({ kind: "unknown", reason: "unsupported" });
+  });
+
   it("normalizes GeoServices defaults and domains to logical JSON encodings", () => {
     const guid = "550E8400-E29B-41D4-A716-446655440000";
     const schema = geoServicesSourceSchemaV2(
@@ -251,6 +309,11 @@ describe("source schema v2 discovery adapters", () => {
             defaultValue: `{${guid}}`,
             domain: { type: "codedValue", codedValues: [{ code: `{${guid}}` }] },
           },
+          {
+            name: "OversizedId",
+            type: "esriFieldTypeBigInteger",
+            defaultValue: "9".repeat(100_000),
+          },
         ],
       },
       { ...context, protocol: "geoservices-feature-service" },
@@ -274,6 +337,7 @@ describe("source schema v2 discovery adapters", () => {
       defaultValue: guid.toLowerCase(),
       domain: { state: "coded", values: [{ value: guid.toLowerCase() }] },
     });
+    expect(schema.fields.find((field) => field.name === "OversizedId")).not.toHaveProperty("defaultValue");
   });
 
   it("degrades invalid or oversized GeoServices value metadata without dropping v2", () => {
@@ -691,6 +755,112 @@ describe("source schema v2 discovery adapters", () => {
       metadataState: "invalid",
       runtimeSupported: false,
     });
+  });
+
+  it("preserves secondary geometry columns as v1 query attributes", () => {
+    const profile = buildSourceProfile({
+      describe: [
+        { column_name: "geometry", column_type: "BLOB" },
+        { column_name: "alternate_geometry", column_type: "BLOB" },
+        { column_name: "name", column_type: "VARCHAR" },
+      ],
+      geoJson: JSON.stringify({
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: {
+          geometry: { encoding: "WKB", geometry_types: ["Point"] },
+          alternate_geometry: { encoding: "WKB", geometry_types: ["Point"] },
+        },
+      }),
+    });
+
+    expect(profile.geometry?.column).toBe("geometry");
+    expect(profile.geometries?.map((geometry) => geometry.column)).toEqual(["geometry", "alternate_geometry"]);
+    expect(profile.columns).toEqual(["alternate_geometry", "name"]);
+  });
+
+  it.each([
+    ["point", "Point", "STRUCT(x DOUBLE, y DOUBLE)"],
+    ["linestring", "LineString", "STRUCT(x DOUBLE, y DOUBLE)[]"],
+    ["multipoint", "MultiPoint", "LIST(STRUCT(x DOUBLE, y DOUBLE))"],
+    ["polygon", "Polygon", "STRUCT<x DOUBLE, y DOUBLE>[][]"],
+    ["multilinestring", "MultiLineString", "LIST<LIST<STRUCT<x DOUBLE, y DOUBLE>>>"],
+    ["multipolygon", "MultiPolygon", "STRUCT(x DOUBLE, y DOUBLE)[][][]"],
+    ["point", "Point Z", "STRUCT(x DOUBLE, y DOUBLE, z DOUBLE)"],
+  ])("accepts the exact GeoParquet native layout for %s", (encoding, geometryType, columnType) => {
+    const profile = buildSourceProfile({
+      describe: [{ column_name: "geometry", column_type: columnType }],
+      geoJson: JSON.stringify({
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding, geometry_types: [geometryType] } },
+      }),
+    });
+    expect(profile.geometry).toMatchObject({ metadataState: "valid", runtimeSupported: false });
+  });
+
+  it.each([
+    ["polygon", "Polygon", "STRUCT(x DOUBLE, y DOUBLE)[]"],
+    ["linestring", "LineString", "STRUCT(x DOUBLE, y DOUBLE)[][]"],
+    ["multipolygon", "MultiPolygon", "STRUCT(x DOUBLE, y DOUBLE)[][]"],
+    ["point", "Point Z", "STRUCT(x DOUBLE, y DOUBLE)"],
+    ["point", "Point", "STRUCT(x DOUBLE, y DOUBLE, z DOUBLE)"],
+    ["point", "Point", "STRUCT(x DOUBLE, y DOUBLE, m DOUBLE)"],
+    ["point", "Point", "STRUCT(x FLOAT, y FLOAT)"],
+    ["point", "Point", "STRUCT(X DOUBLE, y DOUBLE)"],
+    ["point", "Point Z", "STRUCT(x DOUBLE, y DOUBLE, z FLOAT)"],
+  ])("rejects a contradictory GeoParquet native layout for %s", (encoding, geometryType, columnType) => {
+    const profile = buildSourceProfile({
+      describe: [{ column_name: "geometry", column_type: columnType }],
+      geoJson: JSON.stringify({
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding, geometry_types: [geometryType] } },
+      }),
+    });
+    expect(profile.geometry).toMatchObject({ metadataState: "invalid" });
+  });
+
+  it.each([
+    ["point", "GEOMETRY_VENDOR"],
+    ["point", "STRUCT(payload GEOMETRY)"],
+    ["WKB", "STRUCT(payload BLOB)"],
+  ])("does not let broad runtime type detection certify %s metadata over %s", (encoding, columnType) => {
+    const profile = buildSourceProfile({
+      describe: [{ column_name: "geometry", column_type: columnType }],
+      geoJson: JSON.stringify({
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding, geometry_types: ["Point"] } },
+      }),
+    });
+    expect(profile.geometry).toMatchObject({ metadataState: "invalid" });
+  });
+
+  it("rejects mixed 2D and 3D declarations against one native coordinate layout", () => {
+    const profile = buildSourceProfile({
+      describe: [{ column_name: "geometry", column_type: "STRUCT(x DOUBLE, y DOUBLE, z DOUBLE)" }],
+      geoJson: JSON.stringify({
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding: "point", geometry_types: ["Point", "Point Z"] } },
+      }),
+    });
+    expect(profile.geometry).toMatchObject({ metadataState: "invalid" });
+  });
+
+  it("rejects deeply nested GeoParquet metadata without recursive traversal", () => {
+    let crs: JsonValue = { name: "leaf" };
+    for (let depth = 0; depth < 40; depth += 1) crs = { nested: crs };
+    const profile = buildSourceProfile({
+      describe: [{ column_name: "geometry", column_type: "BLOB" }],
+      geoJson: JSON.stringify({
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding: "WKB", geometry_types: ["Point"], crs } },
+      }),
+    });
+    expect(profile.geometry).toMatchObject({ metadataState: "invalid" });
   });
 
   it.each([
@@ -1908,11 +2078,11 @@ describe("source schema v2 discovery adapters", () => {
     `);
     const schema = odataSourceSchemaV2(metadata, "Assets", context)!;
 
-    expect(metadata.enumTypes?.Status).toMatchObject({
+    expect(getOdataSourceSchemaProjectionDetails(metadata)?.enumTypes.Status).toMatchObject({
       declaration: { state: "valid", valueMode: "explicit" },
       members: [{ value: 1 }, { value: 1 }],
     });
-    expect(metadata.enumTypes?.Priority).toMatchObject({
+    expect(getOdataSourceSchemaProjectionDetails(metadata)?.enumTypes.Priority).toMatchObject({
       declaration: { state: "valid", valueMode: "implicit" },
       members: [{ value: 0 }, { value: 1 }],
     });
@@ -1940,7 +2110,7 @@ describe("source schema v2 discovery adapters", () => {
     `);
     const schema = odataSourceSchemaV2(metadata, "Parcels", context)!;
 
-    expect(metadata.enumTypes?.ShippingMethod).toMatchObject({
+    expect(getOdataSourceSchemaProjectionDetails(metadata)?.enumTypes.ShippingMethod).toMatchObject({
       declaration: { state: "valid", valueMode: "mixed" },
       members: [{ value: 0 }, { value: 4 }, { value: 5 }],
     });
@@ -2018,7 +2188,10 @@ describe("source schema v2 discovery adapters", () => {
     `);
     const schema = odataSourceSchemaV2(metadata, "Assets", context);
 
-    expect(metadata.enumTypes?.Status?.declaration).toEqual({ state: "invalid", reason });
+    expect(getOdataSourceSchemaProjectionDetails(metadata)?.enumTypes.Status?.declaration).toEqual({
+      state: "invalid",
+      reason,
+    });
     expect(schema).toBeDefined();
     expect(schema?.fields[0]?.domain).toMatchObject({ state: "unknown", reason: "unrecognized" });
   });
@@ -2035,7 +2208,10 @@ describe("source schema v2 discovery adapters", () => {
     `);
     const schema = odataSourceSchemaV2(metadata, "Assets", context)!;
 
-    expect(metadata.enumTypes?.Permissions?.declaration).toEqual({ state: "valid", valueMode: "explicit" });
+    expect(getOdataSourceSchemaProjectionDetails(metadata)?.enumTypes.Permissions?.declaration).toEqual({
+      state: "valid",
+      valueMode: "explicit",
+    });
     expect(schema.fields[0]).toMatchObject({
       type: { kind: "unknown", reason: "unsupported" },
       domain: { state: "unknown", reason: "unrecognized" },
@@ -2190,8 +2366,8 @@ describe("source schema v2 discovery adapters", () => {
     expect(missingSchemaFetch).not.toHaveBeenCalled();
 
     let deepExtension: JsonValue = "leaf";
-    for (let depth = 0; depth < 28; depth += 1) deepExtension = { next: deepExtension };
-    const largeSchema = createSourceSchemaV2({
+    for (let depth = 0; depth < 12; depth += 1) deepExtension = { next: deepExtension };
+    const boundedSchema = createSourceSchemaV2({
       fields: [],
       key: { state: "none" },
       geometry: { state: "none", reason: "no-geometry-fields" },
@@ -2200,22 +2376,51 @@ describe("source schema v2 discovery adapters", () => {
       provenance: [{ method: "observed", protocol: "odata", source: "https://example.test/$metadata" }],
       extensions: {
         "io.honua.cache-bounds": {
-          wide: Array.from({ length: 10_001 }, (_, index) => index),
+          wide: Array.from({ length: 1_000 }, (_, index) => index),
           deep: deepExtension,
         },
       },
     });
-    const largeCached = structuredClone(snapshot);
-    (largeCached.sources[0] as { schemaV2?: unknown }).schemaV2 = largeSchema;
-    const largeHit = await connectWithSourceSchemaV2({
+    const boundedCached = structuredClone(snapshot);
+    (boundedCached.sources[0] as { schemaV2?: unknown }).schemaV2 = boundedSchema;
+    const boundedHit = await connectWithSourceSchemaV2({
       endpoint: "https://example.test/odata",
       protocol: "odata",
       authorizationScopeFingerprint: "anonymous",
       clientOptions: { fetchFn: vi.fn(async () => new Response("unexpected", { status: 500 })) },
-      cache: { get: () => largeCached, set: vi.fn() },
+      cache: { get: () => boundedCached, set: vi.fn() },
     });
-    expect(largeHit.source().descriptor.schemaV2?.fingerprint).toBe(largeSchema.fingerprint);
-    expect(Object.isFrozen(largeHit.source().descriptor.schemaV2?.extensions?.["io.honua.cache-bounds"])).toBe(true);
+    expect(boundedHit.source().descriptor.schemaV2?.fingerprint).toBe(boundedSchema.fingerprint);
+    expect(Object.isFrozen(boundedHit.source().descriptor.schemaV2?.extensions?.["io.honua.cache-bounds"])).toBe(true);
+
+    const aggregateSchema = createSourceSchemaV2({
+      fields: [],
+      key: { state: "none" },
+      geometry: { state: "none", reason: "no-geometry-fields" },
+      temporal: { state: "none" },
+      openContent: "closed",
+      provenance: [{ method: "observed", protocol: "odata", source: "https://example.test/$metadata" }],
+      extensions: {
+        "io.honua.cache-aggregate": Object.fromEntries(
+          Array.from({ length: 5 }, (_, index) => [`part-${index}`, "x".repeat(810_000)]),
+        ),
+      },
+    });
+    const aggregateCached = structuredClone(snapshot);
+    (aggregateCached.sources[0] as { schemaV2?: unknown }).schemaV2 = aggregateSchema;
+    await expect(
+      connectWithSourceSchemaV2({
+        endpoint: "https://example.test/odata",
+        protocol: "odata",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn: vi.fn() },
+        cache: { get: () => aggregateCached, set: vi.fn() },
+      }),
+    ).rejects.toMatchObject({
+      name: "HonuaDiscoveryError",
+      code: "invalid-discovery-cache",
+      message: expect.stringMatching(/total string-size limit/),
+    });
 
     const accessorCached = structuredClone(snapshot);
     let accessorReads = 0;
@@ -2223,7 +2428,7 @@ describe("source schema v2 discovery adapters", () => {
       enumerable: true,
       get: () => {
         accessorReads += 1;
-        return largeSchema;
+        return boundedSchema;
       },
     });
     await expect(
