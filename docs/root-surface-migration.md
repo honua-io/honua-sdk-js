@@ -1,15 +1,16 @@
 # Root import migration
 
-The package root is the reviewed connect → query → explain → mount workflow. No advanced API was deleted: every symbol moved from the transition-era root remains on the replacement subpath below and is compile-tested from a packed consumer.
+The package root is the reviewed connect → query → explain → mount workflow. Every former root symbol has a compile-tested replacement import below; renamed symbols identify the replacement name explicitly.
 
 This table is generated from [`config/root-surface.json`](../config/root-surface.json). Run `npm run verify:root-surface` to detect barrel, replacement, fixture, or documentation drift.
 
-Baseline: 263 runtime and 1039 declaration symbols. Final root: 37 runtime and 124 declaration symbols.
+Baseline: 263 runtime and 1039 declaration symbols. Final root: 38 runtime and 126 declaration symbols.
 
 ## Replacement summary
 
 | Replacement | Moved symbols |
 | --- | ---: |
+| `@honua/sdk-js` | 1 |
 | `@honua/sdk-js/contract` | 337 |
 | `@honua/sdk-js/exploration` | 55 |
 | `@honua/sdk-js/filter-registry` | 29 |
@@ -76,6 +77,7 @@ Baseline: 263 runtime and 1039 declaration symbols. Final root: 37 runtime and 1
 | `bindMapSelectionToExploration` | runtime | `@honua/sdk-js/interactions` |
 | `bindQueryProjectionToExploration` | runtime | `@honua/sdk-js/interactions` |
 | `bindTableSelectionToExploration` | runtime | `@honua/sdk-js/interactions` |
+| `buffer` | runtime | `bufferEnvelope` from `@honua/sdk-js` |
 | `buildAnalyticsSourceCacheKey` | runtime | `@honua/sdk-js/contract` |
 | `buildOdataSpatialFilter` | runtime | `@honua/sdk-js/honua` |
 | `buildQueryTileCacheKey` | runtime | `@honua/sdk-js/contract` |
