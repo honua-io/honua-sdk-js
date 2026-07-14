@@ -14,6 +14,21 @@ import {
 } from "../src/migration/widget-dispositions.js";
 
 const GUIDE_PATH = path.join(process.cwd(), WIDGET_SURVIVAL_GUIDE_PATH);
+const SURVIVAL_TIER_COMPONENTS = [
+  { widget: "LayerList", tagName: "honua-layer-list", source: "src/web-components/elements.ts" },
+  { widget: "Legend", tagName: "honua-legend", source: "src/web-components/elements.ts" },
+  { widget: "Measurement", tagName: "honua-measurement", source: "src/web-components/measurement.ts" },
+  { widget: "Search", tagName: "honua-search", source: "src/web-components/elements.ts" },
+] as const;
+type WidgetDispositionWithDocumentation = (typeof WIDGET_DISPOSITIONS)[number] & {
+  appPlatformComponent?: {
+    moduleSpecifier: string;
+    tagName: string;
+    source: string;
+    usageHtml: string;
+  };
+};
+const WIDGET_DISPOSITIONS_WITH_DOCUMENTATION = WIDGET_DISPOSITIONS as readonly WidgetDispositionWithDocumentation[];
 
 describe("widget disposition data", () => {
   it("has unique widget names and module paths", () => {
@@ -50,6 +65,27 @@ describe("widget disposition data", () => {
     }
   });
 
+  it("records the four survival-tier app-platform components in the shared disposition data", () => {
+    const componentRows = WIDGET_DISPOSITIONS_WITH_DOCUMENTATION.filter((entry) => entry.appPlatformComponent);
+    expect(componentRows.map((entry) => entry.widget).sort()).toEqual(
+      SURVIVAL_TIER_COMPONENTS.map((entry) => entry.widget).sort(),
+    );
+
+    for (const expected of SURVIVAL_TIER_COMPONENTS) {
+      const component = WIDGET_DISPOSITIONS_WITH_DOCUMENTATION.find(
+        (entry) => entry.widget === expected.widget,
+      )?.appPlatformComponent;
+      expect(component).toMatchObject({
+        moduleSpecifier: "@honua/app-platform/web-components",
+        tagName: expected.tagName,
+        source: expected.source,
+      });
+      expect(component?.usageHtml).toContain(`<${expected.tagName}`);
+      expect(component?.usageHtml).toContain('<honua-map id="map">');
+      expect(fs.existsSync(path.join(process.cwd(), expected.source))).toBe(true);
+    }
+  });
+
   it("covers every widget module the codemod can rewrite (scanner/codemod consistency)", () => {
     const knownWidgets = new Set(WIDGET_DISPOSITIONS.map((entry) => entry.widget));
     const codemodWidgetModules = SUPPORTED_ARCGIS_MODULES.filter((modulePath) =>
@@ -79,6 +115,21 @@ describe("widget survival guide", () => {
     const guide = fs.readFileSync(GUIDE_PATH, "utf8");
     for (const entry of WIDGET_DISPOSITIONS) {
       expect(guide).toContain(`### ${entry.widget}`);
+    }
+  });
+
+  it("links every survival-tier row to its app-platform component with generated usage", () => {
+    const guide = fs.readFileSync(GUIDE_PATH, "utf8");
+    for (const expected of SURVIVAL_TIER_COMPONENTS) {
+      const summaryRow = guide.split("\n").find((line) => line.startsWith(`| [${expected.widget}]`));
+      expect(summaryRow).toContain(
+        `Direct app-platform component: [\`<${expected.tagName}>\`](../${expected.source}) from \`@honua/app-platform/web-components\``,
+      );
+      const usageHtml = WIDGET_DISPOSITIONS_WITH_DOCUMENTATION.find((entry) => entry.widget === expected.widget)
+        ?.appPlatformComponent?.usageHtml;
+      if (!usageHtml) throw new Error(`${expected.widget} is missing app-platform usage markup`);
+      expect(guide).toContain(`import "@honua/app-platform/web-components";`);
+      expect(guide).toContain(usageHtml);
     }
   });
 

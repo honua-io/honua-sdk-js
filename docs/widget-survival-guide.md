@@ -30,6 +30,8 @@ The report inventories every widget usage site (ESM imports, AMD `require([...])
 
 Readiness buckets: `automated` counts as automated; `compat-shim`, `app-platform`, and `maplibre-plugin` count as assisted; `manual-workaround` and `no-equivalent` count as manual.
 
+A compat-backed row may also list a direct `@honua/app-platform` component. That component is the recommended destination for a deliberate UI rewrite; the disposition still describes what `honua-migrate` can automate today.
+
 ## Summary
 
 | Disposition | Widgets |
@@ -66,15 +68,15 @@ Readiness buckets: `automated` counts as automated; `compat-shim`, `app-platform
 | [FeatureTemplates](#featuretemplates) | `@arcgis/core/widgets/FeatureTemplates` | `esri/widgets/FeatureTemplates` | `automated` | FeatureTemplatesCompat from @honua/sdk-esri-compat |
 | [Fullscreen](#fullscreen) | `@arcgis/core/widgets/Fullscreen` | `esri/widgets/Fullscreen` | `automated` | FullscreenCompat from @honua/sdk-esri-compat (MapLibre FullscreenControl underneath) |
 | [Home](#home) | `@arcgis/core/widgets/Home` | `esri/widgets/Home` | `automated` | HomeCompat from @honua/sdk-esri-compat |
-| [LayerList](#layerlist) | `@arcgis/core/widgets/LayerList` | `esri/widgets/LayerList` | `automated` | LayerListCompat from @honua/sdk-esri-compat |
-| [Legend](#legend) | `@arcgis/core/widgets/Legend` | `esri/widgets/Legend` | `automated` | LegendCompat from @honua/sdk-esri-compat |
+| [LayerList](#layerlist) | `@arcgis/core/widgets/LayerList` | `esri/widgets/LayerList` | `automated` | LayerListCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-layer-list>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
+| [Legend](#legend) | `@arcgis/core/widgets/Legend` | `esri/widgets/Legend` | `automated` | LegendCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-legend>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
 | [LineOfSight](#lineofsight) | `@arcgis/core/widgets/LineOfSight` | `esri/widgets/LineOfSight` | `no-equivalent` | None. Requires 3D scene geometry intersection analysis. |
 | [Locate](#locate) | `@arcgis/core/widgets/Locate` | `esri/widgets/Locate` | `automated` | LocateCompat from @honua/sdk-esri-compat (MapLibre GeolocateControl covers the same behavior natively) |
-| [Measurement](#measurement) | `@arcgis/core/widgets/Measurement` | `esri/widgets/Measurement` | `compat-shim` | MeasurementCompat from @honua/sdk-esri-compat (2D distance/area only) |
+| [Measurement](#measurement) | `@arcgis/core/widgets/Measurement` | `esri/widgets/Measurement` | `compat-shim` | MeasurementCompat from @honua/sdk-esri-compat (2D distance/area only)<br>Direct app-platform component: [`<honua-measurement>`](../src/web-components/measurement.ts) from `@honua/app-platform/web-components` |
 | [Popup](#popup) | `@arcgis/core/widgets/Popup` | `esri/widgets/Popup` | `automated` | PopupCompat from @honua/sdk-esri-compat |
 | [Print](#print) | `@arcgis/core/widgets/Print` | `esri/widgets/Print` | `compat-shim` | PrintCompat from @honua/sdk-esri-compat |
 | [ScaleBar](#scalebar) | `@arcgis/core/widgets/ScaleBar` | `esri/widgets/ScaleBar` | `automated` | ScaleBarCompat from @honua/sdk-esri-compat (MapLibre ScaleControl underneath) |
-| [Search](#search) | `@arcgis/core/widgets/Search` | `esri/widgets/Search` | `automated` | SearchCompat from @honua/sdk-esri-compat backed by the Honua geocoding surface |
+| [Search](#search) | `@arcgis/core/widgets/Search` | `esri/widgets/Search` | `automated` | SearchCompat from @honua/sdk-esri-compat backed by the Honua geocoding surface<br>Direct app-platform component: [`<honua-search>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
 | [ShadowCast](#shadowcast) | `@arcgis/core/widgets/ShadowCast` | `esri/widgets/ShadowCast` | `no-equivalent` | None. Requires a 3D scene with shadow accumulation. |
 | [Sketch](#sketch) | `@arcgis/core/widgets/Sketch` | `esri/widgets/Sketch` | `compat-shim` | SketchCompat from @honua/sdk-esri-compat |
 | [Slice](#slice) | `@arcgis/core/widgets/Slice` | `esri/widgets/Slice` | `no-equivalent` | None. Requires 3D scene slicing. |
@@ -251,7 +253,19 @@ Readiness buckets: `automated` counts as automated; `compat-shim`, `app-platform
 - Modules: `@arcgis/core/widgets/LayerList`, `esri/widgets/LayerList`
 - Target: LayerListCompat from @honua/sdk-esri-compat
 - Compat shim source: [`src/esri-compat/layer-list.ts`](../src/esri-compat/layer-list.ts)
+- Direct app-platform component: [`<honua-layer-list>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components`
 - Notes: The honua-migrate codemod rewrites the import and safe constructor call sites deterministically; unsafe option literals fall through to an annotated manual TODO. Rendering goes through the Honua widget host, so CSS selectors and DOM structure are not byte-identical to ArcGIS.
+
+App-platform usage (the module import auto-registers the element):
+
+```ts
+import "@honua/app-platform/web-components";
+```
+
+```html
+<honua-map id="map"></honua-map>
+<honua-layer-list for="map"></honua-layer-list>
+```
 
 ### Legend
 
@@ -259,7 +273,19 @@ Readiness buckets: `automated` counts as automated; `compat-shim`, `app-platform
 - Modules: `@arcgis/core/widgets/Legend`, `esri/widgets/Legend`
 - Target: LegendCompat from @honua/sdk-esri-compat
 - Compat shim source: [`src/esri-compat/legend.ts`](../src/esri-compat/legend.ts)
+- Direct app-platform component: [`<honua-legend>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components`
 - Notes: The honua-migrate codemod rewrites the import and safe constructor call sites deterministically; unsafe option literals fall through to an annotated manual TODO. Rendering goes through the Honua widget host, so CSS selectors and DOM structure are not byte-identical to ArcGIS.
+
+App-platform usage (the module import auto-registers the element):
+
+```ts
+import "@honua/app-platform/web-components";
+```
+
+```html
+<honua-map id="map"></honua-map>
+<honua-legend for="map"></honua-legend>
+```
 
 ### LineOfSight
 
@@ -282,7 +308,19 @@ Readiness buckets: `automated` counts as automated; `compat-shim`, `app-platform
 - Modules: `@arcgis/core/widgets/Measurement`, `esri/widgets/Measurement`
 - Target: MeasurementCompat from @honua/sdk-esri-compat (2D distance/area only)
 - Compat shim source: [`src/esri-compat/measurement.ts`](../src/esri-compat/measurement.ts)
+- Direct app-platform component: [`<honua-measurement>`](../src/web-components/measurement.ts) from `@honua/app-platform/web-components`
 - Notes: The honua-migrate codemod rewrites the import and safe constructor call sites, but the shim covers the core workflow rather than the full ArcGIS surface — plan hands-on verification of app-specific behavior after migration. Rendering is not byte-identical to ArcGIS. 3D measurement modes are not supported.
+
+App-platform usage (the module import auto-registers the element):
+
+```ts
+import "@honua/app-platform/web-components";
+```
+
+```html
+<honua-map id="map"></honua-map>
+<honua-measurement for="map"></honua-measurement>
+```
 
 ### Popup
 
@@ -314,7 +352,19 @@ Readiness buckets: `automated` counts as automated; `compat-shim`, `app-platform
 - Modules: `@arcgis/core/widgets/Search`, `esri/widgets/Search`
 - Target: SearchCompat from @honua/sdk-esri-compat backed by the Honua geocoding surface
 - Compat shim source: [`src/esri-compat/search.ts`](../src/esri-compat/search.ts)
+- Direct app-platform component: [`<honua-search>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components`
 - Notes: The honua-migrate codemod rewrites the import and safe constructor call sites deterministically; unsafe option literals fall through to an annotated manual TODO. Rendering goes through the Honua widget host, so CSS selectors and DOM structure are not byte-identical to ArcGIS. Custom Locator sources are out of scope (Locator/Geoprocessor parity gap).
+
+App-platform usage (the module import auto-registers the element):
+
+```ts
+import "@honua/app-platform/web-components";
+```
+
+```html
+<honua-map id="map"></honua-map>
+<honua-search for="map" source="incidents"></honua-search>
+```
 
 ### ShadowCast
 
