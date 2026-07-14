@@ -292,13 +292,20 @@ the architecture, sequencing rules, and product boundary.
 
 ## Canonical demo and sample portfolio
 
-The current catalog is valuable but too broad for a coherent learning path: 31
-executables include 11 flagships, ten advanced apps, six recipes, and four
-references. Only five are recognized by the separate flagship-evidence index.
-The existing disposition data already marks only 14 as `keep`, with the rest
-marked `merge`, `rework`, `replace`, or `retire`. The repository also maintains
-many sample-specific Vite configurations, TypeScript configurations, mock
-servers, stylesheets, and more than one hundred demo scripts.
+At the planning baseline, the previous catalog was valuable but too broad for a
+coherent learning path: 31 executables included 11 flagships, ten advanced
+apps, six recipes, and four references. Only five were recognized by the
+separate flagship-evidence index, and only 14 were marked `keep`; the rest were
+marked `merge`, `rework`, `replace`, or `retire`. That fragmentation drove the
+portfolio redesign below.
+
+Catalog v2 now inventories 34 executable examples: 15 recipes, 17 labs, and two
+fixtures. It reserves the seven canonical journeys below, but deliberately
+qualifies zero as `golden` until the runner, fixture, live-evidence, and quality
+gates in [#541](https://github.com/honua-io/honua-sdk-js/issues/541) and
+[#542](https://github.com/honua-io/honua-sdk-js/issues/542) pass. The repository
+still maintains many sample-specific Vite and TypeScript configurations, mock
+servers, stylesheets, and more than one hundred demo scripts to consolidate.
 
 The catalog will use four unambiguous tracks:
 

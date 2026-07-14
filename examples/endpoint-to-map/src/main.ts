@@ -6,7 +6,11 @@ import { type EndpointToMapConfig, resolveEndpointToMapConfig } from "./config.j
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./styles.css";
 
-const config = resolveEndpointToMapConfig(import.meta.env as Record<string, string | undefined>);
+const config = resolveEndpointToMapConfig({
+  VITE_ENDPOINT_TO_MAP_BASEMAP_STYLE: import.meta.env.VITE_ENDPOINT_TO_MAP_BASEMAP_STYLE,
+  VITE_ENDPOINT_TO_MAP_MAX_FEATURES: import.meta.env.VITE_ENDPOINT_TO_MAP_MAX_FEATURES,
+  VITE_ENDPOINT_TO_MAP_URL: import.meta.env.VITE_ENDPOINT_TO_MAP_URL,
+});
 
 /**
  * The headline workflow — public endpoint to a styled, interactive map.

@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/sample-ci-selection.v2.schema.json",
+  "title": "Honua SDK sample CI selection v2",
+  "type": "object",
+  "required": ["format", "schemaVersion", "catalog", "goldenJourneys", "profiles", "samples"],
+  "properties": {
+    "format": { "const": "honua.sdk.sample-ci-selection.v2" },
+    "schemaVersion": { "const": 2 },
+    "catalog": {
+      "type": "object",
+      "required": ["format", "schemaVersion"],
+      "properties": {
+        "format": { "const": "honua.sdk.sample-catalog.v2" },
+        "schemaVersion": { "const": 2 }
+      },
+      "additionalProperties": false
+    },
+    "goldenJourneys": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": { "$ref": "#/$defs/goldenJourney" }
+    },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "gates", "sampleIds"],
+        "properties": {
+          "id": { "type": "string" },
+          "gates": { "$ref": "#/$defs/gates" },
+          "sampleIds": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "samples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "sourcePath",
+          "track",
+          "supportTier",
+          "validationProfile",
+          "gates",
+          "commandPlan",
+          "liveEvidence"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "sourcePath": { "type": "string" },
+          "track": { "enum": ["golden", "recipe", "lab", "fixture"] },
+          "journeyId": { "type": "string" },
+          "supportTier": { "enum": ["supported", "experimental", "internal", "deprecated"] },
+          "validationProfile": { "type": "string" },
+          "gates": { "$ref": "#/$defs/gates" },
+          "commandPlan": { "$ref": "#/$defs/commandPlan" },
+          "liveEvidence": { "$ref": "#/$defs/liveEvidence" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "goldenJourney": {
+      "type": "object",
+      "required": ["id", "title", "status", "candidateSampleId"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "enum": ["planned", "qualified"] },
+        "candidateSampleId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "gates": {
+      "type": "object",
+      "required": [
+        "packedBuild",
+        "browser",
+        "accessibility",
+        "console",
+        "responsive",
+        "screenshot",
+        "performance",
+        "liveEvidence"
+      ],
+      "properties": {
+        "packedBuild": { "type": "boolean" },
+        "browser": { "type": "boolean" },
+        "accessibility": { "type": "boolean" },
+        "console": { "type": "boolean" },
+        "responsive": { "type": "boolean" },
+        "screenshot": { "type": "boolean" },
+        "performance": { "type": "boolean" },
+        "liveEvidence": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "commandGroup": {
+      "type": "object",
+      "required": ["execution", "commands"],
+      "properties": {
+        "execution": { "enum": ["automatic", "orchestrated", "scheduled-only"] },
+        "commands": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    },
+    "commandPlan": {
+      "type": "object",
+      "required": ["validation", "fixtureEvidence", "liveEvidence"],
+      "properties": {
+        "validation": {
+          "allOf": [
+            { "$ref": "#/$defs/commandGroup" },
+            { "properties": { "execution": { "const": "automatic" } } }
+          ]
+        },
+        "fixtureEvidence": {
+          "allOf": [
+            { "$ref": "#/$defs/commandGroup" },
+            { "properties": { "execution": { "const": "orchestrated" } } }
+          ]
+        },
+        "liveEvidence": {
+          "allOf": [
+            { "$ref": "#/$defs/commandGroup" },
+            { "properties": { "execution": { "const": "scheduled-only" } } }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "liveEvidence": {
+      "type": "object",
+      "required": ["mode", "status"],
+      "properties": {
+        "mode": { "enum": ["public-live", "demo-live", "authenticated", "degraded", "unavailable"] },
+        "targetMode": { "enum": ["public-live", "demo-live", "authenticated"] },
+        "status": { "enum": ["executed", "not-applicable", "planned", "skipped", "credential-unavailable", "failed"] },
+        "evidencePath": { "type": "string" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "enum": ["executed", "skipped", "credential-unavailable", "failed"] } } },
+          "then": { "required": ["evidencePath", "expiresAt"] },
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["evidencePath"] },
+                { "required": ["expiresAt"] },
+                { "required": ["targetMode"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["skipped", "credential-unavailable", "failed"] } } },
+          "then": {
+            "required": ["targetMode"],
+            "properties": { "mode": { "enum": ["degraded", "unavailable"] } }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "executed" } } },
+          "then": {
+            "properties": { "mode": { "enum": ["public-live", "demo-live", "authenticated"] } },
+            "not": { "required": ["targetMode"] }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

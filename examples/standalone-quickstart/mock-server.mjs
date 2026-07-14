@@ -12,6 +12,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
+
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
 const fixtureRoot = path.resolve(projectRoot, "test", "fixtures", "standalone-quickstart-demo");
@@ -46,7 +48,7 @@ function buildDemoIfNeeded() {
   const result = spawnSync(npmCommand, ["run", "demo:standalone:build", "--silent"], {
     cwd: projectRoot,
     stdio: "inherit",
-    env: { ...process.env, ...FIXTURE_BUILD_ENV },
+    env: createFixtureBuildEnvironment(FIXTURE_BUILD_ENV),
   });
   if (result.status !== 0) {
     throw new Error("Failed to build the standalone quickstart before starting the fixture server.");

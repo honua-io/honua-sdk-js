@@ -12,6 +12,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
+
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
 const fixtureRoot = path.resolve(projectRoot, "test", "fixtures", "standalone-quickstart-demo");
@@ -44,7 +46,7 @@ function buildDemoIfNeeded() {
   const result = spawnSync(npmCommand, ["run", "demo:endpoint-to-map:build", "--silent"], {
     cwd: projectRoot,
     stdio: "inherit",
-    env: { ...process.env, ...FIXTURE_BUILD_ENV },
+    env: createFixtureBuildEnvironment(FIXTURE_BUILD_ENV),
     // Node >= 20.12 refuses to spawn .cmd shims without a shell (CVE-2024-27980).
     shell: process.platform === "win32",
   });

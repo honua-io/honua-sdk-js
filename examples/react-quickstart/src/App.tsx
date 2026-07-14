@@ -33,7 +33,12 @@ function patchStatus(patch: NonNullable<Window["__HONUA_REACT_QUICKSTART__"]>): 
   window.__HONUA_REACT_QUICKSTART__ = { ...(window.__HONUA_REACT_QUICKSTART__ ?? {}), ...patch };
 }
 
-const config = resolveReactQuickstartConfig(import.meta.env as Record<string, string | undefined>);
+const config = resolveReactQuickstartConfig({
+  VITE_HONUA_REACT_BASE_URL: import.meta.env.VITE_HONUA_REACT_BASE_URL,
+  VITE_HONUA_REACT_LAYER_ID: import.meta.env.VITE_HONUA_REACT_LAYER_ID,
+  VITE_HONUA_REACT_SERVICE_ID: import.meta.env.VITE_HONUA_REACT_SERVICE_ID,
+  VITE_HONUA_REACT_WHERE: import.meta.env.VITE_HONUA_REACT_WHERE,
+});
 
 /** Root: wire a `HonuaClient` and shared selection state once, then render. */
 export function App() {

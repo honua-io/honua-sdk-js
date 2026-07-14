@@ -63,10 +63,16 @@ Run it locally with `npm run demo:endpoint-to-map`
 ([`examples/endpoint-to-map/`](./examples/endpoint-to-map/README.md)); the full cookbook
 is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
-**Release status: beta** (`0.1.0-beta`). The 22-entrypoint stable tier is frozen and guarded
-by an API-surface gate; remaining pre-1.0 work is hardening, not surface change. See
-[`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md) and the
-machine-readable surface inventory in [`config/public-surface.json`](./config/public-surface.json).
+<!-- support-manifest:release:start -->
+**Release status: beta** (`0.1.0-beta.0`). The 22-entrypoint stable tier is frozen and guarded
+by an API-surface gate; 8 experimental subpaths may change before 1.0, and
+18 deprecated compatibility subpaths have explicit removal versions. See
+[`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
+[`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
+[`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
+site/sample consumer contract, and
+[the scope decision](./docs/decisions/scope-split-and-1.0.md).
+<!-- support-manifest:release:end -->
 
 📚 **Hosted docs:** [honua-io.github.io/honua-sdk-js](https://honua-io.github.io/honua-sdk-js/) —
 quickstart, the full guide corpus, the [TypeDoc API reference](https://honua-io.github.io/honua-sdk-js/api/),
@@ -121,17 +127,20 @@ raw MapLibre / `@esri/arcgis-rest-js` / OpenLayers, and a scripted time-to-first
 with a runnable repro (`npm run bench:ttfm`) — live in
 [`docs/comparison.md`](./docs/comparison.md).
 
-**No Honua server required.** The protocol clients work against **any** standards-speaking
-server: an existing ArcGIS Server / ArcGIS Online endpoint, any OGC API Features server
-(pygeoapi, ldproxy, GeoServer OGC API), a WFS 2.0 server, a STAC API or static catalog, or an
-OData v4 service. The OGC API Features and STAC lanes discover the raw endpoint layout from the
-landing page; WFS follows the capabilities DCP URLs; set `locator.layout` for non-facade
-servers. See the [server-optional quickstart](./docs/standalone-quickstart.md) and the
-[backend-agnostic capability matrix](./docs/standalone-capability-matrix.md).
+<!-- support-manifest:standalone:start -->
+**Honua Server is optional for standards clients.** Supported GeoServices, OGC API
+Features, WFS 2.0, STAC, and OData claims work against raw standards-speaking endpoints.
+OGC API Tiles (`beta`), Maps (`beta`), and Records
+(`beta`) also discover and use raw advertised paths. OGC API Processes
+keeps two honest lanes: raw discovery is `experimental`, while typed execution
+is `facade-required`.
 
-A [Honua Server](https://github.com/honua-io/honua-server) is the upgrade path, not the entry
-fee: it adds server-authored `MapPackage`s, realtime, collaboration, MCP/AI surfaces, and the
-OGC API Tiles / Maps / Processes / Records families (still facade-bound today).
+A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
+`MapPackage`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
+the facade-required execution paths. See the generated
+[backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
+claim, execution mode, and evidence link.
+<!-- support-manifest:standalone:end -->
 
 ## What Honua does not do
 
@@ -357,7 +366,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 31 executable examples: 11 flagship, 6 recipe, 10 advanced, and 4 reference. It is the source of truth for support, fixture/live modes, provenance, validation, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 34 executable examples: 0 qualified golden samples, 15 recipes, 17 labs, and 2 fixtures. Seven journey IDs are reserved; 7 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at the
@@ -584,6 +593,18 @@ The Honua JavaScript SDK ships as a single npm package — **`@honua/sdk-js`** �
 subpath entrypoints. The core client, the Esri compatibility layer, the migration helpers,
 and the protocol-neutral contract are all reachable from this one install.
 
+<!-- support-manifest:install-status:start -->
+## Generated support status
+
+The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
+It projects 22 supported (documented below as stable), 8 experimental,
+and 18 deprecated package entrypoints. Protocol status is independent
+of package lifecycle: raw endpoint support, facade requirements, execution mode, and
+evidence are listed in the generated
+[backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
+[support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
+for both honua.io and the canonical `samples/catalog.v2.json` inventory.
+<!-- support-manifest:install-status:end -->
 
 ## Stable subpath entrypoints
 
@@ -700,7 +721,7 @@ entrypoint was removed outright (its projection helpers are owned by the
 ## Prerequisites
 
 - Node.js 20 or later
-- A running Honua Server instance (for runtime queries)
+- A Honua Server instance only for capabilities marked `facade-required`; standalone protocol clients do not require one
 
 ## Install
 
@@ -901,45 +922,64 @@ current API reference without following the migration notes.
 
 # SDK sample catalog
 
-This inventory is generated from [`samples/catalog.v1.json`](../../samples/catalog.v1.json). Do not edit it by hand.
+This inventory is generated from [`samples/catalog.v2.json`](../../samples/catalog.v2.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v1` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 31 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v2` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 34 executable examples
 
-| Sample | Tier | Support | Data | Disposition | Demonstration |
-| --- | --- | --- | --- | --- | --- |
-| [`ai-spatial-app-builder`](../../examples/ai-spatial-app-builder/README.md) | flagship | experimental | hybrid | keep | Proves typed proposals, shared policy validation, signed single-use approval, bounded execution, refusal, and verified receipt states. |
-| [`app-bootstrap-basic`](../../examples/app-bootstrap-basic/README.md) | reference | deprecated | fixture | retire | Bootstraps a minimal application through the legacy app-platform compatibility surface. |
-| [`arcgis-source-app`](../../examples/arcgis-source-app/README.md) | reference | internal | fixture | keep | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
-| [`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | flagship | supported | fixture | rework | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
-| [`endpoint-to-map`](../../examples/endpoint-to-map/README.md) | recipe | experimental | hybrid | keep | mountSource() turns a public FeatureServer into a styled, interactive MapLibre map in four statements. |
-| [`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | supported | hybrid | keep | Runs forward, reverse, and suggestion workflows with map feedback. |
-| [`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | advanced | supported | hybrid | merge | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
-| [`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | flagship | supported | hybrid | merge | Compares WMS imagery, COG-backed ImageServer tiles, and export previews. |
-| [`kepler-analytics`](../../examples/kepler-analytics/README.md) | advanced | experimental | hybrid | rework | Replays operations data through kepler.gl with linked filters and KPI evidence. |
-| [`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | flagship | supported | hybrid | keep | Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence. |
-| [`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | advanced | experimental | fixture | rework | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
-| [`migration-workbench`](../../docs/migration-honua-maplibre.md) | flagship | supported | fixture | rework | Scans and transforms ArcGIS application source with auditable compatibility results. |
-| [`nl-map-control`](../../examples/nl-map-control/README.md) | advanced | experimental | fixture | keep | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
-| [`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the protocol-neutral client from a Node service without browser dependencies. |
-| [`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | supported | fixture | keep | Demonstrates browser authentication and session lifecycle without embedding credentials. |
-| [`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | flagship | experimental | hybrid | keep | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
-| [`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | flagship | supported | fixture | rework | Combines parcels, hazards, sketching, editing, and export in a task-oriented application. |
-| [`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | supported | fixture | keep | Loads a static PMTiles archive without a Honua server. |
-| [`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | supported | hybrid | keep | Uses the React provider, hooks, and map component over the same quickstart contract. |
-| [`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | flagship | supported | hybrid | keep | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
-| [`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | reference | experimental | fixture | replace | Compares supported rendering paths and makes fidelity differences explicit. |
-| [`service-explorer`](../../examples/service-explorer/README.md) | flagship | supported | hybrid | rework | Browses heterogeneous spatial services with capability and cache diagnostics. |
-| [`sketch-editing`](../../examples/sketch-editing/README.md) | advanced | experimental | fixture | keep | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
-| [`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | flagship | experimental | hybrid | rework | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
-| [`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | advanced | supported | fixture | merge | Discovers STAC collections and previews supported imagery assets. |
-| [`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | flagship | supported | hybrid | merge | Connects a public Esri service directly to MapLibre without a Honua server. |
-| [`storytelling-25d-map`](../../examples/storytelling-25d-map/README.md) | advanced | supported | hybrid | merge | Combines terrain, extrusion, OGC overlays, and route playback in a guided story. |
-| [`temporal-playback`](../../examples/temporal-playback/README.md) | advanced | experimental | fixture | keep | Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems(). |
-| [`terrain-rgb-elevation`](../../examples/terrain-rgb-elevation/README.md) | advanced | supported | hybrid | merge | Reads Terrain-RGB tiles for point elevation and route profiles. |
-| [`unified-ops-workspace`](../../examples/unified-ops-workspace/README.md) | advanced | deprecated | fixture | retire | Composes incident command, analysis, and shared workspace state. |
-| [`web-components-basic`](../../examples/web-components-basic/README.md) | reference | deprecated | fixture | retire | Demonstrates the SDK custom-element controls against a map. |
+## Golden journey readiness
 
-The catalog also carries fixture/live commands, endpoint configuration names, provenance, attribution, freshness, validation, and the complete 21-route honua.io migration mapping. The presentation-safe projection is [`samples/dist/honua-site-samples.v1.json`](../../samples/dist/honua-site-samples.v1.json).
+Journey IDs are stable roadmap slots. `planned` candidates remain recipes or labs until their golden quality profile and evidence are satisfied; only `qualified` candidates use the golden track.
+
+| Journey | Status | Candidate sample |
+| --- | --- | --- |
+| `first-map` | planned | [`maplibre-quickstart`](#maplibre-quickstart) |
+| `service-explorer` | planned | [`service-explorer`](#service-explorer) |
+| `planning-permitting` | planned | [`planning-permitting-workbench`](#planning-permitting-workbench) |
+| `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
+| `imagery-terrain` | planned | [`imagery-cog-quickstart`](#imagery-cog-quickstart) |
+| `cloud-native-analysis` | planned | [`spatial-analytics-workbench`](#spatial-analytics-workbench) |
+| `arcgis-migration` | planned | [`migration-workbench`](#migration-workbench) |
+
+## Executable samples
+
+| Sample | Track | Journey candidate | Support | Lifecycle | Quality profile | Data | Configuration | Demonstration |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| <a id="ai-spatial-app-builder"></a>[`ai-spatial-app-builder`](../../examples/ai-spatial-app-builder/README.md) | lab | - | experimental | active | browser-lab | hybrid | approved | Proves typed proposals, shared policy validation, signed single-use approval, bounded execution, refusal, and verified receipt states. |
+| <a id="app-bootstrap-basic"></a>[`app-bootstrap-basic`](../../examples/app-bootstrap-basic/README.md) | lab | - | deprecated | retire | browser-lab | fixture | not-required | Bootstraps a minimal application through the legacy app-platform compatibility surface. |
+| <a id="arcgis-source-app"></a>[`arcgis-source-app`](../../examples/arcgis-source-app/README.md) | fixture | - | internal | active | internal-fixture | fixture | not-required | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
+| <a id="automatic-source-workflow"></a>[`automatic-source-workflow`](../../docs/examples/automatic-source-workflow/README.md) | fixture | - | internal | active | browser-fixture | fixture | not-required | Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures. |
+| <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
+| <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | rework | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
+| <a id="endpoint-to-map"></a>[`endpoint-to-map`](../../examples/endpoint-to-map/README.md) | recipe | - | experimental | active | browser-recipe | hybrid | approved | mountSource() turns a public FeatureServer into a styled, interactive MapLibre map in four statements. |
+| <a id="geocoding-quickstart"></a>[`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | - | supported | rework | browser-recipe | hybrid | legacy-unsafe | Runs forward, reverse, and suggestion workflows with map feedback. |
+| <a id="geoprocessing-job-runner"></a>[`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Submits, polls, cancels, and inspects asynchronous geoprocessing jobs. |
+| <a id="imagery-cog-quickstart"></a>[`imagery-cog-quickstart`](../../examples/imagery-cog-quickstart/README.md) | recipe | imagery-terrain | supported | rework | browser-recipe | hybrid | legacy-unsafe | Compares WMS imagery, COG-backed ImageServer tiles, and export previews. |
+| <a id="kepler-analytics"></a>[`kepler-analytics`](../../examples/kepler-analytics/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Replays operations data through kepler.gl with linked filters and KPI evidence. |
+| <a id="maplibre-quickstart"></a>[`maplibre-quickstart`](../../examples/maplibre-quickstart/README.md) | recipe | first-map | supported | rework | browser-recipe | hybrid | legacy-unsafe | Connects, discovers, explains, queries, and mounts one source with linked views and inspectable evidence. |
+| <a id="mcp-gis-assistant"></a>[`mcp-gis-assistant`](../../examples/mcp-gis-assistant/README.md) | lab | - | experimental | rework | browser-lab | fixture | not-required | Demonstrates assistant tool discovery and safe SDK-backed spatial operations. |
+| <a id="migration-workbench"></a>[`migration-workbench`](../../docs/migration-honua-maplibre.md) | lab | arcgis-migration | supported | rework | browser-lab | fixture | legacy-unsafe | Scans and transforms ArcGIS application source with auditable compatibility results. |
+| <a id="nl-map-control"></a>[`nl-map-control`](../../examples/nl-map-control/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
+| <a id="node-backend-quickstart"></a>[`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | - | supported | active | headless-recipe | hybrid | approved | Uses the protocol-neutral client from a Node service without browser dependencies. |
+| <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |
+| <a id="overture-geoparquet"></a>[`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | lab | - | experimental | active | browser-lab | hybrid | not-required | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
+| <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | rework | browser-lab | fixture | not-required | Combines parcels, hazards, sketching, editing, and export in a task-oriented application. |
+| <a id="pmtiles-static"></a>[`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Loads a static PMTiles archive without a Honua server. |
+| <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Uses the React provider, hooks, and map component over the same quickstart contract. |
+| <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
+| <a id="runtime-parity-showcase"></a>[`runtime-parity-showcase`](../../examples/runtime-parity-showcase/README.md) | lab | - | experimental | replace | browser-lab | fixture | not-required | Compares supported rendering paths and makes fidelity differences explicit. |
+| <a id="service-explorer"></a>[`service-explorer`](../../examples/service-explorer/README.md) | lab | service-explorer | supported | rework | browser-lab | hybrid | legacy-unsafe | Browses heterogeneous spatial services with capability and cache diagnostics. |
+| <a id="shared-renderer-state"></a>[`shared-renderer-state`](../../docs/examples/shared-renderer-state/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | Exercises loop-safe camera, selection, filter, and time synchronization across MapLibre and Cesium. |
+| <a id="sketch-editing"></a>[`sketch-editing`](../../examples/sketch-editing/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission. |
+| <a id="spatial-analytics-workbench"></a>[`spatial-analytics-workbench`](../../examples/spatial-analytics-workbench/README.md) | lab | cloud-native-analysis | experimental | rework | browser-lab | hybrid | approved | Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output. |
+| <a id="stac-imagery-browser"></a>[`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | recipe | - | supported | merge | browser-recipe | fixture | not-required | Discovers STAC collections and previews supported imagery assets. |
+| <a id="standalone-quickstart"></a>[`standalone-quickstart`](../../examples/standalone-quickstart/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | approved | Connects a public Esri service directly to MapLibre without a Honua server. |
+| <a id="storytelling-25d-map"></a>[`storytelling-25d-map`](../../examples/storytelling-25d-map/README.md) | lab | - | supported | merge | browser-lab | hybrid | legacy-unsafe | Combines terrain, extrusion, OGC overlays, and route playback in a guided story. |
+| <a id="temporal-playback"></a>[`temporal-playback`](../../examples/temporal-playback/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems(). |
+| <a id="terrain-rgb-elevation"></a>[`terrain-rgb-elevation`](../../examples/terrain-rgb-elevation/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Reads Terrain-RGB tiles for point elevation and route profiles. |
+| <a id="unified-ops-workspace"></a>[`unified-ops-workspace`](../../examples/unified-ops-workspace/README.md) | lab | - | deprecated | retire | browser-lab | fixture | not-required | Composes incident command, analysis, and shared workspace state. |
+| <a id="web-components-basic"></a>[`web-components-basic`](../../examples/web-components-basic/README.md) | lab | - | deprecated | retire | browser-lab | fixture | not-required | Demonstrates the SDK custom-element controls against a map. |
+
+The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The presentation-safe projection is [`samples/dist/honua-site-samples.v2.json`](../../samples/dist/honua-site-samples.v2.json).
 
 ---
 
@@ -1081,7 +1121,7 @@ Choose the outcome you need, then follow the linked guide and runnable implement
 
 API reference is SDK-owned at [https://honua-io.github.io/honua-sdk-js/api/](https://honua-io.github.io/honua-sdk-js/api/); the task narrative and deployed sample catalog are site-owned at [https://honua.io/samples](https://honua.io/samples).
 
-These paths describe the SDK version in [`package.json`](../../package.json). Sample support, tier, data, provenance, freshness, and degradation metadata comes from the [versioned sample catalog](../../samples/contract/v1/README.md); use the [installation and compatibility guide](../../INSTALL.md) when reading docs for another release.
+These paths describe the SDK version in [`package.json`](../../package.json). Sample track, support, lifecycle, data, provenance, freshness, and degradation metadata comes from the [versioned sample catalog](../../samples/contract/v2/README.md); use the [installation and compatibility guide](../../INSTALL.md) when reading docs for another release.
 
 ## Execution labels
 
@@ -1105,7 +1145,7 @@ Labels: `fixture` · `public-live`
 - Executable entry: [examples/standalone-quickstart/src/main.ts](../../examples/standalone-quickstart/src/main.ts)
 - Example notes: [examples/standalone-quickstart/README.md](../../examples/standalone-quickstart/README.md)
 - Compile check: `npm run demo:standalone:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `recipe` · `supported` · `merge`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Committed public-response fixture or public Esri endpoint.
 - Freshness: Fixture retrieval metadata or live response time.
@@ -1125,7 +1165,7 @@ Labels: `fixture` · `demo-live` · `authenticated` · `degraded`
 - Executable entry: [examples/service-explorer/src/data.ts](../../examples/service-explorer/src/data.ts)
 - Example notes: [examples/service-explorer/README.md](../../examples/service-explorer/README.md)
 - Compile check: `npm run demo:service-explorer:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `lab` · `supported` · `rework`
 - Data and auth: `hybrid` · `api-key`
 - Provenance: Committed multi-protocol catalog or configured Honua catalog.
 - Freshness: Metadata cache and live observation timestamps.
@@ -1146,7 +1186,7 @@ Labels: `fixture` · `demo-live` · `authenticated` · `degraded`
 - Executable entry: [examples/node-backend-quickstart/src/server.ts](../../examples/node-backend-quickstart/src/server.ts)
 - Example notes: [examples/node-backend-quickstart/README.md](../../examples/node-backend-quickstart/README.md)
 - Compile check: `npm run demo:node-backend:typecheck`
-- Sample contract: `recipe` · `supported`
+- Sample contract: `recipe` · `supported` · `active`
 - Data and auth: `hybrid` · `api-key`
 - Provenance: Committed mock responses or configured Honua endpoint.
 - Freshness: Fixture replay or live query observation time.
@@ -1166,7 +1206,7 @@ Labels: `fixture` · `demo-live` · `experimental`
 - Executable entry: [examples/maplibre-quickstart/src/main.ts](../../examples/maplibre-quickstart/src/main.ts)
 - Example notes: [examples/maplibre-quickstart/README.md](../../examples/maplibre-quickstart/README.md)
 - Compile check: `npm run demo:quickstart:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `recipe` · `supported` · `rework`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Versioned Honolulu fixture replay or an anonymous configured Honua source, identified in runtime evidence.
 - Freshness: Fixture capture time and data version, or live response observation time.
@@ -1186,7 +1226,7 @@ Labels: `fixture` · `experimental` · `degraded`
 - Executable entry: [examples/spatial-analytics-workbench/src/main.ts](../../examples/spatial-analytics-workbench/src/main.ts)
 - Example notes: [examples/spatial-analytics-workbench/README.md](../../examples/spatial-analytics-workbench/README.md)
 - Compile check: `npm run demo:spatial-analytics:typecheck`
-- Sample contract: `flagship` · `experimental`
+- Sample contract: `lab` · `experimental` · `rework`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Committed analysis fixtures or a configured public GeoServices source.
 - Freshness: Fixture replay uses a fixed observation; configured live execution records its observation time.
@@ -1207,7 +1247,7 @@ Labels: `fixture` · `degraded`
 - Executable entry: [examples/edit-workflow-demo/src/main.ts](../../examples/edit-workflow-demo/src/main.ts)
 - Example notes: [examples/edit-workflow-demo/README.md](../../examples/edit-workflow-demo/README.md)
 - Compile check: `npm run demo:edit-workflow:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `recipe` · `supported` · `rework`
 - Data and auth: `fixture` · `none`
 - Provenance: Committed deterministic edit fixture.
 - Freshness: Deterministic fixture replay time.
@@ -1228,7 +1268,7 @@ Labels: `fixture` · `demo-live` · `degraded`
 - Executable entry: [examples/realtime-incident-dashboard/src/realtime-transport.ts](../../examples/realtime-incident-dashboard/src/realtime-transport.ts)
 - Example notes: [examples/realtime-incident-dashboard/README.md](../../examples/realtime-incident-dashboard/README.md)
 - Compile check: `npm run demo:incident:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `lab` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Deployed demo stream when advertised; otherwise visibly labeled deterministic replay. Edits are limited to an isolated resettable fixture profile.
 - Freshness: Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes.
@@ -1249,7 +1289,7 @@ Labels: `fixture` · `authenticated` · `experimental` · `degraded`
 - Executable entry: [examples/storytelling-25d-map/src/map.ts](../../examples/storytelling-25d-map/src/map.ts)
 - Example notes: [examples/storytelling-25d-map/README.md](../../examples/storytelling-25d-map/README.md)
 - Compile check: `npm run demo:25d:typecheck`
-- Sample contract: `advanced` · `supported`
+- Sample contract: `lab` · `supported` · `merge`
 - Data and auth: `hybrid` · `api-key`
 - Provenance: Committed Oahu story fixtures or configured Honua services.
 - Freshness: Fixture capture or live layer observation time.
@@ -1270,7 +1310,7 @@ Labels: `fixture` · `public-live` · `degraded`
 - Executable entry: [examples/migration-workbench/src/main.ts](../../examples/migration-workbench/src/main.ts)
 - Example notes: [docs/migration-honua-maplibre.md](../migration-honua-maplibre.md)
 - Compile check: `npm run demo:migration-workbench:typecheck`
-- Sample contract: `flagship` · `supported`
+- Sample contract: `lab` · `supported` · `rework`
 - Data and auth: `fixture` · `none`
 - Provenance: Committed ArcGIS source fixtures and migration reports.
 - Freshness: Versioned with the migration corpus.
@@ -1291,7 +1331,7 @@ Labels: `fixture` · `experimental` · `degraded`
 - Executable entry: [examples/mcp-gis-assistant/src/assistant.ts](../../examples/mcp-gis-assistant/src/assistant.ts)
 - Example notes: [examples/mcp-gis-assistant/README.md](../../examples/mcp-gis-assistant/README.md)
 - Compile check: `npm run demo:mcp-gis-assistant:typecheck`
-- Sample contract: `advanced` · `experimental`
+- Sample contract: `lab` · `experimental` · `rework`
 - Data and auth: `fixture` · `none`
 - Provenance: Committed MCP response fixture.
 - Freshness: Deterministic fixture replay time.
@@ -1304,8 +1344,8 @@ Labels: `fixture` · `experimental` · `degraded`
 
 - Guides link to runnable example source and never maintain a copied implementation snippet.
 - Repository documentation uses relative links; canonical API and site narrative links use the declared owners.
-- Site consumers join the [learning navigation manifest](../learning-paths.v1.json) to the [static sample projection](../../samples/dist/honua-site-samples.v1.json) by `sampleId`; catalog-owned metadata is not copied into another source file.
-- Sample metadata/artifact/evidence projection is coordinated by [SDK issue #401](https://github.com/honua-io/honua-sdk-js/issues/401) and [honua-site issue #120](https://github.com/honua-io/honua-site/issues/120).
+- Site consumers join the [learning navigation manifest](../learning-paths.v1.json) to the [static sample projection](../../samples/dist/honua-site-samples.v2.json) by `sampleId`; catalog-owned metadata is not copied into another source file.
+- Sample metadata and evidence are owned by [SDK issue #540](https://github.com/honua-io/honua-sdk-js/issues/540); the generated consumer projection is coordinated by [SDK issue #550](https://github.com/honua-io/honua-sdk-js/issues/550).
 
 ---
 
@@ -1879,8 +1919,8 @@ unsupported-capability, and degraded-result scenarios.
 
 | Type | What it is |
 | --- | --- |
-| `Protocol` | One of eighteen identifiers — shared canonical gRPC FeatureService transport (`grpc`), five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), OGC API + STAC adapters (`ogc-features`, `ogc-tiles`, `ogc-maps`, `ogc-records`, `stac`), `wfs`, `wms`, `wmts`, `odata`, plus three MapLibre-native (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
-| `Capability` | A coarse-grained protocol capability (`query`, `queryAggregate`, `spatialAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `connect`, `image`, `geometry`, `geoprocess`, `processes`). The canonical `Source` surface standardizes the query / edit / related / attachment / object-id subset today; `spatialAggregate`, `image` / `geometry` / `geoprocess` / `processes` are negotiated for indexed analytics, `Source.protocol()` escape hatches, and for the `IJobRun`-based OGC API Processes runner because their request shapes are too protocol-specific to belong on the unified query envelope. |
+| `Protocol` | One of twenty identifiers — shared canonical gRPC FeatureService transport (`grpc`), five GeoServices service types (`geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service`), OGC API + STAC adapters (`ogc-features`, `ogc-tiles`, `ogc-maps`, `ogc-records`, `stac`), `wfs`, `wms`, `wmts`, `odata`, static-data adapters (`pmtiles`, `geoparquet`), plus three MapLibre-native sources (`maplibre-vector`, `maplibre-raster`, `maplibre-geojson`). |
+| `Capability` | A coarse-grained per-source operation capability (`query`, `queryAggregate`, `spatialAggregate`, `queryExtent`, `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments`, `render`, `tiles`, `sql`, `stream`, `pbf`, `image`, `geometry`, `geoprocess`, `processes`). The canonical `Source` surface standardizes the query / edit / related / attachment / object-id subset today; `spatialAggregate`, `image` / `geometry` / `geoprocess` / `processes` are negotiated for indexed analytics, `Source.protocol()` escape hatches, and for the `IJobRun`-based OGC API Processes runner because their request shapes are too protocol-specific to belong on the unified query envelope. Top-level `connect()` is product discovery, not an operation on one `Source`, and is tracked as a `discovery` support claim instead. |
 | `Capabilities` | `ReadonlySet<Capability>`. Set membership = first-party protocol support, whether the caller consumes it through a canonical `Source` method or the typed protocol escape hatch. Under `strict` (default) a missing capability throws `HonuaCapabilityNotSupportedError`. Under `degraded` only call sites with a defined fallback proceed (today: OGC `queryAggregate` and `queryExtent`); every other missing capability still throws. |
 | `SourceLocator` | Protocol-specific endpoint info (`url`, `serviceId`, `layerId`, `collectionId`, `tileMatrixSetId`, `styleId`, `typeName`, `entitySet`, `taskName`). Field-compatible with the server `SourceBinding.locator`; `tileMatrixSetId` / `styleId` carry OGC API Tiles / Maps route hints for downstream `SourceBinding` work tracked in [`source-binding-alignment.md`](./source-binding-alignment.md). |
 | `SourceDescriptor` | `{ id, protocol, locator, capabilities, schema?, attribution? }`. The serializable identity of one source. |
@@ -4944,88 +4984,102 @@ real `User-Agent` for Nominatim.
 
 # Protocol × Capability Matrix
 
-Status: implemented in `src/contract/types.ts` (`PROTOCOL_DEFAULT_CAPABILITIES`).
-Update both this document and the table in code together.
+<!-- support-manifest:protocol-matrix:start -->
+Status: generated from [`config/support-manifest.v1.json`](../config/support-manifest.v1.json); do not edit this section by hand.
 
-The matrix below is the **default** capability set per protocol. Callers
-that need a narrower surface for a specific source (for example a Feature
-Service whose metadata reports `supportsStatistics: false`) must intersect
-the default set themselves and pass the result on
-`SourceDescriptor.capabilities`. The gRPC default is shared by the canonical
-FeatureService transport, and the GeoServices, OGC, STAC, WFS, and WMS
-adapter constructors do not read service metadata today, so per-source
-downgrades for those protocols stay caller-side. **OData is the
-exception**: the `odataSource` adapter lazily fetches `$metadata` on the
-first capability-gated method, parses `Capabilities.*` annotations
-(both inline inside `<EntitySet>` and sibling
-`<Annotations Target="Container/EntitySet">` blocks), and intersects
-the descriptor's declared `Capabilities` set with the server's
-advertised flags — see the *OData* notes below for details. Other
-adapters will follow the same pattern as follow-up work.
+Native (`✓`) claims mirror the default capability set per protocol; per-source
+metadata may narrow them at runtime. Client-fallback (`◐`) claims are explicit
+opt-in paths and are not protocol defaults. An absent operation is explicitly
+`unsupported`; capability misses throw `HonuaCapabilityNotSupportedError`
+rather than returning empty data.
 
-This matrix spans the full shared capability vocabulary, not just the
-protocol-neutral `Source` methods implemented in this ticket. Capabilities
-without a canonical `Source` method today are negotiated for
-`Source.adapter()` escape hatches and follow-on adapter tickets.
+- `✓` supported with native execution
+- `◐` supported through an explicit client fallback
+- `β` beta
+- `◇` experimental
+- `†` deprecated
+- `F` facade-required
+- `—` unsupported
 
-`✓` = first-party support, no client-side fallback needed.
-`◐` = supported only under `degraded` capability policy (client-side fallback).
-`—` = not supported.
+| Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | PMTiles | GeoParquet | MapLibre vector | MapLibre raster | MapLibre GeoJSON |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ◇ | — | — | — |
+| `queryAggregate` | ✓ | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — | — | — | ◇ | — | — | — |
+| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
+| `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — |
+| `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — | ✓ | — | — | — | — | — |
+| `attachments` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — |
+| `tiles` | — | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | — |
+| `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ◇ | — | — | — |
+| `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
-| Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | GeoParq |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ |
-| `queryAggregate` | ✓ | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — | — | ✓ |
-| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | — | ✓ | — | — | — | — |
-| `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — |
-| `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — | ✓ | — |
-| `attachments` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — |
-| `tiles` | — | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | ✓ | — | — |
-| `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | ✓ |
-| `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `connect` | — | ✓ | — | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — |
-| `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — |
-| `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — |
-| `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
-| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+### Generated claim evidence
 
-MapLibre-native sources (`maplibre-vector`, `maplibre-raster`,
-`maplibre-geojson`) are render-only and contribute `render` and (where
-applicable) `tiles`. They are excluded from the table above because they
-do not flow through the `Source.query` path.
+Every non-unsupported operation claim maps to executable evidence and a freshness
+policy in the manifest.
 
-`pmtiles` is a first-party protocol (`PROTOCOL_DEFAULT_CAPABILITIES.pmtiles`
-= `{ tiles }`) but, like the MapLibre-native sources, is tiles-only and does
-not flow through `Source.query`, so it is documented in the *PMTiles* note
-below rather than as a table column.
-**GeoParquet** (`geoparquet`, column `GeoParq`) is the DuckDB-WASM-backed
-`Source` in `@honua/sdk-js/geoparquet`. The same `Query` (`where` /
-`spatialFilter` / `outFields` / `orderBy` / `pagination` / `aggregation`)
-compiles to DuckDB SQL over `read_parquet(...)`, so `query`, `queryAggregate`
-(GROUP BY), and `stream` are first-party. Envelope `spatialFilter`s push down to
-`ST_Intersects` over the native geometry (or a GeoParquet 1.1 bbox covering
-column); non-envelope filters reduce to their bbox and are reported via
-`Result.degraded`. `queryExtent`, `queryObjectIds`, `queryRelated`,
-`applyEdits`, and `attachments` are honest misses — the static-file source is
-read-only and exposes no server-side ids/extent endpoints. Metadata
-(`describe()`: schema, geometry column, CRS, row estimate) and a raw `sql()`
-escape hatch live on `Source.protocol("geoparquet")`. Because DuckDB-WASM is a
-multi-megabyte optional peer, the adapter lives behind its own entrypoint (wired
-into `createDataset` via `geoparquetResolver`) and is never in the `/contract`
-or `/honua` graph.
+| Protocol | Operations | Status | Environment | Execution mode | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| `grpc` | `query`, `queryAggregate`, `queryExtent`, `queryObjectIds`, `applyEdits`, `stream` | `supported` | `honua-facade` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[conformance: grpc-conformance](../test/conformance/feature-service.conformance.ts) |
+| `geoservices-feature-service` | `query`, `queryAggregate`, `queryExtent` | `supported` | `protocol-adapter` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts) |
+| `geoservices-feature-service` | `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
+| `geoservices-feature-service` | `sql` | `supported` | `protocol-adapter` | `native` | [fixture: core-client-fixtures](../test/core-client.test.ts) |
+| `geoservices-feature-service` | `stream` | `supported` | `protocol-adapter` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts) |
+| `geoservices-feature-service` | `pbf` | `supported` | `protocol-adapter` | `native` | [fixture: core-client-fixtures](../test/core-client.test.ts) |
+| `geoservices-feature-service` | `tiles` | `supported` | `protocol-adapter` | `client-fallback` | [fixture: query-tiles-fixtures](../test/contract/query-tiles.test.ts) |
+| `geoservices-map-service` | `query`, `queryAggregate`, `queryExtent` | `supported` | `protocol-adapter` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts) |
+| `geoservices-map-service` | `queryObjectIds`, `queryRelated` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts) |
+| `geoservices-map-service` | `render` | `supported` | `protocol-adapter` | `native` | [fixture: honua-surface-fixtures](../test/honua-surface.test.ts) |
+| `geoservices-map-service` | `tiles` | `supported` | `protocol-adapter` | `native` | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: tile-layer-fixtures](../test/tile-layer-compat.test.ts) |
+| `geoservices-map-service` | `sql` | `supported` | `protocol-adapter` | `native` | [fixture: honua-surface-fixtures](../test/honua-surface.test.ts) |
+| `geoservices-map-service` | `stream` | `supported` | `protocol-adapter` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts) |
+| `geoservices-image-service` | `query`, `queryExtent`, `queryObjectIds` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
+| `geoservices-image-service` | `image`, `render` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
+| `geoservices-image-service` | `tiles` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
+| `geoservices-geometry-service` | `geometry` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
+| `geoservices-gp-service` | `geoprocess` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[fixture: geoprocessing-job-run-fixtures](../test/contract/geoprocessing-job-run.test.ts)<br>[fixture: process-runner-fixtures](../test/process-runner.test.ts) |
+| `ogc-features` | `query`, `queryObjectIds`, `applyEdits`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts) |
+| `ogc-features` | `queryAggregate`, `queryExtent` | `supported` | `protocol-adapter` | `client-fallback` | [fixture: contract-conformance](../test/contract/conformance.test.ts) |
+| `ogc-tiles` | `render`, `tiles` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts) |
+| `ogc-maps` | `render` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts) |
+| `ogc-records` | `query`, `queryObjectIds`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts) |
+| `stac` | `query`, `queryObjectIds`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts) |
+| `wfs` | `query`, `queryExtent`, `queryObjectIds`, `applyEdits`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts) |
+| `wms` | `render`, `tiles`, `query` | `supported` | `protocol-adapter` | `native` | [fixture: wms-fixtures](../test/contract/wms.test.ts) |
+| `wmts` | `render`, `tiles` | `supported` | `protocol-adapter` | `native` | [fixture: wmts-fixtures](../test/contract/wmts.test.ts) |
+| `odata` | `query`, `queryObjectIds`, `stream`, `applyEdits` | `supported` | `protocol-adapter` | `native` | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts) |
+| `pmtiles` | `tiles` | `supported` | `client-only` | `native` | [fixture: pmtiles-fixtures](../test/pmtiles-contract.test.ts) |
+| `geoparquet` | `query`, `queryAggregate`, `stream` | `experimental` | `client-only` | `native` | [fixture: geoparquet-fixtures](../test/geoparquet-source.test.ts) |
+| `maplibre-vector` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs) |
+| `maplibre-vector` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts) |
+| `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs) |
+| `maplibre-raster` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) |
+<!-- support-manifest:protocol-matrix:end -->
+
+MapLibre-native and PMTiles sources are included in the generated table even
+though they do not flow through the `Source.query` path. GeoParquet is the
+experimental DuckDB-WASM-backed `Source` from `@honua/sdk-js/geoparquet`;
+envelope filters push down to `ST_Intersects`, while non-envelope filters reduce
+to their bounding box and are reported through `Result.degraded`.
+
+`maplibre-vector` and `maplibre-raster` are executable descriptor strategies
+with release-gated renderer coverage. `maplibre-geojson` remains a reserved
+protocol identifier with no positive default capability: the runtime can load
+an inline MapLibre `type: "geojson"` source, but the automatic/app descriptor
+path does not implement that protocol today.
 
 `spatialAggregate` is an indexed analytics capability rather than the
-field-statistics `queryAggregate` path. This SDK slice defines the
-contract in `src/contract/spatial-aggregation.ts` without assigning
-first-party default support to any protocol. A source may advertise
-`spatialAggregate` only after backend metadata confirms an indexed
-aggregation implementation for that source; the request/response shapes
-keep the index model opaque so H3, Quadbin, or provider-specific grids
-can all satisfy the same app contract.
+field-statistics `queryAggregate` path. No protocol receives it by default. A
+source may advertise it only after backend metadata confirms an indexed
+aggregation implementation for that source.
 
 ## Notes by protocol
 
@@ -5094,7 +5148,7 @@ from the default capability set; the canonical methods throw
 ### GeoServices Geometry Service
 Geometry Service is a stateless utility — it does not host features —
 so the canonical query family throws on every method. The default
-capabilities advertise only `geometry` and `connect`. Operations
+capabilities advertise only `geometry`. Operations
 (`buffer`, `simplify`, `project`, `intersect`, `union`, `clip`,
 `difference`) live behind
 `Source.protocol("geoservices-geometry-service")` on a
@@ -5109,7 +5163,7 @@ etc.) intentionally have no wrapper.
 
 ### GeoServices GP Service
 GP Services run async tasks rather than hosting features. The default
-capabilities advertise only `geoprocess` and `connect`; the canonical
+capabilities advertise only `geoprocess`; the canonical
 query family throws. Task lifecycle — `submitJob`, `jobStatus`,
 `cancelJob`, `jobResult` — lives behind
 `Source.protocol("geoservices-gp-service")` on a
@@ -5119,9 +5173,7 @@ descriptor uniquely identifies a task without leaking task parameters
 into the canonical descriptor shape. `createDataset` rejects descriptors
 that advertise `geoprocess` without a `locator.taskName` because Honua
 Server publishes the lifecycle routes only under
-`/rest/services/<serviceId>/GPServer/<taskName>/...`; descriptors that
-advertise only `connect` (service-root metadata probe) may omit the
-task name.
+`/rest/services/<serviceId>/GPServer/<taskName>/...`.
 
 GeoServices GPServer also participates in the unified process runner:
 `client.geoprocessingRunner(serviceId, taskName)` returns a
@@ -5699,65 +5751,58 @@ When you add or remove a capability for any protocol:
 
 # Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix
 
-This is the honest line between what `@honua/sdk-js` does against **any**
-standards-speaking server (no Honua infrastructure) and what needs a
-[Honua Server](https://github.com/honua-io/honua-server). It complements the
-per-protocol [Protocol × Capability Matrix](./protocol-capability-matrix.md),
-which is the code-of-record for what each protocol's client supports; this page
-answers the orthogonal question: *does the capability require a Honua server?*
+<!-- support-manifest:standalone-matrix:start -->
+This is the generated, evidence-linked line between capabilities that work
+against raw standards-speaking endpoints and capabilities that require the Honua
+facade. The source of truth is [`config/support-manifest.v1.json`](../config/support-manifest.v1.json).
+See the [standalone quickstart](./standalone-quickstart.md) for the runnable path.
 
-See the [standalone quickstart](./standalone-quickstart.md) for the runnable
-backend-agnostic path.
+## Status vocabulary
 
-## Legend
+- `supported` — release-gated implementation with linked evidence
+- `beta` — implemented and evidenced, but still in pre-GA hardening
+- `experimental` — usable evidence-backed preview whose shape may change
+- `deprecated` — compatibility-only surface with a named replacement
+- `unsupported` — no implementation claim
+- `facade-required` — typed capability exists but execution requires Honua Server
 
-- `standalone` — works against any public/self-hosted standards server (an ArcGIS
-  Server / ArcGIS Online endpoint, etc.) with no Honua server, key, or account.
-  Proven live against public endpoints; replayed from fixtures in CI.
-- `backend-agnostic` — the typed surface addresses a raw third-party endpoint's
-  own path layout (discovered from the server, not a fixed prefix), no Honua
-  infrastructure required. The Honua facade layout stays a detected fast path.
-  Proven from recorded fixtures per raw layout in CI; live-proven against the
-  named public servers by the scheduled `standalone-live-smoke` lane.
-- `honua-enhanced` — requires a Honua Server (or a server that implements Honua's
-  facade paths). These are the upgrade-path features.
-- `facade-bound` — the *typed* SDK surface exists and is protocol-correct, but it
-  currently addresses Honua's server facade paths (e.g. `/ogc/features/...`)
-  rather than a raw third-party endpoint's own path layout. Backend-agnostic
-  support for raw endpoints is roadmap; use GeoServices or the backend-agnostic
-  lanes for the standalone path today.
+Environment and execution mode are separate from status: `standalone` tells you
+where a claim works, while `discovery`, `native`, `client-fallback`, and
+`facade` tell you how it works.
 
 ## Matrix
 
-| Capability | Standalone? | Backend needed | Sample app / API | Notes |
-| --- | :-: | --- | --- | --- |
-| GeoServices FeatureServer query (`queryFeatures`, `queryFeaturesAll`, streaming, count, extent) | `standalone` | Any ArcGIS Server / Online | `examples/standalone-quickstart`, `HonuaClient.queryFeatures`, `Source` (`geoservices-feature-service`) | Raw `/rest/services/.../FeatureServer/{id}/query` path; verified live against `services.arcgis.com`. |
-| GeoServices MapServer / ImageServer reads (query, export, identify, legend, find) | `standalone` | Any ArcGIS Server / Online | `HonuaClient.mapService` / `imageService` | Raw GeoServices paths; verified live against `sampleserver6.arcgisonline.com`. |
-| Esri → GeoJSON → MapLibre source | `standalone` | Any ArcGIS Server / Online | `loadHonuaFeatureServiceGeoJson` (`@honua/sdk-js/map`) | One call from a public FeatureServer URL to a MapLibre `geojson` source. |
-| Esri compat drop-in (`FeatureLayerCompat`, `MapImageLayerCompat`, query/edits API) | `standalone` | Any ArcGIS Server / Online | `@honua/sdk-js/esri-compat`, `examples/standalone-quickstart` | The `esri-leaflet` migration path; parses `services.arcgis.com`-style URLs and builds its own client. |
-| `honua-migrate` codemod / ArcGIS scanner | `standalone` | None (build-time) | `@honua/sdk-js/migration`, `npm run scan:arcgis` | Static analysis + rewrites; no server involved at all. |
-| Geometry ops (buffer/area/measure/simplify/reproject) | `standalone` | None (client-side) | `@honua/sdk-js/geometry` | Pure client-side turf/proj4 ops. |
-| OGC API Features query (`Source` `ogc-features`) | `backend-agnostic` | Any OGC API Features server | `Source` (`ogc-features`, `locator.layout: "ogc-api" \| "auto"`), `HonuaClient.resolveOgcFeaturesLayout` | Discovers the collections/items layout from the landing page `rel="data"`/`rel="conformance"` links (OGC API - Common); item paths follow the `{collections}/{id}/items` template. Fixture-proven against **pygeoapi** (`demo.pygeoapi.io/master`) and **ldproxy** (`demo.ldproxy.net`); same typed `Query` yields an identical `Result` on a raw collection and the Honua facade. Facade (`/ogc/features/...`) stays the zero-round-trip default. |
-| WFS 2.0 query / GetFeature (`Source` `wfs`) | `backend-agnostic` | Any WFS 2.0 server | `Source` (`wfs`), `HonuaWfs` | Drives a raw `GetCapabilities` endpoint and issues GetFeature against the **DCP operation URL** the server advertises (`ows:DCP/ows:HTTP/*/@xlink:href`), not an assumed path — e.g. a GeoServer mounted at `/geoserver/ows` that advertises `/geoserver/wfs`. Fixture-proven against **GeoServer** (`ahocevar.com/geoserver`). |
-| STAC search (`Source` `stac`) | `backend-agnostic` | Any STAC API or static catalog | `Source` (`stac`, `locator.layout: "stac-api" \| "stac-static"`), `HonuaStacSearch`, `HonuaStacStaticCatalog` | `stac-api` runs `/search` under a raw API root; `stac-static` walks a static `catalog.json` tree via `rel="child"`/`rel="item"` links with client-side filtering. Fixture-proven against **Earth Search** (`earth-search.aws.element84.com/v1`) and a static catalog tree. |
-| OData v4 query (`Source` `odata`) | `backend-agnostic` | Any OData v4 service | `Source` (`odata`), `HonuaOdataEntitySet` | Capability-negotiated via `$metadata`; the service `basePath` is taken from `locator.url` so any service root works. Fixture-proven against the OASIS **TripPin** reference service (`services.odata.org/TripPinRESTierService`). |
-| OGC API Tiles / Maps / Processes / Records (typed surface) | `facade-bound` | Honua Server (facade paths) today | `Source` (`ogc-tiles`, `ogc-maps`, `ogc-records`), `HonuaClient` OGC methods | Protocol-correct clients that still address Honua's `/ogc/...` facade paths; raw third-party layout discovery for these families is roadmap. Use the backend-agnostic Features/WFS/STAC/OData lanes or GeoServices for the standalone path today. |
-| Server compatibility gate (`checkCompatibility`) | `honua-enhanced` | Honua Server | `HonuaClient.checkCompatibility` | Reads `/api/v1/admin/capabilities`; skip it for standalone reads. |
-| Authored `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) | `honua-enhanced` | Honua Server | `@honua/sdk-js/runtime`, `examples/maplibre-quickstart` | Server-authored styles/layer order/metadata. |
-| Realtime subscriptions | `honua-enhanced` | Honua Server | `@honua/sdk-js/realtime`, `examples/realtime-incident-dashboard` | Subscription-backed live updates. |
-| Collaboration / saved maps | `honua-enhanced` | Honua Server | `@honua/sdk-js/collaboration` | Shared/saved maps, multi-user sessions. |
-| MCP tools / AI surfaces | `honua-enhanced` | Honua Server + `@honua/mcp-server` | `mcp/`, `@honua/sdk-js/agent-tools` | Assistant discovery/query over MCP. |
+| Capability | Status | Environment | Execution | Backend needed | API | Evidence | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| GeoServices FeatureServer query | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.queryFeatures, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Discovers and uses the raw FeatureServer query path; fixture- and live-proven without a Honua account or server. |
+| GeoServices MapServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.mapService, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts)<br>[fixture: tile-layer-fixtures](../test/tile-layer-compat.test.ts)<br>[integration: map-service-integration](../test/integration/surfaces/map-server.integration.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Discovers and uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles. |
+| GeoServices ImageServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | HonuaClient.imageService, Source.protocol() | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[integration: image-service-integration](../test/integration/surfaces/image-server.integration.ts) | Uses raw ImageServer paths for raster-catalog queries, export, identify, and cached tiles. |
+| Esri compatibility layer | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | @honua/sdk-js/esri-compat | [fixture: esri-compat-fixtures](../test/feature-layer-compat.test.ts) | Compatibility classes parse public GeoServices URLs and create their own client. |
+| ArcGIS scanner and migration codemod | `supported` | `build-time` | `static` | None | @honua/sdk-js/migration, honua-migrate | [fixture: migration-fixtures](../test/migration-codemod.test.ts) | Static analysis and rewrites run locally; no service is involved. |
+| Geometry operations | `supported` | `client-only` | `native` | None | @honua/sdk-js/geometry | [fixture: geometry-fixtures](../test/geometry/ops.test.ts) | Buffer, area, simplify, measure, and reprojection run in the client through optional peers. |
+| OGC API Features | `supported` | `standalone` | `discovery` | Any OGC API Features server | connect(), Source with locator.layout=ogc-api or auto | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path. |
+| WFS 2.0 | `supported` | `standalone` | `discovery` | Any WFS 2.0 server | connect(), Source, HonuaWfs | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path. |
+| STAC API and static catalogs | `supported` | `standalone` | `discovery` | Any STAC API or static catalog | connect(), Source with locator.layout=stac-api or stac-static | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Searches a raw STAC API or walks static catalog links with client-side filtering. |
+| OData v4 | `supported` | `standalone` | `discovery` | Any OData v4 service | connect(), Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts)<br>[live: standalone-live](../scripts/standalone-live-smoke.mjs) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
+| GeoParquet asset discovery | `experimental` | `client-only` | `discovery` | None; caller provides a GeoParquet profiler | connect({ protocol: 'geoparquet', geoparquet: { profiler } }) | [fixture: geoparquet-connect-fixtures](../test/connect-geoparquet.test.ts) | Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver. |
+| OGC API Tiles | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. |
+| OGC API Maps | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. |
+| OGC API Records | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. |
+| OGC API Processes discovery | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source. |
+| OGC API Processes execution | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient OGC Processes methods | [integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Typed execution uses the Honua facade today; raw third-party execution is not claimed. |
+| Server compatibility gate | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
+| Authored MapPackage runtime | `facade-required` | `honua-facade` | `facade` | Honua Server | @honua/sdk-js/runtime | [fixture: map-package-fixtures](../test/runtime/map-package-fetch.test.ts) | Loads server-authored styles, layer order, and metadata. |
+| Realtime subscriptions | `facade-required` | `honua-facade` | `transport` | Honua Server | @honua/sdk-js/realtime | [integration: realtime-integration](../test/integration/surfaces/realtime.integration.ts) | Subscription-backed live updates depend on the Honua realtime contract. |
+| Collaboration and saved maps compatibility shim | `deprecated` | `honua-facade` | `facade` | Honua Server and @honua/app-platform | @honua/sdk-js/collaboration | Lifecycle-only claim | The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration. |
+| MCP tools and AI execution | `facade-required` | `honua-facade` | `facade` | Honua Server and @honua/mcp-server | mcp/, @honua/sdk-js/agent-tools | [fixture: agent-tools-fixtures](../test/agent-tools.test.ts) | Tool definitions are local, while discovery and query execution use the bounded Honua server surface. |
 
-## Rule of thumb
+## Current OGC line
 
-If your data lives behind an ArcGIS Server / ArcGIS Online endpoint, an OGC API
-Features server (pygeoapi, ldproxy, GeoServer OGC API), a WFS 2.0 server, a STAC
-API or static catalog, or an OData v4 service, the SDK is a drop-in typed client
-**today, standalone** — point a `Source` at the raw endpoint (set
-`locator.layout` for OGC API Features / STAC where the server is not a Honua
-facade). Reach for a Honua Server when you need authored map packages, realtime,
-collaboration, the MCP/AI surfaces, or the OGC API Tiles / Maps / Processes /
-Records families (still facade-bound today).
+Raw OGC API Tiles, Maps, and Records discovery/use is `beta` and fixture-proven.
+Raw OGC API Processes discovery is `experimental`; typed Processes execution is
+still `facade-required`. Those are deliberately separate claims so discovery
+evidence can never be mistaken for execution support.
+<!-- support-manifest:standalone-matrix:end -->
 
 ---
 
@@ -5851,6 +5896,12 @@ semantic identifiers rather than inventing per-repo names for the same
 operation. Default capability sets per protocol live in
 `PROTOCOL_DEFAULT_CAPABILITIES` and are mirrored in
 [`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md).
+Every identifier must also have exactly one reviewed entry in the support
+manifest's `operationSurfaces` registry. That registry binds the operation to
+either a compile-checked canonical `Source` member or a named typed adapter
+member, plus executable evidence; CI fails if vocabulary and surfaces drift.
+Top-level `connect()` discovery is tracked separately as a product support
+claim because it is not an operation on a `Source`.
 
 Capability misses must be explicit. The required behavior is a typed SDK error
 that names the missing capability and protocol (`HonuaCapabilityNotSupportedError`
