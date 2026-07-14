@@ -21,6 +21,10 @@ function galleryCards(gallery) {
   return gallery.groups.flatMap((group) => group.cards);
 }
 
+function occurrenceCount(value, pattern) {
+  return [...value.matchAll(pattern)].length;
+}
+
 test("projects one schema-valid catalog-v2 sample into one honest public gallery card", async () => {
   const oneCard = projectionWithSamples("endpoint-to-map");
 
@@ -103,7 +107,7 @@ test("sorts public capability and protocol facets deterministically", () => {
   assert.ok(!gallery.filters.capabilities.includes("interaction-state"));
 });
 
-test("renders accessible controls and every catalog-owned truth field on a card", () => {
+test("renders accessible controls, compact essentials, and disclosed catalog truth", () => {
   const gallery = createGalleryModel(projectionWithSamples("realtime-incident-dashboard"));
   const html = renderGalleryContent(gallery, {
     resolveSourceLink: () => ({ href: "https://github.com/honua-io/honua-sdk-js", kind: "source" }),
@@ -112,19 +116,21 @@ test("renders accessible controls and every catalog-owned truth field on a card"
   for (const label of [
     "SDK",
     "Data",
-    "Provenance",
-    "Attribution",
-    "Freshness",
-    "Evidence",
-    "Expected degradation",
-    "Lifecycle",
+    "Evidence state",
     "Replacement",
     "Capabilities",
     "Protocols",
+    "Lifecycle",
+    "Data provenance",
+    "Attribution",
+    "Freshness",
+    "Evidence details",
+    "Expected degradation",
     "Renderers",
     "Golden journey",
     "Validation profile",
     "Catalog",
+    "Projection",
     "Contract",
   ]) {
     assert.match(html, new RegExp(`<dt>${label}</dt>`));
@@ -140,26 +146,60 @@ test("renders accessible controls and every catalog-owned truth field on a card"
   assert.match(html, /honua\.sdk\.sample-catalog\.v2/);
   assert.match(html, /honua\.site\.sdk-sample-projection\.v2/);
   assert.match(html, /honua-io\/honua-sdk-js#540/);
-  assert.match(html, /fixture<\/code> · <strong>executed<\/strong>/);
+  assert.match(html, /Fixture: <strong>executed<\/strong>/);
   assert.match(html, /unavailable<\/code> · <strong>skipped<\/strong>/);
+  assert.match(html, /evidence expires <time/);
   assert.match(html, /2026-07-26T02:18:02\.730Z/);
   assert.match(html, /Realtime Incident Operations/);
   assert.match(html, /safe-editing/);
   assert.match(html, /maplibre/);
+  assert.match(html, /<summary>Evidence, provenance, lifecycle, and degradation<\/summary>/);
   assert.doesNotMatch(html, /<script|\son[a-z]+=/i);
 });
 
-test("escapes projected card content and refuses unsafe external replacement links", () => {
+test("renders global provenance once and puts every card CTA before its disclosure", () => {
+  const html = renderGalleryContent(createGalleryModel(projection));
+  const cards = [...html.matchAll(/<article class="demo-card[\s\S]*?<\/article>/g)].map((match) => match[0]);
+
+  assert.equal(occurrenceCount(html, /data-gallery-provenance/g), 1);
+  assert.equal(occurrenceCount(html, /<dt>Catalog<\/dt>/g), 1);
+  assert.equal(occurrenceCount(html, /<dt>Projection<\/dt>/g), 1);
+  assert.equal(occurrenceCount(html, /<dt>Contract<\/dt>/g), 1);
+  assert.equal(cards.length, 32);
+  for (const card of cards) {
+    const ctaIndex = card.indexOf('<a class="demo-link"');
+    const detailsIndex = card.indexOf('<details class="demo-card-details">');
+    assert.doesNotMatch(card, /<dt>(?:Catalog|Projection|Contract)<\/dt>/);
+    assert.ok(ctaIndex >= 0 && detailsIndex > ctaIndex);
+    assert.match(card, /<summary>Evidence, provenance, lifecycle, and degradation<\/summary>/);
+  }
+});
+
+test("escapes projected content and links only credential-free HTTPS replacements", () => {
   const unsafe = projectionWithSamples("web-components-basic");
   unsafe.samples[0].title = '<img src=x onerror="alert(1)">';
   unsafe.samples[0].data.provenance = '</dd><script>alert("x")</script>';
-  unsafe.externalReplacements[0].url = "javascript:alert(1)";
-  const html = renderGalleryContent(createGalleryModel(unsafe));
+  const unsafeUrls = [
+    "javascript:alert(1)",
+    "http://example.test/replacement",
+    "https://user:password@example.test/replacement",
+  ];
 
-  assert.match(html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
-  assert.match(html, /&lt;\/dd&gt;&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt;/);
-  assert.doesNotMatch(html, /<img|<script|href="javascript:/i);
-  assert.match(html, /external: @honua\/app-platform \(honua-app-platform\)/);
+  for (const url of unsafeUrls) {
+    unsafe.externalReplacements[0].url = url;
+    const html = renderGalleryContent(createGalleryModel(unsafe));
+
+    assert.match(html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
+    assert.match(html, /&lt;\/dd&gt;&lt;script&gt;alert\(&quot;x&quot;\)&lt;\/script&gt;/);
+    assert.doesNotMatch(html, /<img|<script|href="(?:javascript:|http:|https:\/\/user:)/i);
+    assert.match(html, /external: @honua\/app-platform \(honua-app-platform\)/);
+  }
+
+  const safeHtml = renderGalleryContent(createGalleryModel(projectionWithSamples("web-components-basic")));
+  assert.match(
+    safeHtml,
+    /href="https:\/\/www\.npmjs\.com\/package\/@honua\/app-platform" rel="noopener noreferrer"/,
+  );
 });
 
 test("filters task text with AND semantics and combines exact capability and protocol facets", () => {

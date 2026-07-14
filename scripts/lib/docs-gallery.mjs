@@ -44,7 +44,7 @@ function resolvedReplacement(replacement, indexes, publicSampleIds) {
   };
 }
 
-function gallerySearchText(card, provenance) {
+function gallerySearchText(card) {
   const { sample, journey, replacement } = card;
   return normalizeGalleryText(
     [
@@ -62,30 +62,18 @@ function gallerySearchText(card, provenance) {
       sample.data.mode,
       sample.data.authMode,
       sample.data.configurationStatus,
-      sample.data.configurationGap,
-      sample.data.provenance,
-      sample.data.attribution,
-      sample.data.freshness,
       sample.evidence.fixture.mode,
       sample.evidence.fixture.status,
       sample.evidence.live.mode,
       sample.evidence.live.targetMode,
       sample.evidence.live.status,
-      sample.evidence.live.expiresAt,
-      sample.expectedDegradation,
       sample.lifecycle.state,
-      sample.lifecycle.reason,
-      sample.lifecycle.targetRelease,
       journey?.id,
       journey?.title,
       journey?.status,
       replacement?.kind,
       replacement?.id,
       replacement?.title,
-      provenance.projection.format,
-      provenance.catalog.format,
-      provenance.contract.producer,
-      provenance.contract.consumer,
     ]
       .filter((value) => value !== undefined && value !== null)
       .join(" "),
@@ -135,7 +123,7 @@ export function createGalleryModel(siteProjection) {
         : null,
       replacement: resolvedReplacement(sample.lifecycle.replacement, indexes, publicSampleIds),
     };
-    return { ...card, searchText: gallerySearchText(card, provenance) };
+    return { ...card, searchText: gallerySearchText(card) };
   });
   const groups = PUBLIC_GALLERY_TRACKS.map(({ track, title }) => ({
     track,
@@ -170,7 +158,7 @@ function safeHttpUrl(value) {
   if (!value) return null;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+    return url.protocol === "https:" && !url.username && !url.password ? url.href : null;
   } catch {
     return null;
   }
@@ -183,22 +171,48 @@ function renderTags(values, label) {
     .join("")}</ul>`;
 }
 
-function renderEvidence(sample) {
+function renderEvidenceSummary(sample) {
   const fixture = sample.evidence.fixture;
   const live = sample.evidence.live;
   const liveParts = [
     `<code>${escapeHtml(live.mode)}</code>`,
     `<strong>${escapeHtml(live.status)}</strong>`,
   ];
-  if (live.targetMode) liveParts.push(`target <code>${escapeHtml(live.targetMode)}</code>`);
-  if (live.evidencePath) liveParts.push(`reference <code>${escapeHtml(live.evidencePath)}</code>`);
   if (live.expiresAt) {
     liveParts.push(
-      `expires <time datetime="${escapeHtml(live.expiresAt)}">${escapeHtml(live.expiresAt)}</time>`,
+      `<span class="demo-evidence-expiry">evidence expires <time datetime="${escapeHtml(
+        live.expiresAt,
+      )}">${escapeHtml(live.expiresAt)}</time></span>`,
     );
   }
-  return `<span class="demo-evidence-line">Fixture: <code>${escapeHtml(fixture.mode)}</code> · <strong>${escapeHtml(fixture.status)}</strong></span>
+  return `<span class="demo-evidence-line">Fixture: <strong>${escapeHtml(fixture.status)}</strong></span>
 <span class="demo-evidence-line">Live: ${liveParts.join(" · ")}</span>`;
+}
+
+function renderEvidenceDetails(sample) {
+  const fixture = sample.evidence.fixture;
+  const live = sample.evidence.live;
+  const parts = [
+    `<span class="demo-evidence-line">Fixture mode <code>${escapeHtml(
+      fixture.mode,
+    )}</code> · status <strong>${escapeHtml(fixture.status)}</strong></span>`,
+    `<span class="demo-evidence-line">Live mode <code>${escapeHtml(
+      live.mode,
+    )}</code> · status <strong>${escapeHtml(live.status)}</strong></span>`,
+  ];
+  if (live.targetMode) {
+    parts.push(
+      `<span class="demo-evidence-line">Target mode <code>${escapeHtml(live.targetMode)}</code></span>`,
+    );
+  }
+  if (live.evidencePath) {
+    parts.push(
+      `<span class="demo-evidence-line">Evidence reference <code>${escapeHtml(
+        live.evidencePath,
+      )}</code></span>`,
+    );
+  }
+  return parts.join("\n");
 }
 
 function renderLifecycle(sample) {
@@ -236,7 +250,33 @@ function renderOption(value) {
   return `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`;
 }
 
-function renderCard(card, gallery, resolveSourceLink) {
+function renderGalleryProvenance(gallery) {
+  const catalog = gallery.provenance.catalog;
+  const projection = gallery.provenance.projection;
+  const contract = gallery.provenance.contract;
+  return `<aside class="gallery-provenance" data-gallery-provenance aria-label="Gallery catalog and contract provenance">
+  <details>
+    <summary>Catalog, projection, and contract provenance</summary>
+    <dl class="demo-facts">
+      <dt>Catalog</dt><dd><code>${escapeHtml(catalog.package)}</code> <code>${escapeHtml(
+        catalog.version,
+      )}</code> · <code>${escapeHtml(catalog.format)}</code> schema ${escapeHtml(catalog.schemaVersion)}</dd>
+      <dt>Projection</dt><dd><code>${escapeHtml(projection.format)}</code> schema ${escapeHtml(
+        projection.schemaVersion,
+      )}</dd>
+      <dt>Contract</dt><dd>producer <code>${escapeHtml(
+        contract.producer,
+      )}</code> · consumer <code>${escapeHtml(
+        contract.consumer,
+      )}</code> · executable owner <code>${escapeHtml(
+        contract.executableSourceOwner,
+      )}</code> · presentation owner <code>${escapeHtml(contract.presentationOwner)}</code></dd>
+    </dl>
+  </details>
+</aside>`;
+}
+
+function renderCard(card, resolveSourceLink) {
   const { sample } = card;
   const source = resolveSourceLink(sample);
   const sourceLabel = source.kind === "guide" ? "Read the walkthrough" : "View source";
@@ -245,17 +285,16 @@ function renderCard(card, gallery, resolveSourceLink) {
     `auth <code>${escapeHtml(sample.data.authMode)}</code>`,
     `configuration <strong>${escapeHtml(sample.data.configurationStatus)}</strong>`,
   ];
-  if (sample.data.configurationGap) dataSummary.push(escapeHtml(sample.data.configurationGap));
-  const catalog = gallery.provenance.catalog;
-  const projection = gallery.provenance.projection;
-  const contract = gallery.provenance.contract;
   const headingId = `sample-${encodeURIComponent(sample.id)}-title`;
+  const configurationNote = sample.data.configurationGap
+    ? `<dt>Configuration note</dt><dd>${escapeHtml(sample.data.configurationGap)}</dd>`
+    : "";
 
   return `<article class="demo-card demo-card--${escapeHtml(sample.lifecycle.state)}" id="sample-${escapeHtml(
     encodeURIComponent(sample.id),
   )}" aria-labelledby="${escapeHtml(headingId)}" data-gallery-card data-sample-id="${escapeHtml(
     sample.id,
-  )}" data-gallery-search="${escapeHtml(card.searchText)}" data-gallery-capabilities="${escapeHtml(
+  )}" data-gallery-search-text="${escapeHtml(card.searchText)}" data-gallery-capabilities="${escapeHtml(
     JSON.stringify(sample.capabilities),
   )}" data-gallery-protocols="${escapeHtml(JSON.stringify(sample.protocols))}">
   <header class="demo-card-header">
@@ -267,33 +306,30 @@ function renderCard(card, gallery, resolveSourceLink) {
   </header>
   <p class="demo-id"><code>${escapeHtml(sample.id)}</code></p>
   <p class="demo-summary">${escapeHtml(sample.summary)}</p>
-  <dl class="demo-facts">
+  <a class="demo-link" href="${escapeHtml(source.href)}">${sourceLabel} →</a>
+  <dl class="demo-facts demo-facts--essential">
     <dt>SDK</dt><dd><code>${escapeHtml(sample.sdk.package)}</code> <code>${escapeHtml(sample.sdk.version)}</code></dd>
     <dt>Data</dt><dd>${dataSummary.join(" · ")}</dd>
-    <dt>Provenance</dt><dd>${escapeHtml(sample.data.provenance)}</dd>
-    <dt>Attribution</dt><dd>${escapeHtml(sample.data.attribution)}</dd>
-    <dt>Freshness</dt><dd>${escapeHtml(sample.data.freshness)}</dd>
-    <dt>Evidence</dt><dd>${renderEvidence(sample)}</dd>
-    <dt>Expected degradation</dt><dd>${escapeHtml(sample.expectedDegradation)}</dd>
-    <dt>Lifecycle</dt><dd>${renderLifecycle(sample)}</dd>
+    <dt>Evidence state</dt><dd>${renderEvidenceSummary(sample)}</dd>
     <dt>Replacement</dt><dd>${renderReplacement(card.replacement)}</dd>
     <dt>Capabilities</dt><dd>${renderTags(sample.capabilities, `${sample.title} capabilities`)}</dd>
     <dt>Protocols</dt><dd>${renderTags(sample.protocols, `${sample.title} protocols`)}</dd>
-    <dt>Renderers</dt><dd>${renderTags(sample.renderers, `${sample.title} renderers`)}</dd>
-    <dt>Golden journey</dt><dd>${renderJourney(card.journey)}</dd>
-    <dt>Validation profile</dt><dd><code>${escapeHtml(sample.validationProfile)}</code></dd>
-    <dt>Catalog</dt><dd><code>${escapeHtml(catalog.package)}</code> <code>${escapeHtml(
-      catalog.version,
-    )}</code> · <code>${escapeHtml(catalog.format)}</code> schema ${escapeHtml(catalog.schemaVersion)}</dd>
-    <dt>Contract</dt><dd><code>${escapeHtml(projection.format)}</code> schema ${escapeHtml(
-      projection.schemaVersion,
-    )} · producer <code>${escapeHtml(contract.producer)}</code> · consumer <code>${escapeHtml(
-      contract.consumer,
-    )}</code> · executable owner <code>${escapeHtml(
-      contract.executableSourceOwner,
-    )}</code> · presentation owner <code>${escapeHtml(contract.presentationOwner)}</code></dd>
   </dl>
-  <a class="demo-link" href="${escapeHtml(source.href)}">${sourceLabel} →</a>
+  <details class="demo-card-details">
+    <summary>Evidence, provenance, lifecycle, and degradation</summary>
+    <dl class="demo-facts demo-facts--details">
+      <dt>Lifecycle</dt><dd>${renderLifecycle(sample)}</dd>
+      ${configurationNote}
+      <dt>Data provenance</dt><dd>${escapeHtml(sample.data.provenance)}</dd>
+      <dt>Attribution</dt><dd>${escapeHtml(sample.data.attribution)}</dd>
+      <dt>Freshness</dt><dd>${escapeHtml(sample.data.freshness)}</dd>
+      <dt>Evidence details</dt><dd>${renderEvidenceDetails(sample)}</dd>
+      <dt>Expected degradation</dt><dd>${escapeHtml(sample.expectedDegradation)}</dd>
+      <dt>Renderers</dt><dd>${renderTags(sample.renderers, `${sample.title} renderers`)}</dd>
+      <dt>Golden journey</dt><dd>${renderJourney(card.journey)}</dd>
+      <dt>Validation profile</dt><dd><code>${escapeHtml(sample.validationProfile)}</code></dd>
+    </dl>
+  </details>
 </article>`;
 }
 
@@ -312,7 +348,7 @@ export function renderGalleryContent(gallery, { resolveSourceLink } = {}) {
       (group) => `<section data-gallery-group aria-labelledby="gallery-${escapeHtml(group.track)}">
   <h2 id="gallery-${escapeHtml(group.track)}">${escapeHtml(group.title)}</h2>
   <div class="demo-grid">
-${group.cards.map((card) => renderCard(card, gallery, sourceLink)).join("\n")}
+${group.cards.map((card) => renderCard(card, sourceLink)).join("\n")}
   </div>
 </section>`,
     )
@@ -323,6 +359,7 @@ ${group.cards.map((card) => renderCard(card, gallery, sourceLink)).join("\n")}
 and labs appear here now; qualified golden journeys join automatically as their
 evidence gates pass. Cards retain lifecycle, degradation, and evidence truth even
 when a sample is scheduled for replacement or retirement.</p>
+${renderGalleryProvenance(gallery)}
 <form class="gallery-controls" data-gallery-controls role="search" aria-label="Filter demo gallery">
   <div class="gallery-control">
     <label for="gallery-search">Task or sample</label>

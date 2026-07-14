@@ -59,7 +59,7 @@ function initializeGallery(root = document) {
   const groups = [...root.querySelectorAll("[data-gallery-group]")];
   const records = [...root.querySelectorAll("[data-gallery-card]")].map((element) => ({
     id: element.dataset.sampleId ?? "",
-    searchText: element.dataset.gallerySearch ?? "",
+    searchText: element.dataset.gallerySearchText ?? "",
     capabilities: parseFacetValues(element.dataset.galleryCapabilities),
     protocols: parseFacetValues(element.dataset.galleryProtocols),
     element,
