@@ -171,7 +171,7 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
       lines.push("");
       lines.push("App-platform usage (the module import auto-registers the element):");
       lines.push("");
-      lines.push("```ts");
+      lines.push('```ts doc-test=skip reason="requires the separately published app-platform package"');
       lines.push(`import "${entry.appPlatformComponent.moduleSpecifier}";`);
       lines.push("```");
       lines.push("");

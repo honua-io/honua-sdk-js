@@ -128,6 +128,7 @@ describe("widget survival guide", () => {
       const usageHtml = WIDGET_DISPOSITIONS_WITH_DOCUMENTATION.find((entry) => entry.widget === expected.widget)
         ?.appPlatformComponent?.usageHtml;
       if (!usageHtml) throw new Error(`${expected.widget} is missing app-platform usage markup`);
+      expect(guide).toContain('```ts doc-test=skip reason="requires the separately published app-platform package"');
       expect(guide).toContain(`import "@honua/app-platform/web-components";`);
       expect(guide).toContain(usageHtml);
     }

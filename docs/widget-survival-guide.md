@@ -258,7 +258,7 @@ A compat-backed row may also list a direct `@honua/app-platform` component. That
 
 App-platform usage (the module import auto-registers the element):
 
-```ts
+```ts doc-test=skip reason="requires the separately published app-platform package"
 import "@honua/app-platform/web-components";
 ```
 
@@ -278,7 +278,7 @@ import "@honua/app-platform/web-components";
 
 App-platform usage (the module import auto-registers the element):
 
-```ts
+```ts doc-test=skip reason="requires the separately published app-platform package"
 import "@honua/app-platform/web-components";
 ```
 
@@ -313,7 +313,7 @@ import "@honua/app-platform/web-components";
 
 App-platform usage (the module import auto-registers the element):
 
-```ts
+```ts doc-test=skip reason="requires the separately published app-platform package"
 import "@honua/app-platform/web-components";
 ```
 
@@ -357,7 +357,7 @@ import "@honua/app-platform/web-components";
 
 App-platform usage (the module import auto-registers the element):
 
-```ts
+```ts doc-test=skip reason="requires the separately published app-platform package"
 import "@honua/app-platform/web-components";
 ```
 
