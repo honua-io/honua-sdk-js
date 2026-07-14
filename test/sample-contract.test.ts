@@ -436,6 +436,9 @@ describe("sample publication contract", () => {
     await expect(
       extractSampleConfiguration("test/fixtures/sample-contract/env-dynamic-call-target-shadow"),
     ).rejects.toThrow("dynamic environment reader readEnvironment has no finite call sites");
+    await expect(
+      extractSampleConfiguration("test/fixtures/sample-contract/env-process-promise-reader"),
+    ).rejects.toThrow("node:process dynamic imports must be awaited before environment access");
   });
 
   it("inventories computed environment roots and fixed object-binding defaults", async () => {
@@ -453,6 +456,10 @@ describe("sample publication contract", () => {
     });
     await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-process-imports")).resolves.toEqual({
       names: ["HONUA_DEFAULT_PROCESS_IMPORT_URL", "HONUA_NAMED_ENV_IMPORT_URL", "HONUA_NAMESPACE_PROCESS_IMPORT_URL"],
+      wholeEnvironmentEscapes: [],
+    });
+    await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-process-loaders")).resolves.toEqual({
+      names: ["HONUA_CJS_TOKEN", "HONUA_DYNAMIC_TOKEN"],
       wholeEnvironmentEscapes: [],
     });
     await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-global-process-roots")).resolves.toEqual(
@@ -512,6 +519,15 @@ describe("sample publication contract", () => {
     expect(shadowedCallTarget.names).toEqual([]);
     expect(shadowedCallTarget.wholeEnvironmentEscapes).toEqual([
       expect.objectContaining({ roots: ["process.env"], reason: "passed to an untraceable call" }),
+    ]);
+
+    const processHostEscapes = await inspectSampleConfiguration(
+      "test/fixtures/sample-contract/env-process-host-escapes",
+    );
+    expect(processHostEscapes.names).toEqual([]);
+    expect(processHostEscapes.wholeEnvironmentEscapes).toEqual([
+      expect.objectContaining({ roots: ["process.env"], reason: "passed to an untraceable call" }),
+      expect.objectContaining({ roots: ["process.env"], reason: "used as a whole object" }),
     ]);
   });
 

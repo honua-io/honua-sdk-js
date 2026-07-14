@@ -572,6 +572,8 @@ function analyzeConfigurationSource(sourceFile, file) {
 
   const carrierKinds = new Map();
   const environmentHostKindsByBinding = new Map();
+  const processModuleLoaderFactoryBindings = new Set();
+  const processModuleLoaderBindings = new Set();
   const mergeKinds = (map, binding, kinds) => {
     if (!binding || kinds.size === 0) return false;
     if (!map.has(binding)) map.set(binding, new Set());
@@ -591,9 +593,47 @@ function analyzeConfigurationSource(sourceFile, file) {
     }
     return undefined;
   };
+  const isProcessModuleDynamicImport = (node) => {
+    const expression = unwrapExpression(node);
+    if (!ts.isCallExpression(expression) || expression.expression.kind !== ts.SyntaxKind.ImportKeyword) return false;
+    const moduleName = expression.arguments[0] ? stringLiteralValue(expression.arguments[0]) : undefined;
+    return moduleName === "node:process" || moduleName === "process";
+  };
+  const processModuleLoadKinds = (node) => {
+    if (!node) return new Set();
+    const expression = unwrapExpression(node);
+    if (ts.isAwaitExpression(expression)) {
+      return isProcessModuleDynamicImport(expression.expression)
+        ? new Set(["process.env"])
+        : processModuleLoadKinds(expression.expression);
+    }
+    if (ts.isCallExpression(expression)) {
+      const moduleName = expression.arguments[0] ? stringLiteralValue(expression.arguments[0]) : undefined;
+      if (moduleName !== "node:process" && moduleName !== "process") return new Set();
+      if (expression.expression.kind === ts.SyntaxKind.ImportKeyword) return new Set();
+      const target = unwrapExpression(expression.expression);
+      if (ts.isIdentifier(target)) {
+        const resolution = resolveLexicalBinding(target);
+        if (!resolution.ambiguous && processModuleLoaderBindings.has(resolution.binding)) {
+          return new Set(["process.env"]);
+        }
+      }
+      return new Set();
+    }
+    if (staticMemberName(expression) === "default") {
+      return processModuleLoadKinds(expression.expression);
+    }
+    return new Set();
+  };
   const environmentHostKinds = (node) => {
     if (!node) return new Set();
     const expression = unwrapExpression(node);
+    const loadedKinds = processModuleLoadKinds(expression);
+    if (loadedKinds.size > 0) return loadedKinds;
+    if (staticMemberName(expression) === "default") {
+      const namespaceKinds = environmentHostKinds(expression.expression);
+      if (namespaceKinds.size > 0) return namespaceKinds;
+    }
     if (ts.isMetaProperty(expression) && expression.keywordToken === ts.SyntaxKind.ImportKeyword) {
       return new Set(["import.meta.env"]);
     }
@@ -664,8 +704,17 @@ function analyzeConfigurationSource(sourceFile, file) {
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !statement.importClause) continue;
     const moduleName = stringLiteralValue(statement.moduleSpecifier);
-    if (moduleName !== "node:process" && moduleName !== "process") continue;
     const { importClause } = statement;
+    if ((moduleName === "node:module" || moduleName === "module") && importClause.namedBindings) {
+      if (ts.isNamedImports(importClause.namedBindings)) {
+        for (const element of importClause.namedBindings.elements) {
+          const importedName = element.propertyName?.text ?? element.name.text;
+          if (importedName === "createRequire") processModuleLoaderFactoryBindings.add(element);
+        }
+      }
+      continue;
+    }
+    if (moduleName !== "node:process" && moduleName !== "process") continue;
     if (importClause.name) {
       mergeEnvironmentHostKinds(importClause, new Set(["process.env"]));
     }
@@ -681,6 +730,17 @@ function analyzeConfigurationSource(sourceFile, file) {
         }
       }
     }
+  }
+  for (const declaration of declarations) {
+    if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue;
+    const initializer = unwrapExpression(declaration.initializer);
+    if (!ts.isCallExpression(initializer)) continue;
+    const target = unwrapExpression(initializer.expression);
+    if (!ts.isIdentifier(target)) continue;
+    const resolution = resolveLexicalBinding(target);
+    if (resolution.ambiguous || !processModuleLoaderFactoryBindings.has(resolution.binding)) continue;
+    assertConstEnvironmentAlias(declaration);
+    processModuleLoaderBindings.add(declaration);
   }
 
   let carriersChanged = true;
@@ -906,6 +966,8 @@ function analyzeConfigurationSource(sourceFile, file) {
     if (ts.isMethodDeclaration(parent) && parent.name === node) return false;
     return true;
   };
+  const hasExportModifier = (node) =>
+    node?.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false;
 
   const safeWholeEnvironmentUse = (node) => {
     const outer = outerExpression(node);
@@ -922,6 +984,58 @@ function analyzeConfigurationSource(sourceFile, file) {
       if (argumentIndex < 0) return false;
       const target = localFunctionForCall(parent);
       return Boolean(target && carrierKinds.has(target.node.parameters[argumentIndex]));
+    }
+    return false;
+  };
+  const outerEnvironmentHostExpression = (node) => {
+    let current = node;
+    while (current.parent) {
+      const parent = current.parent;
+      if (
+        ((ts.isParenthesizedExpression(parent) ||
+          ts.isAsExpression(parent) ||
+          ts.isTypeAssertionExpression(parent) ||
+          ts.isNonNullExpression(parent) ||
+          (ts.isSatisfiesExpression && ts.isSatisfiesExpression(parent)) ||
+          ts.isAwaitExpression(parent)) &&
+          parent.expression === current) ||
+        ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+          parent.expression === current &&
+          staticMemberName(parent) === "default" &&
+          environmentHostKinds(parent).size > 0)
+      ) {
+        current = parent;
+        continue;
+      }
+      break;
+    }
+    return current;
+  };
+  const safeEnvironmentHostUse = (node) => {
+    const outer = outerEnvironmentHostExpression(node);
+    const parent = outer.parent;
+    if (
+      (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+      parent.expression === outer &&
+      staticMemberName(parent) !== undefined
+    ) {
+      return true;
+    }
+    if (ts.isVariableDeclaration(parent) && parent.initializer === outer) {
+      if (ts.isObjectBindingPattern(parent.name)) return true;
+      if (!ts.isIdentifier(parent.name) || !environmentHostKindsByBinding.has(parent)) return false;
+      const declarationList = parent.parent;
+      const statement = ts.isVariableDeclarationList(declarationList) ? declarationList.parent : undefined;
+      return !(ts.isVariableStatement(statement) && hasExportModifier(statement));
+    }
+    if (ts.isParameter(parent) && parent.initializer === outer) {
+      return environmentHostKindsByBinding.has(parent);
+    }
+    if (ts.isCallExpression(parent)) {
+      const argumentIndex = parent.arguments.indexOf(outer);
+      if (argumentIndex < 0) return false;
+      const target = localFunctionForCall(parent);
+      return Boolean(target && environmentHostKindsByBinding.has(target.node.parameters[argumentIndex]));
     }
     return false;
   };
@@ -951,15 +1065,46 @@ function analyzeConfigurationSource(sourceFile, file) {
       reason: escapeReason(node),
     });
   };
+  const recordEnvironmentHostEscape = (node) => {
+    const kinds = environmentHostKinds(node);
+    if (kinds.size === 0 || safeEnvironmentHostUse(node)) return;
+    const start = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+    wholeEnvironmentEscapes.push({
+      file,
+      line: start.line + 1,
+      column: start.character + 1,
+      roots: [...kinds].sort(),
+      reason: escapeReason(node),
+    });
+  };
   const isUnresolvedEnvironmentRoot = (node) => {
     const expression = unwrapExpression(node);
     if (!ts.isElementAccessExpression(expression)) return false;
     if (stringLiteralValue(unwrapExpression(expression.argumentExpression)) !== undefined) return false;
     return environmentHostKinds(expression.expression).size > 0;
   };
+  const isUnawaitedProcessModuleImport = (node) => {
+    if (!isProcessModuleDynamicImport(node)) return false;
+    let current = node;
+    while (
+      current.parent &&
+      (ts.isParenthesizedExpression(current.parent) ||
+        ts.isAsExpression(current.parent) ||
+        ts.isTypeAssertionExpression(current.parent) ||
+        ts.isNonNullExpression(current.parent)) &&
+      current.parent.expression === current
+    ) {
+      current = current.parent;
+    }
+    return !(ts.isAwaitExpression(current.parent) && current.parent.expression === current);
+  };
 
   const scan = (node) => {
     invariant(!isUnresolvedEnvironmentRoot(node), `${file}: unresolved dynamic environment root`);
+    invariant(
+      !isUnawaitedProcessModuleImport(node),
+      `${file}: node:process dynamic imports must be awaited before environment access`,
+    );
     if (ts.isPropertyAccessExpression(node) && isEnvironmentObject(node.expression)) {
       names.add(node.name.text);
     }
@@ -998,12 +1143,17 @@ function analyzeConfigurationSource(sourceFile, file) {
     ) {
       recordWholeEnvironmentEscape(node);
     }
+    if (
+      outerEnvironmentHostExpression(node) === node &&
+      environmentHostKinds(node).size > 0 &&
+      (!ts.isIdentifier(node) || isIdentifierReference(node))
+    ) {
+      recordEnvironmentHostEscape(node);
+    }
     ts.forEachChild(node, scan);
   };
   scan(sourceFile);
 
-  const hasExportModifier = (node) =>
-    node?.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false;
   const exportedBindings = new Set();
   for (const statement of sourceFile.statements) {
     if (
