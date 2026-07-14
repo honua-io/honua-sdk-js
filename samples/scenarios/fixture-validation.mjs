@@ -367,11 +367,30 @@ function validateFirstMap(manifest, data) {
     throw new Error("First Map payload and layer must both declare polygon geometry.");
   }
   if (layer.extent.spatialReference?.wkid !== 4326) throw new Error("First Map layer extent CRS must be EPSG:4326.");
-  const fieldNames = features.fields.map((field) => field.name);
-  assertUnique(fieldNames, "First Map field names must be unique.");
+  if (!Array.isArray(features.fields) || !Array.isArray(layer.fields)) {
+    throw new Error("First Map query and layer fields must be arrays.");
+  }
+  const queryFieldDefinitions = features.fields.map((field) => ({ name: field.name, type: field.type }));
+  const layerFieldDefinitions = layer.fields.map((field) => ({ name: field.name, type: field.type }));
+  const fieldNames = queryFieldDefinitions.map((field) => field.name);
+  const layerFieldNames = layerFieldDefinitions.map((field) => field.name);
+  assertUnique(fieldNames, "First Map query field names must be unique.");
+  assertUnique(layerFieldNames, "First Map layer field names must be unique.");
+  assertJsonEqual(features.fields, layer.fields, "First Map query and layer field declarations must match exactly.");
+  if (features.objectIdFieldName !== layer.objectIdField) {
+    throw new Error("First Map query and layer object ID fields must match.");
+  }
+  const objectIdFields = queryFieldDefinitions.filter((field) => field.type === "esriFieldTypeOID");
+  if (objectIdFields.length !== 1 || objectIdFields[0].name !== features.objectIdFieldName) {
+    throw new Error("First Map must declare exactly one matching object ID field.");
+  }
+  const objectIdFieldName = features.objectIdFieldName;
   const objectIds = [];
   for (const [index, feature] of features.features.entries()) {
     assertPlainRecord(feature.attributes, `First Map feature ${index} attributes are invalid.`);
+    if (!sameValues(Object.keys(feature.attributes), fieldNames)) {
+      throw new Error(`First Map feature ${index} attributes must exactly match the declared fields.`);
+    }
     if (!Array.isArray(feature.geometry?.rings) || feature.geometry.rings.length < 1) {
       throw new Error(`First Map feature ${index} must contain polygon rings.`);
     }
@@ -388,9 +407,9 @@ function validateFirstMap(manifest, data) {
       if (field.type === "esriFieldTypeString" && typeof value !== "string")
         throw new Error("First Map string field is invalid.");
     }
-    objectIds.push(feature.attributes.OBJECTID);
+    objectIds.push(feature.attributes[objectIdFieldName]);
   }
-  assertUnique(objectIds, "First Map OBJECTID values must be unique.");
+  assertUnique(objectIds, "First Map object ID values must be unique.");
   if (!objectIds.includes(manifest.schema.editableRecordId)) {
     throw new Error("First Map editableRecordId must identify a fixture feature.");
   }

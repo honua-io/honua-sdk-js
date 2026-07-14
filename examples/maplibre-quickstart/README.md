@@ -31,8 +31,8 @@ Open the printed `quickstartMockUrl`. The fixture lane is deterministic and self
 5. `mount` converts the result geometry and links MapLibre to the exploration context.
 
 The fixture is clearly labeled **Fixture replay**, uses no authentication, reports its committed data version and capture
-time, and does not make external network requests. Fixture responses live in
-[`test/fixtures/honua-quickstart-demo`](../../test/fixtures/honua-quickstart-demo).
+time, and does not make external network requests. The versioned fixture pack lives in
+[`samples/fixtures/first-map/v1`](../../samples/fixtures/first-map/v1).
 
 Required CI measures the path from a clean `npm ci` through the first usable fixture map and enforces a
 300-second ceiling. See the [quickstart timing contract](../../docs/quickstart.md#what-the-five-minute-claim-measures).

@@ -219,19 +219,13 @@ export function createRunRegistry({
   async function reset(run) {
     return mutate(run, () => {
       const candidate = buildResetCandidate(run);
-      const disposalError = disposeState(run, "reset");
-      if (disposalError) {
-        disposeState(candidate, "reset-candidate-abandoned");
-        throw Object.assign(new Error("Fixture run reset failed during state disposal."), {
-          cause: disposalError,
-          status: 500,
-        });
-      }
+      const detached = { ...run, active: false, mutation: Promise.resolve() };
       run.clock = candidate.clock;
       run.ids = candidate.ids;
       run.requests = candidate.requests;
       run.state = candidate.state;
       run.touchedAt = candidate.touchedAt;
+      disposeState(detached, "reset");
       return run;
     });
   }

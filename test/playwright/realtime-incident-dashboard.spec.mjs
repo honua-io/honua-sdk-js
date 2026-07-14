@@ -7,12 +7,18 @@ test.setTimeout(90_000);
 test("realtime incident dashboard keeps map, queue, filters, and detail linked", async ({ page }) => {
   const pageErrors = [];
   const consoleErrors = [];
+  const expectedConflictConsole = [];
   const externalRequests = [];
   page.on("pageerror", (error) => {
     pageErrors.push(error.message);
   });
   page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
+    if (message.type() !== "error") return;
+    if (/Failed to load resource:.*409 \(Conflict\)/.test(message.text())) {
+      expectedConflictConsole.push(message.text());
+      return;
+    }
+    consoleErrors.push(message.text());
   });
 
   const fixtureServer = await startIncidentDashboardFixtureServer();
@@ -84,8 +90,10 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await expect(page.locator("#detail-title")).toHaveText("Airport logistics delay");
 
     await page.evaluate(() => {
-      window.__HONUA_INCIDENT_RUNTIME__?.step();
-      window.__HONUA_INCIDENT_RUNTIME__?.step();
+      return Promise.all([
+        window.__HONUA_INCIDENT_RUNTIME__?.step(),
+        window.__HONUA_INCIDENT_RUNTIME__?.step(),
+      ]);
     });
     await expect(page.locator("#detail-title")).toHaveText("No selected incident");
     await expect(page.locator("#stream-tombstones")).toHaveText("1");
@@ -104,7 +112,7 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await page.getByRole("button", { name: "Reconnect" }).click();
     await expect(page.locator("#connection-status")).toHaveText("Reconnecting");
     await expect(page.locator("#stream-reconnect")).toContainText(/attempt 1/i);
-    await expect(page.locator("#stream-backoff")).toHaveText("750 ms");
+    await expect(page.locator("#stream-backoff")).toHaveText("0 ms");
 
     await page.getByRole("button", { name: "Resume" }).click();
     await expect(page.locator("#connection-status")).toHaveText("Live");
@@ -119,6 +127,25 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
 
     await expect.poll(async () => page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.visibleIncidentCount)).toBe(6);
 
+    const evidence = await (await fetch(fixtureServer.requestLogUrl)).json();
+    const routeIds = evidence.requests.map((request) => request.routeId);
+    expect(routeIds).toEqual(
+      expect.arrayContaining([
+        "incident-stream",
+        "fixture-action-duplicate-event",
+        "fixture-action-stale-cursor",
+        "fixture-action-concurrent-edit",
+        "fixture-action-edit",
+        "fixture-action-reset-edit",
+        "fixture-action-step",
+        "fixture-action-reconnect",
+        "fixture-action-resume",
+        "fixture-action-refresh",
+      ]),
+    );
+    const streamRequest = evidence.requests.find((request) => request.routeId === "incident-stream");
+    expect(streamRequest?.queryNames).toContain("run");
+
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator("#data-lane")).toBeVisible();
     await expect
@@ -126,21 +153,38 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
       .toBe(true);
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
+    expect(expectedConflictConsole).toHaveLength(1);
     expect(externalRequests).toEqual([]);
 
     const lastStepBeforeDispose = await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.lastStep);
+    const runBeforeDispose = await (await fetch(fixtureServer.runUrl)).json();
+    expect(runBeforeDispose.state.subscriberCount).toBe(1);
     await page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.dispose());
     await expect.poll(async () => page.evaluate(() => window.__HONUA_INCIDENT_RUNTIME__?.disposed)).toBe(true);
+    await expect
+      .poll(async () => (await (await fetch(fixtureServer.runUrl)).json()).state.subscriberCount)
+      .toBe(0);
     await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
     await page.getByRole("button", { name: "Step Event" }).click();
-    expect(
-      await page.evaluate(() => ({
-        lastStep: window.__HONUA_INCIDENT_RUNTIME__?.lastStep,
-        runtimeStep: window.__HONUA_INCIDENT_RUNTIME__?.step(),
-      })),
-    ).toEqual({ lastStep: lastStepBeforeDispose, runtimeStep: null });
+    const runtimeAfterDispose = await page.evaluate(async () => ({
+      lastStep: window.__HONUA_INCIDENT_RUNTIME__?.lastStep,
+      runtimeStep: await window.__HONUA_INCIDENT_RUNTIME__?.step(),
+    }));
+    expect(runtimeAfterDispose).toEqual({ lastStep: lastStepBeforeDispose, runtimeStep: null });
+    const runAfterDispose = await (await fetch(fixtureServer.runUrl)).json();
+    expect(runAfterDispose.state).toMatchObject({
+      subscriberCount: 0,
+      sequence: runBeforeDispose.state.sequence,
+      stepIndex: runBeforeDispose.state.stepIndex,
+      idempotencyKeyCount: runBeforeDispose.state.idempotencyKeyCount,
+    });
+    const evidenceAfterDispose = await (await fetch(fixtureServer.requestLogUrl)).json();
+    expect(evidenceAfterDispose.requests.filter((request) => request.routeId === "fixture-action-step")).toHaveLength(
+      routeIds.filter((routeId) => routeId === "fixture-action-step").length,
+    );
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
+    expect(expectedConflictConsole).toHaveLength(1);
   } finally {
     await fixtureServer.close();
   }

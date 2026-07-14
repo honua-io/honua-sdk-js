@@ -98,8 +98,8 @@ function resolveStreamFeatures(run, url) {
   if (run.scenario !== "paginated" && hasPageCursor) {
     throw Object.assign(new Error("This scenario does not issue page cursors."), { status: 400 });
   }
-  if (run.scenario === "empty") return { features: [], nextPageCursor: null };
-  if (run.scenario !== "paginated") return { features: all, nextPageCursor: null };
+  if (run.scenario === "empty") return { features: [], nextPageCursor: null, continuation: false };
+  if (run.scenario !== "paginated") return { features: all, nextPageCursor: null, continuation: false };
   const requested = url.searchParams.get("pageCursor");
   let offset = 0;
   if (requested !== null) {
@@ -127,6 +127,7 @@ function resolveStreamFeatures(run, url) {
   return {
     features,
     nextPageCursor,
+    continuation: requested !== null,
   };
 }
 
@@ -486,7 +487,7 @@ export function createIncidentOperationsHandler(pack) {
         onClose: () => run.state.subscribers.delete(subscriber),
       });
       run.state.subscribers.add(subscriber);
-      const initial = snapshotEvent(run, { features: selected.features });
+      const initial = snapshotEvent(run, { features: selected.features, replace: !selected.continuation });
       initial.pageCursor = selected.nextPageCursor;
       if (run.scenario === "schema-drift" && initial.features[0]) {
         initial.features[0].feature = { ...initial.features[0].feature, coordinate: "schema-drift" };
@@ -558,7 +559,7 @@ export function createIncidentOperationsHandler(pack) {
         return { status: receipt.outcome === "conflict" ? 409 : 200, body: receipt };
       }
       if (action === "reset-edit") {
-        const replay = replayIdempotency(run, "reset-edit", body);
+        const replay = replayIdempotency(run, "reset", body);
         if (replay) return { status: replay.outcome === "conflict" ? 409 : 200, body: replay };
         assertIdempotencyCapacity(run);
         const baselineFeature = clone(run.state.baseline.get(SAFE_EDIT_ID));
@@ -573,7 +574,7 @@ export function createIncidentOperationsHandler(pack) {
           actualRevision: incident.revision,
           reason: "Isolated fixture record reset to its baseline values.",
         };
-        rememberIdempotency(run, "reset-edit", body, receipt);
+        rememberIdempotency(run, "reset", body, receipt);
         emitEdit(run, incident, "reset", body.idempotencyKey);
         return { status: 200, body: receipt };
       }

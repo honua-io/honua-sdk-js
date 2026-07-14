@@ -4,7 +4,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   HARNESS_CI_BUDGET,
@@ -104,6 +104,23 @@ async function openSse(url: string, headers: Record<string, string> = {}) {
 }
 
 describe("shared deterministic sample harness security and lifecycle", () => {
+  it("binds each sample to a compatible fixture-pack manifest before listening", async () => {
+    const createRunState = vi.fn(() => ({}));
+    const handle = vi.fn(() => false);
+    await expect(
+      startSampleFixtureHarness({
+        sampleId: "first-map",
+        fixturePackId: "incident-operations",
+        handlerOverride: { createRunState, handle },
+      } as any),
+    ).rejects.toThrow(/incompatible.*identities must match/i);
+    await expect(
+      startSampleFixtureHarness({ sampleId: "incident-operations", fixturePackId: "first-map" }),
+    ).rejects.toThrow(/incompatible.*identities must match/i);
+    expect(createRunState).not.toHaveBeenCalled();
+    expect(handle).not.toHaveBeenCalled();
+  });
+
   it("binds an ephemeral loopback port and exposes readiness/CSP within the CI budget", async () => {
     const staticRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-fixture-static-"));
     temporaryRoots.push(staticRoot);
@@ -194,6 +211,35 @@ describe("shared deterministic sample harness security and lifecycle", () => {
       body: JSON.stringify({ unexpected: true }),
     });
     expect(invalidReset.status).toBe(400);
+  });
+
+  it("rejects cross-site Fetch Metadata before it can perturb run logs or realtime state", async () => {
+    const harness = await start({ sampleId: "incident-operations" });
+    const runUrl = `${harness.origin}/__fixture__/runs/default`;
+    const before = await (await fetch(runUrl)).json();
+
+    for (const fetchSite of ["cross-site", "same-site"]) {
+      const response = await fetch(`${harness.origin}/api/v1/streaming/features`, {
+        headers: { "sec-fetch-site": fetchSite },
+      });
+      expect(response.status, fetchSite).toBe(403);
+      await response.body?.cancel();
+    }
+
+    const after = await (await fetch(runUrl)).json();
+    expect(after.requestCount).toBe(before.requestCount + 1);
+    expect(after.clock).toBe(before.clock);
+    expect(after.state).toEqual(before.state);
+    const rejectedRequestLog = await (await fetch(`${runUrl}/requests`)).json();
+    expect(
+      rejectedRequestLog.requests.filter((request: { routeId: string }) => request.routeId === "incident-stream"),
+    ).toHaveLength(0);
+
+    const capabilities = `${harness.origin}/api/v1/streaming/features/capabilities`;
+    for (const fetchSite of ["same-origin", "none"]) {
+      expect((await fetch(capabilities, { headers: { "sec-fetch-site": fetchSite } })).status, fetchSite).toBe(200);
+    }
+    expect((await fetch(capabilities)).status).toBe(200);
   });
 
   it("keeps bounded per-run authorization/state and logs only closed redacted route metadata", async () => {
@@ -419,6 +465,7 @@ describe("Incident Operations realtime scenarios", () => {
     const first = await openSse(`${harness.origin}/api/v1/streaming/features`, runHeaders("incident-page"));
     const snapshot = await first.next();
     expect(snapshot.features).toHaveLength(2);
+    expect(snapshot.replace).toBe(true);
     expect(snapshot.pageCursor).toContain("page:incident-page:");
     expect(snapshot.cursor).toContain("rt:incident-page:");
     await first.close();
@@ -427,7 +474,9 @@ describe("Incident Operations realtime scenarios", () => {
       `${harness.origin}/api/v1/streaming/features?pageCursor=${encodeURIComponent(snapshot.pageCursor)}`,
       runHeaders("incident-page"),
     );
-    expect((await page.next()).features).toHaveLength(2);
+    const continuation = await page.next();
+    expect(continuation.features).toHaveLength(2);
+    expect(continuation.replace).toBe(false);
     await page.close();
     const resume = await openSse(
       `${harness.origin}/api/v1/streaming/features?cursor=${encodeURIComponent(snapshot.cursor)}`,
@@ -567,6 +616,11 @@ describe("Incident Operations realtime scenarios", () => {
       body: JSON.stringify({ incidentId: "DEMO-EDIT-0001", idempotencyKey: "bound-request" }),
     });
     expect(crossActionReplay.status).toBe(409);
+    expect(await crossActionReplay.json()).toMatchObject({
+      outcome: "conflict",
+      operation: "reset",
+      idempotencyKey: "bound-request",
+    });
 
     const hostile = await fetch(`${actionUrl}/edit`, {
       method: "POST",
@@ -587,8 +641,8 @@ describe("Incident Operations realtime scenarios", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(resetBody),
       });
-    expect((await (await reset()).json()).outcome).toBe("reset");
-    expect((await (await reset()).json()).outcome).toBe("duplicate");
+    expect(await (await reset()).json()).toMatchObject({ outcome: "reset", operation: "reset", actualRevision: 4 });
+    expect(await (await reset()).json()).toMatchObject({ outcome: "duplicate", operation: "reset", actualRevision: 4 });
   });
 
   it("bounds concurrent subscribers and releases every stream on close", async () => {
@@ -695,37 +749,51 @@ describe("bounded registry and SSE primitives", () => {
     expect(registry.close()).toHaveLength(2);
   });
 
-  it("fails reset without replacing run state when disposal fails", async () => {
-    const registry = createRunRegistry({
-      handler: {
-        createRunState: () => ({ marker: "original" }),
-        disposeRunState: (_run: unknown, reason: string) => {
-          if (reason === "reset") throw new Error("sensitive reset failure");
-        },
-      },
-    });
-    const run = registry.get();
-    const state = run.state;
-    const clock = run.clock;
-    await expect(registry.reset(run)).rejects.toThrow(/reset failed during state disposal/i);
-    expect(run.state).toBe(state);
-    expect(run.clock).toBe(clock);
-    expect(registry.snapshot(run).state).toEqual({});
-    registry.close();
-  });
-
-  it("fails reset without disposing or replacing state when replacement construction fails", async () => {
+  it("keeps the fresh run active when detached old-state disposal mutates and fails", async () => {
     let constructions = 0;
-    const disposalReasons: string[] = [];
     const registry = createRunRegistry({
       handler: {
         createRunState: () => {
           constructions += 1;
-          if (constructions === 2) throw new Error("sensitive construction failure");
           return { marker: `state-${constructions}` };
         },
-        disposeRunState: (_run, reason) => {
-          disposalReasons.push(reason);
+        inspectRunState: (target) => ({ marker: target.state.marker }),
+        disposeRunState: (target, reason) => {
+          if (reason === "reset") {
+            target.state.marker = "partially-disposed-old-state";
+            throw new Error("sensitive reset failure");
+          }
+        },
+      },
+    });
+    const run = registry.get();
+    const oldState = run.state;
+    await expect(registry.reset(run)).resolves.toBe(run);
+    expect(oldState).toEqual({ marker: "partially-disposed-old-state" });
+    expect(run.state).not.toBe(oldState);
+    expect(registry.snapshot(run).state).toEqual({ marker: "state-2" });
+    await expect(registry.mutate(run, (activeRun) => activeRun.state.marker)).resolves.toBe("state-2");
+    expect(registry.disposalErrors()).toEqual([
+      { runId: "default", reason: "reset", message: "Fixture run disposal failed." },
+    ]);
+    registry.close();
+  });
+
+  it("cleans a partial replacement candidate without disposing or replacing active state", async () => {
+    let constructions = 0;
+    const disposals: Array<{ reason: string; marker: string }> = [];
+    const registry = createRunRegistry({
+      handler: {
+        createRunState: (target) => {
+          constructions += 1;
+          if (constructions === 2) {
+            target.state = { marker: "partial-candidate" };
+            throw new Error("sensitive construction failure");
+          }
+          return { marker: `state-${constructions}` };
+        },
+        disposeRunState: (target, reason) => {
+          disposals.push({ reason, marker: (target.state as { marker: string }).marker });
         },
       },
     });
@@ -735,7 +803,7 @@ describe("bounded registry and SSE primitives", () => {
     await expect(registry.reset(run)).rejects.toThrow(/constructing replacement state/i);
     expect(run.state).toBe(state);
     expect(run.clock).toBe(clock);
-    expect(disposalReasons).toEqual([]);
+    expect(disposals).toEqual([{ reason: "reset-candidate-construction-failed", marker: "partial-candidate" }]);
     registry.close();
   });
 

@@ -177,6 +177,18 @@ describe("versioned sample fixture packs", () => {
     }
   });
 
+  it("keeps lossy incident provenance and the First Map sample linked to their versioned packs", () => {
+    const incident = loadFixturePack("incident-operations");
+    const provenance = incident.manifest.provenance as { transformation: string };
+    expect(provenance.transformation).toMatch(/lossy/i);
+    expect(provenance.transformation).toMatch(/relationships and attachments/i);
+    expect(provenance.transformation).toMatch(/relationship updates/i);
+
+    const quickstartReadme = fs.readFileSync(path.join(projectRoot, "examples/maplibre-quickstart/README.md"), "utf8");
+    expect(quickstartReadme).toContain("../../samples/fixtures/first-map/v1");
+    expect(quickstartReadme).not.toContain("../../test/fixtures/honua-quickstart-demo");
+  });
+
   it("rejects unversioned fields, unknown versions, metadata drift, and file-set drift", () => {
     const root = temporaryPack("first-map");
     const manifestPath = path.join(root, "manifest.json");
@@ -292,7 +304,39 @@ describe("versioned sample fixture packs", () => {
     });
     expect(() =>
       validateFixturePackDirectory(fieldRoot, { allowChecksumChanges: true, allowMetadataChanges: true }),
-    ).toThrow(/OBJECTID.*unique/i);
+    ).toThrow(/object ID.*unique/i);
+
+    const layerFieldRoot = temporaryPack("first-map");
+    updateJson(path.join(layerFieldRoot, "layer.json"), (layer) => {
+      layer.fields.find((field: { name: string }) => field.name === "STATUS").type = "esriFieldTypeInteger";
+    });
+    expect(() =>
+      validateFixturePackDirectory(layerFieldRoot, { allowChecksumChanges: true, allowMetadataChanges: true }),
+    ).toThrow(/field declarations must match exactly/i);
+
+    const layerAliasRoot = temporaryPack("first-map");
+    updateJson(path.join(layerAliasRoot, "layer.json"), (layer) => {
+      layer.fields.find((field: { name: string }) => field.name === "STATUS").alias = "Drifted status alias";
+    });
+    expect(() =>
+      validateFixturePackDirectory(layerAliasRoot, { allowChecksumChanges: true, allowMetadataChanges: true }),
+    ).toThrow(/field declarations must match exactly/i);
+
+    const objectIdRoot = temporaryPack("first-map");
+    updateJson(path.join(objectIdRoot, "features.json"), (features) => {
+      features.objectIdFieldName = "NAME";
+    });
+    expect(() =>
+      validateFixturePackDirectory(objectIdRoot, { allowChecksumChanges: true, allowMetadataChanges: true }),
+    ).toThrow(/object ID fields must match/i);
+
+    const extraAttributeRoot = temporaryPack("first-map");
+    updateJson(path.join(extraAttributeRoot, "features.json"), (features) => {
+      features.features[0].attributes.UNDECLARED = "drift";
+    });
+    expect(() =>
+      validateFixturePackDirectory(extraAttributeRoot, { allowChecksumChanges: true, allowMetadataChanges: true }),
+    ).toThrow(/attributes must exactly match/i);
 
     const eventRoot = temporaryPack("incident-operations");
     updateJson(path.join(eventRoot, "events.json"), (events) => {

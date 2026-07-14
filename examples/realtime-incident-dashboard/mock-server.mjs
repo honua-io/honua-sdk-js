@@ -29,14 +29,19 @@ function buildDemoIfNeeded(timeoutMs) {
 
 export async function startIncidentDashboardFixtureServer({ build = true, buildTimeoutMs = 120_000 } = {}) {
   if (build) buildDemoIfNeeded(buildTimeoutMs);
+  const fixtureRunId = "incident-operations";
   const harness = await startSampleFixtureHarness({
     sampleId: "incident-operations",
     staticRoot: distRoot,
-    defaultRunId: "incident-operations",
+    defaultRunId: fixtureRunId,
   });
+  const query = new URLSearchParams({ transport: "fixture-edit", fixtureRun: fixtureRunId });
   return Object.freeze({
     ...harness,
-    url: `${harness.origin}/?transport=fixture-edit`,
+    fixtureRunId,
+    runUrl: `${harness.origin}/__fixture__/runs/${fixtureRunId}`,
+    requestLogUrl: `${harness.origin}/__fixture__/runs/${fixtureRunId}/requests`,
+    url: `${harness.origin}/?${query}`,
   });
 }
 

@@ -36,6 +36,10 @@ function invalidNetworkRequest(req, port) {
   if (req.headers.forwarded || req.headers["x-forwarded-host"] || req.headers["x-forwarded-proto"]) {
     return "Forwarded requests are blocked.";
   }
+  const fetchSite = req.headers["sec-fetch-site"];
+  if (Array.isArray(fetchSite) || (fetchSite !== undefined && fetchSite !== "same-origin" && fetchSite !== "none")) {
+    return "Cross-site browser requests are blocked by Fetch Metadata policy.";
+  }
   const host = req.headers.host;
   const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`]);
   if (!host || !allowedHosts.has(host.toLowerCase())) return "Only this loopback fixture authority is allowed.";
@@ -93,6 +97,10 @@ function selectAuthScope(req) {
 function routeId(pathname) {
   if (pathname === "/__fixture__/ready") return "fixture-ready";
   if (pathname === "/__fixture__/runs") return "fixture-runs";
+  const fixtureAction = /^\/__fixture__\/runs\/[^/]+\/actions\/([a-z0-9-]{1,40})$/.exec(pathname);
+  if (fixtureAction) return `fixture-action-${fixtureAction[1]}`;
+  if (/^\/__fixture__\/runs\/[^/]+\/reset$/.test(pathname)) return "fixture-run-reset";
+  if (/^\/__fixture__\/runs\/[^/]+\/requests$/.test(pathname)) return "fixture-run-requests";
   if (/^\/__fixture__\/runs\/[^/]+(?:\/.*)?$/.test(pathname)) return "fixture-run-operation";
   if (pathname === "/api/v1/admin/capabilities") return "honua-capabilities";
   if (pathname === "/__honua-quickstart__/basemap-style.json") return "first-map-basemap";
@@ -214,6 +222,11 @@ export async function startSampleFixtureHarness({
   }
   const started = performance.now();
   const pack = loadFixturePack(fixturePackId, fixturePackVersion);
+  if (pack.manifest.identity.id !== sampleId) {
+    throw new Error(
+      `Fixture pack ${pack.manifest.identity.id} is incompatible with sample ${sampleId}; their identities must match.`,
+    );
+  }
   const handler = handlerOverride ?? HANDLERS[sampleId](pack);
   if (!handler || typeof handler.createRunState !== "function" || typeof handler.handle !== "function") {
     throw new Error("Fixture handler must implement createRunState() and handle().");
