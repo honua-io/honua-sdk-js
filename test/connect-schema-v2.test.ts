@@ -1077,6 +1077,27 @@ describe("source schema v2 discovery adapters", () => {
     expect(profile.fields?.map((field) => field.name)).toEqual(["geometry"]);
   });
 
+  it("preserves the v1 named-bbox fast path for bounded DuckDB DECIMAL coordinates", () => {
+    const profile = buildSourceProfile({
+      describe: [
+        { column_name: "geometry", column_type: "GEOMETRY", null: "YES" },
+        {
+          column_name: "bbox",
+          column_type: "STRUCT(xmin DECIMAL(7,4), ymin DECIMAL(6,4), xmax DECIMAL(7,4), ymax DECIMAL(6,4))",
+          null: "YES",
+        },
+      ],
+      geoJson: JSON.stringify({
+        version: "1.0.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding: "WKB", geometry_types: ["Point"] } },
+      }),
+    });
+
+    expect(profile.geometry).toMatchObject({ metadataState: "valid", bboxColumn: "bbox" });
+    expect(profile.columns).toEqual([]);
+  });
+
   it.each([
     ["invalid order", "STRUCT(xmin DOUBLE, xmax DOUBLE, ymin DOUBLE, ymax DOUBLE)", "YES", "YES"],
     ["missing field", "STRUCT(xmin DOUBLE, ymin DOUBLE, xmax DOUBLE)", "YES", "YES"],

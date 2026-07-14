@@ -155,14 +155,22 @@ function findBboxColumn(
   geometryRow: DescribeRow,
   preferred?: string,
 ): string | undefined {
-  const matches = (row: DescribeRow) =>
-    isGeoParquetBboxStruct(row.column_type) && geoParquetRepetitionMatches(geometryRow, row);
   if (preferred !== undefined) {
     const row = rowsByName.get(preferred);
-    return row && matches(row) ? row.column_name : undefined;
+    return row && isGeoParquetBboxStruct(row.column_type) && geoParquetRepetitionMatches(geometryRow, row)
+      ? row.column_name
+      : undefined;
   }
+
+  // Preserve the v1 runtime's named-bbox fast path when metadata does not
+  // declare a GeoParquet 1.1 covering. DuckDB commonly writes coordinates as
+  // DECIMAL, which is safe for the scalar overlap predicate but is not a
+  // conforming GeoParquet covering type. Keep the conformance check above
+  // strict while accepting this bounded, exact runtime shape here.
   const named = rowsByLowerName.get("bbox");
-  if (!named || !matches(named)) return undefined;
+  if (!named || !isRuntimeBboxStruct(named.column_type) || !geoParquetRepetitionMatches(geometryRow, named)) {
+    return undefined;
+  }
   return named?.column_name;
 }
 
@@ -173,9 +181,8 @@ function geoParquetRepetitionMatches(geometry: DescribeRow, bbox: DescribeRow): 
 }
 
 function isGeoParquetBboxStruct(columnType: string): boolean {
-  const struct = /^STRUCT\s*\((.*)\)$/i.exec(columnType.trim());
-  if (!struct) return false;
-  const members = struct[1]!.split(",").map((member) => member.trim());
+  const members = bboxStructMembers(columnType);
+  if (!members) return false;
   const expectedNames =
     members.length === 4
       ? ["xmin", "ymin", "xmax", "ymax"]
@@ -184,12 +191,62 @@ function isGeoParquetBboxStruct(columnType: string): boolean {
         : undefined;
   if (!expectedNames) return false;
   let memberType: "FLOAT" | "DOUBLE" | undefined;
-  return members.every((member, index) => {
-    const parsed = /^(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))\s+(FLOAT|DOUBLE)$/i.exec(member);
-    if (!parsed || (parsed[1] ?? parsed[2]) !== expectedNames[index]) return false;
-    const type = parsed[3]!.toUpperCase() as "FLOAT" | "DOUBLE";
+  return members.every(({ name, type }, index) => {
+    if (name !== expectedNames[index] || (type !== "FLOAT" && type !== "DOUBLE")) return false;
     memberType ??= type;
     return memberType === type;
+  });
+}
+
+function isRuntimeBboxStruct(columnType: string): boolean {
+  const members = bboxStructMembers(columnType);
+  if (!members || members.length !== 4) return false;
+  const expectedNames = ["xmin", "ymin", "xmax", "ymax"];
+  return members.every(({ name, type }, index) => name === expectedNames[index] && isRuntimeNumericType(type));
+}
+
+function bboxStructMembers(columnType: string): Array<{ readonly name: string; readonly type: string }> | undefined {
+  const struct = unwrapDuckType(columnType.trim(), "STRUCT");
+  if (struct === undefined) return undefined;
+  const members = splitDuckTypeMembers(struct).map(parseCoordinateMember);
+  return members.some((member) => member === undefined)
+    ? undefined
+    : (members as Array<{ readonly name: string; readonly type: string }>);
+}
+
+const RUNTIME_NUMERIC_TYPES = new Set([
+  "TINYINT",
+  "SMALLINT",
+  "INTEGER",
+  "BIGINT",
+  "HUGEINT",
+  "UTINYINT",
+  "USMALLINT",
+  "UINTEGER",
+  "UBIGINT",
+  "UHUGEINT",
+  "FLOAT",
+  "REAL",
+  "DOUBLE",
+]);
+
+function isRuntimeNumericType(type: string): boolean {
+  if (RUNTIME_NUMERIC_TYPES.has(type)) return true;
+  return boundedDecimalType(type, "DECIMAL") || boundedDecimalType(type, "NUMERIC");
+}
+
+function boundedDecimalType(type: string, name: string): boolean {
+  if (!type.startsWith(`${name}(`) || !type.endsWith(")")) return false;
+  const parameters = type.slice(name.length + 1, -1).split(",");
+  if (parameters.length !== 2) return false;
+  return parameters.every((parameter) => {
+    const value = parameter.trim();
+    if (value.length === 0 || value.length > 3) return false;
+    for (const character of value) {
+      const code = character.charCodeAt(0);
+      if (code < 48 || code > 57) return false;
+    }
+    return true;
   });
 }
 
