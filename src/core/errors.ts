@@ -265,7 +265,7 @@ export function isHonuaError(error: unknown): error is HonuaError {
 }
 
 const HTTP_RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
-const GRPC_RETRYABLE_CODES = new Set([4, 8, 10, 13, 14]);
+const GRPC_RETRYABLE_CODES = new Set([4, 8, 10, 14]);
 const AUTH_ERROR_CODES = {
   interaction_required: "core.auth.interaction-required",
   refresh_failed: "core.auth.refresh-failed",

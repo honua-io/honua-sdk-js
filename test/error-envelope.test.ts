@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { HonuaExplorationContextError, HonuaWfsExceptionError } from "../src/core/errors.js";
 import { HonuaJobFailedError } from "../src/core/ogc-processes.js";
+import { DEFAULT_RETRYABLE_GRPC_CODES } from "../src/core/request-pipeline.js";
 import { HonuaWmsCapabilitiesParseError } from "../src/core/wms-capabilities.js";
 import { HonuaWmtsCapabilitiesParseError } from "../src/core/wmts-capabilities.js";
 import {
@@ -189,6 +190,15 @@ describe("tagged SDK error envelope", () => {
     expect([internal.category, internal.retryable]).toEqual(["internal", false]);
     expect([retryableHttp.sdkCode, retryableHttp.retryable]).toEqual(["core.http.transient", true]);
     expect([rejectedHttp.sdkCode, rejectedHttp.retryable]).toEqual(["core.http.rejected", false]);
+  });
+
+  it("keeps gRPC envelope retryability aligned with the request pipeline", () => {
+    for (let code = 0; code <= 16; code += 1) {
+      const error = new HonuaGrpcError(code, `gRPC status ${code}`);
+      const retryable = DEFAULT_RETRYABLE_GRPC_CODES.has(code);
+      expect(error.retryable, `gRPC status ${code}`).toBe(retryable);
+      expect(error.sdkCode, `gRPC status ${code}`).toBe(retryable ? "core.grpc.transient" : "core.grpc.rejected");
+    }
   });
 
   it("classifies every required realtime recovery boundary without changing the legacy reason code", () => {
