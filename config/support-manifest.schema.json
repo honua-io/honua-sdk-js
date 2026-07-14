@@ -119,27 +119,17 @@
         "sampleCatalog": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["format", "source", "supportStatusMap", "protocols", "versionUpgrade"],
+          "required": ["format", "source", "supportTierMap", "protocols"],
           "properties": {
-            "format": { "const": "honua.sdk.sample-catalog.v1" },
-            "source": { "const": "samples/catalog.v1.json" },
-            "supportStatusMap": {
+            "format": { "const": "honua.sdk.sample-catalog.v2" },
+            "source": { "const": "samples/catalog.v2.json" },
+            "supportTierMap": {
               "type": "object",
               "additionalProperties": { "oneOf": [{ "$ref": "#/$defs/status" }, { "type": "null" }] }
             },
             "protocols": {
               "type": "object",
               "additionalProperties": { "$ref": "#/$defs/consumerProtocol" }
-            },
-            "versionUpgrade": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["nextFormat", "issue", "rule"],
-              "properties": {
-                "nextFormat": { "const": "honua.sdk.sample-catalog.v2" },
-                "issue": { "type": "string" },
-                "rule": { "type": "string" }
-              }
             }
           }
         },
