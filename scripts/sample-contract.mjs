@@ -352,23 +352,37 @@ function unwrapExpression(node) {
   return current;
 }
 
-function isDirectEnvironmentRoot(node) {
+function directEnvironmentRootKind(node) {
   const expression = unwrapExpression(node);
-  if (!ts.isPropertyAccessExpression(expression) || expression.name.text !== "env") return false;
+  let target;
+  if (ts.isPropertyAccessExpression(expression) && expression.name.text === "env") {
+    target = unwrapExpression(expression.expression);
+  } else if (
+    ts.isElementAccessExpression(expression) &&
+    stringLiteralValue(unwrapExpression(expression.argumentExpression)) === "env"
+  ) {
+    target = unwrapExpression(expression.expression);
+  } else {
+    return undefined;
+  }
+  if (ts.isIdentifier(target) && target.text === "process") return "process.env";
+  if (ts.isMetaProperty(target) && target.keywordToken === ts.SyntaxKind.ImportKeyword) return "import.meta.env";
+  return undefined;
+}
+
+function isDirectEnvironmentRoot(node) {
+  return directEnvironmentRootKind(node) !== undefined;
+}
+
+function isDynamicEnvironmentRoot(node) {
+  const expression = unwrapExpression(node);
+  if (!ts.isElementAccessExpression(expression)) return false;
+  if (stringLiteralValue(unwrapExpression(expression.argumentExpression)) !== undefined) return false;
   const target = unwrapExpression(expression.expression);
   return (
     (ts.isIdentifier(target) && target.text === "process") ||
     (ts.isMetaProperty(target) && target.keywordToken === ts.SyntaxKind.ImportKeyword)
   );
-}
-
-function directEnvironmentRootKind(node) {
-  const expression = unwrapExpression(node);
-  if (!ts.isPropertyAccessExpression(expression) || expression.name.text !== "env") return undefined;
-  const target = unwrapExpression(expression.expression);
-  if (ts.isIdentifier(target) && target.text === "process") return "process.env";
-  if (ts.isMetaProperty(target) && target.keywordToken === ts.SyntaxKind.ImportKeyword) return "import.meta.env";
-  return undefined;
 }
 
 function propertyName(node) {
@@ -389,37 +403,23 @@ function analyzeConfigurationSource(sourceFile, file) {
   const calls = [];
   const functionInfoByNode = new Map();
   const functionsByName = new Map();
-  const constValues = new Map();
-  const propertyValues = new Map();
 
   const collect = (node) => {
     if (ts.isVariableDeclaration(node)) {
       declarations.push(node);
-      if (ts.isIdentifier(node.name) && node.initializer) {
-        const value = stringLiteralValue(node.initializer);
-        if (value) constValues.set(node.name.text, value);
-      }
-    }
-    if (ts.isPropertyAssignment(node)) {
-      const key = propertyName(node.name);
-      const value = stringLiteralValue(node.initializer);
-      if (key && value) {
-        if (!propertyValues.has(key)) propertyValues.set(key, new Set());
-        propertyValues.get(key).add(value);
-      }
     }
     if (ts.isCallExpression(node)) calls.push(node);
     if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
       const name = functionName(node);
+      const info = {
+        name,
+        node,
+        parameters: node.parameters.map((parameter) =>
+          ts.isIdentifier(parameter.name) ? parameter.name.text : undefined,
+        ),
+      };
+      functionInfoByNode.set(node, info);
       if (name) {
-        const info = {
-          name,
-          node,
-          parameters: node.parameters.map((parameter) =>
-            ts.isIdentifier(parameter.name) ? parameter.name.text : undefined,
-          ),
-        };
-        functionInfoByNode.set(node, info);
         if (!functionsByName.has(name)) functionsByName.set(name, []);
         functionsByName.get(name).push(info);
       }
@@ -442,44 +442,70 @@ function analyzeConfigurationSource(sourceFile, file) {
     info.parent = enclosingFunction(info.node);
   }
 
-  const sourceOwner = sourceFile;
-  const ownerFor = (node) => enclosingFunction(node)?.node ?? sourceOwner;
-  const bindingsByOwner = new Map();
-  const addBinding = (owner, name, node) => {
-    if (!bindingsByOwner.has(owner)) bindingsByOwner.set(owner, new Map());
-    const bindings = bindingsByOwner.get(owner);
-    if (!bindings.has(name)) bindings.set(name, []);
-    bindings.get(name).push(node);
+  const isLexicalScope = (node) =>
+    ts.isSourceFile(node) ||
+    ts.isBlock(node) ||
+    ts.isCaseBlock(node) ||
+    ts.isForStatement(node) ||
+    ts.isForInStatement(node) ||
+    ts.isForOfStatement(node);
+  const variableScope = (declaration) => {
+    const declarationList = declaration.parent;
+    let current = declaration.parent;
+    if (
+      ts.isVariableDeclarationList(declarationList) &&
+      (declarationList.flags & ts.NodeFlags.BlockScoped) === 0
+    ) {
+      while (current && !ts.isSourceFile(current) && !functionInfoByNode.has(current)) {
+        current = current.parent;
+      }
+      return current;
+    }
+    while (current && !isLexicalScope(current)) {
+      current = current.parent;
+    }
+    return current;
+  };
+  const lexicalBindingsByName = new Map();
+  const addLexicalBinding = (scope, name, node) => {
+    if (!scope) return;
+    if (!lexicalBindingsByName.has(name)) lexicalBindingsByName.set(name, []);
+    lexicalBindingsByName.get(name).push({ scope, node });
   };
   for (const info of functionInfoByNode.values()) {
     for (const parameter of info.node.parameters) {
-      if (ts.isIdentifier(parameter.name)) addBinding(info.node, parameter.name.text, parameter);
+      if (ts.isIdentifier(parameter.name)) addLexicalBinding(info.node, parameter.name.text, parameter);
     }
   }
   for (const declaration of declarations) {
-    if (ts.isIdentifier(declaration.name)) addBinding(ownerFor(declaration), declaration.name.text, declaration);
+    if (ts.isIdentifier(declaration.name)) {
+      addLexicalBinding(variableScope(declaration), declaration.name.text, declaration);
+    }
   }
 
-  const ownerChain = (node) => {
-    const owners = [];
-    let info = enclosingFunction(node);
-    while (info) {
-      owners.push(info.node);
-      info = info.parent;
+  const lexicalScopeChain = (node) => {
+    const scopes = [];
+    let current = node.parent;
+    while (current) {
+      if (isLexicalScope(current) || functionInfoByNode.has(current)) scopes.push(current);
+      current = current.parent;
     }
-    owners.push(sourceOwner);
-    return owners;
+    return scopes;
   };
-  const resolveBinding = (identifier) => {
-    for (const owner of ownerChain(identifier)) {
-      const bindings = bindingsByOwner.get(owner)?.get(identifier.text);
-      if (!bindings) continue;
-      if (bindings.length === 1) return bindings[0];
-      const carrierBindings = bindings.filter((binding) => carrierKinds.has(binding));
-      invariant(carrierBindings.length <= 1, `${file}: ambiguous environment carrier ${identifier.text}`);
-      return carrierBindings[0];
+  const resolveLexicalBinding = (identifier) => {
+    const bindings = lexicalBindingsByName.get(identifier.text) ?? [];
+    const visible = [];
+    let ambiguous = false;
+    for (const scope of lexicalScopeChain(identifier)) {
+      const scoped = bindings.filter((binding) => binding.scope === scope);
+      if (scoped.length > 1) ambiguous = true;
+      if (scoped.length > 0) visible.push(...scoped);
     }
-    return undefined;
+    return {
+      binding: visible[0]?.node,
+      ambiguous,
+      shadowed: visible.length > 1,
+    };
   };
 
   const carrierKinds = new Map();
@@ -497,7 +523,9 @@ function analyzeConfigurationSource(sourceFile, file) {
     const directKind = directEnvironmentRootKind(expression);
     if (directKind) return new Set([directKind]);
     if (!ts.isIdentifier(expression)) return new Set();
-    return new Set(carrierKinds.get(resolveBinding(expression)) ?? []);
+    const resolution = resolveLexicalBinding(expression);
+    if (resolution.ambiguous) return new Set();
+    return new Set(carrierKinds.get(resolution.binding) ?? []);
   };
   const localFunctionForCall = (call) => {
     const target = unwrapExpression(call.expression);
@@ -541,31 +569,114 @@ function analyzeConfigurationSource(sourceFile, file) {
 
   const isEnvironmentObject = (node) => environmentKinds(node).size > 0;
 
-  for (const declaration of declarations) {
-    if (!ts.isObjectBindingPattern(declaration.name) || !declaration.initializer) continue;
-    if (!isEnvironmentObject(declaration.initializer)) continue;
-    for (const element of declaration.name.elements) {
+  const inventoryObjectBinding = (pattern) => {
+    for (const element of pattern.elements) {
       invariant(!element.dotDotDotToken, `${file}: environment rest destructuring is not statically bounded`);
       invariant(ts.isIdentifier(element.name), `${file}: nested environment destructuring is not supported`);
       const name = element.propertyName ? propertyName(element.propertyName) : element.name.text;
       invariant(name && /^[A-Z][A-Z0-9_]+$/.test(name), `${file}: environment destructuring key is not static`);
       names.add(name);
     }
+  };
+
+  for (const declaration of declarations) {
+    if (!ts.isObjectBindingPattern(declaration.name) || !declaration.initializer) continue;
+    if (!isEnvironmentObject(declaration.initializer)) continue;
+    inventoryObjectBinding(declaration.name);
+  }
+  for (const info of functionInfoByNode.values()) {
+    for (const parameter of info.node.parameters) {
+      if (ts.isObjectBindingPattern(parameter.name) && carrierKinds.has(parameter)) {
+        inventoryObjectBinding(parameter.name);
+      }
+    }
   }
 
-  const resolveFiniteNames = (node) => {
+  const isAssignmentOperator = (kind) =>
+    kind >= ts.SyntaxKind.FirstAssignment && kind <= ts.SyntaxKind.LastAssignment;
+  const isWriteReference = (identifier) => {
+    let expression = identifier;
+    let parent = expression.parent;
+    while (parent) {
+      if (
+        (ts.isParenthesizedExpression(parent) ||
+          ts.isAsExpression(parent) ||
+          ts.isTypeAssertionExpression(parent) ||
+          ts.isNonNullExpression(parent)) &&
+        parent.expression === expression
+      ) {
+        expression = parent;
+        parent = parent.parent;
+        continue;
+      }
+      if (
+        (ts.isArrayLiteralExpression(parent) && parent.elements.includes(expression)) ||
+        (ts.isPropertyAssignment(parent) && parent.initializer === expression) ||
+        (ts.isShorthandPropertyAssignment(parent) && parent.name === expression) ||
+        (ts.isSpreadAssignment(parent) && parent.expression === expression) ||
+        (ts.isObjectLiteralExpression(parent) && parent.properties.includes(expression))
+      ) {
+        expression = parent;
+        parent = parent.parent;
+        continue;
+      }
+      break;
+    }
+    if (ts.isBinaryExpression(parent) && parent.left === expression) {
+      return isAssignmentOperator(parent.operatorToken.kind);
+    }
+    if (ts.isPrefixUnaryExpression(parent) || ts.isPostfixUnaryExpression(parent)) {
+      return parent.operator === ts.SyntaxKind.PlusPlusToken || parent.operator === ts.SyntaxKind.MinusMinusToken;
+    }
+    return (
+      (ts.isForInStatement(parent) || ts.isForOfStatement(parent)) && parent.initializer === expression
+    );
+  };
+  const bindingWriteCache = new Map();
+  const bindingHasWrites = (binding) => {
+    if (bindingWriteCache.has(binding)) return bindingWriteCache.get(binding);
+    let assigned = false;
+    const visit = (node) => {
+      if (assigned) return;
+      if (ts.isIdentifier(node) && node.text === binding.name.text && isWriteReference(node)) {
+        if (resolveLexicalBinding(node).binding === binding) {
+          assigned = true;
+          return;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    bindingWriteCache.set(binding, assigned);
+    return assigned;
+  };
+
+  const resolveFiniteNames = (node, seenBindings = new Set()) => {
     if (!node) return undefined;
     const expression = unwrapExpression(node);
     const literal = stringLiteralValue(expression);
     if (literal && /^[A-Z][A-Z0-9_]+$/.test(literal)) return [literal];
     if (ts.isIdentifier(expression)) {
-      const value = constValues.get(expression.text);
-      if (value && /^[A-Z][A-Z0-9_]+$/.test(value)) return [value];
-      return undefined;
-    }
-    if (ts.isPropertyAccessExpression(expression)) {
-      const values = propertyValues.get(expression.name.text);
-      if (values && [...values].every((value) => /^[A-Z][A-Z0-9_]+$/.test(value))) return [...values];
+      const resolution = resolveLexicalBinding(expression);
+      invariant(!resolution.ambiguous, `${file}: ambiguous finite environment key ${expression.text}`);
+      invariant(!resolution.shadowed, `${file}: shadowed finite environment key ${expression.text}`);
+      const binding = resolution.binding;
+      if (!binding || ts.isParameter(binding)) return undefined;
+      invariant(ts.isVariableDeclaration(binding), `${file}: unsupported environment key binding ${expression.text}`);
+      const declarationList = binding.parent;
+      invariant(
+        ts.isVariableDeclarationList(declarationList) && (declarationList.flags & ts.NodeFlags.Const) !== 0,
+        `${file}: finite environment key binding ${expression.text} must be const`,
+      );
+      invariant(
+        !bindingHasWrites(binding),
+        `${file}: finite environment key binding ${expression.text} must not be assigned`,
+      );
+      invariant(!seenBindings.has(binding), `${file}: cyclic finite environment key binding ${expression.text}`);
+      if (!binding.initializer) return undefined;
+      const nextSeen = new Set(seenBindings);
+      nextSeen.add(binding);
+      return resolveFiniteNames(binding.initializer, nextSeen);
     }
     return undefined;
   };
@@ -654,6 +765,7 @@ function analyzeConfigurationSource(sourceFile, file) {
   };
 
   const scan = (node) => {
+    invariant(!isDynamicEnvironmentRoot(node), `${file}: unresolved dynamic environment root`);
     if (ts.isPropertyAccessExpression(node) && isEnvironmentObject(node.expression)) {
       names.add(node.name.text);
     }
@@ -675,10 +787,6 @@ function analyzeConfigurationSource(sourceFile, file) {
         const name = stringLiteralValue(argument);
         if (name && CONFIGURATION_NAME_PATTERN.test(name)) names.add(name);
       }
-    }
-    if (ts.isPropertyAssignment(node) && ["layerEnv", "serviceEnv"].includes(propertyName(node.name))) {
-      const name = stringLiteralValue(node.initializer);
-      if (name) names.add(name);
     }
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && /(?:ENV|TOKEN_OPT_IN)/.test(node.name.text)) {
       const name = node.initializer ? stringLiteralValue(node.initializer) : undefined;

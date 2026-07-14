@@ -393,12 +393,51 @@ describe("sample publication contract", () => {
       "HONUA_DESTRUCTURED_URL",
       "HONUA_DYNAMIC_URL",
     ]);
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-lexical-keys")).resolves.toEqual([
+      "HONUA_LEXICAL_CHAIN_URL",
+      "HONUA_LITERAL_CHAIN_URL",
+    ]);
     await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-unresolved")).rejects.toThrow(
       "unresolved dynamic environment read",
+    );
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-mutable-key")).rejects.toThrow(
+      "finite environment key binding environmentKey must be const",
+    );
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-assigned-key")).rejects.toThrow(
+      "finite environment key binding environmentKey must not be assigned",
+    );
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-shadowed-key")).rejects.toThrow(
+      "shadowed finite environment key environmentKey",
+    );
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-var-shadowed-key")).rejects.toThrow(
+      "shadowed finite environment key environmentKey",
+    );
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-property-key")).rejects.toThrow(
+      "unresolved call into dynamic environment reader readEnvironment",
+    );
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-dynamic-process-root")).rejects.toThrow(
+      "unresolved dynamic environment root",
+    );
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-dynamic-import-root")).rejects.toThrow(
+      "unresolved dynamic environment root",
     );
     await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-rest")).rejects.toThrow(
       "environment rest destructuring is not statically bounded",
     );
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-parameter-rest")).rejects.toThrow(
+      "environment rest destructuring is not statically bounded",
+    );
+  });
+
+  it("inventories computed environment roots and fixed object-binding defaults", async () => {
+    await expect(extractSampleConfiguration("test/fixtures/sample-contract/env-computed-roots")).resolves.toEqual([
+      "HONUA_COMPUTED_NODE_URL",
+      "VITE_COMPUTED_BROWSER_URL",
+    ]);
+    await expect(inspectSampleConfiguration("test/fixtures/sample-contract/env-binding-defaults")).resolves.toEqual({
+      names: ["HONUA_BINDING_DEFAULT_URL", "HONUA_PARAMETER_DEFAULT_URL"],
+      wholeEnvironmentEscapes: [],
+    });
   });
 
   it("traces scoped environment carriers and reports whole-object browser escapes", async () => {
@@ -417,13 +456,23 @@ describe("sample publication contract", () => {
 
     const wholeBrowserEnvironment = await inspectSampleConfiguration("test/fixtures/sample-contract/env-browser-whole");
     expect(wholeBrowserEnvironment.names).toEqual(["VITE_WHOLE_INVENTORIED_URL"]);
-    expect(wholeBrowserEnvironment.wholeEnvironmentEscapes).toEqual([
-      expect.objectContaining({
-        file: "test/fixtures/sample-contract/env-browser-whole/index.ts",
-        roots: ["import.meta.env"],
-        reason: "passed to an untraceable call",
-      }),
-    ]);
+    expect(wholeBrowserEnvironment.wholeEnvironmentEscapes).toHaveLength(2);
+    expect(wholeBrowserEnvironment.wholeEnvironmentEscapes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          file: "test/fixtures/sample-contract/env-browser-whole/index.ts",
+          line: 2,
+          roots: ["import.meta.env"],
+          reason: "passed to an untraceable call",
+        }),
+        expect.objectContaining({
+          file: "test/fixtures/sample-contract/env-browser-whole/index.ts",
+          line: 3,
+          roots: ["import.meta.env"],
+          reason: "passed to an untraceable call",
+        }),
+      ]),
+    );
 
     const localBrowserEnvironment = await inspectSampleConfiguration("test/fixtures/sample-contract/env-browser-local");
     expect(localBrowserEnvironment.names).toEqual(["VITE_LOCAL_URL"]);
