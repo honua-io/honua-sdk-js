@@ -1,0 +1,71 @@
+{
+  "steps": [
+    {
+      "label": "Escalate outage",
+      "kind": "upsert",
+      "id": "INC-1002",
+      "eventTime": "2026-05-05T18:02:20.000Z",
+      "changes": {
+        "severity": "critical",
+        "status": "open",
+        "assignedTo": "Utility Strike Team",
+        "etaMinutes": 6,
+        "affectedAssets": 16,
+        "summary": "Backup power window dropped below ten minutes; strike team moved to priority response."
+      }
+    },
+    {
+      "label": "Create brush response",
+      "kind": "upsert",
+      "id": "INC-1006",
+      "eventTime": "2026-05-05T18:03:10.000Z",
+      "feature": {
+        "id": "INC-1006",
+        "title": "Diamond Head brush response",
+        "type": "Fire",
+        "severity": "high",
+        "status": "assigned",
+        "assignedTo": "Brush 4",
+        "updatedAt": "2026-05-05T18:03:10.000Z",
+        "reportedAt": "2026-05-05T18:01:40.000Z",
+        "coordinate": [-157.833, 21.286],
+        "etaMinutes": 9,
+        "affectedAssets": 4,
+        "summary": "Brush response opened after smoke report along the Diamond Head access road.",
+        "relatedRecords": [{ "id": "CASE-7790", "label": "Fire response case", "status": "Assigned" }],
+        "attachments": [{ "id": "ATT-2050", "name": "Caller geotag", "kind": "location" }]
+      }
+    },
+    {
+      "label": "Resolve signal failure",
+      "kind": "upsert",
+      "id": "INC-1003",
+      "eventTime": "2026-05-05T18:04:00.000Z",
+      "changes": {
+        "severity": "low",
+        "status": "resolved",
+        "etaMinutes": 0,
+        "affectedAssets": 0,
+        "summary": "Controller fault cleared and corridor timing returned to normal operations."
+      }
+    },
+    {
+      "label": "Monitor harbor",
+      "kind": "upsert",
+      "id": "INC-1001",
+      "eventTime": "2026-05-05T18:05:30.000Z",
+      "changes": {
+        "status": "monitoring",
+        "assignedTo": "Harbor Watch",
+        "etaMinutes": 0,
+        "summary": "Containment boom is placed; harbor watch is monitoring drift and sample results."
+      }
+    },
+    {
+      "label": "Archive logistics",
+      "kind": "delete",
+      "id": "INC-1005",
+      "eventTime": "2026-05-05T18:06:00.000Z"
+    }
+  ]
+}

@@ -30,7 +30,12 @@ export interface BrowserBenchmarkBudgets {
   >;
 }
 
+export const BROWSER_CORPUS_SOURCE_FILES: readonly string[];
 export function summarize(values: readonly number[]): BrowserMetricSummary;
+export function browserCorpusFingerprint(options?: {
+  repoRoot?: string;
+  fixtureRoot?: string;
+}): Promise<{ files: string[]; sha256: string }>;
 export function evaluateScenarios(
   scenarios: readonly BrowserScenarioEvaluationInput[],
   budgets: BrowserBenchmarkBudgets,

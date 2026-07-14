@@ -186,6 +186,7 @@ jobs:
         run: |
           npm run samples:verify
           npm run samples:verify:flagships
+          npm run samples:fixtures:verify
 
       - name: Code style
         run: npm run check
