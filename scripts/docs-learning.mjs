@@ -70,8 +70,8 @@ export async function validateLearningManifest({
   projectRoot = ROOT,
   packageJson = readJson(projectRoot, "package.json"),
   publicSurface = readJson(projectRoot, "config/public-surface.json"),
-  sampleCatalog = fs.existsSync(path.join(projectRoot, "samples/catalog.v1.json"))
-    ? readJson(projectRoot, "samples/catalog.v1.json")
+  sampleCatalog = fs.existsSync(path.join(projectRoot, "samples/catalog.v2.json"))
+    ? readJson(projectRoot, "samples/catalog.v2.json")
     : undefined,
   checkRuntimeImports = true,
 }) {
@@ -163,7 +163,7 @@ export async function validateLearningManifest({
     }
     const sample = samplesById?.get(learningPath.sampleId);
     if (samplesById && !sample) {
-      fail(`${learningPath.id}: sampleId ${learningPath.sampleId} is absent from samples/catalog.v1.json`);
+      fail(`${learningPath.id}: sampleId ${learningPath.sampleId} is absent from samples/catalog.v2.json`);
     }
     if (sample) {
       if (sample.sourcePath !== learningPath.sourcePath) {
@@ -172,10 +172,10 @@ export async function validateLearningManifest({
       if (sample.docsPath !== learningPath.docsPath) {
         fail(`${learningPath.id}: docsPath must match the sample catalog (${sample.docsPath})`);
       }
-      if (!["supported", "experimental"].includes(sample.supportStatus)) {
-        fail(`${learningPath.id}: sample support status ${sample.supportStatus} cannot be taught`);
+      if (!["supported", "experimental"].includes(sample.supportTier)) {
+        fail(`${learningPath.id}: sample support tier ${sample.supportTier} cannot be taught`);
       }
-      if (sample.supportStatus === "experimental" && !learningPath.labels?.includes("experimental")) {
+      if (sample.supportTier === "experimental" && !learningPath.labels?.includes("experimental")) {
         fail(`${learningPath.id}: experimental sample must carry the experimental label`);
       }
       const requiresCredentials = !["none", "anonymous"].includes(sample.data.authMode);
@@ -264,7 +264,7 @@ export function generateLearningMarkdown(manifest, sampleCatalog) {
   );
   output.push("");
   output.push(
-    `These paths describe the SDK version in [\`package.json\`](../../package.json). Sample support, tier, data, provenance, freshness, and degradation metadata comes from the [versioned sample catalog](../../samples/contract/v1/README.md); use the [installation and compatibility guide](../../INSTALL.md) when reading docs for another release.`,
+    `These paths describe the SDK version in [\`package.json\`](../../package.json). Sample track, support, lifecycle, data, provenance, freshness, and degradation metadata comes from the [versioned sample catalog](../../samples/contract/v2/README.md); use the [installation and compatibility guide](../../INSTALL.md) when reading docs for another release.`,
   );
   output.push("");
   output.push("## Execution labels");
@@ -294,7 +294,7 @@ export function generateLearningMarkdown(manifest, sampleCatalog) {
     output.push(`- Executable entry: [${learningPath.sourceEntry}](${entry})`);
     output.push(`- Example notes: [${learningPath.docsPath}](${docs})`);
     output.push(`- Compile check: \`npm run ${learningPath.typecheckScript}\``);
-    output.push(`- Sample contract: \`${sample.tier}\` · \`${sample.supportStatus}\``);
+    output.push(`- Sample contract: \`${sample.track}\` · \`${sample.supportTier}\` · \`${sample.lifecycle.state}\``);
     output.push(`- Data and auth: \`${sample.data.mode}\` · \`${sample.data.authMode}\``);
     output.push(`- Provenance: ${sample.data.provenance}`);
     output.push(`- Freshness: ${sample.data.freshness}`);
@@ -320,10 +320,10 @@ export function generateLearningMarkdown(manifest, sampleCatalog) {
   output.push(`- ${manifest.ownership.sourceReusePolicy}`);
   output.push(`- ${manifest.ownership.internalLinkPolicy}`);
   output.push(
-    "- Site consumers join the [learning navigation manifest](../learning-paths.v1.json) to the [static sample projection](../../samples/dist/honua-site-samples.v1.json) by `sampleId`; catalog-owned metadata is not copied into another source file.",
+    "- Site consumers join the [learning navigation manifest](../learning-paths.v1.json) to the [static sample projection](../../samples/dist/honua-site-samples.v2.json) by `sampleId`; catalog-owned metadata is not copied into another source file.",
   );
   output.push(
-    `- Sample metadata/artifact/evidence projection is coordinated by [SDK issue #401](${manifest.ownership.sampleContractIssue}) and [honua-site issue #120](${manifest.ownership.siteProjectionIssue}).`,
+    `- Sample metadata and evidence are owned by [SDK issue #540](${manifest.ownership.sampleContractIssue}); the generated consumer projection is coordinated by [SDK issue #550](${manifest.ownership.siteProjectionIssue}).`,
   );
   output.push("");
   return output.join("\n");
@@ -346,7 +346,7 @@ async function main() {
   if (!["check", "write"].includes(command)) throw new Error(`unknown command: ${command}`);
   const manifest = readJson(ROOT, MANIFEST_PATH);
   const validation = await validateLearningManifest({ manifest, checkRuntimeImports: command === "check" });
-  const sampleCatalog = readJson(ROOT, "samples/catalog.v1.json");
+  const sampleCatalog = readJson(ROOT, "samples/catalog.v2.json");
   const generated = `${generateLearningMarkdown(manifest, sampleCatalog).replace(/\s+$/, "")}\n`;
   const outputFile = path.join(ROOT, OUTPUT_PATH);
   if (command === "write") {

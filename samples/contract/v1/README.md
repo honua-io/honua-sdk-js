@@ -1,5 +1,9 @@
 # Sample publication contract v1
 
+> Compatibility only: v1 is frozen for existing consumers. The canonical
+> catalog, taxonomy, lifecycle policy, CI selection, and site projection are
+> defined by [`../v2/README.md`](../v2/README.md). New consumers must use v2.
+
 This directory is the versioned handoff between `honua-sdk-js` and presentation consumers such as `honua-site`.
 
 - `sample-catalog.schema.json` describes SDK-owned executable sources and the explicit mapping of the 21 pre-contract honua.io routes.
