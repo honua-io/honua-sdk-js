@@ -212,7 +212,7 @@ const PROTOCOL_LANES = [
   },
   {
     lane: "GeoParquet (client-side SQL via DuckDB-WASM)",
-    matrixColumns: ["GeoParq"],
+    matrixColumns: ["GeoParquet"],
     honua: "✓ typed client (lazy peer)",
     maplibre: "—",
     arcgisRest: "—",

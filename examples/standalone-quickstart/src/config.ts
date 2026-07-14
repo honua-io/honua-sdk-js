@@ -46,9 +46,7 @@ function parseOutFields(value: string | undefined): string[] {
   return fields.length > 0 ? fields : ["*"];
 }
 
-export function resolveStandaloneConfig(
-  env: Record<string, string | undefined> = import.meta.env as Record<string, string | undefined>,
-): StandaloneConfig {
+export function resolveStandaloneConfig(env: Record<string, string | undefined>): StandaloneConfig {
   const featureLayerUrl = readOptional(env, "VITE_STANDALONE_FEATURE_LAYER_URL") ?? DEFAULT_FEATURE_LAYER_URL;
   const where = readOptional(env, "VITE_STANDALONE_WHERE") ?? DEFAULT_WHERE;
   const outFields = parseOutFields(readOptional(env, "VITE_STANDALONE_OUT_FIELDS"));

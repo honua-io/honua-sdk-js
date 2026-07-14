@@ -1,0 +1,503 @@
+{
+  "$schema": "../schemas/catalog-migration.schema.json",
+  "format": "honua.sdk.sample-catalog-migration.v1-to-v2",
+  "schemaVersion": 1,
+  "source": "samples/catalog.v1.json",
+  "target": "samples/catalog.v2.json",
+  "targetRelease": "0.2.0-beta.0",
+  "configuration": {
+    "browserSecretPolicy": "Approved browser configuration may name public endpoints and asset identifiers but never credential values or signed URLs; observed legacy-unsafe names remain inventoried.",
+    "credentialQueryParameters": [
+      "access_key",
+      "access_key_id",
+      "access_token",
+      "api_key",
+      "apikey",
+      "auth_token",
+      "authorization",
+      "aws_access_key_id",
+      "awsaccesskeyid",
+      "bearer_token",
+      "client_secret",
+      "credential",
+      "id_token",
+      "key",
+      "password",
+      "private_key",
+      "refresh_token",
+      "sas",
+      "secret",
+      "sig",
+      "signature",
+      "subscription_key",
+      "token",
+      "x_amz_credential",
+      "x_amz_signature",
+      "x_api_key",
+      "x_goog_signature"
+    ],
+    "evidenceExpiry": {
+      "executedMaxDays": 31,
+      "nonExecutedMaxDays": 90,
+      "maxFutureSkewSeconds": 300
+    },
+    "environmentReadExemptions": [
+      {
+        "name": "GITHUB_SHA",
+        "provider": "github-actions",
+        "reason": "GitHub Actions supplies the commit identity used only for evidence provenance."
+      },
+      {
+        "name": "MODE",
+        "provider": "vite",
+        "reason": "Vite supplies its built-in execution mode metadata."
+      }
+    ]
+  },
+  "goldenJourneys": [
+    { "id": "first-map", "title": "First Map", "status": "planned", "candidateSampleId": "maplibre-quickstart" },
+    { "id": "service-explorer", "title": "Universal Service Explorer", "status": "planned", "candidateSampleId": "service-explorer" },
+    { "id": "planning-permitting", "title": "Planning and Permitting", "status": "planned", "candidateSampleId": "planning-permitting-workbench" },
+    { "id": "incident-operations", "title": "Realtime Incident Operations", "status": "planned", "candidateSampleId": "realtime-incident-dashboard" },
+    { "id": "imagery-terrain", "title": "Imagery and Terrain", "status": "planned", "candidateSampleId": "imagery-cog-quickstart" },
+    { "id": "cloud-native-analysis", "title": "Cloud-Native Spatial Analysis", "status": "planned", "candidateSampleId": "spatial-analytics-workbench" },
+    { "id": "arcgis-migration", "title": "ArcGIS Migration Workbench", "status": "planned", "candidateSampleId": "migration-workbench" }
+  ],
+  "qualityProfiles": [
+    {
+      "id": "browser-fixture",
+      "description": "Internal browser conformance fixture with deterministic browser and console checks.",
+      "gates": {
+        "packedBuild": false,
+        "browser": true,
+        "accessibility": false,
+        "console": true,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      }
+    },
+    {
+      "id": "browser-lab",
+      "description": "Exploratory browser integration with packed, browser, accessibility, console, and responsive gates.",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      }
+    },
+    {
+      "id": "browser-recipe",
+      "description": "Copyable browser recipe with packed, browser, accessibility, console, and responsive gates.",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      }
+    },
+    {
+      "id": "golden-browser",
+      "description": "Canonical browser journey requiring the complete packed, browser, visual, performance, and live-evidence matrix.",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": true,
+        "performance": true,
+        "liveEvidence": true
+      }
+    },
+    {
+      "id": "headless-recipe",
+      "description": "Copyable Node or headless recipe requiring packed-package validation without browser presentation gates.",
+      "gates": {
+        "packedBuild": true,
+        "browser": false,
+        "accessibility": false,
+        "console": false,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      }
+    },
+    {
+      "id": "internal-fixture",
+      "description": "Internal input or conformance fixture; public presentation and packed-application gates do not apply.",
+      "gates": {
+        "packedBuild": false,
+        "browser": false,
+        "accessibility": false,
+        "console": false,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      }
+    }
+  ],
+  "externalReplacements": [
+    {
+      "id": "honua-app-platform",
+      "title": "@honua/app-platform",
+      "url": "https://www.npmjs.com/package/@honua/app-platform"
+    }
+  ],
+  "sampleOverrides": {
+    "ai-spatial-app-builder": {
+      "track": "lab",
+      "validationProfile": "browser-lab",
+      "live": {
+        "mode": "unavailable",
+        "targetMode": "authenticated",
+        "status": "skipped",
+        "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
+        "expiresAt": "2026-07-24T18:00:00.000Z"
+      }
+    },
+    "app-bootstrap-basic": {
+      "track": "lab",
+      "validationProfile": "browser-lab",
+      "replacement": { "kind": "external", "id": "honua-app-platform" }
+    },
+    "arcgis-source-app": {
+      "track": "fixture",
+      "validationProfile": "internal-fixture"
+    },
+    "edit-workflow-demo": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe"
+    },
+    "endpoint-to-map": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe",
+      "live": { "commands": [] }
+    },
+    "geocoding-quickstart": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Move browser credential inputs behind a host-mediated flow before recipe promotion."
+      },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+      }
+    },
+    "geoprocessing-job-runner": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe",
+      "replacement": { "kind": "journey", "id": "cloud-native-analysis" },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads a process-service token variable."
+      }
+    },
+    "imagery-cog-quickstart": {
+      "track": "recipe",
+      "journeyId": "imagery-terrain",
+      "validationProfile": "browser-recipe",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Consolidate the imagery candidate and its overlapping recipes before journey qualification."
+      },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+      }
+    },
+    "kepler-analytics": {
+      "track": "lab",
+      "validationProfile": "browser-lab",
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle reads a public Mapbox token; it is explicitly classified as public, but the current browser policy does not approve credential values."
+      },
+      "live": { "mode": "public-live", "status": "planned", "commands": [] }
+    },
+    "maplibre-quickstart": {
+      "track": "recipe",
+      "journeyId": "first-map",
+      "validationProfile": "browser-recipe",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Remove the rejected browser credential variables from the supported configuration surface before journey qualification."
+      },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The source still reads browser API-key and bearer-token variables in order to reject them."
+      },
+      "live": {
+        "mode": "demo-live",
+        "status": "executed",
+        "evidencePath": "examples/maplibre-quickstart/evidence/live.v1.json",
+        "expiresAt": "2026-08-12T02:18:02.654Z"
+      }
+    },
+    "mcp-gis-assistant": {
+      "track": "lab",
+      "validationProfile": "browser-lab"
+    },
+    "migration-workbench": {
+      "track": "lab",
+      "journeyId": "arcgis-migration",
+      "validationProfile": "browser-lab",
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads a cloud-admin API-key variable."
+      },
+      "live": { "mode": "public-live", "status": "planned", "commands": [] }
+    },
+    "nl-map-control": {
+      "track": "lab",
+      "validationProfile": "browser-lab"
+    },
+    "node-backend-quickstart": {
+      "track": "recipe",
+      "validationProfile": "headless-recipe"
+    },
+    "oauth-signin": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe",
+      "live": { "mode": "authenticated", "status": "planned" }
+    },
+    "overture-geoparquet": {
+      "track": "lab",
+      "validationProfile": "browser-lab",
+      "live": { "mode": "public-live", "status": "planned", "commands": ["npm run evidence:overture:live"] }
+    },
+    "planning-permitting-workbench": {
+      "track": "lab",
+      "journeyId": "planning-permitting",
+      "validationProfile": "browser-lab"
+    },
+    "pmtiles-static": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe"
+    },
+    "react-quickstart": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe"
+    },
+    "realtime-incident-dashboard": {
+      "track": "lab",
+      "journeyId": "incident-operations",
+      "validationProfile": "browser-lab",
+      "live": {
+        "mode": "unavailable",
+        "targetMode": "demo-live",
+        "status": "skipped",
+        "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
+        "expiresAt": "2026-07-26T02:18:02.730Z"
+      }
+    },
+    "runtime-parity-showcase": {
+      "track": "lab",
+      "validationProfile": "browser-lab",
+      "replacement": { "kind": "journey", "id": "service-explorer" }
+    },
+    "service-explorer": {
+      "track": "lab",
+      "journeyId": "service-explorer",
+      "validationProfile": "browser-lab",
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+      }
+    },
+    "sketch-editing": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe"
+    },
+    "spatial-analytics-workbench": {
+      "track": "lab",
+      "journeyId": "cloud-native-analysis",
+      "validationProfile": "browser-lab",
+      "live": {
+        "mode": "unavailable",
+        "targetMode": "public-live",
+        "status": "skipped",
+        "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
+        "expiresAt": "2026-07-24T08:00:00.000Z"
+      }
+    },
+    "stac-imagery-browser": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe",
+      "replacement": { "kind": "journey", "id": "imagery-terrain" }
+    },
+    "standalone-quickstart": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe",
+      "replacement": { "kind": "journey", "id": "first-map" },
+      "live": { "mode": "public-live", "status": "planned" }
+    },
+    "storytelling-25d-map": {
+      "track": "lab",
+      "validationProfile": "browser-lab",
+      "replacement": { "kind": "journey", "id": "imagery-terrain" },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads a Honua API-key variable."
+      }
+    },
+    "temporal-playback": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe"
+    },
+    "terrain-rgb-elevation": {
+      "track": "recipe",
+      "validationProfile": "browser-recipe",
+      "replacement": { "kind": "journey", "id": "imagery-terrain" },
+      "configuration": {
+        "status": "legacy-unsafe",
+        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+      }
+    },
+    "unified-ops-workspace": {
+      "track": "lab",
+      "validationProfile": "browser-lab",
+      "replacement": { "kind": "journey", "id": "incident-operations" }
+    },
+    "web-components-basic": {
+      "track": "lab",
+      "validationProfile": "browser-lab",
+      "replacement": { "kind": "external", "id": "honua-app-platform" }
+    }
+  },
+  "addedSamples": [
+    {
+      "id": "automatic-source-workflow",
+      "title": "Automatic source-to-map workflow fixture",
+      "summary": "Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures.",
+      "sourceKind": "docs-example",
+      "track": "fixture",
+      "supportTier": "internal",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as the browser conformance fixture for the automatic source workflow."
+      },
+      "sourcePath": "docs/examples/automatic-source-workflow",
+      "docsPath": "docs/examples/automatic-source-workflow/README.md",
+      "capabilities": ["interaction-state", "map", "strategy-selection"],
+      "protocols": ["geoservices", "pmtiles", "wms", "wmts"],
+      "renderers": ["maplibre"],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "configurationStatus": "not-required",
+        "config": [],
+        "provenance": "In-memory feature and tile fixtures served from the local test origin.",
+        "attribution": "Honua deterministic browser fixtures.",
+        "freshness": "Versioned with the repository."
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed",
+          "commands": ["npx playwright test test/playwright/automatic-source-workflow.spec.mjs"]
+        },
+        "live": { "mode": "unavailable", "status": "not-applicable", "commands": [] }
+      },
+      "expectedDegradation": "Unsupported strategies and interaction operations remain explicit test failures.",
+      "validationProfile": "browser-fixture",
+      "validation": ["npx playwright test test/playwright/automatic-source-workflow.spec.mjs"]
+    },
+    {
+      "id": "cesium-route-playback",
+      "title": "Cesium route playback lab",
+      "summary": "Explores bounded route playback and elevation context through an optional Cesium consumer integration.",
+      "sourceKind": "docs-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion.",
+        "targetRelease": "0.2.0-beta.0"
+      },
+      "sourcePath": "docs/examples/cesium-route-playback",
+      "docsPath": "docs/examples/cesium-route-playback/README.md",
+      "capabilities": ["route-playback", "terrain", "three-dimensional"],
+      "protocols": ["geoservices"],
+      "renderers": ["cesium"],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "Live mode reads baseUrl and ionToken from URL query parameters; no configuration name is approved until the sample is reworked.",
+        "config": [],
+        "provenance": "Committed route query fixture or an explicitly configured Honua feature layer.",
+        "attribution": "Route and terrain providers remain visible in diagnostics.",
+        "freshness": "Fixture version or live query observation time."
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed",
+          "commands": [
+            "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
+            "npx vitest run test/cesium-route-playback.test.ts"
+          ]
+        },
+        "live": { "mode": "authenticated", "status": "planned", "commands": [] }
+      },
+      "expectedDegradation": "Terrain, source Z, and 3D contract gaps are reported rather than promoted as production support.",
+      "validationProfile": "browser-lab",
+      "validation": [
+        "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
+        "npx vitest run test/cesium-route-playback.test.ts"
+      ]
+    },
+    {
+      "id": "shared-renderer-state",
+      "title": "Shared renderer state lab",
+      "summary": "Exercises loop-safe camera, selection, filter, and time synchronization across MapLibre and Cesium.",
+      "sourceKind": "docs-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as an integration lab for the renderer-neutral state synchronizer."
+      },
+      "sourcePath": "docs/examples/shared-renderer-state",
+      "docsPath": "docs/examples/shared-renderer-state/README.md",
+      "capabilities": ["camera", "filtering", "selection", "temporal"],
+      "protocols": ["honua"],
+      "renderers": ["cesium", "maplibre"],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "configurationStatus": "not-required",
+        "config": [],
+        "provenance": "Deterministic renderer-neutral state fixture.",
+        "attribution": "Honua synthetic state fixture.",
+        "freshness": "Versioned with the repository."
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed",
+          "commands": ["npx playwright test test/playwright/shared-renderer-state.spec.mjs"]
+        },
+        "live": { "mode": "unavailable", "status": "not-applicable", "commands": [] }
+      },
+      "expectedDegradation": "Missing optional renderers fail their own lane without changing shared state semantics.",
+      "validationProfile": "browser-lab",
+      "validation": ["npx playwright test test/playwright/shared-renderer-state.spec.mjs"]
+    }
+  ]
+}

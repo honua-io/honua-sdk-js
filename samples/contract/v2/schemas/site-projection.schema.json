@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/site-sample-projection.v2.schema.json",
+  "title": "Honua site SDK sample projection v2",
+  "type": "object",
+  "required": [
+    "format",
+    "schemaVersion",
+    "catalog",
+    "contract",
+    "goldenJourneys",
+    "externalReplacements",
+    "qualityProfiles",
+    "samples",
+    "routes"
+  ],
+  "properties": {
+    "format": { "const": "honua.site.sdk-sample-projection.v2" },
+    "schemaVersion": { "const": 2 },
+    "catalog": {
+      "type": "object",
+      "required": ["format", "schemaVersion", "package", "version"],
+      "properties": {
+        "format": { "const": "honua.sdk.sample-catalog.v2" },
+        "schemaVersion": { "const": 2 },
+        "package": { "const": "@honua/sdk-js" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "contract": {
+      "type": "object",
+      "required": ["producer", "consumer", "executableSourceOwner", "presentationOwner"],
+      "properties": {
+        "producer": { "const": "honua-io/honua-sdk-js#540" },
+        "consumer": { "const": "honua-io/honua-sdk-js#550" },
+        "executableSourceOwner": { "const": "honua-io/honua-sdk-js" },
+        "presentationOwner": { "const": "honua-io/honua-site" }
+      },
+      "additionalProperties": false
+    },
+    "goldenJourneys": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": { "$ref": "#/$defs/goldenJourney" }
+    },
+    "externalReplacements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/externalReplacement" }
+    },
+    "qualityProfiles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/qualityProfile" }
+    },
+    "samples": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sample" }
+    },
+    "routes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/route" }
+    }
+  },
+  "$defs": {
+    "goldenJourney": {
+      "type": "object",
+      "required": ["id", "title", "status", "candidateSampleId"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "enum": ["planned", "qualified"] },
+        "candidateSampleId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "externalReplacement": {
+      "type": "object",
+      "required": ["id", "title", "url"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "url": { "type": "string", "format": "uri" }
+      },
+      "additionalProperties": false
+    },
+    "gates": {
+      "type": "object",
+      "required": [
+        "packedBuild",
+        "browser",
+        "accessibility",
+        "console",
+        "responsive",
+        "screenshot",
+        "performance",
+        "liveEvidence"
+      ],
+      "properties": {
+        "packedBuild": { "type": "boolean" },
+        "browser": { "type": "boolean" },
+        "accessibility": { "type": "boolean" },
+        "console": { "type": "boolean" },
+        "responsive": { "type": "boolean" },
+        "screenshot": { "type": "boolean" },
+        "performance": { "type": "boolean" },
+        "liveEvidence": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "qualityProfile": {
+      "type": "object",
+      "required": ["id", "description", "gates"],
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string" },
+        "gates": { "$ref": "#/$defs/gates" }
+      },
+      "additionalProperties": false
+    },
+    "replacement": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["sample", "journey", "external"] },
+        "id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "lifecycle": {
+      "type": "object",
+      "required": ["state", "reason"],
+      "properties": {
+        "state": { "enum": ["active", "rework", "merge", "replace", "retire"] },
+        "reason": { "type": "string" },
+        "targetRelease": { "type": "string" },
+        "replacement": { "$ref": "#/$defs/replacement" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "state": { "const": "active" } } },
+          "then": { "not": { "anyOf": [{ "required": ["targetRelease"] }, { "required": ["replacement"] }] } },
+          "else": { "required": ["targetRelease"] }
+        },
+        {
+          "if": { "properties": { "state": { "enum": ["merge", "replace", "retire"] } } },
+          "then": { "required": ["replacement"] },
+          "else": { "not": { "required": ["replacement"] } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["repository", "path", "docsPath"],
+      "properties": {
+        "repository": { "const": "honua-io/honua-sdk-js" },
+        "path": { "type": "string" },
+        "docsPath": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "sdk": {
+      "type": "object",
+      "required": ["package", "version"],
+      "properties": {
+        "package": { "const": "@honua/sdk-js" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "publicData": {
+      "type": "object",
+      "required": [
+        "mode",
+        "authMode",
+        "provenance",
+        "attribution",
+        "freshness",
+        "configurationStatus"
+      ],
+      "properties": {
+        "mode": { "enum": ["fixture", "public-live", "demo-live", "authenticated-live", "hybrid", "none"] },
+        "authMode": { "enum": ["none", "anonymous", "api-key", "bearer", "oauth", "host-mediated"] },
+        "provenance": { "type": "string" },
+        "attribution": { "type": "string" },
+        "freshness": { "type": "string" },
+        "configurationStatus": { "enum": ["approved", "not-required", "legacy-unsafe"] },
+        "configurationGap": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "configurationStatus": { "const": "legacy-unsafe" } } },
+          "then": { "required": ["configurationGap"] },
+          "else": { "not": { "required": ["configurationGap"] } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "fixtureEvidence": {
+      "type": "object",
+      "required": ["mode", "status"],
+      "properties": {
+        "mode": { "const": "fixture" },
+        "status": { "enum": ["executed", "not-applicable", "planned"] }
+      },
+      "additionalProperties": false
+    },
+    "liveEvidence": {
+      "type": "object",
+      "required": ["mode", "status"],
+      "properties": {
+        "mode": { "enum": ["public-live", "demo-live", "authenticated", "degraded", "unavailable"] },
+        "targetMode": { "enum": ["public-live", "demo-live", "authenticated"] },
+        "status": { "enum": ["executed", "not-applicable", "planned", "skipped", "credential-unavailable", "failed"] },
+        "evidencePath": { "type": "string" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "enum": ["executed", "skipped", "credential-unavailable", "failed"] } } },
+          "then": { "required": ["evidencePath", "expiresAt"] },
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["evidencePath"] },
+                { "required": ["expiresAt"] },
+                { "required": ["targetMode"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["skipped", "credential-unavailable", "failed"] } } },
+          "then": {
+            "required": ["targetMode"],
+            "properties": { "mode": { "enum": ["degraded", "unavailable"] } }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "executed" } } },
+          "then": {
+            "properties": { "mode": { "enum": ["public-live", "demo-live", "authenticated"] } },
+            "not": { "required": ["targetMode"] }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "sample": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "summary",
+        "sourceKind",
+        "track",
+        "supportTier",
+        "lifecycle",
+        "validationProfile",
+        "source",
+        "sdk",
+        "capabilities",
+        "protocols",
+        "renderers",
+        "data",
+        "evidence",
+        "expectedDegradation"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "sourceKind": { "enum": ["root-example", "docs-example"] },
+        "track": { "enum": ["golden", "recipe", "lab", "fixture"] },
+        "journeyId": { "type": "string" },
+        "supportTier": { "enum": ["supported", "experimental", "internal", "deprecated"] },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" },
+        "validationProfile": { "type": "string" },
+        "source": { "$ref": "#/$defs/source" },
+        "sdk": { "$ref": "#/$defs/sdk" },
+        "capabilities": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "protocols": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "renderers": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "data": { "$ref": "#/$defs/publicData" },
+        "evidence": {
+          "type": "object",
+          "required": ["fixture", "live"],
+          "properties": {
+            "fixture": { "$ref": "#/$defs/fixtureEvidence" },
+            "live": { "$ref": "#/$defs/liveEvidence" }
+          },
+          "additionalProperties": false
+        },
+        "expectedDegradation": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "route": {
+      "type": "object",
+      "required": ["id", "route", "ownership"],
+      "properties": {
+        "id": { "type": "string" },
+        "route": { "type": "string", "pattern": "^[-a-z0-9]+\\.html$" },
+        "ownership": { "enum": ["sdk-projection", "site-exception"] },
+        "sampleId": { "type": "string" },
+        "exceptionReason": { "type": "string" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "track": { "enum": ["golden", "recipe", "lab", "fixture"] },
+        "supportTier": { "enum": ["supported", "experimental", "internal", "deprecated"] },
+        "capabilities": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
+      },
+      "oneOf": [
+        {
+          "properties": { "ownership": { "const": "sdk-projection" } },
+          "required": ["sampleId"],
+          "not": {
+            "anyOf": [
+              { "required": ["exceptionReason"] },
+              { "required": ["title"] },
+              { "required": ["summary"] },
+              { "required": ["track"] },
+              { "required": ["supportTier"] },
+              { "required": ["capabilities"] }
+            ]
+          }
+        },
+        {
+          "properties": { "ownership": { "const": "site-exception" } },
+          "required": ["exceptionReason", "title", "summary", "track", "supportTier", "capabilities"],
+          "not": { "required": ["sampleId"] }
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
