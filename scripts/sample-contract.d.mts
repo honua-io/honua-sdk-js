@@ -1,9 +1,39 @@
 export interface SampleCatalog {
-  format: "honua.sdk.sample-catalog.v1";
-  schemaVersion: 1;
+  format: "honua.sdk.sample-catalog.v2";
+  schemaVersion: 2;
   sdk: { package: string };
   samples: Array<Record<string, unknown>>;
   siteMappings: Array<Record<string, unknown>>;
+  goldenJourneys: GoldenJourney[];
+  qualityProfiles: Array<Record<string, unknown>>;
+}
+
+export interface GoldenJourney {
+  id: string;
+  title: string;
+  status: "planned" | "qualified";
+  candidateSampleId: string;
+}
+
+export interface ProjectedSample {
+  id: string;
+  track: "golden" | "recipe" | "lab" | "fixture";
+  supportTier: "supported" | "experimental" | "internal" | "deprecated";
+  lifecycle: Record<string, unknown>;
+  validationProfile: string;
+  sdk: { package: string; version: string };
+}
+
+export interface CiSelectedSample {
+  id: string;
+  track: "golden" | "recipe" | "lab" | "fixture";
+  supportTier: "supported" | "experimental" | "internal" | "deprecated";
+  validationProfile: string;
+  commandPlan: {
+    validation: { execution: "automatic"; commands: string[] };
+    fixtureEvidence: { execution: "orchestrated"; commands: string[] };
+    liveEvidence: { execution: "scheduled-only"; commands: string[] };
+  };
 }
 
 export interface BrowserArtifactManifest {
@@ -22,7 +52,17 @@ export interface BrowserArtifactManifest {
   }>;
 }
 
-export function validateCatalog(catalog: SampleCatalog, packageJson: Record<string, unknown>): Promise<void>;
+export function migrateCatalogV1ToV2(
+  catalog: Record<string, unknown>,
+  migration: Record<string, unknown>,
+): Promise<SampleCatalog>;
+export function compareReleases(left: string, right: string): number;
+export function isRunnableRootExampleDirectory(name: string, markers: string[]): boolean;
+export function validateCatalog(
+  catalog: SampleCatalog,
+  packageJson: Record<string, unknown>,
+  options?: { now?: string },
+): Promise<void>;
 export function effectiveCatalog(
   catalog: SampleCatalog,
   packageJson: { name: string; version: string },
@@ -30,7 +70,18 @@ export function effectiveCatalog(
 export function generateSiteProjection(
   catalog: SampleCatalog,
   packageJson: { name: string; version: string },
-): { routes: Array<Record<string, unknown>> };
+): {
+  samples: ProjectedSample[];
+  routes: Array<Record<string, unknown>>;
+  goldenJourneys: GoldenJourney[];
+  externalReplacements: Array<{ id: string; title: string; url: string }>;
+};
+export function generateCiSelection(catalog: SampleCatalog): {
+  profiles: Array<Record<string, unknown>>;
+  samples: CiSelectedSample[];
+};
+export function validateSiteProjection(projection: unknown): Promise<void>;
+export function validateCiSelection(selection: unknown): Promise<void>;
 export function generatedOutputs(
   catalog: SampleCatalog,
   packageJson: { name: string; version: string },
@@ -39,7 +90,20 @@ export function generatedOutputDrift(
   expectedOutputs: Map<string, string>,
   currentOutputs: Map<string, string>,
 ): string[];
-export function validateEvidenceEnvelope<T>(evidence: T): T;
+export function extractSampleConfiguration(
+  sourcePath: string,
+  exemptions?: Array<{ name: string }>,
+): Promise<string[]>;
+export function classifyConfigurationName(name: string): {
+  name: string;
+  exposure: "browser-public" | "server-only";
+  valueKind: "credential" | "non-secret";
+  credentialScope?: "public-token" | "secret";
+};
+export function validateEvidenceEnvelope<T>(
+  evidence: T,
+  options?: { now?: string; maxFutureSkewSeconds?: number },
+): T;
 export function validateLiveEvidenceProducer(
   evidence: Record<string, unknown>,
   sample: Record<string, unknown>,
