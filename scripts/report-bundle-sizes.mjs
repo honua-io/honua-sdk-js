@@ -84,7 +84,7 @@ const TARGETS = [
     key: "/source-capabilities",
     kind: "bundle",
     entry: "dist/src/source-capabilities.js",
-    label: "`/source-capabilities` (pure evaluator; schema validator excluded)",
+    label: "`/source-capabilities` (bounded evaluator + pinned CRS validator)",
   },
   { key: "/plugin", kind: "bundle", entry: "dist/src/plugin/index.js", label: "`/plugin` (registry + certification, no heavy peers)" },
   { key: "/agent-tools", kind: "bundle", entry: "dist/src/agent-tools/index.js", label: "`/agent-tools`" },

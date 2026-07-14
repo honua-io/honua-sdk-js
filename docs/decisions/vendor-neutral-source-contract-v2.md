@@ -831,7 +831,8 @@ type EffectiveCapabilityState =
   | "unknown"
   | "policy-disabled"
   | "peer-unavailable"
-  | "authorization-required";
+  | "authorization-required"
+  | "authorization-denied";
 
 interface CapabilityEvidence {
   readonly kind:
@@ -839,6 +840,7 @@ interface CapabilityEvidence {
   readonly truth: CapabilityTruth;
   readonly reference: string;
   readonly observedAt?: string;
+  readonly expiresAt?: string;
   readonly sourceFingerprint?: Sha256;
 }
 
@@ -878,6 +880,11 @@ interface CapabilityConstraints {
   readonly extensions?: ExtensionMap;
 }
 
+interface CapabilityRequirements {
+  readonly environments?: readonly ("browser" | "worker" | "node" | "edge" | ExtensionIdentifier)[];
+  readonly peers?: readonly string[];
+}
+
 interface CapabilityDecision {
   readonly id: CapabilityId;
   readonly claimed: CapabilityTruth;
@@ -887,6 +894,7 @@ interface CapabilityDecision {
   readonly reasons: readonly string[];
   readonly authorizationScopes?: readonly string[];
   readonly constraints?: CapabilityConstraints;
+  readonly requirements?: CapabilityRequirements;
 }
 
 interface CapabilityProfile {
@@ -915,6 +923,15 @@ predicates are separate declarations, not aliases for an adapter-created
 polygon or buffer. Runtime validation and capability combination belong to
 [#525](https://github.com/honua-io/honua-sdk-js/issues/525).
 
+Metadata, conformance and probe evidence carries an observation instant and an
+exclusive expiry instant. Effective evaluation receives `evaluatedAt`
+explicitly; it never reads the wall clock. Omitted evaluation time and stale or
+not-yet-current observation evidence fail closed to `unknown` with stable
+freshness reasons. Protocol defaults and declarations are non-observation claim
+evidence and do not carry those timestamps. Requirements are retained in the
+effective decision because environment and peer eligibility are semantic
+inputs, not transient diagnostics.
+
 Example JSON:
 
 ```json
@@ -933,7 +950,8 @@ Example JSON:
           "kind": "conformance",
           "truth": "supported",
           "reference": "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
-          "observedAt": "2026-07-13T12:00:00Z"
+          "observedAt": "2026-07-13T12:00:00Z",
+          "expiresAt": "2026-07-20T12:00:00Z"
         }
       ],
       "reasons": [],
@@ -2286,11 +2304,13 @@ native reference's protocol/name/namespace/path identity, not its `definition`.
 The `capabilityFingerprint` projection contains exactly `kind`, `version`, and
 entries sorted by capability id. Each entry contains id, claimed/observed/
 effective truth, sorted/deduplicated reason codes and authorization-scope ids,
-constraints, and evidence. Constraint formats/operators/predicates/CRS values/
+constraints, requirements, and evidence. Constraint formats/operators/predicates/CRS values/
 pagination modes are sets and sorted; numeric limits and property presence are
 preserved; extensions are included. Evidence is sorted by canonical
-`[kind,truth,reference,sourceFingerprint]` and excludes `observedAt`. The
-projection excludes only the profile's `fingerprint` field and timestamps.
+`[kind,truth,reference,sourceFingerprint]` and excludes `observedAt` and
+`expiresAt`. The
+projection excludes only the profile's `fingerprint` field and observation/
+expiry timestamps.
 
 The `descriptorFingerprint` projection contains exactly:
 

@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-14 at commit `4d519e9`._
+_Generated 2026-07-14 at commit `17ca26a`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -16,7 +16,7 @@ _Generated 2026-07-14 at commit `4d519e9`._
 | `/honua` | 513.2 KiB | 566.2 KiB | 135.4 KiB | 149.6 KiB |
 | `/contract` | 260.0 KiB | 287.3 KiB | 68.4 KiB | 72.9 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 631.5 KiB | 663.7 KiB | 129.5 KiB | 134.0 KiB |
-| `/source-capabilities` (pure evaluator; schema validator excluded) | 16.3 KiB | 18.0 KiB | 5.5 KiB | 6.0 KiB |
+| `/source-capabilities` (bounded evaluator + pinned CRS validator) | 234.1 KiB | 257.5 KiB | 26.6 KiB | 29.3 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 57.1 KiB | 62.6 KiB | 17.6 KiB | 19.3 KiB |
 | `/agent-tools` | 20.6 KiB | 22.7 KiB | 6.4 KiB | 7.0 KiB |
 | `/agent-safety` | 50.1 KiB | 55.2 KiB | 14.3 KiB | 15.8 KiB |
