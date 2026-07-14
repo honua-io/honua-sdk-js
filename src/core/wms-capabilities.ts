@@ -14,6 +14,7 @@
  * @module
  */
 
+import { HonuaSdkError } from "./error-envelope.js";
 import { decodeXmlText as decodeXmlEntities } from "./xml-text.js";
 
 /**
@@ -95,9 +96,9 @@ export interface WmsCapabilityDimension {
  * shape above. Recoverable per-node gaps (missing `<Title>`,
  * `<Abstract>`, etc.) are tolerated and return defaults.
  */
-export class HonuaWmsCapabilitiesParseError extends Error {
+export class HonuaWmsCapabilitiesParseError extends HonuaSdkError {
   public constructor(message: string) {
-    super(message);
+    super("core.wms-capabilities-parse", message);
     this.name = "HonuaWmsCapabilitiesParseError";
   }
 }

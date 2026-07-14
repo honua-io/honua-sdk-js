@@ -36,7 +36,8 @@
 
 import type { FeatureId } from "../contract/types.js";
 import { trimTrailingSlashes } from "../core/path-utils.js";
-import { createRealtimeServerSentEventsTransport } from "./sse.js";
+import { HonuaRealtimeResumeError } from "./resumable.js";
+import { createRealtimeServerSentEventsTransport, decodeRealtimeServerSentEvent } from "./sse.js";
 import type { RealtimeServerSentEventsTransportOptions } from "./sse.js";
 import type {
   RealtimeFeatureEvent,
@@ -128,17 +129,19 @@ export interface HonuaServerFeatureChangeEnvelope<TFeature = unknown> {
  * already speak the SDK vocabulary pass through unchanged.
  */
 export function decodeHonuaServerRealtimeEvent<TFeature = unknown>(payload: unknown): RealtimeFeatureEvent<TFeature> {
-  if (!isRecord(payload)) throw new Error("honua-server streaming payload must be a JSON object.");
+  if (!isRecord(payload)) {
+    throw new HonuaRealtimeResumeError("invalid-event", "honua-server streaming payload must be a JSON object.");
+  }
   const envelope = payload as HonuaServerFeatureChangeEnvelope<TFeature>;
 
   // Status / heartbeat / error envelopes already use the SDK vocabulary.
   if (typeof envelope.type === "string" && envelope.type !== "change" && envelope.type !== "feature-change") {
-    return payload as unknown as RealtimeFeatureEvent<TFeature>;
+    return decodeRealtimeServerSentEvent<TFeature>(payload);
   }
 
   const changes = collectChanges(envelope);
   if (changes.length === 0) {
-    throw new Error("honua-server feature-change envelope is missing changes.");
+    throw new HonuaRealtimeResumeError("invalid-event", "honua-server feature-change envelope is missing changes.");
   }
 
   const base = {
@@ -154,15 +157,21 @@ export function decodeHonuaServerRealtimeEvent<TFeature = unknown>(payload: unkn
   const deletes: Array<{ readonly id: FeatureId; readonly version?: number; readonly updatedAt?: string }> = [];
 
   for (const change of changes) {
+    if (!isRecord(change)) {
+      throw new HonuaRealtimeResumeError("invalid-event", "honua-server feature change must be an object.");
+    }
     if (change.featureId === undefined) {
-      throw new Error("honua-server feature change is missing featureId.");
+      throw new HonuaRealtimeResumeError("invalid-event", "honua-server feature change is missing featureId.");
     }
     if (change.op === "delete") {
       deletes.push({ id: change.featureId, version: change.version, updatedAt: change.updatedAt });
       continue;
     }
     if (change.feature === undefined) {
-      throw new Error(`honua-server ${change.op} change is missing feature payload.`);
+      throw new HonuaRealtimeResumeError(
+        "invalid-event",
+        `honua-server ${change.op} change is missing feature payload.`,
+      );
     }
     upserts.push({
       id: change.featureId,
@@ -239,7 +248,10 @@ export function createHonuaServerRealtimeSubscription<TFeature = unknown>(
 
 function resolveStreamingUrl(baseUrl: string | undefined): string {
   if (!baseUrl) {
-    throw new Error("createHonuaServerRealtimeSubscription requires either `url` or `baseUrl`.");
+    throw new HonuaRealtimeResumeError(
+      "invalid-event",
+      "createHonuaServerRealtimeSubscription requires either `url` or `baseUrl`.",
+    );
   }
   // Linear trim (no anchored `\/+$` regex) to avoid polynomial backtracking on
   // adversarial input — mirrors the rest of the SDK's path handling.
