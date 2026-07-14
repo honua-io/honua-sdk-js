@@ -18,7 +18,7 @@ adds more protocols, render effects, application shells, or agent APIs.
 
 The product front door is one lifecycle-owned workflow:
 
-```ts
+```ts doc-test=skip reason="illustrative target API is implemented by the linked execution backlog"
 const honua = createHonua();
 const connection = await honua.connect(url);
 const source = await connection.source();
