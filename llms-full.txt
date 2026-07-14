@@ -6091,6 +6091,7 @@ parsing message strings.
 | `HonuaAuthError` | `@honua/sdk-js/auth` providers (`oauth2`, `clientCredentials`) | A credential could not be produced. | Branch on `.code`: `interaction_required` → start interactive sign-in (`auth.signIn()`); `refresh_failed` → transient token-endpoint failure, retry later; `invalid_grant` → refresh token/authorization code expired or revoked (the stored credential is cleared) → interactive sign-in. The underlying transport/parse failure, when present, is on `.cause`. |
 | `HonuaCapabilityNotSupportedError` | `Source.query` / `Source.applyEdits` / etc. | Under the default `capabilityPolicy: "strict"`, the active source does not support the requested operation (e.g. `query()` on a `wmts` source). | Either downgrade the request (drop the unsupported clause), fall back to `Source.protocol(...)` for raw protocol access, or set `capabilityPolicy: "degraded"` on `createDataset` to coerce best-effort behavior with a `degraded` reason in the `Result`. |
 | `HonuaDiscoveryError` | `connect`, discovery truth, cache identity | Endpoint metadata, protocol hints, source selection, or cached discovery observations are invalid or ambiguous. | Branch on `.code`: provide an explicit supported protocol for `ambiguous-protocol`; select a listed source ID for `ambiguous-source`; use a reviewed adapter for `unsupported-protocol`; evict/rebuild entries for `invalid-discovery-cache`. Do not retry unchanged invalid input. |
+| `HonuaGeometryError` | Spatial-filter builders | Geometry classification would otherwise require guessing, or a recognized Esri geometry is malformed. | Branch on `.code`: `unknown-geometry` means no supported Esri shape discriminator was found; `malformed-geometry` means a recognized shape, coordinate, or envelope expansion is invalid. Fix the input; do not retry it unchanged. Diagnostic context is on `.detail`. |
 | `HonuaExplorationContextError` | `@honua/sdk-js/exploration` | An exploration intent referenced a missing slice / view, or the snapshot is incompatible with the active context schema. | Surface to user (UI bug) or migrate the saved snapshot. Do not retry. |
 | `HonuaWfsExceptionError` | `wfs` adapter | The WFS server returned a `<ows:ExceptionReport>`. The original `exceptionCode`, `locator`, and `exceptionText` are preserved on the instance. | Branch on `.exceptionCode` (`InvalidParameterValue`, `OperationNotSupported`, `MissingParameterValue`, etc.). Most are caller bugs; surface to user. |
 | `HonuaJobFailedError` | OGC Processes / geoprocessing job polling | An async job (`IJobRun.results()`) reached a non-success terminal state (`failed` / `dismissed`). The terminal `.status`, `.errorCode`, and `.details` are preserved on the instance. | Branch on `.status` / `.errorCode`. Usually a server-side or input error; surface to user. Do not blindly retry. |
@@ -6138,6 +6139,7 @@ subset of these errors when configured:
 | `HonuaAuthError` | **No** — resolved by the auth provider's own silent-refresh / single-flight logic; a 401/403 additionally triggers one force-refresh + replay. Branch on `.code` to sign in or surface. |
 | `HonuaAbortError` | **No** — caller asked to stop |
 | `HonuaCapabilityNotSupportedError` | **No** — would never succeed |
+| `HonuaGeometryError` | **No** — input must be corrected |
 | `HonuaWfsExceptionError` | **No** — caller bug |
 | `HonuaExplorationContextError` | **No** — state bug |
 
@@ -6801,6 +6803,29 @@ import { area, buffer, project, toWgs84 } from "@honua/geometry";
 | `difference(a, b)` | `@turf/difference` | Polygon `a − b`; `null` if fully removed. |
 | `nearestPoint(target, points)` | `@turf/nearest-point` | Nearest candidate `Feature<Point>`. |
 | `convex(geom)` | `@turf/convex` | Convex hull; `null` if undefined. |
+
+## Spatial-filter envelope migration
+
+Before 1.0, the package root exposed `buffer(x, y, distance, spatialReference?)`
+for an axis-aligned bounding box around a point. Despite its name, that helper
+never created a geometry buffer. It has been renamed so the approximation is
+visible at the call site:
+
+```ts doc-test=compile
+import { bufferEnvelope } from "@honua/sdk-js";
+
+const nearbyFilter = bufferEnvelope(-157.858, 21.307, 0.01, { wkid: 4326 });
+```
+
+`bufferEnvelope` expands x and y by `distance` in the input coordinate system's
+units. It is planar and axis-aligned; it is not circular, geodesic, or suitable
+for measuring a setback. Pre-1.0 callers should mechanically rename root or
+`/honua` imports and calls from `buffer` to `bufferEnvelope` when they intended
+the old envelope behavior. Callers that intended a true geometry buffer must
+instead import `buffer(geometry, radius, unit?)` from `@honua/sdk-js/geometry`
+or `@honua/geometry`, supply WGS84 coordinates, and consume its polygonal
+GeoJSON result. The two operations deliberately have different signatures and
+return types.
 
 ### Units
 

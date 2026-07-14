@@ -1,11 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { QueryBuilder } from "@honua/sdk-js/honua";
+import { QueryBuilder, bufferEnvelope as bufferEnvelopeHonua } from "@honua/sdk-js/honua";
 import type { QueryFeaturesRequest } from "@honua/sdk-js/honua";
-import { buffer, envelope, point, polygon, spatialContains, spatialIntersects, spatialWithin } from "../src/index.js";
+import { buffer as geometryBuffer } from "../src/geometry/index.js";
+import * as rootSurface from "../src/index.js";
+import {
+  HonuaGeometryError,
+  bufferEnvelope,
+  envelope,
+  isHonuaError,
+  point,
+  polygon,
+  spatialContains,
+  spatialIntersects,
+  spatialWithin,
+} from "../src/index.js";
 import type { SpatialFilter } from "../src/index.js";
 
 describe("SpatialFilter builders", () => {
+  it("keeps envelope expansion distinct from the true geometry buffer surface", () => {
+    expect(rootSurface).not.toHaveProperty("buffer");
+    expect(rootSurface.bufferEnvelope).toBe(bufferEnvelope);
+    expect(bufferEnvelopeHonua).toBe(bufferEnvelope);
+    expect(geometryBuffer).toBeTypeOf("function");
+  });
+
   describe("envelope", () => {
     it("produces correct geometry JSON", () => {
       const f = envelope(-118.5, 33.7, -117.5, 34.2);
@@ -94,16 +113,16 @@ describe("SpatialFilter builders", () => {
     });
   });
 
-  describe("buffer", () => {
+  describe("bufferEnvelope", () => {
     it("creates correct envelope bounds centered on the point", () => {
-      const f = buffer(10, 20, 5);
+      const f = bufferEnvelope(10, 20, 5);
       expect(f.geometry).toEqual({ xmin: 5, ymin: 15, xmax: 15, ymax: 25 });
       expect(f.geometryType).toBe("esriGeometryEnvelope");
       expect(f.spatialRel).toBe("esriSpatialRelIntersects");
     });
 
     it("handles fractional coordinates and distance", () => {
-      const f = buffer(-118.24, 34.05, 0.5);
+      const f = bufferEnvelope(-118.24, 34.05, 0.5);
       expect(f.geometry).toEqual({
         xmin: -118.74,
         ymin: 33.55,
@@ -113,12 +132,12 @@ describe("SpatialFilter builders", () => {
     });
 
     it("handles zero distance (degenerates to a point-sized envelope)", () => {
-      const f = buffer(5, 10, 0);
+      const f = bufferEnvelope(5, 10, 0);
       expect(f.geometry).toEqual({ xmin: 5, ymin: 10, xmax: 5, ymax: 10 });
     });
 
     it("passes through spatialReference", () => {
-      const f = buffer(0, 0, 1, { wkid: 3857 });
+      const f = bufferEnvelope(0, 0, 1, { wkid: 3857 });
       expect(f.geometry).toEqual({
         xmin: -1,
         ymin: -1,
@@ -126,6 +145,50 @@ describe("SpatialFilter builders", () => {
         ymax: 1,
         spatialReference: { wkid: 3857 },
       });
+    });
+
+    it.each([
+      [Number.NaN, 0, 1],
+      [0, Number.POSITIVE_INFINITY, 1],
+      [0, 0, -1],
+    ])("rejects invalid planar expansion inputs (%s, %s, %s)", (x, y, distance) => {
+      expect(() => bufferEnvelope(x, y, distance)).toThrowError(HonuaGeometryError);
+      try {
+        bufferEnvelope(x, y, distance);
+      } catch (error) {
+        expect(error).toMatchObject({
+          name: "HonuaGeometryError",
+          code: "malformed-geometry",
+          detail: { operation: "buffer-envelope", reason: "invalid-coordinate-or-distance" },
+        });
+        expect(isHonuaError(error)).toBe(true);
+      }
+    });
+
+    it("rejects finite inputs whose computed bounds overflow", () => {
+      expect(() => bufferEnvelope(Number.MAX_VALUE, 0, Number.MAX_VALUE)).toThrowError(HonuaGeometryError);
+      try {
+        bufferEnvelope(Number.MAX_VALUE, 0, Number.MAX_VALUE);
+      } catch (error) {
+        expect(error).toMatchObject({
+          name: "HonuaGeometryError",
+          code: "malformed-geometry",
+          detail: { operation: "buffer-envelope", reason: "computed-bounds-not-finite" },
+        });
+      }
+    });
+
+    it("preserves an explicit cause and participates in the SDK error guard", () => {
+      const cause = new Error("bad coordinate source");
+      const error = new HonuaGeometryError(
+        "malformed-geometry",
+        "invalid test geometry",
+        { operation: "classify" },
+        { cause },
+      );
+
+      expect(error.cause).toBe(cause);
+      expect(isHonuaError(error)).toBe(true);
     });
   });
 
@@ -179,6 +242,184 @@ describe("SpatialFilter builders", () => {
         ],
       });
       expect(f.geometryType).toBe("esriGeometryMultipoint");
+    });
+
+    it("ignores empty ArcGIS multipoint slots while validating non-empty positions", () => {
+      const geometry = { points: [[], [0, 0], [], [1, 1]] };
+      const filter = spatialIntersects(geometry);
+
+      expect(filter.geometryType).toBe("esriGeometryMultipoint");
+      expect(filter.geometry).toBe(geometry);
+    });
+
+    it.each([
+      [{ x: null }, "esriGeometryPoint"],
+      [{ points: [] }, "esriGeometryMultipoint"],
+      [{ paths: [] }, "esriGeometryPolyline"],
+      [{ rings: [] }, "esriGeometryPolygon"],
+      [{ xmin: null }, "esriGeometryEnvelope"],
+    ] as const)("classifies an explicitly empty %j", (geometry, expected) => {
+      expect(spatialIntersects(geometry).geometryType).toBe(expected);
+    });
+
+    it.each([
+      [
+        {
+          points: [
+            [0, 0],
+            [1, 1, null],
+          ],
+          hasM: true,
+        },
+        "esriGeometryMultipoint",
+      ],
+      [
+        {
+          paths: [
+            [
+              [0, 0, 10],
+              [1, 1, 11],
+            ],
+          ],
+          hasZ: true,
+        },
+        "esriGeometryPolyline",
+      ],
+      [
+        {
+          rings: [
+            [
+              [0, 0, 1, null],
+              [1, 0, 1, 2],
+              [1, 1, 1, null],
+              [0, 0, 2, 9],
+            ],
+          ],
+          hasZ: true,
+          hasM: true,
+        },
+        "esriGeometryPolygon",
+      ],
+      [{ x: 1, y: 2, z: 3, m: null, id: 4 }, "esriGeometryPoint"],
+      [
+        {
+          xmin: 0,
+          ymin: 1,
+          xmax: 10,
+          ymax: 11,
+          zmin: -2,
+          zmax: 2,
+          mmin: 3,
+          mmax: 4,
+          idmin: 5,
+          idmax: 6,
+        },
+        "esriGeometryEnvelope",
+      ],
+    ] as const)("honors valid Esri dimensional metadata for %j", (geometry, expected) => {
+      expect(spatialIntersects(geometry).geometryType).toBe(expected);
+    });
+
+    it.each([{}, { type: "Point", coordinates: [0, 0] }, { coordinates: [0, 0] }])(
+      "fails closed for unknown geometry %j",
+      (geometry) => {
+        expect(() => spatialIntersects(geometry)).toThrowError(HonuaGeometryError);
+        try {
+          spatialIntersects(geometry);
+        } catch (error) {
+          expect(error).toMatchObject({
+            name: "HonuaGeometryError",
+            code: "unknown-geometry",
+            detail: { operation: "classify" },
+          });
+          expect(isHonuaError(error)).toBe(true);
+        }
+      },
+    );
+
+    it.each([
+      { x: 1 },
+      { x: 1, y: Number.NaN },
+      { xmin: 0, ymin: 0, xmax: 1 },
+      { xmin: 2, ymin: 0, xmax: 1, ymax: 1 },
+      { x: null, y: 0 },
+      { xmin: null, ymin: 0 },
+      { points: [[0]] },
+      { points: [[0, 0, 1]] },
+      { points: [[0, 0]], hasZ: true },
+      { points: [[0, 0, null]], hasZ: true },
+      { points: [[0, 0, 1, 2, 3]], hasZ: true, hasM: true },
+      { points: [[0, 0, Number.POSITIVE_INFINITY]], hasM: true },
+      { points: [], hasZ: "true" },
+      { rings: [], hasM: 1 },
+      { paths: [[[0, 0]]] },
+      { paths: [[]] },
+      {
+        paths: [
+          [],
+          [
+            [0, 0],
+            [1, 1],
+          ],
+        ],
+      },
+      { rings: [[]] },
+      {
+        rings: [
+          [],
+          [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 0],
+          ],
+        ],
+      },
+      {
+        rings: [
+          [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 1],
+          ],
+        ],
+      },
+      { x: 0, y: 0, z: Number.POSITIVE_INFINITY },
+      { x: 0, y: 0, m: Number.NaN },
+      { x: 0, y: 0, id: Number.POSITIVE_INFINITY },
+      { xmin: 0, ymin: 0, xmax: 1, ymax: 1, zmin: 0 },
+      { xmin: 0, ymin: 0, xmax: 1, ymax: 1, zmin: 0, zmax: Number.POSITIVE_INFINITY },
+      { xmin: 0, ymin: 0, xmax: 1, ymax: 1, mmin: 0, mmax: Number.NaN },
+      { xmin: 0, ymin: 0, xmax: 1, ymax: 1, idmin: Number.NEGATIVE_INFINITY, idmax: 2 },
+      { rings: [], x: 0, y: 0 },
+    ])("fails closed for malformed geometry %j", (geometry) => {
+      expect(() => spatialIntersects(geometry)).toThrowError(HonuaGeometryError);
+      try {
+        spatialIntersects(geometry);
+      } catch (error) {
+        expect(error).toMatchObject({
+          name: "HonuaGeometryError",
+          code: "malformed-geometry",
+          detail: { operation: "classify" },
+        });
+        expect(isHonuaError(error)).toBe(true);
+      }
+    });
+
+    it.each([null, undefined, [], 42, "point"])("wraps non-object JS input %j in HonuaGeometryError", (geometry) => {
+      const classify = () => spatialIntersects(geometry as unknown as Record<string, unknown>);
+      expect(classify).toThrowError(HonuaGeometryError);
+      try {
+        classify();
+      } catch (error) {
+        expect(error).toMatchObject({
+          name: "HonuaGeometryError",
+          code: "malformed-geometry",
+          detail: { operation: "classify", reason: "geometry-must-be-object", keys: [] },
+        });
+        expect(isHonuaError(error)).toBe(true);
+      }
     });
 
     it("preserves the original geometry object", () => {
@@ -259,7 +500,7 @@ describe("SpatialFilter builders", () => {
       const req: QueryFeaturesRequest = {
         serviceId: "svc",
         layerId: 0,
-        ...buffer(0, 0, 5),
+        ...bufferEnvelope(0, 0, 5),
       };
       expect(req.geometry).toEqual({ xmin: -5, ymin: -5, xmax: 5, ymax: 5 });
       expect(req.geometryType).toBe("esriGeometryEnvelope");
@@ -347,7 +588,7 @@ describe("SpatialFilter builders", () => {
             [0, 0],
           ],
         ]),
-        buffer(0, 0, 1),
+        bufferEnvelope(0, 0, 1),
         spatialIntersects({ x: 0, y: 0 }),
         spatialContains({
           rings: [
