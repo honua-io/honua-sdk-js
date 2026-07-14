@@ -165,6 +165,19 @@ describe("SpatialFilter builders", () => {
       }
     });
 
+    it("rejects finite inputs whose computed bounds overflow", () => {
+      expect(() => bufferEnvelope(Number.MAX_VALUE, 0, Number.MAX_VALUE)).toThrowError(HonuaGeometryError);
+      try {
+        bufferEnvelope(Number.MAX_VALUE, 0, Number.MAX_VALUE);
+      } catch (error) {
+        expect(error).toMatchObject({
+          name: "HonuaGeometryError",
+          code: "malformed-geometry",
+          detail: { operation: "buffer-envelope", reason: "computed-bounds-not-finite" },
+        });
+      }
+    });
+
     it("preserves an explicit cause and participates in the SDK error guard", () => {
       const cause = new Error("bad coordinate source");
       const error = new HonuaGeometryError(
@@ -232,12 +245,70 @@ describe("SpatialFilter builders", () => {
     });
 
     it.each([
+      [{ x: null }, "esriGeometryPoint"],
       [{ points: [] }, "esriGeometryMultipoint"],
       [{ paths: [] }, "esriGeometryPolyline"],
-      [{ paths: [[]] }, "esriGeometryPolyline"],
       [{ rings: [] }, "esriGeometryPolygon"],
-      [{ rings: [[]] }, "esriGeometryPolygon"],
+      [{ xmin: null }, "esriGeometryEnvelope"],
     ] as const)("classifies an explicitly empty %j", (geometry, expected) => {
+      expect(spatialIntersects(geometry).geometryType).toBe(expected);
+    });
+
+    it.each([
+      [
+        {
+          points: [
+            [0, 0],
+            [1, 1, null],
+          ],
+          hasM: true,
+        },
+        "esriGeometryMultipoint",
+      ],
+      [
+        {
+          paths: [
+            [
+              [0, 0, 10],
+              [1, 1, 11],
+            ],
+          ],
+          hasZ: true,
+        },
+        "esriGeometryPolyline",
+      ],
+      [
+        {
+          rings: [
+            [
+              [0, 0, 1, null],
+              [1, 0, 1, 2],
+              [1, 1, 1, null],
+              [0, 0, 2, 9],
+            ],
+          ],
+          hasZ: true,
+          hasM: true,
+        },
+        "esriGeometryPolygon",
+      ],
+      [{ x: 1, y: 2, z: 3, m: null, id: 4 }, "esriGeometryPoint"],
+      [
+        {
+          xmin: 0,
+          ymin: 1,
+          xmax: 10,
+          ymax: 11,
+          zmin: -2,
+          zmax: 2,
+          mmin: 3,
+          mmax: 4,
+          idmin: 5,
+          idmax: 6,
+        },
+        "esriGeometryEnvelope",
+      ],
+    ] as const)("honors valid Esri dimensional metadata for %j", (geometry, expected) => {
       expect(spatialIntersects(geometry).geometryType).toBe(expected);
     });
 
@@ -263,8 +334,40 @@ describe("SpatialFilter builders", () => {
       { x: 1, y: Number.NaN },
       { xmin: 0, ymin: 0, xmax: 1 },
       { xmin: 2, ymin: 0, xmax: 1, ymax: 1 },
+      { x: null, y: 0 },
+      { xmin: null, ymin: 0 },
       { points: [[0]] },
+      { points: [[]] },
+      { points: [[0, 0, 1]] },
+      { points: [[0, 0]], hasZ: true },
+      { points: [[0, 0, null]], hasZ: true },
+      { points: [[0, 0, 1, 2, 3]], hasZ: true, hasM: true },
+      { points: [[0, 0, Number.POSITIVE_INFINITY]], hasM: true },
+      { points: [], hasZ: "true" },
+      { rings: [], hasM: 1 },
       { paths: [[[0, 0]]] },
+      { paths: [[]] },
+      {
+        paths: [
+          [],
+          [
+            [0, 0],
+            [1, 1],
+          ],
+        ],
+      },
+      { rings: [[]] },
+      {
+        rings: [
+          [],
+          [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 0],
+          ],
+        ],
+      },
       {
         rings: [
           [
@@ -275,6 +378,13 @@ describe("SpatialFilter builders", () => {
           ],
         ],
       },
+      { x: 0, y: 0, z: Number.POSITIVE_INFINITY },
+      { x: 0, y: 0, m: Number.NaN },
+      { x: 0, y: 0, id: Number.POSITIVE_INFINITY },
+      { xmin: 0, ymin: 0, xmax: 1, ymax: 1, zmin: 0 },
+      { xmin: 0, ymin: 0, xmax: 1, ymax: 1, zmin: 0, zmax: Number.POSITIVE_INFINITY },
+      { xmin: 0, ymin: 0, xmax: 1, ymax: 1, mmin: 0, mmax: Number.NaN },
+      { xmin: 0, ymin: 0, xmax: 1, ymax: 1, idmin: Number.NEGATIVE_INFINITY, idmax: 2 },
       { rings: [], x: 0, y: 0 },
     ])("fails closed for malformed geometry %j", (geometry) => {
       expect(() => spatialIntersects(geometry)).toThrowError(HonuaGeometryError);

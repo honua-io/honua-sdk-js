@@ -216,7 +216,7 @@ function migrationDoc(manifest) {
   const lines = [
     "# Root import migration",
     "",
-    "The package root is the reviewed connect → query → explain → mount workflow. No advanced API was deleted: every symbol moved from the transition-era root remains on the replacement subpath below and is compile-tested from a packed consumer.",
+    "The package root is the reviewed connect → query → explain → mount workflow. Every former root symbol has a compile-tested replacement import below; renamed symbols identify the replacement name explicitly.",
     "",
     "This table is generated from [`config/root-surface.json`](../config/root-surface.json). Run `npm run verify:root-surface` to detect barrel, replacement, fixture, or documentation drift.",
     "",

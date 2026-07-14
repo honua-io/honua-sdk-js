@@ -118,7 +118,18 @@ export function bufferEnvelope(
       },
     );
   }
-  return envelope(x - distance, y - distance, x + distance, y + distance, spatialReference);
+  const bounds = [x - distance, y - distance, x + distance, y + distance] as const;
+  if (!bounds.every(isFiniteNumber)) {
+    throw new HonuaGeometryError(
+      "malformed-geometry",
+      "Cannot create a buffer envelope: computed bounds must be finite",
+      {
+        operation: "buffer-envelope",
+        reason: "computed-bounds-not-finite",
+      },
+    );
+  }
+  return envelope(...bounds, spatialReference);
 }
 
 /**
@@ -173,6 +184,7 @@ export function spatialWithin(geometry: Record<string, unknown>): SpatialFilter 
  * Detect the Esri geometry type from a plain geometry object by inspecting
  * its shape (duck-typing).
  *
+ * @see https://developers.arcgis.com/rest/services-reference/enterprise/geometry-objects/
  * @internal
  */
 function detectGeometryType(geometry: unknown): EsriGeometryType {
@@ -213,13 +225,13 @@ function detectGeometryType(geometry: unknown): EsriGeometryType {
       assertEnvelope(geometry, keys);
       return "esriGeometryEnvelope";
     case "polygon":
-      assertParts(geometry.rings, "rings", "polygon", 4, true, keys);
+      assertParts(geometry, "rings", "polygon", 4, true, keys);
       return "esriGeometryPolygon";
     case "polyline":
-      assertParts(geometry.paths, "paths", "polyline", 2, false, keys);
+      assertParts(geometry, "paths", "polyline", 2, false, keys);
       return "esriGeometryPolyline";
     case "multipoint":
-      assertPositions(geometry.points, "points", "multipoint", keys);
+      assertPositions(geometry, keys);
       return "esriGeometryMultipoint";
     case "point":
       assertPoint(geometry, keys);
@@ -245,11 +257,11 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function isPosition(value: unknown): value is readonly number[] {
-  return Array.isArray(value) && value.length >= 2 && value.every(isFiniteNumber);
-}
-
 function assertPoint(geometry: Record<string, unknown>, keys: readonly string[]): void {
+  if (hasOwn(geometry, "x") && geometry.x === null) {
+    assertEmptyMembers(geometry, ["y", "z", "m", "id"], "point", keys);
+    return;
+  }
   if (!isFiniteNumber(geometry.x) || !isFiniteNumber(geometry.y)) {
     throw geometryClassificationError(
       "malformed-geometry",
@@ -258,9 +270,21 @@ function assertPoint(geometry: Record<string, unknown>, keys: readonly string[])
       "point",
     );
   }
+  assertOptionalFiniteMember(geometry, "z", "point", keys);
+  assertOptionalFiniteMember(geometry, "m", "point", keys, true);
+  assertOptionalFiniteMember(geometry, "id", "point", keys);
 }
 
 function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string[]): void {
+  if (hasOwn(geometry, "xmin") && geometry.xmin === null) {
+    assertEmptyMembers(
+      geometry,
+      ["ymin", "xmax", "ymax", "zmin", "zmax", "mmin", "mmax", "idmin", "idmax"],
+      "envelope",
+      keys,
+    );
+    return;
+  }
   const { xmin, ymin, xmax, ymax } = geometry;
   if (![xmin, ymin, xmax, ymax].every(isFiniteNumber)) {
     throw geometryClassificationError(
@@ -278,32 +302,34 @@ function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string
       "envelope",
     );
   }
+  assertOptionalBounds(geometry, "zmin", "zmax", "envelope", keys);
+  assertOptionalBounds(geometry, "mmin", "mmax", "envelope", keys);
+  assertOptionalBounds(geometry, "idmin", "idmax", "envelope", keys);
 }
 
-function assertPositions(
-  value: unknown,
-  property: string,
-  shape: GeometryShape,
-  keys: readonly string[],
-): asserts value is readonly (readonly number[])[] {
-  if (!Array.isArray(value) || !value.every(isPosition)) {
+function assertPositions(geometry: Record<string, unknown>, keys: readonly string[]): void {
+  const value = geometry.points;
+  if (!Array.isArray(value)) {
     throw geometryClassificationError(
       "malformed-geometry",
-      `${shape} ${property} must be an array of finite coordinate positions`,
+      "multipoint points must be an array of coordinate positions",
       keys,
-      shape,
+      "multipoint",
     );
   }
+  const dimensions = geometryDimensions(geometry, "multipoint", keys);
+  for (const position of value) assertPosition(position, dimensions, "multipoint", keys);
 }
 
 function assertParts(
-  value: unknown,
+  geometry: Record<string, unknown>,
   property: string,
   shape: GeometryShape,
   minimumPositions: number,
   requireClosure: boolean,
   keys: readonly string[],
 ): void {
+  const value = geometry[property];
   if (!Array.isArray(value)) {
     throw geometryClassificationError(
       "malformed-geometry",
@@ -312,28 +338,30 @@ function assertParts(
       shape,
     );
   }
+  const dimensions = geometryDimensions(geometry, shape, keys);
   for (const part of value) {
-    if (!Array.isArray(part) || !part.every(isPosition)) {
+    if (!Array.isArray(part)) {
       throw geometryClassificationError(
         "malformed-geometry",
-        `${shape} ${property} must contain only finite coordinate positions`,
+        `${shape} ${property} must contain coordinate arrays`,
         keys,
         shape,
       );
     }
-    // Empty parts preserve an explicitly empty geometry. Non-empty parts must
-    // be structurally usable rather than merely carrying a recognized key.
-    if (part.length > 0 && part.length < minimumPositions) {
+    // The REST empty sentinel is an empty outer paths/rings array. Empty inner
+    // parts are not canonical and cannot be mixed with populated parts.
+    if (part.length < minimumPositions) {
       throw geometryClassificationError(
         "malformed-geometry",
-        `${shape} ${property} parts require at least ${minimumPositions} positions when non-empty`,
+        `${shape} ${property} parts require at least ${minimumPositions} positions`,
         keys,
         shape,
       );
     }
-    if (requireClosure && part.length > 0) {
-      const first = part[0];
-      const last = part[part.length - 1];
+    for (const position of part) assertPosition(position, dimensions, shape, keys);
+    if (requireClosure) {
+      const first = part[0] as readonly unknown[];
+      const last = part[part.length - 1] as readonly unknown[];
       if (first[0] !== last[0] || first[1] !== last[1]) {
         throw geometryClassificationError(
           "malformed-geometry",
@@ -343,6 +371,143 @@ function assertParts(
         );
       }
     }
+  }
+}
+
+interface GeometryDimensions {
+  readonly hasZ: boolean;
+  readonly hasM: boolean;
+}
+
+function geometryDimensions(
+  geometry: Record<string, unknown>,
+  shape: GeometryShape,
+  keys: readonly string[],
+): GeometryDimensions {
+  return {
+    hasZ: geometryBooleanFlag(geometry, "hasZ", shape, keys),
+    hasM: geometryBooleanFlag(geometry, "hasM", shape, keys),
+  };
+}
+
+function geometryBooleanFlag(
+  geometry: Record<string, unknown>,
+  property: "hasZ" | "hasM",
+  shape: GeometryShape,
+  keys: readonly string[],
+): boolean {
+  if (!hasOwn(geometry, property)) return false;
+  if (typeof geometry[property] !== "boolean") {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      `${shape} ${property} must be a boolean when present`,
+      keys,
+      shape,
+    );
+  }
+  return geometry[property];
+}
+
+function assertPosition(
+  value: unknown,
+  dimensions: GeometryDimensions,
+  shape: GeometryShape,
+  keys: readonly string[],
+): asserts value is readonly unknown[] {
+  const minimumArity = dimensions.hasZ ? 3 : 2;
+  const maximumArity = minimumArity + (dimensions.hasM ? 1 : 0);
+  if (!Array.isArray(value) || value.length < minimumArity || value.length > maximumArity || value.length > 4) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      `${shape} positions must match declared hasZ/hasM dimensions and contain at most four ordinates`,
+      keys,
+      shape,
+    );
+  }
+  if (!isFiniteNumber(value[0]) || !isFiniteNumber(value[1])) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      `${shape} positions require finite numeric x and y ordinates`,
+      keys,
+      shape,
+    );
+  }
+  if (dimensions.hasZ && !isFiniteNumber(value[2])) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      `${shape} positions require a finite z ordinate when hasZ is true`,
+      keys,
+      shape,
+    );
+  }
+  if (dimensions.hasM && value.length === maximumArity) {
+    const measure = value[maximumArity - 1];
+    if (measure !== null && !isFiniteNumber(measure)) {
+      throw geometryClassificationError(
+        "malformed-geometry",
+        `${shape} m ordinates must be finite numbers, null, or omitted`,
+        keys,
+        shape,
+      );
+    }
+  }
+}
+
+function assertEmptyMembers(
+  geometry: Record<string, unknown>,
+  members: readonly string[],
+  shape: GeometryShape,
+  keys: readonly string[],
+): void {
+  const contradictory = members.filter((member) => hasOwn(geometry, member) && geometry[member] !== null);
+  if (contradictory.length > 0) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      `${shape} empty sentinel conflicts with non-null members: ${contradictory.join(", ")}`,
+      keys,
+      shape,
+    );
+  }
+}
+
+function assertOptionalFiniteMember(
+  geometry: Record<string, unknown>,
+  property: string,
+  shape: GeometryShape,
+  keys: readonly string[],
+  allowNull = false,
+): void {
+  if (!hasOwn(geometry, property)) return;
+  const value = geometry[property];
+  if ((allowNull && value === null) || isFiniteNumber(value)) return;
+  const expectation = allowNull ? "a finite number or null" : "a finite number";
+  throw geometryClassificationError(
+    "malformed-geometry",
+    `${shape} ${property} must be ${expectation} when present`,
+    keys,
+    shape,
+  );
+}
+
+function assertOptionalBounds(
+  geometry: Record<string, unknown>,
+  minimumProperty: string,
+  maximumProperty: string,
+  shape: GeometryShape,
+  keys: readonly string[],
+): void {
+  const hasMinimum = hasOwn(geometry, minimumProperty);
+  const hasMaximum = hasOwn(geometry, maximumProperty);
+  if (!hasMinimum && !hasMaximum) return;
+  const minimum = geometry[minimumProperty];
+  const maximum = geometry[maximumProperty];
+  if (!hasMinimum || !hasMaximum || !isFiniteNumber(minimum) || !isFiniteNumber(maximum) || minimum > maximum) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      `envelope ${minimumProperty}/${maximumProperty} must be a complete ordered pair of finite numbers`,
+      keys,
+      shape,
+    );
   }
 }
 
