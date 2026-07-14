@@ -108,7 +108,7 @@ export function inspectSampleConfiguration(
   sourcePath: string,
   exemptions?: Array<{ name: string }>,
 ): Promise<SampleConfigurationInspection>;
-export function validateFixtureBuildHarnessSource(source: string, file?: string): number;
+export function validateFixtureBuildHarnessSource(source: string, file?: string, expectedBuildScript?: string): number;
 export function validateFixtureBuildHarnesses(): Promise<number>;
 export function classifyConfigurationName(name: string): {
   name: string;

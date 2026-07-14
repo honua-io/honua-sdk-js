@@ -25,7 +25,48 @@ const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
 const FIXTURE_BUILD_ENVIRONMENT_HELPER = "../../scripts/lib/fixture-build-environment.mjs";
-const EXPECTED_FIXTURE_BUILD_HARNESS_COUNT = 25;
+const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
+  ["examples/ai-spatial-app-builder/mock-server.mjs", "demo:ai-spatial-builder:build"],
+  ["examples/app-bootstrap-basic/mock-server.mjs", "demo:app-bootstrap:build"],
+  ["examples/edit-workflow-demo/mock-server.mjs", "demo:edit-workflow:build"],
+  ["examples/endpoint-to-map/mock-server.mjs", "demo:endpoint-to-map:build"],
+  ["examples/geocoding-quickstart/mock-server.mjs", "demo:geocoding:build"],
+  ["examples/geoprocessing-job-runner/mock-server.mjs", "demo:gp-runner:build"],
+  ["examples/imagery-cog-quickstart/mock-server.mjs", "demo:imagery-cog:build"],
+  ["examples/maplibre-quickstart/mock-server.mjs", "demo:quickstart:build"],
+  ["examples/mcp-gis-assistant/mock-server.mjs", "demo:mcp-gis-assistant:build"],
+  ["examples/oauth-signin/mock-server.mjs", "demo:oauth-signin:build"],
+  ["examples/overture-geoparquet/mock-server.mjs", "demo:overture:build"],
+  ["examples/planning-permitting-workbench/mock-server.mjs", "demo:planning-workbench:build"],
+  ["examples/pmtiles-static/mock-server.mjs", "demo:pmtiles-static:build"],
+  ["examples/react-quickstart/mock-server.mjs", "demo:react-quickstart:build"],
+  ["examples/realtime-incident-dashboard/mock-server.mjs", "demo:incident:build"],
+  ["examples/runtime-parity-showcase/mock-server.mjs", "demo:runtime-parity:build"],
+  ["examples/service-explorer/mock-server.mjs", "demo:service-explorer:build"],
+  ["examples/sketch-editing/mock-server.mjs", "demo:sketch-editing:build"],
+  ["examples/spatial-analytics-workbench/mock-server.mjs", "demo:spatial-analytics:build"],
+  ["examples/stac-imagery-browser/mock-server.mjs", "demo:stac-browser:build"],
+  ["examples/standalone-quickstart/mock-server.mjs", "demo:standalone:build"],
+  ["examples/storytelling-25d-map/mock-server.mjs", "demo:25d:build"],
+  ["examples/terrain-rgb-elevation/mock-server.mjs", "demo:terrain-elevation:build"],
+  ["examples/unified-ops-workspace/mock-server.mjs", "demo:unified-ops:build"],
+  ["examples/web-components-basic/mock-server.mjs", "demo:web-components:build"],
+]);
+const CHILD_PROCESS_LAUNCH_APIS = new Set([
+  "exec",
+  "execFile",
+  "execFileSync",
+  "execSync",
+  "fork",
+  "spawn",
+  "spawnSync",
+]);
+const REVIEWED_NON_BUILD_CHILD_LAUNCHES = new Set([
+  "git\0rev-parse\0--show-toplevel",
+  "git\0rev-parse\0HEAD",
+  "git\0status",
+  "git\0status\0--short",
+]);
 const README_START = "<!-- sample-catalog:start -->";
 const README_END = "<!-- sample-catalog:end -->";
 const RESERVED_GOLDEN_JOURNEY_IDS = [
@@ -899,56 +940,731 @@ export async function extractSampleConfiguration(sourcePath, exemptions = []) {
   return (await inspectSampleConfiguration(sourcePath, exemptions)).names;
 }
 
-export function validateFixtureBuildHarnessSource(source, file = "mock-server.mjs") {
-  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
-  const importsFixtureEnvironment = sourceFile.statements.some(
-    (statement) =>
-      ts.isImportDeclaration(statement) &&
-      stringLiteralValue(statement.moduleSpecifier) === FIXTURE_BUILD_ENVIRONMENT_HELPER &&
-      ts.isNamedImports(statement.importClause?.namedBindings) &&
-      statement.importClause.namedBindings.elements.some(
-        (element) => !element.propertyName && element.name.text === "createFixtureBuildEnvironment",
-      ),
-  );
-  let buildCalls = 0;
+function isChildProcessModule(moduleName) {
+  return moduleName === "child_process" || moduleName === "node:child_process";
+}
 
+function isConstVariableDeclaration(declaration) {
+  return (
+    ts.isVariableDeclarationList(declaration.parent) &&
+    (declaration.parent.flags & ts.NodeFlags.Const) === ts.NodeFlags.Const
+  );
+}
+
+function isNpmExecutable(command) {
+  return /(?:^|[/\\])npm(?:\.cmd)?$/i.test(command);
+}
+
+function childExecutableName(command) {
+  return command.split(/[\\/]/).at(-1)?.toLowerCase() ?? "";
+}
+
+function isBoundedNonBuildLaunch(commands, argv) {
+  return commands.every((command) => {
+    const executable = childExecutableName(command).replace(/\.exe$/i, "");
+    return argv.every((values) => REVIEWED_NON_BUILD_CHILD_LAUNCHES.has([executable, ...values].join("\0")));
+  });
+}
+
+export function validateFixtureBuildHarnessSource(source, file = "mock-server.mjs", expectedBuildScript) {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const childProcessImports = new Map();
+  const childProcessNamespaces = new Set();
+  const createRequireImports = new Set();
+  const fixtureEnvironmentImports = new Set();
+  const variableDeclarations = [];
+  const functionNodes = new Set();
+  const catchClauses = [];
+  const classDeclarations = [];
+
+  const collectSyntax = (node) => {
+    if (ts.isVariableDeclaration(node)) variableDeclarations.push(node);
+    if (ts.isCatchClause(node)) catchClauses.push(node);
+    if (ts.isClassDeclaration(node)) classDeclarations.push(node);
+    if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
+      functionNodes.add(node);
+    }
+    ts.forEachChild(node, collectSyntax);
+  };
+  collectSyntax(sourceFile);
+
+  const isLexicalScope = (node) =>
+    ts.isSourceFile(node) ||
+    ts.isBlock(node) ||
+    ts.isCaseBlock(node) ||
+    ts.isForStatement(node) ||
+    ts.isForInStatement(node) ||
+    ts.isForOfStatement(node) ||
+    ts.isCatchClause(node);
+  const nearestLexicalScope = (node) => {
+    let current = node.parent;
+    while (current && !isLexicalScope(current) && !functionNodes.has(current)) current = current.parent;
+    return current;
+  };
+  const variableScope = (declaration) => {
+    const declarationList = declaration.parent;
+    let current = declaration.parent;
+    if (
+      ts.isVariableDeclarationList(declarationList) &&
+      (declarationList.flags & ts.NodeFlags.BlockScoped) === 0
+    ) {
+      while (current && !ts.isSourceFile(current) && !functionNodes.has(current)) current = current.parent;
+      return current;
+    }
+    return nearestLexicalScope(declaration);
+  };
+  const lexicalBindingsByName = new Map();
+  const addLexicalBinding = (scope, name, binding) => {
+    if (!scope) return;
+    const bindings = lexicalBindingsByName.get(name) ?? [];
+    bindings.push({ scope, binding });
+    lexicalBindingsByName.set(name, bindings);
+  };
+  const addBindingPattern = (scope, pattern, binding) => {
+    if (ts.isIdentifier(pattern)) {
+      addLexicalBinding(scope, pattern.text, binding);
+      return;
+    }
+    for (const element of pattern.elements) {
+      if (ts.isOmittedExpression(element)) continue;
+      addBindingPattern(scope, element.name, element);
+    }
+  };
+  for (const declaration of variableDeclarations) {
+    addBindingPattern(variableScope(declaration), declaration.name, declaration);
+  }
+  for (const functionNode of functionNodes) {
+    for (const parameter of functionNode.parameters) {
+      addBindingPattern(functionNode, parameter.name, parameter);
+    }
+    if (ts.isFunctionDeclaration(functionNode) && functionNode.name) {
+      addLexicalBinding(nearestLexicalScope(functionNode), functionNode.name.text, functionNode);
+    }
+    if (ts.isFunctionExpression(functionNode) && functionNode.name) {
+      addLexicalBinding(functionNode, functionNode.name.text, functionNode);
+    }
+  }
+  for (const catchClause of catchClauses) {
+    if (catchClause.variableDeclaration) {
+      addBindingPattern(catchClause, catchClause.variableDeclaration.name, catchClause.variableDeclaration);
+    }
+  }
+  for (const declaration of classDeclarations) {
+    if (declaration.name) addLexicalBinding(nearestLexicalScope(declaration), declaration.name.text, declaration);
+  }
+  const lexicalScopeChain = (node) => {
+    const scopes = [];
+    let current = node.parent;
+    while (current) {
+      if (isLexicalScope(current) || functionNodes.has(current)) scopes.push(current);
+      current = current.parent;
+    }
+    return scopes;
+  };
+  const resolveLexicalBinding = (identifier) => {
+    const bindings = lexicalBindingsByName.get(identifier.text) ?? [];
+    for (const scope of lexicalScopeChain(identifier)) {
+      const scoped = bindings.filter((entry) => entry.scope === scope);
+      if (scoped.length > 0) return { binding: scoped[0].binding, ambiguous: scoped.length > 1 };
+    }
+    return { binding: undefined, ambiguous: false };
+  };
+
+  const registerImportBinding = (name, binding) => {
+    addLexicalBinding(sourceFile, name, binding);
+    return binding;
+  };
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause) continue;
+    const { importClause } = statement;
+    if (importClause.name) registerImportBinding(importClause.name.text, importClause);
+    const bindings = importClause.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings)) registerImportBinding(bindings.name.text, bindings);
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) registerImportBinding(element.name.text, element);
+    }
+  }
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    const moduleName = stringLiteralValue(statement.moduleSpecifier);
+    const importClause = statement.importClause;
+    if (isChildProcessModule(moduleName)) {
+      if (importClause?.name) childProcessNamespaces.add(importClause);
+      const bindings = importClause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) childProcessNamespaces.add(bindings);
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          const importedName = element.propertyName?.text ?? element.name.text;
+          if (CHILD_PROCESS_LAUNCH_APIS.has(importedName)) childProcessImports.set(element, importedName);
+        }
+      }
+    }
+    if (moduleName === "module" || moduleName === "node:module") {
+      const bindings = importClause?.namedBindings;
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          if ((element.propertyName?.text ?? element.name.text) === "createRequire") {
+            createRequireImports.add(element);
+          }
+        }
+      }
+    }
+    if (moduleName === FIXTURE_BUILD_ENVIRONMENT_HELPER) {
+      const bindings = importClause?.namedBindings;
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          if ((element.propertyName?.text ?? element.name.text) === "createFixtureBuildEnvironment") {
+            fixtureEnvironmentImports.add(element);
+          }
+        }
+      }
+    }
+  }
+
+  const constVariableInitializer = (binding, name, label) => {
+    invariant(ts.isVariableDeclaration(binding), `${file}: ${label} ${name} must be a lexical const`);
+    invariant(isConstVariableDeclaration(binding), `${file}: ${label} ${name} must be const`);
+    invariant(binding.initializer, `${file}: ${label} ${name} must have an initializer`);
+    return binding.initializer;
+  };
+
+  const resolveIdentifierInitializer = (identifier, label) => {
+    const resolution = resolveLexicalBinding(identifier);
+    invariant(!resolution.ambiguous, `${file}: ${label} ${identifier.text} is ambiguous`);
+    if (!resolution.binding) return undefined;
+    return {
+      binding: resolution.binding,
+      initializer: constVariableInitializer(resolution.binding, identifier.text, label),
+    };
+  };
+
+  const unwrapAwait = (node) => {
+    const expression = unwrapExpression(node);
+    return ts.isAwaitExpression(expression) ? unwrapExpression(expression.expression) : expression;
+  };
+
+  const resolveFiniteStrings = (node, seen = new Set()) => {
+    const expression = unwrapExpression(node);
+    const literal = stringLiteralValue(expression);
+    if (literal !== undefined) return [literal];
+    if (ts.isIdentifier(expression)) {
+      const resolved = resolveIdentifierInitializer(expression, "static process-launch value");
+      if (!resolved || seen.has(resolved.binding)) return undefined;
+      const nextSeen = new Set(seen);
+      nextSeen.add(resolved.binding);
+      return resolveFiniteStrings(resolved.initializer, nextSeen);
+    }
+    if (ts.isConditionalExpression(expression)) {
+      const left = resolveFiniteStrings(expression.whenTrue, new Set(seen));
+      const right = resolveFiniteStrings(expression.whenFalse, new Set(seen));
+      return left && right ? [...new Set([...left, ...right])] : undefined;
+    }
+    if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+      const left = resolveFiniteStrings(expression.left, new Set(seen));
+      const right = resolveFiniteStrings(expression.right, new Set(seen));
+      if (!left || !right || left.length * right.length > 16) return undefined;
+      return [...new Set(left.flatMap((prefix) => right.map((suffix) => `${prefix}${suffix}`)))];
+    }
+    if (ts.isTemplateExpression(expression)) {
+      let values = [expression.head.text];
+      for (const span of expression.templateSpans) {
+        const replacements = resolveFiniteStrings(span.expression, new Set(seen));
+        if (!replacements || values.length * replacements.length > 16) return undefined;
+        values = values.flatMap((prefix) =>
+          replacements.map((replacement) => `${prefix}${replacement}${span.literal.text}`),
+        );
+      }
+      return [...new Set(values)];
+    }
+    return undefined;
+  };
+
+  const isCreateRequireFactoryTarget = (node, seen = new Set()) => {
+    const target = unwrapExpression(node);
+    if (!ts.isIdentifier(target)) return false;
+    const resolution = resolveLexicalBinding(target);
+    if (resolution.ambiguous || !resolution.binding) return false;
+    if (createRequireImports.has(resolution.binding)) return true;
+    if (seen.has(resolution.binding) || !ts.isVariableDeclaration(resolution.binding)) return false;
+    const { initializer } = resolution.binding;
+    if (!initializer) return false;
+    const nextSeen = new Set(seen);
+    nextSeen.add(resolution.binding);
+    if (!isCreateRequireFactoryTarget(initializer, nextSeen)) return false;
+    invariant(isConstVariableDeclaration(resolution.binding), `${file}: createRequire aliases must be const`);
+    return true;
+  };
+
+  const isTracedRequireBinding = (binding, seen = new Set()) => {
+    if (seen.has(binding) || !ts.isVariableDeclaration(binding) || !binding.initializer) return false;
+    const nextSeen = new Set(seen);
+    nextSeen.add(binding);
+    const initializer = unwrapExpression(binding.initializer);
+    let traced =
+      ts.isCallExpression(initializer) &&
+      initializer.arguments.length === 1 &&
+      isCreateRequireFactoryTarget(initializer.expression);
+    if (!traced && ts.isIdentifier(initializer)) {
+      const resolution = resolveLexicalBinding(initializer);
+      traced = !resolution.ambiguous && resolution.binding && isTracedRequireBinding(resolution.binding, nextSeen);
+    }
+    if (!traced) return false;
+    invariant(isConstVariableDeclaration(binding), `${file}: createRequire loader aliases must be const`);
+    return true;
+  };
+
+  const isModuleLoaderTarget = (node) => {
+    const target = unwrapExpression(node);
+    if (target.kind === ts.SyntaxKind.ImportKeyword) return true;
+    if (ts.isIdentifier(target)) {
+      const resolution = resolveLexicalBinding(target);
+      if (target.text === "require" && !resolution.binding) return true;
+      return !resolution.ambiguous && resolution.binding && isTracedRequireBinding(resolution.binding);
+    }
+    if (ts.isPropertyAccessExpression(target)) {
+      const host = unwrapExpression(target.expression);
+      return (
+        target.name.text === "getBuiltinModule" &&
+        ts.isIdentifier(host) &&
+        host.text === "process" &&
+        !resolveLexicalBinding(host).binding
+      );
+    }
+    if (ts.isElementAccessExpression(target)) {
+      const name = stringLiteralValue(unwrapExpression(target.argumentExpression));
+      const host = unwrapExpression(target.expression);
+      return (
+        name === "getBuiltinModule" &&
+        ts.isIdentifier(host) &&
+        host.text === "process" &&
+        !resolveLexicalBinding(host).binding
+      );
+    }
+    return (
+      ts.isCallExpression(target) &&
+      target.arguments.length === 1 &&
+      isCreateRequireFactoryTarget(target.expression)
+    );
+  };
+
+  const isChildProcessNamespace = (node, seen = new Set()) => {
+    const expression = unwrapAwait(node);
+    if (ts.isIdentifier(expression)) {
+      const resolution = resolveLexicalBinding(expression);
+      if (resolution.ambiguous) return false;
+      const { binding } = resolution;
+      if (!binding) return false;
+      if (childProcessNamespaces.has(binding)) return true;
+      if (seen.has(binding) || !ts.isVariableDeclaration(binding) || !binding.initializer) return false;
+      const nextSeen = new Set(seen);
+      nextSeen.add(binding);
+      if (!isChildProcessNamespace(binding.initializer, nextSeen)) return false;
+      invariant(
+        isConstVariableDeclaration(binding),
+        `${file}: child-process namespace alias ${expression.text} must be const`,
+      );
+      return true;
+    }
+    if (!ts.isCallExpression(expression)) return false;
+    if (!isModuleLoaderTarget(expression.expression)) return false;
+    const moduleNames = expression.arguments[0] ? resolveFiniteStrings(expression.arguments[0]) : undefined;
+    return expression.arguments.length === 1 && moduleNames?.some(isChildProcessModule) === true;
+  };
+
+  const destructuredChildProcessImports = new Map();
+  const collectDestructuredImports = (node) => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isObjectBindingPattern(node.name) &&
+      node.initializer &&
+      isChildProcessNamespace(node.initializer)
+    ) {
+      invariant(isConstVariableDeclaration(node), `${file}: child-process destructuring must be const`);
+      for (const element of node.name.elements) {
+        const importedName = propertyName(element.propertyName ?? element.name);
+        invariant(!element.dotDotDotToken, `${file}: child-process destructuring cannot use a rest binding`);
+        invariant(importedName, `${file}: child-process destructuring names must be static`);
+        if (!CHILD_PROCESS_LAUNCH_APIS.has(importedName)) continue;
+        invariant(ts.isIdentifier(element.name), `${file}: child-process launch aliases must be identifiers`);
+        destructuredChildProcessImports.set(element, importedName);
+      }
+    }
+    ts.forEachChild(node, collectDestructuredImports);
+  };
+  const resolveChildProcessApi = (node, seen = new Set()) => {
+    const expression = unwrapAwait(node);
+    if (ts.isIdentifier(expression)) {
+      const resolution = resolveLexicalBinding(expression);
+      if (resolution.ambiguous) return undefined;
+      const { binding } = resolution;
+      if (!binding) return undefined;
+      const importedApi = childProcessImports.get(binding) ?? destructuredChildProcessImports.get(binding);
+      if (importedApi) return importedApi;
+      if (seen.has(binding) || !ts.isVariableDeclaration(binding) || !binding.initializer) return undefined;
+      const nextSeen = new Set(seen);
+      nextSeen.add(binding);
+      const api = resolveChildProcessApi(binding.initializer, nextSeen);
+      if (!api) return undefined;
+      invariant(
+        isConstVariableDeclaration(binding),
+        `${file}: child-process launch alias ${expression.text} must be const`,
+      );
+      return api;
+    }
+    if (!ts.isPropertyAccessExpression(expression) && !ts.isElementAccessExpression(expression)) return undefined;
+    const api = ts.isPropertyAccessExpression(expression)
+      ? expression.name.text
+      : stringLiteralValue(unwrapExpression(expression.argumentExpression));
+    if (!CHILD_PROCESS_LAUNCH_APIS.has(api)) return undefined;
+    return isChildProcessNamespace(expression.expression) ? api : undefined;
+  };
+
+  collectDestructuredImports(sourceFile);
+
+  const resolveStaticArgv = (node, seen = new Set()) => {
+    const expression = unwrapExpression(node);
+    if (!ts.isArrayLiteralExpression(expression) || expression.elements.some((element) => ts.isSpreadElement(element))) {
+      return undefined;
+    }
+    let combinations = [[]];
+    for (const element of expression.elements) {
+      const values = resolveFiniteStrings(element, new Set(seen));
+      if (!values || combinations.length * values.length > 16) return undefined;
+      combinations = combinations.flatMap((prefix) => values.map((value) => [...prefix, value]));
+    }
+    return combinations;
+  };
+
+  const containsAmbientEnvironmentRoot = (node) => {
+    const expression = unwrapExpression(node);
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      const target = unwrapExpression(expression.expression);
+      const name = ts.isPropertyAccessExpression(expression)
+        ? expression.name.text
+        : stringLiteralValue(unwrapExpression(expression.argumentExpression));
+      const isEnvironmentHost =
+        (ts.isIdentifier(target) && target.text === "process") ||
+        (ts.isMetaProperty(target) && target.keywordToken === ts.SyntaxKind.ImportKeyword);
+      if (isEnvironmentHost && (name === "env" || ts.isElementAccessExpression(expression))) return true;
+    }
+    let found = false;
+    ts.forEachChild(node, (child) => {
+      if (!found && containsAmbientEnvironmentRoot(child)) found = true;
+    });
+    return found;
+  };
+
+  const assertBoundedOverrideValue = (node, seen = new Set()) => {
+    const expression = unwrapExpression(node);
+    invariant(
+      !containsAmbientEnvironmentRoot(expression),
+      `${file}: fixture build overrides cannot derive from ambient environment variables`,
+    );
+    if (
+      stringLiteralValue(expression) !== undefined ||
+      ts.isNumericLiteral(expression) ||
+      ts.isBigIntLiteral(expression) ||
+      expression.kind === ts.SyntaxKind.TrueKeyword ||
+      expression.kind === ts.SyntaxKind.FalseKeyword ||
+      expression.kind === ts.SyntaxKind.NullKeyword
+    ) {
+      return;
+    }
+    if (ts.isIdentifier(expression)) {
+      if (expression.text === "undefined") return;
+      const resolved = resolveIdentifierInitializer(expression, "fixture build override value");
+      invariant(resolved, `${file}: fixture build override value ${expression.text} must be lexically bound`);
+      invariant(!seen.has(resolved.binding), `${file}: fixture build override values cannot be cyclic`);
+      const nextSeen = new Set(seen);
+      nextSeen.add(resolved.binding);
+      assertBoundedOverrideValue(resolved.initializer, nextSeen);
+      return;
+    }
+    if (ts.isTemplateExpression(expression)) {
+      for (const span of expression.templateSpans) assertBoundedOverrideValue(span.expression, new Set(seen));
+      return;
+    }
+    if (ts.isPrefixUnaryExpression(expression)) {
+      assertBoundedOverrideValue(expression.operand, new Set(seen));
+      return;
+    }
+    if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+      assertBoundedOverrideValue(expression.left, new Set(seen));
+      assertBoundedOverrideValue(expression.right, new Set(seen));
+      return;
+    }
+    if (ts.isConditionalExpression(expression)) {
+      assertBoundedOverrideValue(expression.condition, new Set(seen));
+      assertBoundedOverrideValue(expression.whenTrue, new Set(seen));
+      assertBoundedOverrideValue(expression.whenFalse, new Set(seen));
+      return;
+    }
+    throw new Error(`${file}: fixture build override values must be statically bounded literals`);
+  };
+
+  const isAssignmentOperator = (kind) =>
+    kind >= ts.SyntaxKind.FirstAssignment && kind <= ts.SyntaxKind.LastAssignment;
+  const assertOverrideObjectBindingIsStable = (binding) => {
+    const inspectReference = (node) => {
+      if (ts.isIdentifier(node)) {
+        const isDeclarationName =
+          (ts.isVariableDeclaration(node.parent) && node.parent.name === node) ||
+          (ts.isBindingElement(node.parent) && node.parent.name === node);
+        if (!isDeclarationName) {
+          const resolution = resolveLexicalBinding(node);
+          if (!resolution.ambiguous && resolution.binding === binding) {
+            let expression = node;
+            while (
+              expression.parent &&
+              (ts.isParenthesizedExpression(expression.parent) ||
+                ts.isAsExpression(expression.parent) ||
+                ts.isTypeAssertionExpression(expression.parent) ||
+                ts.isNonNullExpression(expression.parent)) &&
+              expression.parent.expression === expression
+            ) {
+              expression = expression.parent;
+            }
+            const directParent = expression.parent;
+            const isFixtureHelperArgument =
+              ts.isCallExpression(directParent) &&
+              directParent.arguments[0] === expression &&
+              ts.isIdentifier(unwrapExpression(directParent.expression)) &&
+              fixtureEnvironmentImports.has(resolveLexicalBinding(unwrapExpression(directParent.expression)).binding);
+            if (!isFixtureHelperArgument) {
+              while (
+                expression.parent &&
+                (ts.isPropertyAccessExpression(expression.parent) || ts.isElementAccessExpression(expression.parent)) &&
+                expression.parent.expression === expression
+              ) {
+                expression = expression.parent;
+              }
+              const parent = expression.parent;
+              const isWrite =
+                (ts.isBinaryExpression(parent) &&
+                  parent.left === expression &&
+                  isAssignmentOperator(parent.operatorToken.kind)) ||
+                ((ts.isPrefixUnaryExpression(parent) || ts.isPostfixUnaryExpression(parent)) &&
+                  parent.operand === expression) ||
+                (ts.isDeleteExpression(parent) && parent.expression === expression) ||
+                ((ts.isForInStatement(parent) || ts.isForOfStatement(parent)) && parent.initializer === expression);
+              const isMethodCall = ts.isCallExpression(parent) && parent.expression === expression;
+              invariant(
+                expression !== node && !isWrite && !isMethodCall,
+                `${file}: fixture build override objects must remain immutable and cannot escape`,
+              );
+            }
+          }
+        }
+      }
+      ts.forEachChild(node, inspectReference);
+    };
+    inspectReference(sourceFile);
+  };
+
+  const resolveOverrideObject = (node, seen = new Set()) => {
+    const expression = unwrapExpression(node);
+    if (ts.isObjectLiteralExpression(expression)) return expression;
+    invariant(ts.isIdentifier(expression), `${file}: fixture build overrides must resolve to an object literal`);
+    const resolved = resolveIdentifierInitializer(expression, "fixture build override object");
+    invariant(resolved, `${file}: fixture build override object ${expression.text} must be lexically bound`);
+    invariant(!seen.has(resolved.binding), `${file}: fixture build override objects cannot be cyclic`);
+    assertOverrideObjectBindingIsStable(resolved.binding);
+    const nextSeen = new Set(seen);
+    nextSeen.add(resolved.binding);
+    return resolveOverrideObject(resolved.initializer, nextSeen);
+  };
+
+  const validateFixtureEnvironment = (options) => {
+    invariant(fixtureEnvironmentImports.size > 0, `${file}: fixture build must import createFixtureBuildEnvironment`);
+    invariant(options && ts.isObjectLiteralExpression(options), `${file}: fixture build options must be an object literal`);
+    for (const property of options.properties) {
+      invariant(!ts.isSpreadAssignment(property), `${file}: fixture build options cannot use spreads`);
+      invariant(
+        !property.name || !ts.isComputedPropertyName(property.name),
+        `${file}: fixture build option names must be static`,
+      );
+    }
+    const environmentProperties = options.properties.filter(
+      (property) => property.name && propertyName(property.name) === "env",
+    );
+    invariant(
+      environmentProperties.length === 1 && ts.isPropertyAssignment(environmentProperties[0]),
+      `${file}: fixture build must declare an explicit env option`,
+    );
+    const environmentCall = unwrapExpression(environmentProperties[0].initializer);
+    const environmentTarget = ts.isCallExpression(environmentCall)
+      ? unwrapExpression(environmentCall.expression)
+      : undefined;
+    const environmentBinding = environmentTarget && ts.isIdentifier(environmentTarget)
+      ? resolveLexicalBinding(environmentTarget)
+      : { binding: undefined, ambiguous: false };
+    invariant(
+      ts.isCallExpression(environmentCall) &&
+        environmentTarget &&
+        ts.isIdentifier(environmentTarget) &&
+        !environmentBinding.ambiguous &&
+        fixtureEnvironmentImports.has(environmentBinding.binding) &&
+        environmentCall.arguments.length <= 1,
+      `${file}: fixture build env must come directly from createFixtureBuildEnvironment`,
+    );
+    if (environmentCall.arguments.length === 0) return;
+    const overrideObject = resolveOverrideObject(environmentCall.arguments[0]);
+    const names = new Set();
+    for (const property of overrideObject.properties) {
+      invariant(
+        ts.isPropertyAssignment(property),
+        `${file}: fixture build overrides must use explicit property assignments`,
+      );
+      const name = propertyName(property.name);
+      invariant(name && /^VITE_[A-Z0-9_]+$/.test(name), `${file}: fixture build override names must be uppercase VITE_*`);
+      invariant(!names.has(name), `${file}: duplicate fixture build override ${name}`);
+      names.add(name);
+      invariant(
+        classifyConfigurationName(name).valueKind !== "credential",
+        `${file}: fixture build override ${name} is credential-classified`,
+      );
+      assertBoundedOverrideValue(property.initializer);
+    }
+  };
+
+  const buildScripts = [];
   const visit = (node) => {
     if (ts.isCallExpression(node)) {
-      const target = unwrapExpression(node.expression);
-      const argv = node.arguments[1];
-      const values = argv && ts.isArrayLiteralExpression(argv)
-        ? argv.elements.map((element) => stringLiteralValue(unwrapExpression(element)))
-        : [];
-      const isFixtureBuild =
-        ts.isIdentifier(target) &&
-        target.text === "spawnSync" &&
-        values.length === 3 &&
-        values[0] === "run" &&
-        /^demo:[a-z0-9-]+:build$/.test(values[1] ?? "") &&
-        values[2] === "--silent";
-      if (isFixtureBuild) {
-        buildCalls += 1;
-        invariant(importsFixtureEnvironment, `${file}: fixture build must import createFixtureBuildEnvironment`);
-        const options = node.arguments[2];
-        invariant(options && ts.isObjectLiteralExpression(options), `${file}: fixture build options must be an object literal`);
-        const environmentProperty = options.properties.find(
-          (property) => ts.isPropertyAssignment(property) && propertyName(property.name) === "env",
-        );
-        invariant(environmentProperty, `${file}: fixture build must declare an explicit env option`);
-        const environmentCall = unwrapExpression(environmentProperty.initializer);
+      if (isModuleLoaderTarget(node.expression)) {
+        const moduleNames = node.arguments[0] ? resolveFiniteStrings(node.arguments[0]) : undefined;
         invariant(
-          ts.isCallExpression(environmentCall) &&
-            ts.isIdentifier(unwrapExpression(environmentCall.expression)) &&
-            unwrapExpression(environmentCall.expression).text === "createFixtureBuildEnvironment" &&
-            environmentCall.arguments.length <= 1,
-          `${file}: fixture build env must come directly from createFixtureBuildEnvironment`,
+          node.arguments.length === 1 && moduleNames,
+          `${file}: dynamic module loader specifiers must be statically bounded`,
         );
+      }
+      const api = resolveChildProcessApi(node.expression);
+      if (api) {
+        if (api === "exec" || api === "execSync") {
+          const commands = resolveFiniteStrings(node.arguments[0]);
+          invariant(commands, `${file}: ${api} command must be statically bounded`);
+          invariant(
+            commands.every((command) => {
+              const [executable, ...arguments_] = command.split(" ");
+              return isBoundedNonBuildLaunch([executable], [arguments_]);
+            }),
+            `${file}: ${api} permits only allowlisted non-build commands`,
+          );
+        } else {
+          const commands = resolveFiniteStrings(node.arguments[0]);
+          invariant(commands, `${file}: ${api} command must be statically bounded`);
+          const argvExpression = node.arguments[1] && unwrapExpression(node.arguments[1]);
+          const argv =
+            !argvExpression ||
+            ts.isObjectLiteralExpression(argvExpression) ||
+            ts.isFunctionExpression(argvExpression) ||
+            ts.isArrowFunction(argvExpression)
+              ? [[]]
+              : resolveStaticArgv(argvExpression);
+          invariant(argv, `${file}: ${api} argv must be statically bounded`);
+          const buildCandidates = (argv ?? []).filter((values) =>
+            values.some((value) => /(?:^|[^a-z0-9-])demo:[a-z0-9-]+:build(?:$|[^a-z0-9-])/i.test(value)),
+          );
+          if (buildCandidates.length > 0) {
+            invariant(
+              api === "spawnSync" &&
+                commands.every(isNpmExecutable) &&
+                buildCandidates.length === 1 &&
+                buildCandidates[0].length === 3 &&
+                buildCandidates[0][0] === "run" &&
+                /^demo:[a-z0-9-]+:build$/.test(buildCandidates[0][1]) &&
+                buildCandidates[0][2] === "--silent",
+              `${file}: unsupported fixture build invocation`,
+            );
+            validateFixtureEnvironment(node.arguments[2]);
+            buildScripts.push(buildCandidates[0][1]);
+          } else {
+            invariant(
+              isBoundedNonBuildLaunch(commands, argv),
+              `${file}: ${api} process launch is not a proven non-build command`,
+            );
+          }
+        }
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
-  return buildCalls;
+
+  const outerTransparentExpression = (node) => {
+    let current = node;
+    while (
+      current.parent &&
+      (ts.isParenthesizedExpression(current.parent) ||
+        ts.isAwaitExpression(current.parent) ||
+        ts.isAsExpression(current.parent) ||
+        ts.isTypeAssertionExpression(current.parent) ||
+        ts.isNonNullExpression(current.parent) ||
+        (ts.isSatisfiesExpression && ts.isSatisfiesExpression(current.parent))) &&
+      current.parent.expression === current
+    ) {
+      current = current.parent;
+    }
+    return current;
+  };
+
+  const isDeclarationOrPropertyName = (node) => {
+    const parent = node.parent;
+    return (
+      ts.isImportSpecifier(parent) ||
+      ts.isNamespaceImport(parent) ||
+      (ts.isImportClause(parent) && parent.name === node) ||
+      (ts.isVariableDeclaration(parent) && parent.name === node) ||
+      (ts.isBindingElement(parent) && (parent.name === node || parent.propertyName === node)) ||
+      (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
+      (ts.isPropertyAssignment(parent) && parent.name === node)
+    );
+  };
+
+  const assertChildProcessReferencesDoNotEscape = (node) => {
+    const isPotentialReference =
+      (ts.isIdentifier(node) && !isDeclarationOrPropertyName(node)) ||
+      ts.isPropertyAccessExpression(node) ||
+      ts.isElementAccessExpression(node);
+    if (isPotentialReference && resolveChildProcessApi(node)) {
+      const expression = outerTransparentExpression(node);
+      const parent = expression.parent;
+      const isDirectCall = ts.isCallExpression(parent) && parent.expression === expression;
+      const isConstAlias =
+        ts.isVariableDeclaration(parent) && parent.initializer === expression && isConstVariableDeclaration(parent);
+      invariant(
+        isDirectCall || isConstAlias,
+        `${file}: child-process launch functions cannot escape direct calls or const aliases`,
+      );
+    }
+    const isPotentialNamespaceReference =
+      (ts.isIdentifier(node) && !isDeclarationOrPropertyName(node)) ||
+      ts.isCallExpression(node) ||
+      ts.isAwaitExpression(node);
+    if (isPotentialNamespaceReference && isChildProcessNamespace(node)) {
+      const expression = outerTransparentExpression(node);
+      const parent = expression.parent;
+      const isStaticMember =
+        (ts.isPropertyAccessExpression(parent) && parent.expression === expression) ||
+        (ts.isElementAccessExpression(parent) &&
+          parent.expression === expression &&
+          stringLiteralValue(unwrapExpression(parent.argumentExpression)) !== undefined);
+      const isConstAlias =
+        ts.isVariableDeclaration(parent) && parent.initializer === expression && isConstVariableDeclaration(parent);
+      invariant(isStaticMember || isConstAlias, `${file}: child-process namespaces cannot escape static member access`);
+    }
+    ts.forEachChild(node, assertChildProcessReferencesDoNotEscape);
+  };
+  assertChildProcessReferencesDoNotEscape(sourceFile);
+
+  if (expectedBuildScript !== undefined) {
+    invariant(
+      buildScripts.length === 1 && buildScripts[0] === expectedBuildScript,
+      `${file}: expected exactly one ${expectedBuildScript} fixture build, found ${buildScripts.join(", ") || "none"}`,
+    );
+  }
+  return buildScripts.length;
 }
 
 let fixtureBuildHarnessValidation;
@@ -957,12 +1673,24 @@ export async function validateFixtureBuildHarnesses() {
   fixtureBuildHarnessValidation ??= (async () => {
     const files = (await walkFiles("examples")).filter((file) => file.endsWith("/mock-server.mjs"));
     let buildCalls = 0;
+    const validatedHarnesses = new Set();
     for (const file of files) {
-      buildCalls += validateFixtureBuildHarnessSource(await readFile(path.join(PROJECT_ROOT, file), "utf8"), file);
+      const expectedBuildScript = EXPECTED_FIXTURE_BUILD_HARNESSES.get(file);
+      const fileBuildCalls = validateFixtureBuildHarnessSource(
+        await readFile(path.join(PROJECT_ROOT, file), "utf8"),
+        file,
+        expectedBuildScript,
+      );
+      invariant(
+        expectedBuildScript !== undefined || fileBuildCalls === 0,
+        `${file}: fixture build harness is not in the approved file-to-script inventory`,
+      );
+      if (expectedBuildScript !== undefined) validatedHarnesses.add(file);
+      buildCalls += fileBuildCalls;
     }
     invariant(
-      buildCalls === EXPECTED_FIXTURE_BUILD_HARNESS_COUNT,
-      `fixture build harness inventory drift: expected ${EXPECTED_FIXTURE_BUILD_HARNESS_COUNT}, found ${buildCalls}`,
+      validatedHarnesses.size === EXPECTED_FIXTURE_BUILD_HARNESSES.size,
+      `fixture build harness inventory drift: expected ${EXPECTED_FIXTURE_BUILD_HARNESSES.size}, found ${validatedHarnesses.size}`,
     );
     return buildCalls;
   })();
