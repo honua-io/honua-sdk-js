@@ -29,6 +29,7 @@ on:
       - "scripts/docs-versions.mjs"
       - "scripts/generate-llms-txt.mjs"
       - "scripts/generate-comparison-page.mjs"
+      - "scripts/lib/docs-gallery-client.mjs"
       - "scripts/lib/docs-gallery.mjs"
       - "scripts/sample-contract.mjs"
       - "test/scripts/docs-gallery.test.mjs"
